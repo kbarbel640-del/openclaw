@@ -6,24 +6,25 @@
  * that can be fed into sessions_spawn_batch.
  */
 
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { AnyAgentTool } from "./common.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { analyzeTaskForDecomposition, processDecomposition } from "../task-decomposition.js";
 import { jsonResult } from "./common.js";
 
-const TaskDecomposeToolSchema = Type.Object({
-  task: Type.String({ description: "The complex task to decompose into subtasks" }),
-  subtasks: Type.Optional(
-    Type.Array(
-      Type.Object({
-        id: Type.String(),
-        description: Type.String(),
-        dependencies: Type.Optional(Type.Array(Type.String())),
-        requiredCapabilities: Type.Optional(Type.Array(Type.String())),
-      }),
-    ),
-  ),
+const subtaskShape = z.object({
+  id: z.string(),
+  description: z.string(),
+  dependencies: z.array(z.string()).optional(),
+  requiredCapabilities: z.array(z.string()).optional(),
 });
+
+const TaskDecomposeToolSchema = zodToToolJsonSchema(
+  z.object({
+    task: z.string().describe("The complex task to decompose into subtasks"),
+    subtasks: z.array(subtaskShape).optional(),
+  }),
+);
 
 export function createTaskDecomposeTool(): AnyAgentTool {
   return {

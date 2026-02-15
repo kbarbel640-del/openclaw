@@ -1,106 +1,98 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString, SessionLabelString } from "./primitives.js";
 
-export const AgentEventSchema = Type.Object(
-  {
+export const AgentEventSchema = z
+  .object({
     runId: NonEmptyString,
-    seq: Type.Integer({ minimum: 0 }),
+    seq: z.number().int().min(0),
     stream: NonEmptyString,
-    ts: Type.Integer({ minimum: 0 }),
-    data: Type.Record(Type.String(), Type.Unknown()),
-  },
-  { additionalProperties: false },
-);
+    ts: z.number().int().min(0),
+    data: z.record(z.string(), z.unknown()),
+  })
+  .strict();
 
-export const SendParamsSchema = Type.Object(
-  {
+export const SendParamsSchema = z
+  .object({
     to: NonEmptyString,
     message: NonEmptyString,
-    mediaUrl: Type.Optional(Type.String()),
-    mediaUrls: Type.Optional(Type.Array(Type.String())),
-    gifPlayback: Type.Optional(Type.Boolean()),
-    channel: Type.Optional(Type.String()),
-    accountId: Type.Optional(Type.String()),
+    mediaUrl: z.string().optional(),
+    mediaUrls: z.array(z.string()).optional(),
+    gifPlayback: z.boolean().optional(),
+    channel: z.string().optional(),
+    accountId: z.string().optional(),
     /** Optional session key for mirroring delivered output back into the transcript. */
-    sessionKey: Type.Optional(Type.String()),
+    sessionKey: z.string().optional(),
     idempotencyKey: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const PollParamsSchema = Type.Object(
-  {
+export const PollParamsSchema = z
+  .object({
     to: NonEmptyString,
     question: NonEmptyString,
-    options: Type.Array(NonEmptyString, { minItems: 2, maxItems: 12 }),
-    maxSelections: Type.Optional(Type.Integer({ minimum: 1, maximum: 12 })),
-    durationHours: Type.Optional(Type.Integer({ minimum: 1 })),
-    channel: Type.Optional(Type.String()),
-    accountId: Type.Optional(Type.String()),
+    options: z.array(NonEmptyString).min(2).max(12),
+    maxSelections: z.number().int().min(1).max(12).optional(),
+    durationHours: z.number().int().min(1).optional(),
+    channel: z.string().optional(),
+    accountId: z.string().optional(),
     idempotencyKey: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const AgentParamsSchema = Type.Object(
-  {
+export const AgentParamsSchema = z
+  .object({
     message: NonEmptyString,
-    agentId: Type.Optional(NonEmptyString),
-    to: Type.Optional(Type.String()),
-    replyTo: Type.Optional(Type.String()),
-    sessionId: Type.Optional(Type.String()),
-    sessionKey: Type.Optional(Type.String()),
-    thinking: Type.Optional(Type.String()),
-    deliver: Type.Optional(Type.Boolean()),
-    attachments: Type.Optional(Type.Array(Type.Unknown())),
-    channel: Type.Optional(Type.String()),
-    replyChannel: Type.Optional(Type.String()),
-    accountId: Type.Optional(Type.String()),
-    replyAccountId: Type.Optional(Type.String()),
-    threadId: Type.Optional(Type.String()),
-    groupId: Type.Optional(Type.String()),
-    groupChannel: Type.Optional(Type.String()),
-    groupSpace: Type.Optional(Type.String()),
-    timeout: Type.Optional(Type.Integer({ minimum: 0 })),
-    lane: Type.Optional(Type.String()),
-    extraSystemPrompt: Type.Optional(Type.String()),
+    agentId: NonEmptyString.optional(),
+    to: z.string().optional(),
+    replyTo: z.string().optional(),
+    sessionId: z.string().optional(),
+    sessionKey: z.string().optional(),
+    thinking: z.string().optional(),
+    deliver: z.boolean().optional(),
+    attachments: z.array(z.unknown()).optional(),
+    channel: z.string().optional(),
+    replyChannel: z.string().optional(),
+    accountId: z.string().optional(),
+    replyAccountId: z.string().optional(),
+    threadId: z.string().optional(),
+    groupId: z.string().optional(),
+    groupChannel: z.string().optional(),
+    groupSpace: z.string().optional(),
+    timeout: z.number().int().min(0).optional(),
+    lane: z.string().optional(),
+    extraSystemPrompt: z.string().optional(),
     idempotencyKey: NonEmptyString,
-    label: Type.Optional(SessionLabelString),
-    spawnedBy: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+    label: SessionLabelString.optional(),
+    spawnedBy: z.string().optional(),
+  })
+  .strict();
 
-export const AgentIdentityParamsSchema = Type.Object(
-  {
-    agentId: Type.Optional(NonEmptyString),
-    sessionKey: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+export const AgentIdentityParamsSchema = z
+  .object({
+    agentId: NonEmptyString.optional(),
+    sessionKey: z.string().optional(),
+  })
+  .strict();
 
-export const AgentIdentityResultSchema = Type.Object(
-  {
+export const AgentIdentityResultSchema = z
+  .object({
     agentId: NonEmptyString,
-    name: Type.Optional(NonEmptyString),
-    avatar: Type.Optional(NonEmptyString),
-    emoji: Type.Optional(NonEmptyString),
-  },
-  { additionalProperties: false },
-);
+    name: NonEmptyString.optional(),
+    avatar: NonEmptyString.optional(),
+    emoji: NonEmptyString.optional(),
+  })
+  .strict();
 
-export const AgentWaitParamsSchema = Type.Object(
-  {
+export const AgentWaitParamsSchema = z
+  .object({
     runId: NonEmptyString,
-    timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
-  },
-  { additionalProperties: false },
-);
+    timeoutMs: z.number().int().min(0).optional(),
+  })
+  .strict();
 
-export const WakeParamsSchema = Type.Object(
-  {
-    mode: Type.Union([Type.Literal("now"), Type.Literal("next-heartbeat")]),
+export const WakeParamsSchema = z
+  .object({
+    mode: z.enum(["now", "next-heartbeat"]),
     text: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();

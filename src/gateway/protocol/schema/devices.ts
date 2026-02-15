@@ -1,61 +1,51 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString } from "./primitives.js";
 
-export const DevicePairListParamsSchema = Type.Object({}, { additionalProperties: false });
+export const DevicePairListParamsSchema = z.object({}).strict();
 
-export const DevicePairApproveParamsSchema = Type.Object(
-  { requestId: NonEmptyString },
-  { additionalProperties: false },
-);
+export const DevicePairApproveParamsSchema = z.object({ requestId: NonEmptyString }).strict();
 
-export const DevicePairRejectParamsSchema = Type.Object(
-  { requestId: NonEmptyString },
-  { additionalProperties: false },
-);
+export const DevicePairRejectParamsSchema = z.object({ requestId: NonEmptyString }).strict();
 
-export const DeviceTokenRotateParamsSchema = Type.Object(
-  {
+export const DeviceTokenRotateParamsSchema = z
+  .object({
     deviceId: NonEmptyString,
     role: NonEmptyString,
-    scopes: Type.Optional(Type.Array(NonEmptyString)),
-  },
-  { additionalProperties: false },
-);
+    scopes: z.array(NonEmptyString).optional(),
+  })
+  .strict();
 
-export const DeviceTokenRevokeParamsSchema = Type.Object(
-  {
+export const DeviceTokenRevokeParamsSchema = z
+  .object({
     deviceId: NonEmptyString,
     role: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const DevicePairRequestedEventSchema = Type.Object(
-  {
+export const DevicePairRequestedEventSchema = z
+  .object({
     requestId: NonEmptyString,
     deviceId: NonEmptyString,
     publicKey: NonEmptyString,
-    displayName: Type.Optional(NonEmptyString),
-    platform: Type.Optional(NonEmptyString),
-    clientId: Type.Optional(NonEmptyString),
-    clientMode: Type.Optional(NonEmptyString),
-    role: Type.Optional(NonEmptyString),
-    roles: Type.Optional(Type.Array(NonEmptyString)),
-    scopes: Type.Optional(Type.Array(NonEmptyString)),
-    remoteIp: Type.Optional(NonEmptyString),
-    silent: Type.Optional(Type.Boolean()),
-    isRepair: Type.Optional(Type.Boolean()),
-    ts: Type.Integer({ minimum: 0 }),
-  },
-  { additionalProperties: false },
-);
+    displayName: NonEmptyString.optional(),
+    platform: NonEmptyString.optional(),
+    clientId: NonEmptyString.optional(),
+    clientMode: NonEmptyString.optional(),
+    role: NonEmptyString.optional(),
+    roles: z.array(NonEmptyString).optional(),
+    scopes: z.array(NonEmptyString).optional(),
+    remoteIp: NonEmptyString.optional(),
+    silent: z.boolean().optional(),
+    isRepair: z.boolean().optional(),
+    ts: z.number().int().min(0),
+  })
+  .strict();
 
-export const DevicePairResolvedEventSchema = Type.Object(
-  {
+export const DevicePairResolvedEventSchema = z
+  .object({
     requestId: NonEmptyString,
     deviceId: NonEmptyString,
     decision: NonEmptyString,
-    ts: Type.Integer({ minimum: 0 }),
-  },
-  { additionalProperties: false },
-);
+    ts: z.number().int().min(0),
+  })
+  .strict();

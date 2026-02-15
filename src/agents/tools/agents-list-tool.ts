@@ -1,4 +1,4 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { AnyAgentTool } from "./common.js";
 import { loadConfig } from "../../config/config.js";
 import {
@@ -8,10 +8,11 @@ import {
 } from "../../routing/session-key.js";
 import { resolveAgentConfig } from "../agent-scope.js";
 import { getAgentCapabilities } from "../capabilities-registry.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { jsonResult } from "./common.js";
 import { resolveInternalSessionKey, resolveMainSessionAlias } from "./sessions-helpers.js";
 
-const AgentsListToolSchema = Type.Object({});
+const AgentsListToolSchema = zodToToolJsonSchema(z.object({}));
 
 type AgentListEntry = {
   id: string;

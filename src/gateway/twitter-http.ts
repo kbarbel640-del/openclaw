@@ -24,12 +24,13 @@ export async function handleTwitterHttpRequest(
       });
       res.end(JSON.stringify(data, null, 2));
       return true;
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as { message?: string };
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
           error: "Failed to fetch Twitter data",
-          message: error.message,
+          message: err.message ?? String(error),
         }),
       );
       return true;
@@ -48,12 +49,13 @@ export async function handleTwitterHttpRequest(
       });
       res.end(JSON.stringify(data, null, 2));
       return true;
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as { message?: string };
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
           error: "Failed to fetch Twitter relationships",
-          message: error.message,
+          message: err.message ?? String(error),
         }),
       );
       return true;

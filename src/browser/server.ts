@@ -1,11 +1,12 @@
 import type { Server } from "node:http";
-import express from "express";
-import type { BrowserRouteRegistrar } from "./routes/types.js";
+import { node } from "@elysiajs/node";
+import { Elysia } from "elysia";
 import { loadConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveBrowserConfig, resolveProfile } from "./config.js";
 import { ensureChromeExtensionRelayServer } from "./extension-relay.js";
 import { registerBrowserRoutes } from "./routes/index.js";
+import { createBrowserRouteAdapter } from "./routes/types.js";
 import { type BrowserServerState, createBrowserRouteContext } from "./server-context.js";
 
 let state: BrowserServerState | null = null;
@@ -23,18 +24,27 @@ export async function startBrowserControlServerFromConfig(): Promise<BrowserServ
     return null;
   }
 
-  const app = express();
-  app.use(express.json({ limit: "1mb" }));
+  const app = new Elysia({ adapter: node() });
+  const registrar = createBrowserRouteAdapter(app);
 
   const ctx = createBrowserRouteContext({
     getState: () => state,
   });
-  registerBrowserRoutes(app as unknown as BrowserRouteRegistrar, ctx);
+  registerBrowserRoutes(registrar, ctx);
 
   const port = resolved.controlPort;
   const server = await new Promise<Server>((resolve, reject) => {
-    const s = app.listen(port, "127.0.0.1", () => resolve(s));
-    s.once("error", reject);
+    const instance = app.listen({ port, hostname: "127.0.0.1" }) as unknown as { server?: Server };
+    if (instance.server) {
+      instance.server.once("listening", () => {
+        if (instance.server) {
+          resolve(instance.server);
+        }
+      });
+      instance.server.once("error", reject);
+    } else {
+      reject(new Error("Failed to create HTTP server"));
+    }
   }).catch((err) => {
     logServer.error(`openclaw browser server failed to bind 127.0.0.1:${port}: ${String(err)}`);
     return null;

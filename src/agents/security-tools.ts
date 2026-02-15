@@ -5,7 +5,7 @@
  * and analyze system security events.
  */
 
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { loadConfig } from "../config/config.js";
 import { runSecurityAudit } from "../security/audit.js";
 import {
@@ -18,6 +18,7 @@ import {
   type SecurityEventQueryOptions,
 } from "../security/events-store.js";
 import { type SecurityEventCategory, type SecurityEventSeverity } from "../security/events.js";
+import { zodToToolJsonSchema } from "./schema/zod-tool-schema.js";
 import {
   type AnyAgentTool,
   jsonResult,
@@ -66,31 +67,21 @@ Use this tool to:
 - Find events for a specific session, user, or IP address
 - Search for events within a time range
 - Find blocked/prevented security threats`,
-    parameters: Type.Object({
-      startTime: Type.Optional(Type.Number({ description: "Start timestamp (Unix milliseconds)" })),
-      endTime: Type.Optional(Type.Number({ description: "End timestamp (Unix milliseconds)" })),
-      categories: Type.Optional(
-        Type.Array(Type.String(), { description: "Filter by event categories" }),
-      ),
-      severities: Type.Optional(
-        Type.Array(Type.String(), { description: "Filter by severity levels" }),
-      ),
-      sessionKey: Type.Optional(Type.String({ description: "Filter by session key" })),
-      userId: Type.Optional(Type.String({ description: "Filter by user/sender ID" })),
-      ipAddress: Type.Optional(Type.String({ description: "Filter by IP address" })),
-      channel: Type.Optional(
-        Type.String({ description: "Filter by channel (telegram, discord, etc.)" }),
-      ),
-      action: Type.Optional(
-        Type.String({ description: "Filter by action (supports * prefix matching)" }),
-      ),
-      blockedOnly: Type.Optional(
-        Type.Boolean({ description: "Only return blocked/prevented events" }),
-      ),
-      limit: Type.Optional(
-        Type.Number({ description: "Maximum events to return (default: 100, max: 500)" }),
-      ),
-    }),
+    parameters: zodToToolJsonSchema(
+      z.object({
+        startTime: z.number().describe("Start timestamp (Unix milliseconds)").optional(),
+        endTime: z.number().describe("End timestamp (Unix milliseconds)").optional(),
+        categories: z.array(z.string()).describe("Filter by event categories").optional(),
+        severities: z.array(z.string()).describe("Filter by severity levels").optional(),
+        sessionKey: z.string().describe("Filter by session key").optional(),
+        userId: z.string().describe("Filter by user/sender ID").optional(),
+        ipAddress: z.string().describe("Filter by IP address").optional(),
+        channel: z.string().describe("Filter by channel (telegram, discord, etc.)").optional(),
+        action: z.string().describe("Filter by action (supports * prefix matching)").optional(),
+        blockedOnly: z.boolean().describe("Only return blocked/prevented events").optional(),
+        limit: z.number().describe("Maximum events to return (default: 100, max: 500)").optional(),
+      }),
+    ),
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const options: SecurityEventQueryOptions = {
@@ -156,10 +147,12 @@ export function createSecurityStatsTool(): AnyAgentTool {
 
 Returns aggregated counts of events by category and severity, total blocked events,
 and the time range of events. Use this to get a high-level overview of security status.`,
-    parameters: Type.Object({
-      startTime: Type.Optional(Type.Number({ description: "Start timestamp (Unix milliseconds)" })),
-      endTime: Type.Optional(Type.Number({ description: "End timestamp (Unix milliseconds)" })),
-    }),
+    parameters: zodToToolJsonSchema(
+      z.object({
+        startTime: z.number().describe("Start timestamp (Unix milliseconds)").optional(),
+        endTime: z.number().describe("End timestamp (Unix milliseconds)").optional(),
+      }),
+    ),
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const stats = await getSecurityEventStats({
@@ -192,11 +185,11 @@ export function createSecurityAlertsTool(): AnyAgentTool {
 
 Returns the most recent high-priority security events that may require attention.
 Use this to check if there are any active security threats or incidents.`,
-    parameters: Type.Object({
-      limit: Type.Optional(
-        Type.Number({ description: "Maximum alerts to return (default: 50, max: 200)" }),
-      ),
-    }),
+    parameters: zodToToolJsonSchema(
+      z.object({
+        limit: z.number().describe("Maximum alerts to return (default: 50, max: 200)").optional(),
+      }),
+    ),
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const limit = Math.min(readNumberParam(params, "limit") ?? 50, 200);
@@ -231,11 +224,11 @@ export function createSecurityBlockedTool(): AnyAgentTool {
 
 Returns events where a potential attack or unauthorized action was blocked.
 Use this to analyze attack patterns and verify that security controls are working.`,
-    parameters: Type.Object({
-      limit: Type.Optional(
-        Type.Number({ description: "Maximum events to return (default: 50, max: 200)" }),
-      ),
-    }),
+    parameters: zodToToolJsonSchema(
+      z.object({
+        limit: z.number().describe("Maximum events to return (default: 50, max: 200)").optional(),
+      }),
+    ),
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const limit = Math.min(readNumberParam(params, "limit") ?? 50, 200);
@@ -269,12 +262,12 @@ export function createSecuritySessionTool(): AnyAgentTool {
 
 Use this to analyze all security-related events for a particular session key.
 Helpful for understanding what happened during a suspicious session.`,
-    parameters: Type.Object({
-      sessionKey: Type.String({ description: "The session key to investigate" }),
-      limit: Type.Optional(
-        Type.Number({ description: "Maximum events to return (default: 100, max: 500)" }),
-      ),
-    }),
+    parameters: zodToToolJsonSchema(
+      z.object({
+        sessionKey: z.string().describe("The session key to investigate"),
+        limit: z.number().describe("Maximum events to return (default: 100, max: 500)").optional(),
+      }),
+    ),
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const sessionKey = readStringParam(params, "sessionKey", { required: true });
@@ -311,12 +304,12 @@ export function createSecurityIpInvestigateTool(): AnyAgentTool {
 
 Use this to analyze activity from a suspicious IP address.
 Helpful for detecting attack patterns or compromised clients.`,
-    parameters: Type.Object({
-      ipAddress: Type.String({ description: "The IP address to investigate" }),
-      limit: Type.Optional(
-        Type.Number({ description: "Maximum events to return (default: 100, max: 500)" }),
-      ),
-    }),
+    parameters: zodToToolJsonSchema(
+      z.object({
+        ipAddress: z.string().describe("The IP address to investigate"),
+        limit: z.number().describe("Maximum events to return (default: 100, max: 500)").optional(),
+      }),
+    ),
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const ipAddress = readStringParam(params, "ipAddress", { required: true });
@@ -354,11 +347,11 @@ export function createSecurityAuditTool(): AnyAgentTool {
 
 Returns a list of security findings categorized by severity (critical, warn, info).
 Use this to identify potential security misconfigurations or vulnerabilities.`,
-    parameters: Type.Object({
-      deep: Type.Optional(
-        Type.Boolean({ description: "Perform deep probe (checks live connectivity)" }),
-      ),
-    }),
+    parameters: zodToToolJsonSchema(
+      z.object({
+        deep: z.boolean().describe("Perform deep probe (checks live connectivity)").optional(),
+      }),
+    ),
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const deep = params.deep === true;
@@ -405,7 +398,7 @@ export function createSecuritySummaryTool(): AnyAgentTool {
 
 Returns an overview including total events, critical/high counts, blocked events,
 and recent alerts. Use this for a quick health check of system security.`,
-    parameters: Type.Object({}),
+    parameters: zodToToolJsonSchema(z.object({})),
     execute: async () => {
       const now = Date.now();
       const oneDayAgo = now - 24 * 60 * 60 * 1000;

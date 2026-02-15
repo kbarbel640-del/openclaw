@@ -1,101 +1,83 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString } from "./primitives.js";
 
-export const NodePairRequestParamsSchema = Type.Object(
-  {
+export const NodePairRequestParamsSchema = z
+  .object({
     nodeId: NonEmptyString,
-    displayName: Type.Optional(NonEmptyString),
-    platform: Type.Optional(NonEmptyString),
-    version: Type.Optional(NonEmptyString),
-    coreVersion: Type.Optional(NonEmptyString),
-    uiVersion: Type.Optional(NonEmptyString),
-    deviceFamily: Type.Optional(NonEmptyString),
-    modelIdentifier: Type.Optional(NonEmptyString),
-    caps: Type.Optional(Type.Array(NonEmptyString)),
-    commands: Type.Optional(Type.Array(NonEmptyString)),
-    remoteIp: Type.Optional(NonEmptyString),
-    silent: Type.Optional(Type.Boolean()),
-  },
-  { additionalProperties: false },
-);
+    displayName: NonEmptyString.optional(),
+    platform: NonEmptyString.optional(),
+    version: NonEmptyString.optional(),
+    coreVersion: NonEmptyString.optional(),
+    uiVersion: NonEmptyString.optional(),
+    deviceFamily: NonEmptyString.optional(),
+    modelIdentifier: NonEmptyString.optional(),
+    caps: z.array(NonEmptyString).optional(),
+    commands: z.array(NonEmptyString).optional(),
+    remoteIp: NonEmptyString.optional(),
+    silent: z.boolean().optional(),
+  })
+  .strict();
 
-export const NodePairListParamsSchema = Type.Object({}, { additionalProperties: false });
+export const NodePairListParamsSchema = z.object({}).strict();
 
-export const NodePairApproveParamsSchema = Type.Object(
-  { requestId: NonEmptyString },
-  { additionalProperties: false },
-);
+export const NodePairApproveParamsSchema = z.object({ requestId: NonEmptyString }).strict();
 
-export const NodePairRejectParamsSchema = Type.Object(
-  { requestId: NonEmptyString },
-  { additionalProperties: false },
-);
+export const NodePairRejectParamsSchema = z.object({ requestId: NonEmptyString }).strict();
 
-export const NodePairVerifyParamsSchema = Type.Object(
-  { nodeId: NonEmptyString, token: NonEmptyString },
-  { additionalProperties: false },
-);
+export const NodePairVerifyParamsSchema = z
+  .object({ nodeId: NonEmptyString, token: NonEmptyString })
+  .strict();
 
-export const NodeRenameParamsSchema = Type.Object(
-  { nodeId: NonEmptyString, displayName: NonEmptyString },
-  { additionalProperties: false },
-);
+export const NodeRenameParamsSchema = z
+  .object({ nodeId: NonEmptyString, displayName: NonEmptyString })
+  .strict();
 
-export const NodeListParamsSchema = Type.Object({}, { additionalProperties: false });
+export const NodeListParamsSchema = z.object({}).strict();
 
-export const NodeDescribeParamsSchema = Type.Object(
-  { nodeId: NonEmptyString },
-  { additionalProperties: false },
-);
+export const NodeDescribeParamsSchema = z.object({ nodeId: NonEmptyString }).strict();
 
-export const NodeInvokeParamsSchema = Type.Object(
-  {
+export const NodeInvokeParamsSchema = z
+  .object({
     nodeId: NonEmptyString,
     command: NonEmptyString,
-    params: Type.Optional(Type.Unknown()),
-    timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    params: z.unknown().optional(),
+    timeoutMs: z.number().int().min(0).optional(),
     idempotencyKey: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const NodeInvokeResultParamsSchema = Type.Object(
-  {
+export const NodeInvokeResultParamsSchema = z
+  .object({
     id: NonEmptyString,
     nodeId: NonEmptyString,
-    ok: Type.Boolean(),
-    payload: Type.Optional(Type.Unknown()),
-    payloadJSON: Type.Optional(Type.String()),
-    error: Type.Optional(
-      Type.Object(
-        {
-          code: Type.Optional(NonEmptyString),
-          message: Type.Optional(NonEmptyString),
-        },
-        { additionalProperties: false },
-      ),
-    ),
-  },
-  { additionalProperties: false },
-);
+    ok: z.boolean(),
+    payload: z.unknown().optional(),
+    payloadJSON: z.string().optional(),
+    error: z
+      .object({
+        code: NonEmptyString.optional(),
+        message: NonEmptyString.optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 
-export const NodeEventParamsSchema = Type.Object(
-  {
+export const NodeEventParamsSchema = z
+  .object({
     event: NonEmptyString,
-    payload: Type.Optional(Type.Unknown()),
-    payloadJSON: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+    payload: z.unknown().optional(),
+    payloadJSON: z.string().optional(),
+  })
+  .strict();
 
-export const NodeInvokeRequestEventSchema = Type.Object(
-  {
+export const NodeInvokeRequestEventSchema = z
+  .object({
     id: NonEmptyString,
     nodeId: NonEmptyString,
     command: NonEmptyString,
-    paramsJSON: Type.Optional(Type.String()),
-    timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
-    idempotencyKey: Type.Optional(NonEmptyString),
-  },
-  { additionalProperties: false },
-);
+    paramsJSON: z.string().optional(),
+    timeoutMs: z.number().int().min(0).optional(),
+    idempotencyKey: NonEmptyString.optional(),
+  })
+  .strict();

@@ -4,14 +4,15 @@
  */
 
 // =============================================================================
-// 1. ADD ROUTES TO EXPRESS APP (src/index.ts or wherever routes are mounted)
+// 1. ADD ROUTES TO ELYSIA APP (src/index.ts or wherever routes are mounted)
 // =============================================================================
 
 /*
 import { metricsRoutes } from "./agents/metrics-routes.js";
 
-// Add this line where other routes are mounted
-app.use("/api/models", metricsRoutes);
+// Add this line where other routes are mounted (Elysia plugin)
+app.use(metricsRoutes);
+// The plugin is configured with prefix: "/metrics", so routes will be at /metrics, /metrics/summary
 */
 
 // =============================================================================
@@ -177,4 +178,7 @@ setProviderMetrics(createNoopProviderMetrics());
 // DONE! That's it. Provider metrics will now auto-collect.
 // =============================================================================
 
-export {};
+// This file contains example code snippets for documentation purposes.
+// The examples above show how to integrate provider metrics with your app.
+
+const _exampleFile = true;

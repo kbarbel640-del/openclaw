@@ -83,10 +83,10 @@ function schedulePlaceholderScan(root: HTMLElement): void {
 function processPlaceholdersIn(root: HTMLElement): void {
   const selector = ".mermaid-placeholder:not(.mermaid-rendering)";
   if (root.matches?.(selector)) {
-    renderPlaceholder(root);
+    void renderPlaceholder(root);
   }
   for (const el of root.querySelectorAll<HTMLElement>(selector)) {
-    renderPlaceholder(el);
+    void renderPlaceholder(el);
   }
 }
 

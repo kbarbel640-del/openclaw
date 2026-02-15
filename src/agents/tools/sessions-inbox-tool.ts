@@ -1,17 +1,20 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { AnyAgentTool } from "./common.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { readInboxByAgent, readInboxBySession } from "./agent-inbox.js";
 import { jsonResult } from "./common.js";
 
-const SessionsInboxToolSchema = Type.Object({
-  scope: Type.Optional(
-    Type.String({
-      description:
+const SessionsInboxToolSchema = zodToToolJsonSchema(
+  z.object({
+    scope: z
+      .string()
+      .describe(
         'Read scope: "session" (messages to this session) or "agent" (all messages to this agent). Default: "agent".',
-    }),
-  ),
-});
+      )
+      .optional(),
+  }),
+);
 
 export function createSessionsInboxTool(opts?: { agentSessionKey?: string }): AnyAgentTool {
   return {

@@ -1,8 +1,9 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { AnyAgentTool } from "./common.js";
 import { loadConfig } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
 import { isSubagentSessionKey, resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { jsonResult, readStringParam } from "./common.js";
 import {
   createAgentToAgentPolicy,
@@ -13,11 +14,13 @@ import {
   stripToolMessages,
 } from "./sessions-helpers.js";
 
-const SessionsHistoryToolSchema = Type.Object({
-  sessionKey: Type.String(),
-  limit: Type.Optional(Type.Number({ minimum: 1 })),
-  includeTools: Type.Optional(Type.Boolean()),
-});
+const SessionsHistoryToolSchema = zodToToolJsonSchema(
+  z.object({
+    sessionKey: z.string(),
+    limit: z.number().min(1).optional(),
+    includeTools: z.boolean().optional(),
+  }),
+);
 
 function resolveSandboxSessionToolsVisibility(cfg: ReturnType<typeof loadConfig>) {
   return cfg.agents?.defaults?.sandbox?.sessionToolsVisibility ?? "spawned";

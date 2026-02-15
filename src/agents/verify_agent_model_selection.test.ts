@@ -2,13 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import type { ModelCatalogEntry } from "./model-catalog.js";
 import {
-  rankModelsForRole,
   initAutoModelSelection,
   getAutoSelectedModel,
   resetAutoModelSelection,
 } from "./model-auto-select.js";
-import { MODEL_CAPABILITIES_REGISTRY } from "./model-capabilities.js";
-import { resolveDefaultModelForAgent, resolveModelForTaskType } from "./model-selection.js";
+import { resolveDefaultModelForAgent } from "./model-selection.js";
 
 // Mock configuration
 const MOCK_CONFIG: OpenClawConfig = {

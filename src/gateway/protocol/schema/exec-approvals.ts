@@ -1,112 +1,100 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString } from "./primitives.js";
 
-export const ExecApprovalsAllowlistEntrySchema = Type.Object(
-  {
-    id: Type.Optional(NonEmptyString),
-    pattern: Type.String(),
-    lastUsedAt: Type.Optional(Type.Integer({ minimum: 0 })),
-    lastUsedCommand: Type.Optional(Type.String()),
-    lastResolvedPath: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+export const ExecApprovalsAllowlistEntrySchema = z
+  .object({
+    id: NonEmptyString.optional(),
+    pattern: z.string(),
+    lastUsedAt: z.number().int().min(0).optional(),
+    lastUsedCommand: z.string().optional(),
+    lastResolvedPath: z.string().optional(),
+  })
+  .strict();
 
-export const ExecApprovalsDefaultsSchema = Type.Object(
-  {
-    security: Type.Optional(Type.String()),
-    ask: Type.Optional(Type.String()),
-    askFallback: Type.Optional(Type.String()),
-    autoAllowSkills: Type.Optional(Type.Boolean()),
-  },
-  { additionalProperties: false },
-);
+export const ExecApprovalsDefaultsSchema = z
+  .object({
+    security: z.string().optional(),
+    ask: z.string().optional(),
+    askFallback: z.string().optional(),
+    autoAllowSkills: z.boolean().optional(),
+  })
+  .strict();
 
-export const ExecApprovalsAgentSchema = Type.Object(
-  {
-    security: Type.Optional(Type.String()),
-    ask: Type.Optional(Type.String()),
-    askFallback: Type.Optional(Type.String()),
-    autoAllowSkills: Type.Optional(Type.Boolean()),
-    allowlist: Type.Optional(Type.Array(ExecApprovalsAllowlistEntrySchema)),
-  },
-  { additionalProperties: false },
-);
+export const ExecApprovalsAgentSchema = z
+  .object({
+    security: z.string().optional(),
+    ask: z.string().optional(),
+    askFallback: z.string().optional(),
+    autoAllowSkills: z.boolean().optional(),
+    allowlist: z.array(ExecApprovalsAllowlistEntrySchema).optional(),
+  })
+  .strict();
 
-export const ExecApprovalsFileSchema = Type.Object(
-  {
-    version: Type.Literal(1),
-    socket: Type.Optional(
-      Type.Object(
-        {
-          path: Type.Optional(Type.String()),
-          token: Type.Optional(Type.String()),
-        },
-        { additionalProperties: false },
-      ),
-    ),
-    defaults: Type.Optional(ExecApprovalsDefaultsSchema),
-    agents: Type.Optional(Type.Record(Type.String(), ExecApprovalsAgentSchema)),
-  },
-  { additionalProperties: false },
-);
+export const ExecApprovalsFileSchema = z
+  .object({
+    version: z.literal(1),
+    socket: z
+      .object({
+        path: z.string().optional(),
+        token: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    defaults: ExecApprovalsDefaultsSchema.optional(),
+    agents: z.record(z.string(), ExecApprovalsAgentSchema).optional(),
+  })
+  .strict();
 
-export const ExecApprovalsSnapshotSchema = Type.Object(
-  {
+export const ExecApprovalsSnapshotSchema = z
+  .object({
     path: NonEmptyString,
-    exists: Type.Boolean(),
+    exists: z.boolean(),
     hash: NonEmptyString,
     file: ExecApprovalsFileSchema,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const ExecApprovalsGetParamsSchema = Type.Object({}, { additionalProperties: false });
+export const ExecApprovalsGetParamsSchema = z.object({}).strict();
 
-export const ExecApprovalsSetParamsSchema = Type.Object(
-  {
+export const ExecApprovalsSetParamsSchema = z
+  .object({
     file: ExecApprovalsFileSchema,
-    baseHash: Type.Optional(NonEmptyString),
-  },
-  { additionalProperties: false },
-);
+    baseHash: NonEmptyString.optional(),
+  })
+  .strict();
 
-export const ExecApprovalsNodeGetParamsSchema = Type.Object(
-  {
+export const ExecApprovalsNodeGetParamsSchema = z
+  .object({
     nodeId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const ExecApprovalsNodeSetParamsSchema = Type.Object(
-  {
+export const ExecApprovalsNodeSetParamsSchema = z
+  .object({
     nodeId: NonEmptyString,
     file: ExecApprovalsFileSchema,
-    baseHash: Type.Optional(NonEmptyString),
-  },
-  { additionalProperties: false },
-);
+    baseHash: NonEmptyString.optional(),
+  })
+  .strict();
 
-export const ExecApprovalRequestParamsSchema = Type.Object(
-  {
-    id: Type.Optional(NonEmptyString),
+export const ExecApprovalRequestParamsSchema = z
+  .object({
+    id: NonEmptyString.optional(),
     command: NonEmptyString,
-    cwd: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    host: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    security: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    ask: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    agentId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    resolvedPath: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    sessionKey: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    timeoutMs: Type.Optional(Type.Integer({ minimum: 1 })),
-  },
-  { additionalProperties: false },
-);
+    cwd: z.string().nullable().optional(),
+    host: z.string().nullable().optional(),
+    security: z.string().nullable().optional(),
+    ask: z.string().nullable().optional(),
+    agentId: z.string().nullable().optional(),
+    resolvedPath: z.string().nullable().optional(),
+    sessionKey: z.string().nullable().optional(),
+    timeoutMs: z.number().int().min(1).optional(),
+  })
+  .strict();
 
-export const ExecApprovalResolveParamsSchema = Type.Object(
-  {
+export const ExecApprovalResolveParamsSchema = z
+  .object({
     id: NonEmptyString,
     decision: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();

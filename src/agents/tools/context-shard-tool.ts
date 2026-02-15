@@ -6,7 +6,7 @@
  * spawn-ready task configurations for sessions_spawn_batch.
  */
 
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { AnyAgentTool } from "./common.js";
 import {
   createShardPlan,
@@ -16,43 +16,40 @@ import {
   buildMergePrompt,
   type MergeStrategy,
 } from "../context-sharding.js";
-import { optionalStringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { jsonResult } from "./common.js";
 
-const ContextShardToolSchema = Type.Object({
-  content: Type.String({ description: "The large content to shard across agents" }),
-  taskPerShard: Type.String({
-    description: "The task/prompt to execute on each shard",
-  }),
-  shardCount: Type.Optional(
-    Type.Number({
-      minimum: 1,
-      description: "Number of shards. Omit for auto-detection based on content size.",
-    }),
-  ),
-  overlapTokens: Type.Optional(
-    Type.Number({
-      minimum: 0,
-      description: "Token overlap between shards for context continuity (default: 200)",
-    }),
-  ),
-  mergeStrategy: optionalStringEnum(["concat", "summarize", "vote"] as const),
-  contextWindowTokens: Type.Optional(
-    Type.Number({
-      minimum: 1000,
-      description: "Target context window per shard (default: 200000)",
-    }),
-  ),
-  shardResults: Type.Optional(
-    Type.Array(
-      Type.Object({
-        shardIndex: Type.Number(),
-        result: Type.String(),
-      }),
-      { description: "Shard results to merge (for the merge phase)" },
-    ),
-  ),
+const shardResultShape = z.object({
+  shardIndex: z.number(),
+  result: z.string(),
 });
+
+const ContextShardToolSchema = zodToToolJsonSchema(
+  z.object({
+    content: z.string().describe("The large content to shard across agents"),
+    taskPerShard: z.string().describe("The task/prompt to execute on each shard"),
+    shardCount: z
+      .number()
+      .min(1)
+      .describe("Number of shards. Omit for auto-detection based on content size.")
+      .optional(),
+    overlapTokens: z
+      .number()
+      .min(0)
+      .describe("Token overlap between shards for context continuity (default: 200)")
+      .optional(),
+    mergeStrategy: z.enum(["concat", "summarize", "vote"]).optional(),
+    contextWindowTokens: z
+      .number()
+      .min(1000)
+      .describe("Target context window per shard (default: 200000)")
+      .optional(),
+    shardResults: z
+      .array(shardResultShape)
+      .describe("Shard results to merge (for the merge phase)")
+      .optional(),
+  }),
+);
 
 export function createContextShardTool(): AnyAgentTool {
   return {
@@ -151,7 +148,7 @@ function handleMerge(
   strategy: MergeStrategy,
   results: Array<{ shardIndex: number; result: string }>,
 ) {
-  const sorted = results.sort((a, b) => a.shardIndex - b.shardIndex);
+  const sorted = results.toSorted((a, b) => a.shardIndex - b.shardIndex);
 
   if (strategy === "concat") {
     const merged = mergeConcat(sorted.map((r) => r.result));

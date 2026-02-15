@@ -18,8 +18,8 @@ import {
   scoreCapabilityMatch,
   validateCapabilities,
 } from "../providers/core/capabilities.js";
-import { getProvidersByHealth, isProviderHealthy } from "../providers/core/health.js";
-import { normalizeProviderId, parseModelRef } from "../providers/core/normalization.js";
+import { isProviderHealthy } from "../providers/core/health.js";
+import { parseModelRef } from "../providers/core/normalization.js";
 import { resolveAgentConfig } from "./agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
 
@@ -268,7 +268,7 @@ function selectOrderedFromPool(params: {
   // Helper to validate a model
   const validateModel = (parsed: ModelRef): boolean => {
     // Check if provider is healthy
-    if (!isProviderHealthy(parsed.provider as any)) {
+    if (!isProviderHealthy(parsed.provider)) {
       return false;
     }
 
@@ -277,13 +277,20 @@ function selectOrderedFromPool(params: {
       const entry = catalog.find((e) => e.provider === parsed.provider && e.id === parsed.model);
       if (entry) {
         const caps = inferModelCapabilities(entry);
-        const required: any = {};
+        const required: Record<string, unknown> = {};
 
-        if (pool.capabilities.vision === "required") required.vision = true;
-        if (pool.capabilities.tools === "required") required.tools = true;
-        if (pool.capabilities.reasoning === "required") required.reasoning = true;
-        if (pool.capabilities.contextWindow)
+        if (pool.capabilities.vision === "required") {
+          required.vision = true;
+        }
+        if (pool.capabilities.tools === "required") {
+          required.tools = true;
+        }
+        if (pool.capabilities.reasoning === "required") {
+          required.reasoning = true;
+        }
+        if (pool.capabilities.contextWindow) {
           required.contextWindow = pool.capabilities.contextWindow;
+        }
 
         const validation = validateCapabilities(caps, required);
         if (!validation.valid) {
@@ -330,32 +337,58 @@ function selectBestFitFromPool(params: {
   const { pool, catalog, context } = params;
 
   // Build required/preferred capabilities from pool config + context
-  const required: any = {};
-  const preferred: any = {};
+  const required: Record<string, unknown> = {};
+  const preferred: Record<string, unknown> = {};
 
   // From pool config
-  if (pool.capabilities?.vision === "required") required.vision = true;
-  if (pool.capabilities?.vision === "preferred") preferred.vision = true;
-  if (pool.capabilities?.tools === "required") required.tools = true;
-  if (pool.capabilities?.tools === "preferred") preferred.tools = true;
-  if (pool.capabilities?.reasoning === "required") required.reasoning = true;
-  if (pool.capabilities?.reasoning === "preferred") preferred.reasoning = true;
-  if (pool.capabilities?.contextWindow) required.contextWindow = pool.capabilities.contextWindow;
+  if (pool.capabilities?.vision === "required") {
+    required.vision = true;
+  }
+  if (pool.capabilities?.vision === "preferred") {
+    preferred.vision = true;
+  }
+  if (pool.capabilities?.tools === "required") {
+    required.tools = true;
+  }
+  if (pool.capabilities?.tools === "preferred") {
+    preferred.tools = true;
+  }
+  if (pool.capabilities?.reasoning === "required") {
+    required.reasoning = true;
+  }
+  if (pool.capabilities?.reasoning === "preferred") {
+    preferred.reasoning = true;
+  }
+  if (pool.capabilities?.contextWindow) {
+    required.contextWindow = pool.capabilities.contextWindow;
+  }
 
   // From context
-  if (context?.requiredCapabilities?.vision) required.vision = true;
-  if (context?.requiredCapabilities?.tools) required.tools = true;
-  if (context?.requiredCapabilities?.reasoning) required.reasoning = true;
+  if (context?.requiredCapabilities?.vision) {
+    required.vision = true;
+  }
+  if (context?.requiredCapabilities?.tools) {
+    required.tools = true;
+  }
+  if (context?.requiredCapabilities?.reasoning) {
+    required.reasoning = true;
+  }
   if (context?.requiredCapabilities?.contextWindow) {
     required.contextWindow = Math.max(
-      required.contextWindow ?? 0,
+      (required.contextWindow as number) ?? 0,
       context.requiredCapabilities.contextWindow,
     );
   }
 
-  if (context?.preferredCapabilities?.vision) preferred.vision = true;
-  if (context?.preferredCapabilities?.tools) preferred.tools = true;
-  if (context?.preferredCapabilities?.reasoning) preferred.reasoning = true;
+  if (context?.preferredCapabilities?.vision) {
+    preferred.vision = true;
+  }
+  if (context?.preferredCapabilities?.tools) {
+    preferred.tools = true;
+  }
+  if (context?.preferredCapabilities?.reasoning) {
+    preferred.reasoning = true;
+  }
 
   // Filter pool models to those in catalog
   const poolRefs = pool.models
@@ -379,7 +412,7 @@ function selectBestFitFromPool(params: {
     const capScore = scoreCapabilityMatch(caps, { ...required, ...preferred });
 
     // Boost score if provider is healthy
-    const healthBoost = isProviderHealthy(entry.provider as any) ? 10 : 0;
+    const healthBoost = isProviderHealthy(entry.provider) ? 10 : 0;
 
     return {
       entry,

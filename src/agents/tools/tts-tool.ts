@@ -1,17 +1,21 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import type { AnyAgentTool } from "./common.js";
 import { loadConfig } from "../../config/config.js";
 import { textToSpeech } from "../../tts/tts.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { readStringParam } from "./common.js";
 
-const TtsToolSchema = Type.Object({
-  text: Type.String({ description: "Text to convert to speech." }),
-  channel: Type.Optional(
-    Type.String({ description: "Optional channel id to pick output format (e.g. telegram)." }),
-  ),
-});
+const TtsToolSchema = zodToToolJsonSchema(
+  z.object({
+    text: z.string().describe("Text to convert to speech."),
+    channel: z
+      .string()
+      .describe("Optional channel id to pick output format (e.g. telegram).")
+      .optional(),
+  }),
+);
 
 export function createTtsTool(opts?: {
   config?: OpenClawConfig;

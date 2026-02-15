@@ -1,4 +1,4 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { resolveAgentDir } from "../../agents/agent-scope.js";
@@ -40,6 +40,7 @@ import {
 } from "../../routing/session-key.js";
 import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
 import { formatUserTime, resolveUserTimeFormat, resolveUserTimezone } from "../date-time.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { readStringParam } from "./common.js";
 import {
   shouldResolveSessionIdInput,
@@ -48,10 +49,12 @@ import {
   createAgentToAgentPolicy,
 } from "./sessions-helpers.js";
 
-const SessionStatusToolSchema = Type.Object({
-  sessionKey: Type.Optional(Type.String()),
-  model: Type.Optional(Type.String()),
-});
+const SessionStatusToolSchema = zodToToolJsonSchema(
+  z.object({
+    sessionKey: z.string().optional(),
+    model: z.string().optional(),
+  }),
+);
 
 function formatApiKeySnippet(apiKey: string): string {
   const compact = apiKey.replace(/\s+/g, "");

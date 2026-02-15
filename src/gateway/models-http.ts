@@ -54,7 +54,7 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
     req.on("end", () => {
       try {
         resolve(body ? JSON.parse(body) : {});
-      } catch (error) {
+      } catch {
         reject(new Error("Invalid JSON"));
       }
     });
@@ -248,7 +248,7 @@ function handleGetMetricsSummary(_req: IncomingMessage, res: ServerResponse): vo
         tokens: data.totals.tokens.total,
         cost: data.totals.cost.estimated,
       }))
-      .sort((a, b) => b.requests - a.requests)
+      .toSorted((a, b) => b.requests - a.requests)
       .slice(0, 10);
 
     const topModels: Array<{
@@ -282,10 +282,14 @@ function handleGetMetricsSummary(_req: IncomingMessage, res: ServerResponse): vo
       .filter((m) => Object.keys(m).length > 0)
       .map((m) => {
         const modelData = snapshot.providers[m.provider]?.models[m.model];
-        if (!modelData) return null;
+        if (!modelData) {
+          return null;
+        }
 
         const errorCount = modelData.requests.error;
-        if (errorCount === 0) return null;
+        if (errorCount === 0) {
+          return null;
+        }
 
         return {
           provider: m.provider,
@@ -295,8 +299,8 @@ function handleGetMetricsSummary(_req: IncomingMessage, res: ServerResponse): vo
           errorTypes: modelData.errors,
         };
       })
-      .filter((e) => e !== null)
-      .sort((a, b) => b!.errors - a!.errors)
+      .filter((e): e is NonNullable<typeof e> => e !== null)
+      .toSorted((a, b) => b.errors - a.errors)
       .slice(0, 10);
 
     sendJson(res, 200, {

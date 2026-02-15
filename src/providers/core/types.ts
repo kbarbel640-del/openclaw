@@ -3,6 +3,7 @@
  * Centralizes all provider-related type definitions.
  */
 
+/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
 export type ProviderId =
   | "anthropic"
   | "openai"
@@ -25,6 +26,7 @@ export type ProviderId =
   | "venice"
   | "xai"
   | string;
+/* eslint-enable @typescript-eslint/no-redundant-type-constituents */
 
 export type ProviderAuthMode = "api-key" | "oauth" | "token" | "aws-sdk" | "cli" | "none";
 

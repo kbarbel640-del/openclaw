@@ -1,201 +1,202 @@
 /**
  * API routes for provider metrics.
- * Exposes metrics snapshots via GET /api/models/metrics
+ * Exposes metrics snapshots via GET /metrics
  */
 
-import { Router } from "express";
+import { Elysia } from "elysia";
 import { getProviderMetrics, type ProviderMetricsSnapshot } from "./provider-metrics.js";
 
-export const metricsRoutes: import("express").Router = Router();
+export const metricsRoutes = new Elysia({ prefix: "/metrics" })
+  /**
+   * GET /metrics
+   * Get current provider metrics snapshot.
+   *
+   * Query params:
+   * - provider: Filter by provider (optional)
+   * - model: Filter by model (optional, requires provider)
+   * - format: "json" (default) or "prometheus"
+   */
+  .get("/", ({ query, set }) => {
+    try {
+      const metrics = getProviderMetrics();
+      const snapshot = metrics.getSnapshot();
 
-/**
- * GET /api/models/metrics
- * Get current provider metrics snapshot.
- *
- * Query params:
- * - provider: Filter by provider (optional)
- * - model: Filter by model (optional, requires provider)
- * - format: "json" (default) or "prometheus"
- */
-metricsRoutes.get("/metrics", (req, res) => {
-  try {
-    const metrics = getProviderMetrics();
-    const snapshot = metrics.getSnapshot();
+      const { provider, model, format = "json" } = query;
 
-    const { provider, model, format = "json" } = req.query;
+      // Filter by provider/model if requested
+      let filteredSnapshot = snapshot;
+      if (typeof provider === "string" && provider.trim()) {
+        const providerKey = provider.trim().toLowerCase();
+        const providerData = snapshot.providers[providerKey];
 
-    // Filter by provider/model if requested
-    let filteredSnapshot = snapshot;
-    if (typeof provider === "string" && provider.trim()) {
-      const providerKey = provider.trim().toLowerCase();
-      const providerData = snapshot.providers[providerKey];
-
-      if (!providerData) {
-        return res.status(404).json({
-          error: "Provider not found",
-          provider: providerKey,
-        });
-      }
-
-      if (typeof model === "string" && model.trim()) {
-        const modelKey = model.trim().toLowerCase();
-        const modelData = providerData.models[modelKey];
-
-        if (!modelData) {
-          return res.status(404).json({
-            error: "Model not found",
+        if (!providerData) {
+          set.status = 404;
+          return {
+            error: "Provider not found",
             provider: providerKey,
-            model: modelKey,
-          });
+          };
         }
 
-        // Single model response
-        filteredSnapshot = {
-          providers: {
-            [providerKey]: {
-              models: {
-                [modelKey]: modelData,
+        if (typeof model === "string" && model.trim()) {
+          const modelKey = model.trim().toLowerCase();
+          const modelData = providerData.models[modelKey];
+
+          if (!modelData) {
+            set.status = 404;
+            return {
+              error: "Model not found",
+              provider: providerKey,
+              model: modelKey,
+            };
+          }
+
+          // Single model response
+          filteredSnapshot = {
+            providers: {
+              [providerKey]: {
+                models: {
+                  [modelKey]: modelData,
+                },
+                totals: providerData.totals,
               },
-              totals: providerData.totals,
             },
-          },
-          global: snapshot.global,
-          snapshotAt: snapshot.snapshotAt,
-        };
-      } else {
-        // Single provider response
-        filteredSnapshot = {
-          providers: {
-            [providerKey]: providerData,
-          },
-          global: snapshot.global,
-          snapshotAt: snapshot.snapshotAt,
-        };
+            global: snapshot.global,
+            snapshotAt: snapshot.snapshotAt,
+          };
+        } else {
+          // Single provider response
+          filteredSnapshot = {
+            providers: {
+              [providerKey]: providerData,
+            },
+            global: snapshot.global,
+            snapshotAt: snapshot.snapshotAt,
+          };
+        }
       }
-    }
 
-    // Return in requested format
-    if (format === "prometheus") {
-      const prometheus = convertToPrometheus(filteredSnapshot);
-      res.setHeader("Content-Type", "text/plain; version=0.0.4");
-      return res.send(prometheus);
-    }
-
-    // Default: JSON
-    res.json(filteredSnapshot);
-  } catch (error) {
-    console.error("[metrics-routes] Error fetching metrics:", error);
-    res.status(500).json({
-      error: "Failed to fetch metrics",
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
-});
-
-/**
- * DELETE /api/models/metrics
- * Reset metrics (admin only).
- *
- * Query params:
- * - provider: Reset specific provider (optional)
- * - model: Reset specific model (optional, requires provider)
- */
-metricsRoutes.delete("/metrics", (req, res) => {
-  try {
-    const metrics = getProviderMetrics();
-    const { provider, model } = req.query;
-
-    if (typeof provider === "string" && provider.trim()) {
-      const providerKey = provider.trim().toLowerCase();
-      const modelKey = typeof model === "string" ? model.trim().toLowerCase() : undefined;
-
-      if (modelKey) {
-        metrics.resetProvider(providerKey, modelKey);
-        return res.json({
-          message: "Model metrics reset",
-          provider: providerKey,
-          model: modelKey,
-        });
-      } else {
-        metrics.resetProvider(providerKey);
-        return res.json({
-          message: "Provider metrics reset",
-          provider: providerKey,
-        });
+      // Return in requested format
+      if (format === "prometheus") {
+        const prometheus = convertToPrometheus(filteredSnapshot);
+        set.headers["content-type"] = "text/plain; version=0.0.4";
+        return prometheus;
       }
+
+      // Default: JSON
+      return filteredSnapshot;
+    } catch (error) {
+      console.error("[metrics-routes] Error fetching metrics:", error);
+      set.status = 500;
+      return {
+        error: "Failed to fetch metrics",
+        message: error instanceof Error ? error.message : String(error),
+      };
     }
+  })
+  /**
+   * DELETE /metrics
+   * Reset metrics (admin only).
+   *
+   * Query params:
+   * - provider: Reset specific provider (optional)
+   * - model: Reset specific model (optional, requires provider)
+   */
+  .delete("/", ({ query }) => {
+    try {
+      const metrics = getProviderMetrics();
+      const { provider, model } = query;
 
-    // Reset all
-    metrics.reset();
-    res.json({ message: "All metrics reset" });
-  } catch (error) {
-    console.error("[metrics-routes] Error resetting metrics:", error);
-    res.status(500).json({
-      error: "Failed to reset metrics",
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
-});
+      if (typeof provider === "string" && provider.trim()) {
+        const providerKey = provider.trim().toLowerCase();
+        const modelKey = typeof model === "string" ? model.trim().toLowerCase() : undefined;
 
-/**
- * GET /api/models/metrics/summary
- * Get a quick summary of key metrics.
- */
-metricsRoutes.get("/metrics/summary", (req, res) => {
-  try {
-    const metrics = getProviderMetrics();
-    const snapshot = metrics.getSnapshot();
+        if (modelKey) {
+          metrics.resetProvider(providerKey, modelKey);
+          return {
+            message: "Model metrics reset",
+            provider: providerKey,
+            model: modelKey,
+          };
+        } else {
+          metrics.resetProvider(providerKey);
+          return {
+            message: "Provider metrics reset",
+            provider: providerKey,
+          };
+        }
+      }
 
-    // Build summary
-    const summary = {
-      global: snapshot.global,
-      topProviders: Object.entries(snapshot.providers)
-        .map(([provider, data]) => ({
-          provider,
-          requests: data.totals.requests.started,
-          successRate: data.totals.requests.successRate,
-          tokens: data.totals.tokens.total,
-          cost: data.totals.cost.estimated,
-        }))
-        .sort((a, b) => b.requests - a.requests)
-        .slice(0, 5),
-      topModels: Object.entries(snapshot.providers)
-        .flatMap(([provider, data]) =>
-          Object.entries(data.models).map(([model, modelData]) => ({
+      // Reset all
+      metrics.reset();
+      return { message: "All metrics reset" };
+    } catch (error) {
+      console.error("[metrics-routes] Error resetting metrics:", error);
+      return {
+        error: "Failed to reset metrics",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  })
+  /**
+   * GET /metrics/summary
+   * Get a quick summary of key metrics.
+   */
+  .get("/summary", ({ set }) => {
+    try {
+      const metrics = getProviderMetrics();
+      const snapshot = metrics.getSnapshot();
+
+      // Build summary
+      const summary = {
+        global: snapshot.global,
+        topProviders: Object.entries(snapshot.providers)
+          .map(([provider, data]) => ({
             provider,
-            model,
-            requests: modelData.requests.started,
-            successRate: modelData.requests.successRate,
-            latencyP95: modelData.latency.p95,
-            tokens: modelData.tokens.total,
-            cost: modelData.cost.estimated,
-          })),
-        )
-        .sort((a, b) => b.requests - a.requests)
-        .slice(0, 10),
-      errors: Object.entries(snapshot.providers).flatMap(([provider, data]) =>
-        Object.entries(data.models)
-          .filter(([, modelData]) => modelData.requests.error > 0)
-          .map(([model, modelData]) => ({
-            provider,
-            model,
-            errors: modelData.requests.error,
-            errorRate: modelData.requests.errorRate,
-            errorTypes: modelData.errors,
-          })),
-      ),
-      snapshotAt: snapshot.snapshotAt,
-    };
+            requests: data.totals.requests.started,
+            successRate: data.totals.requests.successRate,
+            tokens: data.totals.tokens.total,
+            cost: data.totals.cost.estimated,
+          }))
+          .toSorted((a, b) => b.requests - a.requests)
+          .slice(0, 5),
+        topModels: Object.entries(snapshot.providers)
+          .flatMap(([provider, data]) =>
+            Object.entries(data.models).map(([model, modelData]) => ({
+              provider,
+              model,
+              requests: modelData.requests.started,
+              successRate: modelData.requests.successRate,
+              latencyP95: modelData.latency.p95,
+              tokens: modelData.tokens.total,
+              cost: modelData.cost.estimated,
+            })),
+          )
+          .toSorted((a, b) => b.requests - a.requests)
+          .slice(0, 10),
+        errors: Object.entries(snapshot.providers).flatMap(([provider, data]) =>
+          Object.entries(data.models)
+            .filter(([, modelData]) => modelData.requests.error > 0)
+            .map(([model, modelData]) => ({
+              provider,
+              model,
+              errors: modelData.requests.error,
+              errorRate: modelData.requests.errorRate,
+              errorTypes: modelData.errors,
+            })),
+        ),
+        snapshotAt: snapshot.snapshotAt,
+      };
 
-    res.json(summary);
-  } catch (error) {
-    console.error("[metrics-routes] Error fetching summary:", error);
-    res.status(500).json({
-      error: "Failed to fetch summary",
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
-});
+      return summary;
+    } catch (error) {
+      console.error("[metrics-routes] Error fetching summary:", error);
+      set.status = 500;
+      return {
+        error: "Failed to fetch summary",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
 
 // ============================================================================
 // Prometheus Format Converter

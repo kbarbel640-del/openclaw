@@ -1,17 +1,17 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { loadConfig } from "../../config/config.js";
 import { normalizeCronJobCreate, normalizeCronJobPatch } from "../../cron/normalize.js";
 import { truncateUtf16Safe } from "../../utils.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
-import { optionalStringEnum, stringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { type AnyAgentTool, jsonResult, readStringParam } from "./common.js";
 import { callGatewayTool, type GatewayCallOptions } from "./gateway.js";
 import { resolveInternalSessionKey, resolveMainSessionAlias } from "./sessions-helpers.js";
 
-// NOTE: We use Type.Object({}, { additionalProperties: true }) for job/patch
-// instead of CronAddParamsSchema/CronJobPatchSchema because the gateway schemas
-// contain nested unions. Tool schemas need to stay provider-friendly, so we
-// accept "any object" here and validate at runtime.
+// NOTE: We use z.object({}).passthrough() for job/patch instead of the gateway
+// CronAddParamsSchema/CronJobPatchSchema because the gateway schemas contain
+// nested unions. Tool schemas need to stay provider-friendly, so we accept
+// "any object" here and validate at runtime.
 
 const CRON_ACTIONS = ["status", "list", "add", "update", "remove", "run", "runs", "wake"] as const;
 
@@ -23,22 +23,22 @@ const REMINDER_CONTEXT_TOTAL_MAX = 700;
 const REMINDER_CONTEXT_MARKER = "\n\nRecent context:\n";
 
 // Flattened schema: runtime validates per-action requirements.
-const CronToolSchema = Type.Object({
-  action: stringEnum(CRON_ACTIONS),
-  gatewayUrl: Type.Optional(Type.String()),
-  gatewayToken: Type.Optional(Type.String()),
-  timeoutMs: Type.Optional(Type.Number()),
-  includeDisabled: Type.Optional(Type.Boolean()),
-  job: Type.Optional(Type.Object({}, { additionalProperties: true })),
-  jobId: Type.Optional(Type.String()),
-  id: Type.Optional(Type.String()),
-  patch: Type.Optional(Type.Object({}, { additionalProperties: true })),
-  text: Type.Optional(Type.String()),
-  mode: optionalStringEnum(CRON_WAKE_MODES),
-  contextMessages: Type.Optional(
-    Type.Number({ minimum: 0, maximum: REMINDER_CONTEXT_MESSAGES_MAX }),
-  ),
-});
+const CronToolSchema = zodToToolJsonSchema(
+  z.object({
+    action: z.enum(CRON_ACTIONS),
+    gatewayUrl: z.string().optional(),
+    gatewayToken: z.string().optional(),
+    timeoutMs: z.number().optional(),
+    includeDisabled: z.boolean().optional(),
+    job: z.object({}).passthrough().optional(),
+    jobId: z.string().optional(),
+    id: z.string().optional(),
+    patch: z.object({}).passthrough().optional(),
+    text: z.string().optional(),
+    mode: z.enum(CRON_WAKE_MODES).optional(),
+    contextMessages: z.number().min(0).max(REMINDER_CONTEXT_MESSAGES_MAX).optional(),
+  }),
+);
 
 type CronToolOptions = {
   agentSessionKey?: string;

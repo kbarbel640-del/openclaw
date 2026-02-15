@@ -1,10 +1,10 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { fetchWithSsrFGuard } from "../../infra/net/fetch-guard.js";
 import { SsrFBlockedError } from "../../infra/net/ssrf.js";
 import { wrapExternalContent, wrapWebContent } from "../../security/external-content.js";
-import { stringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 import {
   extractReadableContent,
@@ -40,21 +40,20 @@ const DEFAULT_FETCH_USER_AGENT =
 
 const FETCH_CACHE = new Map<string, CacheEntry<Record<string, unknown>>>();
 
-const WebFetchSchema = Type.Object({
-  url: Type.String({ description: "HTTP or HTTPS URL to fetch." }),
-  extractMode: Type.Optional(
-    stringEnum(EXTRACT_MODES, {
-      description: 'Extraction mode ("markdown" or "text").',
-      default: "markdown",
-    }),
-  ),
-  maxChars: Type.Optional(
-    Type.Number({
-      description: "Maximum characters to return (truncates when exceeded).",
-      minimum: 100,
-    }),
-  ),
-});
+const WebFetchSchema = zodToToolJsonSchema(
+  z.object({
+    url: z.string().describe("HTTP or HTTPS URL to fetch."),
+    extractMode: z
+      .enum(EXTRACT_MODES)
+      .describe('Extraction mode ("markdown" or "text"). Default: markdown.')
+      .optional(),
+    maxChars: z
+      .number()
+      .min(100)
+      .describe("Maximum characters to return (truncates when exceeded).")
+      .optional(),
+  }),
+);
 
 type WebFetchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer Web
   ? Web extends { fetch?: infer Fetch }

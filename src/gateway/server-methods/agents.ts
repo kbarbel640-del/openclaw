@@ -462,10 +462,18 @@ export const agentsHandlers: GatewayRequestHandlers = {
     );
   },
   "agents.performance": ({ params, respond }) => {
-    const agentId =
-      params && typeof params === "object" && "agentId" in params
-        ? String((params as { agentId?: unknown }).agentId ?? "").trim()
-        : "";
+    let agentId = "";
+    if (params && typeof params === "object" && "agentId" in params) {
+      const value = (params as { agentId?: unknown }).agentId;
+      if (typeof value === "string") {
+        agentId = value.trim();
+      } else if (value != null && typeof value === "number") {
+        agentId = value.toString();
+      } else if (value != null) {
+        // Handle complex objects by stringifying
+        agentId = JSON.stringify(value);
+      }
+    }
 
     if (agentId) {
       const stats = getAgentPerformanceStats(agentId);

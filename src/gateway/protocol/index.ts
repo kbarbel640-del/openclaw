@@ -1,4 +1,3 @@
-import AjvPkg, { type ErrorObject } from "ajv";
 import {
   type AgentEvent,
   AgentEventSchema,
@@ -238,164 +237,172 @@ import {
   type UsageWindow as HealthUsageWindow,
   UsageWindowSchema as HealthUsageWindowSchema,
 } from "./schema.js";
+import { createValidator, type AjvLikeError } from "./zod-validator.js";
 
-const ajv = new (AjvPkg as unknown as new (opts?: object) => import("ajv").default)({
-  allErrors: true,
-  strict: false,
-  removeAdditional: false,
-});
-
-export const validateConnectParams = ajv.compile<ConnectParams>(ConnectParamsSchema);
-export const validateRequestFrame = ajv.compile<RequestFrame>(RequestFrameSchema);
-export const validateResponseFrame = ajv.compile<ResponseFrame>(ResponseFrameSchema);
-export const validateEventFrame = ajv.compile<EventFrame>(EventFrameSchema);
-export const validateSendParams = ajv.compile(SendParamsSchema);
-export const validatePollParams = ajv.compile<PollParams>(PollParamsSchema);
-export const validateAgentParams = ajv.compile(AgentParamsSchema);
+export const validateConnectParams = createValidator<ConnectParams>(ConnectParamsSchema);
+export const validateRequestFrame = createValidator<RequestFrame>(RequestFrameSchema);
+export const validateResponseFrame = createValidator<ResponseFrame>(ResponseFrameSchema);
+export const validateEventFrame = createValidator<EventFrame>(EventFrameSchema);
+export const validateSendParams = createValidator(SendParamsSchema);
+export const validatePollParams = createValidator<PollParams>(PollParamsSchema);
+export const validateAgentParams = createValidator(AgentParamsSchema);
 export const validateAgentIdentityParams =
-  ajv.compile<AgentIdentityParams>(AgentIdentityParamsSchema);
-export const validateAgentWaitParams = ajv.compile<AgentWaitParams>(AgentWaitParamsSchema);
-export const validateWakeParams = ajv.compile<WakeParams>(WakeParamsSchema);
-export const validateAgentsListParams = ajv.compile<AgentsListParams>(AgentsListParamsSchema);
-export const validateAgentsModelSetParams = ajv.compile<AgentsModelSetParams>(
+  createValidator<AgentIdentityParams>(AgentIdentityParamsSchema);
+export const validateAgentWaitParams = createValidator<AgentWaitParams>(AgentWaitParamsSchema);
+export const validateWakeParams = createValidator<WakeParams>(WakeParamsSchema);
+export const validateAgentsListParams = createValidator<AgentsListParams>(AgentsListParamsSchema);
+export const validateAgentsModelSetParams = createValidator<AgentsModelSetParams>(
   AgentsModelSetParamsSchema,
 );
-export const validateAgentsFilesListParams = ajv.compile<AgentsFilesListParams>(
+export const validateAgentsFilesListParams = createValidator<AgentsFilesListParams>(
   AgentsFilesListParamsSchema,
 );
-export const validateAgentsFilesGetParams = ajv.compile<AgentsFilesGetParams>(
+export const validateAgentsFilesGetParams = createValidator<AgentsFilesGetParams>(
   AgentsFilesGetParamsSchema,
 );
-export const validateAgentsFilesSetParams = ajv.compile<AgentsFilesSetParams>(
+export const validateAgentsFilesSetParams = createValidator<AgentsFilesSetParams>(
   AgentsFilesSetParamsSchema,
 );
-export const validateNodePairRequestParams = ajv.compile<NodePairRequestParams>(
+export const validateNodePairRequestParams = createValidator<NodePairRequestParams>(
   NodePairRequestParamsSchema,
 );
-export const validateNodePairListParams = ajv.compile<NodePairListParams>(NodePairListParamsSchema);
-export const validateNodePairApproveParams = ajv.compile<NodePairApproveParams>(
+export const validateNodePairListParams =
+  createValidator<NodePairListParams>(NodePairListParamsSchema);
+export const validateNodePairApproveParams = createValidator<NodePairApproveParams>(
   NodePairApproveParamsSchema,
 );
-export const validateNodePairRejectParams = ajv.compile<NodePairRejectParams>(
+export const validateNodePairRejectParams = createValidator<NodePairRejectParams>(
   NodePairRejectParamsSchema,
 );
-export const validateNodePairVerifyParams = ajv.compile<NodePairVerifyParams>(
+export const validateNodePairVerifyParams = createValidator<NodePairVerifyParams>(
   NodePairVerifyParamsSchema,
 );
-export const validateNodeRenameParams = ajv.compile<NodeRenameParams>(NodeRenameParamsSchema);
-export const validateNodeListParams = ajv.compile<NodeListParams>(NodeListParamsSchema);
-export const validateNodeDescribeParams = ajv.compile<NodeDescribeParams>(NodeDescribeParamsSchema);
-export const validateNodeInvokeParams = ajv.compile<NodeInvokeParams>(NodeInvokeParamsSchema);
-export const validateNodeInvokeResultParams = ajv.compile<NodeInvokeResultParams>(
+export const validateNodeRenameParams = createValidator<NodeRenameParams>(NodeRenameParamsSchema);
+export const validateNodeListParams = createValidator<NodeListParams>(NodeListParamsSchema);
+export const validateNodeDescribeParams =
+  createValidator<NodeDescribeParams>(NodeDescribeParamsSchema);
+export const validateNodeInvokeParams = createValidator<NodeInvokeParams>(NodeInvokeParamsSchema);
+export const validateNodeInvokeResultParams = createValidator<NodeInvokeResultParams>(
   NodeInvokeResultParamsSchema,
 );
-export const validateNodeEventParams = ajv.compile<NodeEventParams>(NodeEventParamsSchema);
-export const validateSessionsListParams = ajv.compile<SessionsListParams>(SessionsListParamsSchema);
-export const validateSessionsPreviewParams = ajv.compile<SessionsPreviewParams>(
+export const validateNodeEventParams = createValidator<NodeEventParams>(NodeEventParamsSchema);
+export const validateSessionsListParams =
+  createValidator<SessionsListParams>(SessionsListParamsSchema);
+export const validateSessionsPreviewParams = createValidator<SessionsPreviewParams>(
   SessionsPreviewParamsSchema,
 );
-export const validateSessionsResolveParams = ajv.compile<SessionsResolveParams>(
+export const validateSessionsResolveParams = createValidator<SessionsResolveParams>(
   SessionsResolveParamsSchema,
 );
 export const validateSessionsPatchParams =
-  ajv.compile<SessionsPatchParams>(SessionsPatchParamsSchema);
-export const validateProjectsListParams = ajv.compile<ProjectsListParams>(ProjectsListParamsSchema);
+  createValidator<SessionsPatchParams>(SessionsPatchParamsSchema);
+export const validateProjectsListParams =
+  createValidator<ProjectsListParams>(ProjectsListParamsSchema);
 export const validateSessionsResetParams =
-  ajv.compile<SessionsResetParams>(SessionsResetParamsSchema);
-export const validateSessionsDeleteParams = ajv.compile<SessionsDeleteParams>(
+  createValidator<SessionsResetParams>(SessionsResetParamsSchema);
+export const validateSessionsDeleteParams = createValidator<SessionsDeleteParams>(
   SessionsDeleteParamsSchema,
 );
-export const validateSessionsCompactParams = ajv.compile<SessionsCompactParams>(
+export const validateSessionsCompactParams = createValidator<SessionsCompactParams>(
   SessionsCompactParamsSchema,
 );
-export const validateConfigGetParams = ajv.compile<ConfigGetParams>(ConfigGetParamsSchema);
-export const validateConfigSetParams = ajv.compile<ConfigSetParams>(ConfigSetParamsSchema);
-export const validateConfigApplyParams = ajv.compile<ConfigApplyParams>(ConfigApplyParamsSchema);
-export const validateConfigPatchParams = ajv.compile<ConfigPatchParams>(ConfigPatchParamsSchema);
-export const validateConfigSchemaParams = ajv.compile<ConfigSchemaParams>(ConfigSchemaParamsSchema);
-export const validateWizardStartParams = ajv.compile<WizardStartParams>(WizardStartParamsSchema);
-export const validateWizardNextParams = ajv.compile<WizardNextParams>(WizardNextParamsSchema);
-export const validateWizardCancelParams = ajv.compile<WizardCancelParams>(WizardCancelParamsSchema);
-export const validateWizardStatusParams = ajv.compile<WizardStatusParams>(WizardStatusParamsSchema);
-export const validateTalkModeParams = ajv.compile<TalkModeParams>(TalkModeParamsSchema);
-export const validateChannelsStatusParams = ajv.compile<ChannelsStatusParams>(
+export const validateConfigGetParams = createValidator<ConfigGetParams>(ConfigGetParamsSchema);
+export const validateConfigSetParams = createValidator<ConfigSetParams>(ConfigSetParamsSchema);
+export const validateConfigApplyParams =
+  createValidator<ConfigApplyParams>(ConfigApplyParamsSchema);
+export const validateConfigPatchParams =
+  createValidator<ConfigPatchParams>(ConfigPatchParamsSchema);
+export const validateConfigSchemaParams =
+  createValidator<ConfigSchemaParams>(ConfigSchemaParamsSchema);
+export const validateWizardStartParams =
+  createValidator<WizardStartParams>(WizardStartParamsSchema);
+export const validateWizardNextParams = createValidator<WizardNextParams>(WizardNextParamsSchema);
+export const validateWizardCancelParams =
+  createValidator<WizardCancelParams>(WizardCancelParamsSchema);
+export const validateWizardStatusParams =
+  createValidator<WizardStatusParams>(WizardStatusParamsSchema);
+export const validateTalkModeParams = createValidator<TalkModeParams>(TalkModeParamsSchema);
+export const validateChannelsStatusParams = createValidator<ChannelsStatusParams>(
   ChannelsStatusParamsSchema,
 );
-export const validateChannelsLogoutParams = ajv.compile<ChannelsLogoutParams>(
+export const validateChannelsLogoutParams = createValidator<ChannelsLogoutParams>(
   ChannelsLogoutParamsSchema,
 );
-export const validateModelsListParams = ajv.compile<ModelsListParams>(ModelsListParamsSchema);
-export const validateModelsCooldownsParams = ajv.compile<ModelsCooldownsParams>(
+export const validateModelsListParams = createValidator<ModelsListParams>(ModelsListParamsSchema);
+export const validateModelsCooldownsParams = createValidator<ModelsCooldownsParams>(
   ModelsCooldownsParamsSchema,
 );
-export const validateSkillsStatusParams = ajv.compile<SkillsStatusParams>(SkillsStatusParamsSchema);
-export const validateSkillsBinsParams = ajv.compile<SkillsBinsParams>(SkillsBinsParamsSchema);
+export const validateSkillsStatusParams =
+  createValidator<SkillsStatusParams>(SkillsStatusParamsSchema);
+export const validateSkillsBinsParams = createValidator<SkillsBinsParams>(SkillsBinsParamsSchema);
 export const validateSkillsInstallParams =
-  ajv.compile<SkillsInstallParams>(SkillsInstallParamsSchema);
-export const validateSkillsUpdateParams = ajv.compile<SkillsUpdateParams>(SkillsUpdateParamsSchema);
-export const validateCronListParams = ajv.compile<CronListParams>(CronListParamsSchema);
-export const validateCronStatusParams = ajv.compile<CronStatusParams>(CronStatusParamsSchema);
-export const validateCronAddParams = ajv.compile<CronAddParams>(CronAddParamsSchema);
-export const validateCronUpdateParams = ajv.compile<CronUpdateParams>(CronUpdateParamsSchema);
-export const validateCronRemoveParams = ajv.compile<CronRemoveParams>(CronRemoveParamsSchema);
-export const validateCronRunParams = ajv.compile<CronRunParams>(CronRunParamsSchema);
-export const validateCronRunsParams = ajv.compile<CronRunsParams>(CronRunsParamsSchema);
-export const validateDevicePairListParams = ajv.compile<DevicePairListParams>(
+  createValidator<SkillsInstallParams>(SkillsInstallParamsSchema);
+export const validateSkillsUpdateParams =
+  createValidator<SkillsUpdateParams>(SkillsUpdateParamsSchema);
+export const validateCronListParams = createValidator<CronListParams>(CronListParamsSchema);
+export const validateCronStatusParams = createValidator<CronStatusParams>(CronStatusParamsSchema);
+export const validateCronAddParams = createValidator<CronAddParams>(CronAddParamsSchema);
+export const validateCronUpdateParams = createValidator<CronUpdateParams>(CronUpdateParamsSchema);
+export const validateCronRemoveParams = createValidator<CronRemoveParams>(CronRemoveParamsSchema);
+export const validateCronRunParams = createValidator<CronRunParams>(CronRunParamsSchema);
+export const validateCronRunsParams = createValidator<CronRunsParams>(CronRunsParamsSchema);
+export const validateDevicePairListParams = createValidator<DevicePairListParams>(
   DevicePairListParamsSchema,
 );
-export const validateDevicePairApproveParams = ajv.compile<DevicePairApproveParams>(
+export const validateDevicePairApproveParams = createValidator<DevicePairApproveParams>(
   DevicePairApproveParamsSchema,
 );
-export const validateDevicePairRejectParams = ajv.compile<DevicePairRejectParams>(
+export const validateDevicePairRejectParams = createValidator<DevicePairRejectParams>(
   DevicePairRejectParamsSchema,
 );
-export const validateDeviceTokenRotateParams = ajv.compile<DeviceTokenRotateParams>(
+export const validateDeviceTokenRotateParams = createValidator<DeviceTokenRotateParams>(
   DeviceTokenRotateParamsSchema,
 );
-export const validateDeviceTokenRevokeParams = ajv.compile<DeviceTokenRevokeParams>(
+export const validateDeviceTokenRevokeParams = createValidator<DeviceTokenRevokeParams>(
   DeviceTokenRevokeParamsSchema,
 );
-export const validateExecApprovalsGetParams = ajv.compile<ExecApprovalsGetParams>(
+export const validateExecApprovalsGetParams = createValidator<ExecApprovalsGetParams>(
   ExecApprovalsGetParamsSchema,
 );
-export const validateExecApprovalsSetParams = ajv.compile<ExecApprovalsSetParams>(
+export const validateExecApprovalsSetParams = createValidator<ExecApprovalsSetParams>(
   ExecApprovalsSetParamsSchema,
 );
-export const validateExecApprovalRequestParams = ajv.compile<ExecApprovalRequestParams>(
+export const validateExecApprovalRequestParams = createValidator<ExecApprovalRequestParams>(
   ExecApprovalRequestParamsSchema,
 );
-export const validateExecApprovalResolveParams = ajv.compile<ExecApprovalResolveParams>(
+export const validateExecApprovalResolveParams = createValidator<ExecApprovalResolveParams>(
   ExecApprovalResolveParamsSchema,
 );
-export const validateFsPickDirectoryParams = ajv.compile<FsPickDirectoryParams>(
+export const validateFsPickDirectoryParams = createValidator<FsPickDirectoryParams>(
   FsPickDirectoryParamsSchema,
 );
-export const validateExecApprovalsNodeGetParams = ajv.compile<ExecApprovalsNodeGetParams>(
+export const validateExecApprovalsNodeGetParams = createValidator<ExecApprovalsNodeGetParams>(
   ExecApprovalsNodeGetParamsSchema,
 );
-export const validateExecApprovalsNodeSetParams = ajv.compile<ExecApprovalsNodeSetParams>(
+export const validateExecApprovalsNodeSetParams = createValidator<ExecApprovalsNodeSetParams>(
   ExecApprovalsNodeSetParamsSchema,
 );
-export const validateLogsTailParams = ajv.compile<LogsTailParams>(LogsTailParamsSchema);
-export const validateChatHistoryParams = ajv.compile(ChatHistoryParamsSchema);
-export const validateChatSendParams = ajv.compile(ChatSendParamsSchema);
-export const validateChatAbortParams = ajv.compile<ChatAbortParams>(ChatAbortParamsSchema);
-export const validateChatInjectParams = ajv.compile<ChatInjectParams>(ChatInjectParamsSchema);
-export const validateChatEvent = ajv.compile(ChatEventSchema);
-export const validateUpdateRunParams = ajv.compile<UpdateRunParams>(UpdateRunParamsSchema);
+export const validateLogsTailParams = createValidator<LogsTailParams>(LogsTailParamsSchema);
+export const validateChatHistoryParams = createValidator(ChatHistoryParamsSchema);
+export const validateChatSendParams = createValidator(ChatSendParamsSchema);
+export const validateChatAbortParams = createValidator<ChatAbortParams>(ChatAbortParamsSchema);
+export const validateChatInjectParams = createValidator<ChatInjectParams>(ChatInjectParamsSchema);
+export const validateChatEvent = createValidator(ChatEventSchema);
+export const validateUpdateRunParams = createValidator<UpdateRunParams>(UpdateRunParamsSchema);
 export const validateWebLoginStartParams =
-  ajv.compile<WebLoginStartParams>(WebLoginStartParamsSchema);
-export const validateWebLoginWaitParams = ajv.compile<WebLoginWaitParams>(WebLoginWaitParamsSchema);
+  createValidator<WebLoginStartParams>(WebLoginStartParamsSchema);
+export const validateWebLoginWaitParams =
+  createValidator<WebLoginWaitParams>(WebLoginWaitParamsSchema);
 export const validateProvidersListParams =
-  ajv.compile<ProvidersListParams>(ProvidersListParamsSchema);
-export const validateProvidersUsageParams = ajv.compile<ProvidersUsageParams>(
+  createValidator<ProvidersListParams>(ProvidersListParamsSchema);
+export const validateProvidersUsageParams = createValidator<ProvidersUsageParams>(
   ProvidersUsageParamsSchema,
 );
-export const validateProvidersHealthParams = ajv.compile<ProvidersHealthParams>(
+export const validateProvidersHealthParams = createValidator<ProvidersHealthParams>(
   ProvidersHealthParamsSchema,
 );
 
-export function formatValidationErrors(errors: ErrorObject[] | null | undefined) {
+export function formatValidationErrors(errors: AjvLikeError[] | null | undefined) {
   if (!errors?.length) {
     return "unknown validation error";
   }
@@ -425,7 +432,7 @@ export function formatValidationErrors(errors: ErrorObject[] | null | undefined)
   // De-dupe while preserving order.
   const unique = Array.from(new Set(parts.filter((part) => part.trim())));
   if (!unique.length) {
-    const fallback = ajv.errorsText(errors, { separator: "; " });
+    const fallback = errors.map((e) => e.message).join("; ");
     return fallback || "unknown validation error";
   }
   return unique.join("; ");

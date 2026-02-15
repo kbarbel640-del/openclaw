@@ -191,6 +191,11 @@ export {
 export type { AllowlistMatch } from "../channels/plugins/allowlist-match.js";
 export { formatAllowlistMatchMeta } from "../channels/plugins/allowlist-match.js";
 export { optionalStringEnum, stringEnum } from "../agents/schema/typebox.js";
+export {
+  zodOptionalStringEnum,
+  zodStringEnum,
+  zodToToolJsonSchema,
+} from "../agents/schema/zod-tool-helpers.js";
 export type { PollInput } from "../polls.js";
 
 export { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";

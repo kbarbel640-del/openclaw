@@ -2,133 +2,100 @@
  * Protocol schemas for providers endpoints.
  */
 
-import { Type, type Static } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString } from "./primitives.js";
 
 // Token validity enum
-export const TokenValiditySchema = Type.Union([
-  Type.Literal("valid"),
-  Type.Literal("expiring"),
-  Type.Literal("expired"),
-  Type.Literal("unknown"),
-]);
+export const TokenValiditySchema = z.enum(["valid", "expiring", "expired", "unknown"]);
 
 // Provider status schema
-export const ProviderStatusSchema = Type.Object(
-  {
+export const ProviderStatusSchema = z
+  .object({
     id: NonEmptyString,
     name: NonEmptyString,
-    detected: Type.Boolean(),
-    authSource: Type.Union([
-      Type.Literal("env"),
-      Type.Literal("auth-profile"),
-      Type.Literal("aws-sdk"),
-      Type.Literal("config"),
-      Type.Literal("oauth"),
-      Type.Null(),
-    ]),
-    authDetail: Type.Optional(Type.String()),
-    baseUrl: Type.Optional(Type.String()),
-    authMode: Type.Optional(
-      Type.Union([
-        Type.Literal("api-key"),
-        Type.Literal("oauth"),
-        Type.Literal("token"),
-        Type.Literal("aws-sdk"),
-        Type.Literal("mixed"),
-        Type.Literal("unknown"),
-      ]),
-    ),
-    error: Type.Optional(Type.String()),
-    tokenValidity: Type.Optional(TokenValiditySchema),
-    tokenExpiresAt: Type.Optional(Type.String()),
-    tokenExpiresIn: Type.Optional(Type.String()),
-    lastUsed: Type.Optional(Type.String()),
-    inCooldown: Type.Optional(Type.Boolean()),
-    cooldownEndsAt: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+    detected: z.boolean(),
+    authSource: z.enum(["env", "auth-profile", "aws-sdk", "config", "oauth"]).nullable(),
+    authDetail: z.string().optional(),
+    baseUrl: z.string().optional(),
+    authMode: z.enum(["api-key", "oauth", "token", "aws-sdk", "mixed", "unknown"]).optional(),
+    error: z.string().optional(),
+    tokenValidity: TokenValiditySchema.optional(),
+    tokenExpiresAt: z.string().optional(),
+    tokenExpiresIn: z.string().optional(),
+    lastUsed: z.string().optional(),
+    inCooldown: z.boolean().optional(),
+    cooldownEndsAt: z.string().optional(),
+  })
+  .strict();
 
 // Usage period enum
-export const UsagePeriodSchema = Type.Union([
-  Type.Literal("today"),
-  Type.Literal("week"),
-  Type.Literal("month"),
-  Type.Literal("all"),
-]);
+export const UsagePeriodSchema = z.enum(["today", "week", "month", "all"]);
 
 // Provider usage schema
-export const ProviderUsageSchema = Type.Object(
-  {
+export const ProviderUsageSchema = z
+  .object({
     providerId: NonEmptyString,
     modelId: NonEmptyString,
     period: UsagePeriodSchema,
-    requests: Type.Integer({ minimum: 0 }),
-    inputTokens: Type.Integer({ minimum: 0 }),
-    outputTokens: Type.Integer({ minimum: 0 }),
-    cacheReadTokens: Type.Optional(Type.Integer({ minimum: 0 })),
-    cacheWriteTokens: Type.Optional(Type.Integer({ minimum: 0 })),
-    estimatedCost: Type.Number(),
-    lastUsed: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+    requests: z.number().int().min(0),
+    inputTokens: z.number().int().min(0),
+    outputTokens: z.number().int().min(0),
+    cacheReadTokens: z.number().int().min(0).optional(),
+    cacheWriteTokens: z.number().int().min(0).optional(),
+    estimatedCost: z.number(),
+    lastUsed: z.string().optional(),
+  })
+  .strict();
 
 // Usage totals schema
-export const UsageTotalsSchema = Type.Object(
-  {
-    requests: Type.Integer({ minimum: 0 }),
-    inputTokens: Type.Integer({ minimum: 0 }),
-    outputTokens: Type.Integer({ minimum: 0 }),
-    cacheReadTokens: Type.Optional(Type.Integer({ minimum: 0 })),
-    cacheWriteTokens: Type.Optional(Type.Integer({ minimum: 0 })),
-    estimatedCost: Type.Number(),
-  },
-  { additionalProperties: false },
-);
+export const UsageTotalsSchema = z
+  .object({
+    requests: z.number().int().min(0),
+    inputTokens: z.number().int().min(0),
+    outputTokens: z.number().int().min(0),
+    cacheReadTokens: z.number().int().min(0).optional(),
+    cacheWriteTokens: z.number().int().min(0).optional(),
+    estimatedCost: z.number(),
+  })
+  .strict();
 
 // providers.list params/result
-export const ProvidersListParamsSchema = Type.Object(
-  {
-    all: Type.Optional(Type.Boolean()),
-    providerId: Type.Optional(NonEmptyString),
-  },
-  { additionalProperties: false },
-);
+export const ProvidersListParamsSchema = z
+  .object({
+    all: z.boolean().optional(),
+    providerId: NonEmptyString.optional(),
+  })
+  .strict();
 
-export const ProvidersListResultSchema = Type.Object(
-  {
-    providers: Type.Array(ProviderStatusSchema),
-  },
-  { additionalProperties: false },
-);
+export const ProvidersListResultSchema = z
+  .object({
+    providers: z.array(ProviderStatusSchema),
+  })
+  .strict();
 
 // providers.usage params/result
-export const ProvidersUsageParamsSchema = Type.Object(
-  {
-    period: Type.Optional(UsagePeriodSchema),
-    providerId: Type.Optional(NonEmptyString),
-    modelId: Type.Optional(NonEmptyString),
-  },
-  { additionalProperties: false },
-);
+export const ProvidersUsageParamsSchema = z
+  .object({
+    period: UsagePeriodSchema.optional(),
+    providerId: NonEmptyString.optional(),
+    modelId: NonEmptyString.optional(),
+  })
+  .strict();
 
-export const ProvidersUsageResultSchema = Type.Object(
-  {
-    usage: Type.Array(ProviderUsageSchema),
+export const ProvidersUsageResultSchema = z
+  .object({
+    usage: z.array(ProviderUsageSchema),
     totals: UsageTotalsSchema,
     period: UsagePeriodSchema,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
 // Type exports
-export type ProviderStatus = Static<typeof ProviderStatusSchema>;
-export type UsagePeriod = Static<typeof UsagePeriodSchema>;
-export type ProviderUsage = Static<typeof ProviderUsageSchema>;
-export type UsageTotals = Static<typeof UsageTotalsSchema>;
-export type ProvidersListParams = Static<typeof ProvidersListParamsSchema>;
-export type ProvidersListResult = Static<typeof ProvidersListResultSchema>;
-export type ProvidersUsageParams = Static<typeof ProvidersUsageParamsSchema>;
-export type ProvidersUsageResult = Static<typeof ProvidersUsageResultSchema>;
+export type ProviderStatus = z.infer<typeof ProviderStatusSchema>;
+export type UsagePeriod = z.infer<typeof UsagePeriodSchema>;
+export type ProviderUsage = z.infer<typeof ProviderUsageSchema>;
+export type UsageTotals = z.infer<typeof UsageTotalsSchema>;
+export type ProvidersListParams = z.infer<typeof ProvidersListParamsSchema>;
+export type ProvidersListResult = z.infer<typeof ProvidersListResultSchema>;
+export type ProvidersUsageParams = z.infer<typeof ProvidersUsageParamsSchema>;
+export type ProvidersUsageResult = z.infer<typeof ProvidersUsageResultSchema>;

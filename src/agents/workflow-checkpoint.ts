@@ -136,12 +136,12 @@ export function getCheckpoint(id: string): CheckpointData | null {
 export function listCheckpointsForWorkflow(workflowId: string): CheckpointData[] {
   return Array.from(checkpoints.values())
     .filter((cp) => cp.workflowId === workflowId)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+    .toSorted((a, b) => b.updatedAt - a.updatedAt);
 }
 
 /** List all checkpoints. */
 export function listAllCheckpoints(): CheckpointData[] {
-  return Array.from(checkpoints.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+  return Array.from(checkpoints.values()).toSorted((a, b) => b.updatedAt - a.updatedAt);
 }
 
 /** Get the latest checkpoint for a workflow. */

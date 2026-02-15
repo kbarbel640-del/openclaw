@@ -12,6 +12,7 @@ import {
   upsertAuthProfile,
 } from "../../agents/auth-profiles/profiles.js";
 import { ensureAuthProfileStore } from "../../agents/auth-profiles/store.js";
+import { invalidateModelCatalogCache } from "../../agents/model-catalog.js";
 import { normalizeProviderId } from "../../agents/model-selection.js";
 import { isRemoteEnvironment } from "../../commands/oauth-env.js";
 import { createVpsAwareOAuthHandlers } from "../../commands/oauth-flow.js";
@@ -164,7 +165,9 @@ export const authHandlers: GatewayRequestHandlers = {
         });
       }
 
-      // Refresh model catalog so newly configured providers are discovered
+      // Invalidate cached catalog so the new credential is picked up,
+      // then reload so newly configured providers are discovered.
+      invalidateModelCatalogCache();
       try {
         await context.loadGatewayModelCatalog();
       } catch {
@@ -329,7 +332,8 @@ export const authHandlers: GatewayRequestHandlers = {
               credential: profile.credential,
             });
           }
-          // Refresh model catalog
+          // Invalidate cached catalog so the new OAuth credential is picked up
+          invalidateModelCatalogCache();
           try {
             await context.loadGatewayModelCatalog();
           } catch {
@@ -454,7 +458,9 @@ export const authHandlers: GatewayRequestHandlers = {
         return;
       }
 
-      // Refresh model catalog
+      // Invalidate cached catalog so removed provider models are purged,
+      // then reload to reflect the current credential state.
+      invalidateModelCatalogCache();
       try {
         await context.loadGatewayModelCatalog();
       } catch {

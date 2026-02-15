@@ -217,7 +217,7 @@ describe("ProviderMetrics", () => {
 
   it("should call onMetric callback when provided", () => {
     let callbackInvoked = false;
-    let receivedEvent: any = null;
+    let receivedEvent: unknown = null;
 
     const metrics = createProviderMetrics((event) => {
       callbackInvoked = true;
@@ -227,10 +227,15 @@ describe("ProviderMetrics", () => {
     metrics.emit("request.started", 1, { provider: "openai", model: "gpt-4o" });
 
     expect(callbackInvoked).toBe(true);
-    expect(receivedEvent.name).toBe("request.started");
-    expect(receivedEvent.value).toBe(1);
-    expect(receivedEvent.labels.provider).toBe("openai");
-    expect(receivedEvent.labels.model).toBe("gpt-4o");
+    const evt = receivedEvent as {
+      name: string;
+      value: number;
+      labels: { provider: string; model: string };
+    };
+    expect(evt.name).toBe("request.started");
+    expect(evt.value).toBe(1);
+    expect(evt.labels.provider).toBe("openai");
+    expect(evt.labels.model).toBe("gpt-4o");
   });
 
   it("should calculate success rate correctly with mixed success/error", () => {

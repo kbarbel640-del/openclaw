@@ -1,9 +1,8 @@
-import { Type } from "@sinclair/typebox";
 import crypto from "node:crypto";
+import { z } from "zod";
 import type { AgentRole } from "../../config/types.agents.js";
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import type { AnyAgentTool } from "./common.js";
-// import { formatThinkingLevels, normalizeThinkLevel } from "../../auto-reply/thinking.js";
 import { loadConfig } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
 import {
@@ -20,7 +19,7 @@ import {
 } from "../agent-scope.js";
 import { registerDelegation } from "../delegation-registry.js";
 import { AGENT_LANE_SUBAGENT } from "../lanes.js";
-import { optionalStringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { buildSubagentSystemPrompt } from "../subagent-announce.js";
 import { registerSubagentRun, getSubagentRunById } from "../subagent-registry.js";
 import { jsonResult } from "./common.js";
@@ -30,19 +29,21 @@ import {
   resolveMainSessionAlias,
 } from "./sessions-helpers.js";
 
-const BatchTaskSchema = Type.Object({
-  agentId: Type.String(),
-  task: Type.String(),
-  label: Type.Optional(Type.String()),
-  model: Type.Optional(Type.String()),
+const batchTaskShape = z.object({
+  agentId: z.string(),
+  task: z.string(),
+  label: z.string().optional(),
+  model: z.string().optional(),
 });
 
-const SessionsBatchSpawnToolSchema = Type.Object({
-  tasks: Type.Array(BatchTaskSchema),
-  waitMode: optionalStringEnum(["all", "any", "none"] as const),
-  runTimeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
-  cleanup: optionalStringEnum(["delete", "keep", "idle"] as const),
-});
+const SessionsBatchSpawnToolSchema = zodToToolJsonSchema(
+  z.object({
+    tasks: z.array(batchTaskShape),
+    waitMode: z.enum(["all", "any", "none"]).optional(),
+    runTimeoutSeconds: z.number().min(0).optional(),
+    cleanup: z.enum(["delete", "keep", "idle"]).optional(),
+  }),
+);
 
 type BatchTask = {
   agentId: string;

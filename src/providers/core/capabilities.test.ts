@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { ModelCatalogEntry } from "./types.js";
+import type { ModelCatalogEntry, ProviderId } from "./types.js";
 import {
   providerSupports,
   getProviderCapabilities,
@@ -40,7 +40,7 @@ describe("capabilities", () => {
     });
 
     it("returns empty array for unknown provider", () => {
-      const caps = getProviderCapabilities("unknown" as any);
+      const caps = getProviderCapabilities("unknown" as ProviderId);
       expect(caps).toEqual([]);
     });
   });

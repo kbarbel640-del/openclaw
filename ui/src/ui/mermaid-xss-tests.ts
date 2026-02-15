@@ -72,7 +72,7 @@ const xssTestCases: TestCase[] = [
   },
   {
     name: "Mermaid with excessive text",
-    input: "```mermaid\ngraph TD\n" + 'A["' + "X".repeat(60000) + '"]\n```',
+    input: `\`\`\`mermaid\ngraph TD\nA["${"X".repeat(60000)}"]\n\`\`\``,
     shouldNotContain: [],
     description: "Excessively large mermaid diagrams should be limited by maxTextSize",
   },
@@ -117,7 +117,7 @@ export async function runXssTests(): Promise<{
         console.error(`   Input: ${testCase.input.substring(0, 100)}...`);
         console.error(`   Output: ${output.substring(0, 100)}...`);
       }
-    } catch (error) {
+    } catch {
       // Errors during rendering are acceptable for malformed input
       passed++;
       results.push({

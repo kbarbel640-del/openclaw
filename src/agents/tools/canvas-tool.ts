@@ -1,10 +1,10 @@
-import { Type } from "@sinclair/typebox";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import { z } from "zod";
 import { writeBase64ToFile } from "../../cli/nodes-camera.js";
 import { canvasSnapshotTempPath, parseCanvasSnapshotPayload } from "../../cli/nodes-canvas.js";
 import { imageMimeFromFormat } from "../../media/mime.js";
-import { optionalStringEnum, stringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { type AnyAgentTool, imageResult, jsonResult, readStringParam } from "./common.js";
 import { callGatewayTool, type GatewayCallOptions } from "./gateway.js";
 import { resolveNodeId } from "./nodes-utils.js";
@@ -21,32 +21,28 @@ const CANVAS_ACTIONS = [
 
 const CANVAS_SNAPSHOT_FORMATS = ["png", "jpg", "jpeg"] as const;
 
-// Flattened schema: runtime validates per-action requirements.
-const CanvasToolSchema = Type.Object({
-  action: stringEnum(CANVAS_ACTIONS),
-  gatewayUrl: Type.Optional(Type.String()),
-  gatewayToken: Type.Optional(Type.String()),
-  timeoutMs: Type.Optional(Type.Number()),
-  node: Type.Optional(Type.String()),
-  // present
-  target: Type.Optional(Type.String()),
-  x: Type.Optional(Type.Number()),
-  y: Type.Optional(Type.Number()),
-  width: Type.Optional(Type.Number()),
-  height: Type.Optional(Type.Number()),
-  // navigate
-  url: Type.Optional(Type.String()),
-  // eval
-  javaScript: Type.Optional(Type.String()),
-  // snapshot
-  outputFormat: optionalStringEnum(CANVAS_SNAPSHOT_FORMATS),
-  maxWidth: Type.Optional(Type.Number()),
-  quality: Type.Optional(Type.Number()),
-  delayMs: Type.Optional(Type.Number()),
-  // a2ui_push
-  jsonl: Type.Optional(Type.String()),
-  jsonlPath: Type.Optional(Type.String()),
-});
+const CanvasToolSchema = zodToToolJsonSchema(
+  z.object({
+    action: z.enum(CANVAS_ACTIONS),
+    gatewayUrl: z.string().optional(),
+    gatewayToken: z.string().optional(),
+    timeoutMs: z.number().optional(),
+    node: z.string().optional(),
+    target: z.string().optional(),
+    x: z.number().optional(),
+    y: z.number().optional(),
+    width: z.number().optional(),
+    height: z.number().optional(),
+    url: z.string().optional(),
+    javaScript: z.string().optional(),
+    outputFormat: z.enum(CANVAS_SNAPSHOT_FORMATS).optional(),
+    maxWidth: z.number().optional(),
+    quality: z.number().optional(),
+    delayMs: z.number().optional(),
+    jsonl: z.string().optional(),
+    jsonlPath: z.string().optional(),
+  }),
+);
 
 export function createCanvasTool(): AnyAgentTool {
   return {

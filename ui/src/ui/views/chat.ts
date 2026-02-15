@@ -343,26 +343,27 @@ function collectAvailableModels(params: {
   return result;
 }
 
-function pickBestModelEntry(entries: AvailableModelEntry[]): AvailableModelEntry | null {
-  let best: AvailableModelEntry | null = null;
-  let bestPerf = -Infinity;
-  let bestCost = Infinity;
-  for (const entry of entries) {
-    const perf = perfTierScore(entry.row.capabilities?.performanceTier);
-    const cost = costTierScore(entry.row.capabilities?.costTier);
-    if (
-      best === null ||
-      perf > bestPerf ||
-      (perf === bestPerf && cost < bestCost) ||
-      (perf === bestPerf && cost === bestCost && entry.key.toLowerCase() < best.key.toLowerCase())
-    ) {
-      best = entry;
-      bestPerf = perf;
-      bestCost = cost;
-    }
-  }
-  return best;
-}
+// Unused helper - kept for potential future use
+// function pickBestModelEntry(entries: AvailableModelEntry[]): AvailableModelEntry | null {
+//   let best: AvailableModelEntry | null = null;
+//   let bestPerf = -Infinity;
+//   let bestCost = Infinity;
+//   for (const entry of entries) {
+//     const perf = perfTierScore(entry.row.capabilities?.performanceTier);
+//     const cost = costTierScore(entry.row.capabilities?.costTier);
+//     if (
+//       best === null ||
+//       perf > bestPerf ||
+//       (perf === bestPerf && cost < bestCost) ||
+//       (perf === bestPerf && cost === bestCost && entry.key.toLowerCase() < best.key.toLowerCase())
+//     ) {
+//       best = entry;
+//       bestPerf = perf;
+//       bestCost = cost;
+//     }
+//   }
+//   return best;
+// }
 
 function renderCompactionIndicator(status: CompactionIndicatorStatus | null | undefined) {
   if (!status) {
@@ -1538,7 +1539,7 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
   return groupMessages(items);
 }
 
-function messageKey(message: unknown, index: number): string {
+function messageKey(message: unknown, _index: number): string {
   const m = message as Record<string, unknown>;
   const toolCallId = typeof m.toolCallId === "string" ? m.toolCallId : "";
   if (toolCallId) {

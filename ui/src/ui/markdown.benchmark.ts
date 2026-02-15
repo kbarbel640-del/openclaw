@@ -237,7 +237,8 @@ export async function stressTest(diagramCount: number = 50): Promise<void> {
 
   resetMermaidMetrics();
 
-  const startMemory = (performance as any).memory?.usedJSHeapSize || 0;
+  const startMemory =
+    (performance as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize || 0;
   const startTime = performance.now();
 
   // Generate unique diagrams
@@ -256,7 +257,8 @@ graph LR
   }
 
   const endTime = performance.now();
-  const endMemory = (performance as any).memory?.usedJSHeapSize || 0;
+  const endMemory =
+    (performance as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize || 0;
   const totalTime = endTime - startTime;
   const memoryIncrease = (endMemory - startMemory) / 1024 / 1024; // MB
 

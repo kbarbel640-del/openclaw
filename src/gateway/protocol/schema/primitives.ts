@@ -1,17 +1,12 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { SESSION_LABEL_MAX_LENGTH } from "../../../sessions/session-label.js";
 import { GATEWAY_CLIENT_IDS, GATEWAY_CLIENT_MODES } from "../client-info.js";
 
-export const NonEmptyString = Type.String({ minLength: 1 });
-export const SessionLabelString = Type.String({
-  minLength: 1,
-  maxLength: SESSION_LABEL_MAX_LENGTH,
-});
+export const NonEmptyString = z.string().min(1);
+export const SessionLabelString = z.string().min(1).max(SESSION_LABEL_MAX_LENGTH);
 
-export const GatewayClientIdSchema = Type.Union(
-  Object.values(GATEWAY_CLIENT_IDS).map((value) => Type.Literal(value)),
-);
+const clientIdValues = Object.values(GATEWAY_CLIENT_IDS) as [string, ...string[]];
+export const GatewayClientIdSchema = z.enum(clientIdValues);
 
-export const GatewayClientModeSchema = Type.Union(
-  Object.values(GATEWAY_CLIENT_MODES).map((value) => Type.Literal(value)),
-);
+const clientModeValues = Object.values(GATEWAY_CLIENT_MODES) as [string, ...string[]];
+export const GatewayClientModeSchema = z.enum(clientModeValues);

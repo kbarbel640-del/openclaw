@@ -1,6 +1,6 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { AnyAgentTool } from "./common.js";
-import { stringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import {
   buildTeamContextSummary,
   listTeamArtifacts,
@@ -22,32 +22,27 @@ const TEAM_WORKSPACE_ACTIONS = [
   "get_summary",
 ] as const;
 
-const TeamWorkspaceToolSchema = Type.Object({
-  action: stringEnum(TEAM_WORKSPACE_ACTIONS, {
-    description:
-      "write_artifact: write a file to shared artifacts. " +
-      "read_artifact: read a shared artifact. " +
-      "list_artifacts: list all shared artifacts with metadata. " +
-      "set_context: write a key-value pair to shared context. " +
-      "get_context: read a value from shared context. " +
-      "list_decisions: list all team decisions. " +
-      "get_summary: get a formatted summary of team context.",
+const TeamWorkspaceToolSchema = zodToToolJsonSchema(
+  z.object({
+    action: z
+      .enum(TEAM_WORKSPACE_ACTIONS)
+      .describe(
+        "write_artifact: write a file to shared artifacts. " +
+          "read_artifact: read a shared artifact. " +
+          "list_artifacts: list all shared artifacts with metadata. " +
+          "set_context: write a key-value pair to shared context. " +
+          "get_context: read a value from shared context. " +
+          "list_decisions: list all team decisions. " +
+          "get_summary: get a formatted summary of team context.",
+      ),
+    name: z.string().describe("Artifact name (for write_artifact, read_artifact)").optional(),
+    content: z.string().describe("Artifact content (for write_artifact)").optional(),
+    description: z.string().describe("Artifact description (for write_artifact)").optional(),
+    tags: z.array(z.string()).describe("Artifact tags (for write_artifact)").optional(),
+    key: z.string().describe("Context key (for set_context, get_context)").optional(),
+    value: z.string().describe("Context value (for set_context)").optional(),
   }),
-  // write_artifact
-  name: Type.Optional(
-    Type.String({ description: "Artifact name (for write_artifact, read_artifact)" }),
-  ),
-  content: Type.Optional(Type.String({ description: "Artifact content (for write_artifact)" })),
-  description: Type.Optional(
-    Type.String({ description: "Artifact description (for write_artifact)" }),
-  ),
-  tags: Type.Optional(
-    Type.Array(Type.String(), { description: "Artifact tags (for write_artifact)" }),
-  ),
-  // set_context / get_context
-  key: Type.Optional(Type.String({ description: "Context key (for set_context, get_context)" })),
-  value: Type.Optional(Type.String({ description: "Context value (for set_context)" })),
-});
+);
 
 export function createTeamWorkspaceTool(opts?: { agentSessionKey?: string }): AnyAgentTool {
   return {

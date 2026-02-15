@@ -1,9 +1,10 @@
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import express from "express";
+import { node } from "@elysiajs/node";
+import { Elysia } from "elysia";
 import type { ResolvedBrowserConfig } from "./config.js";
-import type { BrowserRouteRegistrar } from "./routes/types.js";
 import { registerBrowserRoutes } from "./routes/index.js";
+import { createBrowserRouteAdapter } from "./routes/types.js";
 import {
   type BrowserServerState,
   createBrowserRouteContext,
@@ -27,19 +28,20 @@ export async function startBrowserBridgeServer(params: {
   const host = params.host ?? "127.0.0.1";
   const port = params.port ?? 0;
 
-  const app = express();
-  app.use(express.json({ limit: "1mb" }));
+  const app = new Elysia({ adapter: node() });
 
   const authToken = params.authToken?.trim();
   if (authToken) {
-    app.use((req, res, next) => {
-      const auth = String(req.headers.authorization ?? "").trim();
-      if (auth === `Bearer ${authToken}`) {
-        return next();
+    app.onBeforeHandle(({ request, set }) => {
+      const auth = request.headers.get("authorization")?.trim() ?? "";
+      if (auth !== `Bearer ${authToken}`) {
+        set.status = 401;
+        return "Unauthorized";
       }
-      res.status(401).send("Unauthorized");
     });
   }
+
+  const registrar = createBrowserRouteAdapter(app);
 
   const state: BrowserServerState = {
     server: null as unknown as Server,
@@ -52,11 +54,20 @@ export async function startBrowserBridgeServer(params: {
     getState: () => state,
     onEnsureAttachTarget: params.onEnsureAttachTarget,
   });
-  registerBrowserRoutes(app as unknown as BrowserRouteRegistrar, ctx);
+  registerBrowserRoutes(registrar, ctx);
 
   const server = await new Promise<Server>((resolve, reject) => {
-    const s = app.listen(port, host, () => resolve(s));
-    s.once("error", reject);
+    const instance = app.listen({ port, hostname: host }) as unknown as { server?: Server };
+    if (instance.server) {
+      instance.server.once("listening", () => {
+        if (instance.server) {
+          resolve(instance.server);
+        }
+      });
+      instance.server.once("error", reject);
+    } else {
+      reject(new Error("Failed to create HTTP server"));
+    }
   });
 
   const address = server.address() as AddressInfo | null;

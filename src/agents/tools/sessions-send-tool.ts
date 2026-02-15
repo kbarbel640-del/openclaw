@@ -1,5 +1,5 @@
-import { Type } from "@sinclair/typebox";
 import crypto from "node:crypto";
+import { z } from "zod";
 import type { AnyAgentTool } from "./common.js";
 import { loadConfig } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
@@ -17,6 +17,7 @@ import { resolveAgentRole } from "../agent-scope.js";
 import { registerDelegation } from "../delegation-registry.js";
 import { resolveAgentIdentity } from "../identity.js";
 import { AGENT_LANE_NESTED } from "../lanes.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { resolveTeamChatSessionKey } from "../team-chat.js";
 import { deliverToInbox } from "./agent-inbox.js";
 import { jsonResult, readStringParam } from "./common.js";
@@ -32,13 +33,15 @@ import {
 import { buildAgentToAgentMessageContext, resolvePingPongTurns } from "./sessions-send-helpers.js";
 import { runSessionsSendA2AFlow } from "./sessions-send-tool.a2a.js";
 
-const SessionsSendToolSchema = Type.Object({
-  sessionKey: Type.Optional(Type.String()),
-  label: Type.Optional(Type.String({ minLength: 1, maxLength: SESSION_LABEL_MAX_LENGTH })),
-  agentId: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
-  message: Type.String(),
-  timeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
-});
+const SessionsSendToolSchema = zodToToolJsonSchema(
+  z.object({
+    sessionKey: z.string().optional(),
+    label: z.string().min(1).max(SESSION_LABEL_MAX_LENGTH).optional(),
+    agentId: z.string().min(1).max(64).optional(),
+    message: z.string(),
+    timeoutSeconds: z.number().min(0).optional(),
+  }),
+);
 
 export function createSessionsSendTool(opts?: {
   agentSessionKey?: string;

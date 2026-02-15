@@ -1,21 +1,20 @@
-import { Type } from "@sinclair/typebox";
-import type { ChannelAgentTool } from "../types.js";
+import type { AgentTool } from "@mariozechner/pi-agent-core";
+import { z } from "zod";
+import { zodToToolJsonSchema } from "../../../agents/schema/zod-tool-schema.js";
 
-export function createWhatsAppLoginTool(): ChannelAgentTool {
+// oxlint-disable-next-line typescript/no-explicit-any
+export function createWhatsAppLoginTool(): AgentTool<any, unknown> {
   return {
     label: "WhatsApp Login",
     name: "whatsapp_login",
     description: "Generate a WhatsApp QR code for linking, or wait for the scan to complete.",
-    // NOTE: Using Type.Unsafe for action enum instead of Type.Union([Type.Literal(...)]
-    // because Claude API on Vertex AI rejects nested anyOf schemas as invalid JSON Schema.
-    parameters: Type.Object({
-      action: Type.Unsafe<"start" | "wait">({
-        type: "string",
-        enum: ["start", "wait"],
+    parameters: zodToToolJsonSchema(
+      z.object({
+        action: z.enum(["start", "wait"]),
+        timeoutMs: z.number().optional(),
+        force: z.boolean().optional(),
       }),
-      timeoutMs: Type.Optional(Type.Number()),
-      force: Type.Optional(Type.Boolean()),
-    }),
+    ),
     execute: async (_toolCallId, args) => {
       const { startWebLoginWithQr, waitForWebLogin } = await import("../../../web/login-qr.js");
       const action = (args as { action?: string })?.action ?? "start";

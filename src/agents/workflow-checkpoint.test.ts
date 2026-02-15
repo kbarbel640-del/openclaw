@@ -436,7 +436,7 @@ describe("workflow-checkpoint", () => {
     it("returns most recent checkpoint for workflow", () => {
       vi.useFakeTimers();
 
-      const cp1 = createCheckpoint({
+      createCheckpoint({
         workflowId: "wf-1",
         phase: "test",
         pendingSubtaskIds: [],

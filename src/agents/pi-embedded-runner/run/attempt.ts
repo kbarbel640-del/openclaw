@@ -818,7 +818,7 @@ export async function runEmbeddedAttempt(
             `DEBUG: Sending prompt to ${params.provider}/${params.modelId} (api=${params.model.api}, baseUrl=${params.model.baseUrl})`,
           );
 
-          const promptOptions: any = {};
+          const promptOptions: Record<string, unknown> = {};
           if (imageResult.images.length > 0) {
             promptOptions.images = imageResult.images;
           }
@@ -832,13 +832,15 @@ export async function runEmbeddedAttempt(
                 agentDir,
               });
               if (auth.apiKey) {
+                const existingHeaders = (promptOptions.headers ?? {}) as Record<string, string>;
                 promptOptions.headers = {
-                  ...promptOptions.headers,
+                  ...existingHeaders,
                   Authorization: `Bearer ${auth.apiKey}`,
                 };
               }
             } catch (err) {
-              log.warn(`Failed to resolve Antigravity API key for header injection: ${err}`);
+              const errMsg = err instanceof Error ? err.message : String(err);
+              log.warn(`Failed to resolve Antigravity API key for header injection: ${errMsg}`);
             }
           }
 
@@ -847,7 +849,7 @@ export async function runEmbeddedAttempt(
           promptError = err;
           // Record provider failure for health tracking
           try {
-            recordFailure(params.provider as any, err as Error);
+            recordFailure(params.provider, err as Error);
           } catch {
             // Ignore health tracking errors
           }
@@ -859,7 +861,7 @@ export async function runEmbeddedAttempt(
           // Record provider success for health tracking (only if no error)
           if (!promptError) {
             try {
-              recordSuccess(params.provider as any, durationMs);
+              recordSuccess(params.provider, durationMs);
             } catch {
               // Ignore health tracking errors
             }

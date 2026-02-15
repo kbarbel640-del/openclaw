@@ -94,13 +94,15 @@ DISCUSSION THREAD:
   // Build Expert Directory
   let expertDirectory = "";
   try {
-    const cfg = await loadConfig();
+    const cfg = loadConfig();
     const agentIds = listAgentIds(cfg);
     if (agentIds.length > 0) {
       expertDirectory = "EXPERT DIRECTORY (CONSULT THESE AGENTS FOR HELP):\n";
       for (const id of agentIds) {
         // Skip self
-        if (id === params.agentId) continue;
+        if (id === params.agentId) {
+          continue;
+        }
 
         const conf = resolveAgentConfig(cfg, id);
         if (conf) {
@@ -110,7 +112,7 @@ DISCUSSION THREAD:
         }
       }
     }
-  } catch (e) {
+  } catch {
     // Ignore config load errors, directory just won't be available
   }
 

@@ -110,7 +110,7 @@ export const providersHealthHandlers: GatewayRequestHandlers = {
       const runtimeHealth = getAllProviderHealth();
 
       const providers = detected.map((det) => {
-        const runtime: ProviderHealthMetrics | undefined = runtimeHealth.get(det.id as any);
+        const runtime: ProviderHealthMetrics | undefined = runtimeHealth.get(det.id);
         const registry = getProviderById(det.id);
 
         const healthStatus = deriveHealthStatus(
@@ -191,8 +191,8 @@ export const providersHealthHandlers: GatewayRequestHandlers = {
         return;
       }
 
-      const healthy = isProviderHealthy(typedParams.providerId as any);
-      const health = getProviderHealth(typedParams.providerId as any);
+      const healthy = isProviderHealthy(typedParams.providerId);
+      const health = getProviderHealth(typedParams.providerId);
 
       respond(true, { healthy, status: health.status, provider: health }, undefined);
     } catch (err) {
@@ -209,8 +209,8 @@ export const providersHealthHandlers: GatewayRequestHandlers = {
       const allHealth = getAllProviderHealth();
       const providerIds = typedParams.providerIds ?? Array.from(allHealth.keys());
 
-      const ranked = getProvidersByHealth(providerIds as any[]);
-      const providers = ranked.map((id) => getProviderHealth(id as any));
+      const ranked = getProvidersByHealth(providerIds);
+      const providers = ranked.map((id) => getProviderHealth(id));
 
       respond(true, { providers, ranked }, undefined);
     } catch (err) {

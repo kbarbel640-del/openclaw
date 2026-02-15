@@ -1,6 +1,6 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { resolveSessionAgentId } from "../agent-scope.js";
-import { optionalStringEnum, stringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { type AnyAgentTool, jsonResult, readStringParam } from "./common.js";
 import { callGatewayTool } from "./gateway.js";
 
@@ -19,61 +19,61 @@ const DELEGATION_ACTIONS = [
 const DELEGATION_PRIORITIES = ["critical", "high", "normal", "low"] as const;
 const REVIEW_DECISIONS = ["approve", "reject", "redirect"] as const;
 
-const DelegationToolSchema = Type.Object({
-  action: stringEnum(DELEGATION_ACTIONS, {
-    description:
-      "delegate: assign a task to a subordinate (downward). " +
-      "request: request help from your immediate superior (upward, requires justification). " +
-      "review: superior reviews an upward request (approve/reject/redirect). " +
-      "accept: accept an assigned delegation and start work. " +
-      "complete: mark delegation as completed with result. " +
-      "reject: reject a delegation. " +
-      "status: get a single delegation record. " +
-      "list: list delegations for current agent. " +
-      "pending: list pending reviews for current agent.",
-  }),
-  // delegate / request
-  toAgentId: Type.Optional(
-    Type.String({
-      description:
+const DelegationToolSchema = zodToToolJsonSchema(
+  z.object({
+    action: z
+      .enum(DELEGATION_ACTIONS)
+      .describe(
+        "delegate: assign a task to a subordinate (downward). " +
+          "request: request help from your immediate superior (upward, requires justification). " +
+          "review: superior reviews an upward request (approve/reject/redirect). " +
+          "accept: accept an assigned delegation and start work. " +
+          "complete: mark delegation as completed with result. " +
+          "reject: reject a delegation. " +
+          "status: get a single delegation record. " +
+          "list: list delegations for current agent. " +
+          "pending: list pending reviews for current agent.",
+      ),
+    toAgentId: z
+      .string()
+      .describe(
         "Target agent ID (required for delegate; optional for request because system auto-routes to immediate superior)",
-    }),
-  ),
-  task: Type.Optional(Type.String({ description: "Task description (for delegate/request)" })),
-  priority: optionalStringEnum(DELEGATION_PRIORITIES, {
-    description: "Priority level (for delegate/request, default: normal)",
+      )
+      .optional(),
+    task: z.string().describe("Task description (for delegate/request)").optional(),
+    priority: z
+      .enum(DELEGATION_PRIORITIES)
+      .describe("Priority level (for delegate/request, default: normal)")
+      .optional(),
+    justification: z
+      .string()
+      .describe("Justification for the request (required for upward requests)")
+      .optional(),
+    delegationId: z
+      .string()
+      .describe("Delegation ID (for review/accept/complete/reject/status)")
+      .optional(),
+    decision: z.enum(REVIEW_DECISIONS).describe("Review decision (for review action)").optional(),
+    reasoning: z.string().describe("Reasoning for the review decision (for review)").optional(),
+    redirectToAgentId: z
+      .string()
+      .describe("Agent to redirect to (for review with redirect decision)")
+      .optional(),
+    redirectReason: z
+      .string()
+      .describe("Reason for redirecting (for review with redirect)")
+      .optional(),
+    resultStatus: z
+      .enum(["success", "failure", "partial"])
+      .describe("Result status (for complete action)")
+      .optional(),
+    resultSummary: z.string().describe("Summary of the result (for complete action)").optional(),
+    direction: z
+      .enum(["downward", "upward"])
+      .describe("Filter by direction (for list action)")
+      .optional(),
   }),
-  justification: Type.Optional(
-    Type.String({ description: "Justification for the request (required for upward requests)" }),
-  ),
-  // review
-  delegationId: Type.Optional(
-    Type.String({ description: "Delegation ID (for review/accept/complete/reject/status)" }),
-  ),
-  decision: optionalStringEnum(REVIEW_DECISIONS, {
-    description: "Review decision (for review action)",
-  }),
-  reasoning: Type.Optional(
-    Type.String({ description: "Reasoning for the review decision (for review)" }),
-  ),
-  redirectToAgentId: Type.Optional(
-    Type.String({ description: "Agent to redirect to (for review with redirect decision)" }),
-  ),
-  redirectReason: Type.Optional(
-    Type.String({ description: "Reason for redirecting (for review with redirect)" }),
-  ),
-  // complete
-  resultStatus: optionalStringEnum(["success", "failure", "partial"] as const, {
-    description: "Result status (for complete action)",
-  }),
-  resultSummary: Type.Optional(
-    Type.String({ description: "Summary of the result (for complete action)" }),
-  ),
-  // list filter
-  direction: optionalStringEnum(["downward", "upward"] as const, {
-    description: "Filter by direction (for list action)",
-  }),
-});
+);
 
 export function createDelegationTool(opts?: { agentSessionKey?: string }): AnyAgentTool {
   return {

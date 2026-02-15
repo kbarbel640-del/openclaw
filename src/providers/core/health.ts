@@ -45,7 +45,7 @@ export async function loadHealthFromRedis(): Promise<number> {
     let restored = 0;
     for (const fullKey of keys) {
       const unprefixed = fullKey.startsWith(prefix) ? fullKey.slice(prefix.length) : fullKey;
-      const providerId = unprefixed.replace(/^provider:health:/, "") as ProviderId;
+      const providerId: ProviderId = unprefixed.replace(/^provider:health:/, "");
       const metrics = await cacheGet<ProviderHealthMetrics>(unprefixed);
       if (metrics) {
         healthMetrics.set(providerId, metrics);
@@ -124,7 +124,7 @@ export function recordSuccess(providerId: ProviderId, responseTimeMs: number): v
 /**
  * Record a failed provider call.
  */
-export function recordFailure(providerId: ProviderId, error: string | Error): void {
+export function recordFailure(providerId: ProviderId, _error: string | Error): void {
   const metrics = getProviderHealth(providerId);
 
   metrics.totalCalls++;
@@ -196,7 +196,7 @@ export function isProviderHealthy(providerId: ProviderId): boolean {
  * Get providers in order of health preference (healthiest first).
  */
 export function getProvidersByHealth(providerIds: ProviderId[]): ProviderId[] {
-  return providerIds.slice().sort((a, b) => {
+  return providerIds.toSorted((a, b) => {
     const aMetrics = getProviderHealth(a);
     const bMetrics = getProviderHealth(b);
 

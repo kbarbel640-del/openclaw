@@ -79,7 +79,6 @@ import {
   updateSkillEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
-import { loadTwitterData } from "./controllers/twitter.ts";
 import { loadUsage, type UsageState } from "./controllers/usage.ts";
 import {
   loadVoiceStatus,
@@ -114,7 +113,6 @@ import { renderSecurity } from "./views/security.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
 import { renderToastContainer } from "./views/toast.ts";
-import { renderTwitterView } from "./views/twitter.ts";
 import { renderUsage } from "./views/usage.ts";
 import { renderVoice } from "./views/voice.ts";
 
@@ -1634,7 +1632,7 @@ export function renderApp(state: AppViewState) {
         ${
           state.tab === "twitter"
             ? html`<div class="view-content">${unsafeHTML(
-                (window as any).__twitter_view_html__ ||
+                (window as { __twitter_view_html__?: string }).__twitter_view_html__ ||
                   '<div class="loading">Loading Twitter...</div>',
               )}</div>`
             : nothing

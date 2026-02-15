@@ -7,7 +7,6 @@ import type {
   ModelCapabilities,
   ModelCatalogEntry,
   ProviderCapability,
-  ProviderDefinition,
   ProviderId,
 } from "./types.js";
 
@@ -77,17 +76,16 @@ export function getProviderCapabilities(providerId: ProviderId): ProviderCapabil
  * @returns Full model capabilities
  */
 export function inferModelCapabilities(entry: ModelCatalogEntry): ModelCapabilities {
-  const providerCaps = getProviderCapabilities(entry.provider as ProviderId);
+  const provider = entry.provider;
 
   return {
     contextWindow: entry.contextWindow ?? 128000,
     maxTokens: undefined,
-    vision:
-      entry.input?.includes("image") ?? providerSupports(entry.provider as ProviderId, "vision"),
-    tools: providerSupports(entry.provider as ProviderId, "tools"),
-    reasoning: entry.reasoning ?? providerSupports(entry.provider as ProviderId, "reasoning"),
-    streaming: providerSupports(entry.provider as ProviderId, "streaming"),
-    caching: providerSupports(entry.provider as ProviderId, "caching"),
+    vision: entry.input?.includes("image") ?? providerSupports(provider, "vision"),
+    tools: providerSupports(provider, "tools"),
+    reasoning: entry.reasoning ?? providerSupports(provider, "reasoning"),
+    streaming: providerSupports(provider, "streaming"),
+    caching: providerSupports(provider, "caching"),
     input: entry.input ?? ["text"],
     output: ["text"],
   };
@@ -144,8 +142,9 @@ export function validateCapabilities(
   // Check context window
   if (typeof required.contextWindow === "number") {
     const available = capabilities.contextWindow ?? 0;
-    if (available < required.contextWindow) {
-      missing.push(`contextWindow:${required.contextWindow}`);
+    const requiredWindow = required.contextWindow;
+    if (available < requiredWindow) {
+      missing.push(`contextWindow:${String(requiredWindow)}`);
     }
   }
 
@@ -254,7 +253,7 @@ export function suggestAlternatives(
       return { model: entry, score, missing: validation.missing };
     })
     .filter((alt) => alt.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .toSorted((a, b) => b.score - a.score)
     .slice(0, 3);
 
   return alternatives;

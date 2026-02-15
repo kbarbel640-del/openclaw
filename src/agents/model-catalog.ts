@@ -41,12 +41,11 @@ export function resetModelCatalogCacheForTest() {
  * `loadModelCatalog()` re-reads `models.json` from disk.
  * Safe to call in production (e.g. after auth login refreshes models.json).
  *
- * IMPORTANT: This should be called automatically when:
+ * IMPORTANT: This is called automatically when:
  * - User completes auth login (new provider becomes available)
- * - Auth profile is added/removed
+ * - Auth profile is added/removed (gateway auth handlers)
  * - Provider configuration changes
- *
- * TODO: Add auth event listener to auto-invalidate cache on auth changes
+ * - Periodic model catalog refresh (gateway maintenance timer)
  */
 export function invalidateModelCatalogCache(): void {
   modelCatalogPromise = null;

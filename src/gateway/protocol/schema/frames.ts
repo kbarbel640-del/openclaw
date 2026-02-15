@@ -1,164 +1,147 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { GatewayClientIdSchema, GatewayClientModeSchema, NonEmptyString } from "./primitives.js";
 import { SnapshotSchema, StateVersionSchema } from "./snapshot.js";
 
-export const TickEventSchema = Type.Object(
-  {
-    ts: Type.Integer({ minimum: 0 }),
-  },
-  { additionalProperties: false },
-);
+export const TickEventSchema = z
+  .object({
+    ts: z.number().int().min(0),
+  })
+  .strict();
 
-export const ShutdownEventSchema = Type.Object(
-  {
+export const ShutdownEventSchema = z
+  .object({
     reason: NonEmptyString,
-    restartExpectedMs: Type.Optional(Type.Integer({ minimum: 0 })),
-  },
-  { additionalProperties: false },
-);
+    restartExpectedMs: z.number().int().min(0).optional(),
+  })
+  .strict();
 
-export const ConnectParamsSchema = Type.Object(
-  {
-    minProtocol: Type.Integer({ minimum: 1 }),
-    maxProtocol: Type.Integer({ minimum: 1 }),
-    client: Type.Object(
-      {
+export const ConnectParamsSchema = z
+  .object({
+    minProtocol: z.number().int().min(1),
+    maxProtocol: z.number().int().min(1),
+    client: z
+      .object({
         id: GatewayClientIdSchema,
-        displayName: Type.Optional(NonEmptyString),
+        displayName: NonEmptyString.optional(),
         version: NonEmptyString,
         platform: NonEmptyString,
-        deviceFamily: Type.Optional(NonEmptyString),
-        modelIdentifier: Type.Optional(NonEmptyString),
+        deviceFamily: NonEmptyString.optional(),
+        modelIdentifier: NonEmptyString.optional(),
         mode: GatewayClientModeSchema,
-        instanceId: Type.Optional(NonEmptyString),
-      },
-      { additionalProperties: false },
-    ),
-    caps: Type.Optional(Type.Array(NonEmptyString, { default: [] })),
-    commands: Type.Optional(Type.Array(NonEmptyString)),
-    permissions: Type.Optional(Type.Record(NonEmptyString, Type.Boolean())),
-    pathEnv: Type.Optional(Type.String()),
-    role: Type.Optional(NonEmptyString),
-    scopes: Type.Optional(Type.Array(NonEmptyString)),
-    device: Type.Optional(
-      Type.Object(
-        {
-          id: NonEmptyString,
-          publicKey: NonEmptyString,
-          signature: NonEmptyString,
-          signedAt: Type.Integer({ minimum: 0 }),
-          nonce: Type.Optional(NonEmptyString),
-        },
-        { additionalProperties: false },
-      ),
-    ),
-    auth: Type.Optional(
-      Type.Object(
-        {
-          token: Type.Optional(Type.String()),
-          password: Type.Optional(Type.String()),
-        },
-        { additionalProperties: false },
-      ),
-    ),
-    locale: Type.Optional(Type.String()),
-    userAgent: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+        instanceId: NonEmptyString.optional(),
+      })
+      .strict(),
+    caps: z.array(NonEmptyString).optional(),
+    commands: z.array(NonEmptyString).optional(),
+    permissions: z.record(NonEmptyString, z.boolean()).optional(),
+    pathEnv: z.string().optional(),
+    role: NonEmptyString.optional(),
+    scopes: z.array(NonEmptyString).optional(),
+    device: z
+      .object({
+        id: NonEmptyString,
+        publicKey: NonEmptyString,
+        signature: NonEmptyString,
+        signedAt: z.number().int().min(0),
+        nonce: NonEmptyString.optional(),
+      })
+      .strict()
+      .optional(),
+    auth: z
+      .object({
+        token: z.string().optional(),
+        password: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    locale: z.string().optional(),
+    userAgent: z.string().optional(),
+  })
+  .strict();
 
-export const HelloOkSchema = Type.Object(
-  {
-    type: Type.Literal("hello-ok"),
-    protocol: Type.Integer({ minimum: 1 }),
-    server: Type.Object(
-      {
+export const HelloOkSchema = z
+  .object({
+    type: z.literal("hello-ok"),
+    protocol: z.number().int().min(1),
+    server: z
+      .object({
         version: NonEmptyString,
-        commit: Type.Optional(NonEmptyString),
-        host: Type.Optional(NonEmptyString),
+        commit: NonEmptyString.optional(),
+        host: NonEmptyString.optional(),
         connId: NonEmptyString,
-      },
-      { additionalProperties: false },
-    ),
-    features: Type.Object(
-      {
-        methods: Type.Array(NonEmptyString),
-        events: Type.Array(NonEmptyString),
-      },
-      { additionalProperties: false },
-    ),
+      })
+      .strict(),
+    features: z
+      .object({
+        methods: z.array(NonEmptyString),
+        events: z.array(NonEmptyString),
+      })
+      .strict(),
     snapshot: SnapshotSchema,
-    canvasHostUrl: Type.Optional(NonEmptyString),
-    auth: Type.Optional(
-      Type.Object(
-        {
-          deviceToken: NonEmptyString,
-          role: NonEmptyString,
-          scopes: Type.Array(NonEmptyString),
-          issuedAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
-        },
-        { additionalProperties: false },
-      ),
-    ),
-    policy: Type.Object(
-      {
-        maxPayload: Type.Integer({ minimum: 1 }),
-        maxBufferedBytes: Type.Integer({ minimum: 1 }),
-        tickIntervalMs: Type.Integer({ minimum: 1 }),
-      },
-      { additionalProperties: false },
-    ),
-  },
-  { additionalProperties: false },
-);
+    canvasHostUrl: NonEmptyString.optional(),
+    auth: z
+      .object({
+        deviceToken: NonEmptyString,
+        role: NonEmptyString,
+        scopes: z.array(NonEmptyString),
+        issuedAtMs: z.number().int().min(0).optional(),
+      })
+      .strict()
+      .optional(),
+    policy: z
+      .object({
+        maxPayload: z.number().int().min(1),
+        maxBufferedBytes: z.number().int().min(1),
+        tickIntervalMs: z.number().int().min(1),
+      })
+      .strict(),
+  })
+  .strict();
 
-export const ErrorShapeSchema = Type.Object(
-  {
+export const ErrorShapeSchema = z
+  .object({
     code: NonEmptyString,
     message: NonEmptyString,
-    details: Type.Optional(Type.Unknown()),
-    retryable: Type.Optional(Type.Boolean()),
-    retryAfterMs: Type.Optional(Type.Integer({ minimum: 0 })),
-  },
-  { additionalProperties: false },
-);
+    details: z.unknown().optional(),
+    retryable: z.boolean().optional(),
+    retryAfterMs: z.number().int().min(0).optional(),
+  })
+  .strict();
 
-export const RequestFrameSchema = Type.Object(
-  {
-    type: Type.Literal("req"),
+export const RequestFrameSchema = z
+  .object({
+    type: z.literal("req"),
     id: NonEmptyString,
     method: NonEmptyString,
-    params: Type.Optional(Type.Unknown()),
-  },
-  { additionalProperties: false },
-);
+    params: z.unknown().optional(),
+  })
+  .strict();
 
-export const ResponseFrameSchema = Type.Object(
-  {
-    type: Type.Literal("res"),
+export const ResponseFrameSchema = z
+  .object({
+    type: z.literal("res"),
     id: NonEmptyString,
-    ok: Type.Boolean(),
-    payload: Type.Optional(Type.Unknown()),
-    error: Type.Optional(ErrorShapeSchema),
-  },
-  { additionalProperties: false },
-);
+    ok: z.boolean(),
+    payload: z.unknown().optional(),
+    error: ErrorShapeSchema.optional(),
+  })
+  .strict();
 
-export const EventFrameSchema = Type.Object(
-  {
-    type: Type.Literal("event"),
+export const EventFrameSchema = z
+  .object({
+    type: z.literal("event"),
     event: NonEmptyString,
-    payload: Type.Optional(Type.Unknown()),
-    seq: Type.Optional(Type.Integer({ minimum: 0 })),
-    stateVersion: Type.Optional(StateVersionSchema),
-  },
-  { additionalProperties: false },
-);
+    payload: z.unknown().optional(),
+    seq: z.number().int().min(0).optional(),
+    stateVersion: StateVersionSchema.optional(),
+  })
+  .strict();
 
 // Discriminated union of all top-level frames. Using a discriminator makes
 // downstream codegen (quicktype) produce tighter types instead of all-optional
 // blobs.
-export const GatewayFrameSchema = Type.Union(
-  [RequestFrameSchema, ResponseFrameSchema, EventFrameSchema],
-  { discriminator: "type" },
-);
+export const GatewayFrameSchema = z.discriminatedUnion("type", [
+  RequestFrameSchema,
+  ResponseFrameSchema,
+  EventFrameSchema,
+]);

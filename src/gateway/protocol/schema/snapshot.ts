@@ -1,57 +1,53 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString } from "./primitives.js";
 
-export const PresenceEntrySchema = Type.Object(
-  {
-    host: Type.Optional(NonEmptyString),
-    ip: Type.Optional(NonEmptyString),
-    version: Type.Optional(NonEmptyString),
-    platform: Type.Optional(NonEmptyString),
-    deviceFamily: Type.Optional(NonEmptyString),
-    modelIdentifier: Type.Optional(NonEmptyString),
-    mode: Type.Optional(NonEmptyString),
-    lastInputSeconds: Type.Optional(Type.Integer({ minimum: 0 })),
-    reason: Type.Optional(NonEmptyString),
-    tags: Type.Optional(Type.Array(NonEmptyString)),
-    text: Type.Optional(Type.String()),
-    ts: Type.Integer({ minimum: 0 }),
-    deviceId: Type.Optional(NonEmptyString),
-    roles: Type.Optional(Type.Array(NonEmptyString)),
-    scopes: Type.Optional(Type.Array(NonEmptyString)),
-    instanceId: Type.Optional(NonEmptyString),
-  },
-  { additionalProperties: false },
-);
+export const PresenceEntrySchema = z
+  .object({
+    host: NonEmptyString.optional(),
+    ip: NonEmptyString.optional(),
+    version: NonEmptyString.optional(),
+    platform: NonEmptyString.optional(),
+    deviceFamily: NonEmptyString.optional(),
+    modelIdentifier: NonEmptyString.optional(),
+    mode: NonEmptyString.optional(),
+    lastInputSeconds: z.number().int().min(0).optional(),
+    reason: NonEmptyString.optional(),
+    tags: z.array(NonEmptyString).optional(),
+    text: z.string().optional(),
+    ts: z.number().int().min(0),
+    deviceId: NonEmptyString.optional(),
+    roles: z.array(NonEmptyString).optional(),
+    scopes: z.array(NonEmptyString).optional(),
+    instanceId: NonEmptyString.optional(),
+  })
+  .strict();
 
-export const HealthSnapshotSchema = Type.Any();
+export const HealthSnapshotSchema = z.any();
 
-export const SessionDefaultsSchema = Type.Object(
-  {
+export const SessionDefaultsSchema = z
+  .object({
     defaultAgentId: NonEmptyString,
     mainKey: NonEmptyString,
     mainSessionKey: NonEmptyString,
-    scope: Type.Optional(NonEmptyString),
-  },
-  { additionalProperties: false },
-);
+    scope: NonEmptyString.optional(),
+  })
+  .strict();
 
-export const StateVersionSchema = Type.Object(
-  {
-    presence: Type.Integer({ minimum: 0 }),
-    health: Type.Integer({ minimum: 0 }),
-  },
-  { additionalProperties: false },
-);
+export const StateVersionSchema = z
+  .object({
+    presence: z.number().int().min(0),
+    health: z.number().int().min(0),
+  })
+  .strict();
 
-export const SnapshotSchema = Type.Object(
-  {
-    presence: Type.Array(PresenceEntrySchema),
+export const SnapshotSchema = z
+  .object({
+    presence: z.array(PresenceEntrySchema),
     health: HealthSnapshotSchema,
     stateVersion: StateVersionSchema,
-    uptimeMs: Type.Integer({ minimum: 0 }),
-    configPath: Type.Optional(NonEmptyString),
-    stateDir: Type.Optional(NonEmptyString),
-    sessionDefaults: Type.Optional(SessionDefaultsSchema),
-  },
-  { additionalProperties: false },
-);
+    uptimeMs: z.number().int().min(0),
+    configPath: NonEmptyString.optional(),
+    stateDir: NonEmptyString.optional(),
+    sessionDefaults: SessionDefaultsSchema.optional(),
+  })
+  .strict();

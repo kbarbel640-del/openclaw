@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import type { ProviderId } from "./types.js";
 import {
   recordSuccess,
   recordFailure,
@@ -154,7 +155,7 @@ describe("health", () => {
         recordFailure("providerC", new Error("failure"));
       }
 
-      const sorted = getProvidersByHealth(["providerA", "providerB", "providerC"] as any[]);
+      const sorted = getProvidersByHealth(["providerA", "providerB", "providerC"] as ProviderId[]);
       expect(sorted[0]).toBe("providerA");
       expect(sorted[2]).toBe("providerC");
     });
@@ -166,7 +167,7 @@ describe("health", () => {
 
     it("handles single provider", () => {
       recordSuccess("anthropic", 100);
-      const sorted = getProvidersByHealth(["anthropic"] as any[]);
+      const sorted = getProvidersByHealth(["anthropic"] as ProviderId[]);
       expect(sorted).toEqual(["anthropic"]);
     });
   });

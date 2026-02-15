@@ -10,7 +10,7 @@
  * - processDecomposition: valid DAG, invalid DAG, phases
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   topologicalSort,
   validateDag,
@@ -35,7 +35,7 @@ vi.mock("./capabilities-registry.js", () => ({
     }
     return null;
   }),
-  findTopAgentsForTask: vi.fn((task: string, limit: number) => {
+  findTopAgentsForTask: vi.fn((task: string, _limit: number) => {
     if (task.toLowerCase().includes("complex")) {
       return [
         { agentId: "agent1", confidence: 0.8 },

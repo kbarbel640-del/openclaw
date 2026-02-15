@@ -1,8 +1,8 @@
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
-import { Type } from "@sinclair/typebox";
 import crypto from "node:crypto";
 import path from "node:path";
+import { z } from "zod";
 import type { BashSandboxConfig } from "./bash-tools.shared.js";
 import {
   type ExecAsk,
@@ -52,6 +52,7 @@ import {
   truncateMiddle,
 } from "./bash-tools.shared.js";
 import { buildCursorPositionResponse, stripDsrRequests } from "./pty-dsr.js";
+import { zodToToolJsonSchema } from "./schema/zod-tool-schema.js";
 import { getShellConfig, sanitizeBinaryOutput } from "./shell-utils.js";
 import { callGatewayTool } from "./tools/gateway.js";
 import { listNodes, resolveNodeIdFromList } from "./tools/nodes-utils.js";
@@ -192,53 +193,34 @@ export type ExecElevatedDefaults = {
   defaultLevel: "on" | "off" | "ask" | "full";
 };
 
-const execSchema = Type.Object({
-  command: Type.String({ description: "Shell command to execute" }),
-  workdir: Type.Optional(Type.String({ description: "Working directory (defaults to cwd)" })),
-  env: Type.Optional(Type.Record(Type.String(), Type.String())),
-  yieldMs: Type.Optional(
-    Type.Number({
-      description: "Milliseconds to wait before backgrounding (default 10000)",
-    }),
-  ),
-  background: Type.Optional(Type.Boolean({ description: "Run in background immediately" })),
-  timeout: Type.Optional(
-    Type.Number({
-      description: "Timeout in seconds (optional, kills process on expiry)",
-    }),
-  ),
-  pty: Type.Optional(
-    Type.Boolean({
-      description:
-        "Run in a pseudo-terminal (PTY) when available (TTY-required CLIs, coding agents)",
-    }),
-  ),
-  elevated: Type.Optional(
-    Type.Boolean({
-      description: "Run on the host with elevated permissions (if allowed)",
-    }),
-  ),
-  host: Type.Optional(
-    Type.String({
-      description: "Exec host (sandbox|gateway|node).",
-    }),
-  ),
-  security: Type.Optional(
-    Type.String({
-      description: "Exec security mode (deny|allowlist|full).",
-    }),
-  ),
-  ask: Type.Optional(
-    Type.String({
-      description: "Exec ask mode (off|on-miss|always).",
-    }),
-  ),
-  node: Type.Optional(
-    Type.String({
-      description: "Node id/name for host=node.",
-    }),
-  ),
-});
+const execSchema = zodToToolJsonSchema(
+  z.object({
+    command: z.string().describe("Shell command to execute"),
+    workdir: z.string().describe("Working directory (defaults to cwd)").optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    yieldMs: z
+      .number()
+      .describe("Milliseconds to wait before backgrounding (default 10000)")
+      .optional(),
+    background: z.boolean().describe("Run in background immediately").optional(),
+    timeout: z
+      .number()
+      .describe("Timeout in seconds (optional, kills process on expiry)")
+      .optional(),
+    pty: z
+      .boolean()
+      .describe("Run in a pseudo-terminal (PTY) when available (TTY-required CLIs, coding agents)")
+      .optional(),
+    elevated: z
+      .boolean()
+      .describe("Run on the host with elevated permissions (if allowed)")
+      .optional(),
+    host: z.string().describe("Exec host (sandbox|gateway|node).").optional(),
+    security: z.string().describe("Exec security mode (deny|allowlist|full).").optional(),
+    ask: z.string().describe("Exec ask mode (off|on-miss|always).").optional(),
+    node: z.string().describe("Node id/name for host=node.").optional(),
+  }),
+);
 
 export type ExecToolDetails =
   | {

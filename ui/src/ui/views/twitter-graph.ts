@@ -12,7 +12,9 @@ export function renderTwitterGraph(
   loading: boolean,
 ): void {
   const container = document.getElementById(containerId);
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   if (loading) {
     container.innerHTML = `
@@ -37,8 +39,29 @@ export function renderTwitterGraph(
   const chart = echarts.init(container);
 
   // Prepare nodes
-  const nodes: any[] = [];
-  const links: any[] = [];
+  interface GraphNode {
+    id: string;
+    name: string;
+    username: string;
+    symbolSize: number;
+    value: string | number;
+    category: number;
+    label?: { show: boolean; formatter?: string };
+    avatar?: string;
+    verified?: boolean;
+    followers?: number;
+    following?: number;
+    description?: string;
+  }
+
+  interface GraphLink {
+    source: string;
+    target: string;
+    lineStyle?: { color: string; width: number };
+  }
+
+  const nodes: GraphNode[] = [];
+  const links: GraphLink[] = [];
 
   // Add current user as center node
   nodes.push({
@@ -68,7 +91,7 @@ export function renderTwitterGraph(
       following: user.following,
       description: user.description,
       label: {
-        show: user.followers > 10000 || user.isMutual,
+        show: user.followers > 10000 || Boolean(user.isMutual),
         formatter: `@${user.username}`,
       },
     });
@@ -102,9 +125,10 @@ export function renderTwitterGraph(
       },
     },
     tooltip: {
-      formatter: (params: any) => {
-        if (params.dataType === "node") {
-          const data = params.data;
+      formatter: (params: unknown) => {
+        const p = params as { dataType?: string; data?: GraphNode };
+        if (p.dataType === "node" && p.data) {
+          const data = p.data;
           if (data.category === 0) {
             return `<strong>${data.name}</strong><br/>Your account`;
           }
@@ -191,13 +215,19 @@ export function renderTwitterGraph(
   resizeObserver.observe(container);
 
   // Store chart instance for cleanup
-  (container as any).__echartsInstance = chart;
+  interface ContainerWithChart extends HTMLElement {
+    __echartsInstance?: ReturnType<typeof echarts.init>;
+  }
+  (container as ContainerWithChart).__echartsInstance = chart;
 }
 
 export function cleanupTwitterGraph(containerId: string): void {
-  const container = document.getElementById(containerId);
-  if (container && (container as any).__echartsInstance) {
-    (container as any).__echartsInstance.dispose();
-    delete (container as any).__echartsInstance;
+  interface ContainerWithChart extends HTMLElement {
+    __echartsInstance?: ReturnType<typeof echarts.init>;
+  }
+  const container = document.getElementById(containerId) as ContainerWithChart | null;
+  if (container && container.__echartsInstance) {
+    container.__echartsInstance.dispose();
+    delete container.__echartsInstance;
   }
 }

@@ -12,7 +12,7 @@ describe("debug auth resolution", () => {
     console.log("Store profiles:", Object.keys(store.profiles));
     console.log(
       "Profile providers:",
-      Object.values(store.profiles).map((p: any) => p.provider),
+      Object.values(store.profiles).map((p: unknown) => (p as { provider?: string }).provider),
     );
 
     const profiles = listProfilesForProvider(store, "google-antigravity");
@@ -42,8 +42,8 @@ describe("debug auth resolution", () => {
         profileId: result.profileId,
       });
       expect(result.apiKey).toBeTruthy();
-    } catch (error: any) {
-      console.error("Resolution failed:", error.message);
+    } catch (error: unknown) {
+      console.error("Resolution failed:", (error as Error).message);
       throw error;
     }
   });

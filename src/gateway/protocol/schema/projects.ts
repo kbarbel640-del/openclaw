@@ -1,11 +1,10 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 
-export const ProjectsListParamsSchema = Type.Object(
-  {
-    search: Type.Optional(Type.String()),
-    limit: Type.Optional(Type.Integer({ minimum: 1 })),
-    rootDir: Type.Optional(Type.String()),
-    includeHidden: Type.Optional(Type.Boolean()),
-  },
-  { additionalProperties: false },
-);
+export const ProjectsListParamsSchema = z
+  .object({
+    search: z.string().optional(),
+    limit: z.number().int().min(1).optional(),
+    rootDir: z.string().optional(),
+    includeHidden: z.boolean().optional(),
+  })
+  .strict();

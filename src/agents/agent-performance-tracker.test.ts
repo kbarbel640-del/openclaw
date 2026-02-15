@@ -393,7 +393,7 @@ describe("AgentPerformanceTracker", () => {
       const allRecords = getAllPerformanceRecords();
       expect(allRecords).toHaveLength(3);
 
-      const agentIds = allRecords.map((r) => r.agentId).sort();
+      const agentIds = allRecords.map((r) => r.agentId).toSorted();
       expect(agentIds).toEqual(["coder", "researcher", "tester"]);
     });
 

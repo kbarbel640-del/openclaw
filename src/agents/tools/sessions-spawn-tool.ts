@@ -1,5 +1,5 @@
-import { Type } from "@sinclair/typebox";
 import crypto from "node:crypto";
+import { z } from "zod";
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import type { AnyAgentTool } from "./common.js";
 import { formatThinkingLevels, normalizeThinkLevel } from "../../auto-reply/thinking.js";
@@ -22,7 +22,7 @@ import { buildCollaborationAwareTask } from "../collaboration-spawn.js";
 import { registerDelegation } from "../delegation-registry.js";
 import { resolveAgentIdentity } from "../identity.js";
 import { AGENT_LANE_SUBAGENT } from "../lanes.js";
-import { optionalStringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { buildSubagentSystemPrompt } from "../subagent-announce.js";
 import {
   getSubagentRunBySessionKey,
@@ -37,20 +37,22 @@ import {
   resolveMainSessionAlias,
 } from "./sessions-helpers.js";
 
-const SessionsSpawnToolSchema = Type.Object({
-  task: Type.String(),
-  label: Type.Optional(Type.String()),
-  agentId: Type.Optional(Type.String()),
-  model: Type.Optional(Type.String()),
-  thinking: Type.Optional(Type.String()),
-  runTimeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
-  // Back-compat alias. Prefer runTimeoutSeconds.
-  timeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
-  cleanup: optionalStringEnum(["delete", "keep", "idle"] as const),
-  debateSessionKey: Type.Optional(
-    Type.String({ description: "Collaboration session key for team context injection" }),
-  ),
-});
+const SessionsSpawnToolSchema = zodToToolJsonSchema(
+  z.object({
+    task: z.string(),
+    label: z.string().optional(),
+    agentId: z.string().optional(),
+    model: z.string().optional(),
+    thinking: z.string().optional(),
+    runTimeoutSeconds: z.number().min(0).optional(),
+    timeoutSeconds: z.number().min(0).optional(),
+    cleanup: z.enum(["delete", "keep", "idle"]).optional(),
+    debateSessionKey: z
+      .string()
+      .describe("Collaboration session key for team context injection")
+      .optional(),
+  }),
+);
 
 function splitModelRef(ref?: string) {
   if (!ref) {

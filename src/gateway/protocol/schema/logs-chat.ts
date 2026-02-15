@@ -1,92 +1,78 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString } from "./primitives.js";
 
-export const LogsTailParamsSchema = Type.Object(
-  {
-    cursor: Type.Optional(Type.Integer({ minimum: 0 })),
-    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 5000 })),
-    maxBytes: Type.Optional(Type.Integer({ minimum: 1, maximum: 1_000_000 })),
-  },
-  { additionalProperties: false },
-);
+export const LogsTailParamsSchema = z
+  .object({
+    cursor: z.number().int().min(0).optional(),
+    limit: z.number().int().min(1).max(5000).optional(),
+    maxBytes: z.number().int().min(1).max(1_000_000).optional(),
+  })
+  .strict();
 
-export const LogsTailResultSchema = Type.Object(
-  {
+export const LogsTailResultSchema = z
+  .object({
     file: NonEmptyString,
-    cursor: Type.Integer({ minimum: 0 }),
-    size: Type.Integer({ minimum: 0 }),
-    lines: Type.Array(Type.String()),
-    truncated: Type.Optional(Type.Boolean()),
-    reset: Type.Optional(Type.Boolean()),
-  },
-  { additionalProperties: false },
-);
+    cursor: z.number().int().min(0),
+    size: z.number().int().min(0),
+    lines: z.array(z.string()),
+    truncated: z.boolean().optional(),
+    reset: z.boolean().optional(),
+  })
+  .strict();
 
 // WebChat/WebSocket-native chat methods
-export const ChatHistoryParamsSchema = Type.Object(
-  {
+export const ChatHistoryParamsSchema = z
+  .object({
     sessionKey: NonEmptyString,
-    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
-  },
-  { additionalProperties: false },
-);
+    limit: z.number().int().min(1).max(1000).optional(),
+  })
+  .strict();
 
-export const ChatSendParamsSchema = Type.Object(
-  {
+export const ChatSendParamsSchema = z
+  .object({
     sessionKey: NonEmptyString,
-    message: Type.String(),
-    thinking: Type.Optional(Type.String()),
-    deliver: Type.Optional(Type.Boolean()),
-    attachments: Type.Optional(Type.Array(Type.Unknown())),
-    timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    message: z.string(),
+    thinking: z.string().optional(),
+    deliver: z.boolean().optional(),
+    attachments: z.array(z.unknown()).optional(),
+    timeoutMs: z.number().int().min(0).optional(),
     idempotencyKey: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const ChatAbortParamsSchema = Type.Object(
-  {
+export const ChatAbortParamsSchema = z
+  .object({
     sessionKey: NonEmptyString,
-    runId: Type.Optional(NonEmptyString),
-  },
-  { additionalProperties: false },
-);
+    runId: NonEmptyString.optional(),
+  })
+  .strict();
 
-export const ChatInjectParamsSchema = Type.Object(
-  {
+export const ChatInjectParamsSchema = z
+  .object({
     sessionKey: NonEmptyString,
     message: NonEmptyString,
-    role: Type.Optional(
-      Type.Union([Type.Literal("system"), Type.Literal("assistant"), Type.Literal("user")]),
-    ),
-    label: Type.Optional(Type.String({ maxLength: 100 })),
+    role: z.enum(["system", "assistant", "user"]).optional(),
+    label: z.string().max(100).optional(),
     /** Sender agent ID for direct announce mode */
-    senderAgentId: Type.Optional(Type.String({ maxLength: 100 })),
+    senderAgentId: z.string().max(100).optional(),
     /** Sender display name */
-    senderName: Type.Optional(Type.String({ maxLength: 100 })),
+    senderName: z.string().max(100).optional(),
     /** Sender emoji avatar */
-    senderEmoji: Type.Optional(Type.String({ maxLength: 10 })),
+    senderEmoji: z.string().max(10).optional(),
     /** Sender avatar URL */
-    senderAvatar: Type.Optional(Type.String({ maxLength: 500 })),
-  },
-  { additionalProperties: false },
-);
+    senderAvatar: z.string().max(500).optional(),
+  })
+  .strict();
 
-export const ChatEventSchema = Type.Object(
-  {
+export const ChatEventSchema = z
+  .object({
     runId: NonEmptyString,
     sessionKey: NonEmptyString,
-    seq: Type.Integer({ minimum: 0 }),
-    state: Type.Union([
-      Type.Literal("delta"),
-      Type.Literal("final"),
-      Type.Literal("aborted"),
-      Type.Literal("error"),
-    ]),
-    message: Type.Optional(Type.Unknown()),
-    errorMessage: Type.Optional(Type.String()),
-    usage: Type.Optional(Type.Unknown()),
-    stopReason: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+    seq: z.number().int().min(0),
+    state: z.enum(["delta", "final", "aborted", "error"]),
+    message: z.unknown().optional(),
+    errorMessage: z.string().optional(),
+    usage: z.unknown().optional(),
+    stopReason: z.string().optional(),
+  })
+  .strict();

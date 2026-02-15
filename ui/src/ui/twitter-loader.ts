@@ -2,32 +2,42 @@
  * Twitter data loader for UI
  */
 
+import type { TwitterData, TwitterRelationships } from "./controllers/twitter.ts";
 import { loadTwitterData, loadTwitterRelationships } from "./controllers/twitter.ts";
 import { renderTwitterGraph, cleanupTwitterGraph } from "./views/twitter-graph.ts";
 import { renderTwitterView } from "./views/twitter.ts";
 
+interface OpenClawWindow extends Window {
+  __twitter_view_html__?: string;
+  __openclaw_app__?: {
+    requestUpdate?: () => void;
+  };
+}
+
+declare const window: OpenClawWindow;
+
 let currentTab: "dashboard" | "relationships" = "dashboard";
-let dashboardData: any = null;
-let relationshipsData: any = null;
+let dashboardData: TwitterData | null = null;
+let relationshipsData: TwitterRelationships | null = null;
 
 export async function loadAndRenderTwitter(): Promise<void> {
   // Set loading state
-  (window as any).__twitter_view_html__ = renderTwitterView(null, true, currentTab);
+  window.__twitter_view_html__ = renderTwitterView(null, true, currentTab);
 
   // Trigger re-render
-  if ((window as any).__openclaw_app__?.requestUpdate) {
-    (window as any).__openclaw_app__.requestUpdate();
+  if (window.__openclaw_app__?.requestUpdate) {
+    window.__openclaw_app__.requestUpdate();
   }
 
   // Load dashboard data
   dashboardData = await loadTwitterData();
 
   // Render view with dashboard
-  (window as any).__twitter_view_html__ = renderTwitterView(dashboardData, false, currentTab);
+  window.__twitter_view_html__ = renderTwitterView(dashboardData, false, currentTab);
 
   // Trigger re-render
-  if ((window as any).__openclaw_app__?.requestUpdate) {
-    (window as any).__openclaw_app__.requestUpdate();
+  if (window.__openclaw_app__?.requestUpdate) {
+    window.__openclaw_app__.requestUpdate();
   }
 
   // Setup tab listeners after render
@@ -67,7 +77,9 @@ function setupTabListeners(): void {
       const target = e.target as HTMLElement;
       const tab = target.getAttribute("data-tab") as "dashboard" | "relationships";
 
-      if (!tab || tab === currentTab) return;
+      if (!tab || tab === currentTab) {
+        return;
+      }
 
       // Update current tab
       currentTab = tab;

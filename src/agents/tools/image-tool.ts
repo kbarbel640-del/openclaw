@@ -1,7 +1,7 @@
 import { type Api, type Context, complete, type Model } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { resolveUserPath } from "../../utils.js";
@@ -15,6 +15,7 @@ import { resolveConfiguredModelRef } from "../model-selection.js";
 import { ensureOpenClawModelsJson } from "../models-config.js";
 import { discoverAuthStorage, discoverModels } from "../pi-model-discovery.js";
 import { assertSandboxPath } from "../sandbox-paths.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import {
   coerceImageAssistantText,
   coerceImageModelConfig,
@@ -329,12 +330,14 @@ export function createImageTool(options?: {
     label: "Image",
     name: "image",
     description,
-    parameters: Type.Object({
-      prompt: Type.Optional(Type.String()),
-      image: Type.String(),
-      model: Type.Optional(Type.String()),
-      maxBytesMb: Type.Optional(Type.Number()),
-    }),
+    parameters: zodToToolJsonSchema(
+      z.object({
+        prompt: z.string().optional(),
+        image: z.string(),
+        model: z.string().optional(),
+        maxBytesMb: z.number().optional(),
+      }),
+    ),
     execute: async (_toolCallId, args) => {
       const record = args && typeof args === "object" ? (args as Record<string, unknown>) : {};
       const imageRawInput = typeof record.image === "string" ? record.image.trim() : "";

@@ -1,4 +1,4 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { OpenClawConfig } from "../../config/config.js";
 import { loadConfig, resolveConfigSnapshotHash } from "../../config/io.js";
 import { loadSessionStore, resolveStorePath } from "../../config/sessions.js";
@@ -8,7 +8,7 @@ import {
   writeRestartSentinel,
 } from "../../infra/restart-sentinel.js";
 import { scheduleGatewaySigusr1Restart } from "../../infra/restart.js";
-import { stringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { type AnyAgentTool, jsonResult, readStringParam } from "./common.js";
 import { callGatewayTool } from "./gateway.js";
 
@@ -36,30 +36,27 @@ const GATEWAY_ACTIONS = [
   "update.run",
 ] as const;
 
-// NOTE: Using a flattened object schema instead of Type.Union([Type.Object(...), ...])
-// because Claude API on Vertex AI rejects nested anyOf schemas as invalid JSON Schema.
+// NOTE: Flattened object schema — Claude/Vertex/OpenAI reject nested anyOf at top level.
 // The discriminator (action) determines which properties are relevant; runtime validates.
-const GatewayToolSchema = Type.Object({
-  action: stringEnum(GATEWAY_ACTIONS),
-  // restart
-  delayMs: Type.Optional(Type.Number()),
-  reason: Type.Optional(Type.String()),
-  // config.get, config.schema, config.apply, update.run
-  gatewayUrl: Type.Optional(Type.String()),
-  gatewayToken: Type.Optional(Type.String()),
-  timeoutMs: Type.Optional(Type.Number()),
-  // config.apply, config.patch
-  raw: Type.Optional(Type.String()),
-  baseHash: Type.Optional(Type.String()),
-  // config.apply, config.patch, update.run
-  sessionKey: Type.Optional(Type.String()),
-  note: Type.Optional(Type.String()),
-  restartDelayMs: Type.Optional(Type.Number()),
-});
-// NOTE: We intentionally avoid top-level `allOf`/`anyOf`/`oneOf` conditionals here:
-// - OpenAI rejects tool schemas that include these keywords at the *top-level*.
-// - Claude/Vertex has other JSON Schema quirks.
-// Conditional requirements (like `raw` for config.apply) are enforced at runtime.
+const GatewayToolSchema = zodToToolJsonSchema(
+  z.object({
+    action: z.enum(GATEWAY_ACTIONS),
+    // restart
+    delayMs: z.number().optional(),
+    reason: z.string().optional(),
+    // config.get, config.schema, config.apply, update.run
+    gatewayUrl: z.string().optional(),
+    gatewayToken: z.string().optional(),
+    timeoutMs: z.number().optional(),
+    // config.apply, config.patch
+    raw: z.string().optional(),
+    baseHash: z.string().optional(),
+    // config.apply, config.patch, update.run
+    sessionKey: z.string().optional(),
+    note: z.string().optional(),
+    restartDelayMs: z.number().optional(),
+  }),
+);
 
 export function createGatewayTool(opts?: {
   agentSessionKey?: string;

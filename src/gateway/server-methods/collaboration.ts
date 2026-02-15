@@ -11,7 +11,6 @@ import {
   completeDelegation,
   registerDelegation,
   reviewDelegation,
-  updateDelegationState,
 } from "../../agents/delegation-registry.js";
 import { AGENT_ROLE_CHAIN, resolvePreferredSuperior } from "../../agents/hierarchy-superior.js";
 import { resolveAgentIdentity } from "../../agents/identity.js";
@@ -748,7 +747,9 @@ export function resetCollaborationStateForTests(): void {
 // --- RPC Handlers ---
 
 function assertClientIdentity(client: GatewayClient | null, agentId: string) {
-  if (!client) return; // Internal trusted call
+  if (!client) {
+    return;
+  } // Internal trusted call
   if (client.connect.client.id !== agentId) {
     throw new Error(`Not authorized: Client ${client.connect.client.id} cannot act as ${agentId}`);
   }
@@ -2026,7 +2027,7 @@ export const collaborationHandlers: GatewayRequestHandlers = {
         sessionContext += `- ${msg.from} (${msg.type}): ${msg.content}\n`;
       }
 
-      const interventionTask = `
+      const _interventionTask = `
 You are acting as the MODERATOR (${p.moderatorId}) for this collaborative session.
 Analyze the discussion history and provide a helpful intervention.
 
@@ -2099,7 +2100,7 @@ Output ONLY your intervention message.
 
   "collab.directory.list": async ({ respond }) => {
     try {
-      const cfg = await loadConfig();
+      const cfg = loadConfig();
       const ids = listAgentIds(cfg);
       const agents = ids.map((id) => {
         const conf = resolveAgentConfig(cfg, id);
@@ -2110,7 +2111,7 @@ Output ONLY your intervention message.
         };
       });
       respond(true, { agents });
-    } catch (err: any) {
+    } catch (err) {
       respond(false, null, { code: "INTERNAL_ERROR", message: String(err) });
     }
   },

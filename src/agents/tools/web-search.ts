@@ -1,8 +1,9 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { wrapWebContent } from "../../security/external-content.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 import {
   CacheEntry,
@@ -32,38 +33,34 @@ const SEARCH_CACHE = new Map<string, CacheEntry<Record<string, unknown>>>();
 const BRAVE_FRESHNESS_SHORTCUTS = new Set(["pd", "pw", "pm", "py"]);
 const BRAVE_FRESHNESS_RANGE = /^(\d{4}-\d{2}-\d{2})to(\d{4}-\d{2}-\d{2})$/;
 
-const WebSearchSchema = Type.Object({
-  query: Type.String({ description: "Search query string." }),
-  count: Type.Optional(
-    Type.Number({
-      description: "Number of results to return (1-10).",
-      minimum: 1,
-      maximum: MAX_SEARCH_COUNT,
-    }),
-  ),
-  country: Type.Optional(
-    Type.String({
-      description:
+const WebSearchSchema = zodToToolJsonSchema(
+  z.object({
+    query: z.string().describe("Search query string."),
+    count: z
+      .number()
+      .min(1)
+      .max(MAX_SEARCH_COUNT)
+      .describe("Number of results to return (1-10).")
+      .optional(),
+    country: z
+      .string()
+      .describe(
         "2-letter country code for region-specific results (e.g., 'DE', 'US', 'ALL'). Default: 'US'.",
-    }),
-  ),
-  search_lang: Type.Optional(
-    Type.String({
-      description: "ISO language code for search results (e.g., 'de', 'en', 'fr').",
-    }),
-  ),
-  ui_lang: Type.Optional(
-    Type.String({
-      description: "ISO language code for UI elements.",
-    }),
-  ),
-  freshness: Type.Optional(
-    Type.String({
-      description:
+      )
+      .optional(),
+    search_lang: z
+      .string()
+      .describe("ISO language code for search results (e.g., 'de', 'en', 'fr').")
+      .optional(),
+    ui_lang: z.string().describe("ISO language code for UI elements.").optional(),
+    freshness: z
+      .string()
+      .describe(
         "Filter results by discovery time (Brave only). Values: 'pd' (past 24h), 'pw' (past week), 'pm' (past month), 'py' (past year), or date range 'YYYY-MM-DDtoYYYY-MM-DD'.",
-    }),
-  ),
-});
+      )
+      .optional(),
+  }),
+);
 
 type WebSearchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer Web
   ? Web extends { search?: infer Search }

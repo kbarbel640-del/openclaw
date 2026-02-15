@@ -1,120 +1,83 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString } from "./primitives.js";
 
-export const WizardStartParamsSchema = Type.Object(
-  {
-    mode: Type.Optional(Type.Union([Type.Literal("local"), Type.Literal("remote")])),
-    workspace: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+export const WizardStartParamsSchema = z
+  .object({
+    mode: z.enum(["local", "remote"]).optional(),
+    workspace: z.string().optional(),
+  })
+  .strict();
 
-export const WizardAnswerSchema = Type.Object(
-  {
+export const WizardAnswerSchema = z
+  .object({
     stepId: NonEmptyString,
-    value: Type.Optional(Type.Unknown()),
-  },
-  { additionalProperties: false },
-);
+    value: z.unknown().optional(),
+  })
+  .strict();
 
-export const WizardNextParamsSchema = Type.Object(
-  {
+export const WizardNextParamsSchema = z
+  .object({
     sessionId: NonEmptyString,
-    answer: Type.Optional(WizardAnswerSchema),
-  },
-  { additionalProperties: false },
-);
+    answer: z.lazy(() => WizardAnswerSchema).optional(),
+  })
+  .strict();
 
-export const WizardCancelParamsSchema = Type.Object(
-  {
+export const WizardCancelParamsSchema = z
+  .object({
     sessionId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const WizardStatusParamsSchema = Type.Object(
-  {
+export const WizardStatusParamsSchema = z
+  .object({
     sessionId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const WizardStepOptionSchema = Type.Object(
-  {
-    value: Type.Unknown(),
+export const WizardStepOptionSchema = z
+  .object({
+    value: z.unknown(),
     label: NonEmptyString,
-    hint: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+    hint: z.string().optional(),
+  })
+  .strict();
 
-export const WizardStepSchema = Type.Object(
-  {
+export const WizardStepSchema = z
+  .object({
     id: NonEmptyString,
-    type: Type.Union([
-      Type.Literal("note"),
-      Type.Literal("select"),
-      Type.Literal("text"),
-      Type.Literal("confirm"),
-      Type.Literal("multiselect"),
-      Type.Literal("progress"),
-      Type.Literal("action"),
-    ]),
-    title: Type.Optional(Type.String()),
-    message: Type.Optional(Type.String()),
-    options: Type.Optional(Type.Array(WizardStepOptionSchema)),
-    initialValue: Type.Optional(Type.Unknown()),
-    placeholder: Type.Optional(Type.String()),
-    sensitive: Type.Optional(Type.Boolean()),
-    executor: Type.Optional(Type.Union([Type.Literal("gateway"), Type.Literal("client")])),
-  },
-  { additionalProperties: false },
-);
+    type: z.enum(["note", "select", "text", "confirm", "multiselect", "progress", "action"]),
+    title: z.string().optional(),
+    message: z.string().optional(),
+    options: z.array(WizardStepOptionSchema).optional(),
+    initialValue: z.unknown().optional(),
+    placeholder: z.string().optional(),
+    sensitive: z.boolean().optional(),
+    executor: z.enum(["gateway", "client"]).optional(),
+  })
+  .strict();
 
-export const WizardNextResultSchema = Type.Object(
-  {
-    done: Type.Boolean(),
-    step: Type.Optional(WizardStepSchema),
-    status: Type.Optional(
-      Type.Union([
-        Type.Literal("running"),
-        Type.Literal("done"),
-        Type.Literal("cancelled"),
-        Type.Literal("error"),
-      ]),
-    ),
-    error: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+export const WizardNextResultSchema = z
+  .object({
+    done: z.boolean(),
+    step: z.lazy(() => WizardStepSchema).optional(),
+    status: z.enum(["running", "done", "cancelled", "error"]).optional(),
+    error: z.string().optional(),
+  })
+  .strict();
 
-export const WizardStartResultSchema = Type.Object(
-  {
+export const WizardStartResultSchema = z
+  .object({
     sessionId: NonEmptyString,
-    done: Type.Boolean(),
-    step: Type.Optional(WizardStepSchema),
-    status: Type.Optional(
-      Type.Union([
-        Type.Literal("running"),
-        Type.Literal("done"),
-        Type.Literal("cancelled"),
-        Type.Literal("error"),
-      ]),
-    ),
-    error: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+    done: z.boolean(),
+    step: z.lazy(() => WizardStepSchema).optional(),
+    status: z.enum(["running", "done", "cancelled", "error"]).optional(),
+    error: z.string().optional(),
+  })
+  .strict();
 
-export const WizardStatusResultSchema = Type.Object(
-  {
-    status: Type.Union([
-      Type.Literal("running"),
-      Type.Literal("done"),
-      Type.Literal("cancelled"),
-      Type.Literal("error"),
-    ]),
-    error: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+export const WizardStatusResultSchema = z
+  .object({
+    status: z.enum(["running", "done", "cancelled", "error"]),
+    error: z.string().optional(),
+  })
+  .strict();

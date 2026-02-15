@@ -1,6 +1,6 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { resolveSessionAgentId } from "../agent-scope.js";
-import { stringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { type AnyAgentTool, jsonResult, readStringArrayParam, readStringParam } from "./common.js";
 import { callGatewayTool } from "./gateway.js";
 
@@ -25,107 +25,84 @@ const COLLAB_ACTIONS = [
   "standup",
 ] as const;
 
-// Flattened schema — discriminator (action) determines which fields are relevant.
-// Runtime validates required fields per action.
-const CollaborationToolSchema = Type.Object({
-  action: stringEnum(COLLAB_ACTIONS, {
-    description:
-      "session.init: create a collaborative debate session. " +
-      "session.create_focused: create a private/focused session (not broadcast to team chat). " +
-      "session.invite: invite an agent to join an existing session mid-debate. " +
-      "proposal.publish: submit a proposal to a decision thread. " +
-      "proposal.challenge: challenge an existing proposal. " +
-      "proposal.agree: agree with a decision. " +
-      "decision.finalize: moderator finalizes a decision (requires min 3 debate rounds). " +
-      "dispute.escalate: escalate a dispute to the immediate superior in the hierarchy. " +
-      "session.get: read full session state. " +
-      "thread.get: read a specific decision thread. " +
-      "poll: create a quick yes/no or multi-choice poll. " +
-      "poll.vote: cast a vote in a poll. " +
-      "poll.get: read poll status + tally. " +
-      "submit_review: submit work for async review. " +
-      "review.submit: submit review feedback. " +
-      "review.get: read a review request. " +
-      "review.list: list review requests. " +
-      "standup: get aggregated status of all active agents.",
+const CollaborationToolSchema = zodToToolJsonSchema(
+  z.object({
+    action: z
+      .enum(COLLAB_ACTIONS)
+      .describe(
+        "session.init: create a collaborative debate session. " +
+          "session.create_focused: create a private/focused session (not broadcast to team chat). " +
+          "session.invite: invite an agent to join an existing session mid-debate. " +
+          "proposal.publish: submit a proposal to a decision thread. " +
+          "proposal.challenge: challenge an existing proposal. " +
+          "proposal.agree: agree with a decision. " +
+          "decision.finalize: moderator finalizes a decision (requires min 3 debate rounds). " +
+          "dispute.escalate: escalate a dispute to the immediate superior in the hierarchy. " +
+          "session.get: read full session state. " +
+          "thread.get: read a specific decision thread. " +
+          "poll: create a quick yes/no or multi-choice poll. " +
+          "poll.vote: cast a vote in a poll. " +
+          "poll.get: read poll status + tally. " +
+          "submit_review: submit work for async review. " +
+          "review.submit: submit review feedback. " +
+          "review.get: read a review request. " +
+          "review.list: list review requests. " +
+          "standup: get aggregated status of all active agents.",
+      ),
+    topic: z.string().describe("Session topic (for session.init)").optional(),
+    agents: z
+      .array(z.string())
+      .describe("Agent IDs to include in the session (for session.init, minimum 2)")
+      .optional(),
+    moderator: z.string().describe("Moderator agent ID (for session.init, optional)").optional(),
+    sessionKey: z
+      .string()
+      .describe("Collaboration session key (returned by session.init)")
+      .optional(),
+    decisionTopic: z
+      .string()
+      .describe("Topic for the decision thread (for proposal.publish)")
+      .optional(),
+    proposal: z.string().describe("The proposal text (for proposal.publish)").optional(),
+    reasoning: z
+      .string()
+      .describe("Reasoning behind the proposal (for proposal.publish)")
+      .optional(),
+    decisionId: z
+      .string()
+      .describe("Decision thread ID (for proposal.challenge, proposal.agree, decision.finalize)")
+      .optional(),
+    challenge: z.string().describe("Challenge text (for proposal.challenge)").optional(),
+    suggestedAlternative: z
+      .string()
+      .describe("Alternative suggestion when challenging (for proposal.challenge, optional)")
+      .optional(),
+    finalDecision: z
+      .string()
+      .describe("The final decision text (for decision.finalize)")
+      .optional(),
+    question: z.string().describe("Poll question (for poll)").optional(),
+    options: z.array(z.string()).describe("Poll options (for poll)").optional(),
+    voters: z.array(z.string()).describe("Agent IDs to poll (for poll)").optional(),
+    timeoutSeconds: z.number().describe("Poll timeout in seconds (for poll, optional)").optional(),
+    pollId: z.string().describe("Poll id (for poll.vote, poll.get)").optional(),
+    choice: z.string().describe("Selected option (for poll.vote)").optional(),
+    artifact: z.string().describe("Work artifact to review (for submit_review)").optional(),
+    reviewers: z.array(z.string()).describe("Agent IDs to review (for submit_review)").optional(),
+    context: z
+      .string()
+      .describe("Additional context for review (for submit_review, optional)")
+      .optional(),
+    reviewId: z.string().describe("Review request id (for review.submit/review.get)").optional(),
+    approved: z.boolean().describe("Whether the review is approved (for review.submit)").optional(),
+    feedback: z.string().describe("Optional review feedback (for review.submit)").optional(),
+    completed: z.boolean().describe("Filter completed reviews (for review.list)").optional(),
+    inviteAgentId: z
+      .string()
+      .describe("Agent ID to invite to the session (for session.invite)")
+      .optional(),
   }),
-  // session.init
-  topic: Type.Optional(Type.String({ description: "Session topic (for session.init)" })),
-  agents: Type.Optional(
-    Type.Array(Type.String(), {
-      description: "Agent IDs to include in the session (for session.init, minimum 2)",
-    }),
-  ),
-  moderator: Type.Optional(
-    Type.String({ description: "Moderator agent ID (for session.init, optional)" }),
-  ),
-  // shared across most actions
-  sessionKey: Type.Optional(
-    Type.String({ description: "Collaboration session key (returned by session.init)" }),
-  ),
-  // proposal.publish
-  decisionTopic: Type.Optional(
-    Type.String({ description: "Topic for the decision thread (for proposal.publish)" }),
-  ),
-  proposal: Type.Optional(Type.String({ description: "The proposal text (for proposal.publish)" })),
-  reasoning: Type.Optional(
-    Type.String({ description: "Reasoning behind the proposal (for proposal.publish)" }),
-  ),
-  // proposal.challenge / proposal.agree / decision.finalize
-  decisionId: Type.Optional(
-    Type.String({
-      description: "Decision thread ID (for proposal.challenge, proposal.agree, decision.finalize)",
-    }),
-  ),
-  challenge: Type.Optional(Type.String({ description: "Challenge text (for proposal.challenge)" })),
-  suggestedAlternative: Type.Optional(
-    Type.String({
-      description: "Alternative suggestion when challenging (for proposal.challenge, optional)",
-    }),
-  ),
-  // decision.finalize
-  finalDecision: Type.Optional(
-    Type.String({ description: "The final decision text (for decision.finalize)" }),
-  ),
-  // poll
-  question: Type.Optional(Type.String({ description: "Poll question (for poll)" })),
-  options: Type.Optional(Type.Array(Type.String(), { description: "Poll options (for poll)" })),
-  voters: Type.Optional(Type.Array(Type.String(), { description: "Agent IDs to poll (for poll)" })),
-  timeoutSeconds: Type.Optional(
-    Type.Number({ description: "Poll timeout in seconds (for poll, optional)" }),
-  ),
-  pollId: Type.Optional(Type.String({ description: "Poll id (for poll.vote, poll.get)" })),
-  choice: Type.Optional(Type.String({ description: "Selected option (for poll.vote)" })),
-  // submit_review
-  artifact: Type.Optional(
-    Type.String({ description: "Work artifact to review (for submit_review)" }),
-  ),
-  reviewers: Type.Optional(
-    Type.Array(Type.String(), { description: "Agent IDs to review (for submit_review)" }),
-  ),
-  context: Type.Optional(
-    Type.String({ description: "Additional context for review (for submit_review, optional)" }),
-  ),
-  // review.submit / review.get / review.list
-  reviewId: Type.Optional(
-    Type.String({ description: "Review request id (for review.submit/review.get)" }),
-  ),
-  approved: Type.Optional(
-    Type.Boolean({ description: "Whether the review is approved (for review.submit)" }),
-  ),
-  feedback: Type.Optional(
-    Type.String({ description: "Optional review feedback (for review.submit)" }),
-  ),
-  completed: Type.Optional(
-    Type.Boolean({ description: "Filter completed reviews (for review.list)" }),
-  ),
-  // session.invite / dispute.escalate
-  inviteAgentId: Type.Optional(
-    Type.String({
-      description: "Agent ID to invite to the session (for session.invite)",
-    }),
-  ),
-});
+);
 
 export function createCollaborationTool(opts?: { agentSessionKey?: string }): AnyAgentTool {
   return {

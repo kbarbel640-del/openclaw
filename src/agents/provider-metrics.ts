@@ -64,7 +64,7 @@ class LatencyTracker {
     if (this.samples.length === 0) {
       return 0;
     }
-    const sorted = [...this.samples].sort((a, b) => a - b);
+    const sorted = [...this.samples].toSorted((a, b) => a - b);
     const index = Math.ceil((p / 100) * sorted.length) - 1;
     return sorted[Math.max(0, index)] ?? 0;
   }
@@ -355,7 +355,7 @@ export function createProviderMetrics(onMetric?: OnMetricCallback): ProviderMetr
     let activeModelsCount = 0;
 
     for (const [provider, providerMap] of stats) {
-      const models: Record<string, any> = {};
+      const models: ProviderMetricsSnapshot["providers"][string]["models"] = {};
       let providerStarted = 0;
       let providerSuccess = 0;
       let providerError = 0;

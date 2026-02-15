@@ -2,69 +2,65 @@
  * Protocol schemas for providers.health endpoint.
  */
 
-import { Type, type Static } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString } from "./primitives.js";
 
 // Usage window entry (quota per time period)
-export const UsageWindowSchema = Type.Object(
-  {
-    label: Type.String(),
-    usedPercent: Type.Number(),
-    resetAt: Type.Optional(Type.Integer()),
-  },
-  { additionalProperties: false },
-);
+export const UsageWindowSchema = z
+  .object({
+    label: z.string(),
+    usedPercent: z.number(),
+    resetAt: z.number().int().optional(),
+  })
+  .strict();
 
 // Provider health entry
-export const ProviderHealthEntrySchema = Type.Object(
-  {
+export const ProviderHealthEntrySchema = z
+  .object({
     id: NonEmptyString,
     name: NonEmptyString,
-    detected: Type.Boolean(),
-    authSource: Type.Optional(Type.String()),
-    authMode: Type.Optional(Type.String()),
-    tokenValidity: Type.Optional(Type.String()),
-    tokenExpiresAt: Type.Optional(Type.Integer()),
-    tokenRemainingMs: Type.Optional(Type.Integer()),
-    healthStatus: Type.String(),
-    inCooldown: Type.Optional(Type.Boolean()),
-    cooldownRemainingMs: Type.Optional(Type.Integer()),
-    cooldownEndsAt: Type.Optional(Type.Integer()),
-    errorCount: Type.Optional(Type.Integer()),
-    disabledReason: Type.Optional(Type.String()),
-    lastUsed: Type.Optional(Type.String()),
-    usageWindows: Type.Optional(Type.Array(UsageWindowSchema)),
-    usagePlan: Type.Optional(Type.String()),
-    usageError: Type.Optional(Type.String()),
-    isLocal: Type.Optional(Type.Boolean()),
-    authModes: Type.Optional(Type.Array(Type.String())),
-    envVars: Type.Optional(Type.Array(Type.String())),
-    configured: Type.Optional(Type.Boolean()),
-    oauthAvailable: Type.Optional(Type.Boolean()),
-  },
-  { additionalProperties: false },
-);
+    detected: z.boolean(),
+    authSource: z.string().optional(),
+    authMode: z.string().optional(),
+    tokenValidity: z.string().optional(),
+    tokenExpiresAt: z.number().int().optional(),
+    tokenRemainingMs: z.number().int().optional(),
+    healthStatus: z.string(),
+    inCooldown: z.boolean().optional(),
+    cooldownRemainingMs: z.number().int().optional(),
+    cooldownEndsAt: z.number().int().optional(),
+    errorCount: z.number().int().optional(),
+    disabledReason: z.string().optional(),
+    lastUsed: z.string().optional(),
+    usageWindows: z.array(UsageWindowSchema).optional(),
+    usagePlan: z.string().optional(),
+    usageError: z.string().optional(),
+    isLocal: z.boolean().optional(),
+    authModes: z.array(z.string()).optional(),
+    envVars: z.array(z.string()).optional(),
+    configured: z.boolean().optional(),
+    oauthAvailable: z.boolean().optional(),
+  })
+  .strict();
 
 // providers.health params
-export const ProvidersHealthParamsSchema = Type.Object(
-  {
-    all: Type.Optional(Type.Boolean()),
-    includeUsage: Type.Optional(Type.Boolean()),
-  },
-  { additionalProperties: false },
-);
+export const ProvidersHealthParamsSchema = z
+  .object({
+    all: z.boolean().optional(),
+    includeUsage: z.boolean().optional(),
+  })
+  .strict();
 
 // providers.health result
-export const ProvidersHealthResultSchema = Type.Object(
-  {
-    providers: Type.Array(ProviderHealthEntrySchema),
-    updatedAt: Type.Integer(),
-  },
-  { additionalProperties: false },
-);
+export const ProvidersHealthResultSchema = z
+  .object({
+    providers: z.array(ProviderHealthEntrySchema),
+    updatedAt: z.number().int(),
+  })
+  .strict();
 
 // Type exports
-export type UsageWindow = Static<typeof UsageWindowSchema>;
-export type ProviderHealthEntry = Static<typeof ProviderHealthEntrySchema>;
-export type ProvidersHealthParams = Static<typeof ProvidersHealthParamsSchema>;
-export type ProvidersHealthResult = Static<typeof ProvidersHealthResultSchema>;
+export type UsageWindow = z.infer<typeof UsageWindowSchema>;
+export type ProviderHealthEntry = z.infer<typeof ProviderHealthEntrySchema>;
+export type ProvidersHealthParams = z.infer<typeof ProvidersHealthParamsSchema>;
+export type ProvidersHealthResult = z.infer<typeof ProvidersHealthResultSchema>;

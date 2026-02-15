@@ -1,5 +1,5 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import {
   deleteSession,
   drainSession,
@@ -19,27 +19,28 @@ import {
   truncateMiddle,
 } from "./bash-tools.shared.js";
 import { encodeKeySequence, encodePaste } from "./pty-keys.js";
+import { zodToToolJsonSchema } from "./schema/zod-tool-schema.js";
 
 export type ProcessToolDefaults = {
   cleanupMs?: number;
   scopeKey?: string;
 };
 
-const processSchema = Type.Object({
-  action: Type.String({ description: "Process action" }),
-  sessionId: Type.Optional(Type.String({ description: "Session id for actions other than list" })),
-  data: Type.Optional(Type.String({ description: "Data to write for write" })),
-  keys: Type.Optional(
-    Type.Array(Type.String(), { description: "Key tokens to send for send-keys" }),
-  ),
-  hex: Type.Optional(Type.Array(Type.String(), { description: "Hex bytes to send for send-keys" })),
-  literal: Type.Optional(Type.String({ description: "Literal string for send-keys" })),
-  text: Type.Optional(Type.String({ description: "Text to paste for paste" })),
-  bracketed: Type.Optional(Type.Boolean({ description: "Wrap paste in bracketed mode" })),
-  eof: Type.Optional(Type.Boolean({ description: "Close stdin after write" })),
-  offset: Type.Optional(Type.Number({ description: "Log offset" })),
-  limit: Type.Optional(Type.Number({ description: "Log length" })),
-});
+const processSchema = zodToToolJsonSchema(
+  z.object({
+    action: z.string().describe("Process action"),
+    sessionId: z.string().describe("Session id for actions other than list").optional(),
+    data: z.string().describe("Data to write for write").optional(),
+    keys: z.array(z.string()).describe("Key tokens to send for send-keys").optional(),
+    hex: z.array(z.string()).describe("Hex bytes to send for send-keys").optional(),
+    literal: z.string().describe("Literal string for send-keys").optional(),
+    text: z.string().describe("Text to paste for paste").optional(),
+    bracketed: z.boolean().describe("Wrap paste in bracketed mode").optional(),
+    eof: z.boolean().describe("Close stdin after write").optional(),
+    offset: z.number().describe("Log offset").optional(),
+    limit: z.number().describe("Log length").optional(),
+  }),
+);
 
 export function createProcessTool(
   defaults?: ProcessToolDefaults,

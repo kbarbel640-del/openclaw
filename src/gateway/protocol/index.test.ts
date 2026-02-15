@@ -1,11 +1,10 @@
-import type { ErrorObject } from "ajv";
 import { describe, expect, it } from "vitest";
+import type { AjvLikeError } from "./zod-validator.js";
 import { formatValidationErrors } from "./index.js";
 
-const makeError = (overrides: Partial<ErrorObject>): ErrorObject => ({
+const makeError = (overrides: Partial<AjvLikeError>): AjvLikeError => ({
   keyword: "type",
   instancePath: "",
-  schemaPath: "#/",
   params: {},
   message: "validation error",
   ...overrides,

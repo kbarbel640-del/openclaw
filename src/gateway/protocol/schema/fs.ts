@@ -1,9 +1,8 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 
-export const FsPickDirectoryParamsSchema = Type.Object(
-  {
-    prompt: Type.Optional(Type.String()),
-    defaultDir: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
+export const FsPickDirectoryParamsSchema = z
+  .object({
+    prompt: z.string().optional(),
+    defaultDir: z.string().optional(),
+  })
+  .strict();

@@ -1,4 +1,4 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { BLUEBUBBLES_GROUP_ACTIONS } from "../../channels/plugins/bluebubbles-actions.js";
@@ -13,6 +13,7 @@ import {
 } from "../../channels/plugins/types.js";
 import { loadConfig } from "../../config/config.js";
 import { GATEWAY_CLIENT_IDS, GATEWAY_CLIENT_MODES } from "../../gateway/protocol/client-info.js";
+import { CHANNEL_TARGETS_DESCRIPTION } from "../../infra/outbound/channel-target.js";
 import { getToolResult, runMessageAction } from "../../infra/outbound/message-action-runner.js";
 import { normalizeTargetForProvider } from "../../infra/outbound/target-normalization.js";
 import { normalizeAccountId } from "../../routing/session-key.js";
@@ -20,74 +21,56 @@ import { normalizeMessageChannel } from "../../utils/message-channel.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { listChannelSupportedActions } from "../channel-tools.js";
 import { assertSandboxPath } from "../sandbox-paths.js";
-import { channelTargetSchema, channelTargetsSchema, stringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 
 const AllMessageActions = CHANNEL_MESSAGE_ACTION_NAMES;
-function buildRoutingSchema() {
+
+function buildRoutingZodProps() {
   return {
-    channel: Type.Optional(Type.String()),
-    target: Type.Optional(channelTargetSchema({ description: "Target channel/user id or name." })),
-    targets: Type.Optional(channelTargetsSchema()),
-    accountId: Type.Optional(Type.String()),
-    dryRun: Type.Optional(Type.Boolean()),
+    channel: z.string().optional(),
+    target: z.string().describe("Target channel/user id or name.").optional(),
+    targets: z.array(z.string().describe(CHANNEL_TARGETS_DESCRIPTION)).optional(),
+    accountId: z.string().optional(),
+    dryRun: z.boolean().optional(),
   };
 }
 
-function buildSendSchema(options: { includeButtons: boolean; includeCards: boolean }) {
-  const props: Record<string, unknown> = {
-    message: Type.Optional(Type.String()),
-    effectId: Type.Optional(
-      Type.String({
-        description: "Message effect name/id for sendWithEffect (e.g., invisible ink).",
-      }),
-    ),
-    effect: Type.Optional(
-      Type.String({ description: "Alias for effectId (e.g., invisible-ink, balloons)." }),
-    ),
-    media: Type.Optional(Type.String()),
-    filename: Type.Optional(Type.String()),
-    buffer: Type.Optional(
-      Type.String({
-        description: "Base64 payload for attachments (optionally a data: URL).",
-      }),
-    ),
-    contentType: Type.Optional(Type.String()),
-    mimeType: Type.Optional(Type.String()),
-    caption: Type.Optional(Type.String()),
-    path: Type.Optional(Type.String()),
-    filePath: Type.Optional(Type.String()),
-    replyTo: Type.Optional(Type.String()),
-    threadId: Type.Optional(Type.String()),
-    asVoice: Type.Optional(Type.Boolean()),
-    silent: Type.Optional(Type.Boolean()),
-    quoteText: Type.Optional(
-      Type.String({ description: "Quote text for Telegram reply_parameters" }),
-    ),
-    bestEffort: Type.Optional(Type.Boolean()),
-    gifPlayback: Type.Optional(Type.Boolean()),
-    buttons: Type.Optional(
-      Type.Array(
-        Type.Array(
-          Type.Object({
-            text: Type.String(),
-            callback_data: Type.String(),
-          }),
-        ),
-        {
-          description: "Telegram inline keyboard buttons (array of button rows)",
-        },
-      ),
-    ),
-    card: Type.Optional(
-      Type.Object(
-        {},
-        {
-          additionalProperties: true,
-          description: "Adaptive Card JSON object (when supported by the channel)",
-        },
-      ),
-    ),
+function buildSendZodProps(options: { includeButtons: boolean; includeCards: boolean }) {
+  const props: Record<string, z.ZodType> = {
+    message: z.string().optional(),
+    effectId: z
+      .string()
+      .describe("Message effect name/id for sendWithEffect (e.g., invisible ink).")
+      .optional(),
+    effect: z.string().describe("Alias for effectId (e.g., invisible-ink, balloons).").optional(),
+    media: z.string().optional(),
+    filename: z.string().optional(),
+    buffer: z
+      .string()
+      .describe("Base64 payload for attachments (optionally a data: URL).")
+      .optional(),
+    contentType: z.string().optional(),
+    mimeType: z.string().optional(),
+    caption: z.string().optional(),
+    path: z.string().optional(),
+    filePath: z.string().optional(),
+    replyTo: z.string().optional(),
+    threadId: z.string().optional(),
+    asVoice: z.boolean().optional(),
+    silent: z.boolean().optional(),
+    quoteText: z.string().describe("Quote text for Telegram reply_parameters").optional(),
+    bestEffort: z.boolean().optional(),
+    gifPlayback: z.boolean().optional(),
+    buttons: z
+      .array(z.array(z.object({ text: z.string(), callback_data: z.string() })))
+      .describe("Telegram inline keyboard buttons (array of button rows)")
+      .optional(),
+    card: z
+      .object({})
+      .passthrough()
+      .describe("Adaptive Card JSON object (when supported by the channel)")
+      .optional(),
   };
   if (!options.includeButtons) {
     delete props.buttons;
@@ -98,133 +81,131 @@ function buildSendSchema(options: { includeButtons: boolean; includeCards: boole
   return props;
 }
 
-function buildReactionSchema() {
+function buildReactionZodProps() {
   return {
-    messageId: Type.Optional(Type.String()),
-    emoji: Type.Optional(Type.String()),
-    remove: Type.Optional(Type.Boolean()),
-    targetAuthor: Type.Optional(Type.String()),
-    targetAuthorUuid: Type.Optional(Type.String()),
-    groupId: Type.Optional(Type.String()),
+    messageId: z.string().optional(),
+    emoji: z.string().optional(),
+    remove: z.boolean().optional(),
+    targetAuthor: z.string().optional(),
+    targetAuthorUuid: z.string().optional(),
+    groupId: z.string().optional(),
   };
 }
 
-function buildFetchSchema() {
+function buildFetchZodProps() {
   return {
-    limit: Type.Optional(Type.Number()),
-    before: Type.Optional(Type.String()),
-    after: Type.Optional(Type.String()),
-    around: Type.Optional(Type.String()),
-    fromMe: Type.Optional(Type.Boolean()),
-    includeArchived: Type.Optional(Type.Boolean()),
+    limit: z.number().optional(),
+    before: z.string().optional(),
+    after: z.string().optional(),
+    around: z.string().optional(),
+    fromMe: z.boolean().optional(),
+    includeArchived: z.boolean().optional(),
   };
 }
 
-function buildPollSchema() {
+function buildPollZodProps() {
   return {
-    pollQuestion: Type.Optional(Type.String()),
-    pollOption: Type.Optional(Type.Array(Type.String())),
-    pollDurationHours: Type.Optional(Type.Number()),
-    pollMulti: Type.Optional(Type.Boolean()),
+    pollQuestion: z.string().optional(),
+    pollOption: z.array(z.string()).optional(),
+    pollDurationHours: z.number().optional(),
+    pollMulti: z.boolean().optional(),
   };
 }
 
-function buildChannelTargetSchema() {
+function buildChannelTargetZodProps() {
   return {
-    channelId: Type.Optional(
-      Type.String({ description: "Channel id filter (search/thread list/event create)." }),
-    ),
-    channelIds: Type.Optional(
-      Type.Array(Type.String({ description: "Channel id filter (repeatable)." })),
-    ),
-    guildId: Type.Optional(Type.String()),
-    userId: Type.Optional(Type.String()),
-    authorId: Type.Optional(Type.String()),
-    authorIds: Type.Optional(Type.Array(Type.String())),
-    roleId: Type.Optional(Type.String()),
-    roleIds: Type.Optional(Type.Array(Type.String())),
-    participant: Type.Optional(Type.String()),
+    channelId: z
+      .string()
+      .describe("Channel id filter (search/thread list/event create).")
+      .optional(),
+    channelIds: z.array(z.string()).optional(),
+    guildId: z.string().optional(),
+    userId: z.string().optional(),
+    authorId: z.string().optional(),
+    authorIds: z.array(z.string()).optional(),
+    roleId: z.string().optional(),
+    roleIds: z.array(z.string()).optional(),
+    participant: z.string().optional(),
   };
 }
 
-function buildStickerSchema() {
+function buildStickerZodProps() {
   return {
-    emojiName: Type.Optional(Type.String()),
-    stickerId: Type.Optional(Type.Array(Type.String())),
-    stickerName: Type.Optional(Type.String()),
-    stickerDesc: Type.Optional(Type.String()),
-    stickerTags: Type.Optional(Type.String()),
+    emojiName: z.string().optional(),
+    stickerId: z.array(z.string()).optional(),
+    stickerName: z.string().optional(),
+    stickerDesc: z.string().optional(),
+    stickerTags: z.string().optional(),
   };
 }
 
-function buildThreadSchema() {
+function buildThreadZodProps() {
   return {
-    threadName: Type.Optional(Type.String()),
-    autoArchiveMin: Type.Optional(Type.Number()),
+    threadName: z.string().optional(),
+    autoArchiveMin: z.number().optional(),
   };
 }
 
-function buildEventSchema() {
+function buildEventZodProps() {
   return {
-    query: Type.Optional(Type.String()),
-    eventName: Type.Optional(Type.String()),
-    eventType: Type.Optional(Type.String()),
-    startTime: Type.Optional(Type.String()),
-    endTime: Type.Optional(Type.String()),
-    desc: Type.Optional(Type.String()),
-    location: Type.Optional(Type.String()),
-    durationMin: Type.Optional(Type.Number()),
-    until: Type.Optional(Type.String()),
+    query: z.string().optional(),
+    eventName: z.string().optional(),
+    eventType: z.string().optional(),
+    startTime: z.string().optional(),
+    endTime: z.string().optional(),
+    desc: z.string().optional(),
+    location: z.string().optional(),
+    durationMin: z.number().optional(),
+    until: z.string().optional(),
   };
 }
 
-function buildModerationSchema() {
+function buildModerationZodProps() {
   return {
-    reason: Type.Optional(Type.String()),
-    deleteDays: Type.Optional(Type.Number()),
+    reason: z.string().optional(),
+    deleteDays: z.number().optional(),
   };
 }
 
-function buildGatewaySchema() {
+function buildGatewayZodProps() {
   return {
-    gatewayUrl: Type.Optional(Type.String()),
-    gatewayToken: Type.Optional(Type.String()),
-    timeoutMs: Type.Optional(Type.Number()),
+    gatewayUrl: z.string().optional(),
+    gatewayToken: z.string().optional(),
+    timeoutMs: z.number().optional(),
   };
 }
 
-function buildChannelManagementSchema() {
+function buildChannelManagementZodProps() {
   return {
-    name: Type.Optional(Type.String()),
-    type: Type.Optional(Type.Number()),
-    parentId: Type.Optional(Type.String()),
-    topic: Type.Optional(Type.String()),
-    position: Type.Optional(Type.Number()),
-    nsfw: Type.Optional(Type.Boolean()),
-    rateLimitPerUser: Type.Optional(Type.Number()),
-    categoryId: Type.Optional(Type.String()),
-    clearParent: Type.Optional(
-      Type.Boolean({
-        description: "Clear the parent/category when supported by the provider.",
-      }),
-    ),
+    name: z.string().optional(),
+    type: z.number().optional(),
+    parentId: z.string().optional(),
+    topic: z.string().optional(),
+    position: z.number().optional(),
+    nsfw: z.boolean().optional(),
+    rateLimitPerUser: z.number().optional(),
+    categoryId: z.string().optional(),
+    clearParent: z
+      .boolean()
+      .describe("Clear the parent/category when supported by the provider.")
+      .optional(),
   };
 }
 
-function buildMessageToolSchemaProps(options: { includeButtons: boolean; includeCards: boolean }) {
+function buildMessageToolZodProps(options: { includeButtons: boolean; includeCards: boolean }) {
   return {
-    ...buildRoutingSchema(),
-    ...buildSendSchema(options),
-    ...buildReactionSchema(),
-    ...buildFetchSchema(),
-    ...buildPollSchema(),
-    ...buildChannelTargetSchema(),
-    ...buildStickerSchema(),
-    ...buildThreadSchema(),
-    ...buildEventSchema(),
-    ...buildModerationSchema(),
-    ...buildGatewaySchema(),
-    ...buildChannelManagementSchema(),
+    ...buildRoutingZodProps(),
+    ...buildSendZodProps(options),
+    ...buildReactionZodProps(),
+    ...buildFetchZodProps(),
+    ...buildPollZodProps(),
+    ...buildChannelTargetZodProps(),
+    ...buildStickerZodProps(),
+    ...buildThreadZodProps(),
+    ...buildEventZodProps(),
+    ...buildModerationZodProps(),
+    ...buildGatewayZodProps(),
+    ...buildChannelManagementZodProps(),
   };
 }
 
@@ -232,11 +213,13 @@ function buildMessageToolSchemaFromActions(
   actions: readonly string[],
   options: { includeButtons: boolean; includeCards: boolean },
 ) {
-  const props = buildMessageToolSchemaProps(options);
-  return Type.Object({
-    action: stringEnum(actions),
-    ...props,
-  });
+  const props = buildMessageToolZodProps(options);
+  return zodToToolJsonSchema(
+    z.object({
+      action: z.enum(actions as [string, ...string[]]),
+      ...props,
+    }),
+  );
 }
 
 const MessageToolSchema = buildMessageToolSchemaFromActions(AllMessageActions, {

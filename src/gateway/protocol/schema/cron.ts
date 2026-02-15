@@ -1,244 +1,218 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import { NonEmptyString } from "./primitives.js";
 
-export const CronScheduleSchema = Type.Union([
-  Type.Object(
-    {
-      kind: Type.Literal("at"),
-      atMs: Type.Integer({ minimum: 0 }),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      kind: Type.Literal("every"),
-      everyMs: Type.Integer({ minimum: 1 }),
-      anchorMs: Type.Optional(Type.Integer({ minimum: 0 })),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      kind: Type.Literal("cron"),
+export const CronScheduleSchema = z.union([
+  z
+    .object({
+      kind: z.literal("at"),
+      atMs: z.number().int().min(0),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("every"),
+      everyMs: z.number().int().min(1),
+      anchorMs: z.number().int().min(0).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("cron"),
       expr: NonEmptyString,
-      tz: Type.Optional(Type.String()),
-    },
-    { additionalProperties: false },
-  ),
+      tz: z.string().optional(),
+    })
+    .strict(),
 ]);
 
-export const CronPayloadSchema = Type.Union([
-  Type.Object(
-    {
-      kind: Type.Literal("systemEvent"),
+export const CronPayloadSchema = z.union([
+  z
+    .object({
+      kind: z.literal("systemEvent"),
       text: NonEmptyString,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      kind: Type.Literal("agentTurn"),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("agentTurn"),
       message: NonEmptyString,
-      model: Type.Optional(Type.String()),
-      thinking: Type.Optional(Type.String()),
-      timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1 })),
-      deliver: Type.Optional(Type.Boolean()),
-      channel: Type.Optional(Type.Union([Type.Literal("last"), NonEmptyString])),
-      to: Type.Optional(Type.String()),
-      bestEffortDeliver: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
+      model: z.string().optional(),
+      thinking: z.string().optional(),
+      timeoutSeconds: z.number().int().min(1).optional(),
+      deliver: z.boolean().optional(),
+      channel: z.union([z.literal("last"), NonEmptyString]).optional(),
+      to: z.string().optional(),
+      bestEffortDeliver: z.boolean().optional(),
+    })
+    .strict(),
 ]);
 
-export const CronPayloadPatchSchema = Type.Union([
-  Type.Object(
-    {
-      kind: Type.Literal("systemEvent"),
-      text: Type.Optional(NonEmptyString),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      kind: Type.Literal("agentTurn"),
-      message: Type.Optional(NonEmptyString),
-      model: Type.Optional(Type.String()),
-      thinking: Type.Optional(Type.String()),
-      timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1 })),
-      deliver: Type.Optional(Type.Boolean()),
-      channel: Type.Optional(Type.Union([Type.Literal("last"), NonEmptyString])),
-      to: Type.Optional(Type.String()),
-      bestEffortDeliver: Type.Optional(Type.Boolean()),
-    },
-    { additionalProperties: false },
-  ),
+export const CronPayloadPatchSchema = z.union([
+  z
+    .object({
+      kind: z.literal("systemEvent"),
+      text: NonEmptyString.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("agentTurn"),
+      message: NonEmptyString.optional(),
+      model: z.string().optional(),
+      thinking: z.string().optional(),
+      timeoutSeconds: z.number().int().min(1).optional(),
+      deliver: z.boolean().optional(),
+      channel: z.union([z.literal("last"), NonEmptyString]).optional(),
+      to: z.string().optional(),
+      bestEffortDeliver: z.boolean().optional(),
+    })
+    .strict(),
 ]);
 
-export const CronIsolationSchema = Type.Object(
-  {
-    postToMainPrefix: Type.Optional(Type.String()),
-    postToMainMode: Type.Optional(Type.Union([Type.Literal("summary"), Type.Literal("full")])),
-    postToMainMaxChars: Type.Optional(Type.Integer({ minimum: 0 })),
-  },
-  { additionalProperties: false },
-);
+export const CronIsolationSchema = z
+  .object({
+    postToMainPrefix: z.string().optional(),
+    postToMainMode: z.enum(["summary", "full"]).optional(),
+    postToMainMaxChars: z.number().int().min(0).optional(),
+  })
+  .strict();
 
-export const CronJobStateSchema = Type.Object(
-  {
-    nextRunAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
-    runningAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
-    lastRunAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
-    lastStatus: Type.Optional(
-      Type.Union([Type.Literal("ok"), Type.Literal("error"), Type.Literal("skipped")]),
-    ),
-    lastError: Type.Optional(Type.String()),
-    lastDurationMs: Type.Optional(Type.Integer({ minimum: 0 })),
-  },
-  { additionalProperties: false },
-);
+export const CronJobStateSchema = z
+  .object({
+    nextRunAtMs: z.number().int().min(0).optional(),
+    runningAtMs: z.number().int().min(0).optional(),
+    lastRunAtMs: z.number().int().min(0).optional(),
+    lastStatus: z.enum(["ok", "error", "skipped"]).optional(),
+    lastError: z.string().optional(),
+    lastDurationMs: z.number().int().min(0).optional(),
+  })
+  .strict();
 
-export const CronJobSchema = Type.Object(
-  {
+export const CronJobSchema = z
+  .object({
     id: NonEmptyString,
-    agentId: Type.Optional(NonEmptyString),
+    agentId: NonEmptyString.optional(),
     name: NonEmptyString,
-    description: Type.Optional(Type.String()),
-    enabled: Type.Boolean(),
-    deleteAfterRun: Type.Optional(Type.Boolean()),
-    createdAtMs: Type.Integer({ minimum: 0 }),
-    updatedAtMs: Type.Integer({ minimum: 0 }),
+    description: z.string().optional(),
+    enabled: z.boolean(),
+    deleteAfterRun: z.boolean().optional(),
+    createdAtMs: z.number().int().min(0),
+    updatedAtMs: z.number().int().min(0),
     schedule: CronScheduleSchema,
-    sessionTarget: Type.Union([Type.Literal("main"), Type.Literal("isolated")]),
-    wakeMode: Type.Union([Type.Literal("next-heartbeat"), Type.Literal("now")]),
+    sessionTarget: z.enum(["main", "isolated"]),
+    wakeMode: z.enum(["next-heartbeat", "now"]),
     payload: CronPayloadSchema,
-    isolation: Type.Optional(CronIsolationSchema),
+    isolation: CronIsolationSchema.optional(),
     state: CronJobStateSchema,
-  },
-  { additionalProperties: false },
-);
+  })
+  .strict();
 
-export const CronListParamsSchema = Type.Object(
-  {
-    includeDisabled: Type.Optional(Type.Boolean()),
-  },
-  { additionalProperties: false },
-);
+export const CronListParamsSchema = z
+  .object({
+    includeDisabled: z.boolean().optional(),
+  })
+  .strict();
 
-export const CronStatusParamsSchema = Type.Object({}, { additionalProperties: false });
+export const CronStatusParamsSchema = z.object({}).strict();
 
-export const CronAddParamsSchema = Type.Object(
-  {
+export const CronAddParamsSchema = z
+  .object({
     name: NonEmptyString,
-    agentId: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
-    description: Type.Optional(Type.String()),
-    enabled: Type.Optional(Type.Boolean()),
-    deleteAfterRun: Type.Optional(Type.Boolean()),
+    agentId: NonEmptyString.nullable().optional(),
+    description: z.string().optional(),
+    enabled: z.boolean().optional(),
+    deleteAfterRun: z.boolean().optional(),
     schedule: CronScheduleSchema,
-    sessionTarget: Type.Union([Type.Literal("main"), Type.Literal("isolated")]),
-    wakeMode: Type.Union([Type.Literal("next-heartbeat"), Type.Literal("now")]),
+    sessionTarget: z.enum(["main", "isolated"]),
+    wakeMode: z.enum(["next-heartbeat", "now"]),
     payload: CronPayloadSchema,
-    isolation: Type.Optional(CronIsolationSchema),
-  },
-  { additionalProperties: false },
-);
+    isolation: CronIsolationSchema.optional(),
+  })
+  .strict();
 
-export const CronJobPatchSchema = Type.Object(
-  {
-    name: Type.Optional(NonEmptyString),
-    agentId: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
-    description: Type.Optional(Type.String()),
-    enabled: Type.Optional(Type.Boolean()),
-    deleteAfterRun: Type.Optional(Type.Boolean()),
-    schedule: Type.Optional(CronScheduleSchema),
-    sessionTarget: Type.Optional(Type.Union([Type.Literal("main"), Type.Literal("isolated")])),
-    wakeMode: Type.Optional(Type.Union([Type.Literal("next-heartbeat"), Type.Literal("now")])),
-    payload: Type.Optional(CronPayloadPatchSchema),
-    isolation: Type.Optional(CronIsolationSchema),
-    state: Type.Optional(Type.Partial(CronJobStateSchema)),
-  },
-  { additionalProperties: false },
-);
+export const CronJobPatchSchema = z
+  .object({
+    name: NonEmptyString.optional(),
+    agentId: NonEmptyString.nullable().optional(),
+    description: z.string().optional(),
+    enabled: z.boolean().optional(),
+    deleteAfterRun: z.boolean().optional(),
+    schedule: CronScheduleSchema.optional(),
+    sessionTarget: z.enum(["main", "isolated"]).optional(),
+    wakeMode: z.enum(["next-heartbeat", "now"]).optional(),
+    payload: CronPayloadPatchSchema.optional(),
+    isolation: CronIsolationSchema.optional(),
+    state: CronJobStateSchema.partial().optional(),
+  })
+  .strict();
 
-export const CronUpdateParamsSchema = Type.Union([
-  Type.Object(
-    {
+export const CronUpdateParamsSchema = z.union([
+  z
+    .object({
       id: NonEmptyString,
       patch: CronJobPatchSchema,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
+    })
+    .strict(),
+  z
+    .object({
       jobId: NonEmptyString,
       patch: CronJobPatchSchema,
-    },
-    { additionalProperties: false },
-  ),
+    })
+    .strict(),
 ]);
 
-export const CronRemoveParamsSchema = Type.Union([
-  Type.Object(
-    {
+export const CronRemoveParamsSchema = z.union([
+  z
+    .object({
       id: NonEmptyString,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
+    })
+    .strict(),
+  z
+    .object({
       jobId: NonEmptyString,
-    },
-    { additionalProperties: false },
-  ),
+    })
+    .strict(),
 ]);
 
-export const CronRunParamsSchema = Type.Union([
-  Type.Object(
-    {
+export const CronRunParamsSchema = z.union([
+  z
+    .object({
       id: NonEmptyString,
-      mode: Type.Optional(Type.Union([Type.Literal("due"), Type.Literal("force")])),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
+      mode: z.enum(["due", "force"]).optional(),
+    })
+    .strict(),
+  z
+    .object({
       jobId: NonEmptyString,
-      mode: Type.Optional(Type.Union([Type.Literal("due"), Type.Literal("force")])),
-    },
-    { additionalProperties: false },
-  ),
+      mode: z.enum(["due", "force"]).optional(),
+    })
+    .strict(),
 ]);
 
-export const CronRunsParamsSchema = Type.Union([
-  Type.Object(
-    {
+export const CronRunsParamsSchema = z.union([
+  z
+    .object({
       id: NonEmptyString,
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 5000 })),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
+      limit: z.number().int().min(1).max(5000).optional(),
+    })
+    .strict(),
+  z
+    .object({
       jobId: NonEmptyString,
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 5000 })),
-    },
-    { additionalProperties: false },
-  ),
+      limit: z.number().int().min(1).max(5000).optional(),
+    })
+    .strict(),
 ]);
 
-export const CronRunLogEntrySchema = Type.Object(
-  {
-    ts: Type.Integer({ minimum: 0 }),
+export const CronRunLogEntrySchema = z
+  .object({
+    ts: z.number().int().min(0),
     jobId: NonEmptyString,
-    action: Type.Literal("finished"),
-    status: Type.Optional(
-      Type.Union([Type.Literal("ok"), Type.Literal("error"), Type.Literal("skipped")]),
-    ),
-    error: Type.Optional(Type.String()),
-    summary: Type.Optional(Type.String()),
-    runAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
-    durationMs: Type.Optional(Type.Integer({ minimum: 0 })),
-    nextRunAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
-  },
-  { additionalProperties: false },
-);
+    action: z.literal("finished"),
+    status: z.enum(["ok", "error", "skipped"]).optional(),
+    error: z.string().optional(),
+    summary: z.string().optional(),
+    runAtMs: z.number().int().min(0).optional(),
+    durationMs: z.number().int().min(0).optional(),
+    nextRunAtMs: z.number().int().min(0).optional(),
+  })
+  .strict();

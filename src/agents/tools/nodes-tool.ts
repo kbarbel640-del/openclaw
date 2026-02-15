@@ -1,6 +1,6 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import { Type } from "@sinclair/typebox";
 import crypto from "node:crypto";
+import { z } from "zod";
 import type { OpenClawConfig } from "../../config/config.js";
 import {
   type CameraFacing,
@@ -18,7 +18,7 @@ import {
 import { parseDurationMs } from "../../cli/parse-duration.js";
 import { imageMimeFromFormat } from "../../media/mime.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
-import { optionalStringEnum, stringEnum } from "../schema/typebox.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { sanitizeToolResultImages } from "../tool-images.js";
 import { type AnyAgentTool, jsonResult, readStringParam } from "./common.js";
 import { callGatewayTool, type GatewayCallOptions } from "./gateway.js";
@@ -45,50 +45,46 @@ const NOTIFY_DELIVERIES = ["system", "overlay", "auto"] as const;
 const CAMERA_FACING = ["front", "back", "both"] as const;
 const LOCATION_ACCURACY = ["coarse", "balanced", "precise"] as const;
 
-// Flattened schema: runtime validates per-action requirements.
-const NodesToolSchema = Type.Object({
-  action: stringEnum(NODES_TOOL_ACTIONS),
-  gatewayUrl: Type.Optional(Type.String()),
-  gatewayToken: Type.Optional(Type.String()),
-  timeoutMs: Type.Optional(Type.Number()),
-  node: Type.Optional(Type.String()),
-  requestId: Type.Optional(Type.String()),
-  // notify
-  title: Type.Optional(Type.String()),
-  body: Type.Optional(Type.String()),
-  sound: Type.Optional(Type.String()),
-  priority: optionalStringEnum(NOTIFY_PRIORITIES),
-  delivery: optionalStringEnum(NOTIFY_DELIVERIES),
-  // camera_snap / camera_clip
-  facing: optionalStringEnum(CAMERA_FACING, {
-    description: "camera_snap: front/back/both; camera_clip: front/back only.",
+const NodesToolSchema = zodToToolJsonSchema(
+  z.object({
+    action: z.enum(NODES_TOOL_ACTIONS),
+    gatewayUrl: z.string().optional(),
+    gatewayToken: z.string().optional(),
+    timeoutMs: z.number().optional(),
+    node: z.string().optional(),
+    requestId: z.string().optional(),
+    title: z.string().optional(),
+    body: z.string().optional(),
+    sound: z.string().optional(),
+    priority: z.enum(NOTIFY_PRIORITIES).optional(),
+    delivery: z.enum(NOTIFY_DELIVERIES).optional(),
+    facing: z
+      .enum(CAMERA_FACING)
+      .describe("camera_snap: front/back/both; camera_clip: front/back only.")
+      .optional(),
+    maxWidth: z.number().optional(),
+    quality: z.number().optional(),
+    delayMs: z.number().optional(),
+    deviceId: z.string().optional(),
+    duration: z.string().optional(),
+    durationMs: z.number().optional(),
+    includeAudio: z.boolean().optional(),
+    fps: z.number().optional(),
+    screenIndex: z.number().optional(),
+    outPath: z.string().optional(),
+    maxAgeMs: z.number().optional(),
+    locationTimeoutMs: z.number().optional(),
+    desiredAccuracy: z.enum(LOCATION_ACCURACY).optional(),
+    command: z.array(z.string()).optional(),
+    cwd: z.string().optional(),
+    env: z.array(z.string()).optional(),
+    commandTimeoutMs: z.number().optional(),
+    invokeTimeoutMs: z.number().optional(),
+    needsScreenRecording: z.boolean().optional(),
+    invokeCommand: z.string().optional(),
+    invokeParamsJson: z.string().optional(),
   }),
-  maxWidth: Type.Optional(Type.Number()),
-  quality: Type.Optional(Type.Number()),
-  delayMs: Type.Optional(Type.Number()),
-  deviceId: Type.Optional(Type.String()),
-  duration: Type.Optional(Type.String()),
-  durationMs: Type.Optional(Type.Number()),
-  includeAudio: Type.Optional(Type.Boolean()),
-  // screen_record
-  fps: Type.Optional(Type.Number()),
-  screenIndex: Type.Optional(Type.Number()),
-  outPath: Type.Optional(Type.String()),
-  // location_get
-  maxAgeMs: Type.Optional(Type.Number()),
-  locationTimeoutMs: Type.Optional(Type.Number()),
-  desiredAccuracy: optionalStringEnum(LOCATION_ACCURACY),
-  // run
-  command: Type.Optional(Type.Array(Type.String())),
-  cwd: Type.Optional(Type.String()),
-  env: Type.Optional(Type.Array(Type.String())),
-  commandTimeoutMs: Type.Optional(Type.Number()),
-  invokeTimeoutMs: Type.Optional(Type.Number()),
-  needsScreenRecording: Type.Optional(Type.Boolean()),
-  // invoke
-  invokeCommand: Type.Optional(Type.String()),
-  invokeParamsJson: Type.Optional(Type.String()),
-});
+);
 
 export function createNodesTool(options?: {
   agentSessionKey?: string;

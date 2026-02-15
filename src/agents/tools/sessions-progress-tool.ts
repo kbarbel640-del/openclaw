@@ -1,20 +1,25 @@
-import { Type } from "@sinclair/typebox";
+import { z } from "zod";
 import type { AnyAgentTool } from "./common.js";
 import { clearSessionQueues } from "../../auto-reply/reply/queue.js";
 import { loadConfig } from "../../config/config.js";
 import { emitAgentEvent } from "../../infra/agent-events.js";
 import { abortEmbeddedPiRun } from "../pi-embedded.js";
+import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { getSubagentRunBySessionKey } from "../subagent-registry.js";
 import { jsonResult, readStringParam } from "./common.js";
 import { resolveInternalSessionKey, resolveMainSessionAlias } from "./sessions-helpers.js";
 
-const SessionsProgressToolSchema = Type.Object({
-  sessionKey: Type.String({ description: "The session key of the spawned subagent" }),
-});
+const SessionsProgressToolSchema = zodToToolJsonSchema(
+  z.object({
+    sessionKey: z.string().describe("The session key of the spawned subagent"),
+  }),
+);
 
-const SessionsAbortToolSchema = Type.Object({
-  sessionKey: Type.String({ description: "The session key of the subagent to abort" }),
-});
+const SessionsAbortToolSchema = zodToToolJsonSchema(
+  z.object({
+    sessionKey: z.string().describe("The session key of the subagent to abort"),
+  }),
+);
 
 export function createSessionsProgressTool(_opts?: { agentSessionKey?: string }): AnyAgentTool {
   return {

@@ -34,7 +34,7 @@ describe("capability-patterns-loader", () => {
         },
       };
 
-      loadModelPatternsFromConfig(config as Config);
+      loadModelPatternsFromConfig(config);
 
       const patterns = getDynamicPatterns();
       expect(patterns.size).toBe(2);
@@ -50,7 +50,7 @@ describe("capability-patterns-loader", () => {
 
     it("should handle empty config gracefully", () => {
       const config: Partial<Config> = {};
-      loadModelPatternsFromConfig(config as Config);
+      loadModelPatternsFromConfig(config);
       expect(getDynamicPatterns().size).toBe(0);
     });
 
@@ -58,7 +58,7 @@ describe("capability-patterns-loader", () => {
       const config: Partial<Config> = {
         agents: undefined,
       };
-      loadModelPatternsFromConfig(config as Config);
+      loadModelPatternsFromConfig(config);
       expect(getDynamicPatterns().size).toBe(0);
     });
 
@@ -68,7 +68,7 @@ describe("capability-patterns-loader", () => {
           defaults: undefined,
         },
       };
-      loadModelPatternsFromConfig(config as Config);
+      loadModelPatternsFromConfig(config);
       expect(getDynamicPatterns().size).toBe(0);
     });
 
@@ -78,7 +78,7 @@ describe("capability-patterns-loader", () => {
           defaults: {},
         },
       };
-      loadModelPatternsFromConfig(config as Config);
+      loadModelPatternsFromConfig(config);
       expect(getDynamicPatterns().size).toBe(0);
     });
 
@@ -91,13 +91,13 @@ describe("capability-patterns-loader", () => {
             modelPatterns: {
               "valid-pattern": { coding: true },
               "": { coding: false }, // Invalid: empty pattern
-              "invalid-caps": null as any, // Invalid: null capabilities
+              "invalid-caps": null as unknown, // Invalid: null capabilities
             },
           },
         },
       };
 
-      loadModelPatternsFromConfig(config as Config);
+      loadModelPatternsFromConfig(config);
 
       // Only valid pattern should be registered
       expect(getDynamicPatterns().size).toBe(1);
@@ -121,7 +121,7 @@ describe("capability-patterns-loader", () => {
         },
       };
 
-      loadModelPatternsFromConfig(config as Config);
+      loadModelPatternsFromConfig(config);
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining("Registered 2 custom model pattern(s)"),
@@ -144,7 +144,7 @@ describe("capability-patterns-loader", () => {
         },
       };
 
-      loadModelPatternsFromConfig(config as Config);
+      loadModelPatternsFromConfig(config);
       expect(getDynamicPatterns().size).toBeGreaterThanOrEqual(1);
 
       consoleSpy.mockRestore();
@@ -169,13 +169,13 @@ describe("capability-patterns-loader", () => {
     });
 
     it("should reject null patterns", () => {
-      const errors = validateModelPatterns(null as any);
+      const errors = validateModelPatterns(null as unknown);
       expect(errors).toHaveLength(1);
       expect(errors[0]).toContain("must be an object");
     });
 
     it("should reject non-object patterns", () => {
-      const errors = validateModelPatterns("not-an-object" as any);
+      const errors = validateModelPatterns("not-an-object" as unknown);
       expect(errors).toHaveLength(1);
       expect(errors[0]).toContain("must be an object");
     });
@@ -183,7 +183,7 @@ describe("capability-patterns-loader", () => {
     it("should reject invalid coding type", () => {
       const patterns = {
         test: {
-          coding: "yes" as any,
+          coding: "yes" as unknown,
         },
       };
 
@@ -195,7 +195,7 @@ describe("capability-patterns-loader", () => {
     it("should reject invalid performanceTier", () => {
       const patterns = {
         test: {
-          performanceTier: "super-fast" as any,
+          performanceTier: "super-fast" as unknown,
         },
       };
 
@@ -207,7 +207,7 @@ describe("capability-patterns-loader", () => {
     it("should reject invalid costTier", () => {
       const patterns = {
         test: {
-          costTier: "ultra-cheap" as any,
+          costTier: "ultra-cheap" as unknown,
         },
       };
 
@@ -219,12 +219,12 @@ describe("capability-patterns-loader", () => {
     it("should validate all boolean fields", () => {
       const patterns = {
         test: {
-          coding: 1 as any,
-          reasoning: "true" as any,
-          vision: [] as any,
-          general: {} as any,
-          fast: null as any,
-          creative: undefined as any,
+          coding: 1 as unknown,
+          reasoning: "true" as unknown,
+          vision: [] as unknown,
+          general: {} as unknown,
+          fast: null as unknown,
+          creative: undefined as unknown,
         },
       };
 
@@ -241,7 +241,7 @@ describe("capability-patterns-loader", () => {
     it("should validate primary field type", () => {
       const patterns = {
         test: {
-          primary: 123 as any,
+          primary: 123 as unknown,
         },
       };
 
@@ -264,12 +264,12 @@ describe("capability-patterns-loader", () => {
     it("should handle multiple validation errors", () => {
       const patterns = {
         test1: {
-          coding: "yes" as any,
-          performanceTier: "invalid" as any,
+          coding: "yes" as unknown,
+          performanceTier: "invalid" as unknown,
         },
         test2: {
-          costTier: "wrong" as any,
-          primary: 123 as any,
+          costTier: "wrong" as unknown,
+          primary: 123 as unknown,
         },
       };
 
@@ -305,7 +305,7 @@ describe("capability-patterns-loader", () => {
 
     it("should reject non-object capabilities", () => {
       const patterns = {
-        test: "not-an-object" as any,
+        test: "not-an-object" as unknown,
       };
 
       const errors = validateModelPatterns(patterns);
@@ -334,12 +334,12 @@ describe("capability-patterns-loader", () => {
       // Validate first
       const patterns = config.agents?.defaults?.modelPatterns;
       if (patterns) {
-        const errors = validateModelPatterns(patterns as any);
+        const errors = validateModelPatterns(patterns as unknown);
         expect(errors).toHaveLength(0);
       }
 
       // Then load
-      loadModelPatternsFromConfig(config as Config);
+      loadModelPatternsFromConfig(config);
 
       // Verify registration
       const registeredPatterns = getDynamicPatterns();

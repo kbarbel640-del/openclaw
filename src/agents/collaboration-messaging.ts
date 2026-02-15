@@ -70,10 +70,18 @@ export async function loadMessages(filter?: {
       .filter((m): m is AgentMessage => m !== null);
 
     return messages.filter((msg) => {
-      if (filter?.recipientId && msg.to !== filter.recipientId) return false;
-      if (filter?.senderId && msg.from !== filter.senderId) return false;
-      if (filter?.topic && msg.topic !== filter.topic) return false;
-      if (filter?.since && msg.timestamp < filter.since) return false;
+      if (filter?.recipientId && msg.to !== filter.recipientId) {
+        return false;
+      }
+      if (filter?.senderId && msg.from !== filter.senderId) {
+        return false;
+      }
+      if (filter?.topic && msg.topic !== filter.topic) {
+        return false;
+      }
+      if (filter?.since && msg.timestamp < filter.since) {
+        return false;
+      }
       return true;
     });
   } catch (err) {
@@ -89,7 +97,9 @@ export async function loadMessages(filter?: {
  * optimizing to only do this periodically or on demand
  */
 export async function markMessagesRead(messageIds: string[]): Promise<void> {
-  if (messageIds.length === 0) return;
+  if (messageIds.length === 0) {
+    return;
+  }
 
   try {
     const filePath = getMessagesPath();
