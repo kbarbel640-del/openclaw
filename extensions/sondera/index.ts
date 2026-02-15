@@ -265,6 +265,11 @@ permit(principal, action, resource);
     ): PluginHookToolResultPersistResult | void => {
       const { toolName, message } = event;
 
+      // Only process messages that have a content property (skip custom message types like BashExecutionMessage)
+      if (!("content" in message)) {
+        return undefined;
+      }
+
       // Extract text content from the message
       const content = message.content;
       let textContent = "";
@@ -288,7 +293,7 @@ permit(principal, action, resource);
         return {
           message: {
             ...message,
-            content: [{ type: "text", text: `[REDACTED BY SONDERA POLICY]${policyInfo}` }],
+            content: [{ type: "text" as const, text: `[REDACTED BY SONDERA POLICY]${policyInfo}` }],
           },
         };
       }

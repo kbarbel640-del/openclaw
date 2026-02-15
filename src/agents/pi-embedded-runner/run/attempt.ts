@@ -558,8 +558,6 @@ export async function runEmbeddedAttempt(
 
       const allCustomTools = [...customTools, ...clientToolDefs];
 
-      const hookRunner = getGlobalHookRunner();
-
       // Hook injection: wrap tools to enforce before_tool_call policies
       // Tool execute signature: (toolCallId, args, signal, onUpdate)
       // oxlint-disable-next-line typescript/no-explicit-any -- tool types vary between AgentTool and ToolDefinition

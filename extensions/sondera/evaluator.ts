@@ -157,7 +157,7 @@ export class CedarEvaluator {
         principal: request.principal,
         action: request.action,
         resource: request.resource,
-        context: request.context,
+        context: request.context as Record<string, cedar.CedarValueJson>,
         policies: {
           staticPolicies: this.policies,
         },
