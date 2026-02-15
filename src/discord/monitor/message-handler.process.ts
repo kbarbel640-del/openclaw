@@ -101,7 +101,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       messageText: text,
     }),
   );
-  const ackReaction = resolveAckReaction(cfg, route.agentId);
+  const ackReaction = resolveAckReaction(cfg, route.agentId, {
+    channel: "discord",
+    accountId,
+  });
   const removeAckAfterReply = cfg.messages?.removeAckAfterReply ?? false;
   const shouldAckReaction = () =>
     Boolean(
