@@ -1,5 +1,6 @@
+import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildMinimalServicePath,
   buildNodeServiceEnvironment,
@@ -8,14 +9,49 @@ import {
   getMinimalServicePathPartsFromEnv,
 } from "./service-env.js";
 
+/** Make statSync report the given dirs as existing directories. */
+function mockExistingDirs(dirs: string[]) {
+  const dirSet = new Set(dirs);
+  vi.spyOn(fs, "statSync").mockImplementation((p: fs.PathLike) => {
+    if (dirSet.has(String(p))) {
+      return { isDirectory: () => true } as fs.Stats;
+    }
+    return undefined as unknown as fs.Stats;
+  });
+}
+
+/** Make statSync report ALL dirs as existing. */
+function mockAllDirsExist() {
+  vi.spyOn(fs, "statSync").mockImplementation(() => ({ isDirectory: () => true }) as fs.Stats);
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("getMinimalServicePathParts - Linux user directories", () => {
-  it("includes user bin directories when HOME is set on Linux", () => {
+  it("includes user bin directories when they exist on disk", () => {
+    const allDirs = [
+      "/home/testuser/.local/bin",
+      "/home/testuser/.npm-global/bin",
+      "/home/testuser/bin",
+      "/home/testuser/.nvm/current/bin",
+      "/home/testuser/.fnm/current/bin",
+      "/home/testuser/.volta/bin",
+      "/home/testuser/.asdf/shims",
+      "/home/testuser/.local/share/pnpm",
+      "/home/testuser/.bun/bin",
+      "/usr/local/bin",
+      "/usr/bin",
+      "/bin",
+    ];
+    mockExistingDirs(allDirs);
+
     const result = getMinimalServicePathParts({
       platform: "linux",
       home: "/home/testuser",
     });
 
-    // Should include all common user bin directories
     expect(result).toContain("/home/testuser/.local/bin");
     expect(result).toContain("/home/testuser/.npm-global/bin");
     expect(result).toContain("/home/testuser/bin");
@@ -27,22 +63,39 @@ describe("getMinimalServicePathParts - Linux user directories", () => {
     expect(result).toContain("/home/testuser/.bun/bin");
   });
 
+  it("excludes nonexistent directories from PATH (#15316)", () => {
+    mockExistingDirs(["/home/testuser/.local/bin", "/usr/local/bin", "/usr/bin", "/bin"]);
+
+    const result = getMinimalServicePathParts({
+      platform: "linux",
+      home: "/home/testuser",
+    });
+
+    expect(result).toContain("/home/testuser/.local/bin");
+    expect(result).toContain("/usr/local/bin");
+    expect(result).not.toContain("/home/testuser/.nvm/current/bin");
+    expect(result).not.toContain("/home/testuser/.fnm/current/bin");
+    expect(result).not.toContain("/home/testuser/.npm-global/bin");
+    expect(result).not.toContain("/home/testuser/.volta/bin");
+  });
+
   it("excludes user bin directories when HOME is undefined on Linux", () => {
+    mockExistingDirs(["/usr/local/bin", "/usr/bin", "/bin"]);
+
     const result = getMinimalServicePathParts({
       platform: "linux",
       home: undefined,
     });
 
-    // Should only include system directories
     expect(result).toEqual(["/usr/local/bin", "/usr/bin", "/bin"]);
-
-    // Should not include any user-specific paths
     expect(result.some((p) => p.includes(".local"))).toBe(false);
     expect(result.some((p) => p.includes(".npm-global"))).toBe(false);
     expect(result.some((p) => p.includes(".nvm"))).toBe(false);
   });
 
   it("places user directories before system directories on Linux", () => {
+    mockExistingDirs(["/home/testuser/.local/bin", "/usr/local/bin", "/usr/bin", "/bin"]);
+
     const result = getMinimalServicePathParts({
       platform: "linux",
       home: "/home/testuser",
@@ -57,6 +110,14 @@ describe("getMinimalServicePathParts - Linux user directories", () => {
   });
 
   it("places extraDirs before user directories on Linux", () => {
+    mockExistingDirs([
+      "/custom/bin",
+      "/home/testuser/.local/bin",
+      "/usr/local/bin",
+      "/usr/bin",
+      "/bin",
+    ]);
+
     const result = getMinimalServicePathParts({
       platform: "linux",
       home: "/home/testuser",
@@ -71,7 +132,21 @@ describe("getMinimalServicePathParts - Linux user directories", () => {
     expect(extraDirIndex).toBeLessThan(userDirIndex);
   });
 
-  it("includes env-configured bin roots when HOME is set on Linux", () => {
+  it("includes env-configured bin roots when they exist on disk", () => {
+    mockExistingDirs([
+      "/opt/pnpm",
+      "/opt/npm/bin",
+      "/opt/bun/bin",
+      "/opt/volta/bin",
+      "/opt/asdf/shims",
+      "/opt/nvm/current/bin",
+      "/opt/fnm/current/bin",
+      "/home/testuser/.local/bin",
+      "/usr/local/bin",
+      "/usr/bin",
+      "/bin",
+    ]);
+
     const result = getMinimalServicePathPartsFromEnv({
       platform: "linux",
       env: {
@@ -96,16 +171,15 @@ describe("getMinimalServicePathParts - Linux user directories", () => {
   });
 
   it("does not include Linux user directories on macOS", () => {
+    mockExistingDirs(["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]);
+
     const result = getMinimalServicePathParts({
       platform: "darwin",
       home: "/Users/testuser",
     });
 
-    // Should not include Linux-specific user dirs even with HOME set
     expect(result.some((p) => p.includes(".npm-global"))).toBe(false);
     expect(result.some((p) => p.includes(".nvm"))).toBe(false);
-
-    // Should only include macOS system directories
     expect(result).toContain("/opt/homebrew/bin");
     expect(result).toContain("/usr/local/bin");
   });
@@ -116,7 +190,6 @@ describe("getMinimalServicePathParts - Linux user directories", () => {
       home: "C:\\Users\\testuser",
     });
 
-    // Windows returns empty array (uses existing PATH)
     expect(result).toEqual([]);
   });
 });
@@ -126,9 +199,9 @@ describe("buildMinimalServicePath", () => {
     value.split(platform === "win32" ? path.win32.delimiter : path.posix.delimiter);
 
   it("includes Homebrew + system dirs on macOS", () => {
-    const result = buildMinimalServicePath({
-      platform: "darwin",
-    });
+    mockExistingDirs(["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]);
+
+    const result = buildMinimalServicePath({ platform: "darwin" });
     const parts = splitPath(result, "darwin");
     expect(parts).toContain("/opt/homebrew/bin");
     expect(parts).toContain("/usr/local/bin");
@@ -144,39 +217,46 @@ describe("buildMinimalServicePath", () => {
     expect(result).toBe("C:\\\\Windows\\\\System32");
   });
 
-  it("includes Linux user directories when HOME is set in env", () => {
+  it("includes Linux user directories when they exist on disk", () => {
+    mockExistingDirs([
+      "/home/alice/.local/bin",
+      "/home/alice/.npm-global/bin",
+      "/home/alice/.nvm/current/bin",
+      "/usr/local/bin",
+      "/usr/bin",
+      "/bin",
+    ]);
+
     const result = buildMinimalServicePath({
       platform: "linux",
       env: { HOME: "/home/alice" },
     });
     const parts = splitPath(result, "linux");
 
-    // Verify user directories are included
     expect(parts).toContain("/home/alice/.local/bin");
     expect(parts).toContain("/home/alice/.npm-global/bin");
     expect(parts).toContain("/home/alice/.nvm/current/bin");
-
-    // Verify system directories are also included
     expect(parts).toContain("/usr/local/bin");
     expect(parts).toContain("/usr/bin");
     expect(parts).toContain("/bin");
   });
 
   it("excludes Linux user directories when HOME is not in env", () => {
+    mockExistingDirs(["/usr/local/bin", "/usr/bin", "/bin"]);
+
     const result = buildMinimalServicePath({
       platform: "linux",
       env: {},
     });
     const parts = splitPath(result, "linux");
 
-    // Should only have system directories
     expect(parts).toEqual(["/usr/local/bin", "/usr/bin", "/bin"]);
-
-    // No user-specific paths
     expect(parts.some((p) => p.includes("home"))).toBe(false);
   });
 
   it("ensures user directories come before system directories on Linux", () => {
+    mockExistingDirs(["/home/bob/.local/bin", "/usr/local/bin", "/usr/bin", "/bin"]);
+
     const result = buildMinimalServicePath({
       platform: "linux",
       env: { HOME: "/home/bob" },
@@ -189,7 +269,9 @@ describe("buildMinimalServicePath", () => {
     expect(firstUserDirIdx).toBeLessThan(firstSystemDirIdx);
   });
 
-  it("includes extra directories when provided", () => {
+  it("includes extra directories when provided and they exist", () => {
+    mockExistingDirs(["/custom/tools", "/usr/local/bin", "/usr/bin", "/bin"]);
+
     const result = buildMinimalServicePath({
       platform: "linux",
       extraDirs: ["/custom/tools"],
@@ -199,6 +281,8 @@ describe("buildMinimalServicePath", () => {
   });
 
   it("deduplicates directories", () => {
+    mockExistingDirs(["/usr/local/bin", "/usr/bin", "/bin"]);
+
     const result = buildMinimalServicePath({
       platform: "linux",
       extraDirs: ["/usr/bin"],
@@ -212,6 +296,8 @@ describe("buildMinimalServicePath", () => {
 
 describe("buildServiceEnvironment", () => {
   it("sets minimal PATH and gateway vars", () => {
+    mockAllDirsExist();
+
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user" },
       port: 18789,
@@ -235,6 +321,8 @@ describe("buildServiceEnvironment", () => {
   });
 
   it("uses profile-specific unit and label", () => {
+    mockAllDirsExist();
+
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user", OPENCLAW_PROFILE: "work" },
       port: 18789,
@@ -248,6 +336,8 @@ describe("buildServiceEnvironment", () => {
 
 describe("buildNodeServiceEnvironment", () => {
   it("passes through HOME for node services", () => {
+    mockAllDirsExist();
+
     const env = buildNodeServiceEnvironment({
       env: { HOME: "/home/user" },
     });
