@@ -17,6 +17,14 @@ export type SshTunnel = {
   stop: () => Promise<void>;
 };
 
+function resolveSshExecutablePath(): string {
+  const envPath = process.env.GENSPARX_SSH_PATH?.trim() || process.env.OPENCLAW_SSH_PATH?.trim();
+  if (envPath) {
+    return envPath;
+  }
+  return process.platform === "win32" ? "ssh.exe" : "/usr/bin/ssh";
+}
+
 function isErrno(err: unknown): err is NodeJS.ErrnoException {
   return Boolean(err && typeof err === "object" && "code" in err);
 }
@@ -155,7 +163,7 @@ export async function startSshPortForward(opts: {
   args.push("--", userHost);
 
   const stderr: string[] = [];
-  const child = spawn("/usr/bin/ssh", args, {
+  const child = spawn(resolveSshExecutablePath(), args, {
     stdio: ["ignore", "ignore", "pipe"],
   });
   child.stderr?.setEncoding("utf8");

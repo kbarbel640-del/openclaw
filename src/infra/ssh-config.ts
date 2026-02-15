@@ -8,6 +8,14 @@ export type SshResolvedConfig = {
   identityFiles: string[];
 };
 
+function resolveSshExecutablePath(): string {
+  const envPath = process.env.GENSPARX_SSH_PATH?.trim() || process.env.OPENCLAW_SSH_PATH?.trim();
+  if (envPath) {
+    return envPath;
+  }
+  return process.platform === "win32" ? "ssh.exe" : "/usr/bin/ssh";
+}
+
 function parsePort(value: string | undefined): number | undefined {
   if (!value) {
     return undefined;
@@ -58,7 +66,7 @@ export async function resolveSshConfig(
   target: SshParsedTarget,
   opts: { identity?: string; timeoutMs?: number } = {},
 ): Promise<SshResolvedConfig | null> {
-  const sshPath = "/usr/bin/ssh";
+  const sshPath = resolveSshExecutablePath();
   const args = ["-G"];
   if (target.port > 0 && target.port !== 22) {
     args.push("-p", String(target.port));
