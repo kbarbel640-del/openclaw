@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import type { SessionEntry } from "../../config/sessions.js";
 import type { AnyAgentTool } from "./common.js";
 import { clearSessionQueues } from "../../auto-reply/reply/queue.js";
+import { truncateUtf16Safe } from "../../utils.js";
 import { loadConfig } from "../../config/config.js";
 import { loadSessionStore, resolveStorePath, updateSessionStore } from "../../config/sessions.js";
 import { callGateway } from "../../gateway/call.js";
@@ -101,7 +102,7 @@ function truncate(text: string, maxLength: number) {
   if (text.length <= maxLength) {
     return text;
   }
-  return `${text.slice(0, maxLength).trimEnd()}...`;
+  return `${truncateUtf16Safe(text, maxLength).trimEnd()}...`;
 }
 
 function resolveRunLabel(entry: SubagentRunRecord, fallback = "subagent") {

@@ -1,3 +1,5 @@
+import { truncateUtf16Safe } from "../../utils.js";
+
 export type ExtractMode = "markdown" | "text";
 
 let readabilityDepsPromise:
@@ -104,7 +106,7 @@ export function truncateText(
   if (value.length <= maxChars) {
     return { text: value, truncated: false };
   }
-  return { text: value.slice(0, maxChars), truncated: true };
+  return { text: truncateUtf16Safe(value, maxChars), truncated: true };
 }
 
 export async function extractReadableContent(params: {

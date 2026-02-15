@@ -1,3 +1,4 @@
+import { truncateUtf16Safe } from "../utils.js";
 import { wrapExternalContent } from "./external-content.js";
 
 const DEFAULT_MAX_CHARS = 800;
@@ -14,7 +15,7 @@ function truncateText(value: string, maxChars: number): string {
   if (value.length <= maxChars) {
     return value;
   }
-  const trimmed = value.slice(0, Math.max(0, maxChars - 3)).trimEnd();
+  const trimmed = truncateUtf16Safe(value, Math.max(0, maxChars - 3)).trimEnd();
   return `${trimmed}...`;
 }
 
