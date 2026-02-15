@@ -9,6 +9,7 @@ INSTALL_BUN="${INSTALL_BUN:-1}"
 BUN_INSTALL_DIR="${BUN_INSTALL_DIR:-/opt/bun}"
 INSTALL_BREW="${INSTALL_BREW:-1}"
 BREW_INSTALL_DIR="${BREW_INSTALL_DIR:-/home/linuxbrew/.linuxbrew}"
+FINAL_USER="${FINAL_USER:-sandbox}"
 
 if ! docker image inspect "${BASE_IMAGE}" >/dev/null 2>&1; then
   echo "Base image missing: ${BASE_IMAGE}"
@@ -20,11 +21,15 @@ echo "Building ${TARGET_IMAGE} with: ${PACKAGES}"
 
 docker build \
   -t "${TARGET_IMAGE}" \
+  -f Dockerfile.sandbox-common \
+  --build-arg BASE_IMAGE="${BASE_IMAGE}" \
+  --build-arg PACKAGES="${PACKAGES}" \
   --build-arg INSTALL_PNPM="${INSTALL_PNPM}" \
   --build-arg INSTALL_BUN="${INSTALL_BUN}" \
   --build-arg BUN_INSTALL_DIR="${BUN_INSTALL_DIR}" \
   --build-arg INSTALL_BREW="${INSTALL_BREW}" \
   --build-arg BREW_INSTALL_DIR="${BREW_INSTALL_DIR}" \
+<<<<<<< HEAD
   - <<EOF
 FROM ${BASE_IMAGE}
 USER root
@@ -57,6 +62,10 @@ RUN if [ "\${INSTALL_BREW}" = "1" ]; then \\
   ln -sf "\${BREW_INSTALL_DIR}/bin/brew" /usr/local/bin/brew; \\
 fi
 EOF
+=======
+  --build-arg FINAL_USER="${FINAL_USER}" \
+  .
+>>>>>>> origin/main
 
 cat <<NOTE
 Built ${TARGET_IMAGE}.
