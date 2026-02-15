@@ -1,35 +1,12 @@
 /**
- * Contract enforcement module for OpenClaw.
+ * Contract enforcement schemas for OpenClaw.
  *
- * This module provides Zod schemas and validation functions for all
- * internal message types that flow through the dispatcher pipeline.
+ * This module exports strict validators for all internal message types
+ * to ensure deterministic failure on schema violations.
  *
  * @module contracts
- *
- * @example
- * ```ts
- * import { validatePlanRequest, PlanRequestSchema } from './contracts/index.js';
- *
- * // Validate a plan request
- * const planRequest = validatePlanRequest({
- *   requestId: 'req-001',
- *   sessionId: 'session-abc',
- *   sessionKey: 'agent:main:telegram',
- *   channel: 'telegram',
- *   body: 'Hello',
- *   timestamp: Date.now(),
- *   callerRole: 'dispatcher',
- * });
- *
- * // Or use safe parsing
- * const result = PlanRequestSchema.safeParse(data);
- * if (!result.success) {
- *   console.error('Invalid plan request:', result.error);
- * }
- * ```
  */
 
-// Export all schemas and types
 export {
   // Schemas
   PlanRequestSchema,
@@ -45,14 +22,14 @@ export {
   type Result,
   type EscalationSignal,
   type MemoryWrite,
-  // Validation functions (throwing)
+  // Validators (throwing)
   validatePlanRequest,
   validatePlanArtifact,
   validateTaskEnvelope,
   validateResult,
   validateEscalationSignal,
   validateMemoryWrite,
-  // Safe validation functions (non-throwing)
+  // Safe validators (return result)
   safeParsePlanRequest,
   safeParsePlanArtifact,
   safeParseTaskEnvelope,
@@ -60,3 +37,33 @@ export {
   safeParseEscalationSignal,
   safeParseMemoryWrite,
 } from "./schemas.js";
+
+// Export Failure Economics - Error Taxonomy (Milestone D)
+export {
+  // Enums (D1)
+  ErrorTaxonomy,
+  ErrorSeverity,
+  EscalationReason,
+  EscalationAction,
+  // Error classes (D2-D6)
+  OpenClawError,
+  SchemaViolationError,
+  ModelFailureError,
+  ToolFailureError,
+  ResourceExhaustionError,
+  InvariantViolationError,
+  ContextOverflowError,
+  TimeoutError,
+  AbortError,
+  // Response mapping (D7)
+  ERROR_RESPONSE_MAP,
+  getErrorResponseConfig,
+  isRetryable,
+  shouldEscalate,
+  // Type guards
+  isOpenClawError,
+  isErrorTaxonomy,
+  getErrorTaxonomy,
+  // Types
+  type ErrorResponseConfig,
+} from "./error-taxonomy.js";
