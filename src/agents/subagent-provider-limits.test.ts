@@ -150,4 +150,40 @@ describe("buildProviderUsageSummary", () => {
 
     releaseProviderSlot(reservation);
   });
+
+  it("normalizes persisted provider ids when counting usage", () => {
+    addSubagentRunForTests({
+      runId: "zai-active",
+      childSessionKey: "agent:main:subagent:zai-active",
+      requesterSessionKey: "main",
+      requesterDisplayKey: "main",
+      task: "active",
+      cleanup: "keep",
+      createdAt: Date.now(),
+      provider: "z.ai",
+    });
+
+    const rows = buildProviderUsageSummary({
+      agents: {
+        defaults: {
+          subagents: {
+            providerLimits: {
+              zai: 1,
+              unknown: 3,
+            },
+          },
+        },
+      },
+    });
+
+    const zai = rows.find((row) => row.provider === "zai");
+    expect(zai).toMatchObject({
+      provider: "zai",
+      active: 1,
+      pending: 0,
+      total: 1,
+      max: 1,
+      available: 0,
+    });
+  });
 });

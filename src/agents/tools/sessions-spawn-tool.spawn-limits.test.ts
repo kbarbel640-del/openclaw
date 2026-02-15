@@ -3,6 +3,8 @@ import type { OpenClawConfig } from "../../config/config.js";
 
 const callGatewayMock = vi.fn();
 const onAgentEventMock = vi.fn(() => () => {});
+const loadSubagentRegistryFromDiskMock = vi.fn(() => new Map());
+const saveSubagentRegistryToDiskMock = vi.fn(() => {});
 
 vi.mock("../../gateway/call.js", () => ({
   callGateway: (opts: unknown) => callGatewayMock(opts),
@@ -28,8 +30,8 @@ vi.mock("../../infra/agent-events.js", () => ({
 }));
 
 vi.mock("../subagent-registry.store.js", () => ({
-  loadSubagentRegistryFromDisk: vi.fn(() => new Map()),
-  saveSubagentRegistryToDisk: vi.fn(() => {}),
+  loadSubagentRegistryFromDisk: () => loadSubagentRegistryFromDiskMock(),
+  saveSubagentRegistryToDisk: (...args: unknown[]) => saveSubagentRegistryToDiskMock(...args),
 }));
 
 vi.mock("../subagent-announce.js", () => ({
@@ -71,6 +73,9 @@ beforeEach(() => {
   configOverride = baseConfig();
   callGatewayMock.mockReset();
   onAgentEventMock.mockReset();
+  loadSubagentRegistryFromDiskMock.mockReset();
+  loadSubagentRegistryFromDiskMock.mockReturnValue(new Map());
+  saveSubagentRegistryToDiskMock.mockReset();
   resetSubagentRegistryForTests({ persist: false });
 });
 
@@ -78,6 +83,8 @@ afterEach(() => {
   resetSubagentRegistryForTests({ persist: false });
   callGatewayMock.mockReset();
   onAgentEventMock.mockReset();
+  loadSubagentRegistryFromDiskMock.mockReset();
+  saveSubagentRegistryToDiskMock.mockReset();
 });
 
 describe("sessions_spawn parent limits + target validation", () => {
@@ -182,6 +189,63 @@ describe("sessions_spawn parent limits + target validation", () => {
       maxConcurrent: 1,
     });
     expect(callGatewayMock).not.toHaveBeenCalled();
+  });
+
+  it("counts provider usage from restored registry runs before reserving", async () => {
+    configOverride = {
+      session: {
+        mainKey: "main",
+        scope: "per-sender",
+      },
+      agents: {
+        defaults: {
+          subagents: {
+            providerLimits: {
+              google: 1,
+              unknown: 3,
+            },
+          },
+        },
+        list: [{ id: "main", subagents: { maxChildrenPerAgent: 5 } }],
+      },
+    };
+
+    loadSubagentRegistryFromDiskMock.mockReturnValueOnce(
+      new Map([
+        [
+          "google-restored",
+          {
+            runId: "google-restored",
+            childSessionKey: "agent:main:subagent:restored-google",
+            requesterSessionKey: "agent:other:main",
+            requesterDisplayKey: "other",
+            task: "restored",
+            cleanup: "keep",
+            createdAt: Date.now(),
+            provider: "google",
+          },
+        ],
+      ]),
+    );
+
+    const result = await createTool().execute("call-provider-limit-restored", {
+      task: "new task",
+      model: "google/gemini-3-pro-preview",
+    });
+
+    expect(result.details).toMatchObject({
+      status: "blocked",
+      reason: "provider_limit",
+      provider: "google",
+      active: 1,
+      pending: 0,
+      used: 1,
+      maxConcurrent: 1,
+    });
+    const spawnCalls = callGatewayMock.mock.calls.filter(
+      (call: unknown[]) => (call[0] as { method?: string })?.method === "agent",
+    );
+    expect(spawnCalls).toHaveLength(0);
   });
 
   it("applies provider limits independently per provider", async () => {

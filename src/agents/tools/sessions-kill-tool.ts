@@ -1,13 +1,12 @@
 import { Type } from "@sinclair/typebox";
 import type { AnyAgentTool } from "./common.js";
-import { jsonResult, readStringParam } from "./common.js";
 import { loadConfig } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
 import { isSubagentSessionKey } from "../../routing/session-key.js";
-import { abortEmbeddedPiRun } from "../pi-embedded.js";
-import { isAncestor, getSubtreeLeafFirst } from "./sessions-lineage.js";
 import { getRunByChildKey } from "../subagent-registry.js";
+import { jsonResult, readStringParam } from "./common.js";
 import { resolveInternalSessionKey, resolveMainSessionAlias } from "./sessions-helpers.js";
+import { isAncestor, getSubtreeLeafFirst } from "./sessions-lineage.js";
 
 const SessionsKillToolSchema = Type.Object({
   sessionKey: Type.String(),
@@ -20,6 +19,11 @@ type KillResult = {
   status: "aborted" | "not_found" | "error";
   via: "embedded" | "gateway" | "none";
   error?: string;
+};
+
+type AgentAbortResponse = {
+  aborted?: boolean;
+  via?: "embedded" | "none" | string;
 };
 
 function resolveKillList(targetKey: string, cascade: boolean): string[] {
@@ -95,35 +99,27 @@ export function createSessionsKillTool(opts?: { agentSessionKey?: string }): Any
           continue;
         }
 
-        let abortedEmbedded = false;
         try {
-          abortedEmbedded = abortEmbeddedPiRun(run.childSessionKey);
-        } catch {
-          abortedEmbedded = false;
-        }
-
-        if (abortedEmbedded) {
-          results.push({
-            sessionKey: key,
-            runId: run.runId,
-            status: "aborted",
-            via: "embedded",
-          });
-          continue;
-        }
-
-        try {
-          await callGateway({
+          const abortResult = await callGateway<AgentAbortResponse>({
             method: "agent.abort",
             params: {
               runId: run.runId,
             },
           });
+          if (abortResult?.aborted) {
+            results.push({
+              sessionKey: key,
+              runId: run.runId,
+              status: "aborted",
+              via: abortResult.via === "embedded" ? "embedded" : "gateway",
+            });
+            continue;
+          }
           results.push({
             sessionKey: key,
             runId: run.runId,
-            status: "aborted",
-            via: "gateway",
+            status: "not_found",
+            via: "none",
           });
         } catch (err) {
           results.push({
@@ -140,11 +136,7 @@ export function createSessionsKillTool(opts?: { agentSessionKey?: string }): Any
       const notFound = results.filter((entry) => entry.status === "not_found").length;
       const failed = results.filter((entry) => entry.status === "error").length;
       const status =
-        failed > 0
-          ? "partial"
-          : aborted === 0 && notFound === results.length
-            ? "not_found"
-            : "ok";
+        failed > 0 ? "partial" : aborted === 0 && notFound === results.length ? "not_found" : "ok";
 
       return jsonResult({
         status,

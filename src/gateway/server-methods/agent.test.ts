@@ -6,7 +6,9 @@ const mocks = vi.hoisted(() => ({
   loadSessionEntry: vi.fn(),
   updateSessionStore: vi.fn(),
   agentCommand: vi.fn(),
+  abortEmbeddedPiRun: vi.fn(),
   registerAgentRunContext: vi.fn(),
+  getAgentRunContext: vi.fn(),
   loadConfigReturn: {} as Record<string, unknown>,
 }));
 
@@ -41,6 +43,10 @@ vi.mock("../../commands/agent.js", () => ({
   agentCommand: mocks.agentCommand,
 }));
 
+vi.mock("../../agents/pi-embedded.js", () => ({
+  abortEmbeddedPiRun: mocks.abortEmbeddedPiRun,
+}));
+
 vi.mock("../../config/config.js", () => ({
   loadConfig: () => mocks.loadConfigReturn,
 }));
@@ -51,6 +57,7 @@ vi.mock("../../agents/agent-scope.js", () => ({
 
 vi.mock("../../infra/agent-events.js", () => ({
   registerAgentRunContext: mocks.registerAgentRunContext,
+  getAgentRunContext: mocks.getAgentRunContext,
   onAgentEvent: vi.fn(),
 }));
 
@@ -272,5 +279,77 @@ describe("gateway agent handler", () => {
     expect(capturedStore).toBeDefined();
     expect(capturedStore?.["agent:main:work"]).toBeDefined();
     expect(capturedStore?.["agent:main:MAIN"]).toBeUndefined();
+  });
+
+  it("agent.abort aborts an active embedded run by runId", async () => {
+    mocks.getAgentRunContext.mockReset();
+    mocks.loadSessionEntry.mockReset();
+    mocks.abortEmbeddedPiRun.mockReset();
+    mocks.getAgentRunContext.mockReturnValue({
+      sessionKey: "agent:main:subagent:child",
+    });
+    mocks.loadSessionEntry.mockReturnValue({
+      entry: {
+        sessionId: "session-123",
+      },
+    });
+    mocks.abortEmbeddedPiRun.mockReturnValue(true);
+
+    const respond = vi.fn();
+    await agentHandlers["agent.abort"]({
+      params: {
+        runId: "run-123",
+      },
+      respond,
+      context: makeContext(),
+      req: { type: "req", id: "abort-1", method: "agent.abort" },
+      client: null,
+      isWebchatConnect: () => false,
+    });
+
+    expect(mocks.abortEmbeddedPiRun).toHaveBeenCalledWith("session-123");
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        ok: true,
+        runId: "run-123",
+        sessionKey: "agent:main:subagent:child",
+        aborted: true,
+        via: "embedded",
+      }),
+      undefined,
+    );
+  });
+
+  it("agent.abort returns aborted=false when run context is missing", async () => {
+    mocks.getAgentRunContext.mockReset();
+    mocks.loadSessionEntry.mockReset();
+    mocks.abortEmbeddedPiRun.mockReset();
+    mocks.getAgentRunContext.mockReturnValue(undefined);
+    mocks.abortEmbeddedPiRun.mockReturnValue(false);
+
+    const respond = vi.fn();
+    await agentHandlers["agent.abort"]({
+      params: {
+        runId: "run-missing",
+      },
+      respond,
+      context: makeContext(),
+      req: { type: "req", id: "abort-2", method: "agent.abort" },
+      client: null,
+      isWebchatConnect: () => false,
+    });
+
+    expect(mocks.abortEmbeddedPiRun).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      {
+        ok: true,
+        runId: "run-missing",
+        aborted: false,
+        via: "none",
+      },
+      undefined,
+    );
   });
 });

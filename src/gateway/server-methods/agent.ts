@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { GatewayRequestHandlers } from "./types.js";
 import { listAgentIds } from "../../agents/agent-scope.js";
+import { abortEmbeddedPiRun } from "../../agents/pi-embedded.js";
 import { agentCommand } from "../../commands/agent.js";
 import { loadConfig } from "../../config/config.js";
 import {
@@ -10,7 +11,7 @@ import {
   type SessionEntry,
   updateSessionStore,
 } from "../../config/sessions.js";
-import { registerAgentRunContext } from "../../infra/agent-events.js";
+import { getAgentRunContext, registerAgentRunContext } from "../../infra/agent-events.js";
 import {
   resolveAgentDeliveryPlan,
   resolveAgentOutboundTarget,
@@ -34,6 +35,7 @@ import {
   ErrorCodes,
   errorShape,
   formatValidationErrors,
+  validateAgentAbortParams,
   validateAgentIdentityParams,
   validateAgentParams,
   validateAgentWaitParams,
@@ -464,6 +466,48 @@ export const agentHandlers: GatewayRequestHandlers = {
           error: formatForLog(err),
         });
       });
+  },
+  "agent.abort": ({ params, respond }) => {
+    if (!validateAgentAbortParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid agent.abort params: ${formatValidationErrors(validateAgentAbortParams.errors)}`,
+        ),
+      );
+      return;
+    }
+
+    const p = params as { runId: string };
+    const runId = p.runId.trim();
+    const runContext = getAgentRunContext(runId);
+    const sessionKey = runContext?.sessionKey?.trim();
+    if (!sessionKey) {
+      respond(true, { ok: true, runId, aborted: false, via: "none" }, undefined);
+      return;
+    }
+
+    const { entry } = loadSessionEntry(sessionKey);
+    const sessionId = entry?.sessionId?.trim();
+    if (!sessionId) {
+      respond(true, { ok: true, runId, aborted: false, via: "none" }, undefined);
+      return;
+    }
+
+    const aborted = abortEmbeddedPiRun(sessionId);
+    respond(
+      true,
+      {
+        ok: true,
+        runId,
+        sessionKey,
+        aborted,
+        via: aborted ? "embedded" : "none",
+      },
+      undefined,
+    );
   },
   "agent.identity.get": ({ params, respond }) => {
     if (!validateAgentIdentityParams(params)) {

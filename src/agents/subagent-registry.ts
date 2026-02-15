@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { normalizeSubagentProviderLimitKey } from "../config/agent-limits.js";
 import { loadConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
@@ -48,6 +49,7 @@ function persistSubagentRuns() {
 }
 
 export function getRunByChildKey(childKey: string): SubagentRunRecord | undefined {
+  restoreSubagentRunsOnce();
   for (const entry of subagentRuns.values()) {
     if (entry.childSessionKey === childKey) {
       return entry;
@@ -57,6 +59,7 @@ export function getRunByChildKey(childKey: string): SubagentRunRecord | undefine
 }
 
 export function getActiveChildCount(parentKey: string): number {
+  restoreSubagentRunsOnce();
   let count = 0;
   for (const entry of subagentRuns.values()) {
     if (entry.requesterSessionKey === parentKey && !entry.endedAt) {
@@ -80,10 +83,11 @@ export type ProviderSlotReservation = {
 };
 
 function normalizeProviderKey(provider: string): string {
-  return provider.trim().toLowerCase();
+  return normalizeSubagentProviderLimitKey(provider) ?? "";
 }
 
 function getActiveProviderCount(provider: string): number {
+  restoreSubagentRunsOnce();
   let count = 0;
   for (const entry of subagentRuns.values()) {
     if (entry.endedAt) {
@@ -101,6 +105,7 @@ export function getProviderUsage(provider: string): {
   pending: number;
   total: number;
 } {
+  restoreSubagentRunsOnce();
   const providerKey = normalizeProviderKey(provider);
   if (!providerKey) {
     return { active: 0, pending: 0, total: 0 };
@@ -115,6 +120,7 @@ export function getProviderUsage(provider: string): {
 }
 
 export function reserveProviderSlot(provider: string, max: number): ProviderSlotReservation | null {
+  restoreSubagentRunsOnce();
   const providerKey = normalizeProviderKey(provider);
   if (!providerKey) {
     return null;
@@ -153,6 +159,7 @@ export function releaseProviderSlot(reservation?: ProviderSlotReservation | null
 }
 
 export function reserveChildSlot(parentKey: string, max: number): boolean {
+  restoreSubagentRunsOnce();
   const active = getActiveChildCount(parentKey);
   const pending = pendingSpawns.get(parentKey) ?? 0;
   if (active + pending >= max) {
@@ -587,6 +594,7 @@ export function releaseSubagentRun(runId: string) {
 }
 
 export function listSubagentRunsForRequester(requesterSessionKey: string): SubagentRunRecord[] {
+  restoreSubagentRunsOnce();
   const key = requesterSessionKey.trim();
   if (!key) {
     return [];

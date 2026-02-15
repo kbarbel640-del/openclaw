@@ -7,7 +7,6 @@ import type { SubagentRunRecord } from "../subagent-registry.js";
 import { addSubagentRunForTests, resetSubagentRegistryForTests } from "../subagent-registry.js";
 
 const callGatewayMock = vi.fn();
-const abortEmbeddedPiRunMock = vi.fn();
 
 vi.mock("../../gateway/call.js", () => ({
   callGateway: (opts: unknown) => callGatewayMock(opts),
@@ -27,10 +26,6 @@ vi.mock("../../config/config.js", async (importOriginal) => {
     loadConfig: () => configOverride,
   };
 });
-
-vi.mock("../pi-embedded.js", () => ({
-  abortEmbeddedPiRun: (sessionId: string) => abortEmbeddedPiRunMock(sessionId),
-}));
 
 import { createSessionsKillTool } from "./sessions-kill-tool.js";
 
@@ -58,7 +53,6 @@ beforeEach(async () => {
     },
   };
   callGatewayMock.mockReset();
-  abortEmbeddedPiRunMock.mockReset();
   tempStateDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-kill-"));
   process.env.OPENCLAW_STATE_DIR = tempStateDir;
   resetSubagentRegistryForTests({ persist: false });
@@ -78,7 +72,7 @@ afterEach(async () => {
 });
 
 describe("sessions_kill tool", () => {
-  it("kills subtree leaf-first with embedded-first abort strategy", async () => {
+  it("kills subtree leaf-first via gateway agent.abort", async () => {
     const parent = "agent:main:subagent:parent";
     const child = "agent:main:subagent:child";
     const leaf = "agent:main:subagent:leaf";
@@ -87,8 +81,12 @@ describe("sessions_kill tool", () => {
     addRun({ runId: "run-child", childSessionKey: child, requesterSessionKey: parent });
     addRun({ runId: "run-leaf", childSessionKey: leaf, requesterSessionKey: child });
 
-    abortEmbeddedPiRunMock.mockImplementation((sessionId: string) => sessionId === child);
-    callGatewayMock.mockResolvedValue({ ok: true });
+    callGatewayMock.mockImplementation(async (request: { params?: { runId?: string } }) => {
+      if (request.params?.runId === "run-child") {
+        return { aborted: true, via: "embedded" };
+      }
+      return { aborted: true, via: "none" };
+    });
 
     const tool = createSessionsKillTool({ agentSessionKey: "main" });
     const result = await tool.execute("call-kill", { sessionKey: parent });
@@ -120,12 +118,16 @@ describe("sessions_kill tool", () => {
     const abortCalls = callGatewayMock.mock.calls.filter(
       (call: unknown[]) => (call[0] as { method?: string })?.method === "agent.abort",
     );
-    expect(abortCalls).toHaveLength(2);
+    expect(abortCalls).toHaveLength(3);
     expect(abortCalls[0]?.[0]).toMatchObject({
       method: "agent.abort",
       params: { runId: "run-leaf" },
     });
     expect(abortCalls[1]?.[0]).toMatchObject({
+      method: "agent.abort",
+      params: { runId: "run-child" },
+    });
+    expect(abortCalls[2]?.[0]).toMatchObject({
       method: "agent.abort",
       params: { runId: "run-parent" },
     });
@@ -145,8 +147,10 @@ describe("sessions_kill tool", () => {
     });
 
     expect(result.details).toMatchObject({ status: "forbidden" });
-    expect(abortEmbeddedPiRunMock).not.toHaveBeenCalled();
-    expect(callGatewayMock).not.toHaveBeenCalled();
+    const abortCalls = callGatewayMock.mock.calls.filter(
+      (call: unknown[]) => (call[0] as { method?: string })?.method === "agent.abort",
+    );
+    expect(abortCalls).toHaveLength(0);
   });
 
   it("returns not_found when no run record exists", async () => {
@@ -168,6 +172,36 @@ describe("sessions_kill tool", () => {
     expect(details.results).toEqual([
       {
         sessionKey: missing,
+        status: "not_found",
+        via: "none",
+      },
+    ]);
+  });
+
+  it("reports not_found when gateway cannot abort an active run", async () => {
+    const target = "agent:main:subagent:target";
+    addRun({ runId: "run-target", childSessionKey: target, requesterSessionKey: "main" });
+    callGatewayMock.mockResolvedValue({ aborted: false, via: "none" });
+
+    const tool = createSessionsKillTool({ agentSessionKey: "main" });
+    const result = await tool.execute("call-not-aborted", {
+      sessionKey: target,
+      cascade: false,
+    });
+    const details = result.details as {
+      status: string;
+      aborted: number;
+      notFound: number;
+      results: Array<{ sessionKey: string; status: string; via: string }>;
+    };
+
+    expect(details.status).toBe("not_found");
+    expect(details.aborted).toBe(0);
+    expect(details.notFound).toBe(1);
+    expect(details.results).toEqual([
+      {
+        sessionKey: target,
+        runId: "run-target",
         status: "not_found",
         via: "none",
       },
