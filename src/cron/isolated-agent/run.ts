@@ -25,7 +25,7 @@ import {
   resolveThinkingDefault,
 } from "../../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
-import { buildWorkspaceSkillSnapshot } from "../../agents/skills.js";
+import { buildWorkspaceSkillSnapshot, readSkillContentsByName } from "../../agents/skills.js";
 import { getSkillsSnapshotVersion } from "../../agents/skills/refresh.js";
 import { runSubagentAnnounceFlow } from "../../agents/subagent-announce.js";
 import {
@@ -546,6 +546,26 @@ export async function runCronIsolatedAgentTurn(params: {
     }
   }
 
+  // Build extraSystemPrompt from pre-loaded skill documentation.
+  let extraSystemPrompt: string | undefined;
+  const payloadSkills =
+    params.job.payload.kind === "agentTurn" ? params.job.payload.skills : undefined;
+  if (payloadSkills && payloadSkills.length > 0 && skillsSnapshot?.resolvedSkills) {
+    const skillContents = readSkillContentsByName({
+      skillNames: payloadSkills,
+      resolvedSkills: skillsSnapshot.resolvedSkills,
+    });
+    if (skillContents.length > 0) {
+      const sections = skillContents.map((s) => `## Skill: ${s.name}\n${s.content}`).join("\n\n");
+      extraSystemPrompt = [
+        "# Pre-loaded Skill Documentation",
+        "Follow these instructions directly — do not read SKILL.md files separately.",
+        "",
+        sections,
+      ].join("\n");
+    }
+  }
+
   // Persist systemSent before the run, mirroring the inbound auto-reply behavior.
   cronSession.sessionEntry.systemSent = true;
   await persistSessionEntry();
@@ -589,6 +609,7 @@ export async function runCronIsolatedAgentTurn(params: {
             timeoutMs,
             runId: cronSession.sessionEntry.sessionId,
             cliSessionId,
+            extraSystemPrompt,
           });
         }
         return runEmbeddedPiAgent({
@@ -611,6 +632,7 @@ export async function runCronIsolatedAgentTurn(params: {
           runId: cronSession.sessionEntry.sessionId,
           requireExplicitMessageTarget: true,
           disableMessageTool: deliveryRequested,
+          extraSystemPrompt,
         });
       },
     });

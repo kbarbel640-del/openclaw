@@ -142,6 +142,28 @@ function coercePayload(payload: UnknownRecord) {
   ) {
     delete next.allowUnsafeExternalContent;
   }
+  if ("skills" in next) {
+    if (Array.isArray(next.skills)) {
+      const seen = new Set<string>();
+      const cleaned: string[] = [];
+      for (const item of next.skills) {
+        if (typeof item === "string") {
+          const trimmed = item.trim();
+          if (trimmed && !seen.has(trimmed.toLowerCase())) {
+            seen.add(trimmed.toLowerCase());
+            cleaned.push(trimmed);
+          }
+        }
+      }
+      if (cleaned.length > 0) {
+        next.skills = cleaned;
+      } else {
+        delete next.skills;
+      }
+    } else {
+      delete next.skills;
+    }
+  }
   return next;
 }
 

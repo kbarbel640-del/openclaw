@@ -35,6 +35,8 @@ export type CronPayload =
       channel?: CronMessageChannel;
       to?: string;
       bestEffortDeliver?: boolean;
+      /** Skill names whose SKILL.md content should be inlined into the system prompt. */
+      skills?: string[];
     };
 
 export type CronPayloadPatch =
@@ -50,6 +52,8 @@ export type CronPayloadPatch =
       channel?: CronMessageChannel;
       to?: string;
       bestEffortDeliver?: boolean;
+      /** Skill names whose SKILL.md content should be inlined into the system prompt. */
+      skills?: string[];
     };
 
 export type CronJobState = {

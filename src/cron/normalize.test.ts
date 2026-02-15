@@ -292,6 +292,66 @@ describe("normalizeCronJobCreate", () => {
     expect(delivery.mode).toBeUndefined();
     expect(delivery.to).toBe("123");
   });
+
+  it("normalizes payload.skills: trims, deduplicates, filters non-strings", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "skill test",
+      schedule: { kind: "cron", expr: "* * * * *" },
+      payload: {
+        kind: "agentTurn",
+        message: "hello",
+        skills: [" gog ", "Gog", "  other  ", 42, "", null],
+      },
+    }) as unknown as Record<string, unknown>;
+
+    const payload = normalized.payload as Record<string, unknown>;
+    expect(payload.skills).toEqual(["gog", "other"]);
+  });
+
+  it("removes payload.skills when all entries are invalid", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "empty skills",
+      schedule: { kind: "cron", expr: "* * * * *" },
+      payload: {
+        kind: "agentTurn",
+        message: "hello",
+        skills: ["", "  ", 42],
+      },
+    }) as unknown as Record<string, unknown>;
+
+    const payload = normalized.payload as Record<string, unknown>;
+    expect("skills" in payload).toBe(false);
+  });
+
+  it("removes payload.skills when it is not an array", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "bad skills",
+      schedule: { kind: "cron", expr: "* * * * *" },
+      payload: {
+        kind: "agentTurn",
+        message: "hello",
+        skills: "gog",
+      },
+    }) as unknown as Record<string, unknown>;
+
+    const payload = normalized.payload as Record<string, unknown>;
+    expect("skills" in payload).toBe(false);
+  });
+
+  it("removes payload.skills when the array is empty", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "no skills",
+      schedule: { kind: "cron", expr: "* * * * *" },
+      payload: {
+        kind: "agentTurn",
+        message: "hello",
+        skills: [],
+      },
+    }) as unknown as Record<string, unknown>;
+
+    const payload = normalized.payload as Record<string, unknown>;
+    expect("skills" in payload).toBe(false);
+  });
 });
 
 describe("normalizeCronJobPatch", () => {

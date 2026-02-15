@@ -401,6 +401,36 @@ export async function syncSkillsToWorkspace(params: {
   });
 }
 
+export function readSkillContentsByName(params: {
+  skillNames: string[];
+  resolvedSkills?: Skill[];
+}): Array<{ name: string; content: string }> {
+  const { skillNames, resolvedSkills } = params;
+  if (!skillNames || skillNames.length === 0 || !resolvedSkills || resolvedSkills.length === 0) {
+    return [];
+  }
+  const results: Array<{ name: string; content: string }> = [];
+  for (const requestedName of skillNames) {
+    const lower = requestedName.trim().toLowerCase();
+    if (!lower) {
+      continue;
+    }
+    const matched = resolvedSkills.find((s) => s.name.toLowerCase() === lower);
+    if (!matched) {
+      continue;
+    }
+    try {
+      const content = fs.readFileSync(matched.filePath, "utf-8");
+      if (content.trim()) {
+        results.push({ name: matched.name, content: content.trim() });
+      }
+    } catch {
+      // Silently skip unreadable files
+    }
+  }
+  return results;
+}
+
 export function filterWorkspaceSkillEntries(
   entries: SkillEntry[],
   config?: OpenClawConfig,

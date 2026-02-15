@@ -29,6 +29,7 @@ export {
   buildWorkspaceSkillCommandSpecs,
   filterWorkspaceSkillEntries,
   loadWorkspaceSkillEntries,
+  readSkillContentsByName,
   resolveSkillsPromptForRun,
   syncSkillsToWorkspace,
 } from "./skills/workspace.js";
