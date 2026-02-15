@@ -638,8 +638,8 @@ export const OpenClawSchema = z
         baseUrl: z.string().optional(),
         apiKey: z.string().optional().register(sensitive),
         model: z.string().optional(),
-        timeoutMs: z.number().int().nonnegative().optional(),
-        tiers: z.record(z.string(), z.string()),
+        tiers: z.record(z.string(), z.string()).optional(),
+        defaultTier: z.string().optional(),
         defaultTier: z.string(),
       })
       .strict()
