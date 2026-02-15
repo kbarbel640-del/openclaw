@@ -271,6 +271,115 @@ describe("resolveModel", () => {
     });
   });
 
+  it("applies provider baseUrl override to registry-found models", () => {
+    const registryModel = {
+      id: "claude-sonnet-4-20250514",
+      name: "Claude Sonnet 4",
+      provider: "anthropic",
+      api: "anthropic-messages",
+      baseUrl: "https://api.anthropic.com",
+      reasoning: false,
+      input: ["text", "image"] as const,
+      cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+      contextWindow: 200000,
+      maxTokens: 64000,
+    };
+
+    vi.mocked(discoverModels).mockReturnValue({
+      find: vi.fn((provider: string, modelId: string) => {
+        if (provider === "anthropic" && modelId === "claude-sonnet-4-20250514") {
+          return registryModel;
+        }
+        return null;
+      }),
+    } as unknown as ReturnType<typeof discoverModels>);
+
+    const cfg = {
+      models: {
+        providers: {
+          anthropic: {
+            baseUrl: "http://my-proxy:8080",
+            models: [],
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    const result = resolveModel("anthropic", "claude-sonnet-4-20250514", "/tmp/agent", cfg);
+
+    expect(result.error).toBeUndefined();
+    expect(result.model?.id).toBe("claude-sonnet-4-20250514");
+    expect(result.model?.baseUrl).toBe("http://my-proxy:8080");
+    expect(result.model?.provider).toBe("anthropic");
+  });
+
+  it("applies provider headers override to registry-found models", () => {
+    const registryModel = {
+      id: "claude-sonnet-4-20250514",
+      name: "Claude Sonnet 4",
+      provider: "anthropic",
+      api: "anthropic-messages",
+      baseUrl: "https://api.anthropic.com",
+      reasoning: false,
+      input: ["text", "image"] as const,
+      cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+      contextWindow: 200000,
+      maxTokens: 64000,
+    };
+
+    vi.mocked(discoverModels).mockReturnValue({
+      find: vi.fn((provider: string, modelId: string) => {
+        if (provider === "anthropic" && modelId === "claude-sonnet-4-20250514") {
+          return registryModel;
+        }
+        return null;
+      }),
+    } as unknown as ReturnType<typeof discoverModels>);
+
+    const cfg = {
+      models: {
+        providers: {
+          anthropic: {
+            baseUrl: "http://my-proxy:8080",
+            headers: { "x-proxy-key": "secret123" },
+            models: [],
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    const result = resolveModel("anthropic", "claude-sonnet-4-20250514", "/tmp/agent", cfg);
+
+    expect(result.error).toBeUndefined();
+    expect((result.model as Record<string, unknown>)?.headers).toEqual({
+      "x-proxy-key": "secret123",
+    });
+  });
+
+  it("does not override baseUrl when no provider config exists", () => {
+    const registryModel = {
+      id: "claude-sonnet-4-20250514",
+      name: "Claude Sonnet 4",
+      provider: "anthropic",
+      api: "anthropic-messages",
+      baseUrl: "https://api.anthropic.com",
+      reasoning: false,
+      input: ["text", "image"] as const,
+      cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+      contextWindow: 200000,
+      maxTokens: 64000,
+    };
+
+    vi.mocked(discoverModels).mockReturnValue({
+      find: vi.fn(() => registryModel),
+    } as unknown as ReturnType<typeof discoverModels>);
+
+    const result = resolveModel("anthropic", "claude-sonnet-4-20250514", "/tmp/agent");
+
+    expect(result.error).toBeUndefined();
+    expect(result.model?.baseUrl).toBe("https://api.anthropic.com");
+  });
+
   it("keeps unknown-model errors for non-gpt-5 openai-codex ids", () => {
     const result = resolveModel("openai-codex", "gpt-4.1-mini", "/tmp/agent");
     expect(result.model).toBeUndefined();

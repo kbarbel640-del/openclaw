@@ -225,5 +225,23 @@ export function resolveModel(
       modelRegistry,
     };
   }
+  // Apply provider-level baseUrl / headers overrides from user config.
+  // Without this, registry-found models (e.g. anthropic/claude-sonnet-4-20250514)
+  // would always use the built-in baseUrl, ignoring any proxy configured via
+  // cfg.models.providers[provider].baseUrl.
+  const providerOverride = cfg?.models?.providers?.[provider];
+  if (providerOverride) {
+    const overridden = { ...model } as Model<Api>;
+    if (providerOverride.baseUrl) {
+      (overridden as Record<string, unknown>).baseUrl = providerOverride.baseUrl;
+    }
+    if (providerOverride.headers) {
+      (overridden as Record<string, unknown>).headers = {
+        ...((model as Record<string, unknown>).headers as Record<string, string> | undefined),
+        ...providerOverride.headers,
+      };
+    }
+    return { model: normalizeModelCompat(overridden), authStorage, modelRegistry };
+  }
   return { model: normalizeModelCompat(model), authStorage, modelRegistry };
 }
