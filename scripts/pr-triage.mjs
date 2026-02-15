@@ -128,13 +128,14 @@ ${deterministicContext}
 
 Analyze this PR and respond with the triage JSON.`;
 
-  // Build API request — adaptive thinking + structured output
+  // Build API request — adaptive thinking + effort only on Opus
+  const isOpus = MODEL.includes("opus");
   const body = {
     model: MODEL,
     max_tokens: 16000,
-    thinking: { type: "adaptive" },
+    ...(isOpus && { thinking: { type: "adaptive" } }),
     output_config: {
-      effort: EFFORT,
+      ...(isOpus && { effort: EFFORT }),
       format: {
         type: "json_schema",
         schema: TRIAGE_SCHEMA,
