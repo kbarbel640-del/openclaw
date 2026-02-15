@@ -71,7 +71,7 @@ describe("buildBootstrapContextFiles", () => {
     const files = [
       makeFile({
         name: "AGENTS.md",
-        content: `${"# Giant Agents\n"}${"context line\n".repeat(50_000)}`,
+        content: "# Giant Agents\n" + "context line\n".repeat(50_000),
       }),
       makeFile({
         name: "SOUL.md",

@@ -340,7 +340,7 @@ function allocateBootstrapBudgets(
   const caps = files.map(({ file }) =>
     Math.max(1, Math.min(params.perFileMaxChars, (file.content ?? "").trimEnd().length || 1)),
   );
-  const allocations = new Array(files.length).fill(0);
+  const allocations = Array.from({ length: files.length }, () => 0);
   let remaining = params.totalBudget;
 
   const ranked = files
