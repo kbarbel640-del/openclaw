@@ -244,4 +244,41 @@ describe("heartbeat-wake", () => {
     expect(handler).toHaveBeenCalledWith({ reason: "manual" });
     expect(hasPendingHeartbeatWake()).toBe(false);
   });
+
+  it("forcibly resets running flag after safety timeout when handler hangs", async () => {
+    vi.useFakeTimers();
+
+    // Simulate a handler that hangs forever (unresolved promise — the exact
+    // scenario from the Feb 14 2026 outage where a compaction retry promise
+    // never settled, blocking the heartbeat scheduler for 22+ hours).
+    const hangForever = new Promise<never>(() => {});
+    const hangingHandler = vi.fn().mockReturnValue(hangForever);
+    setHeartbeatWakeHandler(hangingHandler);
+
+    // Trigger the hanging handler
+    requestHeartbeatNow({ reason: "interval", coalesceMs: 0 });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(hangingHandler).toHaveBeenCalledTimes(1);
+
+    // The handler is now "running" but will never resolve.
+    // Advance to just before the safety timeout (13 minutes = 780_000ms).
+    // The handler should still be considered running.
+    await vi.advanceTimersByTimeAsync(779_998);
+
+    // Now advance past the safety timeout
+    await vi.advanceTimersByTimeAsync(2);
+
+    // After the safety timeout fires, the scheduler should recover.
+    // It queues a retry reason and reschedules. The next handler call
+    // should fire after the retry delay (1000ms).
+    const freshHandler = vi.fn().mockResolvedValue({ status: "ran", durationMs: 1 });
+    // We need to register a fresh handler because the old one hangs.
+    // In production, the same handler is used, but for testing we verify
+    // the scheduler state is unblocked.
+    setHeartbeatWakeHandler(freshHandler);
+
+    requestHeartbeatNow({ reason: "interval", coalesceMs: 0 });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(freshHandler).toHaveBeenCalledTimes(1);
+  });
 });

@@ -550,7 +550,28 @@ export async function runHeartbeatOnce(opts: {
     const replyOpts = heartbeatModelOverride
       ? { isHeartbeat: true, heartbeatModelOverride }
       : { isHeartbeat: true };
-    const replyResult = await getReplyFromConfig(ctx, replyOpts, cfg);
+
+    // Safety timeout: getReplyFromConfig should complete within the embedded
+    // run timeout (600s default) plus overhead. If it hangs (e.g. due to an
+    // unresolved compaction promise — see #9855), this rejects the promise so
+    // the catch block below handles it as a normal failure, and the heartbeat
+    // scheduler can continue with future runs.
+    const HEARTBEAT_REPLY_SAFETY_TIMEOUT_MS = 720_000; // 12 minutes
+    const replyResult = await Promise.race([
+      getReplyFromConfig(ctx, replyOpts, cfg),
+      new Promise<never>((_, reject) => {
+        const t = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `heartbeat safety timeout: getReplyFromConfig hung for ${HEARTBEAT_REPLY_SAFETY_TIMEOUT_MS}ms`,
+              ),
+            ),
+          HEARTBEAT_REPLY_SAFETY_TIMEOUT_MS,
+        );
+        t.unref?.();
+      }),
+    ]);
     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
     const includeReasoning = heartbeat?.includeReasoning === true;
     const reasoningPayloads = includeReasoning

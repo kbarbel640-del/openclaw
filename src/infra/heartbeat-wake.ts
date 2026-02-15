@@ -23,6 +23,15 @@ let timerKind: WakeTimerKind | null = null;
 
 const DEFAULT_COALESCE_MS = 250;
 const DEFAULT_RETRY_MS = 1_000;
+/**
+ * Maximum time the wake handler is allowed to run before being forcibly
+ * considered "done". This prevents the `running` flag from staying `true`
+ * forever if the handler promise hangs (e.g. due to an unresolved compaction
+ * retry promise or other upstream bug), which would permanently block all
+ * future heartbeats. Must exceed the embedded run timeout (600s) plus any
+ * safety timeout in the heartbeat runner (720s).
+ */
+const HANDLER_SAFETY_TIMEOUT_MS = 780_000; // 13 minutes
 const HOOK_REASON_PREFIX = "hook:";
 const REASON_PRIORITY = {
   RETRY: 0,
@@ -115,6 +124,23 @@ function schedule(coalesceMs: number, kind: WakeTimerKind = "normal") {
     const reason = pendingWake?.reason;
     pendingWake = null;
     running = true;
+
+    // Safety net: if the handler promise never settles (hung promise in
+    // getReplyFromConfig, compaction retry, etc.), forcibly reset `running`
+    // so the scheduler can fire again. Without this, a single hung heartbeat
+    // run permanently blocks all future heartbeats AND incoming messages on
+    // the same lane — causing multi-hour zombie outages.
+    let safetyFired = false;
+    const safetyTimer = setTimeout(() => {
+      safetyFired = true;
+      if (running) {
+        running = false;
+        queuePendingWakeReason(reason ?? "retry");
+        schedule(DEFAULT_RETRY_MS, "retry");
+      }
+    }, HANDLER_SAFETY_TIMEOUT_MS);
+    safetyTimer.unref?.();
+
     try {
       const res = await active({ reason: reason ?? undefined });
       if (res.status === "skipped" && res.reason === "requests-in-flight") {
@@ -127,9 +153,12 @@ function schedule(coalesceMs: number, kind: WakeTimerKind = "normal") {
       queuePendingWakeReason(reason ?? "retry");
       schedule(DEFAULT_RETRY_MS, "retry");
     } finally {
-      running = false;
-      if (pendingWake || scheduled) {
-        schedule(delay, "normal");
+      clearTimeout(safetyTimer);
+      if (!safetyFired) {
+        running = false;
+        if (pendingWake || scheduled) {
+          schedule(delay, "normal");
+        }
       }
     }
   }, delay);
