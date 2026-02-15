@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { ProxyAgent } from "undici";
 import { formatCliCommand } from "../../cli/command-format.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { wrapWebContent } from "../../security/external-content.js";
@@ -31,6 +32,24 @@ const OPENROUTER_KEY_PREFIXES = ["sk-or-"];
 
 const XAI_API_ENDPOINT = "https://api.x.ai/v1/responses";
 const DEFAULT_GROK_MODEL = "grok-4-1-fast";
+
+function resolveSearchProxyUrl(): string | undefined {
+  return (
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy ||
+    undefined
+  );
+}
+
+function resolveSearchDispatcher(): ProxyAgent | undefined {
+  const proxyUrl = resolveSearchProxyUrl();
+  if (!proxyUrl) {
+    return undefined;
+  }
+  return new ProxyAgent(proxyUrl);
+}
 
 const SEARCH_CACHE = new Map<string, CacheEntry<Record<string, unknown>>>();
 const BRAVE_FRESHNESS_SHORTCUTS = new Set(["pd", "pw", "pm", "py"]);
@@ -473,6 +492,7 @@ async function runPerplexitySearch(params: {
     body.search_recency_filter = recencyFilter;
   }
 
+  const dispatcher = resolveSearchDispatcher();
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -483,7 +503,8 @@ async function runPerplexitySearch(params: {
     },
     body: JSON.stringify(body),
     signal: withTimeout(undefined, params.timeoutSeconds * 1000),
-  });
+    ...(dispatcher ? { dispatcher } : {}),
+  } as RequestInit);
 
   if (!res.ok) {
     const detailResult = await readResponseText(res, { maxBytes: 64_000 });
@@ -525,6 +546,7 @@ async function runGrokSearch(params: {
   // citations are returned automatically when available — we just parse
   // them from the response without requesting them explicitly (#12910).
 
+  const dispatcher = resolveSearchDispatcher();
   const res = await fetch(XAI_API_ENDPOINT, {
     method: "POST",
     headers: {
@@ -533,7 +555,8 @@ async function runGrokSearch(params: {
     },
     body: JSON.stringify(body),
     signal: withTimeout(undefined, params.timeoutSeconds * 1000),
-  });
+    ...(dispatcher ? { dispatcher } : {}),
+  } as RequestInit);
 
   if (!res.ok) {
     const detailResult = await readResponseText(res, { maxBytes: 64_000 });
@@ -657,6 +680,7 @@ async function runWebSearch(params: {
     url.searchParams.set("freshness", params.freshness);
   }
 
+  const dispatcher = resolveSearchDispatcher();
   const res = await fetch(url.toString(), {
     method: "GET",
     headers: {
@@ -664,7 +688,8 @@ async function runWebSearch(params: {
       "X-Subscription-Token": params.apiKey,
     },
     signal: withTimeout(undefined, params.timeoutSeconds * 1000),
-  });
+    ...(dispatcher ? { dispatcher } : {}),
+  } as RequestInit);
 
   if (!res.ok) {
     const detailResult = await readResponseText(res, { maxBytes: 64_000 });
