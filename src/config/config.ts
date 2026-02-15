@@ -22,3 +22,11 @@ export {
   validateConfigObjectWithPlugins,
 } from "./validation.js";
 export { OpenClawSchema } from "./zod-schema.js";
+export {
+  resolveConfigSecrets,
+  configNeedsSecretResolution,
+  clearSecretCache,
+  SecretResolutionError,
+  UnknownSecretProviderError,
+} from "./secret-substitution.js";
+export type { SecretsConfig } from "./secret-substitution.js";
