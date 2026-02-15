@@ -6,9 +6,9 @@ function formatTokenFingerprint(token: string | undefined | null): string {
   }
   const trimmed = token.trim();
   if (trimmed.length <= 10) {
-    return `${trimmed.slice(0, 3)}…${trimmed.slice(-3)}`;
+    return `${trimmed.slice(0, 3)}...${trimmed.slice(-3)}`;
   }
-  return `${trimmed.slice(0, 6)}…${trimmed.slice(-4)} (${trimmed.length})`;
+  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)} (${trimmed.length})`;
 }
 
 function isMetaDiagEnabled(): boolean {
@@ -16,7 +16,7 @@ function isMetaDiagEnabled(): boolean {
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
-async function readJsonSafe(response: unknown) {
+async function readJsonSafe(response: Response) {
   const text = await response.text();
   try {
     return { text, body: JSON.parse(text) as Record<string, unknown> };

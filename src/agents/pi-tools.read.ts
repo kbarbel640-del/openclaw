@@ -2,6 +2,7 @@ import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { createEditTool, createReadTool, createWriteTool } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { AnyAgentTool } from "./pi-tools.types.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { detectMime } from "../media/mime.js";
 import { assertSandboxPath } from "./sandbox-paths.js";
@@ -14,6 +15,8 @@ type ImageContentBlock = Extract<ToolContentBlock, { type: "image" }>;
 type TextContentBlock = Extract<ToolContentBlock, { type: "text" }>;
 
 const editLog = createSubsystemLogger("agents/tools");
+type ToolExecute = NonNullable<AnyAgentTool["execute"]>;
+type ToolExecuteReturn = Awaited<ReturnType<ToolExecute>>;
 
 async function sniffMimeFromBase64(base64: string): Promise<string | undefined> {
   const trimmed = base64.trim();
@@ -297,7 +300,12 @@ export function wrapToolParamNormalization(
   const patched = patchToolSchemaForClaudeCompatibility(tool);
   return {
     ...patched,
-    execute: async (toolCallId, params, signal, onUpdate) => {
+    execute: async (
+      toolCallId: Parameters<ToolExecute>[0],
+      params: Parameters<ToolExecute>[1],
+      signal?: Parameters<ToolExecute>[2],
+      onUpdate?: Parameters<ToolExecute>[3],
+    ): Promise<ToolExecuteReturn> => {
       const normalized = normalizeToolParams(params);
       const record =
         normalized ??
@@ -313,7 +321,12 @@ export function wrapToolParamNormalization(
 function wrapSandboxPathGuard(tool: AnyAgentTool, root: string): AnyAgentTool {
   return {
     ...tool,
-    execute: async (toolCallId, args, signal, onUpdate) => {
+    execute: async (
+      toolCallId: Parameters<ToolExecute>[0],
+      args: Parameters<ToolExecute>[1],
+      signal?: Parameters<ToolExecute>[2],
+      onUpdate?: Parameters<ToolExecute>[3],
+    ): Promise<ToolExecuteReturn> => {
       const normalized = normalizeToolParams(args);
       const record =
         normalized ??
@@ -346,7 +359,11 @@ export function createOpenClawReadTool(base: AnyAgentTool): AnyAgentTool {
   const patched = patchToolSchemaForClaudeCompatibility(base);
   return {
     ...patched,
-    execute: async (toolCallId, params, signal) => {
+    execute: async (
+      toolCallId: Parameters<ToolExecute>[0],
+      params: Parameters<ToolExecute>[1],
+      signal?: Parameters<ToolExecute>[2],
+    ): Promise<ToolExecuteReturn> => {
       const normalized = normalizeToolParams(params);
       const record =
         normalized ??
@@ -368,7 +385,12 @@ export function createResilientEditTool(root: string): AnyAgentTool {
 
   return {
     ...base,
-    execute: async (toolCallId, params, signal, onUpdate) => {
+    execute: async (
+      toolCallId: Parameters<ToolExecute>[0],
+      params: Parameters<ToolExecute>[1],
+      signal?: Parameters<ToolExecute>[2],
+      onUpdate?: Parameters<ToolExecute>[3],
+    ): Promise<ToolExecuteReturn> => {
       const normalized = normalizeToolParams(params);
       const record =
         normalized ??
