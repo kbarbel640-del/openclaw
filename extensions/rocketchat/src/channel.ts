@@ -199,7 +199,7 @@ export const rocketchatPlugin: ChannelPlugin<ResolvedRocketchatAccount> = {
     },
     buildChannelSummary: ({ snapshot }) => ({
       configured: snapshot.configured ?? false,
-      authTokenSource: snapshot.authTokenSource ?? "none",
+      tokenSource: snapshot.tokenSource ?? "none",
       running: snapshot.running ?? false,
       connected: snapshot.connected ?? false,
       lastStartAt: snapshot.lastStartAt ?? null,
@@ -223,7 +223,7 @@ export const rocketchatPlugin: ChannelPlugin<ResolvedRocketchatAccount> = {
       name: account.name,
       enabled: account.enabled,
       configured: Boolean(account.authToken && account.userId && account.baseUrl),
-      authTokenSource: account.authTokenSource,
+      tokenSource: account.authTokenSource,
       baseUrl: account.baseUrl,
       running: runtime?.running ?? false,
       connected: runtime?.connected ?? false,
@@ -250,7 +250,7 @@ export const rocketchatPlugin: ChannelPlugin<ResolvedRocketchatAccount> = {
       if (input.useEnv && accountId !== DEFAULT_ACCOUNT_ID) {
         return "Rocket.Chat env vars can only be used for the default account.";
       }
-      const token = input.authToken ?? input.token;
+      const token = input.token;
       const rcUserId = input.userId;
       const baseUrl = input.httpUrl;
       if (!input.useEnv && (!token || !rcUserId || !baseUrl)) {
@@ -262,7 +262,7 @@ export const rocketchatPlugin: ChannelPlugin<ResolvedRocketchatAccount> = {
       return null;
     },
     applyAccountConfig: ({ cfg, accountId, input }) => {
-      const token = input.authToken ?? input.token;
+      const token = input.token;
       const rcUserId = input.userId;
       const baseUrl = input.httpUrl?.trim();
       const namedConfig = applyAccountNameToChannelSection({

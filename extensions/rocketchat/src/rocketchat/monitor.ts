@@ -745,7 +745,7 @@ export async function monitorRocketchatProvider(opts: MonitorRocketchatOpts = {}
     });
 
     const typingCallbacks = createTypingCallbacks({
-      start: () => {
+      start: async () => {
         // Rocket.Chat typing via REST is not directly supported;
         // the WebSocket subscription handles it transparently.
       },
