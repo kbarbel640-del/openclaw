@@ -70,7 +70,16 @@ socat \
 
 if [[ "${ENABLE_NOVNC}" == "1" && "${HEADLESS}" != "1" ]]; then
   x11vnc -display :1 -rfbport "${VNC_PORT}" -shared -forever -nopw -localhost &
-  websockify --web /usr/share/novnc/ "${NOVNC_PORT}" "localhost:${VNC_PORT}" &
+  # Generate a self-signed cert so websockify can accept HTTPS/WSS connections
+  # (e.g. when accessed via Tailscale HTTPS). The browser will show a one-time
+  # security warning; accept it to proceed.
+  if [[ ! -f "${HOME}/self.pem" ]]; then
+    openssl req -new -x509 -days 3650 -nodes \
+      -subj "/CN=openclaw-browser" \
+      -keyout "${HOME}/self.pem" \
+      -out "${HOME}/self.pem" 2>/dev/null
+  fi
+  websockify --web /usr/share/novnc/ --cert "${HOME}/self.pem" "${NOVNC_PORT}" "localhost:${VNC_PORT}" &
 fi
 
 wait -n

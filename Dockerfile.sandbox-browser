@@ -11,6 +11,7 @@ RUN apt-get update \
     fonts-noto-color-emoji \
     git \
     gnupg \
+    openssl \
     jq \
     novnc \
     python3 \
