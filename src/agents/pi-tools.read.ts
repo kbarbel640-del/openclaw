@@ -254,6 +254,7 @@ export function assertRequiredParams(
     throw nonRetryableValidationError(`Missing parameters for ${toolName}`);
   }
 
+  const missingLabels: string[] = [];
   for (const group of groups) {
     const satisfied = group.keys.some((key) => {
       if (!(key in record)) {
@@ -271,8 +272,14 @@ export function assertRequiredParams(
 
     if (!satisfied) {
       const label = group.label ?? group.keys.join(" or ");
-      throw nonRetryableValidationError(`Missing required parameter: ${label}`);
+      missingLabels.push(label);
     }
+  }
+
+  if (missingLabels.length > 0) {
+    const joined = missingLabels.join(", ");
+    const noun = missingLabels.length === 1 ? "parameter" : "parameters";
+    throw nonRetryableValidationError(`Missing required ${noun}: ${joined}`);
   }
 }
 
