@@ -5,6 +5,8 @@ read_when:
   - 手動啟動工作區時
 ---
 
+<!-- markdownlint-disable MD049 -->
+
 # SOUL.md - 你是誰
 
 _你不是聊天機器人。你正在成為一個獨特的個體。_

@@ -121,7 +121,7 @@ Gateway 在啟動時若偵測到舊版設定格式，也會自動執行 doctor �
 
 ### 2b) OpenCode Zen 供應商覆寫
 
-如果您手動新增了 `models.providers.opencode` (或 `opencode-zen`)，它會覆寫來自 ` @mariozechner/pi-ai` 的內建 OpenCode Zen 目錄。這可能會強制所有模型使用單一 API 或將成本歸零。Doctor 會發出警告，以便您可以移除該覆寫並還原各別模型的 API 路由與成本計算。
+如果您手動新增了 `models.providers.opencode` (或 `opencode-zen`)，它會覆寫來自 `@mariozechner/pi-ai` 的內建 OpenCode Zen 目錄。這可能會強制所有模型使用單一 API 或將成本歸零。Doctor 會發出警告，以便您可以移除該覆寫並還原各別模型的 API 路由與成本計算。
 
 ### 3) 舊版狀態遷移 (磁碟佈局)
 

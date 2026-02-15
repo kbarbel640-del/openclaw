@@ -5,6 +5,8 @@ read_when:
 title: "macOS 開發設定"
 ---
 
+<!-- markdownlint-disable MD051 -->
+
 # macOS 開發者設定
 
 本指南說明了從原始碼建置與執行 OpenClaw macOS 應用程式的必要步驟。

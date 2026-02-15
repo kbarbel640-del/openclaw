@@ -3,6 +3,8 @@ summary: "關於 OpenClaw 安裝、設定與使用的常見問題"
 title: "FAQ"
 ---
 
+<!-- markdownlint-disable MD051 -->
+
 # FAQ
 
 快速回答以及針對實際設置（本地開發、VPS、多智慧代理、OAuth/API 金鑰、模型故障轉移）的深度疑難排解。關於執行階段診斷，請參閱 [疑難排解](/gateway/troubleshooting)。完整的設定參考，請參閱 [設定](/gateway/configuration)。
@@ -522,7 +524,7 @@ curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method git --ve
 Windows (PowerShell) 等效操作：
 
 ```powershell
-# install.ps1 目前尚無專用的 -Verbose 旗標。
+# install.ps1 目前尚無專用的 -Verbose 旗標
 Set-PSDebug -Trace 1
 & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
 Set-PSDebug -Trace 0
@@ -745,7 +747,7 @@ Gemini CLI 使用 **外掛程式驗證流程**，而非 `openclaw.json` 中的 c
 
 ### Telegram：allowFrom 欄位填什麼？
 
-`channels.telegram.allowFrom` 是 **人類發送者的 Telegram 使用者 ID** (推薦數值) 或 ` @username`。它不是機器人的使用者名稱。
+`channels.telegram.allowFrom` 是 **人類發送者的 Telegram 使用者 ID** (推薦數值) 或 `@username`。它不是機器人的使用者名稱。
 
 更安全的方法 (不使用第三方機器人)：
 
@@ -757,7 +759,7 @@ Gemini CLI 使用 **外掛程式驗證流程**，而非 `openclaw.json` 中的 c
 
 第三方 (較不私密)：
 
-- DM ` @userinfobot` or ` @getidsbot`.
+- DM `@userinfobot` or `@getidsbot`.
 
 請參閱 [/channels/telegram](/channels/telegram#access-control-dms--groups)。
 

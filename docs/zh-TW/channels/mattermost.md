@@ -99,7 +99,7 @@ Mattermost 會自動回應私訊。頻道的行為由 `chatmode` 控制：
 ## 頻道 (群組)
 
 - 預設：`channels.mattermost.groupPolicy = "allowlist"` (受提及限制)。
-- 使用 `channels.mattermost.groupAllowFrom` (使用者 ID 或 ` @username`) 將傳送者加入允許清單。
+- 使用 `channels.mattermost.groupAllowFrom` (使用者 ID 或 `@username`) 將傳送者加入允許清單。
 - 開放頻道：`channels.mattermost.groupPolicy="open"` (受提及限制)。
 
 ## 外部傳送目標
@@ -108,7 +108,7 @@ Mattermost 會自動回應私訊。頻道的行為由 `chatmode` 控制：
 
 - `channel:<id>` 用於頻道
 - `user:<id>` 用於私訊
-- ` @username` 用於私訊 (透過 Mattermost API 解析)
+- `@username` 用於私訊 (透過 Mattermost API 解析)
 
 純 ID 會被視為頻道。
 

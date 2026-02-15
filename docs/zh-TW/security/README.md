@@ -13,5 +13,5 @@
 
 ## 聯絡資訊
 
-- **Jamieson O'Reilly** ([ @theonejvo](https://twitter.com/theonejvo)) - 安全與信任
+- **Jamieson O'Reilly** ([@theonejvo](https://twitter.com/theonejvo)) - 安全與信任
 - Discord: #security 頻道

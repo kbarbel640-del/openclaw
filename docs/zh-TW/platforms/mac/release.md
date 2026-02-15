@@ -31,8 +31,8 @@ title: "macOS 發布"
 - 使用 `scripts/package-mac-dist.sh` 產生發布產物（zip + DMG + 公證）。使用 `scripts/package-mac-app.sh` 進行本地/開發封裝。
 
 ```bash
-# 從儲存庫根目錄執行；設定發布 ID 以啟用 Sparkle feed。
-# APP_BUILD 必須是數值且單調遞增，以便 Sparkle 進行比較。
+# 從儲存庫根目錄執行；設定發布 ID 以啟用 Sparkle feed
+# APP_BUILD 必須是數值且單調遞增，以便 Sparkle 進行比較
 BUNDLE_ID=bot.molt.mac \
 APP_VERSION=2026.2.13 \
 APP_BUILD="$(git rev-list --count HEAD)" \

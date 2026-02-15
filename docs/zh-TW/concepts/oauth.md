@@ -70,7 +70,7 @@ openclaw models status
 
 ## OAuth 交換（登入運作方式）
 
-OpenClaw 的互動式登入流程實作於 ` @mariozechner/pi-ai` 並整合至精靈/指令中。
+OpenClaw 的互動式登入流程實作於 `@mariozechner/pi-ai` 並整合至精靈/指令中。
 
 ### Anthropic (Claude Pro/Max) setup-token
 

@@ -43,7 +43,7 @@ description: 追蹤出站工作階段鏡像重構的筆記、決策、測試和�
 
 - Matrix, MS Teams, Mattermost, BlueBubbles, Nextcloud Talk, Zalo, Zalo Personal, Nostr, Tlon。
 - 附註：
-  - Mattermost 目標現在會移除 ` @` 以進行私訊工作階段鍵名路由。
+  - Mattermost 目標現在會移除 `@` 以進行私訊工作階段鍵名路由。
   - Zalo Personal 對於 1:1 目標使用私訊同儕類型（僅在存在 `group:` 時使用群組）。
   - BlueBubbles 群組目標會移除 `chat_*` 前綴以匹配入站工作階段鍵名。
   - Slack 自動執行緒鏡像匹配頻道 ID 時不區分大小寫。

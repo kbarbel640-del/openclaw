@@ -11,8 +11,8 @@ OpenClaw = CLAW + TARDIS，因為每隻太空龍蝦都需要一台時空機器�
 
 ## 致謝
 
-- **Peter Steinberger** ([ @steipete](https://x.com/steipete)) - 創作者，龍蝦低語者
-- **Mario Zechner** ([ @badlogicc](https://x.com/badlogicgames)) - Pi 創作者，安全滲透測試員
+- **Peter Steinberger** ([@steipete](https://x.com/steipete)) - 創作者，龍蝦低語者
+- **Mario Zechner** ([@badlogicc](https://x.com/badlogicgames)) - Pi 創作者，安全滲透測試員
 - **Clawd** - 要求更好名稱的太空龍蝦
 
 ## 核心貢獻者

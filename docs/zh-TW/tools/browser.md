@@ -7,6 +7,8 @@ read_when:
 title: "瀏覽器 (OpenClaw 管理)"
 ---
 
+<!-- markdownlint-disable MD024 MD051 -->
+
 # 瀏覽器 (openclaw 管理)
 
 OpenClaw 可以執行一個由智慧代理控制的**專用 Chrome/Brave/Edge/Chromium 設定檔**。

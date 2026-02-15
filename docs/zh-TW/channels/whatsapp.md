@@ -127,7 +127,7 @@ OpenClaw 建議盡可能在獨立號碼上執行 WhatsApp。（頻道詮釋資�
 
 - Gateway 擁有 WhatsApp socket 與重新連線迴圈。
 - 對外傳送需要目標帳號有活躍的 WhatsApp 監聽器。
-- 動態 (Status) 與廣播聊天會被忽略 (` @status`, ` @broadcast`)。
+- 動態 (Status) 與廣播聊天會被忽略 (`@status`, `@broadcast`)。
 - 直接聊天使用私訊工作階段規則 (`session.dmScope`；預設值 `main` 會將私訊摺疊至智慧代理主工作階段)。
 - 群組工作階段是隔離的 (`agent:<agentId>:whatsapp:group:<jid>`)。
 

@@ -25,11 +25,11 @@ openclaw message <subcommand> [flags]
 目標格式 (`--target`)：
 
 - WhatsApp: E.164 或群組 JID
-- Telegram: chat id 或 ` @username`
+- Telegram: chat id 或 `@username`
 - Discord: `channel:<id>` 或 `user:<id>`（或 `< @id>` 提及；原始數字 ID 會被視為頻道）
 - Google Chat: `spaces/<spaceId>` 或 `users/<userId>`
 - Slack: `channel:<id>` 或 `user:<id>`（接受原始頻道 ID）
-- Mattermost (plugin): `channel:<id>`、`user:<id>` 或 ` @username`（單純的 ID 會被視為頻道）
+- Mattermost (plugin): `channel:<id>`、`user:<id>` 或 `@username`（單純的 ID 會被視為頻道）
 - Signal: `+E.164`、`group:<id>`、`signal:+E.164`、`signal:group:<id>` 或 `username:<name>`/`u:<name>`
 - iMessage: handle、`chat_id:<id>`、`chat_guid:<guid>` 或 `chat_identifier:<id>`
 - MS Teams: 交談 ID（`19:... @thread.tacv2`）或 `conversation:<id>` 或 `user:<aad-object-id>`

@@ -5,6 +5,8 @@ read_when:
 title: "Microsoft Teams"
 ---
 
+<!-- markdownlint-disable MD024 MD051 -->
+
 # Microsoft Teams (外掛程式)
 
 > "Abandon all hope, ye who enter here."
@@ -637,12 +639,12 @@ openclaw message send --channel msteams \
 
 MSTeams 目標使用前綴來區分使用者與交談：
 
-| 目標類型         | 格式                             | 範例                                             |
-| ---------------- | -------------------------------- | ------------------------------------------------ |
-| 使用者 (依 ID)   | `user:<aad-object-id>`           | `user:40a1a0ed-4ff2-4164-a219-55518990c197`      |
-| 使用者 (依名稱)  | `user:<display-name>`            | `user:John Smith` (需要 Graph API)               |
-| 群組/頻道        | `conversation:<conversation-id>` | `conversation:19:abc123... @thread.tacv2`        |
-| 群組/頻道 (原始) | `<conversation-id>`              | `19:abc123... @thread.tacv2` (若包含 ` @thread`) |
+| 目標類型         | 格式                             | 範例                                            |
+| ---------------- | -------------------------------- | ----------------------------------------------- |
+| 使用者 (依 ID)   | `user:<aad-object-id>`           | `user:40a1a0ed-4ff2-4164-a219-55518990c197`     |
+| 使用者 (依名稱)  | `user:<display-name>`            | `user:John Smith` (需要 Graph API)              |
+| 群組/頻道        | `conversation:<conversation-id>` | `conversation:19:abc123... @thread.tacv2`       |
+| 群組/頻道 (原始) | `<conversation-id>`              | `19:abc123... @thread.tacv2` (若包含 `@thread`) |
 
 **CLI 範例：**
 

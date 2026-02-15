@@ -64,7 +64,7 @@ openclaw plugins install ./extensions/matrix
    - 或設定檔：`channels.matrix.*`
    - 如果兩者皆已設定，設定檔優先。
    - 使用存取權杖時：使用者 ID 會透過 `/whoami` 自動擷取。
-   - 設定時，`channels.matrix.userId` 應為完整的 Matrix ID (例如：` @bot:example.org`)。
+   - 設定時，`channels.matrix.userId` 應為完整的 Matrix ID (例如：`@bot:example.org`)。
 5. 重啟 Gateway（或完成新手導覽）。
 6. 從任何 Matrix 用戶端（Element、Beeper 等，請參閱 [https://matrix.org/ecosystem/clients/](https://matrix.org/ecosystem/clients/)）開始私訊機器人或將其邀請至房間。Beeper 需要端到端加密 (E2EE)，因此請設定 `channels.matrix.encryption: true` 並驗證裝置。
 
@@ -110,7 +110,7 @@ E2EE 設定（啟用端到端加密）：
 - 初次連線時，OpenClaw 會從你的其他工作階段要求裝置驗證。
 - 在另一個 Matrix 用戶端（如 Element）驗證裝置以啟用金鑰共享。
 - 如果無法載入加密模組，端到端加密將被停用，且加密房間將無法解密；OpenClaw 會記錄警告訊息。
-- 如果如果你看到缺少加密模組的錯誤（例如 ` @matrix-org/matrix-sdk-crypto-nodejs-*`），請允許 ` @matrix-org/matrix-sdk-crypto-nodejs` 的建置指令碼並執行 `pnpm rebuild @matrix-org/matrix-sdk-crypto-nodejs` 或使用 `node node_modules/ @matrix-org/matrix-sdk-crypto-nodejs/download-lib.js` 擷取二進位檔案。
+- 如果如果你看到缺少加密模組的錯誤（例如 `@matrix-org/matrix-sdk-crypto-nodejs-*`），請允許 `@matrix-org/matrix-sdk-crypto-nodejs` 的建置指令碼並執行 `pnpm rebuild @matrix-org/matrix-sdk-crypto-nodejs` 或使用 `node node_modules/ @matrix-org/matrix-sdk-crypto-nodejs/download-lib.js` 擷取二進位檔案。
 
 加密狀態按帳號 + 存取權杖儲存在 `~/.openclaw/matrix/accounts/<account>/<homeserver>__<user>/<token-hash>/crypto/` (SQLite 資料庫)。同步狀態與其併列儲存在 `bot-storage.json`。如果存取權杖（裝置）變更，系統會建立新的儲存區，且機器人必須針對加密房間重新驗證。
 
@@ -168,7 +168,7 @@ E2EE 設定（啟用端到端加密）：
   - `openclaw pairing list matrix`
   - `openclaw pairing approve matrix <CODE>`
 - 公開私訊：`channels.matrix.dm.policy="open"` 且 `channels.matrix.dm.allowFrom=["*"]`。
-- `channels.matrix.dm.allowFrom` 接受完整的 Matrix 使用者 ID（例如：` @user:server`）。當目錄搜尋找到單一完全符合的結果時，精靈會將顯示名稱解析為使用者 ID。
+- `channels.matrix.dm.allowFrom` 接受完整的 Matrix 使用者 ID（例如：`@user:server`）。當目錄搜尋找到單一完全符合的結果時，精靈會將顯示名稱解析為使用者 ID。
 
 ## 房間 (群組)
 

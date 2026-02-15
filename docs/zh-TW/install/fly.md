@@ -3,6 +3,8 @@ title: Fly.io
 description: 在 Fly.io 上部署 OpenClaw
 ---
 
+<!-- markdownlint-disable MD051 -->
+
 # Fly.io 部署
 
 **目標：** 在 [Fly.io](https://fly.io) 機器上執行 OpenClaw Gateway，並具備持久化儲存、自動 HTTPS 以及 Discord/頻道存取權限。

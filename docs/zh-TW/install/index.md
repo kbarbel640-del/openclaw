@@ -7,6 +7,8 @@ read_when:
 title: "安裝"
 ---
 
+<!-- markdownlint-disable MD051 -->
+
 # 安裝
 
 已經按照過 [入門指南](/start/getting-started) 了嗎？那您已經準備就緒 — 本頁面提供其他安裝方法、特定平台的說明以及維護資訊。

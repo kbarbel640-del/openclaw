@@ -32,7 +32,7 @@ openclaw message send --channel slack --target user:U012ABCDEF --message "hello"
 ## ID 格式（按頻道分類）
 
 - WhatsApp: `+15551234567` (私訊), `1234567890-1234567890 @g.us` (群組)
-- Telegram: ` @username` 或數字聊天 ID；群組為數字 ID
+- Telegram: `@username` 或數字聊天 ID；群組為數字 ID
 - Slack: `user:U…` 與 `channel:C…`
 - Discord: `user:<id>` 與 `channel:<id>`
 - Matrix (外掛程式): `user: @user:server`, `room:!roomId:server`, 或 `#alias:server`

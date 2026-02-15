@@ -34,15 +34,15 @@ openclaw plugins install @openclaw/voice-call
 
 ## 可用的插件 (官方)
 
-- Microsoft Teams 自 2026.1.15 起僅提供插件版本；如果您使用 Teams，請安裝 ` @openclaw/msteams`。
+- Microsoft Teams 自 2026.1.15 起僅提供插件版本；如果您使用 Teams，請安裝 `@openclaw/msteams`。
 - 記憶體 (核心) — 隨附的記憶體搜尋插件（預設透過 `plugins.slots.memory` 啟用）
 - 記憶體 (LanceDB) — 隨附的長期記憶體插件（自動回傳/擷取；請設定 `plugins.slots.memory = "memory-lancedb"`）
-- [Voice Call](/plugins/voice-call) — ` @openclaw/voice-call`
-- [Zalo 個人版](/plugins/zalouser) — ` @openclaw/zalouser`
-- [Matrix](/channels/matrix) — ` @openclaw/matrix`
-- [Nostr](/channels/nostr) — ` @openclaw/nostr`
-- [Zalo](/channels/zalo) — ` @openclaw/zalo`
-- [Microsoft Teams](/channels/msteams) — ` @openclaw/msteams`
+- [Voice Call](/plugins/voice-call) — `@openclaw/voice-call`
+- [Zalo 個人版](/plugins/zalouser) — `@openclaw/zalouser`
+- [Matrix](/channels/matrix) — `@openclaw/matrix`
+- [Nostr](/channels/nostr) — `@openclaw/nostr`
+- [Zalo](/channels/zalo) — `@openclaw/zalo`
+- [Microsoft Teams](/channels/msteams) — `@openclaw/msteams`
 - Google Antigravity OAuth (供應商驗證) — 內建為 `google-antigravity-auth`（預設禁用）
 - Gemini CLI OAuth (供應商驗證) — 內建為 `google-gemini-cli-auth`（預設禁用）
 - Qwen OAuth (供應商驗證) — 內建為 `qwen-portal-auth`（預設禁用）
@@ -591,7 +591,7 @@ export default function (api) {
 建議的封裝方式：
 
 - 主套件：`openclaw` (本儲存庫)
-- 插件：在 ` @openclaw/*` 範圍下的獨立 npm 套件 (例如：` @openclaw/voice-call`)
+- 插件：在 `@openclaw/*` 範圍下的獨立 npm 套件 (例如：`@openclaw/voice-call`)
 
 發布協定：
 

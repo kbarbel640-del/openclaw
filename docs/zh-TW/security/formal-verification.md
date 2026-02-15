@@ -42,8 +42,8 @@ permalink: /security/formal-verification/
 git clone https://github.com/vignesh07/openclaw-formal-models
 cd openclaw-formal-models
 
-# 需要 Java 11+ (TLC 執行於 JVM)。
-# 該儲存庫內含固定版本的 `tla2tools.jar` (TLA+ 工具)，並提供 `bin/tlc` 與 Make 目標。
+# 需要 Java 11+ (TLC 執行於 JVM)
+# 該儲存庫內含固定版本的 `tla2tools.jar` (TLA+ 工具)，並提供 `bin/tlc` 與 Make 目標
 
 make <target>
 ```

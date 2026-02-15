@@ -5,6 +5,8 @@ read_when:
 title: "Google Chat"
 ---
 
+<!-- markdownlint-disable MD049 -->
+
 # Google Chat (Chat API)
 
 狀態：已就緒，可透過 Google Chat API webhook（僅限 HTTP）支援私訊與空間。
