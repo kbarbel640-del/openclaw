@@ -118,7 +118,7 @@ export function resolveTranscriptPolicy(params: {
     toolCallIdMode,
     repairToolUseResultPairing: !isOpenAi && repairToolUseResultPairing,
     preserveSignatures: isAntigravityClaudeModel,
-    sanitizeThoughtSignatures: isOpenAi ? undefined : sanitizeThoughtSignatures,
+    sanitizeThoughtSignatures,
     normalizeAntigravityThinkingBlocks,
     applyGoogleTurnOrdering: !isOpenAi && isGoogle,
     validateGeminiTurns: !isOpenAi && isGoogle,
