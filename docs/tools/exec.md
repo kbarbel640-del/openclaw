@@ -50,7 +50,7 @@ Notes:
 - `tools.exec.security` (default: `deny` for sandbox, `allowlist` for gateway + node when unset)
 - `tools.exec.ask` (default: `on-miss`)
 - `tools.exec.node` (default: unset)
-- `tools.exec.pathPrepend`: list of directories to prepend to `PATH` for exec runs.
+- `tools.exec.pathPrepend`: list of directories to prepend to `PATH` for exec runs (gateway + sandbox only).
 - `tools.exec.safeBins`: stdin-only safe binaries that can run without explicit allowlist entries.
 
 Example:
@@ -167,7 +167,7 @@ Enable it explicitly:
 {
   tools: {
     exec: {
-      applyPatch: { enabled: true, allowModels: ["gpt-5.2"] },
+      applyPatch: { enabled: true, workspaceOnly: true, allowModels: ["gpt-5.2"] },
     },
   },
 }
@@ -178,3 +178,4 @@ Notes:
 - Only available for OpenAI/OpenAI Codex models.
 - Tool policy still applies; `allow: ["exec"]` implicitly allows `apply_patch`.
 - Config lives under `tools.exec.applyPatch`.
+- `tools.exec.applyPatch.workspaceOnly` defaults to `true` (workspace-contained). Set it to `false` only if you intentionally want `apply_patch` to write/delete outside the workspace directory.

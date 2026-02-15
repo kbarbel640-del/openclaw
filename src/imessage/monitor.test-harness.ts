@@ -2,6 +2,10 @@ import { beforeEach, vi } from "vitest";
 
 type NotificationHandler = (msg: { method: string; params?: unknown }) => void;
 
+// Avoid exporting vitest mock types (TS2742 under pnpm + d.ts emit).
+// oxlint-disable-next-line typescript/no-explicit-any
+type AnyMock = any;
+
 const state = vi.hoisted(() => ({
   requestMock: vi.fn(),
   stopMock: vi.fn(),
@@ -15,39 +19,39 @@ const state = vi.hoisted(() => ({
   closeResolve: undefined as (() => void) | undefined,
 }));
 
-export function getRequestMock() {
+export function getRequestMock(): AnyMock {
   return state.requestMock;
 }
 
-export function getStopMock() {
+export function getStopMock(): AnyMock {
   return state.stopMock;
 }
 
-export function getSendMock() {
+export function getSendMock(): AnyMock {
   return state.sendMock;
 }
 
-export function getReplyMock() {
+export function getReplyMock(): AnyMock {
   return state.replyMock;
 }
 
-export function getUpdateLastRouteMock() {
+export function getUpdateLastRouteMock(): AnyMock {
   return state.updateLastRouteMock;
 }
 
-export function getReadAllowFromStoreMock() {
+export function getReadAllowFromStoreMock(): AnyMock {
   return state.readAllowFromStoreMock;
 }
 
-export function getUpsertPairingRequestMock() {
+export function getUpsertPairingRequestMock(): AnyMock {
   return state.upsertPairingRequestMock;
 }
 
-export function getNotificationHandler() {
+export function getNotificationHandler(): NotificationHandler | undefined {
   return state.notificationHandler;
 }
 
-export function getCloseResolve() {
+export function getCloseResolve(): (() => void) | undefined {
   return state.closeResolve;
 }
 
@@ -108,12 +112,20 @@ vi.mock("./probe.js", () => ({
 export const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 export async function waitForSubscribe() {
+  for (let i = 0; i < 25; i += 1) {
+    if (state.requestMock.mock.calls.some((call) => call[0] === "watch.subscribe")) {
+      return;
+    }
+    // Prefer microtask turns over timers for speed.
+    await Promise.resolve();
+  }
   for (let i = 0; i < 5; i += 1) {
     if (state.requestMock.mock.calls.some((call) => call[0] === "watch.subscribe")) {
       return;
     }
     await flush();
   }
+  throw new Error("imessage test harness: watch.subscribe not observed");
 }
 
 export function installMonitorIMessageProviderTestHooks() {

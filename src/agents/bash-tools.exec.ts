@@ -79,6 +79,7 @@ export type ExecToolDefaults = {
   sessionKey?: string;
   messageProvider?: string;
   notifyOnExit?: boolean;
+  notifyOnExitEmptySuccess?: boolean;
   cwd?: string;
 };
 
@@ -135,6 +136,7 @@ export function createExecTool(
   const defaultPathPrepend = normalizePathPrepend(defaults?.pathPrepend);
   const safeBins = resolveSafeBins(defaults?.safeBins);
   const notifyOnExit = defaults?.notifyOnExit !== false;
+  const notifyOnExitEmptySuccess = defaults?.notifyOnExitEmptySuccess === true;
   const notifySessionKey = defaults?.sessionKey?.trim() || undefined;
   const approvalRunningNoticeMs = resolveApprovalRunningNoticeMs(defaults?.approvalRunningNoticeMs);
   // Derive agentId only when sessionKey is an agent session key.
@@ -316,7 +318,16 @@ export function createExecTool(
         });
         applyShellPath(env, shellPath);
       }
-      applyPathPrepend(env, defaultPathPrepend);
+
+      // `tools.exec.pathPrepend` is only meaningful when exec runs locally (gateway) or in the sandbox.
+      // Node hosts intentionally ignore request-scoped PATH overrides, so don't pretend this applies.
+      if (host === "node" && defaultPathPrepend.length > 0) {
+        warnings.push(
+          "Warning: tools.exec.pathPrepend is ignored for host=node. Configure PATH on the node host/service instead.",
+        );
+      } else {
+        applyPathPrepend(env, defaultPathPrepend);
+      }
 
       if (host === "node") {
         const approvals = resolveExecApprovals(agentId, { security, ask });
@@ -362,10 +373,6 @@ export function createExecTool(
         const argv = buildNodeShellCommand(params.command, nodeInfo?.platform);
 
         const nodeEnv = params.env ? { ...params.env } : undefined;
-
-        if (nodeEnv) {
-          applyPathPrepend(nodeEnv, defaultPathPrepend, { requireExisting: true });
-        }
         const baseAllowlistEval = evaluateShellAllowlist({
           command: params.command,
           allowlist: [],
@@ -744,6 +751,7 @@ export function createExecTool(
                 maxOutput,
                 pendingMaxOutput,
                 notifyOnExit: false,
+                notifyOnExitEmptySuccess: false,
                 scopeKey: defaults?.scopeKey,
                 sessionKey: notifySessionKey,
                 timeoutSec: effectiveTimeout,
@@ -878,6 +886,7 @@ export function createExecTool(
         maxOutput,
         pendingMaxOutput,
         notifyOnExit,
+        notifyOnExitEmptySuccess,
         scopeKey: defaults?.scopeKey,
         sessionKey: notifySessionKey,
         timeoutSec: effectiveTimeout,
