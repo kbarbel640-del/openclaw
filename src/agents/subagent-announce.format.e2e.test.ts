@@ -61,7 +61,9 @@ vi.mock("../config/config.js", async (importOriginal) => {
 });
 
 describe("subagent announce formatting", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { resetSubagentRegistryForTests } = await import("./subagent-registry.js");
+    resetSubagentRegistryForTests();
     agentSpy.mockClear();
     sessionsDeleteSpy.mockClear();
     embeddedRunMock.isEmbeddedPiRunActive.mockReset().mockReturnValue(false);
@@ -392,6 +394,61 @@ describe("subagent announce formatting", () => {
     const call = agentSpy.mock.calls[0]?.[0] as { params?: { message?: string } };
     expect(call?.params?.message).toContain("Read #12 complete.");
     expect(call?.params?.message).not.toContain("(no output)");
+  });
+
+  it("defers announce while descendant subagents are still active", async () => {
+    const { addSubagentRunForTests } = await import("./subagent-registry.js");
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    addSubagentRunForTests({
+      runId: "run-descendant-active",
+      childSessionKey: "agent:main:subagent:child",
+      requesterSessionKey: "agent:main:subagent:parent",
+      requesterDisplayKey: "main",
+      task: "do child thing",
+      cleanup: "keep",
+      createdAt: 5,
+      startedAt: 5,
+    });
+
+    const didAnnounce = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:parent",
+      childRunId: "run-parent",
+      requesterSessionKey: "agent:main:main",
+      requesterDisplayKey: "main",
+      task: "do parent thing",
+      timeoutMs: 1000,
+      cleanup: "delete",
+      waitForCompletion: false,
+      startedAt: 10,
+      endedAt: 20,
+      outcome: { status: "ok" },
+    });
+
+    expect(didAnnounce).toBe(false);
+    expect(agentSpy).not.toHaveBeenCalled();
+    expect(sessionsDeleteSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps nested announce retryable when all nested targets reject", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    agentSpy.mockRejectedValueOnce(new Error("agent transport unavailable"));
+
+    const didAnnounce = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:leaf",
+      childRunId: "run-leaf",
+      requesterSessionKey: "agent:main:subagent:parent",
+      requesterDisplayKey: "agent:main:subagent:parent",
+      task: "nested task",
+      timeoutMs: 1000,
+      cleanup: "delete",
+      waitForCompletion: false,
+      startedAt: 10,
+      endedAt: 20,
+      outcome: { status: "ok" },
+    });
+
+    expect(didAnnounce).toBe(false);
+    expect(sessionsDeleteSpy).not.toHaveBeenCalled();
   });
 
   it("defers announce when child run is still active after wait timeout", async () => {

@@ -227,6 +227,40 @@ async function maybeQueueSubagentAnnounce(params: {
   return "none";
 }
 
+function countActiveDescendantRuns(rootSessionKey: string): number {
+  const root = rootSessionKey.trim();
+  if (!root) {
+    return 0;
+  }
+  const allRuns = listAllSubagentRuns();
+  const pending = [root];
+  const seen = new Set<string>([root]);
+  let count = 0;
+
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current) {
+      continue;
+    }
+    for (const run of allRuns) {
+      if (run.requesterSessionKey !== current) {
+        continue;
+      }
+      if (typeof run.endedAt !== "number") {
+        count += 1;
+      }
+      const childKey = run.childSessionKey.trim();
+      if (!childKey || seen.has(childKey)) {
+        continue;
+      }
+      seen.add(childKey);
+      pending.push(childKey);
+    }
+  }
+
+  return count;
+}
+
 async function buildSubagentStatsLine(params: {
   sessionKey: string;
   startedAt?: number;
@@ -552,6 +586,13 @@ export async function runSubagentAnnounceFlow(params: {
       outcome = { status: "unknown" };
     }
 
+    const activeChildDescendantRuns = countActiveDescendantRuns(params.childSessionKey);
+    if (activeChildDescendantRuns > 0) {
+      // Avoid announcing a completed parent while descendants are still running.
+      shouldDeleteChildSession = false;
+      return false;
+    }
+
     // Build stats
     const statsLine = await buildSubagentStatsLine({
       sessionKey: params.childSessionKey,
@@ -614,6 +655,9 @@ export async function runSubagentAnnounceFlow(params: {
         console.warn(
           `[subagent-announce] Failed to deliver nested announce for ${params.childSessionKey}`,
         );
+        // Preserve retryability across restore/wake cycles instead of dropping output.
+        shouldDeleteChildSession = false;
+        return false;
       }
       return true;
     }
