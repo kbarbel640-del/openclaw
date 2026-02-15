@@ -6,8 +6,12 @@
 import { appendFileSync } from "node:fs";
 
 const CATEGORY_LABELS = {
-  bug: "auto:bug", feature: "auto:feature", refactor: "auto:refactor",
-  test: "auto:test", docs: "auto:docs", chore: "auto:chore",
+  bug: "auto:bug",
+  feature: "auto:feature",
+  refactor: "auto:refactor",
+  test: "auto:test",
+  docs: "auto:docs",
+  chore: "auto:chore",
 };
 
 async function ensureLabel(gh, repo, name, color) {
@@ -25,7 +29,9 @@ async function ensureLabel(gh, repo, name, color) {
 }
 
 export async function applyLabels(gh, repo, prNumber, triage) {
-  if (!triage) { return; }
+  if (!triage) {
+    return;
+  }
   const labels = [];
   const catLabel = CATEGORY_LABELS[triage.category];
   if (catLabel) {
@@ -78,11 +84,16 @@ export async function applyLabels(gh, repo, prNumber, triage) {
 }
 
 export function writeSummary(prNumber, triage, deterministicHints, costInfo) {
-  if (!triage) { return; }
+  if (!triage) {
+    return;
+  }
   const lines = [
-    `## PR #${prNumber} Triage`, "",
-    `**Category:** ${triage.category} | **Confidence:** ${triage.confidence} | **Action:** ${triage.suggested_action}`, "",
-    `**Reasoning:** ${triage.reasoning}`, "",
+    `## PR #${prNumber} Triage`,
+    "",
+    `**Category:** ${triage.category} | **Confidence:** ${triage.confidence} | **Action:** ${triage.suggested_action}`,
+    "",
+    `**Reasoning:** ${triage.reasoning}`,
+    "",
   ];
   if (triage.duplicate_of?.length > 0) {
     lines.push(`**Possible duplicates:** ${triage.duplicate_of.map((n) => `#${n}`).join(", ")}`);
@@ -97,18 +108,25 @@ export function writeSummary(prNumber, triage, deterministicHints, costInfo) {
     }
   }
   const qs = triage.quality_signals || {};
-  lines.push("", "**Quality:**",
+  lines.push(
+    "",
+    "**Quality:**",
     `- Focused scope: ${qs.focused_scope ? "yes" : "no"}`,
     `- Has tests: ${qs.has_tests ? "yes" : "no"}`,
     `- Appropriate size: ${qs.appropriate_size ? "yes" : "no"}`,
     `- References issue: ${qs.references_issue ? "yes" : "no"}`,
   );
   if (costInfo) {
-    lines.push("", `**Model:** ${costInfo.model} | **Effort:** ${costInfo.effort} | **Cost:** $${costInfo.totalCost.toFixed(4)}`);
+    lines.push(
+      "",
+      `**Model:** ${costInfo.model} | **Effort:** ${costInfo.effort} | **Cost:** $${costInfo.totalCost.toFixed(4)}`,
+    );
   }
   const summary = lines.join("\n");
   console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) {
-    try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n"); } catch {}
+    try {
+      appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n");
+    } catch {}
   }
 }
