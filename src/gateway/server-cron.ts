@@ -70,9 +70,11 @@ export function buildGatewayCronService(params: {
     runHeartbeatOnce: async (opts) => {
       const runtimeConfig = loadConfig();
       const agentId = opts?.agentId ? resolveCronAgent(opts.agentId).agentId : undefined;
+      // Use a cron:-prefixed reason to ensure heartbeat isn't skipped when HEARTBEAT.md is empty
+      const cronReason = opts?.reason ? `cron:${opts.reason}` : "cron:triggered";
       return await runHeartbeatOnce({
         cfg: runtimeConfig,
-        reason: opts?.reason,
+        reason: cronReason,
         agentId,
         deps: { ...params.deps, runtime: defaultRuntime },
       });
