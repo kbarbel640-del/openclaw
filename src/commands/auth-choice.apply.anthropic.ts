@@ -8,7 +8,11 @@ import {
 } from "./auth-choice.api-key.js";
 import { buildTokenProfileId, validateAnthropicSetupToken } from "./auth-token.js";
 import { isRemoteEnvironment } from "./oauth-env.js";
-import { applyAuthProfileConfig, setAnthropicApiKey, writeOAuthCredentials } from "./onboard-auth.js";
+import {
+  applyAuthProfileConfig,
+  setAnthropicApiKey,
+  writeOAuthCredentials,
+} from "./onboard-auth.js";
 import { openUrl } from "./onboard-helpers.js";
 
 export async function applyAuthChoiceAnthropic(
