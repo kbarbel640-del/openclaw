@@ -270,6 +270,60 @@ function stripBotMention(
   return result;
 }
 
+const RESET_COMMAND_TOKEN_RE = /(^|\s)(\/(?:new|reset))(?=\s|$)/i;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function stripFeishuMentionTokensForCommand(
+  text: string,
+  mentions?: FeishuMessageEvent["message"]["mentions"],
+): string {
+  let result = text;
+  result = result.replace(/(?:^|\s)@_all(?=\s|$)/gi, " ");
+  result = result.replace(/<at\b[^>]*\b(?:user_id|id)\s*=\s*["']?all["']?[^>]*>/gi, " ");
+
+  for (const mention of mentions ?? []) {
+    if (mention.key) {
+      result = result.split(mention.key).join(" ");
+    }
+    const mentionName = mention.name.trim();
+    if (mentionName) {
+      const escapedName = escapeRegExp(mentionName);
+      result = result.replace(new RegExp(`(?:^|\\s)@${escapedName}(?=\\s|$)`, "gi"), " ");
+    }
+  }
+
+  return result.replace(/\s+/g, " ").trim();
+}
+
+function extractAtAllResetCommandSource(params: {
+  text: string;
+  mentionedAll: boolean;
+  mentions?: FeishuMessageEvent["message"]["mentions"];
+}): string | undefined {
+  if (!params.mentionedAll) {
+    return undefined;
+  }
+
+  const normalizedText = params.text.replace(/\s+/g, " ").trim();
+  if (!normalizedText) {
+    return undefined;
+  }
+
+  const match = RESET_COMMAND_TOKEN_RE.exec(normalizedText);
+  if (!match) {
+    return undefined;
+  }
+
+  const commandStart = (match.index ?? 0) + match[1].length;
+  const commandToken = match[2].toLowerCase();
+  const suffixRaw = normalizedText.slice(commandStart + match[2].length);
+  const cleanedSuffix = stripFeishuMentionTokensForCommand(suffixRaw, params.mentions);
+  return cleanedSuffix ? `${commandToken} ${cleanedSuffix}` : commandToken;
+}
+
 /**
  * Parse media keys from message content based on message type.
  */
@@ -633,6 +687,7 @@ export async function handleFeishuMessage(params: {
   const dmPolicy = feishuCfg?.dmPolicy ?? "pairing";
   const configAllowFrom = feishuCfg?.allowFrom ?? [];
   const useAccessGroups = cfg.commands?.useAccessGroups !== false;
+  let atAllResetCommandSource: string | undefined;
 
   if (isGroup) {
     const groupPolicy = feishuCfg?.groupPolicy ?? "open";
@@ -673,11 +728,19 @@ export async function handleFeishuMessage(params: {
       groupConfig,
     });
 
+    atAllResetCommandSource = extractAtAllResetCommandSource({
+      text: ctx.content,
+      mentionedAll: ctx.mentionedAll === true,
+      mentions: event.message.mentions,
+    });
+
     if (requireMention && !ctx.mentionedBot) {
       if (replyOnAtAll && ctx.mentionedAll) {
         log(
           `feishu[${account.accountId}]: group ${ctx.chatId} triggered by @all mention (replyOnAtAll=true)`,
         );
+      } else if (atAllResetCommandSource) {
+        log(`feishu[${account.accountId}]: group ${ctx.chatId} accepted @all reset command bypass`);
       } else {
         log(
           `feishu[${account.accountId}]: message in group ${ctx.chatId} did not mention bot, recording to history`,
@@ -737,8 +800,9 @@ export async function handleFeishuMessage(params: {
 
   try {
     const core = getFeishuRuntime();
+    const commandSource = atAllResetCommandSource ?? ctx.content;
     const shouldComputeCommandAuthorized = core.channel.commands.shouldComputeCommandAuthorized(
-      ctx.content,
+      commandSource,
       cfg,
     );
     const storeAllowFrom =
@@ -786,18 +850,55 @@ export async function handleFeishuMessage(params: {
       return;
     }
 
-    const commandAllowFrom = isGroup ? (groupConfig?.allowFrom ?? []) : effectiveDmAllowFrom;
-    const senderAllowedForCommands = resolveFeishuAllowlistMatch({
-      allowFrom: commandAllowFrom,
-      senderId: ctx.senderOpenId,
-      senderName: ctx.senderName,
-    }).allowed;
+    const commandAuthorizer = isGroup
+      ? (() => {
+          const groupSenderAllowFrom = groupConfig?.allowFrom ?? [];
+          if (groupSenderAllowFrom.length > 0) {
+            const senderAllowed = resolveFeishuAllowlistMatch({
+              allowFrom: groupSenderAllowFrom,
+              senderId: ctx.senderOpenId,
+              senderName: ctx.senderName,
+            }).allowed;
+            return {
+              configured: true,
+              allowed: senderAllowed,
+            };
+          }
+
+          const commandGroupPolicy = feishuCfg?.groupPolicy ?? "open";
+          if (commandGroupPolicy === "open") {
+            return {
+              configured: true,
+              allowed: true,
+            };
+          }
+
+          const commandGroupAllowFrom = feishuCfg?.groupAllowFrom ?? [];
+          const groupAllowedForCommands = resolveFeishuAllowlistMatch({
+            allowFrom: commandGroupAllowFrom,
+            senderId: ctx.chatId,
+            senderName: undefined,
+          }).allowed;
+          return {
+            configured: commandGroupAllowFrom.length > 0,
+            allowed: groupAllowedForCommands,
+          };
+        })()
+      : (() => {
+          const senderAllowed = resolveFeishuAllowlistMatch({
+            allowFrom: effectiveDmAllowFrom,
+            senderId: ctx.senderOpenId,
+            senderName: ctx.senderName,
+          }).allowed;
+          return {
+            configured: effectiveDmAllowFrom.length > 0,
+            allowed: senderAllowed,
+          };
+        })();
     const commandAuthorized = shouldComputeCommandAuthorized
       ? core.channel.commands.resolveCommandAuthorizedFromAuthorizers({
           useAccessGroups,
-          authorizers: [
-            { configured: commandAllowFrom.length > 0, allowed: senderAllowedForCommands },
-          ],
+          authorizers: [commandAuthorizer],
         })
       : undefined;
 
@@ -1040,8 +1141,8 @@ export async function handleFeishuMessage(params: {
       Body: combinedBody,
       BodyForAgent: ctx.content,
       InboundHistory: inboundHistory,
-      RawBody: ctx.content,
-      CommandBody: ctx.content,
+      RawBody: commandSource,
+      CommandBody: commandSource,
       From: feishuFrom,
       To: feishuTo,
       SessionKey: route.sessionKey,
