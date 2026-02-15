@@ -139,7 +139,7 @@ function isErrorPayloadObject(payload: unknown): payload is ErrorPayload {
     return false;
   }
   const record = payload as ErrorPayload;
-  if (record.type === "error") {
+  if (record.type === "error" || record.type === "ErrorResponse") {
     return true;
   }
   if (typeof record.request_id === "string" || typeof record.requestId === "string") {
@@ -174,16 +174,29 @@ function parseApiErrorPayload(raw: string): ErrorPayload | null {
     candidates.push(trimmed.replace(ERROR_PAYLOAD_PREFIX_RE, "").trim());
   }
   for (const candidate of candidates) {
-    if (!candidate.startsWith("{") || !candidate.endsWith("}")) {
-      continue;
-    }
-    try {
-      const parsed = JSON.parse(candidate) as unknown;
-      if (isErrorPayloadObject(parsed)) {
-        return parsed;
+    // Try the whole string first
+    if (candidate.startsWith("{") && candidate.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(candidate) as unknown;
+        if (isErrorPayloadObject(parsed)) {
+          return parsed;
+        }
+      } catch {
+        // ignore parse errors
       }
-    } catch {
-      // ignore parse errors
+    }
+    // Try extracting embedded JSON from strings like "Some prefix: {json}"
+    const jsonStart = candidate.indexOf("{");
+    if (jsonStart > 0 && candidate.endsWith("}")) {
+      const jsonPart = candidate.slice(jsonStart);
+      try {
+        const parsed = JSON.parse(jsonPart) as unknown;
+        if (isErrorPayloadObject(parsed)) {
+          return parsed;
+        }
+      } catch {
+        // ignore parse errors
+      }
     }
   }
   return null;
@@ -254,7 +267,8 @@ export function parseApiErrorInfo(raw?: string): ApiErrorInfo | null {
         ? payload.requestId
         : undefined;
 
-  const topType = typeof payload.type === "string" ? payload.type : undefined;
+  const topType =
+    typeof payload.type === "string" && payload.type !== "ErrorResponse" ? payload.type : undefined;
   const topMessage = typeof payload.message === "string" ? payload.message : undefined;
 
   let errType: string | undefined;
@@ -269,6 +283,9 @@ export function parseApiErrorInfo(raw?: string): ApiErrorInfo | null {
     }
     if (typeof err.message === "string") {
       errMessage = err.message;
+    }
+    if (!errMessage && typeof err.detail === "string") {
+      errMessage = err.detail;
     }
   }
 
@@ -364,19 +381,26 @@ export function formatAssistantErrorText(
     return `LLM request rejected: ${invalidRequest[1]}`;
   }
 
-  if (isOverloadedErrorMessage(raw)) {
+  if (isOverloadedErrorMessage(raw) || isRateLimitErrorMessage(raw)) {
     return "The AI service is temporarily overloaded. Please try again in a moment.";
   }
 
   if (isLikelyHttpErrorText(raw) || isRawApiErrorPayload(raw)) {
-    return formatRawAssistantErrorForUi(raw);
+    return stripFilesystemPaths(formatRawAssistantErrorForUi(raw));
   }
 
   // Never return raw unhandled errors - log for debugging but return safe message
   if (raw.length > 600) {
     console.warn("[formatAssistantErrorText] Long error truncated:", raw.slice(0, 200));
   }
-  return raw.length > 600 ? `${raw.slice(0, 600)}…` : raw;
+  const safeRaw = stripFilesystemPaths(raw);
+  return safeRaw.length > 600 ? `${safeRaw.slice(0, 600)}…` : safeRaw;
+}
+
+const FILESYSTEM_PATH_RE = /\/(?:Users|home|tmp|var|etc)\/[^\s,)}\]]+/g;
+
+function stripFilesystemPaths(text: string): string {
+  return text.replace(FILESYSTEM_PATH_RE, "<path>");
 }
 
 export function sanitizeUserFacingText(text: string): string {
@@ -403,8 +427,12 @@ export function sanitizeUserFacingText(text: string): string {
     );
   }
 
+  if (isRateLimitErrorMessage(trimmed)) {
+    return "The service is temporarily rate limited. Please try again in a moment.";
+  }
+
   if (isRawApiErrorPayload(trimmed) || isLikelyHttpErrorText(trimmed)) {
-    return formatRawAssistantErrorForUi(trimmed);
+    return stripFilesystemPaths(formatRawAssistantErrorForUi(trimmed));
   }
 
   if (ERROR_PREFIX_RE.test(trimmed)) {
@@ -414,10 +442,10 @@ export function sanitizeUserFacingText(text: string): string {
     if (isTimeoutErrorMessage(trimmed)) {
       return "LLM request timed out.";
     }
-    return formatRawAssistantErrorForUi(trimmed);
+    return stripFilesystemPaths(formatRawAssistantErrorForUi(trimmed));
   }
 
-  return collapseConsecutiveDuplicateBlocks(stripped);
+  return stripFilesystemPaths(collapseConsecutiveDuplicateBlocks(stripped));
 }
 
 export function isRateLimitAssistantError(msg: AssistantMessage | undefined): boolean {

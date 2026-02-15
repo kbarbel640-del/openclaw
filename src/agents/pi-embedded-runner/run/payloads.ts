@@ -11,6 +11,7 @@ import {
   getApiErrorPayloadFingerprint,
   isRawApiErrorPayload,
   normalizeTextForComparison,
+  sanitizeUserFacingText,
 } from "../../pi-embedded-helpers.js";
 import {
   extractAssistantText,
@@ -223,7 +224,9 @@ export function buildEmbeddedRunPayloads(params: {
         params.lastToolError.meta ? [params.lastToolError.meta] : undefined,
         { markdown: useMarkdown },
       );
-      const errorSuffix = params.lastToolError.error ? `: ${params.lastToolError.error}` : "";
+      const rawError = params.lastToolError.error ?? "";
+      const sanitizedError = rawError ? sanitizeUserFacingText(rawError) : "";
+      const errorSuffix = sanitizedError ? `: ${sanitizedError}` : "";
       replyItems.push({
         text: `⚠️ ${toolSummary} failed${errorSuffix}`,
         isError: true,

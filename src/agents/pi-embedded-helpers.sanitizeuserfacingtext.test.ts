@@ -37,4 +37,30 @@ describe("sanitizeUserFacingText", () => {
     const text = "Hello there!\n\nDifferent line.";
     expect(sanitizeUserFacingText(text)).toBe(text);
   });
+
+  it("sanitizes Brave Search API rate limit errors", () => {
+    const raw =
+      'Brave Search API error (429): {"type":"ErrorResponse","error":{"id":"32433a2a-3426-4831-8123-4553d4be9455","status":429,"detail":"Request rate limit exceeded for plan","meta":{"plan":"Free","rate_limit":1,"rate_current":1,"quota_limit":2000,"quota_current":210},"code":"RATE_LIMITED"},"time":1771039449}';
+    const result = sanitizeUserFacingText(raw);
+    expect(result).not.toContain("32433a2a");
+    expect(result).not.toContain("quota_current");
+    expect(result).not.toContain("ErrorResponse");
+    expect(result.toLowerCase()).toMatch(/rate.?limit|too many requests|try again/);
+  });
+
+  it("sanitizes tool execution errors with filesystem paths", () => {
+    const raw =
+      "Could not find exact text to replace in /Users/wade.digital/.openclaw/workspace/memory/2026-02-14.md";
+    const result = sanitizeUserFacingText(raw);
+    expect(result).not.toContain("/Users/wade.digital");
+    expect(result).not.toContain(".openclaw/workspace");
+  });
+
+  it("sanitizes generic external API error JSON payloads", () => {
+    const raw =
+      '{"type":"ErrorResponse","error":{"status":429,"detail":"Request rate limit exceeded for plan","meta":{"plan":"Free","rate_limit":1},"code":"RATE_LIMITED"}}';
+    const result = sanitizeUserFacingText(raw);
+    expect(result).not.toContain("RATE_LIMITED");
+    expect(result).not.toContain('"meta"');
+  });
 });

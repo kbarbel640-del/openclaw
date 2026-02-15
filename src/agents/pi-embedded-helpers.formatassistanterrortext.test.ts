@@ -53,4 +53,22 @@ describe("formatAssistantErrorText", () => {
     );
     expect(formatAssistantErrorText(msg)).toBe("LLM error server_error: Something exploded");
   });
+
+  it("sanitizes Brave Search 429 errors when surfaced as assistant error", () => {
+    const msg = makeAssistantError(
+      'Brave Search API error (429): {"type":"ErrorResponse","error":{"id":"e088898a","status":429,"detail":"Request rate limit exceeded for plan","meta":{"plan":"Free","rate_limit":1,"rate_current":1},"code":"RATE_LIMITED"},"time":1770578244}',
+    );
+    const result = formatAssistantErrorText(msg);
+    expect(result).not.toContain("e088898a");
+    expect(result).not.toContain('"meta"');
+    expect(result?.toLowerCase()).toMatch(/rate.?limit|too many requests|try again/);
+  });
+
+  it("does not leak filesystem paths in tool error messages", () => {
+    const msg = makeAssistantError(
+      "Edit tool failed: Could not find exact text in /Users/wade.digital/.openclaw/workspace/MEMORY.md",
+    );
+    const result = formatAssistantErrorText(msg);
+    expect(result).not.toContain("/Users/wade.digital");
+  });
 });
