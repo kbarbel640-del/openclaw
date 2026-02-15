@@ -55,6 +55,7 @@ Write to `memory/YYYY-MM-DD.md` **continuously during work**, not just at compac
 - Context is shared (business details, preferences, goals)
 - Something breaks or changes (errors, fixes, workarounds)
 - A plan is discussed (steps, priorities, next actions)
+- A meaningful discussion happens (reasoning, feedback, opinions, disagreements — even if no final decision is reached)
 
 **The standard:** If compaction hits right now, could future-you read today's daily file and pick up exactly where you left off? If not, you haven't written enough.
 
