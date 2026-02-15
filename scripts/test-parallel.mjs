@@ -346,9 +346,7 @@ if (passthroughArgs.length > 0) {
     maxOldSpaceSizeMb && !nextNodeOptions.includes("--max-old-space-size=")
       ? `--max-old-space-size=${maxOldSpaceSizeMb}`
       : null;
-  const resolvedNodeOptions = heapFlag
-    ? `${nextNodeOptions} ${heapFlag}`.trim()
-    : nextNodeOptions;
+  const resolvedNodeOptions = heapFlag ? `${nextNodeOptions} ${heapFlag}`.trim() : nextNodeOptions;
   const code = await new Promise((resolve) => {
     let child;
     try {
