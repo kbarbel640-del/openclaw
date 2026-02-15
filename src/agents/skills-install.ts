@@ -109,16 +109,29 @@ async function collectSkillInstallScanWarnings(entry: SkillEntry): Promise<strin
 
   try {
     const summary = await scanDirectoryWithSummary(skillDir);
-    const reasonCodes = Array.from(new Set(summary.findings.map((finding) => finding.ruleId)));
-    const topEvidence = summary.findings
-      .slice(0, 3)
-      .map((finding) => `${finding.ruleId} (${formatScanFindingDetail(skillDir, finding)})`)
-      .join("; ");
+    const reasonCodesBySeverity = (severity: "warn" | "critical") =>
+      Array.from(
+        new Set(
+          summary.findings
+            .filter((finding) => finding.severity === severity)
+            .map((finding) => finding.ruleId),
+        ),
+      );
+    const topEvidenceBySeverity = (severity: "warn" | "critical") =>
+      summary.findings
+        .filter((finding) => finding.severity === severity)
+        .slice(0, 3)
+        .map((finding) => `${finding.ruleId} (${formatScanFindingDetail(skillDir, finding)})`)
+        .join("; ");
     if (summary.critical > 0) {
+      const reasonCodes = reasonCodesBySeverity("critical");
+      const topEvidence = topEvidenceBySeverity("critical");
       warnings.push(
         `WARNING: Skill "${skillName}" contains dangerous code patterns [${reasonCodes.join(", ")}]: ${topEvidence}`,
       );
     } else if (summary.warn > 0) {
+      const reasonCodes = reasonCodesBySeverity("warn");
+      const topEvidence = topEvidenceBySeverity("warn");
       warnings.push(
         `Skill "${skillName}" flagged suspicious [${reasonCodes.join(", ")}]. Top evidence: ${topEvidence}. Run "openclaw security audit --deep" for details.`,
       );
