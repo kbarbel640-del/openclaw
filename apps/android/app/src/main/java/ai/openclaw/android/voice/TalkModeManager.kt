@@ -58,6 +58,9 @@ class TalkModeManager(
     private const val defaultOutputFormatFallback = "mp3_44100_128"
     // "Rachel" voice ID as a safe default if listing fails
     private const val hardcodedFallbackVoiceId = "21m00Tcm4TlvDq8ikWAM"
+    // Buffer for client-server clock skew when filtering chat history by timestamp.
+    // See comment in finalizeTranscript() for rationale.
+    private const val CLOCK_SKEW_BUFFER_SECONDS = 5.0
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -337,8 +340,11 @@ class TalkModeManager(
     }
 
     try {
-      // Subtracting 5 seconds to handle potential clock skew where client is ahead of server
-      val startedAt = (System.currentTimeMillis().toDouble() / 1000.0) - 5.0
+      // Buffer accounts for NTP drift between client/server clocks and network round-trip latency.
+      // 5 seconds is conservative: typical NTP drift is <1s, but mobile devices on poor networks
+      // can experience higher variance. Without this buffer, valid responses may be filtered out
+      // as "older than request time" when the server clock is slightly behind the client.
+      val startedAt = (System.currentTimeMillis().toDouble() / 1000.0) - CLOCK_SKEW_BUFFER_SECONDS
       subscribeChatIfNeeded(session = session, sessionKey = mainSessionKey)
       Log.d(tag, "chat.send start sessionKey=${mainSessionKey.ifBlank { "main" }} chars=${prompt.length}")
       val runId = sendChat(prompt, session)
@@ -1154,16 +1160,16 @@ class TalkModeManager(
   }
 
   private suspend fun resolveVoiceId(preferred: String?, apiKey: String): String? {
+    // Check user preference first (Settings > Voice ID field)
+    val userVoiceId = getVoiceId().trim()
+    if (userVoiceId.isNotEmpty()) return userVoiceId
+
     val trimmed = preferred?.trim().orEmpty()
     if (trimmed.isNotEmpty()) {
       val resolved = resolveVoiceAlias(trimmed)
       if (resolved != null) return resolved
       Log.w(tag, "unknown voice alias $trimmed")
     }
-    
-    // Check user preference first
-    val userVoiceId = getVoiceId().trim()
-    if (userVoiceId.isNotEmpty()) return userVoiceId
 
     fallbackVoiceId?.let { return it }
 
