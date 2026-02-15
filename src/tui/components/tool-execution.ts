@@ -17,6 +17,15 @@ type ToolResult = {
 
 const PREVIEW_LINES = 12;
 
+function formatElapsed(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remaining = Math.round(seconds % 60);
+  return `${minutes}m${remaining}s`;
+}
+
 function formatArgs(toolName: string, args: unknown): string {
   const display = resolveToolDisplay({ name: toolName, args });
   const detail = formatToolDetail(display);
@@ -62,6 +71,8 @@ export class ToolExecutionComponent extends Container {
   private expanded = false;
   private isError = false;
   private isPartial = true;
+  private startedAt = Date.now();
+  private finishedAt: number | null = null;
 
   constructor(toolName: string, args: unknown) {
     super();
@@ -95,6 +106,7 @@ export class ToolExecutionComponent extends Container {
     this.result = result;
     this.isPartial = false;
     this.isError = Boolean(opts?.isError);
+    this.finishedAt = Date.now();
     this.refresh();
   }
 
@@ -116,7 +128,11 @@ export class ToolExecutionComponent extends Container {
       name: this.toolName,
       args: this.args,
     });
-    const title = `${display.emoji} ${display.label}${this.isPartial ? " (running)" : ""}`;
+    const elapsed = this.finishedAt
+      ? formatElapsed(this.finishedAt - this.startedAt)
+      : formatElapsed(Date.now() - this.startedAt);
+    const status = this.isPartial ? ` (running ${elapsed})` : ` (${elapsed})`;
+    const title = `${display.emoji} ${display.label}${status}`;
     this.header.setText(theme.toolTitle(theme.bold(title)));
 
     const argLine = formatArgs(this.toolName, this.args);
@@ -126,9 +142,13 @@ export class ToolExecutionComponent extends Container {
     const text = raw || (this.isPartial ? "…" : "");
     if (!this.expanded && text) {
       const lines = text.split("\n");
-      const preview =
-        lines.length > PREVIEW_LINES ? `${lines.slice(0, PREVIEW_LINES).join("\n")}\n…` : text;
-      this.output.setText(preview);
+      if (lines.length > PREVIEW_LINES) {
+        const hidden = lines.length - PREVIEW_LINES;
+        const preview = `${lines.slice(0, PREVIEW_LINES).join("\n")}\n… ${hidden} more line${hidden === 1 ? "" : "s"}`;
+        this.output.setText(preview);
+      } else {
+        this.output.setText(text);
+      }
     } else {
       this.output.setText(text);
     }

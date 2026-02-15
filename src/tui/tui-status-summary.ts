@@ -78,6 +78,18 @@ export function formatStatusSummary(summary: GatewayStatusSummary) {
     }
   }
 
+  const mcpServers = Array.isArray(summary.mcpServers) ? summary.mcpServers : [];
+  if (mcpServers.length > 0) {
+    lines.push("");
+    lines.push("MCP servers:");
+    for (const server of mcpServers) {
+      const transport = server.transport ? ` (${server.transport})` : "";
+      lines.push(
+        `  ${server.name}: ${server.tools} tool${server.tools === 1 ? "" : "s"}${transport}`,
+      );
+    }
+  }
+
   const queued = Array.isArray(summary.queuedSystemEvents) ? summary.queuedSystemEvents : [];
   if (queued.length > 0) {
     const preview = queued.slice(0, 3).join(" | ");

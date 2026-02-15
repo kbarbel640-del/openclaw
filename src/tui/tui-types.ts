@@ -63,6 +63,11 @@ export type GatewayStatusSummary = {
     }>;
   };
   providerSummary?: string[];
+  mcpServers?: Array<{
+    name: string;
+    tools: number;
+    transport?: string;
+  }>;
   queuedSystemEvents?: string[];
   sessions?: {
     paths?: string[];

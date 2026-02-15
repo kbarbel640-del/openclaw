@@ -279,18 +279,35 @@ export function createCommandHandlers(context: CommandHandlerContext) {
           chatLog.addSystem("no agent definitions found");
           break;
         }
-        if (!args) {
-          chatLog.addSystem(`available definitions: ${definitionIds.join(", ")}`);
+        if (args) {
+          if (!definitionIds.includes(args)) {
+            chatLog.addSystem(
+              `definition '${args}' not found. available: ${definitionIds.join(", ")}`,
+            );
+            break;
+          }
+          state.currentAgentDefinitionId = args;
+          chatLog.addSystem(`agent definition set to ${args}`);
           break;
         }
-        if (!definitionIds.includes(args)) {
-          chatLog.addSystem(
-            `definition '${args}' not found. available: ${definitionIds.join(", ")}`,
-          );
-          break;
-        }
-        state.currentAgentDefinitionId = args;
-        chatLog.addSystem(`agent definition set to ${args}`);
+        const defItems = definitionIds.map((id) => ({
+          value: id,
+          label: id,
+          description: id === state.currentAgentDefinitionId ? "active" : "",
+        }));
+        const defSelector = createFilterableSelectList(defItems, 9);
+        defSelector.onSelect = (item) => {
+          state.currentAgentDefinitionId = item.value;
+          chatLog.addSystem(`agent definition set to ${item.value}`);
+          closeOverlay();
+          tui.requestRender();
+        };
+        defSelector.onCancel = () => {
+          closeOverlay();
+          tui.requestRender();
+        };
+        openOverlay(defSelector);
+        tui.requestRender();
         break;
       }
       case "session":
