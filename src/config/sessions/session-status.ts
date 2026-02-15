@@ -21,6 +21,7 @@ export const SESSION_STATUS_FIELD_NAMES = [
   "totalTokens",
   "totalTokensFresh",
   "contextTokens",
+  "resolvedModel",
 ] as const;
 
 export type SessionStatusFieldName = (typeof SESSION_STATUS_FIELD_NAMES)[number];
