@@ -1,7 +1,7 @@
+import type { ChannelOutboundAdapter } from "../types.js";
 import { chunkText } from "../../../auto-reply/chunk.js";
 import { sendMessageIMessage } from "../../../imessage/send.js";
 import { resolveChannelMediaMaxBytes } from "../media-limits.js";
-import type { ChannelOutboundAdapter } from "../types.js";
 
 export const imessageOutbound: ChannelOutboundAdapter = {
   deliveryMode: "direct",
@@ -23,7 +23,7 @@ export const imessageOutbound: ChannelOutboundAdapter = {
     });
     return { channel: "imessage", ...result };
   },
-  sendMedia: async ({ cfg, to, text, mediaUrl, accountId, deps }) => {
+  sendMedia: async ({ cfg, to, text, mediaUrl, mediaLocalRoots, accountId, deps }) => {
     const send = deps?.sendIMessage ?? sendMessageIMessage;
     const maxBytes = resolveChannelMediaMaxBytes({
       cfg,
@@ -36,6 +36,7 @@ export const imessageOutbound: ChannelOutboundAdapter = {
       mediaUrl,
       maxBytes,
       accountId: accountId ?? undefined,
+      mediaLocalRoots,
     });
     return { channel: "imessage", ...result };
   },

@@ -1,11 +1,10 @@
-import path from "node:path";
-
 import { Type } from "@sinclair/typebox";
-
-import { loadConfig } from "../../config/config.js";
-import { callGateway } from "../../gateway/call.js";
-import { isSubagentSessionKey, resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
+import path from "node:path";
 import type { AnyAgentTool } from "./common.js";
+import { loadConfig } from "../../config/config.js";
+import { resolveSessionFilePath } from "../../config/sessions.js";
+import { callGateway } from "../../gateway/call.js";
+import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { jsonResult, readStringArrayParam } from "./common.js";
 import {
   createAgentToAgentPolicy,
@@ -13,7 +12,7 @@ import {
   deriveChannel,
   resolveDisplaySessionKey,
   resolveInternalSessionKey,
-  resolveMainSessionAlias,
+  resolveSandboxedSessionToolContext,
   type SessionListRow,
   stripToolMessages,
 } from "./sessions-helpers.js";
@@ -24,10 +23,6 @@ const SessionsListToolSchema = Type.Object({
   activeMinutes: Type.Optional(Type.Number({ minimum: 1 })),
   messageLimit: Type.Optional(Type.Number({ minimum: 0 })),
 });
-
-function resolveSandboxSessionToolsVisibility(cfg: ReturnType<typeof loadConfig>) {
-  return cfg.agents?.defaults?.sandbox?.sessionToolsVisibility ?? "spawned";
-}
 
 export function createSessionsListTool(opts?: {
   agentSessionKey?: string;
@@ -41,21 +36,12 @@ export function createSessionsListTool(opts?: {
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const cfg = loadConfig();
-      const { mainKey, alias } = resolveMainSessionAlias(cfg);
-      const visibility = resolveSandboxSessionToolsVisibility(cfg);
-      const requesterInternalKey =
-        typeof opts?.agentSessionKey === "string" && opts.agentSessionKey.trim()
-          ? resolveInternalSessionKey({
-              key: opts.agentSessionKey,
-              alias,
-              mainKey,
-            })
-          : undefined;
-      const restrictToSpawned =
-        opts?.sandboxed === true &&
-        visibility === "spawned" &&
-        requesterInternalKey &&
-        !isSubagentSessionKey(requesterInternalKey);
+      const { mainKey, alias, requesterInternalKey, restrictToSpawned } =
+        resolveSandboxedSessionToolContext({
+          cfg,
+          agentSessionKey: opts?.agentSessionKey,
+          sandboxed: opts?.sandboxed,
+        });
 
       const kindsRaw = readStringArrayParam(params, "kinds")?.map((value) =>
         value.trim().toLowerCase(),
@@ -79,7 +65,7 @@ export function createSessionsListTool(opts?: {
           : 0;
       const messageLimit = Math.min(messageLimitRaw, 20);
 
-      const list = (await callGateway({
+      const list = await callGateway<{ sessions: Array<SessionListRow>; path: string }>({
         method: "sessions.list",
         params: {
           limit,
@@ -88,10 +74,7 @@ export function createSessionsListTool(opts?: {
           includeUnknown: !restrictToSpawned,
           spawnedBy: restrictToSpawned ? requesterInternalKey : undefined,
         },
-      })) as {
-        path?: string;
-        sessions?: Array<Record<string, unknown>>;
-      };
+      });
 
       const sessions = Array.isArray(list?.sessions) ? list.sessions : [];
       const storePath = typeof list?.path === "string" ? list.path : undefined;
@@ -100,20 +83,32 @@ export function createSessionsListTool(opts?: {
       const rows: SessionListRow[] = [];
 
       for (const entry of sessions) {
-        if (!entry || typeof entry !== "object") continue;
+        if (!entry || typeof entry !== "object") {
+          continue;
+        }
         const key = typeof entry.key === "string" ? entry.key : "";
-        if (!key) continue;
+        if (!key) {
+          continue;
+        }
 
         const entryAgentId = resolveAgentIdFromSessionKey(key);
         const crossAgent = entryAgentId !== requesterAgentId;
-        if (crossAgent && !a2aPolicy.isAllowed(requesterAgentId, entryAgentId)) continue;
+        if (crossAgent && !a2aPolicy.isAllowed(requesterAgentId, entryAgentId)) {
+          continue;
+        }
 
-        if (key === "unknown") continue;
-        if (key === "global" && alias !== "global") continue;
+        if (key === "unknown") {
+          continue;
+        }
+        if (key === "global" && alias !== "global") {
+          continue;
+        }
 
         const gatewayKind = typeof entry.kind === "string" ? entry.kind : undefined;
         const kind = classifySessionKind({ key, gatewayKind, alias, mainKey });
-        if (allowedKinds && !allowedKinds.has(kind)) continue;
+        if (allowedKinds && !allowedKinds.has(kind)) {
+          continue;
+        }
 
         const displayKey = resolveDisplaySessionKey({
           key,
@@ -145,10 +140,23 @@ export function createSessionsListTool(opts?: {
         });
 
         const sessionId = typeof entry.sessionId === "string" ? entry.sessionId : undefined;
-        const transcriptPath =
-          sessionId && storePath
-            ? path.join(path.dirname(storePath), `${sessionId}.jsonl`)
-            : undefined;
+        const sessionFileRaw = (entry as { sessionFile?: unknown }).sessionFile;
+        const sessionFile = typeof sessionFileRaw === "string" ? sessionFileRaw : undefined;
+        let transcriptPath: string | undefined;
+        if (sessionId && storePath) {
+          try {
+            transcriptPath = resolveSessionFilePath(
+              sessionId,
+              sessionFile ? { sessionFile } : undefined,
+              {
+                agentId: resolveAgentIdFromSessionKey(key),
+                sessionsDir: path.dirname(storePath),
+              },
+            );
+          } catch {
+            transcriptPath = undefined;
+          }
+        }
 
         const row: SessionListRow = {
           key: displayKey,
@@ -187,10 +195,10 @@ export function createSessionsListTool(opts?: {
             alias,
             mainKey,
           });
-          const history = (await callGateway({
+          const history = await callGateway<{ messages: Array<unknown> }>({
             method: "chat.history",
             params: { sessionKey: resolvedKey, limit: messageLimit },
-          })) as { messages?: unknown[] };
+          });
           const rawMessages = Array.isArray(history?.messages) ? history.messages : [];
           const filtered = stripToolMessages(rawMessages);
           row.messages = filtered.length > messageLimit ? filtered.slice(-messageLimit) : filtered;

@@ -1,6 +1,6 @@
 import { z } from "zod";
-
 import { parseDurationMs } from "../cli/parse-duration.js";
+import { AgentModelSchema } from "./zod-schema.agent-model.js";
 import {
   GroupChatSchema,
   HumanDelaySchema,
@@ -8,6 +8,7 @@ import {
   ToolsLinksSchema,
   ToolsMediaSchema,
 } from "./zod-schema.core.js";
+import { sensitive } from "./zod-schema.sensitive.js";
 
 export const HeartbeatSchema = z
   .object({
@@ -25,12 +26,15 @@ export const HeartbeatSchema = z
     includeReasoning: z.boolean().optional(),
     target: z.string().optional(),
     to: z.string().optional(),
+    accountId: z.string().optional(),
     prompt: z.string().optional(),
     ackMaxChars: z.number().int().nonnegative().optional(),
   })
   .strict()
   .superRefine((val, ctx) => {
-    if (!val.every) return;
+    if (!val.every) {
+      return;
+    }
     try {
       parseDurationMs(val.every, { defaultUnit: "m" });
     } catch {
@@ -42,10 +46,14 @@ export const HeartbeatSchema = z
     }
 
     const active = val.activeHours;
-    if (!active) return;
+    if (!active) {
+      return;
+    }
     const timePattern = /^([01]\d|2[0-3]|24):([0-5]\d)$/;
     const validateTime = (raw: string | undefined, opts: { allow24: boolean }, path: string) => {
-      if (!raw) return;
+      if (!raw) {
+        return;
+      }
       if (!timePattern.test(raw)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -132,6 +140,7 @@ export const SandboxBrowserSchema = z
     allowHostControl: z.boolean().optional(),
     autoStart: z.boolean().optional(),
     autoStartTimeoutMs: z.number().int().positive().optional(),
+    binds: z.array(z.string()).optional(),
   })
   .strict()
   .optional();
@@ -165,16 +174,24 @@ export const ToolPolicySchema = ToolPolicyBaseSchema.superRefine((value, ctx) =>
 export const ToolsWebSearchSchema = z
   .object({
     enabled: z.boolean().optional(),
-    provider: z.union([z.literal("brave"), z.literal("perplexity")]).optional(),
-    apiKey: z.string().optional(),
+    provider: z.union([z.literal("brave"), z.literal("perplexity"), z.literal("grok")]).optional(),
+    apiKey: z.string().optional().register(sensitive),
     maxResults: z.number().int().positive().optional(),
     timeoutSeconds: z.number().int().positive().optional(),
     cacheTtlMinutes: z.number().nonnegative().optional(),
     perplexity: z
       .object({
-        apiKey: z.string().optional(),
+        apiKey: z.string().optional().register(sensitive),
         baseUrl: z.string().optional(),
         model: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    grok: z
+      .object({
+        apiKey: z.string().optional().register(sensitive),
+        model: z.string().optional(),
+        inlineCitations: z.boolean().optional(),
       })
       .strict()
       .optional(),
@@ -186,6 +203,7 @@ export const ToolsWebFetchSchema = z
   .object({
     enabled: z.boolean().optional(),
     maxChars: z.number().int().positive().optional(),
+    maxCharsCap: z.number().int().positive().optional(),
     timeoutSeconds: z.number().int().positive().optional(),
     cacheTtlMinutes: z.number().nonnegative().optional(),
     maxRedirects: z.number().int().nonnegative().optional(),
@@ -229,6 +247,47 @@ export const ElevatedAllowFromSchema = z
   .record(z.string(), z.array(z.union([z.string(), z.number()])))
   .optional();
 
+const ToolExecApplyPatchSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    workspaceOnly: z.boolean().optional(),
+    allowModels: z.array(z.string()).optional(),
+  })
+  .strict()
+  .optional();
+
+const ToolExecBaseShape = {
+  host: z.enum(["sandbox", "gateway", "node"]).optional(),
+  security: z.enum(["deny", "allowlist", "full"]).optional(),
+  ask: z.enum(["off", "on-miss", "always"]).optional(),
+  node: z.string().optional(),
+  pathPrepend: z.array(z.string()).optional(),
+  safeBins: z.array(z.string()).optional(),
+  backgroundMs: z.number().int().positive().optional(),
+  timeoutSec: z.number().int().positive().optional(),
+  cleanupMs: z.number().int().positive().optional(),
+  notifyOnExit: z.boolean().optional(),
+  notifyOnExitEmptySuccess: z.boolean().optional(),
+  applyPatch: ToolExecApplyPatchSchema,
+} as const;
+
+const AgentToolExecSchema = z
+  .object({
+    ...ToolExecBaseShape,
+    approvalRunningNoticeMs: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+  .optional();
+
+const ToolExecSchema = z.object(ToolExecBaseShape).strict().optional();
+
+const ToolFsSchema = z
+  .object({
+    workspaceOnly: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
 export const AgentSandboxSchema = z
   .object({
     mode: z.union([z.literal("off"), z.literal("non-main"), z.literal("all")]).optional(),
@@ -258,29 +317,8 @@ export const AgentToolsSchema = z
       })
       .strict()
       .optional(),
-    exec: z
-      .object({
-        host: z.enum(["sandbox", "gateway", "node"]).optional(),
-        security: z.enum(["deny", "allowlist", "full"]).optional(),
-        ask: z.enum(["off", "on-miss", "always"]).optional(),
-        node: z.string().optional(),
-        pathPrepend: z.array(z.string()).optional(),
-        safeBins: z.array(z.string()).optional(),
-        backgroundMs: z.number().int().positive().optional(),
-        timeoutSec: z.number().int().positive().optional(),
-        approvalRunningNoticeMs: z.number().int().nonnegative().optional(),
-        cleanupMs: z.number().int().positive().optional(),
-        notifyOnExit: z.boolean().optional(),
-        applyPatch: z
-          .object({
-            enabled: z.boolean().optional(),
-            allowModels: z.array(z.string()).optional(),
-          })
-          .strict()
-          .optional(),
-      })
-      .strict()
-      .optional(),
+    exec: AgentToolExecSchema,
+    fs: ToolFsSchema,
     sandbox: z
       .object({
         tools: ToolPolicySchema,
@@ -311,11 +349,13 @@ export const MemorySearchSchema = z
       })
       .strict()
       .optional(),
-    provider: z.union([z.literal("openai"), z.literal("local"), z.literal("gemini")]).optional(),
+    provider: z
+      .union([z.literal("openai"), z.literal("local"), z.literal("gemini"), z.literal("voyage")])
+      .optional(),
     remote: z
       .object({
         baseUrl: z.string().optional(),
-        apiKey: z.string().optional(),
+        apiKey: z.string().optional().register(sensitive),
         headers: z.record(z.string(), z.string()).optional(),
         batch: z
           .object({
@@ -331,7 +371,13 @@ export const MemorySearchSchema = z
       .strict()
       .optional(),
     fallback: z
-      .union([z.literal("openai"), z.literal("gemini"), z.literal("local"), z.literal("none")])
+      .union([
+        z.literal("openai"),
+        z.literal("gemini"),
+        z.literal("local"),
+        z.literal("voyage"),
+        z.literal("none"),
+      ])
       .optional(),
     model: z.string().optional(),
     local: z
@@ -405,15 +451,7 @@ export const MemorySearchSchema = z
   })
   .strict()
   .optional();
-export const AgentModelSchema = z.union([
-  z.string(),
-  z
-    .object({
-      primary: z.string().optional(),
-      fallbacks: z.array(z.string()).optional(),
-    })
-    .strict(),
-]);
+export { AgentModelSchema };
 export const AgentEntrySchema = z
   .object({
     id: z.string(),
@@ -422,6 +460,7 @@ export const AgentEntrySchema = z
     workspace: z.string().optional(),
     agentDir: z.string().optional(),
     model: AgentModelSchema.optional(),
+    skills: z.array(z.string()).optional(),
     memorySearch: MemorySearchSchema,
     humanDelay: HumanDelaySchema.optional(),
     heartbeat: HeartbeatSchema,
@@ -441,6 +480,7 @@ export const AgentEntrySchema = z
               .strict(),
           ])
           .optional(),
+        thinking: z.string().optional(),
       })
       .strict()
       .optional(),
@@ -500,28 +540,8 @@ export const ToolsSchema = z
       })
       .strict()
       .optional(),
-    exec: z
-      .object({
-        host: z.enum(["sandbox", "gateway", "node"]).optional(),
-        security: z.enum(["deny", "allowlist", "full"]).optional(),
-        ask: z.enum(["off", "on-miss", "always"]).optional(),
-        node: z.string().optional(),
-        pathPrepend: z.array(z.string()).optional(),
-        safeBins: z.array(z.string()).optional(),
-        backgroundMs: z.number().int().positive().optional(),
-        timeoutSec: z.number().int().positive().optional(),
-        cleanupMs: z.number().int().positive().optional(),
-        notifyOnExit: z.boolean().optional(),
-        applyPatch: z
-          .object({
-            enabled: z.boolean().optional(),
-            allowModels: z.array(z.string()).optional(),
-          })
-          .strict()
-          .optional(),
-      })
-      .strict()
-      .optional(),
+    exec: ToolExecSchema,
+    fs: ToolFsSchema,
     subagents: z
       .object({
         tools: ToolPolicySchema,

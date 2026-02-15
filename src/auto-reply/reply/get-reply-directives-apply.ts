@@ -3,6 +3,8 @@ import type { SessionEntry } from "../../config/sessions.js";
 import type { MsgContext } from "../templating.js";
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "../thinking.js";
 import type { ReplyPayload } from "../types.js";
+import type { createModelSelectionState } from "./model-selection.js";
+import type { TypingController } from "./typing.js";
 import { buildStatusReply } from "./commands.js";
 import {
   applyInlineDirectivesFastLane,
@@ -11,8 +13,7 @@ import {
   isDirectiveOnly,
   persistInlineDirectives,
 } from "./directive-handling.js";
-import type { createModelSelectionState } from "./model-selection.js";
-import type { TypingController } from "./typing.js";
+import { clearInlineDirectives } from "./get-reply-directives-utils.js";
 
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 
@@ -104,31 +105,7 @@ export async function applyInlineDirectiveOverrides(params: {
   let directiveAck: ReplyPayload | undefined;
 
   if (!command.isAuthorizedSender) {
-    directives = {
-      ...directives,
-      hasThinkDirective: false,
-      hasVerboseDirective: false,
-      hasReasoningDirective: false,
-      hasElevatedDirective: false,
-      hasExecDirective: false,
-      execHost: undefined,
-      execSecurity: undefined,
-      execAsk: undefined,
-      execNode: undefined,
-      rawExecHost: undefined,
-      rawExecSecurity: undefined,
-      rawExecAsk: undefined,
-      rawExecNode: undefined,
-      hasExecOptions: false,
-      invalidExecHost: false,
-      invalidExecSecurity: false,
-      invalidExecAsk: false,
-      invalidExecNode: false,
-      hasStatusDirective: false,
-      hasModelDirective: false,
-      hasQueueDirective: false,
-      queueReset: false,
-    };
+    directives = clearInlineDirectives(directives.cleaned);
   }
 
   if (
@@ -183,6 +160,7 @@ export async function applyInlineDirectiveOverrides(params: {
       currentVerboseLevel,
       currentReasoningLevel,
       currentElevatedLevel,
+      surface: ctx.Surface,
     });
     let statusReply: ReplyPayload | undefined;
     if (directives.hasStatusDirective && allowTextCommands && command.isAuthorizedSender) {
@@ -196,8 +174,8 @@ export async function applyInlineDirectiveOverrides(params: {
         model,
         contextTokens,
         resolvedThinkLevel: resolvedDefaultThinkLevel,
-        resolvedVerboseLevel: (currentVerboseLevel ?? "off") as VerboseLevel,
-        resolvedReasoningLevel: (currentReasoningLevel ?? "off") as ReasoningLevel,
+        resolvedVerboseLevel: currentVerboseLevel ?? "off",
+        resolvedReasoningLevel: currentReasoningLevel ?? "off",
         resolvedElevatedLevel,
         resolveDefaultThinkingLevel: async () => resolvedDefaultThinkLevel,
         isGroup,

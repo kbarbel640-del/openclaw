@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import { looksLikeSignalTargetId, normalizeSignalMessagingTarget } from "./signal.js";
 
 describe("signal target normalization", () => {
@@ -13,6 +12,12 @@ describe("signal target normalization", () => {
     expect(normalizeSignalMessagingTarget("signal:uuid:123E4567-E89B-12D3-A456-426614174000")).toBe(
       "123e4567-e89b-12d3-a456-426614174000",
     );
+  });
+
+  it("preserves case for group targets", () => {
+    expect(
+      normalizeSignalMessagingTarget("signal:group:VWATOdKF2hc8zdOS76q9tb0+5BI522e03QLDAq/9yPg="),
+    ).toBe("group:VWATOdKF2hc8zdOS76q9tb0+5BI522e03QLDAq/9yPg=");
   });
 
   it("accepts uuid prefixes for target detection", () => {

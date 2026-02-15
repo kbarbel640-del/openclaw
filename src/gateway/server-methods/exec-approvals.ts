@@ -1,8 +1,9 @@
+import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 import {
   ensureExecApprovals,
+  mergeExecApprovalsSocketDefaults,
   normalizeExecApprovals,
   readExecApprovalsSnapshot,
-  resolveExecApprovalsSocketPath,
   saveExecApprovals,
   type ExecApprovalsFile,
   type ExecApprovalsSnapshot,
@@ -17,11 +18,12 @@ import {
   validateExecApprovalsSetParams,
 } from "../protocol/index.js";
 import { respondUnavailableOnThrow, safeParseJson } from "./nodes.helpers.js";
-import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 
 function resolveBaseHash(params: unknown): string | null {
   const raw = (params as { baseHash?: unknown })?.baseHash;
-  if (typeof raw !== "string") return null;
+  if (typeof raw !== "string") {
+    return null;
+  }
   const trimmed = raw.trim();
   return trimmed ? trimmed : null;
 }
@@ -31,7 +33,9 @@ function requireApprovalsBaseHash(
   snapshot: ExecApprovalsSnapshot,
   respond: RespondFn,
 ): boolean {
-  if (!snapshot.exists) return true;
+  if (!snapshot.exists) {
+    return true;
+  }
   if (!snapshot.hash) {
     respond(
       false,
@@ -130,18 +134,7 @@ export const execApprovalsHandlers: GatewayRequestHandlers = {
       return;
     }
     const normalized = normalizeExecApprovals(incoming as ExecApprovalsFile);
-    const currentSocketPath = snapshot.file.socket?.path?.trim();
-    const currentToken = snapshot.file.socket?.token?.trim();
-    const socketPath =
-      normalized.socket?.path?.trim() ?? currentSocketPath ?? resolveExecApprovalsSocketPath();
-    const token = normalized.socket?.token?.trim() ?? currentToken ?? "";
-    const next: ExecApprovalsFile = {
-      ...normalized,
-      socket: {
-        path: socketPath,
-        token,
-      },
-    };
+    const next = mergeExecApprovalsSocketDefaults({ normalized, current: snapshot.file });
     saveExecApprovals(next);
     const nextSnapshot = readExecApprovalsSnapshot();
     respond(

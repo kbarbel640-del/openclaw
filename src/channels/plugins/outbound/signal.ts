@@ -1,7 +1,7 @@
+import type { ChannelOutboundAdapter } from "../types.js";
 import { chunkText } from "../../../auto-reply/chunk.js";
 import { sendMessageSignal } from "../../../signal/send.js";
 import { resolveChannelMediaMaxBytes } from "../media-limits.js";
-import type { ChannelOutboundAdapter } from "../types.js";
 
 export const signalOutbound: ChannelOutboundAdapter = {
   deliveryMode: "direct",
@@ -22,7 +22,7 @@ export const signalOutbound: ChannelOutboundAdapter = {
     });
     return { channel: "signal", ...result };
   },
-  sendMedia: async ({ cfg, to, text, mediaUrl, accountId, deps }) => {
+  sendMedia: async ({ cfg, to, text, mediaUrl, mediaLocalRoots, accountId, deps }) => {
     const send = deps?.sendSignal ?? sendMessageSignal;
     const maxBytes = resolveChannelMediaMaxBytes({
       cfg,
@@ -34,6 +34,7 @@ export const signalOutbound: ChannelOutboundAdapter = {
       mediaUrl,
       maxBytes,
       accountId: accountId ?? undefined,
+      mediaLocalRoots,
     });
     return { channel: "signal", ...result };
   },

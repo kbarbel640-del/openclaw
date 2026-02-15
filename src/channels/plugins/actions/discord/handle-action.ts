@@ -1,19 +1,23 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
+import type { ChannelMessageActionContext } from "../../types.js";
 import {
   readNumberParam,
   readStringArrayParam,
   readStringParam,
 } from "../../../../agents/tools/common.js";
 import { handleDiscordAction } from "../../../../agents/tools/discord-actions.js";
-import type { ChannelMessageActionContext } from "../../types.js";
-import { tryHandleDiscordMessageActionGuildAdmin } from "./handle-action.guild-admin.js";
 import { resolveDiscordChannelId } from "../../../../discord/targets.js";
+import { tryHandleDiscordMessageActionGuildAdmin } from "./handle-action.guild-admin.js";
 
 const providerId = "discord";
 
 function readParentIdParam(params: Record<string, unknown>): string | null | undefined {
-  if (params.clearParent === true) return null;
-  if (params.parentId === null) return null;
+  if (params.clearParent === true) {
+    return null;
+  }
+  if (params.parentId === null) {
+    return null;
+  }
   return readStringParam(params, "parentId");
 }
 
@@ -30,13 +34,25 @@ export async function handleDiscordMessageAction(
 
   if (action === "send") {
     const to = readStringParam(params, "to", { required: true });
+    const asVoice = params.asVoice === true;
+    const rawComponents = params.components;
+    const components =
+      rawComponents && (Array.isArray(rawComponents) || typeof rawComponents === "function")
+        ? rawComponents
+        : undefined;
     const content = readStringParam(params, "message", {
-      required: true,
+      required: !asVoice,
       allowEmpty: true,
     });
-    const mediaUrl = readStringParam(params, "media", { trim: false });
+    // Support media, path, and filePath for media URL
+    const mediaUrl =
+      readStringParam(params, "media", { trim: false }) ??
+      readStringParam(params, "path", { trim: false }) ??
+      readStringParam(params, "filePath", { trim: false });
     const replyTo = readStringParam(params, "replyTo");
-    const embeds = Array.isArray(params.embeds) ? params.embeds : undefined;
+    const rawEmbeds = params.embeds;
+    const embeds = Array.isArray(rawEmbeds) ? rawEmbeds : undefined;
+    const silent = params.silent === true;
     return await handleDiscordAction(
       {
         action: "sendMessage",
@@ -45,7 +61,10 @@ export async function handleDiscordMessageAction(
         content,
         mediaUrl: mediaUrl ?? undefined,
         replyTo: replyTo ?? undefined,
+        components,
         embeds,
+        asVoice,
+        silent,
       },
       cfg,
     );
@@ -180,6 +199,7 @@ export async function handleDiscordMessageAction(
   if (action === "thread-create") {
     const name = readStringParam(params, "threadName", { required: true });
     const messageId = readStringParam(params, "messageId");
+    const content = readStringParam(params, "message");
     const autoArchiveMinutes = readNumberParam(params, "autoArchiveMin", {
       integer: true,
     });
@@ -190,6 +210,7 @@ export async function handleDiscordMessageAction(
         channelId: resolveChannelId(),
         name,
         messageId,
+        content,
         autoArchiveMinutes,
       },
       cfg,
@@ -214,12 +235,29 @@ export async function handleDiscordMessageAction(
     );
   }
 
+  if (action === "set-presence") {
+    return await handleDiscordAction(
+      {
+        action: "setPresence",
+        accountId: accountId ?? undefined,
+        status: readStringParam(params, "status"),
+        activityType: readStringParam(params, "activityType"),
+        activityName: readStringParam(params, "activityName"),
+        activityUrl: readStringParam(params, "activityUrl"),
+        activityState: readStringParam(params, "activityState"),
+      },
+      cfg,
+    );
+  }
+
   const adminResult = await tryHandleDiscordMessageActionGuildAdmin({
     ctx,
     resolveChannelId,
     readParentIdParam,
   });
-  if (adminResult !== undefined) return adminResult;
+  if (adminResult !== undefined) {
+    return adminResult;
+  }
 
   throw new Error(`Action ${String(action)} is not supported for provider ${providerId}.`);
 }
