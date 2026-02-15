@@ -107,7 +107,7 @@ const LINE_RULES: LineRule[] = [
     pattern: /stratum\+tcp|stratum\+ssl|coinhive|cryptonight|xmrig/i,
   },
   {
-    ruleId: "suspicious.suspicious_network",
+    ruleId: "suspicious.nonstandard_network",
     severity: "warn",
     message: "WebSocket connection to non-standard port",
     pattern: /new\s+WebSocket\s*\(\s*["']wss?:\/\/[^"']*:(\d+)/,
@@ -214,7 +214,7 @@ export function scanSource(source: string, filePath: string): SkillScanFinding[]
       }
 
       // Special handling for suspicious network: check port
-      if (rule.ruleId === "suspicious.suspicious_network") {
+      if (rule.ruleId === "suspicious.nonstandard_network") {
         const port = parseInt(match[1], 10);
         if (STANDARD_PORTS.has(port)) {
           continue;

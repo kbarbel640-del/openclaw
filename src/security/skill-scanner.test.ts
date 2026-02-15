@@ -145,7 +145,7 @@ const ws = new WebSocket("ws://remote.host:9999");
 `;
     const findings = scanSource(source, "plugin.ts");
     expect(
-      findings.some((f) => f.ruleId === "suspicious.suspicious_network" && f.severity === "warn"),
+      findings.some((f) => f.ruleId === "suspicious.nonstandard_network" && f.severity === "warn"),
     ).toBe(true);
   });
 
