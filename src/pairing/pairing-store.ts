@@ -2,10 +2,10 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import lockfile from "proper-lockfile";
 import type { ChannelId, ChannelPairingAdapter } from "../channels/plugins/types.js";
 import { getPairingAdapter } from "../channels/plugins/pairing.js";
 import { resolveOAuthDir, resolveStateDir } from "../config/paths.js";
+import { withFileLock as withPathLock } from "../infra/file-lock.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import { safeParseJson } from "../utils.js";
 
@@ -118,19 +118,9 @@ async function withFileLock<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   await ensureJsonFile(filePath, fallback);
-  let release: (() => Promise<void>) | undefined;
-  try {
-    release = await lockfile.lock(filePath, PAIRING_STORE_LOCK_OPTIONS);
+  return await withPathLock(filePath, PAIRING_STORE_LOCK_OPTIONS, async () => {
     return await fn();
-  } finally {
-    if (release) {
-      try {
-        await release();
-      } catch {
-        // ignore unlock errors
-      }
-    }
-  }
+  });
 }
 
 function parseTimestamp(value: string | undefined): number | null {
@@ -214,6 +204,15 @@ function normalizeAllowEntry(channel: PairingChannel, entry: string): string {
   return String(normalized).trim();
 }
 
+function normalizeAllowFromList(channel: PairingChannel, store: AllowFromStore): string[] {
+  const list = Array.isArray(store.allowFrom) ? store.allowFrom : [];
+  return list.map((v) => normalizeAllowEntry(channel, String(v))).filter(Boolean);
+}
+
+function normalizeAllowFromInput(channel: PairingChannel, entry: string | number): string {
+  return normalizeAllowEntry(channel, normalizeId(entry));
+}
+
 export async function readChannelAllowFromStore(
   channel: PairingChannel,
   env: NodeJS.ProcessEnv = process.env,
@@ -223,8 +222,7 @@ export async function readChannelAllowFromStore(
     version: 1,
     allowFrom: [],
   });
-  const list = Array.isArray(value.allowFrom) ? value.allowFrom : [];
-  return list.map((v) => normalizeAllowEntry(channel, String(v))).filter(Boolean);
+  return normalizeAllowFromList(channel, value);
 }
 
 export async function addChannelAllowFromStoreEntry(params: {
@@ -242,10 +240,8 @@ export async function addChannelAllowFromStoreEntry(params: {
         version: 1,
         allowFrom: [],
       });
-      const current = (Array.isArray(value.allowFrom) ? value.allowFrom : [])
-        .map((v) => normalizeAllowEntry(params.channel, String(v)))
-        .filter(Boolean);
-      const normalized = normalizeAllowEntry(params.channel, normalizeId(params.entry));
+      const current = normalizeAllowFromList(params.channel, value);
+      const normalized = normalizeAllowFromInput(params.channel, params.entry);
       if (!normalized) {
         return { changed: false, allowFrom: current };
       }
@@ -277,10 +273,8 @@ export async function removeChannelAllowFromStoreEntry(params: {
         version: 1,
         allowFrom: [],
       });
-      const current = (Array.isArray(value.allowFrom) ? value.allowFrom : [])
-        .map((v) => normalizeAllowEntry(params.channel, String(v)))
-        .filter(Boolean);
-      const normalized = normalizeAllowEntry(params.channel, normalizeId(params.entry));
+      const current = normalizeAllowFromList(params.channel, value);
+      const normalized = normalizeAllowFromInput(params.channel, params.entry);
       if (!normalized) {
         return { changed: false, allowFrom: current };
       }
