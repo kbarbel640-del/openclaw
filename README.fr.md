@@ -230,7 +230,7 @@ Il est tout à fait possible de faire tourner la Gateway sur une petite instance
 - **Device nodes** exécutent les actions locales (`system.run`, caméra, enregistrement écran, notifications) via `node.invoke`.
   En bref : exec tourne là où est la Gateway ; les actions appareil tournent là où est l'appareil.
 
-Détails : [Accès distant](https://docs.openclaw.ai/gateway/remote) · [Nœuds](https://docs.openclaw.ai/nodes) · [Semurité](https://docs.openclaw.ai/gateway/security)
+Détails : [Accès distant](https://docs.openclaw.ai/gateway/remote) · [Nœuds](https://docs.openclaw.ai/nodes) · [Sécurité](https://docs.openclaw.ai/gateway/security)
 
 ## Permissions macOS via le protocole Gateway
 
