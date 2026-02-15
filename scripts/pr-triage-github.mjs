@@ -2,9 +2,15 @@
  * GitHub API helpers and shared utilities for PR triage.
  * Handles data fetching, pagination, PR summary generation,
  * input sanitization, output validation, and deterministic signals.
+ *
+ * Rate limit budget: uses GraphQL for batch file fetching (~10 calls
+ * instead of ~500 REST calls). Checks budget before starting and
+ * degrades gracefully when rate-limited.
  */
 
 const GITHUB_API = "https://api.github.com";
+const GRAPHQL_API = "https://api.github.com/graphql";
+const MIN_RATE_LIMIT_BUDGET = 100;
 
 export function createGitHubClient(token) {
   async function gh(path, opts = {}) {
@@ -35,6 +41,26 @@ export function createGitHubClient(token) {
     throw new Error(`GitHub API failed after 3 retries: ${path}`);
   }
 
+  async function ghGraphQL(query, variables = {}) {
+    const res = await fetch(GRAPHQL_API, {
+      method: "POST",
+      headers: {
+        Authorization: `bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`GitHub GraphQL ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    if (data.errors?.length) {
+      throw new Error(`GraphQL error: ${data.errors[0].message}`);
+    }
+    return data.data;
+  }
+
   async function ghPaginate(path, maxItems = 100) {
     const items = [];
     let page = 1;
@@ -50,7 +76,29 @@ export function createGitHubClient(token) {
     return items;
   }
 
-  return { gh, ghPaginate };
+  return { gh, ghGraphQL, ghPaginate };
+}
+
+/**
+ * Check rate limit budget. Returns { remaining, resetAt, ok }.
+ * If remaining < MIN_RATE_LIMIT_BUDGET, logs a warning and returns ok=false.
+ */
+export async function checkRateBudget(gh) {
+  try {
+    const data = await gh("/rate_limit");
+    const core = data.resources?.core || {};
+    const remaining = core.remaining ?? 5000;
+    const resetAt = new Date((core.reset || 0) * 1000).toISOString();
+    if (remaining < MIN_RATE_LIMIT_BUDGET) {
+      console.warn(`Rate limit budget low: ${remaining} remaining (resets ${resetAt})`);
+      return { remaining, resetAt, ok: false };
+    }
+    console.log(`Rate limit budget: ${remaining} remaining`);
+    return { remaining, resetAt, ok: true };
+  } catch {
+    console.warn("Could not check rate limit — proceeding cautiously");
+    return { remaining: 0, resetAt: "", ok: true };
+  }
 }
 
 /**
@@ -89,16 +137,6 @@ function summarizePR(pr) {
   return `#${pr.number} ${pr.title} ${size}\n  ${shortFiles.join(",")}${moreFiles}${refs}`;
 }
 
-async function parallelMap(items, fn, concurrency = 10) {
-  const results = [];
-  for (let i = 0; i < items.length; i += concurrency) {
-    const batch = items.slice(i, i + concurrency);
-    const batchResults = await Promise.all(batch.map(fn));
-    results.push(...batchResults);
-  }
-  return results;
-}
-
 export async function getTargetPR(gh, repo, prNumber, maxDiffChars, token) {
   const pr = await gh(`/repos/${repo}/pulls/${prNumber}`);
   let diff = "";
@@ -135,26 +173,69 @@ export async function getTargetPR(gh, repo, prNumber, maxDiffChars, token) {
 }
 
 /**
+ * Batch-fetch PR file lists via GraphQL.
+ * Fetches up to 50 PRs per query (GitHub GraphQL node limit).
+ * Returns Map<number, string[]> of PR number → file paths.
+ * Uses ~1 API call per 50 PRs instead of 1 per PR.
+ */
+async function batchFetchFiles(ghGraphQL, owner, name, prNumbers) {
+  const fileMap = new Map();
+  const BATCH_SIZE = 50;
+
+  for (let i = 0; i < prNumbers.length; i += BATCH_SIZE) {
+    const batch = prNumbers.slice(i, i + BATCH_SIZE);
+    const aliases = batch.map((n, idx) => `pr${idx}: pullRequest(number: ${n}) {
+      number
+      files(first: 100) { nodes { path } }
+    }`).join("\n");
+
+    const query = `query { repository(owner: "${owner}", name: "${name}") { ${aliases} } }`;
+    try {
+      const data = await ghGraphQL(query);
+      const repo = data.repository || {};
+      for (let idx = 0; idx < batch.length; idx++) {
+        const pr = repo[`pr${idx}`];
+        if (pr?.files?.nodes) {
+          fileMap.set(pr.number, pr.files.nodes.map((f) => f.path));
+        }
+      }
+    } catch (err) {
+      console.warn(`GraphQL batch file fetch failed (batch ${i}-${i + batch.length}): ${err.message}`);
+      // Graceful degradation — PRs in this batch get empty file lists
+      for (const n of batch) { fileMap.set(n, []); }
+    }
+  }
+  return fileMap;
+}
+
+/**
  * Fetch open PR summaries AND a file map for Jaccard computation.
  * Returns { summaries: string[], fileMap: Map<number, string[]> }
+ *
+ * Uses GraphQL batch queries for file lists: ~10 API calls for 500 PRs
+ * instead of 500 individual REST calls.
+ * If skipFiles=true, skips file fetching entirely (semantic-only triage).
  */
-export async function getOpenPRSummaries(gh, ghPaginate, repo, maxOpenPRs) {
+export async function getOpenPRSummaries(gh, ghGraphQL, ghPaginate, repo, maxOpenPRs, skipFiles = false) {
   const prs = await ghPaginate(`/repos/${repo}/pulls?state=open&sort=created&direction=desc`, maxOpenPRs);
-  const fileMap = new Map();
+  const [owner, name] = repo.split("/");
 
-  const enriched = await parallelMap(prs, async (pr) => {
-    let files = [];
-    try {
-      files = (await gh(`/repos/${repo}/pulls/${pr.number}/files?per_page=100`)).map((f) => f.filename);
-    } catch (err) {
-      console.warn(`Failed to fetch files for PR #${pr.number}: ${err.message}`);
+  let fileMap;
+  if (skipFiles) {
+    console.log("Skipping file fetches (rate limit budget conservation)");
+    fileMap = new Map(prs.map((pr) => [pr.number, []]));
+  } else {
+    const prNumbers = prs.map((pr) => pr.number);
+    fileMap = await batchFetchFiles(ghGraphQL, owner, name, prNumbers);
+    // Ensure all PRs have an entry even if GraphQL missed some
+    for (const pr of prs) {
+      if (!fileMap.has(pr.number)) { fileMap.set(pr.number, []); }
     }
-    return { pr, files };
-  }, 5);
+  }
 
   const summaries = [];
-  for (const { pr, files } of enriched) {
-    fileMap.set(pr.number, files);
+  for (const pr of prs) {
+    const files = fileMap.get(pr.number) || [];
     summaries.push(summarizePR({ ...pr, author: pr.user?.login, files }));
   }
   return { summaries, fileMap };

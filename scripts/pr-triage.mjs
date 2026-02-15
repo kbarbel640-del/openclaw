@@ -14,6 +14,7 @@
 import { readFile } from "node:fs/promises";
 import {
   createGitHubClient,
+  checkRateBudget,
   extractIssueRefs,
   getTargetPR,
   getOpenPRSummaries,
@@ -56,7 +57,7 @@ const PRICING = {
 };
 let totalCost = 0;
 
-const { gh, ghPaginate } = createGitHubClient(GITHUB_TOKEN);
+const { gh, ghGraphQL, ghPaginate } = createGitHubClient(GITHUB_TOKEN);
 
 // --- LLM triage call ---
 
@@ -177,14 +178,19 @@ Analyze this PR and respond with the triage JSON.`;
   console.log(`Tokens: ${usage.input_tokens || 0} in (${usage.cache_read_input_tokens || 0} cached, ${usage.cache_creation_input_tokens || 0} cache-write), ${usage.output_tokens || 0} out${thinkingTokens ? `, ${thinkingTokens} thinking` : ""}`);
   console.log(`Cost: $${callCost.toFixed(4)} this call | $${totalCost.toFixed(4)} total`);
 
-  // Extract text response (skip thinking blocks)
-  const textBlock = data.content?.find((b) => b.type === "text");
-  const text = textBlock?.text || "";
-  const parsed = extractJSON(text);
-  if (!parsed) {
-    console.error("Failed to parse LLM response:", text.slice(0, 500));
+  // Extract response — try text blocks, then json blocks, then any content
+  for (const block of (data.content || [])) {
+    if (block.type === "text" && block.text) {
+      const parsed = extractJSON(block.text);
+      if (parsed) { return parsed; }
+    }
+    if (block.type === "json") {
+      return typeof block.json === "string" ? extractJSON(block.json) : block.json;
+    }
   }
-  return parsed;
+
+  console.error("Failed to parse LLM response:", JSON.stringify((data.content || []).map((b) => b.type)));
+  return null;
 }
 
 // --- Main ---
@@ -198,12 +204,19 @@ async function main() {
 
   console.log(`Triaging PR #${prNumber} on ${REPO} [model=${MODEL}, effort=${EFFORT}]`);
 
+  // Rate limit budget check — degrade gracefully if low
+  const budget = await checkRateBudget(gh);
+  const skipFiles = !budget.ok;
+  if (skipFiles) {
+    console.warn(`Low rate budget (${budget.remaining}) — skipping file fetches, semantic-only triage`);
+  }
+
   console.log("Fetching target PR...");
   const targetPR = await getTargetPR(gh, REPO, prNumber, MAX_DIFF_CHARS, GITHUB_TOKEN);
   console.log(`Target: "${targetPR.title}" by ${targetPR.author}, ${targetPR.files.length} files`);
 
   console.log("Fetching open PRs for context...");
-  const { summaries, fileMap } = await getOpenPRSummaries(gh, ghPaginate, REPO, MAX_OPEN_PRS);
+  const { summaries, fileMap } = await getOpenPRSummaries(gh, ghGraphQL, ghPaginate, REPO, MAX_OPEN_PRS, skipFiles);
 
   // Filter target PR from context to avoid self-matching
   const contextSummaries = summaries.filter((s) => !s.startsWith(`#${prNumber} `));
