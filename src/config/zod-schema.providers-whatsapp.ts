@@ -57,6 +57,8 @@ export const WhatsAppAccountSchema = z
       })
       .strict()
       .optional(),
+    triggerPrefix: z.string().optional(),
+    syncFullHistory: z.boolean().optional(),
     debounceMs: z.number().int().nonnegative().optional().default(0),
     heartbeat: ChannelHeartbeatVisibilitySchema,
   })
@@ -127,6 +129,8 @@ export const WhatsAppConfigSchema = z
       })
       .strict()
       .optional(),
+    triggerPrefix: z.string().optional(),
+    syncFullHistory: z.boolean().optional(),
     debounceMs: z.number().int().nonnegative().optional().default(0),
     heartbeat: ChannelHeartbeatVisibilitySchema,
   })
