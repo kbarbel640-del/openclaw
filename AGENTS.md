@@ -140,6 +140,7 @@
 ## 故障排查
 
 - 品牌重塑/迁移问题或遗留配置/服务警告：运行 `openclaw doctor`（参见 `docs/gateway/doctor.md`）。
+- JSON 解析错误检测：Node/V8 的 JSON 错误消息有多种变体（`in JSON at position`、`after JSON at position`、`Unexpected end of JSON input`、`Unexpected token ... in JSON` 等），编写匹配正则时必须覆盖所有变体，否则会漏检。参见 `src/agents/pi-embedded-helpers/errors.ts` 中的 `isMalformedToolCallJsonError`。
 
 ## Agent 专属注意事项
 
