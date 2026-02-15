@@ -81,6 +81,21 @@ function buildMemorySection(params: {
         ].join("\n"),
       );
     }
+    // Decision tree for memory routing
+    lines.push("");
+    lines.push("### Memory Routing Guide");
+    lines.push("When storing information:");
+    if (params.availableTools.has("memory_write")) {
+      lines.push("- Structured data (decisions, preferences, facts) -> memory_write");
+    }
+    lines.push("- Informal notes, observations, plans -> MEMORY.md");
+    lines.push("");
+    lines.push("When searching:");
+    if (params.availableTools.has("kb_search")) {
+      lines.push("- Reference docs, imported files, architecture specs -> kb_search");
+    }
+    lines.push("- Personal memory + sessions -> memory_search");
+    lines.push('- Broad "what do I know about X?" -> memory_search (searches all sources)');
   } else {
     lines.push(
       "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on MEMORY.md + memory/*.md; then use memory_get to pull only the needed lines. If low confidence after search, say you checked.",

@@ -397,3 +397,170 @@ describe("getKBStats", () => {
     expect(typeof stats.chunks).toBe("number");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3: KB re-ingestion transaction wrapping
+// ---------------------------------------------------------------------------
+
+describe("ingestToKB — transaction wrapping for re-ingestion", () => {
+  it("wraps re-ingestion (delete old + insert new) in withTransaction when client provided", async () => {
+    const oldHash = hashText("Old content");
+    const newContent = "New updated content for transaction test";
+    const doc: KBDocument = {
+      title: "Tx Re-Ingest",
+      content: newContent,
+      source: { type: "file", path: "/docs/txtest.md", importedBy: "cli" },
+      hash: hashText(newContent),
+    };
+
+    // Existing doc found by path with different hash -> triggers re-ingestion
+    vi.mocked(mockKB.findOne).mockResolvedValueOnce({
+      _id: "old-id",
+      hash: oldHash,
+      "source.path": "/docs/txtest.md",
+    });
+
+    const sessionMock = {
+      withTransaction: vi.fn(async (fn: () => Promise<void>) => fn()),
+      endSession: vi.fn(),
+    };
+    const clientMock = {
+      startSession: vi.fn(() => sessionMock),
+    };
+
+    const result = await ingestToKB({
+      db: mockDb(),
+      prefix: "test_",
+      documents: [doc],
+      embeddingMode: "managed",
+      client: clientMock as unknown as import("mongodb").MongoClient,
+    });
+
+    expect(result.documentsProcessed).toBe(1);
+    expect(clientMock.startSession).toHaveBeenCalled();
+    expect(sessionMock.withTransaction).toHaveBeenCalled();
+    expect(sessionMock.endSession).toHaveBeenCalled();
+  });
+
+  it("falls back to sequential writes when transaction fails (standalone)", async () => {
+    const oldHash = hashText("Old content standalone");
+    const newContent = "Updated content standalone test";
+    const doc: KBDocument = {
+      title: "Standalone Re-Ingest",
+      content: newContent,
+      source: { type: "file", path: "/docs/standalone.md", importedBy: "cli" },
+      hash: hashText(newContent),
+    };
+
+    vi.mocked(mockKB.findOne).mockResolvedValueOnce({
+      _id: "old-standalone-id",
+      hash: oldHash,
+      "source.path": "/docs/standalone.md",
+    });
+
+    const sessionMock = {
+      withTransaction: vi.fn(async () => {
+        const err = new Error("Transaction numbers are only allowed on a replica set");
+        (err as unknown as { code: number }).code = 20;
+        throw err;
+      }),
+      endSession: vi.fn(),
+    };
+    const clientMock = {
+      startSession: vi.fn(() => sessionMock),
+    };
+
+    const result = await ingestToKB({
+      db: mockDb(),
+      prefix: "test_",
+      documents: [doc],
+      embeddingMode: "managed",
+      client: clientMock as unknown as import("mongodb").MongoClient,
+    });
+
+    // Should still succeed via fallback
+    expect(result.documentsProcessed).toBe(1);
+    expect(result.errors).toHaveLength(0);
+    // Chunks and doc deletion + new insertion should happen sequentially
+    expect(mockKBChunks.deleteMany).toHaveBeenCalled();
+    expect(mockKB.deleteOne).toHaveBeenCalled();
+    expect(mockKB.insertOne).toHaveBeenCalled();
+  });
+
+  it("uses session in all operations inside the transaction body", async () => {
+    const oldHash = hashText("Session check content");
+    const newContent = "New session check content for testing";
+    const doc: KBDocument = {
+      title: "Session Check",
+      content: newContent,
+      source: { type: "file", path: "/docs/session.md", importedBy: "cli" },
+      hash: hashText(newContent),
+    };
+
+    vi.mocked(mockKB.findOne).mockResolvedValueOnce({
+      _id: "old-session-id",
+      hash: oldHash,
+      "source.path": "/docs/session.md",
+    });
+
+    const fakeSession = { id: "test-session" };
+    const sessionMock = {
+      withTransaction: vi.fn(async (fn: () => Promise<void>) => fn()),
+      endSession: vi.fn(),
+      ...fakeSession,
+    };
+    const clientMock = {
+      startSession: vi.fn(() => sessionMock),
+    };
+
+    await ingestToKB({
+      db: mockDb(),
+      prefix: "test_",
+      documents: [doc],
+      embeddingMode: "managed",
+      client: clientMock as unknown as import("mongodb").MongoClient,
+    });
+
+    // Verify session was passed to delete and insert operations
+    const deleteCall = vi.mocked(mockKBChunks.deleteMany).mock.calls[0];
+    expect(deleteCall[1]).toEqual({ session: sessionMock });
+
+    const deleteOneCall = vi.mocked(mockKB.deleteOne).mock.calls[0];
+    expect(deleteOneCall[1]).toEqual({ session: sessionMock });
+
+    const insertCall = vi.mocked(mockKB.insertOne).mock.calls[0];
+    expect(insertCall[1]).toEqual({ session: sessionMock });
+
+    const bulkWriteCall = vi.mocked(mockKBChunks.bulkWrite).mock.calls[0];
+    expect(bulkWriteCall[1]).toMatchObject({ session: sessionMock });
+  });
+
+  it("does NOT use transaction for fresh ingestion (no re-ingestion path)", async () => {
+    const doc: KBDocument = {
+      title: "Fresh Doc",
+      content: "Fresh content that has no existing version",
+      source: { type: "manual", importedBy: "agent" },
+      hash: hashText("Fresh content that has no existing version"),
+    };
+
+    const sessionMock = {
+      withTransaction: vi.fn(async (fn: () => Promise<void>) => fn()),
+      endSession: vi.fn(),
+    };
+    const clientMock = {
+      startSession: vi.fn(() => sessionMock),
+    };
+
+    const result = await ingestToKB({
+      db: mockDb(),
+      prefix: "test_",
+      documents: [doc],
+      embeddingMode: "managed",
+      client: clientMock as unknown as import("mongodb").MongoClient,
+    });
+
+    expect(result.documentsProcessed).toBe(1);
+    // Transaction should NOT be used for fresh ingestion (no delete-old needed)
+    expect(clientMock.startSession).not.toHaveBeenCalled();
+  });
+});

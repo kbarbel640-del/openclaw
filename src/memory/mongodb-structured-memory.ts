@@ -4,6 +4,7 @@ import type { EmbeddingProvider } from "./embeddings.js";
 import type { DetectedCapabilities } from "./mongodb-schema.js";
 import type { MemorySearchResult } from "./types.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { retryEmbedding, type EmbeddingStatus } from "./mongodb-embedding-retry.js";
 import { structuredMemCollection } from "./mongodb-schema.js";
 import { buildVectorSearchStage, MONGODB_MAX_NUM_CANDIDATES } from "./mongodb-search.js";
 
@@ -49,16 +50,24 @@ export async function writeStructuredMemory(params: {
   const { db, prefix, entry, embeddingMode } = params;
   const collection = structuredMemCollection(db, prefix);
 
-  // F13: Generate embedding for value + context combined text in managed mode
+  // F13: Generate embedding for value + context combined text in managed mode.
+  // Uses retryEmbedding() with 3 attempts + exponential backoff.
   let embedding: number[] | undefined;
+  let embeddingStatus: EmbeddingStatus = "pending";
   if (embeddingMode === "managed" && params.embeddingProvider) {
+    const provider = params.embeddingProvider;
     try {
       const textToEmbed = entry.context ? `${entry.value} ${entry.context}` : entry.value;
-      const [vec] = await params.embeddingProvider.embedBatch([textToEmbed]);
+      const [vec] = await retryEmbedding((t) => provider.embedBatch(t), [textToEmbed]);
       embedding = vec;
+      embeddingStatus = "success";
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      log.warn(`structured memory embedding failed: ${msg}`);
+      log.warn(
+        `structured memory embedding failed after retries: ${msg}. ` +
+          'Storing with embeddingStatus: "failed".',
+      );
+      embeddingStatus = "failed";
     }
   }
 
@@ -68,6 +77,7 @@ export async function writeStructuredMemory(params: {
     key: entry.key,
     value: entry.value,
     agentId: entry.agentId,
+    embeddingStatus,
     updatedAt: now,
   };
   if (entry.context !== undefined) {

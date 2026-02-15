@@ -40,7 +40,7 @@ export function createMemorySearchTool(options: {
   }
   const isMongoDBBackend = cfg.memory?.backend === "mongodb";
   const description = isMongoDBBackend
-    ? "Mandatory recall step: semantically search your knowledge base, structured memory, memory files, and session transcripts. Returns top snippets with source, path, and relevance score. Use for any question about prior work, decisions, dates, people, preferences, or todos."
+    ? 'Mandatory recall step: semantically search your knowledge base, structured memory, memory files, and session transcripts. Returns top snippets with source, path, and relevance score. Use for any question about prior work, decisions, dates, people, preferences, or todos. Example: memory_search({query: "what auth approach did we decide on?"})'
     : "Mandatory recall step: semantically search MEMORY.md + memory/*.md (and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos; returns top snippets with path + lines.";
   return {
     label: "Memory Search",
@@ -76,12 +76,17 @@ export function createMemorySearchTool(options: {
           status.backend === "qmd"
             ? clampResultsByInjectedChars(decorated, resolved.qmd?.limits.maxInjectedChars)
             : decorated;
+        const feedbackHint = computeFeedbackHint(
+          rawResults,
+          isMongoDBBackend ? "mongodb" : status.backend,
+        );
         return jsonResult({
           results,
           provider: status.provider,
           model: status.model,
           fallback: status.fallback,
           citations: citationsMode,
+          ...(feedbackHint ? { feedbackHint } : {}),
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -206,6 +211,36 @@ function shouldIncludeCitations(params: {
   return chatType === "direct";
 }
 
+// ---------------------------------------------------------------------------
+// Feedback loop: low-confidence hint for memory_search results
+// ---------------------------------------------------------------------------
+
+const FEEDBACK_MIN_RESULTS = 2;
+const FEEDBACK_MAX_SCORE = 0.3;
+
+/**
+ * Compute a feedback hint when memory_search returns low-confidence results.
+ * Triggers when: results.length < 2 AND all scores < 0.3 (MongoDB backend only).
+ * Returns undefined when results are confident enough or backend is not MongoDB.
+ */
+export function computeFeedbackHint(
+  results: MemorySearchResult[],
+  backend: string | undefined,
+): string | undefined {
+  if (backend !== "mongodb") {
+    return undefined;
+  }
+  // Low confidence: fewer than 2 results AND all scores below threshold
+  if (results.length >= FEEDBACK_MIN_RESULTS) {
+    return undefined;
+  }
+  const allLowScore = results.every((r) => (r.score ?? 0) < FEEDBACK_MAX_SCORE);
+  if (!allLowScore) {
+    return undefined;
+  }
+  return "Low confidence results. Consider rephrasing your query or checking kb_search for reference documents.";
+}
+
 function deriveChatTypeFromSessionKey(sessionKey?: string): "direct" | "group" | "channel" {
   const parsed = parseAgentSessionKey(sessionKey);
   if (!parsed?.rest) {
@@ -254,7 +289,7 @@ export function createKBSearchTool(options: {
     label: "KB Search",
     name: "kb_search",
     description:
-      "Search the knowledge base for imported documents, FAQs, architecture specs, and reference materials. Returns matching snippets with source and relevance score. Use for factual/reference lookups when you need specific documentation rather than general memory recall.",
+      'Search the knowledge base for imported documents, FAQs, architecture specs, and reference materials. Returns matching snippets with source and relevance score. Use for factual/reference lookups when you need specific documentation rather than general memory recall. Example: kb_search({query: "API rate limiting policy"})',
     parameters: KBSearchSchema,
     execute: async (_toolCallId, params) => {
       const query = readStringParam(params, "query", { required: true });
@@ -325,7 +360,7 @@ export function createMemoryWriteTool(options: {
     label: "Memory Write",
     name: "memory_write",
     description:
-      "Store a structured observation in persistent memory. Types: decision (choices made), preference (user likes/dislikes), fact (objective info), person (people info), todo (action items), project (project-level context), architecture (technical decisions), custom (anything else). Type+key is the dedup key: writing the same type+key updates the existing record. Set confidence 0.0-1.0 to express certainty. Use for important information; use MEMORY.md for informal scratch notes.",
+      'Store a structured observation in persistent memory. Types: decision (choices made), preference (user likes/dislikes), fact (objective info), person (people info), todo (action items), project (project-level context), architecture (technical decisions), custom (anything else). Type+key is the dedup key: writing the same type+key updates the existing record. Set confidence 0.0-1.0 to express certainty. Use for important information; use MEMORY.md for informal scratch notes. Example: memory_write({type: "decision", key: "auth-method", value: "OAuth2 with PKCE"})',
     parameters: MemoryWriteSchema,
     execute: async (_toolCallId, params) => {
       const type = readStringParam(params, "type", { required: true });

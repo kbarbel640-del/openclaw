@@ -619,6 +619,83 @@ describe("assertIndexBudget", () => {
 // detectCapabilities
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Phase 3: KB startup integrity check — orphan detection
+// ---------------------------------------------------------------------------
+
+describe("checkKBOrphans", () => {
+  it("detects orphaned kb_chunks (docId references non-existent knowledge_base doc)", async () => {
+    // Import dynamically since the function doesn't exist yet
+    const { checkKBOrphans } = await import("./mongodb-schema.js");
+
+    // Create mocks: kb_chunks has a docId that doesn't exist in knowledge_base
+    const kbChunksCol = {
+      aggregate: vi.fn(() => ({
+        toArray: vi.fn(async () => [
+          { _id: "orphan-doc-1", count: 3 },
+          { _id: "orphan-doc-2", count: 1 },
+        ]),
+      })),
+    } as unknown as Collection;
+
+    const kbCol = {
+      find: vi.fn(() => ({
+        project: vi.fn(() => ({
+          toArray: vi.fn(async () => []),
+        })),
+      })),
+    } as unknown as Collection;
+
+    const result = await checkKBOrphans(kbChunksCol, kbCol);
+    expect(result.orphanedChunkCount).toBe(4);
+    expect(result.orphanedDocIds).toEqual(["orphan-doc-1", "orphan-doc-2"]);
+  });
+
+  it("returns zero when no orphans exist", async () => {
+    const { checkKBOrphans } = await import("./mongodb-schema.js");
+
+    const kbChunksCol = {
+      aggregate: vi.fn(() => ({
+        toArray: vi.fn(async () => [{ _id: "doc-1", count: 5 }]),
+      })),
+    } as unknown as Collection;
+
+    const kbCol = {
+      find: vi.fn(() => ({
+        project: vi.fn(() => ({
+          toArray: vi.fn(async () => [{ _id: "doc-1" }]),
+        })),
+      })),
+    } as unknown as Collection;
+
+    const result = await checkKBOrphans(kbChunksCol, kbCol);
+    expect(result.orphanedChunkCount).toBe(0);
+    expect(result.orphanedDocIds).toEqual([]);
+  });
+
+  it("handles empty kb_chunks collection", async () => {
+    const { checkKBOrphans } = await import("./mongodb-schema.js");
+
+    const kbChunksCol = {
+      aggregate: vi.fn(() => ({
+        toArray: vi.fn(async () => []),
+      })),
+    } as unknown as Collection;
+
+    const kbCol = {
+      find: vi.fn(() => ({
+        project: vi.fn(() => ({
+          toArray: vi.fn(async () => []),
+        })),
+      })),
+    } as unknown as Collection;
+
+    const result = await checkKBOrphans(kbChunksCol, kbCol);
+    expect(result.orphanedChunkCount).toBe(0);
+    expect(result.orphanedDocIds).toEqual([]);
+  });
+});
+
 describe("detectCapabilities", () => {
   it("detects no capabilities when everything fails", async () => {
     const db = {

@@ -105,10 +105,30 @@ const MemoryMongoDBSchema = z
     watchDebounceMs: z.number().int().nonnegative().optional(),
     numDimensions: z.number().int().positive().optional(),
     maxPoolSize: z.number().int().positive().optional(),
+    minPoolSize: z.number().int().nonnegative().optional(),
     embeddingCacheTtlDays: z.number().int().nonnegative().optional(),
     memoryTtlDays: z.number().int().nonnegative().optional(),
     enableChangeStreams: z.boolean().optional(),
     changeStreamDebounceMs: z.number().int().nonnegative().optional(),
+    maxSessionChunks: z.number().int().positive().optional(),
+    connectTimeoutMs: z.number().int().positive().optional(),
+    numCandidates: z.number().int().positive().optional(),
+    kb: z
+      .object({
+        enabled: z.boolean().optional(),
+        chunking: z
+          .object({
+            tokens: z.number().int().positive().optional(),
+            overlap: z.number().int().nonnegative().optional(),
+          })
+          .strict()
+          .optional(),
+        autoImportPaths: z.array(z.string()).optional(),
+        maxDocumentSize: z.number().int().positive().optional(),
+        autoRefreshHours: z.number().nonnegative().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .optional();

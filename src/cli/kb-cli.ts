@@ -48,6 +48,7 @@ async function connectMongoDB(cfg: ReturnType<typeof loadConfig>, agentId: strin
     serverSelectionTimeoutMS: mongoCfg.connectTimeoutMs,
     connectTimeoutMS: mongoCfg.connectTimeoutMs,
     maxPoolSize: mongoCfg.maxPoolSize,
+    minPoolSize: mongoCfg.minPoolSize,
   });
 
   try {

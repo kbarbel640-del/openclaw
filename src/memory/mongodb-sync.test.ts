@@ -760,3 +760,290 @@ describe("syncToMongoDB — transaction wrapping", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Embedding resilience: embeddingStatus field + retry
+// ---------------------------------------------------------------------------
+
+describe("syncToMongoDB — embeddingStatus and retry", () => {
+  it("sets embeddingStatus='success' when embeddings succeed in managed mode", async () => {
+    await writeMemoryFiles(tmpDir, {
+      "test.md": "# Test\n\nContent for embeddingStatus success",
+    });
+
+    const mockProvider = {
+      id: "mock",
+      model: "mock-model",
+      embedBatch: vi.fn(async (texts: string[]) => texts.map(() => [0.1, 0.2])),
+      embedQuery: vi.fn(async () => [0.1, 0.2]),
+    };
+
+    await syncToMongoDB({
+      db: {} as Db,
+      prefix: "test_",
+      workspaceDir: tmpDir,
+      embeddingMode: "managed",
+      embeddingProvider: mockProvider,
+    });
+
+    const bulkOps = (mockChunks.bulkWrite as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    for (const op of bulkOps) {
+      expect(op.updateOne.update.$set.embeddingStatus).toBe("success");
+      expect(op.updateOne.update.$set.embedding).toEqual([0.1, 0.2]);
+    }
+  });
+
+  it("sets embeddingStatus='failed' when embedding provider fails after retries", async () => {
+    await writeMemoryFiles(tmpDir, {
+      "test.md": "# Test\n\nContent for embeddingStatus failed",
+    });
+
+    const mockProvider = {
+      id: "mock",
+      model: "mock-model",
+      embedBatch: vi.fn().mockRejectedValue(new Error("API unavailable")),
+      embedQuery: vi.fn(async () => []),
+    };
+
+    await syncToMongoDB({
+      db: {} as Db,
+      prefix: "test_",
+      workspaceDir: tmpDir,
+      embeddingMode: "managed",
+      embeddingProvider: mockProvider,
+    });
+
+    const bulkOps = (mockChunks.bulkWrite as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    for (const op of bulkOps) {
+      expect(op.updateOne.update.$set.embeddingStatus).toBe("failed");
+      // No embedding should be set when it failed
+      expect(op.updateOne.update.$set.embedding).toBeUndefined();
+    }
+  });
+
+  it("sets embeddingStatus='pending' in automated mode (MongoDB manages embeddings)", async () => {
+    await writeMemoryFiles(tmpDir, {
+      "test.md": "# Test\n\nContent for automated mode pending status",
+    });
+
+    await syncToMongoDB({
+      db: {} as Db,
+      prefix: "test_",
+      workspaceDir: tmpDir,
+      embeddingMode: "automated",
+    });
+
+    const bulkOps = (mockChunks.bulkWrite as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    for (const op of bulkOps) {
+      expect(op.updateOne.update.$set.embeddingStatus).toBe("pending");
+    }
+  });
+
+  it("retries embedding generation before giving up (retryEmbedding integration)", async () => {
+    await writeMemoryFiles(tmpDir, {
+      "test.md": "# Test\n\nContent for retry test",
+    });
+
+    let callCount = 0;
+    const mockProvider = {
+      id: "mock",
+      model: "mock-model",
+      embedBatch: vi.fn(async (texts: string[]) => {
+        callCount++;
+        if (callCount < 3) {
+          throw new Error(`attempt ${callCount} failed`);
+        }
+        return texts.map(() => [0.3, 0.4]);
+      }),
+      embedQuery: vi.fn(async () => [0.3, 0.4]),
+    };
+
+    await syncToMongoDB({
+      db: {} as Db,
+      prefix: "test_",
+      workspaceDir: tmpDir,
+      embeddingMode: "managed",
+      embeddingProvider: mockProvider,
+    });
+
+    // Should have retried: at least 3 calls (2 failed + 1 success)
+    expect(mockProvider.embedBatch).toHaveBeenCalledTimes(3);
+    const bulkOps = (mockChunks.bulkWrite as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    for (const op of bulkOps) {
+      expect(op.updateOne.update.$set.embeddingStatus).toBe("success");
+      expect(op.updateOne.update.$set.embedding).toEqual([0.3, 0.4]);
+    }
+  });
+
+  it("re-attempts embedding for failed chunks on next sync", async () => {
+    // Setup: no files to sync (so only re-attempt logic runs)
+    // Pre-populate chunks collection with failed chunks
+    const failedChunks = [
+      { _id: "file.md:1:5", text: "failed chunk 1", embeddingStatus: "failed" },
+      { _id: "file.md:6:10", text: "failed chunk 2", embeddingStatus: "failed" },
+    ];
+    (mockChunks.find as ReturnType<typeof vi.fn>).mockReturnValue({
+      toArray: vi.fn(async () => failedChunks),
+    });
+    (mockChunks.bulkWrite as ReturnType<typeof vi.fn>).mockResolvedValue({
+      upsertedCount: 0,
+      modifiedCount: 2,
+    });
+
+    const mockProvider = {
+      id: "mock",
+      model: "mock-model",
+      embedBatch: vi.fn(async (texts: string[]) => texts.map(() => [0.5, 0.6])),
+      embedQuery: vi.fn(async () => [0.5, 0.6]),
+    };
+
+    await syncToMongoDB({
+      db: {} as Db,
+      prefix: "test_",
+      workspaceDir: tmpDir,
+      embeddingMode: "managed",
+      embeddingProvider: mockProvider,
+    });
+
+    // Should have queried for failed chunks
+    expect(mockChunks.find).toHaveBeenCalledWith(
+      { embeddingStatus: "failed" },
+      expect.objectContaining({ sort: { updatedAt: 1 }, limit: 100 }),
+    );
+
+    // Should have generated embeddings for the failed chunks
+    expect(mockProvider.embedBatch).toHaveBeenCalledWith(["failed chunk 1", "failed chunk 2"]);
+
+    // Should have updated the chunks with success status
+    const bulkWriteCalls = (mockChunks.bulkWrite as ReturnType<typeof vi.fn>).mock.calls;
+    const reAttemptCall = bulkWriteCalls.find((call: unknown[]) => {
+      const ops = call[0] as Array<Record<string, unknown>>;
+      return ops.some(
+        (op: Record<string, unknown>) =>
+          (op.updateOne as Record<string, unknown>)?.update &&
+          ((op.updateOne as Record<string, unknown>).update as Record<string, unknown>)?.$set &&
+          (
+            ((op.updateOne as Record<string, unknown>).update as Record<string, unknown>)
+              .$set as Record<string, unknown>
+          )?.embeddingStatus === "success",
+      );
+    });
+    expect(reAttemptCall).toBeDefined();
+  });
+
+  // ---------------------------------------------------------------------------
+  // maxSessionChunks truncation tests
+  // ---------------------------------------------------------------------------
+
+  it("caps session chunks at maxSessionChunks (keeps last N)", async () => {
+    // Create a session with lots of content that will produce many chunks
+    const lines: string[] = [];
+    for (let i = 0; i < 200; i++) {
+      lines.push(
+        `## Section ${i}\n\nThis is paragraph ${i} with enough text to form a chunk on its own. ` +
+          "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt " +
+          "ut labore et dolore magna aliqua. Ut enim ad minim veniam.",
+      );
+    }
+    const sessionEntry = {
+      path: "sessions/large-session.jsonl",
+      absPath: "/tmp/sessions/large-session.jsonl",
+      mtimeMs: Date.now(),
+      size: 50000,
+      hash: "large-session-hash",
+      content: lines.join("\n\n"),
+      lineMap: Array.from({ length: 200 }, (_, i) => i + 1),
+    };
+
+    vi.mocked(listSessionFilesForAgent).mockResolvedValue(["/tmp/sessions/large-session.jsonl"]);
+    vi.mocked(buildSessionEntry).mockResolvedValue(sessionEntry);
+
+    await syncToMongoDB({
+      db: {} as Db,
+      prefix: "test_",
+      workspaceDir: tmpDir,
+      agentId: "agent-1",
+      embeddingMode: "automated",
+      maxSessionChunks: 5,
+    });
+
+    // Verify that bulkWrite was called with at most 5 chunks
+    const bulkCalls = (mockChunks.bulkWrite as ReturnType<typeof vi.fn>).mock.calls;
+    expect(bulkCalls.length).toBeGreaterThan(0);
+    const sessionBulkOps = bulkCalls.find(
+      (call) => call[0][0]?.updateOne?.update?.$set?.source === "sessions",
+    );
+    expect(sessionBulkOps).toBeDefined();
+    expect(sessionBulkOps![0].length).toBeLessThanOrEqual(5);
+  });
+
+  it("does not truncate session chunks when under maxSessionChunks limit", async () => {
+    const sessionEntry = {
+      path: "sessions/small-session.jsonl",
+      absPath: "/tmp/sessions/small-session.jsonl",
+      mtimeMs: Date.now(),
+      size: 100,
+      hash: "small-session-hash",
+      content: "User: Hello\nAssistant: Hi there!",
+      lineMap: [1, 2],
+    };
+
+    vi.mocked(listSessionFilesForAgent).mockResolvedValue(["/tmp/sessions/small-session.jsonl"]);
+    vi.mocked(buildSessionEntry).mockResolvedValue(sessionEntry);
+
+    await syncToMongoDB({
+      db: {} as Db,
+      prefix: "test_",
+      workspaceDir: tmpDir,
+      agentId: "agent-1",
+      embeddingMode: "automated",
+      maxSessionChunks: 50,
+    });
+
+    // Should have chunks (small content = 1 chunk), all preserved
+    const bulkCalls = (mockChunks.bulkWrite as ReturnType<typeof vi.fn>).mock.calls;
+    expect(bulkCalls.length).toBeGreaterThan(0);
+    const sessionBulkOps = bulkCalls.find(
+      (call) => call[0][0]?.updateOne?.update?.$set?.source === "sessions",
+    );
+    expect(sessionBulkOps).toBeDefined();
+    // Small content should produce 1 chunk, which is under the 50 limit
+    expect(sessionBulkOps![0].length).toBeLessThanOrEqual(50);
+  });
+
+  it("session chunks also get embeddingStatus", async () => {
+    const sessionEntry = {
+      path: "sessions/status-test.jsonl",
+      absPath: "/tmp/sessions/status-test.jsonl",
+      mtimeMs: Date.now(),
+      size: 200,
+      hash: "status-session-hash",
+      content: "User: Status test\nAssistant: Has embeddingStatus",
+      lineMap: [1, 2],
+    };
+
+    vi.mocked(listSessionFilesForAgent).mockResolvedValue(["/tmp/sessions/status-test.jsonl"]);
+    vi.mocked(buildSessionEntry).mockResolvedValue(sessionEntry);
+
+    const mockProvider = {
+      id: "mock",
+      model: "mock-model",
+      embedBatch: vi.fn(async (texts: string[]) => texts.map(() => [0.7, 0.8])),
+      embedQuery: vi.fn(async () => [0.7, 0.8]),
+    };
+
+    await syncToMongoDB({
+      db: {} as Db,
+      prefix: "test_",
+      workspaceDir: tmpDir,
+      agentId: "agent-1",
+      embeddingMode: "managed",
+      embeddingProvider: mockProvider,
+    });
+
+    const bulkOps = (mockChunks.bulkWrite as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    for (const op of bulkOps) {
+      expect(op.updateOne.update.$set.embeddingStatus).toBe("success");
+    }
+  });
+});

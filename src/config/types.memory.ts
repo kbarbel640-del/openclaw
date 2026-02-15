@@ -33,6 +33,8 @@ export type MemoryMongoDBConfig = {
   numDimensions?: number;
   /** Max connection pool size. Default: 10 */
   maxPoolSize?: number;
+  /** Min connection pool size. Default: 2 */
+  minPoolSize?: number;
   /** TTL for cached embeddings in days. Default: 30. Set 0 to disable. */
   embeddingCacheTtlDays?: number;
   /** TTL for memory files in days. Default: 0 (disabled). WARNING: expired files are auto-deleted. */
@@ -45,6 +47,8 @@ export type MemoryMongoDBConfig = {
   connectTimeoutMs?: number;
   /** Number of candidates for vector search (numCandidates). Default: 200 */
   numCandidates?: number;
+  /** Maximum chunks per session file. Default: 50. Keeps last N chunks (most recent). */
+  maxSessionChunks?: number;
   /** Knowledge Base configuration (MongoDB-native feature) */
   kb?: {
     /** Enable KB features. Default: true when MongoDB backend */

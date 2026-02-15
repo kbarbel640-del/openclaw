@@ -3,7 +3,7 @@ import type { MemoryMongoDBFusionMethod } from "../config/types.memory.js";
 import type { DetectedCapabilities } from "./mongodb-schema.js";
 import type { MemorySearchResult, MemorySource } from "./types.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
-import { mergeHybridResults, type HybridVectorResult, type HybridKeywordResult } from "./hybrid.js";
+import { mergeHybridResultsMongoDB } from "./mongodb-hybrid.js";
 
 const log = createSubsystemLogger("memory:mongodb:search");
 
@@ -373,41 +373,14 @@ export function hybridSearchJSFallback(
   keywordResults: MemorySearchResult[],
   opts: { maxResults: number; vectorWeight: number; textWeight: number },
 ): MemorySearchResult[] {
-  const vectorHits: HybridVectorResult[] = vectorResults.map((r) => ({
-    id: `${r.path}:${r.startLine}:${r.endLine}`,
-    path: r.path,
-    startLine: r.startLine,
-    endLine: r.endLine,
-    source: r.source,
-    snippet: r.snippet,
-    vectorScore: r.score,
-  }));
-
-  const keywordHits: HybridKeywordResult[] = keywordResults.map((r) => ({
-    id: `${r.path}:${r.startLine}:${r.endLine}`,
-    path: r.path,
-    startLine: r.startLine,
-    endLine: r.endLine,
-    source: r.source,
-    snippet: r.snippet,
-    textScore: r.score,
-  }));
-
-  const merged = mergeHybridResults({
-    vector: vectorHits,
-    keyword: keywordHits,
-    vectorWeight: opts.vectorWeight,
-    textWeight: opts.textWeight,
+  // Use our RRF-based merge instead of upstream's broken weighted-average merge.
+  // RRF does not penalize results appearing in only one list and handles
+  // incompatible score scales (cosine [0,1] vs BM25 [0,inf)) naturally.
+  return mergeHybridResultsMongoDB({
+    vector: vectorResults,
+    keyword: keywordResults,
+    maxResults: opts.maxResults,
   });
-
-  return merged.slice(0, opts.maxResults).map((hit) => ({
-    path: hit.path,
-    startLine: hit.startLine,
-    endLine: hit.endLine,
-    score: hit.score,
-    snippet: hit.snippet,
-    source: hit.source as MemorySource,
-  }));
 }
 
 // ---------------------------------------------------------------------------

@@ -43,12 +43,14 @@ export type ResolvedMongoDBConfig = {
   watchDebounceMs: number;
   numDimensions: number;
   maxPoolSize: number;
+  minPoolSize: number;
   embeddingCacheTtlDays: number;
   memoryTtlDays: number;
   enableChangeStreams: boolean;
   changeStreamDebounceMs: number;
   connectTimeoutMs: number;
   numCandidates: number;
+  maxSessionChunks: number;
   kb: {
     enabled: boolean;
     chunking: { tokens: number; overlap: number };
@@ -349,6 +351,12 @@ export function resolveMemoryBackendConfig(params: {
           mongoCfg.maxPoolSize > 0
             ? Math.floor(mongoCfg.maxPoolSize)
             : 10,
+        minPoolSize:
+          typeof mongoCfg?.minPoolSize === "number" &&
+          Number.isFinite(mongoCfg.minPoolSize) &&
+          mongoCfg.minPoolSize >= 0
+            ? Math.floor(mongoCfg.minPoolSize)
+            : 2,
         embeddingCacheTtlDays:
           typeof mongoCfg?.embeddingCacheTtlDays === "number" &&
           Number.isFinite(mongoCfg.embeddingCacheTtlDays) &&
@@ -382,6 +390,12 @@ export function resolveMemoryBackendConfig(params: {
             : 200,
           10_000, // F1: hard cap at MongoDB's max numCandidates
         ),
+        maxSessionChunks:
+          typeof mongoCfg?.maxSessionChunks === "number" &&
+          Number.isFinite(mongoCfg.maxSessionChunks) &&
+          mongoCfg.maxSessionChunks > 0
+            ? Math.floor(mongoCfg.maxSessionChunks)
+            : 50,
         kb: {
           enabled: mongoCfg?.kb?.enabled !== false,
           chunking: {

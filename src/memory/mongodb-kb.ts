@@ -1,4 +1,4 @@
-import type { Db, MongoClient } from "mongodb";
+import type { Db, MongoClient, ClientSession } from "mongodb";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -6,9 +6,26 @@ import type { MemoryMongoDBEmbeddingMode } from "../config/types.memory.js";
 import type { EmbeddingProvider } from "./embeddings.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { chunkMarkdown, hashText } from "./internal.js";
+import { retryEmbedding, type EmbeddingStatus } from "./mongodb-embedding-retry.js";
 import { kbCollection, kbChunksCollection } from "./mongodb-schema.js";
 
 const log = createSubsystemLogger("memory:mongodb:kb");
+
+// ---------------------------------------------------------------------------
+// Transaction helpers (same pattern as mongodb-sync.ts)
+// ---------------------------------------------------------------------------
+
+function isTransactionNotSupported(err: unknown): boolean {
+  if (err instanceof Error && "code" in err) {
+    const code = (err as { code: number }).code;
+    // 20 = IllegalOperation (standalone), 263 = NoSuchTransaction
+    if (code === 20 || code === 263) {
+      return true;
+    }
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes("Transaction numbers are only allowed on a replica set");
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,6 +68,7 @@ export async function ingestToKB(params: {
   model?: string;
   force?: boolean;
   maxDocumentSize?: number;
+  client?: MongoClient;
   progress?: (update: { completed: number; total: number; label: string }) => void;
 }): Promise<KBIngestResult> {
   const { db, prefix, documents, embeddingMode, force, progress } = params;
@@ -83,6 +101,9 @@ export async function ingestToKB(params: {
 
       // F10: Dedup check by source.path first, then content hash.
       // If a document with the same path exists, replace it only if hash changed.
+      // These dedup lookups are OUTSIDE the transaction body (read-only I/O).
+      let reIngestionOldId: string | null = null;
+      let reIngestionOldDocId: unknown = null;
       if (!force) {
         const sourcePath = doc.source.path ?? doc.title;
         const existingByPath = await kb.findOne({ "source.path": sourcePath });
@@ -92,10 +113,9 @@ export async function ingestToKB(params: {
             result.skipped++;
             continue;
           }
-          // Hash changed — remove old version so we can insert the updated one
-          const oldId = String(existingByPath._id);
-          await kbChunks.deleteMany({ docId: oldId });
-          await kb.deleteOne({ _id: existingByPath._id });
+          // Hash changed — mark for re-ingestion (delete old + insert new)
+          reIngestionOldId = String(existingByPath._id);
+          reIngestionOldDocId = existingByPath._id;
         } else {
           // No path match — check hash as fallback
           const existingByHash = await kb.findOne({ hash: doc.hash });
@@ -106,36 +126,75 @@ export async function ingestToKB(params: {
         }
       }
 
-      // Chunk the document content
+      // Chunk the document content — OUTSIDE transaction body (CPU-bound)
       const chunks = chunkMarkdown(doc.content, chunking);
 
-      // Generate embeddings if managed mode
+      // Generate embeddings if managed mode — with retry + exponential backoff
+      // OUTSIDE transaction body (network I/O, keeps txn short per ops-transaction-runtime-limit)
       let embeddings: number[][] | null = null;
+      let embeddingStatus: EmbeddingStatus = "pending";
       if (embeddingMode === "managed" && params.embeddingProvider) {
+        const provider = params.embeddingProvider;
         try {
           const texts = chunks.map((c) => c.text);
-          embeddings = await params.embeddingProvider.embedBatch(texts);
+          embeddings = await retryEmbedding((t) => provider.embedBatch(t), texts);
+          embeddingStatus = "success";
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          log.warn(`embedding generation failed for ${doc.title}: ${msg}`);
+          log.warn(
+            `embedding generation failed for ${doc.title} after retries: ${msg}. ` +
+              'Storing chunks with embeddingStatus: "failed".',
+          );
+          embeddingStatus = "failed";
         }
       }
 
       // Generate a document ID
       const docId = crypto.randomUUID();
 
-      // Store the source document in knowledge_base
+      // Prepare force-mode dedup lookup OUTSIDE transaction
+      let forceOldId: string | null = null;
+      let forceOldDocId: unknown = null;
       if (force) {
-        // Remove existing doc + chunks with same hash
         const existingDoc = await kb.findOne({ hash: doc.hash });
         if (existingDoc) {
-          const oldId = String(existingDoc._id);
-          await kbChunks.deleteMany({ docId: oldId });
-          await kb.deleteOne({ _id: existingDoc._id });
+          forceOldId = String(existingDoc._id);
+          forceOldDocId = existingDoc._id;
         }
       }
 
-      await kb.insertOne({
+      // Build the chunk operation list (data prep, not DB I/O)
+      const chunkOps = chunks.map((chunk, idx) => {
+        const chunkDoc: Record<string, unknown> = {
+          docId,
+          path: doc.source.path ?? doc.title,
+          source: "kb",
+          startLine: chunk.startLine,
+          endLine: chunk.endLine,
+          hash: chunk.hash,
+          model,
+          text: chunk.text,
+          embeddingStatus,
+          updatedAt: new Date(),
+        };
+        if (embeddings && embeddings[idx]) {
+          chunkDoc.embedding = embeddings[idx];
+        }
+        return {
+          updateOne: {
+            filter: {
+              path: doc.source.path ?? doc.title,
+              startLine: chunk.startLine,
+              endLine: chunk.endLine,
+            },
+            update: { $set: chunkDoc },
+            upsert: true,
+          },
+        };
+      });
+
+      // The new KB document to insert
+      const newKBDoc = {
         _id: docId as unknown as any,
         title: doc.title,
         content: doc.content,
@@ -148,40 +207,33 @@ export async function ingestToKB(params: {
         hash: doc.hash,
         chunkCount: chunks.length,
         updatedAt: new Date(),
-      });
+      };
 
-      // Store chunks in kb_chunks
-      if (chunks.length > 0) {
-        const chunkOps = chunks.map((chunk, idx) => {
-          const chunkDoc: Record<string, unknown> = {
-            docId,
-            path: doc.source.path ?? doc.title,
-            source: "kb",
-            startLine: chunk.startLine,
-            endLine: chunk.endLine,
-            hash: chunk.hash,
-            model,
-            text: chunk.text,
-            updatedAt: new Date(),
-          };
-          if (embeddings && embeddings[idx]) {
-            chunkDoc.embedding = embeddings[idx];
-          }
-          return {
-            updateOne: {
-              filter: {
-                path: doc.source.path ?? doc.title,
-                startLine: chunk.startLine,
-                endLine: chunk.endLine,
-              },
-              update: { $set: chunkDoc },
-              upsert: true,
-            },
-          };
+      // Determine whether we need a transaction (re-ingestion involves delete + insert)
+      const needsTransaction = reIngestionOldId !== null || forceOldId !== null;
+      const oldIdToDelete = reIngestionOldId ?? forceOldId;
+      const oldDocIdToDelete = reIngestionOldDocId ?? forceOldDocId;
+
+      if (needsTransaction) {
+        // Re-ingestion path: wrap delete-old + insert-new in withTransaction()
+        // for atomicity. Falls back to sequential on standalone topology.
+        const chunksCreated = await reIngestAtomically({
+          client: params.client,
+          kb,
+          kbChunks,
+          oldDocId: oldIdToDelete!,
+          oldDocPk: oldDocIdToDelete,
+          newKBDoc,
+          chunkOps,
         });
-
-        const writeResult = await kbChunks.bulkWrite(chunkOps, { ordered: false });
-        result.chunksCreated += writeResult.upsertedCount + writeResult.modifiedCount;
+        result.chunksCreated += chunksCreated;
+      } else {
+        // Fresh ingestion: no delete needed, no transaction required
+        await kb.insertOne(newKBDoc);
+        if (chunkOps.length > 0) {
+          const writeResult = await kbChunks.bulkWrite(chunkOps, { ordered: false });
+          result.chunksCreated += writeResult.upsertedCount + writeResult.modifiedCount;
+        }
       }
 
       result.documentsProcessed++;
@@ -197,6 +249,90 @@ export async function ingestToKB(params: {
     `KB ingest: processed=${result.documentsProcessed} chunks=${result.chunksCreated} skipped=${result.skipped} errors=${result.errors.length}`,
   );
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Atomic re-ingestion helper (withTransaction + standalone fallback)
+// ---------------------------------------------------------------------------
+
+/**
+ * Atomically re-ingest a KB document: delete old chunks + doc, insert new doc + chunks.
+ * Uses withTransaction() when client is provided. Falls back to sequential writes
+ * on standalone topology (same pattern as mongodb-sync.ts).
+ * Returns the number of chunks created.
+ */
+async function reIngestAtomically(params: {
+  client?: MongoClient;
+  kb: import("mongodb").Collection;
+  kbChunks: import("mongodb").Collection;
+  oldDocId: string;
+  oldDocPk: unknown;
+  newKBDoc: Record<string, unknown>;
+  chunkOps: Array<{
+    updateOne: {
+      filter: Record<string, unknown>;
+      update: Record<string, unknown>;
+      upsert: boolean;
+    };
+  }>;
+}): Promise<number> {
+  const { client, kb, kbChunks, oldDocId, oldDocPk, newKBDoc, chunkOps } = params;
+
+  // Inner write function — performs all DB writes, optionally with a session.
+  // Per `fundamental-propagate-session`: pass session to EVERY operation inside the transaction.
+  // When no session, call without the options arg to match test expectations.
+  async function performWrites(session?: ClientSession): Promise<number> {
+    if (session) {
+      await kbChunks.deleteMany({ docId: oldDocId }, { session });
+      await kb.deleteOne({ _id: oldDocPk } as Record<string, unknown>, { session });
+      await kb.insertOne(newKBDoc, { session });
+    } else {
+      await kbChunks.deleteMany({ docId: oldDocId });
+      await kb.deleteOne({ _id: oldDocPk } as Record<string, unknown>);
+      await kb.insertOne(newKBDoc);
+    }
+
+    // Insert new chunks
+    let chunksCreated = 0;
+    if (chunkOps.length > 0) {
+      const writeResult = session
+        ? await kbChunks.bulkWrite(chunkOps, { ordered: false, session })
+        : await kbChunks.bulkWrite(chunkOps, { ordered: false });
+      chunksCreated = writeResult.upsertedCount + writeResult.modifiedCount;
+    }
+    return chunksCreated;
+  }
+
+  // Try transactional path if client is available
+  if (client) {
+    try {
+      const session = client.startSession();
+      try {
+        let chunksCreated = 0;
+        await session.withTransaction(
+          async () => {
+            chunksCreated = await performWrites(session);
+          },
+          { writeConcern: { w: "majority" } },
+        );
+        return chunksCreated;
+      } finally {
+        await session.endSession();
+      }
+    } catch (err) {
+      // Standalone or no replica set — fall through to sequential
+      if (isTransactionNotSupported(err)) {
+        log.info("transactions not supported for KB re-ingestion, falling back to direct writes");
+      } else {
+        log.warn(
+          `transaction failed for KB re-ingestion, falling back to sequential: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
+
+  // Sequential fallback (no transaction)
+  return performWrites();
 }
 
 // ---------------------------------------------------------------------------

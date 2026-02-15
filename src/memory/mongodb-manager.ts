@@ -3,7 +3,7 @@ import { MongoClient, type Db } from "mongodb";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
-import type { ResolvedMemoryBackendConfig } from "./backend-config.js";
+import type { ResolvedMemoryBackendConfig, ResolvedMongoDBConfig } from "./backend-config.js";
 import type { EmbeddingProvider } from "./embeddings.js";
 import type { DetectedCapabilities } from "./mongodb-schema.js";
 import type { StructuredMemoryEntry } from "./mongodb-structured-memory.js";
@@ -19,6 +19,7 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 import { isMemoryPath, normalizeExtraMemoryPaths } from "./internal.js";
 import { getMemoryStats, type MemoryStats } from "./mongodb-analytics.js";
 import { MongoDBChangeStreamWatcher } from "./mongodb-change-stream.js";
+import { normalizeSearchResults, type SearchMethod } from "./mongodb-hybrid.js";
 import { searchKB } from "./mongodb-kb-search.js";
 import {
   chunksCollection,
@@ -37,6 +38,32 @@ import { searchStructuredMemory } from "./mongodb-structured-memory.js";
 import { syncToMongoDB } from "./mongodb-sync.js";
 
 const log = createSubsystemLogger("memory:mongodb");
+
+// ---------------------------------------------------------------------------
+// Result dedup utility — exported for testing and reuse
+// ---------------------------------------------------------------------------
+
+/**
+ * Deduplicate search results by content (snippet text).
+ * When duplicates are found (same snippet from different sources),
+ * keep only the highest-scoring result.
+ * Uses simple string comparison (not crypto hash) per plan spec.
+ */
+export function deduplicateSearchResults(results: MemorySearchResult[]): MemorySearchResult[] {
+  if (results.length === 0) {
+    return [];
+  }
+
+  const seen = new Map<string, MemorySearchResult>();
+  for (const result of results) {
+    const existing = seen.get(result.snippet);
+    if (!existing || result.score > existing.score) {
+      seen.set(result.snippet, result);
+    }
+  }
+
+  return Array.from(seen.values());
+}
 
 /** Type guard: checks if a MemorySearchManager supports structured memory writes (MongoDB backend). */
 export function hasWriteCapability(manager: MemorySearchManager): manager is MongoDBMemoryManager {
@@ -132,6 +159,7 @@ export class MongoDBMemoryManager implements MemorySearchManager {
       serverSelectionTimeoutMS: mongoCfg.connectTimeoutMs,
       connectTimeoutMS: mongoCfg.connectTimeoutMs,
       maxPoolSize: mongoCfg.maxPoolSize,
+      minPoolSize: mongoCfg.minPoolSize,
     });
     try {
       await client.connect();
@@ -289,12 +317,12 @@ export class MongoDBMemoryManager implements MemorySearchManager {
       }
     }
 
-    // Search legacy chunks (memory + sessions)
-    const legacyResults = await mongoSearch(
-      chunksCollection(this.db, this.prefix),
-      cleaned,
-      queryVector,
-      {
+    // Search all sources in parallel with Promise.all for performance.
+    // Legacy search does NOT have .catch() — it's the primary search,
+    // so total failure propagates. KB and structured keep their .catch(() => []).
+    const [legacyResults, kbResults, structuredResults] = await Promise.all([
+      // Legacy chunks (memory + sessions) — no .catch() (primary search)
+      mongoSearch(chunksCollection(this.db, this.prefix), cleaned, queryVector, {
         maxResults,
         minScore,
         numCandidates: mongoCfg.numCandidates,
@@ -306,15 +334,9 @@ export class MongoDBMemoryManager implements MemorySearchManager {
         vectorWeight: 0.7,
         textWeight: 0.3,
         embeddingMode: mongoCfg.embeddingMode,
-      },
-    );
-
-    // Also search KB chunks and structured memory (MongoDB-native features)
-    const kbResults = await searchKB(
-      kbChunksCollection(this.db, this.prefix),
-      cleaned,
-      queryVector,
-      {
+      }),
+      // KB chunks — .catch(() => []) per existing pattern
+      searchKB(kbChunksCollection(this.db, this.prefix), cleaned, queryVector, {
         maxResults: Math.max(3, Math.floor(maxResults / 3)),
         minScore,
         numCandidates: mongoCfg.numCandidates,
@@ -322,42 +344,73 @@ export class MongoDBMemoryManager implements MemorySearchManager {
         textIndexName: `${this.prefix}kb_chunks_text`,
         capabilities: this.capabilities,
         embeddingMode: mongoCfg.embeddingMode,
-      },
-    ).catch((err) => {
-      log.warn(`KB search failed: ${String(err)}`);
-      return [] as MemorySearchResult[];
-    });
-
-    const structuredResults = await searchStructuredMemory(
-      structuredMemCollection(this.db, this.prefix),
-      cleaned,
-      queryVector,
-      {
+      }).catch((err) => {
+        log.warn(`KB search failed: ${String(err)}`);
+        return [] as MemorySearchResult[];
+      }),
+      // Structured memory — .catch(() => []) per existing pattern
+      searchStructuredMemory(structuredMemCollection(this.db, this.prefix), cleaned, queryVector, {
         maxResults: Math.max(3, Math.floor(maxResults / 3)),
         minScore,
         numCandidates: mongoCfg.numCandidates,
         capabilities: this.capabilities,
         vectorIndexName: `${this.prefix}structured_mem_vector`,
         embeddingMode: mongoCfg.embeddingMode,
-      },
-    ).catch((err) => {
-      log.warn(`structured memory search failed: ${String(err)}`);
-      return [] as MemorySearchResult[];
-    });
+      }).catch((err) => {
+        log.warn(`structured memory search failed: ${String(err)}`);
+        return [] as MemorySearchResult[];
+      }),
+    ]);
 
-    // Merge all results, sorted by score, capped at maxResults.
-    //
-    // F23: Score normalization gap — scores from different search methods are NOT
-    // directly comparable. $vectorSearch returns cosine similarity [0,1],
-    // $search returns BM25 scores (unbounded), and $text returns TF-IDF scores.
-    // When mixing results from legacy chunks, KB, and structured memory, the
-    // relative ordering may not reflect true relevance. A future improvement
-    // should normalize all scores to a common [0,1] range before merging.
-    const allResults = [...legacyResults, ...kbResults, ...structuredResults]
-      .toSorted((a, b) => b.score - a.score)
-      .slice(0, maxResults);
+    // F23 FIX: Normalize scores to [0,1] before cross-source merge.
+    // Different search methods produce scores on different scales:
+    //   - $vectorSearch: cosine similarity [0,1]
+    //   - $search/$text: BM25/TF-IDF [0,inf)
+    //   - $rankFusion/$scoreFusion: hybrid fusion scores
+    //   - KB and structured: same as legacy (depends on underlying method)
+    // We classify each source's search method and normalize accordingly.
+    const legacyMethod: SearchMethod = this.detectSearchMethod(mongoCfg);
+    const normalizedLegacy = normalizeSearchResults(legacyResults, legacyMethod);
+    const normalizedKb = normalizeSearchResults(kbResults, "kb");
+    const normalizedStructured = normalizeSearchResults(structuredResults, "structured");
 
-    return allResults;
+    const merged = [...normalizedLegacy, ...normalizedKb, ...normalizedStructured].toSorted(
+      (a, b) => b.score - a.score,
+    );
+
+    // Deduplicate results by content — keep highest-scoring on duplicate
+    const deduped = deduplicateSearchResults(merged);
+    const dedupCount = merged.length - deduped.length;
+    if (dedupCount > 0) {
+      log.debug(`search dedup: removed ${dedupCount} duplicate result(s)`);
+    }
+
+    return deduped.slice(0, maxResults);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Score normalization: detect which search method was used for legacy search
+  // ---------------------------------------------------------------------------
+
+  private detectSearchMethod(mongoCfg: ResolvedMongoDBConfig): SearchMethod {
+    // Determine which search method mongoSearch() likely used based on
+    // capabilities and fusion method configuration.
+    const canVector =
+      mongoCfg.embeddingMode === "automated"
+        ? this.capabilities.vectorSearch
+        : this.embeddingProvider != null && this.capabilities.vectorSearch;
+
+    if (canVector && this.capabilities.textSearch) {
+      // Both server-side fusion and JS-merge fallback produce hybrid-like
+      // scores in ~[0,1] range (server fusion via $meta:"searchScore",
+      // JS merge via our RRF normalization in mergeHybridResultsMongoDB).
+      return "hybrid";
+    }
+    if (canVector) {
+      return "vector";
+    }
+    // Text-only or $text fallback
+    return "text";
   }
 
   // ---------------------------------------------------------------------------
@@ -498,6 +551,7 @@ export class MongoDBMemoryManager implements MemorySearchManager {
         model: this.embeddingProvider?.model,
         reason: params?.reason,
         force: params?.force,
+        maxSessionChunks: mongoCfg.maxSessionChunks,
         progress: params?.progress,
       });
 

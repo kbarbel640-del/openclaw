@@ -439,6 +439,58 @@ describe("resolveMemoryBackendConfig", () => {
     expect(resolved.mongodb!.kb.maxDocumentSize).toBe(10 * 1024 * 1024);
   });
 
+  // ---------------------------------------------------------------------------
+  // maxSessionChunks config resolution tests
+  // ---------------------------------------------------------------------------
+
+  it("resolves maxSessionChunks with default 50", () => {
+    const cfg = {
+      agents: { defaults: { workspace: "/tmp/memory-test" } },
+      memory: {
+        backend: "mongodb",
+        mongodb: { uri: "mongodb://localhost:27017" },
+      },
+    } as OpenClawConfig;
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId: "main" });
+    expect(resolved.mongodb!.maxSessionChunks).toBe(50);
+  });
+
+  it("resolves custom maxSessionChunks value", () => {
+    const cfg = {
+      agents: { defaults: { workspace: "/tmp/memory-test" } },
+      memory: {
+        backend: "mongodb",
+        mongodb: { uri: "mongodb://localhost:27017", maxSessionChunks: 100 },
+      },
+    } as OpenClawConfig;
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId: "main" });
+    expect(resolved.mongodb!.maxSessionChunks).toBe(100);
+  });
+
+  it("clamps invalid maxSessionChunks to default 50", () => {
+    const cfg = {
+      agents: { defaults: { workspace: "/tmp/memory-test" } },
+      memory: {
+        backend: "mongodb",
+        mongodb: { uri: "mongodb://localhost:27017", maxSessionChunks: -5 },
+      },
+    } as OpenClawConfig;
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId: "main" });
+    expect(resolved.mongodb!.maxSessionChunks).toBe(50);
+  });
+
+  it("floors fractional maxSessionChunks value", () => {
+    const cfg = {
+      agents: { defaults: { workspace: "/tmp/memory-test" } },
+      memory: {
+        backend: "mongodb",
+        mongodb: { uri: "mongodb://localhost:27017", maxSessionChunks: 75.9 },
+      },
+    } as OpenClawConfig;
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId: "main" });
+    expect(resolved.mongodb!.maxSessionChunks).toBe(75);
+  });
+
   it("resolves custom KB config for MongoDB backend", () => {
     const cfg = {
       agents: { defaults: { workspace: "/tmp/memory-test" } },

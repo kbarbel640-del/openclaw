@@ -11,6 +11,7 @@ import {
   type MemoryChunk,
   type MemoryFileEntry,
 } from "./internal.js";
+import { retryEmbedding, type EmbeddingStatus } from "./mongodb-embedding-retry.js";
 import { chunksCollection, filesCollection } from "./mongodb-schema.js";
 import {
   buildSessionEntry,
@@ -82,6 +83,7 @@ async function upsertChunks(
   chunkList: MemoryChunk[],
   model: string,
   embeddings: number[][] | null,
+  embeddingStatus: EmbeddingStatus,
   session?: ClientSession,
 ): Promise<number> {
   if (chunkList.length === 0) {
@@ -98,6 +100,7 @@ async function upsertChunks(
       hash: chunk.hash,
       model,
       text: chunk.text,
+      embeddingStatus,
       updatedAt: new Date(),
     };
     // Only include embedding if we have one (managed mode)
@@ -187,13 +190,23 @@ async function syncFileAtomically(params: {
   chunks: MemoryChunk[];
   model: string;
   embeddings: number[][] | null;
+  embeddingStatus: EmbeddingStatus;
 }): Promise<{ upserted: number; disableTransactions: boolean }> {
-  const { client, chunksCol, filesCol, file, source, chunks, model, embeddings } = params;
+  const { client, chunksCol, filesCol, file, source, chunks, model, embeddings, embeddingStatus } =
+    params;
 
   // Non-transactional path (no client, or standalone detected)
   if (!client || !params.useTransactions) {
     await deleteChunksForPath(chunksCol, file.path);
-    const upserted = await upsertChunks(chunksCol, file.path, source, chunks, model, embeddings);
+    const upserted = await upsertChunks(
+      chunksCol,
+      file.path,
+      source,
+      chunks,
+      model,
+      embeddings,
+      embeddingStatus,
+    );
     await upsertFileMetadata(filesCol, file, source);
     return { upserted, disableTransactions: false };
   }
@@ -216,6 +229,7 @@ async function syncFileAtomically(params: {
           chunks,
           model,
           embeddings,
+          embeddingStatus,
           session,
         );
         await upsertFileMetadata(filesCol, file, source, session);
@@ -229,7 +243,15 @@ async function syncFileAtomically(params: {
     if (isTransactionNotSupported(err)) {
       log.info("transactions not supported (standalone topology), falling back to direct writes");
       await deleteChunksForPath(chunksCol, file.path);
-      const upserted = await upsertChunks(chunksCol, file.path, source, chunks, model, embeddings);
+      const upserted = await upsertChunks(
+        chunksCol,
+        file.path,
+        source,
+        chunks,
+        model,
+        embeddings,
+        embeddingStatus,
+      );
       await upsertFileMetadata(filesCol, file, source);
       return { upserted, disableTransactions: true };
     }
@@ -264,6 +286,7 @@ export async function syncToMongoDB(params: {
   model?: string;
   reason?: string;
   force?: boolean;
+  maxSessionChunks?: number;
   progress?: (update: MemorySyncProgressUpdate) => void;
 }): Promise<SyncResult> {
   const { db, prefix, workspaceDir, extraPaths, embeddingMode, progress } = params;
@@ -314,6 +337,16 @@ export async function syncToMongoDB(params: {
   log.info(`sync: ${filesToProcess.length}/${diskPaths.length} memory files need re-indexing`);
   progress?.({ completed: 0, total: filesToProcess.length, label: "Syncing memory files" });
 
+  // Phase A.1: Re-attempt embedding for chunks with embeddingStatus: "failed"
+  if (embeddingMode === "managed" && params.embeddingProvider) {
+    try {
+      await reAttemptFailedEmbeddings(chunksCol, params.embeddingProvider, model);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.warn(`re-attempt failed embeddings error: ${msg}`);
+    }
+  }
+
   // Process each changed memory file
   let filesProcessed = 0;
   let totalChunksUpserted = 0;
@@ -326,14 +359,22 @@ export async function syncToMongoDB(params: {
       const chunks = chunkMarkdown(content, chunking);
 
       // Generate embeddings OUTSIDE the transaction (external API call).
+      // Uses retryEmbedding() with 3 attempts + exponential backoff.
       let embeddings: number[][] | null = null;
+      let embeddingStatus: EmbeddingStatus = "pending";
       if (embeddingMode === "managed" && params.embeddingProvider) {
+        const provider = params.embeddingProvider;
         try {
           const texts = chunks.map((c: MemoryChunk) => c.text);
-          embeddings = await params.embeddingProvider.embedBatch(texts);
+          embeddings = await retryEmbedding((t) => provider.embedBatch(t), texts);
+          embeddingStatus = "success";
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          log.warn(`embedding generation failed for ${file.path}: ${msg}`);
+          log.warn(
+            `embedding generation failed for ${file.path} after retries: ${msg}. ` +
+              'Storing chunks with embeddingStatus: "failed" for re-attempt on next sync.',
+          );
+          embeddingStatus = "failed";
         }
       }
 
@@ -348,6 +389,7 @@ export async function syncToMongoDB(params: {
         chunks,
         model,
         embeddings,
+        embeddingStatus,
       });
       totalChunksUpserted += upserted;
       if (disableTransactions) {
@@ -384,6 +426,7 @@ export async function syncToMongoDB(params: {
         chunking,
         model,
         force: params.force,
+        maxSessionChunks: params.maxSessionChunks,
         progress,
       });
       sessionFilesProcessed = sessionResult.filesProcessed;
@@ -480,6 +523,7 @@ async function syncSessionFiles(params: {
   chunking: { tokens: number; overlap: number };
   model: string;
   force?: boolean;
+  maxSessionChunks?: number;
   progress?: (update: MemorySyncProgressUpdate) => void;
 }): Promise<{ filesProcessed: number; chunksUpserted: number; useTransactions: boolean }> {
   const sessionPaths = await listSessionFilesForAgent(params.agentId);
@@ -509,17 +553,37 @@ async function syncSessionFiles(params: {
       }
 
       // Chunk the session content (same as memory files)
-      const chunks = chunkMarkdown(entry.content, params.chunking);
+      let chunks = chunkMarkdown(entry.content, params.chunking);
 
-      // Generate embeddings OUTSIDE transaction (external API call)
+      // Cap session chunks at maxSessionChunks — keep last N (most recent) chunks
+      if (
+        params.maxSessionChunks &&
+        params.maxSessionChunks > 0 &&
+        chunks.length > params.maxSessionChunks
+      ) {
+        log.info(
+          `session ${entry.path}: truncating ${chunks.length} chunks to last ${params.maxSessionChunks}`,
+        );
+        chunks = chunks.slice(-params.maxSessionChunks);
+      }
+
+      // Generate embeddings OUTSIDE transaction (external API call).
+      // Uses retryEmbedding() with 3 attempts + exponential backoff.
       let embeddings: number[][] | null = null;
+      let embeddingStatus: EmbeddingStatus = "pending";
       if (params.embeddingMode === "managed" && params.embeddingProvider) {
+        const provider = params.embeddingProvider;
         try {
           const texts = chunks.map((c: MemoryChunk) => c.text);
-          embeddings = await params.embeddingProvider.embedBatch(texts);
+          embeddings = await retryEmbedding((t) => provider.embedBatch(t), texts);
+          embeddingStatus = "success";
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          log.warn(`session embedding failed for ${entry.path}: ${msg}`);
+          log.warn(
+            `session embedding failed for ${entry.path} after retries: ${msg}. ` +
+              'Storing chunks with embeddingStatus: "failed".',
+          );
+          embeddingStatus = "failed";
         }
       }
 
@@ -533,6 +597,7 @@ async function syncSessionFiles(params: {
         chunks,
         model: params.model,
         embeddings,
+        embeddingStatus,
       });
       chunksUpserted += upserted;
       if (disableTransactions) {
@@ -559,8 +624,9 @@ async function syncSessionFileAtomically(params: {
   chunks: MemoryChunk[];
   model: string;
   embeddings: number[][] | null;
+  embeddingStatus: EmbeddingStatus;
 }): Promise<{ upserted: number; disableTransactions: boolean }> {
-  const { client, chunksCol, filesCol, entry, chunks, model, embeddings } = params;
+  const { client, chunksCol, filesCol, entry, chunks, model, embeddings, embeddingStatus } = params;
 
   if (!client || !params.useTransactions) {
     await deleteChunksForPath(chunksCol, entry.path);
@@ -571,6 +637,7 @@ async function syncSessionFileAtomically(params: {
       chunks,
       model,
       embeddings,
+      embeddingStatus,
     );
     await upsertSessionFileMetadata(filesCol, entry);
     return { upserted, disableTransactions: false };
@@ -589,6 +656,7 @@ async function syncSessionFileAtomically(params: {
           chunks,
           model,
           embeddings,
+          embeddingStatus,
           session,
         );
         await upsertSessionFileMetadata(filesCol, entry, session);
@@ -607,6 +675,7 @@ async function syncSessionFileAtomically(params: {
         chunks,
         model,
         embeddings,
+        embeddingStatus,
       );
       await upsertSessionFileMetadata(filesCol, entry);
       return { upserted, disableTransactions: true };
@@ -616,6 +685,72 @@ async function syncSessionFileAtomically(params: {
     await session.endSession();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Re-attempt embedding for failed chunks
+// ---------------------------------------------------------------------------
+
+/**
+ * Find chunks with embeddingStatus: "failed" and re-attempt embedding generation.
+ * On success, updates the chunk with the new embedding and sets embeddingStatus: "success".
+ * On failure (after retries), leaves the chunk as "failed" for the next sync cycle.
+ */
+async function reAttemptFailedEmbeddings(
+  chunksCol: Collection,
+  embeddingProvider: EmbeddingProvider,
+  model: string,
+): Promise<number> {
+  const failedChunks = await chunksCol
+    .find({ embeddingStatus: "failed" }, { sort: { updatedAt: 1 }, limit: 100 })
+    .toArray();
+
+  if (failedChunks.length === 0) {
+    return 0;
+  }
+
+  log.info(`re-attempting embedding for ${failedChunks.length} failed chunks`);
+  let fixed = 0;
+
+  // Process in batches of 20 (typical embedding API batch size)
+  const batchSize = 20;
+  for (let i = 0; i < failedChunks.length; i += batchSize) {
+    const batch = failedChunks.slice(i, i + batchSize);
+    const texts = batch.map((c) => (c.text as string) ?? "");
+
+    try {
+      const embeddings = await retryEmbedding((t) => embeddingProvider.embedBatch(t), texts);
+
+      // Update each chunk with its new embedding
+      const ops = batch.map((chunk, idx) => ({
+        updateOne: {
+          filter: { _id: chunk._id },
+          update: {
+            $set: {
+              embedding: embeddings[idx],
+              embeddingStatus: "success" as EmbeddingStatus,
+              model,
+              updatedAt: new Date(),
+            },
+          },
+        },
+      }));
+      const writeResult = await chunksCol.bulkWrite(ops, { ordered: false });
+      fixed += writeResult.modifiedCount;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.warn(`re-attempt embedding batch failed: ${msg}. Will retry on next sync.`);
+      // Leave chunks as "failed" — they'll be retried on the next sync cycle
+    }
+  }
+
+  if (fixed > 0) {
+    log.info(`re-embedded ${fixed} previously failed chunks`);
+  }
+  return fixed;
+}
+
+// Export for testing
+export { reAttemptFailedEmbeddings as _reAttemptFailedEmbeddings };
 
 async function upsertSessionFileMetadata(
   files: Collection,

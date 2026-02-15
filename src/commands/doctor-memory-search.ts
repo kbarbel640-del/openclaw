@@ -66,6 +66,11 @@ export async function noteMongoDBBackendHealth(cfg: OpenClawConfig): Promise<voi
   try {
     await client.connect();
     await client.db().command({ ping: 1 });
+
+    note(`MongoDB connected. Profile: ${deploymentProfile}.`, "Memory (MongoDB)");
+
+    // Check embedding coverage (embeddingStatus) while connection is still open
+    await noteEmbeddingCoverage(client, backendConfig.mongodb);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     note(
@@ -84,8 +89,49 @@ export async function noteMongoDBBackendHealth(cfg: OpenClawConfig): Promise<voi
   } finally {
     await client.close().catch(() => {});
   }
+}
 
-  note(`MongoDB connected. Profile: ${deploymentProfile}.`, "Memory (MongoDB)");
+/**
+ * Check embedding coverage across all chunk collections.
+ * Warns the user if any chunks have embeddingStatus: "failed".
+ */
+async function noteEmbeddingCoverage(
+  client: import("mongodb").MongoClient,
+  mongoCfg: { database: string; collectionPrefix: string },
+): Promise<void> {
+  try {
+    const { getMemoryStats } = await import("../memory/mongodb-analytics.js");
+    const db = client.db(mongoCfg.database);
+    const stats = await getMemoryStats(db, mongoCfg.collectionPrefix);
+
+    const { embeddingStatusCoverage } = stats;
+    if (embeddingStatusCoverage.failed > 0) {
+      note(
+        [
+          `Embedding coverage: ${embeddingStatusCoverage.failed} chunks have failed embeddings.`,
+          `  Success: ${embeddingStatusCoverage.success}`,
+          `  Failed: ${embeddingStatusCoverage.failed}`,
+          `  Pending: ${embeddingStatusCoverage.pending}`,
+          `  Total: ${embeddingStatusCoverage.total}`,
+          "",
+          "Failed chunks will be re-embedded on the next sync cycle.",
+          "If failures persist, check your embedding provider configuration.",
+        ].join("\n"),
+        "Memory (Embedding Coverage)",
+      );
+    } else if (embeddingStatusCoverage.total > 0) {
+      const successRate =
+        embeddingStatusCoverage.total > 0
+          ? Math.round((embeddingStatusCoverage.success / embeddingStatusCoverage.total) * 100)
+          : 0;
+      note(
+        `Embedding coverage: ${successRate}% (${embeddingStatusCoverage.success}/${embeddingStatusCoverage.total} chunks).`,
+        "Memory (Embedding Coverage)",
+      );
+    }
+  } catch {
+    // Silently skip — stats aggregation may fail on empty or new databases
+  }
 }
 
 function redactDoctorUri(uri: string): string {
