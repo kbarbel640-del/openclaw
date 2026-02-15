@@ -62,8 +62,12 @@ services:
     working_dir: /app
     environment:
       DATABASE_URL: postgresql://postgres:claw@mission-control-db:5432/mission_control
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${OPENCLAW_WORKSPACE_DIR}/mission-control:/app
+      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw:ro
+      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace:ro
     depends_on:
       - mission-control-db
     ports:
