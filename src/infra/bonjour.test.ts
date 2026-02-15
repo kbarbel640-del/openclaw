@@ -446,4 +446,34 @@ describe("gateway bonjour advertiser", () => {
 
     await started.stop();
   });
+
+  it("treats undefined networkInterface same as omitted", async () => {
+    delete process.env.VITEST;
+    process.env.NODE_ENV = "development";
+
+    vi.spyOn(os, "hostname").mockReturnValue("test-host");
+    process.env.OPENCLAW_MDNS_HOSTNAME = "test-host";
+
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    const advertise = vi.fn().mockResolvedValue(undefined);
+    createService.mockImplementation((options: Record<string, unknown>) => ({
+      advertise,
+      destroy,
+      serviceState: "announced",
+      on: vi.fn(),
+      getFQDN: () => `${asString(options.type, "service")}.${asString(options.domain, "local")}.`,
+      getHostname: () => asString(options.hostname, "unknown"),
+      getPort: () => Number(options.port ?? -1),
+    }));
+
+    const started = await startGatewayBonjourAdvertiser({
+      gatewayPort: 18789,
+      networkInterface: undefined,
+    });
+
+    // undefined should NOT produce { interface: undefined } — should pass undefined to getResponder
+    expect(getResponderMock).toHaveBeenCalledWith(undefined);
+
+    await started.stop();
+  });
 });

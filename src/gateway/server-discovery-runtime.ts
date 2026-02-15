@@ -39,6 +39,10 @@ export async function startGatewayDiscovery(params: {
   const sshPort = Number.isFinite(sshPortParsed) && sshPortParsed > 0 ? sshPortParsed : undefined;
   const cliPath = mdnsMinimal ? undefined : resolveBonjourCliPath();
 
+  // Pin mDNS to a single LAN interface to avoid floods on multi-NIC setups.
+  // undefined means "no preference" — ciao will bind all interfaces.
+  const mdnsInterface = pickPrimaryLanIPv4();
+
   if (bonjourEnabled) {
     try {
       const bonjour = await startGatewayBonjourAdvertiser({
@@ -51,7 +55,7 @@ export async function startGatewayDiscovery(params: {
         tailnetDns,
         cliPath,
         minimal: mdnsMinimal,
-        networkInterface: pickPrimaryLanIPv4(),
+        networkInterface: mdnsInterface,
       });
       bonjourStop = bonjour.stop;
     } catch (err) {
