@@ -402,15 +402,22 @@ describe("local media root guard", () => {
     const stateDir = path.join(tmpDir, "openclaw-test-state");
     const readFile = vi.fn(async () => Buffer.from("generated-media"));
 
-    // This mimics CI where STATE_DIR might be likely under /tmp
-    await expect(
-      loadWebMedia(path.join(stateDir, "workspace-agent-1", "render.bin"), {
-        maxBytes: 1024 * 1024,
-        readFile,
-        // If we don't pass localRoots, it defaults to getDefaultLocalRoots()
-        // We need to see if getDefaultLocalRoots() includes the parent of our workspace-agent-1
-      }),
-    ).rejects.toThrow(/not under an allowed directory/i);
+    const originalStateDir = process.env.OPENCLAW_STATE_DIR;
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+
+    try {
+      // This mimics CI where STATE_DIR might be likely under /tmp
+      await expect(
+        loadWebMedia(path.join(stateDir, "workspace-agent-1", "render.bin"), {
+          maxBytes: 1024 * 1024,
+          readFile,
+          // If we don't pass localRoots, it defaults to getDefaultLocalRoots()
+          // We need to see if getDefaultLocalRoots() includes the parent of our workspace-agent-1
+        }),
+      ).rejects.toThrow(/not under an allowed directory/i);
+    } finally {
+      process.env.OPENCLAW_STATE_DIR = originalStateDir;
+    }
   });
 
   it("rejects default OpenClaw state per-agent workspace-* roots without explicit local roots", async () => {
