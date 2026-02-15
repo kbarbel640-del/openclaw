@@ -490,18 +490,19 @@ export async function approveChannelPairingCode(params: {
   }
 
   const channelKey = safeChannelKey(params.channel);
-  const nowMs = Date.now();
-
-  // Rate limit check — block brute-force pairing code attempts (OC-100)
-  if (isPairingRateLimited(channelKey, nowMs)) {
-    throw new Error("Too many failed pairing attempts. Try again later.");
-  }
 
   const filePath = resolvePairingPath(params.channel, env);
   return await withFileLock(
     filePath,
     { version: 1, requests: [] } satisfies PairingStore,
     async () => {
+      const nowMs = Date.now();
+
+      // Rate limit check inside lock to prevent concurrent bypass (OC-100)
+      if (isPairingRateLimited(channelKey, nowMs)) {
+        throw new Error("Too many failed pairing attempts. Try again later.");
+      }
+
       const { value } = await readJsonFile<PairingStore>(filePath, {
         version: 1,
         requests: [],
