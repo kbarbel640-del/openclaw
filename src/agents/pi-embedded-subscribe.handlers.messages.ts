@@ -396,6 +396,8 @@ export function handleMessageEnd(
   ctx.state.blockState.thinking = false;
   ctx.state.blockState.final = false;
   ctx.state.blockState.inlineCode = createInlineCodeState();
+  ctx.state.blockState.buffer = "";
+  ctx.state.blockState.customHeaderThinking = false;
   ctx.state.lastStreamedAssistant = undefined;
   ctx.state.lastStreamedAssistantCleaned = undefined;
 }

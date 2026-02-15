@@ -138,4 +138,37 @@ describe("subscribeEmbeddedPiSession - custom headers", () => {
     // Should be preserved
     expect(emittedTexts).toBe("Thinking about the problem, I realized x.");
   });
+
+  it("strips 'Thinking: ... Output:' blocks preceded by space", () => {
+    const onBlockReply = vi.fn();
+    const session: StubSession = {
+      subscribe: (handler) => {
+        handler({ type: "message_start", message: { role: "assistant" } });
+        handler({
+          type: "message_update",
+          message: { role: "assistant" },
+          assistantMessageEvent: {
+            type: "text_delta",
+            delta: "Sure! Thinking: internal thought\nOutput: Here is the answer.",
+          },
+        });
+        handler({
+          type: "message_update",
+          message: { role: "assistant" },
+          assistantMessageEvent: { type: "text_end" },
+        });
+        return () => {};
+      },
+    };
+
+    subscribeEmbeddedPiSession({
+      session: session as unknown,
+      runId: "test-run",
+      onBlockReply,
+    });
+
+    const emittedTexts = onBlockReply.mock.calls.map((c) => c[0].text).join("");
+    // Should strip the Thinking block
+    expect(emittedTexts).toBe("Sure! Here is the answer.");
+  });
 });
