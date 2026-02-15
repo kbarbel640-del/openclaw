@@ -29,10 +29,8 @@ import type {
   ModelsListResultSchema,
   SkillsBinsParamsSchema,
   SkillsBinsResultSchema,
-  SkillsImportParamsSchema,
   SkillsInstallParamsSchema,
   SkillsStatusParamsSchema,
-  SkillsUninstallParamsSchema,
   SkillsUpdateParamsSchema,
 } from "./agents-models-skills.js";
 import type {
@@ -113,9 +111,13 @@ import type {
   NodeRenameParamsSchema,
 } from "./nodes.js";
 import type {
+  SessionFileActionSchema,
+  SessionFileKindSchema,
+  SessionFileRecordSchema,
   SessionsCompactParamsSchema,
   SessionsDeleteParamsSchema,
   SessionsFilesListParamsSchema,
+  SessionsFilesListResultSchema,
   SessionsListParamsSchema,
   SessionsPatchParamsSchema,
   SessionsPreviewParamsSchema,
@@ -164,12 +166,16 @@ export type NodeInvokeResultParams = Static<typeof NodeInvokeResultParamsSchema>
 export type NodeEventParams = Static<typeof NodeEventParamsSchema>;
 export type SessionsListParams = Static<typeof SessionsListParamsSchema>;
 export type SessionsPreviewParams = Static<typeof SessionsPreviewParamsSchema>;
-export type SessionsFilesListParams = Static<typeof SessionsFilesListParamsSchema>;
 export type SessionsResolveParams = Static<typeof SessionsResolveParamsSchema>;
 export type SessionsPatchParams = Static<typeof SessionsPatchParamsSchema>;
 export type SessionsResetParams = Static<typeof SessionsResetParamsSchema>;
 export type SessionsDeleteParams = Static<typeof SessionsDeleteParamsSchema>;
 export type SessionsCompactParams = Static<typeof SessionsCompactParamsSchema>;
+export type SessionFileAction = Static<typeof SessionFileActionSchema>;
+export type SessionFileKind = Static<typeof SessionFileKindSchema>;
+export type SessionFileRecord = Static<typeof SessionFileRecordSchema>;
+export type SessionsFilesListParams = Static<typeof SessionsFilesListParamsSchema>;
+export type SessionsFilesListResult = Static<typeof SessionsFilesListResultSchema>;
 export type SessionsUsageParams = Static<typeof SessionsUsageParamsSchema>;
 export type ConfigGetParams = Static<typeof ConfigGetParamsSchema>;
 export type ConfigSetParams = Static<typeof ConfigSetParamsSchema>;
@@ -215,9 +221,7 @@ export type ModelsListResult = Static<typeof ModelsListResultSchema>;
 export type SkillsStatusParams = Static<typeof SkillsStatusParamsSchema>;
 export type SkillsBinsParams = Static<typeof SkillsBinsParamsSchema>;
 export type SkillsBinsResult = Static<typeof SkillsBinsResultSchema>;
-export type SkillsImportParams = Static<typeof SkillsImportParamsSchema>;
 export type SkillsInstallParams = Static<typeof SkillsInstallParamsSchema>;
-export type SkillsUninstallParams = Static<typeof SkillsUninstallParamsSchema>;
 export type SkillsUpdateParams = Static<typeof SkillsUpdateParamsSchema>;
 export type CronJob = Static<typeof CronJobSchema>;
 export type CronListParams = Static<typeof CronListParamsSchema>;

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import type { GatewayRequestHandlers } from "./types.js";
-import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
+import { resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { abortEmbeddedPiRun, waitForEmbeddedPiRunEnd } from "../../agents/pi-embedded.js";
 import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
 import { clearSessionQueues } from "../../auto-reply/reply/queue.js";
@@ -13,6 +13,7 @@ import {
   type SessionEntry,
   updateSessionStore,
 } from "../../config/sessions.js";
+import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-key.js";
 import {
   ErrorCodes,
@@ -27,7 +28,7 @@ import {
   validateSessionsResetParams,
   validateSessionsResolveParams,
 } from "../protocol/index.js";
-import { listSessionFilesFromTranscript } from "../session-files.js";
+import { listSessionFilesForGateway } from "../session-files.js";
 import {
   archiveFileOnDisk,
   archiveSessionTranscripts,
@@ -90,6 +91,33 @@ function archiveSessionTranscriptsForSession(params: {
   });
 }
 
+async function ensureSessionRuntimeCleanup(params: {
+  cfg: ReturnType<typeof loadConfig>;
+  key: string;
+  target: ReturnType<typeof resolveGatewaySessionStoreTarget>;
+  sessionId?: string;
+}) {
+  const queueKeys = new Set<string>(params.target.storeKeys);
+  queueKeys.add(params.target.canonicalKey);
+  if (params.sessionId) {
+    queueKeys.add(params.sessionId);
+  }
+  clearSessionQueues([...queueKeys]);
+  stopSubagentsForRequester({ cfg: params.cfg, requesterSessionKey: params.target.canonicalKey });
+  if (!params.sessionId) {
+    return undefined;
+  }
+  abortEmbeddedPiRun(params.sessionId);
+  const ended = await waitForEmbeddedPiRunEnd(params.sessionId, 15_000);
+  if (ended) {
+    return undefined;
+  }
+  return errorShape(
+    ErrorCodes.UNAVAILABLE,
+    `Session ${params.key} is still active; try again in a moment.`,
+  );
+}
+
 export const sessionsHandlers: GatewayRequestHandlers = {
   "sessions.list": ({ params, respond }) => {
     if (!validateSessionsListParams(params)) {
@@ -110,6 +138,32 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       cfg,
       storePath,
       store,
+      opts: p,
+    });
+    respond(true, result, undefined);
+  },
+  "sessions.files.list": ({ params, respond }) => {
+    if (!validateSessionsFilesListParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid sessions.files.list params: ${formatValidationErrors(validateSessionsFilesListParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const p = params;
+    const key = String(p.key ?? "").trim();
+    if (!key) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "key required"));
+      return;
+    }
+    const cfg = loadConfig();
+    const result = listSessionFilesForGateway({
+      cfg,
+      key,
       opts: p,
     });
     respond(true, result, undefined);
@@ -185,82 +239,6 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     }
 
     respond(true, { ts: Date.now(), previews } satisfies SessionsPreviewResult, undefined);
-  },
-  "sessions.files.list": ({ params, respond }) => {
-    if (!validateSessionsFilesListParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid sessions.files.list params: ${formatValidationErrors(validateSessionsFilesListParams.errors)}`,
-        ),
-      );
-      return;
-    }
-    const p = params;
-    const key = String(p.key ?? "").trim();
-    if (!key) {
-      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "key required"));
-      return;
-    }
-
-    const loaded = loadSessionEntry(key);
-    const canonicalKey = loaded.canonicalKey ?? key;
-    const entry = loaded.entry;
-    if (!entry?.sessionId) {
-      respond(
-        true,
-        {
-          ts: Date.now(),
-          key: canonicalKey,
-          status: "missing",
-          files: [],
-        },
-        undefined,
-      );
-      return;
-    }
-
-    const parsed = parseAgentSessionKey(canonicalKey);
-    const agentId = normalizeAgentId(parsed?.agentId ?? resolveDefaultAgentId(loaded.cfg));
-    const workspaceDirFromReport = entry.systemPromptReport?.workspaceDir?.trim();
-    const workspaceDir =
-      workspaceDirFromReport && workspaceDirFromReport.length > 0
-        ? workspaceDirFromReport
-        : resolveAgentWorkspaceDir(loaded.cfg, agentId);
-    const scope =
-      p.scope === "all" || p.scope === "changed" || p.scope === "created" ? p.scope : "created";
-    const includeMissing = p.includeMissing === true;
-    const limit =
-      typeof p.limit === "number" && Number.isFinite(p.limit)
-        ? Math.max(1, Math.floor(p.limit))
-        : 500;
-
-    const indexed = listSessionFilesFromTranscript({
-      sessionId: entry.sessionId,
-      storePath: loaded.storePath,
-      sessionFile: entry.sessionFile,
-      agentId,
-      workspaceDir,
-      scope,
-      includeMissing,
-      limit,
-    });
-    respond(
-      true,
-      {
-        ts: Date.now(),
-        key: canonicalKey,
-        sessionId: entry.sessionId,
-        status: indexed.entries.length > 0 ? "ok" : "empty",
-        workspaceDir,
-        transcriptPath: indexed.transcriptPath,
-        count: indexed.entries.length,
-        files: indexed.entries,
-      },
-      undefined,
-    );
   },
   "sessions.resolve": async ({ params, respond }) => {
     if (!validateSessionsResolveParams(params)) {
@@ -356,6 +334,26 @@ export const sessionsHandlers: GatewayRequestHandlers = {
 
     const cfg = loadConfig();
     const target = resolveGatewaySessionStoreTarget({ cfg, key });
+    const { entry } = loadSessionEntry(key);
+    const commandReason = p.reason === "new" ? "new" : "reset";
+    const hookEvent = createInternalHookEvent(
+      "command",
+      commandReason,
+      target.canonicalKey ?? key,
+      {
+        sessionEntry: entry,
+        previousSessionEntry: entry,
+        commandSource: "gateway:sessions.reset",
+        cfg,
+      },
+    );
+    await triggerInternalHook(hookEvent);
+    const sessionId = entry?.sessionId;
+    const cleanupError = await ensureSessionRuntimeCleanup({ cfg, key, target, sessionId });
+    if (cleanupError) {
+      respond(false, undefined, cleanupError);
+      return;
+    }
     const storePath = target.storePath;
     let oldSessionId: string | undefined;
     let oldSessionFile: string | undefined;
@@ -438,27 +436,10 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     const { entry } = loadSessionEntry(key);
     const sessionId = entry?.sessionId;
     const existed = Boolean(entry);
-    const queueKeys = new Set<string>(target.storeKeys);
-    queueKeys.add(target.canonicalKey);
-    if (sessionId) {
-      queueKeys.add(sessionId);
-    }
-    clearSessionQueues([...queueKeys]);
-    stopSubagentsForRequester({ cfg, requesterSessionKey: target.canonicalKey });
-    if (sessionId) {
-      abortEmbeddedPiRun(sessionId);
-      const ended = await waitForEmbeddedPiRunEnd(sessionId, 15_000);
-      if (!ended) {
-        respond(
-          false,
-          undefined,
-          errorShape(
-            ErrorCodes.UNAVAILABLE,
-            `Session ${key} is still active; try again in a moment.`,
-          ),
-        );
-        return;
-      }
+    const cleanupError = await ensureSessionRuntimeCleanup({ cfg, key, target, sessionId });
+    if (cleanupError) {
+      respond(false, undefined, cleanupError);
+      return;
     }
     await updateSessionStore(storePath, (store) => {
       const { primaryKey } = migrateAndPruneSessionStoreKey({ cfg, key, store });

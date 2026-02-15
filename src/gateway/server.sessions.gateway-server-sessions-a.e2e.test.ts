@@ -21,6 +21,10 @@ const sessionCleanupMocks = vi.hoisted(() => ({
   stopSubagentsForRequester: vi.fn(() => ({ stopped: 0 })),
 }));
 
+const sessionHookMocks = vi.hoisted(() => ({
+  triggerInternalHook: vi.fn(async () => {}),
+}));
+
 vi.mock("../auto-reply/reply/queue.js", async () => {
   const actual = await vi.importActual<typeof import("../auto-reply/reply/queue.js")>(
     "../auto-reply/reply/queue.js",
@@ -38,6 +42,16 @@ vi.mock("../auto-reply/reply/abort.js", async () => {
   return {
     ...actual,
     stopSubagentsForRequester: sessionCleanupMocks.stopSubagentsForRequester,
+  };
+});
+
+vi.mock("../hooks/internal-hooks.js", async () => {
+  const actual = await vi.importActual<typeof import("../hooks/internal-hooks.js")>(
+    "../hooks/internal-hooks.js",
+  );
+  return {
+    ...actual,
+    triggerInternalHook: sessionHookMocks.triggerInternalHook,
   };
 });
 
@@ -74,6 +88,7 @@ describe("gateway server sessions", () => {
   beforeEach(() => {
     sessionCleanupMocks.clearSessionQueues.mockClear();
     sessionCleanupMocks.stopSubagentsForRequester.mockClear();
+    sessionHookMocks.triggerInternalHook.mockClear();
   });
 
   test("lists and patches session store via sessions.* RPC", async () => {
@@ -131,8 +146,8 @@ describe("gateway server sessions", () => {
     expect((hello as unknown as { features?: { methods?: string[] } }).features?.methods).toEqual(
       expect.arrayContaining([
         "sessions.list",
-        "sessions.preview",
         "sessions.files.list",
+        "sessions.preview",
         "sessions.patch",
         "sessions.reset",
         "sessions.delete",
@@ -377,6 +392,216 @@ describe("gateway server sessions", () => {
     ws.close();
   });
 
+  test("sessions.files.list returns transcript references and workspace-created artifacts", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-files-"));
+    const storePath = path.join(dir, "sessions.json");
+    const workspaceDir = path.join(dir, "workspace");
+    const reportsDir = path.join(workspaceDir, "reports");
+    const exportsDir = path.join(workspaceDir, "exports");
+    await fs.mkdir(reportsDir, { recursive: true });
+    await fs.mkdir(exportsDir, { recursive: true });
+    testState.sessionStorePath = storePath;
+    testState.agentsConfig = {
+      list: [{ id: "main", default: true, workspace: workspaceDir }],
+    };
+
+    const now = Date.now();
+    const sessionId = "sess-files";
+    const transcriptPath = path.join(dir, `${sessionId}.jsonl`);
+    const transcriptLines = [
+      JSON.stringify({ type: "session", version: 1, id: sessionId }),
+      JSON.stringify({
+        timestamp: now - 5_000,
+        message: {
+          role: "assistant",
+          timestamp: now - 5_000,
+          content: [
+            {
+              type: "toolCall",
+              id: "call-write-1",
+              name: "write",
+              arguments: { path: "reports/generated.xlsx", content: "binary" },
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        timestamp: now - 4_000,
+        message: {
+          role: "toolResult",
+          timestamp: now - 4_000,
+          toolCallId: "call-write-1",
+          toolName: "write",
+          isError: false,
+          content: [{ type: "text", text: "wrote reports/generated.xlsx" }],
+        },
+      }),
+    ];
+    await fs.writeFile(transcriptPath, transcriptLines.join("\n"), "utf-8");
+
+    await fs.writeFile(path.join(reportsDir, "generated.xlsx"), "excel-by-write-tool", "utf-8");
+    await fs.writeFile(path.join(exportsDir, "auto.xlsx"), "excel-by-exec-or-runtime", "utf-8");
+
+    await writeSessionStore({
+      entries: {
+        main: {
+          sessionId,
+          updatedAt: now,
+        },
+      },
+    });
+
+    const prevWorkspaceScan = process.env.OPENCLAW_SESSION_FILES_WORKSPACE_SCAN;
+    process.env.OPENCLAW_SESSION_FILES_WORKSPACE_SCAN = "1";
+    const { ws } = await openClient();
+    try {
+      const listed = await rpcReq<{
+        key: string;
+        status?: string;
+        workspaceDir?: string;
+        transcriptPath?: string;
+        files: Array<{
+          path: string;
+          workspacePath?: string;
+          action?: string;
+          actions?: string[];
+        }>;
+      }>(ws, "sessions.files.list", {
+        key: "main",
+        scope: "all",
+        includeMissing: false,
+        limit: 200,
+      });
+
+      expect(listed.ok).toBe(true);
+      expect(listed.payload?.key).toBe("agent:main:main");
+      expect(listed.payload?.status).toBe("ok");
+      expect(listed.payload?.workspaceDir).toBe(path.resolve(workspaceDir));
+      expect(listed.payload?.transcriptPath).toBe(transcriptPath);
+      const normalizedPaths = (listed.payload?.files ?? []).map((file) =>
+        (file.workspacePath ?? file.path).replaceAll("\\", "/"),
+      );
+      expect(normalizedPaths).toEqual(
+        expect.arrayContaining(["reports/generated.xlsx", "exports/auto.xlsx"]),
+      );
+      const generatedEntry = (listed.payload?.files ?? []).find(
+        (file) =>
+          (file.workspacePath ?? file.path).replaceAll("\\", "/") === "reports/generated.xlsx",
+      );
+      expect(generatedEntry?.actions ?? [generatedEntry?.action ?? ""]).toEqual(
+        expect.arrayContaining(["updated"]),
+      );
+    } finally {
+      ws.close();
+      if (prevWorkspaceScan === undefined) {
+        delete process.env.OPENCLAW_SESSION_FILES_WORKSPACE_SCAN;
+      } else {
+        process.env.OPENCLAW_SESSION_FILES_WORKSPACE_SCAN = prevWorkspaceScan;
+      }
+    }
+  });
+
+  test("sessions.files.list prefers transcript-derived exec outputs and ignores env noise by default", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-files-exec-"));
+    const storePath = path.join(dir, "sessions.json");
+    const workspaceDir = path.join(dir, "workspace");
+    const venvBinDir = path.join(workspaceDir, ".venv/bin");
+    await fs.mkdir(venvBinDir, { recursive: true });
+    testState.sessionStorePath = storePath;
+    testState.agentsConfig = {
+      list: [{ id: "main", default: true, workspace: workspaceDir }],
+    };
+
+    const now = Date.now();
+    const sessionId = "sess-files-exec";
+    const transcriptPath = path.join(dir, `${sessionId}.jsonl`);
+    const transcriptLines = [
+      JSON.stringify({ type: "session", version: 1, id: sessionId }),
+      JSON.stringify({
+        timestamp: now - 3_000,
+        message: {
+          role: "assistant",
+          timestamp: now - 3_000,
+          content: [
+            {
+              type: "toolCall",
+              id: "call-exec-1",
+              name: "exec",
+              arguments: {
+                command:
+                  "python3 -m venv .venv && source .venv/bin/activate && python3 -c \"open('test_data.xlsx','wb').write(b'xlsx')\"",
+                workdir: workspaceDir,
+              },
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        timestamp: now - 2_000,
+        message: {
+          role: "toolResult",
+          timestamp: now - 2_000,
+          toolCallId: "call-exec-1",
+          toolName: "exec",
+          details: { status: "completed", exitCode: 0 },
+          isError: false,
+          content: [{ type: "text", text: "created test_data.xlsx" }],
+        },
+      }),
+    ];
+    await fs.writeFile(transcriptPath, transcriptLines.join("\n"), "utf-8");
+    await fs.writeFile(path.join(venvBinDir, "activate"), "#!/bin/sh\n", "utf-8");
+    await fs.writeFile(path.join(workspaceDir, "test_data.xlsx"), "xlsx-binary", "utf-8");
+
+    await writeSessionStore({
+      entries: {
+        main: {
+          sessionId,
+          updatedAt: now,
+        },
+      },
+    });
+
+    const prevWorkspaceScan = process.env.OPENCLAW_SESSION_FILES_WORKSPACE_SCAN;
+    delete process.env.OPENCLAW_SESSION_FILES_WORKSPACE_SCAN;
+    const { ws } = await openClient();
+    try {
+      const listed = await rpcReq<{
+        files: Array<{
+          path: string;
+          workspacePath?: string;
+          action?: string;
+          actions?: string[];
+        }>;
+      }>(ws, "sessions.files.list", {
+        key: "main",
+        scope: "changed",
+        includeMissing: false,
+        limit: 200,
+      });
+      expect(listed.ok).toBe(true);
+      const normalizedPaths = (listed.payload?.files ?? []).map((file) =>
+        (file.workspacePath ?? file.path).replaceAll("\\", "/"),
+      );
+      expect(normalizedPaths).toContain("test_data.xlsx");
+      expect(normalizedPaths).not.toContain(".venv/bin/activate");
+      const target = (listed.payload?.files ?? []).find(
+        (file) => (file.workspacePath ?? file.path).replaceAll("\\", "/") === "test_data.xlsx",
+      );
+      const targetActions = target?.actions ?? [target?.action ?? ""];
+      expect(targetActions.some((action) => action === "created" || action === "updated")).toBe(
+        true,
+      );
+    } finally {
+      ws.close();
+      if (prevWorkspaceScan === undefined) {
+        delete process.env.OPENCLAW_SESSION_FILES_WORKSPACE_SCAN;
+      } else {
+        process.env.OPENCLAW_SESSION_FILES_WORKSPACE_SCAN = prevWorkspaceScan;
+      }
+    }
+  });
+
   test("sessions.preview returns transcript previews", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-preview-"));
     const storePath = path.join(dir, "sessions.json");
@@ -418,77 +643,6 @@ describe("gateway server sessions", () => {
     expect(entry?.status).toBe("ok");
     expect(entry?.items.map((item) => item.role)).toEqual(["assistant", "tool", "assistant"]);
     expect(entry?.items[1]?.text).toContain("call weather");
-
-    ws.close();
-  });
-
-  test("sessions.files.list returns created files from tool calls", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-files-"));
-    const storePath = path.join(dir, "sessions.json");
-    testState.sessionStorePath = storePath;
-    const workspaceDir = path.join(dir, "workspace");
-    await fs.mkdir(workspaceDir, { recursive: true });
-    const sessionId = "sess-files";
-    const transcriptPath = path.join(dir, `${sessionId}.jsonl`);
-    const docPath = path.join(workspaceDir, "测试文档.docx");
-    await fs.writeFile(docPath, "docx", "utf-8");
-    const lines = [
-      JSON.stringify({ type: "session", version: 1, id: sessionId }),
-      JSON.stringify({
-        type: "message",
-        message: {
-          role: "assistant",
-          content: [
-            {
-              type: "toolCall",
-              id: "call-docx",
-              name: "exec",
-              arguments: {
-                command: 'textutil -convert docx test.rtf -output "测试文档.docx"',
-                workdir: workspaceDir,
-              },
-            },
-          ],
-        },
-      }),
-    ];
-    await fs.writeFile(transcriptPath, `${lines.join("\n")}\n`, "utf-8");
-
-    await writeSessionStore({
-      entries: {
-        main: {
-          sessionId,
-          updatedAt: Date.now(),
-        },
-      },
-    });
-
-    const { ws } = await openClient();
-    const files = await rpcReq<{
-      key: string;
-      status: string;
-      count: number;
-      files: Array<{ path: string; action: string; kind: string; exists: boolean }>;
-    }>(ws, "sessions.files.list", {
-      key: "main",
-      scope: "created",
-      includeMissing: true,
-    });
-
-    expect(files.ok).toBe(true);
-    expect(files.payload?.key).toBe("agent:main:main");
-    expect(files.payload?.status).toBe("ok");
-    expect(files.payload?.count).toBeGreaterThanOrEqual(1);
-    expect(files.payload?.files).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          path: docPath,
-          action: "created",
-          kind: "file",
-          exists: true,
-        }),
-      ]),
-    );
 
     ws.close();
   });
@@ -666,6 +820,193 @@ describe("gateway server sessions", () => {
     );
     expect(embeddedRunMock.abortCalls).toEqual(["sess-active"]);
     expect(embeddedRunMock.waitCalls).toEqual(["sess-active"]);
+
+    ws.close();
+  });
+
+  test("sessions.reset aborts active runs and clears queues", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-"));
+    const storePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = storePath;
+
+    await fs.writeFile(
+      path.join(dir, "sess-main.jsonl"),
+      `${JSON.stringify({ role: "user", content: "hello" })}\n`,
+      "utf-8",
+    );
+
+    await writeSessionStore({
+      entries: {
+        main: { sessionId: "sess-main", updatedAt: Date.now() },
+      },
+    });
+
+    embeddedRunMock.activeIds.add("sess-main");
+    embeddedRunMock.waitResults.set("sess-main", true);
+
+    const { ws } = await openClient();
+
+    const reset = await rpcReq<{ ok: true; key: string; entry: { sessionId: string } }>(
+      ws,
+      "sessions.reset",
+      {
+        key: "main",
+      },
+    );
+    expect(reset.ok).toBe(true);
+    expect(reset.payload?.key).toBe("agent:main:main");
+    expect(reset.payload?.entry.sessionId).not.toBe("sess-main");
+    expect(sessionCleanupMocks.stopSubagentsForRequester).toHaveBeenCalledWith({
+      cfg: expect.any(Object),
+      requesterSessionKey: "agent:main:main",
+    });
+    expect(sessionCleanupMocks.clearSessionQueues).toHaveBeenCalledTimes(1);
+    const clearedKeys = sessionCleanupMocks.clearSessionQueues.mock.calls[0]?.[0] as string[];
+    expect(clearedKeys).toEqual(expect.arrayContaining(["main", "agent:main:main", "sess-main"]));
+    expect(embeddedRunMock.abortCalls).toEqual(["sess-main"]);
+    expect(embeddedRunMock.waitCalls).toEqual(["sess-main"]);
+
+    ws.close();
+  });
+
+  test("sessions.reset emits internal command hook with reason", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-"));
+    const storePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = storePath;
+
+    await fs.writeFile(
+      path.join(dir, "sess-main.jsonl"),
+      `${JSON.stringify({ role: "user", content: "hello" })}\n`,
+      "utf-8",
+    );
+
+    await writeSessionStore({
+      entries: {
+        main: { sessionId: "sess-main", updatedAt: Date.now() },
+      },
+    });
+
+    const { ws } = await openClient();
+    const reset = await rpcReq<{ ok: true; key: string }>(ws, "sessions.reset", {
+      key: "main",
+      reason: "new",
+    });
+    expect(reset.ok).toBe(true);
+    expect(sessionHookMocks.triggerInternalHook).toHaveBeenCalledTimes(1);
+    const [event] = sessionHookMocks.triggerInternalHook.mock.calls[0] ?? [];
+    expect(event).toMatchObject({
+      type: "command",
+      action: "new",
+      sessionKey: "agent:main:main",
+      context: {
+        commandSource: "gateway:sessions.reset",
+      },
+    });
+    expect(event.context.previousSessionEntry).toMatchObject({ sessionId: "sess-main" });
+    ws.close();
+  });
+
+  test("sessions.reset returns unavailable when active run does not stop", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-"));
+    const storePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = storePath;
+
+    await fs.writeFile(
+      path.join(dir, "sess-main.jsonl"),
+      `${JSON.stringify({ role: "user", content: "hello" })}\n`,
+      "utf-8",
+    );
+
+    await writeSessionStore({
+      entries: {
+        main: { sessionId: "sess-main", updatedAt: Date.now() },
+      },
+    });
+
+    embeddedRunMock.activeIds.add("sess-main");
+    embeddedRunMock.waitResults.set("sess-main", false);
+
+    const { ws } = await openClient();
+
+    const reset = await rpcReq(ws, "sessions.reset", {
+      key: "main",
+    });
+    expect(reset.ok).toBe(false);
+    expect(reset.error?.code).toBe("UNAVAILABLE");
+    expect(reset.error?.message ?? "").toMatch(/still active/i);
+    expect(sessionCleanupMocks.stopSubagentsForRequester).toHaveBeenCalledWith({
+      cfg: expect.any(Object),
+      requesterSessionKey: "agent:main:main",
+    });
+    expect(sessionCleanupMocks.clearSessionQueues).toHaveBeenCalledTimes(1);
+    const clearedKeys = sessionCleanupMocks.clearSessionQueues.mock.calls[0]?.[0] as string[];
+    expect(clearedKeys).toEqual(expect.arrayContaining(["main", "agent:main:main", "sess-main"]));
+    expect(embeddedRunMock.abortCalls).toEqual(["sess-main"]);
+    expect(embeddedRunMock.waitCalls).toEqual(["sess-main"]);
+
+    const store = JSON.parse(await fs.readFile(storePath, "utf-8")) as Record<
+      string,
+      { sessionId?: string }
+    >;
+    expect(store["agent:main:main"]?.sessionId).toBe("sess-main");
+    const filesAfterResetAttempt = await fs.readdir(dir);
+    expect(filesAfterResetAttempt.some((f) => f.startsWith("sess-main.jsonl.reset."))).toBe(false);
+
+    ws.close();
+  });
+
+  test("sessions.delete returns unavailable when active run does not stop", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-"));
+    const storePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = storePath;
+
+    await fs.writeFile(
+      path.join(dir, "sess-active.jsonl"),
+      `${JSON.stringify({ role: "user", content: "active" })}\n`,
+      "utf-8",
+    );
+
+    await writeSessionStore({
+      entries: {
+        "discord:group:dev": {
+          sessionId: "sess-active",
+          updatedAt: Date.now(),
+        },
+      },
+    });
+
+    embeddedRunMock.activeIds.add("sess-active");
+    embeddedRunMock.waitResults.set("sess-active", false);
+
+    const { ws } = await openClient();
+
+    const deleted = await rpcReq(ws, "sessions.delete", {
+      key: "discord:group:dev",
+    });
+    expect(deleted.ok).toBe(false);
+    expect(deleted.error?.code).toBe("UNAVAILABLE");
+    expect(deleted.error?.message ?? "").toMatch(/still active/i);
+    expect(sessionCleanupMocks.stopSubagentsForRequester).toHaveBeenCalledWith({
+      cfg: expect.any(Object),
+      requesterSessionKey: "agent:main:discord:group:dev",
+    });
+    expect(sessionCleanupMocks.clearSessionQueues).toHaveBeenCalledTimes(1);
+    const clearedKeys = sessionCleanupMocks.clearSessionQueues.mock.calls[0]?.[0] as string[];
+    expect(clearedKeys).toEqual(
+      expect.arrayContaining(["discord:group:dev", "agent:main:discord:group:dev", "sess-active"]),
+    );
+    expect(embeddedRunMock.abortCalls).toEqual(["sess-active"]);
+    expect(embeddedRunMock.waitCalls).toEqual(["sess-active"]);
+
+    const store = JSON.parse(await fs.readFile(storePath, "utf-8")) as Record<
+      string,
+      { sessionId?: string }
+    >;
+    expect(store["agent:main:discord:group:dev"]?.sessionId).toBe("sess-active");
+    const filesAfterDeleteAttempt = await fs.readdir(dir);
+    expect(filesAfterDeleteAttempt.some((f) => f.startsWith("sess-active.jsonl.deleted."))).toBe(
+      false,
+    );
 
     ws.close();
   });
