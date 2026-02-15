@@ -7,6 +7,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { AuthProfileStore } from "./auth-profiles.js";
 import { saveAuthProfileStore } from "./auth-profiles.js";
 import { AUTH_STORE_VERSION } from "./auth-profiles/constants.js";
+import { FailoverError } from "./failover-error.js";
 import { runWithModelFallback } from "./model-fallback.js";
 
 function makeCfg(overrides: Partial<OpenClawConfig> = {}): OpenClawConfig {
@@ -629,7 +630,7 @@ describe("runWithModelFallback", () => {
       expect(run).toHaveBeenCalledTimes(6);
     });
 
-    it("does not retry when failures are mixed (not all rate_limit)", async () => {
+    it("does not retry when failures are mixed (non-retryable present)", async () => {
       const cfg = makeCfg();
       const run = vi
         .fn()
@@ -646,8 +647,81 @@ describe("runWithModelFallback", () => {
         }),
       ).rejects.toThrow("All models failed");
 
-      // Both candidates tried once, no retry because not all rate_limit
+      // Both candidates tried once, no retry because auth (401) is not retryable
       expect(run).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries on timeout errors (silent rate limit)", async () => {
+      const cfg = makeCfg();
+      let callCount = 0;
+      const run = vi.fn().mockImplementation(async () => {
+        callCount += 1;
+        if (callCount <= 2) {
+          // Simulate Antigravity-style timeout (hangs then times out)
+          throw new FailoverError("LLM request timed out.", {
+            reason: "timeout",
+            status: 408,
+          });
+        }
+        return "ok";
+      });
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        run,
+        _rateLimitRetryDelayMs: 10,
+      });
+
+      expect(result.result).toBe("ok");
+      // 2 calls in round 1 (both timeout), then 1 call in round 2 (succeeds)
+      expect(run).toHaveBeenCalledTimes(3);
+    });
+
+    it("retries on mixed rate_limit + timeout + unknown reasons", async () => {
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "p/m1",
+              fallbacks: ["p/m2", "p/m3"],
+            },
+          },
+        },
+      });
+      let callCount = 0;
+      const run = vi.fn().mockImplementation(async () => {
+        callCount += 1;
+        if (callCount === 1) {
+          throw Object.assign(new Error("rate limited"), { status: 429 });
+        }
+        if (callCount === 2) {
+          throw new FailoverError("LLM request timed out.", {
+            reason: "timeout",
+            status: 408,
+          });
+        }
+        if (callCount === 3) {
+          // unknown reason — e.g. timeout with empty error body from proxy
+          throw new FailoverError("LLM request failed.", {
+            reason: "unknown",
+          });
+        }
+        return "ok";
+      });
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "p",
+        model: "m1",
+        run,
+        _rateLimitRetryDelayMs: 10,
+      });
+
+      expect(result.result).toBe("ok");
+      // 3 calls in round 1 (rate_limit + timeout + unknown), then 1 in round 2
+      expect(run).toHaveBeenCalledTimes(4);
     });
 
     it("clears cooldown between retry rounds so skipped providers are retried", async () => {
