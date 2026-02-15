@@ -70,12 +70,30 @@ async function ensureRelayConnection() {
     }
 
     const ws = new WebSocket(wsUrl)
-    relayWs = ws
+
+    // Install permanent handlers BEFORE awaiting open to avoid a race window
+    // where the socket could close between onopen and handler installation.
+    let connected = false
+    ws.onmessage = (event) => void onRelayMessage(String(event.data || ''))
+    ws.onclose = (ev) => {
+      if (connected) {
+        onRelayClosed('closed')
+      }
+    }
+    ws.onerror = () => {
+      if (connected) {
+        onRelayClosed('error')
+      }
+    }
 
     await new Promise((resolve, reject) => {
       const t = setTimeout(() => reject(new Error('WebSocket connect timeout')), 5000)
+      const origOnclose = ws.onclose
+      const origOnerror = ws.onerror
       ws.onopen = () => {
         clearTimeout(t)
+        connected = true
+        relayWs = ws
         resolve()
       }
       ws.onerror = () => {
@@ -86,11 +104,12 @@ async function ensureRelayConnection() {
         clearTimeout(t)
         reject(new Error(`WebSocket closed (${ev.code} ${ev.reason || 'no reason'})`))
       }
+      // After open, restore permanent handlers
+      ws.addEventListener('open', () => {
+        ws.onclose = origOnclose
+        ws.onerror = origOnerror
+      }, { once: true })
     })
-
-    ws.onmessage = (event) => void onRelayMessage(String(event.data || ''))
-    ws.onclose = () => onRelayClosed('closed')
-    ws.onerror = () => onRelayClosed('error')
 
     if (!debuggerListenersInstalled) {
       debuggerListenersInstalled = true
