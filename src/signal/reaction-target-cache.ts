@@ -71,7 +71,7 @@ function pruneIfNeeded(): void {
   const sorted = Array.from(reactionTargetByGroupMessage.entries()).toSorted(
     (a, b) => a[1].recordedAt - b[1].recordedAt,
   );
-  const overflow = sorted.length - MAX_ENTRIES;
+  const overflow = reactionTargetByGroupMessage.size - MAX_ENTRIES;
   for (let i = 0; i < overflow; i += 1) {
     const key = sorted[i]?.[0];
     if (key) {
