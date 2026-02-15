@@ -1,0 +1,8 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { CronIsland } from '../ui/components/cron-island.ts';
+---
+
+<AppLayout title="Cron Jobs" tab="cron">
+  <CronIsland client:only="lit" />
+</AppLayout>

@@ -1,0 +1,8 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { UsageIsland } from '../ui/components/usage-island.ts';
+---
+
+<AppLayout title="Usage" tab="usage">
+  <UsageIsland client:only="lit" />
+</AppLayout>

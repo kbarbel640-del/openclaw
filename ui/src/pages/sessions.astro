@@ -1,0 +1,8 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { SessionsIsland } from '../ui/components/sessions-island.ts';
+---
+
+<AppLayout title="Sessions" tab="sessions">
+  <SessionsIsland client:only="lit" />
+</AppLayout>

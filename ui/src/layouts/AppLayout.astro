@@ -1,0 +1,29 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import '../styles/base.css';
+import '../styles/layout.css';
+import '../styles/layout.mobile.css';
+import '../styles/components.css';
+import '../styles/chat.css';
+import '../styles/config.css';
+import { NavIsland } from '../ui/components/nav-island.ts';
+
+interface Props {
+  title: string;
+  tab: string;
+}
+
+const { title, tab } = Astro.props;
+---
+
+<BaseLayout title={title}>
+  <div class="shell" id="app-shell">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <NavIsland tab={tab} client:only="lit" />
+
+    <main id="main-content" class="content">
+      <slot />
+    </main>
+  </div>
+</BaseLayout>

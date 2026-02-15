@@ -1,0 +1,8 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { ChatIsland } from '../ui/components/chat-island.ts';
+---
+
+<AppLayout title="Chat" tab="chat">
+  <ChatIsland client:only="lit" />
+</AppLayout>
