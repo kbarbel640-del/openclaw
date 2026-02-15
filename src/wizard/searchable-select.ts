@@ -348,6 +348,11 @@ export async function searchableSelect<T>(params: SearchableSelectParams<T>): Pr
 
         // Enter
         if (raw[i] === "\r" || raw[i] === "\n") {
+          if (filteredItems.length === 0) {
+            // Don't submit when no matches, just continue
+            i++;
+            continue;
+          }
           const selected = filteredItems[selectedIndex];
           if (selected) {
             cleanup();
