@@ -17,13 +17,60 @@ function resolveProfileUnusableUntil(stats: {
   return Math.max(...values);
 }
 
+/**
+ * Resolve when a profile becomes usable for a specific model.
+ * Considers both profile-level cooldowns (auth/billing) and model-specific cooldowns (rate_limit).
+ */
+function resolveProfileUnusableUntilForModel(
+  stats: {
+    cooldownUntil?: number;
+    disabledUntil?: number;
+    modelCooldowns?: Record<string, number>;
+  },
+  model?: string,
+): number | null {
+  // Collect all applicable cooldown timestamps
+  const values: number[] = [];
+
+  // Profile-level cooldowns (auth/billing errors)
+  if (
+    typeof stats.cooldownUntil === "number" &&
+    Number.isFinite(stats.cooldownUntil) &&
+    stats.cooldownUntil > 0
+  ) {
+    values.push(stats.cooldownUntil);
+  }
+  if (
+    typeof stats.disabledUntil === "number" &&
+    Number.isFinite(stats.disabledUntil) &&
+    stats.disabledUntil > 0
+  ) {
+    values.push(stats.disabledUntil);
+  }
+
+  // Model-specific cooldown (rate_limit errors)
+  if (model && stats.modelCooldowns) {
+    const modelCooldown = stats.modelCooldowns[model];
+    if (typeof modelCooldown === "number" && Number.isFinite(modelCooldown) && modelCooldown > 0) {
+      values.push(modelCooldown);
+    }
+  }
+
+  if (values.length === 0) {
+    return null;
+  }
+  return Math.max(...values);
+}
+
 export function resolveAuthProfileOrder(params: {
   cfg?: OpenClawConfig;
   store: AuthProfileStore;
   provider: string;
   preferredProfile?: string;
+  /** Optional model ID for model-specific cooldown checks */
+  model?: string;
 }): string[] {
-  const { cfg, store, provider, preferredProfile } = params;
+  const { cfg, store, provider, preferredProfile, model } = params;
   const providerKey = normalizeProviderId(provider);
   const now = Date.now();
   const storedOrder = (() => {
@@ -118,11 +165,13 @@ export function resolveAuthProfileOrder(params: {
   if (explicitOrder && explicitOrder.length > 0) {
     // ...but still respect cooldown tracking to avoid repeatedly selecting a
     // known-bad/rate-limited key as the first candidate.
+    // Use model-aware cooldown check if model is provided
     const available: string[] = [];
     const inCooldown: Array<{ profileId: string; cooldownUntil: number }> = [];
 
     for (const profileId of deduped) {
-      const cooldownUntil = resolveProfileUnusableUntil(store.usageStats?.[profileId] ?? {}) ?? 0;
+      const cooldownUntil =
+        resolveProfileUnusableUntilForModel(store.usageStats?.[profileId] ?? {}, model) ?? 0;
       if (
         typeof cooldownUntil === "number" &&
         Number.isFinite(cooldownUntil) &&
@@ -151,7 +200,7 @@ export function resolveAuthProfileOrder(params: {
   // Otherwise, use round-robin: sort by lastUsed (oldest first)
   // preferredProfile goes first if specified (for explicit user choice)
   // lastGood is NOT prioritized - that would defeat round-robin
-  const sorted = orderProfilesByMode(deduped, store);
+  const sorted = orderProfilesByMode(deduped, store, model);
 
   if (preferredProfile && sorted.includes(preferredProfile)) {
     return [preferredProfile, ...sorted.filter((e) => e !== preferredProfile)];
@@ -160,15 +209,16 @@ export function resolveAuthProfileOrder(params: {
   return sorted;
 }
 
-function orderProfilesByMode(order: string[], store: AuthProfileStore): string[] {
+function orderProfilesByMode(order: string[], store: AuthProfileStore, model?: string): string[] {
   const now = Date.now();
 
   // Partition into available and in-cooldown
+  // Use model-aware cooldown check if model is provided
   const available: string[] = [];
   const inCooldown: string[] = [];
 
   for (const profileId of order) {
-    if (isProfileInCooldown(store, profileId)) {
+    if (isProfileInCooldown(store, profileId, model)) {
       inCooldown.push(profileId);
     } else {
       available.push(profileId);
@@ -198,10 +248,12 @@ function orderProfilesByMode(order: string[], store: AuthProfileStore): string[]
     .map((entry) => entry.profileId);
 
   // Append cooldown profiles at the end (sorted by cooldown expiry, soonest first)
+  // Use model-aware cooldown expiry if model is provided
   const cooldownSorted = inCooldown
     .map((profileId) => ({
       profileId,
-      cooldownUntil: resolveProfileUnusableUntil(store.usageStats?.[profileId] ?? {}) ?? now,
+      cooldownUntil:
+        resolveProfileUnusableUntilForModel(store.usageStats?.[profileId] ?? {}, model) ?? now,
     }))
     .toSorted((a, b) => a.cooldownUntil - b.cooldownUntil)
     .map((entry) => entry.profileId);
