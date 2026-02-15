@@ -738,6 +738,29 @@ describe("sendStickerTelegram", () => {
     expect(res.messageId).toBe("109");
   });
 
+  it("skips message_thread_id for private chats", async () => {
+    // Private chat (positive chatId) - should skip message_thread_id even if provided
+    const chatId = "123456789";
+    const sendSticker = vi.fn().mockResolvedValue({
+      message_id: 110,
+      chat: { id: chatId },
+    });
+    const api = { sendSticker } as unknown as {
+      sendSticker: typeof sendSticker;
+    };
+
+    const res = await sendStickerTelegram(chatId, "fileId123", {
+      token: "tok",
+      api,
+      messageThreadId: 99,
+    });
+
+    expect(res.messageId).toBe("110");
+    expect(sendSticker).toHaveBeenCalledTimes(1);
+    // message_thread_id should NOT be included for private chats
+    expect(sendSticker).toHaveBeenCalledWith(chatId, "fileId123", undefined);
+  });
+
   it("includes reply_to_message_id for threaded replies", async () => {
     const chatId = "123";
     const fileId = "CAACAgIAAxkBAAI...sticker_file_id";
