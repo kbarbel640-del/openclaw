@@ -225,6 +225,7 @@ OPENCLAW_WORKSPACE_DIR=/home/$USER/.openclaw/workspace
 
 GOG_KEYRING_PASSWORD=change-me-now
 XDG_CONFIG_HOME=/home/node/.openclaw
+OPENCLAW_BUN_VERSION=1.3.9
 ```
 
 Generate strong secrets:
@@ -245,7 +246,10 @@ Create or update `docker-compose.yml`.
 services:
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE}
-    build: .
+    build:
+      context: .
+      args:
+        BUN_VERSION: ${OPENCLAW_BUN_VERSION:-1.3.9}
     restart: unless-stopped
     env_file:
       - .env
@@ -340,6 +344,34 @@ ENV NODE_ENV=production
 
 CMD ["node","dist/index.js"]
 ```
+
+---
+
+## Bun pinning and maintenance windows
+
+The Docker build pins Bun with `BUN_VERSION` and verifies the downloaded Bun
+archive against the release `SHASUMS256.txt` file before installation. Keep the
+pin in `.env` so operators can coordinate upgrades safely.
+
+Maintenance window process:
+
+1. Choose a Bun release from `https://github.com/oven-sh/bun/releases`.
+2. Update `OPENCLAW_BUN_VERSION` in `.env`.
+3. Rebuild and confirm Bun version inside the built image:
+
+```bash
+docker compose build --no-cache openclaw-gateway
+docker compose run --rm openclaw-gateway bun --version
+```
+
+4. Deploy the updated image:
+
+```bash
+docker compose up -d openclaw-gateway
+```
+
+If checksum verification fails during build, do not bypass it. Reconfirm the
+release version and artifact names before retrying.
 
 ---
 
