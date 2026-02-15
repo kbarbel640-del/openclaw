@@ -25,6 +25,7 @@ jobs:
           sparse-checkout: |
             scripts/pr-triage.mjs
             scripts/pr-triage-github.mjs
+            scripts/pr-triage-labels.mjs
             CONTRIBUTING.md
           sparse-checkout-cone-mode: false
 

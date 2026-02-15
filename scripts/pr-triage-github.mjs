@@ -1,6 +1,7 @@
 /**
- * GitHub API helpers for PR triage.
- * Handles data fetching, pagination, and PR summary generation.
+ * GitHub API helpers and shared utilities for PR triage.
+ * Handles data fetching, pagination, PR summary generation,
+ * input sanitization, output validation, and deterministic signals.
  */
 
 const GITHUB_API = "https://api.github.com";
@@ -19,9 +20,12 @@ export function createGitHubClient(token) {
         ...opts,
       });
       if (res.ok) { return res.json(); }
-      if (res.status === 429 || res.status >= 500) {
-        const delay = Math.pow(2, attempt) * 1000;
-        console.warn(`GitHub API ${res.status} on ${path}, retry in ${delay}ms (${attempt + 1}/3)`);
+      const isRateLimit = res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0");
+      if (isRateLimit || res.status >= 500) {
+        const resetEpoch = Number(res.headers.get("x-ratelimit-reset") || 0);
+        const waitSec = resetEpoch ? Math.max(1, resetEpoch - Math.floor(Date.now() / 1000)) : Math.pow(2, attempt);
+        const delay = Math.min(waitSec * 1000, 60_000);
+        console.warn(`GitHub API ${res.status} on ${path}, retry in ${Math.round(delay / 1000)}s (${attempt + 1}/3)`);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -146,7 +150,7 @@ export async function getOpenPRSummaries(gh, ghPaginate, repo, maxOpenPRs) {
       console.warn(`Failed to fetch files for PR #${pr.number}: ${err.message}`);
     }
     return { pr, files };
-  }, 10);
+  }, 5);
 
   const summaries = [];
   for (const { pr, files } of enriched) {
@@ -170,4 +174,117 @@ export async function getRecentDecisions(ghPaginate, repo, maxHistory) {
     .slice(0, maxHistory)
     .map((pr) => `CLOSED #${pr.number}: ${pr.title} (by ${pr.user?.login}, +${pr.additions}/-${pr.deletions})`);
   return { mergedPRs, rejectedPRs };
+}
+
+// --- JSON Schema for structured output ---
+
+export const TRIAGE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    duplicate_of: { type: "array", items: { type: "integer" }, description: "PR numbers this is a duplicate of" },
+    related_to: { type: "array", items: { type: "integer" }, description: "PR numbers with related/overlapping work" },
+    category: { type: "string", enum: ["bug", "feature", "refactor", "test", "docs", "chore"] },
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+    quality_signals: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        focused_scope: { type: "boolean" },
+        has_tests: { type: "boolean" },
+        appropriate_size: { type: "boolean" },
+        references_issue: { type: "boolean" },
+      },
+      required: ["focused_scope", "has_tests", "appropriate_size", "references_issue"],
+    },
+    suggested_action: { type: "string", enum: ["needs-review", "likely-duplicate", "needs-discussion", "auto-label-only"] },
+    reasoning: { type: "string", description: "Brief explanation of the triage decision" },
+  },
+  required: ["duplicate_of", "related_to", "category", "confidence", "quality_signals", "suggested_action", "reasoning"],
+};
+
+// --- Prompt injection defense ---
+
+export function sanitizeUntrusted(text, maxLen) {
+  if (!text) { return ""; }
+  return text
+    .slice(0, maxLen)
+    .replace(/```/g, "'''")
+    .replace(/<\/?(?:system|human|assistant|instructions?|prompt|ignore|override)[^>]*>/gi, "[FILTERED]");
+}
+
+// --- JSON extraction from LLM response ---
+
+export function extractJSON(text) {
+  try { return JSON.parse(text); } catch {}
+  const fenced = text.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "").trim();
+  try { return JSON.parse(fenced); } catch {}
+  const braceMatch = text.match(/\{[\s\S]*\}/);
+  if (braceMatch) {
+    try { return JSON.parse(braceMatch[0]); } catch {}
+  }
+  return null;
+}
+
+// --- Output validation ---
+
+export function validateTriageOutput(triage, knownPRNumbers) {
+  if (!triage || typeof triage !== "object") { return null; }
+
+  const validPRs = new Set(knownPRNumbers);
+
+  if (Array.isArray(triage.duplicate_of)) {
+    triage.duplicate_of = triage.duplicate_of.filter((n) => validPRs.has(n));
+  } else {
+    triage.duplicate_of = [];
+  }
+
+  if (Array.isArray(triage.related_to)) {
+    triage.related_to = triage.related_to.filter((n) => validPRs.has(n));
+  } else {
+    triage.related_to = [];
+  }
+
+  const validCategories = ["bug", "feature", "refactor", "test", "docs", "chore"];
+  if (!validCategories.includes(triage.category)) {
+    triage.category = "chore";
+  }
+
+  const validConfidence = ["high", "medium", "low"];
+  if (!validConfidence.includes(triage.confidence)) {
+    triage.confidence = "low";
+  }
+
+  const validActions = ["needs-review", "likely-duplicate", "needs-discussion", "auto-label-only"];
+  if (!validActions.includes(triage.suggested_action)) {
+    triage.suggested_action = "needs-review";
+  }
+
+  if (!triage.quality_signals || typeof triage.quality_signals !== "object") {
+    triage.quality_signals = { focused_scope: true, has_tests: false, appropriate_size: true, references_issue: false };
+  }
+
+  if (triage.suggested_action === "likely-duplicate" && triage.duplicate_of.length === 0) {
+    triage.suggested_action = "needs-review";
+    triage.confidence = "low";
+  }
+
+  return triage;
+}
+
+// --- Deterministic pre-enrichment (uses structured fileMap) ---
+
+export function deterministicSignals(targetPR, fileMap) {
+  const targetFiles = targetPR.files || [];
+  const signals = [];
+
+  for (const [prNum, prFiles] of fileMap) {
+    if (prNum === targetPR.number) { continue; }
+    const jaccard = computeFileOverlap(targetFiles, prFiles);
+    if (jaccard > 0.3) {
+      signals.push({ pr: prNum, jaccard: Math.round(jaccard * 100) / 100 });
+    }
+  }
+
+  return signals;
 }

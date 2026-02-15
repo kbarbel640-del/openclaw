@@ -11,16 +11,20 @@
  * Cost tracking built-in — logs per-call and cumulative costs.
  */
 
-import { appendFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import {
   createGitHubClient,
   extractIssueRefs,
-  computeFileOverlap,
   getTargetPR,
   getOpenPRSummaries,
   getRecentDecisions,
+  TRIAGE_SCHEMA,
+  sanitizeUntrusted,
+  extractJSON,
+  validateTriageOutput,
+  deterministicSignals,
 } from "./pr-triage-github.mjs";
+import { applyLabels, writeSummary } from "./pr-triage-labels.mjs";
 
 const REPO = process.env.REPO;
 const PR_NUMBER = Number(process.env.PR_NUMBER) || 0;
@@ -54,108 +58,6 @@ let totalCost = 0;
 
 const { gh, ghPaginate } = createGitHubClient(GITHUB_TOKEN);
 
-// --- JSON Schema for structured output ---
-
-const TRIAGE_SCHEMA = {
-  type: "object",
-  properties: {
-    duplicate_of: { type: "array", items: { type: "integer" }, description: "PR numbers this is a duplicate of" },
-    related_to: { type: "array", items: { type: "integer" }, description: "PR numbers with related/overlapping work" },
-    category: { type: "string", enum: ["bug", "feature", "refactor", "test", "docs", "chore"] },
-    confidence: { type: "string", enum: ["high", "medium", "low"] },
-    quality_signals: {
-      type: "object",
-      properties: {
-        focused_scope: { type: "boolean" },
-        has_tests: { type: "boolean" },
-        appropriate_size: { type: "boolean" },
-        references_issue: { type: "boolean" },
-      },
-      required: ["focused_scope", "has_tests", "appropriate_size", "references_issue"],
-    },
-    suggested_action: { type: "string", enum: ["needs-review", "likely-duplicate", "needs-discussion", "auto-label-only"] },
-    reasoning: { type: "string", description: "Brief explanation of the triage decision" },
-  },
-  required: ["duplicate_of", "related_to", "category", "confidence", "quality_signals", "suggested_action", "reasoning"],
-};
-
-// --- Prompt injection defense ---
-
-function sanitizeUntrusted(text, maxLen) {
-  if (!text) { return ""; }
-  return text
-    .slice(0, maxLen)
-    .replace(/```/g, "'''")
-    .replace(/<\/?(?:system|human|assistant|instructions?|prompt|ignore|override)[^>]*>/gi, "[FILTERED]");
-}
-
-// --- Output validation ---
-
-function validateTriageOutput(triage, knownPRNumbers) {
-  if (!triage || typeof triage !== "object") { return null; }
-
-  const validPRs = new Set(knownPRNumbers);
-
-  // Filter hallucinated PR numbers
-  if (Array.isArray(triage.duplicate_of)) {
-    triage.duplicate_of = triage.duplicate_of.filter((n) => validPRs.has(n));
-  } else {
-    triage.duplicate_of = [];
-  }
-
-  if (Array.isArray(triage.related_to)) {
-    triage.related_to = triage.related_to.filter((n) => validPRs.has(n));
-  } else {
-    triage.related_to = [];
-  }
-
-  // Validate enums
-  const validCategories = ["bug", "feature", "refactor", "test", "docs", "chore"];
-  if (!validCategories.includes(triage.category)) {
-    triage.category = "chore";
-  }
-
-  const validConfidence = ["high", "medium", "low"];
-  if (!validConfidence.includes(triage.confidence)) {
-    triage.confidence = "low";
-  }
-
-  const validActions = ["needs-review", "likely-duplicate", "needs-discussion", "auto-label-only"];
-  if (!validActions.includes(triage.suggested_action)) {
-    triage.suggested_action = "needs-review";
-  }
-
-  // Ensure quality_signals exists
-  if (!triage.quality_signals || typeof triage.quality_signals !== "object") {
-    triage.quality_signals = { focused_scope: true, has_tests: false, appropriate_size: true, references_issue: false };
-  }
-
-  // Downgrade confidence if duplicate references were removed
-  if (triage.suggested_action === "likely-duplicate" && triage.duplicate_of.length === 0) {
-    triage.suggested_action = "needs-review";
-    triage.confidence = "low";
-  }
-
-  return triage;
-}
-
-// --- Deterministic pre-enrichment (uses structured fileMap) ---
-
-function deterministicSignals(targetPR, fileMap) {
-  const targetFiles = targetPR.files || [];
-  const signals = [];
-
-  for (const [prNum, prFiles] of fileMap) {
-    if (prNum === targetPR.number) { continue; }
-    const jaccard = computeFileOverlap(targetFiles, prFiles);
-    if (jaccard > 0.3) {
-      signals.push({ pr: prNum, jaccard: Math.round(jaccard * 100) / 100 });
-    }
-  }
-
-  return signals;
-}
-
 // --- LLM triage call ---
 
 async function loadContributing() {
@@ -166,23 +68,6 @@ async function loadContributing() {
   } catch {
     return "Priorities: Stability, UX, Skills (ClawHub), Performance";
   }
-}
-
-function extractJSON(text) {
-  // Strategy 1: text is already valid JSON
-  try { return JSON.parse(text); } catch {}
-
-  // Strategy 2: strip markdown fences
-  const fenced = text.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "").trim();
-  try { return JSON.parse(fenced); } catch {}
-
-  // Strategy 3: extract first { ... } block
-  const braceMatch = text.match(/\{[\s\S]*\}/);
-  if (braceMatch) {
-    try { return JSON.parse(braceMatch[0]); } catch {}
-  }
-
-  return null;
 }
 
 async function triagePR(targetPR, contextSummaries, decisions, deterministicHints) {
@@ -250,9 +135,7 @@ Analyze this PR and respond with the triage JSON.`;
       effort: EFFORT,
       format: {
         type: "json_schema",
-        name: "pr_triage",
         schema: TRIAGE_SCHEMA,
-        strict: false,
       },
     },
     system: [
@@ -267,6 +150,7 @@ Analyze this PR and respond with the triage JSON.`;
     headers: {
       "x-api-key": ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
+      "anthropic-beta": "structured-outputs-2025-11-13",
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
@@ -301,118 +185,6 @@ Analyze this PR and respond with the triage JSON.`;
     console.error("Failed to parse LLM response:", text.slice(0, 500));
   }
   return parsed;
-}
-
-// --- Label application ---
-
-const CATEGORY_LABELS = {
-  bug: "auto:bug", feature: "auto:feature", refactor: "auto:refactor",
-  test: "auto:test", docs: "auto:docs", chore: "auto:chore",
-};
-
-async function ensureLabel(name, color) {
-  try {
-    await gh(`/repos/${REPO}/labels/${encodeURIComponent(name)}`);
-  } catch {
-    try {
-      await gh(`/repos/${REPO}/labels`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, color }),
-      });
-    } catch {}
-  }
-}
-
-async function applyLabels(prNumber, triage) {
-  if (!triage) { return; }
-  const labels = [];
-  const catLabel = CATEGORY_LABELS[triage.category];
-  if (catLabel) {
-    await ensureLabel(catLabel, "d4c5f9");
-    labels.push(catLabel);
-  }
-
-  if (triage.confidence === "high" && triage.duplicate_of?.length > 0) {
-    await ensureLabel("possible-overlap", "fbca04");
-    labels.push("possible-overlap");
-    for (const dupNum of triage.duplicate_of) {
-      const clusterLabel = `cluster:#${dupNum}`;
-      await ensureLabel(clusterLabel, "fbca04");
-      labels.push(clusterLabel);
-    }
-  }
-
-  if (triage.suggested_action === "likely-duplicate") {
-    await ensureLabel("triage:likely-duplicate", "fbca04");
-    labels.push("triage:likely-duplicate");
-  } else if (triage.suggested_action === "needs-discussion") {
-    await ensureLabel("triage:needs-discussion", "c2e0c6");
-    labels.push("triage:needs-discussion");
-  }
-
-  if (triage.quality_signals) {
-    if (!triage.quality_signals.references_issue) {
-      await ensureLabel("triage:no-issue-ref", "c2e0c6");
-      labels.push("triage:no-issue-ref");
-    }
-    if (!triage.quality_signals.has_tests && triage.category !== "docs") {
-      await ensureLabel("triage:no-tests", "c2e0c6");
-      labels.push("triage:no-tests");
-    }
-  }
-
-  if (labels.length > 0) {
-    try {
-      await gh(`/repos/${REPO}/issues/${prNumber}/labels`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ labels }),
-      });
-      console.log(`Applied labels to #${prNumber}: ${labels.join(", ")}`);
-    } catch (err) {
-      console.warn(`Failed to apply labels: ${err.message}`);
-      console.log(`Would apply to #${prNumber}: ${labels.join(", ")}`);
-    }
-  }
-}
-
-// --- Summary output ---
-
-function writeSummary(prNumber, triage, deterministicHints, costInfo) {
-  if (!triage) { return; }
-  const lines = [
-    `## PR #${prNumber} Triage`, "",
-    `**Category:** ${triage.category} | **Confidence:** ${triage.confidence} | **Action:** ${triage.suggested_action}`, "",
-    `**Reasoning:** ${triage.reasoning}`, "",
-  ];
-  if (triage.duplicate_of?.length > 0) {
-    lines.push(`**Possible duplicates:** ${triage.duplicate_of.map((n) => `#${n}`).join(", ")}`);
-  }
-  if (triage.related_to?.length > 0) {
-    lines.push(`**Related PRs:** ${triage.related_to.map((n) => `#${n}`).join(", ")}`);
-  }
-  if (deterministicHints.length > 0) {
-    lines.push("", "**Deterministic signals:**");
-    for (const h of deterministicHints) {
-      lines.push(`- #${h.pr}: file overlap=${h.jaccard}`);
-    }
-  }
-  const qs = triage.quality_signals || {};
-  lines.push("", "**Quality:**",
-    `- Focused scope: ${qs.focused_scope ? "yes" : "no"}`,
-    `- Has tests: ${qs.has_tests ? "yes" : "no"}`,
-    `- Appropriate size: ${qs.appropriate_size ? "yes" : "no"}`,
-    `- References issue: ${qs.references_issue ? "yes" : "no"}`,
-  );
-  if (costInfo) {
-    lines.push("", `**Model:** ${costInfo.model} | **Effort:** ${costInfo.effort} | **Cost:** $${costInfo.totalCost.toFixed(4)}`);
-  }
-  const summary = lines.join("\n");
-  console.log(summary);
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n"); } catch {}
-  }
 }
 
 // --- Main ---
@@ -481,7 +253,7 @@ async function main() {
 
   if (!DRY_RUN) {
     console.log("Applying labels...");
-    await applyLabels(prNumber, triage);
+    await applyLabels(gh, REPO, prNumber, triage);
   } else {
     console.log("DRY RUN — skipping label application");
   }
