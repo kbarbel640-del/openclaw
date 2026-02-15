@@ -428,4 +428,113 @@ describe("OpenAI-compatible HTTP API (e2e)", () => {
       // shared server
     }
   });
+
+  it("extracts image_url content parts and passes images to agentCommand", async () => {
+    const port = enabledPort;
+
+    // A tiny 1x1 red PNG as base64
+    const tinyPng =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+
+    // Single image_url with data URI
+    {
+      agentCommand.mockReset();
+      agentCommand.mockResolvedValueOnce({ payloads: [{ text: "I see a red dot" }] } as never);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "What is this image?" },
+              { type: "image_url", image_url: { url: `data:image/png;base64,${tinyPng}` } },
+            ],
+          },
+        ],
+      });
+      expect(res.status).toBe(200);
+
+      expect(agentCommand).toHaveBeenCalledTimes(1);
+      const [opts] = agentCommand.mock.calls[0] ?? [];
+      const callOpts = opts as
+        | {
+            message?: string;
+            images?: Array<{ type: string; data: string; mimeType: string }>;
+          }
+        | undefined;
+      expect(callOpts?.message).toBe("What is this image?");
+      expect(callOpts?.images).toBeDefined();
+      expect(callOpts?.images).toHaveLength(1);
+      expect(callOpts?.images?.[0]?.type).toBe("image");
+      expect(callOpts?.images?.[0]?.mimeType).toBe("image/png");
+      expect(callOpts?.images?.[0]?.data).toBe(tinyPng);
+      await res.text();
+    }
+
+    // Multiple images in one message
+    {
+      agentCommand.mockReset();
+      agentCommand.mockResolvedValueOnce({ payloads: [{ text: "Two images" }] } as never);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Compare these" },
+              { type: "image_url", image_url: { url: `data:image/png;base64,${tinyPng}` } },
+              { type: "image_url", image_url: { url: `data:image/png;base64,${tinyPng}` } },
+            ],
+          },
+        ],
+      });
+      expect(res.status).toBe(200);
+
+      const [opts] = agentCommand.mock.calls[0] ?? [];
+      const callOpts = opts as { images?: unknown[] } | undefined;
+      expect(callOpts?.images).toHaveLength(2);
+      await res.text();
+    }
+
+    // No images → images should be undefined (not empty array)
+    {
+      agentCommand.mockReset();
+      agentCommand.mockResolvedValueOnce({ payloads: [{ text: "ok" }] } as never);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        messages: [{ role: "user", content: "plain text" }],
+      });
+      expect(res.status).toBe(200);
+
+      const [opts] = agentCommand.mock.calls[0] ?? [];
+      const callOpts = opts as { images?: unknown[] } | undefined;
+      expect(callOpts?.images).toBeUndefined();
+      await res.text();
+    }
+
+    // Images in assistant/system messages should be ignored
+    {
+      agentCommand.mockReset();
+      agentCommand.mockResolvedValueOnce({ payloads: [{ text: "ok" }] } as never);
+      const res = await postChatCompletions(port, {
+        model: "openclaw",
+        messages: [
+          {
+            role: "system",
+            content: [
+              { type: "text", text: "Be helpful" },
+              { type: "image_url", image_url: { url: `data:image/png;base64,${tinyPng}` } },
+            ],
+          },
+          { role: "user", content: "Hello" },
+        ],
+      });
+      expect(res.status).toBe(200);
+
+      const [opts] = agentCommand.mock.calls[0] ?? [];
+      const callOpts = opts as { images?: unknown[] } | undefined;
+      expect(callOpts?.images).toBeUndefined();
+      await res.text();
+    }
+  });
 });

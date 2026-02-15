@@ -130,6 +130,13 @@ export type GatewayHttpChatCompletionsConfig = {
    * Default: false when absent.
    */
   enabled?: boolean;
+  /**
+   * Max request body size in bytes for `/v1/chat/completions`.
+   * Default: 20MB (to accommodate base64 image payloads).
+   */
+  maxBodyBytes?: number;
+  /** Image inputs (image_url content parts). */
+  images?: GatewayHttpResponsesImagesConfig;
 };
 
 export type GatewayHttpResponsesConfig = {

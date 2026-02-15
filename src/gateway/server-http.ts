@@ -282,6 +282,7 @@ export function createGatewayHttpServer(opts: {
   openAiChatCompletionsEnabled: boolean;
   openResponsesEnabled: boolean;
   openResponsesConfig?: import("../config/types.gateway.js").GatewayHttpResponsesConfig;
+  chatCompletionsConfig?: import("../config/types.gateway.js").GatewayHttpChatCompletionsConfig;
   handleHooksRequest: HooksRequestHandler;
   handlePluginRequest?: HooksRequestHandler;
   resolvedAuth: ResolvedGatewayAuth;
@@ -296,6 +297,7 @@ export function createGatewayHttpServer(opts: {
     openAiChatCompletionsEnabled,
     openResponsesEnabled,
     openResponsesConfig,
+    chatCompletionsConfig,
     handleHooksRequest,
     handlePluginRequest,
     resolvedAuth,
@@ -349,6 +351,7 @@ export function createGatewayHttpServer(opts: {
         if (
           await handleOpenAiHttpRequest(req, res, {
             auth: resolvedAuth,
+            config: chatCompletionsConfig,
             trustedProxies,
           })
         ) {

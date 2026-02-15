@@ -1,9 +1,21 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import type { ImageContent } from "../commands/agent/types.js";
+import type { GatewayHttpChatCompletionsConfig } from "../config/types.gateway.js";
 import { buildHistoryContextFromEntries, type HistoryEntry } from "../auto-reply/reply/history.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
+import {
+  DEFAULT_INPUT_IMAGE_MAX_BYTES,
+  DEFAULT_INPUT_IMAGE_MIMES,
+  DEFAULT_INPUT_MAX_REDIRECTS,
+  DEFAULT_INPUT_TIMEOUT_MS,
+  extractImageContentFromSource,
+  normalizeMimeList,
+  type InputImageLimits,
+  type InputImageSource,
+} from "../media/input-files.js";
 import { defaultRuntime } from "../runtime.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
 import {
@@ -19,6 +31,7 @@ import { getBearerToken, resolveAgentIdForRequest, resolveSessionKey } from "./h
 type OpenAiHttpOptions = {
   auth: ResolvedGatewayAuth;
   maxBodyBytes?: number;
+  config?: GatewayHttpChatCompletionsConfig;
   trustedProxies?: string[];
 };
 
@@ -42,6 +55,11 @@ function writeSse(res: ServerResponse, data: unknown) {
 function asMessages(val: unknown): OpenAiChatMessage[] {
   return Array.isArray(val) ? (val as OpenAiChatMessage[]) : [];
 }
+
+/** Raw image_url reference extracted from an OpenAI content part (not yet fetched/validated). */
+type RawImageUrl = {
+  url: string;
+};
 
 function extractTextContent(content: unknown): string {
   if (typeof content === "string") {
@@ -71,6 +89,95 @@ function extractTextContent(content: unknown): string {
       .join("\n");
   }
   return "";
+}
+
+/**
+ * Extract raw image_url references from an OpenAI content array.
+ * Supports the OpenAI vision format:
+ *   { type: "image_url", image_url: { url: "data:..." | "https://..." } }
+ */
+function extractRawImageUrls(content: unknown): RawImageUrl[] {
+  if (!Array.isArray(content)) {
+    return [];
+  }
+  const urls: RawImageUrl[] = [];
+  for (const part of content) {
+    if (!part || typeof part !== "object") {
+      continue;
+    }
+    const type = (part as { type?: unknown }).type;
+    if (type !== "image_url") {
+      continue;
+    }
+    const imageUrl = (part as { image_url?: unknown }).image_url;
+    if (!imageUrl || typeof imageUrl !== "object") {
+      continue;
+    }
+    const url = (imageUrl as { url?: unknown }).url;
+    if (typeof url === "string" && url.length > 0) {
+      urls.push({ url });
+    }
+  }
+  return urls;
+}
+
+const DEFAULT_CHAT_COMPLETIONS_BODY_BYTES = 20 * 1024 * 1024;
+
+function resolveImageLimits(
+  config: GatewayHttpChatCompletionsConfig | undefined,
+): InputImageLimits {
+  const images = config?.images;
+  return {
+    allowUrl: images?.allowUrl ?? true,
+    allowedMimes: normalizeMimeList(images?.allowedMimes, DEFAULT_INPUT_IMAGE_MIMES),
+    maxBytes: images?.maxBytes ?? DEFAULT_INPUT_IMAGE_MAX_BYTES,
+    maxRedirects: images?.maxRedirects ?? DEFAULT_INPUT_MAX_REDIRECTS,
+    timeoutMs: images?.timeoutMs ?? DEFAULT_INPUT_TIMEOUT_MS,
+  };
+}
+
+/**
+ * Parse an OpenAI `image_url.url` value into an `InputImageSource`.
+ * Supports both `data:<mediaType>;base64,<data>` URIs and plain HTTPS URLs.
+ */
+function parseImageUrlToSource(url: string): InputImageSource {
+  const dataUriMatch = url.match(/^data:([^;]+);base64,(.+)$/);
+  if (dataUriMatch) {
+    return {
+      type: "base64",
+      data: dataUriMatch[2],
+      mediaType: dataUriMatch[1],
+    };
+  }
+  return { type: "url", url };
+}
+
+/**
+ * Resolve all raw image references from messages into validated ImageContent[].
+ * Collects image_url parts from all user messages.
+ */
+async function resolveImages(
+  messagesUnknown: unknown,
+  limits: InputImageLimits,
+): Promise<ImageContent[]> {
+  const messages = asMessages(messagesUnknown);
+  const images: ImageContent[] = [];
+  for (const msg of messages) {
+    if (!msg || typeof msg !== "object") {
+      continue;
+    }
+    const role = typeof msg.role === "string" ? msg.role.trim() : "";
+    if (role !== "user") {
+      continue;
+    }
+    const rawUrls = extractRawImageUrls(msg.content);
+    for (const raw of rawUrls) {
+      const source = parseImageUrlToSource(raw.url);
+      const image = await extractImageContentFromSource(source, limits);
+      images.push(image);
+    }
+  }
+  return images;
 }
 
 function buildAgentPrompt(messagesUnknown: unknown): {
@@ -195,7 +302,10 @@ export async function handleOpenAiHttpRequest(
     return true;
   }
 
-  const body = await readJsonBodyOrError(req, res, opts.maxBodyBytes ?? 1024 * 1024);
+  const limits = resolveImageLimits(opts.config);
+  const maxBodyBytes =
+    opts.maxBodyBytes ?? opts.config?.maxBodyBytes ?? DEFAULT_CHAT_COMPLETIONS_BODY_BYTES;
+  const body = await readJsonBodyOrError(req, res, maxBodyBytes);
   if (body === undefined) {
     return true;
   }
@@ -218,6 +328,17 @@ export async function handleOpenAiHttpRequest(
     return true;
   }
 
+  // Extract image_url content parts from user messages
+  let images: ImageContent[] = [];
+  try {
+    images = await resolveImages(payload.messages, limits);
+  } catch (err) {
+    sendJson(res, 400, {
+      error: { message: String(err), type: "invalid_request_error" },
+    });
+    return true;
+  }
+
   const runId = `chatcmpl_${randomUUID()}`;
   const deps = createDefaultDeps();
 
@@ -226,6 +347,7 @@ export async function handleOpenAiHttpRequest(
       const result = await agentCommand(
         {
           message: prompt.message,
+          images: images.length > 0 ? images : undefined,
           extraSystemPrompt: prompt.extraSystemPrompt,
           sessionKey,
           runId,
@@ -339,6 +461,7 @@ export async function handleOpenAiHttpRequest(
       const result = await agentCommand(
         {
           message: prompt.message,
+          images: images.length > 0 ? images : undefined,
           extraSystemPrompt: prompt.extraSystemPrompt,
           sessionKey,
           runId,
