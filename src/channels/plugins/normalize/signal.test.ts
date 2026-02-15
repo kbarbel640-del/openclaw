@@ -42,6 +42,16 @@ describe("signal target normalization", () => {
     );
   });
 
+  it("preserves case for u: shorthand targets", () => {
+    expect(normalizeSignalMessagingTarget("u:MyMixedCaseUser")).toBe("username:MyMixedCaseUser");
+  });
+
+  it("preserves case for signal:u: shorthand targets", () => {
+    expect(normalizeSignalMessagingTarget("signal:u:MyMixedCaseUser")).toBe(
+      "username:MyMixedCaseUser",
+    );
+  });
+
   it("rejects invalid uuid prefixes", () => {
     expect(looksLikeSignalTargetId("uuid:")).toBe(false);
     expect(looksLikeSignalTargetId("uuid:not-a-uuid")).toBe(false);
