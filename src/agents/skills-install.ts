@@ -109,17 +109,18 @@ async function collectSkillInstallScanWarnings(entry: SkillEntry): Promise<strin
 
   try {
     const summary = await scanDirectoryWithSummary(skillDir);
+    const reasonCodes = Array.from(new Set(summary.findings.map((finding) => finding.ruleId)));
+    const topEvidence = summary.findings
+      .slice(0, 3)
+      .map((finding) => `${finding.ruleId} (${formatScanFindingDetail(skillDir, finding)})`)
+      .join("; ");
     if (summary.critical > 0) {
-      const criticalDetails = summary.findings
-        .filter((finding) => finding.severity === "critical")
-        .map((finding) => formatScanFindingDetail(skillDir, finding))
-        .join("; ");
       warnings.push(
-        `WARNING: Skill "${skillName}" contains dangerous code patterns: ${criticalDetails}`,
+        `WARNING: Skill "${skillName}" contains dangerous code patterns [${reasonCodes.join(", ")}]: ${topEvidence}`,
       );
     } else if (summary.warn > 0) {
       warnings.push(
-        `Skill "${skillName}" has ${summary.warn} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
+        `Skill "${skillName}" flagged suspicious [${reasonCodes.join(", ")}]. Top evidence: ${topEvidence}. Run "openclaw security audit --deep" for details.`,
       );
     }
   } catch (err) {

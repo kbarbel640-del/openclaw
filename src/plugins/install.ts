@@ -159,17 +159,18 @@ async function installPluginFromPackageDir(params: {
     const scanSummary = await skillScanner.scanDirectoryWithSummary(params.packageDir, {
       includeFiles: forcedScanEntries,
     });
+    const reasonCodes = Array.from(new Set(scanSummary.findings.map((finding) => finding.ruleId)));
+    const topEvidence = scanSummary.findings
+      .slice(0, 3)
+      .map((finding) => `${finding.ruleId} (${finding.file}:${finding.line})`)
+      .join("; ");
     if (scanSummary.critical > 0) {
-      const criticalDetails = scanSummary.findings
-        .filter((f) => f.severity === "critical")
-        .map((f) => `${f.message} (${f.file}:${f.line})`)
-        .join("; ");
       logger.warn?.(
-        `WARNING: Plugin "${pluginId}" contains dangerous code patterns: ${criticalDetails}`,
+        `WARNING: Plugin "${pluginId}" contains dangerous code patterns [${reasonCodes.join(", ")}]: ${topEvidence}`,
       );
     } else if (scanSummary.warn > 0) {
       logger.warn?.(
-        `Plugin "${pluginId}" has ${scanSummary.warn} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
+        `Plugin "${pluginId}" flagged suspicious [${reasonCodes.join(", ")}]. Top evidence: ${topEvidence}. Run "openclaw security audit --deep" for details.`,
       );
     }
   } catch (err) {
