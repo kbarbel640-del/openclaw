@@ -87,12 +87,20 @@ export const DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS = 24_000;
 const MIN_BOOTSTRAP_FILE_BUDGET_CHARS = 64;
 const BOOTSTRAP_HEAD_RATIO = 0.7;
 const BOOTSTRAP_TAIL_RATIO = 0.2;
+const DIRECTIVE_LINE_RE =
+  /\b(must|never|always|required|do not|don't|only|important|critical|rule|policy)\b/i;
 
 type TrimBootstrapResult = {
   content: string;
   truncated: boolean;
   maxChars: number;
   originalLength: number;
+};
+
+type AllocatedBootstrapFile = {
+  index: number;
+  file: WorkspaceBootstrapFile;
+  budget: number;
 };
 
 export function resolveBootstrapMaxChars(cfg?: OpenClawConfig): number {
@@ -156,8 +164,245 @@ function clampToBudget(content: string, budget: number): string {
   if (budget <= 3) {
     return truncateUtf16Safe(content, budget);
   }
-  const safe = budget - 1;
-  return `${truncateUtf16Safe(content, safe)}…`;
+  return `${truncateUtf16Safe(content, budget - 1)}…`;
+}
+
+function normalizeCompactLines(lines: string[]): string {
+  const out: string[] = [];
+  let prevBlank = true;
+  for (const line of lines) {
+    const trimmed = line.trimEnd();
+    if (!trimmed.trim()) {
+      if (!prevBlank) {
+        out.push("");
+      }
+      prevBlank = true;
+      continue;
+    }
+    out.push(trimmed);
+    prevBlank = false;
+  }
+  return out.join("\n").trim();
+}
+
+function compactMarkdownForBootstrap(content: string, mode: "priority" | "ultra"): string {
+  const input = content.trim();
+  if (!input) {
+    return "";
+  }
+
+  const lines = input.split(/\r?\n/);
+  const hasUnclosedFence =
+    lines.reduce((count, rawLine) => {
+      const bare = rawLine.trim();
+      return bare.startsWith("```") || bare.startsWith("~~~") ? count + 1 : count;
+    }, 0) %
+      2 !==
+    0;
+  const kept: string[] = [];
+  let inFence = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    const bare = line.trim();
+
+    if (!hasUnclosedFence && (bare.startsWith("```") || bare.startsWith("~~~"))) {
+      inFence = !inFence;
+      continue;
+    }
+    if (!hasUnclosedFence && inFence) {
+      continue;
+    }
+
+    const isHeading = /^#{1,6}\s/.test(bare);
+    const isBullet = /^([-*+]|\d+\.)\s/.test(bare);
+    const isDirective = DIRECTIVE_LINE_RE.test(bare);
+    const isShortSentence = bare.length > 0 && bare.length <= 120 && /[.!?]$/.test(bare);
+
+    const keep =
+      mode === "ultra"
+        ? isHeading || isDirective
+        : isHeading || isBullet || isDirective || isShortSentence;
+    if (keep) {
+      kept.push(line);
+    }
+  }
+
+  const compacted = normalizeCompactLines(kept);
+  if (compacted) {
+    return compacted;
+  }
+  return input;
+}
+
+function resolveBootstrapPriority(fileName: string): number {
+  switch (fileName.toUpperCase()) {
+    case "SOUL.MD":
+      return 100;
+    case "IDENTITY.MD":
+      return 95;
+    case "USER.MD":
+      return 90;
+    case "TOOLS.MD":
+      return 85;
+    case "AGENTS.MD":
+      return 70;
+    case "MEMORY.MD":
+      return 60;
+    case "HEARTBEAT.MD":
+      return 50;
+    case "BOOTSTRAP.MD":
+      return 40;
+    default:
+      return 30;
+  }
+}
+
+function resolveBootstrapFloor(fileName: string, perFileMax: number): number {
+  const upper = fileName.toUpperCase();
+  const floor =
+    upper === "AGENTS.MD"
+      ? 2_000
+      : upper === "SOUL.MD" ||
+          upper === "IDENTITY.MD" ||
+          upper === "USER.MD" ||
+          upper === "TOOLS.MD"
+        ? 900
+        : upper === "MEMORY.MD"
+          ? 600
+          : 300;
+  return Math.max(0, Math.min(perFileMax, floor));
+}
+
+function renderBootstrapWithinBudget(params: {
+  content: string;
+  fileName: string;
+  maxChars: number;
+  budget: number;
+  warn?: (message: string) => void;
+}): string {
+  const source = (params.content ?? "").trimEnd();
+  if (!source || params.budget <= 0) {
+    return "";
+  }
+
+  const fileCap = Math.max(1, Math.min(params.maxChars, params.budget));
+  const densityRatio = source.length / Math.max(1, fileCap);
+
+  const tierOrder: Array<{ tier: "raw" | "priority" | "ultra"; text: string }> =
+    densityRatio >= 8
+      ? [
+          { tier: "ultra", text: compactMarkdownForBootstrap(source, "ultra") },
+          { tier: "priority", text: compactMarkdownForBootstrap(source, "priority") },
+          { tier: "raw", text: source },
+        ]
+      : densityRatio >= 4
+        ? [
+            { tier: "priority", text: compactMarkdownForBootstrap(source, "priority") },
+            { tier: "ultra", text: compactMarkdownForBootstrap(source, "ultra") },
+            { tier: "raw", text: source },
+          ]
+        : [
+            { tier: "raw", text: source },
+            { tier: "priority", text: compactMarkdownForBootstrap(source, "priority") },
+            { tier: "ultra", text: compactMarkdownForBootstrap(source, "ultra") },
+          ];
+
+  for (const candidate of tierOrder) {
+    const trimmed = trimBootstrapContent(candidate.text, params.fileName, fileCap);
+    const budgeted = clampToBudget(trimmed.content, params.budget);
+    if (!budgeted) {
+      continue;
+    }
+    if (candidate.tier !== "raw") {
+      params.warn?.(
+        `workspace bootstrap file ${params.fileName} self-healed via ${candidate.tier} compaction (${source.length} -> ${candidate.text.length} chars before truncation)`,
+      );
+    } else if (trimmed.truncated || budgeted.length < trimmed.content.length) {
+      params.warn?.(
+        `workspace bootstrap file ${params.fileName} is ${trimmed.originalLength} chars (limit ${fileCap}); truncating in injected context`,
+      );
+    }
+    return budgeted;
+  }
+
+  return "";
+}
+
+function allocateBootstrapBudgets(
+  files: Array<{ file: WorkspaceBootstrapFile; index: number }>,
+  params: { perFileMaxChars: number; totalBudget: number },
+): AllocatedBootstrapFile[] {
+  if (params.totalBudget <= 0 || files.length === 0) {
+    return [];
+  }
+
+  const caps = files.map(({ file }) =>
+    Math.max(1, Math.min(params.perFileMaxChars, (file.content ?? "").trimEnd().length || 1)),
+  );
+  const allocations = new Array(files.length).fill(0);
+  let remaining = params.totalBudget;
+
+  const ranked = files
+    .map((entry, idx) => ({
+      idx,
+      priority: resolveBootstrapPriority(entry.file.name),
+      floor: resolveBootstrapFloor(entry.file.name, caps[idx] ?? params.perFileMaxChars),
+    }))
+    .toSorted((a, b) => b.priority - a.priority);
+
+  for (const item of ranked) {
+    if (remaining <= 0) {
+      break;
+    }
+    const cap = caps[item.idx] ?? 0;
+    if (cap <= 0) {
+      continue;
+    }
+    const floorTarget = Math.max(
+      Math.min(item.floor, cap),
+      Math.min(MIN_BOOTSTRAP_FILE_BUDGET_CHARS, cap),
+    );
+    const grant = Math.min(floorTarget, remaining);
+    allocations[item.idx] = grant;
+    remaining -= grant;
+  }
+
+  while (remaining > 0) {
+    const expandable = ranked.filter((item) => allocations[item.idx] < (caps[item.idx] ?? 0));
+    if (expandable.length === 0) {
+      break;
+    }
+    const totalWeight = expandable.reduce((sum, item) => sum + item.priority, 0);
+    let progressed = false;
+
+    for (const item of expandable) {
+      if (remaining <= 0) {
+        break;
+      }
+      const cap = caps[item.idx] ?? 0;
+      const available = cap - allocations[item.idx];
+      if (available <= 0) {
+        continue;
+      }
+      const proportional = Math.floor((remaining * item.priority) / Math.max(1, totalWeight));
+      const grant = Math.min(available, proportional > 0 ? proportional : 1, remaining);
+      if (grant <= 0) {
+        continue;
+      }
+      allocations[item.idx] += grant;
+      remaining -= grant;
+      progressed = true;
+    }
+
+    if (!progressed) {
+      break;
+    }
+  }
+
+  return files
+    .map((entry, idx) => ({ index: entry.index, file: entry.file, budget: allocations[idx] ?? 0 }))
+    .toSorted((a, b) => a.index - b.index);
 }
 
 export async function ensureSessionHeader(params: {
@@ -193,49 +438,58 @@ export function buildBootstrapContextFiles(
     1,
     Math.floor(opts?.totalMaxChars ?? Math.max(maxChars, DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS)),
   );
-  let remainingTotalChars = totalMaxChars;
-  const result: EmbeddedContextFile[] = [];
-  for (const file of files) {
-    if (remainingTotalChars <= 0) {
-      break;
-    }
+
+  const contextFiles: EmbeddedContextFile[] = [];
+  let remaining = totalMaxChars;
+  const nonMissing: Array<{ file: WorkspaceBootstrapFile; index: number }> = [];
+
+  for (const [index, file] of files.entries()) {
     if (file.missing) {
-      const missingText = `[MISSING] Expected at: ${file.path}`;
-      const cappedMissingText = clampToBudget(missingText, remainingTotalChars);
-      if (!cappedMissingText) {
+      if (remaining <= 0) {
         break;
       }
-      remainingTotalChars = Math.max(0, remainingTotalChars - cappedMissingText.length);
-      result.push({
-        path: file.path,
-        content: cappedMissingText,
-      });
+      const marker = clampToBudget(`[MISSING] Expected at: ${file.path}`, remaining);
+      if (!marker) {
+        break;
+      }
+      remaining = Math.max(0, remaining - marker.length);
+      contextFiles.push({ path: file.path, content: marker });
       continue;
     }
-    if (remainingTotalChars < MIN_BOOTSTRAP_FILE_BUDGET_CHARS) {
-      opts?.warn?.(
-        `remaining bootstrap budget is ${remainingTotalChars} chars (<${MIN_BOOTSTRAP_FILE_BUDGET_CHARS}); skipping additional bootstrap files`,
-      );
-      break;
-    }
-    const fileMaxChars = Math.max(1, Math.min(maxChars, remainingTotalChars));
-    const trimmed = trimBootstrapContent(file.content ?? "", file.name, fileMaxChars);
-    const contentWithinBudget = clampToBudget(trimmed.content, remainingTotalChars);
-    if (!contentWithinBudget) {
-      continue;
-    }
-    if (trimmed.truncated || contentWithinBudget.length < trimmed.content.length) {
-      opts?.warn?.(
-        `workspace bootstrap file ${file.name} is ${trimmed.originalLength} chars (limit ${trimmed.maxChars}); truncating in injected context`,
-      );
-    }
-    remainingTotalChars = Math.max(0, remainingTotalChars - contentWithinBudget.length);
-    result.push({
-      path: file.path,
-      content: contentWithinBudget,
-    });
+    nonMissing.push({ file, index });
   }
-  return result;
+
+  if (remaining <= 0 || nonMissing.length === 0) {
+    return contextFiles;
+  }
+  if (remaining < MIN_BOOTSTRAP_FILE_BUDGET_CHARS) {
+    opts?.warn?.(
+      `remaining bootstrap budget is ${remaining} chars (<${MIN_BOOTSTRAP_FILE_BUDGET_CHARS}); forcing aggressive bootstrap compaction`,
+    );
+  }
+
+  const allocations = allocateBootstrapBudgets(nonMissing, {
+    perFileMaxChars: maxChars,
+    totalBudget: remaining,
+  });
+
+  for (const allocated of allocations) {
+    const content = renderBootstrapWithinBudget({
+      content: allocated.file.content ?? "",
+      fileName: allocated.file.name,
+      maxChars,
+      budget: allocated.budget,
+      warn: opts?.warn,
+    });
+
+    if (!content) {
+      continue;
+    }
+
+    contextFiles.push({ path: allocated.file.name, content });
+  }
+
+  return contextFiles;
 }
 
 export function sanitizeGoogleTurnOrdering(messages: AgentMessage[]): AgentMessage[] {
