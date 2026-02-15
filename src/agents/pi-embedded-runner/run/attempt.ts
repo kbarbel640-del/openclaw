@@ -491,6 +491,7 @@ export async function runEmbeddedAttempt(
     });
     const systemPromptOverride = createSystemPromptOverride(appendPrompt);
     const systemPromptText = systemPromptOverride();
+    let effectiveSystemPromptText = systemPromptText;
 
     const sessionLock = await acquireSessionWriteLock({
       sessionFile: params.sessionFile,
@@ -592,7 +593,7 @@ export async function runEmbeddedAttempt(
         sessionManager,
         settingsManager,
       }));
-      applySystemPromptOverrideToSession(session, systemPromptText);
+      applySystemPromptOverrideToSession(session, effectiveSystemPromptText);
       if (!session) {
         throw new Error("Embedded agent session missing");
       }
@@ -708,6 +709,10 @@ export async function runEmbeddedAttempt(
           buildSessionSummaryPrompt({
             state: nextSummaryState,
           }) ?? "";
+        if (sessionSummaryContext) {
+          effectiveSystemPromptText = `${systemPromptText}\n\n${sessionSummaryContext}`;
+          applySystemPromptOverrideToSession(activeSession, effectiveSystemPromptText);
+        }
 
         const contextWindowTokens = resolveContextWindowInfo({
           cfg: params.config,
@@ -718,10 +723,8 @@ export async function runEmbeddedAttempt(
         }).tokens;
         const reserveTokens = resolveCompactionReserveTokensFloor(params.config);
         const staticPromptTokens = computeStaticPromptTokens({
-          systemPrompt: systemPromptText,
-          prompt: sessionSummaryContext
-            ? `${sessionSummaryContext}\n\n${params.prompt}`
-            : params.prompt,
+          systemPrompt: effectiveSystemPromptText,
+          prompt: params.prompt,
         });
         const budgeted = planContextMessages({
           messages: validated,
@@ -989,10 +992,6 @@ export async function runEmbeddedAttempt(
             );
           }
         }
-        if (sessionSummaryContext) {
-          effectivePrompt = `${sessionSummaryContext}\n\n${effectivePrompt}`;
-        }
-
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
         cacheTrace?.recordStage("prompt:before", {
           prompt: effectivePrompt,
@@ -1058,7 +1057,7 @@ export async function runEmbeddedAttempt(
           // Diagnostic: log context sizes before prompt to help debug early overflow errors.
           if (log.isEnabled("debug")) {
             const msgCount = activeSession.messages.length;
-            const systemLen = systemPromptText?.length ?? 0;
+            const systemLen = effectiveSystemPromptText.length;
             const promptLen = effectivePrompt.length;
             const sessionSummary = summarizeSessionContext(activeSession.messages);
             log.debug(
