@@ -224,11 +224,15 @@ export async function run(state: CronServiceState, id: string, mode?: "due" | "f
 
   // Execute outside the cron store lock so cron.status/list/control RPCs are
   // not blocked by long-running job payloads.
+  const runNow = prepared.now;
+  if (typeof runNow !== "number") {
+    return { ok: true, ran: false, reason: "not-found-after-prepare" as const };
+  }
   const job = state.store?.jobs.find((j) => j.id === prepared.jobId);
   if (!job) {
     return { ok: true, ran: false, reason: "not-found-after-prepare" as const };
   }
-  await executeJob(state, job, prepared.now, { forced: mode === "force" });
+  await executeJob(state, job, runNow, { forced: mode === "force" });
 
   await locked(state, async () => {
     await ensureLoaded(state, { forceReload: true, skipRecompute: true });
