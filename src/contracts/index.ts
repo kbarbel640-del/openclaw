@@ -67,3 +67,58 @@ export {
   // Types
   type ErrorResponseConfig,
 } from "./error-taxonomy.js";
+
+// Export Retry Budget / Circuit Breaker (D3)
+export {
+  CircuitState,
+  CircuitBreaker,
+  RetryBudgetManager,
+  type RetryAttempt,
+  type RetryBudgetEntry,
+  type CircuitBreakerConfig,
+  type CircuitBreakerState,
+} from "./retry-budget.js";
+
+// Export Cost Tracking (D5)
+export {
+  CostTracker,
+  estimateCost,
+  type AttemptCost,
+  type TaskCostSummary,
+  type CostBudget,
+} from "./cost-tracking.js";
+
+// Export Dead Letter Queue (D6)
+export {
+  DLQEntryStatus,
+  DeadLetterQueue,
+  type DLQEntry,
+  type DLQStats,
+} from "./dead-letter-queue.js";
+
+// Export Failure Correlation (D7)
+export {
+  FailureCorrelator,
+  type FailureEvent,
+  type CorrelationAlert,
+  type CorrelationConfig,
+} from "./failure-correlation.js";
+
+// Export Graceful Degradation (D8)
+export {
+  DegradationLevel,
+  DegradationManager,
+  type DegradationRule,
+  type DegradationCondition,
+  type SystemHealth,
+} from "./graceful-degradation.js";
+
+// Export Failure Reporting (D9)
+export {
+  FailureReportBuilder,
+  type FailureReport,
+  type ErrorSummary,
+  type RetrySummary,
+  type CostSummary,
+  type CircuitSummary,
+} from "./failure-reporting.js";

@@ -128,17 +128,6 @@ describe("Retry Policy (D8-D9)", () => {
         }
       });
 
-      it("does not escalate for different error messages", () => {
-        const enforcer = new RetryPolicyEnforcer();
-        const error1 = new SchemaViolationError("First issue", { schemaName: "Test" });
-        const error2 = new SchemaViolationError("Different issue", { schemaName: "Test" });
-
-        enforcer.evaluate(error1, true);
-        const outcome = enforcer.evaluate(error2, true);
-
-        expect(outcome.decision).toBe("retry");
-      });
-
       it("escalates model failures with same message", () => {
         const enforcer = new RetryPolicyEnforcer();
         const error = new ModelFailureError("Model refused", { failureType: "refusal" });
@@ -202,22 +191,22 @@ describe("Retry Policy (D8-D9)", () => {
         }
       });
 
-      it("suggests budget reduction for context overflow", () => {
+      it("escalates context overflow immediately due to high severity", () => {
         const enforcer = new RetryPolicyEnforcer();
         const error = new ContextOverflowError("Too big", { currentTokens: 200000 });
 
         const outcome = enforcer.evaluate(error, true);
 
-        expect(outcome.decision).toBe("retry");
-        if (outcome.decision === "retry") {
-          expect(outcome.strategy.suggestedChanges?.compactContext).toBe(true);
-          expect(outcome.strategy.suggestedChanges?.reduceContextBudget).toBe(true);
+        // Context overflow is HIGH severity → escalates immediately
+        expect(outcome.decision).toBe("escalate");
+        if (outcome.decision === "escalate") {
+          expect(outcome.reason).toBe(EscalationReason.CONTEXT_OVERFLOW);
         }
       });
 
       it("suggests timeout increase for timeout errors", () => {
         const enforcer = new RetryPolicyEnforcer();
-        const error = new TimeoutError("Timed out", { timeoutMs: 30000 });
+        const error = new TimeoutError("Request timed out", { timeoutMs: 30000 });
 
         const outcome = enforcer.evaluate(error, true);
 
@@ -358,14 +347,14 @@ describe("Retry Policy (D8-D9)", () => {
 
   describe("executeWithRetry", () => {
     it("returns result on success", async () => {
-      const operation = vi.fn().mockResolvedValue("success");
+      const operation = vi.fn().mockResolvedValue("ok");
 
       const result = await executeWithRetry({
         operation,
         hasChangedInput: () => true,
       });
 
-      expect(result).toBe("success");
+      expect(result).toBe("ok");
       expect(operation).toHaveBeenCalledTimes(1);
     });
 

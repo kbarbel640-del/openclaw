@@ -197,13 +197,15 @@ export class RetryPolicyEnforcer {
 
     // Check changed input requirement
     if (config.requiresChangedInput && !hasChangedInput) {
+      this.recordFailure(error);
       return {
         decision: "fail",
         error: `Retry requires changed input for ${error.taxonomy}`,
       };
     }
 
-    // Retry is allowed
+    // Retry is allowed - record the failure and provide strategy
+    this.recordFailure(error);
     this.currentAttempt++;
     const strategy = this.buildRetryStrategy(error, this.currentAttempt);
 

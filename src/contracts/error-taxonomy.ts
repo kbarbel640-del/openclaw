@@ -676,7 +676,7 @@ export function isRetryable(
  *
  * Triggers escalation when:
  * - Same failure occurs twice (D9)
- * - Error is not retryable and has high/critical severity
+ * - Error has high/critical severity (escalate immediately for intervention)
  * - Resource exhaustion (requires demand reduction)
  * - Invariant violation (system integrity at risk)
  */
@@ -699,11 +699,8 @@ export function shouldEscalate(
     };
   }
 
-  // Non-retryable high/critical severity errors escalate immediately
-  if (
-    !config.retryable &&
-    (config.severity === ErrorSeverity.HIGH || config.severity === ErrorSeverity.CRITICAL)
-  ) {
+  // High/critical severity errors escalate immediately
+  if (config.severity === ErrorSeverity.HIGH || config.severity === ErrorSeverity.CRITICAL) {
     const reasonMap: Record<ErrorTaxonomy, EscalationReason | undefined> = {
       [ErrorTaxonomy.RESOURCE_EXHAUSTION]: EscalationReason.BUDGET_EXCEEDED,
       [ErrorTaxonomy.INVARIANT_VIOLATION]: EscalationReason.INVARIANT_VIOLATION,
@@ -713,7 +710,7 @@ export function shouldEscalate(
       [ErrorTaxonomy.TOOL_FAILURE]: EscalationReason.TOOL_UNAVAILABLE,
       [ErrorTaxonomy.TIMEOUT]: undefined,
       [ErrorTaxonomy.ABORT]: undefined,
-      [ErrorTaxonomy.UNKNOWN]: undefined,
+      [ErrorTaxonomy.UNKNOWN]: EscalationReason.REPEATED_FAILURE,
     };
 
     return {
