@@ -12,3 +12,9 @@
   - Added placeholder /calendar page (no schedules model yet)
   - Fixed existing ESLint no-explicit-any violations so npm run lint passes
 
+- S2: Create Goals page that reads local data/goals.json
+  - Added data/goals.json (committed) with initial goals from TASKS.md
+  - Added /goals page that imports the JSON (resolveJsonModule) and renders a list (title + optional description)
+  - Included non-functional UI placeholders for status/priority/targetDate (display-only)
+  - Confirmed `npm run lint` + `npm run build` pass
+
