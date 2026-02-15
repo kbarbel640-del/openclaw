@@ -121,7 +121,7 @@ export async function sendZoomTextMessage(
   // Zoom requires both head (title) and body (message content)
   const content = {
     head: {
-      text: "OpenClaw Mention Test",
+      text: "cwbot says:",
     },
     body: [
       {

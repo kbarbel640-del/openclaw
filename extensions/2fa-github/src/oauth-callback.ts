@@ -7,7 +7,6 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { scheduleShutdown } from "./ngrok-manager.js";
 import { enableTrust } from "./session-store.js";
 
 // In-memory store for pending OAuth states
@@ -162,10 +161,6 @@ export function createOAuthRoutes(
         // Enable trust for the session
         enableTrust(pending.sessionKey, { githubLogin });
         api.logger.info?.(`2fa-github: OAuth approval for ${pending.sessionKey} by ${githubLogin}`);
-
-        // Schedule ngrok shutdown (30 seconds delay for any retries)
-        scheduleShutdown(30000);
-        api.logger.info?.("2fa-github: ngrok tunnel will shut down in 30 seconds");
 
         // Also store in approved sessions for immediate pickup
         approvedSessions.set(pending.sessionKey, {

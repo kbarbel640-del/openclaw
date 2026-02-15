@@ -4,8 +4,9 @@ import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { zw2Fetch, getZw2Base } from "../zoomwarriors/zw2-auth.js";
 
-const ZW2_BASE = process.env.ZW2_URL ?? "http://zoomwarriors2-backend:8000";
+const ZW2_BASE = getZw2Base();
 
 // --- Extraction tracking DB ---
 
@@ -28,69 +29,6 @@ db.exec(`CREATE TABLE IF NOT EXISTS extractions (
   completed_at TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 )`);
-
-// --- JWT auth (same pattern as zoomwarriors read extension) ---
-
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
-
-async function zw2Login(): Promise<void> {
-  const username = process.env.ZW2_USERNAME;
-  const password = process.env.ZW2_PASSWORD;
-  if (!username || !password) throw new Error("ZW2_USERNAME and ZW2_PASSWORD env vars required");
-
-  const resp = await fetch(`${ZW2_BASE}/api/v1/auth/login/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password, terms_accepted: true }),
-  });
-
-  if (!resp.ok) throw new Error(`ZW2 login failed: ${resp.status}`);
-  const data = (await resp.json()) as Record<string, unknown>;
-  accessToken = data.access_token as string;
-  refreshToken = data.refresh_token as string;
-}
-
-async function zw2RefreshToken(): Promise<void> {
-  if (!refreshToken) return zw2Login();
-
-  const resp = await fetch(`${ZW2_BASE}/api/v1/auth/token/refresh/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-
-  if (!resp.ok) return zw2Login();
-  const data = (await resp.json()) as Record<string, unknown>;
-  accessToken = data.access_token as string;
-  refreshToken = data.refresh_token as string;
-}
-
-async function zw2Fetch(endpoint: string, options?: RequestInit): Promise<{ ok: boolean; status: number; data: unknown }> {
-  if (!accessToken) await zw2Login();
-
-  const doFetch = async (): Promise<Response> =>
-    fetch(`${ZW2_BASE}${endpoint}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-  let resp = await doFetch();
-  if (resp.status === 401) {
-    await zw2RefreshToken();
-    resp = await doFetch();
-  }
-
-  const data = resp.headers.get("content-type")?.includes("application/json")
-    ? await resp.json()
-    : await resp.text();
-
-  return { ok: resp.ok, status: resp.status, data };
-}
 
 // --- Helpers ---
 

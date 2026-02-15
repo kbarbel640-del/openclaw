@@ -1,21 +1,51 @@
 /**
  * Ngrok Process Manager
  *
- * Automatically starts/stops ngrok tunnel for OAuth callbacks.
- * Only runs during the OAuth flow, killed after successful auth.
+ * Starts ngrok once and keeps it running for OAuth callbacks.
+ * Kills stale processes, health-checks via ngrok's local API,
+ * and auto-restarts on crash.
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, execSync, type ChildProcess } from "node:child_process";
 
 let ngrokProcess: ChildProcess | null = null;
 let ngrokReady = false;
-let shutdownTimer: ReturnType<typeof setTimeout> | null = null;
 
 export type NgrokConfig = {
   authToken: string;
   domain: string;
   port: number;
 };
+
+let savedConfig: NgrokConfig | null = null;
+
+/**
+ * Kill any existing ngrok processes (including orphans from previous runs).
+ */
+function killStaleNgrok(): void {
+  try {
+    execSync("pkill -f 'ngrok http' 2>/dev/null || true", { stdio: "ignore" });
+  } catch {
+    // ignore — no ngrok running
+  }
+}
+
+/**
+ * Health check via ngrok's local API (port 4040).
+ * Returns true if ngrok tunnel is live.
+ */
+async function healthCheck(domain: string): Promise<boolean> {
+  try {
+    const resp = await fetch("http://127.0.0.1:4040/api/tunnels", {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!resp.ok) return false;
+    const data = (await resp.json()) as { tunnels?: Array<{ public_url?: string }> };
+    return (data.tunnels ?? []).some((t) => t.public_url?.includes(domain));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Start ngrok tunnel if not already running.
@@ -24,109 +54,104 @@ export type NgrokConfig = {
 export async function startNgrok(
   config: NgrokConfig,
 ): Promise<{ url: string } | { error: string }> {
-  // Already running
+  savedConfig = config;
+
+  // Already running — verify with health check
   if (ngrokProcess && ngrokReady) {
-    cancelShutdown();
-    return { url: `https://${config.domain}` };
+    const healthy = await healthCheck(config.domain);
+    if (healthy) {
+      return { url: `https://${config.domain}` };
+    }
+    // Stale — kill and restart
+    ngrokProcess.kill("SIGTERM");
+    ngrokProcess = null;
+    ngrokReady = false;
   }
 
-  // Kill any existing process first
-  await stopNgrok();
+  // Kill any orphan ngrok processes
+  killStaleNgrok();
+  await new Promise((r) => setTimeout(r, 500));
 
   return new Promise((resolve) => {
-    // First, set the auth token
-    const authProcess = spawn("ngrok", ["config", "add-authtoken", config.authToken], {
+    // Set auth token (idempotent, fast)
+    try {
+      execSync(`ngrok config add-authtoken ${config.authToken}`, { stdio: "ignore" });
+    } catch (err) {
+      resolve({ error: `ngrok not installed or auth token failed: ${String(err)}` });
+      return;
+    }
+
+    // Start the tunnel
+    ngrokProcess = spawn("ngrok", ["http", config.port.toString(), `--domain=${config.domain}`], {
       stdio: ["ignore", "pipe", "pipe"],
+      detached: false,
     });
 
-    authProcess.on("close", (code) => {
-      if (code !== 0) {
-        resolve({ error: `Failed to set ngrok auth token (exit code ${code})` });
+    let errorOutput = "";
+
+    ngrokProcess.stderr?.on("data", (data) => {
+      errorOutput += data.toString();
+    });
+
+    ngrokProcess.on("error", (err) => {
+      ngrokProcess = null;
+      ngrokReady = false;
+      resolve({ error: `Failed to start ngrok: ${err.message}` });
+    });
+
+    ngrokProcess.on("close", (code) => {
+      const wasReady = ngrokReady;
+      ngrokProcess = null;
+      ngrokReady = false;
+      if (wasReady && code !== 0) {
+        // Unexpected crash — auto-restart after a delay
+        console.error(`[2fa-github] ngrok crashed (code ${code}), restarting in 3s...`);
+        setTimeout(() => {
+          if (savedConfig && !ngrokProcess) {
+            startNgrok(savedConfig).catch(() => {});
+          }
+        }, 3000);
+      }
+    });
+
+    // Wait for tunnel to be ready via health check (up to 5 seconds)
+    let attempts = 0;
+    const checkReady = async () => {
+      attempts++;
+      const healthy = await healthCheck(config.domain);
+      if (healthy) {
+        ngrokReady = true;
+        resolve({ url: `https://${config.domain}` });
         return;
       }
-
-      // Now start the tunnel
-      ngrokProcess = spawn("ngrok", ["http", config.port.toString(), `--domain=${config.domain}`], {
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: false,
-      });
-
-      let output = "";
-      let errorOutput = "";
-
-      ngrokProcess.stdout?.on("data", (data) => {
-        output += data.toString();
-      });
-
-      ngrokProcess.stderr?.on("data", (data) => {
-        errorOutput += data.toString();
-      });
-
-      ngrokProcess.on("error", (err) => {
-        ngrokProcess = null;
-        ngrokReady = false;
-        resolve({ error: `Failed to start ngrok: ${err.message}` });
-      });
-
-      ngrokProcess.on("close", (code) => {
-        ngrokProcess = null;
-        ngrokReady = false;
-        if (code !== 0 && code !== null) {
-          console.error(`ngrok exited with code ${code}: ${errorOutput}`);
-        }
-      });
-
-      // ngrok with a custom domain connects quickly, give it a moment
-      setTimeout(() => {
+      if (attempts >= 10) {
+        // Give up after 5 seconds
         if (ngrokProcess) {
+          // Process is running but tunnel not verified — trust it
           ngrokReady = true;
           resolve({ url: `https://${config.domain}` });
         } else {
-          resolve({ error: `ngrok failed to start: ${errorOutput || output || "unknown error"}` });
+          resolve({ error: `ngrok failed to start: ${errorOutput || "unknown error"}` });
         }
-      }, 2000);
-    });
-
-    authProcess.on("error", (err) => {
-      resolve({ error: `ngrok not installed or not in PATH: ${err.message}` });
-    });
+        return;
+      }
+      setTimeout(checkReady, 500);
+    };
+    setTimeout(checkReady, 500);
   });
 }
 
 /**
- * Stop ngrok tunnel immediately.
+ * Stop ngrok tunnel.
  */
 export async function stopNgrok(): Promise<void> {
-  cancelShutdown();
-
   if (ngrokProcess) {
     ngrokProcess.kill("SIGTERM");
     ngrokProcess = null;
     ngrokReady = false;
-    // Give it a moment to clean up
     await new Promise((r) => setTimeout(r, 500));
   }
-}
-
-/**
- * Schedule ngrok shutdown after a delay.
- * Useful to keep tunnel open briefly after OAuth in case of retries.
- */
-export function scheduleShutdown(delayMs: number = 30000): void {
-  cancelShutdown();
-  shutdownTimer = setTimeout(() => {
-    stopNgrok();
-  }, delayMs);
-}
-
-/**
- * Cancel any scheduled shutdown.
- */
-export function cancelShutdown(): void {
-  if (shutdownTimer) {
-    clearTimeout(shutdownTimer);
-    shutdownTimer = null;
-  }
+  killStaleNgrok();
 }
 
 /**

@@ -1,67 +1,14 @@
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import { zw2Fetch as zw2FetchRaw, getZw2Base } from "./zw2-auth.js";
 
-const ZW2_BASE = process.env.ZW2_URL ?? "http://zoomwarriors2-backend:8000";
-
-// --- JWT auth (module-level, not exported) ---
-
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
-
-async function zw2Login(): Promise<void> {
-  const username = process.env.ZW2_USERNAME;
-  const password = process.env.ZW2_PASSWORD;
-  if (!username || !password) throw new Error("ZW2_USERNAME and ZW2_PASSWORD env vars required");
-
-  const resp = await fetch(`${ZW2_BASE}/api/v1/auth/login/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password, terms_accepted: true }),
-  });
-
-  if (!resp.ok) throw new Error(`ZW2 login failed: ${resp.status}`);
-  const data = (await resp.json()) as Record<string, unknown>;
-  accessToken = data.access_token as string;
-  refreshToken = data.refresh_token as string;
-}
-
-async function zw2RefreshToken(): Promise<void> {
-  if (!refreshToken) return zw2Login();
-
-  const resp = await fetch(`${ZW2_BASE}/api/v1/auth/token/refresh/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-
-  if (!resp.ok) return zw2Login();
-  const data = (await resp.json()) as Record<string, unknown>;
-  accessToken = data.access_token as string;
-  refreshToken = data.refresh_token as string;
-}
+const ZW2_BASE = getZw2Base();
 
 async function zw2Fetch<T = unknown>(endpoint: string, options?: RequestInit): Promise<T> {
-  if (!accessToken) await zw2Login();
-
-  const doFetch = async (): Promise<Response> =>
-    fetch(`${ZW2_BASE}${endpoint}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-  let resp = await doFetch();
-  if (resp.status === 401) {
-    await zw2RefreshToken();
-    resp = await doFetch();
-  }
-
-  if (!resp.ok) throw new Error(`ZW2 API error ${resp.status}: ${await resp.text()}`);
-  return resp.json() as Promise<T>;
+  const result = await zw2FetchRaw(endpoint, options);
+  if (!result.ok) throw new Error(`ZW2 API error ${result.status}: ${JSON.stringify(result.data)}`);
+  return result.data as T;
 }
 
 // --- Company name cache (moltbot-side search enrichment) ---
