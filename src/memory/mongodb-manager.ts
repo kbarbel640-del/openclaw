@@ -6,6 +6,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { ResolvedMemoryBackendConfig } from "./backend-config.js";
 import type { EmbeddingProvider } from "./embeddings.js";
 import type { DetectedCapabilities } from "./mongodb-schema.js";
+import type { StructuredMemoryEntry } from "./mongodb-structured-memory.js";
 import type {
   MemoryEmbeddingProbeResult,
   MemoryProviderStatus,
@@ -18,6 +19,7 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 import { isMemoryPath, normalizeExtraMemoryPaths } from "./internal.js";
 import { getMemoryStats, type MemoryStats } from "./mongodb-analytics.js";
 import { MongoDBChangeStreamWatcher } from "./mongodb-change-stream.js";
+import { searchKB } from "./mongodb-kb-search.js";
 import {
   chunksCollection,
   detectCapabilities,
@@ -25,11 +27,19 @@ import {
   ensureSearchIndexes,
   ensureStandardIndexes,
   filesCollection,
+  kbChunksCollection,
+  structuredMemCollection,
 } from "./mongodb-schema.js";
 import { mongoSearch } from "./mongodb-search.js";
+import { searchStructuredMemory } from "./mongodb-structured-memory.js";
 import { syncToMongoDB } from "./mongodb-sync.js";
 
 const log = createSubsystemLogger("memory:mongodb");
+
+/** Type guard: checks if a MemorySearchManager supports structured memory writes (MongoDB backend). */
+export function hasWriteCapability(manager: MemorySearchManager): manager is MongoDBMemoryManager {
+  return "writeStructuredMemory" in manager;
+}
 
 /** Redact credentials from a MongoDB connection string for safe logging. */
 function redactMongoURI(uri: string): string {
@@ -264,18 +274,65 @@ export class MongoDBMemoryManager implements MemorySearchManager {
       }
     }
 
-    return mongoSearch(chunksCollection(this.db, this.prefix), cleaned, queryVector, {
-      maxResults,
-      minScore,
-      sessionKey: opts?.sessionKey,
-      fusionMethod: mongoCfg.fusionMethod,
-      capabilities: this.capabilities,
-      vectorIndexName: `${this.prefix}chunks_vector`,
-      textIndexName: `${this.prefix}chunks_text`,
-      vectorWeight: 0.7,
-      textWeight: 0.3,
-      embeddingMode: mongoCfg.embeddingMode,
+    // Search legacy chunks (memory + sessions)
+    const legacyResults = await mongoSearch(
+      chunksCollection(this.db, this.prefix),
+      cleaned,
+      queryVector,
+      {
+        maxResults,
+        minScore,
+        sessionKey: opts?.sessionKey,
+        fusionMethod: mongoCfg.fusionMethod,
+        capabilities: this.capabilities,
+        vectorIndexName: `${this.prefix}chunks_vector`,
+        textIndexName: `${this.prefix}chunks_text`,
+        vectorWeight: 0.7,
+        textWeight: 0.3,
+        embeddingMode: mongoCfg.embeddingMode,
+      },
+    );
+
+    // Also search KB chunks and structured memory (MongoDB-native features)
+    const kbResults = await searchKB(
+      kbChunksCollection(this.db, this.prefix),
+      cleaned,
+      queryVector,
+      {
+        maxResults: Math.max(3, Math.floor(maxResults / 3)),
+        minScore,
+        vectorIndexName: `${this.prefix}kb_chunks_vector`,
+        textIndexName: `${this.prefix}kb_chunks_text`,
+        capabilities: this.capabilities,
+        embeddingMode: mongoCfg.embeddingMode,
+      },
+    ).catch((err) => {
+      log.warn(`KB search failed: ${String(err)}`);
+      return [] as MemorySearchResult[];
     });
+
+    const structuredResults = await searchStructuredMemory(
+      structuredMemCollection(this.db, this.prefix),
+      cleaned,
+      queryVector,
+      {
+        maxResults: Math.max(3, Math.floor(maxResults / 3)),
+        minScore,
+        capabilities: this.capabilities,
+        vectorIndexName: `${this.prefix}structured_mem_vector`,
+        embeddingMode: mongoCfg.embeddingMode,
+      },
+    ).catch((err) => {
+      log.warn(`structured memory search failed: ${String(err)}`);
+      return [] as MemorySearchResult[];
+    });
+
+    // Merge all results, sorted by score, capped at maxResults
+    const allResults = [...legacyResults, ...kbResults, ...structuredResults]
+      .toSorted((a, b) => b.score - a.score)
+      .slice(0, maxResults);
+
+    return allResults;
   }
 
   // ---------------------------------------------------------------------------
@@ -522,6 +579,24 @@ export class MongoDBMemoryManager implements MemorySearchManager {
 
   async probeVectorAvailability(): Promise<boolean> {
     return this.capabilities.vectorSearch;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Structured memory write (exposed for memory_write tool to avoid per-call MongoClient)
+  // ---------------------------------------------------------------------------
+
+  async writeStructuredMemory(
+    entry: StructuredMemoryEntry,
+  ): Promise<{ upserted: boolean; id: string }> {
+    const mongoCfg = this.config.mongodb!;
+    const { writeStructuredMemory: writeFn } = await import("./mongodb-structured-memory.js");
+    return writeFn({
+      db: this.db,
+      prefix: this.prefix,
+      entry,
+      embeddingMode: mongoCfg.embeddingMode,
+      embeddingProvider: this.embeddingProvider ?? undefined,
+    });
   }
 
   // ---------------------------------------------------------------------------

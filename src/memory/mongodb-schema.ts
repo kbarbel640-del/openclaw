@@ -50,6 +50,18 @@ export function metaCollection(db: Db, prefix: string): Collection {
   return col(db, prefix, "meta");
 }
 
+export function kbCollection(db: Db, prefix: string): Collection {
+  return col(db, prefix, "knowledge_base");
+}
+
+export function kbChunksCollection(db: Db, prefix: string): Collection {
+  return col(db, prefix, "kb_chunks");
+}
+
+export function structuredMemCollection(db: Db, prefix: string): Collection {
+  return col(db, prefix, "structured_mem");
+}
+
 // ---------------------------------------------------------------------------
 // Ensure collections exist (idempotent)
 // ---------------------------------------------------------------------------
@@ -61,7 +73,15 @@ export async function ensureCollections(db: Db, prefix: string): Promise<void> {
       .map((c) => c.name)
       .toArray(),
   );
-  const needed = ["chunks", "files", "embedding_cache", "meta"].map((n) => `${prefix}${n}`);
+  const needed = [
+    "chunks",
+    "files",
+    "embedding_cache",
+    "meta",
+    "knowledge_base",
+    "kb_chunks",
+    "structured_mem",
+  ].map((n) => `${prefix}${n}`);
   for (const name of needed) {
     if (!existing.has(name)) {
       await db.createCollection(name);
@@ -133,6 +153,47 @@ export async function ensureStandardIndexes(
     );
   }
 
+  // Knowledge Base indexes
+  const kb = kbCollection(db, prefix);
+  await kb.createIndex({ hash: 1 }, { name: "uq_kb_hash", unique: true });
+  applied++;
+  await kb.createIndex({ "source.type": 1, category: 1 }, { name: "idx_kb_source_category" });
+  applied++;
+  await kb.createIndex({ tags: 1 }, { name: "idx_kb_tags" });
+  applied++;
+  await kb.createIndex({ updatedAt: 1 }, { name: "idx_kb_updated" });
+  applied++;
+
+  // KB Chunks indexes
+  const kbChunks = kbChunksCollection(db, prefix);
+  await kbChunks.createIndex({ docId: 1 }, { name: "idx_kbchunks_docid" });
+  applied++;
+  await kbChunks.createIndex(
+    { path: 1, startLine: 1, endLine: 1 },
+    { name: "uq_kbchunks_path_lines", unique: true },
+  );
+  applied++;
+  // $text index on kb_chunks text field for text search fallback
+  await kbChunks.createIndex({ text: "text" }, { name: "idx_kbchunks_text" });
+  applied++;
+
+  // Structured Memory indexes
+  const structured = structuredMemCollection(db, prefix);
+  await structured.createIndex(
+    { type: 1, key: 1 },
+    { name: "uq_structured_type_key", unique: true },
+  );
+  applied++;
+  await structured.createIndex({ type: 1, updatedAt: -1 }, { name: "idx_structured_type_updated" });
+  applied++;
+  await structured.createIndex({ agentId: 1 }, { name: "idx_structured_agentid" });
+  applied++;
+  await structured.createIndex({ tags: 1 }, { name: "idx_structured_tags" });
+  applied++;
+  // $text index on structured_mem for text search fallback
+  await structured.createIndex({ value: "text", context: "text" }, { name: "idx_structured_text" });
+  applied++;
+
   log.info(`ensured ${applied} standard indexes`);
   return applied;
 }
@@ -149,12 +210,21 @@ export async function ensureSearchIndexes(
   quantization: "none" | "scalar" | "binary" = "none",
   numDimensions: number = 1024,
 ): Promise<{ text: boolean; vector: boolean }> {
-  const budget = assertIndexBudget(profile, 2);
-  if (!budget.withinBudget) {
+  // 6 search indexes total: chunks (text + vector), kb_chunks (text + vector), structured_mem (text + vector).
+  // For budget-constrained profiles (atlas-m0 has 3), create only the core chunks indexes.
+  const budget = assertIndexBudget(profile, 6);
+  const reducedBudget =
+    !budget.withinBudget && typeof budget.budget === "number" && budget.budget >= 2;
+  if (!budget.withinBudget && !reducedBudget) {
     log.warn(
       `search index budget exceeded: planned=${budget.plannedSearchIndexes} budget=${budget.budget} profile=${profile}`,
     );
     return { text: false, vector: false };
+  }
+  if (reducedBudget) {
+    log.warn(
+      `search index budget tight (${budget.budget}/${budget.plannedSearchIndexes}): creating core chunks indexes only, skipping KB and structured memory search indexes`,
+    );
   }
 
   if (profile === "community-bare") {
@@ -248,6 +318,146 @@ export async function ensureSearchIndexes(
       vectorCreated = true;
     } else {
       log.warn(`vector search index creation failed: ${msg}`);
+    }
+  }
+
+  // KB Chunks search indexes (skipped when budget is tight — core chunks indexes take priority)
+  if (reducedBudget) {
+    return { text: textCreated, vector: vectorCreated };
+  }
+  const kbChunks = kbChunksCollection(db, prefix);
+  try {
+    const kbTextDef: Document = {
+      mappings: {
+        dynamic: false,
+        fields: {
+          text: { type: "string", analyzer: "lucene.standard" },
+          path: { type: "token" },
+          docId: { type: "token" },
+          updatedAt: { type: "date" },
+        },
+      },
+    };
+    await kbChunks.createSearchIndex({
+      name: `${prefix}kb_chunks_text`,
+      type: "search",
+      definition: kbTextDef,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("already exists") && !msg.includes("duplicate")) {
+      log.warn(`kb_chunks text search index creation failed: ${msg}`);
+    }
+  }
+
+  try {
+    const kbFilterFields: Document[] = [
+      { type: "filter", path: "docId" },
+      { type: "filter", path: "path" },
+    ];
+
+    let kbVectorDef: Document;
+    if (embeddingMode === "automated") {
+      kbVectorDef = {
+        fields: [
+          { type: "autoEmbed", modality: "text", path: "text", model: "voyage-4-large" },
+          ...kbFilterFields,
+        ],
+      };
+    } else {
+      kbVectorDef = {
+        fields: [
+          {
+            type: "vector",
+            path: "embedding",
+            numDimensions,
+            similarity: "cosine",
+            ...(quantization !== "none" ? { quantization } : {}),
+          },
+          ...kbFilterFields,
+        ],
+      };
+    }
+
+    await kbChunks.createSearchIndex({
+      name: `${prefix}kb_chunks_vector`,
+      type: "vectorSearch",
+      definition: kbVectorDef,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("already exists") && !msg.includes("duplicate")) {
+      log.warn(`kb_chunks vector search index creation failed: ${msg}`);
+    }
+  }
+
+  // Structured Memory search indexes
+  const structured = structuredMemCollection(db, prefix);
+  try {
+    const structTextDef: Document = {
+      mappings: {
+        dynamic: false,
+        fields: {
+          value: { type: "string", analyzer: "lucene.standard" },
+          context: { type: "string", analyzer: "lucene.standard" },
+          type: { type: "token" },
+          key: { type: "token" },
+          tags: { type: "token" },
+          updatedAt: { type: "date" },
+        },
+      },
+    };
+    await structured.createSearchIndex({
+      name: `${prefix}structured_mem_text`,
+      type: "search",
+      definition: structTextDef,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("already exists") && !msg.includes("duplicate")) {
+      log.warn(`structured_mem text search index creation failed: ${msg}`);
+    }
+  }
+
+  try {
+    const structFilterFields: Document[] = [
+      { type: "filter", path: "type" },
+      { type: "filter", path: "tags" },
+      { type: "filter", path: "agentId" },
+    ];
+
+    let structVectorDef: Document;
+    if (embeddingMode === "automated") {
+      structVectorDef = {
+        fields: [
+          { type: "autoEmbed", modality: "text", path: "value", model: "voyage-4-large" },
+          ...structFilterFields,
+        ],
+      };
+    } else {
+      structVectorDef = {
+        fields: [
+          {
+            type: "vector",
+            path: "embedding",
+            numDimensions,
+            similarity: "cosine",
+            ...(quantization !== "none" ? { quantization } : {}),
+          },
+          ...structFilterFields,
+        ],
+      };
+    }
+
+    await structured.createSearchIndex({
+      name: `${prefix}structured_mem_vector`,
+      type: "vectorSearch",
+      definition: structVectorDef,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("already exists") && !msg.includes("duplicate")) {
+      log.warn(`structured_mem vector search index creation failed: ${msg}`);
     }
   }
 

@@ -390,4 +390,49 @@ describe("resolveMemoryBackendConfig", () => {
       vi.unstubAllEnvs();
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // KB config resolution tests
+  // ---------------------------------------------------------------------------
+
+  it("resolves KB defaults for MongoDB backend", () => {
+    const cfg = {
+      agents: { defaults: { workspace: "/tmp/memory-test" } },
+      memory: {
+        backend: "mongodb",
+        mongodb: { uri: "mongodb://localhost:27017" },
+      },
+    } as OpenClawConfig;
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId: "main" });
+    expect(resolved.mongodb!.kb).toBeDefined();
+    expect(resolved.mongodb!.kb.enabled).toBe(true);
+    expect(resolved.mongodb!.kb.chunking.tokens).toBe(600);
+    expect(resolved.mongodb!.kb.chunking.overlap).toBe(100);
+    expect(resolved.mongodb!.kb.autoImportPaths).toEqual([]);
+    expect(resolved.mongodb!.kb.maxDocumentSize).toBe(10 * 1024 * 1024);
+  });
+
+  it("resolves custom KB config for MongoDB backend", () => {
+    const cfg = {
+      agents: { defaults: { workspace: "/tmp/memory-test" } },
+      memory: {
+        backend: "mongodb",
+        mongodb: {
+          uri: "mongodb://localhost:27017",
+          kb: {
+            enabled: false,
+            chunking: { tokens: 800, overlap: 150 },
+            autoImportPaths: ["/docs", "/wiki"],
+            maxDocumentSize: 5 * 1024 * 1024,
+          },
+        },
+      },
+    } as OpenClawConfig;
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId: "main" });
+    expect(resolved.mongodb!.kb.enabled).toBe(false);
+    expect(resolved.mongodb!.kb.chunking.tokens).toBe(800);
+    expect(resolved.mongodb!.kb.chunking.overlap).toBe(150);
+    expect(resolved.mongodb!.kb.autoImportPaths).toEqual(["/docs", "/wiki"]);
+    expect(resolved.mongodb!.kb.maxDocumentSize).toBe(5 * 1024 * 1024);
+  });
 });

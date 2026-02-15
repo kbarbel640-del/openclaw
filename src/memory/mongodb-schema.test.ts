@@ -10,6 +10,9 @@ import {
   filesCollection,
   embeddingCacheCollection,
   metaCollection,
+  kbCollection,
+  kbChunksCollection,
+  structuredMemCollection,
 } from "./mongodb-schema.js";
 
 // ---------------------------------------------------------------------------
@@ -78,6 +81,24 @@ describe("collection helpers", () => {
     metaCollection(db, "oc_");
     expect(db.collection).toHaveBeenCalledWith("oc_meta");
   });
+
+  it("kbCollection returns prefixed collection", () => {
+    const db = mockDb();
+    kbCollection(db, "oc_");
+    expect(db.collection).toHaveBeenCalledWith("oc_knowledge_base");
+  });
+
+  it("kbChunksCollection returns prefixed collection", () => {
+    const db = mockDb();
+    kbChunksCollection(db, "oc_");
+    expect(db.collection).toHaveBeenCalledWith("oc_kb_chunks");
+  });
+
+  it("structuredMemCollection returns prefixed collection", () => {
+    const db = mockDb();
+    structuredMemCollection(db, "oc_");
+    expect(db.collection).toHaveBeenCalledWith("oc_structured_mem");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -85,26 +106,40 @@ describe("collection helpers", () => {
 // ---------------------------------------------------------------------------
 
 describe("ensureCollections", () => {
-  it("creates all 4 collections when none exist", async () => {
+  it("creates all 7 collections when none exist", async () => {
     const db = mockDb([]);
     await ensureCollections(db, "test_");
-    expect(db.createCollection).toHaveBeenCalledTimes(4);
+    expect(db.createCollection).toHaveBeenCalledTimes(7);
     expect(db.createCollection).toHaveBeenCalledWith("test_chunks");
     expect(db.createCollection).toHaveBeenCalledWith("test_files");
     expect(db.createCollection).toHaveBeenCalledWith("test_embedding_cache");
     expect(db.createCollection).toHaveBeenCalledWith("test_meta");
+    expect(db.createCollection).toHaveBeenCalledWith("test_knowledge_base");
+    expect(db.createCollection).toHaveBeenCalledWith("test_kb_chunks");
+    expect(db.createCollection).toHaveBeenCalledWith("test_structured_mem");
   });
 
   it("skips already-existing collections", async () => {
     const db = mockDb(["test_chunks", "test_files"]);
     await ensureCollections(db, "test_");
-    expect(db.createCollection).toHaveBeenCalledTimes(2);
+    expect(db.createCollection).toHaveBeenCalledTimes(5);
     expect(db.createCollection).toHaveBeenCalledWith("test_embedding_cache");
     expect(db.createCollection).toHaveBeenCalledWith("test_meta");
+    expect(db.createCollection).toHaveBeenCalledWith("test_knowledge_base");
+    expect(db.createCollection).toHaveBeenCalledWith("test_kb_chunks");
+    expect(db.createCollection).toHaveBeenCalledWith("test_structured_mem");
   });
 
   it("does nothing when all collections exist", async () => {
-    const db = mockDb(["oc_chunks", "oc_files", "oc_embedding_cache", "oc_meta"]);
+    const db = mockDb([
+      "oc_chunks",
+      "oc_files",
+      "oc_embedding_cache",
+      "oc_meta",
+      "oc_knowledge_base",
+      "oc_kb_chunks",
+      "oc_structured_mem",
+    ]);
     await ensureCollections(db, "oc_");
     expect(db.createCollection).not.toHaveBeenCalled();
   });
@@ -115,7 +150,7 @@ describe("ensureCollections", () => {
 // ---------------------------------------------------------------------------
 
 describe("ensureStandardIndexes", () => {
-  it("creates all standard indexes on chunks and embedding_cache", async () => {
+  it("creates all standard indexes on chunks, embedding_cache, KB, and structured_mem", async () => {
     const db = mockDb();
     const count = await ensureStandardIndexes(db, "test_");
 
@@ -125,11 +160,23 @@ describe("ensureStandardIndexes", () => {
     const cache = db.collection("test_embedding_cache") as unknown as {
       createIndex: ReturnType<typeof vi.fn>;
     };
+    const kb = db.collection("test_knowledge_base") as unknown as {
+      createIndex: ReturnType<typeof vi.fn>;
+    };
+    const kbChunks = db.collection("test_kb_chunks") as unknown as {
+      createIndex: ReturnType<typeof vi.fn>;
+    };
+    const structured = db.collection("test_structured_mem") as unknown as {
+      createIndex: ReturnType<typeof vi.fn>;
+    };
 
-    // 5 chunk indexes (path, source, path+hash, updatedAt, $text) + 2 cache indexes
-    expect(count).toBe(7);
+    // 5 chunk + 2 cache + 4 KB + 3 KB chunks + 5 structured = 19
+    expect(count).toBe(19);
     expect(chunks.createIndex).toHaveBeenCalledTimes(5);
     expect(cache.createIndex).toHaveBeenCalledTimes(2);
+    expect(kb.createIndex).toHaveBeenCalledTimes(4);
+    expect(kbChunks.createIndex).toHaveBeenCalledTimes(3);
+    expect(structured.createIndex).toHaveBeenCalledTimes(5);
   });
 
   it("creates $text index on text field for community-bare fallback", async () => {
@@ -286,6 +333,7 @@ describe("ensureSearchIndexes", () => {
     const chunks = db.collection("test_chunks") as unknown as {
       createSearchIndex: ReturnType<typeof vi.fn>;
     };
+    // 2 search indexes on chunks collection (text + vector)
     expect(chunks.createSearchIndex).toHaveBeenCalledTimes(2);
 
     // Check text index
@@ -307,6 +355,17 @@ describe("ensureSearchIndexes", () => {
     expect(vectorField.path).toBe("embedding");
     expect(vectorField.numDimensions).toBe(1024);
     expect(vectorField.similarity).toBe("cosine");
+
+    // Also verify KB chunks and structured mem search indexes
+    const kbChunksCol = db.collection("test_kb_chunks") as unknown as {
+      createSearchIndex: ReturnType<typeof vi.fn>;
+    };
+    expect(kbChunksCol.createSearchIndex).toHaveBeenCalledTimes(2);
+
+    const structuredCol = db.collection("test_structured_mem") as unknown as {
+      createSearchIndex: ReturnType<typeof vi.fn>;
+    };
+    expect(structuredCol.createSearchIndex).toHaveBeenCalledTimes(2);
   });
 
   it("creates autoEmbed vector index for automated mode", async () => {

@@ -5,6 +5,7 @@ import type { MemorySearchResult } from "../../memory/types.js";
 import type { AnyAgentTool } from "./common.js";
 import { resolveMemoryBackendConfig } from "../../memory/backend-config.js";
 import { getMemorySearchManager } from "../../memory/index.js";
+import { hasWriteCapability } from "../../memory/mongodb-manager.js";
 import { parseAgentSessionKey } from "../../routing/session-key.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { resolveMemorySearchConfig } from "../memory-search.js";
@@ -215,4 +216,155 @@ function deriveChatTypeFromSessionKey(sessionKey?: string): "direct" | "group" |
     return "group";
   }
   return "direct";
+}
+
+// ---------------------------------------------------------------------------
+// KB Search Tool (MongoDB-only, registered when MongoDB backend is active)
+// ---------------------------------------------------------------------------
+
+const KBSearchSchema = Type.Object({
+  query: Type.String(),
+  maxResults: Type.Optional(Type.Number()),
+  // TODO: Add tags/category filtering once searchKB supports direct filter params
+});
+
+export function createKBSearchTool(options: {
+  config?: OpenClawConfig;
+  agentSessionKey?: string;
+}): AnyAgentTool | null {
+  const cfg = options.config;
+  if (!cfg) {
+    return null;
+  }
+
+  // Only register when MongoDB backend is active
+  if (cfg.memory?.backend !== "mongodb") {
+    return null;
+  }
+
+  const agentId = resolveSessionAgentId({
+    sessionKey: options.agentSessionKey,
+    config: cfg,
+  });
+
+  return {
+    label: "KB Search",
+    name: "kb_search",
+    description:
+      "Search the knowledge base for documents, FAQs, architecture specs, and reference materials. Returns matching snippets with source and relevance score. Use for factual/reference lookups.",
+    parameters: KBSearchSchema,
+    execute: async (_toolCallId, params) => {
+      const query = readStringParam(params, "query", { required: true });
+      const maxResults = readNumberParam(params, "maxResults") ?? 5;
+
+      const { manager, error } = await getMemorySearchManager({ cfg, agentId });
+      if (!manager) {
+        return jsonResult({ results: [], disabled: true, error });
+      }
+
+      try {
+        // Use the manager's search with KB-specific filtering via the query
+        // The enhanced search() in MongoDBMemoryManager already searches KB
+        const results = await manager.search(query, { maxResults });
+        // Filter to KB results only
+        const kbResults = results.filter((r) => r.source === "kb");
+        return jsonResult({ results: kbResults });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return jsonResult({ results: [], disabled: true, error: message });
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Memory Write Tool (MongoDB-only, registered when MongoDB backend is active)
+// ---------------------------------------------------------------------------
+
+const MemoryWriteSchema = Type.Object({
+  type: Type.Union([
+    Type.Literal("decision"),
+    Type.Literal("preference"),
+    Type.Literal("person"),
+    Type.Literal("todo"),
+    Type.Literal("fact"),
+    Type.Literal("project"),
+    Type.Literal("architecture"),
+    Type.Literal("custom"),
+  ]),
+  key: Type.String(),
+  value: Type.String(),
+  context: Type.Optional(Type.String()),
+  confidence: Type.Optional(Type.Number()),
+  tags: Type.Optional(Type.Array(Type.String())),
+});
+
+export function createMemoryWriteTool(options: {
+  config?: OpenClawConfig;
+  agentSessionKey?: string;
+}): AnyAgentTool | null {
+  const cfg = options.config;
+  if (!cfg) {
+    return null;
+  }
+
+  // Only register when MongoDB backend is active
+  if (cfg.memory?.backend !== "mongodb") {
+    return null;
+  }
+
+  const agentId = resolveSessionAgentId({
+    sessionKey: options.agentSessionKey,
+    config: cfg,
+  });
+
+  return {
+    label: "Memory Write",
+    name: "memory_write",
+    description:
+      "Store a structured observation (decision, preference, fact, person, todo, project, architecture) in the agent's persistent memory. Use for important information that should be remembered across sessions. Type+key is the dedup key: writing the same type+key updates the existing record.",
+    parameters: MemoryWriteSchema,
+    execute: async (_toolCallId, params) => {
+      const type = readStringParam(params, "type", { required: true });
+      const key = readStringParam(params, "key", { required: true });
+      const value = readStringParam(params, "value", { required: true });
+      const context = readStringParam(params, "context");
+      const confidence = readNumberParam(params, "confidence");
+      const tags =
+        params && typeof params === "object" && "tags" in params
+          ? ((params as Record<string, unknown>).tags as string[] | undefined)
+          : undefined;
+
+      try {
+        // Reuse the manager's existing connection pool (not per-call MongoClient)
+        const { manager, error } = await getMemorySearchManager({ cfg, agentId });
+        if (!manager) {
+          return jsonResult({ success: false, error: error ?? "memory manager unavailable" });
+        }
+        if (!hasWriteCapability(manager)) {
+          return jsonResult({ success: false, error: "write not supported on this backend" });
+        }
+
+        const result = await manager.writeStructuredMemory({
+          type: type as import("../../memory/mongodb-structured-memory.js").StructuredMemoryType,
+          key,
+          value,
+          context: context ?? undefined,
+          confidence: confidence ?? 0.8,
+          source: "agent",
+          agentId,
+          tags: tags ?? undefined,
+        });
+
+        return jsonResult({
+          success: true,
+          upserted: result.upserted,
+          id: result.id,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return jsonResult({ success: false, error: message });
+      }
+    },
+  };
 }

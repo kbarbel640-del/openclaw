@@ -41,6 +41,7 @@ function buildMemorySection(params: {
   isMinimal: boolean;
   availableTools: Set<string>;
   citationsMode?: MemoryCitationsMode;
+  memoryBackend?: string;
 }) {
   if (params.isMinimal) {
     return [];
@@ -48,10 +49,20 @@ function buildMemorySection(params: {
   if (!params.availableTools.has("memory_search") && !params.availableTools.has("memory_get")) {
     return [];
   }
-  const lines = [
-    "## Memory Recall",
-    "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on MEMORY.md + memory/*.md; then use memory_get to pull only the needed lines. If low confidence after search, say you checked.",
-  ];
+  const isMongoDBBackend = params.memoryBackend === "mongodb";
+  const lines = ["## Memory Recall"];
+  if (isMongoDBBackend) {
+    const recallLine =
+      "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search to recall facts from your knowledge base, structured memory, and memory files.";
+    const writeLine = params.availableTools.has("memory_write")
+      ? " Use memory_write to store important decisions, preferences, and facts. Use MEMORY.md for informal notes and working observations."
+      : "";
+    lines.push(recallLine + writeLine);
+  } else {
+    lines.push(
+      "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on MEMORY.md + memory/*.md; then use memory_get to pull only the needed lines. If low confidence after search, say you checked.",
+    );
+  }
   if (params.citationsMode === "off") {
     lines.push(
       "Citations are disabled: do not mention file paths or line numbers in replies unless the user explicitly asks.",
@@ -219,6 +230,8 @@ export function buildAgentSystemPrompt(params: {
     channel: string;
   };
   memoryCitationsMode?: MemoryCitationsMode;
+  /** Memory backend type, used to customize system prompt for MongoDB. */
+  memoryBackend?: string;
 }) {
   const coreToolSummaries: Record<string, string> = {
     read: "Read file contents",
@@ -379,6 +392,7 @@ export function buildAgentSystemPrompt(params: {
     isMinimal,
     availableTools,
     citationsMode: params.memoryCitationsMode,
+    memoryBackend: params.memoryBackend,
   });
   const docsSection = buildDocsSection({
     docsPath: params.docsPath,

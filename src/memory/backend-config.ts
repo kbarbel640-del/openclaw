@@ -31,6 +31,12 @@ export type ResolvedMongoDBConfig = {
   memoryTtlDays: number;
   enableChangeStreams: boolean;
   changeStreamDebounceMs: number;
+  kb: {
+    enabled: boolean;
+    chunking: { tokens: number; overlap: number };
+    autoImportPaths: string[];
+    maxDocumentSize: number;
+  };
 };
 
 export type ResolvedMemoryBackendConfig = {
@@ -343,6 +349,34 @@ export function resolveMemoryBackendConfig(params: {
           mongoCfg.changeStreamDebounceMs >= 0
             ? Math.floor(mongoCfg.changeStreamDebounceMs)
             : 1000,
+        kb: {
+          enabled: mongoCfg?.kb?.enabled !== false,
+          chunking: {
+            tokens:
+              typeof mongoCfg?.kb?.chunking?.tokens === "number" &&
+              Number.isFinite(mongoCfg.kb.chunking.tokens) &&
+              mongoCfg.kb.chunking.tokens > 0
+                ? Math.floor(mongoCfg.kb.chunking.tokens)
+                : 600,
+            overlap:
+              typeof mongoCfg?.kb?.chunking?.overlap === "number" &&
+              Number.isFinite(mongoCfg.kb.chunking.overlap) &&
+              mongoCfg.kb.chunking.overlap >= 0
+                ? Math.floor(mongoCfg.kb.chunking.overlap)
+                : 100,
+          },
+          autoImportPaths: Array.isArray(mongoCfg?.kb?.autoImportPaths)
+            ? mongoCfg.kb.autoImportPaths.filter(
+                (p): p is string => typeof p === "string" && p.trim().length > 0,
+              )
+            : [],
+          maxDocumentSize:
+            typeof mongoCfg?.kb?.maxDocumentSize === "number" &&
+            Number.isFinite(mongoCfg.kb.maxDocumentSize) &&
+            mongoCfg.kb.maxDocumentSize > 0
+              ? Math.floor(mongoCfg.kb.maxDocumentSize)
+              : 10 * 1024 * 1024,
+        },
       },
     };
   }

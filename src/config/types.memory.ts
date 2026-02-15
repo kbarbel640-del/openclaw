@@ -41,6 +41,17 @@ export type MemoryMongoDBConfig = {
   enableChangeStreams?: boolean;
   /** Debounce for batching change stream events in ms. Default: 1000 */
   changeStreamDebounceMs?: number;
+  /** Knowledge Base configuration (MongoDB-native feature) */
+  kb?: {
+    /** Enable KB features. Default: true when MongoDB backend */
+    enabled?: boolean;
+    /** Custom chunking for KB documents */
+    chunking?: { tokens?: number; overlap?: number };
+    /** Paths to auto-import on startup */
+    autoImportPaths?: string[];
+    /** Maximum document size in bytes. Default: 10MB */
+    maxDocumentSize?: number;
+  };
 };
 export type MemoryCitationsMode = "auto" | "on" | "off";
 export type MemoryQmdSearchMode = "query" | "search" | "vsearch";
