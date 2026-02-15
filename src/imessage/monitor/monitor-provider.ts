@@ -530,6 +530,7 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       sender: { name: senderNormalized, id: sender },
       previousTimestamp,
       envelope: envelopeOptions,
+      messageId: message.id ? String(message.id) : undefined,
     });
     let combinedBody = body;
     if (isGroup && historyKey) {

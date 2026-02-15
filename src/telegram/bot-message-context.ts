@@ -583,6 +583,7 @@ export const buildTelegramMessageContext = async ({
     },
     previousTimestamp,
     envelope: envelopeOptions,
+    messageId: String(msg.message_id),
   });
   let combinedBody = body;
   if (isGroup && historyKey && historyLimit > 0) {

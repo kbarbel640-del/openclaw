@@ -175,6 +175,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     senderLabel,
     previousTimestamp,
     envelope: envelopeOptions,
+    messageId: message.id,
   });
   const shouldIncludeChannelHistory =
     !isDirectMessage && !(isGuildMessage && channelConfig?.autoThread && !threadChannel);

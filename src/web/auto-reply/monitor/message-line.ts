@@ -43,5 +43,6 @@ export function buildInboundLine(params: {
     },
     previousTimestamp,
     envelope,
+    messageId: msg.id,
   });
 }

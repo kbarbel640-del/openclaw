@@ -103,6 +103,7 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       sender: { name: entry.senderName, id: entry.senderDisplay },
       previousTimestamp,
       envelope: envelopeOptions,
+      messageId: entry.messageId,
     });
     let combinedBody = body;
     const historyKey = entry.isGroup ? String(entry.groupId ?? "unknown") : undefined;

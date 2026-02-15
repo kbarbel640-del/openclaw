@@ -170,4 +170,27 @@ describe("formatInboundEnvelope", () => {
       userTimezone: "Europe/Vienna",
     });
   });
+
+  it("appends messageId when provided", () => {
+    const body = formatInboundEnvelope({
+      channel: "Discord",
+      from: "Guild #general",
+      body: "hi",
+      chatType: "channel",
+      senderLabel: "Alice",
+      messageId: "msg123",
+    });
+    expect(body).toBe("[Discord Guild #general] Alice: hi [id:msg123]");
+  });
+
+  it("does not append messageId when not provided", () => {
+    const body = formatInboundEnvelope({
+      channel: "Discord",
+      from: "Guild #general",
+      body: "hi",
+      chatType: "channel",
+      senderLabel: "Alice",
+    });
+    expect(body).toBe("[Discord Guild #general] Alice: hi");
+  });
 });

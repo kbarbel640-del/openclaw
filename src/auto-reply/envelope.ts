@@ -197,12 +197,17 @@ export function formatInboundEnvelope(params: {
   sender?: SenderLabelParams;
   previousTimestamp?: number | Date;
   envelope?: EnvelopeFormatOptions;
+  messageId?: string;
 }): string {
   const chatType = normalizeChatType(params.chatType);
   const isDirect = !chatType || chatType === "direct";
   const resolvedSenderRaw = params.senderLabel?.trim() || resolveSenderLabel(params.sender ?? {});
   const resolvedSender = resolvedSenderRaw ? sanitizeEnvelopeHeaderPart(resolvedSenderRaw) : "";
-  const body = !isDirect && resolvedSender ? `${resolvedSender}: ${params.body}` : params.body;
+  let body = !isDirect && resolvedSender ? `${resolvedSender}: ${params.body}` : params.body;
+  if (params.messageId) {
+    const sanitizedId = params.messageId.replace(/[\[\]]/g, '');
+    body += ` [id:${sanitizedId}]`;
+  }
   return formatAgentEnvelope({
     channel: params.channel,
     from: params.from,

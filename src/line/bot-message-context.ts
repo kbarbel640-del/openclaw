@@ -261,6 +261,7 @@ async function finalizeLineInboundContext(params: {
     },
     previousTimestamp,
     envelope: envelopeOptions,
+    messageId: params.messageSid,
   });
 
   const ctxPayload = finalizeInboundContext({
