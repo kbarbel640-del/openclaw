@@ -78,6 +78,7 @@ export function mergeConsecutiveUserTurns(
  * Validates and fixes conversation turn sequences for Anthropic API.
  * Anthropic requires strict alternating user→assistant pattern.
  * Merges consecutive user messages together.
+ * Also handles system messages which can appear consecutively in subagent contexts.
  */
 export function validateAnthropicTurns(messages: AgentMessage[]): AgentMessage[] {
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -99,13 +100,54 @@ export function validateAnthropicTurns(messages: AgentMessage[]): AgentMessage[]
       continue;
     }
 
-    if (msgRole === lastRole && lastRole === "user") {
+    // Merge consecutive messages of same role (user, assistant, or system)
+    // System messages can appear consecutively in subagent contexts
+    if (msgRole === lastRole) {
       const lastMsg = result[result.length - 1];
-      const currentMsg = msg as Extract<AgentMessage, { role: "user" }>;
-
-      if (lastMsg && typeof lastMsg === "object") {
+      
+      if (lastMsg && typeof lastMsg === "object" && lastRole === "user") {
         const lastUser = lastMsg as Extract<AgentMessage, { role: "user" }>;
+        const currentMsg = msg as Extract<AgentMessage, { role: "user" }>;
         const merged = mergeConsecutiveUserTurns(lastUser, currentMsg);
+        result[result.length - 1] = merged;
+        continue;
+      }
+      
+      if (lastMsg && typeof lastMsg === "object" && lastRole === "system") {
+        // Merge consecutive system messages (common in subagent contexts)
+        const lastSystem = lastMsg as Extract<AgentMessage, { role: "system" }>;
+        const currentMsg = msg as Extract<AgentMessage, { role: "system" }>;
+        
+        const mergedContent = [
+          ...(Array.isArray(lastSystem.content) ? lastSystem.content : [String(lastSystem.content)]),
+          ...(Array.isArray(currentMsg.content) ? currentMsg.content : [String(currentMsg.content)]),
+        ];
+        
+        const merged: Extract<AgentMessage, { role: "system" }> = {
+          ...lastSystem,
+          content: mergedContent.join("\n\n"),
+        };
+        result[result.length - 1] = merged;
+        continue;
+      }
+
+      if (lastMsg && typeof lastMsg === "object" && lastRole === "assistant") {
+        // Merge consecutive assistant messages
+        const lastAsst = lastMsg as Extract<AgentMessage, { role: "assistant" }>;
+        const currentMsg = msg as Extract<AgentMessage, { role: "assistant" }>;
+
+        const mergedContent = [
+          ...(Array.isArray(lastAsst.content) ? lastAsst.content : []),
+          ...(Array.isArray(currentMsg.content) ? currentMsg.content : []),
+        ];
+
+        const merged: Extract<AgentMessage, { role: "assistant" }> = {
+          ...lastAsst,
+          content: mergedContent,
+          ...(currentMsg.usage && { usage: currentMsg.usage }),
+          ...(currentMsg.stopReason && { stopReason: currentMsg.stopReason }),
+          ...(currentMsg.errorMessage && { errorMessage: currentMsg.errorMessage }),
+        };
         result[result.length - 1] = merged;
         continue;
       }
