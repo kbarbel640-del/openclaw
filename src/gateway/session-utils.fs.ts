@@ -90,8 +90,10 @@ export async function findSessionFiles(stateDir: string): Promise<string[]> {
           }
         }
       }
-    } catch {
-      // Silently skip if we can't read the directory
+    } catch (err) {
+      console.warn(
+        `Warning: could not read session directory ${dir}: ${String(err instanceof Error ? err.message : err)}`,
+      );
     }
   };
 
@@ -106,8 +108,10 @@ export async function findSessionFiles(stateDir: string): Promise<string[]> {
         }
         await addFromDir(path.join(agentsDir, agentDir.name, "sessions"));
       }
-    } catch {
-      // Silently skip if we can't read the directory
+    } catch (err) {
+      console.warn(
+        `Warning: could not read agents directory ${agentsDir}: ${String(err instanceof Error ? err.message : err)}`,
+      );
     }
   }
 
@@ -122,7 +126,6 @@ export async function findSessionFiles(stateDir: string): Promise<string[]> {
   }
 
   return files;
-}
 }
 
 export function readSessionMessages(
