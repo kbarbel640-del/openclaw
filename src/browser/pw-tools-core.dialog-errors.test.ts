@@ -15,10 +15,10 @@ describe("pw-tools-core dialog errors", () => {
     });
     const dismiss = vi.fn(async () => {});
     const dialog = { accept, dismiss };
-    
+
     // waitForEvent resolves successfully with the dialog
     const waitForEvent = vi.fn(async () => dialog);
-    
+
     setPwToolsCoreCurrentPage({
       waitForEvent,
     });
@@ -29,7 +29,7 @@ describe("pw-tools-core dialog errors", () => {
       accept: true,
       promptText: "x",
     });
-    
+
     expect(accept).toHaveBeenCalledWith("x");
     expect(dismiss).not.toHaveBeenCalled();
   });
@@ -41,9 +41,9 @@ describe("pw-tools-core dialog errors", () => {
       throw error;
     });
     const dialog = { accept, dismiss };
-    
+
     const waitForEvent = vi.fn(async () => dialog);
-    
+
     setPwToolsCoreCurrentPage({
       waitForEvent,
     });
@@ -53,7 +53,7 @@ describe("pw-tools-core dialog errors", () => {
       cdpUrl: "http://127.0.0.1:18792",
       accept: false,
     });
-    
+
     expect(dismiss).toHaveBeenCalled();
     expect(accept).not.toHaveBeenCalled();
   });
