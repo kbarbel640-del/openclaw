@@ -11,7 +11,7 @@
  * Cost tracking built-in — logs per-call and cumulative costs.
  */
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import {
   createGitHubClient,
   checkRateBudget,
@@ -48,6 +48,8 @@ const MAX_OPEN_PRS = Number(process.env.MAX_OPEN_PRS) || 500;
 const MAX_HISTORY = Number(process.env.MAX_HISTORY) || 100;
 const MAX_DIFF_CHARS = Number(process.env.MAX_DIFF_CHARS) || 8000;
 const MAX_BODY_CHARS = 4000;
+const SNAPSHOT_PATH = process.env.SNAPSHOT_PATH || ".pr-triage-snapshot.json";
+const SNAPSHOT_MAX_AGE_MS = Number(process.env.SNAPSHOT_MAX_AGE_MS) || 60 * 60 * 1000; // 1 hour
 
 // Opus 4.6 GA pricing (Feb 2026)
 const PRICING = {
@@ -68,6 +70,45 @@ async function loadContributing() {
     return focusMatch ? focusMatch[1].trim() : content.slice(0, 1000);
   } catch {
     return "Priorities: Stability, UX, Skills (ClawHub), Performance";
+  }
+}
+
+/**
+ * Snapshot caching: freeze open PR context for 1 hour so all PRs triaged
+ * in that window send byte-identical system prompts → Anthropic cache hit.
+ * First call in the hour: cache WRITE. All subsequent: cache READ (90% discount).
+ * Trade-off: 1-hour context staleness vs ~74% cost reduction.
+ */
+async function loadSnapshot() {
+  try {
+    const raw = await readFile(SNAPSHOT_PATH, "utf-8");
+    const snapshot = JSON.parse(raw);
+    const age = Date.now() - snapshot.timestamp;
+    if (age < SNAPSHOT_MAX_AGE_MS) {
+      console.log(
+        `Using cached snapshot (age: ${Math.round(age / 1000)}s, ${snapshot.summaries.length} PRs)`,
+      );
+      return snapshot;
+    }
+    console.log(`Snapshot expired (${Math.round(age / 1000)}s old), refreshing...`);
+  } catch {
+    console.log("No cached snapshot, building fresh...");
+  }
+  return null;
+}
+
+async function saveSnapshot(summaries, fileMapObj, decisions) {
+  const snapshot = {
+    summaries,
+    fileMap: fileMapObj,
+    mergedPRs: decisions.mergedPRs,
+    rejectedPRs: decisions.rejectedPRs,
+    timestamp: Date.now(),
+  };
+  try {
+    await writeFile(SNAPSHOT_PATH, JSON.stringify(snapshot));
+  } catch (err) {
+    console.warn(`Failed to save snapshot: ${err.message}`);
   }
 }
 
@@ -95,7 +136,7 @@ Analyze the NEW PR against all open PRs. Detect duplicates, overlaps, and catego
 ${contributingMd}
 </project_focus>`;
 
-  // Block 2: Dynamic PR context (changes per-run — 5min cache window)
+  // Block 2: Dynamic PR context (frozen per snapshot hour — cache hit guaranteed)
   const dynamicContext = `<open_prs count="${contextSummaries.length}">
 ${contextSummaries.join("\n")}
 </open_prs>
@@ -126,7 +167,7 @@ ${decisions.rejectedPRs.join("\n")}
 </new_pr>
 ${deterministicContext}
 
-Analyze this PR and respond with the triage JSON.`;
+Analyze this PR and respond with the triage JSON. PR #${targetPR.number} may appear in the open PRs context — do NOT flag it as a duplicate of itself.`;
 
   // Build API request — adaptive thinking + effort only on Opus
   const isOpus = MODEL.includes("opus");
@@ -214,37 +255,54 @@ async function main() {
 
   console.log(`Triaging PR #${prNumber} on ${REPO} [model=${MODEL}, effort=${EFFORT}]`);
 
-  // Rate limit budget check — degrade gracefully if low
-  const budget = await checkRateBudget(gh);
-  const skipFiles = !budget.ok;
-  if (skipFiles) {
-    console.warn(
-      `Low rate budget (${budget.remaining}) — skipping file fetches, semantic-only triage`,
-    );
-  }
-
+  // Target PR is always fetched fresh (2-3 API calls)
   console.log("Fetching target PR...");
   const targetPR = await getTargetPR(gh, REPO, prNumber, MAX_DIFF_CHARS, GITHUB_TOKEN);
   console.log(`Target: "${targetPR.title}" by ${targetPR.author}, ${targetPR.files.length} files`);
 
-  console.log("Fetching open PRs for context...");
-  const { summaries, fileMap } = await getOpenPRSummaries(
-    gh,
-    ghGraphQL,
-    ghPaginate,
-    REPO,
-    MAX_OPEN_PRS,
-    skipFiles,
-  );
+  // Context: try cached snapshot first (hourly, shared across all PRs in window).
+  // Byte-identical system prompts enable Anthropic prompt caching (~74% cost reduction).
+  // Trade-off: PRs opened in the last hour may not be in context.
+  let contextSummaries, decisions, fileMap;
+  const snapshot = await loadSnapshot();
 
-  // Filter target PR from context to avoid self-matching
-  const contextSummaries = summaries.filter((s) => !s.startsWith(`#${prNumber} `));
-  console.log(`Loaded ${contextSummaries.length} open PRs as context (filtered self)`);
+  if (snapshot) {
+    contextSummaries = snapshot.summaries;
+    decisions = { mergedPRs: snapshot.mergedPRs, rejectedPRs: snapshot.rejectedPRs };
+    fileMap = new Map(Object.entries(snapshot.fileMap).map(([k, v]) => [Number(k), v]));
+    console.log(`Loaded ${contextSummaries.length} open PRs from snapshot`);
+  } else {
+    // Fresh fetch — check rate budget first
+    const budget = await checkRateBudget(gh);
+    const skipFiles = !budget.ok;
+    if (skipFiles) {
+      console.warn(
+        `Low rate budget (${budget.remaining}) — skipping file fetches, semantic-only triage`,
+      );
+    }
 
-  console.log("Fetching recent decisions...");
-  const decisions = await getRecentDecisions(ghPaginate, REPO, MAX_HISTORY);
+    console.log("Fetching open PRs for context...");
+    const result = await getOpenPRSummaries(
+      gh,
+      ghGraphQL,
+      ghPaginate,
+      REPO,
+      MAX_OPEN_PRS,
+      skipFiles,
+    );
+    contextSummaries = result.summaries;
+    fileMap = result.fileMap;
+
+    console.log("Fetching recent decisions...");
+    decisions = await getRecentDecisions(ghPaginate, REPO, MAX_HISTORY);
+
+    // Persist snapshot for remaining PRs this hour
+    await saveSnapshot(contextSummaries, Object.fromEntries(fileMap), decisions);
+    console.log(`Saved snapshot (${contextSummaries.length} PRs) for cache reuse`);
+  }
+
   console.log(
-    `Loaded ${decisions.mergedPRs.length} merged + ${decisions.rejectedPRs.length} rejected PRs`,
+    `Context: ${contextSummaries.length} PRs, ${decisions.mergedPRs.length} merged, ${decisions.rejectedPRs.length} rejected`,
   );
 
   const deterministicHints = deterministicSignals(targetPR, fileMap);

@@ -62,15 +62,27 @@ The user message (~2K tokens) contains only the new PR's details.
 - **Effort**: configurable via `TRIAGE_EFFORT` env var (default: `high`)
 - **Override model**: `TRIAGE_MODEL` env var
 
+### Hourly Snapshot Caching
+
+The system caches open PR context as a JSON snapshot (`actions/cache`) keyed by UTC hour.
+All PRs triaged within the same hour share **byte-identical system prompts**, enabling
+Anthropic's prompt caching (90% discount on cached input tokens).
+
+**How it works:**
+1. First PR of the hour: cache miss → fetch all open PRs + decisions → save snapshot → Anthropic cache WRITE
+2. All subsequent PRs that hour: cache hit → load snapshot → Anthropic cache READ (90% discount)
+3. Target PR is NOT filtered from context (would break byte-identity); user prompt instructs LLM to skip self-match
+
+**Trade-off:** PRs opened in the last hour may not appear in context. Most duplicates target older PRs,
+so the accuracy impact is minimal. Configurable via `SNAPSHOT_MAX_AGE_MS`.
+
 ### Cost
 
-With prompt caching, the ~20-50K token system prompt is cached across PRs opened within the same 5-minute window. Typical cost per call:
-
-| Model      | First call  | Cached calls |
-| ---------- | ----------- | ------------ |
-| Opus 4.6   | ~$0.15-0.30 | ~$0.03-0.06  |
-| Sonnet 4.5 | ~$0.09-0.18 | ~$0.02-0.04  |
-| Haiku 4.5  | ~$0.03-0.06 | ~$0.006-0.01 |
+| Model      | First call/hour | Cached calls (93% of volume) | Monthly est. (7,684 PRs) |
+| ---------- | --------------- | ---------------------------- | ------------------------ |
+| Opus 4.6   | ~$0.15-0.30     | ~$0.03-0.06                  | ~$130-200                |
+| Sonnet 4.5 | ~$0.09-0.18     | ~$0.02-0.04                  | ~$70-120                 |
+| Haiku 4.5  | ~$0.03-0.06     | ~$0.006-0.01                 | ~$30-50                  |
 
 ## Duplicate Detection
 
@@ -144,14 +156,16 @@ PR content (title, body, diff) is untrusted user input. Defenses:
 
 All configurable via environment variables:
 
-| Variable         | Default           | Description                                              |
-| ---------------- | ----------------- | -------------------------------------------------------- |
-| `TRIAGE_MODEL`   | `claude-opus-4-6` | Anthropic model to use                                   |
-| `TRIAGE_EFFORT`  | `high`            | Adaptive thinking effort level                           |
-| `MAX_OPEN_PRS`   | `500`             | Max open PRs to fetch for context                        |
-| `MAX_HISTORY`    | `100`             | Max merged/closed PRs for preference learning            |
-| `MAX_DIFF_CHARS` | `8000`            | Max diff characters to include                           |
-| `DRY_RUN`        | `0`               | Set to `1` to skip LLM call (deterministic signals only) |
+| Variable              | Default                           | Description                                              |
+| --------------------- | --------------------------------- | -------------------------------------------------------- |
+| `TRIAGE_MODEL`        | `claude-opus-4-6`                 | Anthropic model to use                                   |
+| `TRIAGE_EFFORT`       | `high`                            | Adaptive thinking effort level                           |
+| `MAX_OPEN_PRS`        | `500`                             | Max open PRs to fetch for context                        |
+| `MAX_HISTORY`         | `100`                             | Max merged/closed PRs for preference learning            |
+| `MAX_DIFF_CHARS`      | `8000`                            | Max diff characters to include                           |
+| `DRY_RUN`             | `0`                               | Set to `1` to skip LLM call (deterministic signals only) |
+| `SNAPSHOT_PATH`       | `.pr-triage-snapshot.json`        | Path to cached context snapshot file                     |
+| `SNAPSHOT_MAX_AGE_MS` | `3600000`                         | Max snapshot age in ms (default: 1 hour)                 |
 
 ## GitHub Action Setup
 

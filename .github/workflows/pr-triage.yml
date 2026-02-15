@@ -29,6 +29,16 @@ jobs:
             CONTRIBUTING.md
           sparse-checkout-cone-mode: false
 
+      - name: Snapshot cache key
+        id: snapshot-key
+        run: echo "key=$(date -u '+%Y-%m-%d-%H')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: .pr-triage-snapshot.json
+          key: pr-triage-snapshot-${{ steps.snapshot-key.outputs.key }}
+          save-always: true
+
       - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         id: app-token
         with:
