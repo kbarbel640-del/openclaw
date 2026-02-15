@@ -34,9 +34,11 @@ export async function applyAuthChoiceAnthropic(
       return { config: nextConfig };
     }
     if (creds) {
+      const email =
+        typeof creds.email === "string" && creds.email.trim() ? creds.email.trim() : "default";
       await writeOAuthCredentials("anthropic", creds, params.agentDir);
       nextConfig = applyAuthProfileConfig(nextConfig, {
-        profileId: "anthropic:default",
+        profileId: `anthropic:${email}`,
         provider: "anthropic",
         mode: "oauth",
       });
