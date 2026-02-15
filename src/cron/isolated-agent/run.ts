@@ -58,11 +58,13 @@ import { resolveCronDeliveryPlan } from "../delivery.js";
 import { resolveDeliveryTarget } from "./delivery-target.js";
 import {
   isHeartbeatOnlyResponse,
+  extractJsonFromText,
   pickLastDeliverablePayload,
   pickLastNonEmptyTextFromPayloads,
   pickSummaryFromOutput,
   pickSummaryFromPayloads,
   resolveHeartbeatAckMaxChars,
+  validateJsonSchema,
 } from "./helpers.js";
 import { resolveCronSession } from "./session.js";
 
@@ -110,6 +112,8 @@ export type RunCronAgentTurnResult = {
    * messages.  See: https://github.com/openclaw/openclaw/issues/15692
    */
   delivered?: boolean;
+  /** Parsed and validated structured output (when responseSchema is set). */
+  structuredOutput?: unknown;
 };
 
 export async function runCronIsolatedAgentTurn(params: {
@@ -316,6 +320,7 @@ export async function runCronIsolatedAgentTurn(params: {
   });
 
   const agentPayload = params.job.payload.kind === "agentTurn" ? params.job.payload : null;
+  const responseSchema = agentPayload?.responseSchema;
   const deliveryPlan = resolveCronDeliveryPlan(params.job);
   const deliveryRequested = deliveryPlan.requested;
 
@@ -363,9 +368,14 @@ export async function runCronIsolatedAgentTurn(params: {
     // Internal/trusted source - use original format
     commandBody = `${base}\n${timeLine}`.trim();
   }
-  if (deliveryRequested) {
+  if (deliveryRequested && !responseSchema) {
     commandBody =
       `${commandBody}\n\nReturn your summary as plain text; it will be delivered automatically. If the task explicitly calls for messaging a specific external recipient, note who/where it should go instead of sending it yourself.`.trim();
+  }
+  if (responseSchema) {
+    const schemaStr = JSON.stringify(responseSchema, null, 2);
+    commandBody =
+      `${commandBody}\n\n--- STRUCTURED OUTPUT REQUIREMENT ---\nAfter completing all tool calls and research, your FINAL response MUST be a single valid JSON object matching this schema:\n\`\`\`json\n${schemaStr}\n\`\`\`\nDo not include any text outside the JSON object. Do not wrap in markdown fences. Output ONLY the JSON.`.trim();
   }
 
   let skillsSnapshot = cronSession.sessionEntry.skillsSnapshot;
@@ -509,10 +519,56 @@ export async function runCronIsolatedAgentTurn(params: {
   const firstText = payloads[0]?.text ?? "";
   const summary = pickSummaryFromPayloads(payloads) ?? pickSummaryFromOutput(firstText);
   const outputText = pickLastNonEmptyTextFromPayloads(payloads);
-  const synthesizedText = outputText?.trim() || summary?.trim() || undefined;
+  let synthesizedText = outputText?.trim() || summary?.trim() || undefined;
+  let structuredOutput: unknown;
+  if (responseSchema) {
+    if (!outputText) {
+      return withRunSession({
+        status: "error",
+        error: "Structured output required but no JSON found in agent response",
+        summary,
+        outputText,
+      });
+    }
+    const jsonStr = extractJsonFromText(outputText);
+    if (!jsonStr) {
+      return withRunSession({
+        status: "error",
+        error: "Structured output required but no JSON found in agent response",
+        summary,
+        outputText,
+      });
+    }
+    const validation = validateJsonSchema(jsonStr, responseSchema);
+    if (!validation.valid) {
+      return withRunSession({
+        status: "error",
+        error: validation.error,
+        summary,
+        outputText,
+      });
+    }
+    structuredOutput = validation.data;
+  }
+
+  // If structured output includes a formattedReport field, use it for delivery
+  // instead of the raw JSON. This lets the model produce both machine-parseable
+  // JSON and a human-friendly message in a single response.
+  // Override synthesizedText (used by announce flow) and deliveryPayloads (used by direct flow).
+  const structuredDeliveryText =
+    structuredOutput &&
+    typeof structuredOutput === "object" &&
+    typeof (structuredOutput as Record<string, unknown>).formattedReport === "string"
+      ? ((structuredOutput as Record<string, unknown>).formattedReport as string)
+      : undefined;
+  if (structuredDeliveryText) {
+    synthesizedText = structuredDeliveryText;
+  }
+
   const deliveryPayload = pickLastDeliverablePayload(payloads);
-  const deliveryPayloads =
-    deliveryPayload !== undefined
+  const deliveryPayloads = structuredDeliveryText
+    ? [{ text: structuredDeliveryText }]
+    : deliveryPayload !== undefined
       ? [deliveryPayload]
       : synthesizedText
         ? [{ text: synthesizedText }]
@@ -570,10 +626,15 @@ export async function runCronIsolatedAgentTurn(params: {
 
     // Shared subagent announce flow is text-based and prompts the main agent to
     // summarize. When we have an explicit delivery target (delivery.to), sender
-    // identity, or structured content, prefer direct outbound delivery to send
-    // the actual cron output without summarization.
+    // identity, structured content (media/channel payloads), or formattedReport,
+    // prefer direct outbound delivery to send the actual cron output without summarization.
     const hasExplicitDeliveryTarget = Boolean(deliveryPlan.to);
-    if (deliveryPayloadHasStructuredContent || identity || hasExplicitDeliveryTarget) {
+    if (
+      structuredDeliveryText ||
+      deliveryPayloadHasStructuredContent ||
+      identity ||
+      hasExplicitDeliveryTarget
+    ) {
       try {
         const payloadsForDelivery =
           deliveryPayloadHasStructuredContent && deliveryPayloads.length > 0
@@ -654,5 +715,5 @@ export async function runCronIsolatedAgentTurn(params: {
     }
   }
 
-  return withRunSession({ status: "ok", summary, outputText, delivered });
+  return withRunSession({ status: "ok", summary, outputText, delivered, structuredOutput });
 }
