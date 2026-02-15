@@ -29,10 +29,14 @@ vi.mock("../infra/openclaw-root.js", () => ({
   resolveOpenClawPackageRoot: vi.fn(),
 }));
 
-vi.mock("../config/config.js", () => ({
-  readConfigFileSnapshot: vi.fn(),
-  writeConfigFile: vi.fn(),
-}));
+vi.mock("../config/config.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../config/config.js")>();
+  return {
+    ...actual,
+    readConfigFileSnapshot: vi.fn(),
+    writeConfigFile: vi.fn(),
+  };
+});
 
 vi.mock("../infra/update-check.js", () => {
   const parseSemver = (
@@ -135,8 +139,10 @@ const { checkUpdateStatus, fetchNpmTagVersion, resolveNpmChannelTag } =
 const { runCommandWithTimeout } = await import("../process/exec.js");
 const { runDaemonRestart } = await import("./daemon-cli.js");
 const { defaultRuntime } = await import("../runtime.js");
-const { updateCommand, registerUpdateCli, updateStatusCommand, updateWizardCommand } =
-  await import("./update-cli.js");
+const { registerUpdateCli } = await import("./update-cli.js");
+const { updateCommand } = await import("./update-cli/update-command.js");
+const { updateStatusCommand } = await import("./update-cli/status.js");
+const { updateWizardCommand } = await import("./update-cli/wizard.js");
 
 describe("update-cli", () => {
   let fixtureRoot = "";

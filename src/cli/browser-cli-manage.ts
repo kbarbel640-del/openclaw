@@ -7,11 +7,8 @@ import type {
   BrowserTab,
   ProfileStatus,
 } from "../browser/client.js";
-import { danger, info } from "../globals.js";
-import { defaultRuntime } from "../runtime.js";
 import { shortenHomePath } from "../utils.js";
 import { callBrowserRequest, type BrowserParentOpts } from "./browser-cli-shared.js";
-import { runCommandWithRuntime } from "./cli-utils.js";
 
 async function fetchBrowserStatus(
   parent: BrowserParentOpts,
@@ -34,6 +31,8 @@ async function runBrowserToggle(
   parent: BrowserParentOpts,
   params: { profile?: string; path: string },
 ) {
+  const { info } = await import("../globals.js");
+  const { defaultRuntime } = await import("../runtime.js");
   await callBrowserRequest(
     parent,
     {
@@ -52,23 +51,30 @@ async function runBrowserToggle(
   defaultRuntime.log(info(`🦞 browser [${name}] running: ${status.running}`));
 }
 
-function runBrowserCommand(action: () => Promise<void>) {
+async function runBrowserCommand(action: () => Promise<void>) {
+  const { danger } = await import("../globals.js");
+  const { defaultRuntime } = await import("../runtime.js");
+  const { runCommandWithRuntime } = await import("./cli-utils.js");
   return runCommandWithRuntime(defaultRuntime, action, (err) => {
     defaultRuntime.error(danger(String(err)));
     defaultRuntime.exit(1);
   });
 }
 
-function logBrowserTabs(tabs: BrowserTab[], json?: boolean) {
+function logBrowserTabs(
+  tabs: BrowserTab[],
+  runtime: { log: (msg: string) => void },
+  json?: boolean,
+) {
   if (json) {
-    defaultRuntime.log(JSON.stringify({ tabs }, null, 2));
+    runtime.log(JSON.stringify({ tabs }, null, 2));
     return;
   }
   if (tabs.length === 0) {
-    defaultRuntime.log("No tabs (browser closed or no targets).");
+    runtime.log("No tabs (browser closed or no targets).");
     return;
   }
-  defaultRuntime.log(
+  runtime.log(
     tabs
       .map((t, i) => `${i + 1}. ${t.title || "(untitled)"}\n   ${t.url}\n   id: ${t.targetId}`)
       .join("\n"),
@@ -85,6 +91,7 @@ export function registerBrowserManageCommands(
     .action(async (_opts, cmd) => {
       const parent = parentOpts(cmd);
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         const status = await fetchBrowserStatus(parent, parent?.browserProfile);
         if (parent?.json) {
           defaultRuntime.log(JSON.stringify(status, null, 2));
@@ -138,6 +145,8 @@ export function registerBrowserManageCommands(
       const parent = parentOpts(cmd);
       const profile = parent?.browserProfile;
       await runBrowserCommand(async () => {
+        const { info } = await import("../globals.js");
+        const { defaultRuntime } = await import("../runtime.js");
         const result = await callBrowserRequest<BrowserResetProfileResult>(
           parent,
           {
@@ -167,6 +176,7 @@ export function registerBrowserManageCommands(
       const parent = parentOpts(cmd);
       const profile = parent?.browserProfile;
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         const result = await callBrowserRequest<{ running: boolean; tabs: BrowserTab[] }>(
           parent,
           {
@@ -177,7 +187,7 @@ export function registerBrowserManageCommands(
           { timeoutMs: 3000 },
         );
         const tabs = result.tabs ?? [];
-        logBrowserTabs(tabs, parent?.json);
+        logBrowserTabs(tabs, defaultRuntime, parent?.json);
       });
     });
 
@@ -188,6 +198,7 @@ export function registerBrowserManageCommands(
       const parent = parentOpts(cmd);
       const profile = parent?.browserProfile;
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         const result = await callBrowserRequest<{ ok: true; tabs: BrowserTab[] }>(
           parent,
           {
@@ -201,7 +212,7 @@ export function registerBrowserManageCommands(
           { timeoutMs: 10_000 },
         );
         const tabs = result.tabs ?? [];
-        logBrowserTabs(tabs, parent?.json);
+        logBrowserTabs(tabs, defaultRuntime, parent?.json);
       });
     });
 
@@ -212,6 +223,7 @@ export function registerBrowserManageCommands(
       const parent = parentOpts(cmd);
       const profile = parent?.browserProfile;
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         const result = await callBrowserRequest(
           parent,
           {
@@ -235,6 +247,8 @@ export function registerBrowserManageCommands(
     .description("Focus tab by index (1-based)")
     .argument("<index>", "Tab index (1-based)", (v: string) => Number(v))
     .action(async (index: number, _opts, cmd) => {
+      const { danger } = await import("../globals.js");
+      const { defaultRuntime } = await import("../runtime.js");
       const parent = parentOpts(cmd);
       const profile = parent?.browserProfile;
       if (!Number.isFinite(index) || index < 1) {
@@ -243,6 +257,7 @@ export function registerBrowserManageCommands(
         return;
       }
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         const result = await callBrowserRequest(
           parent,
           {
@@ -266,6 +281,8 @@ export function registerBrowserManageCommands(
     .description("Close tab by index (1-based); default: first tab")
     .argument("[index]", "Tab index (1-based)", (v: string) => Number(v))
     .action(async (index: number | undefined, _opts, cmd) => {
+      const { danger } = await import("../globals.js");
+      const { defaultRuntime } = await import("../runtime.js");
       const parent = parentOpts(cmd);
       const profile = parent?.browserProfile;
       const idx =
@@ -276,6 +293,7 @@ export function registerBrowserManageCommands(
         return;
       }
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         const result = await callBrowserRequest(
           parent,
           {
@@ -302,6 +320,7 @@ export function registerBrowserManageCommands(
       const parent = parentOpts(cmd);
       const profile = parent?.browserProfile;
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         const tab = await callBrowserRequest<BrowserTab>(
           parent,
           {
@@ -328,6 +347,7 @@ export function registerBrowserManageCommands(
       const parent = parentOpts(cmd);
       const profile = parent?.browserProfile;
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         await callBrowserRequest(
           parent,
           {
@@ -354,6 +374,7 @@ export function registerBrowserManageCommands(
       const parent = parentOpts(cmd);
       const profile = parent?.browserProfile;
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         if (targetId?.trim()) {
           await callBrowserRequest(
             parent,
@@ -391,6 +412,7 @@ export function registerBrowserManageCommands(
     .action(async (_opts, cmd) => {
       const parent = parentOpts(cmd);
       await runBrowserCommand(async () => {
+        const { defaultRuntime } = await import("../runtime.js");
         const result = await callBrowserRequest<{ profiles: ProfileStatus[] }>(
           parent,
           {
@@ -434,6 +456,8 @@ export function registerBrowserManageCommands(
       async (opts: { name: string; color?: string; cdpUrl?: string; driver?: string }, cmd) => {
         const parent = parentOpts(cmd);
         await runBrowserCommand(async () => {
+          const { info } = await import("../globals.js");
+          const { defaultRuntime } = await import("../runtime.js");
           const result = await callBrowserRequest<BrowserCreateProfileResult>(
             parent,
             {
@@ -471,6 +495,8 @@ export function registerBrowserManageCommands(
     .action(async (opts: { name: string }, cmd) => {
       const parent = parentOpts(cmd);
       await runBrowserCommand(async () => {
+        const { info } = await import("../globals.js");
+        const { defaultRuntime } = await import("../runtime.js");
         const result = await callBrowserRequest<BrowserDeleteProfileResult>(
           parent,
           {

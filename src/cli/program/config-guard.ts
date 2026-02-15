@@ -1,5 +1,4 @@
 import type { RuntimeEnv } from "../../runtime.js";
-import { loadAndMaybeMigrateDoctorConfig } from "../../commands/doctor-config-flow.js";
 import { readConfigFileSnapshot } from "../../config/config.js";
 import { colorize, isRich, theme } from "../../terminal/theme.js";
 import { shortenHomePath } from "../../utils.js";
@@ -43,6 +42,8 @@ export async function ensureConfigReady(params: {
   const commandPath = params.commandPath ?? [];
   if (!didRunDoctorConfigFlow && shouldMigrateStateFromPath(commandPath)) {
     didRunDoctorConfigFlow = true;
+    const { loadAndMaybeMigrateDoctorConfig } =
+      await import("../../commands/doctor-config-flow.js");
     await loadAndMaybeMigrateDoctorConfig({
       options: { nonInteractive: true },
       confirm: async () => false,

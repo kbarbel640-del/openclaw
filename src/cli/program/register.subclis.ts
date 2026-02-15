@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import type { OpenClawConfig } from "../../config/config.js";
 import { isTruthyEnvValue } from "../../infra/env.js";
 import { buildParseArgv, getPrimaryCommand, hasHelpOrVersion } from "../argv.js";
 import { resolveActionArgs } from "./helpers.js";
@@ -26,11 +25,6 @@ const shouldEagerRegisterSubcommands = (_argv: string[]) => {
   return isTruthyEnvValue(process.env.OPENCLAW_DISABLE_LAZY_SUBCOMMANDS);
 };
 
-const loadConfig = async (): Promise<OpenClawConfig> => {
-  const mod = await import("../../config/config.js");
-  return mod.loadConfig();
-};
-
 const entries: SubCliEntry[] = [
   {
     name: "acp",
@@ -52,7 +46,7 @@ const entries: SubCliEntry[] = [
     name: "daemon",
     description: "Gateway service (legacy alias)",
     register: async (program) => {
-      const mod = await import("../daemon-cli.js");
+      const mod = await import("../daemon-cli/register.js");
       mod.registerDaemonCli(program);
     },
   },
@@ -93,7 +87,7 @@ const entries: SubCliEntry[] = [
     description: "Node commands",
     register: async (program) => {
       const mod = await import("../nodes-cli.js");
-      mod.registerNodesCli(program);
+      await mod.registerNodesCli(program);
     },
   },
   {
@@ -133,7 +127,7 @@ const entries: SubCliEntry[] = [
     description: "Cron scheduler",
     register: async (program) => {
       const mod = await import("../cron-cli.js");
-      mod.registerCronCli(program);
+      await mod.registerCronCli(program);
     },
   },
   {
@@ -172,11 +166,6 @@ const entries: SubCliEntry[] = [
     name: "pairing",
     description: "Pairing helpers",
     register: async (program) => {
-      // Initialize plugins before registering pairing CLI.
-      // The pairing CLI calls listPairingChannels() at registration time,
-      // which requires the plugin registry to be populated with channel plugins.
-      const { registerPluginCliCommands } = await import("../../plugins/cli.js");
-      registerPluginCliCommands(program, await loadConfig());
       const mod = await import("../pairing-cli.js");
       mod.registerPairingCli(program);
     },
@@ -187,8 +176,6 @@ const entries: SubCliEntry[] = [
     register: async (program) => {
       const mod = await import("../plugins-cli.js");
       mod.registerPluginsCli(program);
-      const { registerPluginCliCommands } = await import("../../plugins/cli.js");
-      registerPluginCliCommands(program, await loadConfig());
     },
   },
   {

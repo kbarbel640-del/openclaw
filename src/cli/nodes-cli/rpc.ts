@@ -1,25 +1,19 @@
-import type { Command } from "commander";
 import type { NodeListNode, NodesRpcOpts } from "./types.js";
-import { callGateway } from "../../gateway/call.js";
-import { resolveNodeIdFromCandidates } from "../../shared/node-match.js";
-import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../../utils/message-channel.js";
-import { withProgress } from "../progress.js";
 import { parseNodeList, parsePairingList } from "./format.js";
 
-export const nodesCallOpts = (cmd: Command, defaults?: { timeoutMs?: number }) =>
-  cmd
-    .option("--url <url>", "Gateway WebSocket URL (defaults to gateway.remote.url when configured)")
-    .option("--token <token>", "Gateway token (if required)")
-    .option("--timeout <ms>", "Timeout in ms", String(defaults?.timeoutMs ?? 10_000))
-    .option("--json", "Output JSON", false);
+export { nodesCallOpts } from "./call-opts.js";
 
 export const callGatewayCli = async (
   method: string,
   opts: NodesRpcOpts,
   params?: unknown,
   callOpts?: { transportTimeoutMs?: number },
-) =>
-  withProgress(
+) => {
+  const { callGateway } = await import("../../gateway/call.js");
+  const { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } =
+    await import("../../utils/message-channel.js");
+  const { withProgress } = await import("../progress.js");
+  return withProgress(
     {
       label: `Nodes ${method}`,
       indeterminate: true,
@@ -36,6 +30,7 @@ export const callGatewayCli = async (
         mode: GATEWAY_CLIENT_MODES.CLI,
       }),
   );
+};
 
 export function unauthorizedHintForMessage(message: string): string | null {
   const haystack = message.toLowerCase();
@@ -74,5 +69,6 @@ export async function resolveNodeId(opts: NodesRpcOpts, query: string) {
       remoteIp: n.remoteIp,
     }));
   }
+  const { resolveNodeIdFromCandidates } = await import("../../shared/node-match.js");
   return resolveNodeIdFromCandidates(nodes, q);
 }

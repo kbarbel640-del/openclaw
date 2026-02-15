@@ -17,7 +17,7 @@ import {
 } from "../utils/message-channel.js";
 import { GatewayClient } from "./client.js";
 import { pickPrimaryLanIPv4 } from "./net.js";
-import { PROTOCOL_VERSION } from "./protocol/index.js";
+import { PROTOCOL_VERSION } from "./protocol/version.js";
 
 export type CallGatewayOptions = {
   url?: string;
@@ -307,6 +307,4 @@ export async function callGateway<T = Record<string, unknown>>(
   });
 }
 
-export function randomIdempotencyKey() {
-  return randomUUID();
-}
+export { randomIdempotencyKey } from "./idempotency.js";

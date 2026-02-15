@@ -18,6 +18,8 @@ import {
 } from "./huggingface-models.js";
 import { resolveAwsSdkEnvVarName, resolveEnvApiKey } from "./model-auth.js";
 import { OLLAMA_NATIVE_BASE_URL } from "./ollama-stream.js";
+import { normalizeGoogleModelId } from "./provider-ids.js";
+export { normalizeGoogleModelId } from "./provider-ids.js";
 import {
   buildSyntheticModelDefinition,
   SYNTHETIC_BASE_URL,
@@ -290,16 +292,6 @@ function resolveApiKeyFromProfiles(params: {
     }
   }
   return undefined;
-}
-
-export function normalizeGoogleModelId(id: string): string {
-  if (id === "gemini-3-pro") {
-    return "gemini-3-pro-preview";
-  }
-  if (id === "gemini-3-flash") {
-    return "gemini-3-flash-preview";
-  }
-  return id;
 }
 
 function normalizeGoogleProvider(provider: ProviderConfig): ProviderConfig {

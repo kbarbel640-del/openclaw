@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import { defaultRuntime } from "../runtime.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { theme } from "../terminal/theme.js";
 import { formatHelpExamples } from "./help-format.js";
@@ -8,11 +7,7 @@ import {
   type UpdateStatusOptions,
   type UpdateWizardOptions,
 } from "./update-cli/shared.js";
-import { updateStatusCommand } from "./update-cli/status.js";
-import { updateCommand } from "./update-cli/update-command.js";
-import { updateWizardCommand } from "./update-cli/wizard.js";
 
-export { updateCommand, updateStatusCommand, updateWizardCommand };
 export type { UpdateCommandOptions, UpdateStatusOptions, UpdateWizardOptions };
 
 export function registerUpdateCli(program: Command) {
@@ -66,6 +61,8 @@ ${theme.heading("Notes:")}
 ${theme.muted("Docs:")} ${formatDocsLink("/cli/update", "docs.openclaw.ai/cli/update")}`;
     })
     .action(async (opts) => {
+      const { defaultRuntime } = await import("../runtime.js");
+      const { updateCommand } = await import("./update-cli/update-command.js");
       try {
         await updateCommand({
           json: Boolean(opts.json),
@@ -90,6 +87,8 @@ ${theme.muted("Docs:")} ${formatDocsLink("/cli/update", "docs.openclaw.ai/cli/up
       `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/update", "docs.openclaw.ai/cli/update")}\n`,
     )
     .action(async (opts) => {
+      const { defaultRuntime } = await import("../runtime.js");
+      const { updateWizardCommand } = await import("./update-cli/wizard.js");
       try {
         await updateWizardCommand({
           timeout: opts.timeout as string | undefined,
@@ -119,6 +118,8 @@ ${theme.muted("Docs:")} ${formatDocsLink("/cli/update", "docs.openclaw.ai/cli/up
         )} ${formatDocsLink("/cli/update", "docs.openclaw.ai/cli/update")}`,
     )
     .action(async (opts) => {
+      const { defaultRuntime } = await import("../runtime.js");
+      const { updateStatusCommand } = await import("./update-cli/status.js");
       try {
         await updateStatusCommand({
           json: Boolean(opts.json),
