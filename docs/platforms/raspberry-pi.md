@@ -321,25 +321,17 @@ sudo systemctl restart openclaw
 **Solution:** Enable linger for your user to persist the session:
 
 ```bash
+# Check if you need linger (if this shows "Linger=no", you need it)
+loginctl show-user $USER | grep Linger
+
 # Enable linger (keeps user services running after logout)
 sudo loginctl enable-linger $USER
 
-# Verify it's enabled
-loginctl show-user $USER | grep Linger
-# Should show: Linger=yes
-
-# Restart the service
-sudo systemctl restart openclaw
+# Restart the user service
+systemctl --user restart openclaw-gateway
 ```
 
 **Why this happens:** When you SSH into the Pi and start the service, it runs under your user session. By default, systemd terminates all processes in that session when you log out. Enabling linger tells systemd to keep your user services running permanently, even when you're not logged in.
-
-**Check if you need this:**
-
-```bash
-# If this shows "Linger=no", you need to enable it
-loginctl show-user $USER | grep Linger
-```
 
 This is **critical for headless Pi setups accessed via SSH** — without linger, your Gateway will stop whenever you disconnect.
 
