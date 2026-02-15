@@ -30,13 +30,13 @@ title: "OpenClaw"
 </p>
 
 <Columns>
-  <Card title="Démarrer" href="/start/getting-started" icon="rocket">
+  <Card title="Démarrer" href="/fr-FR/start/getting-started" icon="rocket">
     Installez OpenClaw et lancez la Passerelle en quelques minutes.
   </Card>
-  <Card title="Lancer l'assistant" href="/start/wizard" icon="sparkles">
+  <Card title="Lancer l'assistant" href="/fr-FR/start/wizard" icon="sparkles">
     Configuration guidée avec `openclaw onboard` et flux d'appairage.
   </Card>
-  <Card title="Ouvrir l'Interface de contrôle" href="/web/control-ui" icon="layout-dashboard">
+  <Card title="Ouvrir l'Interface de contrôle" href="/fr-FR/web/control-ui" icon="layout-dashboard">
     Lancez le tableau de bord du navigateur pour la discussion, la config et les sessions.
   </Card>
 </Columns>
@@ -114,14 +114,14 @@ La Passerelle est la source unique de vérité pour les sessions, le routage et 
   </Step>
 </Steps>
 
-Besoin de l'installation complète et de la configuration de développement ? Voir [Démarrage rapide](/start/quickstart).
+Besoin de l'installation complète et de la configuration de développement ? Voir [Démarrage rapide](/fr-FR/start/quickstart).
 
 ## Tableau de bord
 
 Ouvrez l'Interface de contrôle du navigateur après le démarrage de la Passerelle.
 
 - Par défaut local : [http://127.0.0.1:18789/](http://127.0.0.1:18789/)
-- Accès distant : [Surfaces web](/web) et [Tailscale](/gateway/tailscale)
+- Accès distant : [Surfaces web](/fr-FR/web/index) et [Tailscale](/fr-FR/gateway/tailscale)
 
 <p align="center">
   <img src="whatsapp-openclaw.jpg" alt="OpenClaw" width="420" />
@@ -151,22 +151,22 @@ Exemple :
 ## Commencer ici
 
 <Columns>
-  <Card title="Hubs de docs" href="/start/hubs" icon="book-open">
+  <Card title="Hubs de docs" href="/fr-FR/start/hubs" icon="book-open">
     Toutes les docs et guides, organisés par cas d'usage.
   </Card>
-  <Card title="Configuration" href="/gateway/configuration" icon="settings">
+  <Card title="Configuration" href="/fr-FR/gateway/configuration" icon="settings">
     Paramètres de Passerelle principaux, tokens et config de fournisseur.
   </Card>
-  <Card title="Accès distant" href="/gateway/remote" icon="globe">
+  <Card title="Accès distant" href="/fr-FR/gateway/remote" icon="globe">
     Modèles d'accès SSH et tailnet.
   </Card>
-  <Card title="Canaux" href="/channels/telegram" icon="message-square">
+  <Card title="Canaux" href="/fr-FR/channels/telegram" icon="message-square">
     Configuration spécifique aux canaux pour WhatsApp, Telegram, Discord et plus.
   </Card>
-  <Card title="Nodes" href="/nodes" icon="smartphone">
+  <Card title="Nodes" href="/fr-FR/nodes" icon="smartphone">
     Nodes iOS et Android avec appairage et Canvas.
   </Card>
-  <Card title="Aide" href="/help" icon="life-buoy">
+  <Card title="Aide" href="/fr-FR/help" icon="life-buoy">
     Corrections courantes et point d'entrée du dépannage.
   </Card>
 </Columns>
@@ -174,19 +174,19 @@ Exemple :
 ## En savoir plus
 
 <Columns>
-  <Card title="Liste complète des fonctionnalités" href="/concepts/features" icon="list">
+  <Card title="Liste complète des fonctionnalités" href="/fr-FR/concepts/features" icon="list">
     Capacités complètes des canaux, du routage et des médias.
   </Card>
-  <Card title="Routage multi-agents" href="/concepts/multi-agent" icon="route">
+  <Card title="Routage multi-agents" href="/fr-FR/concepts/multi-agent" icon="route">
     Isolation de l'espace de travail et sessions par agent.
   </Card>
-  <Card title="Sécurité" href="/gateway/security" icon="shield">
+  <Card title="Sécurité" href="/fr-FR/gateway/security" icon="shield">
     Tokens, listes blanches et contrôles de sécurité.
   </Card>
-  <Card title="Dépannage" href="/gateway/troubleshooting" icon="wrench">
+  <Card title="Dépannage" href="/fr-FR/gateway/troubleshooting" icon="wrench">
     Diagnostics de Passerelle et erreurs courantes.
   </Card>
-  <Card title="À propos et crédits" href="/reference/credits" icon="info">
+  <Card title="À propos et crédits" href="/fr-FR/reference/credits" icon="info">
     Origines du projet, contributeurs et licence.
   </Card>
 </Columns>

@@ -137,14 +137,15 @@ Moonshot utilise des endpoints compatibles OpenAI, donc configurez-le comme four
 
 IDs de modèle Kimi K2 :
 
-{/*moonshot-kimi-k2-model-refs:start*/ && null}
+{/* moonshot-kimi-k2-model-refs:start */}
 
 - `moonshot/kimi-k2.5`
 - `moonshot/kimi-k2-0905-preview`
 - `moonshot/kimi-k2-turbo-preview`
 - `moonshot/kimi-k2-thinking`
 - `moonshot/kimi-k2-thinking-turbo`
-  {/*moonshot-kimi-k2-model-refs:end*/ && null}
+
+{/* moonshot-kimi-k2-model-refs:end */}
 
 ```json5
 {

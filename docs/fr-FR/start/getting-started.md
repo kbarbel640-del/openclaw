@@ -12,7 +12,7 @@ Objectif : passer de zéro à une première conversation fonctionnelle avec une 
 
 <Info>
 Conversation la plus rapide : ouvrez l'Interface de contrôle (aucune configuration de canal nécessaire). Lancez `openclaw dashboard` et discutez dans le navigateur, ou ouvrez `http://127.0.0.1:18789/` sur l'<Tooltip headline="Hôte passerelle" tip="La machine qui exécute le service de passerelle OpenClaw.">hôte passerelle</Tooltip>.
-Docs : [Tableau de bord](/web/dashboard) et [Interface de contrôle](/web/control-ui).
+Docs : [Tableau de bord](/fr-FR/web/dashboard) et [Interface de contrôle](/fr-FR/web/control-ui).
 </Info>
 
 ## Prérequis
@@ -46,7 +46,7 @@ Vérifiez votre version de Node avec `node --version` si vous n'êtes pas sûr.
     </Tabs>
 
     <Note>
-    Autres méthodes d'installation et exigences : [Installation](/install).
+    Autres méthodes d'installation et exigences : [Installation](/fr-FR/install/index).
     </Note>
 
   </Step>
@@ -56,7 +56,7 @@ Vérifiez votre version de Node avec `node --version` si vous n'êtes pas sûr.
     ```
 
     L'assistant configure l'authentification, les paramètres de la passerelle et les canaux optionnels.
-    Voir [Assistant de configuration](/start/wizard) pour les détails.
+    Voir [Assistant de configuration](/fr-FR/start/wizard) pour les détails.
 
   </Step>
   <Step title="Vérifier la Passerelle">
@@ -107,15 +107,15 @@ Si vous exécutez OpenClaw en tant que compte de service ou souhaitez des emplac
 - `OPENCLAW_STATE_DIR` remplace le répertoire d'état.
 - `OPENCLAW_CONFIG_PATH` remplace le chemin du fichier de configuration.
 
-Référence complète des variables d'environnement : [Variables d'environnement](/help/environment).
+Référence complète des variables d'environnement : [Variables d'environnement](/fr-FR/help/environment).
 
 ## Aller plus loin
 
 <Columns>
-  <Card title="Assistant de configuration (détails)" href="/start/wizard">
+  <Card title="Assistant de configuration (détails)" href="/fr-FR/start/wizard">
     Référence complète de l'assistant CLI et options avancées.
   </Card>
-  <Card title="Configuration initiale de l'app macOS" href="/start/onboarding">
+  <Card title="Configuration initiale de l'app macOS" href="/fr-FR/start/onboarding">
     Flux de première exécution pour l'application macOS.
   </Card>
 </Columns>
@@ -128,6 +128,6 @@ Référence complète des variables d'environnement : [Variables d'environnement
 
 ## Étapes suivantes
 
-- Sécurité des DM et approbations : [Appairage](/channels/pairing)
-- Connecter plus de canaux : [Canaux](/channels)
-- Workflows avancés et installation depuis les sources : [Configuration](/start/setup)
+- Sécurité des DM et approbations : [Appairage](/fr-FR/channels/pairing)
+- Connecter plus de canaux : [Canaux](/fr-FR/channels/index)
+- Workflows avancés et installation depuis les sources : [Configuration](/fr-FR/start/setup)
