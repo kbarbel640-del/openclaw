@@ -8,6 +8,7 @@ import type { TypingController } from "./typing.js";
 import { buildStatusReply } from "./commands.js";
 import {
   applyInlineDirectivesFastLane,
+  type CompactSessionCallback,
   handleDirectiveOnly,
   type InlineDirectives,
   isDirectiveOnly,
@@ -67,6 +68,7 @@ export async function applyInlineDirectiveOverrides(params: {
   contextTokens: number;
   effectiveModelDirective?: string;
   typing: TypingController;
+  compactSession?: CompactSessionCallback;
 }): Promise<ApplyDirectiveResult> {
   const {
     ctx,
@@ -185,6 +187,7 @@ export async function applyInlineDirectiveOverrides(params: {
       currentReasoningLevel,
       currentElevatedLevel,
       surface: ctx.Surface,
+      compactSession: params.compactSession,
     });
     let statusReply: ReplyPayload | undefined;
     if (directives.hasStatusDirective && allowTextCommands && command.isAuthorizedSender) {

@@ -2,12 +2,18 @@ import type { ExecToolDefaults } from "../../agents/bash-tools.js";
 import type { ModelAliasIndex } from "../../agents/model-selection.js";
 import type { SkillCommandSpec } from "../../agents/skills.js";
 import type { OpenClawConfig } from "../../config/config.js";
-import type { SessionEntry } from "../../config/sessions.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import type { TypingController } from "./typing.js";
+import {
+  compactEmbeddedPiSession,
+  isEmbeddedPiRunActive,
+  abortEmbeddedPiRun,
+  waitForEmbeddedPiRunEnd,
+} from "../../agents/pi-embedded.js";
 import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
+import { type SessionEntry, resolveSessionFilePath } from "../../config/sessions.js";
 import { listChatCommands, shouldHandleTextCommands } from "../commands-registry.js";
 import { listSkillCommandsForWorkspace } from "../skill-commands.js";
 import { resolveBlockStreamingChunking } from "./block-streaming.js";
@@ -20,6 +26,7 @@ import { CURRENT_MESSAGE_MARKER, stripMentions, stripStructuralPrefixes } from "
 import { createModelSelectionState, resolveContextTokens } from "./model-selection.js";
 import { formatElevatedUnavailableMessage, resolveElevatedPermissions } from "./reply-elevated.js";
 import { stripInlineStatus } from "./reply-inline.js";
+import { incrementCompactionCount } from "./session-updates.js";
 
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 type ExecOverrides = Pick<ExecToolDefaults, "host" | "security" | "ask" | "node">;
@@ -443,6 +450,47 @@ export async function resolveReplyDirectives(params: {
     contextTokens,
     effectiveModelDirective,
     typing,
+    compactSession: sessionEntry?.sessionId
+      ? async () => {
+          const sessionId = sessionEntry.sessionId!;
+          // Stop any active run before compacting
+          if (isEmbeddedPiRunActive(sessionId)) {
+            abortEmbeddedPiRun(sessionId);
+            await waitForEmbeddedPiRunEnd(sessionId, 15_000);
+          }
+          const result = await compactEmbeddedPiSession({
+            sessionId,
+            sessionKey,
+            messageChannel: command.channel,
+            groupId: sessionEntry.groupId,
+            groupChannel: sessionEntry.groupChannel,
+            groupSpace: sessionEntry.space,
+            spawnedBy: sessionEntry.spawnedBy,
+            sessionFile: resolveSessionFilePath(sessionId, sessionEntry),
+            workspaceDir,
+            config: cfg,
+            skillsSnapshot: sessionEntry.skillsSnapshot,
+            provider,
+            model,
+            senderIsOwner: command.senderIsOwner,
+            ownerNumbers: command.ownerList.length > 0 ? command.ownerList : undefined,
+          });
+          if (result.ok && result.compacted) {
+            await incrementCompactionCount({
+              sessionEntry,
+              sessionStore,
+              sessionKey,
+              storePath,
+              tokensAfter: result.result?.tokensAfter,
+            });
+          }
+          return {
+            ok: result.ok && result.compacted,
+            tokensAfter: result.result?.tokensAfter,
+            reason: result.reason,
+          };
+        }
+      : undefined,
   });
   if (applyResult.kind === "reply") {
     return { kind: "reply", reply: applyResult.reply };

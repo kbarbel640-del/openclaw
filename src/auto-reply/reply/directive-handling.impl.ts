@@ -10,6 +10,14 @@ import {
   resolveSessionAgentId,
 } from "../../agents/agent-scope.js";
 import { findModelInCatalog, type ModelCatalogEntry } from "../../agents/model-catalog.js";
+import { formatTokenCount } from "../status.js";
+
+/** Callback type for auto-compaction during model switches. */
+export type CompactSessionCallback = () => Promise<{
+  ok: boolean;
+  tokensAfter?: number;
+  reason?: string;
+}>;
 import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
 import { type SessionEntry, updateSessionStore } from "../../config/sessions.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
@@ -87,6 +95,8 @@ export async function handleDirectiveOnly(params: {
   currentReasoningLevel?: ReasoningLevel;
   currentElevatedLevel?: ElevatedLevel;
   surface?: string;
+  /** Optional callback to compact the session. When provided, auto-compaction is attempted before blocking model switches. */
+  compactSession?: CompactSessionCallback;
 }): Promise<ReplyPayload | undefined> {
   const {
     directives,
@@ -350,16 +360,59 @@ export async function handleDirectiveOnly(params: {
     }
   }
   if (modelSelection) {
-    // Context guard: block model switches that would exceed the target model's context window
+    // Context guard: block or auto-compact when switching to a smaller context model
     if (!directives.forceModelSwitch) {
-      const contextGuardError = checkModelSwitchContextGuard({
+      const guardResult = evaluateModelSwitchContextGuard({
         sessionEntry,
         targetProvider: modelSelection.provider,
         targetModel: modelSelection.model,
         allowedModelCatalog,
       });
-      if (contextGuardError) {
-        return { text: contextGuardError };
+      if (guardResult.overBudget) {
+        // Try auto-compaction if callback is available
+        if (params.compactSession) {
+          const compactResult = await params.compactSession();
+          if (compactResult.ok && compactResult.tokensAfter != null) {
+            // Update session entry with post-compaction token count
+            sessionEntry.totalTokens = compactResult.tokensAfter;
+            sessionEntry.contextTokens = compactResult.tokensAfter;
+            // Re-check after compaction
+            if (compactResult.tokensAfter > guardResult.targetContextWindow) {
+              return {
+                text: formatPostCompactOverBudget({
+                  tokensBefore: guardResult.currentTokens,
+                  tokensAfter: compactResult.tokensAfter,
+                  targetContextWindow: guardResult.targetContextWindow,
+                  targetProvider: modelSelection.provider,
+                  targetModel: modelSelection.model,
+                }),
+              };
+            }
+            // Compaction succeeded and we're within budget — fall through to apply the switch
+          } else {
+            // Compaction failed — fall back to blocking
+            const reason = compactResult.reason ? `: ${compactResult.reason}` : "";
+            return {
+              text: formatCompactFailedBlock({
+                currentTokens: guardResult.currentTokens,
+                targetContextWindow: guardResult.targetContextWindow,
+                targetProvider: modelSelection.provider,
+                targetModel: modelSelection.model,
+                reason,
+              }),
+            };
+          }
+        } else {
+          // No compaction callback — block with original message
+          return {
+            text: formatOverBudgetBlock({
+              currentTokens: guardResult.currentTokens,
+              targetContextWindow: guardResult.targetContextWindow,
+              targetProvider: modelSelection.provider,
+              targetModel: modelSelection.model,
+            }),
+          };
+        }
       }
     }
     applyModelOverrideToSessionEntry({
@@ -512,48 +565,96 @@ export async function handleDirectiveOnly(params: {
   return { text: ack || "OK." };
 }
 
+type ContextGuardResult =
+  | { overBudget: false }
+  | { overBudget: true; currentTokens: number; targetContextWindow: number };
+
 /**
- * Context guard: checks if switching to the target model would exceed its context window.
- * Returns an error message string if the switch should be blocked, or undefined if safe.
+ * Evaluates whether switching to the target model would exceed its context window.
  */
-function checkModelSwitchContextGuard(params: {
+function evaluateModelSwitchContextGuard(params: {
   sessionEntry: SessionEntry;
   targetProvider: string;
   targetModel: string;
   allowedModelCatalog: ModelCatalogEntry[];
-}): string | undefined {
+}): ContextGuardResult {
   const { sessionEntry, targetProvider, targetModel, allowedModelCatalog } = params;
 
-  // Get current session token usage
   const currentTokens = sessionEntry.contextTokens ?? sessionEntry.totalTokens ?? 0;
   if (currentTokens <= 0) {
-    return undefined; // No token data available, allow the switch
+    return { overBudget: false };
   }
 
-  // Find target model in catalog
   const targetEntry = findModelInCatalog(allowedModelCatalog, targetProvider, targetModel);
   const targetContextWindow = targetEntry?.contextWindow;
   if (!targetContextWindow || targetContextWindow <= 0) {
-    return undefined; // Unknown context window, allow the switch
+    return { overBudget: false };
   }
 
-  // Block if current usage exceeds target model's context window
   if (currentTokens > targetContextWindow) {
-    const currentK = Math.round(currentTokens / 1000);
-    const targetK = Math.round(targetContextWindow / 1000);
-    const overageK = Math.round((currentTokens - targetContextWindow) / 1000);
-    return [
-      `⚠️ Context guard: switch blocked.`,
-      ``,
-      `Current session: ~${currentK}K tokens`,
-      `Target model (${targetProvider}/${targetModel}): ${targetK}K context window`,
-      `Over budget by: ~${overageK}K tokens`,
-      ``,
-      `Options:`,
-      `• /compact — reduce session size first`,
-      `• /model ${targetProvider}/${targetModel} --force — switch anyway (may cause truncation)`,
-    ].join("\n");
+    return { overBudget: true, currentTokens, targetContextWindow };
   }
 
-  return undefined;
+  return { overBudget: false };
+}
+
+/** Format: over budget, no compaction available */
+function formatOverBudgetBlock(p: {
+  currentTokens: number;
+  targetContextWindow: number;
+  targetProvider: string;
+  targetModel: string;
+}): string {
+  return [
+    `⚠️ Context guard: switch blocked.`,
+    ``,
+    `Current session: ${formatTokenCount(p.currentTokens)}`,
+    `Target model (${p.targetProvider}/${p.targetModel}): ${formatTokenCount(p.targetContextWindow)} context window`,
+    `Over budget by: ${formatTokenCount(p.currentTokens - p.targetContextWindow)}`,
+    ``,
+    `Options:`,
+    `• /compact — reduce session size first`,
+    `• /model ${p.targetProvider}/${p.targetModel} --force — switch anyway (may cause truncation)`,
+  ].join("\n");
+}
+
+/** Format: compaction was attempted but session is still over budget */
+function formatPostCompactOverBudget(p: {
+  tokensBefore: number;
+  tokensAfter: number;
+  targetContextWindow: number;
+  targetProvider: string;
+  targetModel: string;
+}): string {
+  return [
+    `⚠️ Auto-compacted (${formatTokenCount(p.tokensBefore)} → ${formatTokenCount(p.tokensAfter)}) but still over budget.`,
+    ``,
+    `Target model (${p.targetProvider}/${p.targetModel}): ${formatTokenCount(p.targetContextWindow)} context window`,
+    `Still over by: ${formatTokenCount(p.tokensAfter - p.targetContextWindow)}`,
+    ``,
+    `Options:`,
+    `• /model ${p.targetProvider}/${p.targetModel} --force — switch anyway (may cause truncation)`,
+    `• /new — start a fresh session`,
+  ].join("\n");
+}
+
+/** Format: compaction failed entirely */
+function formatCompactFailedBlock(p: {
+  currentTokens: number;
+  targetContextWindow: number;
+  targetProvider: string;
+  targetModel: string;
+  reason: string;
+}): string {
+  return [
+    `⚠️ Context guard: auto-compaction failed${p.reason}`,
+    ``,
+    `Current session: ${formatTokenCount(p.currentTokens)}`,
+    `Target model (${p.targetProvider}/${p.targetModel}): ${formatTokenCount(p.targetContextWindow)} context window`,
+    ``,
+    `Options:`,
+    `• /compact — try manual compaction`,
+    `• /model ${p.targetProvider}/${p.targetModel} --force — switch anyway (may cause truncation)`,
+    `• /new — start a fresh session`,
+  ].join("\n");
 }

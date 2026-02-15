@@ -5,7 +5,7 @@ import type { MsgContext } from "../templating.js";
 import type { ReplyPayload } from "../types.js";
 import type { InlineDirectives } from "./directive-handling.parse.js";
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "./directives.js";
-import { handleDirectiveOnly } from "./directive-handling.impl.js";
+import { type CompactSessionCallback, handleDirectiveOnly } from "./directive-handling.impl.js";
 import { isDirectiveOnly } from "./directive-handling.parse.js";
 
 export async function applyInlineDirectivesFastLane(params: {
@@ -44,6 +44,7 @@ export async function applyInlineDirectivesFastLane(params: {
     >;
     resetModelOverride: boolean;
   };
+  compactSession?: CompactSessionCallback;
 }): Promise<{ directiveAck?: ReplyPayload; provider: string; model: string }> {
   const {
     directives,
@@ -125,6 +126,7 @@ export async function applyInlineDirectivesFastLane(params: {
     currentVerboseLevel,
     currentReasoningLevel,
     currentElevatedLevel,
+    compactSession: params.compactSession,
   });
 
   if (sessionEntry?.providerOverride) {
