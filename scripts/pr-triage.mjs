@@ -70,9 +70,9 @@ async function ghPaginate(path, maxItems = 100) {
     const perPage = Math.min(100, maxItems - items.length);
     const sep = path.includes("?") ? "&" : "?";
     const data = await gh(`${path}${sep}per_page=${perPage}&page=${page}`);
-    if (!Array.isArray(data) || data.length === 0) break;
+    if (!Array.isArray(data) || data.length === 0) { break; }
     items.push(...data);
-    if (data.length < perPage) break;
+    if (data.length < perPage) { break; }
     page++;
   }
   return items;
@@ -175,13 +175,13 @@ async function getRecentDecisions() {
 // ---------------------------------------------------------------------------
 
 function extractIssueRefs(text) {
-  if (!text) return [];
+  if (!text) { return []; }
   const matches = text.match(/#(\d{3,6})/g) || [];
   return [...new Set(matches)];
 }
 
 function computeFileOverlap(filesA, filesB) {
-  if (!filesA.length || !filesB.length) return 0;
+  if (!filesA.length || !filesB.length) { return 0; }
   const setA = new Set(filesA);
   const intersection = filesB.filter((f) => setA.has(f));
   const union = new Set([...filesA, ...filesB]);
@@ -201,9 +201,9 @@ function deterministicSignals(targetPR, openPRSummaries) {
   // Parse open PR summaries back into structured data for comparison
   for (const summary of openPRSummaries) {
     const numMatch = summary.match(/^#(\d+):/);
-    if (!numMatch) continue;
+    if (!numMatch) { continue; }
     const num = Number(numMatch[1]);
-    if (num === targetPR.number) continue;
+    if (num === targetPR.number) { continue; }
 
     const refsMatch = summary.match(/refs: (.+)/);
     const prRefs = refsMatch ? refsMatch[1].split(", ") : [];
@@ -400,7 +400,7 @@ async function ensureLabel(name, color) {
 }
 
 async function applyLabels(prNumber, triage) {
-  if (!triage) return;
+  if (!triage) { return; }
 
   const labels = [];
 
@@ -466,7 +466,7 @@ async function applyLabels(prNumber, triage) {
 // ---------------------------------------------------------------------------
 
 function writeSummary(prNumber, triage, deterministicHints, costInfo) {
-  if (!triage) return;
+  if (!triage) { return; }
 
   const lines = [
     `## PR #${prNumber} Triage`,
