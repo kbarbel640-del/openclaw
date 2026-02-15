@@ -25,6 +25,10 @@ export type ActiveWebListener = {
     participant?: string,
   ) => Promise<void>;
   sendComposingTo: (to: string) => Promise<void>;
+  downloadMedia?: (
+    chatJid: string,
+    messageId: string,
+  ) => Promise<{ buffer: Buffer; mimetype?: string; fileName?: string } | null>;
   close?: () => Promise<void>;
 };
 

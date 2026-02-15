@@ -12,6 +12,8 @@ export type WhatsAppActionConfig = {
   reactions?: boolean;
   sendMessage?: boolean;
   polls?: boolean;
+  readFile?: boolean;
+  messages?: boolean;
 };
 
 export type WhatsAppGroupConfig = {

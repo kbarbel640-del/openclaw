@@ -1,6 +1,9 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { OpenClawConfig } from "../../config/config.js";
 import { sendReactionWhatsApp } from "../../web/outbound.js";
+import { readFileWhatsApp } from "../../web/outbound.js";
+import { readWhatsAppMessages } from "../../web/read-messages.js";
+import { saveMediaBuffer } from "../../media/store.js";
 import { createActionGate, jsonResult, readReactionParams, readStringParam } from "./common.js";
 
 export async function handleWhatsAppAction(
@@ -34,6 +37,60 @@ export async function handleWhatsAppAction(
       return jsonResult({ ok: true, added: emoji });
     }
     return jsonResult({ ok: true, removed: true });
+  }
+
+  if (action === "readFile") {
+    if (!isActionEnabled("readFile")) {
+      throw new Error("WhatsApp readFile is disabled.");
+    }
+    const chatJid = readStringParam(params, "chatJid", { required: true });
+    const messageId = readStringParam(params, "messageId", { required: true });
+    const accountId = readStringParam(params, "accountId");
+
+    const result = await readFileWhatsApp(chatJid, messageId, {
+      accountId: accountId ?? undefined,
+    });
+
+    if (!result) {
+      return jsonResult({ ok: false, error: "Message not found or has no media" });
+    }
+
+    // Save the media buffer to a file
+    const saved = await saveMediaBuffer(
+      result.buffer,
+      result.mimetype,
+      "agent-download",
+      50 * 1024 * 1024, // 50MB max
+      result.fileName,
+    );
+
+    return jsonResult({
+      ok: true,
+      path: saved.path,
+      mimetype: result.mimetype,
+      fileName: result.fileName,
+      size: result.buffer.length,
+    });
+  }
+
+  if (action === "read") {
+    if (!isActionEnabled("messages")) {
+      throw new Error("WhatsApp message reading is disabled.");
+    }
+    const chatJid = readStringParam(params, "chatJid", { required: true });
+    const accountId = readStringParam(params, "accountId");
+    const limit = typeof params.limit === "number" ? params.limit : undefined;
+
+    const result = await readWhatsAppMessages(chatJid, {
+      accountId: accountId ?? "",
+      limit,
+    });
+
+    return jsonResult({
+      ok: true,
+      messages: result.messages,
+      count: result.messages.length,
+    });
   }
 
   throw new Error(`Unsupported WhatsApp action: ${action}`);

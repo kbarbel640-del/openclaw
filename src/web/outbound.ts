@@ -182,3 +182,19 @@ export async function sendPollWhatsApp(
     throw err;
   }
 }
+
+export async function readFileWhatsApp(
+  chatJid: string,
+  messageId: string,
+  options: {
+    accountId?: string;
+  },
+): Promise<{ buffer: Buffer; mimetype?: string; fileName?: string } | null> {
+  const { listener: active } = requireActiveWebListener(options.accountId);
+  
+  if (!active.downloadMedia) {
+    throw new Error("downloadMedia is not available on this WhatsApp listener");
+  }
+  
+  return await active.downloadMedia(chatJid, messageId);
+}

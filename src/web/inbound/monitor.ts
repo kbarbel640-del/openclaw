@@ -19,6 +19,8 @@ import {
   extractText,
 } from "./extract.js";
 import { downloadInboundMedia } from "./media.js";
+import { downloadMediaById } from "./download-media-by-id.js";
+import { clearMessageStore, getMessageStore } from "./message-store.js";
 import { createWebSendApi } from "./send-api.js";
 import type { WebInboundMessage, WebListenerCloseReason } from "./types.js";
 
@@ -155,6 +157,8 @@ export async function monitorWebInbox(options: {
     if (upsert.type !== "notify" && upsert.type !== "append") {
       return;
     }
+    const messageStore = getMessageStore(options.accountId);
+    
     for (const msg of upsert.messages ?? []) {
       recordChannelActivity({
         channel: "whatsapp",
@@ -168,6 +172,11 @@ export async function monitorWebInbox(options: {
       }
       if (remoteJid.endsWith("@status") || remoteJid.endsWith("@broadcast")) {
         continue;
+      }
+
+      // Store the message for later retrieval
+      if (id) {
+        messageStore.store(remoteJid, id, msg as proto.IWebMessageInfo);
       }
 
       const group = isJidGroup(remoteJid) === true;
@@ -393,6 +402,8 @@ export async function monitorWebInbox(options: {
           ev.removeListener("connection.update", connectionUpdateHandler);
         }
         sock.ws?.close();
+        // Clear the message store for this account
+        clearMessageStore(options.accountId);
       } catch (err) {
         logVerbose(`Socket close failed: ${String(err)}`);
       }
@@ -400,6 +411,9 @@ export async function monitorWebInbox(options: {
     onClose,
     signalClose: (reason?: WebListenerCloseReason) => {
       resolveClose(reason ?? { status: undefined, isLoggedOut: false, error: "closed" });
+    },
+    downloadMedia: async (chatJid: string, messageId: string) => {
+      return await downloadMediaById(chatJid, messageId, options.accountId, sock);
     },
     // IPC surface (sendMessage/sendPoll/sendReaction/sendComposingTo)
     ...sendApi,
