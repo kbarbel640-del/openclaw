@@ -34,9 +34,9 @@ Reports without reproduction steps, demonstrated impact, and remediation advice 
 
 **Jamieson O'Reilly** ([@theonejvo](https://twitter.com/theonejvo)) is Security & Trust at OpenClaw. Jamieson is the founder of [Dvuln](https://dvuln.com) and brings extensive experience in offensive security, penetration testing, and security program development.
 
-### Please redact secrets
+### Redaction (secrets + personal data)
 
-If you include logs, screenshots, configs, or command output, redact anything sensitive. This includes:
+If you include logs, screenshots, configs, or command output, **redact anything sensitive**. This includes:
 
 - **Secrets:** tokens, API keys, cookies/session IDs, Authorization headers, pairing codes
 - **Personal data (PII):** phone numbers, emails, names, addresses, account IDs/handles
