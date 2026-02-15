@@ -56,10 +56,14 @@ function walk(dir: string) {
       walk(full);
       continue;
     }
-    if (!entry.name.endsWith(".js")) continue;
+    if (!entry.name.endsWith(".js")) {
+      continue;
+    }
 
     const src = fs.readFileSync(full, "utf8");
-    if (!src.includes(ORIGINAL)) continue;
+    if (!src.includes(ORIGINAL)) {
+      continue;
+    }
 
     const updated = src.replace(ORIGINAL, REPLACEMENT);
     if (updated !== src) {

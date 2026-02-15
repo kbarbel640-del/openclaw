@@ -256,6 +256,7 @@ Criar um **System Health Monitor** (agent ID: `health-monitor`) que:
    - [ ] Predict future issues
 
 4. **Daily/Weekly Reports**
+
    ```typescript
    async function generateDailyReport() {
      const report = {

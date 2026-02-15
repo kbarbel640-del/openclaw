@@ -15,8 +15,6 @@
  */
 
 import { exec } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
@@ -93,8 +91,12 @@ async function main() {
 
     // Update stats
     for (const issue of qualityIssues) {
-      if (issue.description.includes("lint")) stats.quality.lintErrors++;
-      if (issue.description.includes("type")) stats.quality.typeErrors++;
+      if (issue.description.includes("lint")) {
+        stats.quality.lintErrors++;
+      }
+      if (issue.description.includes("type")) {
+        stats.quality.typeErrors++;
+      }
     }
   }
 
@@ -108,7 +110,9 @@ async function main() {
     const coverageIssue = testingIssues.find((i) => i.description.includes("coverage"));
     if (coverageIssue?.details) {
       const match = coverageIssue.details.match(/(\d+\.?\d*)%/);
-      if (match) stats.testing.coverage = Number.parseFloat(match[1]);
+      if (match) {
+        stats.testing.coverage = Number.parseFloat(match[1]);
+      }
     }
   }
 
@@ -122,7 +126,9 @@ async function main() {
     const auditIssue = depsIssues.find((i) => i.description.includes("vulnerabilities"));
     if (auditIssue?.details) {
       const match = auditIssue.details.match(/(\d+) vulnerabilities/);
-      if (match) stats.dependencies.vulnerable = Number.parseInt(match[1], 10);
+      if (match) {
+        stats.dependencies.vulnerable = Number.parseInt(match[1], 10);
+      }
     }
   }
 
@@ -170,7 +176,7 @@ async function main() {
   process.exit(0);
 }
 
-async function scanSecurity(mode: string): Promise<HealthIssue[]> {
+async function scanSecurity(_mode: string): Promise<HealthIssue[]> {
   const issues: HealthIssue[] = [];
 
   try {
@@ -226,8 +232,9 @@ async function scanCodeQuality(mode: string): Promise<HealthIssue[]> {
     await execAsync("pnpm oxlint . --deny-warnings", {
       encoding: "utf-8",
     });
-  } catch (error: any) {
-    const errorCount = (error.stdout?.match(/error/gi) || []).length;
+  } catch (error: unknown) {
+    const err = error as { stdout?: string };
+    const errorCount = (err.stdout?.match(/error/gi) || []).length;
 
     if (errorCount > 50) {
       issues.push({
@@ -255,8 +262,9 @@ async function scanCodeQuality(mode: string): Promise<HealthIssue[]> {
       await execAsync("pnpm tsc --noEmit", {
         encoding: "utf-8",
       });
-    } catch (error: any) {
-      const errorCount = (error.stdout?.match(/error TS/g) || []).length;
+    } catch (error: unknown) {
+      const err = error as { stdout?: string };
+      const errorCount = (err.stdout?.match(/error TS/g) || []).length;
 
       if (errorCount > 0) {
         issues.push({
@@ -320,9 +328,10 @@ async function scanTesting(mode: string): Promise<HealthIssue[]> {
         });
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Check if tests failed
-    const failedCount = (error.stdout?.match(/FAIL/g) || []).length;
+    const err = error as { stdout?: string };
+    const failedCount = (err.stdout?.match(/FAIL/g) || []).length;
 
     if (failedCount > 0) {
       issues.push({
@@ -339,7 +348,7 @@ async function scanTesting(mode: string): Promise<HealthIssue[]> {
   return issues;
 }
 
-async function scanDependencies(mode: string): Promise<HealthIssue[]> {
+async function scanDependencies(_mode: string): Promise<HealthIssue[]> {
   const issues: HealthIssue[] = [];
 
   try {
@@ -359,14 +368,14 @@ async function scanDependencies(mode: string): Promise<HealthIssue[]> {
         action: "log",
       });
     }
-  } catch (error) {
+  } catch {
     // Ignore - outdated check is optional
   }
 
   return issues;
 }
 
-async function checkGateway(deep: boolean): Promise<HealthIssue[]> {
+async function checkGateway(_deep: boolean): Promise<HealthIssue[]> {
   const issues: HealthIssue[] = [];
 
   try {
@@ -461,7 +470,9 @@ function printReport(report: HealthReport) {
   };
 
   for (const [severity, issues] of Object.entries(bySeverity)) {
-    if (issues.length === 0) continue;
+    if (issues.length === 0) {
+      continue;
+    }
 
     const emoji = {
       critical: "🔴",
@@ -476,8 +487,12 @@ function printReport(report: HealthReport) {
       console.log(`\n  • ${issue.description}`);
       console.log(`    Category: ${issue.category}`);
       console.log(`    Action: ${issue.action}`);
-      if (issue.assignee) console.log(`    Assignee: @${issue.assignee}`);
-      if (issue.details) console.log(`    Details: ${issue.details}`);
+      if (issue.assignee) {
+        console.log(`    Assignee: @${issue.assignee}`);
+      }
+      if (issue.details) {
+        console.log(`    Details: ${issue.details}`);
+      }
     }
 
     console.log();

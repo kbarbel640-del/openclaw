@@ -21,7 +21,7 @@ function mockClient(agentId: string): GatewayClient {
         mode: "agent",
       },
     },
-  } as any;
+  } as unknown as GatewayClient;
 }
 
 // Mock client to interact with the gateway
@@ -29,7 +29,6 @@ function mockClient(agentId: string): GatewayClient {
 async function runDemo() {
   console.log("🚀 Starting Collaboration Demo...\n");
 
-  const serverUrl = process.env.MCP_SERVER_URL || "http://localhost:3000/api/mcp";
   // specific demo implementation details would depend on how we validly connect
   // to the running gateway in this test environment.
   // Since we are inside the monorepo, we can import server methods directly for a unit-test style demo
@@ -39,13 +38,8 @@ async function runDemo() {
   // similar to how `collaboration.test.ts` works, but with the new features.
 
   // We need to dynamic import to avoid build issues in this script file
-  const {
-    initializeCollaborativeSession,
-    publishProposal,
-    challengeProposal,
-    finalizeDecision,
-    collaborationHandlers,
-  } = await import("../src/gateway/server-methods/collaboration.js");
+  const { initializeCollaborativeSession, collaborationHandlers } =
+    await import("../src/gateway/server-methods/collaboration.js");
 
   const { loadMessages } = await import("../src/agents/collaboration-messaging.js");
 
@@ -65,7 +59,7 @@ async function runDemo() {
   if (publishHandler) {
     await new Promise<void>((resolve, reject) => {
       try {
-        publishHandler({
+        void publishHandler({
           params: {
             sessionKey: session.sessionKey,
             agentId: "backend-architect",
@@ -73,23 +67,25 @@ async function runDemo() {
             proposal: "Use Clerk.dev for authentication",
             reasoning: "Offloads complexity, handles MFA/Social login out of the box.",
           },
-          respond: (success, data, err) => {
+          respond: (success: unknown, data: unknown, err: unknown) => {
             if (!success) {
-              console.error(`   Proposal failed: ${err?.message}`);
-              reject(new Error(err?.message));
+              const error = err as { message?: string } | undefined;
+              console.error(`   Proposal failed: ${String(error?.message)}`);
+              reject(new Error(String(error?.message)));
             } else {
               console.log("   Proposal published.");
               resolve();
             }
           },
-          context: {} as any,
+          context: {} as Record<string, unknown>,
           client: mockClient("backend-architect"),
-          req: {} as any,
+          req: {} as Record<string, unknown>,
           isWebchatConnect: () => false,
         });
-      } catch (e: any) {
-        console.error(`   Proposal failed (sync): ${e.message}`);
-        reject(e);
+      } catch (e: unknown) {
+        const error = e as { message: string };
+        console.error(`   Proposal failed (sync): ${error.message}`);
+        reject(error);
       }
     });
   }
@@ -102,30 +98,33 @@ async function runDemo() {
     await new Promise<void>((resolve, reject) => {
       try {
         // Mocking the context/respond for the handler
-        sendHandler({
+        void sendHandler({
           params: {
             fromAgentId: "security-officer",
             toAgentId: "backend-architect",
             topic: "Security Concerns",
             message: "Hey, have we vetted Clerk's SOC2 compliance?",
           },
-          respond: (success, data, err) => {
+          respond: (success: unknown, data: unknown, err: unknown) => {
             if (!success) {
-              console.error(`   Message send failed: ${err?.message}`);
-              reject(new Error(err?.message));
+              const error = err as { message?: string } | undefined;
+              console.error(`   Message send failed: ${String(error?.message)}`);
+              reject(new Error(String(error?.message)));
             } else {
-              console.log(`   Message sent! ID: ${(data as any).messageId}`);
+              const result = data as { messageId?: unknown };
+              console.log(`   Message sent! ID: ${String(result.messageId)}`);
               resolve();
             }
           },
-          context: {} as any,
+          context: {} as Record<string, unknown>,
           client: mockClient("security-officer"),
-          req: {} as any,
+          req: {} as Record<string, unknown>,
           isWebchatConnect: () => false,
         });
-      } catch (e: any) {
-        console.error(`   Message send failed (sync): ${e.message}`);
-        reject(e);
+      } catch (e: unknown) {
+        const error = e as { message: string };
+        console.error(`   Message send failed (sync): ${error.message}`);
+        reject(error);
       }
     });
   }
@@ -136,7 +135,7 @@ async function runDemo() {
   if (challengeHandler) {
     await new Promise<void>((resolve, reject) => {
       try {
-        challengeHandler({
+        void challengeHandler({
           params: {
             sessionKey: session.sessionKey,
             decisionId: session.decisions[0].id,
@@ -144,23 +143,25 @@ async function runDemo() {
             challenge: "Vendor lock-in risk is high.",
             suggestedAlternative: "Use self-hosted solution like Keycloak or Authentik.",
           },
-          respond: (success, data, err) => {
+          respond: (success: unknown, data: unknown, err: unknown) => {
             if (!success) {
-              console.error(`   Challenge failed: ${err?.message}`);
-              reject(new Error(err?.message));
+              const error = err as { message?: string } | undefined;
+              console.error(`   Challenge failed: ${String(error?.message)}`);
+              reject(new Error(String(error?.message)));
             } else {
               console.log("   Challenge recorded.");
               resolve();
             }
           },
-          context: {} as any,
+          context: {} as Record<string, unknown>,
           client: mockClient("security-officer"),
-          req: {} as any,
+          req: {} as Record<string, unknown>,
           isWebchatConnect: () => false,
         });
-      } catch (e: any) {
-        console.error(`   Challenge failed (sync): ${e.message}`);
-        reject(e);
+      } catch (e: unknown) {
+        const error = e as { message: string };
+        console.error(`   Challenge failed (sync): ${error.message}`);
+        reject(error);
       }
     });
   }
@@ -179,27 +180,29 @@ async function runDemo() {
   if (interveneHandler) {
     await new Promise<void>((resolve, reject) => {
       try {
-        interveneHandler({
+        void interveneHandler({
           params: {
             sessionKey: session.sessionKey,
             moderatorId: "cto-bot",
             interventionType: "question",
           },
-          respond: (success, data, err) => {
+          respond: (success: unknown, data: unknown, err: unknown) => {
             if (!success) {
-              console.error(`   Moderation failed: ${err?.message}`);
-              reject(new Error(err?.message));
+              const error = err as { message?: string } | undefined;
+              console.error(`   Moderation failed: ${String(error?.message)}`);
+              reject(new Error(String(error?.message)));
             } else {
-              console.log(`   Moderator Intervened: "${(data as any).message}"`);
+              const result = data as { message?: unknown };
+              console.log(`   Moderator Intervened: "${String(result.message)}"`);
               resolve();
             }
           },
-          context: {} as any,
+          context: {} as Record<string, unknown>,
           client: mockClient("cto-bot"),
-          req: {} as any,
+          req: {} as Record<string, unknown>,
           isWebchatConnect: () => false,
         });
-      } catch (e: any) {
+      } catch (e: unknown) {
         reject(e);
       }
     });
@@ -213,7 +216,7 @@ async function runDemo() {
   if (finalizeHandler) {
     await new Promise<void>((resolve, reject) => {
       try {
-        finalizeHandler({
+        void finalizeHandler({
           params: {
             sessionKey: session.sessionKey,
             decisionId: session.decisions[0].id,
@@ -221,21 +224,22 @@ async function runDemo() {
               "Proceed with Clerk.dev but build an abstraction layer to minimize lock-in.",
             moderatorId: "cto-bot",
           },
-          respond: (success, data, err) => {
+          respond: (success: unknown, data: unknown, err: unknown) => {
             if (!success) {
-              console.error(`   Finalization failed: ${err?.message}`);
-              reject(new Error(err?.message));
+              const error = err as { message?: string } | undefined;
+              console.error(`   Finalization failed: ${String(error?.message)}`);
+              reject(new Error(String(error?.message)));
             } else {
               console.log("   Decision Finalized.");
               resolve();
             }
           },
-          context: {} as any,
+          context: {} as Record<string, unknown>,
           client: mockClient("cto-bot"),
-          req: {} as any,
+          req: {} as Record<string, unknown>,
           isWebchatConnect: () => false,
         });
-      } catch (e: any) {
+      } catch (e: unknown) {
         reject(e);
       }
     });
@@ -247,14 +251,16 @@ async function runDemo() {
   if (listExpertsHandler) {
     await new Promise<void>((resolve, reject) => {
       try {
-        listExpertsHandler({
+        void listExpertsHandler({
           params: {},
-          respond: (success, data, err) => {
+          respond: (success: unknown, data: unknown, err: unknown) => {
             if (!success) {
-              console.error(`   Directory list failed: ${err?.message}`);
-              reject(new Error(err?.message));
+              const error = err as { message?: string } | undefined;
+              console.error(`   Directory list failed: ${String(error?.message)}`);
+              reject(new Error(String(error?.message)));
             } else {
-              const agents = (data as any).agents;
+              const result = data as Record<string, unknown>;
+              const agents = result.agents as Array<{ agentId: string; role: string }>;
               console.log(`   Found ${agents.length} agents in directory.`);
               if (agents.length > 0) {
                 console.log(`   Example: ${agents[0].agentId} (${agents[0].role})`);
@@ -262,12 +268,12 @@ async function runDemo() {
               resolve();
             }
           },
-          context: {} as any,
+          context: {} as Record<string, unknown>,
           client: mockClient("worker"), // Anyone can list
-          req: {} as any,
+          req: {} as Record<string, unknown>,
           isWebchatConnect: () => false,
         });
-      } catch (e: any) {
+      } catch (e: unknown) {
         reject(e);
       }
     });

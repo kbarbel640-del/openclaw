@@ -333,5 +333,5 @@
 
 ---
 
-**Última atualização:** ****\_\_\_****  
+**Última atualização:** \***\*\_\_\_\*\***  
 **Progresso geral:** **_/68 itens completos (_**%)

@@ -477,7 +477,7 @@ A: 30-40% de produtividade perdida permanentemente + risco de security incident.
 - [ ] Entendi os problemas críticos
 - [ ] Escolhi uma opção: [ ] A [ ] B [ ] C
 - [ ] Aprovei roadmap
-- [ ] Pronto para começar em: ****\_\_\_****
+- [ ] Pronto para começar em: \***\*\_\_\_\*\***
 
 **Após decisão:**
 

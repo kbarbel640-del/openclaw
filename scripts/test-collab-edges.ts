@@ -16,8 +16,6 @@
 // Let's use the same pattern as demo-collab.ts which imports `collaborationHandlers` directly or mocks the client.
 
 import type { GatewayClient } from "../src/gateway/server-methods/types.js";
-import { resolveAgentRole } from "../src/agents/agent-scope.js";
-import { loadConfig } from "../src/config/config.js";
 import { collaborationHandlers } from "../src/gateway/server-methods/collaboration.js";
 
 // Mock Client Factory
@@ -32,13 +30,13 @@ function mockClient(agentId: string): GatewayClient {
 }
 
 // Mock Context
-const mockContext: any = {
+const mockContext: Record<string, unknown> = {
   broadcast: () => {},
   nodeSendToSession: () => {},
   agentRunSeq: () => {},
 };
 
-const mockReq = {} as any;
+const mockReq = {} as Record<string, unknown>;
 const mockIsWebchatConnect = () => false;
 
 // Helper to spread args
@@ -50,60 +48,68 @@ async function runTest() {
 
   const requesterId = "main"; // Orchestrator usually
   const targetId = "backend-architect"; // Sub-agent
-  let spawnedSessionKey = "";
-  let childRunId = "";
+  let _spawnedSessionKey = "";
+  let _childRunId = "";
 
   // 1. SPAWN
   console.log("1️⃣  Testing `collab.agent.spawn`...");
   await new Promise<void>((resolve) => {
-    collaborationHandlers["collab.agent.spawn"]!({
-      params: {
-        requesterAgentId: requesterId,
-        targetAgentId: targetId,
-        task: "Implement test feature",
-        timeout: 60,
-      },
-      ...commonArgs,
-      client: mockClient(requesterId),
-      context: mockContext,
-      respond: (success, result, error) => {
-        if (!success) {
-          console.error("❌ Spawn Failed:", error);
-          process.exit(1);
-        }
-        console.log("   ✅ Spawn successful:", result);
-        spawnedSessionKey = (result as any).sessionKey;
-        childRunId = (result as any).runId;
-        resolve();
-      },
-    });
+    const spawnHandler = collaborationHandlers["collab.agent.spawn"];
+    if (spawnHandler) {
+      void spawnHandler({
+        params: {
+          requesterAgentId: requesterId,
+          targetAgentId: targetId,
+          task: "Implement test feature",
+          timeout: 60,
+        },
+        ...commonArgs,
+        client: mockClient(requesterId),
+        context: mockContext,
+        respond: (success: unknown, result: unknown, error: unknown) => {
+          if (!success) {
+            console.error("❌ Spawn Failed:", error);
+            process.exit(1);
+          }
+          console.log("   ✅ Spawn successful:", result);
+          const res = result as Record<string, unknown>;
+          _spawnedSessionKey = String(res.sessionKey);
+          _childRunId = String(res.runId);
+          resolve();
+        },
+      });
+    }
   });
 
   // 2. DELEGATE
   console.log("\n2️⃣  Testing `collab.delegation.assign`...");
   let delegationId = "";
   await new Promise<void>((resolve) => {
-    collaborationHandlers["collab.delegation.assign"]!({
-      params: {
-        fromAgentId: requesterId,
-        toAgentId: targetId,
-        task: "Specific sub-task for testing",
-        priority: "high",
-        justification: "Critical path",
-      },
-      ...commonArgs,
-      client: mockClient(requesterId),
-      context: mockContext,
-      respond: (success, result, error) => {
-        if (!success) {
-          console.error("❌ Delegate Failed:", error);
-          process.exit(1);
-        }
-        console.log("   ✅ Delegation successful:", result);
-        delegationId = (result as any).id;
-        resolve();
-      },
-    });
+    const delegateHandler = collaborationHandlers["collab.delegation.assign"];
+    if (delegateHandler) {
+      void delegateHandler({
+        params: {
+          fromAgentId: requesterId,
+          toAgentId: targetId,
+          task: "Specific sub-task for testing",
+          priority: "high",
+          justification: "Critical path",
+        },
+        ...commonArgs,
+        client: mockClient(requesterId),
+        context: mockContext,
+        respond: (success: unknown, result: unknown, error: unknown) => {
+          if (!success) {
+            console.error("❌ Delegate Failed:", error);
+            process.exit(1);
+          }
+          console.log("   ✅ Delegation successful:", result);
+          const res = result as Record<string, unknown>;
+          delegationId = String(res.id);
+          resolve();
+        },
+      });
+    }
   });
 
   // 3. VOTE (Simulated Proposal & Vote)
@@ -114,66 +120,77 @@ async function runTest() {
 
   // Init session
   await new Promise<void>((resolve) => {
-    collaborationHandlers["collab.session.init"]!({
-      params: { topic: "Voting Test", agents: [requesterId, targetId] },
-      respond: (s, r) => {
-        if (s) {
-          sessionKey = (r as any).sessionKey;
-        }
-        resolve();
-      },
-      context: mockContext,
-      ...commonArgs,
-      client: mockClient(requesterId),
-    });
+    const initHandler = collaborationHandlers["collab.session.init"];
+    if (initHandler) {
+      void initHandler({
+        params: { topic: "Voting Test", agents: [requesterId, targetId] },
+        respond: (s: unknown, r: unknown) => {
+          if (s) {
+            const res = r as Record<string, unknown>;
+            sessionKey = String(res.sessionKey);
+          }
+          resolve();
+        },
+        context: mockContext,
+        ...commonArgs,
+        client: mockClient(requesterId),
+      });
+    }
   });
 
   // Publish proposal
   await new Promise<void>((resolve) => {
-    collaborationHandlers["collab.proposal.publish"]!({
-      params: {
-        sessionKey,
-        agentId: requesterId,
-        decisionTopic: "Vote Topic",
-        proposal: "Vote Yes",
-        reasoning: "Test",
-      },
-      ...commonArgs,
-      client: mockClient(requesterId),
-      context: mockContext,
-      respond: (s, r, e) => {
-        if (!s) {
-          console.error("❌ Publish Proposal Failed:", e);
-          process.exit(1);
-        }
-        decisionId = (r as any).decisionId;
-        resolve();
-      },
-    });
+    const publishHandler = collaborationHandlers["collab.proposal.publish"];
+    if (publishHandler) {
+      void publishHandler({
+        params: {
+          sessionKey,
+          agentId: requesterId,
+          decisionTopic: "Vote Topic",
+          proposal: "Vote Yes",
+          reasoning: "Test",
+        },
+        ...commonArgs,
+        client: mockClient(requesterId),
+        context: mockContext,
+        respond: (s: unknown, r: unknown, e: unknown) => {
+          if (!s) {
+            console.error("❌ Publish Proposal Failed:", e);
+            process.exit(1);
+          }
+          const res = r as Record<string, unknown>;
+          decisionId = String(res.decisionId);
+          resolve();
+        },
+      });
+    }
   });
 
   // Cast Vote
   await new Promise<void>((resolve) => {
-    collaborationHandlers["collab.proposal.vote"]!({
-      params: {
-        sessionKey,
-        decisionId,
-        agentId: targetId,
-        vote: "approve",
-        reason: "Looks good to me",
-      },
-      ...commonArgs,
-      client: mockClient(targetId),
-      context: mockContext,
-      respond: (success, result, error) => {
-        if (!success) {
-          console.error("❌ Vote Failed:", error);
-          process.exit(1);
-        }
-        console.log("   ✅ Vote successful:", result);
-        resolve();
-      },
-    });
+    const voteHandler = collaborationHandlers["collab.proposal.vote"];
+    if (voteHandler) {
+      void voteHandler({
+        params: {
+          sessionKey,
+          decisionId,
+          agentId: targetId,
+          vote: "approve",
+          reason: "Looks good to me",
+        },
+        ...commonArgs,
+        client: mockClient(targetId),
+        context: mockContext,
+        respond: (success: unknown, result: unknown, error: unknown) => {
+          if (!success) {
+            console.error("❌ Vote Failed:", error);
+            process.exit(1);
+          }
+          console.log("   ✅ Vote successful:", result);
+          resolve();
+        },
+      });
+    }
   });
 
   // 4. REVIEW (Upward delegation simulation or direct review of existing delegation)
@@ -187,69 +204,81 @@ async function runTest() {
 
   // Create upward request
   await new Promise<void>((resolve) => {
-    collaborationHandlers["collab.delegation.assign"]!({
-      params: {
-        fromAgentId: targetId, // Subordinate
-        toAgentId: requesterId, // Superior
-        task: "Please approve this budget",
-        priority: "normal",
-      },
-      ...commonArgs,
-      client: mockClient(targetId),
-      context: mockContext,
-      respond: (success, result: any) => {
-        console.log("   Created upward request:", result.state); // Should be pending_review
-        upwardDelegationId = result.id;
-        resolve();
-      },
-    });
+    const assignHandler = collaborationHandlers["collab.delegation.assign"];
+    if (assignHandler) {
+      void assignHandler({
+        params: {
+          fromAgentId: targetId, // Subordinate
+          toAgentId: requesterId, // Superior
+          task: "Please approve this budget",
+          priority: "normal",
+        },
+        ...commonArgs,
+        client: mockClient(targetId),
+        context: mockContext,
+        respond: (success: unknown, result: unknown) => {
+          const res = result as Record<string, unknown>;
+          console.log("   Created upward request:", res.state); // Should be pending_review
+          upwardDelegationId = String(res.id);
+          resolve();
+        },
+      });
+    }
   });
 
   // Review (Approve)
   await new Promise<void>((resolve) => {
-    collaborationHandlers["collab.delegation.review"]!({
-      params: {
-        delegationId: upwardDelegationId,
-        reviewerId: requesterId,
-        decision: "approve",
-        comment: "Budget approved",
-      },
-      ...commonArgs,
-      client: mockClient(requesterId),
-      context: mockContext,
-      respond: (success, result, error) => {
-        if (!success) {
-          console.error("❌ Review Failed:", error);
-          process.exit(1);
-        }
-        console.log("   ✅ Review successful:", (result as any).state); // should be assigned
-        resolve();
-      },
-    });
+    const reviewHandler = collaborationHandlers["collab.delegation.review"];
+    if (reviewHandler) {
+      void reviewHandler({
+        params: {
+          delegationId: upwardDelegationId,
+          reviewerId: requesterId,
+          decision: "approve",
+          comment: "Budget approved",
+        },
+        ...commonArgs,
+        client: mockClient(requesterId),
+        context: mockContext,
+        respond: (success: unknown, result: unknown, error: unknown) => {
+          if (!success) {
+            console.error("❌ Review Failed:", error);
+            process.exit(1);
+          }
+          const res = result as Record<string, unknown>;
+          console.log("   ✅ Review successful:", res.state); // should be assigned
+          resolve();
+        },
+      });
+    }
   });
 
   // 5. COMPLETE
   console.log("\n5️⃣  Testing `collab.delegation.complete`...");
   await new Promise<void>((resolve) => {
-    collaborationHandlers["collab.delegation.complete"]!({
-      params: {
-        delegationId: delegationId, // The first downward delegation
-        agentId: targetId, // Assignee
-        status: "success",
-        artifact: "Here is the code",
-      },
-      ...commonArgs,
-      client: mockClient(targetId),
-      context: mockContext,
-      respond: (success, result, error) => {
-        if (!success) {
-          console.error("❌ Complete Failed:", error);
-          process.exit(1);
-        }
-        console.log("   ✅ Completion successful:", (result as any).state);
-        resolve();
-      },
-    });
+    const completeHandler = collaborationHandlers["collab.delegation.complete"];
+    if (completeHandler) {
+      void completeHandler({
+        params: {
+          delegationId: delegationId, // The first downward delegation
+          agentId: targetId, // Assignee
+          status: "success",
+          artifact: "Here is the code",
+        },
+        ...commonArgs,
+        client: mockClient(targetId),
+        context: mockContext,
+        respond: (success: unknown, result: unknown, error: unknown) => {
+          if (!success) {
+            console.error("❌ Complete Failed:", error);
+            process.exit(1);
+          }
+          const res = result as Record<string, unknown>;
+          console.log("   ✅ Completion successful:", res.state);
+          resolve();
+        },
+      });
+    }
   });
 
   console.log("\nTop marks! All tests passed. 🟢");

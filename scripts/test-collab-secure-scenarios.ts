@@ -19,14 +19,14 @@ function mockClient(agentId: string): GatewayClient {
         mode: "agent",
       },
     },
-  } as any;
+  } as unknown as GatewayClient;
 }
 
 async function runTest() {
   console.log("🛡️  Starting Collaboration Security Tests...\n");
 
   // Dynamic import to load server methods
-  const { initializeCollaborativeSession, publishProposal, collaborationHandlers } =
+  const { initializeCollaborativeSession, collaborationHandlers } =
     await import("../src/gateway/server-methods/collaboration.js");
 
   // 1. Setup Session
@@ -44,7 +44,7 @@ async function runTest() {
 
   try {
     await new Promise<void>((resolve, reject) => {
-      publishHandler({
+      void publishHandler({
         params: {
           sessionKey: session.sessionKey,
           agentId: "alice",
@@ -52,22 +52,24 @@ async function runTest() {
           proposal: "Alice's Proposal",
           reasoning: "Valid",
         },
-        respond: (success, data, err) => {
+        respond: (success: unknown, data: unknown, err: unknown) => {
           if (success) {
             console.log("   ✅ Success (Expected)");
             resolve();
           } else {
-            reject(new Error(`Failed: ${err?.message}`));
+            const error = err as { message?: string } | undefined;
+            reject(new Error(`Failed: ${String(error?.message)}`));
           }
         },
-        context: {} as any,
+        context: {} as Record<string, unknown>,
         client: mockClient("alice"), // Correct Identity
-        req: {} as any,
+        req: {} as Record<string, unknown>,
         isWebchatConnect: () => false,
       });
     });
-  } catch (e: any) {
-    console.error(`   ❌ Failed unexpected: ${e.message}`);
+  } catch (e: unknown) {
+    const error = e as { message: string };
+    console.error(`   ❌ Failed unexpected: ${error.message}`);
     process.exit(1);
   }
 
@@ -75,7 +77,7 @@ async function runTest() {
   console.log("\n3️⃣  Test: Impersonation Attack (Eve -> Bob)...");
   try {
     await new Promise<void>((resolve, reject) => {
-      publishHandler({
+      void publishHandler({
         params: {
           sessionKey: session.sessionKey,
           agentId: "bob", // TARGET
@@ -83,28 +85,30 @@ async function runTest() {
           proposal: "Eve's Malicious Proposal",
           reasoning: "Evil",
         },
-        respond: (success, data, err) => {
+        respond: (success: unknown, data: unknown, err: unknown) => {
           if (success) {
             console.error("   ❌ FAILED: Operation succeeded but should have been blocked!");
             reject(new Error("Security Bypass Detected"));
           } else {
             // We expect failure only here!
-            console.log(`   ✅ Blocked (Expected): ${err?.message}`);
+            const error = err as { message?: string } | undefined;
+            console.log(`   ✅ Blocked (Expected): ${String(error?.message)}`);
             resolve();
           }
         },
-        context: {} as any,
+        context: {} as Record<string, unknown>,
         client: mockClient("eve"), // ATTACKER Identity
-        req: {} as any,
+        req: {} as Record<string, unknown>,
         isWebchatConnect: () => false,
       });
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     // If the handler throws (which assertClientIdentity does), we catch it here
-    if (e.message.includes("Not authorized") || e.message.includes("cannot act as")) {
-      console.log(`   ✅ Blocked (Expected Exception): ${e.message}`);
+    const error = e as { message: string };
+    if (error.message.includes("Not authorized") || error.message.includes("cannot act as")) {
+      console.log(`   ✅ Blocked (Expected Exception): ${error.message}`);
     } else {
-      console.error(`   ❌ Failed with unexpected error: ${e.message}`);
+      console.error(`   ❌ Failed with unexpected error: ${error.message}`);
       process.exit(1);
     }
   }
@@ -114,11 +118,12 @@ async function runTest() {
   const dirHandler = collaborationHandlers["collab.directory.list"];
   try {
     await new Promise<void>((resolve, reject) => {
-      dirHandler({
+      void dirHandler({
         params: {},
-        respond: (success, data, err) => {
+        respond: (success: unknown, data: unknown, err: unknown) => {
           if (success) {
-            const agents = (data as any).agents;
+            const result = data as Record<string, unknown>;
+            const agents = result.agents;
             if (Array.isArray(agents) && agents.length > 0) {
               console.log(`   ✅ Success: Retrieved ${agents.length} agents.`);
               resolve();
@@ -126,17 +131,19 @@ async function runTest() {
               reject(new Error("Agent list empty or invalid"));
             }
           } else {
-            reject(new Error(`Failed: ${err?.message}`));
+            const error = err as { message?: string } | undefined;
+            reject(new Error(`Failed: ${String(error?.message)}`));
           }
         },
-        context: {} as any,
+        context: {} as Record<string, unknown>,
         client: mockClient("alice"),
-        req: {} as any,
+        req: {} as Record<string, unknown>,
         isWebchatConnect: () => false,
       });
     });
-  } catch (e: any) {
-    console.error(`   ❌ Failed: ${e.message}`);
+  } catch (e: unknown) {
+    const error = e as { message: string };
+    console.error(`   ❌ Failed: ${error.message}`);
     process.exit(1);
   }
 
