@@ -10,6 +10,7 @@ import {
   editMessageTelegram,
   reactMessageTelegram,
   sendMessageTelegram,
+  sendPollTelegram,
   sendStickerTelegram,
 } from "../../telegram/send.js";
 import { getCacheStats, searchStickers } from "../../telegram/sticker-cache.js";
@@ -325,6 +326,39 @@ export async function handleTelegramAction(
   if (action === "stickerCacheStats") {
     const stats = getCacheStats();
     return jsonResult({ ok: true, ...stats });
+  }
+
+  if (action === "poll") {
+    if (!isActionEnabled("polls")) {
+      throw new Error("Telegram polls are disabled. Set channels.telegram.actions.polls to true.");
+    }
+    const to = readStringParam(params, "to", { required: true });
+    const poll = params.poll;
+    if (!poll || typeof poll !== "object") {
+      throw new Error("Poll object is required");
+    }
+    const threadId = readNumberParam(params, "threadId", { integer: true });
+    const silent = typeof params.silent === "boolean" ? params.silent : undefined;
+    const isAnonymous = typeof params.isAnonymous === "boolean" ? params.isAnonymous : undefined;
+    const token = resolveTelegramToken(cfg, { accountId }).token;
+    if (!token) {
+      throw new Error(
+        "Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken.",
+      );
+    }
+    const result = await sendPollTelegram(to, poll as any, {
+      token,
+      accountId: accountId ?? undefined,
+      messageThreadId: threadId ?? undefined,
+      silent,
+      isAnonymous,
+    });
+    return jsonResult({
+      ok: true,
+      messageId: result.messageId,
+      chatId: result.chatId,
+      pollId: result.pollId,
+    });
   }
 
   throw new Error(`Unsupported Telegram action: ${action}`);
