@@ -73,6 +73,7 @@ function readBooleanParam(params: Record<string, unknown>, key: string): boolean
 const SUPPORTED_ACTIONS = new Set<ChannelMessageActionName>(BLUEBUBBLES_ACTION_NAMES);
 const PRIVATE_API_ACTIONS = new Set<ChannelMessageActionName>([
   "react",
+  "reply",
   "edit",
   "unsend",
   "sendWithEffect",
