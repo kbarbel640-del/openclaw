@@ -218,7 +218,6 @@ export async function runEmbeddedAttempt(
   const resolvedWorkspace = resolveUserPath(params.workspaceDir);
   const prevCwd = process.cwd();
   const runAbortController = new AbortController();
-  const shouldConsoleLogLlmIo = params.model.api !== "ollama";
 
   log.debug(
     `embedded run start: runId=${params.runId} sessionId=${params.sessionId} provider=${params.provider} model=${params.modelId} thinking=${params.thinkLevel} messageChannel=${params.messageChannel ?? params.messageProvider ?? "unknown"}`,
@@ -983,19 +982,6 @@ export async function runEmbeddedAttempt(
               });
           }
 
-          if (shouldConsoleLogLlmIo) {
-            console.log("[openclaw][llm:input]", {
-              runId: params.runId,
-              sessionId: params.sessionId,
-              provider: params.provider,
-              model: params.modelId,
-              systemPrompt: systemPromptText,
-              prompt: effectivePrompt,
-              historyMessages: activeSession.messages,
-              imagesCount: imageResult.images.length,
-            });
-          }
-
           if (imageResult.images.length > 0) {
             await abortable(activeSession.prompt(effectivePrompt, { images: imageResult.images }));
           } else {
@@ -1142,18 +1128,6 @@ export async function runEmbeddedAttempt(
             typeof entry.toolName === "string" && entry.toolName.trim().length > 0,
         )
         .map((entry) => ({ toolName: entry.toolName, meta: entry.meta }));
-
-      if (shouldConsoleLogLlmIo) {
-        console.log("[openclaw][llm:output]", {
-          runId: params.runId,
-          sessionId: params.sessionId,
-          provider: params.provider,
-          model: params.modelId,
-          assistantTexts,
-          lastAssistant,
-          usage: getUsageTotals(),
-        });
-      }
 
       if (hookRunner?.hasHooks("llm_output")) {
         hookRunner
