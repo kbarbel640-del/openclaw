@@ -1267,6 +1267,9 @@ class TalkModeManager(
         // Error 11 (Server Disconnected) and 4 (Server) often require a full recognizer reset
         if (error == 11 || error == SpeechRecognizer.ERROR_SERVER || error == SpeechRecognizer.ERROR_CLIENT) {
            Log.w(tag, "Severe speech error($error); recreating recognizer")
+           recognizer?.cancel()
+           recognizer?.destroy()
+           recognizer = null
            mainHandler.postDelayed({ start() }, 600)
         } else {
            scheduleRestart(delayMs = 600)
