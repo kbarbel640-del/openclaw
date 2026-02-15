@@ -373,7 +373,11 @@ export async function runMissedJobs(
     if (!j.enabled) {
       return false;
     }
+    // Skip jobs that were interrupted (had a stale running marker cleared
+    // on startup).  Re-firing them immediately risks a restart loop when
+    // the job itself caused the previous crash/hang.  (#16694)
     if (skipJobIds?.has(j.id)) {
+      state.deps.log.info({ jobId: j.id }, "cron: skipping interrupted job to avoid restart loop");
       return false;
     }
     if (typeof j.state.runningAtMs === "number") {

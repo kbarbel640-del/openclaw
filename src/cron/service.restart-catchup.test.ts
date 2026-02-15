@@ -101,7 +101,7 @@ describe("CronService restart catch-up", () => {
     await store.cleanup();
   });
 
-  it("clears stale running markers without replaying interrupted startup jobs", async () => {
+  it("skips interrupted job on restart to avoid restart loop (#16694)", async () => {
     const store = await makeStorePath();
     const enqueueSystemEvent = vi.fn();
     const requestHeartbeatNow = vi.fn();
@@ -150,18 +150,103 @@ describe("CronService restart catch-up", () => {
 
     await cron.start();
 
-    expect(enqueueSystemEvent).not.toHaveBeenCalled();
+    // The stale running marker should be cleared…
     expect(noopLogger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ jobId: "restart-stale-running" }),
       "cron: clearing stale running marker on startup",
     );
 
+    // …but the interrupted job should NOT be re-fired (#16694)
+    expect(enqueueSystemEvent).not.toHaveBeenCalled();
+
+    // The skip should be logged
+    expect(noopLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: "restart-stale-running" }),
+      "cron: skipping interrupted job to avoid restart loop",
+    );
+
     const jobs = await cron.list({ includeDisabled: true });
     const updated = jobs.find((job) => job.id === "restart-stale-running");
     expect(updated?.state.runningAtMs).toBeUndefined();
+    // lastStatus should be unchanged (not set to "ok") since the job was skipped
     expect(updated?.state.lastStatus).toBeUndefined();
     expect(updated?.state.lastRunAtMs).toBeUndefined();
     expect((updated?.state.nextRunAtMs ?? 0) > Date.parse("2025-12-13T17:00:00.000Z")).toBe(true);
+
+    cron.stop();
+    await store.cleanup();
+  });
+
+  it("still fires non-interrupted overdue jobs alongside interrupted ones (#16694)", async () => {
+    const store = await makeStorePath();
+    const enqueueSystemEvent = vi.fn();
+    const requestHeartbeatNow = vi.fn();
+
+    await fs.mkdir(path.dirname(store.storePath), { recursive: true });
+    await fs.writeFile(
+      store.storePath,
+      JSON.stringify(
+        {
+          version: 1,
+          jobs: [
+            {
+              id: "interrupted-job",
+              name: "was running when process died",
+              enabled: true,
+              createdAtMs: Date.parse("2025-12-10T12:00:00.000Z"),
+              updatedAtMs: Date.parse("2025-12-13T16:30:00.000Z"),
+              schedule: { kind: "cron", expr: "0 16 * * *", tz: "UTC" },
+              sessionTarget: "main",
+              wakeMode: "next-heartbeat",
+              payload: { kind: "systemEvent", text: "interrupted payload" },
+              state: {
+                nextRunAtMs: Date.parse("2025-12-13T16:00:00.000Z"),
+                runningAtMs: Date.parse("2025-12-13T16:30:00.000Z"),
+              },
+            },
+            {
+              id: "clean-overdue-job",
+              name: "missed but not interrupted",
+              enabled: true,
+              createdAtMs: Date.parse("2025-12-10T12:00:00.000Z"),
+              updatedAtMs: Date.parse("2025-12-12T15:00:00.000Z"),
+              schedule: { kind: "cron", expr: "0 15 * * *", tz: "UTC" },
+              sessionTarget: "main",
+              wakeMode: "next-heartbeat",
+              payload: { kind: "systemEvent", text: "clean overdue payload" },
+              state: {
+                nextRunAtMs: Date.parse("2025-12-13T15:00:00.000Z"),
+                lastRunAtMs: Date.parse("2025-12-12T15:00:00.000Z"),
+                lastStatus: "ok",
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const cron = new CronService({
+      storePath: store.storePath,
+      cronEnabled: true,
+      log: noopLogger,
+      enqueueSystemEvent,
+      requestHeartbeatNow,
+      runIsolatedAgentJob: vi.fn(async () => ({ status: "ok" })),
+    });
+
+    await cron.start();
+
+    // The clean overdue job should fire
+    expect(enqueueSystemEvent).toHaveBeenCalledWith("clean overdue payload", {
+      agentId: undefined,
+    });
+    // The interrupted job should NOT fire
+    expect(enqueueSystemEvent).not.toHaveBeenCalledWith("interrupted payload", {
+      agentId: undefined,
+    });
 
     cron.stop();
     await store.cleanup();
