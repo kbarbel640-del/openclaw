@@ -298,17 +298,28 @@ export async function monitorWebInbox(options: {
       const chatJid = remoteJid;
       const sendComposing = async () => {
         try {
-          await getCurrentSock().sendPresenceUpdate("composing", chatJid);
+          const currentSock = getCurrentSock();
+          if (!currentSock) {
+            logVerbose("Presence update skipped: no active socket");
+            return;
+          }
+          await currentSock.sendPresenceUpdate("composing", chatJid);
         } catch (err) {
           logVerbose(`Presence update failed: ${String(err)}`);
         }
       };
       const reply = async (text: string) => {
         const currentSock = getCurrentSock();
+        if (!currentSock) {
+          throw new Error("no active socket - reconnection in progress");
+        }
         await currentSock.sendMessage(chatJid, { text });
       };
       const sendMedia = async (payload: AnyMessageContent) => {
         const currentSock = getCurrentSock();
+        if (!currentSock) {
+          throw new Error("no active socket - reconnection in progress");
+        }
         await currentSock.sendMessage(chatJid, payload);
       };
       const timestamp = messageTimestampMs;

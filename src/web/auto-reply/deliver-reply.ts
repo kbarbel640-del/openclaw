@@ -61,20 +61,23 @@ export async function deliverWebReply(params: {
         const errText = formatError(err);
         const isDisconnect = /closed|reset|timed\s*out|disconnect|no active socket/i.test(errText);
 
-        // On first disconnect error, escalate to extended retry schedule.
-        if (isDisconnect && strategy === STANDARD) {
-          strategy = DISCONNECT;
-        }
-
         const isLast = attempt >= strategy.maxAttempts;
         if (!isDisconnect || isLast) {
           throw err;
         }
 
+        // Calculate backoff with the CURRENT strategy before escalating,
+        // so the first disconnect retry uses the standard short delay.
         const backoffMs =
           strategy.factor === 1
             ? strategy.baseMs * attempt
             : strategy.baseMs * Math.pow(strategy.factor, attempt - 1);
+
+        // On first disconnect error, escalate to extended retry schedule
+        // for subsequent attempts.
+        if (isDisconnect && strategy === STANDARD) {
+          strategy = DISCONNECT;
+        }
         logVerbose(
           `Retrying ${label} to ${msg.from} after failure (${attempt}/${strategy.maxAttempts}) in ${backoffMs}ms: ${errText}`,
         );
