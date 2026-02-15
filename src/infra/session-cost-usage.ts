@@ -34,6 +34,7 @@ import { estimateUsageCost, resolveModelCostConfig } from "../utils/usage-format
 
 export type {
   CostUsageDailyEntry,
+  CostUsageModelEntry,
   CostUsageSummary,
   CostUsageTotals,
   DiscoveredSession,
