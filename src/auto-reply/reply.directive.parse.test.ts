@@ -253,4 +253,17 @@ describe("directive parsing", () => {
     expect(res.hasDirective).toBe(false);
     expect(res.cleaned).toBe("I'm /planning to do this");
   });
+
+  it("handles invalid plan level", () => {
+    const res = extractPlanDirective("/plan maybe");
+    expect(res.hasDirective).toBe(true);
+    expect(res.planLevel).toBeUndefined();
+    expect(res.rawLevel).toBe("maybe");
+  });
+
+  it("handles /plan: colon variant", () => {
+    const res = extractPlanDirective("/plan: on");
+    expect(res.hasDirective).toBe(true);
+    expect(res.planLevel).toBe("on");
+  });
 });

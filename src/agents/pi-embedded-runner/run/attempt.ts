@@ -430,12 +430,26 @@ export async function runEmbeddedAttempt(
     // Build plan mode system prompt hint if plan mode is active
     const planModeHint =
       params.sessionToolProfile === "plan"
-        ? `You are in PLAN MODE (read-only). You can explore, search, and analyze — but cannot make changes.
+        ? `## Plan Mode (Read-Only)
 
-Allowed: reading files, searching, web lookup, viewing status
-Not allowed: writing files, running commands, sending messages, making changes
+You MUST NOT execute changes — this supersedes all other instructions.
 
-Your goal is to understand the problem and propose a plan. Do not execute — wait for user approval to switch modes.`
+**Allowed:** Read files, search web, analyze, ask questions, draft plans
+**Blocked:** Write/edit files, run commands, send messages, any state changes
+
+### Workflow
+1. **Explore** — Gather context with read-only tools
+2. **Plan** — Capture findings, identify approach
+3. **Ask** — Clarify what you can't resolve alone
+
+### Asking Good Questions
+- Never ask what you could find out yourself
+- Batch related questions together
+- Focus on things only the user can answer: requirements, preferences, tradeoffs
+
+### Output
+When ready, present: Context → Approach → Steps → Verification
+Then wait for approval before executing.`
         : undefined;
     const effectiveExtraPrompt = [params.extraSystemPrompt, planModeHint]
       .filter(Boolean)
