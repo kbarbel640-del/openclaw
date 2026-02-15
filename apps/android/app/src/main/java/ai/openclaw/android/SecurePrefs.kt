@@ -167,7 +167,7 @@ class SecurePrefs(context: Context) {
 
   fun setElevenLabsVoiceId(value: String) {
     val trimmed = value.trim()
-    prefs.edit { putString("eleven_labs_voice_id", trimmed) }
+    prefs.edit { putString("voice.elevenLabsVoiceId", trimmed) }
     _elevenLabsVoiceId.value = trimmed
   }
 
