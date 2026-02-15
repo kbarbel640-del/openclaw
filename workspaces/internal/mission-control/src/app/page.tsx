@@ -76,42 +76,8 @@ function useTasksStream() {
   return { tasks, connected, err };
 }
 
-type OpsMetrics = Record<string, { cpuPct?: number; memUsedPct?: number }>;
-
-function useOpsMetrics() {
-  const [metrics, setMetrics] = React.useState<OpsMetrics | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    let alive = true;
-
-    async function tick() {
-      try {
-        const res = await fetch('/api/ops', { cache: 'no-store' });
-        const data = await res.json();
-        if (!alive) return;
-        setMetrics(data?.metrics ?? null);
-        setErr(res.ok ? null : data?.error ?? `HTTP ${res.status}`);
-      } catch (e: unknown) {
-        if (!alive) return;
-        setErr(e instanceof Error ? e.message : 'ops fetch failed');
-      }
-    }
-
-    tick();
-    const t = setInterval(tick, 5000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, []);
-
-  return { metrics, err };
-}
-
 export default function Page() {
   const { tasks, connected, err } = useTasksStream();
-  const { metrics, err: opsErr } = useOpsMetrics();
 
   const [title, setTitle] = React.useState('');
   const [project, setProject] = React.useState('');
@@ -190,27 +156,12 @@ export default function Page() {
                 Stream: <span className={connected ? 'text-emerald-300' : 'text-amber-300'}>{connected ? 'CONNECTED' : 'DISCONNECTED'}</span>
                 {err ? <span className="ml-2 text-red-300">{err}</span> : null}
               </div>
-              {opsErr ? <div className="mt-1 text-xs text-red-300">Metrics error: {opsErr}</div> : null}
+              {/* Metrics disabled (was backed by /api/ops). */}
               {actionErr ? <div className="mt-2 text-xs text-red-300">Action error: {actionErr}</div> : null}
             </div>
             <div className="text-xs text-slate-400 space-y-1">
               <div>Tasks: {tasks.length} • Alerts: {alerts.length}</div>
-              <div className="flex flex-wrap gap-2">
-                {['MACMINI', 'DEV-PC-I9'].map((name) => {
-                  const m = metrics?.[name];
-                  const cpu = typeof m?.cpuPct === 'number' ? m.cpuPct : null;
-                  const mem = typeof m?.memUsedPct === 'number' ? m.memUsedPct : null;
-                  return (
-                    <span key={name} className="rounded border border-slate-700 bg-slate-950 px-2 py-1">
-                      <span className="text-slate-300 font-semibold">{name}</span>
-                      <span className="text-slate-500"> • </span>
-                      <span className="text-slate-300">CPU {cpu !== null ? cpu.toFixed(0) + '%' : '—'}</span>
-                      <span className="text-slate-500"> • </span>
-                      <span className="text-slate-300">MEM {mem !== null ? mem.toFixed(0) + '%' : '—'}</span>
-                    </span>
-                  );
-                })}
-              </div>
+              {/* ops metrics removed */}
             </div>
           </div>
         </header>

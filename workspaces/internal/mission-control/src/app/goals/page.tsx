@@ -1,6 +1,7 @@
 import goalsData from '../../../data/goals.json';
 
 type Goal = {
+  id: string;
   title: string;
   description?: string;
   status?: string;
@@ -21,7 +22,7 @@ export default function GoalsPage() {
       <div className="space-y-3">
         {goals.map((g) => (
           <div
-            key={g.title}
+            key={g.id}
             className="rounded-lg border border-slate-800 bg-slate-950/40 p-4"
           >
             <div className="flex items-start justify-between gap-4">

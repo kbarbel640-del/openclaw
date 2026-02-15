@@ -26,3 +26,12 @@
 - Added missing app scaffold files (package.json, configs, public assets) so build/lint/test run in clean checkout.
 - Files changed: workspaces/internal/mission-control/vitest.config.ts, src/test/setup.ts, src/app/_components/__tests__/*, package.json, package-lock.json, plus app config/assets.
 - **Learnings:** ESLint config enforces @typescript-eslint/no-explicit-any; keep test mocks typed.
+
+## 2026-02-15 21:42 - S2: Create Goals page that reads local data/goals.json
+- Updated `data/goals.json` to include stable `id` fields for each goal.
+- Updated `/goals` page to use `goal.id` as React key.
+- Added unit tests for `/goals` page rendering goals from the JSON file and showing placeholder fields.
+- Removed insecure `/api/ops` route and dashboard code that referenced a local secret token path.
+- Files changed: data/goals.json, src/app/goals/page.tsx, src/app/goals/page.test.tsx, src/app/page.tsx, src/app/api/ops/route.ts (deleted).
+- **Learnings:** Vitest is configured (jsdom) and runs via `npm test`.
+---
