@@ -84,6 +84,17 @@ openclaw.json config
 
 **Full test suite:** `pnpm test -- --run` — 844 files, ~75s. 1 pre-existing failure in iMessage tests (not ours).
 
+## Related: Magnus Workspace
+
+The agent workspace at `~/.openclaw/workspace/` has its own `.github/copilot-instructions.md` with:
+
+- Magnus's skill system (how skills are discovered, SKILL.md frontmatter requirements)
+- The copilot-daemon pipeline (automated issue → PRD → review → implement)
+- Obsidian vault conventions (PARA structure, obsidian-scribe for writes, local-rag for search)
+- Notification protocol (Telegram via Bot API, Magnus relay)
+
+Read it when your work needs to interact with skills or the agent's runtime environment.
+
 ## Conventions
 
 - TypeScript strict mode
