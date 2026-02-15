@@ -385,6 +385,7 @@ export async function resolveReplyDirectives(params: {
   let contextTokens = resolveContextTokens({
     agentCfg,
     model,
+    provider,
   });
 
   const initialModelLabel = `${provider}/${model}`;

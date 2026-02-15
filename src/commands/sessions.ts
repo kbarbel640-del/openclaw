@@ -33,6 +33,7 @@ type SessionRow = {
   totalTokens?: number;
   totalTokensFresh?: boolean;
   model?: string;
+  modelProvider?: string;
   contextTokens?: number;
 };
 
@@ -153,6 +154,7 @@ function toRows(store: Record<string, SessionEntry>): SessionRow[] {
         totalTokens: entry?.totalTokens,
         totalTokensFresh: entry?.totalTokensFresh,
         model: entry?.model,
+        modelProvider: entry?.modelProvider,
         contextTokens: entry?.contextTokens,
       } satisfies SessionRow;
     })
@@ -169,8 +171,10 @@ export async function sessionsCommand(
     defaultProvider: DEFAULT_PROVIDER,
     defaultModel: DEFAULT_MODEL,
   });
+  const configProvider = resolved.provider ?? DEFAULT_PROVIDER;
   const configContextTokens =
     cfg.agents?.defaults?.contextTokens ??
+    lookupContextTokens(`${configProvider}/${resolved.model}`) ??
     lookupContextTokens(resolved.model) ??
     DEFAULT_CONTEXT_TOKENS;
   const configModel = resolved.model ?? DEFAULT_MODEL;
@@ -211,7 +215,13 @@ export async function sessionsCommand(
             totalTokensFresh:
               typeof r.totalTokens === "number" ? r.totalTokensFresh !== false : false,
             contextTokens:
-              r.contextTokens ?? lookupContextTokens(r.model) ?? configContextTokens ?? null,
+              r.contextTokens ??
+              (r.modelProvider && r.model
+                ? lookupContextTokens(`${r.modelProvider}/${r.model}`)
+                : undefined) ??
+              lookupContextTokens(r.model) ??
+              configContextTokens ??
+              null,
             model: r.model ?? configModel ?? null,
           })),
         },
@@ -246,7 +256,12 @@ export async function sessionsCommand(
 
   for (const row of rows) {
     const model = row.model ?? configModel;
-    const contextTokens = row.contextTokens ?? lookupContextTokens(model) ?? configContextTokens;
+    const rowProvider = row.modelProvider ?? configProvider;
+    const contextTokens =
+      row.contextTokens ??
+      (rowProvider && model ? lookupContextTokens(`${rowProvider}/${model}`) : undefined) ??
+      lookupContextTokens(model) ??
+      configContextTokens;
     const total = resolveFreshSessionTotalTokens(row);
 
     const keyLabel = truncateKey(row.key).padEnd(KEY_PAD);
