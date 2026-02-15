@@ -17,14 +17,23 @@ export const CRITICAL_THRESHOLD = 20;
  */
 export function hashToolCall(toolName: string, params: unknown): string {
   try {
-    const paramsStr =
-      typeof params === "object" && params !== null
-        ? JSON.stringify(params, Object.keys(params).toSorted())
-        : String(params);
+    const paramsStr = stableStringify(params);
     return `${toolName}:${paramsStr}`;
   } catch {
     return `${toolName}:${String(params)}`;
   }
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).toSorted();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`;
 }
 
 /**

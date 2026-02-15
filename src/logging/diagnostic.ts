@@ -320,7 +320,9 @@ export function startDiagnosticHeartbeat() {
           pruneStaleCommandPolls(state);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        diag.debug(`command-poll-backoff prune failed: ${String(err)}`);
+      });
 
     for (const [, state] of diagnosticSessionStates) {
       const ageMs = now - state.lastActivity;
