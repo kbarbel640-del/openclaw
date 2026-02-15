@@ -1,9 +1,5 @@
 import { vi } from "vitest";
 
-// Avoid exporting vitest mock types (TS2742 under pnpm + d.ts emit).
-// oxlint-disable-next-line typescript/no-explicit-any
-type AnyFn = (...args: any[]) => any;
-
 const mocks = vi.hoisted(() => ({
   dispatchMock: vi.fn(),
   readAllowFromStoreMock: vi.fn(),
@@ -32,7 +28,14 @@ vi.mock("../../agents/identity.js", async (importOriginal) => {
   };
 });
 
-export function getSlackSlashMocks(): Record<string, AnyFn> {
+type SlashHarnessMocks = {
+  dispatchMock: ReturnType<typeof vi.fn>;
+  readAllowFromStoreMock: ReturnType<typeof vi.fn>;
+  upsertPairingRequestMock: ReturnType<typeof vi.fn>;
+  resolveAgentRouteMock: ReturnType<typeof vi.fn>;
+};
+
+export function getSlackSlashMocks(): SlashHarnessMocks {
   return mocks;
 }
 
