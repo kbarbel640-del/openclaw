@@ -335,7 +335,7 @@ const handler = async (event) => {
   if (isMessageReceivedEvent(event as { type: string; action: string })) {
     console.log(`[message-logger] Received from ${event.context.from}: ${event.context.content}`);
   } else if (isMessageSentEvent(event as { type: string; action: string })) {
-    console.log(`[message-logger] Sent to ${event.context.to}: ${event.context.content}`)
+    console.log(`[message-logger] Sent to ${event.context.to}: ${event.context.content}`);
   }
 };
 

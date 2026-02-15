@@ -1019,11 +1019,11 @@ export async function runEmbeddedAttempt(
             "received",
             params.sessionKey || params.sessionId || "",
             {
-              from: "",
+              from: params.messageTo ?? "",
               content: typeof params.prompt === "string" ? params.prompt : "",
               channel: (params.messageChannel ?? params.messageProvider ?? "").toLowerCase(),
-              senderId: undefined,
-              senderName: undefined,
+              senderId: params.senderId,
+              senderName: params.senderName,
               commandSource: (params.messageChannel ?? params.messageProvider ?? "").toLowerCase(),
             },
           ),
@@ -1092,6 +1092,12 @@ export async function runEmbeddedAttempt(
             effectivePrompt = `${messageBeforeResult.prependContext}\n\n${effectivePrompt}`;
             log.debug(
               `message:before hook prepended context (${messageBeforeResult.prependContext.length} chars)`,
+            );
+          }
+          if (messageBeforeResult?.systemPrompt) {
+            applySystemPromptOverrideToSession(activeSession, messageBeforeResult.systemPrompt);
+            log.debug(
+              `message:before hook overrode system prompt (${messageBeforeResult.systemPrompt.length} chars)`,
             );
           }
         } catch (err) {
