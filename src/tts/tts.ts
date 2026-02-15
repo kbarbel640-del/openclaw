@@ -38,6 +38,7 @@ import {
   createPinnedDispatcher,
   resolvePinnedHostname,
 } from "../infra/net/ssrf.js";
+import { stripMarkdown } from "../line/markdown-to-line.js";
 import { isVoiceCompatibleAudio } from "../media/audio.js";
 import { CONFIG_DIR, resolveUserPath } from "../utils.js";
 
@@ -908,13 +909,18 @@ function isCustomOpenAIEndpoint(): boolean {
 export const OPENAI_TTS_VOICES = [
   "alloy",
   "ash",
+  "ballad",
+  "cedar",
   "coral",
   "echo",
   "fable",
+  "juniper",
+  "marin",
   "onyx",
   "nova",
   "sage",
   "shimmer",
+  "verse",
 ] as const;
 
 type OpenAiTtsVoice = (typeof OPENAI_TTS_VOICES)[number];
@@ -1733,7 +1739,8 @@ export async function maybeApplyTtsToPayload(params: {
   if (text.includes("MEDIA:")) {
     return nextPayload;
   }
-  if (ttsText.trim().length < 10) {
+  // Skip auto-TTS for inputs that become too short once markdown syntax is removed.
+  if (stripMarkdown(ttsText).trim().length < 10) {
     return nextPayload;
   }
 
