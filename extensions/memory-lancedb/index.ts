@@ -11,8 +11,8 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { Type } from "@sinclair/typebox";
 import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
-import { stringEnum } from "openclaw/plugin-sdk";
 import {
+  DEFAULT_CAPTURE_MAX_CHARS,
   MEMORY_CATEGORIES,
   type MemoryCategory,
   memoryConfigSchema,
@@ -195,8 +195,9 @@ const MEMORY_TRIGGERS = [
   /always|never|important/i,
 ];
 
-export function shouldCapture(text: string): boolean {
-  if (text.length < 10 || text.length > 500) {
+export function shouldCapture(text: string, options?: { maxChars?: number }): boolean {
+  const maxChars = options?.maxChars ?? DEFAULT_CAPTURE_MAX_CHARS;
+  if (text.length < 10 || text.length > maxChars) {
     return false;
   }
   // Skip injected context from memory recall
@@ -317,7 +318,12 @@ const memoryPlugin = {
         parameters: Type.Object({
           text: Type.String({ description: "Information to remember" }),
           importance: Type.Optional(Type.Number({ description: "Importance 0-1 (default: 0.7)" })),
-          category: Type.Optional(stringEnum(MEMORY_CATEGORIES)),
+          category: Type.Optional(
+            Type.Unsafe<MemoryCategory>({
+              type: "string",
+              enum: [...MEMORY_CATEGORIES],
+            }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const {
@@ -566,7 +572,9 @@ const memoryPlugin = {
           }
 
           // Filter for capturable content
-          const toCapture = texts.filter((text) => text && shouldCapture(text));
+          const toCapture = texts.filter(
+            (text) => text && shouldCapture(text, { maxChars: cfg.captureMaxChars }),
+          );
           if (toCapture.length === 0) {
             return;
           }
