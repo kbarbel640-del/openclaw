@@ -254,8 +254,13 @@ export async function sendMessageTelegram(
   // Only include these if actually provided to keep API calls clean.
   const messageThreadId =
     opts.messageThreadId != null ? opts.messageThreadId : target.messageThreadId;
+  // Private chats (positive chatId) don't support forum topics or message_thread_id.
+  // Only include message_thread_id for groups/supergroups (negative chatId).
+  const isPrivateChat = chatId > 0;
   const threadSpec =
-    messageThreadId != null ? { id: messageThreadId, scope: "forum" as const } : undefined;
+    messageThreadId != null && !isPrivateChat
+      ? { id: messageThreadId, scope: "forum" as const }
+      : undefined;
   const threadIdParams = buildTelegramThreadParams(threadSpec);
   const threadParams: Record<string, unknown> = threadIdParams ? { ...threadIdParams } : {};
   const quoteText = opts.quoteText?.trim();
