@@ -661,6 +661,7 @@ struct OnboardingWizardView: View {
     private func resumeAfterPairingApproval() {
         // We intentionally stop reconnect churn while unpaired to avoid generating multiple pending requests.
         self.appModel.gatewayAutoReconnectEnabled = true
+        self.appModel.gatewayPairingPaused = false
         self.connectMessage = "Retrying after approval…"
         self.statusLine = "Retrying after approval…"
         Task { await self.retryLastAttempt() }
