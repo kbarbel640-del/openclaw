@@ -1,6 +1,7 @@
 import { startGatewayBonjourAdvertiser } from "../infra/bonjour.js";
 import { pickPrimaryTailnetIPv4, pickPrimaryTailnetIPv6 } from "../infra/tailnet.js";
 import { resolveWideAreaDiscoveryDomain, writeWideAreaGatewayZone } from "../infra/widearea-dns.js";
+import { pickPrimaryLanIPv4 } from "./net.js";
 import {
   formatBonjourInstanceName,
   resolveBonjourCliPath,
@@ -50,6 +51,7 @@ export async function startGatewayDiscovery(params: {
         tailnetDns,
         cliPath,
         minimal: mdnsMinimal,
+        networkInterface: pickPrimaryLanIPv4(),
       });
       bonjourStop = bonjour.stop;
     } catch (err) {
