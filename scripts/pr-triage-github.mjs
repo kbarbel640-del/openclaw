@@ -8,20 +8,27 @@ const GITHUB_API = "https://api.github.com";
 export function createGitHubClient(token) {
   async function gh(path, opts = {}) {
     const url = path.startsWith("http") ? path : `${GITHUB_API}${path}`;
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `token ${token}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        ...opts.headers,
-      },
-      ...opts,
-    });
-    if (!res.ok) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          ...opts.headers,
+        },
+        ...opts,
+      });
+      if (res.ok) { return res.json(); }
+      if (res.status === 429 || res.status >= 500) {
+        const delay = Math.pow(2, attempt) * 1000;
+        console.warn(`GitHub API ${res.status} on ${path}, retry in ${delay}ms (${attempt + 1}/3)`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
       const body = await res.text().catch(() => "");
       throw new Error(`GitHub API ${res.status}: ${path} — ${body.slice(0, 200)}`);
     }
-    return res.json();
+    throw new Error(`GitHub API failed after 3 retries: ${path}`);
   }
 
   async function ghPaginate(path, maxItems = 100) {
@@ -42,10 +49,18 @@ export function createGitHubClient(token) {
   return { gh, ghPaginate };
 }
 
+/**
+ * Extract issue refs with contextual matching to reduce false positives.
+ * Only matches GitHub-style references: "fixes #N", "closes #N", bare "#N" at line starts.
+ */
 export function extractIssueRefs(text) {
   if (!text) { return []; }
-  const matches = text.match(/#(\d{3,6})/g) || [];
-  return [...new Set(matches)];
+  const contextual = text.match(/(?:fix(?:es)?|close[sd]?|resolve[sd]?|refs?|see|relates?\s+to)\s+#(\d{1,6})/gi) || [];
+  const bare = text.match(/(?:^|\n)\s*[-*]?\s*#(\d{1,6})\b/g) || [];
+  const all = [...contextual, ...bare]
+    .map((m) => { const match = m.match(/#(\d{1,6})/); return match ? `#${match[1]}` : null; })
+    .filter(Boolean);
+  return [...new Set(all)];
 }
 
 export function computeFileOverlap(filesA, filesB) {
@@ -56,18 +71,28 @@ export function computeFileOverlap(filesA, filesB) {
   return intersection.length / union.size;
 }
 
+function shortPath(filepath) {
+  const parts = filepath.split("/");
+  return parts.length > 2 ? parts.slice(-2).join("/") : filepath;
+}
+
 function summarizePR(pr) {
   const issueRefs = extractIssueRefs(pr.title + " " + (pr.body || ""));
-  return [
-    `#${pr.number}: ${pr.title}`,
-    `  author:${pr.user?.login || pr.author} +${pr.additions}/-${pr.deletions} ${pr.changed_files ?? pr.files?.length ?? "?"} files`,
-    pr.files?.length
-      ? `  files: ${pr.files.slice(0, 8).join(", ")}${pr.files.length > 8 ? ` (+${pr.files.length - 8} more)` : ""}`
-      : "",
-    issueRefs.length ? `  refs: ${issueRefs.join(", ")}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const shortFiles = (pr.files || []).slice(0, 6).map(shortPath);
+  const moreFiles = (pr.files?.length || 0) > 6 ? ` +${pr.files.length - 6}` : "";
+  const refs = issueRefs.length ? ` refs:${issueRefs.join(",")}` : "";
+  const size = `+${pr.additions}/-${pr.deletions} ${pr.changed_files ?? pr.files?.length ?? "?"}f`;
+  return `#${pr.number} ${pr.title} ${size}\n  ${shortFiles.join(",")}${moreFiles}${refs}`;
+}
+
+async function parallelMap(items, fn, concurrency = 10) {
+  const results = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
 }
 
 export async function getTargetPR(gh, repo, prNumber, maxDiffChars, token) {
@@ -93,7 +118,7 @@ export async function getTargetPR(gh, repo, prNumber, maxDiffChars, token) {
   return {
     number: pr.number,
     title: pr.title,
-    body: (pr.body || "").slice(0, 2000),
+    body: (pr.body || "").slice(0, 4000),
     author: pr.user?.login,
     branch: pr.head?.ref,
     additions: pr.additions,
@@ -105,17 +130,30 @@ export async function getTargetPR(gh, repo, prNumber, maxDiffChars, token) {
   };
 }
 
+/**
+ * Fetch open PR summaries AND a file map for Jaccard computation.
+ * Returns { summaries: string[], fileMap: Map<number, string[]> }
+ */
 export async function getOpenPRSummaries(gh, ghPaginate, repo, maxOpenPRs) {
   const prs = await ghPaginate(`/repos/${repo}/pulls?state=open&sort=created&direction=desc`, maxOpenPRs);
-  const summaries = [];
-  for (const pr of prs) {
+  const fileMap = new Map();
+
+  const enriched = await parallelMap(prs, async (pr) => {
     let files = [];
     try {
-      files = (await gh(`/repos/${repo}/pulls/${pr.number}/files?per_page=30`)).map((f) => f.filename);
-    } catch {}
+      files = (await gh(`/repos/${repo}/pulls/${pr.number}/files?per_page=100`)).map((f) => f.filename);
+    } catch (err) {
+      console.warn(`Failed to fetch files for PR #${pr.number}: ${err.message}`);
+    }
+    return { pr, files };
+  }, 10);
+
+  const summaries = [];
+  for (const { pr, files } of enriched) {
+    fileMap.set(pr.number, files);
     summaries.push(summarizePR({ ...pr, author: pr.user?.login, files }));
   }
-  return summaries;
+  return { summaries, fileMap };
 }
 
 export async function getRecentDecisions(ghPaginate, repo, maxHistory) {
