@@ -10,9 +10,14 @@ import { loadWebMedia, loadWebMediaRaw, optimizeImageToJpeg } from "./media.js";
 let fixtureRoot = "";
 let fixtureFileCount = 0;
 let largeJpegBuffer: Buffer;
+let largeJpegFile = "";
 let tinyPngBuffer: Buffer;
+let tinyPngFile = "";
+let tinyPngWrongExtFile = "";
 let alphaPngBuffer: Buffer;
+let alphaPngFile = "";
 let fallbackPngBuffer: Buffer;
+let fallbackPngFile = "";
 let fallbackPngCap = 0;
 
 async function writeTempFile(buffer: Buffer, ext: string): Promise<string> {
@@ -32,27 +37,29 @@ function buildDeterministicBytes(length: number): Buffer {
 }
 
 async function createLargeTestJpeg(): Promise<{ buffer: Buffer; file: string }> {
-  const file = await writeTempFile(largeJpegBuffer, ".jpg");
-  return { buffer: largeJpegBuffer, file };
+  return { buffer: largeJpegBuffer, file: largeJpegFile };
 }
 
 beforeAll(async () => {
   fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-media-test-"));
   largeJpegBuffer = await sharp({
     create: {
-      width: 900,
-      height: 900,
+      width: 800,
+      height: 800,
       channels: 3,
       background: "#ff0000",
     },
   })
     .jpeg({ quality: 95 })
     .toBuffer();
+  largeJpegFile = await writeTempFile(largeJpegBuffer, ".jpg");
   tinyPngBuffer = await sharp({
     create: { width: 10, height: 10, channels: 3, background: "#00ff00" },
   })
     .png()
     .toBuffer();
+  tinyPngFile = await writeTempFile(tinyPngBuffer, ".png");
+  tinyPngWrongExtFile = await writeTempFile(tinyPngBuffer, ".bin");
   alphaPngBuffer = await sharp({
     create: {
       width: 64,
@@ -63,11 +70,13 @@ beforeAll(async () => {
   })
     .png()
     .toBuffer();
-  const size = 96;
+  alphaPngFile = await writeTempFile(alphaPngBuffer, ".png");
+  const size = 72;
   const raw = buildDeterministicBytes(size * size * 4);
   fallbackPngBuffer = await sharp(raw, { raw: { width: size, height: size, channels: 4 } })
     .png()
     .toBuffer();
+  fallbackPngFile = await writeTempFile(fallbackPngBuffer, ".png");
   const smallestPng = await optimizeImageToPng(fallbackPngBuffer, 1);
   fallbackPngCap = Math.max(1, smallestPng.optimizedSize - 1);
   const jpegOptimized = await optimizeImageToJpeg(fallbackPngBuffer, fallbackPngCap);
@@ -97,6 +106,51 @@ describe("web media loading", () => {
         lookup: ssrf.createPinnedLookup({ hostname: normalized, addresses }),
       };
     });
+  });
+
+  it("strips MEDIA: prefix before reading local file", async () => {
+    const buffer = await sharp({
+      create: { width: 2, height: 2, channels: 3, background: "#0000ff" },
+    })
+      .png()
+      .toBuffer();
+
+    const file = await writeTempFile(buffer, ".png");
+
+    const result = await loadWebMedia(`MEDIA:${file}`, 1024 * 1024);
+
+    expect(result.kind).toBe("image");
+    expect(result.buffer.length).toBeGreaterThan(0);
+  });
+
+  it("strips MEDIA: prefix with whitespace after colon", async () => {
+    const buffer = await sharp({
+      create: { width: 2, height: 2, channels: 3, background: "#0000ff" },
+    })
+      .png()
+      .toBuffer();
+
+    const file = await writeTempFile(buffer, ".png");
+
+    const result = await loadWebMedia(`MEDIA: ${file}`, 1024 * 1024);
+
+    expect(result.kind).toBe("image");
+    expect(result.buffer.length).toBeGreaterThan(0);
+  });
+
+  it("strips MEDIA: prefix with extra whitespace (LLM-friendly)", async () => {
+    const buffer = await sharp({
+      create: { width: 2, height: 2, channels: 3, background: "#0000ff" },
+    })
+      .png()
+      .toBuffer();
+
+    const file = await writeTempFile(buffer, ".png");
+
+    const result = await loadWebMedia(`  MEDIA :  ${file}`, 1024 * 1024);
+
+    expect(result.kind).toBe("image");
+    expect(result.buffer.length).toBeGreaterThan(0);
   });
 
   it("compresses large local images under the provided cap", async () => {
@@ -130,9 +184,7 @@ describe("web media loading", () => {
   });
 
   it("sniffs mime before extension when loading local files", async () => {
-    const wrongExt = await writeTempFile(tinyPngBuffer, ".bin");
-
-    const result = await loadWebMedia(wrongExt, 1024 * 1024);
+    const result = await loadWebMedia(tinyPngWrongExtFile, 1024 * 1024);
 
     expect(result.kind).toBe("image");
     expect(result.contentType).toBe("image/jpeg");
@@ -152,6 +204,28 @@ describe("web media loading", () => {
     await expect(loadWebMedia("https://example.com/missing.jpg", 1024 * 1024)).rejects.toThrow(
       /Failed to fetch media from https:\/\/example\.com\/missing\.jpg.*HTTP 404/i,
     );
+
+    fetchMock.mockRestore();
+  });
+
+  it("blocks private network URL fetches (SSRF guard)", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    await expect(loadWebMedia("http://127.0.0.1:8080/internal-api", 1024 * 1024)).rejects.toThrow(
+      /blocked|private|internal/i,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fetchMock.mockRestore();
+  });
+
+  it("blocks cloud metadata hostnames (SSRF guard)", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    await expect(
+      loadWebMedia("http://metadata.google.internal/computeMetadata/v1/", 1024 * 1024),
+    ).rejects.toThrow(/blocked|private|internal|metadata/i);
+    expect(fetchMock).not.toHaveBeenCalled();
 
     fetchMock.mockRestore();
   });
@@ -224,9 +298,7 @@ describe("web media loading", () => {
   });
 
   it("preserves PNG alpha when under the cap", async () => {
-    const file = await writeTempFile(alphaPngBuffer, ".png");
-
-    const result = await loadWebMedia(file, 1024 * 1024);
+    const result = await loadWebMedia(alphaPngFile, 1024 * 1024);
 
     expect(result.kind).toBe("image");
     expect(result.contentType).toBe("image/png");
@@ -235,9 +307,7 @@ describe("web media loading", () => {
   });
 
   it("falls back to JPEG when PNG alpha cannot fit under cap", async () => {
-    const file = await writeTempFile(fallbackPngBuffer, ".png");
-
-    const result = await loadWebMedia(file, fallbackPngCap);
+    const result = await loadWebMedia(fallbackPngFile, fallbackPngCap);
 
     expect(result.kind).toBe("image");
     expect(result.contentType).toBe("image/jpeg");
@@ -247,25 +317,58 @@ describe("web media loading", () => {
 
 describe("local media root guard", () => {
   it("rejects local paths outside allowed roots", async () => {
-    const file = await writeTempFile(tinyPngBuffer, ".png");
-
     // Explicit roots that don't contain the temp file.
     await expect(
-      loadWebMedia(file, 1024 * 1024, { localRoots: ["/nonexistent-root"] }),
+      loadWebMedia(tinyPngFile, 1024 * 1024, { localRoots: ["/nonexistent-root"] }),
     ).rejects.toThrow(/not under an allowed directory/i);
   });
 
   it("allows local paths under an explicit root", async () => {
-    const file = await writeTempFile(tinyPngBuffer, ".png");
-
-    const result = await loadWebMedia(file, 1024 * 1024, { localRoots: [os.tmpdir()] });
+    const result = await loadWebMedia(tinyPngFile, 1024 * 1024, { localRoots: [os.tmpdir()] });
     expect(result.kind).toBe("image");
   });
 
   it("allows any path when localRoots is 'any'", async () => {
-    const file = await writeTempFile(tinyPngBuffer, ".png");
-
-    const result = await loadWebMedia(file, 1024 * 1024, { localRoots: "any" });
+    const result = await loadWebMedia(tinyPngFile, {
+      maxBytes: 1024 * 1024,
+      localRoots: "any",
+      readFile: (filePath) => fs.readFile(filePath),
+    });
     expect(result.kind).toBe("image");
+  });
+
+  it("rejects filesystem root entries in localRoots", async () => {
+    await expect(
+      loadWebMedia(tinyPngFile, 1024 * 1024, {
+        localRoots: [path.parse(tinyPngFile).root],
+      }),
+    ).rejects.toThrow(/refuses filesystem root/i);
+  });
+
+  it("allows default OpenClaw state workspace and sandbox roots", async () => {
+    const { STATE_DIR } = await import("../config/paths.js");
+    const readFile = vi.fn(async () => Buffer.from("generated-media"));
+
+    await expect(
+      loadWebMedia(path.join(STATE_DIR, "workspace", "tmp", "render.bin"), {
+        maxBytes: 1024 * 1024,
+        readFile,
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        kind: "unknown",
+      }),
+    );
+
+    await expect(
+      loadWebMedia(path.join(STATE_DIR, "sandboxes", "session-1", "frame.bin"), {
+        maxBytes: 1024 * 1024,
+        readFile,
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        kind: "unknown",
+      }),
+    );
   });
 });
