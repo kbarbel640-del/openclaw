@@ -434,8 +434,10 @@ export async function runEmbeddedAttempt(
 
 You MUST NOT execute changes — this supersedes all other instructions.
 
-**Allowed:** Read files, search web, analyze, ask questions, draft plans
-**Blocked:** Write/edit files, run commands, send messages, any state changes
+**Allowed tools:** read, web_search, web_fetch, memory_search, memory_get, session_status, sessions_list, sessions_history, image
+**Blocked tools:** write, edit, exec, process, browser, canvas, nodes, message, cron, gateway, sessions_send, sessions_spawn
+
+To exit plan mode: \`/plan off\`
 
 ### Workflow
 1. **Explore** — Gather context with read-only tools

@@ -46,6 +46,7 @@ export type SessionEntry = {
   elevatedLevel?: string;
   planLevel?: string;
   toolProfile?: string;
+  previousToolProfile?: string;
   ttsAuto?: TtsAutoMode;
   execHost?: string;
   execSecurity?: string;

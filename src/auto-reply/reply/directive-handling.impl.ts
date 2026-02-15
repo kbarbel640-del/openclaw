@@ -322,9 +322,19 @@ export async function handleDirectiveOnly(
   if (directives.hasPlanDirective && directives.planLevel) {
     sessionEntry.planLevel = directives.planLevel;
     if (directives.planLevel === "on") {
+      // Save previous toolProfile before overwriting
+      if (sessionEntry.toolProfile && sessionEntry.toolProfile !== "plan") {
+        sessionEntry.previousToolProfile = sessionEntry.toolProfile;
+      }
       sessionEntry.toolProfile = "plan";
     } else {
-      delete sessionEntry.toolProfile;
+      // Restore previous toolProfile if it exists
+      if (sessionEntry.previousToolProfile) {
+        sessionEntry.toolProfile = sessionEntry.previousToolProfile;
+        delete sessionEntry.previousToolProfile;
+      } else {
+        delete sessionEntry.toolProfile;
+      }
       delete sessionEntry.planLevel;
     }
   }
@@ -440,7 +450,9 @@ export async function handleDirectiveOnly(
   if (directives.hasPlanDirective && directives.planLevel) {
     parts.push(
       directives.planLevel === "on"
-        ? formatDirectiveAck("Plan mode enabled (read-only analysis tools only).")
+        ? formatDirectiveAck(
+            "Plan mode enabled. Tools: read, web_search, web_fetch, memory_search, memory_get, session_status, sessions_list, sessions_history, image. Use /plan off to exit.",
+          )
         : formatDirectiveAck("Plan mode disabled (default tools restored)."),
     );
   }
