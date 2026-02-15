@@ -1,10 +1,11 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
-import { Type } from "@sinclair/typebox";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { z } from "zod";
 import { applyUpdateHunk } from "./apply-patch-update.js";
 import { assertSandboxPath } from "./sandbox-paths.js";
+import { zodToToolJsonSchema } from "./schema/zod-tool-schema.js";
 
 const BEGIN_PATCH_MARKER = "*** Begin Patch";
 const END_PATCH_MARKER = "*** End Patch";
@@ -65,11 +66,11 @@ type ApplyPatchOptions = {
   signal?: AbortSignal;
 };
 
-const applyPatchSchema = Type.Object({
-  input: Type.String({
-    description: "Patch content using the *** Begin Patch/End Patch format.",
+const applyPatchSchema = zodToToolJsonSchema(
+  z.object({
+    input: z.string().describe("Patch content using the *** Begin Patch/End Patch format."),
   }),
-});
+);
 
 export function createApplyPatchTool(
   options: { cwd?: string; sandboxRoot?: string } = {},

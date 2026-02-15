@@ -1,5 +1,4 @@
 import { type Api, completeSimple, type Model } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../config/config.js";
 import { isTruthyEnvValue } from "../infra/env.js";
@@ -274,7 +273,7 @@ describeLive("live models (profile keys)", () => {
               const noopTool = {
                 name: "noop",
                 description: "Return ok.",
-                parameters: Type.Object({}, { additionalProperties: false }),
+                parameters: { type: "object", properties: {}, additionalProperties: false },
               };
 
               let firstUserContent = "Call the tool `noop` with {}. Do not write any other text.";

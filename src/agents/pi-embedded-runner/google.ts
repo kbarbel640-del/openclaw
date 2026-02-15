@@ -1,6 +1,5 @@
 import type { AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
-import type { TSchema } from "@sinclair/typebox";
 import { EventEmitter } from "node:events";
 import type { TranscriptPolicy } from "../transcript-policy.js";
 import { registerUnhandledRejectionHandler } from "../../infra/unhandled-rejections.js";
@@ -153,13 +152,10 @@ function findUnsupportedSchemaKeywords(schema: unknown, path: string): string[] 
   return violations;
 }
 
-export function sanitizeToolsForGoogle<
-  TSchemaType extends TSchema = TSchema,
-  TResult = unknown,
->(params: {
-  tools: AgentTool<TSchemaType, TResult>[];
+export function sanitizeToolsForGoogle(params: {
+  tools: AgentTool[];
   provider: string;
-}): AgentTool<TSchemaType, TResult>[] {
+}): AgentTool[] {
   if (params.provider !== "google-antigravity" && params.provider !== "google-gemini-cli") {
     return params.tools;
   }
@@ -169,9 +165,8 @@ export function sanitizeToolsForGoogle<
     }
     return {
       ...tool,
-      parameters: cleanToolSchemaForGemini(
-        tool.parameters as Record<string, unknown>,
-      ) as TSchemaType,
+      // oxlint-disable-next-line typescript/no-explicit-any
+      parameters: cleanToolSchemaForGemini(tool.parameters as Record<string, unknown>) as any,
     };
   });
 }

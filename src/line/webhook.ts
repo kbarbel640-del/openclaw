@@ -1,8 +1,21 @@
 import type { WebhookRequestBody } from "@line/bot-sdk";
-import type { Request, Response, NextFunction } from "express";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RuntimeEnv } from "../runtime.js";
 import { logVerbose, danger } from "../globals.js";
 import { validateLineSignature } from "./signature.js";
+
+// Minimal request/response types compatible with Express and native Node.js.
+type WebhookRequest = IncomingMessage & {
+  body?: unknown;
+  rawBody?: string | Buffer;
+  headers: Record<string, string | string[] | undefined>;
+};
+type WebhookResponse = ServerResponse & {
+  status: (code: number) => WebhookResponse;
+  json: (body: unknown) => void;
+  headersSent: boolean;
+};
+type NextFn = (err?: unknown) => void;
 
 export interface LineWebhookOptions {
   channelSecret: string;
@@ -10,7 +23,7 @@ export interface LineWebhookOptions {
   runtime?: RuntimeEnv;
 }
 
-function readRawBody(req: Request): string | null {
+function readRawBody(req: WebhookRequest): string | null {
   const rawBody =
     (req as { rawBody?: string | Buffer }).rawBody ??
     (typeof req.body === "string" || Buffer.isBuffer(req.body) ? req.body : null);
@@ -20,7 +33,7 @@ function readRawBody(req: Request): string | null {
   return Buffer.isBuffer(rawBody) ? rawBody.toString("utf-8") : rawBody;
 }
 
-function parseWebhookBody(req: Request, rawBody: string): WebhookRequestBody | null {
+function parseWebhookBody(req: WebhookRequest, rawBody: string): WebhookRequestBody | null {
   if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
     return req.body as WebhookRequestBody;
   }
@@ -33,10 +46,10 @@ function parseWebhookBody(req: Request, rawBody: string): WebhookRequestBody | n
 
 export function createLineWebhookMiddleware(
   options: LineWebhookOptions,
-): (req: Request, res: Response, _next: NextFunction) => Promise<void> {
+): (req: WebhookRequest, res: WebhookResponse, _next: NextFn) => Promise<void> {
   const { channelSecret, onEvents, runtime } = options;
 
-  return async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+  return async (req: WebhookRequest, res: WebhookResponse, _next: NextFn): Promise<void> => {
     try {
       const signature = req.headers["x-line-signature"];
 
@@ -91,7 +104,7 @@ export interface StartLineWebhookOptions {
 
 export function startLineWebhook(options: StartLineWebhookOptions): {
   path: string;
-  handler: (req: Request, res: Response, _next: NextFunction) => Promise<void>;
+  handler: (req: WebhookRequest, res: WebhookResponse, _next: NextFn) => Promise<void>;
 } {
   const path = options.path ?? "/line/webhook";
   const middleware = createLineWebhookMiddleware({

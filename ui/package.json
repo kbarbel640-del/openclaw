@@ -4,22 +4,32 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:astro": "astro build",
+    "check": "astro check",
     "dev": "vite",
+    "dev:astro": "astro dev",
     "preview": "vite preview",
+    "preview:astro": "astro preview",
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
+    "@astrojs/lit": "^4.3.0",
+    "@nanostores/lit": "^0.2.2",
     "@noble/ed25519": "3.0.0",
+    "astro": "^5.17.2",
     "dompurify": "^3.3.1",
     "echarts": "^5.5.0",
     "lit": "^3.3.2",
     "marked": "^17.0.1",
     "mermaid": "^11.4.1",
+    "nanostores": "^0.11.3",
     "vite": "7.3.1"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.6",
     "@vitest/browser-playwright": "4.0.18",
     "playwright": "^1.58.1",
+    "typescript": "^5.9.3",
     "vitest": "4.0.18"
   }
 }

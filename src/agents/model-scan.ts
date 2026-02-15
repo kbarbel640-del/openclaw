@@ -7,7 +7,6 @@ import {
   type OpenAICompletionsOptions,
   type Tool,
 } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
 
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 const DEFAULT_TIMEOUT_MS = 12_000;
@@ -16,11 +15,12 @@ const DEFAULT_CONCURRENCY = 3;
 const BASE_IMAGE_PNG =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X3mIAAAAASUVORK5CYII=";
 
-const TOOL_PING: Tool = {
+// Pi-AI Tool type expects TSchema; cast raw JSON Schema for the probe tool.
+const TOOL_PING = {
   name: "ping",
   description: "Return OK.",
-  parameters: Type.Object({}),
-};
+  parameters: { type: "object", properties: {} },
+} as unknown as Tool;
 
 type OpenRouterModelMeta = {
   id: string;

@@ -193,6 +193,11 @@
   box-sizing: border-box;
 }
 
+/* Astro island custom elements must be transparent to CSS grid */
+nav-island {
+  display: contents;
+}
+
 html,
 body {
   height: 100%;

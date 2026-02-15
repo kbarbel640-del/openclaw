@@ -1,6 +1,5 @@
 import type { AssistantMessage, Model, ToolResultMessage } from "@mariozechner/pi-ai";
 import { streamOpenAIResponses } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
 import { describe, expect, it } from "vitest";
 
 function buildModel(): Model<"openai-responses"> {
@@ -124,7 +123,7 @@ describe("openai-responses reasoning replay", () => {
             {
               name: "noop",
               description: "no-op",
-              parameters: Type.Object({}, { additionalProperties: false }),
+              parameters: { type: "object", properties: {}, additionalProperties: false },
             },
           ],
         },

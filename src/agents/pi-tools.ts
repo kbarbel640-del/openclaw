@@ -21,6 +21,8 @@ import {
   type ProcessToolDefaults,
 } from "./bash-tools.js";
 import { listChannelAgentTools } from "./channel-tools.js";
+import { HookRunner } from "./hooks/hook-runner.js";
+import { wrapToolWithHookSystem } from "./hooks/tool-wrapper.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
 import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
@@ -158,6 +160,10 @@ export function createOpenClawCodingTools(options?: {
   hasRepliedRef?: { value: boolean };
   /** If true, the model has native vision capability */
   modelHasVision?: boolean;
+  /** Pre-loaded MCP tools. */
+  mcpTools?: AnyAgentTool[];
+  /** Hook Runner for tool interception. */
+  hookRunner?: HookRunner;
 }): AnyAgentTool[] {
   const execToolName = "exec";
   const sandbox = options?.sandbox?.enabled ? options.sandbox : undefined;
@@ -352,6 +358,7 @@ export function createOpenClawCodingTools(options?: {
       hasRepliedRef: options?.hasRepliedRef,
       modelHasVision: options?.modelHasVision,
       requesterAgentIdOverride: agentId,
+      mcpTools: options?.mcpTools,
     }),
   ];
   const coreToolNames = new Set(
@@ -433,9 +440,13 @@ export function createOpenClawCodingTools(options?: {
       sessionKey: options?.sessionKey,
     }),
   );
-  const withAbort = options?.abortSignal
-    ? withHooks.map((tool) => wrapToolWithAbortSignal(tool, options.abortSignal))
+  const withSystemHooks = options?.hookRunner
+    ? withHooks.map((tool) => wrapToolWithHookSystem(tool, options.hookRunner!))
     : withHooks;
+
+  const withAbort = options?.abortSignal
+    ? withSystemHooks.map((tool) => wrapToolWithAbortSignal(tool, options.abortSignal))
+    : withSystemHooks;
 
   // NOTE: Keep canonical (lowercase) tool names here.
   // pi-ai's Anthropic OAuth transport remaps tool names to Claude Code-style names

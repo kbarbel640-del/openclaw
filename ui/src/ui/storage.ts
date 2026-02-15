@@ -17,6 +17,9 @@ export type UiSettings = {
 
 export function loadSettings(): UiSettings {
   const defaultUrl = (() => {
+    if (typeof globalThis.location === "undefined") {
+      return "ws://localhost:18789";
+    }
     const proto = location.protocol === "https:" ? "wss" : "ws";
     return `${proto}://${location.host}`;
   })();
@@ -35,6 +38,9 @@ export function loadSettings(): UiSettings {
   };
 
   try {
+    if (typeof globalThis.localStorage === "undefined") {
+      return defaults;
+    }
     const raw = localStorage.getItem(KEY);
     if (!raw) {
       return defaults;
@@ -84,6 +90,9 @@ export function loadSettings(): UiSettings {
 }
 
 export function saveSettings(next: UiSettings) {
+  if (typeof globalThis.localStorage === "undefined") {
+    return;
+  }
   localStorage.setItem(KEY, JSON.stringify(next));
 }
 

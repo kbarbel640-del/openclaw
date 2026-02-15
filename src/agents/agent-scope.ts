@@ -9,7 +9,7 @@ import {
   parseAgentSessionKey,
 } from "../routing/session-key.js";
 import { resolveUserPath } from "../utils.js";
-import { findAgentDefinition } from "./definitions/resolver.js";
+import { findAgentDefinition, listGlobalAgentDefinitions } from "./definitions/resolver.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "./workspace.js";
 
 export { resolveAgentIdFromSessionKey } from "../routing/session-key.js";
@@ -48,12 +48,11 @@ function listAgents(cfg: OpenClawConfig): AgentEntry[] {
 }
 
 export function listAgentIds(cfg: OpenClawConfig): string[] {
-  const agents = listAgents(cfg);
-  if (agents.length === 0) {
-    return [DEFAULT_AGENT_ID];
-  }
   const seen = new Set<string>();
   const ids: string[] = [];
+
+  // 1. Configured agents
+  const agents = listAgents(cfg);
   for (const entry of agents) {
     const id = normalizeAgentId(entry?.id);
     if (seen.has(id)) {
@@ -62,6 +61,23 @@ export function listAgentIds(cfg: OpenClawConfig): string[] {
     seen.add(id);
     ids.push(id);
   }
+
+  // 2. Global markdown agents
+  try {
+    const globalDefs = listGlobalAgentDefinitions();
+    for (const def of globalDefs) {
+      const id = normalizeAgentId(def.id);
+      if (seen.has(id)) {
+        continue;
+      }
+      seen.add(id);
+      ids.push(id);
+    }
+  } catch (err) {
+    // Ignore errors during definitions loading to prevent crash
+    console.warn("Failed to list global agent definitions:", err);
+  }
+
   return ids.length > 0 ? ids : [DEFAULT_AGENT_ID];
 }
 
