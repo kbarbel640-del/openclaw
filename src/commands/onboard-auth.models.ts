@@ -1,5 +1,10 @@
 import type { ModelDefinitionConfig } from "../config/types.js";
-import { AISA_BASE_URL, AISA_DEFAULT_MODEL_ID, QIANFAN_BASE_URL, QIANFAN_DEFAULT_MODEL_ID } from "../agents/models-config.providers.js";
+import {
+  AISA_BASE_URL,
+  AISA_DEFAULT_MODEL_ID,
+  QIANFAN_BASE_URL,
+  QIANFAN_DEFAULT_MODEL_ID,
+} from "../agents/models-config.providers.js";
 
 export const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1";
 export const MINIMAX_API_BASE_URL = "https://api.minimax.io/anthropic";
