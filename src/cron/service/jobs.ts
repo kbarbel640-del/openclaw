@@ -7,6 +7,7 @@ import type {
   CronJobPatch,
   CronPayload,
   CronPayloadPatch,
+  CronPreCheck,
 } from "../types.js";
 import type { CronServiceState } from "./state.js";
 import { parseAbsoluteTimeMs } from "../parse.js";
@@ -263,6 +264,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     sessionTarget: input.sessionTarget,
     wakeMode: input.wakeMode,
     payload: input.payload,
+    preCheck: input.preCheck,
     delivery: input.delivery,
     state: {
       ...input.state,
@@ -318,6 +320,13 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   }
   if (patch.state) {
     job.state = { ...job.state, ...patch.state };
+  }
+  if ("preCheck" in patch) {
+    if (patch.preCheck === null) {
+      job.preCheck = undefined;
+    } else if (patch.preCheck) {
+      job.preCheck = { ...job.preCheck, ...patch.preCheck } as CronPreCheck;
+    }
   }
   if ("agentId" in patch) {
     job.agentId = normalizeOptionalAgentId((patch as { agentId?: unknown }).agentId);
