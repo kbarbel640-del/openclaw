@@ -439,6 +439,28 @@ export const registerTelegramHandlers = ({
         }
       }
 
+      // Idea capture callback handler
+      if (data.startsWith("idea_")) {
+        const ideaAction = data; // idea_work, idea_later, idea_done
+        const messageText = callbackMessage.text || "";
+        const ideaTitleMatch = messageText.match(/\*([^*]+)\*/);
+        const ideaTitle = ideaTitleMatch ? ideaTitleMatch[1] : "";
+
+        if (ideaTitle) {
+          const { spawn } = await import("node:child_process");
+          const handler = spawn("bash", [
+            "./hooks/nodes/idea-callback-handler.sh",
+            ideaAction,
+            ideaTitle,
+            String(chatId),
+          ]);
+          handler.on("error", (err) => {
+            logger.error({ err }, "idea callback handler failed");
+          });
+        }
+        return;
+      }
+
       const paginationMatch = data.match(/^commands_page_(\d+|noop)(?::(.+))?$/);
       if (paginationMatch) {
         const pageValue = paginationMatch[1];

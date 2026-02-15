@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "description": "Add Claude Code-style hook events to internal-hooks.ts: UserPromptSubmit, PreToolUse, PostToolUse, PreResponse, Stop, PreCompact. Each event receives JSON context on stdin and stdout goes into agent context.",
+    "steps": [
+      "Add new event types to InternalHookEventType union",
+      "Create typed event interfaces for each new event (input schema)",
+      "Add triggerHook calls that collect stdout from handlers",
+      "Ensure backward compatibility with existing hook events"
+    ],
+    "passes": false
+  },
+  {
+    "id": 2,
+    "description": "Add shell command hook handler support. Hooks can be shell commands (not just TypeScript). Read from openclaw.json config hooks section. Shell commands receive JSON on stdin, stdout goes to agent context.",
+    "steps": [
+      "Parse hooks config from openclaw.json (same format as Claude Code settings.json)",
+      "Implement shell command executor: spawn process, pipe JSON to stdin, capture stdout",
+      "Support matcher field (regex) for tool-specific hooks",
+      "Support exit code semantics: 0=allow, 2=deny (for PreToolUse)"
+    ],
+    "passes": false
+  },
+  {
+    "id": 3,
+    "description": "Wire UserPromptSubmit into the reply pipeline. Before processing user message, trigger UserPromptSubmit hooks. Stdout from hooks gets appended to agent context.",
+    "steps": [
+      "In get-reply.ts or get-reply-run.ts, call triggerHook(UserPromptSubmit) before runPreparedReply",
+      "Pass user message as JSON input to hook",
+      "Collect stdout and inject as system/user content into agent context",
+      "Test with a simple hook: cat SOUL.md"
+    ],
+    "passes": false
+  },
+  {
+    "id": 4,
+    "description": "Wire PreToolUse into tool execution pipeline. Before executing a tool, trigger PreToolUse hooks. If hook returns deny, block the tool.",
+    "steps": [
+      "Find tool execution point in pi-embedded-runner or agents code",
+      "Call triggerHook(PreToolUse) with tool name and input",
+      "Check for deny decision in hook output",
+      "If denied, return error message instead of executing tool"
+    ],
+    "passes": false
+  },
+  {
+    "id": 5,
+    "description": "Wire Stop/PreResponse into response pipeline. After agent generates response but before sending, trigger Stop hooks. Stdout appended to context for next turn.",
+    "steps": [
+      "In get-reply-run.ts, after agent response, call triggerHook(Stop)",
+      "Pass response text as JSON input",
+      "Collect stdout for logging/context injection"
+    ],
+    "passes": false
+  }
+]

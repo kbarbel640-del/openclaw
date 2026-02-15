@@ -101,6 +101,8 @@ const PromptHookCommandSchema = z
     prompt: z.string(),
     model: z.string().optional(),
     maxTokens: z.number().int().positive().optional(),
+    apiKey: z.string().optional(),
+    baseUrl: z.string().optional(),
   })
   .strict();
 

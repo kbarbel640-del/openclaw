@@ -429,6 +429,9 @@ export async function runReplyAgent(params: {
 
     // Execute PreResponse hooks for validation (if configured)
     const preResponseHooks = getPreResponsePromptHooks(cfg);
+    console.error(
+      `[pre-response-hook] Found ${preResponseHooks.length} PreResponse hooks, agentHooks=${JSON.stringify(cfg?.hooks?.agentHooks?.PreResponse?.length ?? "none")}`,
+    );
     let validationFeedback: string | undefined;
     if (preResponseHooks.length > 0) {
       const responseText = replyPayloads
@@ -542,12 +545,20 @@ export async function runReplyAgent(params: {
       finalPayloads = appendUsageLine(finalPayloads, responseUsageLine);
     }
 
-    // If PreResponse validation failed, append feedback as a warning
-    if (validationFeedback) {
-      finalPayloads = [
-        ...finalPayloads,
-        { text: `\n\n⚠️ **Validation Note:** ${validationFeedback}` },
-      ];
+    // If PreResponse validation failed, retry with feedback instead of sending
+    if (validationFeedback && !followupRun.run._preResponseRetried) {
+      console.error(`[pre-response-hook] Validation failed, retrying with feedback`);
+      // Mark as retried to prevent infinite loops
+      followupRun.run._preResponseRetried = true;
+      // Enqueue a new followup run with the feedback as the prompt
+      const retryRun: FollowupRun = {
+        ...followupRun,
+        prompt: `⚠️ VALIDATION FEEDBACK — твой предыдущий ответ не прошёл проверку. Исправь и ответь заново:\n\n${validationFeedback}\n\nПерепиши ответ с учётом этих замечаний. Не упоминай эту проверку в ответе.`,
+      };
+      retryRun.run._preResponseRetried = true;
+      enqueueFollowupRun(queueKey, retryRun, { mode: "followup" });
+      // Don't send the failed response
+      return finalizeWithFollowup(undefined, queueKey, runFollowupTurn);
     }
 
     return finalizeWithFollowup(

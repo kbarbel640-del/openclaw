@@ -1,28 +1,28 @@
-# SESSION-STATE.md — Hot Context
+# SESSION-STATE — 2026-02-07
 
-**Обновлено:** 2026-02-05 01:31 GMT-3
+## Текущая задача
 
-## Что делаем сейчас
+Claude Code-style hooks — ГОТОВО, тестируем PreResponse
 
-- Auto-inject BOOTSTRAP.md при /new — теперь содержимое загружается автоматически в prompt
-- Коммит 417fb6db3 — добавлен код в get-reply-run.ts
+## Что сделано
 
-## Последние решения
+- ✅ Все хуки реализованы и закоммичены (7 коммитов)
+- ✅ UserPromptSubmit — работает (протестировано)
+- ✅ PreResponse с Haiku — конфиг применён, ждём тест
+- ✅ Gateway на новом коде (96ecf5b)
 
-- BOOTSTRAP.md создан — при старте сессии напоминание изучить и следовать инструкциям
-- Главное правило: инструкции написаны не просто так — следовать строго
+## Конфиг hooks
 
-## План на сегодня (из вчера)
+- UserPromptSubmit → ./hooks/preflight.sh (чеклист)
+- PreResponse → Haiku проверяет ответ
 
-1. Обучение на стиле Влада — чтобы писать от его лица
-2. Копия Molt на сервер — независимая работа
+## Что осталось
 
-## План на завтра (2026-02-06)
+- [ ] Протестировать PreResponse
+- [ ] PreResponse v2: blocking + re-run (если нужен)
+- [ ] Uncommitted: memory/learnings/global.md, pre-tool-use-hooks.ts
 
-1. Настроить loop с хуками Claude Code — PreToolUse, PostToolUse, PreCompact и др.
+## Git
 
-## Открытые темы
-
-- LLM-as-Judge — в планах
-- Webhook — не сделан
-- Утренний чекин — в планах
+- НЕ делать reset --hard! Только merge
+- fork = vladdick88/openclaw (бэкап)

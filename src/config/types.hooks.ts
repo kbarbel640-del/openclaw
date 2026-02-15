@@ -146,10 +146,14 @@ export type PromptHookCommand = {
   type: "prompt";
   /** Prompt template to send to the validation model */
   prompt: string;
-  /** Model to use for validation (e.g., 'anthropic/claude-haiku-3.5') */
+  /** Model to use for validation (e.g., 'tngtech/deepseek-r1t2-chimera:free') */
   model?: string;
   /** Maximum tokens for validation response */
   maxTokens?: number;
+  /** API key for the validation provider */
+  apiKey?: string;
+  /** Base URL for the validation API (default: OpenRouter) */
+  baseUrl?: string;
 };
 
 /**

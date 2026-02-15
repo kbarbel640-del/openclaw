@@ -78,6 +78,8 @@ export type FollowupRun = {
     ownerNumbers?: string[];
     extraSystemPrompt?: string;
     enforceFinalTag?: boolean;
+    /** Set to true after PreResponse validation retry to prevent infinite loops */
+    _preResponseRetried?: boolean;
   };
 };
 

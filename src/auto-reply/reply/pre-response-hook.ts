@@ -5,14 +5,11 @@
  * If validation fails, returns feedback for the agent to regenerate.
  */
 
-import type { Api, Context, Model } from "@mariozechner/pi-ai";
-import { complete } from "@mariozechner/pi-ai";
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { PromptHookCommand } from "../../config/types.hooks.js";
 import { resolveOpenClawAgentDir } from "../../agents/agent-paths.js";
-import { getApiKeyForModel, requireApiKey } from "../../agents/model-auth.js";
-import { ensureOpenClawModelsJson } from "../../agents/models-config.js";
-import { discoverAuthStorage, discoverModels } from "../../agents/pi-model-discovery.js";
 import { logVerbose } from "../../globals.js";
 
 const DEFAULT_VALIDATION_MODEL = "anthropic/claude-haiku-3.5";
@@ -88,92 +85,80 @@ export function getPreResponsePromptHooks(cfg: OpenClawConfig | undefined): Prom
  *
  * Calls a validation model with the response and returns pass/fail result.
  */
+/**
+ * Resolve API key and endpoint for the validation model.
+ * Reads from hook config (apiKey field), then falls back to env vars.
+ */
+function resolveValidationConfig(hook: PromptHookCommand): {
+  apiKey: string | undefined;
+  baseUrl: string;
+  model: string;
+} {
+  // Hook config can specify apiKey and baseUrl directly
+  const apiKey = hook.apiKey ?? process.env.OPENROUTER_API_KEY;
+  const baseUrl = hook.baseUrl ?? "https://openrouter.ai/api/v1";
+  const model = hook.model ?? DEFAULT_VALIDATION_MODEL;
+  return { apiKey, baseUrl, model };
+}
+
 export async function executePreResponsePromptHook(
   params: PreResponseHookParams,
 ): Promise<PreResponseHookResult> {
-  const { cfg, response, hook, workspaceDir } = params;
-  const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
+  const { response, hook } = params;
+  const { apiKey, baseUrl, model } = resolveValidationConfig(hook);
 
-  const modelRef = hook.model ?? DEFAULT_VALIDATION_MODEL;
-  const [provider, modelId] = modelRef.includes("/")
-    ? modelRef.split("/", 2)
-    : ["anthropic", modelRef];
+  // DEBUG: log that we got here
+  console.error(
+    `[pre-response-hook] ENTERED, model=${model}, hasKey=${!!apiKey}, baseUrl=${baseUrl}`,
+  );
 
-  if (!provider || !modelId) {
-    return {
-      passed: true,
-      error: `Invalid model reference: ${modelRef}`,
-    };
+  if (!apiKey) {
+    logVerbose("[pre-response-hook] No API key found, skipping validation");
+    return { passed: true, error: "No API key" };
   }
 
   try {
-    await ensureOpenClawModelsJson(cfg, agentDir);
-    const authStorage = discoverAuthStorage(agentDir);
-    const modelRegistry = discoverModels(authStorage, agentDir);
-    const model = modelRegistry.find(provider, modelId) as Model<Api> | null;
-
-    if (!model) {
-      logVerbose(`[pre-response-hook] Unknown validation model: ${modelRef}, skipping validation`);
-      return { passed: true, error: `Unknown model: ${modelRef}` };
-    }
-
-    const apiKeyInfo = await getApiKeyForModel({
-      model,
-      cfg,
-      agentDir,
-    });
-    const apiKey = requireApiKey(apiKeyInfo, model.provider);
-    authStorage.setRuntimeApiKey(model.provider, apiKey);
-
     // Build the validation prompt
     const validationPrompt = hook.prompt.replace("{{response}}", response);
     const fullPrompt = `${validationPrompt}\n\n---\n\nResponse to validate:\n${response}\n\n---\n\nIf the response follows all rules, reply with exactly: ${PASS_KEYWORD}\nIf there are violations, list them concisely.`;
 
-    const context: Context = {
-      messages: [
-        {
-          role: "user",
-          content: fullPrompt,
-          timestamp: Date.now(),
-        },
-      ],
-    };
+    logVerbose(`[pre-response-hook] Calling ${model} via ${baseUrl} for validation`);
 
-    logVerbose(`[pre-response-hook] Calling ${modelRef} for validation`);
-
-    const message = await complete(model, context, {
-      apiKey,
-      maxTokens: hook.maxTokens ?? DEFAULT_MAX_TOKENS,
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: hook.maxTokens ?? DEFAULT_MAX_TOKENS,
+        messages: [{ role: "user", content: fullPrompt }],
+      }),
     });
 
-    // Extract text from response
-    let validatorResponse = "";
-    if (typeof message.content === "string") {
-      validatorResponse = message.content;
-    } else if (Array.isArray(message.content)) {
-      validatorResponse = message.content
-        .filter((c): c is { type: "text"; text: string } => c.type === "text")
-        .map((c) => c.text)
-        .join("\n");
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      logVerbose(`[pre-response-hook] API error ${res.status}: ${errBody.slice(0, 200)}`);
+      return { passed: true, error: `API ${res.status}` };
     }
 
-    const trimmed = validatorResponse.trim();
-    logVerbose(`[pre-response-hook] Validator response: ${trimmed.slice(0, 100)}...`);
+    type ChatResponse = {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const body = (await res.json()) as ChatResponse;
+    const trimmed = (body.choices?.[0]?.message?.content ?? "").trim();
 
-    // Check if validation passed
+    logVerbose(`[pre-response-hook] Validator response: ${trimmed.slice(0, 200)}...`);
+
     if (trimmed.toUpperCase().startsWith(PASS_KEYWORD)) {
       return { passed: true };
     }
 
-    // Validation failed - return feedback
-    return {
-      passed: false,
-      feedback: trimmed,
-    };
+    return { passed: false, feedback: trimmed };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     logVerbose(`[pre-response-hook] Validation error: ${errorMsg}`);
-    // On error, pass through (don't block)
     return { passed: true, error: errorMsg };
   }
 }
