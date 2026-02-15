@@ -1,0 +1,43 @@
+{
+  "id": "discord-voice",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": { "type": "boolean" },
+      "autoJoin": { "type": "boolean" },
+      "autoDisconnectOnEmpty": { "type": "boolean" },
+      "stt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": { "type": "string", "enum": ["openai"] },
+          "model": { "type": "string" },
+          "language": { "type": "string" }
+        }
+      },
+      "tts": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": { "type": "string", "enum": ["elevenlabs", "openai"] },
+          "voiceId": { "type": "string" },
+          "modelId": { "type": "string" }
+        }
+      },
+      "vad": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "silenceThresholdMs": { "type": "number" },
+          "minSpeechMs": { "type": "number" },
+          "energyThreshold": { "type": "number" }
+        }
+      },
+      "interruptible": { "type": "boolean" },
+      "maxConcurrentChannels": { "type": "number" },
+      "allowedGuilds": { "type": "array", "items": { "type": "string" } },
+      "allowedChannels": { "type": "array", "items": { "type": "string" } }
+    }
+  }
+}

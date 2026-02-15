@@ -89,6 +89,8 @@ export type DiscordIntentsConfig = {
   presence?: boolean;
   /** Enable Guild Members privileged intent (requires Portal opt-in). Default: false. */
   guildMembers?: boolean;
+  /** Enable Guild Voice States intent for voice channel features. Default: false. */
+  guildVoiceStates?: boolean;
 };
 
 export type DiscordExecApprovalConfig = {

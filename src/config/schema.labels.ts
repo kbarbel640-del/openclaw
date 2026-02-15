@@ -257,6 +257,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "channels.discord.maxLinesPerMessage": "Discord Max Lines Per Message",
   "channels.discord.intents.presence": "Discord Presence Intent",
   "channels.discord.intents.guildMembers": "Discord Guild Members Intent",
+  "channels.discord.intents.guildVoiceStates": "Discord Guild Voice States Intent",
   "channels.discord.pluralkit.enabled": "Discord PluralKit Enabled",
   "channels.discord.pluralkit.token": "Discord PluralKit Token",
   "channels.discord.activity": "Discord Presence Activity",

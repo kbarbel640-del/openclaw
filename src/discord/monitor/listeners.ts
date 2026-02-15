@@ -5,6 +5,8 @@ import {
   MessageReactionAddListener,
   MessageReactionRemoveListener,
   PresenceUpdateListener,
+  VoiceServerUpdateListener,
+  VoiceStateUpdateListener,
 } from "@buape/carbon";
 import { danger } from "../../globals.js";
 import { formatDurationSeconds } from "../../infra/format-time/format-duration.ts";
@@ -18,6 +20,10 @@ import {
   shouldEmitDiscordReactionNotification,
 } from "./allow-list.js";
 import { formatDiscordReactionEmoji, formatDiscordUserTag } from "./format.js";
+import {
+  publishGatewayVoiceServerUpdate,
+  publishGatewayVoiceStateUpdate,
+} from "./gateway-registry.js";
 import { resolveDiscordChannelInfo } from "./message-utils.js";
 import { setPresence } from "./presence-cache.js";
 
@@ -328,6 +334,55 @@ export class DiscordPresenceListener extends PresenceUpdateListener {
     } catch (err) {
       const logger = this.logger ?? discordEventQueueLog;
       logger.error(danger(`discord presence handler failed: ${String(err)}`));
+    }
+  }
+}
+
+type VoiceStateUpdateEvent = Parameters<VoiceStateUpdateListener["handle"]>[0];
+type VoiceServerUpdateEvent = Parameters<VoiceServerUpdateListener["handle"]>[0];
+
+export class DiscordVoiceStateRelayListener extends VoiceStateUpdateListener {
+  private readonly accountId?: string;
+  private readonly logger?: Logger;
+
+  constructor(params: { accountId?: string; logger?: Logger }) {
+    super();
+    this.accountId = params.accountId;
+    this.logger = params.logger;
+  }
+
+  async handle(data: VoiceStateUpdateEvent) {
+    try {
+      publishGatewayVoiceStateUpdate(
+        this.accountId,
+        data as import("discord-api-types/v10").GatewayVoiceStateUpdateDispatchData,
+      );
+    } catch (err) {
+      const logger = this.logger ?? discordEventQueueLog;
+      logger.error(danger(`discord voice state relay failed: ${String(err)}`));
+    }
+  }
+}
+
+export class DiscordVoiceServerRelayListener extends VoiceServerUpdateListener {
+  private readonly accountId?: string;
+  private readonly logger?: Logger;
+
+  constructor(params: { accountId?: string; logger?: Logger }) {
+    super();
+    this.accountId = params.accountId;
+    this.logger = params.logger;
+  }
+
+  async handle(data: VoiceServerUpdateEvent) {
+    try {
+      publishGatewayVoiceServerUpdate(
+        this.accountId,
+        data as import("discord-api-types/v10").GatewayVoiceServerUpdateDispatchData,
+      );
+    } catch (err) {
+      const logger = this.logger ?? discordEventQueueLog;
+      logger.error(danger(`discord voice server relay failed: ${String(err)}`));
     }
   }
 }

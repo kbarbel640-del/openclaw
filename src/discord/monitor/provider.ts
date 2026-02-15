@@ -36,6 +36,8 @@ import {
   DiscordPresenceListener,
   DiscordReactionListener,
   DiscordReactionRemoveListener,
+  DiscordVoiceServerRelayListener,
+  DiscordVoiceStateRelayListener,
   registerDiscordListener,
 } from "./listeners.js";
 import { createDiscordMessageHandler } from "./message-handler.js";
@@ -620,6 +622,18 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     runtime.log?.("discord: GuildPresences intent enabled — presence listener registered");
   }
 
+  if (discordCfg.intents?.guildVoiceStates) {
+    registerDiscordListener(
+      client.listeners,
+      new DiscordVoiceStateRelayListener({ logger, accountId: account.accountId }),
+    );
+    registerDiscordListener(
+      client.listeners,
+      new DiscordVoiceServerRelayListener({ logger, accountId: account.accountId }),
+    );
+    runtime.log?.("discord: GuildVoiceStates intent enabled — voice relay listeners registered");
+  }
+
   runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
 
   // Start exec approvals handler after client is ready
@@ -629,7 +643,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
 
   const gateway = client.getPlugin<GatewayPlugin>("gateway");
   if (gateway) {
-    registerGateway(account.accountId, gateway);
+    registerGateway(account.accountId, gateway, { botUserId });
   }
   const gatewayEmitter = getDiscordGatewayEmitter(gateway);
   const stopGatewayLogging = attachDiscordGatewayLogging({

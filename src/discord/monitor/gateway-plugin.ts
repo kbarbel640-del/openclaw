@@ -21,6 +21,9 @@ export function resolveDiscordGatewayIntents(
   if (intentsConfig?.guildMembers) {
     intents |= GatewayIntents.GuildMembers;
   }
+  if (intentsConfig?.guildVoiceStates) {
+    intents |= GatewayIntents.GuildVoiceStates;
+  }
   return intents;
 }
 
