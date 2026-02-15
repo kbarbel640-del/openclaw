@@ -315,12 +315,11 @@ export function registerExecApprovalsCli(program: Command) {
     .option("--stdin", "Read JSON from stdin", false)
     .action(async (opts: ExecApprovalsCliOpts) => {
       try {
-        const { defaultRuntime } = await import("../runtime.js");
         if (!opts.file && !opts.stdin) {
-          await exitWithError("Provide --file or --stdin.");
+          return exitWithError("Provide --file or --stdin.");
         }
         if (opts.file && opts.stdin) {
-          await exitWithError("Use either --file or --stdin (not both).");
+          return exitWithError("Use either --file or --stdin (not both).");
         }
         const { source, nodeId, targetLabel, baseHash } = await loadWritableSnapshotTarget(opts);
         const raw = opts.stdin ? await readStdin() : await fs.readFile(String(opts.file), "utf8");
@@ -329,7 +328,7 @@ export function registerExecApprovalsCli(program: Command) {
           const JSON5 = (await import("json5")).default;
           file = JSON5.parse(raw);
         } catch (err) {
-          await exitWithError(`Failed to parse approvals JSON: ${String(err)}`);
+          return exitWithError(`Failed to parse approvals JSON: ${String(err)}`);
         }
         file.version = 1;
         await saveSnapshotTargeted({ opts, source, nodeId, file, baseHash, targetLabel });
