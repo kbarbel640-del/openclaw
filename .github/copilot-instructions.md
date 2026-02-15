@@ -2,98 +2,63 @@
 
 ## What This Is
 
-This is a fork of [openclaw/openclaw](https://github.com/openclaw/openclaw) — an open-source multi-channel AI gateway. We're adding a **native Obsidian vault memory provider** that replaces the built-in memory system with one that indexes an entire Obsidian vault.
+This is a personal fork of [openclaw/openclaw](https://github.com/openclaw/openclaw) — an open-source multi-channel AI gateway. We use it for developing features and improvements to contribute upstream or run locally.
 
-## The Project
+## Active Work
 
-**PRD:** `prd/PRD-obsidian-memory-provider.md` — read this first. It's comprehensive.
+Check `prd/` for active PRDs. Read the relevant PRD before starting any implementation work.
 
-**Goal:** Users set `memorySearch.provider: "obsidian"` with a `vaultPath`, and the agent automatically semantic-searches their entire knowledge base every turn.
-
-## What Already Exists (We Built These — USE THEM)
-
-All in `src/memory/`. These are tested, working modules ported from the workspace's `local-rag` and `obsidian-scribe` skills. **Do not rebuild or rewrite these.** The task is to wire them into OpenClaw's existing factory, not to create new implementations.
-
-| File                      | Status  | Purpose                                                                           |
-| ------------------------- | ------- | --------------------------------------------------------------------------------- |
-| `obsidian-schema.ts`      | ✅ Done | SQLite schema: rich FTS5 with per-field weighting, embedding cache, PARA metadata |
-| `obsidian-search.ts`      | ✅ Done | RRF fusion, entity shortcut, per-field BM25, hybrid search pipeline               |
-| `obsidian-sync.ts`        | ✅ Done | Incremental vault indexing, PARA detection, paragraph-aware chunking with overlap |
-| `obsidian-provider.ts`    | ✅ Done | `MemorySearchManager` implementation with background indexing + FTS5 fallback     |
-| `obsidian-search.test.ts` | ✅ Done | 7 tests for RRF fusion                                                            |
-| `obsidian-sync.test.ts`   | ✅ Done | 7 tests for chunking                                                              |
-
-**Config changes already made:**
-
-- `src/config/types.tools.ts` — added `"obsidian"` to provider type + `ObsidianMemoryConfig`
-- `src/agents/memory-search.ts` — added `"obsidian"` to `ResolvedMemorySearchConfig`, passes through obsidian config
-
-## What Remains
-
-### 1. Wire Provider into Factory (THE MAIN TASK)
-
-This is integration work, not greenfield development. All the provider modules exist and are tested. The job is to add a code path in the factory so that when `provider === "obsidian"`, it creates an `ObsidianMemoryProvider` instead of a `MemoryIndexManager`.
-
-`src/memory/search-manager.ts` → `getMemorySearchManager()` is the factory that creates memory managers. Currently it only knows about `builtin` and `qmd` backends. Need to add:
-
-```typescript
-// In getMemorySearchManager():
-if (settings.provider === "obsidian" && settings.obsidian?.vaultPath) {
-  // Create ObsidianMemoryProvider instead of MemoryIndexManager
-  // Call initialize() (triggers background indexing)
-  // Return it wrapped in the same interface
-}
-```
-
-**Key files to understand:**
-
-- `src/memory/search-manager.ts` — factory, fallback wrapper, cache
-- `src/memory/manager.ts` — `MemoryIndexManager` (the builtin provider we're supplementing)
-- `src/memory/types.ts` — `MemorySearchManager` interface (our provider implements this)
-- `src/agents/memory-search.ts` — config resolution
-
-### 2. Indexing Lifecycle Events
-
-When indexing completes, fire a hook:
-
-```typescript
-triggerInternalHook(createInternalHookEvent("memory", "index-complete", sessionKey, { ... }))
-```
-
-See `src/hooks/internal-hooks.ts` for the hook system. Events are used by `src/agents/bootstrap-hooks.ts` and `src/auto-reply/reply/commands-core.ts`.
-
-### 3. Dynamic Context Injection (Future)
-
-Replace static MEMORY.md injection with per-turn vault search. This touches `src/agents/system-prompt.ts` and the bootstrap pipeline. See PRD §8 for full design.
-
-## Architecture Quick Reference
+## Repo Architecture
 
 ```
-openclaw.json config
-  → src/agents/memory-search.ts (resolveMemorySearchConfig)
-  → src/memory/search-manager.ts (getMemorySearchManager — THE FACTORY)
-  → src/memory/manager.ts (MemoryIndexManager — builtin provider)
-  → src/memory/obsidian-provider.ts (ObsidianMemoryProvider — our new provider)
+src/
+  agents/         Agent lifecycle, config resolution, tools, system prompt
+    memory-search.ts   Memory provider config resolution
+    tools/memory-tool.ts   memory_search + memory_get tool definitions
+    system-prompt.ts       System prompt construction
+  memory/         Memory indexing, search, embedding providers
+    manager.ts           MemoryIndexManager (builtin provider)
+    search-manager.ts    Factory: getMemorySearchManager() — creates providers
+    types.ts             MemorySearchManager interface
+    embeddings.ts        Embedding provider resolution (node-llama-cpp, OpenAI, Gemini, Voyage)
+    hybrid.ts            Hybrid search merge algorithm
+    obsidian-*.ts        Obsidian vault memory provider modules (custom addition)
+  hooks/           Internal hook/event system
+    internal-hooks.ts    triggerInternalHook, createInternalHookEvent
+  config/          Config types and resolution
+    types.tools.ts       MemorySearchConfig type definition
+  auto-reply/      Message handling, commands, agent runner
 ```
 
-**Embedding:** Uses `node-llama-cpp` via `src/memory/embeddings.ts`. Default model: `embeddinggemma-300m`. Our provider passes `"auto"` to the embedding resolver — no Ollama dependency.
+**Key flow:**
 
-**Search:** Our provider uses RRF (Reciprocal Rank Fusion) instead of the builtin's linear combination (0.7*vec + 0.3*text). Per-field FTS5 weighting. Entity shortcut for navigational queries.
+```
+openclaw.json → resolveMemorySearchConfig() → getMemorySearchManager() → provider instance
+```
 
-**Tests:** `pnpm vitest run src/memory/obsidian-*.test.ts` — 14 tests, all pass.
+**Embedding:** `node-llama-cpp` ships with OpenClaw. Default model: `embeddinggemma-300m` GGUF (auto-downloaded). No Ollama dependency.
 
-**Build:** `pnpm build` — runs rolldown + tsc. ~800ms.
+## Custom Modules We've Added
 
-**Full test suite:** `pnpm test -- --run` — 844 files, ~75s. 1 pre-existing failure in iMessage tests (not ours).
+Files in `src/memory/obsidian-*.ts` are custom additions ported from the workspace's `local-rag` and `obsidian-scribe` skills. They are tested and working. Build on them — don't rebuild.
+
+## Build & Test
+
+```bash
+pnpm install          # Install deps
+pnpm build            # Rolldown + tsc (~800ms)
+pnpm test -- --run    # Full suite (844 files, ~75s)
+pnpm vitest run src/memory/obsidian-*.test.ts  # Our tests only (14 tests)
+```
 
 ## Related: Magnus Workspace
 
 The agent workspace at `~/.openclaw/workspace/` has its own `.github/copilot-instructions.md` with:
 
-- Magnus's skill system (how skills are discovered, SKILL.md frontmatter requirements)
+- Magnus's skill system (SKILL.md frontmatter, skill discovery)
 - The copilot-daemon pipeline (automated issue → PRD → review → implement)
 - Obsidian vault conventions (PARA structure, obsidian-scribe for writes, local-rag for search)
-- Notification protocol (Telegram via Bot API, Magnus relay)
+- Notification protocol (Telegram via Bot API)
 
 Read it when your work needs to interact with skills or the agent's runtime environment.
 
@@ -104,9 +69,10 @@ Read it when your work needs to interact with skills or the agent's runtime envi
 - Linter: `oxlint` (runs on commit via git hooks)
 - Formatter: `oxfmt` (runs on commit)
 - Add `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` to commits
+- 1 pre-existing test failure in iMessage tests — ignore it
 
-## Related Resources (in the workspace repo, not this fork)
+## Related Resources
 
-- Obsidian scribe skill: `~/.openclaw/workspace/skills/obsidian-scribe/`
-- local-rag skill: `~/.openclaw/workspace/skills/local-rag/`
+- PRDs: `prd/` in this repo
 - Obsidian project note: `/mnt/c/Users/Jherr/Documents/remote-personal/1-Projects/openclaw/Obsidian Memory Provider.md`
+- Workspace skills: `~/.openclaw/workspace/skills/`
