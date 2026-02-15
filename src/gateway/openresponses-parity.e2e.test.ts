@@ -271,7 +271,7 @@ describe("OpenResponses Feature Parity", () => {
 
   describe("buildAgentPrompt", () => {
     it("should convert function_call_output to tool entry", async () => {
-      const { buildAgentPrompt } = await import("./openresponses-http.js");
+      const { buildAgentPrompt } = await import("./openresponses-prompt.js");
 
       const result = buildAgentPrompt([
         {
@@ -286,7 +286,7 @@ describe("OpenResponses Feature Parity", () => {
     });
 
     it("should handle mixed message and function_call_output items", async () => {
-      const { buildAgentPrompt } = await import("./openresponses-http.js");
+      const { buildAgentPrompt } = await import("./openresponses-prompt.js");
 
       const result = buildAgentPrompt([
         {

@@ -66,4 +66,9 @@ export function resolveAssistantAvatarUrl(params: {
   return avatar;
 }
 
+export type ControlUiRootState =
+  | { kind: "resolved"; path: string }
+  | { kind: "invalid"; path: string }
+  | { kind: "missing" };
+
 export { CONTROL_UI_AVATAR_PREFIX };

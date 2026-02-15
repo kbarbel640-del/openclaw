@@ -2,24 +2,25 @@ import { randomUUID } from "node:crypto";
 import type { CliDeps } from "../../cli/deps.js";
 import type { CronJob } from "../../cron/types.js";
 import type { createSubsystemLogger } from "../../logging/subsystem.js";
-import type { HookMessageChannel, HooksConfigResolved } from "../hooks.js";
+import type { HookDispatchers } from "../elysia-gateway.js";
+import type { HookMessageChannel } from "../hooks.js";
 import { loadConfig } from "../../config/config.js";
 import { resolveMainSessionKeyFromConfig } from "../../config/sessions.js";
 import { runCronIsolatedAgentTurn } from "../../cron/isolated-agent.js";
 import { requestHeartbeatNow } from "../../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
-import { createHooksRequestHandler } from "../server-http.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
-export function createGatewayHooksRequestHandler(params: {
+/**
+ * Create hook dispatchers (wake + agent) without an HTTP handler.
+ * Used by the Elysia gateway to wire dispatchers into Elysia route plugins.
+ */
+export function createHookDispatchers(params: {
   deps: CliDeps;
-  getHooksConfig: () => HooksConfigResolved | null;
-  bindHost: string;
-  port: number;
   logHooks: SubsystemLogger;
-}) {
-  const { deps, getHooksConfig, bindHost, port, logHooks } = params;
+}): HookDispatchers {
+  const { deps, logHooks } = params;
 
   const dispatchWakeHook = (value: { text: string; mode: "now" | "next-heartbeat" }) => {
     const sessionKey = resolveMainSessionKeyFromConfig();
@@ -104,12 +105,5 @@ export function createGatewayHooksRequestHandler(params: {
     return runId;
   };
 
-  return createHooksRequestHandler({
-    getHooksConfig,
-    bindHost,
-    port,
-    logHooks,
-    dispatchAgentHook,
-    dispatchWakeHook,
-  });
+  return { dispatchWakeHook, dispatchAgentHook };
 }

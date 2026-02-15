@@ -42,7 +42,7 @@ async function getWhoami(): Promise<{ username: string; userId: string }> {
   };
 }
 
-interface TwitterUser {
+export interface TwitterUser {
   id: string;
   username: string;
   name: string;
