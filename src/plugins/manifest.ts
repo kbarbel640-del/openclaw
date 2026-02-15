@@ -6,6 +6,12 @@ import { MANIFEST_KEY } from "../compat/legacy-names.js";
 export const PLUGIN_MANIFEST_FILENAME = "openclaw.plugin.json";
 export const PLUGIN_MANIFEST_FILENAMES = [PLUGIN_MANIFEST_FILENAME] as const;
 
+export type PluginMcpServerConfig = {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+};
+
 export type PluginManifest = {
   id: string;
   configSchema: Record<string, unknown>;
@@ -17,6 +23,14 @@ export type PluginManifest = {
   description?: string;
   version?: string;
   uiHints?: Record<string, PluginConfigUiHint>;
+  /** Relative path to a directory containing command .md files. */
+  commands?: string;
+  /** Relative path to a directory containing agent definition .md files. */
+  agents?: string;
+  /** Relative path to a directory containing hook definitions. */
+  hooks?: string;
+  /** MCP server configurations to start alongside this plugin. */
+  mcpServers?: Record<string, PluginMcpServerConfig>;
 };
 
 export type PluginManifestLoadResult =
@@ -84,6 +98,40 @@ export function loadPluginManifest(rootDir: string): PluginManifestLoadResult {
     uiHints = raw.uiHints as Record<string, PluginConfigUiHint>;
   }
 
+  const commands = typeof raw.commands === "string" ? raw.commands.trim() : undefined;
+  const agents = typeof raw.agents === "string" ? raw.agents.trim() : undefined;
+  const hooks = typeof raw.hooks === "string" ? raw.hooks.trim() : undefined;
+
+  let mcpServers: Record<string, PluginMcpServerConfig> | undefined;
+  if (isRecord(raw.mcpServers)) {
+    mcpServers = {};
+    for (const [serverName, serverRaw] of Object.entries(raw.mcpServers)) {
+      if (!isRecord(serverRaw)) {
+        continue;
+      }
+      const command = typeof serverRaw.command === "string" ? serverRaw.command.trim() : "";
+      if (!command) {
+        continue;
+      }
+      const args = Array.isArray(serverRaw.args)
+        ? serverRaw.args.filter((a): a is string => typeof a === "string")
+        : undefined;
+      let env: Record<string, string> | undefined;
+      if (isRecord(serverRaw.env)) {
+        env = {};
+        for (const [key, value] of Object.entries(serverRaw.env)) {
+          if (typeof value === "string") {
+            env[key] = value;
+          }
+        }
+      }
+      mcpServers[serverName] = { command, args, env };
+    }
+    if (Object.keys(mcpServers).length === 0) {
+      mcpServers = undefined;
+    }
+  }
+
   return {
     ok: true,
     manifest: {
@@ -97,6 +145,10 @@ export function loadPluginManifest(rootDir: string): PluginManifestLoadResult {
       description,
       version,
       uiHints,
+      commands,
+      agents,
+      hooks,
+      mcpServers,
     },
     manifestPath,
   };

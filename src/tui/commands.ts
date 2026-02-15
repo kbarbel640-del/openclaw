@@ -2,6 +2,7 @@ import type { SlashCommand } from "@mariozechner/pi-tui";
 import type { OpenClawConfig } from "../config/types.js";
 import { listChatCommands, listChatCommandsForConfig } from "../auto-reply/commands-registry.js";
 import { formatThinkingLevels, listThinkingLevelLabels } from "../auto-reply/thinking.js";
+import { getMarkdownSlashCommands } from "./markdown-commands.js";
 
 const VERBOSE_LEVELS = ["on", "off"];
 const REASONING_LEVELS = ["on", "off"];
@@ -132,6 +133,15 @@ export function getSlashCommands(options: SlashCommandOptions = {}): SlashComman
       }
       seen.add(name);
       commands.push({ name, description: command.description });
+    }
+  }
+
+  // Merge markdown-defined commands (from ~/.openclaw/commands/*.md)
+  const mdCommands = getMarkdownSlashCommands();
+  for (const cmd of mdCommands) {
+    if (!seen.has(cmd.name)) {
+      seen.add(cmd.name);
+      commands.push(cmd);
     }
   }
 

@@ -20,6 +20,7 @@ import {
   createSearchableSelectList,
   createSettingsList,
 } from "./components/selectors.js";
+import { resolveMarkdownCommand } from "./markdown-commands.js";
 import { formatStatusSummary } from "./tui-status-summary.js";
 
 type CommandHandlerContext = {
@@ -437,9 +438,16 @@ export function createCommandHandlers(context: CommandHandlerContext) {
         tui.stop();
         process.exit(0);
         break;
-      default:
-        await sendMessage(raw);
+      default: {
+        // Check if this is a markdown-defined command
+        const mdPrompt = resolveMarkdownCommand(name, args || undefined);
+        if (mdPrompt) {
+          await sendMessage(mdPrompt);
+        } else {
+          await sendMessage(raw);
+        }
         break;
+      }
     }
     tui.requestRender();
   };

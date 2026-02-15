@@ -5,8 +5,13 @@
  * like command processing, session lifecycle, etc.
  */
 
+import os from "node:os";
 import type { WorkspaceBootstrapFile } from "../agents/workspace.js";
 import type { OpenClawConfig } from "../config/config.js";
+import type { JsonHookEntry } from "./json-loader.js";
+import { resolveStateDir } from "../config/paths.js";
+import { loadAllJsonHooks } from "./json-loader.js";
+import { matchesEvent, runShellHook } from "./shell-runner.js";
 
 export type InternalHookEventType = "command" | "session" | "agent" | "gateway";
 
@@ -44,6 +49,22 @@ export type InternalHookHandler = (event: InternalHookEvent) => Promise<void> | 
 
 /** Registry of hook handlers by event key */
 const handlers = new Map<string, InternalHookHandler[]>();
+
+/** Cached shell hook entries loaded from hooks.json files. */
+let shellHookEntries: JsonHookEntry[] | null = null;
+
+function getShellHookEntries(): JsonHookEntry[] {
+  if (shellHookEntries) {
+    return shellHookEntries;
+  }
+  try {
+    const stateDir = resolveStateDir(process.env, os.homedir);
+    shellHookEntries = loadAllJsonHooks({ stateDir });
+  } catch {
+    shellHookEntries = [];
+  }
+  return shellHookEntries;
+}
 
 /**
  * Register a hook handler for a specific event type or event:action combination
@@ -99,6 +120,7 @@ export function unregisterInternalHook(eventKey: string, handler: InternalHookHa
  */
 export function clearInternalHooks(): void {
   handlers.clear();
+  shellHookEntries = null;
 }
 
 /**
@@ -126,16 +148,38 @@ export async function triggerInternalHook(event: InternalHookEvent): Promise<voi
 
   const allHandlers = [...typeHandlers, ...specificHandlers];
 
-  if (allHandlers.length === 0) {
-    return;
-  }
-
+  // Run programmatic handlers
   for (const handler of allHandlers) {
     try {
       await handler(event);
     } catch (err) {
       console.error(
         `Hook error [${event.type}:${event.action}]:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  // Run shell hooks from hooks.json
+  const shellEntries = getShellHookEntries();
+  for (const entry of shellEntries) {
+    if (!matchesEvent(entry, event)) {
+      continue;
+    }
+    try {
+      const result = await runShellHook(entry, event);
+      if (!result.ok) {
+        console.error(
+          `Shell hook error [${event.type}:${event.action}] "${entry.command}":`,
+          result.stderr || `exit code ${result.exitCode}`,
+        );
+      }
+      if (result.stdout.trim()) {
+        event.messages.push(result.stdout.trim());
+      }
+    } catch (err) {
+      console.error(
+        `Shell hook error [${event.type}:${event.action}] "${entry.command}":`,
         err instanceof Error ? err.message : String(err),
       );
     }

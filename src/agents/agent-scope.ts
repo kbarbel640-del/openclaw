@@ -9,6 +9,7 @@ import {
   parseAgentSessionKey,
 } from "../routing/session-key.js";
 import { resolveUserPath } from "../utils.js";
+import { findAgentDefinition } from "./definitions/resolver.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "./workspace.js";
 
 export { resolveAgentIdFromSessionKey } from "../routing/session-key.js";
@@ -109,6 +110,18 @@ export function resolveAgentConfig(
   const id = normalizeAgentId(agentId);
   const entry = resolveAgentEntry(cfg, id);
   if (!entry) {
+    // Fallback: check markdown agent definitions
+    const definition = findAgentDefinition(cfg, id, id);
+    if (definition) {
+      return {
+        name: definition.name,
+        role: definition.role,
+        capabilities: definition.capabilities,
+        expertise: definition.expertise,
+        skills: definition.skills,
+        persona: definition.systemPrompt,
+      };
+    }
     return undefined;
   }
   return {
@@ -211,6 +224,14 @@ export function resolveAgentRole(cfg: OpenClawConfig, agentId: string): AgentRol
   if (cfg.agents?.defaults?.role) {
     return cfg.agents.defaults.role;
   }
+
+  // Check markdown agent definitions as fallback
+  const id = normalizeAgentId(agentId);
+  const definition = findAgentDefinition(cfg, id, id);
+  if (definition?.role) {
+    return definition.role;
+  }
+
   // The main/default agent acts as the orchestrator by default.
   if (agentId === DEFAULT_AGENT_ID) {
     return "orchestrator";
@@ -241,7 +262,11 @@ export function canDelegate(from: AgentRole, to: AgentRole): DelegationDirection
 
 export function resolveAgentDir(cfg: OpenClawConfig, agentId: string) {
   const id = normalizeAgentId(agentId);
-  const configured = resolveAgentConfig(cfg, id)?.agentDir?.trim();
+  // Use resolveAgentEntry directly instead of resolveAgentConfig to avoid
+  // infinite recursion: resolveAgentConfig → findAgentDefinition →
+  // resolveAgentDefinitions → resolveAgentDir → resolveAgentConfig → ...
+  const entry = resolveAgentEntry(cfg, id);
+  const configured = typeof entry?.agentDir === "string" ? entry.agentDir.trim() : undefined;
   if (configured) {
     return resolveUserPath(configured);
   }

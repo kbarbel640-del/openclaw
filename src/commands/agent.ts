@@ -3,7 +3,6 @@ import {
   listAgentIds,
   resolveAgentDir,
   resolveAgentModelFallbacksOverride,
-  resolveAgentModelPrimary,
   resolveAgentSkillsFilter,
   resolveAgentWorkspaceDir,
 } from "../agents/agent-scope.js";
@@ -19,7 +18,6 @@ import {
   isCliProvider,
   modelKey,
   resolveConfiguredModelRef,
-  resolveDefaultModelForAgent,
   resolveModelForTaskIntent,
   resolveThinkingDefault,
 } from "../agents/model-selection.js";
@@ -242,7 +240,7 @@ export async function agentCommand(
     const complexity = classifyComplexity(body);
 
     // Use unified model selection (pools → complexity → task-type → per-agent → default)
-    const selection = await resolveModelForTaskIntent({
+    const selection = resolveModelForTaskIntent({
       cfg,
       agentId: sessionAgentId,
       taskType,

@@ -36,6 +36,7 @@ import type { TaskComplexity, TaskType } from "./task-classifier.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import { resolveAgentConfig, resolveAgentModelPrimary, resolveAgentRole } from "./agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
+import { findAgentDefinition } from "./definitions/resolver.js";
 import { getAutoSelectedModel } from "./model-auto-select.js";
 import { normalizeGoogleModelId } from "./models-config.providers.js";
 
@@ -276,6 +277,34 @@ export function resolveDefaultModelForAgent(params: {
       defaultProvider: DEFAULT_PROVIDER,
       defaultModel: DEFAULT_MODEL,
     });
+  }
+
+  // 1b. Check markdown agent definition model preference
+  if (params.agentId) {
+    const id = params.agentId.trim().toLowerCase();
+    const definition = findAgentDefinition(params.cfg, id, id);
+    if (definition?.model) {
+      const defCfg = {
+        ...params.cfg,
+        agents: {
+          ...params.cfg.agents,
+          defaults: {
+            ...params.cfg.agents?.defaults,
+            model: {
+              ...(typeof params.cfg.agents?.defaults?.model === "object"
+                ? params.cfg.agents.defaults.model
+                : undefined),
+              primary: definition.model,
+            },
+          },
+        },
+      };
+      return resolveConfiguredModelRef({
+        cfg: defCfg,
+        defaultProvider: DEFAULT_PROVIDER,
+        defaultModel: DEFAULT_MODEL,
+      });
+    }
   }
 
   // 2. Auto-select based on agent role (if catalog has been initialized)
