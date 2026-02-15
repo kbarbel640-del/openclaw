@@ -10,9 +10,9 @@ This is a fork of [openclaw/openclaw](https://github.com/openclaw/openclaw) — 
 
 **Goal:** Users set `memorySearch.provider: "obsidian"` with a `vaultPath`, and the agent automatically semantic-searches their entire knowledge base every turn.
 
-## What Already Exists (We Built These)
+## What Already Exists (We Built These — USE THEM)
 
-All in `src/memory/`:
+All in `src/memory/`. These are tested, working modules ported from the workspace's `local-rag` and `obsidian-scribe` skills. **Do not rebuild or rewrite these.** The task is to wire them into OpenClaw's existing factory, not to create new implementations.
 
 | File                      | Status  | Purpose                                                                           |
 | ------------------------- | ------- | --------------------------------------------------------------------------------- |
@@ -30,7 +30,9 @@ All in `src/memory/`:
 
 ## What Remains
 
-### 1. Wire Provider into Factory (Blocked Item)
+### 1. Wire Provider into Factory (THE MAIN TASK)
+
+This is integration work, not greenfield development. All the provider modules exist and are tested. The job is to add a code path in the factory so that when `provider === "obsidian"`, it creates an `ObsidianMemoryProvider` instead of a `MemoryIndexManager`.
 
 `src/memory/search-manager.ts` → `getMemorySearchManager()` is the factory that creates memory managers. Currently it only knows about `builtin` and `qmd` backends. Need to add:
 
