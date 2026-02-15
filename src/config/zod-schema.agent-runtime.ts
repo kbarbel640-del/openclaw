@@ -293,7 +293,7 @@ const AgentToolsObjectSchema = z
       .strict()
       .optional(),
   })
-  .strict()
+  .passthrough() // Allow extension fields (e.g. allowElevated) from user config
   .superRefine((value, ctx) => {
     if (value.allow && value.allow.length > 0 && value.alsoAllow && value.alsoAllow.length > 0) {
       ctx.addIssue({
@@ -304,9 +304,39 @@ const AgentToolsObjectSchema = z
     }
   });
 
-// Accept both string shorthand ("full") and full object form
+// Detect corrupted tools format where a string like "full" was serialized as {"0":"f","1":"u","2":"l","3":"l",...}
+// and recover the original profile string.
+function recoverCorruptedToolsString(val: unknown): unknown {
+  if (typeof val === "string") {
+    return { profile: val };
+  }
+  if (typeof val !== "object" || val === null || Array.isArray(val)) {
+    return val;
+  }
+  const obj = val as Record<string, unknown>;
+  const keys = Object.keys(obj);
+  const numericKeys = keys.filter((k) => /^\d+$/.test(k)).toSorted((a, b) => Number(a) - Number(b));
+  // If the majority of keys are sequential numeric indices holding single characters, recover the string
+  if (numericKeys.length >= 3 && numericKeys.every((k, i) => Number(k) === i)) {
+    const chars = numericKeys.map((k) => obj[k]);
+    if (chars.every((c) => typeof c === "string" && c.length === 1)) {
+      const recovered = chars.join("");
+      // Merge non-numeric keys (e.g. allowElevated) into the result object
+      const result: Record<string, unknown> = { profile: recovered };
+      for (const k of keys) {
+        if (!/^\d+$/.test(k)) {
+          result[k] = obj[k];
+        }
+      }
+      return result;
+    }
+  }
+  return val;
+}
+
+// Accept both string shorthand ("full") and full object form, with corrupted-format recovery
 export const AgentToolsSchema = z
-  .preprocess((val) => (typeof val === "string" ? { profile: val } : val), AgentToolsObjectSchema)
+  .preprocess(recoverCorruptedToolsString, AgentToolsObjectSchema)
   .optional();
 
 export const MemorySearchSchema = z
@@ -320,7 +350,9 @@ export const MemorySearchSchema = z
       })
       .strict()
       .optional(),
-    provider: z.union([z.literal("openai"), z.literal("local"), z.literal("gemini")]).optional(),
+    provider: z
+      .union([z.literal("openai"), z.literal("local"), z.literal("gemini"), z.literal("default")])
+      .optional(),
     remote: z
       .object({
         baseUrl: z.string().optional(),
@@ -412,7 +444,7 @@ export const MemorySearchSchema = z
       .strict()
       .optional(),
   })
-  .strict()
+  .passthrough() // Allow extension fields (autoIndexWorkspace, root-level minScore, etc.)
   .optional();
 export const AgentModelSchema = z.union([
   z.string(),
@@ -476,12 +508,12 @@ export const AgentEntrySchema = z
           .optional(),
         thinking: z.string().optional(),
       })
-      .strict()
+      .passthrough() // Allow extension fields (spawnable, timeoutSeconds, cleanup, etc.)
       .optional(),
     sandbox: AgentSandboxSchema,
     tools: AgentToolsSchema,
   })
-  .strict();
+  .passthrough(); // Allow extension fields (context, etc.) from user config
 
 export const ToolsSchema = z
   .object({
