@@ -27,7 +27,6 @@ const {
   waitForTransportReadyMock,
   spawnSignalDaemonMock,
 } = getSignalToolResultTestMocks();
-const { monitorSignalProvider } = await import("./monitor.js");
 
 const SIGNAL_BASE_URL = "http://127.0.0.1:8080";
 type MonitorSignalProviderOptions = Parameters<typeof monitorSignalProvider>[0];
