@@ -30,6 +30,33 @@ export function resolveUserTimeFormat(preference?: TimeFormatPreference): Resolv
   return cachedTimeFormat;
 }
 
+export function formatUserDateYmd(date: Date, timeZone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+
+    const map: Record<string, string> = {};
+    for (const p of parts) {
+      if (p.type !== "literal") {
+        map[p.type] = p.value;
+      }
+    }
+
+    if (map.year && map.month && map.day) {
+      return `${map.year}-${map.month}-${map.day}`;
+    }
+  } catch {
+    // ignore
+  }
+
+  // fallback: UTC date
+  return date.toISOString().slice(0, 10);
+}
+
 export function normalizeTimestamp(
   raw: unknown,
 ): { timestampMs: number; timestampUtc: string } | undefined {

@@ -5,6 +5,7 @@ import type { VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions } from "../types.js";
 import type { FollowupRun } from "./queue.js";
 import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
+import { formatUserDateYmd, resolveUserTimezone } from "../../agents/date-time.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
 import { isCliProvider } from "../../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
@@ -95,6 +96,14 @@ export async function runMemoryFlushIfNeeded(params: {
   ]
     .filter(Boolean)
     .join("\n\n");
+
+  // The memory flush prompt uses a literal YYYY-MM-DD placeholder. Resolve it here so the
+  // model never has to guess the current date (which can cause wrong-year filenames).
+  const userTz = resolveUserTimezone(params.followupRun.run.config?.agents?.defaults?.userTimezone);
+  const flushDate = formatUserDateYmd(new Date(), userTz);
+  const resolvedPrompt = memoryFlushSettings.prompt.replaceAll("YYYY-MM-DD", flushDate);
+  const resolvedFlushSystemPrompt = flushSystemPrompt.replaceAll("YYYY-MM-DD", flushDate);
+
   try {
     await runWithModelFallback({
       cfg: params.followupRun.run.config,
@@ -133,8 +142,8 @@ export async function runMemoryFlushIfNeeded(params: {
           agentDir: params.followupRun.run.agentDir,
           config: params.followupRun.run.config,
           skillsSnapshot: params.followupRun.run.skillsSnapshot,
-          prompt: memoryFlushSettings.prompt,
-          extraSystemPrompt: flushSystemPrompt,
+          prompt: resolvedPrompt,
+          extraSystemPrompt: resolvedFlushSystemPrompt,
           ownerNumbers: params.followupRun.run.ownerNumbers,
           enforceFinalTag: resolveEnforceFinalTag(params.followupRun.run, provider),
           provider,
