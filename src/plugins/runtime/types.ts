@@ -148,6 +148,12 @@ type HandleWhatsAppAction =
 type CreateWhatsAppLoginTool =
   typeof import("../../channels/plugins/agent-tools/whatsapp-login.js").createWhatsAppLoginTool;
 
+// MAX channel types
+type ProbeMax = typeof import("../../max/probe.js").probeMax;
+type SendMessageMax = typeof import("../../max/send.js").sendMessageMax;
+type SendMediaMax = typeof import("../../max/send.js").sendMediaMax;
+type MonitorMaxProvider = typeof import("../../max/monitor.js").monitorMaxProvider;
+
 // LINE channel types
 type ListLineAccountIds = typeof import("../../line/accounts.js").listLineAccountIds;
 type ResolveDefaultLineAccountId =
@@ -303,6 +309,13 @@ export type PluginRuntime = {
       sendMessageTelegram: SendMessageTelegram;
       monitorTelegramProvider: MonitorTelegramProvider;
       messageActions: TelegramMessageActions;
+    };
+    max?: {
+      probeMax: ProbeMax;
+      sendMessageMax: SendMessageMax;
+      sendMediaMax: SendMediaMax;
+      monitorMaxProvider: MonitorMaxProvider;
+      messageActions?: unknown;
     };
     signal: {
       probeSignal: ProbeSignal;
