@@ -317,9 +317,7 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   const effectivePayloadKind = patch.payload?.kind ?? job.payload.kind;
   if (!patch.delivery && effectivePayloadKind === "agentTurn" && patch.payload) {
     // Back-compat: legacy clients still update delivery via payload fields.
-    const legacyDeliveryPatch = buildLegacyDeliveryPatch(
-      patch.payload as Parameters<typeof buildLegacyDeliveryPatch>[0],
-    );
+    const legacyDeliveryPatch = buildLegacyDeliveryPatch(patch.payload as LegacyDeliveryFields);
     if (
       legacyDeliveryPatch &&
       job.sessionTarget === "isolated" &&
@@ -410,12 +408,15 @@ function mergeCronPayload(existing: CronPayload, patch: CronPayloadPatch): CronP
   return next;
 }
 
-function buildLegacyDeliveryPatch(payload: {
+/** Fields used by legacy clients to update delivery via payload. */
+type LegacyDeliveryFields = {
   deliver?: boolean;
   to?: string;
   channel?: CronMessageChannel;
   bestEffortDeliver?: boolean;
-}): CronDeliveryPatch | null {
+};
+
+function buildLegacyDeliveryPatch(payload: LegacyDeliveryFields): CronDeliveryPatch | null {
   const deliver = payload.deliver;
   const toRaw = typeof payload.to === "string" ? payload.to.trim() : "";
   const hasLegacyHints =
