@@ -54,12 +54,10 @@ describe("isBillingErrorMessage", () => {
     }
   });
   it("matches Venice billing error with non-adjacent insufficient/balance", () => {
-    expect(
-      isBillingErrorMessage("Insufficient USD or Diem balance to complete request"),
-    ).toBe(true);
-    expect(
-      isBillingErrorMessage("insufficient token balance for this operation"),
-    ).toBe(true);
+    expect(isBillingErrorMessage("Insufficient USD or Diem balance to complete request")).toBe(
+      true,
+    );
+    expect(isBillingErrorMessage("insufficient token balance for this operation")).toBe(true);
   });
   it("ignores unrelated errors", () => {
     expect(isBillingErrorMessage("rate limit exceeded")).toBe(false);
@@ -356,8 +354,8 @@ describe("classifyFailoverReason", () => {
     );
   });
   it("classifies Venice billing errors as billing", () => {
-    expect(
-      classifyFailoverReason("Insufficient USD or Diem balance to complete request"),
-    ).toBe("billing");
+    expect(classifyFailoverReason("Insufficient USD or Diem balance to complete request")).toBe(
+      "billing",
+    );
   });
 });
