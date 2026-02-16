@@ -94,3 +94,16 @@ __pycache__/
 !.agent/workflows/
 /local/
 package-lock.json
+
+# Large binary files (never commit these)
+*.mp3
+*.mp4
+*.wav
+*.flac
+*.avi
+*.mkv
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
