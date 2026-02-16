@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk";
 import type { MaxAccountConfig, ResolvedMaxAccount } from "./types.js";
@@ -65,25 +66,46 @@ function mergeMaxAccountConfig(cfg: OpenClawConfig, accountId: string): MaxAccou
   return { ...base, ...account };
 }
 
+function tryReadTokenFile(filePath: string): string {
+  if (!fs.existsSync(filePath)) {
+    return "";
+  }
+  try {
+    return fs.readFileSync(filePath, "utf-8").trim();
+  } catch {
+    return "";
+  }
+}
+
 function resolveMaxToken(
   cfg: OpenClawConfig,
   accountId: string,
 ): { token: string; source: ResolvedMaxAccount["tokenSource"] } {
   const merged = mergeMaxAccountConfig(cfg, accountId);
 
-  // 1. Environment variable
-  const envToken = process.env.MAX_BOT_TOKEN?.trim() ?? "";
-  if (envToken && accountId === DEFAULT_ACCOUNT_ID) {
-    return { token: envToken, source: "env" };
+  // 1. Token file (per-account or base)
+  const tokenFile = merged.tokenFile?.trim();
+  if (tokenFile) {
+    const fileToken = tryReadTokenFile(tokenFile);
+    if (fileToken) {
+      return { token: fileToken, source: "tokenFile" };
+    }
+    return { token: "", source: "none" };
   }
 
-  // 2. Config token
+  // 2. Config token (per-account or base)
   const configToken = merged.botToken?.trim() ?? "";
   if (configToken) {
     return { token: configToken, source: "config" };
   }
 
-  // 3. No token
+  // 3. Environment variable (default account only)
+  const envToken = process.env.MAX_BOT_TOKEN?.trim() ?? "";
+  if (envToken && accountId === DEFAULT_ACCOUNT_ID) {
+    return { token: envToken, source: "env" };
+  }
+
+  // 4. No token
   return { token: "", source: "none" };
 }
 

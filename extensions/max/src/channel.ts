@@ -74,6 +74,8 @@ function parseReplyToMessageId(replyToId?: string | null) {
 const maxMessageActions: ChannelMessageActionAdapter = {
   listActions: (ctx) =>
     getMaxRuntime().channel.max?.messageActions?.listActions?.(ctx) ?? [],
+  extractToolSend: (ctx) =>
+    getMaxRuntime().channel.max?.messageActions?.extractToolSend?.(ctx) ?? null,
   supportsAction: (ctx) =>
     getMaxRuntime().channel.max?.messageActions?.supportsAction?.(ctx) ?? false,
   handleAction: async (ctx) => {
@@ -195,12 +197,26 @@ export const maxPlugin: ChannelPlugin<ResolvedMaxAccount, MaxProbe> = {
     },
   },
 
+  groups: {
+    resolveRequireMention: ({ cfg, accountId }) => {
+      const account = resolveMaxAccount({ cfg, accountId });
+      // MAX groups default to requiring @mention for the bot.
+      return account.config.groupPolicy === "open" ? false : true;
+    },
+  },
+
   messaging: {
     normalizeTarget: normalizeMaxMessagingTarget,
     targetResolver: {
       looksLikeId: looksLikeMaxTargetId,
       hint: "<chatId|max:chatId>",
     },
+  },
+
+  directory: {
+    self: async () => null,
+    listPeers: async () => [],
+    listGroups: async () => [],
   },
 
   actions: maxMessageActions,
