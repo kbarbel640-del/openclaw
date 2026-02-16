@@ -84,7 +84,7 @@ describe("buildStatusMessage", () => {
     expect(normalized).toContain("Runtime: direct");
     expect(normalized).toContain("Think: medium");
     expect(normalized).not.toContain("verbose");
-    expect(normalized).toContain("elevated");
+    expect(normalized).not.toContain("elevated");
     expect(normalized).toContain("Queue: collect");
   });
 

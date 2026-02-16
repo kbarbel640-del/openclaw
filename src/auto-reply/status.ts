@@ -385,7 +385,7 @@ export function buildStatusMessage(args: StatusArgs): string {
     args.resolvedElevated ??
     args.sessionEntry?.elevatedLevel ??
     args.agent?.elevatedDefault ??
-    "on";
+    "off";
 
   const runtime = { label: resolveRuntimeLabel(args) };
 
