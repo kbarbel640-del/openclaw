@@ -117,8 +117,9 @@ type DesearchSearchResult = {
   source?: string;
 };
 
-type DesearchSearchResponse = {
-  data?: DesearchSearchResult[];
+type DesearchSSEEvent = {
+  type: string;
+  content: DesearchSearchResult[] | unknown;
 };
 
 function resolveSearchConfig(cfg?: OpenClawConfig): WebSearchConfig {
@@ -426,16 +427,22 @@ async function runDesearchSearch(params: {
   baseUrl: string;
   timeoutSeconds: number;
 }): Promise<DesearchSearchResult[]> {
-  const url = new URL(`${params.baseUrl.replace(/\/$/, "")}/web`);
-  url.searchParams.set("query", params.query);
+  const base = params.baseUrl.replace(/\/$/, "");
+  const url = `${base}/desearch/ai/search/links/web`;
 
-  const res = await fetch(url.toString(), {
-    method: "GET",
+  const res = await fetch(url, {
+    method: "POST",
     headers: {
-      Accept: "application/json",
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
       // DeSearch uses raw API key in Authorization header (no Bearer prefix)
       Authorization: params.apiKey,
     },
+    body: JSON.stringify({
+      prompt: params.query,
+      tools: ["web"],
+      result_type: "ONLY_LINKS",
+    }),
     signal: withTimeout(undefined, params.timeoutSeconds * 1000),
   });
 
@@ -444,8 +451,28 @@ async function runDesearchSearch(params: {
     throw new Error(`DeSearch API error (${res.status}): ${detail || res.statusText}`);
   }
 
-  const data = (await res.json()) as DesearchSearchResponse;
-  return Array.isArray(data.data) ? data.data : [];
+  // DeSearch returns Server-Sent Events; extract "search" event containing results
+  const text = await res.text();
+  const results: DesearchSearchResult[] = [];
+
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data: ")) {
+      continue;
+    }
+    try {
+      const event = JSON.parse(trimmed.slice(6)) as DesearchSSEEvent;
+      if (event.type === "search" && Array.isArray(event.content)) {
+        for (const entry of event.content as DesearchSearchResult[]) {
+          results.push(entry);
+        }
+      }
+    } catch {
+      // skip malformed SSE lines
+    }
+  }
+
+  return results.slice(0, params.count);
 }
 
 async function runWebSearch(params: {
