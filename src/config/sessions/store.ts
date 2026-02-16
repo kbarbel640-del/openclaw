@@ -170,12 +170,16 @@ export function loadSessionStore(
   let store: Record<string, SessionEntry> = {};
   let mtimeMs = getFileMtimeMs(storePath);
   const maxReadAttempts = process.platform === "win32" ? 3 : 1;
+  const retryBuf =
+    maxReadAttempts > 1
+      ? new Int32Array(new SharedArrayBuffer(4))
+      : undefined;
   for (let attempt = 0; attempt < maxReadAttempts; attempt++) {
     try {
       const raw = fs.readFileSync(storePath, "utf-8");
       if (raw.length === 0 && attempt < maxReadAttempts - 1) {
         // File is empty — likely caught mid-write; retry after a brief pause.
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+        Atomics.wait(retryBuf!, 0, 0, 50);
         continue;
       }
       const parsed = JSON.parse(raw);
@@ -187,7 +191,7 @@ export function loadSessionStore(
     } catch {
       // File missing, locked, or transiently corrupt — retry on Windows.
       if (attempt < maxReadAttempts - 1) {
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+        Atomics.wait(retryBuf!, 0, 0, 50);
         continue;
       }
       // Final attempt failed; proceed with an empty store.
@@ -548,13 +552,26 @@ async function saveSessionStoreUnlocked(
     const tmp = `${storePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
     try {
       await fs.promises.writeFile(tmp, json, "utf-8");
-      try {
-        await fs.promises.rename(tmp, storePath);
-      } catch {
-        // Rename can fail on Windows when the target is locked by another
-        // reader; fall back to a direct overwrite which is still better than
-        // the 0-byte truncation window of a plain writeFile on the target.
-        await fs.promises.writeFile(storePath, json, "utf-8");
+      // Retry rename up to 3 times with backoff — rename can fail on Windows
+      // when the target is locked by a concurrent reader.  Falling back to
+      // direct writeFile would reintroduce the 0-byte truncation race.
+      let renamed = false;
+      for (let i = 0; i < 3; i++) {
+        try {
+          await fs.promises.rename(tmp, storePath);
+          renamed = true;
+          break;
+        } catch {
+          if (i < 2) {
+            await new Promise((r) => setTimeout(r, 50 * (i + 1)));
+          }
+        }
+      }
+      if (!renamed) {
+        // All rename attempts failed (file persistently locked).  Use
+        // copyFile + unlink as a last resort — copyFile overwrites the
+        // target's content in-place without truncating first on NTFS.
+        await fs.promises.copyFile(tmp, storePath);
       }
     } catch (err) {
       const code =
