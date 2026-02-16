@@ -16,6 +16,11 @@ export type DiscordSenderIdentity = {
   };
 };
 
+/** Minimal structural type for a Discord guild member (Carbon GuildMember or raw API data). */
+type DiscordMemberLike = {
+  nickname?: string | null;
+};
+
 type DiscordWebhookMessageLike = {
   webhookId?: string | null;
   webhook_id?: string | null;
@@ -28,8 +33,7 @@ export function resolveDiscordWebhookId(message: DiscordWebhookMessageLike): str
 
 export function resolveDiscordSenderIdentity(params: {
   author: User;
-  // oxlint-disable-next-line typescript/no-explicit-any
-  member?: any;
+  member?: DiscordMemberLike | null;
   pluralkitInfo?: PluralKitMessageInfo | null;
 }): DiscordSenderIdentity {
   const pkInfo = params.pluralkitInfo ?? null;
@@ -74,8 +78,7 @@ export function resolveDiscordSenderIdentity(params: {
 
 export function resolveDiscordSenderLabel(params: {
   author: User;
-  // oxlint-disable-next-line typescript/no-explicit-any
-  member?: any;
+  member?: DiscordMemberLike | null;
   pluralkitInfo?: PluralKitMessageInfo | null;
 }): string {
   return resolveDiscordSenderIdentity(params).label;
