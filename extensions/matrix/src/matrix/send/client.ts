@@ -1,10 +1,14 @@
 import type { MatrixClient } from "@vector-im/matrix-bot-sdk";
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/account-id";
+import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk";
 import type { CoreConfig } from "../../types.js";
 import { getMatrixRuntime } from "../../runtime.js";
 import { getActiveMatrixClient, getAnyActiveMatrixClient } from "../active-client.js";
-import { createPreparedMatrixClient } from "../client-bootstrap.js";
-import { isBunRuntime, resolveMatrixAuth, resolveSharedMatrixClient } from "../client.js";
+import {
+  createMatrixClient,
+  isBunRuntime,
+  resolveMatrixAuth,
+  resolveSharedMatrixClient,
+} from "../client.js";
 
 const getCore = () => getMatrixRuntime();
 
@@ -58,18 +62,14 @@ export async function resolveMatrixClient(opts: {
   if (opts.client) {
     return { client: opts.client, stopOnDone: false };
   }
-  const accountId =
-    typeof opts.accountId === "string" && opts.accountId.trim().length > 0
-      ? normalizeAccountId(opts.accountId)
-      : undefined;
   // Try to get the client for the specific account
-  const active = getActiveMatrixClient(accountId);
+  const active = getActiveMatrixClient(opts.accountId);
   if (active) {
     return { client: active, stopOnDone: false };
   }
   // When no account is specified, try the default account first; only fall back to
   // any active client as a last resort (prevents sending from an arbitrary account).
-  if (!accountId) {
+  if (!opts.accountId) {
     const defaultClient = getActiveMatrixClient(DEFAULT_ACCOUNT_ID);
     if (defaultClient) {
       return { client: defaultClient, stopOnDone: false };
@@ -83,15 +83,30 @@ export async function resolveMatrixClient(opts: {
   if (shouldShareClient) {
     const client = await resolveSharedMatrixClient({
       timeoutMs: opts.timeoutMs,
-      accountId,
+      accountId: opts.accountId,
     });
     return { client, stopOnDone: false };
   }
-  const auth = await resolveMatrixAuth({ accountId });
-  const client = await createPreparedMatrixClient({
-    auth,
-    timeoutMs: opts.timeoutMs,
-    accountId,
+  const auth = await resolveMatrixAuth({ accountId: opts.accountId });
+  const client = await createMatrixClient({
+    homeserver: auth.homeserver,
+    userId: auth.userId,
+    accessToken: auth.accessToken,
+    encryption: auth.encryption,
+    localTimeoutMs: opts.timeoutMs,
+    accountId: opts.accountId,
   });
+  if (auth.encryption && client.crypto) {
+    try {
+      const joinedRooms = await client.getJoinedRooms();
+      await (client.crypto as { prepare: (rooms?: string[]) => Promise<void> }).prepare(
+        joinedRooms,
+      );
+    } catch {
+      // Ignore crypto prep failures for one-off sends; normal sync will retry.
+    }
+  }
+  // @vector-im/matrix-bot-sdk uses start() instead of startClient()
+  await client.start();
   return { client, stopOnDone: true };
 }
