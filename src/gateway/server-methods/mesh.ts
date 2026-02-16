@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
+import type { GatewayRequestHandlerOptions, GatewayRequestHandlers, RespondFn } from "./types.js";
 import { agentCommand } from "../../commands/agent.js";
 import { normalizeAgentId } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
-import type { GatewayRequestHandlerOptions, GatewayRequestHandlers, RespondFn } from "./types.js";
 import {
   ErrorCodes,
   errorShape,
@@ -123,10 +123,7 @@ function normalizePlan(plan: MeshWorkflowPlan): MeshWorkflowPlan {
   };
 }
 
-function createPlanFromParams(params: {
-  goal: string;
-  steps?: MeshAutoStep[];
-}): MeshWorkflowPlan {
+function createPlanFromParams(params: { goal: string; steps?: MeshAutoStep[] }): MeshWorkflowPlan {
   const now = Date.now();
   const goal = params.goal.trim();
   const sourceSteps = params.steps?.length
@@ -164,7 +161,9 @@ function createPlanFromParams(params: {
   };
 }
 
-function validatePlanGraph(plan: MeshWorkflowPlan): { ok: true; order: string[] } | { ok: false; error: string } {
+function validatePlanGraph(
+  plan: MeshWorkflowPlan,
+): { ok: true; order: string[] } | { ok: false; error: string } {
   const ids = new Set<string>();
   for (const step of plan.steps) {
     if (ids.has(step.id)) {
@@ -231,7 +230,12 @@ async function callGatewayHandler(
 ): Promise<{ ok: boolean; payload?: unknown; error?: unknown; meta?: Record<string, unknown> }> {
   return await new Promise((resolve) => {
     let settled = false;
-    const settle = (result: { ok: boolean; payload?: unknown; error?: unknown; meta?: Record<string, unknown> }) => {
+    const settle = (result: {
+      ok: boolean;
+      payload?: unknown;
+      error?: unknown;
+      meta?: Record<string, unknown>;
+    }) => {
       if (settled) {
         return;
       }
@@ -647,7 +651,8 @@ async function generateAutoPlan(params: {
   const prompt = buildAutoPlannerPrompt({ goal: params.goal, maxSteps: params.maxSteps });
   const timeoutSeconds = Math.ceil((params.timeoutMs ?? AUTO_PLAN_TIMEOUT_MS) / 1000);
   const resolvedAgentId = normalizeAgentId(params.agentId ?? "main");
-  const plannerSessionKey = params.sessionKey?.trim() || `agent:${resolvedAgentId}:${PLANNER_MAIN_KEY}`;
+  const plannerSessionKey =
+    params.sessionKey?.trim() || `agent:${resolvedAgentId}:${PLANNER_MAIN_KEY}`;
 
   try {
     const runResult = await agentCommand(
@@ -853,7 +858,11 @@ export const meshHandlers: GatewayRequestHandlers = {
       return;
     }
     if (run.status === "running") {
-      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, "mesh run is currently running"));
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, "mesh run is currently running"),
+      );
       return;
     }
     const stepIds = resolveStepIdsForRetry(run, params.stepIds);

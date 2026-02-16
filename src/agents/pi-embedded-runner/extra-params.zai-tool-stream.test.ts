@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import type { Context, Model } from "@mariozechner/pi-ai";
+import { describe, expect, it, vi } from "vitest";
 import { applyExtraParamsToAgent } from "./extra-params.js";
 
 // Mock streamSimple for testing
@@ -42,14 +42,17 @@ describe("extra-params: Z.AI tool_stream support", () => {
   });
 
   it("should not inject tool_stream for non-zai providers", () => {
-    const mockStreamFn: StreamFn = vi.fn(() => ({
-      push: vi.fn(),
-      result: vi.fn().mockResolvedValue({
-        role: "assistant",
-        content: [{ type: "text", text: "ok" }],
-        stopReason: "stop",
-      }),
-    } as any));
+    const mockStreamFn: StreamFn = vi.fn(
+      () =>
+        ({
+          push: vi.fn(),
+          result: vi.fn().mockResolvedValue({
+            role: "assistant",
+            content: [{ type: "text", text: "ok" }],
+            stopReason: "stop",
+          }),
+        }) as any,
+    );
 
     const agent = { streamFn: mockStreamFn };
     const cfg = {};
@@ -61,14 +64,17 @@ describe("extra-params: Z.AI tool_stream support", () => {
   });
 
   it("should allow disabling tool_stream via params", () => {
-    const mockStreamFn: StreamFn = vi.fn(() => ({
-      push: vi.fn(),
-      result: vi.fn().mockResolvedValue({
-        role: "assistant",
-        content: [{ type: "text", text: "ok" }],
-        stopReason: "stop",
-      }),
-    } as any));
+    const mockStreamFn: StreamFn = vi.fn(
+      () =>
+        ({
+          push: vi.fn(),
+          result: vi.fn().mockResolvedValue({
+            role: "assistant",
+            content: [{ type: "text", text: "ok" }],
+            stopReason: "stop",
+          }),
+        }) as any,
+    );
 
     const agent = { streamFn: mockStreamFn };
     const cfg = {

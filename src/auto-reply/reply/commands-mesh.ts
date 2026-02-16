@@ -110,7 +110,10 @@ function putCachedPlan(params: Parameters<CommandHandler>[0], plan: MeshPlanShap
   trimMeshPlanCache();
 }
 
-function getCachedPlan(params: Parameters<CommandHandler>[0], planId: string): MeshPlanShape | null {
+function getCachedPlan(
+  params: Parameters<CommandHandler>[0],
+  planId: string,
+): MeshPlanShape | null {
   return meshPlanCache.get(cacheKeyForPlan(params, planId))?.plan ?? null;
 }
 
@@ -190,7 +193,9 @@ export const handleMeshCommand: CommandHandler = async (params, allowTextCommand
     return null;
   }
   if (!params.command.isAuthorizedSender) {
-    logVerbose(`Ignoring /mesh from unauthorized sender: ${params.command.senderId || "<unknown>"}`);
+    logVerbose(
+      `Ignoring /mesh from unauthorized sender: ${params.command.senderId || "<unknown>"}`,
+    );
     return { shouldContinue: false };
   }
   if (!parsed.ok) {

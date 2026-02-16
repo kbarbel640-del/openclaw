@@ -91,7 +91,8 @@ export async function main() {
   const args = parseArgs(process.argv);
   const store = typeof args.store === "string" ? args.store : undefined;
   const runsDirArg = typeof args.runsDir === "string" ? args.runsDir : undefined;
-  const runsDir = runsDirArg ?? (store ? path.join(path.dirname(path.resolve(store)), "runs") : null);
+  const runsDir =
+    runsDirArg ?? (store ? path.join(path.dirname(path.resolve(store)), "runs") : null);
   if (!runsDir) {
     usageAndExit(2);
   }
@@ -150,7 +151,9 @@ export async function main() {
 
       const jobId = entry.jobId;
       const usage = entry.usage;
-      const hasUsage = Boolean(usage && (usage.total_tokens ?? usage.input_tokens ?? usage.output_tokens) !== undefined);
+      const hasUsage = Boolean(
+        usage && (usage.total_tokens ?? usage.input_tokens ?? usage.output_tokens) !== undefined,
+      );
 
       const jobAgg = (totalsByJob[jobId] ??= {
         jobId,

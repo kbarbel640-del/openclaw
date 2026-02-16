@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
 import { ChannelType } from "@buape/carbon";
+import { describe, it, expect, vi } from "vitest";
 import { maybeCreateDiscordAutoThread } from "./threading.js";
 
 describe("maybeCreateDiscordAutoThread", () => {
