@@ -2,6 +2,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { FailoverReason } from "./pi-embedded-helpers.js";
 import {
   ensureAuthProfileStore,
+  getSoonestCooldownExpiry,
   isProfileInCooldown,
   resolveAuthProfileOrder,
 } from "./auth-profiles.js";
@@ -239,6 +240,8 @@ export async function runWithModelFallback<T>(params: {
   const attempts: FallbackAttempt[] = [];
   let lastError: unknown;
 
+  const hasFallbackCandidates = candidates.length > 1;
+
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
     if (authStore) {
@@ -250,14 +253,38 @@ export async function runWithModelFallback<T>(params: {
       const isAnyProfileAvailable = profileIds.some((id) => !isProfileInCooldown(authStore, id));
 
       if (profileIds.length > 0 && !isAnyProfileAvailable) {
-        // All profiles for this provider are in cooldown; skip without attempting
-        attempts.push({
-          provider: candidate.provider,
-          model: candidate.model,
-          error: `Provider ${candidate.provider} is in cooldown (all profiles unavailable)`,
-          reason: "rate_limit",
-        });
-        continue;
+        // All profiles for this provider are in cooldown.
+        // For the primary model (i === 0), probe it if the soonest cooldown
+        // expiry is close (within 2 minutes) or already past. This avoids
+        // staying on a fallback model long after the rate-limit window clears
+        // when exponential backoff cooldowns exceed the actual provider limit.
+        const isPrimary = i === 0;
+        const shouldProbe =
+          isPrimary &&
+          hasFallbackCandidates &&
+          (() => {
+            const soonest = getSoonestCooldownExpiry(authStore, profileIds);
+            if (soonest === null) {
+              return true;
+            }
+            const now = Date.now();
+            // Probe when cooldown already expired or within 2 min of expiry
+            const PROBE_MARGIN_MS = 2 * 60 * 1000;
+            return now >= soonest - PROBE_MARGIN_MS;
+          })();
+        if (!shouldProbe) {
+          // Skip without attempting
+          attempts.push({
+            provider: candidate.provider,
+            model: candidate.model,
+            error: `Provider ${candidate.provider} is in cooldown (all profiles unavailable)`,
+            reason: "rate_limit",
+          });
+          continue;
+        }
+        // Primary model probe: attempt it despite cooldown to detect recovery.
+        // If it fails, the error is caught below and we fall through to the
+        // next candidate as usual.
       }
     }
     try {
