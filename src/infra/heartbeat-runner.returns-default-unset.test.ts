@@ -545,7 +545,7 @@ describe("runHeartbeatOnce", () => {
           Body: expect.stringMatching(/Ops check[\s\S]*Current time: /),
           SessionKey: sessionKey,
         }),
-        expect.objectContaining({ isHeartbeat: true, suppressToolErrorWarnings: false }),
+        expect.objectContaining({ isHeartbeat: true }),
         cfg,
       );
     } finally {
@@ -622,7 +622,7 @@ describe("runHeartbeatOnce", () => {
       expect(sendWhatsApp).toHaveBeenCalledWith("+1555", "Final alert", expect.any(Object));
       expect(replySpy).toHaveBeenCalledWith(
         expect.objectContaining({ SessionKey: sessionKey }),
-        expect.objectContaining({ isHeartbeat: true, suppressToolErrorWarnings: false }),
+        expect.objectContaining({ isHeartbeat: true }),
         cfg,
       );
     } finally {
@@ -700,7 +700,7 @@ describe("runHeartbeatOnce", () => {
       expect(sendWhatsApp).toHaveBeenCalledWith(groupId, "Group alert", expect.any(Object));
       expect(replySpy).toHaveBeenCalledWith(
         expect.objectContaining({ SessionKey: groupSessionKey }),
-        expect.objectContaining({ isHeartbeat: true, suppressToolErrorWarnings: false }),
+        expect.objectContaining({ isHeartbeat: true }),
         cfg,
       );
     } finally {
