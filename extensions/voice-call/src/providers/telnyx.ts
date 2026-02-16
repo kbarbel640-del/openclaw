@@ -148,8 +148,8 @@ export class TelnyxProvider implements VoiceCallProvider {
               : data.payload?.direction === "outgoing"
                 ? "outbound"
                 : undefined,
-          from: data.payload?.from,
-          to: data.payload?.to,
+          from: data.payload?.from as string | undefined,
+          to: data.payload?.to as string | undefined,
         };
 
       case "call.ringing":
