@@ -6,6 +6,7 @@ import { requireActivePluginRegistry } from "../plugins/runtime.js";
 // register the plugin in its extension entrypoint and keep protocol IDs in sync.
 export const CHAT_CHANNEL_ORDER = [
   "telegram",
+  "max",
   "whatsapp",
   "discord",
   "irc",
@@ -38,6 +39,19 @@ const CHAT_CHANNEL_META: Record<ChatChannelId, ChannelMeta> = {
     selectionDocsPrefix: "",
     selectionDocsOmitLabel: true,
     selectionExtras: [WEBSITE_URL],
+  },
+  max: {
+    id: "max",
+    label: "MAX",
+    selectionLabel: "MAX (Bot API)",
+    detailLabel: "MAX Bot",
+    docsPath: "/channels/max",
+    docsLabel: "max",
+    blurb:
+      "Russian super-app by VK Group — pre-installed on all smartphones sold in Russia since Sep 2025.",
+    systemImage: "paperplane",
+    order: 15,
+    quickstartAllowFrom: true,
   },
   whatsapp: {
     id: "whatsapp",
