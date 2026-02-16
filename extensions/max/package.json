@@ -1,0 +1,15 @@
+{
+  "name": "@openclaw/max",
+  "version": "2026.2.16",
+  "private": true,
+  "description": "OpenClaw MAX Messenger channel plugin",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
