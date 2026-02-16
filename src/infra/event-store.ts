@@ -1,22 +1,15 @@
 /**
  * Event Store — NATS JetStream integration for OpenClaw
  * Publishes agent events for audit, replay, and multi-agent sharing.
+ *
+ * The `nats` package is an optional peer dependency. When not installed,
+ * initEventStore() logs a warning and returns without error so CI/builds
+ * that don't need event-store still pass type-checking.
  */
 
-import {
-  connect,
-  type NatsConnection,
-  type JetStreamClient,
-  StringCodec,
-  RetentionPolicy,
-  StorageType,
-  Events,
-} from "nats";
 import { randomUUID } from "node:crypto";
 import type { AgentEventPayload } from "./agent-events.js";
 import { onAgentEvent } from "./agent-events.js";
-
-const sc = StringCodec();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -53,12 +46,36 @@ export type ClawEvent = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Lazy NATS import (optional peer dependency)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type NatsModule = any;
+let natsModule: NatsModule | null = null;
+
+async function loadNats(): Promise<NatsModule | null> {
+  if (natsModule) {
+    return natsModule;
+  }
+  try {
+    natsModule = await import("nats");
+    return natsModule;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // State (encapsulated — use resetForTest() in tests)
 // ─────────────────────────────────────────────────────────────────────────────
 
 type State = {
-  nc: NatsConnection;
-  js: JetStreamClient;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  nc: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  js: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sc: any;
   config: EventStoreConfig;
   unsub: () => void;
 };
@@ -141,7 +158,7 @@ async function publish(evt: AgentEventPayload): Promise<void> {
 
   const subject = `${state.config.subjectPrefix}.${event.agent}.${event.type.replace(".", "_")}`;
   try {
-    await state.js.publish(subject, sc.encode(JSON.stringify(event)));
+    await state.js.publish(subject, state.sc.encode(JSON.stringify(event)));
     counters.publishFailures = 0;
   } catch (err) {
     counters.publishFailures++;
@@ -155,7 +172,8 @@ async function publish(evt: AgentEventPayload): Promise<void> {
   }
 }
 
-async function ensureStream(nc: NatsConnection, cfg: EventStoreConfig): Promise<void> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ensureStream(nc: any, cfg: EventStoreConfig, nats: NatsModule): Promise<void> {
   const jsm = await nc.jetstreamManager();
   try {
     await jsm.streams.info(cfg.streamName);
@@ -163,8 +181,8 @@ async function ensureStream(nc: NatsConnection, cfg: EventStoreConfig): Promise<
     await jsm.streams.add({
       name: cfg.streamName,
       subjects: [`${cfg.subjectPrefix}.>`],
-      retention: RetentionPolicy.Limits,
-      storage: StorageType.File,
+      retention: nats.RetentionPolicy.Limits,
+      storage: nats.StorageType.File,
       max_age: cfg.retention?.maxAgeHours ? cfg.retention.maxAgeHours * 3_600_000_000_000 : 0,
       max_msgs: cfg.retention?.maxMessages ?? -1,
       max_bytes: cfg.retention?.maxBytes ?? -1,
@@ -189,11 +207,17 @@ export async function initEventStore(config: EventStoreConfig): Promise<void> {
     return;
   }
 
+  const nats = await loadNats();
+  if (!nats) {
+    log("nats package not installed — event store disabled (install with: pnpm add nats)");
+    return;
+  }
+
   try {
     // Parse URL
     const url = config.natsUrl.startsWith("nats://") ? new URL(config.natsUrl) : null;
 
-    const nc = await connect({
+    const nc = await nats.connect({
       servers: url ? `${url.hostname}:${url.port || 4222}` : config.natsUrl,
       user: url?.username ? decodeURIComponent(url.username) : undefined,
       pass: url?.password ? decodeURIComponent(url.password) : undefined,
@@ -212,10 +236,10 @@ export async function initEventStore(config: EventStoreConfig): Promise<void> {
         if (!state) {
           break;
         }
-        if (s.type === Events.Reconnect) {
+        if (s.type === "reconnect") {
           counters.disconnects = 0;
           log("Reconnected");
-        } else if (s.type === Events.Disconnect) {
+        } else if (s.type === "disconnect") {
           counters.disconnects++;
           if (counters.disconnects <= MAX_DISCONNECTS_BEFORE_WARN) {
             log(`Disconnected (attempt ${counters.disconnects}), reconnecting...`);
@@ -226,14 +250,15 @@ export async function initEventStore(config: EventStoreConfig): Promise<void> {
           }
         }
       }
-    })().catch((err) => {
+    })().catch((err: unknown) => {
       log("Status monitor exited unexpectedly", err);
     });
 
     const js = nc.jetstream();
-    await ensureStream(nc, config);
+    const sc = nats.StringCodec();
+    await ensureStream(nc, config, nats);
 
-    const unsub = onAgentEvent((evt) => {
+    const unsub = onAgentEvent((evt: AgentEventPayload) => {
       publish(evt).catch(() => {
         // Error already logged inside publish() with failure count tracking
       });
@@ -241,7 +266,7 @@ export async function initEventStore(config: EventStoreConfig): Promise<void> {
 
     counters.disconnects = 0;
     counters.publishFailures = 0;
-    state = { nc, js, config, unsub };
+    state = { nc, js, sc, config, unsub };
     log("Ready");
   } catch (err) {
     log("Init failed", err);
