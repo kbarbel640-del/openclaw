@@ -43,10 +43,18 @@ export class RecoveryKeyHandler {
    * }
    */
   async verifyWithRecoveryKey(key: string): Promise<VerificationResult> {
+    // Declare sensitive key material variables in outer scope for cleanup
+    let recoveryKey: Uint8Array | null = null;
+    let crossSigningKeys: {
+      master: { privateKey: Uint8Array };
+      selfSigning: { privateKey: Uint8Array; publicKey: string };
+      userSigning: { privateKey: Uint8Array };
+    } | null = null;
+
     try {
       // Step 1: Decode and validate recovery key format
       this.logger?.debug?.("matrix: decoding recovery key");
-      const recoveryKey = decodeRecoveryKey(key);
+      recoveryKey = decodeRecoveryKey(key);
 
       // Step 2: Compute key hash for replay protection
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bot-SDK does not expose deviceId in CryptoClient types
@@ -70,7 +78,7 @@ export class RecoveryKeyHandler {
 
       // Step 4: Decrypt cross-signing keys (fetches secret storage metadata internally)
       this.logger?.debug?.("matrix: decrypting cross-signing keys");
-      const crossSigningKeys = await fetchCrossSigningKeys(this.client, recoveryKey);
+      crossSigningKeys = await fetchCrossSigningKeys(this.client, recoveryKey);
 
       // Step 6: Get current device keys
       this.logger?.debug?.("matrix: retrieving current device keys");
@@ -167,12 +175,6 @@ export class RecoveryKeyHandler {
         });
       }
 
-      // Step 13: Zero out sensitive key material
-      recoveryKey.fill(0);
-      crossSigningKeys.master.privateKey.fill(0);
-      crossSigningKeys.selfSigning.privateKey.fill(0);
-      crossSigningKeys.userSigning.privateKey.fill(0);
-
       this.logger?.info?.("matrix: device verification completed successfully");
 
       return {
@@ -203,6 +205,16 @@ export class RecoveryKeyHandler {
         backupRestored: false,
         restoredSessionCount: 0,
       };
+    } finally {
+      // Step 13: Always zero out sensitive key material (success or failure)
+      if (recoveryKey) {
+        recoveryKey.fill(0);
+      }
+      if (crossSigningKeys) {
+        crossSigningKeys.master.privateKey.fill(0);
+        crossSigningKeys.selfSigning.privateKey.fill(0);
+        crossSigningKeys.userSigning.privateKey.fill(0);
+      }
     }
   }
 }

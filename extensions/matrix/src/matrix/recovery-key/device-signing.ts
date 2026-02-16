@@ -170,7 +170,7 @@ function canonicalJsonStringify(obj: unknown): string {
 
   if (typeof obj === "object") {
     const entries = Object.entries(obj as Record<string, unknown>)
-      .toSorted(([keyA], [keyB]) => keyA.localeCompare(keyB))
+      .toSorted(([keyA], [keyB]) => (keyA < keyB ? -1 : keyA > keyB ? 1 : 0))
       .map(([key, value]) => `${JSON.stringify(key)}:${canonicalJsonStringify(value)}`);
     return `{${entries.join(",")}}`;
   }
