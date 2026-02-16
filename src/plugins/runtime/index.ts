@@ -97,6 +97,9 @@ import { buildTemplateMessageFromPayload } from "../../line/template-messages.js
 import { getChildLogger } from "../../logging.js";
 import { normalizeLogLevel } from "../../logging/levels.js";
 import { convertMarkdownTables } from "../../markdown/tables.js";
+import { monitorMaxProvider } from "../../max/monitor.js";
+import { probeMax } from "../../max/probe.js";
+import { sendMessageMax, sendMediaMax } from "../../max/send.js";
 import { isVoiceCompatibleAudio } from "../../media/audio.js";
 import { mediaKindFromMime } from "../../media/constants.js";
 import { fetchRemoteMedia } from "../../media/fetch.js";
@@ -291,6 +294,12 @@ export function createPluginRuntime(): PluginRuntime {
         sendMessageTelegram,
         monitorTelegramProvider,
         messageActions: telegramMessageActions,
+      },
+      max: {
+        probeMax,
+        sendMessageMax,
+        sendMediaMax,
+        monitorMaxProvider,
       },
       signal: {
         probeSignal,

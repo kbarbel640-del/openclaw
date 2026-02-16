@@ -1,6 +1,6 @@
 import { Bot } from "@maxhub/max-bot-api";
 import type { OpenClawConfig } from "../config/config.js";
-import type { RuntimeEnv } from "../plugins/runtime/types.js";
+import type { RuntimeEnv } from "../runtime.js";
 import { makeProxyFetch } from "../telegram/proxy.js";
 import { fetchWithTimeout } from "../utils/fetch-timeout.js";
 

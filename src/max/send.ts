@@ -136,7 +136,9 @@ export async function sendMediaMax(
   // Step 1: Upload
   const uploadUrl = `${MAX_API_BASE}/uploads?type=${mediaType}`;
   const formData = new FormData();
-  const blob = new Blob([mediaBuffer], { type: opts.mimeType ?? "application/octet-stream" });
+  const blob = new Blob([new Uint8Array(mediaBuffer)], {
+    type: opts.mimeType ?? "application/octet-stream",
+  });
   formData.append("data", blob, opts.fileName ?? "file");
 
   const uploadRes = await fetchWithTimeout(
