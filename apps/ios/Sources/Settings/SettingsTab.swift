@@ -225,7 +225,6 @@ struct SettingsTab: View {
                                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
                         }
-                    }
                     } label: {
                         HStack(spacing: 10) {
                             Circle()
