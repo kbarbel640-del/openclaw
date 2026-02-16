@@ -8,10 +8,11 @@ import { truncateUtf16Safe } from "../../utils.js";
 import { jsonResult, readStringParam } from "./common.js";
 import {
   createAgentToAgentPolicy,
+  listSpawnedSessionKeys,
+  resolveEffectiveSessionToolsVisibility,
   resolveSessionReference,
   resolveMainSessionAlias,
   resolveInternalSessionKey,
-  SessionListRow,
   stripToolMessages,
 } from "./sessions-helpers.js";
 import { isInLineage } from "./sessions-lineage.js";
@@ -147,31 +148,6 @@ function enforceSessionsHistoryHardCap(params: {
   return { items: placeholder, bytes: jsonUtf8Bytes(placeholder), hardCapped: true };
 }
 
-function resolveSandboxSessionToolsVisibility(cfg: ReturnType<typeof loadConfig>) {
-  return cfg.agents?.defaults?.sandbox?.sessionToolsVisibility ?? "spawned";
-}
-
-async function isSpawnedSessionAllowed(params: {
-  requesterSessionKey: string;
-  targetSessionKey: string;
-}): Promise<boolean> {
-  try {
-    const list = await callGateway<{ sessions: Array<SessionListRow> }>({
-      method: "sessions.list",
-      params: {
-        includeGlobal: false,
-        includeUnknown: false,
-        limit: 500,
-        spawnedBy: params.requesterSessionKey,
-      },
-    });
-    const sessions = Array.isArray(list?.sessions) ? list.sessions : [];
-    return sessions.some((entry) => entry?.key === params.targetSessionKey);
-  } catch {
-    return false;
-  }
-}
-
 export function createSessionsHistoryTool(opts?: {
   agentSessionKey?: string;
   sandboxed?: boolean;
@@ -188,7 +164,7 @@ export function createSessionsHistoryTool(opts?: {
       });
       const cfg = loadConfig();
       const { mainKey, alias } = resolveMainSessionAlias(cfg);
-      const visibility = resolveSandboxSessionToolsVisibility(cfg);
+      const sandboxVisibility = cfg.agents?.defaults?.sandbox?.sessionToolsVisibility ?? "spawned";
       const requesterInternalKey =
         typeof opts?.agentSessionKey === "string" && opts.agentSessionKey.trim()
           ? resolveInternalSessionKey({
@@ -197,16 +173,16 @@ export function createSessionsHistoryTool(opts?: {
               mainKey,
             })
           : undefined;
+      const effectiveRequesterKey = requesterInternalKey ?? alias;
       const restrictToSpawned =
         opts?.sandboxed === true &&
-        visibility === "spawned" &&
-        !!requesterInternalKey &&
-        !isSubagentSessionKey(requesterInternalKey);
+        sandboxVisibility === "spawned" &&
+        !isSubagentSessionKey(effectiveRequesterKey);
       const resolvedSession = await resolveSessionReference({
         sessionKey: sessionKeyParam,
         alias,
         mainKey,
-        requesterInternalKey,
+        requesterInternalKey: effectiveRequesterKey,
         restrictToSpawned,
       });
       if (!resolvedSession.ok) {
@@ -216,12 +192,11 @@ export function createSessionsHistoryTool(opts?: {
       const resolvedKey = resolvedSession.key;
       const displayKey = resolvedSession.displayKey;
       const resolvedViaSessionId = resolvedSession.resolvedViaSessionId;
-      if (restrictToSpawned && !resolvedViaSessionId) {
-        const ok = await isSpawnedSessionAllowed({
-          requesterSessionKey: requesterInternalKey,
-          targetSessionKey: resolvedKey,
+      if (restrictToSpawned && !resolvedViaSessionId && resolvedKey !== effectiveRequesterKey) {
+        const spawned = await listSpawnedSessionKeys({
+          requesterSessionKey: effectiveRequesterKey,
         });
-        if (!ok) {
+        if (!spawned.has(resolvedKey)) {
           return jsonResult({
             status: "forbidden",
             error: `Session not visible from this sandboxed agent session: ${sessionKeyParam}`,
@@ -229,9 +204,9 @@ export function createSessionsHistoryTool(opts?: {
         }
       }
 
-      const callerIsSubagent = isSubagentSessionKey(requesterInternalKey ?? "");
+      const callerIsSubagent = isSubagentSessionKey(effectiveRequesterKey);
       if (callerIsSubagent) {
-        if (!requesterInternalKey || !isInLineage(requesterInternalKey, resolvedKey)) {
+        if (!isInLineage(effectiveRequesterKey, resolvedKey)) {
           return jsonResult({
             status: "forbidden",
             error: "Access restricted to your spawn lineage.",
@@ -239,10 +214,21 @@ export function createSessionsHistoryTool(opts?: {
         }
       }
 
+      const visibility = resolveEffectiveSessionToolsVisibility({
+        cfg,
+        sandboxed: opts?.sandboxed === true,
+      });
       const a2aPolicy = createAgentToAgentPolicy(cfg);
-      const requesterAgentId = resolveAgentIdFromSessionKey(requesterInternalKey);
+      const requesterAgentId = resolveAgentIdFromSessionKey(effectiveRequesterKey);
       const targetAgentId = resolveAgentIdFromSessionKey(resolvedKey);
       const isCrossAgent = requesterAgentId !== targetAgentId;
+      if (!callerIsSubagent && isCrossAgent && visibility !== "all") {
+        return jsonResult({
+          status: "forbidden",
+          error:
+            "Session history visibility is restricted. Set tools.sessions.visibility=all to allow cross-agent access.",
+        });
+      }
       if (!callerIsSubagent && isCrossAgent) {
         if (!a2aPolicy.enabled) {
           return jsonResult({
@@ -256,6 +242,27 @@ export function createSessionsHistoryTool(opts?: {
             status: "forbidden",
             error: "Agent-to-agent history denied by tools.agentToAgent.allow.",
           });
+        }
+      }
+      if (!callerIsSubagent && !isCrossAgent) {
+        if (visibility === "self" && resolvedKey !== effectiveRequesterKey) {
+          return jsonResult({
+            status: "forbidden",
+            error:
+              "Session history visibility is restricted to the current session (tools.sessions.visibility=self).",
+          });
+        }
+        if (visibility === "tree" && resolvedKey !== effectiveRequesterKey) {
+          const spawned = await listSpawnedSessionKeys({
+            requesterSessionKey: effectiveRequesterKey,
+          });
+          if (!spawned.has(resolvedKey)) {
+            return jsonResult({
+              status: "forbidden",
+              error:
+                "Session history visibility is restricted to the current session tree (tools.sessions.visibility=tree).",
+            });
+          }
         }
       }
 

@@ -10,7 +10,9 @@ import {
   createAgentToAgentPolicy,
   classifySessionKind,
   deriveChannel,
+  listSpawnedSessionKeys,
   resolveDisplaySessionKey,
+  resolveEffectiveSessionToolsVisibility,
   resolveInternalSessionKey,
   resolveMainSessionAlias,
   type SessionListRow,
@@ -25,10 +27,6 @@ const SessionsListToolSchema = Type.Object({
   messageLimit: Type.Optional(Type.Number({ minimum: 0 })),
 });
 
-function resolveSandboxSessionToolsVisibility(cfg: ReturnType<typeof loadConfig>) {
-  return cfg.agents?.defaults?.sandbox?.sessionToolsVisibility ?? "spawned";
-}
-
 export function createSessionsListTool(opts?: {
   agentSessionKey?: string;
   sandboxed?: boolean;
@@ -42,7 +40,6 @@ export function createSessionsListTool(opts?: {
       const params = args as Record<string, unknown>;
       const cfg = loadConfig();
       const { mainKey, alias } = resolveMainSessionAlias(cfg);
-      const visibility = resolveSandboxSessionToolsVisibility(cfg);
       const requesterInternalKey =
         typeof opts?.agentSessionKey === "string" && opts.agentSessionKey.trim()
           ? resolveInternalSessionKey({
@@ -51,11 +48,15 @@ export function createSessionsListTool(opts?: {
               mainKey,
             })
           : undefined;
+      const effectiveRequesterKey = requesterInternalKey ?? alias;
+      const visibility = resolveEffectiveSessionToolsVisibility({
+        cfg,
+        sandboxed: opts?.sandboxed === true,
+      });
       const restrictToSpawned =
         opts?.sandboxed === true &&
-        visibility === "spawned" &&
-        requesterInternalKey &&
-        !isSubagentSessionKey(requesterInternalKey);
+        cfg.agents?.defaults?.sandbox?.sessionToolsVisibility === "spawned" &&
+        !isSubagentSessionKey(effectiveRequesterKey);
 
       const kindsRaw = readStringArrayParam(params, "kinds")?.map((value) =>
         value.trim().toLowerCase(),
@@ -86,15 +87,19 @@ export function createSessionsListTool(opts?: {
           activeMinutes,
           includeGlobal: !restrictToSpawned,
           includeUnknown: !restrictToSpawned,
-          spawnedBy: restrictToSpawned ? requesterInternalKey : undefined,
+          spawnedBy: restrictToSpawned ? effectiveRequesterKey : undefined,
         },
       });
 
       const sessions = Array.isArray(list?.sessions) ? list.sessions : [];
       const storePath = typeof list?.path === "string" ? list.path : undefined;
       const a2aPolicy = createAgentToAgentPolicy(cfg);
-      const requesterAgentId = resolveAgentIdFromSessionKey(requesterInternalKey);
-      const callerIsSubagent = isSubagentSessionKey(requesterInternalKey ?? "");
+      const requesterAgentId = resolveAgentIdFromSessionKey(effectiveRequesterKey);
+      const callerIsSubagent = isSubagentSessionKey(effectiveRequesterKey);
+      const spawnedKeys =
+        !callerIsSubagent && visibility === "tree"
+          ? await listSpawnedSessionKeys({ requesterSessionKey: effectiveRequesterKey })
+          : null;
       const rows: SessionListRow[] = [];
 
       for (const entry of sessions) {
@@ -107,14 +112,26 @@ export function createSessionsListTool(opts?: {
         }
 
         if (callerIsSubagent) {
-          if (!requesterInternalKey || !isInLineage(requesterInternalKey, key)) {
+          if (!isInLineage(effectiveRequesterKey, key)) {
             continue;
           }
         } else {
           const entryAgentId = resolveAgentIdFromSessionKey(key);
           const crossAgent = entryAgentId !== requesterAgentId;
-          if (crossAgent && !a2aPolicy.isAllowed(requesterAgentId, entryAgentId)) {
-            continue;
+          if (crossAgent) {
+            if (visibility !== "all") {
+              continue;
+            }
+            if (!a2aPolicy.isAllowed(requesterAgentId, entryAgentId)) {
+              continue;
+            }
+          } else {
+            if (visibility === "self" && key !== effectiveRequesterKey) {
+              continue;
+            }
+            if (visibility === "tree" && key !== effectiveRequesterKey && !spawnedKeys?.has(key)) {
+              continue;
+            }
           }
         }
 
