@@ -279,6 +279,102 @@ Available action groups in current Slack tooling:
 | memberInfo | enabled |
 | emojiList  | enabled |
 
+## Block Kit kitchen sink
+
+OpenClaw Slack actions support sending and editing raw Block Kit via the `blocks` field.
+
+Use this when you want richer layouts than plain text, including:
+
+- `header`, `section`, `divider`, `context`
+- `actions` rows with `button`, `overflow`, `static_select`, `external_select`
+- standalone `image`, `video`, and `file` blocks
+- modal input payloads including `checkboxes`, `radio_buttons`, `number_input`, `email_text_input`, `url_text_input`, and `rich_text_input`
+
+### Example: full message layout
+
+```json
+{
+  "action": "send",
+  "providerId": "slack",
+  "channelId": "channel:C12345678",
+  "blocks": [
+    {
+      "type": "header",
+      "text": { "type": "plain_text", "text": "Deploy control panel" }
+    },
+    {
+      "type": "section",
+      "text": { "type": "mrkdwn", "text": "*Environment:* production" }
+    },
+    {
+      "type": "context",
+      "elements": [{ "type": "mrkdwn", "text": "Reviewed by release-bot" }]
+    },
+    { "type": "divider" },
+    {
+      "type": "image",
+      "image_url": "https://example.com/deploy-chart.png",
+      "alt_text": "Deploy latency chart"
+    },
+    {
+      "type": "video",
+      "title": { "type": "plain_text", "text": "Release walkthrough" },
+      "video_url": "https://example.com/release-demo.mp4",
+      "thumbnail_url": "https://example.com/release-thumb.jpg",
+      "alt_text": "release demo"
+    },
+    {
+      "type": "file",
+      "source": "remote",
+      "external_id": "F12345678"
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": { "type": "plain_text", "text": "Approve" },
+          "action_id": "openclaw:approve",
+          "value": "approve"
+        },
+        {
+          "type": "overflow",
+          "action_id": "openclaw:ops",
+          "options": [
+            {
+              "text": { "type": "plain_text", "text": "Rollback" },
+              "value": "rollback"
+            },
+            {
+              "text": { "type": "plain_text", "text": "Pause rollout" },
+              "value": "pause"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Interaction payload notes
+
+- OpenClaw emits Slack interaction system events for `block_action`, `view_submission`, and `view_closed`.
+- Select-style payloads include normalized fields (`selectedValues`) and structured subsets (`selectedUsers`, `selectedChannels`, `selectedConversations`) when present.
+- Modal payloads include typed input fields (`inputKind`, `inputNumber`, `inputEmail`, `inputUrl`, `richTextPreview`) for easier downstream handling.
+- Workflow buttons include `workflowTriggerUrl` and `workflowId`.
+
+### Native command arg menus
+
+When Slack native commands are enabled and an argument menu is needed, OpenClaw chooses the smallest useful interactive pattern:
+
+- `button` rows for small sets
+- `overflow` for compact medium sets
+- `static_select` for larger bounded sets
+- `external_select` for very large sets (async options)
+
+See [Slash commands](/tools/slash-commands) for command behavior details.
+
 ## Events and operational behavior
 
 - Message edits/deletes/thread broadcasts are mapped into system events.
