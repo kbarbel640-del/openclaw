@@ -259,7 +259,7 @@ function getTicketState(ticketId) {
 
 function getAutonomyReplay(ticketId) {
   const raw = psql(`
-    SELECT COALESCE(json_agg(to_jsonb(row_to_json(t.*)), '[]'::jsonb)
+    SELECT COALESCE(jsonb_agg(to_jsonb(t.*)), '[]'::jsonb)
     FROM (
       SELECT
         scope_type,
