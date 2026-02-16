@@ -55,7 +55,7 @@
     "dispatch:stack:logs": "docker compose --env-file .env -f dispatch/ops/docker/docker-compose.dispatch.yml logs -f",
     "dispatch:stack:status": "docker compose --env-file .env -f dispatch/ops/docker/docker-compose.dispatch.yml ps",
     "dispatch:stack:up": "docker compose --env-file .env -f dispatch/ops/docker/docker-compose.dispatch.yml up -d",
-    "dispatch:test:ci": "node --test --test-concurrency=1 dispatch/tests/*.mjs",
+    "dispatch:test:ci": "node --test --test-concurrency=1 dispatch/tests/*.mjs && pnpm --dir packages/control-plane-temporal test",
     "dispatch:test:story01": "node --test dispatch/tests/story_01_idempotency.node.test.mjs",
     "docker:oneclick:logs": "bash scripts/docker-one-click.sh logs",
     "docker:oneclick:start": "bash scripts/docker-one-click.sh start",

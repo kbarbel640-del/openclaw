@@ -80,3 +80,21 @@ test("traceparent-like input has precedence over legacy trace context fields", a
   assert.equal(actual.trace_context.trace_parent, baseInput.trace_parent);
   assert.equal(actual.trace_context.trace_source, "legacy");
 });
+
+test("shadow workflow hook selector is explicit and rejects unknown actions", async () => {
+  const withActionInput = {
+    ...baseInput,
+    action: "SCHEDULE_HOLD_RELEASE_SHADOW",
+  };
+
+  const withAction = await runScheduleHoldReleaseShadowWorkflow(withActionInput, buildAdapters());
+  assert.equal(withAction.shadow_intent, "propose_only");
+  assert.equal(withAction.can_apply, false);
+
+  await assert.rejects(async () => {
+    await runScheduleHoldReleaseShadowWorkflow(
+      { ...baseInput, action: "UNSUPPORTED_HOOK" },
+      buildAdapters(),
+    );
+  }, /unsupported shadow workflow action/);
+});

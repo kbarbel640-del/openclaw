@@ -113,6 +113,83 @@ function normalizeTraceContext(input = {}) {
   };
 }
 
+const SHADOW_WORKFLOW_HOOKS = Object.freeze(new Set(["SCHEDULE_HOLD_RELEASE_SHADOW"]));
+
+function normalizeShadowAction(input = {}) {
+  if (typeof input?.action === "string") {
+    const upper = input.action.trim().toUpperCase();
+    return upper || "SCHEDULE_HOLD_RELEASE_SHADOW";
+  }
+  return "SCHEDULE_HOLD_RELEASE_SHADOW";
+}
+
+function assertSupportedShadowAction(action) {
+  if (!SHADOW_WORKFLOW_HOOKS.has(action)) {
+    const supported = [...SHADOW_WORKFLOW_HOOKS].join(", ");
+    throw formatError(
+      `unsupported shadow workflow action '${action}'. Supported actions: ${supported}`,
+    );
+  }
+}
+
+const shadowWorkflowHookRegistry = Object.freeze({
+  SCHEDULE_HOLD_RELEASE_SHADOW: async (input = {}, adapters = {}, traceContext = {}) => {
+    const readTicketFn = adapters.readTicket;
+    const readTimelineFn = adapters.readTimeline;
+    const proposeHoldReleaseFn = adapters.proposeHoldReleasePlan;
+
+    if (typeof proposeHoldReleaseFn !== "function") {
+      throw formatError("proposeHoldReleasePlan activity is required");
+    }
+
+    const ticketId = normalizeTicketId(input);
+    if (ticketId === "") {
+      throw formatError("ticketId is required");
+    }
+
+    if (typeof readTicketFn === "function") {
+      const ticketSnapshot = await readTicketFn(ticketId, {
+        traceContext,
+      });
+      if (!ticketSnapshot || typeof ticketSnapshot !== "object") {
+        throw formatError(`ticket ${ticketId} not found`);
+      }
+    }
+
+    const normalizedHold = normalizeHoldPayload(input);
+    const proposal = await proposeHoldReleaseFn({
+      ticket_id: ticketId,
+      hold_reason: normalizedHold.hold_reason,
+      confirmation_window: normalizedHold.confirmation_window,
+      trace_context: traceContext,
+      action: "SCHEDULE_HOLD_RELEASE_SHADOW",
+      source: "workflow_shadow",
+    });
+
+    let timelineLength = 0;
+    if (typeof readTimelineFn === "function") {
+      const timeline = await readTimelineFn(ticketId, {
+        traceContext,
+      });
+      timelineLength = Array.isArray(timeline?.events) ? timeline.events.length : 0;
+    }
+
+    return {
+      mode: "shadow",
+      ticket_id: ticketId,
+      shadow_intent: "propose_only",
+      trace_context: traceContext,
+      proposal,
+      timeline_length: timelineLength,
+      can_apply: false,
+    };
+  },
+});
+
+export function resolveShadowWorkflowHook(actionInput = {}) {
+  return normalizeShadowAction(actionInput);
+}
+
 export async function runScheduleHoldReleaseWorkflow(input = {}, adapters = {}) {
   const ticketId = normalizeTicketId(input);
   if (ticketId === "") {
@@ -158,56 +235,10 @@ export async function runScheduleHoldReleaseWorkflow(input = {}, adapters = {}) 
 }
 
 export async function runScheduleHoldReleaseShadowWorkflow(input = {}, adapters = {}) {
-  const ticketId = normalizeTicketId(input);
-  if (ticketId === "") {
-    throw formatError("ticketId is required");
-  }
-
-  const readTicketFn = adapters.readTicket;
-  const readTimelineFn = adapters.readTimeline;
-  const proposeHoldReleaseFn = adapters.proposeHoldReleasePlan;
-
-  if (typeof proposeHoldReleaseFn !== "function") {
-    throw formatError("proposeHoldReleasePlan activity is required");
-  }
-
-  if (typeof readTicketFn === "function") {
-    const ticketSnapshot = await readTicketFn(ticketId, {
-      traceContext: normalizeTraceContext(input),
-    });
-    if (!ticketSnapshot || typeof ticketSnapshot !== "object") {
-      throw formatError(`ticket ${ticketId} not found`);
-    }
-  }
-
-  const normalizedHold = normalizeHoldPayload(input);
+  const action = resolveShadowWorkflowHook(input);
+  assertSupportedShadowAction(action);
   const traceContext = normalizeTraceContext(input);
-  const proposal = await proposeHoldReleaseFn({
-    ticket_id: ticketId,
-    hold_reason: normalizedHold.hold_reason,
-    confirmation_window: normalizedHold.confirmation_window,
-    trace_context: traceContext,
-    action: "SCHEDULE_HOLD_RELEASE_SHADOW",
-    source: "workflow_shadow",
-  });
-
-  let timelineLength = 0;
-  if (typeof readTimelineFn === "function") {
-    const timeline = await readTimelineFn(ticketId, {
-      traceContext,
-    });
-    timelineLength = Array.isArray(timeline?.events) ? timeline.events.length : 0;
-  }
-
-  return {
-    mode: "shadow",
-    ticket_id: ticketId,
-    shadow_intent: "propose_only",
-    trace_context: traceContext,
-    proposal,
-    timeline_length: timelineLength,
-    can_apply: false,
-  };
+  return shadowWorkflowHookRegistry[action](input, adapters, traceContext);
 }
 
 export async function ticketReadbackWorkflow(input) {
