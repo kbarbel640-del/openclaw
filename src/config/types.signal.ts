@@ -1,4 +1,5 @@
 import type { CommonChannelMessagingConfig } from "./types.channel-messaging-common.js";
+import type { ReactionDelivery } from "./types.reactions.js";
 
 export type SignalReactionNotificationMode = "off" | "own" | "all" | "allowlist";
 export type SignalReactionLevel = "off" | "ack" | "minimal" | "extensive";
@@ -28,6 +29,12 @@ export type SignalAccountConfig = CommonChannelMessagingConfig & {
   reactionNotifications?: SignalReactionNotificationMode;
   /** Allowlist for reaction notifications when mode is allowlist. */
   reactionAllowlist?: Array<string | number>;
+  /** Reaction delivery mode: "deferred" queues for next message; "immediate" triggers own agent turn. Default: deferred. */
+  reactionDelivery?: ReactionDelivery;
+  /** Debounce window (ms) for bundling multiple reactions to the same message (0–60000). Default: 2000. */
+  reactionBundleWindowMs?: number;
+  /** When true, include the reacted-to message content in the agent context (not available on Signal). */
+  reactionIncludeMessage?: boolean;
   /** Action toggles for message tool capabilities. */
   actions?: {
     /** Enable/disable sending reactions via message tool (default: true). */
