@@ -19,7 +19,7 @@ title: "Apple Container"
 
 **Official sources:**
 
-- GitHub: https://github.com/apple/container
+- GitHub: <https://github.com/apple/container>
 - Homebrew: `brew install container`
 - Provides the `container` command for all container operations
 
@@ -55,7 +55,7 @@ Choose **one** container runtime:
 
 - **Apple Container** (recommended for macOS):
   - Install with: `brew install container`
-  - GitHub: https://github.com/apple/container
+  - GitHub: <https://github.com/apple/container>
   - The `container` command is Apple's official tool
   - Lightweight, native to macOS, optimized for Apple Silicon
 
@@ -91,7 +91,7 @@ The setup typically takes 5-10 minutes on first run.
 
 **If Apple Container isn't found**, the script will check for Docker or Podman. If you don't have any of these, it will exit with a clear error asking you to install one.
 
-### After setup completes:
+### After setup completes
 
 1. Open `http://127.0.0.1:18789/` in your browser
 2. Paste the token shown in the terminal into the Control UI (Settings → Token)
@@ -240,7 +240,7 @@ The setup script automatically detects available container runtimes in this prio
 
 1. **Apple Container** (preferred) — `container` command
    - Apple's official tool: `brew install container`
-   - GitHub: https://github.com/apple/container
+   - GitHub: <https://github.com/apple/container>
    - If found: uses Apple Container for everything
    - Fast, lightweight, native to macOS
 
@@ -484,8 +484,8 @@ container system start
 
 **Official sources:**
 
-- GitHub: https://github.com/apple/container
-- Homebrew formula: https://formulae.brew.sh/formula/container
+- GitHub: <https://github.com/apple/container>
+- Homebrew formula: <https://formulae.brew.sh/formula/container>
 
 **Alternative: Use Docker or Podman instead**
 
