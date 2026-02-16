@@ -423,7 +423,7 @@ export async function processDiscordMessage(
   });
   const shouldIncludeChannelHistory =
     !isDirectMessage && !(isGuildMessage && channelConfig?.autoThread && !threadChannel);
-  const guildHistoryEntries = opts?.guildHistory ?? (guildHistories.get(messageChannelId) ?? []);
+  const guildHistoryEntries = opts?.guildHistory ?? guildHistories.get(messageChannelId) ?? [];
   if (shouldIncludeChannelHistory) {
     combinedBody = buildPendingHistoryContextFromMap({
       historyMap: new Map([[messageChannelId, guildHistoryEntries]]),

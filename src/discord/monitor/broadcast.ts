@@ -1,12 +1,12 @@
 import type { HistoryEntry } from "../../auto-reply/reply/history.js";
 import type { DiscordMessagePreflightContext } from "./message-handler.preflight.js";
+import { getChildLogger } from "../../logging.js";
 import { buildAgentSessionKey } from "../../routing/resolve-route.js";
 import {
   buildAgentMainSessionKey,
   DEFAULT_MAIN_KEY,
   normalizeAgentId,
 } from "../../routing/session-key.js";
-import { getChildLogger } from "../../logging.js";
 import { formatError } from "../../web/session.js";
 
 const discordBroadcastLog = getChildLogger({ module: "discord-auto-reply" });
