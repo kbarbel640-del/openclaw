@@ -45,14 +45,23 @@ export function wrapFetchWithAbortSignal(fetchImpl: typeof fetch): typeof fetch 
     }
     const controller = new AbortController();
     const onAbort = bindAbortRelay(controller);
+    let listenerAttached = false;
     if (signal.aborted) {
       controller.abort();
     } else {
       signal.addEventListener("abort", onAbort, { once: true });
+      listenerAttached = true;
     }
     const cleanup = () => {
-      if (typeof signal.removeEventListener === "function") {
+      if (!listenerAttached || typeof signal.removeEventListener !== "function") {
+        return;
+      }
+      listenerAttached = false;
+      try {
         signal.removeEventListener("abort", onAbort);
+      } catch {
+        // Foreign/custom AbortSignal implementations may throw here.
+        // Never let cleanup mask the original fetch result/error.
       }
     };
     try {

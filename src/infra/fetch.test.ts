@@ -120,4 +120,66 @@ describe("wrapFetchWithAbortSignal", () => {
     expect(() => wrapped("https://example.com", { signal: fakeSignal })).toThrow(syncError);
     expect(removeEventListener).toHaveBeenCalledOnce();
   });
+
+  it("preserves original rejection when listener cleanup throws", async () => {
+    const fetchError = new TypeError("fetch failed");
+    const cleanupError = new TypeError("cleanup failed");
+    const fetchImpl = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
+      Promise.reject(fetchError),
+    );
+    const wrapped = wrapFetchWithAbortSignal(fetchImpl);
+
+    const removeEventListener = vi.fn(() => {
+      throw cleanupError;
+    });
+
+    const fakeSignal = {
+      aborted: false,
+      addEventListener: (_event: string, _handler: () => void) => {},
+      removeEventListener,
+    } as AbortSignal;
+
+    await expect(wrapped("https://example.com", { signal: fakeSignal })).rejects.toBe(fetchError);
+    expect(removeEventListener).toHaveBeenCalledOnce();
+  });
+
+  it("preserves original sync throw when listener cleanup throws", () => {
+    const syncError = new TypeError("sync fetch failure");
+    const cleanupError = new TypeError("cleanup failed");
+    const fetchImpl = vi.fn(() => {
+      throw syncError;
+    });
+    const wrapped = wrapFetchWithAbortSignal(fetchImpl);
+
+    const removeEventListener = vi.fn(() => {
+      throw cleanupError;
+    });
+
+    const fakeSignal = {
+      aborted: false,
+      addEventListener: (_event: string, _handler: () => void) => {},
+      removeEventListener,
+    } as AbortSignal;
+
+    expect(() => wrapped("https://example.com", { signal: fakeSignal })).toThrow(syncError);
+    expect(removeEventListener).toHaveBeenCalledOnce();
+  });
+
+  it("skips listener cleanup when foreign signal is already aborted", async () => {
+    const addEventListener = vi.fn();
+    const removeEventListener = vi.fn();
+    const fetchImpl = vi.fn(async () => ({ ok: true }) as Response);
+    const wrapped = wrapFetchWithAbortSignal(fetchImpl);
+
+    const fakeSignal = {
+      aborted: true,
+      addEventListener,
+      removeEventListener,
+    } as AbortSignal;
+
+    await wrapped("https://example.com", { signal: fakeSignal });
+
+    expect(addEventListener).not.toHaveBeenCalled();
+    expect(removeEventListener).not.toHaveBeenCalled();
+  });
 });
