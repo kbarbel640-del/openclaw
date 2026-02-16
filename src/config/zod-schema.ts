@@ -100,6 +100,7 @@ const ScaffoldsSchema = z
       })
       .strict()
       .optional(),
+    executorsEnabled: z.boolean().optional(),
   })
   .strict()
   .optional();

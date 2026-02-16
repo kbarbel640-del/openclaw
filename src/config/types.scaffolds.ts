@@ -1,15 +1,4 @@
-import type { OpenClawConfig } from "../config/types.js";
-
-export type EmbeddedRunPayload = {
-  text?: string;
-  mediaUrl?: string;
-  mediaUrls?: string[];
-  replyToId?: string;
-  isError?: boolean;
-  audioAsVoice?: boolean;
-  replyToTag?: boolean;
-  replyToCurrent?: boolean;
-};
+// --- Scaffolds ------------------------------------------------------------
 
 export type ReasoningScaffoldsPhase0Config = {
   /** Gate for Phase 0 scaffolds (no-op placeholder in this phase). */
@@ -22,8 +11,4 @@ export type ScaffoldsConfig = {
   reasoning?: ReasoningScaffoldsPhase0Config;
   /** Phase 1 kill switch: enables executor-based routing for skills with manifests. */
   executorsEnabled?: boolean;
-};
-
-export type OpenClawConfigWithScaffolds = OpenClawConfig & {
-  scaffolds?: ScaffoldsConfig;
 };

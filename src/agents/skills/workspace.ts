@@ -14,6 +14,7 @@ import type {
   SkillSnapshot,
 } from "./types.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { parseSkillScaffoldManifestV1 } from "../../scaffolds/manifests/skill-scaffold-manifest.v1.js";
 import { CONFIG_DIR, resolveUserPath } from "../../utils.js";
 import { resolveBundledSkillsDir } from "./bundled-dir.js";
 import { shouldIncludeSkill } from "./config.js";
@@ -178,12 +179,28 @@ function loadSkillEntries(
     } catch {
       // ignore malformed skills
     }
-    return {
+
+    const entry: SkillEntry = {
       skill,
       frontmatter,
       metadata: resolveOpenClawMetadata(frontmatter),
       invocation: resolveSkillInvocationPolicy(frontmatter),
     };
+
+    // Phase 1: optional scaffold manifest adjacent to SKILL.md
+    const manifestPath = path.join(path.dirname(skill.filePath), "scaffold.manifest.json");
+    if (fs.existsSync(manifestPath)) {
+      try {
+        const raw = fs.readFileSync(manifestPath, "utf-8");
+        const parsed = JSON.parse(raw) as unknown;
+        entry.scaffoldManifest = parseSkillScaffoldManifestV1(parsed);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        entry.scaffoldManifestError = { path: manifestPath, error: message };
+      }
+    }
+
+    return entry;
   });
   return skillEntries;
 }
