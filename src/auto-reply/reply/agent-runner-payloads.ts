@@ -1,9 +1,9 @@
 import type { ReplyToMode } from "../../config/types.js";
+import type { OriginatingChannelType } from "../templating.js";
+import type { ReplyPayload } from "../types.js";
 import { logVerbose } from "../../globals.js";
 import { stripHeartbeatToken } from "../heartbeat.js";
-import type { OriginatingChannelType } from "../templating.js";
 import { SILENT_REPLY_TOKEN } from "../tokens.js";
-import type { ReplyPayload } from "../types.js";
 import { formatBunFetchSocketError, isBunFetchSocketError } from "./agent-runner-utils.js";
 import { createBlockReplyPayloadKey, type BlockReplyPipeline } from "./block-reply-pipeline.js";
 import { normalizeReplyPayloadDirectives } from "./reply-delivery.js";
@@ -107,7 +107,9 @@ export function buildReplyPayloads(params: {
   const filteredPayloads = shouldDropAllFinals
     ? []
     : params.blockStreamingEnabled && params.blockReplyPipeline
-      ? mediaFilteredPayloads.filter((payload) => !params.blockReplyPipeline!.hasSentPayload(payload))
+      ? mediaFilteredPayloads.filter(
+          (payload) => !params.blockReplyPipeline!.hasSentPayload(payload),
+        )
       : params.directlySentBlockKeys?.size
         ? mediaFilteredPayloads.filter(
             (payload) => !params.directlySentBlockKeys!.has(createBlockReplyPayloadKey(payload)),
