@@ -46,7 +46,10 @@ export async function createChildAdapter(params: {
     cwd: params.cwd,
     env: params.env ? toStringEnv(params.env) : undefined,
     stdio: ["pipe", "pipe", "pipe"],
-    detached: true,
+    // On Windows, do not detach the process. Detached processes on Windows don't
+    // have proper console handles, causing stdout/stderr to not be captured.
+    // This is especially problematic when running via Scheduled Task.
+    detached: process.platform !== "win32",
     windowsHide: true,
     windowsVerbatimArguments: params.windowsVerbatimArguments,
   };
