@@ -39,14 +39,35 @@ function findRunBySessionKey(
   return runs.find((r) => r.childSessionKey === childSessionKey);
 }
 
-async function checkArtifacts(patterns: string[]): Promise<{ pattern: string; found: boolean }[]> {
-  const results: { pattern: string; found: boolean }[] = [];
+/**
+ * Resolve an artifact path and ensure it stays within the workspace.
+ * Returns the resolved absolute path, or null if it escapes the workspace.
+ */
+function resolveArtifactPath(pattern: string, workspace: string): string | null {
+  const resolved = path.resolve(workspace, pattern);
+  if (!resolved.startsWith(workspace + path.sep) && resolved !== workspace) {
+    return null;
+  }
+  return resolved;
+}
+
+async function checkArtifacts(
+  patterns: string[],
+  workspace: string,
+): Promise<{ pattern: string; found: boolean; error?: string }[]> {
+  const results: { pattern: string; found: boolean; error?: string }[] = [];
   for (const pattern of patterns) {
+    const resolved = resolveArtifactPath(pattern, workspace);
+    if (!resolved) {
+      results.push({ pattern, found: false, error: "Path outside workspace" });
+      continue;
+    }
+
     if (pattern.includes("*") || pattern.includes("?")) {
       // Simple glob: list parent dir and match basename
-      const dir = path.dirname(pattern);
+      const dir = path.dirname(resolved);
       const basePat = path
-        .basename(pattern)
+        .basename(resolved)
         .replace(/[.+^${}()|[\]\\]/g, "\\$&")
         .replace(/\*/g, ".*")
         .replace(/\?/g, ".");
@@ -60,7 +81,7 @@ async function checkArtifacts(patterns: string[]): Promise<{ pattern: string; fo
       }
     } else {
       try {
-        await fs.access(pattern);
+        await fs.access(resolved);
         results.push({ pattern, found: true });
       } catch {
         results.push({ pattern, found: false });
@@ -106,10 +127,19 @@ async function checkTranscriptPatterns(
       })
       .join("\n");
 
+    // Cap transcript length to limit regex execution time.
+    const maxTranscriptLen = 200_000;
+    const cappedTranscript =
+      transcript.length > maxTranscriptLen ? transcript.slice(0, maxTranscriptLen) : transcript;
+
     const patternResults = patterns.map((pattern) => {
+      // Reject overly long patterns to mitigate ReDoS risk.
+      if (pattern.length > 200) {
+        return { pattern, found: false };
+      }
       try {
         const re = new RegExp(pattern, "i");
-        return { pattern, found: re.test(transcript) };
+        return { pattern, found: re.test(cappedTranscript) };
       } catch {
         return { pattern, found: false };
       }
@@ -130,8 +160,8 @@ export function createSessionsVerifyTool(opts?: { agentSessionKey?: string }): A
     name: "sessions_verify",
     description:
       "Verify that a spawned subagent completed its task successfully. " +
-      "Checks session completion status, expected output artifacts (file existence), " +
-      "and required patterns in the session transcript. " +
+      "Checks session completion status, expected output artifacts (file existence within workspace), " +
+      "and required patterns in the session transcript (use simple patterns, max 200 chars). " +
       "Polls every 2s until timeout if the session is still running.",
     parameters: SessionsVerifyToolSchema,
     execute: async (_toolCallId, args) => {
@@ -196,9 +226,10 @@ export function createSessionsVerifyTool(opts?: { agentSessionKey?: string }): A
         });
       }
 
-      // Check artifacts
+      // Check artifacts (restricted to workspace directory)
+      const workspace = process.cwd();
       const artifactChecks =
-        expectedArtifacts.length > 0 ? await checkArtifacts(expectedArtifacts) : [];
+        expectedArtifacts.length > 0 ? await checkArtifacts(expectedArtifacts, workspace) : [];
 
       // Check transcript patterns
       const transcriptChecks =
