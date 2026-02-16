@@ -124,11 +124,13 @@ async function postSlackMessageBestEffort(params: {
   text: string;
   threadTs?: string;
   identity?: SlackSendIdentity;
+  blocks?: (Block | KnownBlock)[];
 }) {
   const basePayload = {
     channel: params.channelId,
     text: params.text,
     thread_ts: params.threadTs,
+    ...(params.blocks ? { blocks: params.blocks } : {}),
   };
   try {
     // Slack Web API types model icon_url and icon_emoji as mutually exclusive.
@@ -328,19 +330,23 @@ export async function sendMessageSlack(
     // Prefix action_ids to ensure our interaction handler only catches OpenClaw-generated actions
     const [firstChunk, ...rest] = chunks.length ? chunks : [""];
     const prefixedBlocks = prefixBlockActionIds(opts.blocks!);
-    const response = await client.chat.postMessage({
-      channel: channelId,
+    const response = await postSlackMessageBestEffort({
+      client,
+      channelId,
       text: firstChunk || " ", // Fallback text is required even with blocks
+      threadTs: opts.threadTs,
+      identity: opts.identity,
       blocks: prefixedBlocks,
-      thread_ts: opts.threadTs,
     });
     lastMessageId = response.ts ?? lastMessageId;
     // Send remaining chunks as plain text
     for (const chunk of rest) {
-      const followUpResponse = await client.chat.postMessage({
-        channel: channelId,
+      const followUpResponse = await postSlackMessageBestEffort({
+        client,
+        channelId,
         text: chunk,
-        thread_ts: opts.threadTs,
+        threadTs: opts.threadTs,
+        identity: opts.identity,
       });
       lastMessageId = followUpResponse.ts ?? lastMessageId;
     }
