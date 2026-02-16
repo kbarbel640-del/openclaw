@@ -1,7 +1,12 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
-import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
+import {
+  createAgentSession,
+  DefaultResourceLoader,
+  SessionManager,
+  SettingsManager,
+} from "@mariozechner/pi-coding-agent";
 import fs from "node:fs/promises";
 import os from "node:os";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
@@ -447,18 +452,10 @@ export async function runEmbeddedAttempt(
         minReserveTokens: resolveCompactionReserveTokensFloor(params.config),
       });
 
-      // When rolling compaction is active, disable the SDK's built-in auto-compaction.
-      // Context overflow errors will be caught by our overflow handler which calls
-      // compactEmbeddedPiSessionDirect → rolling eviction path.
-      // NOTE: Must use setCompactionEnabled() not applyOverrides() — applyOverrides
-      // only writes to this.settings which gets dropped on any save() re-merge.
-      // setCompactionEnabled writes to globalSettings and persists correctly.
-      if (params.config?.agents?.defaults?.compaction?.mode === "rolling") {
-        settingsManager.setCompactionEnabled(false);
-      }
-
-      // Call for side effects (sets compaction/pruning runtime state)
-      buildEmbeddedExtensionPaths({
+      // Build extension paths (sets compaction/pruning runtime state as side effects
+      // AND returns paths for extensions that need event-handler loading, like
+      // compaction-rolling which intercepts session_before_compact).
+      const extensionPaths = buildEmbeddedExtensionPaths({
         cfg: params.config,
         sessionManager,
         provider: params.provider,
@@ -491,6 +488,19 @@ export async function runEmbeddedAttempt(
 
       const allCustomTools = [...customTools, ...clientToolDefs];
 
+      // Create a custom resource loader with the extension paths so the SDK
+      // loads event-handler extensions (e.g. compaction-rolling).
+      let resourceLoader: DefaultResourceLoader | undefined;
+      if (extensionPaths.length > 0) {
+        resourceLoader = new DefaultResourceLoader({
+          cwd: effectiveWorkspace,
+          agentDir,
+          settingsManager,
+          additionalExtensionPaths: extensionPaths,
+        });
+        await resourceLoader.reload();
+      }
+
       ({ session } = await createAgentSession({
         cwd: resolvedWorkspace,
         agentDir,
@@ -502,6 +512,7 @@ export async function runEmbeddedAttempt(
         customTools: allCustomTools,
         sessionManager,
         settingsManager,
+        ...(resourceLoader ? { resourceLoader } : {}),
       }));
       applySystemPromptOverrideToSession(session, systemPromptText);
       if (!session) {

@@ -1,5 +1,6 @@
 import {
   createAgentSession,
+  DefaultResourceLoader,
   estimateTokens,
   SessionManager,
   SettingsManager,
@@ -389,8 +390,9 @@ export async function compactEmbeddedPiSessionDirect(
         settingsManager,
         minReserveTokens: resolveCompactionReserveTokensFloor(params.config),
       });
-      // Call for side effects (sets compaction/pruning runtime state)
-      buildEmbeddedExtensionPaths({
+      // Build extension paths (sets compaction/pruning runtime state as side effects
+      // AND returns paths for extensions that need event-handler loading).
+      const extensionPaths = buildEmbeddedExtensionPaths({
         cfg: params.config,
         sessionManager,
         provider,
@@ -403,6 +405,19 @@ export async function compactEmbeddedPiSessionDirect(
         sandboxEnabled: !!sandbox?.enabled,
       });
 
+      // Create a custom resource loader with the extension paths so the SDK
+      // loads event-handler extensions (e.g. compaction-rolling).
+      let resourceLoader: DefaultResourceLoader | undefined;
+      if (extensionPaths.length > 0) {
+        resourceLoader = new DefaultResourceLoader({
+          cwd: effectiveWorkspace,
+          agentDir,
+          settingsManager,
+          additionalExtensionPaths: extensionPaths,
+        });
+        await resourceLoader.reload();
+      }
+
       const { session } = await createAgentSession({
         cwd: resolvedWorkspace,
         agentDir,
@@ -414,6 +429,7 @@ export async function compactEmbeddedPiSessionDirect(
         customTools,
         sessionManager,
         settingsManager,
+        ...(resourceLoader ? { resourceLoader } : {}),
       });
       applySystemPromptOverrideToSession(session, systemPromptOverride());
 
@@ -447,60 +463,11 @@ export async function compactEmbeddedPiSessionDirect(
           session.agent.replaceMessages(limited);
         }
 
-        // ── Rolling context eviction ──────────────────────────────
-        const compactionMode = params.config?.agents?.defaults?.compaction?.mode;
-        if (compactionMode === "rolling") {
-          const { rollingEvict, buildEvictionNote, estimateMessagesTokens } =
-            await import("../compaction.js");
-          const rollingCfg = params.config?.agents?.defaults?.compaction?.rolling;
-          const contextWindow = model.contextWindow ?? 200000;
-          const tokensBefore = params.actualTotalTokens ?? estimateMessagesTokens(session.messages);
-
-          const evictResult = rollingEvict({
-            messages: [...session.messages],
-            maxContextTokens: contextWindow,
-            targetUtilization: rollingCfg?.targetUtilization,
-            minKeepMessages: rollingCfg?.minKeepMessages,
-            actualTotalTokens: params.actualTotalTokens,
-          });
-
-          if (evictResult.evictedCount > 0) {
-            const showNote = rollingCfg?.evictionNote !== false;
-            const keptWithNote = showNote
-              ? [buildEvictionNote(evictResult), ...evictResult.kept]
-              : evictResult.kept;
-
-            session.agent.replaceMessages(keptWithNote);
-            // Persist the updated messages via sessionManager
-            (sessionManager as any).setMessages?.(keptWithNote);
-
-            log.info(
-              `Rolling eviction: dropped ${evictResult.evictedCount} messages ` +
-                `(~${Math.round(evictResult.evictedTokens / 1000)}K tokens), ` +
-                `kept ${evictResult.kept.length} messages (~${Math.round(evictResult.keptTokens / 1000)}K tokens)`,
-            );
-
-            return {
-              ok: true,
-              compacted: true,
-              result: {
-                summary: `[Rolling eviction: ${evictResult.evictedCount} messages dropped, searchable via memory_search]`,
-                firstKeptEntryId: undefined as unknown as string,
-                tokensBefore,
-                tokensAfter: evictResult.keptTokens,
-                details: undefined,
-              },
-            };
-          }
-
-          // Nothing to evict — context is fine
-          return {
-            ok: true,
-            compacted: false,
-            reason: "Rolling mode: context within target utilization, no eviction needed",
-          };
-        }
-        // ── End rolling context eviction ──────────────────────────
+        // ── Rolling / default compaction ──────────────────────────
+        // When rolling mode is active, session.compact() triggers the
+        // compaction-rolling extension via session_before_compact, which
+        // does rolling eviction and persists via appendCompaction().
+        // This works for both proactive SDK compaction and overflow fallback.
 
         const result = await session.compact(params.customInstructions);
         // Estimate tokens after compaction by summing token estimates for remaining messages
