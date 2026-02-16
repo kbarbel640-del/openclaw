@@ -192,6 +192,20 @@ class Scout:
         self._save_state()
         print(f"✅ Marked {repo_key} as updated to {new_version}")
 
+    def check_all(self) -> List[Dict[str, Any]]:
+        """
+        Check all tracked repositories in the state file for updates.
+
+        Returns:
+            List of available updates
+        """
+        watchlist = []
+        for repo_key in self.state.get("repos", {}):
+            parts = repo_key.split("/", 1)
+            if len(parts) == 2:
+                watchlist.append({"owner": parts[0], "name": parts[1]})
+        return self.scan_watchlist(watchlist)
+
     def scan_watchlist(self, watchlist: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         """
         Scan a list of repositories for updates.
