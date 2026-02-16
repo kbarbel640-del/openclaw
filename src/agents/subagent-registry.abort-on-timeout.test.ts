@@ -29,6 +29,7 @@ vi.mock("../config/config.js", () => ({
   loadConfig: vi.fn(() => ({
     agents: { defaults: { subagents: { archiveAfterMinutes: 0 }, timeoutSeconds: 60 } },
   })),
+  STATE_DIR: "/tmp/openclaw-test",
 }));
 
 vi.mock("../config/sessions.js", () => ({
