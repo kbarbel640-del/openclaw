@@ -149,6 +149,10 @@ export const FIELD_HELP: Record<string, string> = {
     "Suppress tool error warning payloads during heartbeat runs.",
   "agents.list[].heartbeat.suppressToolErrorWarnings":
     "Suppress tool error warning payloads during heartbeat runs.",
+  "agents.list.*.memory.allowReadFrom":
+    'Allow this agent to read memory from other agents (ids or "*"); self is always allowed.',
+  "agents.list[].memory.allowReadFrom":
+    'Allow this agent to read memory from other agents (ids or "*"); self is always allowed.',
   browser:
     "Browser runtime controls for local or remote CDP attachment, profile routing, and screenshot/snapshot behavior. Keep defaults unless your automation workflow requires custom browser transport settings.",
   "browser.enabled":
