@@ -103,7 +103,7 @@ export async function sendMessageIMessage(
   }
 
   const params: Record<string, unknown> = {
-    text: message,
+    text: typeof message === "string" ? message.trim() : message,
     service: service || "auto",
     region,
   };
