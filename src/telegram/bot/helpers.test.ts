@@ -43,14 +43,23 @@ describe("buildTelegramThreadParams", () => {
     });
   });
 
-  it("skips thread id for dm threads (DMs don't have threads)", () => {
+  it("preserves dm topic thread ids (Telegram Premium DM topics)", () => {
+    // DM topics are a Telegram Premium feature; thread params must be forwarded
+    expect(buildTelegramThreadParams({ id: 2, scope: "dm" })).toEqual({
+      message_thread_id: 2,
+    });
+    // General topic (id=1) is still skipped regardless of scope
     expect(buildTelegramThreadParams({ id: 1, scope: "dm" })).toBeUndefined();
-    expect(buildTelegramThreadParams({ id: 2, scope: "dm" })).toBeUndefined();
   });
 
-  it("normalizes and skips thread id for dm threads even with edge values", () => {
-    expect(buildTelegramThreadParams({ id: 0, scope: "dm" })).toBeUndefined();
-    expect(buildTelegramThreadParams({ id: -1, scope: "dm" })).toBeUndefined();
+  it("handles dm thread edge values consistently with other scopes", () => {
+    expect(buildTelegramThreadParams({ id: 0, scope: "dm" })).toEqual({
+      message_thread_id: 0,
+    });
+    expect(buildTelegramThreadParams({ id: -1, scope: "dm" })).toEqual({
+      message_thread_id: -1,
+    });
+    // 1.9 truncates to 1 → General topic → undefined
     expect(buildTelegramThreadParams({ id: 1.9, scope: "dm" })).toBeUndefined();
   });
 
