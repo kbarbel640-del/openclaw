@@ -139,7 +139,7 @@ describe("createTelegramBot", () => {
       getTelegramSequentialKey({
         message: { chat: { id: 123 }, text: "/status" },
       }),
-    ).toBe("telegram:123:control");
+    ).toBe("telegram:123");
     expect(
       getTelegramSequentialKey({
         message: { chat: { id: 123 }, text: "stop" },
