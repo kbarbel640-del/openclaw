@@ -46,6 +46,17 @@ export type AgentContextPruningConfig = {
     enabled?: boolean;
     placeholder?: string;
   };
+  /** Per-tool softTrim overrides keyed by tool name or glob pattern. */
+  toolOverrides?: Record<
+    string,
+    {
+      softTrim?: {
+        maxChars?: number;
+        headChars?: number;
+        tailChars?: number;
+      };
+    }
+  >;
 };
 
 export type CliBackendConfig = {

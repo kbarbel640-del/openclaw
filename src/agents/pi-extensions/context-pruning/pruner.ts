@@ -1,8 +1,8 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent, TextContent, ToolResultMessage } from "@mariozechner/pi-ai";
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
-import type { EffectiveContextPruningSettings } from "./settings.js";
-import { makeToolPrunablePredicate } from "./tools.js";
+import type { EffectiveContextPruningSettings, EffectiveSoftTrimSettings } from "./settings.js";
+import { makeToolPrunablePredicate, resolveToolSoftTrim } from "./tools.js";
 
 const CHARS_PER_TOKEN_ESTIMATE = 4;
 // We currently skip pruning tool results that contain images. Still, we count them (approx.) so
@@ -189,9 +189,9 @@ function findFirstUserIndex(messages: AgentMessage[]): number | null {
 
 function softTrimToolResultMessage(params: {
   msg: ToolResultMessage;
-  settings: EffectiveContextPruningSettings;
+  softTrim: EffectiveSoftTrimSettings;
 }): ToolResultMessage | null {
-  const { msg, settings } = params;
+  const { msg, softTrim } = params;
   // Ignore image tool results for now: these are often directly relevant and hard to partially prune safely.
   if (hasImageBlocks(msg.content)) {
     return null;
@@ -199,12 +199,12 @@ function softTrimToolResultMessage(params: {
 
   const parts = collectTextSegments(msg.content);
   const rawLen = estimateJoinedTextLength(parts);
-  if (rawLen <= settings.softTrim.maxChars) {
+  if (rawLen <= softTrim.maxChars) {
     return null;
   }
 
-  const headChars = Math.max(0, settings.softTrim.headChars);
-  const tailChars = Math.max(0, settings.softTrim.tailChars);
+  const headChars = Math.max(0, softTrim.headChars);
+  const tailChars = Math.max(0, softTrim.tailChars);
   if (headChars + tailChars >= rawLen) {
     return null;
   }
@@ -281,9 +281,10 @@ export function pruneContextMessages(params: {
     }
     prunableToolIndexes.push(i);
 
+    const toolSoftTrim = resolveToolSoftTrim(msg.toolName, settings);
     const updated = softTrimToolResultMessage({
       msg: msg as unknown as ToolResultMessage,
-      settings,
+      softTrim: toolSoftTrim,
     });
     if (!updated) {
       continue;

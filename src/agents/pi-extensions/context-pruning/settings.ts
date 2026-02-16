@@ -6,6 +6,16 @@ export type ContextPruningToolMatch = {
 };
 export type ContextPruningMode = "off" | "cache-ttl";
 
+export type ContextPruningSoftTrimConfig = {
+  maxChars?: number;
+  headChars?: number;
+  tailChars?: number;
+};
+
+export type ContextPruningToolOverride = {
+  softTrim?: ContextPruningSoftTrimConfig;
+};
+
 export type ContextPruningConfig = {
   mode?: ContextPruningMode;
   /** TTL to consider cache expired (duration string, default unit: minutes). */
@@ -15,15 +25,19 @@ export type ContextPruningConfig = {
   hardClearRatio?: number;
   minPrunableToolChars?: number;
   tools?: ContextPruningToolMatch;
-  softTrim?: {
-    maxChars?: number;
-    headChars?: number;
-    tailChars?: number;
-  };
+  softTrim?: ContextPruningSoftTrimConfig;
   hardClear?: {
     enabled?: boolean;
     placeholder?: string;
   };
+  /** Per-tool overrides keyed by tool name or glob pattern. */
+  toolOverrides?: Record<string, ContextPruningToolOverride>;
+};
+
+export type EffectiveSoftTrimSettings = {
+  maxChars: number;
+  headChars: number;
+  tailChars: number;
 };
 
 export type EffectiveContextPruningSettings = {
@@ -34,15 +48,19 @@ export type EffectiveContextPruningSettings = {
   hardClearRatio: number;
   minPrunableToolChars: number;
   tools: ContextPruningToolMatch;
-  softTrim: {
-    maxChars: number;
-    headChars: number;
-    tailChars: number;
-  };
+  softTrim: EffectiveSoftTrimSettings;
   hardClear: {
     enabled: boolean;
     placeholder: string;
   };
+  /** Per-tool softTrim overrides resolved from toolOverrides config. */
+  toolOverrides: Map<string, EffectiveSoftTrimSettings>;
+};
+
+export const DEFAULT_SOFT_TRIM: EffectiveSoftTrimSettings = {
+  maxChars: 4_000,
+  headChars: 1_500,
+  tailChars: 1_500,
 };
 
 export const DEFAULT_CONTEXT_PRUNING_SETTINGS: EffectiveContextPruningSettings = {
@@ -53,15 +71,12 @@ export const DEFAULT_CONTEXT_PRUNING_SETTINGS: EffectiveContextPruningSettings =
   hardClearRatio: 0.5,
   minPrunableToolChars: 50_000,
   tools: {},
-  softTrim: {
-    maxChars: 4_000,
-    headChars: 1_500,
-    tailChars: 1_500,
-  },
+  softTrim: { ...DEFAULT_SOFT_TRIM },
   hardClear: {
     enabled: true,
     placeholder: "[Old tool result content cleared]",
   },
+  toolOverrides: new Map(),
 };
 
 export function computeEffectiveSettings(raw: unknown): EffectiveContextPruningSettings | null {
@@ -116,6 +131,34 @@ export function computeEffectiveSettings(raw: unknown): EffectiveContextPruningS
     }
     if (typeof cfg.hardClear.placeholder === "string" && cfg.hardClear.placeholder.trim()) {
       s.hardClear.placeholder = cfg.hardClear.placeholder.trim();
+    }
+  }
+
+  if (cfg.toolOverrides && typeof cfg.toolOverrides === "object") {
+    for (const [toolName, override] of Object.entries(cfg.toolOverrides)) {
+      if (!override || typeof override !== "object" || !override.softTrim) {
+        continue;
+      }
+      const toolSoftTrim: EffectiveSoftTrimSettings = { ...s.softTrim };
+      if (
+        typeof override.softTrim.maxChars === "number" &&
+        Number.isFinite(override.softTrim.maxChars)
+      ) {
+        toolSoftTrim.maxChars = Math.max(0, Math.floor(override.softTrim.maxChars));
+      }
+      if (
+        typeof override.softTrim.headChars === "number" &&
+        Number.isFinite(override.softTrim.headChars)
+      ) {
+        toolSoftTrim.headChars = Math.max(0, Math.floor(override.softTrim.headChars));
+      }
+      if (
+        typeof override.softTrim.tailChars === "number" &&
+        Number.isFinite(override.softTrim.tailChars)
+      ) {
+        toolSoftTrim.tailChars = Math.max(0, Math.floor(override.softTrim.tailChars));
+      }
+      s.toolOverrides.set(toolName.toLowerCase().trim(), toolSoftTrim);
     }
   }
 

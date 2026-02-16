@@ -85,6 +85,23 @@ export const AgentDefaultsSchema = z
           })
           .strict()
           .optional(),
+        toolOverrides: z
+          .record(
+            z.string(),
+            z
+              .object({
+                softTrim: z
+                  .object({
+                    maxChars: z.number().int().nonnegative().optional(),
+                    headChars: z.number().int().nonnegative().optional(),
+                    tailChars: z.number().int().nonnegative().optional(),
+                  })
+                  .strict()
+                  .optional(),
+              })
+              .strict(),
+          )
+          .optional(),
       })
       .strict()
       .optional(),
