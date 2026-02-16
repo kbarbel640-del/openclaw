@@ -1,8 +1,8 @@
 import type { OpenClawConfig } from "../config/config.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
-import { normalizeAgentId } from "../routing/session-key.js";
 import { resolveMemoryBackendConfig } from "../memory/backend-config.js";
 import { getMemorySearchManager } from "../memory/index.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 
 export async function startGatewayMemoryBackend(params: {
   cfg: OpenClawConfig;
