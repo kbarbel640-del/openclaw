@@ -29,6 +29,14 @@ import {
   buildTogetherModelDefinition,
 } from "./together-models.js";
 import { discoverVeniceModels, VENICE_BASE_URL } from "./venice-models.js";
+import {
+  discoverMorpheusModels,
+  MORPHEUS_GATEWAY_BASE_URL,
+} from "./morpheus-models.js";
+import {
+  resolveMorpheusProxyConfig,
+  startMorpheusProxy,
+} from "./morpheus-proxy.js";
 
 type ModelsConfig = NonNullable<SmartAgentNeoConfig["models"]>;
 export type ProviderConfig = NonNullable<ModelsConfig["providers"]>[string];
@@ -656,6 +664,39 @@ export function buildNvidiaProvider(): ProviderConfig {
   };
 }
 
+/**
+ * Build the Morpheus provider.
+ *
+ * Two modes:
+ * 1. Gateway (default): MORPHEUS_API_KEY set, no MORPHEUS_ROUTER_URL.
+ *    Uses api.mor.org directly — standard OpenAI-compatible provider.
+ * 2. Local proxy-router: MORPHEUS_ROUTER_URL set.
+ *    Starts an embedded proxy that handles session management + model ID mapping,
+ *    then returns the proxy's localhost URL as the base URL.
+ */
+async function buildMorpheusProvider(): Promise<ProviderConfig> {
+  const proxyConfig = resolveMorpheusProxyConfig();
+
+  if (proxyConfig) {
+    // Local mode: start embedded proxy to handle sessions + model ID mapping
+    const handle = await startMorpheusProxy(proxyConfig);
+    const models = await discoverMorpheusModels(proxyConfig.routerUrl);
+    return {
+      baseUrl: handle.baseUrl,
+      api: "openai-completions",
+      models,
+    };
+  }
+
+  // Gateway mode: direct OpenAI-compatible API
+  const models = await discoverMorpheusModels();
+  return {
+    baseUrl: MORPHEUS_GATEWAY_BASE_URL,
+    api: "openai-completions",
+    models,
+  };
+}
+
 export async function resolveImplicitProviders(params: {
   agentDir: string;
   explicitProviders?: Record<string, ProviderConfig> | null;
@@ -805,6 +846,16 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "nvidia", store: authStore });
   if (nvidiaKey) {
     providers.nvidia = { ...buildNvidiaProvider(), apiKey: nvidiaKey };
+  }
+
+  const morpheusKey =
+    resolveEnvApiKeyVarName("morpheus") ??
+    resolveApiKeyFromProfiles({ provider: "morpheus", store: authStore });
+  if (morpheusKey) {
+    providers.morpheus = {
+      ...(await buildMorpheusProvider()),
+      apiKey: morpheusKey,
+    };
   }
 
   return providers;
