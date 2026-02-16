@@ -290,18 +290,20 @@ export const dispatchTelegramMessage = async ({
             await flushDraft();
             const hasMedia = Boolean(payload.mediaUrl) || (payload.mediaUrls?.length ?? 0) > 0;
             const previewMessageId = draftStream?.messageId();
+            const finalText = payload.text;
             const canFinalizeViaPreviewEdit =
               !hasMedia &&
-              Boolean(payload.text) &&
+              typeof finalText === "string" &&
+              finalText.length > 0 &&
               typeof previewMessageId === "number" &&
-              payload.text.length <= draftMaxChars;
+              finalText.length <= draftMaxChars;
             if (canFinalizeViaPreviewEdit) {
               draftStream?.stop();
               const currentPreviewText = streamMode === "block" ? draftText : lastPartialText;
               if (
                 currentPreviewText &&
-                currentPreviewText.startsWith(payload.text) &&
-                payload.text.length < currentPreviewText.length
+                currentPreviewText.startsWith(finalText) &&
+                finalText.length < currentPreviewText.length
               ) {
                 // Ignore regressive final edits (e.g., "Okay." -> "Ok"), which
                 // can appear transiently in some provider streams.
@@ -313,7 +315,7 @@ export const dispatchTelegramMessage = async ({
                   | undefined
               )?.buttons;
               try {
-                await editMessageTelegram(chatId, previewMessageId, payload.text, {
+                await editMessageTelegram(chatId, previewMessageId, finalText, {
                   api: bot.api,
                   cfg,
                   accountId: route.accountId,
