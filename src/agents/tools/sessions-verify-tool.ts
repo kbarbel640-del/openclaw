@@ -85,7 +85,6 @@ async function checkTranscriptPatterns(
   sessionStatus: "running" | "completed" | "error" | "not_found";
   patternResults: { pattern: string; found: boolean }[];
 }> {
-  const cfg = loadConfig();
   // Try fetching session history
   try {
     const history = await callGateway<{
@@ -98,7 +97,9 @@ async function checkTranscriptPatterns(
 
     const transcript = (history?.messages ?? [])
       .map((msg) => {
-        if (!Array.isArray(msg.content)) return "";
+        if (!Array.isArray(msg.content)) {
+          return "";
+        }
         return msg.content
           .filter(
             (c: unknown): c is { type: string; text: string } =>
@@ -183,7 +184,9 @@ export function createSessionsVerifyTool(opts?: {
       while (!currentRun.endedAt && Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
         const refreshed = findRunBySessionKey(requesterSessionKey, sessionKey);
-        if (refreshed) currentRun = refreshed;
+        if (refreshed) {
+          currentRun = refreshed;
+        }
       }
 
       const isRunning = !currentRun.endedAt;

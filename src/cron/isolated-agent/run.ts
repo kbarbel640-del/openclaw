@@ -1,7 +1,7 @@
 import type { MessagingToolSend } from "../../agents/pi-embedded-messaging.js";
 import type { OpenClawConfig } from "../../config/config.js";
-import type { AgentDefaultsConfig } from "../../config/types.js";
 import type { CronQualityCheckConfig } from "../../config/types.cron.js";
+import type { AgentDefaultsConfig } from "../../config/types.js";
 import type { CronJob } from "../types.js";
 import {
   resolveAgentConfig,
@@ -97,9 +97,15 @@ function formatSchedule(schedule: CronJob["schedule"]): string {
       return `once at ${schedule.at}`;
     case "every": {
       const ms = schedule.everyMs;
-      if (ms >= 86_400_000) return `every ${Math.round(ms / 86_400_000)}d`;
-      if (ms >= 3_600_000) return `every ${Math.round(ms / 3_600_000)}h`;
-      if (ms >= 60_000) return `every ${Math.round(ms / 60_000)}m`;
+      if (ms >= 86_400_000) {
+        return `every ${Math.round(ms / 86_400_000)}d`;
+      }
+      if (ms >= 3_600_000) {
+        return `every ${Math.round(ms / 3_600_000)}h`;
+      }
+      if (ms >= 60_000) {
+        return `every ${Math.round(ms / 60_000)}m`;
+      }
       return `every ${Math.round(ms / 1000)}s`;
     }
     case "cron":
@@ -142,7 +148,9 @@ function buildCronJobSpec(job: CronJob, formattedTime: string): string {
   lines.push(job.payload.kind === "agentTurn" ? job.payload.message : job.payload.text);
   lines.push("[/CRON_JOB_SPEC]");
   lines.push("");
-  lines.push("Execute the task above. This spec is self-contained — do not rely on prior session context.");
+  lines.push(
+    "Execute the task above. This spec is self-contained — do not rely on prior session context.",
+  );
   return lines.join("\n");
 }
 
@@ -161,7 +169,9 @@ function checkCronOutputQuality(
   config: CronQualityCheckConfig | undefined,
 ): { pass: boolean; reason?: string } {
   const enabled = config?.enabled !== false; // default true
-  if (!enabled) return { pass: true };
+  if (!enabled) {
+    return { pass: true };
+  }
 
   const minLength = config?.minLength ?? 20;
   const maxLength = config?.maxLength ?? 10_000;
@@ -244,10 +254,14 @@ export async function runCronIsolatedAgentTurn(params: {
     params.cfg.agents?.defaults,
     agentOverrideRest as Partial<AgentDefaultsConfig>,
   );
+  // Merge agent model override with defaults instead of replacing, so that
+  // `fallbacks` from `agents.defaults.model` are preserved when the agent
+  // (or its per-cron model pin) only specifies `primary`.
+  const existingModel = agentCfg.model && typeof agentCfg.model === "object" ? agentCfg.model : {};
   if (typeof overrideModel === "string") {
-    agentCfg.model = { primary: overrideModel };
+    agentCfg.model = { ...existingModel, primary: overrideModel };
   } else if (overrideModel) {
-    agentCfg.model = overrideModel;
+    agentCfg.model = { ...existingModel, ...overrideModel };
   }
   const cfgWithAgentDefaults: OpenClawConfig = {
     ...params.cfg,
@@ -426,8 +440,6 @@ export async function runCronIsolatedAgentTurn(params: {
   });
 
   const { formattedTime, timeLine } = resolveCronStyleNow(params.cfg, now);
-  const base = `[cron:${params.job.id} ${params.job.name}] ${params.message}`.trim();
-
   // SECURITY: Wrap external hook content with security boundaries to prevent prompt injection
   // unless explicitly allowed via a dangerous config override.
   const isExternalHook = isExternalHookSession(baseSessionKey);
@@ -644,11 +656,14 @@ export async function runCronIsolatedAgentTurn(params: {
   // Quality gate: check cron output before delivery.
   // Skip for heartbeat-only responses, structured content (media), and heartbeat ack text.
   const isHeartbeatText = synthesizedText?.toUpperCase().startsWith(HEARTBEAT_TOKEN) ?? false;
-  if (deliveryRequested && !skipHeartbeatDelivery && !deliveryPayloadHasStructuredContent && !isHeartbeatText && synthesizedText) {
-    const qcResult = checkCronOutputQuality(
-      synthesizedText,
-      params.cfg.cron?.qualityCheck,
-    );
+  if (
+    deliveryRequested &&
+    !skipHeartbeatDelivery &&
+    !deliveryPayloadHasStructuredContent &&
+    !isHeartbeatText &&
+    synthesizedText
+  ) {
+    const qcResult = checkCronOutputQuality(synthesizedText, params.cfg.cron?.qualityCheck);
     if (!qcResult.pass) {
       logWarn(
         `[cron:${params.job.id}] Quality gate blocked delivery: ${qcResult.reason}. ` +
