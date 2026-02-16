@@ -114,7 +114,7 @@ export function resolveTelegramThreadSpec(params: {
  * Build thread params for Telegram API calls (messages, media).
  *
  * IMPORTANT: Thread IDs behave differently based on chat type:
- * - DMs (private chats): Include message_thread_id when present (DM topics)
+ * - DMs (private chats): include thread_id when present; send path retries without thread on failure
  * - Forum topics: Skip thread_id=1 (General topic), include others
  * - Regular groups: Thread IDs are ignored by Telegram
  *
@@ -130,11 +130,12 @@ export function buildTelegramThreadParams(thread?: TelegramThreadSpec | null) {
   }
   const normalized = Math.trunc(thread.id);
 
+  // For DM topics, include thread id and let send path retry without thread on API rejection.
   if (thread.scope === "dm") {
-    return normalized > 0 ? { message_thread_id: normalized } : undefined;
+    return { message_thread_id: normalized };
   }
 
-  // Telegram rejects message_thread_id=1 for General forum topic
+  // Telegram rejects message_thread_id=1 for General topic
   if (normalized === TELEGRAM_GENERAL_TOPIC_ID) {
     return undefined;
   }
