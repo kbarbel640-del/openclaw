@@ -330,6 +330,7 @@ export const slackOnboardingAdapter: ChannelOnboardingAdapter = {
             const resolved = await resolveSlackChannelAllowlist({
               token: accountWithTokens.botToken,
               entries,
+              rateLimitPolicy: accountWithTokens.config.rateLimitPolicy,
             });
             const resolvedKeys = resolved
               .filter((entry) => entry.resolved && entry.id)

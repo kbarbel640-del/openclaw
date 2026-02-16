@@ -254,6 +254,7 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
             const resolved = await resolveSlackChannelAllowlist({
               token: resolveToken,
               entries,
+              rateLimitPolicy: account.config.rateLimitPolicy,
             });
             const nextChannels = { ...channelsConfig };
             const mapping: string[] = [];
