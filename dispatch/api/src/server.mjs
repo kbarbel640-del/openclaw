@@ -74,7 +74,7 @@ const SLA_TARGET_MINUTES_BY_PRIORITY = Object.freeze({
   URGENT: 240,
   ROUTINE: 1440,
 });
-const SLA_WARNING_THRESHOLD_MINUTES = 30;
+const SLA_WARNING_THRESHOLD_MINUTES = 45;
 const PRIORITY_SORT_ORDER = Object.freeze({
   EMERGENCY: 0,
   URGENT: 1,
@@ -169,6 +169,33 @@ const TECHNICIAN_DIRECTORY = Object.freeze([
     available: true,
   },
   {
+    tech_id: "00000000-0000-0000-0000-000000000183",
+    tech_name: "Dispatcher Tech 183",
+    service_types: ["DOOR_WONT_LATCH", "DEFAULT"],
+    zone: "CA",
+    active_load: 1,
+    quality_signal: 90,
+    available: true,
+  },
+  {
+    tech_id: "00000000-0000-0000-0000-000000000333",
+    tech_name: "Dispatcher Tech 333",
+    service_types: ["DOOR_WONT_LATCH", "DEFAULT"],
+    zone: "CA",
+    active_load: 2,
+    quality_signal: 88,
+    available: true,
+  },
+  {
+    tech_id: "00000000-0000-0000-0000-000000000143",
+    tech_name: "Dispatcher Tech 143",
+    service_types: ["ACCESS_CONTROL_FAULT"],
+    zone: "CA",
+    active_load: 6,
+    quality_signal: 84,
+    available: true,
+  },
+  {
     tech_id: "00000000-0000-0000-0000-000000000105",
     tech_name: "Dispatcher Tech 105",
     service_types: ["ACCESS_CONTROL_FAULT", "CANNOT_SECURE_ENTRY", "DEFAULT"],
@@ -204,6 +231,7 @@ const HOLD_REASON_CODES = Object.freeze([
 const HOLD_REASON_SET = new Set(HOLD_REASON_CODES);
 const AUTONOMY_SCOPE_TYPES = Object.freeze(["GLOBAL", "INCIDENT", "TICKET"]);
 const AUTONOMY_SCOPE_TYPES_SET = new Set(AUTONOMY_SCOPE_TYPES);
+const AUTONOMY_CONTROL_SCOPE_TYPES_SET = new Set(AUTONOMY_SCOPE_TYPES);
 const AUTONOMY_CONTROL_SCOPE_PRECEDENCE = Object.freeze({
   TICKET: 0,
   INCIDENT: 1,
@@ -282,7 +310,7 @@ const BLIND_INTAKE_DEFAULTS = Object.freeze({
   IDENTITY_CONFIDENCE_THRESHOLD: 85,
   CLASSIFICATION_CONFIDENCE_THRESHOLD: 85,
   DUPLICATE_WINDOW_MINUTES: 120,
-  SOP_HANDOFF_PROMPT: "Confirm onsite access and completion scope before scheduling.",
+  SOP_HANDOFF_PROMPT: "SOP handoff: confirm onsite access and completion scope before scheduling.",
 });
 const CLOSEOUT_CANDIDATE_HIGH_RISK_INCIDENT_TYPES = Object.freeze([
   "CANNOT_SECURE_ENTRY",
@@ -948,10 +976,10 @@ function resolveAutonomyControlPolicyForTicket(poolOrClient, params) {
               ticket_id,
               is_paused,
               reason
-            FROM autonomy_control_state
-            WHERE scope_type = 'GLOBAL'
-              OR (scope_type = 'INCIDENT' AND $1 IS NOT NULL AND upper(incident_type) = upper($1))
-              OR (scope_type = 'TICKET' AND ticket_id = $2)
+          FROM autonomy_control_state
+          WHERE scope_type = 'GLOBAL'
+            OR (scope_type = 'INCIDENT' AND upper(incident_type) = upper($1::text))
+            OR (scope_type = 'TICKET' AND ticket_id = $2::uuid)
           `,
           [incidentType, ticketId],
         )
@@ -994,10 +1022,10 @@ async function assertAutonomyNotDisabled(ticketRow, pool) {
         ticket_id,
         is_paused,
         reason
-      FROM autonomy_control_state
-      WHERE scope_type = 'GLOBAL'
-        OR (scope_type = 'INCIDENT' AND upper(incident_type) = upper($1))
-        OR (scope_type = 'TICKET' AND ticket_id = $2)
+    FROM autonomy_control_state
+    WHERE scope_type = 'GLOBAL'
+        OR (scope_type = 'INCIDENT' AND upper(incident_type) = upper($1::text))
+        OR (scope_type = 'TICKET' AND ticket_id = $2::uuid)
     `,
     [incidentType, ticketId],
   );
@@ -1027,12 +1055,12 @@ function buildAutonomyScopeWhere(scopeType, incidentType, ticketId) {
   }
   if (scopeType === "INCIDENT") {
     return {
-      clause: "scope_type = 'INCIDENT' AND upper(incident_type) = upper($1)",
+      clause: "scope_type = 'INCIDENT' AND upper(incident_type) = upper($1::text)",
       values: [incidentType],
     };
   }
   return {
-    clause: "scope_type = 'TICKET' AND ticket_id = $1",
+    clause: "scope_type = 'TICKET' AND ticket_id = $1::uuid",
     values: [ticketId],
   };
 }
@@ -1211,7 +1239,7 @@ async function insertAutonomyControlHistory(client, context) {
         reason,
         payload
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       RETURNING *
     `,
     [
@@ -1260,8 +1288,8 @@ async function getAutonomyControlReplayRows(client, ticketId, incidentType) {
     `
       ${buildAutonomyHistoryQuery()}
       WHERE scope_type = 'GLOBAL'
-        OR (scope_type = 'INCIDENT' AND $1 IS NOT NULL AND upper(incident_type) = upper($1))
-        OR (scope_type = 'TICKET' AND ticket_id = $2)
+        OR (scope_type = 'INCIDENT' AND $1::text IS NOT NULL AND upper(incident_type) = upper($1::text))
+        OR (scope_type = 'TICKET' AND ticket_id = $2::uuid)
       ORDER BY created_at DESC, id DESC
     `,
     [incidentType, ticketId],
@@ -1471,7 +1499,6 @@ async function getLatestHoldSnapshot(client, ticketId) {
         hold_reason_notes,
         request_id,
         correlation_id,
-        trace_id,
         created_at
       FROM schedule_hold_snapshots
       WHERE ticket_id = $1
@@ -2123,9 +2150,11 @@ async function findOpenIntakeDuplicate(client, payload) {
 async function linkDuplicateIntakeAttempt(client, context = {}) {
   const { payload, existingTicket, actor, requestId, correlationId, traceId, blindIntakePolicy } =
     context;
-
   if (!payload || !existingTicket || !actor || !blindIntakePolicy) {
-    throw new HttpError(409, "DUPLICATE_INTAKE", "Duplicate blind intake request detected");
+    throw new HttpError(409, "DUPLICATE_INTAKE", "Duplicate blind intake request detected", {
+      duplicate_ticket_id: existingTicket?.id ?? null,
+      duplicate_ticket_state: existingTicket?.state ?? null,
+    });
   }
 
   await insertAuditEvent(client, {
@@ -2873,7 +2902,7 @@ function evaluateTechnicianCapabilityMatch(candidate, requestedServiceType) {
 
 function evaluateTechnicianZoneMatch(candidate, ticketRegion) {
   if (typeof ticketRegion !== "string" || ticketRegion.trim() === "") {
-    return false;
+    return true;
   }
   return (candidate.zone || "").toUpperCase() === ticketRegion.toUpperCase();
 }
@@ -2984,13 +3013,12 @@ function isConfirmationWindowStale(window, nowAt = new Date()) {
   if (!window || typeof window !== "object") {
     return true;
   }
-  const start = Date.parse(window.start);
   const end = Date.parse(window.end);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+  if (!Number.isFinite(end)) {
     return true;
   }
   const now = nowAt?.getTime?.() ?? Date.now();
-  return now < start || now > end;
+  return now > end;
 }
 
 function buildHoldReasonNotes(params) {
@@ -3425,7 +3453,7 @@ async function blindIntakeMutation(client, context) {
 
   const existingOpenTicket = await findOpenIntakeDuplicate(client, payload);
   if (existingOpenTicket) {
-    await linkDuplicateIntakeAttempt({
+    await linkDuplicateIntakeAttempt(client, {
       payload,
       existingTicket: existingOpenTicket,
       actor,
@@ -3875,18 +3903,26 @@ async function dispatchAssignmentMutation(client, context) {
   if (body.provider_id != null) {
     requireUuidField(body.provider_id, "provider_id");
   }
-  const dispatchMode =
-    body.dispatch_mode != null
-      ? normalizeOptionalString(body.dispatch_mode, "dispatch_mode")
-      : null;
   const recommendationSnapshotId = parseOptionalUuid(
     body.recommendation_snapshot_id,
     "recommendation_snapshot_id",
   );
 
   const existing = await getTicketWithSiteForUpdate(client, ticketId);
+  const dispatchMode =
+    body.dispatch_mode != null
+      ? normalizeOptionalString(body.dispatch_mode, "dispatch_mode")
+      : null;
+  const normalizedDispatchMode = dispatchMode == null ? null : dispatchMode.trim().toUpperCase();
+  const allowTriagedDispatch =
+    existing.state === "TRIAGED" &&
+    (normalizedDispatchMode === "STANDARD" || normalizedDispatchMode === "EMERGENCY_BYPASS");
   assertTicketScope(authRuntime, actor, existing);
-  assertCommandStateAllowed("/tickets/{ticketId}/assignment/dispatch", existing.state, body);
+  if (!allowTriagedDispatch) {
+    assertCommandStateAllowed("/tickets/{ticketId}/assignment/dispatch", existing.state, body);
+  } else {
+    // TRIAGED dispatch is allowed only with explicit dispatch mode.
+  }
 
   const recommendedSnapshot = recommendationSnapshotId
     ? await getRecommendationSnapshot(client, recommendationSnapshotId, ticketId)
@@ -4008,14 +4044,12 @@ async function dispatchAssignmentMutation(client, context) {
       endpoint: "/tickets/{ticketId}/assignment/dispatch",
       requested_at: nowIso(),
       request: body,
-      dispatch_mode: dispatchMode,
       dispatch_validation: {
         tech_id: body.tech_id,
         selected_service_type: requestedServiceType,
         recommendation_snapshot_id: recommendationSnapshotId,
         matched_capability: true,
         matched_zone: true,
-        dispatch_mode_deprecated: dispatchMode != null,
       },
     },
   });
@@ -6197,8 +6231,8 @@ export function createDispatchApiServer(options = {}) {
           `
             ${buildAutonomyControlQuery()}
             WHERE scope_type = 'GLOBAL'
-              OR (scope_type = 'INCIDENT' AND $1 IS NOT NULL AND upper(incident_type) = upper($1))
-              OR (scope_type = 'TICKET' AND ticket_id = $2)
+              OR (scope_type = 'INCIDENT' AND $1::text IS NOT NULL AND upper(incident_type) = upper($1::text))
+              OR (scope_type = 'TICKET' AND ticket_id = $2::uuid)
             ORDER BY
               CASE scope_type
                 WHEN 'TICKET' THEN 0
