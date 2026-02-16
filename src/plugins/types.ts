@@ -465,6 +465,11 @@ export type PluginHookAfterToolCallEvent = {
   durationMs?: number;
 };
 
+export type PluginHookAfterToolCallResult = {
+  /** Extra text content items to append to the tool result the LLM sees. */
+  appendContent?: Array<{ type: "text"; text: string }>;
+};
+
 // tool_result_persist hook
 export type PluginHookToolResultPersistContext = {
   agentId?: string;
@@ -566,7 +571,7 @@ export type PluginHookHandlerMap = {
   after_tool_call: (
     event: PluginHookAfterToolCallEvent,
     ctx: PluginHookToolContext,
-  ) => Promise<void> | void;
+  ) => Promise<PluginHookAfterToolCallResult | void> | PluginHookAfterToolCallResult | void;
   tool_result_persist: (
     event: PluginHookToolResultPersistEvent,
     ctx: PluginHookToolResultPersistContext,

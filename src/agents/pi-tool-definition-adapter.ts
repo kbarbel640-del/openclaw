@@ -113,11 +113,12 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
             ? (consumeAdjustedParamsForToolCall(toolCallId) ?? executeParams)
             : executeParams;
 
-          // Call after_tool_call hook
+          // Call after_tool_call hook — handlers may return appendContent
+          let finalResult = result;
           const hookRunner = getGlobalHookRunner();
           if (hookRunner?.hasHooks("after_tool_call")) {
             try {
-              await hookRunner.runAfterToolCall(
+              const hookOut = await hookRunner.runAfterToolCall(
                 {
                   toolName: name,
                   params: isPlainObject(afterParams) ? afterParams : {},
@@ -125,6 +126,12 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
                 },
                 { toolName: name },
               );
+              if (hookOut?.appendContent?.length) {
+                finalResult = {
+                  ...result,
+                  content: [...result.content, ...hookOut.appendContent],
+                };
+              }
             } catch (hookErr) {
               logDebug(
                 `after_tool_call hook failed: tool=${normalizedName} error=${String(hookErr)}`,
@@ -132,7 +139,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
             }
           }
 
-          return result;
+          return finalResult;
         } catch (err) {
           if (signal?.aborted) {
             throw err;
