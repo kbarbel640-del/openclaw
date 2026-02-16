@@ -92,7 +92,7 @@ export class StatusbarIsland extends LitElement {
       // Fetch system.info once per connection
       if (connId && connId !== this.lastFetchedForConnId) {
         this.lastFetchedForConnId = connId;
-        this.fetchSystemInfo();
+        void this.fetchSystemInfo();
       }
     }
 
