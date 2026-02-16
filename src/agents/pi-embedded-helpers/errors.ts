@@ -561,7 +561,6 @@ type ErrorPattern = RegExp | string;
 const ERROR_PATTERNS = {
   rateLimit: [
     /rate[_ ]limit|too many requests|429/,
-    "exceeded your current quota",
     "resource has been exhausted",
     "quota exceeded",
     "resource_exhausted",
@@ -584,12 +583,17 @@ const ERROR_PATTERNS = {
     /\bunhandled stop reason:\s*abort\b/i,
   ],
   billing: [
-    /["']?(?:status|code)["']?\s*[:=]\s*402\b|\bhttp\s*402\b|\berror(?:\s+code)?\s*[:=]?\s*402\b|\b(?:got|returned|received)\s+(?:a\s+)?402\b|^\s*402\s+payment/i,
+    /["']?(?:status(?:\s+code)?|code)["']?(?:\s*[:=]\s*|\s+)402\b|\bhttp\s*402\b|\berror(?:\s+code)?\s*[:=]?\s*402\b|\b(?:got|returned|received)\s+(?:a\s+)?402\b|^\s*402\s+payment/i,
     "payment required",
     "insufficient credits",
+    "insufficient_quota",
+    "exceeded your current quota",
     "credit balance",
     "plans & billing",
     "insufficient balance",
+    /\bbilling (?:hard|soft) limit reached\b/i,
+    /\b(?:out of|no)\s+credits?\b/i,
+    /\bcredits?\s+(?:are\s+)?(?:exhausted|depleted)\b/i,
   ],
   auth: [
     /invalid[_ ]?api[_ ]?key/,
