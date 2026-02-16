@@ -1,5 +1,7 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { DiscordActionConfig } from "../../config/config.js";
+import { loadConfig } from "../../config/config.js";
+import { resolveDiscordAccount } from "../../discord/accounts.js";
 import { getPresence } from "../../discord/monitor/presence-cache.js";
 import { resolveDiscordUserAllowlist } from "../../discord/resolve-users.js";
 import {
@@ -70,13 +72,13 @@ export async function handleDiscordGuildAction(
         throw new Error("Discord user resolution is disabled.");
       }
       const query = readStringParam(params, "query", { required: true });
-      const cfg = await import("../../config/config.js");
-      const token = cfg.default.channels?.discord?.token;
-      if (!token) {
+      const cfg = loadConfig();
+      const account = resolveDiscordAccount({ cfg, accountId });
+      if (!account.token) {
         throw new Error("Discord token not configured.");
       }
       const results = await resolveDiscordUserAllowlist({
-        token,
+        token: account.token,
         entries: [query],
       });
       return jsonResult({ ok: true, results });
