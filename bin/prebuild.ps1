@@ -328,13 +328,21 @@ function Install-PythonDeps {
 
 # -- 10. Playwright browsers --------------------------------------------------
 function Install-PlaywrightBrowsers {
-    # Store browsers inside the project (avoids "Access is denied" on global path)
-    $env:PLAYWRIGHT_BROWSERS_PATH = "0"
+    $browsersDir = Join-Path $InstallDir "bin\browsers"
+    $env:PLAYWRIGHT_BROWSERS_PATH = $browsersDir
+
+    # Fix Windows ACL issues: ensure the current user owns the project tree
+    Write-Info "Fixing folder permissions for Playwright..."
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    $null = (takeown /f "$InstallDir" /r /d y 2>&1)
+    $null = (icacls "$InstallDir" /grant "${env:USERNAME}:(OI)(CI)F" /t /q 2>&1)
+    $ErrorActionPreference = $prevEAP
 
     Write-Info "Installing Playwright Chromium browser..."
     $prevEAP = $ErrorActionPreference
     $ErrorActionPreference = "SilentlyContinue"
-    $pwOutput = (npx playwright install chromium --force 2>&1) | Out-String
+    $pwOutput = (npx playwright install chromium 2>&1) | Out-String
     $pwExit = $LASTEXITCODE
     $ErrorActionPreference = $prevEAP
     if ($pwExit -ne 0) {
@@ -342,7 +350,7 @@ function Install-PlaywrightBrowsers {
         Write-Host $pwOutput -ForegroundColor Yellow
         Write-Warn "Browser automation may not work."
     } else {
-        Write-Ok "Playwright Chromium installed"
+        Write-Ok "Playwright Chromium installed to $browsersDir"
     }
 
     Write-Info "Installing Playwright system dependencies..."
