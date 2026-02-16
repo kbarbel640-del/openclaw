@@ -275,4 +275,26 @@ describe("command queue", () => {
     resolve1();
     await expect(first).resolves.toBe("first");
   });
+
+  it("logs a stack trace when a lane task throws", async () => {
+    const err = new Error("boom");
+    err.stack = "STACKTRACE";
+
+    await expect(
+      enqueueCommand(async () => {
+        throw err;
+      }),
+    ).rejects.toBe(err);
+
+    expect(diagnosticMocks.diag.error).toHaveBeenCalled();
+    const lastCall = diagnosticMocks.diag.error.mock.calls.at(-1);
+    expect(lastCall?.[0]).toContain("lane task error: lane=main");
+    expect(lastCall?.[1]).toMatchObject({
+      error: {
+        name: "Error",
+        message: "boom",
+        stack: "STACKTRACE",
+      },
+    });
+  });
 });

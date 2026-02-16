@@ -46,10 +46,15 @@ function buildInjectedWorkspaceFiles(params: {
   const injectedByBaseName = new Map<string, string>();
   for (const file of params.injectedFiles) {
     const injectedPath = typeof file?.path === "string" ? file.path : "";
-    const injectedContent = typeof file?.content === "string" ? file.content : "";
-    if (!injectedPath || !injectedContent) {
+    if (!injectedPath) {
       continue;
     }
+    // Allow empty-string content (a legitimate "inject blank file" override), but
+    // skip non-string/malformed records.
+    if (typeof file?.content !== "string") {
+      continue;
+    }
+    const injectedContent = file.content;
     injectedByPath.set(injectedPath, injectedContent);
 
     const normalizedPath = injectedPath.replace(/\\/g, "/");
