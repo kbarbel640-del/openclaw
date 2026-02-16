@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 enum StatusActivityBuilder {
     static func build(
         appModel: NodeAppModel,

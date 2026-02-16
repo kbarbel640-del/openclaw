@@ -369,18 +369,22 @@ public final class OpenClawChatViewModel {
         case let .agent(agent):
             self.handleAgentEvent(agent)
         case .seqGap:
-            self.errorText = "Event stream interrupted; try refreshing."
+            self.errorText = nil
             self.clearPendingRuns(reason: nil)
+            Task {
+                await self.refreshHistoryAfterRun()
+                await self.pollHealthIfNeeded(force: true)
+            }
         }
     }
 
     private func handleChatEvent(_ chat: OpenClawChatEventPayload) {
-        if let sessionKey = chat.sessionKey, sessionKey != self.sessionKey {
+        let isRunMatch = chat.runId.flatMap { self.pendingRuns.contains($0) } ?? false
+        if let sessionKey = chat.sessionKey, sessionKey != self.sessionKey, !isRunMatch {
             return
         }
 
-        let isOurRun = chat.runId.flatMap { self.pendingRuns.contains($0) } ?? false
-        if !isOurRun {
+        if !isRunMatch {
             // Keep multiple clients in sync: if another client finishes a run for our session, refresh history.
             switch chat.state {
             case "final", "aborted", "error":

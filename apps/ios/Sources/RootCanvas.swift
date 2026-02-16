@@ -60,7 +60,7 @@ struct RootCanvas: View {
             case .chat:
                 ChatSheet(
                     gateway: self.appModel.operatorSession,
-                    sessionKey: self.appModel.mainSessionKey,
+                    sessionKey: self.appModel.chatSessionKey,
                     agentName: self.appModel.activeAgentName,
                     userAccent: self.appModel.seamColor)
             }

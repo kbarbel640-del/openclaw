@@ -71,6 +71,16 @@ final class NodeAppModel {
         return SessionKey.makeAgentSessionKey(agentId: agentId, baseKey: base)
     }
 
+    /// Dedicated session key for iOS chat, separate from the server's main session
+    /// (which may be shared with Discord or other integrations).
+    var chatSessionKey: String {
+        let base = "ios"
+        let agentId = (self.selectedAgentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaultId = (self.gatewayDefaultAgentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if agentId.isEmpty || (!defaultId.isEmpty && agentId == defaultId) { return base }
+        return SessionKey.makeAgentSessionKey(agentId: agentId, baseKey: base)
+    }
+
     var activeAgentName: String {
         let agentId = (self.selectedAgentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let defaultId = (self.gatewayDefaultAgentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -111,6 +121,7 @@ final class NodeAppModel {
     private var backgroundTalkSuspended = false
     private var backgroundedAt: Date?
     private var reconnectAfterBackgroundArmed = false
+    private var wsBackgroundTaskId: UIBackgroundTaskIdentifier = .invalid
 
     private var gatewayConnected = false
     private var operatorConnected = false
@@ -270,11 +281,26 @@ final class NodeAppModel {
             self.stopGatewayHealthMonitor()
             self.backgroundedAt = Date()
             self.reconnectAfterBackgroundArmed = true
+            // Keep WebSocket pong handler alive during brief suspensions (~30s)
+            // so the server doesn't kill the connection for missed pings.
+            self.wsBackgroundTaskId = UIApplication.shared.beginBackgroundTask(
+                withName: "gateway-ws-keepalive"
+            ) { [weak self] in
+                guard let self else { return }
+                if self.wsBackgroundTaskId != .invalid {
+                    UIApplication.shared.endBackgroundTask(self.wsBackgroundTaskId)
+                    self.wsBackgroundTaskId = .invalid
+                }
+            }
             // Be conservative: release the mic when the app backgrounds.
             self.backgroundVoiceWakeSuspended = self.voiceWake.suspendForExternalAudioCapture()
             self.backgroundTalkSuspended = self.talkMode.suspendForBackground()
         case .active, .inactive:
             self.isBackgrounded = false
+            if self.wsBackgroundTaskId != .invalid {
+                UIApplication.shared.endBackgroundTask(self.wsBackgroundTaskId)
+                self.wsBackgroundTaskId = .invalid
+            }
             if self.operatorConnected {
                 self.startGatewayHealthMonitor()
             }
@@ -372,7 +398,7 @@ final class NodeAppModel {
         let current = self.mainSessionBaseKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed == current { return }
         self.mainSessionBaseKey = trimmed
-        self.talkMode.updateMainSessionKey(self.mainSessionKey)
+        self.talkMode.updateMainSessionKey(self.chatSessionKey)
     }
 
     var seamColor: Color {
@@ -404,7 +430,7 @@ final class NodeAppModel {
             await MainActor.run {
                 self.seamColorHex = raw.isEmpty ? nil : raw
                 self.mainSessionBaseKey = mainKey
-                self.talkMode.updateMainSessionKey(self.mainSessionKey)
+                self.talkMode.updateMainSessionKey(self.chatSessionKey)
             }
         } catch {
             if let gatewayError = error as? GatewayResponseError {
@@ -430,7 +456,7 @@ final class NodeAppModel {
                 if !selected.isEmpty && !decoded.agents.contains(where: { $0.id == selected }) {
                     self.selectedAgentId = nil
                 }
-                self.talkMode.updateMainSessionKey(self.mainSessionKey)
+                self.talkMode.updateMainSessionKey(self.chatSessionKey)
             }
         } catch {
             // Best-effort only.
@@ -446,7 +472,7 @@ final class NodeAppModel {
             self.selectedAgentId = trimmed.isEmpty ? nil : trimmed
             GatewaySettingsStore.saveGatewaySelectedAgentId(stableID: stableID, agentId: self.selectedAgentId)
         }
-        self.talkMode.updateMainSessionKey(self.mainSessionKey)
+        self.talkMode.updateMainSessionKey(self.chatSessionKey)
     }
 
     func setGlobalWakeWords(_ words: [String]) async {
@@ -512,7 +538,7 @@ final class NodeAppModel {
                     return false
                 }
             },
-            onFailure: { [weak self] _ in
+            onFailure: { [weak self] failures in
                 guard let self else { return }
                 await self.operatorGateway.disconnect()
                 await MainActor.run {
@@ -1527,7 +1553,7 @@ extension NodeAppModel {
         self.talkMode.updateGatewayConnected(false)
         self.seamColorHex = nil
         self.mainSessionBaseKey = "main"
-        self.talkMode.updateMainSessionKey(self.mainSessionKey)
+        self.talkMode.updateMainSessionKey(self.chatSessionKey)
         self.showLocalCanvasOnDisconnect()
     }
 }
@@ -1741,7 +1767,7 @@ private extension NodeAppModel {
                 self.talkMode.updateGatewayConnected(false)
                 self.seamColorHex = nil
                 self.mainSessionBaseKey = "main"
-                self.talkMode.updateMainSessionKey(self.mainSessionKey)
+                self.talkMode.updateMainSessionKey(self.chatSessionKey)
                 self.showLocalCanvasOnDisconnect()
             }
         }
@@ -1757,7 +1783,7 @@ private extension NodeAppModel {
             clientId: clientId,
             clientMode: "ui",
             clientDisplayName: displayName,
-            includeDeviceIdentity: false)
+            includeDeviceIdentity: true)
     }
 
     func legacyClientIdFallback(currentClientId: String, error: Error) -> String? {

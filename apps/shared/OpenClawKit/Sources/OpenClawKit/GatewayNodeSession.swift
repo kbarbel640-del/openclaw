@@ -27,6 +27,7 @@ public actor GatewayNodeSession {
     private var onDisconnected: (@Sendable (String) async -> Void)?
     private var onInvoke: (@Sendable (BridgeInvokeRequest) async -> BridgeInvokeResponse)?
     private var hasNotifiedConnected = false
+    private var hasEverConnected = false
     private var snapshotReceived = false
     private var snapshotWaiters: [CheckedContinuation<Bool, Never>] = []
 
@@ -268,6 +269,14 @@ public actor GatewayNodeSession {
         case let .snapshot(ok):
             let raw = ok.canvashosturl?.trimmingCharacters(in: .whitespacesAndNewlines)
             self.canvasHostUrl = (raw?.isEmpty == false) ? raw : nil
+            // On reconnection (not first connect), notify subscribers that events may have been
+            // missed so they can refresh their state.
+            if self.hasEverConnected {
+                let gap = EventFrame(
+                    type: "evt", event: "seqGap", payload: nil, seq: nil, stateversion: nil)
+                self.broadcastServerEvent(gap)
+            }
+            self.hasEverConnected = true
             self.markSnapshotReceived()
             await self.notifyConnectedIfNeeded()
         case let .event(evt):
@@ -411,8 +420,17 @@ public actor GatewayNodeSession {
             return nil
         }
         return dict.reduce(into: [:]) { acc, entry in
-            acc[entry.key] = AnyCodable(entry.value)
+            acc[entry.key] = Self.anyCodablePreservingBool(entry.value)
         }
+    }
+
+    private static func anyCodablePreservingBool(_ value: Any) -> AnyCodable {
+        // JSONSerialization represents bools as NSNumber; distinguish them from integers
+        // by checking the CFBoolean type before wrapping.
+        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() {
+            return AnyCodable(number.boolValue)
+        }
+        return AnyCodable(value)
     }
 
     private func broadcastServerEvent(_ evt: EventFrame) {

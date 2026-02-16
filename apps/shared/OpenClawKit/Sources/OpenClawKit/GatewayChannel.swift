@@ -133,8 +133,8 @@ public actor GatewayChannelActor {
     private var lastAuthSource: GatewayAuthSource = .none
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
-    private let connectTimeoutSeconds: Double = 6
-    private let connectChallengeTimeoutSeconds: Double = 3.0
+    private let connectTimeoutSeconds: Double = 15
+    private let connectChallengeTimeoutSeconds: Double = 8.0
     private var watchdogTask: Task<Void, Never>?
     private var tickTask: Task<Void, Never>?
     private let defaultRequestTimeoutMs: Double = 15000
@@ -410,10 +410,13 @@ public actor GatewayChannelActor {
         }
         let payloadData = try self.encoder.encode(payload)
         let ok = try decoder.decode(HelloOk.self, from: payloadData)
+        var serverProvidedTick = false
         if let tick = ok.policy["tickIntervalMs"]?.value as? Double {
             self.tickIntervalMs = tick
+            serverProvidedTick = true
         } else if let tick = ok.policy["tickIntervalMs"]?.value as? Int {
             self.tickIntervalMs = Double(tick)
+            serverProvidedTick = true
         }
         if let auth = ok.auth,
            let deviceToken = auth["deviceToken"]?.value as? String {
@@ -430,9 +433,13 @@ public actor GatewayChannelActor {
         }
         self.lastTick = Date()
         self.tickTask?.cancel()
-        self.tickTask = Task { [weak self] in
-            guard let self else { return }
-            await self.watchTicks()
+        if serverProvidedTick && self.tickIntervalMs > 0 {
+            self.tickTask = Task { [weak self] in
+                guard let self else { return }
+                await self.watchTicks()
+            }
+        } else {
+            self.tickTask = nil
         }
         if let pushHandler = self.pushHandler {
             Task { await pushHandler(.snapshot(ok)) }
@@ -471,7 +478,8 @@ public actor GatewayChannelActor {
         }
         guard let data else { return }
         guard let frame = try? self.decoder.decode(GatewayFrame.self, from: data) else {
-            self.logger.error("gateway decode failed")
+            let preview = String(data: data.prefix(200), encoding: .utf8) ?? "(binary)"
+            self.logger.error("gateway decode failed: \(preview, privacy: .public)")
             return
         }
         switch frame {
@@ -490,13 +498,35 @@ public actor GatewayChannelActor {
             }
             if evt.event == "tick" { self.lastTick = Date() }
             await self.pushHandler?(.event(evt))
+        case let .unknown(type, raw):
+            if type == "ping" {
+                // id may arrive as string or number
+                let idString: String? =
+                    (raw["id"]?.value as? String) ??
+                    (raw["id"]?.value as? Int).map(String.init)
+                if let id = idString {
+                    let pong = BridgePong(id: id)
+                    if let pongData = try? self.encoder.encode(pong) {
+                        do {
+                            try await self.task?.send(.data(pongData))
+                        } catch {
+                            self.logger.error("gateway pong send failed: \(error.localizedDescription, privacy: .public)")
+                        }
+                    }
+                } else {
+                    self.logger.warning("gateway ping missing id")
+                }
+            }
         default:
             break
         }
     }
 
     private func waitForConnectChallenge() async throws -> String? {
-        guard let task = self.task else { return nil }
+        guard let task = self.task else {
+            self.logger.warning("gateway challenge: task nil")
+            return nil
+        }
         do {
             return try await AsyncTimeout.withTimeout(
                 seconds: self.connectChallengeTimeoutSeconds,
@@ -506,18 +536,22 @@ public actor GatewayChannelActor {
                     while true {
                         let msg = try await task.receive()
                         guard let data = self.decodeMessageData(msg) else { continue }
-                        guard let frame = try? self.decoder.decode(GatewayFrame.self, from: data) else { continue }
+                        guard let frame = try? self.decoder.decode(GatewayFrame.self, from: data) else {
+                            self.logger.warning("gateway challenge: frame decode failed")
+                            continue
+                        }
                         if case let .event(evt) = frame, evt.event == "connect.challenge" {
                             if let payload = evt.payload?.value as? [String: ProtoAnyCodable],
                                let nonce = payload["nonce"]?.value as? String {
                                 return nonce
                             }
+                            self.logger.warning("gateway challenge: nonce extract failed")
                         }
                     }
                 })
         } catch {
             if error is ConnectChallengeError {
-                self.logger.warning("gateway connect challenge timed out")
+                self.logger.warning("gateway challenge: timed out after \(self.connectChallengeTimeoutSeconds, privacy: .public)s")
                 return nil
             }
             throw error

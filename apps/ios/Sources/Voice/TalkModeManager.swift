@@ -77,7 +77,6 @@ final class TalkModeManager: NSObject {
     private var noiseFloor: Double?
     private var noiseFloorReady: Bool = false
 
-    private var chatSubscribedSessionKeys = Set<String>()
     private var incrementalSpeechQueue: [String] = []
     private var incrementalSpeechTask: Task<Void, Never>?
     private var incrementalSpeechActive = false
@@ -811,27 +810,11 @@ final class TalkModeManager: NSObject {
         }
     }
 
-    private func subscribeChatIfNeeded(sessionKey: String) async {
-        let key = sessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return }
-        guard let gateway else { return }
-        guard !self.chatSubscribedSessionKeys.contains(key) else { return }
-
-        let payload = "{\"sessionKey\":\"\(key)\"}"
-        await gateway.sendEvent(event: "chat.subscribe", payloadJSON: payload)
-        self.chatSubscribedSessionKeys.insert(key)
-        self.logger.info("chat.subscribe ok sessionKey=\(key, privacy: .public)")
-    }
-
-    private func unsubscribeAllChats() async {
-        guard let gateway else { return }
-        let keys = self.chatSubscribedSessionKeys
-        self.chatSubscribedSessionKeys.removeAll()
-        for key in keys {
-            let payload = "{\"sessionKey\":\"\(key)\"}"
-            await gateway.sendEvent(event: "chat.unsubscribe", payloadJSON: payload)
-        }
-    }
+    // Chat events are broadcast to all connected clients — no explicit subscribe needed.
+    // The old implementation sent chat.subscribe via node.event, which is a node-only method
+    // and fails (and may cause disconnects) on the operator connection used by talk mode.
+    private func subscribeChatIfNeeded(sessionKey: String) async {}
+    private func unsubscribeAllChats() async {}
 
     private func buildPrompt(transcript: String) -> String {
         let interrupted = self.lastInterruptedAtSeconds
@@ -986,7 +969,7 @@ final class TalkModeManager: NSObject {
                 let desiredOutputFormat = (directive?.outputFormat ?? self.defaultOutputFormat)?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 let requestedOutputFormat = (desiredOutputFormat?.isEmpty == false) ? desiredOutputFormat : nil
-                let outputFormat = ElevenLabsTTSClient.validatedOutputFormat(requestedOutputFormat ?? "pcm_44100")
+                let outputFormat = ElevenLabsTTSClient.validatedOutputFormat(requestedOutputFormat ?? "mp3_44100")
                 if outputFormat == nil, let requestedOutputFormat {
                     self.logger.warning(
                         "talk output_format unsupported for local playback: \(requestedOutputFormat, privacy: .public)")
@@ -1291,7 +1274,7 @@ final class TalkModeManager: NSObject {
         let desiredOutputFormat = (directive?.outputFormat ?? self.defaultOutputFormat)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let requestedOutputFormat = (desiredOutputFormat?.isEmpty == false) ? desiredOutputFormat : nil
-        let outputFormat = ElevenLabsTTSClient.validatedOutputFormat(requestedOutputFormat ?? "pcm_44100")
+        let outputFormat = ElevenLabsTTSClient.validatedOutputFormat(requestedOutputFormat ?? "mp3_44100")
         if outputFormat == nil, let requestedOutputFormat {
             self.logger.warning(
                 "talk output_format unsupported for local playback: \(requestedOutputFormat, privacy: .public)")
@@ -1715,12 +1698,20 @@ extension TalkModeManager {
         let session = AVAudioSession.sharedInstance()
         // Prefer `.spokenAudio` for STT; it tends to preserve speech energy better than `.voiceChat`.
         try session.setCategory(.playAndRecord, mode: .spokenAudio, options: [
+            .allowBluetoothA2DP,
             .allowBluetoothHFP,
             .defaultToSpeaker,
         ])
         try? session.setPreferredSampleRate(48_000)
         try? session.setPreferredIOBufferDuration(0.02)
         try session.setActive(true, options: [])
+        // If a Bluetooth input (e.g. AirPods) is available, select it as preferred input.
+        // This activates HFP and routes both input and output through the Bluetooth device.
+        if let btInput = session.availableInputs?.first(where: {
+            $0.portType == .bluetoothHFP || $0.portType == .bluetoothA2DP
+        }) {
+            try? session.setPreferredInput(btInput)
+        }
     }
 
     private static func describeAudioSession() -> String {

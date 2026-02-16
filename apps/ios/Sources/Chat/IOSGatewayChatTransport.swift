@@ -32,12 +32,9 @@ struct IOSGatewayChatTransport: OpenClawChatTransport, Sendable {
         return try JSONDecoder().decode(OpenClawChatSessionsListResponse.self, from: res)
     }
 
-    func setActiveSessionKey(_ sessionKey: String) async throws {
-        struct Subscribe: Codable { var sessionKey: String }
-        let data = try JSONEncoder().encode(Subscribe(sessionKey: sessionKey))
-        let json = String(data: data, encoding: .utf8)
-        await self.gateway.sendEvent(event: "chat.subscribe", payloadJSON: json)
-    }
+    // No-op: chat events are broadcast to all connected clients. The old implementation
+    // sent chat.subscribe via node.event, which fails on operator connections (node-only method).
+    func setActiveSessionKey(_ sessionKey: String) async throws {}
 
     func requestHistory(sessionKey: String) async throws -> OpenClawChatHistoryPayload {
         struct Params: Codable { var sessionKey: String }
