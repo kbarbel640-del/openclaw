@@ -14,6 +14,7 @@ import {
   type HistoryEntry,
 } from "../../auto-reply/reply/history.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
+import { normalizeAllowList } from "../../channels/allowlists/normalize.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { recordInboundSession } from "../../channels/session.js";
 import { loadConfig } from "../../config/config.js";
@@ -39,7 +40,7 @@ import {
   resolveIMessageInboundDecision,
 } from "./inbound-processing.js";
 import { parseIMessageNotification } from "./parse-notification.js";
-import { normalizeAllowList, resolveRuntime } from "./runtime.js";
+import { resolveRuntime } from "./runtime.js";
 
 /**
  * Try to detect remote host from an SSH wrapper script like:
