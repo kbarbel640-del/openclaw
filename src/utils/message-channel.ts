@@ -20,6 +20,7 @@ export type InternalMessageChannel = typeof INTERNAL_MESSAGE_CHANNEL;
 const MARKDOWN_CAPABLE_CHANNELS = new Set<string>([
   "slack",
   "telegram",
+  "max",
   "signal",
   "discord",
   "googlechat",

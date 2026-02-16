@@ -869,6 +869,7 @@
                 "pages": [
                   "channels/whatsapp",
                   "channels/telegram",
+                  "channels/max",
                   "channels/discord",
                   "channels/irc",
                   "channels/slack",

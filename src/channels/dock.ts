@@ -126,6 +126,72 @@ const DOCKS: Record<ChatChannelId, ChannelDock> = {
       },
     },
   },
+  max: {
+    id: "max",
+    capabilities: {
+      chatTypes: ["direct", "group"],
+      media: true,
+      nativeCommands: true,
+      blockStreaming: true,
+    },
+    outbound: { textChunkLimit: 4000 },
+    streaming: {
+      blockStreamingCoalesceDefaults: { minChars: 1500, idleMs: 1000 },
+    },
+    config: {
+      resolveAllowFrom: ({ cfg, accountId }) => {
+        const channel = cfg.channels as Record<string, Record<string, unknown>> | undefined;
+        const maxCfg = channel?.max;
+        if (!maxCfg) {
+          return undefined;
+        }
+        const normalized = normalizeAccountId(accountId);
+        const accounts = maxCfg.accounts as Record<string, Record<string, unknown>> | undefined;
+        const account =
+          accounts?.[normalized] ??
+          accounts?.[
+            Object.keys(accounts ?? {}).find(
+              (key) => key.toLowerCase() === normalized.toLowerCase(),
+            ) ?? ""
+          ];
+        const raw = (account?.allowFrom ?? maxCfg.allowFrom ?? []) as Array<string | number>;
+        return raw.map((entry) => String(entry));
+      },
+      formatAllowFrom: ({ allowFrom }) =>
+        allowFrom
+          .map((entry) => String(entry).trim())
+          .filter(Boolean)
+          .map((entry) => entry.replace(/^max:/i, ""))
+          .map((entry) => entry.toLowerCase()),
+    },
+    groups: {
+      resolveRequireMention: ({ cfg, accountId, groupId }) => {
+        if (!groupId) {
+          return true;
+        }
+        return resolveChannelGroupRequireMention({
+          cfg,
+          channel: "max",
+          groupId,
+          accountId,
+        });
+      },
+      resolveToolPolicy: ({ cfg, accountId, groupId, senderId, senderName, senderUsername }) => {
+        if (!groupId) {
+          return undefined;
+        }
+        return resolveChannelGroupToolsPolicy({
+          cfg,
+          channel: "max",
+          groupId,
+          accountId,
+          senderId,
+          senderName,
+          senderUsername,
+        });
+      },
+    },
+  },
   whatsapp: {
     id: "whatsapp",
     capabilities: {
