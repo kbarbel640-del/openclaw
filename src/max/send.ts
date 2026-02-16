@@ -103,10 +103,10 @@ export async function sendMessageMax(
 
   const json = (await res.json()) as Record<string, unknown>;
   const message = json.message as Record<string, unknown> | undefined;
+  const rawMid = message?.mid ?? json.mid ?? "";
 
   return {
-    messageId:
-      typeof message?.mid === "string" ? message.mid : String(message?.mid ?? json.mid ?? ""),
+    messageId: typeof rawMid === "string" ? rawMid : JSON.stringify(rawMid),
     chatId: String(chatId),
   };
 }
@@ -190,10 +190,10 @@ export async function sendMediaMax(
 
   const msgJson = (await msgRes.json()) as Record<string, unknown>;
   const message = msgJson.message as Record<string, unknown> | undefined;
+  const rawMid = message?.mid ?? msgJson.mid ?? "";
 
   return {
-    messageId:
-      typeof message?.mid === "string" ? message.mid : String(message?.mid ?? msgJson.mid ?? ""),
+    messageId: typeof rawMid === "string" ? rawMid : JSON.stringify(rawMid),
     chatId: String(chatId),
   };
 }
