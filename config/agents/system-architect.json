@@ -1,9 +1,25 @@
 {
   "id": "system-architect",
+  "name": "System Architect",
   "role": "specialist",
   "model": "claude-opus-4-6",
   "persona": "Roberto 'Beto' Almeida",
   "category": "architecture",
+  "capabilities": [
+    "architecture",
+    "design",
+    "planning",
+    "evaluation",
+    "scalability",
+    "distributed-systems"
+  ],
+  "expertise": [
+    "Distributed systems",
+    "Scalability planning",
+    "Component boundaries",
+    "Technology evaluation"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

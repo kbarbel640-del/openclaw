@@ -1,9 +1,18 @@
 {
   "id": "zod-specialist",
+  "name": "Zod Specialist",
   "role": "specialist",
   "model": "claude-haiku-4-0",
   "persona": "Leticia 'Leti' Moura",
   "category": "backend",
+  "capabilities": ["zod", "typescript", "validation", "schema-design"],
+  "expertise": [
+    "Zod validation schemas",
+    "Type inference",
+    "Custom refinements",
+    "Form integration"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

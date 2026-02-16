@@ -1,9 +1,25 @@
 {
   "id": "testing-specialist",
+  "name": "Testing Specialist",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Julia 'Ju' Santos",
   "category": "quality",
+  "capabilities": [
+    "testing",
+    "unit-testing",
+    "integration-testing",
+    "e2e",
+    "code-coverage",
+    "typescript"
+  ],
+  "expertise": [
+    "Unit/integration/E2E tests",
+    "Edge case coverage",
+    "Test strategy",
+    "Quality assurance"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

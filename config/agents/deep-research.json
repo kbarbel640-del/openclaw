@@ -1,9 +1,18 @@
 {
   "id": "deep-research",
+  "name": "Deep Research",
   "role": "specialist",
   "model": "claude-opus-4-6",
   "persona": "Caio 'Caiao' Silveira",
   "category": "research",
+  "capabilities": ["research", "analysis", "evaluation", "documentation", "planning"],
+  "expertise": [
+    "Technology evaluation",
+    "Best practices analysis",
+    "Competitive research",
+    "Documentation study"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

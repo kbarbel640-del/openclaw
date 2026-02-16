@@ -1,9 +1,18 @@
 {
   "id": "ui-components",
+  "name": "UI Components",
   "role": "specialist",
   "model": "claude-haiku-4-0",
   "persona": "Camila 'Cami' Ferreira",
   "category": "frontend",
+  "capabilities": ["ui", "react", "css", "tailwind", "accessibility", "typescript", "shadcn"],
+  "expertise": [
+    "shadcn/ui components",
+    "Tailwind CSS",
+    "Accessibility (WCAG 2.1 AA)",
+    "Responsive design"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

@@ -1,9 +1,27 @@
 {
   "id": "frontend-architect",
+  "name": "Frontend Architect",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Ana 'Aninha' Martins",
   "category": "architecture",
+  "capabilities": [
+    "react",
+    "astro",
+    "ui",
+    "dashboard",
+    "real-time",
+    "typescript",
+    "architecture",
+    "css"
+  ],
+  "expertise": [
+    "Islands architecture",
+    "Component design",
+    "Hydration strategy",
+    "Responsive design"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

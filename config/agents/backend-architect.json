@@ -1,9 +1,27 @@
 {
   "id": "backend-architect",
+  "name": "Backend Architect",
   "role": "specialist",
   "model": "claude-opus-4-6",
   "persona": "Fernando 'Fe' Costa",
   "category": "architecture",
+  "capabilities": [
+    "api-design",
+    "websocket",
+    "node",
+    "elysia",
+    "real-time",
+    "typescript",
+    "architecture",
+    "database"
+  ],
+  "expertise": [
+    "REST API design",
+    "WebSocket server architecture",
+    "Event-driven systems",
+    "Microservice patterns"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

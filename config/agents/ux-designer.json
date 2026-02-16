@@ -1,9 +1,13 @@
 {
   "id": "ux-designer",
+  "name": "UX Designer",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Gabriela 'Gabi' Lopes",
   "category": "design",
+  "capabilities": ["ux-design", "ui-design", "wireframing", "usability", "interaction-design"],
+  "expertise": ["User flows", "Wireframing", "Usability testing", "Information architecture"],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

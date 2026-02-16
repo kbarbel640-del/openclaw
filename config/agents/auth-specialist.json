@@ -1,9 +1,18 @@
 {
   "id": "auth-specialist",
+  "name": "Auth Specialist",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Daniela 'Dani' Castro",
   "category": "security",
+  "capabilities": ["auth", "security", "oauth", "sessions", "api-keys", "typescript"],
+  "expertise": [
+    "Better-Auth framework",
+    "OAuth 2.0",
+    "Session management",
+    "2FA/MFA implementation"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

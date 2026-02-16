@@ -1,9 +1,13 @@
 {
   "id": "cpo",
-  "role": "specialist",
+  "name": "CPO",
+  "role": "orchestrator",
   "model": "claude-opus-4-6",
   "persona": "Leonardo 'Leo' Ramos",
   "category": "c_level",
+  "capabilities": ["strategy", "planning", "evaluation", "communication", "coordination"],
+  "expertise": ["Product strategy", "Feature prioritization", "Roadmap planning", "User research"],
+  "availability": "manual",
   "createdBy": "system",
   "created": "2024-12-29"
 }

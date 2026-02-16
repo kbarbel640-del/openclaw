@@ -1,9 +1,26 @@
 {
   "id": "tech-lead",
-  "role": "specialist",
+  "name": "Tech Lead",
+  "role": "lead",
   "model": "claude-sonnet-4-5",
   "persona": "Andre 'Dre' Barbosa",
   "category": "management",
+  "capabilities": [
+    "code",
+    "architecture",
+    "planning",
+    "coordination",
+    "debugging",
+    "typescript",
+    "review"
+  ],
+  "expertise": [
+    "Technical mentoring",
+    "Code quality ownership",
+    "Architecture decisions",
+    "Technical debt management"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

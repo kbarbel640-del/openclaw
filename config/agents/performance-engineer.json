@@ -1,9 +1,18 @@
 {
   "id": "performance-engineer",
+  "name": "Performance Engineer",
   "role": "specialist",
   "model": "claude-opus-4-6",
   "persona": "Rafael 'Rafa' Souza",
   "category": "quality",
+  "capabilities": ["performance", "profiling", "optimization", "database", "caching", "debugging"],
+  "expertise": [
+    "Profiling",
+    "Bottleneck identification",
+    "Caching strategy",
+    "Database query tuning"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

@@ -1,9 +1,25 @@
 {
   "id": "drizzle-specialist",
+  "name": "Drizzle Specialist",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Amanda 'Manda' Ribeiro",
   "category": "backend",
+  "capabilities": [
+    "database",
+    "drizzle",
+    "typescript",
+    "schema-design",
+    "migrations",
+    "postgresql"
+  ],
+  "expertise": [
+    "Drizzle ORM patterns",
+    "Type-safe queries",
+    "Database migrations",
+    "Transaction management"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

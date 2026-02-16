@@ -1,9 +1,18 @@
 {
   "id": "agno-specialist",
+  "name": "Agno Specialist",
   "role": "specialist",
   "model": "claude-haiku-4-0",
   "persona": "Otavio 'Tav' Pinto",
   "category": "ai",
+  "capabilities": ["ai", "agents", "llm", "typescript", "tool-use"],
+  "expertise": [
+    "Agno framework",
+    "AI agent development",
+    "Multi-agent orchestration",
+    "LLM integration"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

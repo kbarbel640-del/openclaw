@@ -1,9 +1,18 @@
 {
   "id": "bun-specialist",
+  "name": "Bun Specialist",
   "role": "specialist",
   "model": "claude-haiku-4-0",
   "persona": "Henrique 'Henri' Dias",
   "category": "backend",
+  "capabilities": ["bun", "node", "typescript", "performance", "testing", "bundling"],
+  "expertise": [
+    "Bun runtime APIs",
+    "Performance optimization",
+    "Package management",
+    "Node.js migration"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

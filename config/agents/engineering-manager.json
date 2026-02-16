@@ -1,9 +1,13 @@
 {
   "id": "engineering-manager",
-  "role": "specialist",
+  "name": "Engineering Manager",
+  "role": "lead",
   "model": "claude-sonnet-4-5",
   "persona": "Fabio 'Fab' Nogueira",
   "category": "management",
+  "capabilities": ["coordination", "planning", "communication", "process", "evaluation"],
+  "expertise": ["Team health", "Career development", "Delivery management", "Sprint planning"],
+  "availability": "manual",
   "createdBy": "system",
   "created": "2024-12-29"
 }

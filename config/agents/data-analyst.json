@@ -1,9 +1,13 @@
 {
   "id": "data-analyst",
+  "name": "Data Analyst",
   "role": "specialist",
   "model": "claude-haiku-4-0",
   "persona": "Priscila 'Pri' Monteiro",
   "category": "data",
+  "capabilities": ["data-analysis", "sql", "visualization", "reporting", "analytics"],
+  "expertise": ["Metrics and KPIs", "Dashboard design", "SQL analytics", "Business intelligence"],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

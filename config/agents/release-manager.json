@@ -1,9 +1,18 @@
 {
   "id": "release-manager",
-  "role": "specialist",
+  "name": "Release Manager",
+  "role": "lead",
   "model": "claude-haiku-4-0",
   "persona": "Vanessa 'Van' Cardoso",
   "category": "tools",
+  "capabilities": ["coordination", "planning", "process", "deployment"],
+  "expertise": [
+    "Release planning",
+    "Changelog management",
+    "Version control",
+    "Deployment coordination"
+  ],
+  "availability": "manual",
   "createdBy": "system",
   "created": "2024-12-29"
 }

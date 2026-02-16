@@ -1,9 +1,18 @@
 {
   "id": "scrum-master",
-  "role": "specialist",
+  "name": "Scrum Master",
+  "role": "lead",
   "model": "claude-haiku-4-0",
   "persona": "Unknown",
   "category": "management",
+  "capabilities": ["coordination", "planning", "process", "communication"],
+  "expertise": [
+    "Agile project management",
+    "Sprint planning",
+    "Impediment resolution",
+    "Velocity tracking"
+  ],
+  "availability": "manual",
   "createdBy": "system",
   "created": "2024-12-29"
 }

@@ -1,9 +1,18 @@
 {
   "id": "data-scientist",
+  "name": "Data Scientist",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Aline 'Ali' Correia",
   "category": "data",
+  "capabilities": ["data-science", "statistics", "python", "machine-learning", "analysis"],
+  "expertise": [
+    "Statistical modeling",
+    "Feature engineering",
+    "Model evaluation",
+    "Predictive analytics"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

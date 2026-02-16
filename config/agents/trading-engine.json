@@ -1,9 +1,13 @@
 {
   "id": "trading-engine",
+  "name": "Trading Engine",
   "role": "specialist",
   "model": "claude-opus-4-6",
   "persona": "Eduardo 'Dudu' Pereira",
   "category": "fintech",
+  "capabilities": ["trading", "exchange-api", "real-time", "typescript", "websocket", "financial"],
+  "expertise": ["Order management", "Exchange integration", "Position tracking", "P&L calculation"],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

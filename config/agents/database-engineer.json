@@ -1,9 +1,27 @@
 {
   "id": "database-engineer",
+  "name": "Database Engineer",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Carlos 'Carlao' Lima",
   "category": "backend",
+  "capabilities": [
+    "database",
+    "postgresql",
+    "redis",
+    "drizzle",
+    "query-optimization",
+    "schema-design",
+    "migrations"
+  ],
+  "expertise": [
+    "PostgreSQL optimization",
+    "TimescaleDB",
+    "Redis caching",
+    "Schema design",
+    "Query tuning"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

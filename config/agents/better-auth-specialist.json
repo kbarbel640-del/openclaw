@@ -1,9 +1,18 @@
 {
   "id": "better-auth-specialist",
+  "name": "Better-Auth Specialist",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Daniela 'Dani' Castro",
   "category": "security",
+  "capabilities": ["auth", "security", "better-auth", "sessions", "api-keys", "typescript"],
+  "expertise": [
+    "Better-Auth advanced patterns",
+    "Plugin ecosystem",
+    "2FA setup",
+    "Cookie security"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

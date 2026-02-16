@@ -1,9 +1,18 @@
 {
   "id": "charts-specialist",
+  "name": "Charts Specialist",
   "role": "specialist",
   "model": "claude-haiku-4-0",
   "persona": "Bruno 'Bruninho' Gomes",
   "category": "frontend",
+  "capabilities": ["charts", "visualization", "real-time", "typescript", "ui"],
+  "expertise": [
+    "Lightweight Charts (TradingView)",
+    "ECharts",
+    "Technical indicators",
+    "Real-time updates"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

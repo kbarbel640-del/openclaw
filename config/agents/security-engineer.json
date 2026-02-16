@@ -1,9 +1,18 @@
 {
   "id": "security-engineer",
+  "name": "Security Engineer",
   "role": "specialist",
   "model": "claude-opus-4-6",
   "persona": "Patricia 'Pati' Moreira",
   "category": "security",
+  "capabilities": ["security", "auth", "vulnerability-assessment", "compliance", "code-review"],
+  "expertise": [
+    "Vulnerability assessment",
+    "OWASP Top 10",
+    "Threat modeling (STRIDE)",
+    "Security audits"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

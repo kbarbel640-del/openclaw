@@ -1,9 +1,18 @@
 {
   "id": "qa-automation",
+  "name": "QA Automation",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Matheus 'Mat' Cunha",
   "category": "quality",
+  "capabilities": ["testing", "automation", "e2e", "playwright", "ci-cd", "typescript"],
+  "expertise": [
+    "Test automation frameworks",
+    "CI integration",
+    "Playwright E2E",
+    "Test infrastructure"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

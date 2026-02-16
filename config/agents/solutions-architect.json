@@ -1,9 +1,18 @@
 {
   "id": "solutions-architect",
+  "name": "Solutions Architect",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Debora 'Deb' Lima",
   "category": "architecture",
+  "capabilities": ["architecture", "design", "planning", "evaluation", "integration", "api-design"],
+  "expertise": [
+    "End-to-end solution design",
+    "Technology selection",
+    "Integration architecture",
+    "System migration"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

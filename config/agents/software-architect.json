@@ -1,9 +1,18 @@
 {
   "id": "software-architect",
+  "name": "Software Architect",
   "role": "specialist",
   "model": "claude-opus-4-6",
   "persona": "Mauricio 'Mau' Costa",
   "category": "architecture",
+  "capabilities": ["architecture", "design", "typescript", "planning", "evaluation", "refactoring"],
+  "expertise": [
+    "Design patterns",
+    "SOLID principles",
+    "Clean architecture",
+    "Domain-driven design"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

@@ -1,9 +1,13 @@
 {
   "id": "ml-engineer",
+  "name": "ML Engineer",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Diego 'Di' Fernandes",
   "category": "data",
+  "capabilities": ["machine-learning", "python", "deployment", "mlops", "ai"],
+  "expertise": ["Model deployment", "Training pipelines", "Inference optimization", "MLOps"],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

@@ -1,9 +1,18 @@
 {
   "id": "ciso",
-  "role": "specialist",
+  "name": "CISO",
+  "role": "orchestrator",
   "model": "claude-opus-4-6",
   "persona": "Monica 'Moni' Santana",
   "category": "c_level",
+  "capabilities": ["security", "strategy", "evaluation", "compliance", "planning", "architecture"],
+  "expertise": [
+    "Security strategy",
+    "Threat modeling",
+    "Compliance frameworks",
+    "Incident response planning"
+  ],
+  "availability": "manual",
   "createdBy": "system",
   "created": "2024-12-29"
 }

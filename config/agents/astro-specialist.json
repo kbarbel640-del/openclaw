@@ -1,9 +1,18 @@
 {
   "id": "astro-specialist",
+  "name": "Astro Specialist",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Pedro 'Pedrinho' Campos",
   "category": "frontend",
+  "capabilities": ["astro", "typescript", "html", "css", "ssr", "ssg", "islands"],
+  "expertise": [
+    "Astro 4+ framework",
+    "Islands architecture",
+    "Hybrid SSR/SSG",
+    "Content collections"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

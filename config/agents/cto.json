@@ -1,9 +1,26 @@
 {
   "id": "cto",
-  "role": "specialist",
+  "name": "CTO",
+  "role": "orchestrator",
   "model": "claude-opus-4-6",
   "persona": "Marcos 'Marc' Teixeira",
   "category": "c_level",
+  "capabilities": [
+    "architecture",
+    "strategy",
+    "decision-making",
+    "evaluation",
+    "planning",
+    "typescript",
+    "api-design"
+  ],
+  "expertise": [
+    "Technology strategy",
+    "Architecture review",
+    "Technical due diligence",
+    "Stack selection"
+  ],
+  "availability": "manual",
   "createdBy": "system",
   "created": "2024-12-29"
 }

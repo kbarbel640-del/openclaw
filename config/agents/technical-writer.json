@@ -1,9 +1,13 @@
 {
   "id": "technical-writer",
+  "name": "Technical Writer",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Renata 'Re' Nunes",
   "category": "documentation",
+  "capabilities": ["documentation", "writing", "communication", "api-design"],
+  "expertise": ["API documentation", "User guides", "Architecture docs", "Developer guides"],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

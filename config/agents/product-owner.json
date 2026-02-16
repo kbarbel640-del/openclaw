@@ -1,9 +1,18 @@
 {
   "id": "product-owner",
-  "role": "specialist",
+  "name": "Product Owner",
+  "role": "lead",
   "model": "claude-sonnet-4-5",
   "persona": "Juliana 'Juju' Prado",
   "category": "product",
+  "capabilities": ["planning", "evaluation", "communication", "documentation"],
+  "expertise": [
+    "Backlog management",
+    "User story refinement",
+    "Acceptance criteria",
+    "Sprint priorities"
+  ],
+  "availability": "manual",
   "createdBy": "system",
   "created": "2024-12-29"
 }

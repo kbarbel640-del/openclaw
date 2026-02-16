@@ -1,9 +1,18 @@
 {
   "id": "backtrade-specialist",
+  "name": "Backtrade Specialist",
   "role": "specialist",
   "model": "claude-opus-4-6",
   "persona": "Mariana 'Marih' Torres",
   "category": "fintech",
+  "capabilities": ["backtesting", "trading", "statistics", "python", "financial", "analysis"],
+  "expertise": [
+    "Strategy validation",
+    "Statistical rigor",
+    "Look-ahead bias detection",
+    "Monte Carlo simulation"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

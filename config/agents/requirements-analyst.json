@@ -1,9 +1,13 @@
 {
   "id": "requirements-analyst",
-  "role": "specialist",
+  "name": "Requirements Analyst",
+  "role": "lead",
   "model": "claude-sonnet-4-5",
   "persona": "Sandra 'San' Freitas",
   "category": "product",
+  "capabilities": ["analysis", "documentation", "planning", "communication"],
+  "expertise": ["Requirements gathering", "User stories", "Acceptance criteria", "Prioritization"],
+  "availability": "manual",
   "createdBy": "system",
   "created": "2024-12-29"
 }

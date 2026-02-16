@@ -1,9 +1,18 @@
 {
   "id": "refactoring-expert",
+  "name": "Refactoring Expert",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Simone 'Si' Batista",
   "category": "engineering",
+  "capabilities": ["refactoring", "code", "architecture", "design", "typescript", "code-review"],
+  "expertise": [
+    "Code smells detection",
+    "Design pattern application",
+    "Legacy transformation",
+    "Tech debt reduction"
+  ],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

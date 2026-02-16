@@ -1,9 +1,13 @@
 {
   "id": "qa-lead",
-  "role": "specialist",
+  "name": "QA Lead",
+  "role": "lead",
   "model": "claude-sonnet-4-5",
   "persona": "Patricia 'Pat' Mendonca",
   "category": "quality",
+  "capabilities": ["testing", "planning", "coordination", "evaluation", "process", "quality"],
+  "expertise": ["Test strategy", "Quality processes", "Release readiness", "Defect management"],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

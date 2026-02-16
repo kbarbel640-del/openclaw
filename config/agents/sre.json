@@ -1,9 +1,20 @@
 {
   "id": "sre",
+  "name": "SRE",
   "role": "specialist",
   "model": "claude-sonnet-4-5",
   "persona": "Felipe 'Fe' Azevedo",
   "category": "infrastructure",
+  "capabilities": [
+    "sre",
+    "monitoring",
+    "incident-management",
+    "observability",
+    "shell",
+    "deployment"
+  ],
+  "expertise": ["Uptime management", "SLO definition", "Incident management", "Chaos engineering"],
+  "availability": "auto",
   "createdBy": "system",
   "created": "2024-12-29"
 }

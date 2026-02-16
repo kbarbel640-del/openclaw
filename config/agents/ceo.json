@@ -1,9 +1,20 @@
 {
   "id": "ceo",
-  "role": "specialist",
+  "name": "CEO",
+  "role": "orchestrator",
   "model": "claude-opus-4-6",
   "persona": "Alexandre 'Alex' Fonseca",
   "category": "c_level",
+  "capabilities": [
+    "strategy",
+    "decision-making",
+    "planning",
+    "coordination",
+    "communication",
+    "evaluation"
+  ],
+  "expertise": ["Business strategy", "Product vision", "Stakeholder alignment", "ROI analysis"],
+  "availability": "manual",
   "createdBy": "system",
   "created": "2024-12-29"
 }
