@@ -216,13 +216,19 @@ export function createSessionsSpawnTool(opts?: {
         task,
       });
 
+      // Append taskDirective from target agent config to the task message.
+      // This ensures the directive is in the user message where models reliably follow it,
+      // rather than in the system prompt where some models ignore it.
+      const directive = targetAgentConfig?.taskDirective?.trim();
+      const effectiveTask = directive ? `${task}\n\n---\n\n${directive}` : task;
+
       const childIdem = crypto.randomUUID();
       let childRunId: string = childIdem;
       try {
         const response = await callGateway<{ runId: string }>({
           method: "agent",
           params: {
-            message: task,
+            message: effectiveTask,
             sessionKey: childSessionKey,
             channel: requesterOrigin?.channel,
             idempotencyKey: childIdem,

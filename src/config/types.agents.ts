@@ -64,6 +64,8 @@ export type AgentConfig = {
     prune?: SandboxPruneSettings;
   };
   tools?: AgentToolsConfig;
+  /** Text appended to the task message when this agent is spawned as a subagent. */
+  taskDirective?: string;
 };
 
 export type AgentsConfig = {

@@ -456,6 +456,7 @@ export const AgentEntrySchema = z
       .optional(),
     sandbox: AgentSandboxSchema,
     tools: AgentToolsSchema,
+    taskDirective: z.string().optional(),
   })
   .strict();
 
