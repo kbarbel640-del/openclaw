@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { captureFullEnv } from "../test-utils/env.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
 
@@ -8,40 +9,20 @@ vi.mock("node:child_process", () => ({
 
 import { restartGatewayProcessWithFreshPid } from "./process-respawn.js";
 
-const originalEnv = { ...process.env };
 const originalArgv = [...process.argv];
 const originalExecArgv = [...process.execArgv];
-const supervisorHintEnvVars = [
-  "LAUNCH_JOB_LABEL",
-  "LAUNCH_JOB_NAME",
-  "INVOCATION_ID",
-  "SYSTEMD_EXEC_PID",
-  "JOURNAL_STREAM",
-];
-
-function restoreEnv() {
-  for (const key of Object.keys(process.env)) {
-    if (!(key in originalEnv)) {
-      delete process.env[key];
-    }
-  }
-  for (const [key, value] of Object.entries(originalEnv)) {
-    if (value === undefined) {
-      delete process.env[key];
-    } else {
-      process.env[key] = value;
-    }
-  }
-}
+const envSnapshot = captureFullEnv();
 
 function clearSupervisorHints() {
-  for (const key of supervisorHintEnvVars) {
-    delete process.env[key];
-  }
+  delete process.env.LAUNCH_JOB_LABEL;
+  delete process.env.LAUNCH_JOB_NAME;
+  delete process.env.INVOCATION_ID;
+  delete process.env.SYSTEMD_EXEC_PID;
+  delete process.env.JOURNAL_STREAM;
 }
 
 afterEach(() => {
-  restoreEnv();
+  envSnapshot.restore();
   process.argv = [...originalArgv];
   process.execArgv = [...originalExecArgv];
   spawnMock.mockReset();
