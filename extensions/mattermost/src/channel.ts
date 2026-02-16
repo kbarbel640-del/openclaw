@@ -9,6 +9,7 @@ import {
   setAccountEnabledInConfigSection,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
+import { mattermostMessageActions } from "./actions.js";
 import { MattermostConfigSchema } from "./config-schema.js";
 import { resolveMattermostGroupRequireMention } from "./group-mentions.js";
 import {
@@ -153,6 +154,7 @@ export const mattermostPlugin: ChannelPlugin<ResolvedMattermostAccount> = {
       hint: "<channelId|user:ID|channel:ID>",
     },
   },
+  actions: mattermostMessageActions,
   outbound: {
     deliveryMode: "direct",
     chunker: (text, limit) => getMattermostRuntime().channel.text.chunkMarkdownText(text, limit),

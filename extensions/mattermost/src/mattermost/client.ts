@@ -180,6 +180,56 @@ export async function createMattermostPost(
   });
 }
 
+export async function updateMattermostPost(
+  client: MattermostClient,
+  params: { postId: string; message: string },
+): Promise<MattermostPost> {
+  return await client.request<MattermostPost>(`/posts/${params.postId}/patch`, {
+    method: "PUT",
+    body: JSON.stringify({ message: params.message }),
+  });
+}
+
+export async function deleteMattermostPost(
+  client: MattermostClient,
+  postId: string,
+): Promise<void> {
+  await client.request<Record<string, unknown>>(`/posts/${postId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function reactMattermostPost(
+  client: MattermostClient,
+  params: { userId: string; postId: string; emojiName: string },
+): Promise<void> {
+  await client.request<Record<string, unknown>>("/reactions", {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: params.userId,
+      post_id: params.postId,
+      emoji_name: params.emojiName,
+    }),
+  });
+}
+
+export async function unreactMattermostPost(
+  client: MattermostClient,
+  params: { userId: string; postId: string; emojiName: string },
+): Promise<void> {
+  await client.request<Record<string, unknown>>(
+    `/users/${params.userId}/posts/${params.postId}/reactions/${encodeURIComponent(params.emojiName)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function getMattermostPost(
+  client: MattermostClient,
+  postId: string,
+): Promise<MattermostPost> {
+  return await client.request<MattermostPost>(`/posts/${postId}`);
+}
+
 export async function uploadMattermostFile(
   client: MattermostClient,
   params: {
