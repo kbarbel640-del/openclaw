@@ -357,44 +357,138 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
         );
       }
     } else if (hasBinary("apt-get")) {
-      // Check for passwordless sudo before attempting apt — avoids hanging
-      // in containers or environments where sudo is missing or requires a password.
-      const sudoCheck = await runCommandWithTimeout(["sudo", "-n", "true"], {
-        timeoutMs: 5_000,
-      });
-      if (sudoCheck.code !== 0) {
-        return withWarnings(
-          {
-            ok: false,
-            message:
-              "go not installed — apt-get is available but sudo is not usable (missing or requires a password). Install manually: https://go.dev/doc/install",
-            stdout: "",
-            stderr: "",
-            code: null,
-          },
-          warnings,
-        );
-      }
-      // Update package lists first — on fresh containers apt lists are typically empty.
-      await runCommandWithTimeout(["sudo", "apt-get", "update", "-qq"], {
-        timeoutMs,
-      });
-      const aptResult = await runCommandWithTimeout(
-        ["sudo", "apt-get", "install", "-y", "golang-go"],
-        { timeoutMs },
-      );
-      if (aptResult.code !== 0) {
-        return withWarnings(
-          {
-            ok: false,
-            message:
-              "go not installed — automatic install via apt failed. Install manually: https://go.dev/doc/install",
-            stdout: aptResult.stdout.trim(),
-            stderr: aptResult.stderr.trim(),
-            code: aptResult.code,
-          },
-          warnings,
-        );
+      const aptInstallArgv = ["apt-get", "install", "-y", "golang-go"];
+      const aptUpdateArgv = ["apt-get", "update", "-qq"];
+      const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
+
+      if (isRoot) {
+        try {
+          // Best effort: fresh containers often need package indexes populated.
+          await runCommandWithTimeout(aptUpdateArgv, { timeoutMs });
+        } catch {
+          // ignore and continue; install command will return actionable stderr on failure
+        }
+
+        let aptResult;
+        try {
+          aptResult = await runCommandWithTimeout(aptInstallArgv, { timeoutMs });
+        } catch (err) {
+          const stderr = err instanceof Error ? err.message : String(err);
+          return withWarnings(
+            {
+              ok: false,
+              message:
+                "go not installed — automatic install via apt failed. Install manually: https://go.dev/doc/install",
+              stdout: "",
+              stderr,
+              code: null,
+            },
+            warnings,
+          );
+        }
+        if (aptResult.code !== 0) {
+          return withWarnings(
+            {
+              ok: false,
+              message:
+                "go not installed — automatic install via apt failed. Install manually: https://go.dev/doc/install",
+              stdout: aptResult.stdout.trim(),
+              stderr: aptResult.stderr.trim(),
+              code: aptResult.code,
+            },
+            warnings,
+          );
+        }
+      } else {
+        // Check for non-interactive sudo before attempting apt — avoids hanging
+        // in containers or environments where sudo is missing or requires a password.
+        if (!hasBinary("sudo")) {
+          return withWarnings(
+            {
+              ok: false,
+              message:
+                "go not installed — apt-get is available but sudo is not installed. Install manually: https://go.dev/doc/install",
+              stdout: "",
+              stderr: "",
+              code: null,
+            },
+            warnings,
+          );
+        }
+
+        let sudoCheck;
+        try {
+          sudoCheck = await runCommandWithTimeout(["sudo", "-n", "true"], {
+            timeoutMs: 5_000,
+          });
+        } catch (err) {
+          const stderr = err instanceof Error ? err.message : String(err);
+          return withWarnings(
+            {
+              ok: false,
+              message:
+                "go not installed — apt-get is available but sudo is not usable (missing or requires a password). Install manually: https://go.dev/doc/install",
+              stdout: "",
+              stderr,
+              code: null,
+            },
+            warnings,
+          );
+        }
+        if (sudoCheck.code !== 0) {
+          return withWarnings(
+            {
+              ok: false,
+              message:
+                "go not installed — apt-get is available but sudo is not usable (missing or requires a password). Install manually: https://go.dev/doc/install",
+              stdout: sudoCheck.stdout.trim(),
+              stderr: sudoCheck.stderr.trim(),
+              code: sudoCheck.code,
+            },
+            warnings,
+          );
+        }
+
+        try {
+          // Best effort: fresh containers often need package indexes populated.
+          await runCommandWithTimeout(["sudo", ...aptUpdateArgv], { timeoutMs });
+        } catch {
+          // ignore and continue; install command will return actionable stderr on failure
+        }
+
+        let aptResult;
+        try {
+          aptResult = await runCommandWithTimeout(["sudo", ...aptInstallArgv], {
+            timeoutMs,
+          });
+        } catch (err) {
+          const stderr = err instanceof Error ? err.message : String(err);
+          return withWarnings(
+            {
+              ok: false,
+              message:
+                "go not installed — automatic install via apt failed. Install manually: https://go.dev/doc/install",
+              stdout: "",
+              stderr,
+              code: null,
+            },
+            warnings,
+          );
+        }
+
+        if (aptResult.code !== 0) {
+          return withWarnings(
+            {
+              ok: false,
+              message:
+                "go not installed — automatic install via apt failed. Install manually: https://go.dev/doc/install",
+              stdout: aptResult.stdout.trim(),
+              stderr: aptResult.stderr.trim(),
+              code: aptResult.code,
+            },
+            warnings,
+          );
+        }
       }
     } else {
       return withWarnings(

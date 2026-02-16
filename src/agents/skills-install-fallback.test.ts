@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installSkill } from "./skills-install.js";
 
 const runCommandWithTimeoutMock = vi.fn();
@@ -66,12 +66,16 @@ describe("skills-install fallback edge cases", () => {
     scanDirectoryWithSummaryMock.mockResolvedValue({ critical: 0, warn: 0, findings: [] });
   });
 
+  afterEach(async () => {
+    await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => undefined);
+  });
+
   it("apt-get available but sudo missing/unusable returns helpful error for go install", async () => {
     await writeSkillWithInstaller(workspaceDir, "go-tool", "go", {
       module: "example.com/tool@latest",
     });
 
-    // go not available, brew not available, apt-get IS available, sudo fails
+    // go not available, brew not available, apt-get + sudo are available, sudo check fails
     hasBinaryMock.mockImplementation((bin: string) => {
       if (bin === "go") {
         return false;
@@ -79,7 +83,7 @@ describe("skills-install fallback edge cases", () => {
       if (bin === "brew") {
         return false;
       }
-      if (bin === "apt-get") {
+      if (bin === "apt-get" || bin === "sudo") {
         return true;
       }
       return false;
@@ -107,6 +111,46 @@ describe("skills-install fallback edge cases", () => {
       ["sudo", "-n", "true"],
       expect.objectContaining({ timeoutMs: 5_000 }),
     );
+
+    // Verify apt-get install was NOT called
+    const aptCalls = runCommandWithTimeoutMock.mock.calls.filter(
+      (call) => Array.isArray(call[0]) && (call[0] as string[]).includes("apt-get"),
+    );
+    expect(aptCalls).toHaveLength(0);
+  });
+
+  it("handles sudo probe spawn failures without throwing", async () => {
+    await writeSkillWithInstaller(workspaceDir, "go-tool", "go", {
+      module: "example.com/tool@latest",
+    });
+
+    // go not available, brew not available, apt-get + sudo appear available
+    hasBinaryMock.mockImplementation((bin: string) => {
+      if (bin === "go") {
+        return false;
+      }
+      if (bin === "brew") {
+        return false;
+      }
+      if (bin === "apt-get" || bin === "sudo") {
+        return true;
+      }
+      return false;
+    });
+
+    runCommandWithTimeoutMock.mockRejectedValueOnce(
+      new Error('Executable not found in $PATH: "sudo"'),
+    );
+
+    const result = await installSkill({
+      workspaceDir,
+      skillName: "go-tool",
+      installId: "deps",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("sudo is not usable");
+    expect(result.stderr).toContain("Executable not found");
 
     // Verify apt-get install was NOT called
     const aptCalls = runCommandWithTimeoutMock.mock.calls.filter(
