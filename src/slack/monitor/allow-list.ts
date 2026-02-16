@@ -34,9 +34,6 @@ export function resolveSlackAllowListMatch(params: {
   if (allowList.length === 0) {
     return { allowed: false };
   }
-  if (allowList.includes("*")) {
-    return { allowed: true, matchKey: "*", matchSource: "wildcard" };
-  }
   const id = params.id?.toLowerCase();
   const name = params.name?.toLowerCase();
   const slug = normalizeSlackSlug(name);

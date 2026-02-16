@@ -1,3 +1,5 @@
+import { resolveAllowlistMatchCandidates } from "../channels/allowlist-match.js";
+
 export type NormalizedAllowFrom = {
   entries: string[];
   hasWildcard: boolean;
@@ -55,4 +57,3 @@ export const isSenderAllowed = (params: {
     candidates: [{ value: senderId, source: "id" }],
   }).allowed;
 };
-import { resolveAllowlistMatchCandidates } from "../channels/allowlist-match.js";
