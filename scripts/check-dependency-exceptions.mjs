@@ -13,11 +13,11 @@ let current = null;
 for (const line of lines) {
   const headingMatch = /^###\s+(.+)$/.exec(line.trim());
   if (headingMatch) {
-    if (current) entries.push(current);
+    if (current) {entries.push(current);}
     current = { id: headingMatch[1], status: "", nextReviewDue: "" };
     continue;
   }
-  if (!current) continue;
+  if (!current) {continue;}
 
   const statusMatch = /^-\s+Status:\s+(.+)$/.exec(line.trim());
   if (statusMatch) {
@@ -30,13 +30,13 @@ for (const line of lines) {
     current.nextReviewDue = dueMatch[1];
   }
 }
-if (current) entries.push(current);
+if (current) {entries.push(current);}
 
 const today = new Date().toISOString().slice(0, 10);
 const problems = [];
 
 for (const entry of entries) {
-  if (entry.status !== "active") continue;
+  if (entry.status !== "active") {continue;}
   if (!entry.nextReviewDue) {
     problems.push(`${entry.id}: missing "Next review due" date`);
     continue;
@@ -48,7 +48,7 @@ for (const entry of entries) {
 
 if (problems.length > 0) {
   console.error("Dependency exception review check failed:");
-  for (const problem of problems) console.error(`- ${problem}`);
+  for (const problem of problems) {console.error(`- ${problem}`);}
   process.exit(1);
 }
 
