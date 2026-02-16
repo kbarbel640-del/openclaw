@@ -155,12 +155,9 @@ function log(msg: string, err?: unknown): void {
  * (H2) For unrecognized schemes we log a warning and pass the URL through
  * as-is, letting the NATS client decide how to handle it.
  */
-function parseNatsUrl(rawUrl: string): {
-  servers: string;
-  user?: string;
-  pass?: string;
-  safeUrl: string;
-} {
+type ParsedNatsUrl = { servers: string; user?: string; pass?: string; safeUrl: string };
+
+function parseNatsUrl(rawUrl: string): ParsedNatsUrl {
   if (rawUrl.startsWith("nats://")) {
     const url = new URL(rawUrl);
     return {
@@ -170,21 +167,29 @@ function parseNatsUrl(rawUrl: string): {
       safeUrl: `${url.protocol}//${url.hostname}:${url.port || 4222}`,
     };
   }
-
-  // Warn about unrecognized scheme — only nats:// is fully parsed
   const schemeMatch = rawUrl.match(/^([a-z]+):\/\//);
   if (schemeMatch) {
     log(`Unrecognized URL scheme "${schemeMatch[1]}://", passing through as-is`);
   }
-
   return { servers: rawUrl, safeUrl: rawUrl };
+}
+
+/** Build NATS connect options from a parsed URL. */
+function buildConnectOpts(parsed: ParsedNatsUrl) {
+  return {
+    servers: parsed.servers,
+    user: parsed.user,
+    pass: parsed.pass,
+    reconnect: true,
+    maxReconnectAttempts: -1,
+    timeout: 5_000,
+  };
 }
 
 /**
  * Monitor NATS connection status for reconnects/disconnects. (C2: extracted from initEventStore)
  * Runs as a background async iterator — exits when state is cleared.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function monitorConnection(nc: import("nats").NatsConnection): void {
   (async () => {
     for await (const s of nc.status()) {
@@ -295,16 +300,9 @@ export async function initEventStore(config: ResolvedEventStoreConfig): Promise<
   }
 
   try {
-    const { servers, user, pass, safeUrl } = parseNatsUrl(config.natsUrl);
-    const nc = await nats.connect({
-      servers,
-      user,
-      pass,
-      reconnect: true,
-      maxReconnectAttempts: -1,
-      timeout: 5_000,
-    });
-    log(`Connected to ${safeUrl}`);
+    const parsed = parseNatsUrl(config.natsUrl);
+    const nc = await nats.connect(buildConnectOpts(parsed));
+    log(`Connected to ${parsed.safeUrl}`);
     monitorConnection(nc);
 
     const js = nc.jetstream();

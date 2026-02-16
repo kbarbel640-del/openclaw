@@ -49,7 +49,6 @@ describe("Event Store", () => {
     resetForTest();
   });
 
-  // ─── initEventStore ─────────────────────────────────────────────────
 
   describe("initEventStore", () => {
     it("should not connect when disabled", async () => {
@@ -153,9 +152,17 @@ describe("Event Store", () => {
       await initEventStore(DEFAULT_CONFIG);
       expect(isEventStoreConnected()).toBe(false);
     });
+
+    it("should propagate non-404 errors from stream info", async () => {
+      mockStreamInfo.mockRejectedValue(new Error("authorization violation"));
+      (((await import("nats")).connect) as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockConnection);
+      const { initEventStore, isEventStoreConnected } = await import("./event-store.js");
+      await initEventStore(DEFAULT_CONFIG);
+      expect(isEventStoreConnected()).toBe(false);
+      expect(mockStreamAdd).not.toHaveBeenCalled();
+    });
   });
 
-  // ─── Event publishing ───────────────────────────────────────────────
 
   describe("event publishing", () => {
     it("should publish user messages as msg.in", async () => {
@@ -273,7 +280,6 @@ describe("Event Store", () => {
     });
   });
 
-  // ─── Helper functions (exported for testing) ────────────────────────
 
   describe("toEventType", () => {
     it("should map tool stream correctly", async () => {
@@ -311,7 +317,6 @@ describe("Event Store", () => {
     });
   });
 
-  // ─── Shutdown ───────────────────────────────────────────────────────
 
   describe("shutdownEventStore", () => {
     it("should drain connection and clear state", async () => {
@@ -338,7 +343,6 @@ describe("Event Store", () => {
     }, 10_000);
   });
 
-  // ─── Status ────────────────────────────────────────────────────────
 
   describe("getEventStoreStatus", () => {
     it("should report connected status with counters", async () => {
@@ -374,7 +378,6 @@ describe("Event Store", () => {
     });
   });
 
-  // ─── resetForTest ───────────────────────────────────────────────────
 
   describe("resetForTest", () => {
     it("should clear state and allow re-initialization", async () => {
