@@ -391,8 +391,19 @@ export async function runAgentTurnWithFallback(params: {
                   // If a tool callback starts typing after the run finalized, we can end up with
                   // a typing loop that never sees a matching markRunComplete(). Track and drain.
                   const task = (async () => {
-                    const { text, skip } = normalizeStreamingText(payload);
-                    if (skip) {
+                    // Tool summaries must bypass normalizeStreamingText because that
+                    // function gates on allowPartialStream which is false when
+                    // reasoningLevel === "stream", causing all tool summaries to be
+                    // silently dropped.  Apply only the lightweight sanitization that
+                    // tool summaries actually need.
+                    let text = payload.text;
+                    if (isSilentReplyText(text, SILENT_REPLY_TOKEN)) {
+                      return;
+                    }
+                    if (text) {
+                      text = sanitizeUserFacingText(text, { errorContext: false });
+                    }
+                    if (!text?.trim() && (payload.mediaUrls?.length ?? 0) === 0) {
                       return;
                     }
                     await params.typingSignals.signalTextDelta(text);
