@@ -182,7 +182,7 @@ export function createTelegramDraftStream(params: {
 
   const forceNewMessage = () => {
     streamMessageId = undefined;
-    lastSentText = "";
+    lastAttemptedText = "";
     pendingText = "";
   };
 
