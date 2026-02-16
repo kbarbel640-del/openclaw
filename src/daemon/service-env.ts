@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { VERSION } from "../version.js";
 import {
@@ -24,9 +25,65 @@ type BuildServicePathOptions = MinimalServicePathOptions & {
   env?: Record<string, string | undefined>;
 };
 
+/**
+ * Read system PATH from macOS /etc/paths and /etc/paths.d/.
+ * This respects user customizations to the system PATH.
+ */
+function readMacosSystemPaths(): string[] {
+  const dirs: string[] = [];
+
+  // Read /etc/paths (one directory per line)
+  const etcPaths = "/etc/paths";
+  try {
+    if (fs.existsSync(etcPaths)) {
+      const content = fs.readFileSync(etcPaths, "utf-8");
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed && !dirs.includes(trimmed)) {
+          dirs.push(trimmed);
+        }
+      }
+    }
+  } catch {
+    // Fall back to defaults if reading fails
+  }
+
+  // Read all files in /etc/paths.d/ (each file contains directories, one per line)
+  const pathsdDir = "/etc/paths.d";
+  try {
+    if (fs.existsSync(pathsdDir) && fs.statSync(pathsdDir).isDirectory()) {
+      const files = fs.readdirSync(pathsdDir);
+      for (const file of files) {
+        const filePath = path.join(pathsdDir, file);
+        try {
+          const content = fs.readFileSync(filePath, "utf-8");
+          for (const line of content.split("\n")) {
+            const trimmed = line.trim();
+            if (trimmed && !dirs.includes(trimmed)) {
+              dirs.push(trimmed);
+            }
+          }
+        } catch {
+          // Skip files that can't be read
+        }
+      }
+    }
+  } catch {
+    // Fall back to defaults if reading fails
+  }
+
+  return dirs;
+}
+
 function resolveSystemPathDirs(platform: NodeJS.Platform): string[] {
   if (platform === "darwin") {
-    return ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+    // Read from /etc/paths and /etc/paths.d/ to respect system PATH configuration
+    const systemPaths = readMacosSystemPaths();
+    if (systemPaths.length > 0) {
+      return systemPaths;
+    }
+    // Fall back to sensible defaults if /etc/paths doesn't exist or is empty
+    return ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"];
   }
   if (platform === "linux") {
     return ["/usr/local/bin", "/usr/bin", "/bin"];

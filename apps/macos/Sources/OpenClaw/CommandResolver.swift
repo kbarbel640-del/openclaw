@@ -77,14 +77,67 @@ enum CommandResolver {
         return self.preferredPaths(home: home, current: current, projectRoot: projectRoot)
     }
 
+    /// Read system PATH from macOS /etc/paths and /etc/paths.d/.
+    /// This respects user customizations to the system PATH.
+    private static func readMacosSystemPaths() -> [String] {
+        var dirs: [String] = []
+
+        // Read /etc/paths (one directory per line)
+        let etcPaths = "/etc/paths"
+        if let content = try? String(contentsOfFile: etcPaths, encoding: .utf8) {
+            for line in content.components(separatedBy: "\n") {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty && !dirs.contains(trimmed) {
+                    dirs.append(trimmed)
+                }
+            }
+        }
+
+        // Read all files in /etc/paths.d/ (each file contains directories, one per line)
+        let pathsdDir = "/etc/paths.d"
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: pathsdDir) {
+            for file in files {
+                let filePath = (pathsdDir as NSString).appendingPathComponent(file)
+                if let content = try? String(contentsOfFile: filePath, encoding: .utf8) {
+                    for line in content.components(separatedBy: "\n") {
+                        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty && !dirs.contains(trimmed) {
+                            dirs.append(trimmed)
+                        }
+                    }
+                }
+            }
+        }
+
+        return dirs
+    }
+
     static func preferredPaths(home: URL, current: [String], projectRoot: URL) -> [String] {
-        var extras = [
-            home.appendingPathComponent("Library/pnpm").path,
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-            "/usr/bin",
-            "/bin",
-        ]
+        // On macOS, read system paths from /etc/paths and /etc/paths.d/ to respect user configuration
+        var systemPaths: [String] = []
+        #if os(macOS)
+        systemPaths = self.readMacosSystemPaths()
+        #endif
+
+        var extras: [String]
+        if !systemPaths.isEmpty {
+            // Use system paths from /etc/paths as the base
+            extras = systemPaths
+        } else {
+            // Fall back to sensible defaults if /etc/paths doesn't exist or is empty
+            extras = [
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+                "/usr/bin",
+                "/bin",
+                "/usr/sbin",
+                "/sbin",
+            ]
+        }
+
+        // Add user-managed paths that aren't typically in /etc/paths
+        extras.append(home.appendingPathComponent("Library/pnpm").path)
+
         #if DEBUG
         // Dev-only convenience. Avoid project-local PATH hijacking in release builds.
         extras.insert(projectRoot.appendingPathComponent("node_modules/.bin").path, at: 0)
