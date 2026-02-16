@@ -79,6 +79,7 @@ type TelegramReactionOpts = {
 
 const PARSE_ERR_RE = /can't parse entities|parse entities|find end of the entity/i;
 const THREAD_NOT_FOUND_RE = /400:\s*Bad Request:\s*message thread not found/i;
+const TOPIC_CLOSED_RE = /400:\s*Bad Request:\s*topic closed/i;
 const MESSAGE_NOT_MODIFIED_RE =
   /400:\s*Bad Request:\s*message is not modified|MESSAGE_NOT_MODIFIED/i;
 const CHAT_NOT_FOUND_RE = /400: Bad Request: chat not found/i;
@@ -188,6 +189,10 @@ function normalizeMessageId(raw: string | number): number {
 
 function isTelegramThreadNotFoundError(err: unknown): boolean {
   return THREAD_NOT_FOUND_RE.test(formatErrorMessage(err));
+}
+
+function isTelegramTopicClosedError(err: unknown): boolean {
+  return TOPIC_CLOSED_RE.test(formatErrorMessage(err));
 }
 
 function isTelegramMessageNotModifiedError(err: unknown): boolean {
@@ -351,6 +356,20 @@ function wrapTelegramChatNotFoundError(err: unknown, params: { chatId: string; i
   );
 }
 
+function getMessageThreadId(params?: Record<string, unknown>): number | undefined {
+  if (!params) {
+    return undefined;
+  }
+  const value = params.message_thread_id;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return Number.parseInt(value, 10);
+  }
+  return undefined;
+}
+
 async function withTelegramThreadFallback<T>(
   params: Record<string, unknown> | undefined,
   label: string,
@@ -359,16 +378,49 @@ async function withTelegramThreadFallback<T>(
     effectiveParams: Record<string, unknown> | undefined,
     effectiveLabel: string,
   ) => Promise<T>,
+  recoverOptions?: {
+    chatId: string | number;
+    api: Bot["api"];
+  },
 ): Promise<T> {
   try {
     return await attempt(params, label);
   } catch (err) {
+    if (
+      recoverOptions &&
+      hasMessageThreadIdParam(params) &&
+      isTelegramTopicClosedError(err)
+    ) {
+      if (verbose) {
+        console.warn(
+          `telegram ${label} failed with topic closed, attempting reopen: ${formatErrorMessage(err)}`,
+        );
+      }
+      const threadId = getMessageThreadId(params);
+      if (threadId) {
+        try {
+          await recoverOptions.api.reopenForumTopic(recoverOptions.chatId, threadId);
+          // Retry immediately after reopen
+          return await attempt(params, `${label}-reopened`);
+        } catch (reopenErr) {
+          if (verbose) {
+            console.warn(
+              `telegram topic reopen failed: ${formatErrorMessage(reopenErr)}`,
+            );
+          }
+          // Fall through to throw original error (or check thread not found)
+        }
+      }
+    }
+
     if (!hasMessageThreadIdParam(params) || !isTelegramThreadNotFoundError(err)) {
       throw err;
     }
     if (verbose) {
       console.warn(
-        `telegram ${label} failed with message_thread_id, retrying without thread: ${formatErrorMessage(err)}`,
+        `telegram ${label} failed with message_thread_id, retrying without thread: ${formatErrorMessage(
+          err,
+        )}`,
       );
     }
     const retriedParams = removeMessageThreadIdParam(params);
@@ -505,6 +557,7 @@ export async function sendMessageTelegram(
           },
         });
       },
+      { chatId, api },
     );
   };
 
@@ -559,6 +612,7 @@ export async function sendMessageTelegram(
         opts.verbose,
         async (effectiveParams, retryLabel) =>
           requestWithChatNotFound(() => sender(effectiveParams), retryLabel),
+        { chatId, api },
       );
 
     const mediaSender = (() => {
@@ -944,6 +998,7 @@ export async function sendStickerTelegram(
     opts.verbose,
     async (effectiveParams, label) =>
       requestWithChatNotFound(() => api.sendSticker(chatId, fileId.trim(), effectiveParams), label),
+    { chatId, api },
   );
 
   const messageId = String(result?.message_id ?? "unknown");
@@ -1045,6 +1100,7 @@ export async function sendPollTelegram(
         () => api.sendPoll(chatId, normalizedPoll.question, pollOptions, effectiveParams),
         label,
       ),
+    { chatId, api },
   );
 
   const messageId = String(result?.message_id ?? "unknown");
