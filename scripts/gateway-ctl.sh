@@ -20,11 +20,13 @@ case "$ENV" in
     LABEL="ai.openclaw.gateway"
     PLIST="$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist"
     PORT=18789
+    DEPLOY_DIR="$HOME/Deployments/openclaw-prod"
     ;;
   dev)
     LABEL="ai.openclaw.dev"
     PLIST="$HOME/Library/LaunchAgents/ai.openclaw.dev.plist"
     PORT=19001
+    DEPLOY_DIR="$HOME/Deployments/openclaw-dev"
     ;;
   *)
     echo "Usage: gateway-ctl <prod|dev> <start|stop|status>"
@@ -67,13 +69,32 @@ case "$ACTION" in
 
   stop)
     if ! is_loaded; then
-      echo "✅ $ENV is not loaded"
+      # Even if not loaded, check for orphan processes
+      ORPHAN=$(lsof -ti tcp:$PORT 2>/dev/null || true)
+      if [[ -n "$ORPHAN" ]]; then
+        echo "  → Service not loaded but found orphan on port $PORT: $ORPHAN"
+        kill $ORPHAN 2>/dev/null || true
+        sleep 1
+        kill -9 $(lsof -ti tcp:$PORT 2>/dev/null || true) 2>/dev/null || true
+        echo "✅ $ENV orphan killed"
+      else
+        echo "✅ $ENV is not loaded"
+      fi
       exit 0
     fi
 
     echo "  → Stopping $ENV gateway..."
     launchctl bootout "$GUI/$LABEL" 2>/dev/null || true
-    sleep 1
+    sleep 2
+
+    # Clean up orphans that survived bootout
+    ORPHAN=$(lsof -ti tcp:$PORT 2>/dev/null || true)
+    if [[ -n "$ORPHAN" ]]; then
+      echo "  → Killing orphan process(es) on port $PORT: $ORPHAN"
+      kill $ORPHAN 2>/dev/null || true
+      sleep 1
+      kill -9 $(lsof -ti tcp:$PORT 2>/dev/null || true) 2>/dev/null || true
+    fi
     echo "✅ $ENV gateway stopped"
     ;;
 
@@ -81,7 +102,22 @@ case "$ACTION" in
     echo "  → Restarting $ENV gateway..."
     if is_loaded; then
       launchctl bootout "$GUI/$LABEL" 2>/dev/null || true
-      sleep 3
+      sleep 2
+    fi
+
+    # Kill any orphan process still holding the port (launchd may have lost track)
+    ORPHAN=$(lsof -ti tcp:$PORT 2>/dev/null || true)
+    if [[ -n "$ORPHAN" ]]; then
+      echo "  → Killing orphan process(es) on port $PORT: $ORPHAN"
+      kill $ORPHAN 2>/dev/null || true
+      sleep 2
+      # Force kill if still alive
+      STUBBORN=$(lsof -ti tcp:$PORT 2>/dev/null || true)
+      if [[ -n "$STUBBORN" ]]; then
+        echo "  → Force killing stubborn process(es): $STUBBORN"
+        kill -9 $STUBBORN 2>/dev/null || true
+        sleep 1
+      fi
     fi
 
     launchctl bootstrap "$GUI" "$PLIST"
@@ -90,11 +126,18 @@ case "$ACTION" in
     sleep 3
 
     if is_running; then
-      echo "✅ $ENV gateway restarted (port $PORT)"
+      PID=$(launchctl print "$GUI/$LABEL" 2>/dev/null | grep "pid = " | head -1 | awk '{print $3}')
+      echo "✅ $ENV gateway restarted (pid $PID, port $PORT)"
     else
       echo "❌ $ENV gateway failed to restart. Check logs."
       exit 1
     fi
+    ;;
+
+  tui)
+    echo "  → Launching $ENV TUI from $DEPLOY_DIR..."
+    cd "$DEPLOY_DIR"
+    exec node dist/index.js tui --port "$PORT"
     ;;
 
   status)
@@ -109,7 +152,7 @@ case "$ACTION" in
     ;;
 
   *)
-    echo "Usage: gateway-ctl <prod|dev> <start|stop|restart|status>"
+    echo "Usage: gateway-ctl <prod|dev> <start|stop|restart|status|tui>"
     exit 1
     ;;
 esac
