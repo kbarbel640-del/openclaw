@@ -3,6 +3,7 @@ import UIKit
 
 struct RootCanvas: View {
     @Environment(NodeAppModel.self) private var appModel
+    @Environment(GatewayConnectionController.self) private var gatewayController
     @Environment(VoiceWakeManager.self) private var voiceWake
     @Environment(\.colorScheme) private var systemColorScheme
     @Environment(\.scenePhase) private var scenePhase
@@ -14,6 +15,7 @@ struct RootCanvas: View {
     @AppStorage("gateway.preferredStableID") private var preferredGatewayStableID: String = ""
     @AppStorage("gateway.manual.enabled") private var manualGatewayEnabled: Bool = false
     @AppStorage("gateway.manual.host") private var manualGatewayHost: String = ""
+    @AppStorage("onboarding.quickSetupDismissed") private var quickSetupDismissed: Bool = false
     @State private var presentedSheet: PresentedSheet?
     @State private var voiceWakeToastText: String?
     @State private var toastDismissTask: Task<Void, Never>?
@@ -22,11 +24,13 @@ struct RootCanvas: View {
     private enum PresentedSheet: Identifiable {
         case settings
         case chat
+        case quickSetup
 
         var id: Int {
             switch self {
             case .settings: 0
             case .chat: 1
+            case .quickSetup: 2
             }
         }
     }
@@ -63,12 +67,16 @@ struct RootCanvas: View {
                     sessionKey: self.appModel.mainSessionKey,
                     agentName: self.appModel.activeAgentName,
                     userAccent: self.appModel.seamColor)
+            case .quickSetup:
+                GatewayQuickSetupSheet()
             }
         }
         .onAppear { self.updateIdleTimer() }
         .onAppear { self.maybeAutoOpenSettings() }
         .onChange(of: self.preventSleep) { _, _ in self.updateIdleTimer() }
         .onChange(of: self.scenePhase) { _, _ in self.updateIdleTimer() }
+        .onAppear { self.maybeShowQuickSetup() }
+        .onChange(of: self.gatewayController.gateways.count) { _, _ in self.maybeShowQuickSetup() }
         .onAppear { self.updateCanvasDebugStatus() }
         .onChange(of: self.canvasDebugStatusEnabled) { _, _ in self.updateCanvasDebugStatus() }
         .onChange(of: self.appModel.gatewayStatusText) { _, _ in self.updateCanvasDebugStatus() }
@@ -154,6 +162,14 @@ struct RootCanvas: View {
         guard self.shouldAutoOpenSettings() else { return }
         self.didAutoOpenSettings = true
         self.presentedSheet = .settings
+    }
+
+    private func maybeShowQuickSetup() {
+        guard !self.quickSetupDismissed else { return }
+        guard self.presentedSheet == nil else { return }
+        guard self.appModel.gatewayServerName == nil else { return }
+        guard !self.gatewayController.gateways.isEmpty else { return }
+        self.presentedSheet = .quickSetup
     }
 }
 
@@ -256,64 +272,11 @@ private struct CanvasContent: View {
     }
 
     private var statusActivity: StatusPill.Activity? {
-        // Status pill owns transient activity state so it doesn't overlap the connection indicator.
-        if self.appModel.isBackgrounded {
-            return StatusPill.Activity(
-                title: "Foreground required",
-                systemImage: "exclamationmark.triangle.fill",
-                tint: .orange)
-        }
-
-        let gatewayStatus = self.appModel.gatewayStatusText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let gatewayLower = gatewayStatus.lowercased()
-        if gatewayLower.contains("repair") {
-            return StatusPill.Activity(title: "Repairing…", systemImage: "wrench.and.screwdriver", tint: .orange)
-        }
-        if gatewayLower.contains("approval") || gatewayLower.contains("pairing") {
-            return StatusPill.Activity(title: "Approval pending", systemImage: "person.crop.circle.badge.clock")
-        }
-        // Avoid duplicating the primary gateway status ("Connecting…") in the activity slot.
-
-        if self.appModel.screenRecordActive {
-            return StatusPill.Activity(title: "Recording screen…", systemImage: "record.circle.fill", tint: .red)
-        }
-
-        if let cameraHUDText, !cameraHUDText.isEmpty, let cameraHUDKind {
-            let systemImage: String
-            let tint: Color?
-            switch cameraHUDKind {
-            case .photo:
-                systemImage = "camera.fill"
-                tint = nil
-            case .recording:
-                systemImage = "video.fill"
-                tint = .red
-            case .success:
-                systemImage = "checkmark.circle.fill"
-                tint = .green
-            case .error:
-                systemImage = "exclamationmark.triangle.fill"
-                tint = .red
-            }
-            return StatusPill.Activity(title: cameraHUDText, systemImage: systemImage, tint: tint)
-        }
-
-        if self.voiceWakeEnabled {
-            let voiceStatus = self.appModel.voiceWake.statusText
-            if voiceStatus.localizedCaseInsensitiveContains("microphone permission") {
-                return StatusPill.Activity(title: "Mic permission", systemImage: "mic.slash", tint: .orange)
-            }
-            if voiceStatus == "Paused" {
-                // Talk mode intentionally pauses voice wake to release the mic. Don't spam the HUD for that case.
-                if self.appModel.talkMode.isEnabled {
-                    return nil
-                }
-                let suffix = self.appModel.isBackgrounded ? " (background)" : ""
-                return StatusPill.Activity(title: "Voice Wake paused\(suffix)", systemImage: "pause.circle.fill")
-            }
-        }
-
-        return nil
+        StatusActivityBuilder.build(
+            appModel: self.appModel,
+            voiceWakeEnabled: self.voiceWakeEnabled,
+            cameraHUDText: self.cameraHUDText,
+            cameraHUDKind: self.cameraHUDKind)
     }
 }
 
