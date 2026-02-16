@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import type { SessionState } from "../logging/diagnostic-session-state.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { isPlainObject } from "../utils.js";
 
 const log = createSubsystemLogger("agents/loop-detection");
 
@@ -14,15 +16,10 @@ export const GLOBAL_CIRCUIT_BREAKER_THRESHOLD = 30;
 
 /**
  * Hash a tool call for pattern matching.
- * Uses tool name + deterministic JSON stringification of params.
+ * Uses tool name + deterministic JSON serialization digest of params.
  */
 export function hashToolCall(toolName: string, params: unknown): string {
-  try {
-    const paramsStr = stableStringify(params);
-    return `${toolName}:${paramsStr}`;
-  } catch {
-    return `${toolName}:${String(params)}`;
-  }
+  return `${toolName}:${digestStable(params)}`;
 }
 
 function stableStringify(value: unknown): string {
@@ -37,8 +34,29 @@ function stableStringify(value: unknown): string {
   return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`;
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function digestStable(value: unknown): string {
+  const serialized = stableStringifyFallback(value);
+  return createHash("sha256").update(serialized).digest("hex");
+}
+
+function stableStringifyFallback(value: unknown): string {
+  try {
+    return stableStringify(value);
+  } catch {
+    if (value === null || value === undefined) {
+      return `${value}`;
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+      return `${value}`;
+    }
+    if (value instanceof Error) {
+      return `${value.name}:${value.message}`;
+    }
+    return Object.prototype.toString.call(value);
+  }
 }
 
 function isKnownPollToolCall(toolName: string, params: unknown): boolean {
@@ -86,10 +104,10 @@ function hashToolOutcome(
   error: unknown,
 ): string | undefined {
   if (error !== undefined) {
-    return `error:${formatErrorForHash(error)}`;
+    return `error:${digestStable(formatErrorForHash(error))}`;
   }
   if (!isPlainObject(result)) {
-    return result === undefined ? undefined : stableStringify(result);
+    return result === undefined ? undefined : digestStable(result);
   }
 
   const details = isPlainObject(result.details) ? result.details : {};
@@ -97,7 +115,7 @@ function hashToolOutcome(
   if (isKnownPollToolCall(toolName, params) && toolName === "process" && isPlainObject(params)) {
     const action = params.action;
     if (action === "poll") {
-      return stableStringify({
+      return digestStable({
         action,
         status: details.status,
         exitCode: details.exitCode ?? null,
@@ -107,7 +125,7 @@ function hashToolOutcome(
       });
     }
     if (action === "log") {
-      return stableStringify({
+      return digestStable({
         action,
         status: details.status,
         totalLines: details.totalLines ?? null,
@@ -120,7 +138,7 @@ function hashToolOutcome(
     }
   }
 
-  return stableStringify({
+  return digestStable({
     details,
     text,
   });

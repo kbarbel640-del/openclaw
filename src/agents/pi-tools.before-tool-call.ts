@@ -16,6 +16,36 @@ const BEFORE_TOOL_CALL_WRAPPED = Symbol("beforeToolCallWrapped");
 const adjustedParamsByToolCallId = new Map<string, unknown>();
 const MAX_TRACKED_ADJUSTED_PARAMS = 1024;
 
+async function recordLoopOutcome(args: {
+  ctx?: HookContext;
+  toolName: string;
+  toolParams: unknown;
+  toolCallId?: string;
+  result?: unknown;
+  error?: unknown;
+}): Promise<void> {
+  if (!args.ctx?.sessionKey) {
+    return;
+  }
+  try {
+    const { getDiagnosticSessionState } = await import("../logging/diagnostic-session-state.js");
+    const { recordToolCallOutcome } = await import("./tool-loop-detection.js");
+    const sessionState = getDiagnosticSessionState({
+      sessionKey: args.ctx.sessionKey,
+      sessionId: args.ctx?.agentId,
+    });
+    recordToolCallOutcome(sessionState, {
+      toolName: args.toolName,
+      toolParams: args.toolParams,
+      toolCallId: args.toolCallId,
+      result: args.result,
+      error: args.error,
+    });
+  } catch (err) {
+    log.warn(`tool loop outcome tracking failed: tool=${args.toolName} error=${String(err)}`);
+  }
+}
+
 export async function runBeforeToolCallHook(args: {
   toolName: string;
   params: unknown;
@@ -124,50 +154,22 @@ export function wrapToolWithBeforeToolCallHook(
       const normalizedToolName = normalizeToolName(toolName || "tool");
       try {
         const result = await execute(toolCallId, outcome.params, signal, onUpdate);
-        if (ctx?.sessionKey) {
-          try {
-            const { getDiagnosticSessionState } =
-              await import("../logging/diagnostic-session-state.js");
-            const { recordToolCallOutcome } = await import("./tool-loop-detection.js");
-            const sessionState = getDiagnosticSessionState({
-              sessionKey: ctx.sessionKey,
-              sessionId: ctx?.agentId,
-            });
-            recordToolCallOutcome(sessionState, {
-              toolName: normalizedToolName,
-              toolParams: outcome.params,
-              toolCallId,
-              result,
-            });
-          } catch (err) {
-            log.warn(
-              `tool loop outcome tracking failed: tool=${normalizedToolName} error=${String(err)}`,
-            );
-          }
-        }
+        await recordLoopOutcome({
+          ctx,
+          toolName: normalizedToolName,
+          toolParams: outcome.params,
+          toolCallId,
+          result,
+        });
         return result;
       } catch (err) {
-        if (ctx?.sessionKey) {
-          try {
-            const { getDiagnosticSessionState } =
-              await import("../logging/diagnostic-session-state.js");
-            const { recordToolCallOutcome } = await import("./tool-loop-detection.js");
-            const sessionState = getDiagnosticSessionState({
-              sessionKey: ctx.sessionKey,
-              sessionId: ctx?.agentId,
-            });
-            recordToolCallOutcome(sessionState, {
-              toolName: normalizedToolName,
-              toolParams: outcome.params,
-              toolCallId,
-              error: err,
-            });
-          } catch (recordErr) {
-            log.warn(
-              `tool loop outcome tracking failed: tool=${normalizedToolName} error=${String(recordErr)}`,
-            );
-          }
-        }
+        await recordLoopOutcome({
+          ctx,
+          toolName: normalizedToolName,
+          toolParams: outcome.params,
+          toolCallId,
+          error: err,
+        });
         throw err;
       }
     },

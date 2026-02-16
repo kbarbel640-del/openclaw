@@ -68,6 +68,13 @@ describe("tool-loop-detection", () => {
       const hash2 = hashToolCall("tool", { b: 2, a: 1 });
       expect(hash1).toBe(hash2);
     });
+
+    it("keeps hashes fixed-size even for large params", () => {
+      const payload = { data: "x".repeat(20_000) };
+      const hash = hashToolCall("read", payload);
+      expect(hash.startsWith("read:")).toBe(true);
+      expect(hash.length).toBe("read:".length + 64);
+    });
   });
 
   describe("recordToolCall", () => {
@@ -91,8 +98,7 @@ describe("tool-loop-detection", () => {
       expect(state.toolCallHistory).toHaveLength(TOOL_CALL_HISTORY_SIZE);
 
       const oldestCall = state.toolCallHistory?.[0];
-      expect(oldestCall?.argsHash).toContain("iteration");
-      expect(oldestCall?.argsHash).not.toContain('"iteration":0');
+      expect(oldestCall?.argsHash).toBe(hashToolCall("tool", { iteration: 10 }));
     });
 
     it("records timestamp for each call", () => {
@@ -228,6 +234,26 @@ describe("tool-loop-detection", () => {
         expect(loopResult.level).toBe("critical");
         expect(loopResult.message).toContain("global circuit breaker");
       }
+    });
+
+    it("records fixed-size result hashes for large tool outputs", () => {
+      const state = createState();
+      const params = { action: "log", sessionId: "sess-big" };
+      const toolCallId = "log-big";
+      recordToolCall(state, "process", params, toolCallId);
+      recordToolCallOutcome(state, {
+        toolName: "process",
+        toolParams: params,
+        toolCallId,
+        result: {
+          content: [{ type: "text", text: "y".repeat(40_000) }],
+          details: { status: "running", totalLines: 1, totalChars: 40_000 },
+        },
+      });
+
+      const entry = state.toolCallHistory?.find((call) => call.toolCallId === toolCallId);
+      expect(typeof entry?.resultHash).toBe("string");
+      expect(entry?.resultHash?.length).toBe(64);
     });
 
     it("handles empty history", () => {
