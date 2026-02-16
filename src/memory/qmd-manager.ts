@@ -148,6 +148,17 @@ export class QmdMemoryManager implements MemorySearchManager {
     this.bootstrapCollections();
     await this.ensureCollections();
 
+    // FIX: Arm timer BEFORE boot update
+    // This ensures regular interval updates continue even if boot update fails/times out
+    if (this.qmd.update.intervalMs > 0) {
+      this.updateTimer = setInterval(() => {
+        void this.runUpdate("interval").catch((err) => {
+          log.warn(`qmd update failed (${String(err)})`);
+        });
+      }, this.qmd.update.intervalMs);
+    }
+
+    // FIX: Boot update runs AFTER timer is armed
     if (this.qmd.update.onBoot) {
       const bootRun = this.runUpdate("boot", true);
       if (this.qmd.update.waitForBootSync) {
@@ -159,13 +170,6 @@ export class QmdMemoryManager implements MemorySearchManager {
           log.warn(`qmd boot update failed: ${String(err)}`);
         });
       }
-    }
-    if (this.qmd.update.intervalMs > 0) {
-      this.updateTimer = setInterval(() => {
-        void this.runUpdate("interval").catch((err) => {
-          log.warn(`qmd update failed (${String(err)})`);
-        });
-      }, this.qmd.update.intervalMs);
     }
   }
 
