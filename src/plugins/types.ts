@@ -280,6 +280,27 @@ export type OpenClawPluginApi = {
     handler: PluginHookHandlerMap[K],
     opts?: { priority?: number },
   ) => void;
+
+  // =========================================================================
+  // Session interaction (agent-to-agent steering)
+  // =========================================================================
+
+  /**
+   * Steer an active streaming session by injecting a message between tool calls.
+   * Returns `true` if the message was queued, `false` if the session is not
+   * currently streaming or does not exist.
+   *
+   * @param sessionKey - The canonical session key (e.g. `agent:coder:discord:channel:123`).
+   * @param text       - The message to inject into the running session.
+   */
+  steerSession: (sessionKey: string, text: string) => boolean;
+
+  /**
+   * Check whether a session is currently streaming (actively generating a response).
+   *
+   * @param sessionKey - The canonical session key.
+   */
+  isSessionStreaming: (sessionKey: string) => boolean;
 };
 
 export type PluginOrigin = "bundled" | "global" | "workspace" | "config";

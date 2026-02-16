@@ -29,7 +29,14 @@ import type {
   PluginHookHandlerMap,
   PluginHookRegistration as TypedPluginHookRegistration,
 } from "./types.js";
+import {
+  isEmbeddedPiRunStreaming,
+  queueEmbeddedPiMessage,
+} from "../agents/pi-embedded-runner/runs.js";
+import { resolveDefaultSessionStorePath } from "../config/sessions/paths.js";
+import { loadSessionStore } from "../config/sessions/store.js";
 import { registerInternalHook } from "../hooks/internal-hooks.js";
+import { resolveAgentIdFromSessionKey } from "../routing/session-key.js";
 import { resolveUserPath } from "../utils.js";
 import { registerPluginCommand } from "./commands.js";
 import { normalizePluginHttpPath } from "./http-path.js";
@@ -167,6 +174,18 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
 
   const pushDiagnostic = (diag: PluginDiagnostic) => {
     registry.diagnostics.push(diag);
+  };
+
+  /**
+   * Resolve a canonical session key to the internal session ID used by the
+   * embedded runner.  Returns `undefined` when the session entry cannot be
+   * found (e.g. no active session for that key).
+   */
+  const resolveSessionId = (sessionKey: string): string | undefined => {
+    const agentId = resolveAgentIdFromSessionKey(sessionKey);
+    const storePath = resolveDefaultSessionStorePath(agentId);
+    const store = loadSessionStore(storePath);
+    return store[sessionKey]?.sessionId;
   };
 
   const registerTool = (
@@ -499,6 +518,22 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       registerCommand: (command) => registerCommand(record, command),
       resolvePath: (input: string) => resolveUserPath(input),
       on: (hookName, handler, opts) => registerTypedHook(record, hookName, handler, opts),
+
+      steerSession: (sessionKey: string, text: string): boolean => {
+        const sessionId = resolveSessionId(sessionKey);
+        if (!sessionId) {
+          return false;
+        }
+        return queueEmbeddedPiMessage(sessionId, text);
+      },
+
+      isSessionStreaming: (sessionKey: string): boolean => {
+        const sessionId = resolveSessionId(sessionKey);
+        if (!sessionId) {
+          return false;
+        }
+        return isEmbeddedPiRunStreaming(sessionId);
+      },
     };
   };
 
