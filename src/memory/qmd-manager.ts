@@ -1226,16 +1226,18 @@ export class QmdMemoryManager implements MemorySearchManager {
   }
 
   private resolveMcpTool(): string {
-    // MCP tool names match QMD CLI commands: search, vsearch, query
+    // MCP tool names differ from CLI commands:
+    //   CLI: search, vsearch, query
+    //   MCP: search, vector_search, deep_search
     switch (this.qmd.searchMode) {
       case "search":
         return "search";
       case "vsearch":
-        return "vsearch";
+        return "vector_search";
       case "query":
-        return "query";
+        return "deep_search";
       default:
-        return "query";
+        return "deep_search";
     }
   }
 
@@ -1280,14 +1282,14 @@ export class QmdMemoryManager implements MemorySearchManager {
     } catch (err) {
       // If query mode fails due to context size, retry with vsearch (no reranker)
       const errMsg = String(err);
-      if (tool === "query" && errMsg.includes("context size")) {
-        log.warn("qmd daemon query hit context size limit, retrying with vsearch");
+      if (tool === "deep_search" && errMsg.includes("context size")) {
+        log.warn("qmd daemon deep_search hit context size limit, retrying with vector_search");
         try {
           const timeoutMs = this.daemon.isReady()
             ? this.qmd.daemon.warmTimeoutMs
             : this.qmd.daemon.coldStartTimeoutMs;
           const raw = await this.daemon.query(query, {
-            tool: "vsearch",
+            tool: "vector_search",
             limit,
             collection,
             timeoutMs,
