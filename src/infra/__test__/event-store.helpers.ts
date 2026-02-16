@@ -2,20 +2,20 @@
  * Shared mock setup for event-store tests.
  * Extracted to keep the test file under the 400-line limit (Cerberus C1).
  */
-import { vi } from "vitest";
+import { type Mock, vi } from "vitest";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock NATS primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const mockPublish = vi.fn().mockResolvedValue({ seq: 1 });
-export const mockStreamInfo = vi.fn();
-export const mockStreamAdd = vi.fn().mockResolvedValue({});
-export const mockDrain = vi.fn().mockResolvedValue(undefined);
-export const mockClose = vi.fn().mockResolvedValue(undefined);
-export const mockIsClosed = vi.fn().mockReturnValue(false);
-export const mockJetstream = vi.fn().mockReturnValue({ publish: mockPublish });
-export const mockJetstreamManager = vi.fn().mockResolvedValue({
+export const mockPublish: Mock = vi.fn().mockResolvedValue({ seq: 1 });
+export const mockStreamInfo: Mock = vi.fn();
+export const mockStreamAdd: Mock = vi.fn().mockResolvedValue({});
+export const mockDrain: Mock = vi.fn().mockResolvedValue(undefined);
+export const mockClose: Mock = vi.fn().mockResolvedValue(undefined);
+export const mockIsClosed: Mock = vi.fn().mockReturnValue(false);
+export const mockJetstream: Mock = vi.fn().mockReturnValue({ publish: mockPublish });
+export const mockJetstreamManager: Mock = vi.fn().mockResolvedValue({
   streams: { info: mockStreamInfo, add: mockStreamAdd },
 });
 
@@ -26,7 +26,7 @@ export const emptyAsyncIter = {
   }),
 };
 
-export const mockConnection = {
+export const mockConnection: Record<string, Mock | typeof emptyAsyncIter> = {
   jetstream: mockJetstream,
   jetstreamManager: mockJetstreamManager,
   isClosed: mockIsClosed,
