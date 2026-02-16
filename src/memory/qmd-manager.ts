@@ -42,6 +42,12 @@ type SessionExporterConfig = {
   collectionName: string;
 };
 
+type ListedCollection = {
+  path?: string;
+  pattern?: string;
+};
+
+type QmdManagerMode = "full" | "status";
 export class QmdMemoryManager implements MemorySearchManager {
   static async create(params: {
     cfg: OpenClawConfig;
@@ -186,7 +192,7 @@ export class QmdMemoryManager implements MemorySearchManager {
     // QMD collections are persisted inside the index database and must be created
     // via the CLI. Prefer listing existing collections when supported, otherwise
     // fall back to best-effort idempotent `qmd collection add`.
-    const existing = new Set<string>();
+    const existing = new Map<string, ListedCollection>();
     try {
       const result = await this.runQmd(["collection", "list", "--json"], {
         timeoutMs: this.qmd.update.commandTimeoutMs,
@@ -195,11 +201,22 @@ export class QmdMemoryManager implements MemorySearchManager {
       if (Array.isArray(parsed)) {
         for (const entry of parsed) {
           if (typeof entry === "string") {
-            existing.add(entry);
+            existing.set(entry, {});
           } else if (entry && typeof entry === "object") {
             const name = (entry as { name?: unknown }).name;
             if (typeof name === "string") {
-              existing.add(name);
+              const listedPath = (entry as { path?: unknown }).path;
+              const listedPattern = (entry as { pattern?: unknown; mask?: unknown }).pattern;
+              const listedMask = (entry as { mask?: unknown }).mask;
+              existing.set(name, {
+                path: typeof listedPath === "string" ? listedPath : undefined,
+                pattern:
+                  typeof listedPattern === "string"
+                    ? listedPattern
+                    : typeof listedMask === "string"
+                      ? listedMask
+                      : undefined,
+              });
             }
           }
         }
@@ -209,8 +226,19 @@ export class QmdMemoryManager implements MemorySearchManager {
     }
 
     for (const collection of this.qmd.collections) {
-      if (existing.has(collection.name)) {
+      const listed = existing.get(collection.name);
+      if (listed && !this.shouldRebindCollection(collection, listed)) {
         continue;
+      }
+      if (listed) {
+        try {
+          await this.removeCollection(collection.name);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (!this.isCollectionMissingError(message)) {
+            log.warn(`qmd collection remove failed for ${collection.name}: ${message}`);
+          }
+        }
       }
       try {
         await this.ensureCollectionPath(collection);
@@ -259,6 +287,94 @@ export class QmdMemoryManager implements MemorySearchManager {
     return lower.includes("already exists") || lower.includes("exists");
   }
 
+  private isCollectionMissingError(message: string): boolean {
+    const lower = message.toLowerCase();
+    return (
+      lower.includes("not found") || lower.includes("does not exist") || lower.includes("missing")
+    );
+  }
+
+  private async addCollection(pathArg: string, name: string, pattern: string): Promise<void> {
+    await this.runQmd(["collection", "add", pathArg, "--name", name, "--mask", pattern], {
+      timeoutMs: this.qmd.update.commandTimeoutMs,
+    });
+  }
+
+  private async removeCollection(name: string): Promise<void> {
+    await this.runQmd(["collection", "remove", name], {
+      timeoutMs: this.qmd.update.commandTimeoutMs,
+    });
+  }
+
+  private shouldRebindCollection(
+    collection: { kind: string; path: string; pattern: string },
+    listed: ListedCollection,
+  ): boolean {
+    if (!listed.path) {
+      // Older qmd versions may only return names from `collection list --json`.
+      // Force sessions collections to rebind so per-agent session export paths stay isolated.
+      return collection.kind === "sessions";
+    }
+    if (!this.pathsMatch(listed.path, collection.path)) {
+      return true;
+    }
+    if (typeof listed.pattern === "string" && listed.pattern !== collection.pattern) {
+      return true;
+    }
+    return false;
+  }
+
+  private pathsMatch(left: string, right: string): boolean {
+    const normalize = (value: string): string => {
+      const resolved = path.isAbsolute(value)
+        ? path.resolve(value)
+        : path.resolve(this.workspaceDir, value);
+      const normalized = path.normalize(resolved);
+      return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+    };
+    return normalize(left) === normalize(right);
+  }
+
+  private shouldRepairNullByteCollectionError(err: unknown): boolean {
+    const message = err instanceof Error ? err.message : String(err);
+    const lower = message.toLowerCase();
+    return (
+      (lower.includes("enotdir") || lower.includes("not a directory")) &&
+      NUL_MARKER_RE.test(message)
+    );
+  }
+
+  private async tryRepairNullByteCollections(err: unknown, reason: string): Promise<boolean> {
+    if (this.attemptedNullByteCollectionRepair) {
+      return false;
+    }
+    if (!this.shouldRepairNullByteCollectionError(err)) {
+      return false;
+    }
+    this.attemptedNullByteCollectionRepair = true;
+    log.warn(
+      `qmd update failed with suspected null-byte collection metadata (${reason}); rebuilding managed collections and retrying once`,
+    );
+    for (const collection of this.qmd.collections) {
+      try {
+        await this.removeCollection(collection.name);
+      } catch (removeErr) {
+        const removeMessage = removeErr instanceof Error ? removeErr.message : String(removeErr);
+        if (!this.isCollectionMissingError(removeMessage)) {
+          log.warn(`qmd collection remove failed for ${collection.name}: ${removeMessage}`);
+        }
+      }
+      try {
+        await this.addCollection(collection.path, collection.name, collection.pattern);
+      } catch (addErr) {
+        const addMessage = addErr instanceof Error ? addErr.message : String(addErr);
+        if (!this.isCollectionAlreadyExistsError(addMessage)) {
+          log.warn(`qmd collection add failed for ${collection.name}: ${addMessage}`);
+        }
+      }
+    }
+    return true;
+  }
   async search(
     query: string,
     opts?: { maxResults?: number; minScore?: number; sessionKey?: string },
