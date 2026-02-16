@@ -21,6 +21,53 @@ import { generateSlugViaLLM } from "../../llm-slug-generator.js";
 const log = createSubsystemLogger("hooks/session-memory");
 
 /**
+ * Find the most recent reset file for a given session file
+ */
+async function findMostRecentResetFile(sessionFilePath: string): Promise<string | null> {
+  try {
+    const dir = path.dirname(sessionFilePath);
+    const basename = path.basename(sessionFilePath, path.extname(sessionFilePath));
+    const dirents = await fs.readdir(dir);
+    
+    // Find files matching pattern: basename.jsonl.reset.*
+    const resetFiles = dirents
+      .filter((name) => name.startsWith(basename) && name.includes(".reset."))
+      .sort()
+      .reverse(); // Newest first
+    
+    if (resetFiles.length > 0) {
+      return path.join(dir, resetFiles[0]);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read recent messages from session file for slug generation
+ * Includes fallback to reset files when current file is empty
+ */
+async function getRecentSessionContentWithResetFallback(
+  sessionFilePath: string,
+  messageCount: number = 15,
+): Promise<string | null> {
+  // First try the current session file
+  let content = await getRecentSessionContent(sessionFilePath, messageCount);
+  
+  // If content is empty or too short, try to find and read from reset files
+  if (!content || content.length < 50) {
+    const resetFile = await findMostRecentResetFile(sessionFilePath);
+    if (resetFile) {
+      log.debug("Current file empty, falling back to reset file", { resetFile });
+      content = await getRecentSessionContent(resetFile, messageCount);
+    }
+  }
+  
+  return content;
+}
+
+/**
  * Read recent messages from session file for slug generation
  */
 async function getRecentSessionContent(
@@ -31,9 +78,15 @@ async function getRecentSessionContent(
     const content = await fs.readFile(sessionFilePath, "utf-8");
     const lines = content.trim().split("\n");
 
+    // If file is empty, return null early
+    if (lines.length === 0 || (lines.length === 1 && lines[0] === "")) {
+      return null;
+    }
+
     // Parse JSONL and extract user/assistant messages first
     const allMessages: string[] = [];
     for (const line of lines) {
+      if (!line.trim()) continue;
       try {
         const entry = JSON.parse(line);
         // Session files have entries with type="message" containing a nested message object
@@ -119,8 +172,8 @@ const saveSessionToMemory: HookHandler = async (event) => {
     let sessionContent: string | null = null;
 
     if (sessionFile) {
-      // Get recent conversation content
-      sessionContent = await getRecentSessionContent(sessionFile, messageCount);
+      // Get recent conversation content with fallback to reset files
+      sessionContent = await getRecentSessionContentWithResetFallback(sessionFile, messageCount);
       log.debug("Session content loaded", {
         length: sessionContent?.length ?? 0,
         messageCount,
