@@ -512,12 +512,12 @@ describe("buildCommandsMessage", () => {
     const text = buildCommandsMessage({
       commands: { config: false, debug: false },
     } as OpenClawConfig);
-    expect(text).toContain("ℹ️ Slash commands");
+    expect(text).toContain("ℹ️ Help");
     expect(text).toContain("Status");
-    expect(text).toContain("/commands - List all slash commands.");
-    expect(text).toContain("/skill - Run a skill by name.");
+    expect(text).toContain("/commands - List all commands.");
+    expect(text).toContain("/skill - Run a skill.");
     expect(text).toContain("/think (/thinking, /t) - Set thinking level.");
-    expect(text).toContain("/compact - Compact the session context.");
+    expect(text).toContain("/compact - Compact session context.");
     expect(text).not.toContain("/config");
     expect(text).not.toContain("/debug");
   });
@@ -562,7 +562,7 @@ describe("buildCommandsMessagePaginated", () => {
     );
     expect(result.text).toContain("ℹ️ Commands (1/");
     expect(result.text).toContain("Session");
-    expect(result.text).toContain("/stop - Stop the current run.");
+    expect(result.text).toContain("/stop - Stop current request.");
   });
 
   it("includes plugin commands in the paginated list", () => {

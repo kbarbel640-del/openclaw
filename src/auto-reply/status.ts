@@ -531,8 +531,8 @@ function groupCommandsByCategory(
 export function buildHelpMessage(cfg?: OpenClawConfig): string {
   const lines = [t("help.title"), ""];
 
-  lines.push("Session");
   lines.push(t("help.session_section"));
+  lines.push(t("help.session_commands"));
   lines.push("");
 
   const optionParts = ["/think <level>", "/model <id>", "/verbose on|off"];
@@ -546,12 +546,12 @@ export function buildHelpMessage(cfg?: OpenClawConfig): string {
   lines.push(`  ${optionParts.join("  |  ")}`);
   lines.push("");
 
-  lines.push("Status");
   lines.push(t("help.status_section"));
+  lines.push(t("help.status_commands"));
   lines.push("");
 
-  lines.push("Skills");
   lines.push(t("help.skills_section"));
+  lines.push(t("help.skills_commands"));
 
   lines.push("");
   lines.push(t("help.more_commands"));
