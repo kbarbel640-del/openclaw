@@ -161,18 +161,37 @@ export function loadSessionStore(
     }
   }
 
-  // Cache miss or disabled - load from disk
+  // Cache miss or disabled - load from disk.
+  // Retry up to 3 times when the file is empty or unparseable.  On Windows the
+  // temp-file + rename write is not fully atomic: a concurrent reader can briefly
+  // observe a 0-byte file (between truncate and write) or a stale/locked state.
+  // A short synchronous backoff (50 ms via `Atomics.wait`) is enough for the
+  // writer to finish.
   let store: Record<string, SessionEntry> = {};
   let mtimeMs = getFileMtimeMs(storePath);
-  try {
-    const raw = fs.readFileSync(storePath, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (isSessionStoreRecord(parsed)) {
-      store = parsed;
+  const maxReadAttempts = process.platform === "win32" ? 3 : 1;
+  for (let attempt = 0; attempt < maxReadAttempts; attempt++) {
+    try {
+      const raw = fs.readFileSync(storePath, "utf-8");
+      if (raw.length === 0 && attempt < maxReadAttempts - 1) {
+        // File is empty — likely caught mid-write; retry after a brief pause.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+        continue;
+      }
+      const parsed = JSON.parse(raw);
+      if (isSessionStoreRecord(parsed)) {
+        store = parsed;
+      }
+      mtimeMs = getFileMtimeMs(storePath) ?? mtimeMs;
+      break;
+    } catch {
+      // File missing, locked, or transiently corrupt — retry on Windows.
+      if (attempt < maxReadAttempts - 1) {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+        continue;
+      }
+      // Final attempt failed; proceed with an empty store.
     }
-    mtimeMs = getFileMtimeMs(storePath) ?? mtimeMs;
-  } catch {
-    // ignore missing/invalid store; we'll recreate it
   }
 
   // Best-effort migration: message provider → channel naming.
@@ -521,11 +540,22 @@ async function saveSessionStoreUnlocked(
   await fs.promises.mkdir(path.dirname(storePath), { recursive: true });
   const json = JSON.stringify(store, null, 2);
 
-  // Windows: avoid atomic rename swaps (can be flaky under concurrent access).
-  // We serialize writers via the session-store lock instead.
+  // Windows: use temp-file + rename for atomic writes, same as other platforms.
+  // Direct `writeFile` truncates the target to 0 bytes before writing, which
+  // allows concurrent `readFileSync` calls (from unlocked `loadSessionStore`)
+  // to observe an empty file and lose the session store contents.
   if (process.platform === "win32") {
+    const tmp = `${storePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
     try {
-      await fs.promises.writeFile(storePath, json, "utf-8");
+      await fs.promises.writeFile(tmp, json, "utf-8");
+      try {
+        await fs.promises.rename(tmp, storePath);
+      } catch {
+        // Rename can fail on Windows when the target is locked by another
+        // reader; fall back to a direct overwrite which is still better than
+        // the 0-byte truncation window of a plain writeFile on the target.
+        await fs.promises.writeFile(storePath, json, "utf-8");
+      }
     } catch (err) {
       const code =
         err && typeof err === "object" && "code" in err
@@ -535,6 +565,8 @@ async function saveSessionStoreUnlocked(
         return;
       }
       throw err;
+    } finally {
+      await fs.promises.rm(tmp, { force: true }).catch(() => undefined);
     }
     return;
   }
