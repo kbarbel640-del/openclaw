@@ -406,6 +406,9 @@ function formatInstagramItem(item: Record<string, unknown>): string {
   if (item.timestamp) {
     lines.push(`**Posted**: ${str(item.timestamp)}`);
   }
+  lines.push(
+    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
+  );
   return lines.join("\n");
 }
 
@@ -444,6 +447,9 @@ function formatTiktokItem(item: Record<string, unknown>): string {
   if (item.createTimeISO) {
     lines.push(`**Posted**: ${str(item.createTimeISO)}`);
   }
+  lines.push(
+    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
+  );
   return lines.join("\n");
 }
 
@@ -475,6 +481,9 @@ function formatYoutubeItem(item: Record<string, unknown>): string {
   if (item.text) {
     lines.push(`**Description**: ${str(item.text)}`);
   }
+  lines.push(
+    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
+  );
   return lines.join("\n");
 }
 
