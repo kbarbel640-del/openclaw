@@ -190,6 +190,7 @@ fi
 
 if [[ "$SKIP_BUILD" -eq 1 ]]; then
   log "==> State reset complete (no rebuild, no launch)"
+  cleanup
   exit 0
 fi
 

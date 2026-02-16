@@ -33,7 +33,7 @@ The Install page has three sections:
 **CLI install** — User clicks "Install". The app runs behind the scenes:
 
 ```bash
-curl -fsSL https://openclaw.bot/install-cli.sh | bash -s -- --json --no-onboard --prefix ~/.openclaw --version 'latest'
+curl -fsSL https://openclaw.ai/install-cli.sh | bash -s -- --json --no-onboard --prefix ~/.openclaw --version 'latest'
 ```
 
 This script handles **everything** with zero prerequisites:
