@@ -161,7 +161,7 @@ export function createSessionsSpawnTool(opts?: {
               : "none";
           const configHint =
             allowSet.size === 0
-              ? ` Configure agents.defaults.subagents.allowAgents: ["${targetAgentId}"] or allowAgents: ["*"] to enable.`
+              ? ` Configure agents.list[].subagents.allowAgents: ["${targetAgentId}"] or allowAgents: ["*"] to enable.`
               : "";
           return jsonResult({
             status: "forbidden",
