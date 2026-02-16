@@ -23,8 +23,8 @@ export function resolveMediaMaxBytes(accountId?: string): number | undefined {
   const cfg = getCore().config.loadConfig() as CoreConfig;
   // Use shared account resolution (single source of truth)
   const accountConfig = resolveAccountConfig(cfg, accountId ?? "");
-  if (accountConfig && typeof (accountConfig as Record<string, unknown>).mediaMaxMb === "number") {
-    return ((accountConfig as Record<string, unknown>).mediaMaxMb as number) * 1024 * 1024;
+  if (accountConfig && typeof accountConfig.mediaMaxMb === "number") {
+    return accountConfig.mediaMaxMb * 1024 * 1024;
   }
   // Fall back to top-level config
   if (typeof cfg.channels?.matrix?.mediaMaxMb === "number") {
