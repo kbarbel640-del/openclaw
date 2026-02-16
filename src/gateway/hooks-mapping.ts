@@ -21,6 +21,8 @@ export type HookMappingResolved = {
   model?: string;
   thinking?: string;
   timeoutSeconds?: number;
+  responseUrl?: string;
+  responseSecret?: string;
   transform?: HookMappingTransformResolved;
 };
 
@@ -56,6 +58,8 @@ export type HookAction =
       model?: string;
       thinking?: string;
       timeoutSeconds?: number;
+      responseUrl?: string;
+      responseSecret?: string;
     };
 
 export type HookMappingResult =

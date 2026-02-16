@@ -231,6 +231,8 @@ export type HookAgentPayload = {
   model?: string;
   thinking?: string;
   timeoutSeconds?: number;
+  responseUrl?: string;
+  responseSecret?: string;
 };
 
 const listHookChannelValues = () => ["last", ...listChannelPlugins().map((plugin) => plugin.id)];
@@ -366,6 +368,14 @@ export function normalizeAgentPayload(payload: Record<string, unknown>):
     typeof timeoutRaw === "number" && Number.isFinite(timeoutRaw) && timeoutRaw > 0
       ? Math.floor(timeoutRaw)
       : undefined;
+  const responseUrlRaw = payload.responseUrl;
+  const responseUrl =
+    typeof responseUrlRaw === "string" && responseUrlRaw.trim() ? responseUrlRaw.trim() : undefined;
+  const responseSecretRaw = payload.responseSecret;
+  const responseSecret =
+    typeof responseSecretRaw === "string" && responseSecretRaw.trim()
+      ? responseSecretRaw.trim()
+      : undefined;
   return {
     ok: true,
     value: {
@@ -380,6 +390,8 @@ export function normalizeAgentPayload(payload: Record<string, unknown>):
       model,
       thinking,
       timeoutSeconds,
+      responseUrl,
+      responseSecret,
     },
   };
 }

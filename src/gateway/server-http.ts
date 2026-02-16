@@ -78,6 +78,8 @@ type HookDispatchers = {
     thinking?: string;
     timeoutSeconds?: number;
     allowUnsafeExternalContent?: boolean;
+    responseUrl?: string;
+    responseSecret?: string;
   }) => string;
 };
 
@@ -417,6 +419,8 @@ export function createHooksRequestHandler(
             thinking: mapped.action.thinking,
             timeoutSeconds: mapped.action.timeoutSeconds,
             allowUnsafeExternalContent: mapped.action.allowUnsafeExternalContent,
+            responseUrl: mapped.action.responseUrl,
+            responseSecret: mapped.action.responseSecret,
           });
           sendJson(res, 202, { ok: true, runId });
           return true;
