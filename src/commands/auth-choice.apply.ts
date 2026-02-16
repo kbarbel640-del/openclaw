@@ -42,6 +42,7 @@ export async function applyAuthChoice(
 ): Promise<ApplyAuthChoiceResult> {
   const handlers: Array<(p: ApplyAuthChoiceParams) => Promise<ApplyAuthChoiceResult | null>> = [
     applyAuthChoiceAnthropic,
+    applyAuthChoiceVllm,
     applyAuthChoiceOpenAI,
     applyAuthChoiceOAuth,
     applyAuthChoiceApiProviders,

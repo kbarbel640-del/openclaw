@@ -318,6 +318,11 @@ Options:
 - `--zai-api-key <key>`
 - `--minimax-api-key <key>`
 - `--opencode-zen-api-key <key>`
+- `--custom-base-url <url>` (non-interactive; used with `--auth-choice custom-api-key`)
+- `--custom-model-id <id>` (non-interactive; used with `--auth-choice custom-api-key`)
+- `--custom-api-key <key>` (non-interactive; optional; used with `--auth-choice custom-api-key`; falls back to `CUSTOM_API_KEY` when omitted)
+- `--custom-provider-id <id>` (non-interactive; optional custom provider id)
+- `--custom-compatibility <openai|anthropic>` (non-interactive; optional; default `openai`)
 - `--gateway-port <port>`
 - `--gateway-bind <loopback|lan|tailnet|auto|custom>`
 - `--gateway-auth <token|password>`
