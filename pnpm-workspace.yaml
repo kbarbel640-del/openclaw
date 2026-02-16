@@ -3,6 +3,8 @@ packages:
   - ui
   - packages/*
   - extensions/*
+  - dem/auth-cli
+  - dem/dashboard
 
 onlyBuiltDependencies:
   - "@lydell/node-pty"

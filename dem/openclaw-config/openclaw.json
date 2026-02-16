@@ -1,0 +1,100 @@
+{
+  "gateway": {
+    "port": 18789,
+    "mode": "local"
+  },
+  "models": {
+    "providers": {
+      "ollama-maximus": {
+        "type": "openai",
+        "baseUrl": "http://maximus:11434/v1",
+        "apiKey": "ollama"
+      },
+      "ollama-tiberius": {
+        "type": "openai",
+        "baseUrl": "http://tiberius:11434/v1",
+        "apiKey": "ollama"
+      },
+      "ollama-claudius": {
+        "type": "openai",
+        "baseUrl": "http://claudius:11434/v1",
+        "apiKey": "ollama"
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "sandbox": "non-main",
+      "subagents": {
+        "archiveAfterMinutes": 60
+      }
+    },
+    "list": [
+      {
+        "id": "ceo",
+        "name": "Imperator",
+        "model": {
+          "primary": "ollama-maximus/deepseek-r1:70b"
+        },
+        "workspace": "workspaces/ceo",
+        "tools": ["sessions_send", "sessions_list", "sessions_history", "read", "exec"]
+      },
+      {
+        "id": "coo",
+        "name": "Praetor",
+        "model": {
+          "primary": "ollama-maximus/qwen2.5:72b"
+        },
+        "workspace": "workspaces/coo",
+        "tools": ["sessions_send", "sessions_history", "read"],
+        "sandbox": true
+      },
+      {
+        "id": "cfo",
+        "name": "Quaestor",
+        "model": {
+          "primary": "ollama-claudius/deepseek-r1:14b"
+        },
+        "workspace": "workspaces/cfo",
+        "tools": ["sessions_send", "sessions_history", "read"],
+        "sandbox": true
+      },
+      {
+        "id": "research",
+        "name": "Explorator",
+        "model": {
+          "primary": "ollama-tiberius/deepseek-r1:32b"
+        },
+        "workspace": "workspaces/research",
+        "tools": ["read", "browser", "sessions_send"]
+      }
+    ]
+  },
+  "channels": {
+    "whatsapp": {
+      "dmPolicy": "allowlist",
+      "allowFrom": [],
+      "groupPolicy": "disabled",
+      "textChunkLimit": 4000,
+      "chunkMode": "length",
+      "sendReadReceipts": true,
+      "ackReaction": {
+        "emoji": "\u2694\ufe0f",
+        "direct": true,
+        "group": "mentions"
+      },
+      "mediaMaxMb": 50,
+      "selfChatMode": true,
+      "accounts": {
+        "default": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "session": {
+    "agentToAgent": {
+      "maxPingPongTurns": 5
+    }
+  }
+}
