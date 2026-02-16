@@ -234,6 +234,8 @@ export async function runCronIsolatedAgentTurn(params: {
     applyModelOverrideToSessionEntry({
       entry: cronSession.sessionEntry,
       selection: { provider, model },
+      profileOverride: cronSession.sessionEntry.authProfileOverride,
+      profileOverrideSource: cronSession.sessionEntry.authProfileOverrideSource,
     });
   }
   const runSessionId = cronSession.sessionEntry.sessionId;
