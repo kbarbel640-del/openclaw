@@ -29,13 +29,10 @@ export function createTelegramDraftStream(params: {
   const throttleMs = Math.max(250, params.throttleMs ?? DEFAULT_THROTTLE_MS);
   const chatId = params.chatId;
   const threadParams = buildTelegramThreadParams(params.thread);
-  const replyParams: Record<string, unknown> | undefined = (() => {
-    const base: Record<string, unknown> = threadParams ? { ...threadParams } : {};
-    if (params.replyToMessageId != null) {
-      base.reply_to_message_id = params.replyToMessageId;
-    }
-    return Object.keys(base).length > 0 ? base : undefined;
-  })();
+  const replyParams =
+    params.replyToMessageId != null
+      ? { ...threadParams, reply_to_message_id: params.replyToMessageId }
+      : threadParams;
 
   let streamMessageId: number | undefined;
   let lastSentText = "";
