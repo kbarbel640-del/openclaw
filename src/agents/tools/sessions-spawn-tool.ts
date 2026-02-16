@@ -173,6 +173,29 @@ export function createSessionsSpawnTool(opts?: {
           });
         }
       }
+      // Check target agent's spawnableBy allowlist (bidirectional authorization)
+      if (targetAgentId !== requesterAgentId) {
+        const targetConfig = resolveAgentConfig(cfg, targetAgentId);
+        const spawnableBy = targetConfig?.subagents?.spawnableBy;
+        if (spawnableBy != null) {
+          const spawnableByAny = spawnableBy.some((v) => v.trim() === "*");
+          if (!spawnableByAny) {
+            const normalizedRequesterId = requesterAgentId.toLowerCase();
+            const spawnableBySet = new Set(
+              spawnableBy
+                .filter((v) => v.trim() && v.trim() !== "*")
+                .map((v) => normalizeAgentId(v).toLowerCase()),
+            );
+            if (!spawnableBySet.has(normalizedRequesterId)) {
+              return jsonResult({
+                status: "forbidden",
+                error: `Target agent "${targetAgentId}" does not allow being spawned by "${requesterAgentId}"`,
+              });
+            }
+          }
+        }
+      }
+
       const childSessionKey = `agent:${targetAgentId}:subagent:${crypto.randomUUID()}`;
       const childDepth = callerDepth + 1;
       const spawnedByKey = requesterInternalKey;

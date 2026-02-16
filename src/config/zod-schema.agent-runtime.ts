@@ -521,6 +521,7 @@ export const AgentEntrySchema = z
     subagents: z
       .object({
         allowAgents: z.array(z.string()).optional(),
+        spawnableBy: z.array(z.string()).optional(),
         model: z
           .union([
             z.string(),
