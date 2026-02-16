@@ -6,6 +6,7 @@ import {
   resolveChannelEntryMatchWithFallback,
   type ChannelMatchSource,
 } from "../../channels/channel-config.js";
+import { firstDefined } from "../../utils.js";
 import { allowListMatches, normalizeAllowListLower, normalizeSlackSlug } from "./allow-list.js";
 
 export type SlackChannelConfigResolved = {
@@ -30,15 +31,6 @@ export type SlackChannelConfigEntry = {
 };
 
 export type SlackChannelConfigEntries = Record<string, SlackChannelConfigEntry>;
-
-function firstDefined<T>(...values: Array<T | undefined>) {
-  for (const value of values) {
-    if (typeof value !== "undefined") {
-      return value;
-    }
-  }
-  return undefined;
-}
 
 export function shouldEmitSlackReactionNotification(params: {
   mode: SlackReactionNotificationMode | undefined;
