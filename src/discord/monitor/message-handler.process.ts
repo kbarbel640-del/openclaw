@@ -212,14 +212,36 @@ function createDiscordStatusReactionController(params: {
     clearStallTimers();
     clearPendingDebounce();
     await enqueue(async () => {
-      if (!activeEmoji) {
-        return;
-      }
-      const emoji = activeEmoji;
+      const cleanupCandidates = new Set<string>([
+        params.initialEmoji,
+        activeEmoji ?? "",
+        DISCORD_STATUS_THINKING_EMOJI,
+        DISCORD_STATUS_TOOL_EMOJI,
+        DISCORD_STATUS_CODING_EMOJI,
+        DISCORD_STATUS_WEB_EMOJI,
+        DISCORD_STATUS_DONE_EMOJI,
+        DISCORD_STATUS_ERROR_EMOJI,
+        DISCORD_STATUS_STALL_SOFT_EMOJI,
+        DISCORD_STATUS_STALL_HARD_EMOJI,
+      ]);
       activeEmoji = null;
-      await removeReactionDiscord(params.channelId, params.messageId, emoji, {
-        rest: params.rest as never,
-      });
+      for (const emoji of cleanupCandidates) {
+        if (!emoji) {
+          continue;
+        }
+        try {
+          await removeReactionDiscord(params.channelId, params.messageId, emoji, {
+            rest: params.rest as never,
+          });
+        } catch (err) {
+          logAckFailure({
+            log: logVerbose,
+            channel: "discord",
+            target: `${params.channelId}/${params.messageId}`,
+            error: err,
+          });
+        }
+      }
     });
   };
 
@@ -314,7 +336,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     rest: client.rest,
   });
   if (statusReactionsEnabled) {
-    await statusReactions.setQueued();
+    void statusReactions.setQueued();
   }
 
   const fromLabel = isDirectMessage
@@ -632,8 +654,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         await statusReactions.setDone();
       }
       if (removeAckAfterReply) {
-        await sleep(dispatchError ? DISCORD_STATUS_ERROR_HOLD_MS : DISCORD_STATUS_DONE_HOLD_MS);
-        await statusReactions.clear();
+        void (async () => {
+          await sleep(dispatchError ? DISCORD_STATUS_ERROR_HOLD_MS : DISCORD_STATUS_DONE_HOLD_MS);
+          await statusReactions.clear();
+        })();
       }
     }
   }
