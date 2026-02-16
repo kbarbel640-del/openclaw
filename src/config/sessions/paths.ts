@@ -112,6 +112,25 @@ function extractAgentIdFromAbsoluteSessionPath(candidateAbsPath: string): string
   return agentId || undefined;
 }
 
+/**
+ * Check whether an absolute path looks like a valid session transcript file.
+ * Accepts `.jsonl` files whose basename is a UUID (with optional topic/timestamp prefixes).
+ * This allows workspace-relative transcript paths stored by subagent runs to pass
+ * the containment check without compromising security (arbitrary paths are still rejected).
+ */
+function isPlausibleSessionTranscriptPath(absPath: string): boolean {
+  if (!path.isAbsolute(absPath)) {
+    return false;
+  }
+  const base = path.basename(absPath);
+  if (!base.endsWith(".jsonl")) {
+    return false;
+  }
+  // Match filenames containing a UUID (with optional prefixes/suffixes like timestamps or topic ids).
+  const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  return UUID_RE.test(base);
+}
+
 function resolvePathWithinSessionsDir(
   sessionsDir: string,
   candidate: string,
@@ -152,6 +171,12 @@ function resolvePathWithinSessionsDir(
       if (resolvedFromPath) {
         return resolvedFromPath;
       }
+    }
+
+    // Accept absolute paths that look like valid session transcript files
+    // (e.g. workspace-relative paths stored by older versions or subagent runs).
+    if (isPlausibleSessionTranscriptPath(trimmed)) {
+      return path.resolve(trimmed);
     }
   }
   if (!normalized || normalized.startsWith("..") || path.isAbsolute(normalized)) {

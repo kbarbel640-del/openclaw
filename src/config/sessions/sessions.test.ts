@@ -12,7 +12,10 @@ import {
 } from "../sessions.js";
 import {
   resolveSessionFilePath,
+  resolveSessionFilePathOptions,
+  resolveSessionTranscriptPath,
   resolveSessionTranscriptPathInDir,
+  resolveStorePath,
   validateSessionId,
 } from "./paths.js";
 import { resolveSessionResetPolicy } from "./reset.js";
@@ -43,6 +46,139 @@ describe("session path safety", () => {
         { sessionsDir },
       ),
     ).toThrow(/within sessions directory/);
+  });
+
+  it("uses explicit agentId fallback for absolute sessionFile outside sessionsDir", () => {
+    const mainSessionsDir = path.dirname(resolveStorePath(undefined, { agentId: "main" }));
+    const opsSessionsDir = path.dirname(resolveStorePath(undefined, { agentId: "ops" }));
+    const opsSessionFile = path.join(opsSessionsDir, "abc-123.jsonl");
+
+    const resolved = resolveSessionFilePath(
+      "sess-1",
+      { sessionFile: opsSessionFile },
+      { sessionsDir: mainSessionsDir, agentId: "ops" },
+    );
+
+    expect(resolved).toBe(path.resolve(opsSessionFile));
+  });
+
+  it("uses absolute path fallback when sessionFile includes a different agent dir", () => {
+    const mainSessionsDir = path.dirname(resolveStorePath(undefined, { agentId: "main" }));
+    const opsSessionsDir = path.dirname(resolveStorePath(undefined, { agentId: "ops" }));
+    const opsSessionFile = path.join(opsSessionsDir, "abc-123.jsonl");
+
+    const resolved = resolveSessionFilePath(
+      "sess-1",
+      { sessionFile: opsSessionFile },
+      { sessionsDir: mainSessionsDir },
+    );
+
+    expect(resolved).toBe(path.resolve(opsSessionFile));
+  });
+
+  it("uses sibling fallback for custom per-agent store roots", () => {
+    const mainSessionsDir = "/srv/custom/agents/main/sessions";
+    const opsSessionFile = "/srv/custom/agents/ops/sessions/abc-123.jsonl";
+
+    const resolved = resolveSessionFilePath(
+      "sess-1",
+      { sessionFile: opsSessionFile },
+      { sessionsDir: mainSessionsDir, agentId: "ops" },
+    );
+
+    expect(resolved).toBe(path.resolve(opsSessionFile));
+  });
+
+  it("uses extracted agent fallback for custom per-agent store roots", () => {
+    const mainSessionsDir = "/srv/custom/agents/main/sessions";
+    const opsSessionFile = "/srv/custom/agents/ops/sessions/abc-123.jsonl";
+
+    const resolved = resolveSessionFilePath(
+      "sess-1",
+      { sessionFile: opsSessionFile },
+      { sessionsDir: mainSessionsDir },
+    );
+
+    expect(resolved).toBe(path.resolve(opsSessionFile));
+  });
+
+  it("accepts absolute workspace-relative sessionFile with UUID basename", () => {
+    const sessionsDir = "/home/user/.openclaw/agents/main/sessions";
+    const workspaceFile = "/home/user/workspace/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl";
+
+    const resolved = resolveSessionFilePath(
+      "sess-1",
+      { sessionFile: workspaceFile },
+      { sessionsDir },
+    );
+
+    expect(resolved).toBe(path.resolve(workspaceFile));
+  });
+
+  it("accepts absolute workspace-relative sessionFile with timestamp prefix", () => {
+    const sessionsDir = "/home/user/.openclaw/agents/main/sessions";
+    const workspaceFile =
+      "/home/user/workspace/20260216_a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl";
+
+    const resolved = resolveSessionFilePath(
+      "sess-1",
+      { sessionFile: workspaceFile },
+      { sessionsDir },
+    );
+
+    expect(resolved).toBe(path.resolve(workspaceFile));
+  });
+
+  it("still rejects absolute paths outside sessions dir without UUID basename", () => {
+    const sessionsDir = "/home/user/.openclaw/agents/main/sessions";
+
+    expect(() =>
+      resolveSessionFilePath("sess-1", { sessionFile: "/etc/passwd" }, { sessionsDir }),
+    ).toThrow(/within sessions directory/);
+  });
+
+  it("still rejects absolute non-jsonl paths with UUID basename", () => {
+    const sessionsDir = "/home/user/.openclaw/agents/main/sessions";
+
+    expect(() =>
+      resolveSessionFilePath(
+        "sess-1",
+        { sessionFile: "/tmp/a1b2c3d4-e5f6-7890-abcd-ef1234567890.txt" },
+        { sessionsDir },
+      ),
+    ).toThrow(/within sessions directory/);
+  });
+
+  it("uses agent sessions dir fallback for transcript path", () => {
+    const resolved = resolveSessionTranscriptPath("sess-1", "main");
+    expect(resolved.endsWith(path.join("agents", "main", "sessions", "sess-1.jsonl"))).toBe(true);
+  });
+
+  it("keeps storePath and agentId when resolving session file options", () => {
+    const opts = resolveSessionFilePathOptions({
+      storePath: "/tmp/custom/agent-store/sessions.json",
+      agentId: "ops",
+    });
+    expect(opts).toEqual({
+      sessionsDir: path.resolve("/tmp/custom/agent-store"),
+      agentId: "ops",
+    });
+  });
+
+  it("keeps custom per-agent store roots when agentId is provided", () => {
+    const opts = resolveSessionFilePathOptions({
+      storePath: "/srv/custom/agents/ops/sessions/sessions.json",
+      agentId: "ops",
+    });
+    expect(opts).toEqual({
+      sessionsDir: path.resolve("/srv/custom/agents/ops/sessions"),
+      agentId: "ops",
+    });
+  });
+
+  it("falls back to agentId when storePath is absent", () => {
+    const opts = resolveSessionFilePathOptions({ agentId: "ops" });
+    expect(opts).toEqual({ agentId: "ops" });
   });
 });
 
