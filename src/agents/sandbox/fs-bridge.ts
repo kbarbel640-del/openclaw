@@ -219,18 +219,38 @@ function allowsWrites(access: SandboxWorkspaceAccess): boolean {
 
 /**
  * Extract host paths from Docker bind mount specs (e.g. "/host/path:/container/path:ro").
+ * Supports Windows drive-letter hosts such as "C:\\work:/workspace:ro".
  */
-function parseBindMountHostPaths(binds?: string[]): string[] {
+export function parseBindMountHostPaths(binds?: string[]): string[] {
   if (!binds) {
     return [];
   }
   return binds
-    .map((bind) => {
-      const parts = bind.split(":");
-      // Format: hostPath:containerPath[:options]
-      return parts.length >= 2 ? parts[0] : "";
-    })
-    .filter(Boolean);
+    .map((bind) => extractHostPathFromBindSpec(bind))
+    .filter((value): value is string => Boolean(value));
+}
+
+function extractHostPathFromBindSpec(bind: string): string | null {
+  const spec = bind.trim();
+  if (!spec) {
+    return null;
+  }
+
+  // Windows drive-letter host path: C:\\path:/container[:opts] or C:/path:/container[:opts]
+  if (/^[A-Za-z]:[\\/]/.test(spec)) {
+    const hostContainerSeparator = spec.indexOf(":", 2);
+    if (hostContainerSeparator === -1) {
+      return null;
+    }
+    return spec.slice(0, hostContainerSeparator);
+  }
+
+  // Unix-like host path: /host:/container[:opts]
+  const hostContainerSeparator = spec.indexOf(":");
+  if (hostContainerSeparator === -1) {
+    return null;
+  }
+  return spec.slice(0, hostContainerSeparator);
 }
 
 function resolveSandboxFsPath(params: {

@@ -6,7 +6,7 @@ vi.mock("./docker.js", () => ({
 
 import type { SandboxContext } from "./types.js";
 import { execDockerRaw } from "./docker.js";
-import { createSandboxFsBridge } from "./fs-bridge.js";
+import { createSandboxFsBridge, parseBindMountHostPaths } from "./fs-bridge.js";
 
 const mockedExecDockerRaw = vi.mocked(execDockerRaw);
 
@@ -38,6 +38,24 @@ const sandbox: SandboxContext = {
   tools: { allow: ["*"], deny: [] },
   browserAllowHostControl: false,
 };
+
+describe("parseBindMountHostPaths", () => {
+  it("parses unix bind mounts", () => {
+    expect(parseBindMountHostPaths(["/host/data:/workspace/data:ro"])).toEqual(["/host/data"]);
+    expect(parseBindMountHostPaths(["/host/data:/workspace/data"])).toEqual(["/host/data"]);
+  });
+
+  it("parses windows bind mounts with drive letters", () => {
+    expect(parseBindMountHostPaths(["C:\\Users\\kai\\project:/workspace:rw"])).toEqual([
+      "C:\\Users\\kai\\project",
+    ]);
+    expect(parseBindMountHostPaths(["D:/data:/workspace/data:ro"])).toEqual(["D:/data"]);
+  });
+
+  it("ignores malformed bind specs", () => {
+    expect(parseBindMountHostPaths(["", "just-a-path", "C:\\Users\\kai\\project"])).toEqual([]);
+  });
+});
 
 describe("sandbox fs bridge shell compatibility", () => {
   beforeEach(() => {
