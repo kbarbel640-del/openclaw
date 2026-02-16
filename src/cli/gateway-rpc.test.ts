@@ -63,9 +63,9 @@ describe("callGatewayFromCli retry", () => {
       new Error("gateway timeout after 90000ms\nGateway target: ..."),
     );
 
-    await expect(
-      callGatewayFromCli("cron.add", { timeout: "90000", json: true }),
-    ).rejects.toThrow("gateway timeout");
+    await expect(callGatewayFromCli("cron.add", { timeout: "90000", json: true })).rejects.toThrow(
+      "gateway timeout",
+    );
     expect(callGatewayMock).toHaveBeenCalledTimes(1);
   });
 

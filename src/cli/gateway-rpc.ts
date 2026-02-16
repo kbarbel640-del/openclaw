@@ -11,10 +11,7 @@ export type GatewayRpcOpts = {
   json?: boolean;
 };
 
-export function addGatewayClientOptions(
-  cmd: Command,
-  opts?: { defaultTimeoutMs?: number },
-) {
+export function addGatewayClientOptions(cmd: Command, opts?: { defaultTimeoutMs?: number }) {
   const defaultTimeout = String(opts?.defaultTimeoutMs ?? 30_000);
   return cmd
     .option("--url <url>", "Gateway WebSocket URL (defaults to gateway.remote.url when configured)")
