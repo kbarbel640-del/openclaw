@@ -428,7 +428,7 @@ async function runDesearchSearch(params: {
   timeoutSeconds: number;
 }): Promise<DesearchSearchResult[]> {
   const base = params.baseUrl.replace(/\/$/, "");
-  const url = `${base}/desearch/ai/search/links/web`;
+  const url = `${base}/desearch/ai/search`;
 
   const res = await fetch(url, {
     method: "POST",
@@ -440,7 +440,7 @@ async function runDesearchSearch(params: {
     },
     body: JSON.stringify({
       prompt: params.query,
-      tools: ["web"],
+      tools: ["web", "twitter"],
       result_type: "ONLY_LINKS",
     }),
     signal: withTimeout(undefined, params.timeoutSeconds * 1000),
