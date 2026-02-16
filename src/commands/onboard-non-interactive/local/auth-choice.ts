@@ -4,6 +4,13 @@ import type { AuthChoice, OnboardOptions } from "../../onboard-types.js";
 import { upsertAuthProfile } from "../../../agents/auth-profiles.js";
 import { normalizeProviderId } from "../../../agents/model-selection.js";
 import { parseDurationMs } from "../../../cli/parse-duration.js";
+import {
+  CLOUDRU_FM_PRESETS,
+  CLOUDRU_PROXY_PORT_DEFAULT,
+  CLOUDRU_PROXY_SENTINEL_KEY,
+  CLOUDRU_CLEAR_ENV_EXTRAS,
+  CLOUDRU_COMPOSE_FILENAME,
+} from "../../../config/cloudru-fm.constants.js";
 import { upsertSharedEnvVar } from "../../../infra/env-file.js";
 import { shortenHomePath } from "../../../utils.js";
 import { normalizeSecretInput } from "../../../utils/normalize-secret-input.js";
@@ -46,6 +53,12 @@ import {
   setXiaomiApiKey,
   setZaiApiKey,
 } from "../../onboard-auth.js";
+import {
+  resolveCloudruModelPreset,
+  writeDockerComposeFile,
+  writeCloudruEnvFile,
+  ensureGitignoreEntries,
+} from "../../onboard-cloudru-fm.js";
 import {
   applyCustomApiConfig,
   CustomApiError,
@@ -690,6 +703,121 @@ export async function applyNonInteractiveAuthChoice(params: {
       runtime.exit(1);
       return null;
     }
+  }
+
+  if (
+    authChoice === "cloudru-fm-glm47" ||
+    authChoice === "cloudru-fm-flash" ||
+    authChoice === "cloudru-fm-qwen"
+  ) {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "cloudru-fm",
+      cfg: baseConfig,
+      flagValue: opts.cloudruApiKey,
+      flagName: "--cloudru-api-key",
+      envVar: "CLOUDRU_API_KEY",
+      envVarName: "CLOUDRU_API_KEY",
+      runtime,
+    });
+    if (!resolved) {
+      return null;
+    }
+
+    const preset = resolveCloudruModelPreset(authChoice);
+    const proxyUrl = `http://localhost:${CLOUDRU_PROXY_PORT_DEFAULT}`;
+    const workspaceDir = baseConfig.agents?.defaults?.workspace ?? process.cwd();
+
+    await writeCloudruEnvFile({ apiKey: resolved.key, workspaceDir });
+    await writeDockerComposeFile({
+      workspaceDir,
+      port: CLOUDRU_PROXY_PORT_DEFAULT,
+      preset,
+    });
+    await ensureGitignoreEntries({
+      workspaceDir,
+      entries: [".env", CLOUDRU_COMPOSE_FILENAME],
+    });
+
+    const existingProviders = nextConfig.models?.providers ?? {};
+    const existingCliBackends = nextConfig.agents?.defaults?.cliBackends ?? {};
+    const existingClaudeCli = existingCliBackends["claude-cli"] ?? {};
+
+    const zeroCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+    const cloudruModels = [
+      {
+        id: preset.big,
+        name: `${preset.label} (opus)`,
+        reasoning: false,
+        input: ["text"] as Array<"text" | "image">,
+        cost: zeroCost,
+        contextWindow: preset.big.includes("Qwen") ? 128_000 : 200_000,
+        maxTokens: 8192,
+      },
+      {
+        id: preset.middle,
+        name: `${preset.label} (sonnet)`,
+        reasoning: false,
+        input: ["text"] as Array<"text" | "image">,
+        cost: zeroCost,
+        contextWindow: 200_000,
+        maxTokens: 8192,
+      },
+      {
+        id: preset.small,
+        name: `${preset.label} (haiku)`,
+        reasoning: false,
+        input: ["text"] as Array<"text" | "image">,
+        cost: zeroCost,
+        contextWindow: 200_000,
+        maxTokens: 8192,
+      },
+    ];
+
+    nextConfig = {
+      ...nextConfig,
+      models: {
+        ...nextConfig.models,
+        mode: nextConfig.models?.mode ?? "merge",
+        providers: {
+          ...existingProviders,
+          "cloudru-fm": {
+            baseUrl: proxyUrl,
+            apiKey: "${CLOUDRU_API_KEY}",
+            api: "anthropic-messages" as const,
+            models: cloudruModels,
+          },
+        },
+      },
+      agents: {
+        ...nextConfig.agents,
+        defaults: {
+          ...nextConfig.agents?.defaults,
+          model: {
+            primary: `cloudru-fm/${preset.big}`,
+            fallbacks: [`cloudru-fm/${preset.middle}`, `cloudru-fm/${preset.small}`],
+          },
+          cliBackends: {
+            ...existingCliBackends,
+            "claude-cli": {
+              ...existingClaudeCli,
+              command:
+                ((existingClaudeCli as Record<string, unknown>).command as string) ?? "claude",
+              env: {
+                ...(existingClaudeCli as Record<string, Record<string, string>>).env,
+                ANTHROPIC_BASE_URL: proxyUrl,
+                ANTHROPIC_API_KEY: CLOUDRU_PROXY_SENTINEL_KEY,
+              },
+              clearEnv: ["ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY_OLD", ...CLOUDRU_CLEAR_ENV_EXTRAS],
+            },
+          },
+        },
+      },
+    };
+
+    runtime.log(
+      `Cloud.ru FM configured (preset: ${preset.label}). Start proxy: docker compose -f ${CLOUDRU_COMPOSE_FILENAME} up -d`,
+    );
+    return nextConfig;
   }
 
   if (
