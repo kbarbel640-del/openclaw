@@ -431,9 +431,7 @@ export function replaceSubagentRunAfterSteer(params: {
   subagentRuns.set(nextRunId, next);
   ensureListener();
   persistSubagentRuns();
-  if (archiveAtMs) {
-    startSweeper();
-  }
+  startSweeper();
   void waitForSubagentCompletion(nextRunId, waitTimeoutMs);
   return true;
 }
