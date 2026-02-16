@@ -97,9 +97,15 @@ function formatSchedule(schedule: CronJob["schedule"]): string {
       return `once at ${schedule.at}`;
     case "every": {
       const ms = schedule.everyMs;
-      if (ms >= 86_400_000) return `every ${Math.round(ms / 86_400_000)}d`;
-      if (ms >= 3_600_000) return `every ${Math.round(ms / 3_600_000)}h`;
-      if (ms >= 60_000) return `every ${Math.round(ms / 60_000)}m`;
+      if (ms >= 86_400_000) {
+        return `every ${Math.round(ms / 86_400_000)}d`;
+      }
+      if (ms >= 3_600_000) {
+        return `every ${Math.round(ms / 3_600_000)}h`;
+      }
+      if (ms >= 60_000) {
+        return `every ${Math.round(ms / 60_000)}m`;
+      }
       return `every ${Math.round(ms / 1000)}s`;
     }
     case "cron":
@@ -163,7 +169,9 @@ function checkCronOutputQuality(
   config: CronQualityCheckConfig | undefined,
 ): { pass: boolean; reason?: string } {
   const enabled = config?.enabled !== false; // default true
-  if (!enabled) return { pass: true };
+  if (!enabled) {
+    return { pass: true };
+  }
 
   const minLength = config?.minLength ?? 20;
   const maxLength = config?.maxLength ?? 10_000;
@@ -428,8 +436,6 @@ export async function runCronIsolatedAgentTurn(params: {
   });
 
   const { formattedTime, timeLine } = resolveCronStyleNow(params.cfg, now);
-  const base = `[cron:${params.job.id} ${params.job.name}] ${params.message}`.trim();
-
   // SECURITY: Wrap external hook content with security boundaries to prevent prompt injection
   // unless explicitly allowed via a dangerous config override.
   const isExternalHook = isExternalHookSession(baseSessionKey);
