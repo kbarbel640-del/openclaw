@@ -11,15 +11,15 @@
  */
 import { spawn } from "node:child_process";
 import { readFile, writeFile, access, constants } from "node:fs/promises";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 export interface CortexMemory {
   id: string;
   content: string;
   source: string;
-  categories: string[];  // Multi-category support (Phase 3)
-  category?: string | null;  // Deprecated: kept for backward compat, use categories
+  categories: string[]; // Multi-category support (Phase 3)
+  category?: string | null; // Deprecated: kept for backward compat, use categories
   timestamp: string;
   importance: number;
   access_count: number;
@@ -47,12 +47,15 @@ export function normalizeCategories(input: string | string[] | null | undefined)
  * Check if item categories match any of the query categories.
  * Used for filtering memories by category.
  */
-export function categoriesMatch(itemCats: string[], queryCats: string | string[] | null | undefined): boolean {
+export function categoriesMatch(
+  itemCats: string[],
+  queryCats: string | string[] | null | undefined,
+): boolean {
   if (!queryCats) {
-    return true;  // No filter means match all
+    return true; // No filter means match all
   }
   const queryArray = normalizeCategories(queryCats);
-  return itemCats.some(cat => queryArray.includes(cat));
+  return itemCats.some((cat) => queryArray.includes(cat));
 }
 
 export interface CortexSearchOptions {
@@ -66,8 +69,8 @@ export interface CortexSearchOptions {
  * PHASE 2: Token budget configuration
  */
 export interface TokenBudgetConfig {
-  maxContextTokens: number;      // Max tokens for memory context (default: 2000)
-  relevanceThreshold: number;    // Skip memories below this score (default: 0.5)
+  maxContextTokens: number; // Max tokens for memory context (default: 2000)
+  relevanceThreshold: number; // Skip memories below this score (default: 0.5)
   truncateOldMemoriesTo: number; // Truncate old memories to N chars (default: 200)
 }
 
@@ -82,8 +85,8 @@ export function estimateTokens(text: string): number {
 export interface STMItem {
   content: string;
   timestamp: string;
-  categories: string[];  // Multi-category support (Phase 3)
-  category?: string;  // Deprecated: kept for backward compat, use categories
+  categories: string[]; // Multi-category support (Phase 3)
+  category?: string; // Deprecated: kept for backward compat, use categories
   importance: number;
   access_count: number;
 }
@@ -128,13 +131,16 @@ export class ActiveSessionCache {
   }
 
   search(query: string): ActiveSessionMessage[] {
-    const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    const terms = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 2);
     if (terms.length === 0) {
       return [];
     }
-    return this.messages.filter(msg => {
+    return this.messages.filter((msg) => {
       const content = msg.content.toLowerCase();
-      return terms.some(term => content.includes(term));
+      return terms.some((term) => content.includes(term));
     });
   }
 
@@ -320,7 +326,7 @@ export class MemoryIndexCache {
         return 0;
       }
 
-      const data = await response.json() as { memories: CortexMemory[] };
+      const data = (await response.json()) as { memories: CortexMemory[] };
       this.loadMemories(data.memories);
       return data.memories.length;
     } catch {
@@ -454,7 +460,7 @@ export class MemoryIndexCache {
       return [];
     }
     return Array.from(ids)
-      .map(id => this.memories.get(id))
+      .map((id) => this.memories.get(id))
       .filter((m): m is CortexMemory => m !== undefined);
   }
 
@@ -465,7 +471,7 @@ export class MemoryIndexCache {
     if (hotIds.length >= limit) {
       return hotIds
         .slice(0, limit)
-        .map(id => this.memories.get(id))
+        .map((id) => this.memories.get(id))
         .filter((m): m is CortexMemory => m !== undefined);
     }
 
@@ -478,7 +484,7 @@ export class MemoryIndexCache {
 
     const allIds = [...hotIds, ...additional.map(([id]) => id)];
     return allIds
-      .map(id => this.memories.get(id))
+      .map((id) => this.memories.get(id))
       .filter((m): m is CortexMemory => m !== undefined);
   }
 
@@ -489,7 +495,11 @@ export class MemoryIndexCache {
    */
   getWithinTokenBudget(
     query: string,
-    budget: TokenBudgetConfig = { maxContextTokens: 2000, relevanceThreshold: 0.5, truncateOldMemoriesTo: 200 }
+    budget: TokenBudgetConfig = {
+      maxContextTokens: 2000,
+      relevanceThreshold: 0.5,
+      truncateOldMemoriesTo: 200,
+    },
   ): Array<CortexMemory & { finalContent: string; tokens: number }> {
     const results: Array<CortexMemory & { finalContent: string; tokens: number }> = [];
     let usedTokens = 0;
@@ -498,12 +508,14 @@ export class MemoryIndexCache {
     const candidates = this.searchByKeyword(query, 50); // Get more candidates for filtering
 
     // Score and sort by composite priority
-    const scored = candidates.map(memory => {
-      const recency = this.calculateRecency(memory.timestamp);
-      const accessScore = this.hotTier.getAccessCount(memory.id) / 100; // Normalize
-      const priority = memory.importance * recency * (1 + accessScore);
-      return { memory, priority, recency };
-    }).toSorted((a, b) => b.priority - a.priority);
+    const scored = candidates
+      .map((memory) => {
+        const recency = this.calculateRecency(memory.timestamp);
+        const accessScore = this.hotTier.getAccessCount(memory.id) / 100; // Normalize
+        const priority = memory.importance * recency * (1 + accessScore);
+        return { memory, priority, recency };
+      })
+      .toSorted((a, b) => b.priority - a.priority);
 
     for (const { memory, priority, recency } of scored) {
       // Skip if below relevance threshold
@@ -532,7 +544,10 @@ export class MemoryIndexCache {
   }
 
   searchByKeyword(query: string, limit = 10): CortexMemory[] {
-    const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    const terms = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 2);
     if (terms.length === 0) {
       return [];
     }
@@ -560,7 +575,7 @@ export class MemoryIndexCache {
     return matches
       .toSorted((a, b) => b.score - a.score)
       .slice(0, limit)
-      .map(m => ({ ...m.memory, score: m.score }));
+      .map((m) => ({ ...m.memory, score: m.score }));
   }
 
   prefetchCategory(category: string): CortexMemory[] {
@@ -598,7 +613,13 @@ export class MemoryIndexCache {
     return total;
   }
 
-  getStats(): { total: number; byCategory: Record<string, number>; sizeBytes: number; hotCount: number; hotTierStats: ReturnType<HotMemoryTier["getStats"]> } {
+  getStats(): {
+    total: number;
+    byCategory: Record<string, number>;
+    sizeBytes: number;
+    hotCount: number;
+    hotTierStats: ReturnType<HotMemoryTier["getStats"]>;
+  } {
     const byCategory: Record<string, number> = {};
     for (const [cat, ids] of this.byCategory.entries()) {
       byCategory[cat] = ids.size;
@@ -617,9 +638,10 @@ export class MemoryIndexCache {
    */
   async loadDelta(embeddingsUrl: string): Promise<{ added: number; updated: number }> {
     try {
-      const sinceTs = this.lastRefresh > 0
-        ? new Date(this.lastRefresh).toISOString()
-        : new Date(Date.now() - 86400000).toISOString(); // Default: last 24h
+      const sinceTs =
+        this.lastRefresh > 0
+          ? new Date(this.lastRefresh).toISOString()
+          : new Date(Date.now() - 86400000).toISOString(); // Default: last 24h
 
       const response = await fetch(`${embeddingsUrl}/delta?since=${encodeURIComponent(sinceTs)}`, {
         method: "GET",
@@ -631,7 +653,7 @@ export class MemoryIndexCache {
         return { added: 0, updated: 0 };
       }
 
-      const data = await response.json() as { memories: CortexMemory[]; since: string };
+      const data = (await response.json()) as { memories: CortexMemory[]; since: string };
 
       let added = 0;
       let updated = 0;
@@ -661,8 +683,8 @@ export class MemoryIndexCache {
 }
 
 export class CortexBridge {
-  private memoryDir: string;  // Data directory for stm.json, embeddings, etc.
-  private pythonScriptsDir: string;  // Directory containing Python scripts
+  private memoryDir: string; // Data directory for brain.db, embeddings, etc.
+  private pythonScriptsDir: string; // Directory containing Python scripts
   private pythonPath: string;
   private embeddingsUrl: string;
 
@@ -720,10 +742,9 @@ export class CortexBridge {
   async warmupCaches(): Promise<{ stm: number; memories: number; activeSession: number }> {
     const results = { stm: 0, memories: 0, activeSession: 0 };
 
-    // Load STM into cache
+    // Load STM into cache directly from brain.db
     try {
-      const stmData = await this.loadSTMDirect();
-      this.stmCache = stmData.short_term_memory;
+      this.stmCache = await this.getRecentSTM(this.stmCapacity);
       this.stmCacheTime = Date.now();
       results.stm = this.stmCache.length;
     } catch {
@@ -780,7 +801,10 @@ export class CortexBridge {
   /**
    * PHASE 2: Get memories within token budget
    */
-  getContextWithinBudget(query: string, budgetOverride?: Partial<TokenBudgetConfig>): Array<CortexMemory & { finalContent: string; tokens: number }> {
+  getContextWithinBudget(
+    query: string,
+    budgetOverride?: Partial<TokenBudgetConfig>,
+  ): Array<CortexMemory & { finalContent: string; tokens: number }> {
     const budget = { ...this.tokenBudget, ...budgetOverride };
     return this.memoryIndex.getWithinTokenBudget(query, budget);
   }
@@ -825,7 +849,7 @@ export class CortexBridge {
     if (messages.length === 0) {
       return "";
     }
-    return messages.map(m => `[${m.role}] ${m.content.slice(0, 200)}`).join("\n");
+    return messages.map((m) => `[${m.role}] ${m.content.slice(0, 200)}`).join("\n");
   }
 
   /**
@@ -841,7 +865,7 @@ export class CortexBridge {
   async isEmbeddingsDaemonAvailable(): Promise<boolean> {
     try {
       const response = await fetch(`${this.embeddingsUrl}/health`, {
-        signal: AbortSignal.timeout(2000)
+        signal: AbortSignal.timeout(2000),
       });
       return response.ok;
     } catch {
@@ -855,15 +879,23 @@ export class CortexBridge {
    */
   async semanticSearch(
     query: string,
-    options: { limit?: number; temporalWeight?: number; minScore?: number } = {}
-  ): Promise<Array<{ content: string; category: string | null; importance: number; score: number; semantic: number }>> {
+    options: { limit?: number; temporalWeight?: number; minScore?: number } = {},
+  ): Promise<
+    Array<{
+      content: string;
+      category: string | null;
+      importance: number;
+      score: number;
+      semantic: number;
+    }>
+  > {
     const { limit = 5, temporalWeight = 0.3, minScore = 0.3 } = options;
 
     // First, try RAM cache keyword search (microseconds)
     if (this.memoryIndex.isInitialized) {
       const cachedResults = this.memoryIndex.searchByKeyword(query, limit * 2);
       if (cachedResults.length >= limit) {
-        return cachedResults.slice(0, limit).map(r => ({
+        return cachedResults.slice(0, limit).map((r) => ({
           content: r.content,
           category: r.category,
           importance: r.importance,
@@ -886,7 +918,15 @@ export class CortexBridge {
         throw new Error(`Embeddings search failed: ${response.status}`);
       }
 
-      const data = await response.json() as { results: Array<{ content: string; category: string | null; importance: number; score: number; semantic: number }> };
+      const data = (await response.json()) as {
+        results: Array<{
+          content: string;
+          category: string | null;
+          importance: number;
+          score: number;
+          semantic: number;
+        }>;
+      };
 
       // Cache results in memory index
       for (const result of data.results) {
@@ -905,14 +945,12 @@ export class CortexBridge {
         }
       }
 
-      return data.results
-        .filter(r => r.score >= minScore)
-        .slice(0, limit);
+      return data.results.filter((r) => r.score >= minScore).slice(0, limit);
     } catch {
       // Fall back to Python-based search if daemon unavailable
       console.warn("Embeddings daemon unavailable, falling back to Python search");
       const results = await this.searchMemories(query, { limit, temporalWeight });
-      return results.map(r => ({
+      return results.map((r) => ({
         content: r.content,
         category: r.category,
         importance: r.importance,
@@ -929,7 +967,7 @@ export class CortexBridge {
    */
   async storeMemoryFast(
     content: string,
-    options: { category?: string; categories?: string | string[]; importance?: number } = {}
+    options: { category?: string; categories?: string | string[]; importance?: number } = {},
   ): Promise<string> {
     const { importance = 1.0 } = options;
     const normalizedCats = normalizeCategories(options.categories ?? options.category);
@@ -942,7 +980,7 @@ export class CortexBridge {
       content,
       source: "agent",
       categories: normalizedCats,
-      category: normalizedCats[0],  // Keep for backward compat
+      category: normalizedCats[0], // Keep for backward compat
       timestamp,
       importance,
       access_count: 0,
@@ -961,7 +999,7 @@ export class CortexBridge {
         throw new Error(`Embeddings store failed: ${response.status}`);
       }
 
-      const data = await response.json() as { id: string };
+      const data = (await response.json()) as { id: string };
       return data.id;
     } catch {
       // Fall back to Python-based storage
@@ -1009,7 +1047,7 @@ export class CortexBridge {
         env: {
           ...process.env,
           PYTHONPATH: this.pythonScriptsDir,
-          CORTEX_DATA_DIR: this.memoryDir,  // Tell Python where to store data
+          CORTEX_DATA_DIR: this.memoryDir, // Tell Python where to store data
         },
       });
 
@@ -1026,7 +1064,9 @@ export class CortexBridge {
 
       proc.on("close", (exitCode) => {
         if (exitCode !== 0) {
-          reject(new Error(`Python error (exit ${exitCode}): ${stderr || stdout || "Unknown error"}`));
+          reject(
+            new Error(`Python error (exit ${exitCode}): ${stderr || stdout || "Unknown error"}`),
+          );
           return;
         }
         try {
@@ -1041,7 +1081,13 @@ export class CortexBridge {
           const lines = trimmed.split("\n");
           for (let i = lines.length - 1; i >= 0; i--) {
             const line = lines[i].trim();
-            if (line.startsWith("{") || line.startsWith("[") || line === "null" || line === "true" || line === "false") {
+            if (
+              line.startsWith("{") ||
+              line.startsWith("[") ||
+              line === "null" ||
+              line === "true" ||
+              line === "false"
+            ) {
               try {
                 resolve(JSON.parse(line));
                 return;
@@ -1054,7 +1100,11 @@ export class CortexBridge {
           resolve(JSON.parse(trimmed));
         } catch {
           // If JSON parse fails completely, reject with the error
-          reject(new Error(`Python output not valid JSON: ${stdout.slice(0, 200)}${stderr ? ` (stderr: ${stderr.slice(0, 200)})` : ""}`));
+          reject(
+            new Error(
+              `Python output not valid JSON: ${stdout.slice(0, 200)}${stderr ? ` (stderr: ${stderr.slice(0, 200)})` : ""}`,
+            ),
+          );
         }
       });
 
@@ -1067,13 +1117,17 @@ export class CortexBridge {
    * PHASE 1: Now with 50,000 item capacity
    * PHASE 2B: Multi-category support
    */
-  async addToSTM(content: string, categories?: string | string[], importance: number = 1.0): Promise<STMItem> {
+  async addToSTM(
+    content: string,
+    categories?: string | string[],
+    importance: number = 1.0,
+  ): Promise<STMItem> {
     const normalizedCats = normalizeCategories(categories);
     const item: STMItem = {
       content,
       timestamp: new Date().toISOString(),
       categories: normalizedCats,
-      category: normalizedCats[0],  // Keep for backward compat
+      category: normalizedCats[0], // Keep for backward compat
       importance,
       access_count: 0,
     };
@@ -1112,7 +1166,7 @@ print(json.dumps(result))
       let items = this.stmCache;
       if (category) {
         // Normalize both item and query categories for comparison
-        items = items.filter(i => {
+        items = items.filter((i) => {
           const itemCats = i.categories ?? (i.category ? [i.category] : ["general"]);
           return categoriesMatch(itemCats, category);
         });
@@ -1134,7 +1188,7 @@ print(json.dumps(result))
     const result = (await this.runPython(code)) as STMItem[];
 
     // Normalize categories in results
-    const normalizedResult = result.map(item => ({
+    const normalizedResult = result.map((item) => ({
       ...item,
       categories: item.categories ?? (item.category ? [item.category] : ["general"]),
     }));
@@ -1187,7 +1241,7 @@ print(json.dumps(result))
     content: string,
     options: {
       source?: string;
-      category?: string;  // Deprecated: use categories
+      category?: string; // Deprecated: use categories
       categories?: string | string[];
       importance?: number;
     } = {},
@@ -1202,7 +1256,7 @@ print(json.dumps(result))
       content,
       source,
       categories: normalizedCats,
-      category: normalizedCats[0],  // Keep for backward compat
+      category: normalizedCats[0], // Keep for backward compat
       timestamp: new Date().toISOString(),
       importance,
       access_count: 0,
@@ -1230,7 +1284,11 @@ print(json.dumps(result))
   /**
    * Get database statistics
    */
-  async getStats(): Promise<{ total: number; by_category: Record<string, number>; by_source: Record<string, number> }> {
+  async getStats(): Promise<{
+    total: number;
+    by_category: Record<string, number>;
+    by_source: Record<string, number>;
+  }> {
     const code = `
 import json
 import sys
@@ -1240,7 +1298,11 @@ init_db()
 result = stats()
 print(json.dumps(result))
 `;
-    return (await this.runPython(code)) as { total: number; by_category: Record<string, number>; by_source: Record<string, number> };
+    return (await this.runPython(code)) as {
+      total: number;
+      by_category: Record<string, number>;
+      by_source: Record<string, number>;
+    };
   }
 
   /**
@@ -1249,7 +1311,12 @@ print(json.dumps(result))
   getExtendedStats(): {
     stm: { count: number; capacity: number; cached: boolean };
     activeSession: { count: number; capacity: number; sizeBytes: number };
-    memoryIndex: { total: number; byCategory: Record<string, number>; sizeBytes: number; initialized: boolean };
+    memoryIndex: {
+      total: number;
+      byCategory: Record<string, number>;
+      sizeBytes: number;
+      initialized: boolean;
+    };
     totalRamUsageBytes: number;
   } {
     const stmCount = this.stmCache?.length ?? 0;
@@ -1271,7 +1338,8 @@ print(json.dumps(result))
         ...memoryIndexStats,
         initialized: this.memoryIndex.isInitialized,
       },
-      totalRamUsageBytes: activeSessionStats.sizeBytes + memoryIndexStats.sizeBytes + (stmCount * 2000),
+      totalRamUsageBytes:
+        activeSessionStats.sizeBytes + memoryIndexStats.sizeBytes + stmCount * 2000,
     };
   }
 
@@ -1363,11 +1431,15 @@ print(json.dumps(result))
   }
 
   /**
-   * @deprecated Use getRecentSTM() for reads, updateSTM()/editSTM()/deleteSTMBatch() for writes.
-   * This reads from stm.json which is empty since brain.db migration.
-   * Kept only for backward compatibility with CLI stats command.
+   * @deprecated MIGRATION COMPLETE: Use getRecentSTM() for reads, updateSTM()/editSTM()/deleteSTMBatch() for writes.
+   * This function now reads from brain.db instead of legacy stm.json.
+   * Kept only for backward compatibility - all active usage has been migrated.
    */
-  async loadSTMDirect(): Promise<{ short_term_memory: STMItem[]; capacity: number; auto_expire_days: number }> {
+  async loadSTMDirect(): Promise<{
+    short_term_memory: STMItem[];
+    capacity: number;
+    auto_expire_days: number;
+  }> {
     // Return data from brain.db instead of stale stm.json
     // Cap to 500 to avoid subprocess memory issues (was previously stmCapacity=50000)
     try {
@@ -1379,14 +1451,15 @@ print(json.dumps(result))
   }
 
   /**
-   * Update STM capacity in the JSON file
+   * Update STM capacity - now handled in-memory only since brain.db migration.
+   * The capacity is managed by the bridge configuration, not persisted to disk.
    */
   async updateSTMCapacity(newCapacity: number): Promise<void> {
-    const stmPath = join(this.memoryDir, "stm.json");
     try {
-      const data = await this.loadSTMDirect();
-      data.capacity = newCapacity;
-      await writeFile(stmPath, JSON.stringify(data, null, 2));
+      // Update in-memory capacity setting
+      this.stmCapacity = newCapacity;
+      // Note: With brain.db migration, capacity is managed in-memory only
+      // The actual STM items are stored in brain.db, not stm.json
     } catch (err) {
       console.error("Failed to update STM capacity:", err);
     }
@@ -1412,7 +1485,7 @@ print(json.dumps(result))
       outcomeDelaySeconds?: number;
       consequenceDelaySeconds?: number;
       sourceMemoryId?: string;
-    } = {}
+    } = {},
   ): Promise<string> {
     const {
       source = "agent",
@@ -1470,7 +1543,7 @@ print(json.dumps(result))
   async searchAtomsByField(
     field: "subject" | "action" | "outcome" | "consequences",
     query: string,
-    options: { limit?: number; threshold?: number } = {}
+    options: { limit?: number; threshold?: number } = {},
   ): Promise<AtomSearchResult[]> {
     const { limit = 10, threshold = 0.5 } = options;
 
@@ -1494,7 +1567,7 @@ print(json.dumps(result))
     fromAtomId: string,
     toAtomId: string,
     linkType: "causes" | "enables" | "precedes" | "correlates" = "causes",
-    strength: number = 0.5
+    strength: number = 0.5,
   ): Promise<string> {
     const code = `
 import json
@@ -1517,10 +1590,7 @@ print(json.dumps(result))
    * Find root causes by traversing causal chains backward
    * PHASE 3: The core "keep going until the answer is no" capability
    */
-  async findRootCauses(
-    atomId: string,
-    maxDepth: number = 10
-  ): Promise<Atom[]> {
+  async findRootCauses(atomId: string, maxDepth: number = 10): Promise<Atom[]> {
     const code = `
 import json
 import sys
@@ -1537,10 +1607,7 @@ print(json.dumps(result))
    * Find all causal paths leading to an outcome
    * PHASE 3: Discover the "40 novel indicators" that others miss
    */
-  async findPathsToOutcome(
-    targetOutcome: string,
-    maxDepth: number = 10
-  ): Promise<Atom[]> {
+  async findPathsToOutcome(targetOutcome: string, maxDepth: number = 10): Promise<Atom[]> {
     const code = `
 import json
 import sys
@@ -1580,7 +1647,7 @@ print(json.dumps(result))
    */
   async atomizeText(
     text: string,
-    options: { source?: string; saveToDb?: boolean; useLlmFallback?: boolean } = {}
+    options: { source?: string; saveToDb?: boolean; useLlmFallback?: boolean } = {},
   ): Promise<string[]> {
     const { source = "agent", saveToDb = true, useLlmFallback = false } = options;
 
@@ -1674,7 +1741,7 @@ print(json.dumps({"queryType": qtype, "confidence": conf}))
    */
   async abstractDeeper(
     query: string,
-    options: { maxDepth?: number; minConfidence?: number } = {}
+    options: { maxDepth?: number; minConfidence?: number } = {},
   ): Promise<DeepAbstractionResult> {
     const { maxDepth = 5, minConfidence = 0.5 } = options;
 
@@ -1695,7 +1762,7 @@ print(json.dumps(result))
    */
   async processWithAbstraction(
     query: string,
-    options: { autoAbstract?: boolean; maxDepth?: number } = {}
+    options: { autoAbstract?: boolean; maxDepth?: number } = {},
   ): Promise<AbstractionProcessResult> {
     const { autoAbstract = true, maxDepth = 5 } = options;
 
@@ -1725,7 +1792,7 @@ print(json.dumps(result))
   async searchTemporal(
     query: string,
     timeReference: string,
-    limit: number = 20
+    limit: number = 20,
   ): Promise<TemporalSearchResult> {
     const code = `
 import json
@@ -1745,7 +1812,7 @@ print(json.dumps(result))
   async whatHappenedBefore(
     eventDescription: string,
     hoursBefore: number = 4,
-    limit: number = 20
+    limit: number = 20,
   ): Promise<PrecursorAnalysisResult> {
     const code = `
 import json
@@ -1764,7 +1831,7 @@ print(json.dumps(result))
    */
   async analyzeTemporalPatterns(
     outcomePattern: string,
-    minObservations: number = 3
+    minObservations: number = 3,
   ): Promise<TemporalPatternResult> {
     const code = `
 import json
@@ -1811,7 +1878,7 @@ export interface Atom {
   created_at: string;
   source: string;
   source_memory_id?: string;
-  depth?: number;  // Set by causal traversal
+  depth?: number; // Set by causal traversal
 }
 
 /**

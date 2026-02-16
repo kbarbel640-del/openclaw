@@ -14,6 +14,7 @@ import {
   isCompactionFailureError,
   isContextOverflowError,
   isLikelyContextOverflowError,
+  isTransientHttpError,
   sanitizeUserFacingText,
 } from "../../agents/pi-embedded-helpers.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
@@ -34,9 +35,8 @@ import {
 import { stripHeartbeatToken } from "../heartbeat.js";
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../tokens.js";
 import { buildThreadingToolContext, resolveEnforceFinalTag } from "./agent-runner-utils.js";
-import { createBlockReplyPayloadKey, type BlockReplyPipeline } from "./block-reply-pipeline.js";
-import { parseReplyDirectives } from "./reply-directives.js";
-import { applyReplyTagsToPayload, isRenderablePayload } from "./reply-payloads.js";
+import { type BlockReplyPipeline } from "./block-reply-pipeline.js";
+import { createBlockReplyDeliveryHandler } from "./reply-delivery.js";
 
 export type AgentRunLoopResult =
   | {
@@ -63,6 +63,7 @@ export async function runAgentTurnWithFallback(params: {
     minChars: number;
     maxChars: number;
     breakPreference: "paragraph" | "newline" | "sentence";
+    flushOnParagraph?: boolean;
   };
   resolvedBlockStreamingBreak: "text_end" | "message_end";
   applyReplyToMode: (payload: ReplyPayload) => ReplyPayload;
@@ -78,6 +79,7 @@ export async function runAgentTurnWithFallback(params: {
   storePath?: string;
   resolvedVerboseLevel: VerboseLevel;
 }): Promise<AgentRunLoopResult> {
+  const TRANSIENT_HTTP_RETRY_DELAY_MS = 2_500;
   let didLogHeartbeatStrip = false;
   let autoCompactionCompleted = false;
   // Track payloads sent directly (not via pipeline) during tool flush to avoid duplicates.
@@ -96,6 +98,7 @@ export async function runAgentTurnWithFallback(params: {
   let fallbackProvider = params.followupRun.run.provider;
   let fallbackModel = params.followupRun.run.model;
   let didResetAfterCompactionFailure = false;
+  let didRetryTransientHttpError = false;
 
   while (true) {
     try {
@@ -124,9 +127,15 @@ export async function runAgentTurnWithFallback(params: {
           return { skip: true };
         }
         if (!text) {
+          // Allow media-only payloads (e.g. tool result screenshots) through.
+          if ((payload.mediaUrls?.length ?? 0) > 0) {
+            return { text: undefined, skip: false };
+          }
           return { skip: true };
         }
-        const sanitized = sanitizeUserFacingText(text);
+        const sanitized = sanitizeUserFacingText(text, {
+          errorContext: Boolean(payload.isError),
+        });
         if (!sanitized.trim()) {
           return { skip: true };
         }
@@ -171,24 +180,28 @@ export async function runAgentTurnWithFallback(params: {
               },
             });
             const cliSessionId = getCliSessionId(params.getActiveSessionEntry(), provider);
-            return runCliAgent({
-              sessionId: params.followupRun.run.sessionId,
-              sessionKey: params.sessionKey,
-              sessionFile: params.followupRun.run.sessionFile,
-              workspaceDir: params.followupRun.run.workspaceDir,
-              config: params.followupRun.run.config,
-              prompt: params.commandBody,
-              provider,
-              model,
-              thinkLevel: params.followupRun.run.thinkLevel,
-              timeoutMs: params.followupRun.run.timeoutMs,
-              runId,
-              extraSystemPrompt: params.followupRun.run.extraSystemPrompt,
-              ownerNumbers: params.followupRun.run.ownerNumbers,
-              cliSessionId,
-              images: params.opts?.images,
-            })
-              .then((result) => {
+            return (async () => {
+              let lifecycleTerminalEmitted = false;
+              try {
+                const result = await runCliAgent({
+                  sessionId: params.followupRun.run.sessionId,
+                  sessionKey: params.sessionKey,
+                  agentId: params.followupRun.run.agentId,
+                  sessionFile: params.followupRun.run.sessionFile,
+                  workspaceDir: params.followupRun.run.workspaceDir,
+                  config: params.followupRun.run.config,
+                  prompt: params.commandBody,
+                  provider,
+                  model,
+                  thinkLevel: params.followupRun.run.thinkLevel,
+                  timeoutMs: params.followupRun.run.timeoutMs,
+                  runId,
+                  extraSystemPrompt: params.followupRun.run.extraSystemPrompt,
+                  ownerNumbers: params.followupRun.run.ownerNumbers,
+                  cliSessionId,
+                  images: params.opts?.images,
+                });
+
                 // CLI backends don't emit streaming assistant events, so we need to
                 // emit one with the final text so server-chat can populate its buffer
                 // and send the response to TUI/WebSocket clients.
@@ -200,6 +213,7 @@ export async function runAgentTurnWithFallback(params: {
                     data: { text: cliText },
                   });
                 }
+
                 emitAgentEvent({
                   runId,
                   stream: "lifecycle",
@@ -209,9 +223,10 @@ export async function runAgentTurnWithFallback(params: {
                     endedAt: Date.now(),
                   },
                 });
+                lifecycleTerminalEmitted = true;
+
                 return result;
-              })
-              .catch((err) => {
+              } catch (err) {
                 emitAgentEvent({
                   runId,
                   stream: "lifecycle",
@@ -219,11 +234,28 @@ export async function runAgentTurnWithFallback(params: {
                     phase: "error",
                     startedAt,
                     endedAt: Date.now(),
-                    error: err instanceof Error ? err.message : String(err),
+                    error: String(err),
                   },
                 });
+                lifecycleTerminalEmitted = true;
                 throw err;
-              });
+              } finally {
+                // Defensive backstop: never let a CLI run complete without a terminal
+                // lifecycle event, otherwise downstream consumers can hang.
+                if (!lifecycleTerminalEmitted) {
+                  emitAgentEvent({
+                    runId,
+                    stream: "lifecycle",
+                    data: {
+                      phase: "error",
+                      startedAt,
+                      endedAt: Date.now(),
+                      error: "CLI run completed without lifecycle terminal event",
+                    },
+                  });
+                }
+              }
+            })();
           }
           const authProfileId =
             provider === params.followupRun.run.provider
@@ -232,6 +264,7 @@ export async function runAgentTurnWithFallback(params: {
           return runEmbeddedPiAgent({
             sessionId: params.followupRun.run.sessionId,
             sessionKey: params.sessionKey,
+            agentId: params.followupRun.run.agentId,
             messageProvider: params.sessionCtx.Provider?.trim().toLowerCase() || undefined,
             agentAccountId: params.sessionCtx.AccountId,
             messageTo: params.sessionCtx.OriginatingTo ?? params.sessionCtx.To,
@@ -300,6 +333,7 @@ export async function runAgentTurnWithFallback(params: {
               : undefined,
             onAssistantMessageStart: async () => {
               await params.typingSignals.signalMessageStart();
+              await params.opts?.onAssistantMessageStart?.();
             },
             onReasoningStream:
               params.typingSignals.shouldStartOnReasoning || params.opts?.onReasoningStream
@@ -311,6 +345,7 @@ export async function runAgentTurnWithFallback(params: {
                     });
                   }
                 : undefined,
+            onReasoningEnd: params.opts?.onReasoningEnd,
             onAgentEvent: async (evt) => {
               // Trigger typing when tools start executing.
               // Must await to ensure typing indicator starts before tool summaries are emitted.
@@ -323,8 +358,7 @@ export async function runAgentTurnWithFallback(params: {
               // Track auto-compaction completion
               if (evt.stream === "compaction") {
                 const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
-                const willRetry = Boolean(evt.data.willRetry);
-                if (phase === "end" && !willRetry) {
+                if (phase === "end") {
                   autoCompactionCompleted = true;
                 }
               }
@@ -333,75 +367,17 @@ export async function runAgentTurnWithFallback(params: {
             // even when regular block streaming is disabled. The handler sends directly
             // via opts.onBlockReply when the pipeline isn't available.
             onBlockReply: params.opts?.onBlockReply
-              ? async (payload) => {
-                  const { text, skip } = normalizeStreamingText(payload);
-                  const hasPayloadMedia = (payload.mediaUrls?.length ?? 0) > 0;
-                  if (skip && !hasPayloadMedia) {
-                    return;
-                  }
-                  const currentMessageId =
-                    params.sessionCtx.MessageSidFull ?? params.sessionCtx.MessageSid;
-                  const taggedPayload = applyReplyTagsToPayload(
-                    {
-                      text,
-                      mediaUrls: payload.mediaUrls,
-                      mediaUrl: payload.mediaUrls?.[0],
-                      replyToId: payload.replyToId,
-                      replyToTag: payload.replyToTag,
-                      replyToCurrent: payload.replyToCurrent,
-                    },
-                    currentMessageId,
-                  );
-                  // Let through payloads with audioAsVoice flag even if empty (need to track it)
-                  if (!isRenderablePayload(taggedPayload) && !payload.audioAsVoice) {
-                    return;
-                  }
-                  const parsed = parseReplyDirectives(taggedPayload.text ?? "", {
-                    currentMessageId,
-                    silentToken: SILENT_REPLY_TOKEN,
-                  });
-                  const cleaned = parsed.text || undefined;
-                  const hasRenderableMedia =
-                    Boolean(taggedPayload.mediaUrl) || (taggedPayload.mediaUrls?.length ?? 0) > 0;
-                  // Skip empty payloads unless they have audioAsVoice flag (need to track it)
-                  if (
-                    !cleaned &&
-                    !hasRenderableMedia &&
-                    !payload.audioAsVoice &&
-                    !parsed.audioAsVoice
-                  ) {
-                    return;
-                  }
-                  if (parsed.isSilent && !hasRenderableMedia) {
-                    return;
-                  }
-
-                  const blockPayload: ReplyPayload = params.applyReplyToMode({
-                    ...taggedPayload,
-                    text: cleaned,
-                    audioAsVoice: Boolean(parsed.audioAsVoice || payload.audioAsVoice),
-                    replyToId: taggedPayload.replyToId ?? parsed.replyToId,
-                    replyToTag: taggedPayload.replyToTag || parsed.replyToTag,
-                    replyToCurrent: taggedPayload.replyToCurrent || parsed.replyToCurrent,
-                  });
-
-                  void params.typingSignals
-                    .signalTextDelta(cleaned ?? taggedPayload.text)
-                    .catch((err) => {
-                      logVerbose(`block reply typing signal failed: ${String(err)}`);
-                    });
-
-                  // Use pipeline if available (block streaming enabled), otherwise send directly
-                  if (params.blockStreamingEnabled && params.blockReplyPipeline) {
-                    params.blockReplyPipeline.enqueue(blockPayload);
-                  } else if (params.blockStreamingEnabled) {
-                    // Send directly when flushing before tool execution (no pipeline but streaming enabled).
-                    // Track sent key to avoid duplicate in final payloads.
-                    directlySentBlockKeys.add(createBlockReplyPayloadKey(blockPayload));
-                    await params.opts?.onBlockReply?.(blockPayload);
-                  }
-                  // When streaming is disabled entirely, blocks are accumulated in final text instead.
-                }
+              ? createBlockReplyDeliveryHandler({
+                  onBlockReply: params.opts.onBlockReply,
+                  currentMessageId:
+                    params.sessionCtx.MessageSidFull ?? params.sessionCtx.MessageSid,
+                  normalizeStreamingText,
+                  applyReplyToMode: params.applyReplyToMode,
+                  typingSignals: params.typingSignals,
+                  blockStreamingEnabled: params.blockStreamingEnabled,
+                  blockReplyPipeline,
+                  directlySentBlockKeys,
+                })
               : undefined,
             onBlockReplyFlush:
               params.blockStreamingEnabled && blockReplyPipeline
@@ -479,6 +455,7 @@ export async function runAgentTurnWithFallback(params: {
       const isCompactionFailure = isCompactionFailureError(message);
       const isSessionCorruption = /function call turn comes immediately after/i.test(message);
       const isRoleOrderingError = /incorrect role information|roles must alternate/i.test(message);
+      const isTransientHttp = isTransientHttpError(message);
 
       if (
         isCompactionFailure &&
@@ -550,8 +527,26 @@ export async function runAgentTurnWithFallback(params: {
         };
       }
 
+      if (isTransientHttp && !didRetryTransientHttpError) {
+        didRetryTransientHttpError = true;
+        // Retry the full runWithModelFallback() cycle — transient errors
+        // (502/521/etc.) typically affect the whole provider, so falling
+        // back to an alternate model first would not help. Instead we wait
+        // and retry the complete primary→fallback chain.
+        defaultRuntime.error(
+          `Transient HTTP provider error before reply (${message}). Retrying once in ${TRANSIENT_HTTP_RETRY_DELAY_MS}ms.`,
+        );
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, TRANSIENT_HTTP_RETRY_DELAY_MS);
+        });
+        continue;
+      }
+
       defaultRuntime.error(`Embedded agent failed before reply: ${message}`);
-      const trimmedMessage = message.replace(/\.\s*$/, "");
+      const safeMessage = isTransientHttp
+        ? sanitizeUserFacingText(message, { errorContext: true })
+        : message;
+      const trimmedMessage = safeMessage.replace(/\.\s*$/, "");
       const fallbackText = isContextOverflow
         ? "⚠️ Context overflow — prompt too large for this model. Try a shorter message or a larger-context model."
         : isRoleOrderingError

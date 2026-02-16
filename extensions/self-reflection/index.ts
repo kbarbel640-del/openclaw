@@ -1,3 +1,4 @@
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 /**
  * Self-Reflection Coach - Periodic review and pattern analysis
  *
@@ -10,10 +11,9 @@
  * Can run on-demand via tool or scheduled via cron.
  */
 import { Type } from "@sinclair/typebox";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 interface STMItem {
   content: string;
@@ -60,25 +60,20 @@ const ANALYSIS_PATTERNS = {
 
 /**
  * Load STM items from brain.db via REST API
+ * No longer falls back to stm.json since brain.db migration is complete
  */
 async function loadSTM(): Promise<STMItem[]> {
   try {
     const response = await fetch("http://localhost:8031/stm?limit=100");
     if (response.ok) {
-      const data = await response.json() as { entries: STMItem[] };
+      const data = (await response.json()) as { entries: STMItem[] };
       return data.entries || [];
     }
     return [];
   } catch {
-    // brain_api not running — try stm.json as fallback
-    const stmPath = join(homedir(), ".openclaw", "workspace", "memory", "stm.json");
-    try {
-      const data = await readFile(stmPath, "utf-8");
-      const stm = JSON.parse(data) as { short_term_memory: STMItem[] };
-      return stm.short_term_memory || [];
-    } catch {
-      return [];
-    }
+    // brain_api not running — return empty array
+    // stm.json fallback removed since brain.db migration is complete
+    return [];
   }
 }
 
@@ -103,7 +98,7 @@ async function loadCollections(): Promise<Map<string, string[]>> {
         const category = file.replace(".json", "");
         collections.set(
           category,
-          (collection.entries || []).map((e) => e.content)
+          (collection.entries || []).map((e) => e.content),
         );
       } catch {
         // Skip invalid files
@@ -156,7 +151,9 @@ function findRecurringThemes(items: string[]): string[] {
 /**
  * Generate insights from patterns
  */
-function generateInsights(analysis: Omit<ReflectionAnalysis, "insights" | "recommendations" | "growthAreas">): {
+function generateInsights(
+  analysis: Omit<ReflectionAnalysis, "insights" | "recommendations" | "growthAreas">,
+): {
   insights: string[];
   recommendations: string[];
   growthAreas: string[];
@@ -192,13 +189,18 @@ function generateInsights(analysis: Omit<ReflectionAnalysis, "insights" | "recom
   // Analyze recurring themes
   if (patterns.recurring.length > 0) {
     insights.push(`Recurring themes: ${patterns.recurring.slice(0, 5).join(", ")}`);
-    recommendations.push("Consider creating dedicated documentation for frequently-discussed topics");
+    recommendations.push(
+      "Consider creating dedicated documentation for frequently-discussed topics",
+    );
   }
 
   // Balance analysis
-  const successRate = patterns.successes.length / Math.max(1, patterns.successes.length + patterns.mistakes.length);
+  const successRate =
+    patterns.successes.length / Math.max(1, patterns.successes.length + patterns.mistakes.length);
   if (successRate < 0.5) {
-    recommendations.push("Success rate is below 50% - consider slowing down and being more methodical");
+    recommendations.push(
+      "Success rate is below 50% - consider slowing down and being more methodical",
+    );
     growthAreas.push("Careful planning before execution");
   } else if (successRate > 0.8) {
     insights.push("High success rate indicates good judgment and execution");
@@ -219,7 +221,9 @@ function generateInsights(analysis: Omit<ReflectionAnalysis, "insights" | "recom
 /**
  * Perform reflection analysis
  */
-async function performReflection(period: "day" | "week" | "month" = "week"): Promise<ReflectionAnalysis> {
+async function performReflection(
+  period: "day" | "week" | "month" = "week",
+): Promise<ReflectionAnalysis> {
   // Load all memories
   const stmItems = await loadSTM();
   const collections = await loadCollections();
@@ -327,7 +331,9 @@ async function storeReflection(analysis: ReflectionAnalysis): Promise<void> {
     `[Self-Reflection ${analysis.period}] ${analysis.timestamp}`,
     `Insights: ${analysis.insights.join("; ")}`,
     `Recommendations: ${analysis.recommendations.join("; ")}`,
-  ].join(" | ").slice(0, 500);
+  ]
+    .join(" | ")
+    .slice(0, 500);
 
   try {
     // Store via brain.db REST API
@@ -375,17 +381,18 @@ const selfReflectionPlugin = {
           period: Type.Optional(
             Type.String({
               description: "Time period to analyze: 'day', 'week', or 'month' (default: week)",
-            })
+            }),
           ),
           store: Type.Optional(
             Type.Boolean({
               description: "Store the reflection summary in Cortex (default: true)",
-            })
+            }),
           ),
         }),
         async execute(_toolCallId, params) {
           const p = params as { period?: string; store?: boolean };
-          const period: "day" | "week" | "month" = p.period === "day" || p.period === "month" ? p.period : "week";
+          const period: "day" | "week" | "month" =
+            p.period === "day" || p.period === "month" ? p.period : "week";
           const shouldStore = p.store !== false;
 
           try {
@@ -424,15 +431,14 @@ const selfReflectionPlugin = {
     // Register CLI command
     api.registerCli(
       ({ program }) => {
-        const reflectCmd = program
-          .command("reflect")
-          .description("Run self-reflection analysis");
+        const reflectCmd = program.command("reflect").description("Run self-reflection analysis");
 
         reflectCmd
           .command("run [period]")
           .description("Perform reflection (day/week/month)")
           .action(async (period: string = "week") => {
-            const validPeriod: "day" | "week" | "month" = period === "day" || period === "month" ? period : "week";
+            const validPeriod: "day" | "week" | "month" =
+              period === "day" || period === "month" ? period : "week";
             console.log(`Running ${validPeriod} reflection...`);
 
             const analysis = await performReflection(validPeriod);
@@ -449,10 +455,14 @@ const selfReflectionPlugin = {
             console.log("To schedule automatic reflections, add a cron job:");
             console.log("");
             console.log("  # Daily reflection at 11pm");
-            console.log("  openclaw cron add --schedule '0 23 * * *' --command 'openclaw reflect run day'");
+            console.log(
+              "  openclaw cron add --schedule '0 23 * * *' --command 'openclaw reflect run day'",
+            );
             console.log("");
             console.log("  # Weekly reflection on Sundays");
-            console.log("  openclaw cron add --schedule '0 20 * * 0' --command 'openclaw reflect run week'");
+            console.log(
+              "  openclaw cron add --schedule '0 20 * * 0' --command 'openclaw reflect run week'",
+            );
           });
       },
       { commands: ["reflect"] },

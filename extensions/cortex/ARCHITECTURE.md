@@ -45,12 +45,14 @@ Cortex is a three-tier memory system designed for multi-agent workflows with GPU
 - **Tool**: `working_memory` (aliases: `wm`)
 
 **Use cases**:
+
 - Active task instructions ("currently implementing feature X")
 - Critical decisions that span multiple sessions
 - User preferences that affect current work
 - Active project context
 
 **Example**:
+
 ```
 <working-memory hint="CRITICAL: pinned items - always keep in context">
 - [active-task] Implementing GPU embeddings integration for Cortex
@@ -62,12 +64,13 @@ Cortex is a three-tier memory system designed for multi-agent workflows with GPU
 
 **Purpose**: Fast O(1) access to recent context with intelligent relevance scoring.
 
-- **Storage**: `~/.openclaw/workspace/memory/stm.json`
+- **Storage**: `~/.openclaw/workspace/memory/brain.db` (STM table)
 - **Capacity**: 50 items (configurable via `stmCapacity`)
 - **Decay**: Exponential with ~48-hour half-life
 - **Tool**: `cortex_stm`
 
 **Scoring algorithm**:
+
 ```
 matchScore = (keywordScore × relevanceWeight) +
              (recencyScore × temporalWeight) +
@@ -76,12 +79,14 @@ matchScore = (keywordScore × relevanceWeight) +
 ```
 
 Where:
+
 - `keywordScore`: Term overlap + exact phrase bonus
 - `recencyScore`: `exp(-ageHours / 48)`
 - `importanceScore`: Normalized 1-3 scale
 - `categoryBonus`: +0.1 base + 0.1 per matching category
 
 **Categories**: Loaded dynamically from `categories.json`. Default includes:
+
 - `trading`, `moltbook`, `coding`, `meta`, `learning`, `personal`, `system`, `general`
 
 **PHASE 3**: Multi-category support - memories can belong to multiple categories simultaneously.
@@ -95,6 +100,7 @@ Where:
 - **Access**: GPU embeddings daemon (localhost:8030) with Python fallback
 
 **Query flow**:
+
 1. Generate embedding for query text
 2. Cosine similarity search in vector store
 3. Apply temporal weighting to results
@@ -151,6 +157,7 @@ before_agent_start hook
 ```
 
 **Output format**:
+
 ```xml
 <working-memory hint="CRITICAL: pinned items - always keep in context">
 - [label] content...
@@ -181,6 +188,7 @@ Cortex automatically captures significant conversation moments via the `agent_en
 | `preference`, `prefer`, `like to` | 1.5 |
 
 **Capture criteria**:
+
 - Content length: 20-1000 characters
 - No tool outputs or system messages
 - Importance >= 1.5
@@ -194,12 +202,12 @@ configSchema: Type.Object({
   autoCapture: Type.Boolean({ default: true }),
   stmFastPath: Type.Boolean({ default: true }),
   temporalRerank: Type.Boolean({ default: true }),
-  temporalWeight: Type.Number({ default: 0.5 }),      // Recency importance
-  importanceWeight: Type.Number({ default: 0.4 }),    // User-assigned importance
-  stmCapacity: Type.Number({ default: 50 }),          // Max STM items
-  minMatchScore: Type.Number({ default: 0.3 }),       // Filter threshold
-  episodicMemoryTurns: Type.Number({ default: 20 }),  // Working memory turns
-})
+  temporalWeight: Type.Number({ default: 0.5 }), // Recency importance
+  importanceWeight: Type.Number({ default: 0.4 }), // User-assigned importance
+  stmCapacity: Type.Number({ default: 50 }), // Max STM items
+  minMatchScore: Type.Number({ default: 0.3 }), // Filter threshold
+  episodicMemoryTurns: Type.Number({ default: 20 }), // Working memory turns
+});
 ```
 
 ## Tools Reference
@@ -208,32 +216,32 @@ configSchema: Type.Object({
 
 Manage episodic working memory.
 
-| Action | Description |
-|--------|-------------|
-| `pin` | Add item (content required, optional label) |
-| `view` | List all pinned items |
-| `unpin` | Remove item by index |
-| `clear` | Remove all items |
+| Action  | Description                                 |
+| ------- | ------------------------------------------- |
+| `pin`   | Add item (content required, optional label) |
+| `view`  | List all pinned items                       |
+| `unpin` | Remove item by index                        |
+| `clear` | Remove all items                            |
 
 ### `cortex_add`
 
 Store memory with importance rating. **PHASE 2B: Multi-category support.**
 
-| Parameter | Description |
-|-----------|-------------|
-| `content` | Memory text |
-| `category` | Single category (deprecated, use categories) |
+| Parameter    | Description                                            |
+| ------------ | ------------------------------------------------------ |
+| `content`    | Memory text                                            |
+| `category`   | Single category (deprecated, use categories)           |
 | `categories` | Array of categories (e.g., `["technical", "trading"]`) |
-| `importance` | 1.0 (routine) to 3.0 (critical) |
+| `importance` | 1.0 (routine) to 3.0 (critical)                        |
 
 ### `cortex_stm`
 
 View recent short-term memory. **PHASE 2B: Multi-category support.**
 
-| Parameter | Description |
-|-----------|-------------|
-| `limit` | Max items (default: 10) |
-| `category` | Filter by single category |
+| Parameter    | Description                               |
+| ------------ | ----------------------------------------- |
+| `limit`      | Max items (default: 10)                   |
+| `category`   | Filter by single category                 |
 | `categories` | Filter by multiple categories (any match) |
 
 ### `cortex_stats`
@@ -244,14 +252,15 @@ Show memory system statistics (RAM cache, hot tier, token budget).
 
 Find and handle duplicate memories.
 
-| Parameter | Description |
-|-----------|-------------|
-| `category` | Scope to single category |
-| `categories` | Scope to multiple categories |
+| Parameter              | Description                            |
+| ---------------------- | -------------------------------------- |
+| `category`             | Scope to single category               |
+| `categories`           | Scope to multiple categories           |
 | `similarity_threshold` | Content similarity 0-1 (default: 0.95) |
-| `action` | `report`, `merge`, or `delete_older` |
+| `action`               | `report`, `merge`, or `delete_older`   |
 
 **Actions**:
+
 - `report`: List duplicate groups without changes
 - `merge`: Keep newest, sum access_counts, keep highest importance
 - `delete_older`: Keep most recent, remove duplicates
@@ -260,21 +269,21 @@ Find and handle duplicate memories.
 
 Update memory importance or categories.
 
-| Parameter | Description |
-|-----------|-------------|
-| `memory_id` | Memory ID, timestamp, or content snippet |
-| `importance` | New importance score 1.0-3.0 |
-| `categories` | New categories array |
+| Parameter    | Description                              |
+| ------------ | ---------------------------------------- |
+| `memory_id`  | Memory ID, timestamp, or content snippet |
+| `importance` | New importance score 1.0-3.0             |
+| `categories` | New categories array                     |
 
 ### `cortex_edit` (PHASE 3)
 
 Edit or append to existing memory content.
 
-| Parameter | Description |
-|-----------|-------------|
+| Parameter   | Description                           |
+| ----------- | ------------------------------------- |
 | `memory_id` | Memory ID or content snippet to match |
-| `append` | Content to add to existing memory |
-| `replace` | New content to replace memory |
+| `append`    | Content to add to existing memory     |
+| `replace`   | New content to replace memory         |
 
 Content changes trigger automatic re-embedding via GPU daemon.
 
@@ -282,9 +291,9 @@ Content changes trigger automatic re-embedding via GPU daemon.
 
 Move memory to different categories.
 
-| Parameter | Description |
-|-----------|-------------|
-| `memory_id` | Memory ID or content snippet to match |
+| Parameter       | Description                              |
+| --------------- | ---------------------------------------- |
+| `memory_id`     | Memory ID or content snippet to match    |
 | `to_categories` | New categories array (replaces existing) |
 
 No re-embedding needed (content unchanged).
@@ -311,6 +320,7 @@ Every piece of knowledge is stored as an **atom**:
 ### Example Atoms
 
 **Trading:**
+
 ```json
 {
   "subject": "whale wallet 0x3f...",
@@ -321,6 +331,7 @@ Every piece of knowledge is stored as an **atom**:
 ```
 
 **Debugging:**
+
 ```json
 {
   "subject": "API endpoint /auth/refresh",
@@ -332,19 +343,19 @@ Every piece of knowledge is stored as an **atom**:
 
 ### Atom Tools
 
-| Tool | Description |
-|------|-------------|
-| `atom_create` | Create atomic knowledge unit with subject/action/outcome/consequences |
-| `atom_search` | Search atoms by field similarity (subject, action, outcome, or consequences) |
-| `atom_find_causes` | Traverse backward through causal chains to find root causes |
-| `atom_link` | Create/strengthen causal links between atoms |
-| `atom_stats` | Get atomic knowledge database statistics |
-| `atomize` | Extract atoms from text (local pattern matching) or batch atomize existing memories |
-| `abstract_deeper` | PHASE 3E: Run deep causal analysis, find novel indicators |
-| `classify_query` | PHASE 3E: Check if query needs deep abstraction |
-| `temporal_search` | PHASE 3F: Search atoms with time context ("4 hours ago") |
-| `what_happened_before` | PHASE 3F: Find precursors to an event |
-| `temporal_patterns` | PHASE 3F: Analyze timing patterns for outcomes |
+| Tool                   | Description                                                                         |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `atom_create`          | Create atomic knowledge unit with subject/action/outcome/consequences               |
+| `atom_search`          | Search atoms by field similarity (subject, action, outcome, or consequences)        |
+| `atom_find_causes`     | Traverse backward through causal chains to find root causes                         |
+| `atom_link`            | Create/strengthen causal links between atoms                                        |
+| `atom_stats`           | Get atomic knowledge database statistics                                            |
+| `atomize`              | Extract atoms from text (local pattern matching) or batch atomize existing memories |
+| `abstract_deeper`      | PHASE 3E: Run deep causal analysis, find novel indicators                           |
+| `classify_query`       | PHASE 3E: Check if query needs deep abstraction                                     |
+| `temporal_search`      | PHASE 3F: Search atoms with time context ("4 hours ago")                            |
+| `what_happened_before` | PHASE 3F: Find precursors to an event                                               |
+| `temporal_patterns`    | PHASE 3F: Analyze timing patterns for outcomes                                      |
 
 ### Field-Level Search
 
@@ -368,6 +379,7 @@ atom_find_causes outcome="price spike"
 ### Storage
 
 Atoms stored in `~/.openclaw/workspace/memory/.atoms.db`:
+
 - `atoms` table with field-level embeddings
 - `causal_links` table connecting atoms
 - All local (RTX 5090 GPU for embeddings)
@@ -382,6 +394,7 @@ Automatic causal analysis that runs in `before_agent_start`:
 4. **Context Injection** - Insights injected as `<deep-abstraction>` block
 
 **The Meta-Rule**: When in doubt, abstract deeper.
+
 - Cost of going too deep = extra local computation (cheap)
 - Cost of staying too shallow = missing novel insights (expensive)
 
@@ -400,12 +413,13 @@ Time-aware queries and pattern detection:
 
 Cortex enables context sharing across agents through:
 
-1. **Shared STM file**: All agents read/write the same `stm.json`
+1. **Shared STM database**: All agents read/write the same `brain.db` STM table
 2. **Shared embeddings database**: Semantic search spans all stored memories
 3. **Category tagging**: Agents can query by category to find relevant context
 4. **Working memory**: Pinned items are shared across all agent invocations
 
 **Best practices**:
+
 - Use `cortex_add` with explicit categories for cross-agent knowledge
 - Pin critical shared context with `working_memory pin`
 - Use high importance (2.0+) for decisions that affect multiple agents
@@ -413,17 +427,18 @@ Cortex enables context sharing across agents through:
 
 ## Performance Characteristics
 
-| Operation | Typical Latency |
-|-----------|-----------------|
-| Working memory load | < 1ms |
-| STM keyword match | < 5ms |
-| GPU semantic search | 10-50ms |
-| Python fallback search | 200-500ms |
-| Memory store (GPU) | 20-100ms |
+| Operation              | Typical Latency |
+| ---------------------- | --------------- |
+| Working memory load    | < 1ms           |
+| STM keyword match      | < 5ms           |
+| GPU semantic search    | 10-50ms         |
+| Python fallback search | 200-500ms       |
+| Memory store (GPU)     | 20-100ms        |
 
 ## File Layout
 
 ### Source Code (in repo)
+
 ```
 extensions/cortex/
 ├── index.ts                    # Plugin entry point, tools, hooks
@@ -444,9 +459,10 @@ extensions/cortex/
 ```
 
 ### Data Files (in user home)
+
 ```
 ~/.openclaw/workspace/memory/
-├── stm.json                    # Short-term memory data
+├── brain.db                    # Unified database (STM + Synapse + Atoms)
 ├── working_memory.json         # Pinned items
 ├── categories.json             # Dynamic category definitions
 ├── .local_embeddings.db        # SQLite vector store (GPU daemon)

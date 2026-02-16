@@ -7,7 +7,7 @@ brain-db is a unified SQLite database that merges two previously separate system
 1. **SYNAPSE** — inter-agent messaging protocol (was JSON file)
 2. **Cortex** — knowledge management (was separate JSON + SQLite files)
 
-The key insight: *the conversation IS the memory*. When agents discuss a decision, that discussion should be searchable as knowledge. When knowledge is retrieved, it should trace back to the conversation that produced it.
+The key insight: _the conversation IS the memory_. When agents discuss a decision, that discussion should be searchable as knowledge. When knowledge is retrieved, it should trace back to the conversation that produced it.
 
 ## Data Flow
 
@@ -63,29 +63,29 @@ The key insight: *the conversation IS the memory*. When agents discuss a decisio
 
 ### SYNAPSE Layer
 
-| Table | Purpose | Key Columns |
-|-------|---------|-------------|
-| `messages` | Core agent messages | id, thread_id, from_agent, to_agent, body |
-| `threads` | Conversation threads | id, subject, message_count, status |
-| `read_receipts` | Who read what | message_id, agent_id, read_at |
-| `acks` | Message acknowledgments | message_id, agent_id, ack_body |
+| Table           | Purpose                 | Key Columns                               |
+| --------------- | ----------------------- | ----------------------------------------- |
+| `messages`      | Core agent messages     | id, thread_id, from_agent, to_agent, body |
+| `threads`       | Conversation threads    | id, subject, message_count, status        |
+| `read_receipts` | Who read what           | message_id, agent_id, read_at             |
+| `acks`          | Message acknowledgments | message_id, agent_id, ack_body            |
 
 ### Cortex Layer
 
-| Table | Purpose | Key Columns |
-|-------|---------|-------------|
-| `stm` | Short-term memory | id, content, categories (JSON), importance |
-| `atoms` | Causal knowledge units | id, subject, action, outcome, consequences |
-| `atom_links` | Causal chains | from_atom_id, to_atom_id, link_type, strength |
-| `embeddings` | 384-dim semantic vectors | source_type, source_id, embedding (BLOB) |
+| Table        | Purpose                  | Key Columns                                   |
+| ------------ | ------------------------ | --------------------------------------------- |
+| `stm`        | Short-term memory        | id, content, categories (JSON), importance    |
+| `atoms`      | Causal knowledge units   | id, subject, action, outcome, consequences    |
+| `atom_links` | Causal chains            | from_atom_id, to_atom_id, link_type, strength |
+| `embeddings` | 384-dim semantic vectors | source_type, source_id, embedding (BLOB)      |
 
 ### FTS5 Indexes (content-less)
 
-| Table | Indexes | Source |
-|-------|---------|--------|
-| `messages_fts` | subject, body | messages |
-| `stm_fts` | content | stm |
-| `atoms_fts` | subject, action, outcome, consequences | atoms |
+| Table          | Indexes                                | Source   |
+| -------------- | -------------------------------------- | -------- |
+| `messages_fts` | subject, body                          | messages |
+| `stm_fts`      | content                                | stm      |
+| `atoms_fts`    | subject, action, outcome, consequences | atoms    |
 
 ## Provenance
 
@@ -134,8 +134,8 @@ This enables: "I know X because Nova and I discussed it in thread Y on date Z."
 BEFORE (v1):                    AFTER (v2):
 ~/.openclaw/workspace/memory/   ~/.openclaw/workspace/memory/
 ├── synapse.json      ─────►   ├── brain.db (unified)
-├── stm.json          ─────►   │   ├── messages (from synapse.json)
-├── .atoms.db         ─────►   │   ├── stm (from stm.json)
+├── stm.json (legacy) ─────►   │   ├── messages (from synapse.json)
+├── .atoms.db (legacy) ─────► │   ├── stm (from stm.json)
 ├── .embeddings.db    ─────►   │   ├── atoms (from .atoms.db)
 └── (scattered files)          │   ├── embeddings (from .embeddings.db)
                                │   └── FTS5 indexes (new)
@@ -145,14 +145,14 @@ BEFORE (v1):                    AFTER (v2):
 
 ## Performance
 
-| Operation | JSON (v1) | SQLite (v2) |
-|-----------|-----------|-------------|
-| Send message | ~50ms (read-modify-write) | <1ms (INSERT) |
-| Poll inbox | ~50ms (parse full file) | <1ms (indexed query) |
-| FTS search | Impossible | <5ms |
-| Semantic search | Separate DB | <50ms (brute-force cosine) |
-| History depth | 200 msg cap | Unlimited |
-| Concurrent reads | Race conditions | WAL-safe |
+| Operation        | JSON (v1)                 | SQLite (v2)                |
+| ---------------- | ------------------------- | -------------------------- |
+| Send message     | ~50ms (read-modify-write) | <1ms (INSERT)              |
+| Poll inbox       | ~50ms (parse full file)   | <1ms (indexed query)       |
+| FTS search       | Impossible                | <5ms                       |
+| Semantic search  | Separate DB               | <50ms (brute-force cosine) |
+| History depth    | 200 msg cap               | Unlimited                  |
+| Concurrent reads | Race conditions           | WAL-safe                   |
 
 ## Known Limitations
 
@@ -165,4 +165,4 @@ BEFORE (v1):                    AFTER (v2):
 
 ---
 
-*Built by Helios (design) and Nova (implementation), Feb 2026.*
+_Built by Helios (design) and Nova (implementation), Feb 2026._

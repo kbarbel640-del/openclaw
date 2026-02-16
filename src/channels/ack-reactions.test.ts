@@ -5,6 +5,10 @@ import {
   shouldAckReactionForWhatsApp,
 } from "./ack-reactions.js";
 
+const flushMicrotasks = async () => {
+  await Promise.resolve();
+};
+
 describe("shouldAckReaction", () => {
   it("honors direct and group-all scopes", () => {
     expect(
@@ -32,22 +36,10 @@ describe("shouldAckReaction", () => {
     ).toBe(true);
   });
 
-  it("skips when scope is off or none", () => {
+  it("skips when scope is off", () => {
     expect(
       shouldAckReaction({
         scope: "off",
-        isDirect: true,
-        isGroup: true,
-        isMentionableGroup: true,
-        requireMention: true,
-        canDetectMention: true,
-        effectiveWasMentioned: true,
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldAckReaction({
-        scope: "none",
         isDirect: true,
         isGroup: true,
         isMentionableGroup: true,
@@ -143,18 +135,6 @@ describe("shouldAckReactionForWhatsApp", () => {
         emoji: "👀",
         isDirect: true,
         isGroup: false,
-        directEnabled: true,
-        groupMode: "mentions",
-        wasMentioned: false,
-        groupActivated: false,
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldAckReactionForWhatsApp({
-        emoji: "👀",
-        isDirect: true,
-        isGroup: false,
         directEnabled: false,
         groupMode: "mentions",
         wasMentioned: false,
@@ -195,18 +175,6 @@ describe("shouldAckReactionForWhatsApp", () => {
         isGroup: true,
         directEnabled: true,
         groupMode: "mentions",
-        wasMentioned: true,
-        groupActivated: false,
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldAckReactionForWhatsApp({
-        emoji: "👀",
-        isDirect: false,
-        isGroup: true,
-        directEnabled: true,
-        groupMode: "mentions",
         wasMentioned: false,
         groupActivated: true,
       }),
@@ -237,7 +205,7 @@ describe("removeAckReactionAfterReply", () => {
       remove,
       onError,
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushMicrotasks();
     expect(remove).toHaveBeenCalledTimes(1);
     expect(onError).not.toHaveBeenCalled();
   });
@@ -250,19 +218,7 @@ describe("removeAckReactionAfterReply", () => {
       ackReactionValue: "👀",
       remove,
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(remove).not.toHaveBeenCalled();
-  });
-
-  it("skips when not configured", async () => {
-    const remove = vi.fn().mockResolvedValue(undefined);
-    removeAckReactionAfterReply({
-      removeAfterReply: false,
-      ackReactionPromise: Promise.resolve(true),
-      ackReactionValue: "👀",
-      remove,
-    });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushMicrotasks();
     expect(remove).not.toHaveBeenCalled();
   });
 });

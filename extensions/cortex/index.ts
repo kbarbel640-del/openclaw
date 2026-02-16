@@ -1,3 +1,4 @@
+import type { OpenClawPlugin, OpenClawPluginApi } from "openclaw/plugin-sdk";
 /**
  * Cortex - Core Memory Process for OpenClaw
  *
@@ -17,12 +18,11 @@
  * This plugin ADDS capabilities without duplicating existing memory infrastructure.
  */
 import { Type } from "@sinclair/typebox";
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { homedir } from "node:os";
-import { existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import type { OpenClawPlugin, OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { CortexBridge, type STMItem, estimateTokens } from "./cortex-bridge.js";
 
 // Importance triggers for auto-capture
@@ -105,7 +105,11 @@ class CategoryManager {
     }
   }
 
-  async addCategory(name: string, description: string, keywords: string[]): Promise<{ success: boolean; message: string; existing?: boolean }> {
+  async addCategory(
+    name: string,
+    description: string,
+    keywords: string[],
+  ): Promise<{ success: boolean; message: string; existing?: boolean }> {
     if (!this.loaded) {
       await this.load();
     }
@@ -124,9 +128,9 @@ class CategoryManager {
     }
 
     // Check if any keywords overlap with existing categories
-    const lowerKeywords = new Set(keywords.map(k => k.toLowerCase()));
+    const lowerKeywords = new Set(keywords.map((k) => k.toLowerCase()));
     for (const [catName, config] of this.categories) {
-      const overlap = config.keywords.filter(k => lowerKeywords.has(k.toLowerCase()));
+      const overlap = config.keywords.filter((k) => lowerKeywords.has(k.toLowerCase()));
       if (overlap.length > 0) {
         return {
           success: false,
@@ -268,8 +272,16 @@ function shouldCapture(content: string): boolean {
  * Now includes: temporal decay, importance weighting, fuzzy matching, category boosting.
  * PHASE 2B: Multi-category support
  */
-function matchSTMItems(items: STMItem[], query: string, temporalWeight = 0.4, importanceWeight = 0.3): Array<STMItem & { matchScore: number }> {
-  const queryTerms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+function matchSTMItems(
+  items: STMItem[],
+  query: string,
+  temporalWeight = 0.4,
+  importanceWeight = 0.3,
+): Array<STMItem & { matchScore: number }> {
+  const queryTerms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length > 2);
   if (queryTerms.length === 0) {
     return [];
   }
@@ -313,15 +325,15 @@ function matchSTMItems(items: STMItem[], query: string, temporalWeight = 0.4, im
     // Category match bonus (PHASE 2B: multi-category support)
     // Bonus scales with number of matching categories
     const itemCategories = item.categories ?? (item.category ? [item.category] : ["general"]);
-    const matchingCats = queryCategories.filter(qc => itemCategories.includes(qc));
-    const categoryBonus = matchingCats.length > 0 ? 0.1 + (matchingCats.length * 0.1) : 0;
+    const matchingCats = queryCategories.filter((qc) => itemCategories.includes(qc));
+    const categoryBonus = matchingCats.length > 0 ? 0.1 + matchingCats.length * 0.1 : 0;
 
     // Combined score with weights
     const relevanceWeight = 1 - temporalWeight - importanceWeight;
     const matchScore =
-      (keywordScore * relevanceWeight) +
-      (recencyScore * temporalWeight) +
-      (normalizedImportance * importanceWeight) +
+      keywordScore * relevanceWeight +
+      recencyScore * temporalWeight +
+      normalizedImportance * importanceWeight +
       categoryBonus;
 
     matches.push({ ...item, matchScore });
@@ -379,7 +391,7 @@ function formatTimeDelta(timestamp: string): string {
  */
 function deduplicateByContent<T extends { content: string }>(items: T[]): T[] {
   const seen = new Set<string>();
-  return items.filter(item => {
+  return items.filter((item) => {
     // Use first 100 chars as hash key (fast approximation)
     const key = item.content.slice(0, 100).toLowerCase().trim();
     if (seen.has(key)) {
@@ -399,13 +411,14 @@ function calculateDynamicTokenBudget(prompt: string, baseTokens: number): number
   const lowerPrompt = prompt.toLowerCase();
 
   // +500 for technical/coding content
-  const technicalPatterns = /code|function|error|bug|api|database|query|implement|debug|fix|class|method/i;
+  const technicalPatterns =
+    /code|function|error|bug|api|database|query|implement|debug|fix|class|method/i;
   if (technicalPatterns.test(lowerPrompt)) {
     budget += 500;
   }
 
   // +500 for complex multi-topic conversations (detected by question marks, multiple sentences)
-  const sentences = prompt.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  const sentences = prompt.split(/[.!?]+/).filter((s) => s.trim().length > 10);
   if (sentences.length >= 3 || prompt.includes("?")) {
     budget += 300;
   }
@@ -466,17 +479,17 @@ const cortexPlugin: OpenClawPlugin = {
       autoCapture: rawConfig.autoCapture ?? true,
       stmFastPath: rawConfig.stmFastPath ?? true,
       temporalRerank: rawConfig.temporalRerank ?? true,
-      temporalWeight: rawConfig.temporalWeight ?? 0.5,      // Favor recent
-      importanceWeight: rawConfig.importanceWeight ?? 0.4,  // Favor important
-      stmCapacity: rawConfig.stmCapacity ?? 500,             // Capped: subprocess serialization limit
-      minMatchScore: rawConfig.minMatchScore ?? 0.3,        // Filter low-confidence results
+      temporalWeight: rawConfig.temporalWeight ?? 0.5, // Favor recent
+      importanceWeight: rawConfig.importanceWeight ?? 0.4, // Favor important
+      stmCapacity: rawConfig.stmCapacity ?? 500, // Capped: subprocess serialization limit
+      minMatchScore: rawConfig.minMatchScore ?? 0.3, // Filter low-confidence results
       episodicMemoryTurns: rawConfig.episodicMemoryTurns ?? 20, // Working memory turns to pin
       // PHASE 2: Hot Memory Tier
       hotTierSize: rawConfig.hotTierSize ?? 100,
       // PHASE 2: Token Budget System (tuned based on Helios feedback)
-      maxContextTokens: rawConfig.maxContextTokens ?? 1500,  // Base budget, dynamic scaling adds more
-      relevanceThreshold: rawConfig.relevanceThreshold ?? 0.5,  // Relaxed from 0.65
-      truncateOldMemoriesTo: rawConfig.truncateOldMemoriesTo ?? 180,  // Up from 120 to keep sentences coherent
+      maxContextTokens: rawConfig.maxContextTokens ?? 1500, // Base budget, dynamic scaling adds more
+      relevanceThreshold: rawConfig.relevanceThreshold ?? 0.5, // Relaxed from 0.65
+      truncateOldMemoriesTo: rawConfig.truncateOldMemoriesTo ?? 180, // Up from 120 to keep sentences coherent
       // PHASE 2: Delta Sync & Prefetch
       deltaSyncEnabled: rawConfig.deltaSyncEnabled ?? true,
       prefetchEnabled: rawConfig.prefetchEnabled ?? true,
@@ -532,7 +545,7 @@ const cortexPlugin: OpenClawPlugin = {
       const indexStats = bridge.memoryIndex.getStats();
       api.logger.info(
         `Cortex Phase 2 initialized: ${warmupResult.stm} STM, ${warmupResult.memories} memories, ` +
-        `${indexStats.hotCount} hot tier, token budget: ${config.maxContextTokens}, ${categoryCount} categories`
+          `${indexStats.hotCount} hot tier, token budget: ${config.maxContextTokens}, ${categoryCount} categories`,
       );
 
       // Update STM capacity in the JSON file
@@ -548,36 +561,42 @@ const cortexPlugin: OpenClawPlugin = {
     // Hook: before_tool_call - STM fast path for memory_search
     // =========================================================================
     if (config.stmFastPath) {
-      api.on("before_tool_call", async (event, _ctx) => {
-        if (event.toolName !== "memory_search") {
-          return;
-        }
-
-        try {
-          const available = await bridge.isAvailable();
-          if (!available) {
+      api.on(
+        "before_tool_call",
+        async (event, _ctx) => {
+          if (event.toolName !== "memory_search") {
             return;
           }
 
-          const query = (event.params as { query?: string }).query;
-          if (!query || query.length < 3) {
-            return;
-          }
+          try {
+            const available = await bridge.isAvailable();
+            if (!available) {
+              return;
+            }
 
-          // Fetch STM items and check for matches
-          const stmItems = await bridge.getRecentSTM(config.stmCapacity);
-          const matches = matchSTMItems(stmItems, query);
+            const query = (event.params as { query?: string }).query;
+            if (!query || query.length < 3) {
+              return;
+            }
 
-          if (matches.length > 0) {
-            // Store matches for after_tool_call to merge
-            const toolCallKey = `${ctx.sessionKey ?? "unknown"}:${event.toolName}:${query}`;
-            pendingStmMatches.set(toolCallKey, matches);
-            api.logger.debug?.(`Cortex STM: found ${matches.length} fast-path matches for "${query.slice(0, 30)}..."`);
+            // Fetch STM items and check for matches
+            const stmItems = await bridge.getRecentSTM(config.stmCapacity);
+            const matches = matchSTMItems(stmItems, query);
+
+            if (matches.length > 0) {
+              // Store matches for after_tool_call to merge
+              const toolCallKey = `${ctx.sessionKey ?? "unknown"}:${event.toolName}:${query}`;
+              pendingStmMatches.set(toolCallKey, matches);
+              api.logger.debug?.(
+                `Cortex STM: found ${matches.length} fast-path matches for "${query.slice(0, 30)}..."`,
+              );
+            }
+          } catch (err) {
+            api.logger.debug?.(`Cortex STM check failed: ${err}`);
           }
-        } catch (err) {
-          api.logger.debug?.(`Cortex STM check failed: ${err}`);
-        }
-      }, { priority: 100 }); // High priority to run before other hooks
+        },
+        { priority: 100 },
+      ); // High priority to run before other hooks
     }
 
     // =========================================================================
@@ -723,7 +742,8 @@ const cortexPlugin: OpenClawPlugin = {
           ),
           categories: Type.Optional(
             Type.Array(Type.String(), {
-              description: "Array of categories for this memory (e.g., ['technical', 'preferences'])",
+              description:
+                "Array of categories for this memory (e.g., ['technical', 'preferences'])",
             }),
           ),
           importance: Type.Optional(
@@ -731,7 +751,12 @@ const cortexPlugin: OpenClawPlugin = {
           ),
         }),
         async execute(_toolCallId, params) {
-          const p = params as { content: string; category?: string; categories?: string[]; importance?: number };
+          const p = params as {
+            content: string;
+            category?: string;
+            categories?: string[];
+            importance?: number;
+          };
 
           try {
             const available = await bridge.isAvailable();
@@ -743,7 +768,8 @@ const cortexPlugin: OpenClawPlugin = {
             }
 
             // PHASE 2B: Multi-category support - prefer categories array, fall back to single category, then auto-detect
-            const categories = p.categories ?? (p.category ? [p.category] : detectCategories(p.content));
+            const categories =
+              p.categories ?? (p.category ? [p.category] : detectCategories(p.content));
             const importance = p.importance ?? detectImportance(p.content);
 
             // Add to STM (fast path for recent recall)
@@ -788,7 +814,9 @@ const cortexPlugin: OpenClawPlugin = {
         parameters: Type.Object({
           limit: Type.Optional(Type.Number({ description: "Max items to show (default: 10)" })),
           category: Type.Optional(Type.String({ description: "Filter by category (single)" })),
-          categories: Type.Optional(Type.Array(Type.String(), { description: "Filter by multiple categories" })),
+          categories: Type.Optional(
+            Type.Array(Type.String(), { description: "Filter by multiple categories" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as { limit?: number; category?: string; categories?: string[] };
@@ -810,17 +838,18 @@ const cortexPlugin: OpenClawPlugin = {
               content: [
                 {
                   type: "text",
-                  text: items.length > 0
-                    ? items
-                        .map((i) => {
-                          const age = calculateRecencyScore(i.timestamp);
-                          const ageLabel = age > 0.9 ? "now" : age > 0.5 ? "recent" : "older";
-                          // PHASE 2B: Display all categories
-                          const cats = i.categories ?? (i.category ? [i.category] : ["general"]);
-                          return `[${cats.join(", ")}] (imp=${i.importance.toFixed(1)}, ${ageLabel}) ${i.content.slice(0, 150)}`;
-                        })
-                        .join("\n")
-                    : "STM is empty.",
+                  text:
+                    items.length > 0
+                      ? items
+                          .map((i) => {
+                            const age = calculateRecencyScore(i.timestamp);
+                            const ageLabel = age > 0.9 ? "now" : age > 0.5 ? "recent" : "older";
+                            // PHASE 2B: Display all categories
+                            const cats = i.categories ?? (i.category ? [i.category] : ["general"]);
+                            return `[${cats.join(", ")}] (imp=${i.importance.toFixed(1)}, ${ageLabel}) ${i.content.slice(0, 150)}`;
+                          })
+                          .join("\n")
+                      : "STM is empty.",
                 },
               ],
               details: { count: items.length },
@@ -842,7 +871,8 @@ const cortexPlugin: OpenClawPlugin = {
     api.registerTool(
       {
         name: "cortex_stats",
-        description: "Get Cortex memory statistics: RAM cache status, STM, Active Session, memory index, category breakdown.",
+        description:
+          "Get Cortex memory statistics: RAM cache status, STM, Active Session, memory index, category breakdown.",
         parameters: Type.Object({}),
         async execute() {
           try {
@@ -881,12 +911,25 @@ const cortexPlugin: OpenClawPlugin = {
 
 💾 Database Stats:
 - Total indexed: ${dbStats.total}
-- By category: ${Object.entries(dbStats.by_category).map(([k, v]) => `${k}(${v})`).join(", ") || "none"}
-- By source: ${Object.entries(dbStats.by_source).map(([k, v]) => `${k}(${v})`).join(", ") || "none"}
+- By category: ${
+                    Object.entries(dbStats.by_category)
+                      .map(([k, v]) => `${k}(${v})`)
+                      .join(", ") || "none"
+                  }
+- By source: ${
+                    Object.entries(dbStats.by_source)
+                      .map(([k, v]) => `${k}(${v})`)
+                      .join(", ") || "none"
+                  }
 
 🔥 Hot Memory Tier (PHASE 2):
 - Hot tier size: ${hotTierStats.size}/${config.hotTierSize}
-- Top accessed: ${hotTierStats.topAccessCounts.slice(0, 5).map(t => `${t.count.toFixed(1)}`).join(", ") || "none"}
+- Top accessed: ${
+                    hotTierStats.topAccessCounts
+                      .slice(0, 5)
+                      .map((t) => `${t.count.toFixed(1)}`)
+                      .join(", ") || "none"
+                  }
 - Categories: ${extStats.memoryIndex.byCategory ? Object.keys(extStats.memoryIndex.byCategory).length : 0}
 
 💰 Token Budget (PHASE 2):
@@ -897,7 +940,14 @@ const cortexPlugin: OpenClawPlugin = {
 - Prefetch: ${config.prefetchEnabled ? "ON" : "OFF"}`,
                 },
               ],
-              details: { dbStats, extStats, config: { maxContextTokens: config.maxContextTokens, relevanceThreshold: config.relevanceThreshold } },
+              details: {
+                dbStats,
+                extStats,
+                config: {
+                  maxContextTokens: config.maxContextTokens,
+                  relevanceThreshold: config.relevanceThreshold,
+                },
+              },
             };
           } catch (err) {
             return {
@@ -919,16 +969,21 @@ const cortexPlugin: OpenClawPlugin = {
         description:
           "Find and handle duplicate memories in Cortex. Use 'report' to list duplicates, 'merge' to combine them (keeps newest, sums access counts), or 'delete_older' to remove older duplicates.",
         parameters: Type.Object({
-          category: Type.Optional(Type.String({ description: "Limit deduplication to this category" })),
-          categories: Type.Optional(Type.Array(Type.String(), { description: "Limit to multiple categories" })),
-          similarity_threshold: Type.Optional(
-            Type.Number({ description: "Content similarity threshold 0-1 (default: 0.95 = nearly identical)" }),
+          category: Type.Optional(
+            Type.String({ description: "Limit deduplication to this category" }),
           ),
-          action: Type.Union([
-            Type.Literal("report"),
-            Type.Literal("merge"),
-            Type.Literal("delete_older"),
-          ], { description: "Action: 'report', 'merge', or 'delete_older'" }),
+          categories: Type.Optional(
+            Type.Array(Type.String(), { description: "Limit to multiple categories" }),
+          ),
+          similarity_threshold: Type.Optional(
+            Type.Number({
+              description: "Content similarity threshold 0-1 (default: 0.95 = nearly identical)",
+            }),
+          ),
+          action: Type.Union(
+            [Type.Literal("report"), Type.Literal("merge"), Type.Literal("delete_older")],
+            { description: "Action: 'report', 'merge', or 'delete_older'" },
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as {
@@ -955,9 +1010,10 @@ const cortexPlugin: OpenClawPlugin = {
 
             // Filter by category if specified
             const items = filterCats
-              ? stmItems.filter(item => {
-                  const itemCats = item.categories ?? (item.category ? [item.category] : ["general"]);
-                  return filterCats.some(fc => itemCats.includes(fc));
+              ? stmItems.filter((item) => {
+                  const itemCats =
+                    item.categories ?? (item.category ? [item.category] : ["general"]);
+                  return filterCats.some((fc) => itemCats.includes(fc));
                 })
               : stmItems;
 
@@ -972,7 +1028,7 @@ const cortexPlugin: OpenClawPlugin = {
             }
 
             // Filter to only groups with duplicates
-            const duplicateGroups = Array.from(groups.values()).filter(g => g.length > 1);
+            const duplicateGroups = Array.from(groups.values()).filter((g) => g.length > 1);
 
             if (duplicateGroups.length === 0) {
               return {
@@ -982,15 +1038,33 @@ const cortexPlugin: OpenClawPlugin = {
             }
 
             if (p.action === "report") {
-              const report = duplicateGroups.map((group, i) => {
-                const cats = group[0].categories ?? (group[0].category ? [group[0].category] : ["general"]);
-                return `Group ${i + 1} (${group.length} items, [${cats.join(",")}]):\n` +
-                  group.map(item => `  - [${formatTimeDelta(item.timestamp)}] ${item.content.slice(0, 60)}...`).join("\n");
-              }).join("\n\n");
+              const report = duplicateGroups
+                .map((group, i) => {
+                  const cats =
+                    group[0].categories ?? (group[0].category ? [group[0].category] : ["general"]);
+                  return (
+                    `Group ${i + 1} (${group.length} items, [${cats.join(",")}]):\n` +
+                    group
+                      .map(
+                        (item) =>
+                          `  - [${formatTimeDelta(item.timestamp)}] ${item.content.slice(0, 60)}...`,
+                      )
+                      .join("\n")
+                  );
+                })
+                .join("\n\n");
 
               return {
-                content: [{ type: "text", text: `Found ${duplicateGroups.length} duplicate groups:\n\n${report}` }],
-                details: { groups: duplicateGroups.length, total_duplicates: duplicateGroups.reduce((s, g) => s + g.length - 1, 0) },
+                content: [
+                  {
+                    type: "text",
+                    text: `Found ${duplicateGroups.length} duplicate groups:\n\n${report}`,
+                  },
+                ],
+                details: {
+                  groups: duplicateGroups.length,
+                  total_duplicates: duplicateGroups.reduce((s, g) => s + g.length - 1, 0),
+                },
               };
             }
 
@@ -1000,14 +1074,19 @@ const cortexPlugin: OpenClawPlugin = {
 
               for (const group of duplicateGroups) {
                 // Sort by timestamp (newest first)
-                group.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                group.sort(
+                  (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+                );
                 const keeper = group[0];
                 const toRemove = group.slice(1);
 
                 if (p.action === "merge") {
                   // Update keeper with merged metadata
-                  const totalAccess = group.reduce((sum, item) => sum + (item.access_count || 0), 0);
-                  const maxImportance = Math.max(...group.map(item => item.importance || 1));
+                  const totalAccess = group.reduce(
+                    (sum, item) => sum + (item.access_count || 0),
+                    0,
+                  );
+                  const maxImportance = Math.max(...group.map((item) => item.importance || 1));
                   if (keeper.id) {
                     // Update keeper in brain.db
                     // Update keeper importance via cortex_update mechanism
@@ -1027,7 +1106,12 @@ const cortexPlugin: OpenClawPlugin = {
               const removed = await bridge.deleteSTMBatch(idsToDelete);
 
               return {
-                content: [{ type: "text", text: `${p.action === "merge" ? "Merged" : "Deleted"} ${removed} duplicate memories from ${duplicateGroups.length} groups.` }],
+                content: [
+                  {
+                    type: "text",
+                    text: `${p.action === "merge" ? "Merged" : "Deleted"} ${removed} duplicate memories from ${duplicateGroups.length} groups.`,
+                  },
+                ],
                 details: { action: p.action, removed, groups: duplicateGroups.length },
               };
             }
@@ -1060,7 +1144,9 @@ const cortexPlugin: OpenClawPlugin = {
         parameters: Type.Object({
           memory_id: Type.String({ description: "Memory ID (from cortex_stm or search results)" }),
           importance: Type.Optional(Type.Number({ description: "New importance score 1.0-3.0" })),
-          categories: Type.Optional(Type.Array(Type.String(), { description: "New categories array" })),
+          categories: Type.Optional(
+            Type.Array(Type.String(), { description: "New categories array" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as { memory_id: string; importance?: number; categories?: string[] };
@@ -1076,7 +1162,9 @@ const cortexPlugin: OpenClawPlugin = {
 
             if (!p.importance && !p.categories) {
               return {
-                content: [{ type: "text", text: "Must provide importance or categories to update" }],
+                content: [
+                  { type: "text", text: "Must provide importance or categories to update" },
+                ],
                 details: { error: "no_changes" },
               };
             }
@@ -1099,10 +1187,12 @@ const cortexPlugin: OpenClawPlugin = {
                 const cats = p.categories ?? targetItem.categories ?? ["general"];
                 const imp = p.importance ?? targetItem.importance;
                 return {
-                  content: [{
-                    type: "text",
-                    text: `Updated memory: importance=${imp.toFixed(1)}, categories=[${cats.join(", ")}]`,
-                  }],
+                  content: [
+                    {
+                      type: "text",
+                      text: `Updated memory: importance=${imp.toFixed(1)}, categories=[${cats.join(", ")}]`,
+                    },
+                  ],
                   details: { updated: true, importance: imp, categories: cats },
                 };
               }
@@ -1133,8 +1223,12 @@ const cortexPlugin: OpenClawPlugin = {
           "Edit or append to an existing memory. Use 'append' to add to existing content, or 'replace' to overwrite entirely. Content changes trigger re-embedding.",
         parameters: Type.Object({
           memory_id: Type.String({ description: "Memory ID or content snippet to match" }),
-          append: Type.Optional(Type.String({ description: "Content to append to existing memory" })),
-          replace: Type.Optional(Type.String({ description: "New content to replace existing memory" })),
+          append: Type.Optional(
+            Type.String({ description: "Content to append to existing memory" }),
+          ),
+          replace: Type.Optional(
+            Type.String({ description: "New content to replace existing memory" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as { memory_id: string; append?: string; replace?: string };
@@ -1189,11 +1283,16 @@ const cortexPlugin: OpenClawPlugin = {
                 }
 
                 return {
-                  content: [{
-                    type: "text",
-                    text: `Memory ${p.replace ? "replaced" : "appended"}: ${newContent.slice(0, 100)}...`,
-                  }],
-                  details: { action: p.replace ? "replace" : "append", content_length: newContent.length },
+                  content: [
+                    {
+                      type: "text",
+                      text: `Memory ${p.replace ? "replaced" : "appended"}: ${newContent.slice(0, 100)}...`,
+                    },
+                  ],
+                  details: {
+                    action: p.replace ? "replace" : "append",
+                    content_length: newContent.length,
+                  },
                 };
               }
             }
@@ -1262,10 +1361,12 @@ const cortexPlugin: OpenClawPlugin = {
 
               if (updated) {
                 return {
-                  content: [{
-                    type: "text",
-                    text: `Moved memory from [${oldCategories.join(", ")}] to [${p.to_categories.join(", ")}]`,
-                  }],
+                  content: [
+                    {
+                      type: "text",
+                      text: `Moved memory from [${oldCategories.join(", ")}] to [${p.to_categories.join(", ")}]`,
+                    },
+                  ],
                   details: { from_categories: oldCategories, to_categories: p.to_categories },
                 };
               }
@@ -1301,12 +1402,25 @@ const cortexPlugin: OpenClawPlugin = {
           "Structure: {subject} {action} {outcome} {consequences}. " +
           "Example: 'whale wallet' 'accumulates token X' 'concentration pattern visible' 'precedes price movement by 4h'",
         parameters: Type.Object({
-          subject: Type.String({ description: "WHO or WHAT acts (e.g., 'whale wallet', 'market maker', 'Peter')" }),
-          action: Type.String({ description: "WHAT they do (e.g., 'accumulates token X', 'places large order')" }),
-          outcome: Type.String({ description: "WHAT results (e.g., 'pattern becomes visible', 'price moves 2%')" }),
-          consequences: Type.String({ description: "WHAT follows (e.g., 'precedes price movement by 4h', 'triggers retail FOMO')" }),
-          confidence: Type.Optional(Type.Number({ description: "Confidence in this knowledge 0-1 (default: 1.0)" })),
-          source: Type.Optional(Type.String({ description: "Source of this knowledge (default: 'agent')" })),
+          subject: Type.String({
+            description: "WHO or WHAT acts (e.g., 'whale wallet', 'market maker', 'Peter')",
+          }),
+          action: Type.String({
+            description: "WHAT they do (e.g., 'accumulates token X', 'places large order')",
+          }),
+          outcome: Type.String({
+            description: "WHAT results (e.g., 'pattern becomes visible', 'price moves 2%')",
+          }),
+          consequences: Type.String({
+            description:
+              "WHAT follows (e.g., 'precedes price movement by 4h', 'triggers retail FOMO')",
+          }),
+          confidence: Type.Optional(
+            Type.Number({ description: "Confidence in this knowledge 0-1 (default: 1.0)" }),
+          ),
+          source: Type.Optional(
+            Type.String({ description: "Source of this knowledge (default: 'agent')" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as {
@@ -1327,26 +1441,23 @@ const cortexPlugin: OpenClawPlugin = {
               };
             }
 
-            const atomId = await bridge.createAtom(
-              p.subject,
-              p.action,
-              p.outcome,
-              p.consequences,
-              {
-                source: p.source ?? "agent",
-                confidence: p.confidence ?? 1.0,
-              }
-            );
+            const atomId = await bridge.createAtom(p.subject, p.action, p.outcome, p.consequences, {
+              source: p.source ?? "agent",
+              confidence: p.confidence ?? 1.0,
+            });
 
             return {
-              content: [{
-                type: "text",
-                text: `Created atom ${atomId}:\n` +
-                      `  Subject: ${p.subject}\n` +
-                      `  Action: ${p.action}\n` +
-                      `  Outcome: ${p.outcome}\n` +
-                      `  Consequences: ${p.consequences}`,
-              }],
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `Created atom ${atomId}:\n` +
+                    `  Subject: ${p.subject}\n` +
+                    `  Action: ${p.action}\n` +
+                    `  Outcome: ${p.outcome}\n` +
+                    `  Consequences: ${p.consequences}`,
+                },
+              ],
               details: { id: atomId, subject: p.subject, action: p.action },
             };
           } catch (err) {
@@ -1371,11 +1482,14 @@ const cortexPlugin: OpenClawPlugin = {
           "This enables powerful queries like 'find all entities that cause price movement' or 'what actions lead to FOMO'.",
         parameters: Type.Object({
           field: Type.String({
-            description: "Field to search: 'subject' (who), 'action' (what they do), 'outcome' (what results), 'consequences' (what follows)",
+            description:
+              "Field to search: 'subject' (who), 'action' (what they do), 'outcome' (what results), 'consequences' (what follows)",
           }),
           query: Type.String({ description: "Search query for semantic similarity" }),
           limit: Type.Optional(Type.Number({ description: "Max results (default: 10)" })),
-          threshold: Type.Optional(Type.Number({ description: "Minimum similarity 0-1 (default: 0.5)" })),
+          threshold: Type.Optional(
+            Type.Number({ description: "Minimum similarity 0-1 (default: 0.5)" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as {
@@ -1396,7 +1510,12 @@ const cortexPlugin: OpenClawPlugin = {
 
             if (!["subject", "action", "outcome", "consequences"].includes(p.field)) {
               return {
-                content: [{ type: "text", text: "Invalid field. Must be: subject, action, outcome, or consequences" }],
+                content: [
+                  {
+                    type: "text",
+                    text: "Invalid field. Must be: subject, action, outcome, or consequences",
+                  },
+                ],
                 details: { error: "invalid_field" },
               };
             }
@@ -1404,7 +1523,7 @@ const cortexPlugin: OpenClawPlugin = {
             const results = await bridge.searchAtomsByField(
               p.field as "subject" | "action" | "outcome" | "consequences",
               p.query,
-              { limit: p.limit ?? 10, threshold: p.threshold ?? 0.5 }
+              { limit: p.limit ?? 10, threshold: p.threshold ?? 0.5 },
             );
 
             // Defensive: ensure results is an array
@@ -1412,20 +1531,30 @@ const cortexPlugin: OpenClawPlugin = {
 
             if (safeResults.length === 0) {
               return {
-                content: [{ type: "text", text: `No atoms found matching "${p.query}" in ${p.field} field` }],
+                content: [
+                  {
+                    type: "text",
+                    text: `No atoms found matching "${p.query}" in ${p.field} field`,
+                  },
+                ],
                 details: { count: 0 },
               };
             }
 
-            const formatted = safeResults.map((a, i) =>
-              `${i + 1}. [${((a.similarity ?? 0) * 100).toFixed(0)}%] {${a.subject ?? "?"}} {${a.action ?? "?"}} → {${a.outcome ?? "?"}} → {${(a.consequences ?? "").slice(0, 50)}...}`
-            ).join("\n");
+            const formatted = safeResults
+              .map(
+                (a, i) =>
+                  `${i + 1}. [${((a.similarity ?? 0) * 100).toFixed(0)}%] {${a.subject ?? "?"}} {${a.action ?? "?"}} → {${a.outcome ?? "?"}} → {${(a.consequences ?? "").slice(0, 50)}...}`,
+              )
+              .join("\n");
 
             return {
-              content: [{
-                type: "text",
-                text: `Found ${results.length} atoms matching "${p.query}" in ${p.field}:\n${formatted}`,
-              }],
+              content: [
+                {
+                  type: "text",
+                  text: `Found ${results.length} atoms matching "${p.query}" in ${p.field}:\n${formatted}`,
+                },
+              ],
               details: { count: results.length, results },
             };
           } catch (err) {
@@ -1450,8 +1579,14 @@ const cortexPlugin: OpenClawPlugin = {
           "This is the 'keep going until the answer is no' capability - finds the novel indicators that others miss.",
         parameters: Type.Object({
           atom_id: Type.Optional(Type.String({ description: "Start from this atom ID" })),
-          outcome: Type.Optional(Type.String({ description: "Find causes of this outcome (searches first, then traverses)" })),
-          max_depth: Type.Optional(Type.Number({ description: "Max depth to traverse (default: 10)" })),
+          outcome: Type.Optional(
+            Type.String({
+              description: "Find causes of this outcome (searches first, then traverses)",
+            }),
+          ),
+          max_depth: Type.Optional(
+            Type.Number({ description: "Max depth to traverse (default: 10)" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as {
@@ -1471,7 +1606,9 @@ const cortexPlugin: OpenClawPlugin = {
 
             if (!p.atom_id && !p.outcome) {
               return {
-                content: [{ type: "text", text: "Must provide atom_id or outcome to find causes for" }],
+                content: [
+                  { type: "text", text: "Must provide atom_id or outcome to find causes for" },
+                ],
                 details: { error: "missing_input" },
               };
             }
@@ -1489,28 +1626,36 @@ const cortexPlugin: OpenClawPlugin = {
 
             if (roots.length === 0) {
               return {
-                content: [{
-                  type: "text",
-                  text: p.outcome
-                    ? `No causal chains found for outcome "${p.outcome}". This may be a root cause itself.`
-                    : `No antecedent causes found. This atom appears to be at an epistemic limit.`,
-                }],
+                content: [
+                  {
+                    type: "text",
+                    text: p.outcome
+                      ? `No causal chains found for outcome "${p.outcome}". This may be a root cause itself.`
+                      : `No antecedent causes found. This atom appears to be at an epistemic limit.`,
+                  },
+                ],
                 details: { count: 0, epistemic_limit: true },
               };
             }
 
-            const formatted = roots.map((a, i) =>
-              `${i + 1}. [depth=${a.depth ?? "?"}] {${a.subject}} {${a.action}}\n` +
-              `    → {${a.outcome}}\n` +
-              `    → {${a.consequences.slice(0, 80)}...}`
-            ).join("\n\n");
+            const formatted = roots
+              .map(
+                (a, i) =>
+                  `${i + 1}. [depth=${a.depth ?? "?"}] {${a.subject}} {${a.action}}\n` +
+                  `    → {${a.outcome}}\n` +
+                  `    → {${a.consequences.slice(0, 80)}...}`,
+              )
+              .join("\n\n");
 
             return {
-              content: [{
-                type: "text",
-                text: `Found ${roots.length} root cause(s):\n\n${formatted}\n\n` +
-                      `These are the deepest causal factors found - the "novel indicators" others miss.`,
-              }],
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `Found ${roots.length} root cause(s):\n\n${formatted}\n\n` +
+                    `These are the deepest causal factors found - the "novel indicators" others miss.`,
+                },
+              ],
               details: { count: roots.length, roots },
             };
           } catch (err) {
@@ -1537,8 +1682,14 @@ const cortexPlugin: OpenClawPlugin = {
         parameters: Type.Object({
           from_atom_id: Type.String({ description: "Source atom ID" }),
           to_atom_id: Type.String({ description: "Target atom ID" }),
-          link_type: Type.Optional(Type.String({ description: "causes, enables, precedes, or correlates (default: causes)" })),
-          strength: Type.Optional(Type.Number({ description: "Confidence in link 0-1 (default: 0.5)" })),
+          link_type: Type.Optional(
+            Type.String({
+              description: "causes, enables, precedes, or correlates (default: causes)",
+            }),
+          ),
+          strength: Type.Optional(
+            Type.Number({ description: "Confidence in link 0-1 (default: 0.5)" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as {
@@ -1557,10 +1708,19 @@ const cortexPlugin: OpenClawPlugin = {
               };
             }
 
-            const linkType = (p.link_type ?? "causes") as "causes" | "enables" | "precedes" | "correlates";
+            const linkType = (p.link_type ?? "causes") as
+              | "causes"
+              | "enables"
+              | "precedes"
+              | "correlates";
             if (!["causes", "enables", "precedes", "correlates"].includes(linkType)) {
               return {
-                content: [{ type: "text", text: "Invalid link_type. Must be: causes, enables, precedes, or correlates" }],
+                content: [
+                  {
+                    type: "text",
+                    text: "Invalid link_type. Must be: causes, enables, precedes, or correlates",
+                  },
+                ],
                 details: { error: "invalid_type" },
               };
             }
@@ -1569,14 +1729,16 @@ const cortexPlugin: OpenClawPlugin = {
               p.from_atom_id,
               p.to_atom_id,
               linkType,
-              p.strength ?? 0.5
+              p.strength ?? 0.5,
             );
 
             return {
-              content: [{
-                type: "text",
-                text: `Created causal link: ${p.from_atom_id} --[${linkType}]--> ${p.to_atom_id}`,
-              }],
+              content: [
+                {
+                  type: "text",
+                  text: `Created causal link: ${p.from_atom_id} --[${linkType}]--> ${p.to_atom_id}`,
+                },
+              ],
               details: { link_id: linkId, type: linkType },
             };
           } catch (err) {
@@ -1596,7 +1758,8 @@ const cortexPlugin: OpenClawPlugin = {
     api.registerTool(
       {
         name: "atom_stats",
-        description: "PHASE 3: Get statistics about the atomic knowledge database - total atoms, causal links, embeddings status.",
+        description:
+          "PHASE 3: Get statistics about the atomic knowledge database - total atoms, causal links, embeddings status.",
         parameters: Type.Object({}),
         async execute() {
           try {
@@ -1622,18 +1785,28 @@ const cortexPlugin: OpenClawPlugin = {
             };
 
             return {
-              content: [{
-                type: "text",
-                text: `Atomic Knowledge Stats (PHASE 3):
+              content: [
+                {
+                  type: "text",
+                  text: `Atomic Knowledge Stats (PHASE 3):
 
 ⚛️  Atoms: ${safeStats.total_atoms ?? 0}
 🔗 Causal Links: ${safeStats.total_causal_links ?? 0}
-📊 By source: ${Object.entries(safeStats.by_source ?? {}).map(([k, v]) => `${k}(${v})`).join(", ") || "none"}
-🔧 Links by type: ${Object.entries(safeStats.links_by_type ?? {}).map(([k, v]) => `${k}(${v})`).join(", ") || "none"}
+📊 By source: ${
+                    Object.entries(safeStats.by_source ?? {})
+                      .map(([k, v]) => `${k}(${v})`)
+                      .join(", ") || "none"
+                  }
+🔧 Links by type: ${
+                    Object.entries(safeStats.links_by_type ?? {})
+                      .map(([k, v]) => `${k}(${v})`)
+                      .join(", ") || "none"
+                  }
 📈 Avg confidence: ${(safeStats.avg_confidence ?? 0).toFixed(2)}
 🧮 With embeddings: ${safeStats.atoms_with_embeddings ?? 0}
 🖥️  GPU embeddings: ${safeStats.embeddings_available ? "ENABLED" : "DISABLED"}`,
-              }],
+                },
+              ],
               details: safeStats,
             };
           } catch (err) {
@@ -1659,7 +1832,9 @@ const cortexPlugin: OpenClawPlugin = {
         parameters: Type.Object({
           text: Type.Optional(Type.String({ description: "Text to extract atoms from" })),
           batch_stm: Type.Optional(Type.Boolean({ description: "Batch atomize all STM memories" })),
-          batch_embeddings: Type.Optional(Type.Boolean({ description: "Batch atomize all embeddings memories" })),
+          batch_embeddings: Type.Optional(
+            Type.Boolean({ description: "Batch atomize all embeddings memories" }),
+          ),
           source: Type.Optional(Type.String({ description: "Source label (default: 'agent')" })),
         }),
         async execute(_toolCallId, params) {
@@ -1695,13 +1870,20 @@ const cortexPlugin: OpenClawPlugin = {
 
               const total = (stmResult.atomsCreated ?? 0) + (embResult.atomsCreated ?? 0);
               return {
-                content: [{
-                  type: "text",
-                  text: `Batch atomization complete:\n` +
-                        (p.batch_stm ? `  STM: ${stmResult.processed} processed → ${stmResult.atomsCreated} atoms\n` : "") +
-                        (p.batch_embeddings ? `  Embeddings: ${embResult.processed} processed → ${embResult.atomsCreated} atoms\n` : "") +
-                        `  Total atoms created: ${total}`,
-                }],
+                content: [
+                  {
+                    type: "text",
+                    text:
+                      `Batch atomization complete:\n` +
+                      (p.batch_stm
+                        ? `  STM: ${stmResult.processed} processed → ${stmResult.atomsCreated} atoms\n`
+                        : "") +
+                      (p.batch_embeddings
+                        ? `  Embeddings: ${embResult.processed} processed → ${embResult.atomsCreated} atoms\n`
+                        : "") +
+                      `  Total atoms created: ${total}`,
+                  },
+                ],
                 details: { stm: stmResult, embeddings: embResult },
               };
             }
@@ -1724,21 +1906,27 @@ const cortexPlugin: OpenClawPlugin = {
 
             if (safeAtomIds.length === 0) {
               return {
-                content: [{
-                  type: "text",
-                  text: "No atoms extracted - text doesn't contain recognizable causal patterns.\n" +
-                        "Try text with patterns like: 'When X happens, Y results' or 'A causes B'",
-                }],
+                content: [
+                  {
+                    type: "text",
+                    text:
+                      "No atoms extracted - text doesn't contain recognizable causal patterns.\n" +
+                      "Try text with patterns like: 'When X happens, Y results' or 'A causes B'",
+                  },
+                ],
                 details: { count: 0 },
               };
             }
 
             return {
-              content: [{
-                type: "text",
-                text: `Extracted ${safeAtomIds.length} atom(s) from text:\n` +
-                      safeAtomIds.map((id, i) => `  ${i + 1}. ${id ?? "unknown"}`).join("\n"),
-              }],
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `Extracted ${safeAtomIds.length} atom(s) from text:\n` +
+                    safeAtomIds.map((id, i) => `  ${i + 1}. ${id ?? "unknown"}`).join("\n"),
+                },
+              ],
               details: { count: safeAtomIds.length, ids: safeAtomIds },
             };
           } catch (err) {
@@ -1767,7 +1955,9 @@ const cortexPlugin: OpenClawPlugin = {
           "to find root causes and novel indicators. The 'keep going until no' capability.",
         parameters: Type.Object({
           query: Type.String({ description: "The question or topic to analyze causally" }),
-          max_depth: Type.Optional(Type.Number({ description: "Max causal chain depth (default: 5)" })),
+          max_depth: Type.Optional(
+            Type.Number({ description: "Max causal chain depth (default: 5)" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as { query: string; max_depth?: number };
@@ -1794,44 +1984,59 @@ const cortexPlugin: OpenClawPlugin = {
             };
 
             const targets = Array.isArray(safeResult.targets) ? safeResult.targets : [];
-            const novelIndicators = Array.isArray(safeResult.novel_indicators) ? safeResult.novel_indicators : [];
-            const epistemicLimits = Array.isArray(safeResult.epistemic_limits) ? safeResult.epistemic_limits : [];
+            const novelIndicators = Array.isArray(safeResult.novel_indicators)
+              ? safeResult.novel_indicators
+              : [];
+            const epistemicLimits = Array.isArray(safeResult.epistemic_limits)
+              ? safeResult.epistemic_limits
+              : [];
 
             if (novelIndicators.length === 0) {
               return {
-                content: [{
-                  type: "text",
-                  text: `Deep abstraction for: "${p.query}"\n\n` +
-                        `Targets identified: ${targets.join(", ") || "none"}\n` +
-                        `Atoms traversed: ${safeResult.atoms_traversed ?? 0}\n` +
-                        `Depth reached: ${safeResult.depth_reached ?? 0}\n\n` +
-                        `No novel indicators found at chain roots.\n` +
-                        `Epistemic limits: ${epistemicLimits.join("; ") || "unknown"}`,
-                }],
+                content: [
+                  {
+                    type: "text",
+                    text:
+                      `Deep abstraction for: "${p.query}"\n\n` +
+                      `Targets identified: ${targets.join(", ") || "none"}\n` +
+                      `Atoms traversed: ${safeResult.atoms_traversed ?? 0}\n` +
+                      `Depth reached: ${safeResult.depth_reached ?? 0}\n\n` +
+                      `No novel indicators found at chain roots.\n` +
+                      `Epistemic limits: ${epistemicLimits.join("; ") || "unknown"}`,
+                  },
+                ],
                 details: safeResult,
               };
             }
 
-            const indicators = novelIndicators.slice(0, 5).map((ind, i) => {
-              const a = ind?.atom ?? {};
-              return `${i + 1}. [${ind?.frequency ?? 0}x] {${a.subject ?? "?"}} {${a.action ?? "?"}}\n` +
-                     `   → {${a.outcome ?? "?"}}\n` +
-                     `   (${ind?.insight ?? "unknown"})`;
-            }).join("\n\n");
+            const indicators = novelIndicators
+              .slice(0, 5)
+              .map((ind, i) => {
+                const a = ind?.atom ?? {};
+                return (
+                  `${i + 1}. [${ind?.frequency ?? 0}x] {${a.subject ?? "?"}} {${a.action ?? "?"}}\n` +
+                  `   → {${a.outcome ?? "?"}}\n` +
+                  `   (${ind?.insight ?? "unknown"})`
+                );
+              })
+              .join("\n\n");
 
             return {
-              content: [{
-                type: "text",
-                text: `🧠 Deep Abstraction: "${p.query}"\n\n` +
-                      `📊 Analysis:\n` +
-                      `   Targets: ${targets.join(", ") || "none"}\n` +
-                      `   Depth: ${safeResult.depth_reached ?? 0} levels\n` +
-                      `   Atoms: ${safeResult.atoms_traversed ?? 0} traversed\n\n` +
-                      `🔍 Novel Indicators (root causes others miss):\n\n${indicators}` +
-                      (epistemicLimits.length > 0
-                        ? `\n\n⚠️ Limits: ${epistemicLimits.join("; ")}`
-                        : ""),
-              }],
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `🧠 Deep Abstraction: "${p.query}"\n\n` +
+                    `📊 Analysis:\n` +
+                    `   Targets: ${targets.join(", ") || "none"}\n` +
+                    `   Depth: ${safeResult.depth_reached ?? 0} levels\n` +
+                    `   Atoms: ${safeResult.atoms_traversed ?? 0} traversed\n\n` +
+                    `🔍 Novel Indicators (root causes others miss):\n\n${indicators}` +
+                    (epistemicLimits.length > 0
+                      ? `\n\n⚠️ Limits: ${epistemicLimits.join("; ")}`
+                      : ""),
+                },
+              ],
               details: safeResult,
             };
           } catch (err) {
@@ -1877,15 +2082,18 @@ const cortexPlugin: OpenClawPlugin = {
             const emoji = queryType === "causal" ? "🧠" : "📚";
 
             return {
-              content: [{
-                type: "text",
-                text: `${emoji} Query classification:\n` +
-                      `   Type: ${queryType}\n` +
-                      `   Confidence: ${(confidence * 100).toFixed(0)}%\n\n` +
-                      (queryType === "causal"
-                        ? "This query would trigger deep abstraction (causal chain traversal)."
-                        : "This query would use simple memory recall."),
-              }],
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `${emoji} Query classification:\n` +
+                    `   Type: ${queryType}\n` +
+                    `   Confidence: ${(confidence * 100).toFixed(0)}%\n\n` +
+                    (queryType === "causal"
+                      ? "This query would trigger deep abstraction (causal chain traversal)."
+                      : "This query would use simple memory recall."),
+                },
+              ],
               details: { queryType, confidence },
             };
           } catch (err) {
@@ -1914,7 +2122,9 @@ const cortexPlugin: OpenClawPlugin = {
           "like '4 hours ago', 'yesterday', 'last week'.",
         parameters: Type.Object({
           query: Type.String({ description: "Search query" }),
-          time_reference: Type.String({ description: "Time reference: '4 hours ago', 'yesterday', 'last week', etc." }),
+          time_reference: Type.String({
+            description: "Time reference: '4 hours ago', 'yesterday', 'last week', etc.",
+          }),
           limit: Type.Optional(Type.Number({ description: "Max results (default: 20)" })),
         }),
         async execute(_toolCallId, params) {
@@ -1933,27 +2143,33 @@ const cortexPlugin: OpenClawPlugin = {
 
             if (result.atoms.length === 0) {
               return {
-                content: [{
-                  type: "text",
-                  text: `No atoms found for "${p.query}" in ${p.time_reference}`,
-                }],
+                content: [
+                  {
+                    type: "text",
+                    text: `No atoms found for "${p.query}" in ${p.time_reference}`,
+                  },
+                ],
                 details: result,
               };
             }
 
-            const atoms = result.atoms.slice(0, 10).map((a, i) =>
-              `${i + 1}. {${a.subject}} {${a.action}}\n   → {${a.outcome}}`
-            ).join("\n\n");
+            const atoms = result.atoms
+              .slice(0, 10)
+              .map((a, i) => `${i + 1}. {${a.subject}} {${a.action}}\n   → {${a.outcome}}`)
+              .join("\n\n");
 
             return {
-              content: [{
-                type: "text",
-                text: `🕐 Temporal Search: "${p.query}" in ${p.time_reference}\n\n` +
-                      (result.time_range
-                        ? `Time range: ${result.time_range.start} to ${result.time_range.end}\n\n`
-                        : "") +
-                      `Found ${result.atoms.length} atom(s):\n\n${atoms}`,
-              }],
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `🕐 Temporal Search: "${p.query}" in ${p.time_reference}\n\n` +
+                    (result.time_range
+                      ? `Time range: ${result.time_range.start} to ${result.time_range.end}\n\n`
+                      : "") +
+                    `Found ${result.atoms.length} atom(s):\n\n${atoms}`,
+                },
+              ],
               details: result,
             };
           } catch (err) {
@@ -1978,7 +2194,9 @@ const cortexPlugin: OpenClawPlugin = {
           "Example: 'What happened 4 hours before the price spike?'",
         parameters: Type.Object({
           event: Type.String({ description: "Description of the event" }),
-          hours_before: Type.Optional(Type.Number({ description: "Hours to look back (default: 4)" })),
+          hours_before: Type.Optional(
+            Type.Number({ description: "Hours to look back (default: 4)" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as { event: string; hours_before?: number };
@@ -2001,23 +2219,33 @@ const cortexPlugin: OpenClawPlugin = {
               };
             }
 
-            const precursors = result.precursor_atoms.slice(0, 10).map((a, i) =>
-              `${i + 1}. {${a.subject}} {${a.action}}\n` +
-              `   ${a.time_before_event ? `(${a.time_before_event} before)` : ""}`
-            ).join("\n\n");
+            const precursors = result.precursor_atoms
+              .slice(0, 10)
+              .map(
+                (a, i) =>
+                  `${i + 1}. {${a.subject}} {${a.action}}\n` +
+                  `   ${a.time_before_event ? `(${a.time_before_event} before)` : ""}`,
+              )
+              .join("\n\n");
 
-            const causal = result.causal_candidates.map((c, i) =>
-              `${i + 1}. {${c.atom.subject}} {${c.atom.action}}\n   Reason: ${c.reason}`
-            ).join("\n\n");
+            const causal = result.causal_candidates
+              .map(
+                (c, i) =>
+                  `${i + 1}. {${c.atom.subject}} {${c.atom.action}}\n   Reason: ${c.reason}`,
+              )
+              .join("\n\n");
 
             return {
-              content: [{
-                type: "text",
-                text: `⏪ What happened before: "${p.event}"\n` +
-                      `Lookback: ${result.lookback_hours} hours\n\n` +
-                      `Precursor atoms (${result.precursor_atoms.length}):\n${precursors || "None found"}\n\n` +
-                      `🎯 Likely causal (${result.causal_candidates.length}):\n${causal || "None identified"}`,
-              }],
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `⏪ What happened before: "${p.event}"\n` +
+                    `Lookback: ${result.lookback_hours} hours\n\n` +
+                    `Precursor atoms (${result.precursor_atoms.length}):\n${precursors || "None found"}\n\n` +
+                    `🎯 Likely causal (${result.causal_candidates.length}):\n${causal || "None identified"}`,
+                },
+              ],
               details: result,
             };
           } catch (err) {
@@ -2042,7 +2270,9 @@ const cortexPlugin: OpenClawPlugin = {
           "Example: 'whale accumulation typically precedes price movement by 4-12 hours'.",
         parameters: Type.Object({
           outcome: Type.String({ description: "The outcome to analyze patterns for" }),
-          min_observations: Type.Optional(Type.Number({ description: "Minimum observations needed (default: 3)" })),
+          min_observations: Type.Optional(
+            Type.Number({ description: "Minimum observations needed (default: 3)" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as { outcome: string; min_observations?: number };
@@ -2065,26 +2295,29 @@ const cortexPlugin: OpenClawPlugin = {
               };
             }
 
-            const precursors = result.common_precursors.map(p =>
-              `  - ${p.subject} (${p.count}x)`
-            ).join("\n");
+            const precursors = result.common_precursors
+              .map((p) => `  - ${p.subject} (${p.count}x)`)
+              .join("\n");
 
             return {
-              content: [{
-                type: "text",
-                text: `📊 Temporal Patterns: "${p.outcome}"\n\n` +
-                      `Observations: ${result.observations}\n` +
-                      (result.avg_outcome_delay
-                        ? `Avg outcome delay: ${result.avg_outcome_delay.human}\n`
-                        : "") +
-                      (result.avg_consequence_delay
-                        ? `Avg consequence delay: ${result.avg_consequence_delay.human}\n`
-                        : "") +
-                      (result.time_patterns?.peak_hour !== undefined
-                        ? `Peak hour: ${result.time_patterns.peak_hour}:00\n`
-                        : "") +
-                      `\nCommon precursors:\n${precursors || "  None identified"}`,
-              }],
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `📊 Temporal Patterns: "${p.outcome}"\n\n` +
+                    `Observations: ${result.observations}\n` +
+                    (result.avg_outcome_delay
+                      ? `Avg outcome delay: ${result.avg_outcome_delay.human}\n`
+                      : "") +
+                    (result.avg_consequence_delay
+                      ? `Avg consequence delay: ${result.avg_consequence_delay.human}\n`
+                      : "") +
+                    (result.time_patterns?.peak_hour !== undefined
+                      ? `Peak hour: ${result.time_patterns.peak_hour}:00\n`
+                      : "") +
+                    `\nCommon precursors:\n${precursors || "  None identified"}`,
+                },
+              ],
               details: result,
             };
           } catch (err) {
@@ -2101,7 +2334,13 @@ const cortexPlugin: OpenClawPlugin = {
     // =========================================================================
     // Working Memory (Episodic) - Pinned items that are ALWAYS in context
     // =========================================================================
-    const workingMemoryPath = join(homedir(), ".openclaw", "workspace", "memory", "working_memory.json");
+    const workingMemoryPath = join(
+      homedir(),
+      ".openclaw",
+      "workspace",
+      "memory",
+      "working_memory.json",
+    );
 
     interface WorkingMemoryItem {
       content: string;
@@ -2135,7 +2374,9 @@ const cortexPlugin: OpenClawPlugin = {
           action: Type.String({ description: "Action: 'pin', 'view', 'clear', 'unpin'" }),
           content: Type.Optional(Type.String({ description: "Content to pin (for 'pin' action)" })),
           label: Type.Optional(Type.String({ description: "Short label for the pinned item" })),
-          index: Type.Optional(Type.Number({ description: "Index to unpin (for 'unpin' action, 0-based)" })),
+          index: Type.Optional(
+            Type.Number({ description: "Index to unpin (for 'unpin' action, 0-based)" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as { action: string; content?: string; label?: string; index?: number };
@@ -2145,7 +2386,10 @@ const cortexPlugin: OpenClawPlugin = {
             switch (p.action) {
               case "pin": {
                 if (!p.content) {
-                  return { content: [{ type: "text", text: "Error: content required for pin action" }], details: { error: "missing content" } };
+                  return {
+                    content: [{ type: "text", text: "Error: content required for pin action" }],
+                    details: { error: "missing content" },
+                  };
                 }
                 if (items.length >= 10) {
                   // Remove oldest item
@@ -2158,33 +2402,49 @@ const cortexPlugin: OpenClawPlugin = {
                 });
                 await saveWorkingMemory(items);
                 return {
-                  content: [{ type: "text", text: `Pinned to working memory (${items.length}/10 items)` }],
+                  content: [
+                    { type: "text", text: `Pinned to working memory (${items.length}/10 items)` },
+                  ],
                   details: { count: items.length },
                 };
               }
               case "view": {
                 if (items.length === 0) {
-                  return { content: [{ type: "text", text: "Working memory is empty" }], details: { count: 0 } };
+                  return {
+                    content: [{ type: "text", text: "Working memory is empty" }],
+                    details: { count: 0 },
+                  };
                 }
-                const list = items.map((item, i) => {
-                  const label = item.label ? `[${item.label}]` : "";
-                  const age = Math.round((Date.now() - new Date(item.pinnedAt).getTime()) / 60000);
-                  return `${i}. ${label} (${age}m ago) ${item.content.slice(0, 100)}...`;
-                }).join("\n");
+                const list = items
+                  .map((item, i) => {
+                    const label = item.label ? `[${item.label}]` : "";
+                    const age = Math.round(
+                      (Date.now() - new Date(item.pinnedAt).getTime()) / 60000,
+                    );
+                    return `${i}. ${label} (${age}m ago) ${item.content.slice(0, 100)}...`;
+                  })
+                  .join("\n");
                 return {
-                  content: [{ type: "text", text: `Working Memory (${items.length}/10):\n${list}` }],
+                  content: [
+                    { type: "text", text: `Working Memory (${items.length}/10):\n${list}` },
+                  ],
                   details: { count: items.length },
                 };
               }
               case "unpin": {
                 const idx = p.index ?? items.length - 1;
                 if (idx < 0 || idx >= items.length) {
-                  return { content: [{ type: "text", text: "Invalid index" }], details: { error: "invalid index" } };
+                  return {
+                    content: [{ type: "text", text: "Invalid index" }],
+                    details: { error: "invalid index" },
+                  };
                 }
                 const removed = items.splice(idx, 1)[0];
                 await saveWorkingMemory(items);
                 return {
-                  content: [{ type: "text", text: `Unpinned: ${removed?.content?.slice(0, 50)}...` }],
+                  content: [
+                    { type: "text", text: `Unpinned: ${removed?.content?.slice(0, 50)}...` },
+                  ],
                   details: { remaining: items.length },
                 };
               }
@@ -2196,10 +2456,16 @@ const cortexPlugin: OpenClawPlugin = {
                 };
               }
               default:
-                return { content: [{ type: "text", text: `Unknown action: ${p.action}` }], details: { error: "unknown action" } };
+                return {
+                  content: [{ type: "text", text: `Unknown action: ${p.action}` }],
+                  details: { error: "unknown action" },
+                };
             }
           } catch (err) {
-            return { content: [{ type: "text", text: `Working memory error: ${err}` }], details: { error: String(err) } };
+            return {
+              content: [{ type: "text", text: `Working memory error: ${err}` }],
+              details: { error: String(err) },
+            };
           }
         },
       },
@@ -2234,15 +2500,33 @@ ${pythonCode}
           "and threading. Actions: send, inbox, read, ack, history",
         parameters: Type.Object({
           action: Type.String({ description: "Action: 'send', 'inbox', 'read', 'ack', 'history'" }),
-          to: Type.Optional(Type.String({ description: "Recipient agent ID (for send). e.g. 'claude-code', 'all'" })),
+          to: Type.Optional(
+            Type.String({
+              description: "Recipient agent ID (for send). e.g. 'claude-code', 'all'",
+            }),
+          ),
           subject: Type.Optional(Type.String({ description: "Message subject (for send)" })),
           body: Type.Optional(Type.String({ description: "Message body (for send, ack)" })),
-          priority: Type.Optional(Type.String({ description: "Priority: 'info', 'action', 'urgent' (for send). Default: info" })),
-          thread_id: Type.Optional(Type.String({ description: "Thread ID to continue a conversation (for send, history)" })),
+          priority: Type.Optional(
+            Type.String({
+              description: "Priority: 'info', 'action', 'urgent' (for send). Default: info",
+            }),
+          ),
+          thread_id: Type.Optional(
+            Type.String({
+              description: "Thread ID to continue a conversation (for send, history)",
+            }),
+          ),
           message_id: Type.Optional(Type.String({ description: "Message ID (for read, ack)" })),
-          agent_id: Type.Optional(Type.String({ description: "Agent ID for filtering (for inbox, history)" })),
-          include_read: Type.Optional(Type.Boolean({ description: "Include read messages in inbox. Default: false" })),
-          limit: Type.Optional(Type.Number({ description: "Max messages to return (for history). Default: 20" })),
+          agent_id: Type.Optional(
+            Type.String({ description: "Agent ID for filtering (for inbox, history)" }),
+          ),
+          include_read: Type.Optional(
+            Type.Boolean({ description: "Include read messages in inbox. Default: false" }),
+          ),
+          limit: Type.Optional(
+            Type.Number({ description: "Max messages to return (for history). Default: 20" }),
+          ),
         }),
         async execute(_toolCallId, params) {
           const p = params as {
@@ -2262,9 +2546,16 @@ ${pythonCode}
             switch (p.action) {
               case "send": {
                 if (!p.to || !p.subject || !p.body) {
-                  return { content: [{ type: "text", text: "Error: to, subject, and body are required for send" }], details: { error: "missing params" } };
+                  return {
+                    content: [
+                      { type: "text", text: "Error: to, subject, and body are required for send" },
+                    ],
+                    details: { error: "missing params" },
+                  };
                 }
-                const priority = ["info", "action", "urgent"].includes(p.priority || "") ? p.priority : "info";
+                const priority = ["info", "action", "urgent"].includes(p.priority || "")
+                  ? p.priority
+                  : "info";
                 const threadArg = p.thread_id ? JSON.stringify(p.thread_id) : "None";
                 const result = await synapseBrainOp(`
 result = b.send(
@@ -2279,7 +2570,12 @@ print(json.dumps(result))
 `);
                 const msg = result as { id: string; thread_id: string };
                 return {
-                  content: [{ type: "text", text: `Sent SYNAPSE message ${msg.id} to ${p.to} [${priority}]: ${p.subject}` }],
+                  content: [
+                    {
+                      type: "text",
+                      text: `Sent SYNAPSE message ${msg.id} to ${p.to} [${priority}]: ${p.subject}`,
+                    },
+                  ],
                   details: { id: msg.id, thread_id: msg.thread_id, to: p.to, priority },
                 };
               }
@@ -2298,7 +2594,10 @@ print(json.dumps({"agent_id": ${JSON.stringify(agentId)}, "count": len(result), 
               }
               case "read": {
                 if (!p.message_id) {
-                  return { content: [{ type: "text", text: "Error: message_id is required for read" }], details: { error: "missing message_id" } };
+                  return {
+                    content: [{ type: "text", text: "Error: message_id is required for read" }],
+                    details: { error: "missing message_id" },
+                  };
                 }
                 const readerAgent = p.agent_id || "helios";
                 const result = await synapseBrainOp(`
@@ -2306,7 +2605,10 @@ result = b.read_message(${JSON.stringify(p.message_id)}, ${JSON.stringify(reader
 print(json.dumps(result))
 `);
                 if (!result) {
-                  return { content: [{ type: "text", text: `Error: Message not found: ${p.message_id}` }], details: { error: "not_found" } };
+                  return {
+                    content: [{ type: "text", text: `Error: Message not found: ${p.message_id}` }],
+                    details: { error: "not_found" },
+                  };
                 }
                 return {
                   content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -2315,7 +2617,10 @@ print(json.dumps(result))
               }
               case "ack": {
                 if (!p.message_id) {
-                  return { content: [{ type: "text", text: "Error: message_id is required for ack" }], details: { error: "missing message_id" } };
+                  return {
+                    content: [{ type: "text", text: "Error: message_id is required for ack" }],
+                    details: { error: "missing message_id" },
+                  };
                 }
                 const ackerAgent = p.agent_id || "helios";
                 const ackBody = p.body ? JSON.stringify(p.body) : "None";
@@ -2342,10 +2647,16 @@ print(json.dumps({"count": len(result), "messages": result}))
                 };
               }
               default:
-                return { content: [{ type: "text", text: `Unknown synapse action: ${p.action}` }], details: { error: "unknown action" } };
+                return {
+                  content: [{ type: "text", text: `Unknown synapse action: ${p.action}` }],
+                  details: { error: "unknown action" },
+                };
             }
           } catch (err) {
-            return { content: [{ type: "text", text: `Synapse error: ${err}` }], details: { error: String(err) } };
+            return {
+              content: [{ type: "text", text: `Synapse error: ${err}` }],
+              details: { error: String(err) },
+            };
           }
         },
       },
@@ -2360,25 +2671,31 @@ print(json.dumps({"count": len(result), "messages": result}))
         return;
       }
       // Track user message in Active Session cache
-      const content = typeof event.content === "string"
-        ? event.content
-        : JSON.stringify(event.content);
+      const content =
+        typeof event.content === "string" ? event.content : JSON.stringify(event.content);
       bridge.trackMessage("user", content, event.messageId);
     });
 
-    api.on("agent_end", async (event, _ctx) => {
-      if (!event.success || !event.messages) {
-        return;
-      }
-      // Track assistant response in Active Session cache
-      const lastMessage = (event.messages as Array<{ role?: string; content?: unknown }>).slice(-1)[0];
-      if (lastMessage?.role === "assistant" && lastMessage.content) {
-        const content = typeof lastMessage.content === "string"
-          ? lastMessage.content
-          : JSON.stringify(lastMessage.content);
-        bridge.trackMessage("assistant", content.slice(0, 500));
-      }
-    }, { priority: -10 }); // Run after other agent_end handlers
+    api.on(
+      "agent_end",
+      async (event, _ctx) => {
+        if (!event.success || !event.messages) {
+          return;
+        }
+        // Track assistant response in Active Session cache
+        const lastMessage = (event.messages as Array<{ role?: string; content?: unknown }>).slice(
+          -1,
+        )[0];
+        if (lastMessage?.role === "assistant" && lastMessage.content) {
+          const content =
+            typeof lastMessage.content === "string"
+              ? lastMessage.content
+              : JSON.stringify(lastMessage.content);
+          bridge.trackMessage("assistant", content.slice(0, 500));
+        }
+      },
+      { priority: -10 },
+    ); // Run after other agent_end handlers
 
     // =========================================================================
     // Hook: before_agent_start - Inject ALL context tiers (L1-L4) with token budget
@@ -2390,256 +2707,311 @@ print(json.dumps({"count": len(result), "messages": result}))
     // L3.5. STM (keyword matching) - recent 48h context
     // L4. Semantic search - GPU-accelerated long-term knowledge
     // Results are deduplicated, token-budgeted, and filtered by relevanceThreshold.
-    api.on("before_agent_start", async (event, _ctx) => {
-      if (!event.prompt || event.prompt.length < 10) {
-        return;
-      }
-
-      try {
-        const available = await bridge.isAvailable();
-        if (!available) {
+    api.on(
+      "before_agent_start",
+      async (event, _ctx) => {
+        if (!event.prompt || event.prompt.length < 10) {
           return;
         }
 
-        const queryText = event.prompt.slice(0, 200);
-        const contextParts: string[] = [];
-        let usedTokens = 0;
-
-        // PHASE 2 IMPROVEMENT #3: Dynamic token budget based on complexity
-        const tokenBudget = calculateDynamicTokenBudget(event.prompt, config.maxContextTokens);
-
-        // Track injected memory IDs for dedup and access counting
-        const injectedContentKeys = new Set<string>();
-
-        // PHASE 2: Predictive prefetch based on detected category
-        const queryCategory = detectCategory(queryText);
-        if (config.prefetchEnabled && queryCategory !== "general" && queryCategory !== lastDetectedCategory) {
-          lastDetectedCategory = queryCategory;
-          const prefetchCount = await bridge.prefetchCategory(queryCategory);
-          if (prefetchCount > 0) {
-            api.logger.debug?.(`Cortex: prefetched ${prefetchCount} memories for category "${queryCategory}"`);
+        try {
+          const available = await bridge.isAvailable();
+          if (!available) {
+            return;
           }
-        }
 
-        // L1. Working Memory (pinned items) - ALWAYS injected first (no token limit)
-        const workingItems = await loadWorkingMemory();
-        if (workingItems.length > 0) {
-          const wmContext = workingItems.map((item, i) => {
-            const label = item.label ? `[${item.label}]` : `[pinned-${i}]`;
-            return `- ${label} ${item.content}`;
-          }).join("\n");
-          contextParts.push(`<working-memory hint="CRITICAL: pinned items - always keep in context">\n${wmContext}\n</working-memory>`);
-          // Working memory doesn't count against budget (it's critical)
-        }
+          const queryText = event.prompt.slice(0, 200);
+          const contextParts: string[] = [];
+          let usedTokens = 0;
 
-        // L2. Active Session - Last 50 messages (PHASE 1: eliminates "forgot 5 messages ago")
-        const activeSessionMessages = bridge.activeSession.search(queryText);
-        if (activeSessionMessages.length > 0) {
-          const sessionItems = activeSessionMessages.slice(0, 5);
-          const sessionContext = sessionItems.map((m) => {
-            return `- [${m.role}] ${m.content.slice(0, 150)}`;
-          }).join("\n");
-          const sessionTokens = estimateTokens(sessionContext);
+          // PHASE 2 IMPROVEMENT #3: Dynamic token budget based on complexity
+          const tokenBudget = calculateDynamicTokenBudget(event.prompt, config.maxContextTokens);
 
-          if (usedTokens + sessionTokens <= tokenBudget) {
-            contextParts.push(`<active-session hint="recent conversation (this session)">\n${sessionContext}\n</active-session>`);
-            usedTokens += sessionTokens;
-          }
-        }
+          // Track injected memory IDs for dedup and access counting
+          const injectedContentKeys = new Set<string>();
 
-        // L3. PHASE 2: Hot Memory Tier (most accessed memories)
-        const hotMemories = bridge.getHotMemoriesTier(20); // Get more for filtering
-        if (hotMemories.length > 0) {
-          // Filter to relevant ones
-          const queryTerms = queryText.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-          let relevantHot = hotMemories.filter(m => {
-            const content = m.content.toLowerCase();
-            return queryTerms.some(term => content.includes(term));
-          });
-
-          // PHASE 2 IMPROVEMENT #2: Deduplicate
-          relevantHot = deduplicateByContent(relevantHot).slice(0, 3);
-
-          if (relevantHot.length > 0) {
-            const hotContext = relevantHot.map((m) => {
-              // PHASE 2 IMPROVEMENT #4: Record access on injection
-              bridge.memoryIndex.hotTier.recordAccess(m.id);
-              const accessCount = bridge.memoryIndex.hotTier.getAccessCount(m.id);
-
-              // PHASE 2 IMPROVEMENT #5: Use time delta instead of generic label
-              const timeDelta = formatTimeDelta(m.timestamp);
-
-              // Track for dedup across tiers
-              injectedContentKeys.add(m.content.slice(0, 100).toLowerCase().trim());
-
-              // PHASE 2B: Multi-category display
-              const cats = m.categories ?? (m.category ? [m.category] : ["hot"]);
-              return `- [${cats.join(",")}/${timeDelta}/access=${Math.round(accessCount)}] ${m.content.slice(0, config.truncateOldMemoriesTo)}`;
-            }).join("\n");
-            const hotTokens = estimateTokens(hotContext);
-
-            if (usedTokens + hotTokens <= tokenBudget) {
-              contextParts.push(`<hot-memory hint="frequently accessed knowledge">\n${hotContext}\n</hot-memory>`);
-              usedTokens += hotTokens;
-
-              // Record co-occurrence for these memories
-              if (relevantHot.length > 1) {
-                bridge.memoryIndex.recordCoOccurrence(relevantHot.map(m => m.id));
-              }
+          // PHASE 2: Predictive prefetch based on detected category
+          const queryCategory = detectCategory(queryText);
+          if (
+            config.prefetchEnabled &&
+            queryCategory !== "general" &&
+            queryCategory !== lastDetectedCategory
+          ) {
+            lastDetectedCategory = queryCategory;
+            const prefetchCount = await bridge.prefetchCategory(queryCategory);
+            if (prefetchCount > 0) {
+              api.logger.debug?.(
+                `Cortex: prefetched ${prefetchCount} memories for category "${queryCategory}"`,
+              );
             }
           }
-        }
 
-        // L3.5. STM fast path (keyword matching for very recent items)
-        const stmItems = await bridge.getRecentSTM(Math.min(config.stmCapacity, 100));
-        let stmMatches = stmItems.length > 0
-          ? matchSTMItems(stmItems, queryText, config.temporalWeight, config.importanceWeight)
-              .filter(m => m.matchScore >= config.minMatchScore)
-          : [];
-
-        // PHASE 2 IMPROVEMENT #2: Deduplicate and filter already-injected
-        stmMatches = deduplicateByContent(stmMatches)
-          .filter(m => !injectedContentKeys.has(m.content.slice(0, 100).toLowerCase().trim()))
-          .slice(0, 3);
-
-        if (stmMatches.length > 0) {
-          const stmContext = stmMatches.map((m) => {
-            // PHASE 2 IMPROVEMENT #5: Use time delta
-            const timeDelta = formatTimeDelta(m.timestamp);
-
-            // Track for dedup
-            injectedContentKeys.add(m.content.slice(0, 100).toLowerCase().trim());
-
-            // PHASE 2B: Multi-category display
-            const cats = m.categories ?? (m.category ? [m.category] : ["general"]);
-            return `- [${cats.join(",")}/${timeDelta}] ${m.content.slice(0, config.truncateOldMemoriesTo)}`;
-          }).join("\n");
-          const stmTokens = estimateTokens(stmContext);
-
-          if (usedTokens + stmTokens <= tokenBudget) {
-            contextParts.push(`<episodic-memory hint="recent events (last 48h)">\n${stmContext}\n</episodic-memory>`);
-            usedTokens += stmTokens;
+          // L1. Working Memory (pinned items) - ALWAYS injected first (no token limit)
+          const workingItems = await loadWorkingMemory();
+          if (workingItems.length > 0) {
+            const wmContext = workingItems
+              .map((item, i) => {
+                const label = item.label ? `[${item.label}]` : `[pinned-${i}]`;
+                return `- ${label} ${item.content}`;
+              })
+              .join("\n");
+            contextParts.push(
+              `<working-memory hint="CRITICAL: pinned items - always keep in context">\n${wmContext}\n</working-memory>`,
+            );
+            // Working memory doesn't count against budget (it's critical)
           }
-        }
 
-        // L4. Semantic search (GPU embeddings daemon - long-term knowledge)
-        const remainingBudget = tokenBudget - usedTokens;
-        if (remainingBudget > 100) { // Need at least 100 tokens for semantic results
-          const daemonAvailable = await bridge.isEmbeddingsDaemonAvailable();
-          if (daemonAvailable) {
-            // PHASE 2: Use token-budgeted retrieval
-            const budgetedResults = bridge.getContextWithinBudget(queryText, {
-              maxContextTokens: remainingBudget,
-              relevanceThreshold: config.relevanceThreshold,
-              truncateOldMemoriesTo: config.truncateOldMemoriesTo,
+          // L2. Active Session - Last 50 messages (PHASE 1: eliminates "forgot 5 messages ago")
+          const activeSessionMessages = bridge.activeSession.search(queryText);
+          if (activeSessionMessages.length > 0) {
+            const sessionItems = activeSessionMessages.slice(0, 5);
+            const sessionContext = sessionItems
+              .map((m) => {
+                return `- [${m.role}] ${m.content.slice(0, 150)}`;
+              })
+              .join("\n");
+            const sessionTokens = estimateTokens(sessionContext);
+
+            if (usedTokens + sessionTokens <= tokenBudget) {
+              contextParts.push(
+                `<active-session hint="recent conversation (this session)">\n${sessionContext}\n</active-session>`,
+              );
+              usedTokens += sessionTokens;
+            }
+          }
+
+          // L3. PHASE 2: Hot Memory Tier (most accessed memories)
+          const hotMemories = bridge.getHotMemoriesTier(20); // Get more for filtering
+          if (hotMemories.length > 0) {
+            // Filter to relevant ones
+            const queryTerms = queryText
+              .toLowerCase()
+              .split(/\s+/)
+              .filter((t) => t.length > 2);
+            let relevantHot = hotMemories.filter((m) => {
+              const content = m.content.toLowerCase();
+              return queryTerms.some((term) => content.includes(term));
             });
 
-            // PHASE 2 IMPROVEMENT #2: Use shared dedup set
-            const uniqueResults = budgetedResults.filter(
-              r => !injectedContentKeys.has(r.content.slice(0, 100).toLowerCase().trim())
-            );
+            // PHASE 2 IMPROVEMENT #2: Deduplicate
+            relevantHot = deduplicateByContent(relevantHot).slice(0, 3);
 
-            if (uniqueResults.length > 0) {
-              const semanticContext = uniqueResults.map((r) => {
-                // Track for dedup
-                injectedContentKeys.add(r.content.slice(0, 100).toLowerCase().trim());
-                // PHASE 2B: Multi-category display
-                const cats = r.categories ?? (r.category ? [r.category] : ["general"]);
-                return `- [${cats.join(",")}/${r.tokens}tok] ${r.finalContent}`;
-              }).join("\n");
-              contextParts.push(`<semantic-memory hint="related knowledge (token-budgeted)">\n${semanticContext}\n</semantic-memory>`);
-              usedTokens += uniqueResults.reduce((sum, r) => sum + r.tokens, 0);
-            }
-          }
-        }
+            if (relevantHot.length > 0) {
+              const hotContext = relevantHot
+                .map((m) => {
+                  // PHASE 2 IMPROVEMENT #4: Record access on injection
+                  bridge.memoryIndex.hotTier.recordAccess(m.id);
+                  const accessCount = bridge.memoryIndex.hotTier.getAccessCount(m.id);
 
-        // PHASE 2 IMPROVEMENT #6: Category diversity - ensure breadth
-        // PHASE 2B: Multi-category support
-        // Check if we're missing any active categories and add one memory from each
-        const injectedCategories = new Set<string>();
-        // Collect categories from what we've already injected (handle multi-category)
-        for (const match of stmMatches) {
-          const matchCats = match.categories ?? (match.category ? [match.category] : ["general"]);
-          for (const cat of matchCats) {
-            injectedCategories.add(cat);
-          }
-        }
+                  // PHASE 2 IMPROVEMENT #5: Use time delta instead of generic label
+                  const timeDelta = formatTimeDelta(m.timestamp);
 
-        const diversityBudget = tokenBudget - usedTokens;
-        if (diversityBudget > 50) {
-          const allCategories = bridge.memoryIndex.categories;
-          const missingCategories = allCategories.filter(cat =>
-            !injectedCategories.has(cat) && cat !== "general"
-          );
+                  // Track for dedup across tiers
+                  injectedContentKeys.add(m.content.slice(0, 100).toLowerCase().trim());
 
-          if (missingCategories.length > 0) {
-            const diverseMemories: string[] = [];
-            for (const cat of missingCategories.slice(0, 2)) { // Max 2 diversity additions
-              const catMemories = bridge.memoryIndex.getByCategory(cat);
-              if (catMemories.length > 0) {
-                // Get most recent from this category that hasn't been injected
-                const fresh = catMemories
-                  .filter(m => !injectedContentKeys.has(m.content.slice(0, 100).toLowerCase().trim()))
-                  .toSorted((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+                  // PHASE 2B: Multi-category display
+                  const cats = m.categories ?? (m.category ? [m.category] : ["hot"]);
+                  return `- [${cats.join(",")}/${timeDelta}/access=${Math.round(accessCount)}] ${m.content.slice(0, config.truncateOldMemoriesTo)}`;
+                })
+                .join("\n");
+              const hotTokens = estimateTokens(hotContext);
 
-                if (fresh) {
-                  const timeDelta = formatTimeDelta(fresh.timestamp);
-                  diverseMemories.push(`- [${cat}/${timeDelta}] ${fresh.content.slice(0, config.truncateOldMemoriesTo)}`);
-                  injectedContentKeys.add(fresh.content.slice(0, 100).toLowerCase().trim());
-                  bridge.memoryIndex.hotTier.recordAccess(fresh.id);
+              if (usedTokens + hotTokens <= tokenBudget) {
+                contextParts.push(
+                  `<hot-memory hint="frequently accessed knowledge">\n${hotContext}\n</hot-memory>`,
+                );
+                usedTokens += hotTokens;
+
+                // Record co-occurrence for these memories
+                if (relevantHot.length > 1) {
+                  bridge.memoryIndex.recordCoOccurrence(relevantHot.map((m) => m.id));
                 }
               }
             }
+          }
 
-            if (diverseMemories.length > 0) {
-              const diverseTokens = estimateTokens(diverseMemories.join("\n"));
-              if (usedTokens + diverseTokens <= tokenBudget) {
-                contextParts.push(`<diverse-context hint="breadth from other categories">\n${diverseMemories.join("\n")}\n</diverse-context>`);
-                usedTokens += diverseTokens;
+          // L3.5. STM fast path (keyword matching for very recent items)
+          const stmItems = await bridge.getRecentSTM(Math.min(config.stmCapacity, 100));
+          let stmMatches =
+            stmItems.length > 0
+              ? matchSTMItems(
+                  stmItems,
+                  queryText,
+                  config.temporalWeight,
+                  config.importanceWeight,
+                ).filter((m) => m.matchScore >= config.minMatchScore)
+              : [];
+
+          // PHASE 2 IMPROVEMENT #2: Deduplicate and filter already-injected
+          stmMatches = deduplicateByContent(stmMatches)
+            .filter((m) => !injectedContentKeys.has(m.content.slice(0, 100).toLowerCase().trim()))
+            .slice(0, 3);
+
+          if (stmMatches.length > 0) {
+            const stmContext = stmMatches
+              .map((m) => {
+                // PHASE 2 IMPROVEMENT #5: Use time delta
+                const timeDelta = formatTimeDelta(m.timestamp);
+
+                // Track for dedup
+                injectedContentKeys.add(m.content.slice(0, 100).toLowerCase().trim());
+
+                // PHASE 2B: Multi-category display
+                const cats = m.categories ?? (m.category ? [m.category] : ["general"]);
+                return `- [${cats.join(",")}/${timeDelta}] ${m.content.slice(0, config.truncateOldMemoriesTo)}`;
+              })
+              .join("\n");
+            const stmTokens = estimateTokens(stmContext);
+
+            if (usedTokens + stmTokens <= tokenBudget) {
+              contextParts.push(
+                `<episodic-memory hint="recent events (last 48h)">\n${stmContext}\n</episodic-memory>`,
+              );
+              usedTokens += stmTokens;
+            }
+          }
+
+          // L4. Semantic search (GPU embeddings daemon - long-term knowledge)
+          const remainingBudget = tokenBudget - usedTokens;
+          if (remainingBudget > 100) {
+            // Need at least 100 tokens for semantic results
+            const daemonAvailable = await bridge.isEmbeddingsDaemonAvailable();
+            if (daemonAvailable) {
+              // PHASE 2: Use token-budgeted retrieval
+              const budgetedResults = bridge.getContextWithinBudget(queryText, {
+                maxContextTokens: remainingBudget,
+                relevanceThreshold: config.relevanceThreshold,
+                truncateOldMemoriesTo: config.truncateOldMemoriesTo,
+              });
+
+              // PHASE 2 IMPROVEMENT #2: Use shared dedup set
+              const uniqueResults = budgetedResults.filter(
+                (r) => !injectedContentKeys.has(r.content.slice(0, 100).toLowerCase().trim()),
+              );
+
+              if (uniqueResults.length > 0) {
+                const semanticContext = uniqueResults
+                  .map((r) => {
+                    // Track for dedup
+                    injectedContentKeys.add(r.content.slice(0, 100).toLowerCase().trim());
+                    // PHASE 2B: Multi-category display
+                    const cats = r.categories ?? (r.category ? [r.category] : ["general"]);
+                    return `- [${cats.join(",")}/${r.tokens}tok] ${r.finalContent}`;
+                  })
+                  .join("\n");
+                contextParts.push(
+                  `<semantic-memory hint="related knowledge (token-budgeted)">\n${semanticContext}\n</semantic-memory>`,
+                );
+                usedTokens += uniqueResults.reduce((sum, r) => sum + r.tokens, 0);
               }
             }
           }
-        }
 
-        // L5. PHASE 3E: Deep Abstraction Layer - automatic causal analysis for causal queries
-        const abstractionBudget = tokenBudget - usedTokens;
-        if (abstractionBudget > 200) { // Need enough tokens for abstraction insights
-          try {
-            // Process query with deep abstraction (classifies and optionally runs abstraction)
-            const abstractionResult = await bridge.processWithAbstraction(queryText, {
-              autoAbstract: true,
-              maxDepth: 5,
-            });
+          // PHASE 2 IMPROVEMENT #6: Category diversity - ensure breadth
+          // PHASE 2B: Multi-category support
+          // Check if we're missing any active categories and add one memory from each
+          const injectedCategories = new Set<string>();
+          // Collect categories from what we've already injected (handle multi-category)
+          for (const match of stmMatches) {
+            const matchCats = match.categories ?? (match.category ? [match.category] : ["general"]);
+            for (const cat of matchCats) {
+              injectedCategories.add(cat);
+            }
+          }
 
-            // Only inject if we got novel indicators
-            if (abstractionResult.abstraction_performed && abstractionResult.context_injection) {
-              const abstractionTokens = estimateTokens(abstractionResult.context_injection);
-              if (usedTokens + abstractionTokens <= tokenBudget) {
-                contextParts.push(`<deep-abstraction hint="PHASE 3E: causal insights from atomic knowledge">\n${abstractionResult.context_injection}\n</deep-abstraction>`);
-                usedTokens += abstractionTokens;
-                api.logger.debug?.(`Cortex: deep abstraction injected (${abstractionResult.abstraction_result?.novel_indicators?.length ?? 0} novel indicators)`);
+          const diversityBudget = tokenBudget - usedTokens;
+          if (diversityBudget > 50) {
+            const allCategories = bridge.memoryIndex.categories;
+            const missingCategories = allCategories.filter(
+              (cat) => !injectedCategories.has(cat) && cat !== "general",
+            );
+
+            if (missingCategories.length > 0) {
+              const diverseMemories: string[] = [];
+              for (const cat of missingCategories.slice(0, 2)) {
+                // Max 2 diversity additions
+                const catMemories = bridge.memoryIndex.getByCategory(cat);
+                if (catMemories.length > 0) {
+                  // Get most recent from this category that hasn't been injected
+                  const fresh = catMemories
+                    .filter(
+                      (m) => !injectedContentKeys.has(m.content.slice(0, 100).toLowerCase().trim()),
+                    )
+                    .toSorted(
+                      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+                    )[0];
+
+                  if (fresh) {
+                    const timeDelta = formatTimeDelta(fresh.timestamp);
+                    diverseMemories.push(
+                      `- [${cat}/${timeDelta}] ${fresh.content.slice(0, config.truncateOldMemoriesTo)}`,
+                    );
+                    injectedContentKeys.add(fresh.content.slice(0, 100).toLowerCase().trim());
+                    bridge.memoryIndex.hotTier.recordAccess(fresh.id);
+                  }
+                }
+              }
+
+              if (diverseMemories.length > 0) {
+                const diverseTokens = estimateTokens(diverseMemories.join("\n"));
+                if (usedTokens + diverseTokens <= tokenBudget) {
+                  contextParts.push(
+                    `<diverse-context hint="breadth from other categories">\n${diverseMemories.join("\n")}\n</diverse-context>`,
+                  );
+                  usedTokens += diverseTokens;
+                }
               }
             }
-          } catch (abstractionErr) {
-            // Don't fail the whole context injection if abstraction fails
-            api.logger.debug?.(`Cortex: deep abstraction skipped: ${abstractionErr}`);
           }
-        }
 
-        if (contextParts.length === 0) {
+          // L5. PHASE 3E: Deep Abstraction Layer - automatic causal analysis for causal queries
+          const abstractionBudget = tokenBudget - usedTokens;
+          if (abstractionBudget > 200) {
+            // Need enough tokens for abstraction insights
+            try {
+              // Process query with deep abstraction (classifies and optionally runs abstraction)
+              const abstractionResult = await bridge.processWithAbstraction(queryText, {
+                autoAbstract: true,
+                maxDepth: 5,
+              });
+
+              // Only inject if we got novel indicators
+              if (abstractionResult.abstraction_performed && abstractionResult.context_injection) {
+                const abstractionTokens = estimateTokens(abstractionResult.context_injection);
+                if (usedTokens + abstractionTokens <= tokenBudget) {
+                  contextParts.push(
+                    `<deep-abstraction hint="PHASE 3E: causal insights from atomic knowledge">\n${abstractionResult.context_injection}\n</deep-abstraction>`,
+                  );
+                  usedTokens += abstractionTokens;
+                  api.logger.debug?.(
+                    `Cortex: deep abstraction injected (${abstractionResult.abstraction_result?.novel_indicators?.length ?? 0} novel indicators)`,
+                  );
+                }
+              }
+            } catch (abstractionErr) {
+              // Don't fail the whole context injection if abstraction fails
+              api.logger.debug?.(`Cortex: deep abstraction skipped: ${abstractionErr}`);
+            }
+          }
+
+          if (contextParts.length === 0) {
+            return;
+          }
+
+          api.logger.debug?.(
+            `Cortex: injected ${contextParts.length} tiers, ~${usedTokens}/${tokenBudget} tokens (dynamic budget)`,
+          );
+
+          return {
+            prependContext: contextParts.join("\n\n"),
+          };
+        } catch (err) {
+          api.logger.debug?.(`Cortex context injection failed: ${err}`);
           return;
         }
-
-        api.logger.debug?.(`Cortex: injected ${contextParts.length} tiers, ~${usedTokens}/${tokenBudget} tokens (dynamic budget)`);
-
-        return {
-          prependContext: contextParts.join("\n\n"),
-        };
-      } catch (err) {
-        api.logger.debug?.(`Cortex context injection failed: ${err}`);
-        return;
-      }
-    }, { priority: 50 }); // Run after other plugins but still early
+      },
+      { priority: 50 },
+    ); // Run after other plugins but still early
 
     // =========================================================================
     // Hook: agent_end - Auto-capture important conversation moments
@@ -2667,7 +3039,13 @@ print(json.dumps({"count": len(result), "messages": result}))
               texts.push(msg.content);
             } else if (Array.isArray(msg.content)) {
               for (const block of msg.content) {
-                if (block && typeof block === "object" && "type" in block && block.type === "text" && "text" in block) {
+                if (
+                  block &&
+                  typeof block === "object" &&
+                  "type" in block &&
+                  block.type === "text" &&
+                  "text" in block
+                ) {
                   texts.push(block.text as string);
                 }
               }
@@ -2692,7 +3070,9 @@ print(json.dumps({"count": len(result), "messages": result}))
               const hash = contentHash(content);
               const lastCaptured = recentlyCaptures.get(hash);
               if (lastCaptured && Date.now() - lastCaptured < DEDUPE_WINDOW_MS) {
-                api.logger.debug?.(`Cortex auto-capture skipped (dedupe): "${text.slice(0, 40)}..."`);
+                api.logger.debug?.(
+                  `Cortex auto-capture skipped (dedupe): "${text.slice(0, 40)}..."`,
+                );
                 continue;
               }
 
@@ -2703,7 +3083,9 @@ print(json.dumps({"count": len(result), "messages": result}))
               if (recentlyCaptures.size > 1000) {
                 const cutoff = Date.now() - DEDUPE_WINDOW_MS;
                 for (const [k, v] of recentlyCaptures) {
-                  if (v < cutoff) { recentlyCaptures.delete(k); }
+                  if (v < cutoff) {
+                    recentlyCaptures.delete(k);
+                  }
                 }
               }
 
@@ -2721,7 +3103,9 @@ print(json.dumps({"count": len(result), "messages": result}))
                 });
               }
               capturedCount++;
-              api.logger.debug?.(`Cortex auto-captured: [${category}] imp=${importance} "${text.slice(0, 40)}..."`);
+              api.logger.debug?.(
+                `Cortex auto-captured: [${category}] imp=${importance} "${text.slice(0, 40)}..."`,
+              );
             }
           }
 
@@ -2764,12 +3148,17 @@ print(json.dumps({"count": len(result), "messages": result}))
           .description("Show memory statistics")
           .action(async () => {
             const stats = await bridge.getStats();
-            const stm = await bridge.loadSTMDirect();
-            console.log("Cortex Memory Statistics:");
+            const stmItems = await bridge.getRecentSTM(config.stmCapacity);
+            const extStats = bridge.getExtendedStats();
+            console.log("Cortex Memory Statistics (brain.db):");
             console.log(`  Total indexed: ${stats.total}`);
-            console.log(`  STM items: ${stm.short_term_memory.length}/${stm.capacity}`);
+            console.log(`  STM items: ${stmItems.length}/${config.stmCapacity}`);
             console.log(`  By category: ${JSON.stringify(stats.by_category)}`);
             console.log(`  By source: ${JSON.stringify(stats.by_source)}`);
+            console.log(
+              `  RAM cache: STM(${extStats.stm.count}), Memory Index(${extStats.memoryIndex.total})`,
+            );
+            console.log(`  Hot tier: ${extStats.memoryIndex.hotCount}/${config.hotTierSize}`);
           });
 
         cortexCmd
@@ -2778,16 +3167,18 @@ print(json.dumps({"count": len(result), "messages": result}))
           .option("-l, --limit <n>", "Max results", "10")
           .option("-c, --category <cat>", "Filter by category")
           .option("-t, --temporal <weight>", "Temporal weight 0-1", "0.7")
-          .action(async (query: string, opts: { limit: string; category?: string; temporal: string }) => {
-            const results = await bridge.searchMemories(query, {
-              limit: parseInt(opts.limit),
-              category: opts.category,
-              temporalWeight: parseFloat(opts.temporal),
-            });
-            for (const r of results) {
-              console.log(`[${r.score?.toFixed(2)} | ${r.category}] ${r.content.slice(0, 100)}`);
-            }
-          });
+          .action(
+            async (query: string, opts: { limit: string; category?: string; temporal: string }) => {
+              const results = await bridge.searchMemories(query, {
+                limit: parseInt(opts.limit),
+                category: opts.category,
+                temporalWeight: parseFloat(opts.temporal),
+              });
+              for (const r of results) {
+                console.log(`[${r.score?.toFixed(2)} | ${r.category}] ${r.content.slice(0, 100)}`);
+              }
+            },
+          );
 
         cortexCmd
           .command("sync")

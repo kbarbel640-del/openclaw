@@ -14,6 +14,9 @@ import type {
   PluginHookBeforeAgentStartEvent,
   PluginHookBeforeAgentStartResult,
   PluginHookBeforeCompactionEvent,
+  PluginHookLlmInputEvent,
+  PluginHookLlmOutputEvent,
+  PluginHookBeforeResetEvent,
   PluginHookBeforeToolCallEvent,
   PluginHookBeforeToolCallResult,
   PluginHookGatewayContext,
@@ -40,8 +43,11 @@ export type {
   PluginHookAgentContext,
   PluginHookBeforeAgentStartEvent,
   PluginHookBeforeAgentStartResult,
+  PluginHookLlmInputEvent,
+  PluginHookLlmOutputEvent,
   PluginHookAgentEndEvent,
   PluginHookBeforeCompactionEvent,
+  PluginHookBeforeResetEvent,
   PluginHookAfterCompactionEvent,
   PluginHookMessageContext,
   PluginHookMessageReceivedEvent,
@@ -211,6 +217,24 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
   }
 
   /**
+   * Run llm_input hook.
+   * Allows plugins to observe the exact input payload sent to the LLM.
+   * Runs in parallel (fire-and-forget).
+   */
+  async function runLlmInput(event: PluginHookLlmInputEvent, ctx: PluginHookAgentContext) {
+    return runVoidHook("llm_input", event, ctx);
+  }
+
+  /**
+   * Run llm_output hook.
+   * Allows plugins to observe the exact output payload returned by the LLM.
+   * Runs in parallel (fire-and-forget).
+   */
+  async function runLlmOutput(event: PluginHookLlmOutputEvent, ctx: PluginHookAgentContext) {
+    return runVoidHook("llm_output", event, ctx);
+  }
+
+  /**
    * Run before_compaction hook.
    */
   async function runBeforeCompaction(
@@ -228,6 +252,18 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     ctx: PluginHookAgentContext,
   ): Promise<void> {
     return runVoidHook("after_compaction", event, ctx);
+  }
+
+  /**
+   * Run before_reset hook.
+   * Fired when /new or /reset clears a session, before messages are lost.
+   * Runs in parallel (fire-and-forget).
+   */
+  async function runBeforeReset(
+    event: PluginHookBeforeResetEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<void> {
+    return runVoidHook("before_reset", event, ctx);
   }
 
   // =========================================================================
@@ -335,12 +371,14 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
 
     for (const hook of hooks) {
       try {
+        // oxlint-disable-next-line typescript/no-explicit-any
         const out = (hook.handler as any)({ ...event, message: current }, ctx) as
           | PluginHookToolResultPersistResult
           | void
           | Promise<unknown>;
 
         // Guard against accidental async handlers (this hook is sync-only).
+        // oxlint-disable-next-line typescript/no-explicit-any
         if (out && typeof (out as any).then === "function") {
           const msg =
             `[hooks] tool_result_persist handler from ${hook.pluginId} returned a Promise; ` +
@@ -442,9 +480,12 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
   return {
     // Agent hooks
     runBeforeAgentStart,
+    runLlmInput,
+    runLlmOutput,
     runAgentEnd,
     runBeforeCompaction,
     runAfterCompaction,
+    runBeforeReset,
     // Message hooks
     runMessageReceived,
     runMessageSending,
