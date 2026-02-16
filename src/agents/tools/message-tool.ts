@@ -16,12 +16,13 @@ import { GATEWAY_CLIENT_IDS, GATEWAY_CLIENT_MODES } from "../../gateway/protocol
 import { getToolResult, runMessageAction } from "../../infra/outbound/message-action-runner.js";
 import { normalizeTargetForProvider } from "../../infra/outbound/target-normalization.js";
 import { normalizeAccountId } from "../../routing/session-key.js";
+import { stripReasoningTagsFromText } from "../../shared/text/reasoning-tags.js";
 import { normalizeMessageChannel } from "../../utils/message-channel.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { listChannelSupportedActions } from "../channel-tools.js";
-import { assertSandboxPath } from "../sandbox-paths.js";
 import { channelTargetSchema, channelTargetsSchema, stringEnum } from "../schema/typebox.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
+import { resolveGatewayOptions } from "./gateway.js";
 
 const AllMessageActions = CHANNEL_MESSAGE_ACTION_NAMES;
 const EXPLICIT_TARGET_ACTIONS = new Set<ChannelMessageActionName>([
@@ -46,6 +47,98 @@ function buildRoutingSchema() {
   };
 }
 
+const discordComponentEmojiSchema = Type.Object({
+  name: Type.String(),
+  id: Type.Optional(Type.String()),
+  animated: Type.Optional(Type.Boolean()),
+});
+
+const discordComponentOptionSchema = Type.Object({
+  label: Type.String(),
+  value: Type.String(),
+  description: Type.Optional(Type.String()),
+  emoji: Type.Optional(discordComponentEmojiSchema),
+  default: Type.Optional(Type.Boolean()),
+});
+
+const discordComponentButtonSchema = Type.Object({
+  label: Type.String(),
+  style: Type.Optional(stringEnum(["primary", "secondary", "success", "danger", "link"])),
+  url: Type.Optional(Type.String()),
+  emoji: Type.Optional(discordComponentEmojiSchema),
+  disabled: Type.Optional(Type.Boolean()),
+});
+
+const discordComponentSelectSchema = Type.Object({
+  type: Type.Optional(stringEnum(["string", "user", "role", "mentionable", "channel"])),
+  placeholder: Type.Optional(Type.String()),
+  minValues: Type.Optional(Type.Number()),
+  maxValues: Type.Optional(Type.Number()),
+  options: Type.Optional(Type.Array(discordComponentOptionSchema)),
+});
+
+const discordComponentBlockSchema = Type.Object({
+  type: Type.String(),
+  text: Type.Optional(Type.String()),
+  texts: Type.Optional(Type.Array(Type.String())),
+  accessory: Type.Optional(
+    Type.Object({
+      type: Type.String(),
+      url: Type.Optional(Type.String()),
+      button: Type.Optional(discordComponentButtonSchema),
+    }),
+  ),
+  spacing: Type.Optional(stringEnum(["small", "large"])),
+  divider: Type.Optional(Type.Boolean()),
+  buttons: Type.Optional(Type.Array(discordComponentButtonSchema)),
+  select: Type.Optional(discordComponentSelectSchema),
+  items: Type.Optional(
+    Type.Array(
+      Type.Object({
+        url: Type.String(),
+        description: Type.Optional(Type.String()),
+        spoiler: Type.Optional(Type.Boolean()),
+      }),
+    ),
+  ),
+  file: Type.Optional(Type.String()),
+  spoiler: Type.Optional(Type.Boolean()),
+});
+
+const discordComponentModalFieldSchema = Type.Object({
+  type: Type.String(),
+  name: Type.Optional(Type.String()),
+  label: Type.String(),
+  description: Type.Optional(Type.String()),
+  placeholder: Type.Optional(Type.String()),
+  required: Type.Optional(Type.Boolean()),
+  options: Type.Optional(Type.Array(discordComponentOptionSchema)),
+  minValues: Type.Optional(Type.Number()),
+  maxValues: Type.Optional(Type.Number()),
+  minLength: Type.Optional(Type.Number()),
+  maxLength: Type.Optional(Type.Number()),
+  style: Type.Optional(stringEnum(["short", "paragraph"])),
+});
+
+const discordComponentModalSchema = Type.Object({
+  title: Type.String(),
+  triggerLabel: Type.Optional(Type.String()),
+  triggerStyle: Type.Optional(stringEnum(["primary", "secondary", "success", "danger", "link"])),
+  fields: Type.Array(discordComponentModalFieldSchema),
+});
+
+const discordComponentMessageSchema = Type.Object({
+  text: Type.Optional(Type.String()),
+  container: Type.Optional(
+    Type.Object({
+      accentColor: Type.Optional(Type.String()),
+      spoiler: Type.Optional(Type.Boolean()),
+    }),
+  ),
+  blocks: Type.Optional(Type.Array(discordComponentBlockSchema)),
+  modal: Type.Optional(discordComponentModalSchema),
+});
+
 function buildSendSchema(options: { includeButtons: boolean; includeCards: boolean }) {
   const props: Record<string, unknown> = {
     message: Type.Optional(Type.String()),
@@ -57,7 +150,11 @@ function buildSendSchema(options: { includeButtons: boolean; includeCards: boole
     effect: Type.Optional(
       Type.String({ description: "Alias for effectId (e.g., invisible-ink, balloons)." }),
     ),
-    media: Type.Optional(Type.String()),
+    media: Type.Optional(
+      Type.String({
+        description: "Media URL or local path. data: URLs are not supported here, use buffer.",
+      }),
+    ),
     filename: Type.Optional(Type.String()),
     buffer: Type.Optional(
       Type.String({
@@ -100,6 +197,7 @@ function buildSendSchema(options: { includeButtons: boolean; includeCards: boole
         },
       ),
     ),
+    components: Type.Optional(discordComponentMessageSchema),
   };
   if (!options.includeButtons) {
     delete props.buttons;
@@ -402,7 +500,17 @@ export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
         err.name = "AbortError";
         throw err;
       }
-      const params = args as Record<string, unknown>;
+      // Shallow-copy so we don't mutate the original event args (used for logging/dedup).
+      const params = { ...(args as Record<string, unknown>) };
+
+      // Strip reasoning tags from text fields — models may include <think>…</think>
+      // in tool arguments, and the messaging tool send path has no other tag filtering.
+      for (const field of ["text", "content", "message", "caption"]) {
+        if (typeof params[field] === "string") {
+          params[field] = stripReasoningTagsFromText(params[field]);
+        }
+      }
+
       const cfg = options?.config ?? loadConfig();
       const action = readStringParam(params, "action", {
         required: true,
@@ -422,26 +530,20 @@ export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
         }
       }
 
-      // Validate file paths against sandbox root to prevent host file access.
-      const sandboxRoot = options?.sandboxRoot;
-      if (sandboxRoot) {
-        for (const key of ["filePath", "path"] as const) {
-          const raw = readStringParam(params, key, { trim: false });
-          if (raw) {
-            await assertSandboxPath({ filePath: raw, cwd: sandboxRoot, root: sandboxRoot });
-          }
-        }
-      }
-
       const accountId = readStringParam(params, "accountId") ?? agentAccountId;
       if (accountId) {
         params.accountId = accountId;
       }
 
-      const gateway = {
-        url: readStringParam(params, "gatewayUrl", { trim: false }),
-        token: readStringParam(params, "gatewayToken", { trim: false }),
+      const gatewayResolved = resolveGatewayOptions({
+        gatewayUrl: readStringParam(params, "gatewayUrl", { trim: false }),
+        gatewayToken: readStringParam(params, "gatewayToken", { trim: false }),
         timeoutMs: readNumberParam(params, "timeoutMs"),
+      });
+      const gateway = {
+        url: gatewayResolved.url,
+        token: gatewayResolved.token,
+        timeoutMs: gatewayResolved.timeoutMs,
         clientName: GATEWAY_CLIENT_IDS.GATEWAY_CLIENT,
         clientDisplayName: "agent",
         mode: GATEWAY_CLIENT_MODES.BACKEND,
@@ -472,9 +574,11 @@ export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
         defaultAccountId: accountId ?? undefined,
         gateway,
         toolContext,
+        sessionKey: options?.agentSessionKey,
         agentId: options?.agentSessionKey
           ? resolveSessionAgentId({ sessionKey: options.agentSessionKey, config: cfg })
           : undefined,
+        sandboxRoot: options?.sandboxRoot,
         abortSignal: signal,
       });
 
