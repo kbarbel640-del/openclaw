@@ -20,6 +20,7 @@ import {
 import { handleMeshCommand } from "./commands-mesh.js";
 import { handleModelsCommand } from "./commands-models.js";
 import { handlePluginCommand } from "./commands-plugin.js";
+import { handleRlmCommand } from "./commands-rlm.js";
 import {
   handleAbortTrigger,
   handleActivationCommand,
@@ -60,6 +61,7 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
       handleExportSessionCommand,
       handleWhoamiCommand,
       handleSubagentsCommand,
+      handleRlmCommand,
       handleConfigCommand,
       handleDebugCommand,
       handleModelsCommand,
