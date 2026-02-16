@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { setTimeout as delay } from "node:timers/promises";
 import { buildGatewayConnectionDetails } from "../gateway/call.js";
+import { t } from "../i18n/index.js";
 import { parseLogLine } from "../logging/parse-log-line.js";
 import { formatLocalIsoWithOffset } from "../logging/timestamps.js";
 import { formatDocsLink } from "../terminal/links.js";
@@ -164,7 +165,7 @@ function emitGatewayError(
   errorLine: (text: string) => boolean,
 ) {
   const details = buildGatewayConnectionDetails({ url: opts.url });
-  const message = "Gateway not reachable. Is it running and accessible?";
+  const message = t("gateway.errors.gateway_not_reachable");
   const hint = `Hint: run \`${formatCliCommand("openclaw doctor")}\`.`;
   const errorText = err instanceof Error ? err.message : String(err);
 
@@ -266,7 +267,7 @@ export function registerLogsCli(program: Command) {
           if (
             !emitJsonLine({
               type: "notice",
-              message: "Log tail truncated (increase --max-bytes).",
+              message: t("gateway.errors.log_tail_truncated"),
             })
           ) {
             return;
@@ -303,7 +304,7 @@ export function registerLogsCli(program: Command) {
           }
         }
         if (payload.truncated) {
-          if (!errorLine("Log tail truncated (increase --max-bytes).")) {
+          if (!errorLine(t("gateway.errors.log_tail_truncated"))) {
             return;
           }
         }

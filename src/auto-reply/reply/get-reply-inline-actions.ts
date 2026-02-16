@@ -10,6 +10,7 @@ import type { TypingController } from "./typing.js";
 import { createOpenClawTools } from "../../agents/openclaw-tools.js";
 import { getChannelDock } from "../../channels/dock.js";
 import { logVerbose } from "../../globals.js";
+import { t } from "../../i18n/index.js";
 import { resolveGatewayMessageChannel } from "../../utils/message-channel.js";
 import { listChatCommands } from "../commands-registry.js";
 import { listSkillCommandsForWorkspace, resolveSkillCommandInvocation } from "../skill-commands.js";
@@ -241,7 +242,7 @@ export async function handleInlineActions(params: {
           skillName: skillInvocation.command.skillName,
           // oxlint-disable-next-line typescript/no-explicit-any
         } as any);
-        const text = extractTextFromToolResult(result) ?? "✅ Done.";
+        const text = extractTextFromToolResult(result) ?? t("auto_reply.tools.done");
         typing.cleanup();
         return { kind: "reply", reply: { text } };
       } catch (err) {

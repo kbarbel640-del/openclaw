@@ -18,6 +18,7 @@ import { loadConfig } from "../config/config.js";
 import { writeConfigFile } from "../config/io.js";
 import { loadSessionStore, resolveStorePath } from "../config/sessions.js";
 import { danger, logVerbose, warn } from "../globals.js";
+import { t } from "../i18n/index.js";
 import { readChannelAllowFromStore } from "../pairing/pairing-store.js";
 import { resolveAgentRoute } from "../routing/resolve-route.js";
 import { resolveThreadSessionKeys } from "../routing/session-key.js";
@@ -662,7 +663,7 @@ export const registerTelegramHandlers = ({
 
         if (modelCallback.type === "providers" || modelCallback.type === "back") {
           if (providers.length === 0) {
-            await editMessageWithButtons("No providers available.", []);
+            await editMessageWithButtons(t("telegram.provider_selection.no_providers"), []);
             return;
           }
           const providerInfos: ProviderInfo[] = providers.map((p) => ({
@@ -670,7 +671,7 @@ export const registerTelegramHandlers = ({
             count: byProvider.get(p)?.size ?? 0,
           }));
           const buttons = buildProviderKeyboard(providerInfos);
-          await editMessageWithButtons("Select a provider:", buttons);
+          await editMessageWithButtons(t("telegram.provider_selection.select_provider"), buttons);
           return;
         }
 
@@ -762,7 +763,7 @@ export const registerTelegramHandlers = ({
 
       const oldChatId = String(msg.chat.id);
       const newChatId = String(msg.migrate_to_chat_id);
-      const chatTitle = msg.chat.title ?? "Unknown";
+      const chatTitle = msg.chat.title ?? t("telegram.unknown_chat_title");
 
       runtime.log?.(warn(`[telegram] Group migrated: "${chatTitle}" ${oldChatId} → ${newChatId}`));
 
