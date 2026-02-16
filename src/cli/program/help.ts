@@ -4,36 +4,13 @@ import { formatDocsLink } from "../../terminal/links.js";
 import { isRich, theme } from "../../terminal/theme.js";
 import { formatCliBannerLine, hasEmittedCliBanner } from "../banner.js";
 import { replaceCliName, resolveCliName } from "../cli-name.js";
+import { getCoreCliCommandsWithSubcommands } from "./command-registry.js";
+import { getSubCliCommandsWithSubcommands } from "./register.subclis.js";
 
 const CLI_NAME = resolveCliName();
 const ROOT_COMMANDS_WITH_SUBCOMMANDS = new Set([
-  "acp",
-  "agents",
-  "approvals",
-  "browser",
-  "channels",
-  "clawbot",
-  "config",
-  "cron",
-  "daemon",
-  "devices",
-  "directory",
-  "dns",
-  "gateway",
-  "hooks",
-  "memory",
-  "message",
-  "models",
-  "node",
-  "nodes",
-  "pairing",
-  "plugins",
-  "sandbox",
-  "security",
-  "skills",
-  "system",
-  "update",
-  "webhooks",
+  ...getCoreCliCommandsWithSubcommands(),
+  ...getSubCliCommandsWithSubcommands(),
 ]);
 const ROOT_COMMANDS_HINT =
   "Hint: commands suffixed with * have subcommands. Run <command> --help for details.";
