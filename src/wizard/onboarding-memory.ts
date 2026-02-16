@@ -87,11 +87,83 @@ async function setupMongoDBMemory(
   });
 
   // Auto-detect deployment profile based on URI
-  const trimmedUri = uri.trim();
+  let trimmedUri = uri.trim();
   const isAtlas = trimmedUri.includes(".mongodb.net");
-  const suggestedProfile: MemoryMongoDBDeploymentProfile = isAtlas
-    ? "atlas-default"
-    : "community-mongot";
+
+  // --- Topology Detection (after URI, before profile selection) ---
+  let detectedTier: import("../memory/mongodb-topology.js").DeploymentTier | undefined;
+
+  if (!isAtlas) {
+    try {
+      const { MongoClient } = await import("mongodb");
+      const testClient = new MongoClient(trimmedUri, {
+        serverSelectionTimeoutMS: 5_000,
+        connectTimeoutMS: 5_000,
+      });
+      try {
+        await testClient.connect();
+        const { detectTopology, topologyToTier, tierFeatures, suggestConnectionString } =
+          await import("../memory/mongodb-topology.js");
+        const testDb = testClient.db();
+        const topology = await detectTopology(testDb);
+        detectedTier = topologyToTier(topology);
+        const features = tierFeatures(detectedTier);
+
+        // Suggest connection string with replicaSet if detected
+        const suggestedUri = suggestConnectionString(topology, trimmedUri);
+        if (suggestedUri !== trimmedUri) {
+          await prompter.note(
+            `Detected replica set "${topology.replicaSetName}". Recommended URI:\n${suggestedUri}`,
+            "Connection String",
+          );
+          trimmedUri = suggestedUri;
+        }
+
+        // Show detected features
+        const lines: string[] = [
+          `Detected: ${detectedTier} (MongoDB ${topology.serverVersion})`,
+          "",
+          "Available features:",
+          ...features.available.map((f) => `  + ${f}`),
+        ];
+        if (features.unavailable.length > 0) {
+          lines.push("", "Not available (upgrade to enable):");
+          lines.push(...features.unavailable.map((f) => `  - ${f}`));
+        }
+
+        // Docker-compose hint for standalone/replicaset users
+        if (detectedTier === "standalone") {
+          lines.push(
+            "",
+            "Upgrade to full stack with docker-compose:",
+            "  ./docker/mongodb/start.sh fullstack",
+          );
+        } else if (detectedTier === "replicaset") {
+          lines.push("", "Add vector search with mongot:", "  ./docker/mongodb/start.sh fullstack");
+        }
+
+        await prompter.note(lines.join("\n"), "MongoDB Topology");
+      } finally {
+        await testClient.close().catch(() => {});
+      }
+    } catch {
+      // Connection failed -- skip topology detection, user will manually select profile
+    }
+  }
+
+  // Auto-suggest profile based on detected topology (or URI heuristic)
+  const suggestedProfile: MemoryMongoDBDeploymentProfile = (() => {
+    if (isAtlas) {
+      return "atlas-default";
+    }
+    if (detectedTier) {
+      if (detectedTier === "fullstack") {
+        return "community-mongot";
+      }
+      return "community-bare";
+    }
+    return "community-mongot";
+  })();
 
   const profile = await prompter.select<MemoryMongoDBDeploymentProfile>({
     message: "Deployment profile",

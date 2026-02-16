@@ -67,7 +67,32 @@ export async function noteMongoDBBackendHealth(cfg: OpenClawConfig): Promise<voi
     await client.connect();
     await client.db().command({ ping: 1 });
 
-    note(`MongoDB connected. Profile: ${deploymentProfile}.`, "Memory (MongoDB)");
+    // Detect topology while connection is still open
+    try {
+      const { detectTopology, topologyToTier, tierFeatures } =
+        await import("../memory/mongodb-topology.js");
+      const topology = await detectTopology(client.db());
+      const tier = topologyToTier(topology);
+      const features = tierFeatures(tier);
+
+      const lines = [
+        `MongoDB connected. Profile: ${deploymentProfile}.`,
+        `Detected topology: ${tier} (v${topology.serverVersion})`,
+      ];
+
+      if (features.unavailable.length > 0) {
+        lines.push("");
+        lines.push("Missing features (upgrade to enable):");
+        lines.push(...features.unavailable.map((f) => `  - ${f}`));
+        lines.push("");
+        lines.push("Upgrade: ./docker/mongodb/start.sh fullstack");
+      }
+
+      note(lines.join("\n"), "Memory (MongoDB)");
+    } catch {
+      // Topology detection failed -- show basic connected message
+      note(`MongoDB connected. Profile: ${deploymentProfile}.`, "Memory (MongoDB)");
+    }
 
     // Check embedding coverage (embeddingStatus) while connection is still open
     await noteEmbeddingCoverage(client, backendConfig.mongodb);

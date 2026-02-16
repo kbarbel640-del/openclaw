@@ -348,6 +348,238 @@ describe("setupMemoryBackend", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Topology detection in wizard tests
+// ---------------------------------------------------------------------------
+
+// Mock mongodb driver for topology detection tests
+const mockMongoClientCloseFn = vi.hoisted(() => vi.fn(async () => {}));
+const mockMongoClientConnectFn = vi.hoisted(() => vi.fn(async () => {}));
+const mockMongoClientDbFn = vi.hoisted(() =>
+  vi.fn(() => ({
+    admin: () => ({ command: vi.fn() }),
+    listCollections: () => ({ toArray: vi.fn(async () => []) }),
+    collection: () => ({
+      listSearchIndexes: () => ({
+        toArray: vi.fn(async () => {
+          throw new Error("not supported");
+        }),
+      }),
+    }),
+  })),
+);
+
+vi.mock("mongodb", () => {
+  const MockMongoClient = function (this: any) {
+    this.connect = mockMongoClientConnectFn;
+    this.close = mockMongoClientCloseFn;
+    this.db = mockMongoClientDbFn;
+  } as any;
+  MockMongoClient.prototype = {};
+  return { MongoClient: MockMongoClient };
+});
+
+// Mock the topology module
+const mockDetectTopology = vi.hoisted(() => vi.fn());
+const mockTopologyToTier = vi.hoisted(() => vi.fn());
+const mockTierFeatures = vi.hoisted(() => vi.fn());
+const mockSuggestConnectionString = vi.hoisted(() => vi.fn());
+vi.mock("../memory/mongodb-topology.js", () => ({
+  detectTopology: mockDetectTopology,
+  topologyToTier: mockTopologyToTier,
+  tierFeatures: mockTierFeatures,
+  suggestConnectionString: mockSuggestConnectionString,
+}));
+
+describe("topology detection in wizard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMongoClientConnectFn.mockResolvedValue(undefined);
+    mockMongoClientCloseFn.mockResolvedValue(undefined);
+  });
+
+  it("detects topology and shows features note when connected", async () => {
+    const { setupMemoryBackend } = await import("./onboarding-memory.js");
+    const config: OpenClawConfig = {};
+
+    // Setup topology detection mocks
+    mockDetectTopology.mockResolvedValue({
+      isReplicaSet: true,
+      hasMongot: true,
+      serverVersion: "8.2.0",
+      replicaSetName: "rs0",
+    });
+    mockTopologyToTier.mockReturnValue("fullstack");
+    mockTierFeatures.mockReturnValue({
+      available: ["ACID transactions", "$vectorSearch"],
+      unavailable: [],
+    });
+    mockSuggestConnectionString.mockReturnValue("mongodb://localhost:27017/?replicaSet=rs0");
+
+    const prompter = createMockPrompter({
+      selectResponses: ["mongodb", "community-mongot", "voyage"],
+      textResponses: ["mongodb://localhost:27017/", "sk-test"],
+    });
+    prompter.confirm = vi.fn(async () => true) as WizardPrompter["confirm"];
+
+    await setupMemoryBackend(config, prompter);
+
+    // Should have called detectTopology
+    expect(mockDetectTopology).toHaveBeenCalled();
+    // Should have shown a topology note
+    const noteCalls = (prompter.note as ReturnType<typeof vi.fn>).mock.calls;
+    const topologyNote = noteCalls.find(
+      (c: unknown[]) => typeof c[1] === "string" && c[1] === "MongoDB Topology",
+    );
+    expect(topologyNote).toBeDefined();
+  });
+
+  it("auto-suggests community-bare profile when standalone detected", async () => {
+    const { setupMemoryBackend } = await import("./onboarding-memory.js");
+    const config: OpenClawConfig = {};
+
+    mockDetectTopology.mockResolvedValue({
+      isReplicaSet: false,
+      hasMongot: false,
+      serverVersion: "8.2.0",
+    });
+    mockTopologyToTier.mockReturnValue("standalone");
+    mockTierFeatures.mockReturnValue({
+      available: ["$text keyword search"],
+      unavailable: ["ACID transactions", "$vectorSearch"],
+    });
+    mockSuggestConnectionString.mockReturnValue("mongodb://localhost:27017/");
+
+    const prompter = createMockPrompter({
+      selectResponses: ["mongodb", "community-bare"],
+      textResponses: ["mongodb://localhost:27017/"],
+    });
+
+    await setupMemoryBackend(config, prompter);
+
+    // Profile select should have initialValue "community-bare" based on standalone detection
+    const selectCalls = (prompter.select as ReturnType<typeof vi.fn>).mock.calls;
+    const profileSelectParams = selectCalls[1][0];
+    expect(profileSelectParams.initialValue).toBe("community-bare");
+  });
+
+  it("suggests replicaSet in connection string when detected", async () => {
+    const { setupMemoryBackend } = await import("./onboarding-memory.js");
+    const config: OpenClawConfig = {};
+
+    mockDetectTopology.mockResolvedValue({
+      isReplicaSet: true,
+      hasMongot: false,
+      serverVersion: "8.2.0",
+      replicaSetName: "rs0",
+    });
+    mockTopologyToTier.mockReturnValue("replicaset");
+    mockTierFeatures.mockReturnValue({
+      available: ["ACID transactions", "$text keyword search"],
+      unavailable: ["$vectorSearch (requires mongot)"],
+    });
+    // The key: suggested URI is different from input URI
+    mockSuggestConnectionString.mockReturnValue("mongodb://localhost:27017/?replicaSet=rs0");
+
+    const prompter = createMockPrompter({
+      selectResponses: ["mongodb", "community-bare"],
+      textResponses: ["mongodb://localhost:27017/"],
+    });
+
+    await setupMemoryBackend(config, prompter);
+
+    // Should have shown connection string suggestion note
+    const noteCalls = (prompter.note as ReturnType<typeof vi.fn>).mock.calls;
+    const connStringNote = noteCalls.find(
+      (c: unknown[]) => typeof c[1] === "string" && c[1] === "Connection String",
+    );
+    expect(connStringNote).toBeDefined();
+    expect(connStringNote![0]).toContain("replicaSet");
+  });
+
+  it("skips topology detection when connection fails", async () => {
+    const { setupMemoryBackend } = await import("./onboarding-memory.js");
+    const config: OpenClawConfig = {};
+
+    mockMongoClientConnectFn.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const prompter = createMockPrompter({
+      selectResponses: ["mongodb", "atlas-default"],
+      textResponses: ["mongodb+srv://user:pass@cluster.mongodb.net/"],
+    });
+
+    const result = await setupMemoryBackend(config, prompter);
+
+    // Should NOT have called detectTopology
+    expect(mockDetectTopology).not.toHaveBeenCalled();
+    // Should still succeed (graceful degradation)
+    expect(result.memory?.backend).toBe("mongodb");
+  });
+
+  it("shows docker-compose hint when standalone detected", async () => {
+    const { setupMemoryBackend } = await import("./onboarding-memory.js");
+    const config: OpenClawConfig = {};
+
+    mockDetectTopology.mockResolvedValue({
+      isReplicaSet: false,
+      hasMongot: false,
+      serverVersion: "8.2.0",
+    });
+    mockTopologyToTier.mockReturnValue("standalone");
+    mockTierFeatures.mockReturnValue({
+      available: ["$text keyword search"],
+      unavailable: ["ACID transactions", "$vectorSearch"],
+    });
+    mockSuggestConnectionString.mockReturnValue("mongodb://localhost:27017/");
+
+    const prompter = createMockPrompter({
+      selectResponses: ["mongodb", "community-bare"],
+      textResponses: ["mongodb://localhost:27017/"],
+    });
+
+    await setupMemoryBackend(config, prompter);
+
+    // Should show docker-compose hint in topology note
+    const noteCalls = (prompter.note as ReturnType<typeof vi.fn>).mock.calls;
+    const topologyNote = noteCalls.find(
+      (c: unknown[]) => typeof c[1] === "string" && c[1] === "MongoDB Topology",
+    );
+    expect(topologyNote).toBeDefined();
+    expect(topologyNote![0]).toContain("start.sh fullstack");
+  });
+
+  it("auto-suggests community-mongot when fullstack detected", async () => {
+    const { setupMemoryBackend } = await import("./onboarding-memory.js");
+    const config: OpenClawConfig = {};
+
+    mockDetectTopology.mockResolvedValue({
+      isReplicaSet: true,
+      hasMongot: true,
+      serverVersion: "8.2.0",
+      replicaSetName: "rs0",
+    });
+    mockTopologyToTier.mockReturnValue("fullstack");
+    mockTierFeatures.mockReturnValue({
+      available: ["ACID transactions", "$vectorSearch", "Automated embeddings"],
+      unavailable: [],
+    });
+    mockSuggestConnectionString.mockReturnValue("mongodb://localhost:27017/?replicaSet=rs0");
+
+    const prompter = createMockPrompter({
+      selectResponses: ["mongodb", "community-mongot", "voyage"],
+      textResponses: ["mongodb://localhost:27017/", "sk-test"],
+    });
+    prompter.confirm = vi.fn(async () => true) as WizardPrompter["confirm"];
+
+    await setupMemoryBackend(config, prompter);
+
+    // Profile select should have initialValue "community-mongot" based on fullstack detection
+    const selectCalls = (prompter.select as ReturnType<typeof vi.fn>).mock.calls;
+    const profileSelectParams = selectCalls[1][0];
+    expect(profileSelectParams.initialValue).toBe("community-mongot");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // customizeWorkspaceForMongoDB tests
 // ---------------------------------------------------------------------------
 

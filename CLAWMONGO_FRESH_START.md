@@ -19,6 +19,35 @@ A `MongoDBMemoryManager` class that implements OpenClaw's existing `MemorySearch
 - **Vector search** (sqlite-vec extension) -> MongoDB `$vectorSearch`
 - **Hybrid search** (BM25 + cosine merged) -> `$scoreFusion` (8.2+), `$rankFusion` (8.0+), or JS merge fallback
 
+## Docker Quick Start (Recommended)
+
+ClawMongo ships a docker-compose setup for local MongoDB with three deployment tiers:
+
+```bash
+# Full stack (mongod + mongot) -- transactions + vector search + auto-embedding
+./docker/mongodb/start.sh fullstack
+
+# Replica set only -- transactions + $text search
+./docker/mongodb/start.sh replicaset
+
+# Standalone -- simplest, no transactions or search
+./docker/mongodb/start.sh standalone
+```
+
+Connection strings:
+
+- **Standalone:** `mongodb://localhost:27017`
+- **Replica set / Full stack:** `mongodb://admin:admin@localhost:27017/?authSource=admin&replicaSet=rs0`
+
+For auto-embedding with Voyage AI:
+
+```bash
+export VOYAGE_API_KEY=your-key
+./docker/mongodb/start.sh fullstack
+```
+
+See [docker/mongodb/README.md](docker/mongodb/README.md) for full documentation including environment variables, troubleshooting, and architecture diagrams.
+
 ## Target: MongoDB 8.2+
 
 All editions (Atlas and Community) support the full feature set when running MongoDB 8.2+. The implementation gracefully degrades on older versions or bare Community installs without mongot.

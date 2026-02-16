@@ -256,7 +256,7 @@ export async function configureMemorySection(
     }
   }
 
-  // Offer connection test
+  // Offer connection test + topology detection
   const shouldTest = guardCancel(
     await confirm({
       message: "Test MongoDB connection now?",
@@ -267,6 +267,39 @@ export async function configureMemorySection(
 
   if (shouldTest) {
     await testMongoDBConnection(uri);
+
+    // Topology detection after successful connection test
+    if (!uri.includes(".mongodb.net")) {
+      try {
+        const { MongoClient } = await import("mongodb");
+        const topoClient = new MongoClient(uri, {
+          serverSelectionTimeoutMS: 5_000,
+          connectTimeoutMS: 5_000,
+        });
+        try {
+          await topoClient.connect();
+          const { detectTopology, topologyToTier, tierFeatures } =
+            await import("../memory/mongodb-topology.js");
+          const topology = await detectTopology(topoClient.db());
+          const tier = topologyToTier(topology);
+          const features = tierFeatures(tier);
+
+          const lines = [`Detected topology: ${tier} (MongoDB ${topology.serverVersion})`];
+
+          if (features.unavailable.length > 0) {
+            lines.push("", "Missing features (upgrade to enable):");
+            lines.push(...features.unavailable.map((f) => `  - ${f}`));
+            lines.push("", "Upgrade: ./docker/mongodb/start.sh fullstack");
+          }
+
+          note(lines.join("\n"), "MongoDB Topology");
+        } finally {
+          await topoClient.close().catch(() => {});
+        }
+      } catch {
+        // Topology detection failed -- skip
+      }
+    }
   }
 
   // Offer KB import (only for MongoDB backend)
