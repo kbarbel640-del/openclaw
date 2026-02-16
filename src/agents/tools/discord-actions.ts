@@ -28,6 +28,7 @@ const messagingActions = new Set([
 
 const guildActions = new Set([
   "memberInfo",
+  "resolveUser",
   "roleInfo",
   "emojiList",
   "emojiUpload",

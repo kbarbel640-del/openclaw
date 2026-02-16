@@ -1,6 +1,7 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { DiscordActionConfig } from "../../config/config.js";
 import { getPresence } from "../../discord/monitor/presence-cache.js";
+import { resolveDiscordUserAllowlist } from "../../discord/resolve-users.js";
 import {
   addRoleDiscord,
   createChannelDiscord,
@@ -63,6 +64,22 @@ export async function handleDiscordGuildAction(
       const activities = presence?.activities ?? undefined;
       const status = presence?.status ?? undefined;
       return jsonResult({ ok: true, member, ...(presence ? { status, activities } : {}) });
+    }
+    case "resolveUser": {
+      if (!isActionEnabled("memberInfo")) {
+        throw new Error("Discord user resolution is disabled.");
+      }
+      const query = readStringParam(params, "query", { required: true });
+      const cfg = await import("../../config/config.js");
+      const token = cfg.default.channels?.discord?.token;
+      if (!token) {
+        throw new Error("Discord token not configured.");
+      }
+      const results = await resolveDiscordUserAllowlist({
+        token,
+        entries: [query],
+      });
+      return jsonResult({ ok: true, results });
     }
     case "roleInfo": {
       if (!isActionEnabled("roleInfo")) {
