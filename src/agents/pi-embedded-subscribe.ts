@@ -71,6 +71,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     messagingToolSentTexts: [],
     messagingToolSentTextsNormalized: [],
     messagingToolSentTargets: [],
+    toolResultMediaPaths: [],
     pendingMessagingTexts: new Map(),
     pendingMessagingTargets: new Map(),
   };
@@ -576,6 +577,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     messagingToolSentTexts.length = 0;
     messagingToolSentTextsNormalized.length = 0;
     messagingToolSentTargets.length = 0;
+    state.toolResultMediaPaths.length = 0;
     pendingMessagingTexts.clear();
     pendingMessagingTargets.clear();
     resetAssistantMessageState(0);
@@ -662,6 +664,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     isCompactionInFlight: () => state.compactionInFlight,
     getMessagingToolSentTexts: () => messagingToolSentTexts.slice(),
     getMessagingToolSentTargets: () => messagingToolSentTargets.slice(),
+    getToolResultMediaPaths: () => state.toolResultMediaPaths.slice(),
     // Returns true if any messaging tool successfully sent a message.
     // Used to suppress agent's confirmation text (e.g., "Respondi no Telegram!")
     // which is generated AFTER the tool sends the actual answer.

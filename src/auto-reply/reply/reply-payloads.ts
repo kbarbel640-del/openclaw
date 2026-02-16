@@ -87,12 +87,32 @@ export function applyReplyThreading(params: {
 export function filterMessagingToolDuplicates(params: {
   payloads: ReplyPayload[];
   sentTexts: string[];
+  sentMediaPaths?: string[];
 }): ReplyPayload[] {
-  const { payloads, sentTexts } = params;
-  if (sentTexts.length === 0) {
+  const { payloads, sentTexts, sentMediaPaths } = params;
+  if (sentTexts.length === 0 && (!sentMediaPaths || sentMediaPaths.length === 0)) {
     return payloads;
   }
-  return payloads.filter((payload) => !isMessagingToolDuplicate(payload.text ?? "", sentTexts));
+  const normalizedSentMedia = new Set((sentMediaPaths ?? []).map((p) => p.trim().toLowerCase()));
+  return payloads.filter((payload) => {
+    // Text-based dedup (existing behavior).
+    if (isMessagingToolDuplicate(payload.text ?? "", sentTexts)) {
+      return false;
+    }
+    // Media path dedup: drop payloads whose only content is a MEDIA path
+    // that was already delivered via a tool result.
+    if (normalizedSentMedia.size > 0) {
+      const mediaUrl = payload.mediaUrl?.trim().toLowerCase();
+      if (mediaUrl && normalizedSentMedia.has(mediaUrl)) {
+        // If there's meaningful text beyond the media, keep the payload but
+        // strip the duplicate media. If it's media-only, drop entirely.
+        if (!payload.text?.trim()) {
+          return false;
+        }
+      }
+    }
+    return true;
+  });
 }
 
 function normalizeAccountId(value?: string): string | undefined {

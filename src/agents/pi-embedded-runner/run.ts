@@ -946,6 +946,7 @@ export async function runEmbeddedPiAgent(
               didSendViaMessagingTool: attempt.didSendViaMessagingTool,
               messagingToolSentTexts: attempt.messagingToolSentTexts,
               messagingToolSentTargets: attempt.messagingToolSentTargets,
+              toolResultMediaPaths: attempt.toolResultMediaPaths,
             };
           }
 
@@ -987,6 +988,7 @@ export async function runEmbeddedPiAgent(
             didSendViaMessagingTool: attempt.didSendViaMessagingTool,
             messagingToolSentTexts: attempt.messagingToolSentTexts,
             messagingToolSentTargets: attempt.messagingToolSentTargets,
+            toolResultMediaPaths: attempt.toolResultMediaPaths,
           };
         }
       } finally {

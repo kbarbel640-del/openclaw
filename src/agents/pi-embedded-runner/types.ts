@@ -65,6 +65,8 @@ export type EmbeddedPiRunResult = {
   messagingToolSentTexts?: string[];
   // Messaging tool targets that successfully sent a message during the run.
   messagingToolSentTargets?: MessagingToolSend[];
+  // Media paths already delivered via tool results (for dedup against follow-up messages).
+  toolResultMediaPaths?: string[];
 };
 
 export type EmbeddedPiCompactResult = {

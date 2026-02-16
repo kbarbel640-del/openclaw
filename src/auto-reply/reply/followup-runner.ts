@@ -250,6 +250,7 @@ export function createFollowupRunner(params: {
       const dedupedPayloads = filterMessagingToolDuplicates({
         payloads: replyTaggedPayloads,
         sentTexts: runResult.messagingToolSentTexts ?? [],
+        sentMediaPaths: runResult.toolResultMediaPaths ?? [],
       });
       const suppressMessagingToolReplies = shouldSuppressMessagingToolReplies({
         messageProvider: queued.run.messageProvider,

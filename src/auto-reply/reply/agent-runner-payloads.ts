@@ -27,6 +27,7 @@ export function buildReplyPayloads(params: {
   currentMessageId?: string;
   messageProvider?: string;
   messagingToolSentTexts?: string[];
+  toolResultMediaPaths?: string[];
   messagingToolSentTargets?: Parameters<
     typeof shouldSuppressMessagingToolReplies
   >[0]["messagingToolSentTargets"];
@@ -92,6 +93,7 @@ export function buildReplyPayloads(params: {
   const dedupedPayloads = filterMessagingToolDuplicates({
     payloads: replyTaggedPayloads,
     sentTexts: messagingToolSentTexts,
+    sentMediaPaths: params.toolResultMediaPaths ?? [],
   });
   // Filter out payloads already sent via pipeline or directly during tool flush.
   const filteredPayloads = shouldDropFinalPayloads

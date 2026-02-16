@@ -271,6 +271,13 @@ export async function handleToolExecutionEnd(
     if (outputText) {
       ctx.emitToolOutput(toolName, meta, outputText);
     }
+    // Track media paths delivered via emitToolOutput for dedup.
+    if (!isToolError) {
+      const mediaPaths = extractToolResultMediaPaths(result);
+      if (mediaPaths.length > 0) {
+        ctx.state.toolResultMediaPaths.push(...mediaPaths);
+      }
+    }
   }
 
   // Deliver media from tool results when the verbose emitToolOutput path is off.
@@ -279,6 +286,8 @@ export async function handleToolExecutionEnd(
   if (ctx.params.onToolResult && !isToolError && !ctx.shouldEmitToolOutput()) {
     const mediaPaths = extractToolResultMediaPaths(result);
     if (mediaPaths.length > 0) {
+      // Track delivered media paths for dedup against follow-up assistant messages.
+      ctx.state.toolResultMediaPaths.push(...mediaPaths);
       try {
         void ctx.params.onToolResult({ mediaUrls: mediaPaths });
       } catch {
