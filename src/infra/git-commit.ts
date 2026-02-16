@@ -114,10 +114,26 @@ export const resolveCommitHash = (options: { cwd?: string; env?: NodeJS.ProcessE
     }
     if (head.startsWith("ref:")) {
       const ref = head.replace(/^ref:\s*/i, "").trim();
-      const refPath = path.resolve(path.dirname(headPath), ref);
-      const refHash = fs.readFileSync(refPath, "utf-8").trim();
-      cachedCommit = formatCommit(refHash);
-      return cachedCommit;
+      const gitDir = path.dirname(headPath);
+      const refPath = path.resolve(gitDir, ref);
+      try {
+        const refHash = fs.readFileSync(refPath, "utf-8").trim();
+        cachedCommit = formatCommit(refHash);
+        return cachedCommit;
+      } catch {
+        // In worktrees the ref may live in the main .git dir (commondir).
+        const commondirPath = path.join(gitDir, "commondir");
+        try {
+          const commondir = path.resolve(gitDir, fs.readFileSync(commondirPath, "utf-8").trim());
+          const commonRefPath = path.resolve(commondir, ref);
+          const refHash = fs.readFileSync(commonRefPath, "utf-8").trim();
+          cachedCommit = formatCommit(refHash);
+          return cachedCommit;
+        } catch {
+          cachedCommit = null;
+          return cachedCommit;
+        }
+      }
     }
     cachedCommit = formatCommit(head);
     return cachedCommit;

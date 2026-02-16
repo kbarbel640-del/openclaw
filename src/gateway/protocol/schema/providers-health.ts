@@ -3,7 +3,8 @@
  */
 
 import { z } from "zod";
-import { NonEmptyString } from "./primitives.js";
+
+const NonEmptyString = z.string().min(1);
 
 // Usage window entry (quota per time period)
 export const UsageWindowSchema = z

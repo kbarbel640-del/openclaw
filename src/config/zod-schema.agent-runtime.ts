@@ -343,6 +343,8 @@ export const MemorySearchSchema = z
     enabled: z.boolean().optional(),
     sources: z.array(z.union([z.literal("memory"), z.literal("sessions")])).optional(),
     extraPaths: z.array(z.string()).optional(),
+    autoIndexWorkspace: z.boolean().optional(),
+    minScore: z.number().min(0).max(1).optional(),
     experimental: z
       .object({
         sessionMemory: z.boolean().optional(),
@@ -350,7 +352,13 @@ export const MemorySearchSchema = z
       .strict()
       .optional(),
     provider: z
-      .union([z.literal("openai"), z.literal("local"), z.literal("gemini"), z.literal("voyage")])
+      .union([
+        z.literal("openai"),
+        z.literal("local"),
+        z.literal("gemini"),
+        z.literal("voyage"),
+        z.literal("default"),
+      ])
       .optional(),
     remote: z
       .object({
@@ -452,6 +460,15 @@ export const MemorySearchSchema = z
   .strict()
   .optional();
 export { AgentModelSchema };
+export const AgentContextSchema = z
+  .object({
+    maxMessages: z.number().int().positive().optional(),
+    pruneStrategy: z.string().optional(),
+    preserveTools: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
 export const AgentEntrySchema = z
   .object({
     id: z.string(),
@@ -481,13 +498,22 @@ export const AgentEntrySchema = z
           ])
           .optional(),
         thinking: z.string().optional(),
+        spawnable: z.boolean().optional(),
+        timeoutSeconds: z.number().int().positive().optional(),
+        cleanup: z.union([z.boolean(), z.string()]).optional(),
+        debateEnabled: z.boolean().optional(),
+        maxConcurrent: z.number().int().positive().optional(),
       })
       .strict()
       .optional(),
     sandbox: AgentSandboxSchema,
-    tools: AgentToolsSchema,
+    tools: z.unknown().optional(),
+    role: z.string().optional(),
+    icon: z.string().optional(),
+    emoji: z.string().optional(),
+    context: z.record(z.string(), z.unknown()).optional(),
   })
-  .strict();
+  .passthrough();
 
 export const ToolsSchema = z
   .object({

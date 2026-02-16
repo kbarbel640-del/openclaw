@@ -161,10 +161,14 @@ export const AgentDefaultsSchema = z
         archiveAfterMinutes: z.number().int().positive().optional(),
         model: AgentModelSchema.optional(),
         thinking: z.string().optional(),
+        announceMode: z.string().optional(),
       })
       .strict()
       .optional(),
     sandbox: AgentSandboxSchema,
+    codingModel: z.unknown().optional(),
+    modelByComplexity: z.record(z.string(), z.union([z.string(), z.boolean()])).optional(),
+    role: z.string().optional(),
   })
   .strict()
   .optional();

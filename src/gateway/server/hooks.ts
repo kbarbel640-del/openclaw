@@ -3,23 +3,21 @@ import type { CliDeps } from "../../cli/deps.js";
 import type { CronJob } from "../../cron/types.js";
 import type { createSubsystemLogger } from "../../logging/subsystem.js";
 import type { HookDispatchers } from "../elysia-gateway.js";
-import type { HookMessageChannel } from "../hooks.js";
+import type { HookMessageChannel, HooksConfigResolved } from "../hooks.js";
 import { loadConfig } from "../../config/config.js";
 import { resolveMainSessionKeyFromConfig } from "../../config/sessions.js";
 import { runCronIsolatedAgentTurn } from "../../cron/isolated-agent.js";
 import { requestHeartbeatNow } from "../../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
+import { createHooksRequestHandler } from "../server-http.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
-/**
- * Create hook dispatchers (wake + agent) without an HTTP handler.
- * Used by the Elysia gateway to wire dispatchers into Elysia route plugins.
- */
-export function createHookDispatchers(params: {
-  deps: CliDeps;
-  logHooks: SubsystemLogger;
-}): HookDispatchers {
+/* ---------------------------------------------------------------------------
+ * Shared dispatcher factory (used by both legacy HTTP and Elysia gateways).
+ * ------------------------------------------------------------------------- */
+
+function buildDispatchers(params: { deps: CliDeps; logHooks: SubsystemLogger }) {
   const { deps, logHooks } = params;
 
   const dispatchWakeHook = (value: { text: string; mode: "now" | "next-heartbeat" }) => {
@@ -108,4 +106,41 @@ export function createHookDispatchers(params: {
   };
 
   return { dispatchWakeHook, dispatchAgentHook };
+}
+
+/* ---------------------------------------------------------------------------
+ * Legacy HTTP gateway entry-point (used by server-runtime-state.ts).
+ * Returns a Node HTTP request handler.
+ * ------------------------------------------------------------------------- */
+
+export function createGatewayHooksRequestHandler(params: {
+  deps: CliDeps;
+  getHooksConfig: () => HooksConfigResolved | null;
+  bindHost: string;
+  port: number;
+  logHooks: SubsystemLogger;
+}) {
+  const { deps, getHooksConfig, bindHost, port, logHooks } = params;
+  const { dispatchWakeHook, dispatchAgentHook } = buildDispatchers({ deps, logHooks });
+
+  return createHooksRequestHandler({
+    getHooksConfig,
+    bindHost,
+    port,
+    logHooks,
+    dispatchAgentHook,
+    dispatchWakeHook,
+  });
+}
+
+/* ---------------------------------------------------------------------------
+ * Elysia gateway entry-point (used by elysia-gateway.ts / routes).
+ * Returns raw dispatchers without an HTTP handler.
+ * ------------------------------------------------------------------------- */
+
+export function createHookDispatchers(params: {
+  deps: CliDeps;
+  logHooks: SubsystemLogger;
+}): HookDispatchers {
+  return buildDispatchers(params);
 }

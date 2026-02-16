@@ -3,7 +3,8 @@
  */
 
 import { z } from "zod";
-import { NonEmptyString } from "./primitives.js";
+
+const NonEmptyString = z.string().min(1);
 
 // Token validity enum
 export const TokenValiditySchema = z.enum(["valid", "expiring", "expired", "unknown"]);

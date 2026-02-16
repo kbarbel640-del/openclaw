@@ -65,6 +65,9 @@ export type AgentConfig = {
   tools?: AgentToolsConfig;
 };
 
+/** Hierarchy role for agent delegation and collaboration. */
+export type AgentRole = "orchestrator" | "lead" | "specialist" | "worker";
+
 export type AgentsConfig = {
   defaults?: AgentDefaultsConfig;
   list?: AgentConfig[];

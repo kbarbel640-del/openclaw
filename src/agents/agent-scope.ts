@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
+import type { AgentRole } from "../config/types.agents.js";
 import { resolveStateDir } from "../config/paths.js";
 import {
   DEFAULT_AGENT_ID,
@@ -205,4 +206,43 @@ export function resolveAgentDir(cfg: OpenClawConfig, agentId: string) {
   }
   const root = resolveStateDir(process.env);
   return path.join(root, "agents", id, "agent");
+}
+
+/* ---------------------------------------------------------------------------
+ * Agent hierarchy roles (fork-only: delegation + collaboration support).
+ * ------------------------------------------------------------------------- */
+
+/** Numeric rank per role — higher = more authority. */
+export const AGENT_ROLE_RANK: Record<AgentRole, number> = {
+  worker: 0,
+  specialist: 1,
+  lead: 2,
+  orchestrator: 3,
+} as const;
+
+const VALID_ROLES = new Set<string>(Object.keys(AGENT_ROLE_RANK));
+
+/** Resolve the hierarchy role for a given agent (defaults to "specialist"). */
+export function resolveAgentRole(cfg: OpenClawConfig, agentId: string): AgentRole {
+  const entry = resolveAgentEntry(cfg, normalizeAgentId(agentId));
+  const raw = (entry as Record<string, unknown> | undefined)?.role;
+  if (typeof raw === "string" && VALID_ROLES.has(raw)) {
+    return raw as AgentRole;
+  }
+  // Defaults role from agents.defaults.role
+  const defaultRole = (cfg.agents?.defaults as Record<string, unknown> | undefined)?.role;
+  if (typeof defaultRole === "string" && VALID_ROLES.has(defaultRole)) {
+    return defaultRole as AgentRole;
+  }
+  return "specialist";
+}
+
+/** Whether `spawnerRole` is allowed to spawn agents with `targetRole`. */
+export function canSpawnRole(spawnerRole: AgentRole, targetRole: AgentRole): boolean {
+  return AGENT_ROLE_RANK[spawnerRole] >= AGENT_ROLE_RANK[targetRole];
+}
+
+/** Whether `fromRole` can delegate work to `toRole`. */
+export function canDelegate(fromRole: AgentRole, toRole: AgentRole): boolean {
+  return AGENT_ROLE_RANK[fromRole] >= AGENT_ROLE_RANK[toRole];
 }

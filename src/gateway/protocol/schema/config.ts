@@ -1,64 +1,70 @@
-import { z } from "zod";
+import { Type } from "@sinclair/typebox";
 import { NonEmptyString } from "./primitives.js";
 
-export const ConfigGetParamsSchema = z.object({}).strict();
+export const ConfigGetParamsSchema = Type.Object({}, { additionalProperties: false });
 
-export const ConfigSetParamsSchema = z
-  .object({
+export const ConfigSetParamsSchema = Type.Object(
+  {
     raw: NonEmptyString,
-    baseHash: NonEmptyString.optional(),
-  })
-  .strict();
+    baseHash: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
 
-export const ConfigApplyParamsSchema = z
-  .object({
+export const ConfigApplyParamsSchema = Type.Object(
+  {
     raw: NonEmptyString,
-    baseHash: NonEmptyString.optional(),
-    sessionKey: z.string().optional(),
-    note: z.string().optional(),
-    restartDelayMs: z.number().int().min(0).optional(),
-  })
-  .strict();
+    baseHash: Type.Optional(NonEmptyString),
+    sessionKey: Type.Optional(Type.String()),
+    note: Type.Optional(Type.String()),
+    restartDelayMs: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
 
-export const ConfigPatchParamsSchema = z
-  .object({
+export const ConfigPatchParamsSchema = Type.Object(
+  {
     raw: NonEmptyString,
-    baseHash: NonEmptyString.optional(),
-    sessionKey: z.string().optional(),
-    note: z.string().optional(),
-    restartDelayMs: z.number().int().min(0).optional(),
-  })
-  .strict();
+    baseHash: Type.Optional(NonEmptyString),
+    sessionKey: Type.Optional(Type.String()),
+    note: Type.Optional(Type.String()),
+    restartDelayMs: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
 
-export const ConfigSchemaParamsSchema = z.object({}).strict();
+export const ConfigSchemaParamsSchema = Type.Object({}, { additionalProperties: false });
 
-export const UpdateRunParamsSchema = z
-  .object({
-    sessionKey: z.string().optional(),
-    note: z.string().optional(),
-    restartDelayMs: z.number().int().min(0).optional(),
-    timeoutMs: z.number().int().min(1).optional(),
-  })
-  .strict();
+export const UpdateRunParamsSchema = Type.Object(
+  {
+    sessionKey: Type.Optional(Type.String()),
+    note: Type.Optional(Type.String()),
+    restartDelayMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 1 })),
+  },
+  { additionalProperties: false },
+);
 
-export const ConfigUiHintSchema = z
-  .object({
-    label: z.string().optional(),
-    help: z.string().optional(),
-    group: z.string().optional(),
-    order: z.number().int().optional(),
-    advanced: z.boolean().optional(),
-    sensitive: z.boolean().optional(),
-    placeholder: z.string().optional(),
-    itemTemplate: z.unknown().optional(),
-  })
-  .strict();
+export const ConfigUiHintSchema = Type.Object(
+  {
+    label: Type.Optional(Type.String()),
+    help: Type.Optional(Type.String()),
+    group: Type.Optional(Type.String()),
+    order: Type.Optional(Type.Integer()),
+    advanced: Type.Optional(Type.Boolean()),
+    sensitive: Type.Optional(Type.Boolean()),
+    placeholder: Type.Optional(Type.String()),
+    itemTemplate: Type.Optional(Type.Unknown()),
+  },
+  { additionalProperties: false },
+);
 
-export const ConfigSchemaResponseSchema = z
-  .object({
-    schema: z.unknown(),
-    uiHints: z.record(z.string(), ConfigUiHintSchema),
+export const ConfigSchemaResponseSchema = Type.Object(
+  {
+    schema: Type.Unknown(),
+    uiHints: Type.Record(Type.String(), ConfigUiHintSchema),
     version: NonEmptyString,
     generatedAt: NonEmptyString,
-  })
-  .strict();
+  },
+  { additionalProperties: false },
+);
