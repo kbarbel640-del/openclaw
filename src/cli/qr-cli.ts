@@ -102,28 +102,12 @@ export function registerQrCli(program: Command) {
             : typeof opts.publicUrl === "string" && opts.publicUrl.trim()
               ? opts.publicUrl.trim()
               : undefined;
-        if (wantsRemote && !explicitUrl) {
-          const existing = cfg.plugins?.entries?.["device-pair"];
-          if (existing && typeof existing === "object") {
-            cfg.plugins = {
-              ...cfg.plugins,
-              entries: {
-                ...cfg.plugins?.entries,
-                "device-pair": {
-                  ...existing,
-                  config: {
-                    ...existing.config,
-                    publicUrl: undefined,
-                  },
-                },
-              },
-            };
-          }
-        }
-        const publicUrl = explicitUrl ?? readDevicePairPublicUrlFromConfig(cfg);
+        const publicUrl =
+          explicitUrl ?? (wantsRemote ? undefined : readDevicePairPublicUrlFromConfig(cfg));
 
         const resolved = await resolvePairingSetupFromConfig(cfg, {
           publicUrl,
+          preferRemoteUrl: wantsRemote,
           runCommandWithTimeout: async (argv, runOpts) =>
             await runCommandWithTimeout(argv, {
               timeoutMs: runOpts.timeoutMs,

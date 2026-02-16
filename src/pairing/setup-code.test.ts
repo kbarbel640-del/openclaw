@@ -101,4 +101,38 @@ describe("pairing setup code", () => {
       urlSource: "gateway.tailscale.mode=serve",
     });
   });
+
+  it("prefers gateway.remote.url over tailscale when requested", async () => {
+    const runCommandWithTimeout = vi.fn(async () => ({
+      code: 0,
+      stdout: '{"Self":{"DNSName":"mb-server.tailnet.ts.net."}}',
+      stderr: "",
+    }));
+
+    const resolved = await resolvePairingSetupFromConfig(
+      {
+        gateway: {
+          tailscale: { mode: "serve" },
+          remote: { url: "wss://remote.example.com:444" },
+          auth: { mode: "token", token: "tok_123" },
+        },
+      },
+      {
+        preferRemoteUrl: true,
+        runCommandWithTimeout,
+      },
+    );
+
+    expect(resolved).toEqual({
+      ok: true,
+      payload: {
+        url: "wss://remote.example.com:444",
+        token: "tok_123",
+        password: undefined,
+      },
+      authLabel: "token",
+      urlSource: "gateway.remote.url",
+    });
+    expect(runCommandWithTimeout).not.toHaveBeenCalled();
+  });
 });

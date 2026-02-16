@@ -23,6 +23,7 @@ export type PairingSetupCommandRunner = (
 export type ResolvePairingSetupOptions = {
   env?: NodeJS.ProcessEnv;
   publicUrl?: string;
+  preferRemoteUrl?: boolean;
   forceSecure?: boolean;
   runCommandWithTimeout?: PairingSetupCommandRunner;
   networkInterfaces?: () => ReturnType<typeof os.networkInterfaces>;
@@ -292,6 +293,7 @@ async function resolveGatewayUrl(
   opts: {
     env: NodeJS.ProcessEnv;
     publicUrl?: string;
+    preferRemoteUrl?: boolean;
     forceSecure?: boolean;
     runCommandWithTimeout?: PairingSetupCommandRunner;
     networkInterfaces: () => ReturnType<typeof os.networkInterfaces>;
@@ -308,6 +310,15 @@ async function resolveGatewayUrl(
     return { error: "Configured publicUrl is invalid." };
   }
 
+  const remoteUrlRaw = cfg.gateway?.remote?.url;
+  const remoteUrl =
+    typeof remoteUrlRaw === "string" && remoteUrlRaw.trim()
+      ? normalizeUrl(remoteUrlRaw, scheme)
+      : null;
+  if (opts.preferRemoteUrl && remoteUrl) {
+    return { url: remoteUrl, source: "gateway.remote.url" };
+  }
+
   const tailscaleMode = cfg.gateway?.tailscale?.mode ?? "off";
   if (tailscaleMode === "serve" || tailscaleMode === "funnel") {
     const host = await resolveTailnetHost(opts.runCommandWithTimeout);
@@ -317,12 +328,8 @@ async function resolveGatewayUrl(
     return { url: `wss://${host}`, source: `gateway.tailscale.mode=${tailscaleMode}` };
   }
 
-  const remoteUrl = cfg.gateway?.remote?.url;
-  if (typeof remoteUrl === "string" && remoteUrl.trim()) {
-    const url = normalizeUrl(remoteUrl, scheme);
-    if (url) {
-      return { url, source: "gateway.remote.url" };
-    }
+  if (remoteUrl) {
+    return { url: remoteUrl, source: "gateway.remote.url" };
   }
 
   const bind = cfg.gateway?.bind ?? "loopback";
@@ -375,6 +382,7 @@ export async function resolvePairingSetupFromConfig(
   const urlResult = await resolveGatewayUrl(cfg, {
     env,
     publicUrl: options.publicUrl,
+    preferRemoteUrl: options.preferRemoteUrl,
     forceSecure: options.forceSecure,
     runCommandWithTimeout: options.runCommandWithTimeout,
     networkInterfaces: options.networkInterfaces ?? os.networkInterfaces,
