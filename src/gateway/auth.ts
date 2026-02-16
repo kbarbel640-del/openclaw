@@ -13,7 +13,7 @@ import {
 } from "./auth-rate-limit.js";
 import {
   isLoopbackAddress,
-  isPrivateOrLoopbackAddress,
+  isLocalNetworkAddress,
   isTrustedProxyAddress,
   resolveHostName,
   parseForwardedForClientIp,
@@ -85,25 +85,29 @@ function resolveRequestClientIp(
   });
 }
 
-export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: string[]): boolean {
+export function isLocalDirectRequest(
+  req?: IncomingMessage,
+  trustedProxies?: string[],
+  localNetworks?: string[],
+): boolean {
   if (!req) {
     return false;
   }
   const clientIp = resolveRequestClientIp(req, trustedProxies) ?? "";
 
-  // Accept loopback addresses and private network addresses (RFC1918).
-  // Private addresses cover Docker bridge networks (172.16-31.x.x),
-  // Kubernetes pod networks, and other container orchestration setups
-  // where the gateway is accessed from within the same host.
-  if (!isPrivateOrLoopbackAddress(clientIp)) {
+  // Accept loopback addresses unconditionally, plus any configured local networks.
+  // localNetworks allows operators to opt-in specific subnets (e.g., Docker bridge
+  // "172.17.0.0/16") without trusting all RFC1918 private ranges.
+  const clientIsLocal =
+    isLoopbackAddress(clientIp) || isLocalNetworkAddress(clientIp, localNetworks);
+  if (!clientIsLocal) {
     return false;
   }
 
   const host = resolveHostName(req.headers?.host);
   const hostIsLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
   const hostIsTailscaleServe = host.endsWith(".ts.net");
-  // Accept private IP hosts (e.g., Docker container accessing gateway via bridge IP)
-  const hostIsPrivateIp = isPrivateOrLoopbackAddress(host);
+  const hostIsLocalNetwork = isLocalNetworkAddress(host, localNetworks);
 
   const hasForwarded = Boolean(
     req.headers?.["x-forwarded-for"] ||
@@ -113,7 +117,7 @@ export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: str
 
   const remoteIsTrustedProxy = isTrustedProxyAddress(req.socket?.remoteAddress, trustedProxies);
   return (
-    (hostIsLocal || hostIsTailscaleServe || hostIsPrivateIp) &&
+    (hostIsLocal || hostIsTailscaleServe || hostIsLocalNetwork) &&
     (!hasForwarded || remoteIsTrustedProxy)
   );
 }
@@ -296,6 +300,7 @@ export async function authorizeGatewayConnect(params: {
   connectAuth?: ConnectAuth | null;
   req?: IncomingMessage;
   trustedProxies?: string[];
+  localNetworks?: string[];
   tailscaleWhois?: TailscaleWhoisLookup;
   /** Optional rate limiter instance; when provided, failed attempts are tracked per IP. */
   rateLimiter?: AuthRateLimiter;
@@ -304,9 +309,9 @@ export async function authorizeGatewayConnect(params: {
   /** Optional limiter scope; defaults to shared-secret auth scope. */
   rateLimitScope?: string;
 }): Promise<GatewayAuthResult> {
-  const { auth, connectAuth, req, trustedProxies } = params;
+  const { auth, connectAuth, req, trustedProxies, localNetworks } = params;
   const tailscaleWhois = params.tailscaleWhois ?? readTailscaleWhoisIdentity;
-  const localDirect = isLocalDirectRequest(req, trustedProxies);
+  const localDirect = isLocalDirectRequest(req, trustedProxies, localNetworks);
 
   if (auth.mode === "trusted-proxy") {
     if (!auth.trustedProxy) {
