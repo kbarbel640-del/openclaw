@@ -48,8 +48,7 @@ async function createContainerSetupSandbox(): Promise<ContainerSetupSandbox> {
 
   const script = await readFile(join(repoRoot, "apple-container-setup.sh"), "utf8");
   await writeFile(scriptPath, script, { mode: 0o755 });
-  await writeFile(dockerfilePath, "FROM scratch
-");
+  await writeFile(dockerfilePath, "FROM scratch\n");
   await writeContainerStub(binDir, logPath);
 
   return { rootDir, scriptPath, logPath, binDir };

@@ -9,46 +9,69 @@ title: "Apple Container"
 
 # Apple Container (optional)
 
-[Apple Container](https://github.com/apple/container) is a native container runtime for macOS that runs Linux containers in lightweight virtual machines. It is optimized for Apple Silicon and provides a secure, high-performance alternative to Docker Desktop. It uses the same image as Docker (build from the repo Dockerfile).
+[Apple Container](https://github.com/apple/container) is Apple's official container runtime for macOS. It runs Linux containers in lightweight virtual machines and is optimized for Apple Silicon. The `container` command is Apple's native tool—not a generic placeholder.
+
+**Key points:**
+- Uses the same Docker image format (OCI-compatible)
+- Builds and runs the exact same `Dockerfile` as Docker and Podman
+- Images are interchangeable between `container`, `docker`, and `podman`
+
+**Official sources:**
+- GitHub: https://github.com/apple/container
+- Homebrew: `brew install container`
+- Provides the `container` command for all container operations
 
 The setup script also supports **Docker** and **Podman** as fallbacks, making it flexible across different macOS setups.
 
 ## Is Apple Container right for me?
 
-- **Yes**: you want a lightweight, native container runtime on Apple Silicon or you're developing OpenClaw in a containerized environment
-- **Yes**: you want isolation from your local system but don't want Docker Desktop's resource overhead
+**Apple Container** is Apple's official lightweight container runtime (the `container` command). It uses the same Docker image format, so the same `Dockerfile` works everywhere.
+
+Choose Apple Container if:
+
+- **Yes**: you want Apple's native container runtime optimized for Apple Silicon
+- **Yes**: you want lightweight containers without Docker Desktop's overhead
+- **Yes**: you're developing OpenClaw in a containerized environment on macOS
+- **Yes**: you want the fastest performance on Apple Silicon
 - **No**: you're running on your own machine and just want the fastest dev loop. Use the normal install flow instead.
 - **No**: you need Docker Compose features or multi-service orchestration. Use [Docker](/install/docker) instead.
 
 **Comparison:**
 
-| Feature | Apple Container | Docker | Local |
-|---------|-----------------|--------|-------|
-| Native to macOS | ✅ | Via Desktop | N/A |
-| Apple Silicon optimized | ✅ | ✅ | N/A |
-| Lightweight | ✅ | Medium | N/A |
-| Compose support | ❌ | ✅ | N/A |
-| Fallback to Docker/Podman | ✅ | N/A | N/A |
-| Fastest dev loop | ❌ | ❌ | ✅ |
+| Feature                   | Apple Container | Docker      | Local |
+| ------------------------- | --------------- | ----------- | ----- |
+| Native to macOS           | ✅              | Via Desktop | N/A   |
+| Apple Silicon optimized   | ✅              | ✅          | N/A   |
+| Lightweight               | ✅              | Medium      | N/A   |
+| Compose support           | ❌              | ✅          | N/A   |
+| Fallback to Docker/Podman | ✅              | N/A         | N/A   |
+| Fastest dev loop          | ❌              | ❌          | ✅    |
 
 ## Requirements
 
 Choose **one** container runtime:
 
 - **Apple Container** (recommended for macOS):
-  - [Apple Container](https://github.com/apple/container) installed
+  - Install with: `brew install container`
+  - GitHub: https://github.com/apple/container
+  - The `container` command is Apple's official tool
   - Lightweight, native to macOS, optimized for Apple Silicon
 
 Additional requirements:
+
 - macOS (Apple Silicon recommended, Intel supported)
 - At least 2GB available RAM for the container
 - Enough disk space for images and logs
 
 ## Quick start (recommended)
 
-**Before you start:** Make sure you have [Apple Container](https://github.com/apple/container) installed and running. The script will automatically detect it.
+**Before you start:** Install Apple Container (Apple's official container runtime):
 
-From the repository root:
+```bash
+brew install container
+```
+
+The script will automatically detect the `container` command and use it. From the repository root:
 
 ```bash
 ./apple-container-setup.sh
@@ -73,6 +96,7 @@ The setup typically takes 5-10 minutes on first run.
 3. You're ready to use OpenClaw!
 
 Configuration and data are stored on your host at:
+
 - `~/.openclaw/` — configuration files
 - `~/.openclaw/workspace` — workspace data
 
@@ -80,32 +104,32 @@ Configuration and data are stored on your host at:
 
 ### Basic Configuration
 
-| Variable | Purpose | Default | Example |
-|----------|---------|---------|---------|
-| `OPENCLAW_GATEWAY_PORT` | HTTP port for the gateway | `18789` | `export OPENCLAW_GATEWAY_PORT=19000` |
-| `OPENCLAW_BRIDGE_PORT` | Bridge service port | `18790` | `export OPENCLAW_BRIDGE_PORT=19001` |
-| `OPENCLAW_GATEWAY_BIND` | Network binding mode | `lan` | `lan`, `all`, or IP address |
-| `OPENCLAW_IMAGE` | Custom image name/tag | `openclaw:local` | `openclaw:dev` |
+| Variable                | Purpose                   | Default          | Example                              |
+| ----------------------- | ------------------------- | ---------------- | ------------------------------------ |
+| `OPENCLAW_GATEWAY_PORT` | HTTP port for the gateway | `18789`          | `export OPENCLAW_GATEWAY_PORT=19000` |
+| `OPENCLAW_BRIDGE_PORT`  | Bridge service port       | `18790`          | `export OPENCLAW_BRIDGE_PORT=19001`  |
+| `OPENCLAW_GATEWAY_BIND` | Network binding mode      | `lan`            | `lan`, `all`, or IP address          |
+| `OPENCLAW_IMAGE`        | Custom image name/tag     | `openclaw:local` | `openclaw:dev`                       |
 
 ### Advanced Configuration
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `OPENCLAW_CONFIG_DIR` | Config directory on host | `~/.openclaw` |
-| `OPENCLAW_WORKSPACE_DIR` | Workspace directory on host | `~/.openclaw/workspace` |
-| `OPENCLAW_DOCKER_APT_PACKAGES` | Extra apt packages to install | `git curl` |
-| `OPENCLAW_EXTRA_MOUNTS` | Additional volume mounts | `/data:/home/node/data,/logs:/home/node/logs` |
-| `OPENCLAW_HOME_VOLUME` | Docker volume for `/home/node` | `openclaw-home` |
+| Variable                       | Purpose                        | Example                                       |
+| ------------------------------ | ------------------------------ | --------------------------------------------- |
+| `OPENCLAW_CONFIG_DIR`          | Config directory on host       | `~/.openclaw`                                 |
+| `OPENCLAW_WORKSPACE_DIR`       | Workspace directory on host    | `~/.openclaw/workspace`                       |
+| `OPENCLAW_DOCKER_APT_PACKAGES` | Extra apt packages to install  | `git curl`                                    |
+| `OPENCLAW_EXTRA_MOUNTS`        | Additional volume mounts       | `/data:/home/node/data,/logs:/home/node/logs` |
+| `OPENCLAW_HOME_VOLUME`         | Docker volume for `/home/node` | `openclaw-home`                               |
 
 ### Authentication Variables
 
 These are automatically detected from your environment:
 
-| Variable | Purpose |
-|----------|---------|
-| `CLAUDE_AI_SESSION_KEY` | Claude AI session authentication |
-| `CLAUDE_WEB_SESSION_KEY` | Claude Web session authentication |
-| `CLAUDE_WEB_COOKIE` | Claude Web cookie for authentication |
+| Variable                 | Purpose                              |
+| ------------------------ | ------------------------------------ |
+| `CLAUDE_AI_SESSION_KEY`  | Claude AI session authentication     |
+| `CLAUDE_WEB_SESSION_KEY` | Claude Web session authentication    |
+| `CLAUDE_WEB_COOKIE`      | Claude Web cookie for authentication |
 
 ## Usage Examples
 
@@ -127,6 +151,7 @@ export OPENCLAW_EXTRA_MOUNTS="/Users/you/data:/home/node/data,/Users/you/logs:/h
 ```
 
 Inside the container:
+
 - `/Users/you/data` → accessible at `/home/node/data`
 - `/Users/you/logs` → accessible at `/home/node/logs`
 
@@ -212,23 +237,31 @@ container run -d --name openclaw-gateway \
 The setup script automatically detects available container runtimes in this priority order:
 
 1. **Apple Container** (preferred) — `container` command
+   - Apple's official tool: `brew install container`
+   - GitHub: https://github.com/apple/container
    - If found: uses Apple Container for everything
    - Fast, lightweight, native to macOS
 
 2. **Docker** (fallback) — `docker` command
    - If Apple Container not found but Docker is available
-   - Uses Docker if you already have Docker Desktop installed
+   - Uses Docker Desktop if already installed
 
 3. **Podman** (fallback) — `podman` command
    - If Apple Container and Docker not found but Podman is available
    - Uses Podman as a rootless alternative
 
 **If none are found**, the script exits with a clear error:
+
 ```
 Error: No container runtime found. Install 'container', 'docker', or 'podman'
 ```
 
-**Recommendation:** Install Apple Container for the best experience on macOS. You don't need Docker or Podman unless you're already using them.
+**Recommendation:** Install Apple Container for the best experience on macOS:
+```bash
+brew install container
+```
+
+You don't need Docker or Podman unless you're already using them for other projects.
 
 ## Performance Tips
 
@@ -339,8 +372,8 @@ Then configure in your gateway config:
 ```json5
 {
   browser: {
-    cacheDir: "/home/node/.cache/ms-playwright"
-  }
+    cacheDir: "/home/node/.cache/ms-playwright",
+  },
 }
 ```
 
@@ -422,6 +455,7 @@ Deep dive: [Sandboxing](/gateway/sandboxing)
 2. **Switch to Docker gateway**: Use [Docker](/install/docker) for both the gateway and sandboxing
 
 Sandboxing provides:
+
 - Per-session or per-agent Docker containers for tool execution
 - Isolated filesystem, network, and process environments
 - Tool allowlist/denylist policies
@@ -433,18 +467,30 @@ For configuration details, see [Agent Sandbox](/gateway/sandboxing).
 
 ### `container` command not found
 
-**Apple Container:**
+The `container` command is Apple's official tool. Install it with Homebrew:
+
 ```bash
-# Install from https://github.com/apple/container
-# Then start the service:
+brew install container
+```
+
+Then start the Apple Container service:
+
+```bash
 container system start
 ```
 
+**Official sources:**
+- GitHub: https://github.com/apple/container
+- Homebrew formula: https://formulae.brew.sh/formula/container
+
 **Alternative: Use Docker or Podman instead**
+
+If you prefer not to use Apple Container, the script will automatically detect and use Docker or Podman:
+
 ```bash
-# The script automatically detects docker or podman
-# Just make sure one is installed and running
-brew install docker podman
+# Install one of these alternatives
+brew install docker  # Docker Desktop
+brew install podman  # Rootless alternative
 ```
 
 ### Port conflicts
@@ -465,16 +511,19 @@ export OPENCLAW_GATEWAY_PORT=19000
 The script detected a runtime but it's not currently running. Start it:
 
 **Apple Container:**
+
 ```bash
 container system start
 ```
 
 **Docker** (if that's what you're using):
+
 ```bash
 open -a Docker
 ```
 
 **Podman** (if that's what you're using):
+
 ```bash
 podman system service --time=0
 ```
@@ -567,11 +616,11 @@ These packages are available inside the container for use by OpenClaw agents.
 
 ## Performance Comparison
 
-| Runtime | Startup | Memory | Apple Silicon | Notes |
-|---------|---------|--------|---|----------|
-| Apple Container | ~2s | 500MB | Excellent | Native, optimized |
-| Docker | ~3s | 600MB | Good | Widely compatible |
-| Podman | ~2s | 500MB | Good | Rootless option |
+| Runtime         | Startup | Memory | Apple Silicon | Notes             |
+| --------------- | ------- | ------ | ------------- | ----------------- |
+| Apple Container | ~2s     | 500MB  | Excellent     | Native, optimized |
+| Docker          | ~3s     | 600MB  | Good          | Widely compatible |
+| Podman          | ~2s     | 500MB  | Good          | Rootless option   |
 
 ## Next Steps
 
