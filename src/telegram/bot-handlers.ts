@@ -1065,4 +1065,75 @@ export const registerTelegramHandlers = ({
       runtime.error?.(danger(`handler failed: ${String(err)}`));
     }
   });
+
+  // Handle channel posts — enables bot-to-bot communication via Telegram channels.
+  // Telegram bots cannot see other bot messages in groups, but CAN in channels.
+  // This handler normalizes channel_post updates into the standard message pipeline.
+  bot.on("channel_post", async (ctx) => {
+    try {
+      const post = ctx.channelPost;
+      if (!post) {
+        return;
+      }
+
+      const chatId = post.chat.id;
+
+      // Check group allowlist (channels use the same groups config)
+      const groupAllowlist = resolveGroupPolicy(chatId);
+      if (groupAllowlist.allowlistEnabled && !groupAllowlist.allowed) {
+        return;
+      }
+
+      const { groupConfig } = resolveTelegramGroupConfig(chatId, undefined);
+      if (!groupConfig || groupConfig.enabled === false) {
+        return;
+      }
+
+      // Build a synthetic `from` field since channel posts may not have one.
+      // Use sender_chat (the bot/user that posted) if available.
+      const syntheticFrom = post.sender_chat
+        ? {
+            id: post.sender_chat.id,
+            is_bot: true as const,
+            first_name: post.sender_chat.title || "Channel",
+            username: post.sender_chat.username,
+          }
+        : {
+            id: chatId,
+            is_bot: true as const,
+            first_name: post.chat.title || "Channel",
+            username: post.chat.username,
+          };
+
+      const syntheticMsg: Message = {
+        ...post,
+        from: post.from ?? syntheticFrom,
+        chat: {
+          ...post.chat,
+          type: "supergroup" as const,
+        },
+      } as Message;
+
+      const syntheticCtx = Object.create(ctx, {
+        message: { value: syntheticMsg, writable: true, enumerable: true },
+      });
+
+      const storeAllowFrom = await readChannelAllowFromStore(
+        "telegram",
+        process.env,
+        accountId,
+      ).catch(() => []);
+
+      await inboundDebouncer.enqueue({
+        ctx: syntheticCtx,
+        msg: syntheticMsg,
+        allMedia: [],
+        storeAllowFrom,
+        debounceKey: null,
+        botUsername: ctx.me?.username,
+      });
+    } catch (err) {
+      runtime.error?.(danger(`channel_post handler failed: ${String(err)}`));
+    }
+  });
 };
