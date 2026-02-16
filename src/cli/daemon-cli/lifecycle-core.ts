@@ -150,22 +150,27 @@ export async function runServiceStart(params: {
     return;
   }
   if (!loaded) {
-    await handleServiceNotLoaded({
-      serviceNoun: params.serviceNoun,
-      service: params.service,
-      loaded,
-      renderStartHints: params.renderStartHints,
-      json,
-      emit,
-    });
-    return;
-  }
-  try {
-    await params.service.restart({ env: process.env, stdout });
-  } catch (err) {
-    const hints = params.renderStartHints();
-    fail(`${params.serviceNoun} start failed: ${String(err)}`, hints);
-    return;
+    try {
+      await params.service.start({ env: process.env, stdout });
+    } catch {
+      await handleServiceNotLoaded({
+        serviceNoun: params.serviceNoun,
+        service: params.service,
+        loaded,
+        renderStartHints: params.renderStartHints,
+        json,
+        emit,
+      });
+      return;
+    }
+  } else {
+    try {
+      await params.service.restart({ env: process.env, stdout });
+    } catch (err) {
+      const hints = params.renderStartHints();
+      fail(`${params.serviceNoun} start failed: ${String(err)}`, hints);
+      return;
+    }
   }
 
   let started = true;
