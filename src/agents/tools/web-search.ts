@@ -636,7 +636,7 @@ export function createWebSearchTool(options?: {
     provider === "perplexity"
       ? "Search the web using Perplexity Sonar (direct or via OpenRouter). Returns AI-synthesized answers with citations from real-time web search."
       : provider === "desearch"
-        ? "Search the web using DeSearch (decentralized AI search on Bittensor). Returns titles, URLs, and snippets from distributed web search."
+        ? "Search the web and X/Twitter using DeSearch (decentralized AI search on Bittensor). Returns titles, URLs, and snippets from web pages and tweets."
         : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
 
   return {
