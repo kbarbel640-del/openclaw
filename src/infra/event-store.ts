@@ -60,8 +60,7 @@ export const EVENT_STORE_DEFAULTS = {
 // Lazy NATS import (optional peer dependency)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type NatsModule = any;
+type NatsModule = typeof import("nats");
 let natsModule: NatsModule | null = null;
 
 async function loadNats(): Promise<NatsModule | null> {
@@ -81,12 +80,9 @@ async function loadNats(): Promise<NatsModule | null> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type State = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  nc: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  js: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sc: any;
+  nc: import("nats").NatsConnection;
+  js: import("nats").JetStreamClient;
+  sc: import("nats").Codec<string>;
   config: ResolvedEventStoreConfig;
   unsub: () => void;
 };
@@ -189,7 +185,7 @@ function parseNatsUrl(rawUrl: string): {
  * Runs as a background async iterator — exits when state is cleared.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function monitorConnection(nc: any): void {
+function monitorConnection(nc: import("nats").NatsConnection): void {
   (async () => {
     for await (const s of nc.status()) {
       if (!state) {
@@ -248,9 +244,8 @@ async function publish(evt: AgentEventPayload): Promise<void> {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function ensureStream(
-  nc: any,
+  nc: import("nats").NatsConnection,
   cfg: ResolvedEventStoreConfig,
   nats: NatsModule,
 ): Promise<void> {
