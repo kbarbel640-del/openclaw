@@ -125,8 +125,7 @@ export const memoryConfigSchema = {
         apiKey: resolveEnvVars(embedding.apiKey),
         baseUrl:
           typeof embedding.baseUrl === "string" ? resolveEnvVars(embedding.baseUrl) : undefined,
-        dimensions:
-          typeof embedding.dimensions === "number" ? embedding.dimensions : undefined,
+        dimensions: typeof embedding.dimensions === "number" ? embedding.dimensions : undefined,
       },
       dbPath: typeof cfg.dbPath === "string" ? cfg.dbPath : DEFAULT_DB_PATH,
       autoCapture: cfg.autoCapture === true,
