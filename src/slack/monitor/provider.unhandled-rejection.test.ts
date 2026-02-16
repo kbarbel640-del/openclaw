@@ -29,8 +29,8 @@ describe("Slack unhandled rejection handler integration", () => {
   beforeEach(() => {
     // Register the same handler that monitorSlackProvider() uses
     unregister = registerUnhandledRejectionHandler((reason) => {
-      if (isSlackPlatformError(reason)) {
-        return true; // handled
+      if (isSlackPlatformError(reason) && isSlackUnrecoverableAuthError(reason)) {
+        return true; // handled — only suppress unrecoverable auth errors
       }
       return false;
     });
@@ -65,9 +65,9 @@ describe("Slack unhandled rejection handler integration", () => {
     expect(isUnhandledRejectionHandled(err)).toBe(true);
   });
 
-  it("catches non-auth Slack platform errors too (e.g. channel_not_found)", () => {
+  it("does NOT catch non-auth Slack platform errors (e.g. channel_not_found)", () => {
     const err = createSlackPlatformError("channel_not_found");
-    expect(isUnhandledRejectionHandled(err)).toBe(true);
+    expect(isUnhandledRejectionHandled(err)).toBe(false);
   });
 
   it("does not catch non-Slack errors", () => {

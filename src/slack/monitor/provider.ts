@@ -358,14 +358,12 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
             `The Slack channel will stop working until tokens are updated. ` +
             `Other channels are unaffected.`,
         );
-      } else {
-        runtime.error?.(
-          `[slack] Suppressed Slack API error (non-fatal): ${dataError}`,
-        );
+        return true; // handled — don't crash the gateway
       }
-      return true; // handled — don't crash the gateway
+      // Let other platform errors (channel_not_found, missing_scope, etc.)
+      // bubble up — they may indicate real issues worth surfacing.
     }
-    return false; // not a Slack error — let other handlers decide
+    return false; // not handled — let other handlers decide
   });
 
   const stopOnAbort = () => {
