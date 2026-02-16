@@ -1092,12 +1092,8 @@ export const registerTelegramHandlers = ({
         groupAllowFrom,
         resolveTelegramGroupConfig,
       });
-      const {
-        storeAllowFrom,
-        groupConfig,
-        effectiveGroupAllow,
-        hasGroupAllowOverride,
-      } = groupAllowContext;
+      const { storeAllowFrom, groupConfig, effectiveGroupAllow, hasGroupAllowOverride } =
+        groupAllowContext;
 
       // Check group allowlist (channels use the same groups config)
       const groupAllowlist = resolveGroupPolicy(chatId);
