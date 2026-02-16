@@ -53,7 +53,7 @@ describe("detectTopology", () => {
         .mockResolvedValueOnce({ set: "rs0", members: [{}] }) // replSetGetStatus
         .mockResolvedValueOnce({ version: "8.2.0" }), // buildInfo
     });
-    const result = await detectTopology(db as any);
+    const result = await detectTopology(db as import("mongodb").Db);
     expect(result.isReplicaSet).toBe(true);
     expect(result.replicaSetName).toBe("rs0");
   });
@@ -66,7 +66,7 @@ describe("detectTopology", () => {
         .mockRejectedValueOnce(new Error("not running with --replSet"))
         .mockResolvedValueOnce({ version: "8.2.0" }),
     });
-    const result = await detectTopology(db as any);
+    const result = await detectTopology(db as import("mongodb").Db);
     expect(result.isReplicaSet).toBe(false);
     expect(result.replicaSetName).toBeUndefined();
   });
@@ -80,7 +80,7 @@ describe("detectTopology", () => {
         .mockResolvedValueOnce({ version: "8.2.0" }),
       listSearchIndexesSucceeds: true,
     });
-    const result = await detectTopology(db as any);
+    const result = await detectTopology(db as import("mongodb").Db);
     expect(result.hasMongot).toBe(true);
   });
 
@@ -93,7 +93,7 @@ describe("detectTopology", () => {
         .mockResolvedValueOnce({ version: "8.2.0" }),
       listSearchIndexesSucceeds: false,
     });
-    const result = await detectTopology(db as any);
+    const result = await detectTopology(db as import("mongodb").Db);
     expect(result.hasMongot).toBe(false);
   });
 
@@ -105,7 +105,7 @@ describe("detectTopology", () => {
         .mockRejectedValueOnce(new Error("not running with --replSet"))
         .mockResolvedValueOnce({ version: "8.2.5" }),
     });
-    const result = await detectTopology(db as any);
+    const result = await detectTopology(db as import("mongodb").Db);
     expect(result.serverVersion).toBe("8.2.5");
   });
 
@@ -115,7 +115,7 @@ describe("detectTopology", () => {
       adminCommand: vi.fn().mockRejectedValue(new Error("connection closed")),
       collectionNames: [],
     });
-    const result = await detectTopology(db as any);
+    const result = await detectTopology(db as import("mongodb").Db);
     expect(result.isReplicaSet).toBe(false);
     expect(result.hasMongot).toBe(false);
     expect(result.serverVersion).toBe("unknown");
