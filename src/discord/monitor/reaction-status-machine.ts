@@ -1,5 +1,17 @@
 export type DiscordWorkEmoji = "👀" | "🧠" | "💻" | "🌐" | "🛠️" | "⏳" | "⚠️" | "✅" | "❌";
 
+const ALL_STATUS_EMOJIS: DiscordWorkEmoji[] = [
+  "👀",
+  "🧠",
+  "💻",
+  "🌐",
+  "🛠️",
+  "⏳",
+  "⚠️",
+  "✅",
+  "❌",
+];
+
 const MIDDLE_STATE_DEBOUNCE_MS = 700;
 const STALL_SOFT_MS = 10_000;
 const STALL_HARD_MS = 30_000;
@@ -90,15 +102,32 @@ export function createDiscordReactionStatusMachine(params: ReactionStatusMachine
       return;
     }
     const previous = currentEmoji;
+    let previousCleared = true;
     if (previous) {
       await params.clearReaction(previous).catch((err) => {
+        previousCleared = false;
         params.onError?.(`discord status remove reaction failed: ${String(err)}`);
       });
     }
+
+    let setOk = true;
     await params.setReaction(emoji).catch((err) => {
+      setOk = false;
       params.onError?.(`discord status set reaction failed: ${String(err)}`);
     });
+    if (!setOk) {
+      return;
+    }
+
     currentEmoji = emoji;
+
+    // If the previous clear failed, retry once after setting the next state
+    // so we don't get stuck displaying 👀 forever.
+    if (!previousCleared && previous && previous !== emoji) {
+      await params.clearReaction(previous).catch((err) => {
+        params.onError?.(`discord status remove stale reaction failed: ${String(err)}`);
+      });
+    }
   };
 
   const scheduleStallChecks = () => {
@@ -244,15 +273,21 @@ export function createDiscordReactionStatusMachine(params: ReactionStatusMachine
     }
     disposed = true;
     clearTimers();
-    const emoji = currentEmoji;
-    currentEmoji = null;
-    if (!emoji) {
-      return;
+
+    const candidates = new Set<DiscordWorkEmoji>(ALL_STATUS_EMOJIS);
+    if (currentEmoji) {
+      candidates.add(currentEmoji);
     }
+    currentEmoji = null;
+
     await enqueue(async () => {
-      await params.clearReaction(emoji).catch((err) => {
-        params.onError?.(`discord status clear reaction failed: ${String(err)}`);
-      });
+      await Promise.all(
+        Array.from(candidates, (emoji) =>
+          params.clearReaction(emoji).catch(() => {
+            // Ignore best-effort cleanup failures; this runs after terminal state.
+          }),
+        ),
+      );
     });
   };
 
