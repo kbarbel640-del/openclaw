@@ -96,27 +96,27 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+// Ensure state dir is stable and not influenced by other tests that stub OPENCLAW_STATE_DIR.
+// Also keep it outside os.tmpdir() so tmpdir localRoots doesn't accidentally make all state readable.
+beforeAll(() => {
+  previousStateDir = process.env.OPENCLAW_STATE_DIR;
+  process.env.OPENCLAW_STATE_DIR = path.join(
+    path.parse(os.tmpdir()).root,
+    "var",
+    "lib",
+    "openclaw-media-state-test",
+  );
+});
+
+afterAll(() => {
+  if (previousStateDir === undefined) {
+    delete process.env.OPENCLAW_STATE_DIR;
+  } else {
+    process.env.OPENCLAW_STATE_DIR = previousStateDir;
+  }
+});
+
 describe("web media loading", () => {
-  beforeAll(() => {
-    // Ensure state dir is stable and not influenced by other tests that stub OPENCLAW_STATE_DIR.
-    // Also keep it outside os.tmpdir() so tmpdir localRoots doesn't accidentally make all state readable.
-    previousStateDir = process.env.OPENCLAW_STATE_DIR;
-    process.env.OPENCLAW_STATE_DIR = path.join(
-      path.parse(os.tmpdir()).root,
-      "var",
-      "lib",
-      "openclaw-media-state-test",
-    );
-  });
-
-  afterAll(() => {
-    if (previousStateDir === undefined) {
-      delete process.env.OPENCLAW_STATE_DIR;
-    } else {
-      process.env.OPENCLAW_STATE_DIR = previousStateDir;
-    }
-  });
-
   beforeAll(() => {
     vi.spyOn(ssrf, "resolvePinnedHostname").mockImplementation(async (hostname) => {
       const normalized = hostname.trim().toLowerCase().replace(/\.$/, "");
