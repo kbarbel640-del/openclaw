@@ -3,7 +3,6 @@ import type { GatewayHelloOk } from "../gateway.ts";
 import type { AppMode } from "../navigation.ts";
 import type { UiSettings } from "../storage.ts";
 import { formatRelativeTimestamp, formatDurationHuman } from "../format.ts";
-import { icons } from "../icons.ts";
 import { formatNextRun } from "../presenter.ts";
 
 export type OverviewProps = {
