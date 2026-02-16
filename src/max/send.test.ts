@@ -248,3 +248,34 @@ describe("sendMediaMax", () => {
     expect(uploadInit.body).toBeInstanceOf(FormData);
   });
 });
+
+describe("sendMessageMax — retry", () => {
+  beforeEach(() => {
+    fetchWithTimeoutMock.mockReset();
+  });
+
+  it("retries on 429 when retry config is provided", async () => {
+    // First call: 429
+    fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({ message: "Rate limited" }, 429));
+    // Second call: success
+    fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({ message: { mid: "retry_msg" } }));
+
+    const result = await sendMessageMax("c1", "text", {
+      token: "t",
+      retry: { attempts: 2, minDelayMs: 10, maxDelayMs: 50 },
+    });
+
+    expect(result.messageId).toBe("retry_msg");
+    expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry without retry config", async () => {
+    fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({ message: "Rate limited" }, 429));
+
+    await expect(sendMessageMax("c1", "text", { token: "t" })).rejects.toThrow(
+      /MAX sendMessage failed \(429\)/,
+    );
+
+    expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
+  });
+});

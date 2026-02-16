@@ -1,3 +1,5 @@
+import type { RetryConfig } from "../infra/retry.js";
+import { createMaxRetryRunner, type RetryRunner } from "../infra/retry-policy.js";
 import { makeProxyFetch } from "../telegram/proxy.js";
 import { fetchWithTimeout } from "../utils/fetch-timeout.js";
 
@@ -15,6 +17,8 @@ export type MaxSendOpts = {
   proxy?: string;
   notify?: boolean;
   disableLinkPreview?: boolean;
+  /** Retry config for transient errors (429, timeout, connection reset). */
+  retry?: RetryConfig;
 };
 
 /** Result of sending a MAX message. */
@@ -85,21 +89,31 @@ export async function sendMessageMax(
   }
 
   const url = `${MAX_API_BASE}/messages?chat_id=${encodeURIComponent(chatId)}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    },
-    30_000,
-    fetcher,
-  );
 
-  if (!res.ok) {
-    const errorBody = await res.text().catch(() => "");
-    throw new Error(`MAX sendMessage failed (${res.status}): ${errorBody}`);
-  }
+  const doSend = async () => {
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      },
+      30_000,
+      fetcher,
+    );
+
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => "");
+      throw new Error(`MAX sendMessage failed (${res.status}): ${errorBody}`);
+    }
+    return res;
+  };
+
+  const retry: RetryRunner = opts.retry
+    ? createMaxRetryRunner({ retry: opts.retry, verbose: opts.verbose })
+    : (fn) => fn();
+
+  const res = await retry(doSend, "sendMessageMax");
 
   const json = (await res.json()) as Record<string, unknown>;
   const message = json.message as Record<string, unknown> | undefined;
@@ -141,23 +155,26 @@ export async function sendMediaMax(
   });
   formData.append("data", blob, opts.fileName ?? "file");
 
-  const uploadRes = await fetchWithTimeout(
-    uploadUrl,
-    {
-      method: "POST",
-      headers,
-      body: formData,
-    },
-    60_000,
-    fetcher,
-  );
+  const retry: RetryRunner = opts.retry
+    ? createMaxRetryRunner({ retry: opts.retry, verbose: opts.verbose })
+    : (fn) => fn();
 
-  if (!uploadRes.ok) {
-    const errorBody = await uploadRes.text().catch(() => "");
-    throw new Error(`MAX upload failed (${uploadRes.status}): ${errorBody}`);
-  }
+  const doUpload = async () => {
+    const uploadRes = await fetchWithTimeout(
+      uploadUrl,
+      { method: "POST", headers, body: formData },
+      60_000,
+      fetcher,
+    );
 
-  const uploadJson = (await uploadRes.json()) as Record<string, unknown>;
+    if (!uploadRes.ok) {
+      const errorBody = await uploadRes.text().catch(() => "");
+      throw new Error(`MAX upload failed (${uploadRes.status}): ${errorBody}`);
+    }
+    return (await uploadRes.json()) as Record<string, unknown>;
+  };
+
+  const uploadJson = await retry(doUpload, "uploadMedia");
 
   // Step 2: Send message with attachment
   const body: Record<string, unknown> = {
@@ -174,21 +191,27 @@ export async function sendMediaMax(
   }
 
   const msgUrl = `${MAX_API_BASE}/messages?chat_id=${encodeURIComponent(chatId)}`;
-  const msgRes = await fetchWithTimeout(
-    msgUrl,
-    {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
-    30_000,
-    fetcher,
-  );
 
-  if (!msgRes.ok) {
-    const errorBody = await msgRes.text().catch(() => "");
-    throw new Error(`MAX sendMedia failed (${msgRes.status}): ${errorBody}`);
-  }
+  const doSendMedia = async () => {
+    const msgRes = await fetchWithTimeout(
+      msgUrl,
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      30_000,
+      fetcher,
+    );
+
+    if (!msgRes.ok) {
+      const errorBody = await msgRes.text().catch(() => "");
+      throw new Error(`MAX sendMedia failed (${msgRes.status}): ${errorBody}`);
+    }
+    return msgRes;
+  };
+
+  const msgRes = await retry(doSendMedia, "sendMedia");
 
   const msgJson = (await msgRes.json()) as Record<string, unknown>;
   const message = msgJson.message as Record<string, unknown> | undefined;

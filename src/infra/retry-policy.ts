@@ -69,6 +69,70 @@ export function createDiscordRetryRunner(params: {
     });
 }
 
+// ---------------------------------------------------------------------------
+// MAX
+// ---------------------------------------------------------------------------
+
+export const MAX_RETRY_DEFAULTS = {
+  attempts: 3,
+  minDelayMs: 500,
+  maxDelayMs: 30_000,
+  jitter: 0.15,
+};
+
+/** Matches transient errors worth retrying for MAX Bot API. */
+const MAX_RETRY_RE = /429|timeout|connect|reset|closed|unavailable|temporarily|ECONNREFUSED/i;
+
+/**
+ * Extract retry-after from a MAX 429 response error.
+ *
+ * MAX returns `retry_after` in the JSON error body (seconds).
+ */
+function getMaxRetryAfterMs(err: unknown): number | undefined {
+  if (!err || typeof err !== "object") {
+    return undefined;
+  }
+  // Check for retry_after in error message (e.g. "429 ... retry_after: 5")
+  const msg = formatErrorMessage(err);
+  const match = /retry.after[:\s]+(\d+)/i.exec(msg);
+  return match ? Number(match[1]) * 1000 : undefined;
+}
+
+export function createMaxRetryRunner(params: {
+  retry?: RetryConfig;
+  configRetry?: RetryConfig;
+  verbose?: boolean;
+  shouldRetry?: (err: unknown) => boolean;
+}): RetryRunner {
+  const retryConfig = resolveRetryConfig(MAX_RETRY_DEFAULTS, {
+    ...params.configRetry,
+    ...params.retry,
+  });
+  const shouldRetry = params.shouldRetry
+    ? (err: unknown) => params.shouldRetry?.(err) || MAX_RETRY_RE.test(formatErrorMessage(err))
+    : (err: unknown) => MAX_RETRY_RE.test(formatErrorMessage(err));
+
+  return <T>(fn: () => Promise<T>, label?: string) =>
+    retryAsync(fn, {
+      ...retryConfig,
+      label,
+      shouldRetry,
+      retryAfterMs: getMaxRetryAfterMs,
+      onRetry: params.verbose
+        ? (info) => {
+            const maxRetries = Math.max(1, info.maxAttempts - 1);
+            console.warn(
+              `max send retry ${info.attempt}/${maxRetries} for ${info.label ?? label ?? "request"} in ${info.delayMs}ms: ${formatErrorMessage(info.err)}`,
+            );
+          }
+        : undefined,
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Telegram
+// ---------------------------------------------------------------------------
+
 export function createTelegramRetryRunner(params: {
   retry?: RetryConfig;
   configRetry?: RetryConfig;
