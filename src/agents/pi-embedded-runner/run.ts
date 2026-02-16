@@ -212,13 +212,10 @@ export async function runEmbeddedPiAgent(
       // Run before_agent_start hook early for model override.
       // The hook also runs later in attempt.ts for systemPrompt/prependContext;
       // we only extract the model field here so auth resolution uses the right provider.
-      // Skip hook override if user explicitly set model (via /model or authProfile).
-      const hasUserModelOverride =
-        params.authProfileIdSource === "user" ||
-        params.modelSource === "user" ||
-        params.providerSource === "user";
-
-      if (!hasUserModelOverride) {
+      // Skip hook override if user explicitly set an auth profile.
+      // NOTE: This doesn't catch user model selection via /model (tracked separately).
+      // A future enhancement could add model override source tracking to SessionEntry.
+      if (params.authProfileIdSource !== "user") {
         const hookRunner = getGlobalHookRunner();
         if (hookRunner?.hasHooks("before_agent_start")) {
           try {
