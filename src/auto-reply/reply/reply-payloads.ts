@@ -45,6 +45,9 @@ export function applyReplyTagsToPayload(
 }
 
 export function isRenderablePayload(payload: ReplyPayload): boolean {
+  if (payload.isError) {
+    return false;
+  }
   return Boolean(
     payload.text ||
     payload.mediaUrl ||
