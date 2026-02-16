@@ -431,22 +431,26 @@ if [ "$DEPLOYMENT_ENV" = "production" ]; then
   REQUIRED_ENV_VARS+=("CSRF_SECRET")
 fi
 
-for var in "${REQUIRED_ENV_VARS[@]}"; do
-  if [ -z "${!var:-}" ]; then
-    log_error "Required environment variable not set: $var"
-    exit 1
-  else
-    log_success "$var is set"
-  fi
-done
+if [ ${#REQUIRED_ENV_VARS[@]} -gt 0 ]; then
+  for var in "${REQUIRED_ENV_VARS[@]}"; do
+    if [ -z "${!var:-}" ]; then
+      log_error "Required environment variable not set: $var"
+      exit 1
+    else
+      log_success "$var is set"
+    fi
+  done
+fi
 
-for var in "${OPTIONAL_ENV_VARS[@]}"; do
-  if [ -z "${!var:-}" ]; then
-    log_warning "Optional environment variable not set: $var"
-  else
-    log_success "$var is set"
-  fi
-done
+if [ ${#OPTIONAL_ENV_VARS[@]} -gt 0 ]; then
+  for var in "${OPTIONAL_ENV_VARS[@]}"; do
+    if [ -z "${!var:-}" ]; then
+      log_warning "Optional environment variable not set: $var"
+    else
+      log_success "$var is set"
+    fi
+  done
+fi
 
 #############################################
 # Phase 8: Security Audit
