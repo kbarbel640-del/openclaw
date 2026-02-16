@@ -28,27 +28,29 @@ export function guardSessionManager(
     return sessionManager as GuardedSessionManager;
   }
 
-  const hookRunner = getGlobalHookRunner();
-  const transform = hookRunner?.hasHooks("tool_result_persist")
-    ? // oxlint-disable-next-line typescript/no-explicit-any
-      (message: any, meta: { toolCallId?: string; toolName?: string; isSynthetic?: boolean }) => {
-        const out = hookRunner.runToolResultPersist(
-          {
-            toolName: meta.toolName,
-            toolCallId: meta.toolCallId,
-            message,
-            isSynthetic: meta.isSynthetic,
-          },
-          {
-            agentId: opts?.agentId,
-            sessionKey: opts?.sessionKey,
-            toolName: meta.toolName,
-            toolCallId: meta.toolCallId,
-          },
-        );
-        return out?.message ?? message;
-      }
-    : undefined;
+  // Evaluate hook availability lazily inside the callback rather than eagerly
+  // at guard-install time. Plugins may register tool_result_persist hooks after
+  // guardSessionManager() runs, causing the eager check to permanently miss them.
+  // oxlint-disable-next-line typescript/no-explicit-any
+  const transform = (message: any, meta: { toolCallId?: string; toolName?: string; isSynthetic?: boolean }) => {
+    const hookRunner = getGlobalHookRunner();
+    if (!hookRunner?.hasHooks("tool_result_persist")) return undefined;
+    const out = hookRunner.runToolResultPersist(
+      {
+        toolName: meta.toolName,
+        toolCallId: meta.toolCallId,
+        message,
+        isSynthetic: meta.isSynthetic,
+      },
+      {
+        agentId: opts?.agentId,
+        sessionKey: opts?.sessionKey,
+        toolName: meta.toolName,
+        toolCallId: meta.toolCallId,
+      },
+    );
+    return out?.message ?? message;
+  };
 
   const guard = installSessionToolResultGuard(sessionManager, {
     transformMessageForPersistence: (message) =>
