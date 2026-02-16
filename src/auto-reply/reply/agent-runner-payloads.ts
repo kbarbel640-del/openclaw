@@ -77,12 +77,6 @@ export function buildReplyPayloads(params: {
     )
     .filter(isRenderablePayload);
 
-  // Drop final payloads only when block streaming succeeded end-to-end.
-  // If streaming aborted (e.g., timeout), fall back to final payloads.
-  const shouldDropFinalPayloads =
-    params.blockStreamingEnabled &&
-    Boolean(params.blockReplyPipeline?.didStream()) &&
-    !params.blockReplyPipeline?.isAborted();
   const messagingToolSentTexts = params.messagingToolSentTexts ?? [];
   const messagingToolSentTargets = params.messagingToolSentTargets ?? [];
   const suppressMessagingToolReplies = shouldSuppressMessagingToolReplies({
@@ -99,13 +93,21 @@ export function buildReplyPayloads(params: {
     payloads: dedupedPayloads,
     sentMediaUrls: params.messagingToolSentMediaUrls ?? [],
   });
-  // Filter out payloads already sent via pipeline or directly during tool flush.
-  const filteredPayloads = shouldDropFinalPayloads
+  // Filter out payloads already delivered via block streaming pipeline or tool flush.
+  // When block streaming succeeded end-to-end (didStream && !aborted && no delivery failures),
+  // drop all final payloads — the content was already delivered (possibly coalesced).
+  // When streaming had failures, use per-payload hasSentPayload checks so that payloads
+  // whose delivery failed are preserved as final payloads (fallback), preventing silent
+  // message loss (fixes #15772).
+  const shouldDropAllFinals =
+    params.blockStreamingEnabled &&
+    Boolean(params.blockReplyPipeline?.didStream()) &&
+    !params.blockReplyPipeline?.isAborted() &&
+    !params.blockReplyPipeline?.hasDeliveryFailures?.();
+  const filteredPayloads = shouldDropAllFinals
     ? []
-    : params.blockStreamingEnabled
-      ? mediaFilteredPayloads.filter(
-          (payload) => !params.blockReplyPipeline?.hasSentPayload(payload),
-        )
+    : params.blockStreamingEnabled && params.blockReplyPipeline
+      ? mediaFilteredPayloads.filter((payload) => !params.blockReplyPipeline!.hasSentPayload(payload))
       : params.directlySentBlockKeys?.size
         ? mediaFilteredPayloads.filter(
             (payload) => !params.directlySentBlockKeys!.has(createBlockReplyPayloadKey(payload)),

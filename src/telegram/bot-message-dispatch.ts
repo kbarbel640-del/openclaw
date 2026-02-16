@@ -26,6 +26,7 @@ import type { TelegramStreamMode } from "./bot/types.js";
 import type { TelegramInlineButtons } from "./button-types.js";
 import { resolveTelegramDraftStreamingChunking } from "./draft-chunking.js";
 import { createTelegramDraftStream } from "./draft-stream.js";
+import { renderTelegramHtmlText } from "./format.js";
 import { editMessageTelegram } from "./send.js";
 import { cacheSticker, describeStickerImage } from "./sticker-cache.js";
 
@@ -113,7 +114,6 @@ export const dispatchTelegramMessage = async ({
   const mediaLocalRoots = getAgentScopedMediaLocalRoots(cfg, route.agentId);
   let lastPartialText = "";
   let draftText = "";
-  let hasStreamedMessage = false;
   const updateDraftFromPartial = (text?: string) => {
     if (!draftStream || !text) {
       return;
@@ -121,8 +121,6 @@ export const dispatchTelegramMessage = async ({
     if (text === lastPartialText) {
       return;
     }
-    // Mark that we've received streaming content (for forceNewMessage decision).
-    hasStreamedMessage = true;
     if (streamMode === "partial") {
       // Some providers briefly emit a shorter prefix snapshot (for example
       // "Sure." -> "Sure" -> "Sure."). Keep the longer preview to avoid
@@ -298,59 +296,57 @@ export const dispatchTelegramMessage = async ({
             await flushDraft();
             const hasMedia = Boolean(payload.mediaUrl) || (payload.mediaUrls?.length ?? 0) > 0;
             const previewMessageId = draftStream?.messageId();
-            const finalText = payload.text;
-            const currentPreviewText = streamMode === "block" ? draftText : lastPartialText;
             const previewButtons = (
               payload.channelData?.telegram as { buttons?: TelegramInlineButtons } | undefined
             )?.buttons;
             let draftStoppedForPreviewEdit = false;
-            // Skip preview edit for error payloads to avoid overwriting previous content
-            const canFinalizeViaPreviewEdit =
-              !finalizedViaPreviewMessage &&
-              !hasMedia &&
-              typeof finalText === "string" &&
-              finalText.length > 0 &&
-              typeof previewMessageId === "number" &&
-              finalText.length <= draftMaxChars &&
-              !payload.isError;
-            if (canFinalizeViaPreviewEdit) {
-              draftStream?.stop();
-              draftStoppedForPreviewEdit = true;
-              if (
-                currentPreviewText &&
-                currentPreviewText.startsWith(finalText) &&
-                finalText.length < currentPreviewText.length
-              ) {
-                // Ignore regressive final edits (e.g., "Okay." -> "Ok"), which
-                // can appear transiently in some provider streams.
-                return;
-              }
-              try {
-                await editMessageTelegram(chatId, previewMessageId, finalText, {
-                  api: bot.api,
-                  cfg,
-                  accountId: route.accountId,
-                  linkPreview: telegramCfg.linkPreview,
-                  buttons: previewButtons,
-                });
-                finalizedViaPreviewMessage = true;
-                deliveryState.delivered = true;
-                return;
-              } catch (err) {
+            if (!hasMedia && payload.text && !payload.isError && typeof previewMessageId === "number") {
+              const canFinalizeViaPreviewEdit = payload.text.length <= draftMaxChars;
+              if (canFinalizeViaPreviewEdit) {
+                // Skip the final edit entirely when the draft already matches the final text
+                // and no formatting/buttons/linkPreview mutation is needed. This avoids
+                // Telegram "message is not modified" errors which trigger failover cleanup
+                // and create duplicate messages.
+                const previewAppliedText = draftStream?.lastAppliedText();
+                const finalText = payload.text.trimEnd();
+                const hasFinalEditMutation =
+                  previewButtons !== undefined || telegramCfg.linkPreview === false;
+                const needsFormattingPass =
+                  renderTelegramHtmlText(payload.text, { tableMode }) !== payload.text;
+                if (
+                  previewAppliedText === finalText &&
+                  !hasFinalEditMutation &&
+                  !needsFormattingPass
+                ) {
+                  draftStream?.stop();
+                  draftStoppedForPreviewEdit = true;
+                  finalizedViaPreviewMessage = true;
+                  deliveryState.delivered = true;
+                  return;
+                }
+                draftStream?.stop();
+                draftStoppedForPreviewEdit = true;
+                try {
+                  await editMessageTelegram(chatId, previewMessageId, payload.text, {
+                    api: bot.api,
+                    cfg,
+                    accountId: route.accountId,
+                    linkPreview: telegramCfg.linkPreview,
+                    buttons: previewButtons,
+                  });
+                  finalizedViaPreviewMessage = true;
+                  deliveryState.delivered = true;
+                  return;
+                } catch (err) {
+                  logVerbose(
+                    `telegram: preview final edit failed; falling back to standard send (${String(err)})`,
+                  );
+                }
+              } else {
                 logVerbose(
-                  `telegram: preview final edit failed; falling back to standard send (${String(err)})`,
+                  `telegram: preview final too long for edit (${payload.text.length} > ${draftMaxChars}); falling back to standard send`,
                 );
               }
-            }
-            if (
-              !hasMedia &&
-              !payload.isError &&
-              typeof finalText === "string" &&
-              finalText.length > draftMaxChars
-            ) {
-              logVerbose(
-                `telegram: preview final too long for edit (${finalText.length} > ${draftMaxChars}); falling back to standard send`,
-              );
             }
             if (!draftStoppedForPreviewEdit) {
               draftStream?.stop();
@@ -389,34 +385,6 @@ export const dispatchTelegramMessage = async ({
         skillFilter,
         disableBlockStreaming,
         onPartialReply: draftStream ? (payload) => updateDraftFromPartial(payload.text) : undefined,
-        onAssistantMessageStart: draftStream
-          ? () => {
-              // When a new assistant message starts (e.g., after tool call),
-              // force a new Telegram message if we have previous content.
-              // Only force once per response to avoid excessive splitting.
-              logVerbose(
-                `telegram: onAssistantMessageStart called, hasStreamedMessage=${hasStreamedMessage}`,
-              );
-              if (hasStreamedMessage) {
-                logVerbose(`telegram: calling forceNewMessage()`);
-                draftStream.forceNewMessage();
-              }
-              lastPartialText = "";
-              draftText = "";
-              draftChunker?.reset();
-            }
-          : undefined,
-        onReasoningEnd: draftStream
-          ? () => {
-              // When a thinking block ends, force a new Telegram message for the next text output.
-              if (hasStreamedMessage) {
-                draftStream.forceNewMessage();
-                lastPartialText = "";
-                draftText = "";
-                draftChunker?.reset();
-              }
-            }
-          : undefined,
         onModelSelected,
       },
     }));
