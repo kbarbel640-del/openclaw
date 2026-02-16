@@ -27,6 +27,11 @@ export type EventStoreConfig = {
   natsUrl: string;
   streamName: string;
   subjectPrefix: string;
+  retention?: {
+    maxMessages?: number;
+    maxBytes?: number;
+    maxAgeHours?: number;
+  };
 };
 
 export type EventType =
@@ -129,7 +134,9 @@ async function ensureStream(nc: NatsConnection, cfg: EventStoreConfig): Promise<
       subjects: [`${cfg.subjectPrefix}.>`],
       retention: RetentionPolicy.Limits,
       storage: StorageType.File,
-      max_age: 0,
+      max_age: cfg.retention?.maxAgeHours ? cfg.retention.maxAgeHours * 3_600_000_000_000 : 0,
+      max_msgs: cfg.retention?.maxMessages ?? -1,
+      max_bytes: cfg.retention?.maxBytes ?? -1,
       num_replicas: 1,
     });
     log(`Created stream: ${cfg.streamName}`);
@@ -161,9 +168,12 @@ export async function initEventStore(config: EventStoreConfig): Promise<void> {
       pass: url?.password ? decodeURIComponent(url.password) : undefined,
       reconnect: true,
       maxReconnectAttempts: -1,
+      timeout: 5_000,
     });
 
-    log(`Connected to ${config.natsUrl}`);
+    // Log without credentials
+    const safeUrl = url ? `${url.protocol}//${url.hostname}:${url.port || 4222}` : config.natsUrl;
+    log(`Connected to ${safeUrl}`);
 
     // Reconnection handler
     (async () => {

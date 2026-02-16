@@ -42,16 +42,10 @@ export type EventStoreRetentionConfig = {
 
 /** Event types emitted to the store. */
 export type EventType =
-  | "conversation.message_in"
-  | "conversation.message_out"
-  | "conversation.tool_call"
-  | "conversation.tool_result"
-  | "lifecycle.session_start"
-  | "lifecycle.session_end"
-  | "lifecycle.compaction"
-  | "lifecycle.error"
-  | "knowledge.fact"
-  | "knowledge.decision";
-
-/** Event visibility levels. */
-export type EventVisibility = "public" | "internal" | "confidential";
+  | "msg.in"
+  | "msg.out"
+  | "tool.call"
+  | "tool.result"
+  | "run.start"
+  | "run.end"
+  | "run.error";

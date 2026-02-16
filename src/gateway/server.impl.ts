@@ -232,6 +232,7 @@ export async function startGatewayServer(
       natsUrl: cfgAtStart.eventStore.natsUrl ?? "nats://localhost:4222",
       streamName: cfgAtStart.eventStore.streamName ?? "openclaw-events",
       subjectPrefix: cfgAtStart.eventStore.subjectPrefix ?? "openclaw.events",
+      retention: cfgAtStart.eventStore.retention,
     });
   }
 
