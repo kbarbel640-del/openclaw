@@ -304,8 +304,10 @@ function Install-PythonDeps {
 
     if (Test-Path "requirements.txt") {
         Write-Info "Installing Python brain dependencies..."
-        & $script:pythonCmd -m pip install --upgrade pip 2>$null
-        & $script:pythonCmd -m pip install -r requirements.txt
+        $ErrorActionPreference = "Continue"
+        & $script:pythonCmd -m pip install --upgrade pip 2>&1 | Out-Null
+        & $script:pythonCmd -m pip install -r requirements.txt 2>&1
+        $ErrorActionPreference = "Stop"
         if ($LASTEXITCODE -ne 0) {
             Write-Warn "Some Python deps failed. Brain features may not work."
         } else {
