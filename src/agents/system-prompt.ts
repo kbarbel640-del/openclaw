@@ -628,7 +628,12 @@ export function buildAgentSystemPrompt(params: {
   });
 
   if (projectContextFiles.length > 0) {
-    lines.push("# Project Context", "", "The following project context files have been loaded:", "");
+    lines.push(
+      "# Project Context",
+      "",
+      "The following project context files have been loaded:",
+      "",
+    );
     for (const file of projectContextFiles) {
       lines.push(`## ${file.path}`, "", file.content, "");
     }
