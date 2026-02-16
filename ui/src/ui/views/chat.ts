@@ -276,7 +276,6 @@ export function renderChat(props: ChatProps) {
                 ${
                   props.onGoToOverview &&
                   (props.error.toLowerCase().includes("unauthorized") ||
-                    props.error.toLowerCase().includes("token missing") ||
                     props.error.toLowerCase().includes("connect failed"))
                     ? html`
                         <div style="margin-top: 8px">
