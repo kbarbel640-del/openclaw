@@ -23,6 +23,19 @@ import {
   wake,
 } from "./timer.js";
 
+async function ensureLoadedForRead(state: CronServiceState) {
+  await ensureLoaded(state, { skipRecompute: true });
+  if (!state.store) {
+    return;
+  }
+  // Use the maintenance-only version so that read-only operations never
+  // advance a past-due nextRunAtMs without executing the job (#16156).
+  const changed = recomputeNextRunsForMaintenance(state);
+  if (changed) {
+    await persist(state);
+  }
+}
+
 export async function start(state: CronServiceState) {
   await locked(state, async () => {
     if (!state.deps.cronEnabled) {
@@ -74,15 +87,7 @@ export function stop(state: CronServiceState) {
 
 export async function status(state: CronServiceState) {
   return await locked(state, async () => {
-    await ensureLoaded(state, { skipRecompute: true });
-    if (state.store) {
-      // Use the maintenance-only version so that read-only operations never
-      // advance a past-due nextRunAtMs without executing the job (#16156).
-      const changed = recomputeNextRunsForMaintenance(state);
-      if (changed) {
-        await persist(state);
-      }
-    }
+    await ensureLoadedForRead(state);
     // Recover from zombie: if timer is dead but we have jobs to run, re-arm.
     if (state.deps.cronEnabled && nextWakeAtMs(state) != null && state.timer === null) {
       state.deps.log.info({}, "cron: re-arming timer (recovered from stale state)");
@@ -99,15 +104,7 @@ export async function status(state: CronServiceState) {
 
 export async function list(state: CronServiceState, opts?: { includeDisabled?: boolean }) {
   return await locked(state, async () => {
-    await ensureLoaded(state, { skipRecompute: true });
-    if (state.store) {
-      // Use the maintenance-only version so that read-only operations never
-      // advance a past-due nextRunAtMs without executing the job (#16156).
-      const changed = recomputeNextRunsForMaintenance(state);
-      if (changed) {
-        await persist(state);
-      }
-    }
+    await ensureLoadedForRead(state);
     // Recover from zombie: if timer is dead but we have jobs to run, re-arm.
     if (state.deps.cronEnabled && nextWakeAtMs(state) != null && state.timer === null) {
       state.deps.log.info({}, "cron: re-arming timer (recovered from stale state)");

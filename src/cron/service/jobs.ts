@@ -141,7 +141,10 @@ function normalizeJobTickState(params: { state: CronServiceState; job: CronJob; 
   return { changed, skip: false };
 }
 
-export function recomputeNextRuns(state: CronServiceState): boolean {
+function walkSchedulableJobs(
+  state: CronServiceState,
+  fn: (params: { job: CronJob; nowMs: number }) => boolean,
+): boolean {
   if (!state.store) {
     return false;
   }
@@ -155,16 +158,16 @@ export function recomputeNextRuns(state: CronServiceState): boolean {
     if (tick.skip) {
       continue;
     }
-    const runningAt = job.state.runningAtMs;
-    const thresholdMs = stuckRunThresholdMs(job);
-    if (typeof runningAt === "number" && now - runningAt > thresholdMs) {
-      state.deps.log.warn(
-        { jobId: job.id, runningAtMs: runningAt, thresholdMs },
-        "cron: clearing stuck running marker",
-      );
-      job.state.runningAtMs = undefined;
+    if (fn({ job, nowMs: now })) {
       changed = true;
     }
+  }
+  return changed;
+}
+
+export function recomputeNextRuns(state: CronServiceState): boolean {
+  return walkSchedulableJobs(state, ({ job, nowMs: now }) => {
+    let changed = false;
     // Only recompute if nextRunAtMs is missing or already past-due.
     // Preserving a still-future nextRunAtMs avoids accidentally advancing
     // a job that hasn't fired yet (e.g. during restart recovery).
@@ -203,8 +206,8 @@ export function recomputeNextRuns(state: CronServiceState): boolean {
         }
       }
     }
-  }
-  return changed;
+    return changed;
+  });
 }
 
 /**
@@ -215,19 +218,8 @@ export function recomputeNextRuns(state: CronServiceState): boolean {
  * (see #13992).
  */
 export function recomputeNextRunsForMaintenance(state: CronServiceState): boolean {
-  if (!state.store) {
-    return false;
-  }
-  let changed = false;
-  const now = state.deps.nowMs();
-  for (const job of state.store.jobs) {
-    const tick = normalizeJobTickState({ state, job, nowMs: now });
-    if (tick.changed) {
-      changed = true;
-    }
-    if (tick.skip) {
-      continue;
-    }
+  return walkSchedulableJobs(state, ({ job, nowMs: now }) => {
+    let changed = false;
     // Only compute missing nextRunAtMs, do NOT recompute existing ones.
     // If a job was past-due but not found by findDueJobs, recomputing would
     // cause it to be silently skipped.
@@ -238,8 +230,8 @@ export function recomputeNextRunsForMaintenance(state: CronServiceState): boolea
         changed = true;
       }
     }
-  }
-  return changed;
+    return changed;
+  });
 }
 
 export function nextWakeAtMs(state: CronServiceState) {
@@ -280,6 +272,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     name: normalizeRequiredName(input.name),
     description: normalizeOptionalText(input.description),
     enabled,
+    notify: typeof input.notify === "boolean" ? input.notify : undefined,
     deleteAfterRun,
     createdAtMs: now,
     updatedAtMs: now,
@@ -307,6 +300,9 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   }
   if (typeof patch.enabled === "boolean") {
     job.enabled = patch.enabled;
+  }
+  if (typeof patch.notify === "boolean") {
+    job.notify = patch.notify;
   }
   if (typeof patch.deleteAfterRun === "boolean") {
     job.deleteAfterRun = patch.deleteAfterRun;
