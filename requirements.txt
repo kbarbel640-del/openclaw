@@ -1,9 +1,8 @@
 # O.R.I.O.N. Brain & Evolution System Dependencies
 
 # Memory System (The Hippocampus)
-# chromadb >=0.6.0 requires pydantic v2 which fixes Python 3.14 compat
-chromadb>=0.6.0
-pydantic>=2.0.0
+# NOTE: ChromaDB requires Python <=3.13 (Pydantic v1 shim broken on 3.14+)
+chromadb>=0.4.0
 sentence-transformers>=2.2.0
 
 # Evolution Engine

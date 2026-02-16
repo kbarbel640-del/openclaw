@@ -58,15 +58,34 @@ if (Test-Command "ollama") {
 # -- Start Python Brain (background) ------------------------------------------
 $brainProcess = $null
 if (-not $NoBrain) {
+    # Prefer Python 3.12 over 3.14+ (ChromaDB/Pydantic v1 is broken on 3.14)
     $pythonCmd = $null
-    foreach ($cmd in @("python3", "python", "py")) {
-        if (Test-Command $cmd) { $pythonCmd = $cmd; break }
+    if (Test-Command "py") {
+        # Windows py launcher: try 3.12 first, then 3.11, then 3.13
+        foreach ($pyVer in @("3.12", "3.11", "3.13")) {
+            try {
+                $testOut = & py "-$pyVer" --version 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    $pythonCmd = "py"
+                    $script:pyVerFlag = "-$pyVer"
+                    Write-Host "  [O.R.I.O.N.] Using Python $pyVer (via py launcher)" -ForegroundColor Green
+                    break
+                }
+            } catch {}
+        }
+    }
+    if (-not $pythonCmd) {
+        foreach ($cmd in @("python3", "python", "py")) {
+            if (Test-Command $cmd) { $pythonCmd = $cmd; break }
+        }
     }
 
     if ($pythonCmd) {
         Write-Host "  [O.R.I.O.N.] Starting Python Brain..." -ForegroundColor Cyan
 
-        $brainArgs = @("scripts/orion_brain.py")
+        $brainArgs = @()
+        if ($script:pyVerFlag) { $brainArgs += $script:pyVerFlag }
+        $brainArgs += "scripts/orion_brain.py"
         if ($TrustMode) { $brainArgs += "--trust-mode" }
         if ($NoDream)   { $brainArgs += "--no-dream" }
         if ($NoVision)  { $brainArgs += "--no-vision" }

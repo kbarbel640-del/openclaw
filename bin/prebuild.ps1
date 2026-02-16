@@ -157,31 +157,68 @@ function Install-Pnpm {
     Write-Ok ("pnpm " + (pnpm -v) + " installed")
 }
 
-# -- 4. Python 3.10+ ----------------------------------------------------------
+# -- 4. Python 3.10-3.13 (3.14+ breaks ChromaDB/Pydantic) --------------------
 function Install-Python {
     $script:pythonCmd = $null
+    $script:pyVerFlag = $null
+
+    # On Windows the py launcher lets us pick a specific minor version.
+    # Prefer 3.12 > 3.11 > 3.13 > 3.10 (skip 3.14+ -- ChromaDB incompatible).
+    if (Test-Command "py") {
+        foreach ($pyVer in @("3.12", "3.11", "3.13", "3.10")) {
+            try {
+                $testOut = & py "-$pyVer" --version 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    $script:pythonCmd = "py"
+                    $script:pyVerFlag = "-$pyVer"
+                    Write-Ok ("Python " + $pyVer + " found via py launcher")
+                    return
+                }
+            } catch {}
+        }
+    }
+
+    # Fallback: check python3 / python / py without version pin
     foreach ($cmd in @("python3", "python", "py")) {
         if (Test-Command $cmd) {
             $ver = & $cmd --version 2>&1
-            if ($ver -match '(\d+\.\d+\.\d+)') {
-                if (Test-VersionGte $Matches[1] "3.10.0") {
+            if ($ver -match '(\d+)\.(\d+)\.(\d+)') {
+                $major = [int]$Matches[1]; $minor = [int]$Matches[2]
+                if ($major -eq 3 -and $minor -ge 10 -and $minor -le 13) {
                     $script:pythonCmd = $cmd
-                    Write-Ok ("Python " + $Matches[1] + " already installed (3.10+)")
+                    Write-Ok ("Python " + $Matches[0] + " already installed")
                     return
+                } elseif ($major -eq 3 -and $minor -ge 14) {
+                    Write-Warn ("Python " + $Matches[0] + " found but 3.14+ is incompatible with ChromaDB.")
+                    Write-Warn "Installing Python 3.12 alongside it..."
                 }
             }
         }
     }
 
-    Write-Info 'Python 3.10+ not found; installing...'
+    # Install Python 3.12
+    Write-Info 'Installing Python 3.12...'
     if (Test-Command "winget") {
         winget install --id Python.Python.3.12 --accept-source-agreements --accept-package-agreements
     } elseif (Test-Command "choco") {
         choco install python312 -y
     } else {
-        Write-Fail 'Neither winget nor choco found. Install Python 3.10+ manually: https://python.org'
+        Write-Fail 'Neither winget nor choco found. Install Python 3.12 manually: https://python.org'
     }
     Refresh-Path
+
+    # After install, try py launcher with 3.12 first
+    if (Test-Command "py") {
+        try {
+            $testOut = & py "-3.12" --version 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $script:pythonCmd = "py"
+                $script:pyVerFlag = "-3.12"
+                Write-Ok "Python 3.12 installed (via py launcher)"
+                return
+            }
+        } catch {}
+    }
     foreach ($cmd in @("python3", "python", "py")) {
         if (Test-Command $cmd) { $script:pythonCmd = $cmd; break }
     }
@@ -313,8 +350,13 @@ function Install-PythonDeps {
     if (Test-Path "requirements.txt") {
         Write-Info "Installing Python brain dependencies..."
         $ErrorActionPreference = "Continue"
-        & $script:pythonCmd -m pip install --upgrade pip 2>&1 | Out-Null
-        & $script:pythonCmd -m pip install -r requirements.txt 2>&1
+        if ($script:pyVerFlag) {
+            & $script:pythonCmd $script:pyVerFlag -m pip install --upgrade pip 2>&1 | Out-Null
+            & $script:pythonCmd $script:pyVerFlag -m pip install -r requirements.txt 2>&1
+        } else {
+            & $script:pythonCmd -m pip install --upgrade pip 2>&1 | Out-Null
+            & $script:pythonCmd -m pip install -r requirements.txt 2>&1
+        }
         $ErrorActionPreference = "Stop"
         if ($LASTEXITCODE -ne 0) {
             Write-Warn "Some Python deps failed. Brain features may not work."
