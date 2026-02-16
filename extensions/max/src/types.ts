@@ -27,7 +27,7 @@ export type MaxAccountConfig = {
   tokenFile?: string;
   /** HTTPS URL for webhook delivery (production). */
   webhookUrl?: string;
-  /** Secret for webhook signature verification. */
+  /** Shared secret for webhook verification (sent by MAX in X-Max-Bot-Api-Secret header). */
   webhookSecret?: string;
   /** Custom webhook path suffix. */
   webhookPath?: string;

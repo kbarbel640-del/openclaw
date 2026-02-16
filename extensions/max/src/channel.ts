@@ -17,6 +17,7 @@ import type { MaxProbe, ResolvedMaxAccount } from "./types.js";
 import { listMaxAccountIds, resolveDefaultMaxAccountId, resolveMaxAccount } from "./accounts.js";
 import { MaxConfigSchema } from "./config-schema.js";
 import { looksLikeMaxTargetId, normalizeMaxMessagingTarget } from "./normalize.js";
+import { maxOnboardingAdapter } from "./onboarding.js";
 import { getMaxRuntime } from "./runtime.js";
 
 // ------------------------------------------------------------------
@@ -104,6 +105,8 @@ export const maxPlugin: ChannelPlugin<ResolvedMaxAccount, MaxProbe> = {
   },
 
   reload: { configPrefixes: ["channels.max"] },
+
+  onboarding: maxOnboardingAdapter,
 
   configSchema: buildChannelConfigSchema(MaxConfigSchema),
 
