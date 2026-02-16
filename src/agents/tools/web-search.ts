@@ -4,6 +4,7 @@ import type { AnyAgentTool } from "./common.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { wrapWebContent } from "../../security/external-content.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
+import { optionalStringEnum } from "../schema/typebox.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 import {
   CacheEntry,
@@ -67,6 +68,10 @@ const WebSearchSchema = Type.Object({
         "Filter results by discovery time. Brave supports 'pd', 'pw', 'pm', 'py', and date range 'YYYY-MM-DDtoYYYY-MM-DD'. Perplexity supports 'pd', 'pw', 'pm', and 'py'.",
     }),
   ),
+  provider: optionalStringEnum(SEARCH_PROVIDERS, {
+    description:
+      'Override search provider for this call ("brave", "perplexity", or "grok"). Defaults to configured provider.',
+  }),
 });
 
 type WebSearchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer Web
@@ -227,6 +232,26 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
     return "brave";
   }
   return "brave";
+}
+
+function resolveEffectiveProvider(
+  override: string | undefined,
+  configDefault: (typeof SEARCH_PROVIDERS)[number],
+): (typeof SEARCH_PROVIDERS)[number] {
+  if (!override) {
+    return configDefault;
+  }
+  const normalized = override.trim().toLowerCase();
+  if (normalized === "perplexity") {
+    return "perplexity";
+  }
+  if (normalized === "grok") {
+    return "grok";
+  }
+  if (normalized === "brave") {
+    return "brave";
+  }
+  return configDefault;
 }
 
 function resolvePerplexityConfig(search?: WebSearchConfig): PerplexityConfig {
@@ -718,12 +743,9 @@ export function createWebSearchTool(options?: {
   const perplexityConfig = resolvePerplexityConfig(search);
   const grokConfig = resolveGrokConfig(search);
 
-  const description =
-    provider === "perplexity"
-      ? "Search the web using Perplexity Sonar (direct or via OpenRouter). Returns AI-synthesized answers with citations from real-time web search."
-      : provider === "grok"
-        ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search."
-        : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
+  const providerLabel =
+    provider === "perplexity" ? "Perplexity" : provider === "grok" ? "Grok" : "Brave";
+  const description = `Search the web (default: ${providerLabel}). Supports Brave, Perplexity, and Grok — use the provider parameter to override per call.`;
 
   return {
     label: "Web Search",
@@ -731,19 +753,25 @@ export function createWebSearchTool(options?: {
     description,
     parameters: WebSearchSchema,
     execute: async (_toolCallId, args) => {
+      const params = args as Record<string, unknown>;
+
+      // Read per-call override
+      const providerOverride = readStringParam(params, "provider");
+      const effectiveProvider = resolveEffectiveProvider(providerOverride, provider);
+
+      // Resolve API key for the effective provider (not the config default)
       const perplexityAuth =
-        provider === "perplexity" ? resolvePerplexityApiKey(perplexityConfig) : undefined;
+        effectiveProvider === "perplexity" ? resolvePerplexityApiKey(perplexityConfig) : undefined;
       const apiKey =
-        provider === "perplexity"
+        effectiveProvider === "perplexity"
           ? perplexityAuth?.apiKey
-          : provider === "grok"
+          : effectiveProvider === "grok"
             ? resolveGrokApiKey(grokConfig)
             : resolveSearchApiKey(search);
 
       if (!apiKey) {
-        return jsonResult(missingSearchKeyPayload(provider));
+        return jsonResult(missingSearchKeyPayload(effectiveProvider));
       }
-      const params = args as Record<string, unknown>;
       const query = readStringParam(params, "query", { required: true });
       const count =
         readNumberParam(params, "count", { integer: true }) ?? search?.maxResults ?? undefined;
@@ -751,7 +779,7 @@ export function createWebSearchTool(options?: {
       const search_lang = readStringParam(params, "search_lang");
       const ui_lang = readStringParam(params, "ui_lang");
       const rawFreshness = readStringParam(params, "freshness");
-      if (rawFreshness && provider !== "brave" && provider !== "perplexity") {
+      if (rawFreshness && effectiveProvider !== "brave" && effectiveProvider !== "perplexity") {
         return jsonResult({
           error: "unsupported_freshness",
           message: "freshness is only supported by the Brave and Perplexity web_search providers.",
@@ -773,7 +801,7 @@ export function createWebSearchTool(options?: {
         apiKey,
         timeoutSeconds: resolveTimeoutSeconds(search?.timeoutSeconds, DEFAULT_TIMEOUT_SECONDS),
         cacheTtlMs: resolveCacheTtlMs(search?.cacheTtlMinutes, DEFAULT_CACHE_TTL_MINUTES),
-        provider,
+        provider: effectiveProvider,
         country,
         search_lang,
         ui_lang,
@@ -803,4 +831,5 @@ export const __testing = {
   resolveGrokModel,
   resolveGrokInlineCitations,
   extractGrokContent,
+  resolveEffectiveProvider,
 } as const;
