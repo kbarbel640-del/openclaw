@@ -61,9 +61,9 @@ describe("isReasoningTagProvider", () => {
     expect(isReasoningTagProvider("google-antigravity/gemini-3")).toBe(true);
   });
 
-  it("returns true for minimax", () => {
-    expect(isReasoningTagProvider("minimax")).toBe(true);
-    expect(isReasoningTagProvider("minimax-cn")).toBe(true);
+  it("returns false for minimax - no <think>/<final> tag support (#4499)", () => {
+    expect(isReasoningTagProvider("minimax")).toBe(false);
+    expect(isReasoningTagProvider("minimax-cn")).toBe(false);
   });
 
   it("returns false for null/undefined/empty", () => {
