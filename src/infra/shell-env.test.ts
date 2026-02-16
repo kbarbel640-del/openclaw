@@ -72,3 +72,39 @@ describe("shell env fallback", () => {
     expect(exec2).not.toHaveBeenCalled();
   });
 });
+
+describe("loadShellEnvFallback uses login shell with env -0", () => {
+  it("passes env -0 command to exec for zsh shell", () => {
+    const env: NodeJS.ProcessEnv = { SHELL: "/bin/zsh" };
+    const exec = vi.fn(() => Buffer.from("MY_KEY=val\0"));
+
+    loadShellEnvFallback({
+      enabled: true,
+      env,
+      expectedKeys: ["MY_KEY"],
+      exec: exec as unknown as Parameters<typeof loadShellEnvFallback>[0]["exec"],
+    });
+
+    expect(exec).toHaveBeenCalledTimes(1);
+    const args = exec.mock.calls[0];
+    expect(args[0]).toBe("/bin/zsh");
+    expect(args[1]).toEqual(["-l", "-c", "env -0"]);
+  });
+
+  it("passes env -0 command to exec for bash shell", () => {
+    const env: NodeJS.ProcessEnv = { SHELL: "/bin/bash" };
+    const exec = vi.fn(() => Buffer.from("MY_KEY=val\0"));
+
+    loadShellEnvFallback({
+      enabled: true,
+      env,
+      expectedKeys: ["MY_KEY"],
+      exec: exec as unknown as Parameters<typeof loadShellEnvFallback>[0]["exec"],
+    });
+
+    expect(exec).toHaveBeenCalledTimes(1);
+    const args = exec.mock.calls[0];
+    expect(args[0]).toBe("/bin/bash");
+    expect(args[1]).toEqual(["-l", "-c", "env -0"]);
+  });
+});
