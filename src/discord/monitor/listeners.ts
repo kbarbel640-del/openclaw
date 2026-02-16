@@ -283,7 +283,7 @@ async function handleDiscordReactionEvent(params: {
           ? `#${channelSlug}`
           : channelName
             ? `#${normalizeDiscordSlug(channelName)}`
-          : `#${data.channel_id}`;
+            : `#${data.channel_id}`;
         const baseText = `Discord reaction ${action}: ${emojiLabel} by ${actorLabel} on ${guildSlug} ${channelLabel} msg ${data.message_id}`;
         const memberRoleIds = Array.isArray(data.rawMember?.roles)
           ? data.rawMember.roles.map((roleId: string) => String(roleId))
