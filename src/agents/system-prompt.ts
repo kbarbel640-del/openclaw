@@ -417,6 +417,19 @@ export function buildAgentSystemPrompt(params: {
           "- sessions_send: send to another session",
           '- session_status: show usage/time/model state and answer "what model are we using?"',
         ].join("\n"),
+    availableTools.has("exec")
+      ? [
+          "",
+          "### QMD (Local Docs Search)",
+          "QMD is installed globally. Use via `exec`.",
+          '- `qmd search "query" -c prospera` — fast keyword search (Próspera docs)',
+          '- `qmd search "query" -c dev` — fast keyword search (dev projects)',
+          '- `qmd vsearch "query"` — semantic vector search',
+          '- `qmd query "query"` — hybrid + reranking (best quality)',
+          '- `qmd get "path" --full` — retrieve full document',
+          '- `qmd search "query" --json -n 10` — structured JSON output',
+        ].join("\n")
+      : "",
     "TOOLS.md does not control tool availability; it is user guidance for how to use external tools.",
     "If a task is more complex or takes longer, spawn a sub-agent. It will do the work for you and ping you when it's done. You can always check up on it.",
     "",
