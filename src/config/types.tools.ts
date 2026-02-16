@@ -138,6 +138,8 @@ export type MediaToolsConfig = {
 
 export type ToolProfileId = "minimal" | "coding" | "messaging" | "full";
 
+export type SessionsToolsVisibility = "self" | "tree" | "agent" | "all";
+
 export type ToolPolicyConfig = {
   allow?: string[];
   /**
@@ -332,6 +334,20 @@ export type MemorySearchConfig = {
       textWeight?: number;
       /** Multiplier for candidate pool size (default: 4). */
       candidateMultiplier?: number;
+      /** Optional MMR re-ranking for result diversity. */
+      mmr?: {
+        /** Enable MMR re-ranking (default: false). */
+        enabled?: boolean;
+        /** Lambda: 0 = max diversity, 1 = max relevance (default: 0.7). */
+        lambda?: number;
+      };
+      /** Optional temporal decay to boost recency in hybrid scoring. */
+      temporalDecay?: {
+        /** Enable temporal decay (default: false). */
+        enabled?: boolean;
+        /** Half-life in days for exponential decay (default: 30). */
+        halfLifeDays?: number;
+      };
     };
   };
   /** Index cache behavior. */
@@ -353,6 +369,8 @@ export type ToolsConfig = {
   /** Optional tool policy overrides keyed by provider id or "provider/model". */
   byProvider?: Record<string, ToolPolicyConfig>;
   web?: {
+    /** Optional URL/domain allowlist for web tools. When configured, only URLs matching these patterns are allowed. */
+    urlAllowlist?: string[];
     search?: {
       /** Enable web search tool (default: true when API key is present). */
       enabled?: boolean;
@@ -452,6 +470,21 @@ export type ToolsConfig = {
     enabled?: boolean;
     /** Allowlist of agent ids or patterns (implementation-defined). */
     allow?: string[];
+  };
+  /**
+   * Session tool visibility controls which sessions can be targeted by session tools
+   * (sessions_list, sessions_history, sessions_send).
+   *
+   * Default: "tree" (current session + spawned subagent sessions).
+   */
+  sessions?: {
+    /**
+     * - "self": only the current session
+     * - "tree": current session + sessions spawned by this session (default)
+     * - "agent": any session belonging to the current agent id (can include other users)
+     * - "all": any session (cross-agent still requires tools.agentToAgent)
+     */
+    visibility?: SessionsToolsVisibility;
   };
   /** Elevated exec permissions for the host machine. */
   elevated?: {
