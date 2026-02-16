@@ -14,6 +14,13 @@ describe("resolveDiscordMessageChannelId", () => {
     expect(channelId).toBe("123");
   });
 
+  it("falls back to message.channel_id", () => {
+    const channelId = resolveDiscordMessageChannelId({
+      message: asMessage({ channel_id: " 234 " }),
+    });
+    expect(channelId).toBe("234");
+  });
+
   it("falls back to message.rawData.channel_id", () => {
     const channelId = resolveDiscordMessageChannelId({
       message: asMessage({ rawData: { channel_id: "456" } }),
