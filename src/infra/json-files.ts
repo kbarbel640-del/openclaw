@@ -14,11 +14,14 @@ export async function readJsonFile<T>(filePath: string): Promise<T | null> {
 export async function writeJsonAtomic(
   filePath: string,
   value: unknown,
-  options?: { mode?: number },
+  options?: { mode?: number; dirMode?: number },
 ) {
   const mode = options?.mode ?? 0o600;
   const dir = path.dirname(filePath);
-  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(dir, {
+    recursive: true,
+    ...(options?.dirMode != null ? { mode: options.dirMode } : {}),
+  });
   const tmp = `${filePath}.${randomUUID()}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(value, null, 2), "utf8");
   try {
