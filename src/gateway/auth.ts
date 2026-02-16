@@ -13,6 +13,7 @@ import {
 } from "./auth-rate-limit.js";
 import {
   isLoopbackAddress,
+  isPrivateOrLoopbackAddress,
   isTrustedProxyAddress,
   resolveHostName,
   parseForwardedForClientIp,
@@ -89,13 +90,20 @@ export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: str
     return false;
   }
   const clientIp = resolveRequestClientIp(req, trustedProxies) ?? "";
-  if (!isLoopbackAddress(clientIp)) {
+
+  // Accept loopback addresses and private network addresses (RFC1918).
+  // Private addresses cover Docker bridge networks (172.16-31.x.x),
+  // Kubernetes pod networks, and other container orchestration setups
+  // where the gateway is accessed from within the same host.
+  if (!isPrivateOrLoopbackAddress(clientIp)) {
     return false;
   }
 
   const host = resolveHostName(req.headers?.host);
   const hostIsLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
   const hostIsTailscaleServe = host.endsWith(".ts.net");
+  // Accept private IP hosts (e.g., Docker container accessing gateway via bridge IP)
+  const hostIsPrivateIp = isPrivateOrLoopbackAddress(host);
 
   const hasForwarded = Boolean(
     req.headers?.["x-forwarded-for"] ||
@@ -104,7 +112,7 @@ export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: str
   );
 
   const remoteIsTrustedProxy = isTrustedProxyAddress(req.socket?.remoteAddress, trustedProxies);
-  return (hostIsLocal || hostIsTailscaleServe) && (!hasForwarded || remoteIsTrustedProxy);
+  return (hostIsLocal || hostIsTailscaleServe || hostIsPrivateIp) && (!hasForwarded || remoteIsTrustedProxy);
 }
 
 function getTailscaleUser(req?: IncomingMessage): TailscaleUser | null {
