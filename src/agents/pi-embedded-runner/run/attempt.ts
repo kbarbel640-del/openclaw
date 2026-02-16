@@ -1,9 +1,10 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
-import { streamSimple } from "@mariozechner/pi-ai";
+import { completeSimple, streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs/promises";
 import os from "node:os";
+import type { SkillScaffoldManifestV1 } from "../../../scaffolds/manifests/skill-scaffold-manifest.v1.js";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
@@ -11,6 +12,8 @@ import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
 import { isSubagentSessionKey, normalizeAgentId } from "../../../routing/session-key.js";
+import { BudgetCounter } from "../../../scaffolds/budgets/budget-counter.js";
+import { getScaffoldExecutor } from "../../../scaffolds/registry.executors.js";
 import { resolveSignalReactionLevel } from "../../../signal/reaction-level.js";
 import { resolveTelegramInlineButtonsScope } from "../../../telegram/inline-buttons.js";
 import { resolveTelegramReactionLevel } from "../../../telegram/reaction-level.js";
@@ -89,6 +92,15 @@ import { splitSdkTools } from "../tool-split.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
 import { detectAndLoadPromptImages } from "./images.js";
 
+function extractSkillNameFromPrompt(prompt: string): string | undefined {
+  // Phase 1: skill commands rewrite the prompt to begin with:
+  //   Use the "<skillName>" skill for this request.
+  const trimmed = prompt.trimStart();
+  const match = trimmed.match(/^Use the "([^"]+)" skill for this request\./);
+  const name = match?.[1]?.trim();
+  return name ? name : undefined;
+}
+
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
   historyImagesByIndex: Map<number, ImageContent[]>,
@@ -166,7 +178,9 @@ export async function runEmbeddedAttempt(
   let restoreSkillEnv: (() => void) | undefined;
   process.chdir(effectiveWorkspace);
   try {
-    const shouldLoadSkillEntries = !params.skillsSnapshot || !params.skillsSnapshot.resolvedSkills;
+    const executorsEnabled = params.config?.scaffolds?.executorsEnabled === true;
+    const shouldLoadSkillEntries =
+      executorsEnabled || !params.skillsSnapshot || !params.skillsSnapshot.resolvedSkills;
     const skillEntries = shouldLoadSkillEntries
       ? loadWorkspaceSkillEntries(effectiveWorkspace)
       : [];
@@ -814,12 +828,176 @@ export async function runEmbeddedAttempt(
             });
           }
 
-          // Only pass images option if there are actually images to pass
-          // This avoids potential issues with models that don't expect the images parameter
-          if (imageResult.images.length > 0) {
-            await abortable(activeSession.prompt(effectivePrompt, { images: imageResult.images }));
+          const invokedSkillName = executorsEnabled
+            ? extractSkillNameFromPrompt(effectivePrompt)
+            : undefined;
+          const invokedSkillEntry = invokedSkillName
+            ? skillEntries.find((e) => e.skill.name === invokedSkillName)
+            : undefined;
+
+          const manifest: SkillScaffoldManifestV1 | undefined = invokedSkillEntry?.scaffoldManifest;
+          const manifestError = invokedSkillEntry?.scaffoldManifestError;
+
+          if (executorsEnabled && invokedSkillName && invokedSkillEntry) {
+            // Fail-closed: if a manifest file exists but is invalid, do not silently fall back.
+            if (!manifest && manifestError) {
+              const text = "Scaffold error: invalid manifest (E_MANIFEST_INVALID).";
+              const now = Date.now();
+              sessionManager.appendMessage({
+                role: "user",
+                content: effectivePrompt,
+                timestamp: now,
+              });
+              sessionManager.appendMessage({
+                role: "assistant",
+                content: [{ type: "text", text }],
+                api: params.model.api,
+                provider: params.model.provider,
+                model: params.model.id,
+                usage: {
+                  input: 0,
+                  output: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
+                  totalTokens: 0,
+                  cost: {
+                    input: 0,
+                    output: 0,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                    total: 0,
+                  },
+                },
+                stopReason: "stop",
+                timestamp: now,
+              });
+              activeSession.agent.replaceMessages(sessionManager.buildSessionContext().messages);
+              assistantTexts.push(text);
+            } else if (manifest) {
+              const executor = getScaffoldExecutor(manifest.scaffolds.executor);
+              const budgets = new BudgetCounter(manifest.scaffolds.budgets);
+
+              const callModel = async (callParams: {
+                messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+              }) => {
+                const systemPrompt = callParams.messages
+                  .filter((m) => m.role === "system")
+                  .map((m) => m.content)
+                  .join("\n\n");
+
+                const messages = callParams.messages
+                  .filter((m) => m.role !== "system")
+                  .map((m) => {
+                    if (m.role === "user") {
+                      return { role: "user" as const, content: m.content, timestamp: Date.now() };
+                    }
+                    return {
+                      role: "assistant" as const,
+                      content: [{ type: "text" as const, text: m.content }],
+                      api: params.model.api,
+                      provider: params.model.provider,
+                      model: params.model.id,
+                      usage: {
+                        input: 0,
+                        output: 0,
+                        cacheRead: 0,
+                        cacheWrite: 0,
+                        totalTokens: 0,
+                        cost: {
+                          input: 0,
+                          output: 0,
+                          cacheRead: 0,
+                          cacheWrite: 0,
+                          total: 0,
+                        },
+                      },
+                      stopReason: "stop" as const,
+                      timestamp: Date.now(),
+                    };
+                  });
+
+                const result = await completeSimple(params.model, {
+                  systemPrompt: systemPrompt || undefined,
+                  messages,
+                });
+                return {
+                  text:
+                    result.content?.map((c) => (c.type === "text" ? c.text : "")).join("") ?? "",
+                };
+              };
+
+              const execResult = await abortable(
+                executor.execute({
+                  ctx: {
+                    sessionId: params.sessionId,
+                    sessionKey: params.sessionKey,
+                    runId: params.runId,
+                    agentId: params.agentId,
+                    provider: params.provider,
+                    modelId: params.modelId,
+                    messageChannel: params.messageChannel,
+                    workspaceDir: effectiveWorkspace,
+                    skillName: invokedSkillName,
+                    prompt: effectivePrompt,
+                  },
+                  manifest,
+                  callModel,
+                  budgets,
+                }),
+              );
+
+              const text = execResult.text;
+              const now = Date.now();
+              sessionManager.appendMessage({
+                role: "user",
+                content: effectivePrompt,
+                timestamp: now,
+              });
+              sessionManager.appendMessage({
+                role: "assistant",
+                content: [{ type: "text", text }],
+                api: params.model.api,
+                provider: params.model.provider,
+                model: params.model.id,
+                usage: {
+                  input: 0,
+                  output: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
+                  totalTokens: 0,
+                  cost: {
+                    input: 0,
+                    output: 0,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                    total: 0,
+                  },
+                },
+                stopReason: "stop",
+                timestamp: now,
+              });
+              activeSession.agent.replaceMessages(sessionManager.buildSessionContext().messages);
+              assistantTexts.push(text);
+            } else {
+              // No manifest: fall back to normal behavior.
+              if (imageResult.images.length > 0) {
+                await abortable(
+                  activeSession.prompt(effectivePrompt, { images: imageResult.images }),
+                );
+              } else {
+                await abortable(activeSession.prompt(effectivePrompt));
+              }
+            }
           } else {
-            await abortable(activeSession.prompt(effectivePrompt));
+            // Only pass images option if there are actually images to pass
+            // This avoids potential issues with models that don't expect the images parameter
+            if (imageResult.images.length > 0) {
+              await abortable(
+                activeSession.prompt(effectivePrompt, { images: imageResult.images }),
+              );
+            } else {
+              await abortable(activeSession.prompt(effectivePrompt));
+            }
           }
         } catch (err) {
           promptError = err;

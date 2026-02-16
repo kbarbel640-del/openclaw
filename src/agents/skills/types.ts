@@ -1,4 +1,5 @@
 import type { Skill } from "@mariozechner/pi-coding-agent";
+import type { SkillScaffoldManifestV1 } from "../../scaffolds/manifests/skill-scaffold-manifest.v1.js";
 
 export type SkillInstallSpec = {
   id?: string;
@@ -68,6 +69,9 @@ export type SkillEntry = {
   frontmatter: ParsedSkillFrontmatter;
   metadata?: OpenClawSkillMetadata;
   invocation?: SkillInvocationPolicy;
+
+  scaffoldManifest?: SkillScaffoldManifestV1;
+  scaffoldManifestError?: { path: string; error: string };
 };
 
 export type SkillEligibilityContext = {
