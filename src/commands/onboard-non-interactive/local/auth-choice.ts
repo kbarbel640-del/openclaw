@@ -723,7 +723,7 @@ export async function applyNonInteractiveAuthChoice(params: {
     }
 
     const preset = resolveCloudruModelPreset(authChoice);
-    const proxyUrl = `http://localhost:${CLOUDRU_PROXY_PORT_DEFAULT}`;
+    const proxyUrl = `http://127.0.0.1:${CLOUDRU_PROXY_PORT_DEFAULT}`;
     const workspaceDir = baseConfig.agents?.defaults?.workspace ?? process.cwd();
 
     await writeCloudruEnvFile({ apiKey: resolved.key, workspaceDir });

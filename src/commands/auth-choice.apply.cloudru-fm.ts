@@ -17,15 +17,8 @@
  * 10. Pre-flight proxy health check (non-blocking warning)
  */
 
-import type {
-  ApplyAuthChoiceParams,
-  ApplyAuthChoiceResult,
-} from "./auth-choice.apply.js";
-import {
-  formatApiKeyPreview,
-  normalizeApiKeyInput,
-  validateApiKeyInput,
-} from "./auth-choice.api-key.js";
+import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
+import { checkProxyHealth } from "../agents/cloudru-proxy-health.js";
 import {
   CLOUDRU_FM_PRESETS,
   CLOUDRU_PROXY_PORT_DEFAULT,
@@ -34,12 +27,16 @@ import {
   CLOUDRU_COMPOSE_FILENAME,
 } from "../config/cloudru-fm.constants.js";
 import {
+  formatApiKeyPreview,
+  normalizeApiKeyInput,
+  validateApiKeyInput,
+} from "./auth-choice.api-key.js";
+import {
   resolveCloudruModelPreset,
   writeDockerComposeFile,
   writeCloudruEnvFile,
   ensureGitignoreEntries,
 } from "./onboard-cloudru-fm.js";
-import { checkProxyHealth } from "../agents/cloudru-proxy-health.js";
 
 const CLOUDRU_FM_CHOICES = new Set(Object.keys(CLOUDRU_FM_PRESETS));
 
@@ -52,7 +49,7 @@ export async function applyAuthChoiceCloudruFm(
   }
 
   let nextConfig = params.config;
-  const proxyUrl = `http://localhost:${CLOUDRU_PROXY_PORT_DEFAULT}`;
+  const proxyUrl = `http://127.0.0.1:${CLOUDRU_PROXY_PORT_DEFAULT}`;
 
   // -----------------------------------------------------------------------
   // 1. Collect API key
@@ -100,8 +97,7 @@ export async function applyAuthChoiceCloudruFm(
   // -----------------------------------------------------------------------
 
   const existingProviders = nextConfig.models?.providers ?? {};
-  const existingCliBackends =
-    nextConfig.agents?.defaults?.cliBackends ?? {};
+  const existingCliBackends = nextConfig.agents?.defaults?.cliBackends ?? {};
   const existingClaudeCli = existingCliBackends["claude-cli"] ?? {};
 
   nextConfig = {
@@ -112,26 +108,38 @@ export async function applyAuthChoiceCloudruFm(
       providers: {
         ...existingProviders,
         "cloudru-fm": {
-          baseUrl: `http://localhost:${CLOUDRU_PROXY_PORT_DEFAULT}`,
+          baseUrl: `http://127.0.0.1:${CLOUDRU_PROXY_PORT_DEFAULT}`,
           apiKey: "${CLOUDRU_API_KEY}",
           api: "anthropic-messages" as const,
-          models: {
-            opus: {
+          models: [
+            {
               id: preset.big,
+              name: `${preset.label} (opus)`,
+              reasoning: false,
+              input: ["text"] as Array<"text" | "image">,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
               contextWindow: preset.big.includes("Qwen") ? 128_000 : 200_000,
-              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              maxTokens: 8192,
             },
-            sonnet: {
+            {
               id: preset.middle,
-              contextWindow: 200_000,
+              name: `${preset.label} (sonnet)`,
+              reasoning: false,
+              input: ["text"] as Array<"text" | "image">,
               cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              contextWindow: 200_000,
+              maxTokens: 8192,
             },
-            haiku: {
+            {
               id: preset.small,
-              contextWindow: 200_000,
+              name: `${preset.label} (haiku)`,
+              reasoning: false,
+              input: ["text"] as Array<"text" | "image">,
               cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              contextWindow: 200_000,
+              maxTokens: 8192,
             },
-          },
+          ],
         },
       },
     },
@@ -147,20 +155,13 @@ export async function applyAuthChoiceCloudruFm(
           ...existingCliBackends,
           "claude-cli": {
             ...existingClaudeCli,
-            command:
-              (existingClaudeCli as Record<string, unknown>).command as string ??
-              "claude",
+            command: ((existingClaudeCli as Record<string, unknown>).command as string) ?? "claude",
             env: {
-              ...(existingClaudeCli as Record<string, Record<string, string>>)
-                .env,
+              ...(existingClaudeCli as Record<string, Record<string, string>>).env,
               ANTHROPIC_BASE_URL: proxyUrl,
               ANTHROPIC_API_KEY: CLOUDRU_PROXY_SENTINEL_KEY,
             },
-            clearEnv: [
-              "ANTHROPIC_API_KEY",
-              "ANTHROPIC_API_KEY_OLD",
-              ...CLOUDRU_CLEAR_ENV_EXTRAS,
-            ],
+            clearEnv: ["ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY_OLD", ...CLOUDRU_CLEAR_ENV_EXTRAS],
           },
         },
       },
