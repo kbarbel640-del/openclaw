@@ -507,10 +507,19 @@ export async function runSubagentAnnounceFlow(params: {
     let requesterIsSubagent = requesterDepth >= 1;
     // If the requester subagent has already finished, bubble the announce to its
     // requester (typically main) so descendant completion is not silently lost.
+    // However, only bubble if the parent is NOT waiting for active descendants -
+    // if it's still waiting for child results, we should deliver to it first.
     if (requesterIsSubagent) {
-      const { isSubagentSessionRunActive, resolveRequesterForChildSession } =
-        await import("./subagent-registry.js");
-      if (!isSubagentSessionRunActive(targetRequesterSessionKey)) {
+      const {
+        isSubagentSessionRunActive,
+        resolveRequesterForChildSession,
+        countActiveDescendantRuns,
+      } = await import("./subagent-registry.js");
+      const isParentActive = isSubagentSessionRunActive(targetRequesterSessionKey);
+      const hasActiveDescendants = countActiveDescendantRuns(targetRequesterSessionKey) > 0;
+      // Only bubble to grandparent if parent is truly done (not just registry cleanup)
+      // AND parent is not waiting for any active children
+      if (!isParentActive && !hasActiveDescendants) {
         const fallback = resolveRequesterForChildSession(targetRequesterSessionKey);
         if (!fallback?.requesterSessionKey) {
           // Without a requester fallback we cannot safely deliver this nested
