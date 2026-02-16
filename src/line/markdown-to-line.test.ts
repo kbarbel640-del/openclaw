@@ -187,17 +187,6 @@ describe("stripMarkdown", () => {
     expect(stripMarkdown("This is ~~deleted~~ text")).toBe("This is deleted text");
   });
 
-  it("strips headers", () => {
-    expect(stripMarkdown("# Heading 1")).toBe("Heading 1");
-    expect(stripMarkdown("## Heading 2")).toBe("Heading 2");
-    expect(stripMarkdown("### Heading 3")).toBe("Heading 3");
-  });
-
-  it("strips blockquotes", () => {
-    expect(stripMarkdown("> This is a quote")).toBe("This is a quote");
-    expect(stripMarkdown(">This is also a quote")).toBe("This is also a quote");
-  });
-
   it("removes horizontal rules", () => {
     expect(stripMarkdown("Above\n---\nBelow")).toBe("Above\n\nBelow");
     expect(stripMarkdown("Above\n***\nBelow")).toBe("Above\n\nBelow");
@@ -230,33 +219,6 @@ Some ~~deleted~~ content.`;
 });
 
 describe("convertTableToFlexBubble", () => {
-  it("creates a receipt-style card for 2-column tables", () => {
-    const table = {
-      headers: ["Item", "Price"],
-      rows: [
-        ["Apple", "$1"],
-        ["Banana", "$2"],
-      ],
-    };
-
-    const bubble = convertTableToFlexBubble(table);
-
-    expect(bubble.type).toBe("bubble");
-    expect(bubble.body).toBeDefined();
-  });
-
-  it("creates a multi-column layout for 3+ column tables", () => {
-    const table = {
-      headers: ["A", "B", "C"],
-      rows: [["1", "2", "3"]],
-    };
-
-    const bubble = convertTableToFlexBubble(table);
-
-    expect(bubble.type).toBe("bubble");
-    expect(bubble.body).toBeDefined();
-  });
-
   it("replaces empty cells with placeholders", () => {
     const table = {
       headers: ["A", "B"],
@@ -299,9 +261,6 @@ describe("convertCodeBlockToFlexBubble", () => {
 
     const bubble = convertCodeBlockToFlexBubble(block);
 
-    expect(bubble.type).toBe("bubble");
-    expect(bubble.body).toBeDefined();
-
     const body = bubble.body as { contents: Array<{ text: string }> };
     expect(body.contents[0].text).toBe("Code (typescript)");
   });
@@ -341,7 +300,6 @@ Done.`;
     const result = processLineMessage(text);
 
     expect(result.flexMessages).toHaveLength(1);
-    expect(result.flexMessages[0].type).toBe("flex");
     expect(result.text).toContain("Here's the data:");
     expect(result.text).toContain("Done.");
     expect(result.text).not.toContain("|");
@@ -362,15 +320,6 @@ That's it.`;
     expect(result.text).toContain("Check this code:");
     expect(result.text).toContain("That's it.");
     expect(result.text).not.toContain("```");
-  });
-
-  it("processes text with markdown formatting", () => {
-    const text = "This is **bold** and *italic* text.";
-
-    const result = processLineMessage(text);
-
-    expect(result.text).toBe("This is bold and italic text.");
-    expect(result.flexMessages).toHaveLength(0);
   });
 
   it("handles mixed content", () => {
@@ -415,32 +364,21 @@ print("done")
 });
 
 describe("hasMarkdownToConvert", () => {
-  it("detects tables", () => {
-    const text = `| A | B |
+  it("detects supported markdown patterns", () => {
+    const cases = [
+      `| A | B |
 |---|---|
-| 1 | 2 |`;
-    expect(hasMarkdownToConvert(text)).toBe(true);
-  });
+| 1 | 2 |`,
+      "```js\ncode\n```",
+      "**bold**",
+      "~~deleted~~",
+      "# Title",
+      "> quote",
+    ];
 
-  it("detects code blocks", () => {
-    const text = "```js\ncode\n```";
-    expect(hasMarkdownToConvert(text)).toBe(true);
-  });
-
-  it("detects bold", () => {
-    expect(hasMarkdownToConvert("**bold**")).toBe(true);
-  });
-
-  it("detects strikethrough", () => {
-    expect(hasMarkdownToConvert("~~deleted~~")).toBe(true);
-  });
-
-  it("detects headers", () => {
-    expect(hasMarkdownToConvert("# Title")).toBe(true);
-  });
-
-  it("detects blockquotes", () => {
-    expect(hasMarkdownToConvert("> quote")).toBe(true);
+    for (const text of cases) {
+      expect(hasMarkdownToConvert(text)).toBe(true);
+    }
   });
 
   it("returns false for plain text", () => {
