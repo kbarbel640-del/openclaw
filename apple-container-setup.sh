@@ -180,7 +180,7 @@ echo "==> Starting gateway"
   "${COMMON_ARGS[@]}" \
   -p "$OPENCLAW_GATEWAY_PORT:18789" \
   -p "$OPENCLAW_BRIDGE_PORT:18790" \
-  "$IMAGE_NAME" node dist/index.js gateway --bind "$OPENCLAW_GATEWAY_BIND" --port 18789
+  "$IMAGE_NAME" node dist/index.js gateway --bind "$OPENCLAW_GATEWAY_BIND" --port 18789 --allow-unconfigured
 
 echo ""
 echo "==> Provider setup (optional)"
