@@ -62,6 +62,7 @@ services:
     working_dir: /app
     environment:
       DATABASE_URL: postgresql://postgres:claw@mission-control-db:5432/mission_control
+      TZ: America/Chicago
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
