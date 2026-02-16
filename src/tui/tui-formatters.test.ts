@@ -187,16 +187,46 @@ describe("sanitizeRenderableText", () => {
 });
 
 describe("stripInboundMetaEnvelope (#16919)", () => {
-  it("strips a single metadata block", () => {
+  it("strips Conversation info block", () => {
     const input =
       'Conversation info (untrusted metadata):\n```json\n{"key":"value"}\n```\nHello there';
     expect(stripInboundMetaEnvelope(input)).toBe("Hello there");
   });
 
-  it("strips multiple consecutive metadata blocks", () => {
+  it("strips Sender block", () => {
+    const input = 'Sender (untrusted metadata):\n```json\n{"name":"Alice"}\n```\nMessage text';
+    expect(stripInboundMetaEnvelope(input)).toBe("Message text");
+  });
+
+  it("strips Thread starter block", () => {
+    const input =
+      'Thread starter (untrusted, for context):\n```json\n{"body":"thread"}\n```\nReply text';
+    expect(stripInboundMetaEnvelope(input)).toBe("Reply text");
+  });
+
+  it("strips Replied message block", () => {
+    const input =
+      'Replied message (untrusted, for context):\n```json\n{"body":"original"}\n```\nReply';
+    expect(stripInboundMetaEnvelope(input)).toBe("Reply");
+  });
+
+  it("strips Forwarded message context block", () => {
+    const input =
+      'Forwarded message context (untrusted metadata):\n```json\n{"from":"Bob"}\n```\nForwarded text';
+    expect(stripInboundMetaEnvelope(input)).toBe("Forwarded text");
+  });
+
+  it("strips Chat history since last reply block", () => {
+    const input =
+      'Chat history since last reply (untrusted, for context):\n```json\n[{"sender":"Alice"}]\n```\nNew message';
+    expect(stripInboundMetaEnvelope(input)).toBe("New message");
+  });
+
+  it("strips multiple consecutive metadata blocks of different types", () => {
     const input = [
       'Conversation info (untrusted metadata):\n```json\n{"a":1}\n```',
-      'Sender info (untrusted metadata):\n```json\n{"b":2}\n```',
+      'Sender (untrusted metadata):\n```json\n{"b":2}\n```',
+      'Thread starter (untrusted, for context):\n```json\n{"c":3}\n```',
       "Actual message",
     ].join("\n");
     expect(stripInboundMetaEnvelope(input)).toBe("Actual message");

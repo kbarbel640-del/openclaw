@@ -323,8 +323,9 @@ export function formatContextUsageLine(params: {
   return `tokens ${totalLabel}/${ctxLabel}${extra ? ` (${extra})` : ""}`;
 }
 
+// Match all inbound metadata block patterns from inbound-meta.ts
 const INBOUND_META_BLOCK_RE =
-  /^(?:(?:Conversation info|Sender info|Timing info|Channel info) \(untrusted metadata\):\n```json\n[\s\S]*?```\n*)+/;
+  /^(?:(?:Conversation info|Sender|Thread starter|Replied message|Forwarded message context|Chat history since last reply) \(untrusted(?:, for context| metadata)\):\n```json\n[\s\S]*?```\n*)+/;
 
 export function stripInboundMetaEnvelope(text: string): string {
   return text.replace(INBOUND_META_BLOCK_RE, "").trim();
