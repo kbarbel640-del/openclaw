@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
+import type { OpenClawConfigWithScaffolds } from "../../scaffolds/index.js";
 import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
@@ -822,7 +823,7 @@ export async function runEmbeddedPiAgent(
           const scaffoldedPayloads = applyEmbeddedRunScaffolds({
             payloads,
             // Phase 0: config key is not yet part of OpenClawConfig's public type.
-            config: params.config as any,
+            config: params.config as unknown as OpenClawConfigWithScaffolds,
           });
 
           log.debug(
