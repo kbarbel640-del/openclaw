@@ -42,7 +42,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "gateway",
-    description: "Gateway control",
+    description: "Run, inspect, and query the WebSocket Gateway",
     register: async (program) => {
       const mod = await import("../gateway-cli.js");
       mod.registerGatewayCli(program);
@@ -58,7 +58,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "logs",
-    description: "Gateway logs",
+    description: "Tail gateway file logs via RPC",
     register: async (program) => {
       const mod = await import("../logs-cli.js");
       mod.registerLogsCli(program);
@@ -74,7 +74,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "models",
-    description: "Model configuration",
+    description: "Discover, scan, and configure models",
     register: async (program) => {
       const mod = await import("../models-cli.js");
       mod.registerModelsCli(program);
@@ -82,7 +82,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "approvals",
-    description: "Exec approvals",
+    description: "Manage exec approvals (gateway or node host)",
     register: async (program) => {
       const mod = await import("../exec-approvals-cli.js");
       mod.registerExecApprovalsCli(program);
@@ -90,7 +90,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "nodes",
-    description: "Node commands",
+    description: "Manage gateway-owned node pairing and node commands",
     register: async (program) => {
       const mod = await import("../nodes-cli.js");
       mod.registerNodesCli(program);
@@ -106,7 +106,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "node",
-    description: "Node control",
+    description: "Run and manage the headless node host service",
     register: async (program) => {
       const mod = await import("../node-cli.js");
       mod.registerNodeCli(program);
@@ -114,7 +114,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "sandbox",
-    description: "Sandbox tools",
+    description: "Manage sandbox containers for agent isolation",
     register: async (program) => {
       const mod = await import("../sandbox-cli.js");
       mod.registerSandboxCli(program);
@@ -122,7 +122,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "tui",
-    description: "Terminal UI",
+    description: "Open a terminal UI connected to the Gateway",
     register: async (program) => {
       const mod = await import("../tui-cli.js");
       mod.registerTuiCli(program);
@@ -130,7 +130,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "cron",
-    description: "Cron scheduler",
+    description: "Manage cron jobs via the Gateway scheduler",
     register: async (program) => {
       const mod = await import("../cron-cli.js");
       mod.registerCronCli(program);
@@ -138,7 +138,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "dns",
-    description: "DNS helpers",
+    description: "DNS helpers for wide-area discovery (Tailscale + CoreDNS)",
     register: async (program) => {
       const mod = await import("../dns-cli.js");
       mod.registerDnsCli(program);
@@ -146,7 +146,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "docs",
-    description: "Docs helpers",
+    description: "Search the live OpenClaw docs",
     register: async (program) => {
       const mod = await import("../docs-cli.js");
       mod.registerDocsCli(program);
@@ -154,7 +154,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "hooks",
-    description: "Hooks tooling",
+    description: "Manage internal agent hooks",
     register: async (program) => {
       const mod = await import("../hooks-cli.js");
       mod.registerHooksCli(program);
@@ -162,7 +162,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "webhooks",
-    description: "Webhook helpers",
+    description: "Webhook helpers and integrations",
     register: async (program) => {
       const mod = await import("../webhooks-cli.js");
       mod.registerWebhooksCli(program);
@@ -186,7 +186,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "pairing",
-    description: "Pairing helpers",
+    description: "Secure DM pairing (approve inbound requests)",
     register: async (program) => {
       // Initialize plugins before registering pairing CLI.
       // The pairing CLI calls listPairingChannels() at registration time,
@@ -199,7 +199,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "plugins",
-    description: "Plugin management",
+    description: "Manage OpenClaw plugins and extensions",
     register: async (program) => {
       const mod = await import("../plugins-cli.js");
       mod.registerPluginsCli(program);
@@ -209,7 +209,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "channels",
-    description: "Channel management",
+    description: "Manage connected chat channels (Telegram, Discord, etc.)",
     register: async (program) => {
       const mod = await import("../channels-cli.js");
       mod.registerChannelsCli(program);
@@ -217,7 +217,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "directory",
-    description: "Directory commands",
+    description: "Lookup contact and group IDs (self, peers, groups) for supported chat channels",
     register: async (program) => {
       const mod = await import("../directory-cli.js");
       mod.registerDirectoryCli(program);
@@ -225,7 +225,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "security",
-    description: "Security helpers",
+    description: "Security tools and local config audits",
     register: async (program) => {
       const mod = await import("../security-cli.js");
       mod.registerSecurityCli(program);
@@ -233,7 +233,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "skills",
-    description: "Skills management",
+    description: "List and inspect available skills",
     register: async (program) => {
       const mod = await import("../skills-cli.js");
       mod.registerSkillsCli(program);
@@ -241,7 +241,7 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "update",
-    description: "CLI update helpers",
+    description: "Update OpenClaw and inspect update channel status",
     register: async (program) => {
       const mod = await import("../update-cli.js");
       mod.registerUpdateCli(program);

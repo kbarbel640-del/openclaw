@@ -29,14 +29,19 @@ const shouldRegisterCorePrimaryOnly = (argv: string[]) => {
 
 const coreEntries: CoreCliEntry[] = [
   {
-    commands: [{ name: "setup", description: "Setup helpers" }],
+    commands: [{ name: "setup", description: "Initialize local config and agent workspace" }],
     register: async ({ program }) => {
       const mod = await import("./register.setup.js");
       mod.registerSetupCommand(program);
     },
   },
   {
-    commands: [{ name: "onboard", description: "Onboarding helpers" }],
+    commands: [
+      {
+        name: "onboard",
+        description: "Interactive onboarding wizard for gateway, workspace, and skills",
+      },
+    ],
     register: async ({ program }) => {
       const mod = await import("./register.onboard.js");
       mod.registerOnboardCommand(program);
@@ -100,7 +105,7 @@ const coreEntries: CoreCliEntry[] = [
     },
   },
   {
-    commands: [{ name: "memory", description: "Memory commands" }],
+    commands: [{ name: "memory", description: "Search and reindex memory files" }],
     register: async ({ program }) => {
       const mod = await import("../memory-cli.js");
       mod.registerMemoryCli(program);
@@ -108,8 +113,8 @@ const coreEntries: CoreCliEntry[] = [
   },
   {
     commands: [
-      { name: "agent", description: "Agent commands" },
-      { name: "agents", description: "Manage isolated agents" },
+      { name: "agent", description: "Run one agent turn via the Gateway" },
+      { name: "agents", description: "Manage isolated agents (workspaces, auth, routing)" },
     ],
     register: async ({ program, ctx }) => {
       const mod = await import("./register.agent.js");
@@ -120,9 +125,9 @@ const coreEntries: CoreCliEntry[] = [
   },
   {
     commands: [
-      { name: "status", description: "Gateway status" },
-      { name: "health", description: "Gateway health" },
-      { name: "sessions", description: "Session management" },
+      { name: "status", description: "Show channel health and recent session recipients" },
+      { name: "health", description: "Fetch health from the running gateway" },
+      { name: "sessions", description: "List stored conversation sessions" },
     ],
     register: async ({ program }) => {
       const mod = await import("./register.status-health-sessions.js");
@@ -130,7 +135,9 @@ const coreEntries: CoreCliEntry[] = [
     },
   },
   {
-    commands: [{ name: "browser", description: "Browser tools" }],
+    commands: [
+      { name: "browser", description: "Manage OpenClaw's dedicated browser (Chrome/Chromium)" },
+    ],
     register: async ({ program }) => {
       const mod = await import("../browser-cli.js");
       mod.registerBrowserCli(program);
