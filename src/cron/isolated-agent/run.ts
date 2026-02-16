@@ -585,6 +585,7 @@ export async function runCronIsolatedAgentTurn(params: {
           error: resolvedDelivery.error.message,
           summary,
           outputText,
+          ...telemetry,
         });
       }
       logWarn(`[cron:${params.job.id}] ${resolvedDelivery.error.message}`);
@@ -598,6 +599,7 @@ export async function runCronIsolatedAgentTurn(params: {
           error: message,
           summary,
           outputText,
+          ...telemetry,
         });
       }
       logWarn(`[cron:${params.job.id}] ${message}`);
@@ -635,7 +637,7 @@ export async function runCronIsolatedAgentTurn(params: {
         }
       } catch (err) {
         if (!deliveryBestEffort) {
-          return withRunSession({ status: "error", summary, outputText, error: String(err) });
+          return withRunSession({ status: "error", summary, outputText, error: String(err), ...telemetry });
         }
       }
     } else if (synthesizedText) {
@@ -726,13 +728,14 @@ export async function runCronIsolatedAgentTurn(params: {
               summary,
               outputText,
               error: message,
+              ...telemetry,
             });
           }
           logWarn(`[cron:${params.job.id}] ${message}`);
         }
       } catch (err) {
         if (!deliveryBestEffort) {
-          return withRunSession({ status: "error", summary, outputText, error: String(err) });
+          return withRunSession({ status: "error", summary, outputText, error: String(err), ...telemetry });
         }
         logWarn(`[cron:${params.job.id}] ${String(err)}`);
       }
