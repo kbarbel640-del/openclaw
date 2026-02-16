@@ -294,14 +294,11 @@ const memoryPlugin = {
   register(api: OpenClawPluginApi) {
     const cfg = memoryConfigSchema.parse(api.pluginConfig);
     const resolvedDbPath = api.resolvePath(cfg.dbPath!);
-    const vectorDim =
-      cfg.embedding.dimensions ?? vectorDimsForModel(cfg.embedding.model ?? "text-embedding-3-small");
+    const { model, dimensions, apiKey, baseUrl } = cfg.embedding;
+
+    const vectorDim = dimensions ?? vectorDimsForModel(model);
     const db = new MemoryDB(resolvedDbPath, vectorDim);
-    const embeddings = new Embeddings(
-      cfg.embedding.apiKey,
-      cfg.embedding.model!,
-      cfg.embedding.baseUrl,
-    );
+    const embeddings = new Embeddings(apiKey, model, baseUrl);
 
     api.logger.info(`memory-lancedb: plugin registered (db: ${resolvedDbPath}, lazy init)`);
 

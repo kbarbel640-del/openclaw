@@ -5,7 +5,7 @@ import { join } from "node:path";
 export type MemoryConfig = {
   embedding: {
     provider: "openai";
-    model?: string;
+    model: string;
     apiKey: string;
     baseUrl?: string;
     dimensions?: number;
