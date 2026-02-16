@@ -1,6 +1,7 @@
 import type { MessagingToolSend } from "../../agents/pi-embedded-messaging.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AgentDefaultsConfig } from "../../config/types.js";
+import type { CronQualityCheckConfig } from "../../config/types.cron.js";
 import type { CronJob } from "../types.js";
 import {
   resolveAgentConfig,
@@ -35,7 +36,7 @@ import {
   normalizeVerboseLevel,
   supportsXHighThinking,
 } from "../../auto-reply/thinking.js";
-import { SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
+import { HEARTBEAT_TOKEN, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
 import { createOutboundSendDeps, type CliDeps } from "../../cli/outbound-send-deps.js";
 import {
   resolveAgentMainSessionKey,
@@ -88,6 +89,100 @@ function matchesMessagingToolDeliveryTarget(
     return false;
   }
   return target.to === delivery.to;
+}
+
+function formatSchedule(schedule: CronJob["schedule"]): string {
+  switch (schedule.kind) {
+    case "at":
+      return `once at ${schedule.at}`;
+    case "every": {
+      const ms = schedule.everyMs;
+      if (ms >= 86_400_000) return `every ${Math.round(ms / 86_400_000)}d`;
+      if (ms >= 3_600_000) return `every ${Math.round(ms / 3_600_000)}h`;
+      if (ms >= 60_000) return `every ${Math.round(ms / 60_000)}m`;
+      return `every ${Math.round(ms / 1000)}s`;
+    }
+    case "cron":
+      return `cron ${schedule.expr}${schedule.tz ? ` (${schedule.tz})` : ""}`;
+    default:
+      return "unknown";
+  }
+}
+
+function buildCronJobSpec(job: CronJob, formattedTime: string): string {
+  const lines: string[] = [
+    "[CRON_JOB_SPEC]",
+    `Job ID: ${job.id}`,
+    `Name: ${job.name || "unlabeled"}`,
+  ];
+  if (job.description) {
+    lines.push(`Description: ${job.description}`);
+  }
+  lines.push(`Schedule: ${formatSchedule(job.schedule)}`);
+  lines.push(`Current time: ${formattedTime}`);
+  if (job.state?.lastRunAtMs) {
+    const lastRun = new Date(job.state.lastRunAtMs).toISOString();
+    lines.push(`Last run: ${lastRun} (${job.state.lastStatus ?? "unknown"})`);
+  } else {
+    lines.push("Last run: never");
+  }
+  lines.push(`Session: ${job.sessionTarget}`);
+  if (job.delivery) {
+    const ch = job.delivery.channel ?? "last";
+    const to = job.delivery.to ? ` → ${job.delivery.to}` : "";
+    lines.push(`Delivery: ${job.delivery.mode} via ${ch}${to}`);
+  } else {
+    lines.push("Delivery: none");
+  }
+  if (job.deleteAfterRun) {
+    lines.push("One-shot: yes");
+  }
+  lines.push("");
+  lines.push("Task:");
+  lines.push(job.payload.kind === "agentTurn" ? job.payload.message : job.payload.text);
+  lines.push("[/CRON_JOB_SPEC]");
+  lines.push("");
+  lines.push("Execute the task above. This spec is self-contained — do not rely on prior session context.");
+  return lines.join("\n");
+}
+
+const DEFAULT_CRON_REJECT_PATTERNS = [
+  "I don't have enough context",
+  "Summary unavailable",
+  "I cannot complete",
+  "I apologize, but I",
+  "Error:.*gateway timeout",
+  "I need more information to",
+  "^\\s*$",
+];
+
+function checkCronOutputQuality(
+  output: string,
+  config: CronQualityCheckConfig | undefined,
+): { pass: boolean; reason?: string } {
+  const enabled = config?.enabled !== false; // default true
+  if (!enabled) return { pass: true };
+
+  const minLength = config?.minLength ?? 20;
+  const maxLength = config?.maxLength ?? 10_000;
+  const patterns = config?.rejectPatterns ?? DEFAULT_CRON_REJECT_PATTERNS;
+
+  if (output.length < minLength) {
+    return { pass: false, reason: `Too short (${output.length}/${minLength} chars)` };
+  }
+  if (output.length > maxLength) {
+    return { pass: false, reason: `Too long (${output.length}/${maxLength} chars)` };
+  }
+  for (const pattern of patterns) {
+    try {
+      if (new RegExp(pattern, "i").test(output)) {
+        return { pass: false, reason: `Matched reject pattern: ${pattern}` };
+      }
+    } catch {
+      // Skip invalid regex patterns
+    }
+  }
+  return { pass: true };
 }
 
 function resolveCronDeliveryBestEffort(job: CronJob): boolean {
@@ -366,8 +461,10 @@ export async function runCronIsolatedAgentTurn(params: {
 
     commandBody = `${safeContent}\n\n${timeLine}`.trim();
   } else {
-    // Internal/trusted source - use original format
-    commandBody = `${base}\n${timeLine}`.trim();
+    // Internal/trusted source — inject full job spec so the agent has
+    // self-contained context even after compaction.
+    const jobSpec = buildCronJobSpec(params.job, formattedTime);
+    commandBody = `${jobSpec}\n\n${timeLine}`.trim();
   }
   if (deliveryRequested) {
     commandBody =
@@ -523,6 +620,27 @@ export async function runCronIsolatedAgentTurn(params: {
   // Skip delivery for heartbeat-only responses (HEARTBEAT_OK with no real content).
   const ackMaxChars = resolveHeartbeatAckMaxChars(agentCfg);
   const skipHeartbeatDelivery = deliveryRequested && isHeartbeatOnlyResponse(payloads, ackMaxChars);
+
+  // Quality gate: check cron output before delivery.
+  // Skip for heartbeat-only responses, structured content (media), and heartbeat ack text.
+  const isHeartbeatText = synthesizedText?.toUpperCase().startsWith(HEARTBEAT_TOKEN) ?? false;
+  if (deliveryRequested && !skipHeartbeatDelivery && !deliveryPayloadHasStructuredContent && !isHeartbeatText && synthesizedText) {
+    const qcResult = checkCronOutputQuality(
+      synthesizedText,
+      params.cfg.cron?.qualityCheck,
+    );
+    if (!qcResult.pass) {
+      logWarn(
+        `[cron:${params.job.id}] Quality gate blocked delivery: ${qcResult.reason}. ` +
+          `Output preview: ${synthesizedText.slice(0, 100)}`,
+      );
+      return withRunSession({
+        status: "ok",
+        summary: `[Cron QC] Job '${params.job.name}' held — ${qcResult.reason}`,
+        outputText,
+      });
+    }
+  }
   const skipMessagingToolDelivery =
     deliveryRequested &&
     runResult.didSendViaMessagingTool === true &&
