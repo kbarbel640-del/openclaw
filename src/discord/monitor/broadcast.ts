@@ -1,5 +1,4 @@
 import type { HistoryEntry } from "../../auto-reply/reply/history.js";
-import type { DiscordMessagePreflightContext } from "./message-handler.preflight.js";
 import { getChildLogger } from "../../logging.js";
 import { buildAgentSessionKey } from "../../routing/resolve-route.js";
 import {
@@ -8,6 +7,7 @@ import {
   normalizeAgentId,
 } from "../../routing/session-key.js";
 import { formatError } from "../../web/session.js";
+import type { DiscordMessagePreflightContext } from "./message-handler.preflight.js";
 
 const discordBroadcastLog = getChildLogger({ module: "discord-auto-reply" });
 
@@ -18,6 +18,11 @@ export async function maybeBroadcastDiscordMessage(params: {
     opts?: {
       guildHistory?: HistoryEntry[];
       suppressGuildHistoryClear?: boolean;
+      agentIdentity?: {
+        name?: string;
+        emoji?: string;
+        avatar?: string;
+      };
     },
   ) => Promise<void>;
 }) {
@@ -39,6 +44,9 @@ export async function maybeBroadcastDiscordMessage(params: {
   );
 
   const agentIds = params.ctx.cfg.agents?.list?.map((agent) => normalizeAgentId(agent.id));
+  const agentConfigById = new Map(
+    (params.ctx.cfg.agents?.list ?? []).map((agent) => [normalizeAgentId(agent.id), agent]),
+  );
   const hasKnownAgents = (agentIds?.length ?? 0) > 0;
   const guildHistorySnapshot = params.ctx.guildHistories.get(params.ctx.messageChannelId) ?? [];
 
@@ -74,11 +82,19 @@ export async function maybeBroadcastDiscordMessage(params: {
       route: agentRoute,
       baseSessionKey: agentRoute.sessionKey,
     };
+    const agentConfig = agentConfigById.get(normalizedAgentId);
+    const identity = agentConfig?.identity;
+    const agentIdentity = {
+      name: identity?.name ?? agentConfig?.name ?? normalizedAgentId,
+      emoji: identity?.emoji,
+      avatar: identity?.avatar,
+    };
 
     try {
       await params.processMessage(agentCtx, {
         guildHistory: guildHistorySnapshot,
         suppressGuildHistoryClear: true,
+        agentIdentity,
       });
     } catch (err) {
       discordBroadcastLog.error(`Broadcast agent ${agentId} failed: ${formatError(err)}`);
