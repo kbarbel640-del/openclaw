@@ -26,6 +26,21 @@ vi.mock("../config/config.js", () => ({
   loadConfig: vi.fn(() => ({
     agents: { defaults: { subagents: { archiveAfterMinutes: 0 } } },
   })),
+  STATE_DIR: "/tmp/openclaw-test",
+}));
+
+vi.mock("../config/sessions.js", () => ({
+  loadSessionStore: vi.fn(() => ({ sessions: new Map() })),
+  resolveAgentIdFromSessionKey: vi.fn(() => undefined),
+  resolveStorePath: vi.fn(() => "/tmp/openclaw-test/sessions"),
+}));
+
+vi.mock("../runtime.js", () => ({
+  defaultRuntime: { arch: "x64", platform: "linux" },
+}));
+
+vi.mock("./pi-embedded.js", () => ({
+  abortEmbeddedPiRun: vi.fn(),
 }));
 
 const announceSpy = vi.fn(async () => true);
