@@ -1,5 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { connectGateway } from "./app-gateway.ts";
+import { connectGateway, handleGatewayEvent } from "./app-gateway.ts";
+
+vi.mock("./app-tool-stream.ts", () => ({
+  handleAgentEvent: vi.fn(),
+  resetToolStream: vi.fn(),
+}));
+vi.mock("./controllers/chat.ts", () => ({
+  loadChatHistory: vi.fn(),
+  handleChatEvent: vi.fn(() => "final"),
+  sendChatMessage: vi.fn(),
+  abortChatRun: vi.fn(),
+}));
+vi.mock("./controllers/sessions.ts", () => ({
+  loadSessions: vi.fn(),
+}));
+vi.mock("./app-settings.ts", () => ({
+  applySettings: vi.fn(),
+  loadCron: vi.fn(),
+  refreshActiveTab: vi.fn(),
+  setLastActiveSessionKey: vi.fn(),
+}));
+vi.mock("./app-chat.ts", () => ({
+  CHAT_SESSIONS_ACTIVE_MINUTES: 120,
+  flushChatQueueForEvent: vi.fn(),
+}));
 
 type GatewayClientMock = {
   start: ReturnType<typeof vi.fn>;
@@ -142,5 +166,27 @@ describe("connectGateway", () => {
 
     secondClient.emitClose(1005);
     expect(host.lastError).toBe("disconnected (1005): no reason");
+  });
+});
+
+describe("handleGatewayEvent", () => {
+  it("resets sessionKey to main after /new completes", () => {
+    const host = createHost() as Record<string, unknown>;
+    const runId = "run-123";
+    host.sessionKey = "agent:main:direct:user456";
+    host.chatRunId = runId;
+    (host.refreshSessionsAfterChat as Set<string>).add(runId);
+    host.hello = {
+      snapshot: {
+        sessionDefaults: { mainSessionKey: "agent:main:main" },
+      },
+    };
+
+    handleGatewayEvent(host as unknown as Parameters<typeof handleGatewayEvent>[0], {
+      event: "chat",
+      payload: { runId, state: "final" },
+    });
+
+    expect(host.sessionKey).toBe("agent:main:main");
   });
 });
