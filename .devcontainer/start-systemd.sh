@@ -65,7 +65,9 @@ if [ ! -S /run/systemd/journal/stdout ]; then
 
     # Add codespace user to systemd-journal group so journalctl --user works.
     if ! id -nG "$CS_USER" | grep -qw systemd-journal; then
-        usermod -aG systemd-journal "$CS_USER" 2>/dev/null || true
+        if ! usermod -aG systemd-journal "$CS_USER"; then
+            echo "WARNING: Failed to add $CS_USER to systemd-journal group" >&2
+        fi
     fi
 
     /lib/systemd/systemd-journald &
