@@ -666,10 +666,11 @@ export async function runHeartbeatOnce(opts: {
   const ackMaxChars = resolveHeartbeatAckMaxChars(cfg, heartbeat);
 
   // Helper to run one model attempt and return result or throw
+  const suppressToolErrorWarnings = heartbeat?.suppressToolErrorWarnings === true;
   const runWithModel = async (modelOverride: string | undefined) => {
     const replyOpts = modelOverride
-      ? { isHeartbeat: true, heartbeatModelOverride: modelOverride }
-      : { isHeartbeat: true };
+      ? { isHeartbeat: true, heartbeatModelOverride: modelOverride, suppressToolErrorWarnings }
+      : { isHeartbeat: true, suppressToolErrorWarnings };
     return getReplyFromConfig(ctx, replyOpts, cfg);
   };
 
