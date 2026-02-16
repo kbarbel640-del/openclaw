@@ -385,9 +385,8 @@ async function handleSimplexEvent(params: {
     return;
   }
 
-  const items = Array.isArray((event as { chatItems?: unknown }).chatItems)
-    ? ((event as { chatItems: SimplexChatItem[] }).chatItems ?? [])
-    : [];
+  const chatItems = event.chatItems;
+  const items = Array.isArray(chatItems) ? (chatItems as SimplexChatItem[]) : [];
 
   for (const item of items) {
     if (!isInboundChatItem(item)) {
@@ -427,7 +426,7 @@ async function handleSimplexEvent(params: {
       channel: "simplex",
       accountId: account.accountId,
       peer: {
-        kind: context.chatType === "group" ? "group" : "dm",
+        kind: context.chatType === "group" ? "group" : "direct",
         id: context.chatType === "group" ? String(context.chatId) : dmPeerId,
       },
     });
@@ -556,8 +555,8 @@ async function handleSimplexEvent(params: {
         account,
         groupId: context.chatId,
       });
-      const mentionRegexes = core.mentions.buildMentionRegexes(cfg, route.agentId);
-      const wasMentioned = core.mentions.matchesMentionPatterns(rawBody, mentionRegexes);
+      const mentionRegexes = core.channel.mentions.buildMentionRegexes(cfg, route.agentId);
+      const wasMentioned = core.channel.mentions.matchesMentionPatterns(rawBody, mentionRegexes);
       const allowTextCommands = core.channel.commands.shouldHandleTextCommands({
         cfg,
         surface: "simplex",

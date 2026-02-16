@@ -207,11 +207,12 @@ async function listContactsLive(params: {
   limit?: number | null;
 }): Promise<ChannelDirectoryEntry[]> {
   const activeUser = await fetchActiveUserInfo(params.account, params.runtime);
-  if (!activeUser?.userId) {
+  const activeUserId = activeUser?.userId;
+  if (!activeUserId) {
     return [];
   }
   return await withSimplexClient(params.account, async (client) => {
-    const response = await client.sendCommand(buildListContactsCommand(activeUser.userId));
+    const response = await client.sendCommand(buildListContactsCommand(activeUserId));
     const resp = response.resp as Record<string, unknown> | undefined;
     const contacts =
       (resp?.contacts as unknown[]) ??
@@ -239,13 +240,14 @@ async function listGroupsLive(params: {
   limit?: number | null;
 }): Promise<ChannelDirectoryEntry[]> {
   const activeUser = await fetchActiveUserInfo(params.account, params.runtime);
-  if (!activeUser?.userId) {
+  const activeUserId = activeUser?.userId;
+  if (!activeUserId) {
     return [];
   }
   return await withSimplexClient(params.account, async (client) => {
     const response = await client.sendCommand(
       buildListGroupsCommand({
-        userId: activeUser.userId,
+        userId: activeUserId,
         search: params.query ?? undefined,
       }),
     );

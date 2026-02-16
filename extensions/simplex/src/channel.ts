@@ -64,6 +64,29 @@ function extractSimplexAddressLink(resp: unknown): string | null {
   return preferred ?? matches[0] ?? null;
 }
 
+function extractSimplexWsUrlFromApplication(application: unknown): string | undefined {
+  if (!application || typeof application !== "object") {
+    return undefined;
+  }
+  const value = (application as { wsUrl?: unknown }).wsUrl;
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeSimplexMessageId(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  }
+  return undefined;
+}
+
 function stripSimplexPrefix(value: string): string {
   const trimmed = value.trim();
   return trimmed.toLowerCase().startsWith("simplex:")
@@ -219,9 +242,9 @@ async function sendComposedMessages(params: {
   account: ResolvedSimplexAccount;
   chatRef: string;
   composedMessages: SimplexComposedMessage[];
-}): Promise<void> {
+}): Promise<{ messageId?: string }> {
   if (params.composedMessages.length === 0) {
-    return;
+    return {};
   }
   const cmd = buildSendMessagesCommand({
     chatRef: params.chatRef,
@@ -231,11 +254,19 @@ async function sendComposedMessages(params: {
   const resp = response.resp as {
     type?: string;
     chatError?: { errorType?: { type?: string; message?: string } };
+    chatItems?: Array<{ chatItem?: { meta?: { itemId?: unknown } } }>;
+    itemId?: unknown;
+    messageId?: unknown;
   };
   const commandError = resolveSimplexCommandError(resp);
   if (commandError) {
     throw new Error(commandError);
   }
+  const messageId =
+    normalizeSimplexMessageId(resp.chatItems?.[0]?.chatItem?.meta?.itemId) ??
+    normalizeSimplexMessageId(resp.messageId) ??
+    normalizeSimplexMessageId(resp.itemId);
+  return { messageId };
 }
 
 function assertSimplexOutboundAccountReady(account: ResolvedSimplexAccount): void {
@@ -300,7 +331,9 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
       enabled: account.enabled,
       configured: account.configured,
       mode: account.mode,
-      wsUrl: account.wsUrl,
+      application: {
+        wsUrl: account.wsUrl,
+      },
     }),
     resolveAllowFrom: ({ cfg, accountId }) => resolveSimplexAllowFrom({ cfg, accountId }),
     formatAllowFrom: ({ allowFrom }) => formatSimplexAllowFrom(allowFrom),
@@ -369,12 +402,16 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
         mediaUrl: payload.mediaUrl,
         audioAsVoice: payload.audioAsVoice,
       });
-      await sendComposedMessages({
+      const result = await sendComposedMessages({
         account,
         chatRef: to,
         composedMessages,
       });
-      return { channel: "simplex", to };
+      return {
+        channel: "simplex",
+        messageId: result.messageId ?? "unknown",
+        chatId: to,
+      };
     },
     sendText: async ({ cfg, to, text, accountId }) => {
       const account = resolveSimplexAccount({ cfg, accountId });
@@ -384,12 +421,16 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
         accountId,
         text,
       });
-      await sendComposedMessages({ account, chatRef: to, composedMessages });
-      return { channel: "simplex", to };
+      const result = await sendComposedMessages({ account, chatRef: to, composedMessages });
+      return {
+        channel: "simplex",
+        messageId: result.messageId ?? "unknown",
+        chatId: to,
+      };
     },
     sendMedia: async ({ cfg, to, text, mediaUrl, accountId }) => {
       if (!mediaUrl) {
-        return { channel: "simplex", to };
+        return { channel: "simplex", messageId: "empty", chatId: to };
       }
       const account = resolveSimplexAccount({ cfg, accountId });
       assertSimplexOutboundAccountReady(account);
@@ -399,8 +440,13 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
         text,
         mediaUrl,
       });
-      await sendComposedMessages({ account, chatRef: to, composedMessages });
-      return { channel: "simplex", to, mediaUrl };
+      const result = await sendComposedMessages({ account, chatRef: to, composedMessages });
+      return {
+        channel: "simplex",
+        messageId: result.messageId ?? "unknown",
+        chatId: to,
+        meta: { mediaUrl },
+      };
     },
   },
   status: {
@@ -410,8 +456,6 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
       lastStartAt: null,
       lastStopAt: null,
       lastError: null,
-      mode: null,
-      wsUrl: null,
     },
     collectStatusIssues: (accounts) =>
       accounts.flatMap((account) => {
@@ -428,14 +472,14 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
           },
         ];
       }),
-    buildChannelSummary: ({ snapshot }) => ({
+    buildChannelSummary: ({ snapshot, account }) => ({
       configured: snapshot.configured ?? false,
       running: snapshot.running ?? false,
       lastStartAt: snapshot.lastStartAt ?? null,
       lastStopAt: snapshot.lastStopAt ?? null,
       lastError: snapshot.lastError ?? null,
       mode: snapshot.mode ?? null,
-      wsUrl: snapshot.wsUrl ?? null,
+      wsUrl: extractSimplexWsUrlFromApplication(snapshot.application) ?? account.wsUrl ?? null,
     }),
     buildAccountSnapshot: async ({ account, runtime }) => {
       let addressLink: string | null = null;
@@ -451,6 +495,7 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
           // Keep status snapshot resilient when CLI/WebSocket is unavailable.
         }
       }
+      const wsUrl = extractSimplexWsUrlFromApplication(runtime?.application) ?? account.wsUrl;
       return {
         accountId: account.accountId,
         name: account.name,
@@ -461,11 +506,11 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
         lastStopAt: runtime?.lastStopAt ?? null,
         lastError: runtime?.lastError ?? null,
         mode: runtime?.mode ?? account.mode,
-        wsUrl: runtime?.wsUrl ?? account.wsUrl,
         lastInboundAt: runtime?.lastInboundAt ?? null,
         lastOutboundAt: runtime?.lastOutboundAt ?? null,
         application: {
           addressLink,
+          wsUrl,
         },
       };
     },
@@ -476,7 +521,7 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
       ctx.setStatus({
         accountId: account.accountId,
         mode: account.mode,
-        wsUrl: account.wsUrl,
+        application: { wsUrl: account.wsUrl },
       });
 
       let cliHandle: ReturnType<typeof startSimplexCli> | null = null;

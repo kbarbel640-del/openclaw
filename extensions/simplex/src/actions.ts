@@ -20,7 +20,7 @@ import { SimplexWsClient } from "./simplex-ws-client.js";
 
 type ToolResult = {
   content: Array<{ type: "text"; text: string }>;
-  details?: unknown;
+  details: unknown;
 };
 
 type SimplexActionParams = Record<string, unknown>;

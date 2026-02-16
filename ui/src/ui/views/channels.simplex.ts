@@ -1,7 +1,7 @@
 import { html, nothing } from "lit";
 import type { ChannelAccountSnapshot, SimplexStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
-import { formatAgo } from "../format.ts";
+import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
 
 export function renderSimplexCard(params: {
@@ -145,7 +145,18 @@ export function renderSimplexCard(params: {
 
   const renderAccountCard = (account: ChannelAccountSnapshot) => {
     const label = account.name || account.accountId;
-    const wsUrl = (account as { wsUrl?: string | null }).wsUrl ?? null;
+    const wsUrl = (() => {
+      const app = account.application;
+      if (!app || typeof app !== "object") {
+        return null;
+      }
+      const value = (app as { wsUrl?: unknown }).wsUrl;
+      if (typeof value !== "string") {
+        return null;
+      }
+      const trimmed = value.trim();
+      return trimmed ? trimmed : null;
+    })();
     return html`
       <div class="account-card">
         <div class="account-card-header">
@@ -171,11 +182,15 @@ export function renderSimplexCard(params: {
           </div>
           <div>
             <span class="label">Last inbound</span>
-            <span>${account.lastInboundAt ? formatAgo(account.lastInboundAt) : "n/a"}</span>
+            <span>
+              ${account.lastInboundAt ? formatRelativeTimestamp(account.lastInboundAt) : "n/a"}
+            </span>
           </div>
           <div>
             <span class="label">Last outbound</span>
-            <span>${account.lastOutboundAt ? formatAgo(account.lastOutboundAt) : "n/a"}</span>
+            <span>
+              ${account.lastOutboundAt ? formatRelativeTimestamp(account.lastOutboundAt) : "n/a"}
+            </span>
           </div>
           ${
             account.lastError
@@ -225,15 +240,29 @@ export function renderSimplexCard(params: {
               </div>
               <div>
                 <span class="label">Last start</span>
-                <span>${simplex?.lastStartAt ? formatAgo(simplex.lastStartAt) : "n/a"}</span>
+                <span>
+                  ${simplex?.lastStartAt ? formatRelativeTimestamp(simplex.lastStartAt) : "n/a"}
+                </span>
               </div>
               <div>
                 <span class="label">Last inbound</span>
-                <span>${simplexAccounts[0]?.lastInboundAt ? formatAgo(simplexAccounts[0].lastInboundAt) : "n/a"}</span>
+                <span>
+                  ${
+                    simplexAccounts[0]?.lastInboundAt
+                      ? formatRelativeTimestamp(simplexAccounts[0].lastInboundAt)
+                      : "n/a"
+                  }
+                </span>
               </div>
               <div>
                 <span class="label">Last outbound</span>
-                <span>${simplexAccounts[0]?.lastOutboundAt ? formatAgo(simplexAccounts[0].lastOutboundAt) : "n/a"}</span>
+                <span>
+                  ${
+                    simplexAccounts[0]?.lastOutboundAt
+                      ? formatRelativeTimestamp(simplexAccounts[0].lastOutboundAt)
+                      : "n/a"
+                  }
+                </span>
               </div>
             </div>
           `
