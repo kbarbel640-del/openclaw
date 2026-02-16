@@ -169,7 +169,7 @@ describe("deliverReplies", () => {
     );
   });
 
-  it("does not include message_thread_id for DMs (threads don't exist in private chats)", async () => {
+  it("includes message_thread_id for DM topics (Telegram DM topics)", async () => {
     const runtime = { error: vi.fn(), log: vi.fn() };
     const sendMessage = vi.fn().mockResolvedValue({
       message_id: 4,
@@ -191,7 +191,7 @@ describe("deliverReplies", () => {
     expect(sendMessage).toHaveBeenCalledWith(
       "123",
       expect.any(String),
-      expect.not.objectContaining({
+      expect.objectContaining({
         message_thread_id: 1,
       }),
     );
