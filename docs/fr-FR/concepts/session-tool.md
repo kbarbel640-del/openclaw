@@ -41,7 +41,7 @@ Comportement :
 
 - `messageLimit > 0` récupère `chat.history` par session et inclut les N derniers messages.
 - Les résultats d'outils sont filtrés dans la sortie de liste ; utilisez `sessions_history` pour les messages d'outil.
-- Lors de l'exécution dans une session d'agent **en bac à sable**, les outils de session par défaut ont une **visibilité spawned-only** (voir ci-dessous).
+- Lors de l'exécution dans une session d'agent **en sandbox**, les outils de session par défaut ont une **visibilité spawned-only** (voir ci-dessous).
 
 Forme de ligne (JSON) :
 
@@ -174,9 +174,9 @@ Comportement :
 - Les sessions de sous-agent sont auto-archivées après `agents.defaults.subagents.archiveAfterMinutes` (par défaut : 60).
 - Les réponses d'annonce incluent une ligne de stats (exécution, jetons, sessionKey/sessionId, chemin de transcription, et coût optionnel).
 
-## Visibilité de session en bac à sable
+## Visibilité de session en sandbox
 
-Les sessions en bac à sable peuvent utiliser les outils de session, mais par défaut elles ne voient que les sessions qu'elles ont générées via `sessions_spawn`.
+Les sessions en sandbox peuvent utiliser les outils de session, mais par défaut elles ne voient que les sessions qu'elles ont générées via `sessions_spawn`.
 
 Config :
 

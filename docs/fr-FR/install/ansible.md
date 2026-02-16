@@ -27,7 +27,7 @@ curl -fsSL https://raw.githubusercontent.com/openclaw/openclaw-ansible/main/inst
 
 - 🔒 **Sécurité pare-feu d'abord** : UFW + isolation Docker (seulement SSH + Tailscale accessibles)
 - 🔐 **VPN Tailscale** : Accès distant sécurisé sans exposer les services publiquement
-- 🐳 **Docker** : Conteneurs bac à sable isolés, liaisons localhost uniquement
+- 🐳 **Docker** : Conteneurs sandbox isolés, liaisons localhost uniquement
 - 🛡️ **Défense en profondeur** : Architecture de sécurité à 4 couches
 - 🚀 **Configuration en une commande** : Déploiement complet en minutes
 - 🔧 **Intégration systemd** : Démarrage automatique au boot avec durcissement
@@ -50,7 +50,7 @@ Le playbook Ansible installe et configure :
 5. **OpenClaw** (basé sur l'hôte, non conteneurisé)
 6. **Service systemd** (démarrage automatique avec durcissement sécurité)
 
-Note : La passerelle s'exécute **directement sur l'hôte** (pas dans Docker), mais les bacs à sable agent utilisent Docker pour l'isolation. Voir [Bac à sable](/fr-FR/gateway/sandboxing) pour les détails.
+Note : La passerelle s'exécute **directement sur l'hôte** (pas dans Docker), mais les bacs à sable agent utilisent Docker pour l'isolation. Voir [sandbox](/fr-FR/gateway/sandboxing) pour les détails.
 
 ## Configuration post-installation
 
@@ -107,7 +107,7 @@ Devrait montrer **seulement le port 22** (SSH) ouvert. Tous les autres services 
 
 Docker est installé pour les **bacs à sable agent** (exécution outil isolée), pas pour exécuter la passerelle elle-même. La passerelle se lie à localhost uniquement et est accessible via VPN Tailscale.
 
-Voir [Bac à sable et outils multi-agent](/fr-FR/tools/multi-agent-sandbox-tools) pour la configuration du bac à sable.
+Voir [sandbox et outils multi-agent](/fr-FR/tools/multi-agent-sandbox-tools) pour la configuration du sandbox.
 
 ## Installation manuelle
 
@@ -169,16 +169,16 @@ cd ~/openclaw
 pnpm start
 ```
 
-### Problèmes de bac à sable Docker
+### Problèmes de sandbox Docker
 
 ```bash
 # Vérifier que Docker tourne
 sudo systemctl status docker
 
-# Vérifier l'image bac à sable
+# Vérifier l'image sandbox
 sudo docker images | grep openclaw-sandbox
 
-# Construire l'image bac à sable si manquante
+# Construire l'image sandbox si manquante
 cd /opt/openclaw/openclaw
 sudo -u openclaw ./scripts/sandbox-setup.sh
 ```
@@ -204,5 +204,5 @@ Pour l'architecture de sécurité détaillée et le dépannage :
 
 - [openclaw-ansible](https://github.com/openclaw/openclaw-ansible) — guide de déploiement complet
 - [Docker](/fr-FR/install/docker) — configuration passerelle conteneurisée
-- [Bac à sable](/fr-FR/gateway/sandboxing) — configuration bac à sable agent
-- [Bac à sable et outils multi-agent](/fr-FR/tools/multi-agent-sandbox-tools) — isolation par agent
+- [sandbox](/fr-FR/gateway/sandboxing) — configuration sandbox agent
+- [sandbox et outils multi-agent](/fr-FR/tools/multi-agent-sandbox-tools) — isolation par agent

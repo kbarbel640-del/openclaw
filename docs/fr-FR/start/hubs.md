@@ -96,7 +96,7 @@ Utilisez ces centres pour découvrir chaque page, y compris les analyses approfo
 - [Battement de cœur](/fr-FR/gateway/heartbeat)
 - [Diagnostic](/fr-FR/gateway/doctor)
 - [Journalisation](/fr-FR/gateway/logging)
-- [Bac à sable](/fr-FR/gateway/sandboxing)
+- [sandbox](/fr-FR/gateway/sandboxing)
 - [Tableau de bord](/fr-FR/web/dashboard)
 - [Interface de contrôle](/fr-FR/web/control-ui)
 - [Accès distant](/fr-FR/gateway/remote)

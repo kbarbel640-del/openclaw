@@ -23,7 +23,7 @@ L'invite est intentionnellement compacte et utilise des sections fixes :
 - **Espace de travail** : répertoire de travail (`agents.defaults.workspace`).
 - **Documentation** : chemin local vers les docs OpenClaw (dépôt ou package npm) et quand les lire.
 - **Fichiers d'espace de travail (injectés)** : indique que les fichiers d'amorçage sont inclus ci-dessous.
-- **Bac à sable** (quand activé) : indique l'environnement d'exécution en bac à sable, les chemins de bac à sable, et si l'exec élevé est disponible.
+- **sandbox** (quand activé) : indique l'environnement d'exécution en sandbox, les chemins de sandbox, et si l'exec élevé est disponible.
 - **Date et heure actuelles** : heure locale utilisateur, fuseau horaire et format d'heure.
 - **Balises de réponse** : syntaxe optionnelle de balise de réponse pour les fournisseurs supportés.
 - **Heartbeats** : invite de heartbeat et comportement d'ack.
@@ -40,7 +40,7 @@ OpenClaw peut rendre des invites système plus petites pour les sous-agents. L'e
 - `full` (par défaut) : inclut toutes les sections ci-dessus.
 - `minimal` : utilisé pour les sous-agents ; omet **Compétences**, **Rappel de mémoire**, **Auto-mise à jour OpenClaw**, **Alias de modèles**, **Identité utilisateur**, **Balises de réponse**,
   **Messagerie**, **Réponses silencieuses** et **Heartbeats**. L'outillage, **Sécurité**,
-  Espace de travail, Bac à sable, Date et heure actuelles (quand connues), Environnement d'exécution et contexte
+  Espace de travail, sandbox, Date et heure actuelles (quand connues), Environnement d'exécution et contexte
   injecté restent disponibles.
 - `none` : retourne uniquement la ligne d'identité de base.
 

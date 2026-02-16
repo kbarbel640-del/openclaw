@@ -70,7 +70,7 @@ Détails :
 - **Silencieux** par défaut : les invites incluent `NO_REPLY` donc rien n'est livré.
 - **Deux invites** : une invite utilisateur plus une invite système ajoutent le rappel.
 - **Un vidage par cycle de compaction** (suivi dans `sessions.json`).
-- **L'espace de travail doit être accessible en écriture** : si la session s'exécute en bac à sable avec
+- **L'espace de travail doit être accessible en écriture** : si la session s'exécute en sandbox avec
   `workspaceAccess: "ro"` ou `"none"`, le vidage est ignoré.
 
 Pour le cycle de compaction complet, voir

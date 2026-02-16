@@ -764,7 +764,7 @@ OpenClaw n'est pas "juste un wrapper Claude." C'est un **plan de contrôle local
 Points forts :
 
 - **Vos appareils, vos données :** exécutez la Passerelle où vous voulez (Mac, Linux, VPS) et gardez le workspace + historique de session locaux.
-- **Vrais canaux, pas un bac à sable web :** WhatsApp/Telegram/Slack/Discord/Signal/iMessage/etc, plus voix mobile et Canvas sur plateformes supportées.
+- **Vrais canaux, pas un sandbox web :** WhatsApp/Telegram/Slack/Discord/Signal/iMessage/etc, plus voix mobile et Canvas sur plateformes supportées.
 - **Agnostique modèle :** utilisez Anthropic, OpenAI, MiniMax, OpenRouter, etc., avec routage par agent et basculement.
 - **Option local uniquement :** exécutez des modèles locaux pour que **toutes les données puissent rester sur votre appareil** si vous voulez.
 - **Routage multi-agent :** agents séparés par canal, compte ou tâche, chacun avec son propre workspace et défauts.

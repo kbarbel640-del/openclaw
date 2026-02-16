@@ -51,7 +51,7 @@ câblée de bout en bout.
 
 ## Préparation de session + espace de travail
 
-- L'espace de travail est résolu et créé ; les exécutions en bac à sable peuvent rediriger vers une racine d'espace de travail en bac à sable.
+- L'espace de travail est résolu et créé ; les exécutions en sandbox peuvent rediriger vers une racine d'espace de travail en sandbox.
 - Les compétences sont chargées (ou réutilisées depuis un instantané) et injectées dans l'env et l'invite.
 - Les fichiers d'amorçage/contexte sont résolus et injectés dans le rapport d'invite système.
 - Un verrou d'écriture de session est acquis ; `SessionManager` est ouvert et préparé avant le streaming.

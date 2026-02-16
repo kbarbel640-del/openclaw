@@ -332,13 +332,13 @@ et une politique d'outil plus stricte :
 Notes :
 
 - Les listes allow/deny d'outils sont des **outils**, pas des compétences. Si une compétence a besoin d'exécuter un
-  binaire, assurez-vous que `exec` est autorisé et que le binaire existe dans le bac à sable.
+  binaire, assurez-vous que `exec` est autorisé et que le binaire existe dans le sandbox.
 - Pour un contrôle plus strict, définissez `agents.list[].groupChat.mentionPatterns` et gardez
   les listes blanches de groupe activées pour le canal.
 
-## Configuration de bac à sable et d'outil par agent
+## Configuration de sandbox et d'outil par agent
 
-Depuis la v2026.1.6, chaque agent peut avoir son propre bac à sable et restrictions d'outil :
+Depuis la v2026.1.6, chaque agent peut avoir son propre sandbox et restrictions d'outil :
 
 ```js
 {
@@ -348,7 +348,7 @@ Depuis la v2026.1.6, chaque agent peut avoir son propre bac à sable et restrict
         id: "personal",
         workspace: "~/.openclaw/workspace-personal",
         sandbox: {
-          mode: "off",  // Pas de bac à sable pour l'agent personnel
+          mode: "off",  // Pas de sandbox pour l'agent personnel
         },
         // Pas de restrictions d'outil - tous les outils disponibles
       },
@@ -356,7 +356,7 @@ Depuis la v2026.1.6, chaque agent peut avoir son propre bac à sable et restrict
         id: "family",
         workspace: "~/.openclaw/workspace-family",
         sandbox: {
-          mode: "all",     // Toujours en bac à sable
+          mode: "all",     // Toujours en sandbox
           scope: "agent",  // Un conteneur par agent
           docker: {
             // Configuration unique optionnelle après création du conteneur
@@ -379,7 +379,7 @@ Les remplacements `sandbox.docker.*` par agent sont ignorés quand le scope rés
 **Avantages :**
 
 - **Isolation de sécurité** : Restreindre les outils pour les agents non fiables
-- **Contrôle des ressources** : Bac à sable pour des agents spécifiques tout en gardant les autres sur l'hôte
+- **Contrôle des ressources** : sandbox pour des agents spécifiques tout en gardant les autres sur l'hôte
 - **Politiques flexibles** : Différentes permissions par agent
 
 Note : `tools.elevated` est **global** et basé sur l'expéditeur ; il n'est pas configurable par agent.

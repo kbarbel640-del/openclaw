@@ -189,7 +189,7 @@ Assistant IA santé personnel intégrant les données de la bague Oura avec cale
 <Card title="Dream Team de Kev (14+ agents)" icon="robot" href="https://github.com/adam91holt/orchestrated-ai-articles">
   **@adam91holt** • `multi-agent` `orchestration` `architecture` `manifesto`
 
-14+ agents sous une passerelle avec orchestrateur Opus 4.5 déléguant aux travailleurs Codex. [Article technique](https://github.com/adam91holt/orchestrated-ai-articles) complet couvrant la liste de la Dream Team, sélection de modèles, bac à sable, webhooks, battements de cœur et flux de délégation. [Clawdspace](https://github.com/adam91holt/clawdspace) pour le bac à sable d'agent. [Article de blog](https://adams-ai-journey.ghost.io/2026-the-year-of-the-orchestrator/).
+14+ agents sous une passerelle avec orchestrateur Opus 4.5 déléguant aux travailleurs Codex. [Article technique](https://github.com/adam91holt/orchestrated-ai-articles) complet couvrant la liste de la Dream Team, sélection de modèles, sandbox, webhooks, battements de cœur et flux de délégation. [Clawdspace](https://github.com/adam91holt/clawdspace) pour le sandbox d'agent. [Article de blog](https://adams-ai-journey.ghost.io/2026-the-year-of-the-orchestrator/).
 </Card>
 
 <Card title="CLI Linear" icon="terminal" href="https://github.com/Finesssee/linear-cli">

@@ -14,12 +14,12 @@ les outils de fichier et le contexte d'espace de travail. Gardez-le privé et tr
 Ceci est séparé de `~/.openclaw/`, qui stocke la config, les identifiants et les
 sessions.
 
-**Important :** l'espace de travail est le **cwd par défaut**, pas un bac à sable dur. Les outils
+**Important :** l'espace de travail est le **cwd par défaut**, pas un sandbox dur. Les outils
 résolvent les chemins relatifs contre l'espace de travail, mais les chemins absolus peuvent toujours atteindre
 ailleurs sur l'hôte sauf si le sandboxing est activé. Si vous avez besoin d'isolation, utilisez
-[`agents.defaults.sandbox`](/fr-FR/gateway/sandboxing) (et/ou config de bac à sable par agent).
+[`agents.defaults.sandbox`](/fr-FR/gateway/sandboxing) (et/ou config de sandbox par agent).
 Quand le sandboxing est activé et que `workspaceAccess` n'est pas `"rw"`, les outils opèrent
-à l'intérieur d'un espace de travail en bac à sable sous `~/.openclaw/sandboxes`, pas votre espace de travail hôte.
+à l'intérieur d'un espace de travail en sandbox sous `~/.openclaw/sandboxes`, pas votre espace de travail hôte.
 
 ## Emplacement par défaut
 
@@ -224,5 +224,5 @@ Démarrage `.gitignore` suggéré :
 
 - Le routage multi-agents peut utiliser différents espaces de travail par agent. Voir
   [Routage de canal](/fr-FR/channels/channel-routing) pour la configuration de routage.
-- Si `agents.defaults.sandbox` est activé, les sessions non-main peuvent utiliser des espaces de travail en bac à sable
+- Si `agents.defaults.sandbox` est activé, les sessions non-main peuvent utiliser des espaces de travail en sandbox
   par session sous `agents.defaults.sandbox.workspaceRoot`.

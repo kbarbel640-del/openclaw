@@ -14,14 +14,14 @@ Docker est **optionnel**. Utilisez-le uniquement si vous voulez une passerelle c
 
 - **Oui** : vous voulez un environnement de passerelle isolé et jetable ou exécuter OpenClaw sur un hôte sans installations locales.
 - **Non** : vous exécutez sur votre propre machine et voulez juste la boucle de développement la plus rapide. Utilisez le flux d'installation normal à la place.
-- **Note sur l'isolation en bac à sable** : l'isolation en bac à sable d'agent utilise aussi Docker, mais elle ne nécessite **pas** que la passerelle complète s'exécute dans Docker. Voir [Isolation en bac à sable](/fr-FR/gateway/sandboxing).
+- **Note sur l'isolation en sandbox** : l'isolation en sandbox d'agent utilise aussi Docker, mais elle ne nécessite **pas** que la passerelle complète s'exécute dans Docker. Voir [Isolation en sandbox](/fr-FR/gateway/sandboxing).
 
 Ce guide couvre :
 
 - Passerelle conteneurisée (OpenClaw complet dans Docker)
-- Bac à sable d'agent par session (passerelle hôte + outils agent isolés dans Docker)
+- sandbox d'agent par session (passerelle hôte + outils agent isolés dans Docker)
 
-Détails sur l'isolation en bac à sable : [Isolation en bac à sable](/fr-FR/gateway/sandboxing)
+Détails sur l'isolation en sandbox : [Isolation en sandbox](/fr-FR/gateway/sandboxing)
 
 ## Prérequis
 
@@ -324,9 +324,9 @@ pnpm test:docker:qr
 - Le Dockerfile CMD utilise `--allow-unconfigured` ; la configuration montée avec `gateway.mode` non `local` démarrera quand même. Écrasez CMD pour imposer la garde.
 - Le conteneur de passerelle est la source de vérité pour les sessions (`~/.openclaw/agents/<agentId>/sessions/`).
 
-## Bac à sable d'agent (passerelle hôte + outils Docker)
+## sandbox d'agent (passerelle hôte + outils Docker)
 
-Plongée profonde : [Isolation en bac à sable](/fr-FR/gateway/sandboxing)
+Plongée profonde : [Isolation en sandbox](/fr-FR/gateway/sandboxing)
 
 ### Ce que ça fait
 
@@ -338,14 +338,14 @@ conteneur Docker. La passerelle reste sur votre hôte, mais l'exécution d'outil
 - dossier d'espace de travail par scope monté à `/workspace`
 - accès optionnel à l'espace de travail agent (`agents.defaults.sandbox.workspaceAccess`)
 - politique d'outil autoriser/refuser (refuser gagne)
-- les médias entrants sont copiés dans l'espace de travail de bac à sable actif (`media/inbound/*`) pour que les outils puissent les lire (avec `workspaceAccess: "rw"`, cela atterrit dans l'espace de travail agent)
+- les médias entrants sont copiés dans l'espace de travail de sandbox actif (`media/inbound/*`) pour que les outils puissent les lire (avec `workspaceAccess: "rw"`, cela atterrit dans l'espace de travail agent)
 
 Avertissement : `scope: "shared"` désactive l'isolation entre sessions. Toutes les sessions partagent
 un conteneur et un espace de travail.
 
-### Profils de bac à sable par agent (multi-agent)
+### Profils de sandbox par agent (multi-agent)
 
-Si vous utilisez le routage multi-agent, chaque agent peut écraser les paramètres de bac à sable + outil :
+Si vous utilisez le routage multi-agent, chaque agent peut écraser les paramètres de sandbox + outil :
 `agents.list[].sandbox` et `agents.list[].tools` (plus `agents.list[].tools.sandbox.tools`). Cela vous permet d'exécuter
 des niveaux d'accès mixtes dans une passerelle :
 
@@ -353,7 +353,7 @@ des niveaux d'accès mixtes dans une passerelle :
 - Outils lecture seule + espace de travail lecture seule (agent famille/travail)
 - Pas d'outils système de fichiers/shell (agent public)
 
-Voir [Bac à sable & outils multi-agent](/fr-FR/tools/multi-agent-sandbox-tools) pour les exemples,
+Voir [sandbox & outils multi-agent](/fr-FR/tools/multi-agent-sandbox-tools) pour les exemples,
 la priorité et le dépannage.
 
 ### Comportement par défaut
@@ -361,14 +361,14 @@ la priorité et le dépannage.
 - Image : `openclaw-sandbox:bookworm-slim`
 - Un conteneur par agent
 - Accès espace de travail agent : `workspaceAccess: "none"` (par défaut) utilise `~/.openclaw/sandboxes`
-  - `"ro"` garde l'espace de travail de bac à sable à `/workspace` et monte l'espace de travail agent en lecture seule à `/agent` (désactive `write`/`edit`/`apply_patch`)
+  - `"ro"` garde l'espace de travail de sandbox à `/workspace` et monte l'espace de travail agent en lecture seule à `/agent` (désactive `write`/`edit`/`apply_patch`)
   - `"rw"` monte l'espace de travail agent en lecture/écriture à `/workspace`
 - Auto-élagage : inactif > 24h OU âge > 7j
 - Réseau : `none` par défaut (opt-in explicite si vous avez besoin d'egress)
 - Autorisation par défaut : `exec`, `process`, `read`, `write`, `edit`, `sessions_list`, `sessions_history`, `sessions_send`, `sessions_spawn`, `session_status`
 - Refus par défaut : `browser`, `canvas`, `nodes`, `cron`, `discord`, `gateway`
 
-### Activer l'isolation en bac à sable
+### Activer l'isolation en sandbox
 
 Si vous prévoyez d'installer des paquets dans `setupCommand`, notez :
 
@@ -447,7 +447,7 @@ Les boutons de renforcement se trouvent sous `agents.defaults.sandbox.docker` :
 Multi-agent : écrasez `agents.defaults.sandbox.{docker,browser,prune}.*` par agent via `agents.list[].sandbox.{docker,browser,prune}.*`
 (ignoré quand `agents.defaults.sandbox.scope` / `agents.list[].sandbox.scope` est `"shared"`).
 
-### Construire l'image de bac à sable par défaut
+### Construire l'image de sandbox par défaut
 
 ```bash
 scripts/sandbox-setup.sh
@@ -455,9 +455,9 @@ scripts/sandbox-setup.sh
 
 Cela construit `openclaw-sandbox:bookworm-slim` en utilisant `Dockerfile.sandbox`.
 
-### Image commune de bac à sable (optionnel)
+### Image commune de sandbox (optionnel)
 
-Si vous voulez une image de bac à sable avec des outils de construction communs (Node, Go, Rust, etc.), construisez l'image commune :
+Si vous voulez une image de sandbox avec des outils de construction communs (Node, Go, Rust, etc.), construisez l'image commune :
 
 ```bash
 scripts/sandbox-common-setup.sh
@@ -475,9 +475,9 @@ Cela construit `openclaw-sandbox-common:bookworm-slim`. Pour l'utiliser :
 }
 ```
 
-### Image de navigateur de bac à sable
+### Image de navigateur de sandbox
 
-Pour exécuter l'outil navigateur dans le bac à sable, construisez l'image navigateur :
+Pour exécuter l'outil navigateur dans le sandbox, construisez l'image navigateur :
 
 ```bash
 scripts/sandbox-browser-setup.sh
@@ -521,14 +521,14 @@ Image navigateur personnalisée :
 
 Quand activé, l'agent reçoit :
 
-- une URL de contrôle de navigateur de bac à sable (pour l'outil `browser`)
+- une URL de contrôle de navigateur de sandbox (pour l'outil `browser`)
 - une URL noVNC (si activé et headless=false)
 
 Rappelez-vous : si vous utilisez une liste d'autorisation pour les outils, ajoutez `browser` (et retirez-le de
 deny) ou l'outil reste bloqué.
 Les règles d'élagage (`agents.defaults.sandbox.prune`) s'appliquent aussi aux conteneurs de navigateur.
 
-### Image de bac à sable personnalisée
+### Image de sandbox personnalisée
 
 Construisez votre propre image et pointez la configuration vers elle :
 
@@ -570,13 +570,13 @@ Exemple :
 
 - Le mur dur ne s'applique qu'aux **outils** (exec/read/write/edit/apply_patch).
 - Les outils hôte uniquement comme browser/camera/canvas sont bloqués par défaut.
-- Autoriser `browser` dans le bac à sable **casse l'isolation** (le navigateur s'exécute sur l'hôte).
+- Autoriser `browser` dans le sandbox **casse l'isolation** (le navigateur s'exécute sur l'hôte).
 
 ## Dépannage
 
 - Image manquante : construire avec [`scripts/sandbox-setup.sh`](https://github.com/openclaw/openclaw/blob/main/scripts/sandbox-setup.sh) ou définir `agents.defaults.sandbox.docker.image`.
 - Conteneur non en cours d'exécution : il sera créé automatiquement par session à la demande.
-- Erreurs de permission dans le bac à sable : définir `docker.user` à un UID:GID qui correspond à la
+- Erreurs de permission dans le sandbox : définir `docker.user` à un UID:GID qui correspond à la
   propriété de votre espace de travail monté (ou chown le dossier d'espace de travail).
 - Outils personnalisés introuvables : OpenClaw exécute les commandes avec `sh -lc` (shell de connexion), qui
   source `/etc/profile` et peut réinitialiser PATH. Définissez `docker.env.PATH` pour préfixer vos

@@ -2,13 +2,13 @@
 summary: "Exécuter OpenClaw dans une VM macOS isolée (locale ou hébergée) quand vous avez besoin d'isolation ou d'iMessage"
 read_when:
   - Vous voulez OpenClaw isolé de votre environnement macOS principal
-  - Vous voulez l'intégration iMessage (BlueBubbles) dans un bac à sable
+  - Vous voulez l'intégration iMessage (BlueBubbles) dans un sandbox
   - Vous voulez un environnement macOS réinitialisable que vous pouvez cloner
   - Vous voulez comparer les options de VM macOS locales vs hébergées
 title: "VMs macOS"
 ---
 
-# OpenClaw sur VMs macOS (Isolation en bac à sable)
+# OpenClaw sur VMs macOS (Isolation en sandbox)
 
 ## Configuration par défaut recommandée (la plupart des utilisateurs)
 
@@ -278,4 +278,4 @@ Pour une véritable disponibilité permanente, envisagez un Mac mini dédié ou 
 - [Démarrage rapide Lume](https://cua.ai/docs/lume/guide/getting-started/quickstart)
 - [Référence CLI Lume](https://cua.ai/docs/lume/reference/cli-reference)
 - [Configuration VM sans surveillance](https://cua.ai/docs/lume/guide/fundamentals/unattended-setup) (avancé)
-- [Isolation en bac à sable Docker](/fr-FR/install/docker) (approche d'isolation alternative)
+- [Isolation en sandbox Docker](/fr-FR/install/docker) (approche d'isolation alternative)

@@ -39,7 +39,7 @@ Les valeurs varient selon le modèle, le fournisseur, la politique d'outils et c
 🧠 Décomposition du contexte
 Espace de travail : <workspaceDir>
 Bootstrap max/fichier : 20 000 chars
-Bac à sable : mode=non-main sandboxed=false
+sandbox : mode=non-main sandboxed=false
 Invite système (exécution) : 38 412 chars (~9 603 tok) (Contexte de projet 23 901 chars (~5 976 tok))
 
 Fichiers d'espace de travail injectés :
