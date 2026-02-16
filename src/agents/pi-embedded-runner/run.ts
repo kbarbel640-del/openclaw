@@ -50,6 +50,9 @@ import { compactEmbeddedPiSessionDirect } from "./compact.js";
 import { resolveGlobalLane, resolveSessionLane } from "./lanes.js";
 import { log } from "./logger.js";
 import { resolveModel } from "./model.js";
+import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
+import { normalizeAgentId } from "../../routing/session-key.js";
+import { resolveModelRefFromString } from "../model-selection.js";
 import { runEmbeddedAttempt } from "./run/attempt.js";
 import { buildEmbeddedRunPayloads } from "./run/payloads.js";
 import {
@@ -198,9 +201,45 @@ export async function runEmbeddedPiAgent(
       }
       const prevCwd = process.cwd();
 
-      const provider = (params.provider ?? DEFAULT_PROVIDER).trim() || DEFAULT_PROVIDER;
-      const modelId = (params.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+      let provider = (params.provider ?? DEFAULT_PROVIDER).trim() || DEFAULT_PROVIDER;
+      let modelId = (params.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
       const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
+
+      // Run before_agent_start hook early for model override.
+      // The hook also runs later in attempt.ts for systemPrompt/prependContext;
+      // we only extract the model field here so auth resolution uses the right provider.
+      if (params.authProfileIdSource !== "user") {
+        const hookRunner = getGlobalHookRunner();
+        if (hookRunner?.hasHooks("before_agent_start")) {
+          try {
+            const hookResult = await hookRunner.runBeforeAgentStart(
+              { prompt: params.prompt, messages: undefined },
+              {
+                agentId: params.agentId
+                  ? normalizeAgentId(params.agentId)
+                  : undefined,
+                sessionKey: params.sessionKey,
+                sessionId: params.sessionId,
+                workspaceDir: resolvedWorkspace,
+                messageProvider: params.messageProvider ?? undefined,
+              },
+            );
+            if (hookResult?.model?.trim()) {
+              const ref = resolveModelRefFromString({
+                raw: hookResult.model.trim(),
+                defaultProvider: provider,
+              });
+              provider = ref.ref.provider;
+              modelId = ref.ref.model;
+              log.info(
+                `before_agent_start hook overrode model: ${params.provider ?? DEFAULT_PROVIDER}/${params.model ?? DEFAULT_MODEL} → ${provider}/${modelId}`,
+              );
+            }
+          } catch (hookErr) {
+            log.warn(`before_agent_start model override hook failed: ${String(hookErr)}`);
+          }
+        }
+      }
       const fallbackConfigured =
         (params.config?.agents?.defaults?.model?.fallbacks?.length ?? 0) > 0;
       await ensureOpenClawModelsJson(params.config, agentDir);

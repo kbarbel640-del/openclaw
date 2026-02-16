@@ -332,6 +332,10 @@ export type PluginHookBeforeAgentStartEvent = {
 export type PluginHookBeforeAgentStartResult = {
   systemPrompt?: string;
   prependContext?: string;
+  /** Override the model for this agent run. Format: "provider/model" (e.g. "anthropic/claude-haiku-3-5").
+   *  Ignored when the user has set a manual model override (e.g. /model).
+   *  If the model cannot be resolved, the original model is used and a warning is logged. */
+  model?: string;
 };
 
 // llm_input hook
