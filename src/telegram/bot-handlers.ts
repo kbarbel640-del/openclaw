@@ -103,6 +103,30 @@ export const registerTelegramHandlers = ({
     debounceKey: string | null;
     botUsername?: string;
   };
+  const buildSyntheticTextMessage = (params: {
+    base: Message;
+    text: string;
+    date?: number;
+    from?: Message["from"];
+  }): Message => ({
+    ...params.base,
+    ...(params.from ? { from: params.from } : {}),
+    text: params.text,
+    caption: undefined,
+    caption_entities: undefined,
+    entities: undefined,
+    ...(params.date != null ? { date: params.date } : {}),
+  });
+  const buildSyntheticContext = (
+    ctx: Pick<TelegramContext, "me"> & { getFile?: unknown },
+    message: Message,
+  ): TelegramContext => {
+    const getFile =
+      typeof ctx.getFile === "function"
+        ? (ctx.getFile as TelegramContext["getFile"]).bind(ctx as object)
+        : async () => ({});
+    return { message, me: ctx.me, getFile };
+  };
   const inboundDebouncer = createInboundDebouncer<TelegramDebounceEntry>({
     debounceMs,
     buildKey: (entry) => entry.debounceKey,
@@ -134,19 +158,14 @@ export const registerTelegramHandlers = ({
       }
       const first = entries[0];
       const baseCtx = first.ctx;
-      const getFile =
-        typeof baseCtx.getFile === "function" ? baseCtx.getFile.bind(baseCtx) : async () => ({});
-      const syntheticMessage: Message = {
-        ...first.msg,
+      const syntheticMessage = buildSyntheticTextMessage({
+        base: first.msg,
         text: combinedText,
-        caption: undefined,
-        caption_entities: undefined,
-        entities: undefined,
         date: last.msg.date ?? first.msg.date,
-      };
+      });
       const messageIdOverride = last.msg.message_id ? String(last.msg.message_id) : undefined;
       await processMessage(
-        { message: syntheticMessage, me: baseCtx.me, getFile },
+        buildSyntheticContext(baseCtx, syntheticMessage),
         [],
         first.storeAllowFrom,
         messageIdOverride ? { messageIdOverride } : undefined,
@@ -258,26 +277,18 @@ export const registerTelegramHandlers = ({
         return;
       }
 
-      const syntheticMessage: Message = {
-        ...first.msg,
+      const syntheticMessage = buildSyntheticTextMessage({
+        base: first.msg,
         text: combinedText,
-        caption: undefined,
-        caption_entities: undefined,
-        entities: undefined,
         date: last.msg.date ?? first.msg.date,
-      };
+      });
 
       const storeAllowFrom = await loadStoreAllowFrom();
       const baseCtx = first.ctx;
-      const getFile =
-        typeof baseCtx.getFile === "function" ? baseCtx.getFile.bind(baseCtx) : async () => ({});
 
-      await processMessage(
-        { message: syntheticMessage, me: baseCtx.me, getFile },
-        [],
-        storeAllowFrom,
-        { messageIdOverride: String(last.msg.message_id) },
-      );
+      await processMessage(buildSyntheticContext(baseCtx, syntheticMessage), [], storeAllowFrom, {
+        messageIdOverride: String(last.msg.message_id),
+      });
     } catch (err) {
       runtime.error?.(danger(`text fragment handler failed: ${String(err)}`));
     }
@@ -709,41 +720,27 @@ export const registerTelegramHandlers = ({
         if (modelCallback.type === "select") {
           const { provider, model } = modelCallback;
           // Process model selection as a synthetic message with /model command
-          const syntheticMessage: Message = {
-            ...callbackMessage,
+          const syntheticMessage = buildSyntheticTextMessage({
+            base: callbackMessage,
             from: callback.from,
             text: `/model ${provider}/${model}`,
-            caption: undefined,
-            caption_entities: undefined,
-            entities: undefined,
-          };
-          const getFile =
-            typeof ctx.getFile === "function" ? ctx.getFile.bind(ctx) : async () => ({});
-          await processMessage(
-            { message: syntheticMessage, me: ctx.me, getFile },
-            [],
-            storeAllowFrom,
-            {
-              forceWasMentioned: true,
-              messageIdOverride: callback.id,
-            },
-          );
+          });
+          await processMessage(buildSyntheticContext(ctx, syntheticMessage), [], storeAllowFrom, {
+            forceWasMentioned: true,
+            messageIdOverride: callback.id,
+          });
           return;
         }
 
         return;
       }
 
-      const syntheticMessage: Message = {
-        ...callbackMessage,
+      const syntheticMessage = buildSyntheticTextMessage({
+        base: callbackMessage,
         from: callback.from,
         text: data,
-        caption: undefined,
-        caption_entities: undefined,
-        entities: undefined,
-      };
-      const getFile = typeof ctx.getFile === "function" ? ctx.getFile.bind(ctx) : async () => ({});
-      await processMessage({ message: syntheticMessage, me: ctx.me, getFile }, [], storeAllowFrom, {
+      });
+      await processMessage(buildSyntheticContext(ctx, syntheticMessage), [], storeAllowFrom, {
         forceWasMentioned: true,
         messageIdOverride: callback.id,
       });
