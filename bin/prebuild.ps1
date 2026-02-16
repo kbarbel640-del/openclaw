@@ -334,10 +334,13 @@ function Install-PlaywrightBrowsers {
     Write-Info "Installing Playwright Chromium browser..."
     $prevEAP = $ErrorActionPreference
     $ErrorActionPreference = "SilentlyContinue"
-    $null = (npx playwright install chromium --force 2>&1)
+    $pwOutput = (npx playwright install chromium --force 2>&1) | Out-String
+    $pwExit = $LASTEXITCODE
     $ErrorActionPreference = $prevEAP
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "Playwright browser install failed. Browser automation may not work."
+    if ($pwExit -ne 0) {
+        Write-Warn "Playwright browser install failed (exit code $pwExit):"
+        Write-Host $pwOutput -ForegroundColor Yellow
+        Write-Warn "Browser automation may not work."
     } else {
         Write-Ok "Playwright Chromium installed"
     }
