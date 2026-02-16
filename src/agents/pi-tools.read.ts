@@ -4,7 +4,7 @@ import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
 import { detectMime } from "../media/mime.js";
 import { sniffMimeFromBase64 } from "../media/sniff-mime-from-base64.js";
-import { assertSandboxPath, resolveSandboxPath } from "./sandbox-paths.js";
+import { assertSandboxPath } from "./sandbox-paths.js";
 import { sanitizeToolResultImages } from "./tool-images.js";
 
 // NOTE(steipete): Upstream read now does file-magic MIME detection; we keep the wrapper
@@ -310,14 +310,16 @@ export function wrapToolWorkspaceRootGuard(
         } catch (err) {
           // Check if the path falls within any additional allowed root (e.g. bind mounts).
           if (opts?.additionalRoots?.length) {
-            const isAllowed = opts.additionalRoots.some((allowedRoot) => {
-              try {
-                resolveSandboxPath({ filePath, cwd: root, root: allowedRoot });
-                return true;
-              } catch {
-                return false;
-              }
-            });
+            const isAllowed = await Promise.all(
+              opts.additionalRoots.map(async (allowedRoot) => {
+                try {
+                  await assertSandboxPath({ filePath, cwd: root, root: allowedRoot });
+                  return true;
+                } catch {
+                  return false;
+                }
+              }),
+            ).then((results) => results.some(Boolean));
             if (isAllowed) {
               return tool.execute(toolCallId, normalized ?? args, signal, onUpdate);
             }
