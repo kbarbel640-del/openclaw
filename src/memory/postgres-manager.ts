@@ -1,14 +1,3 @@
-// Ambient module declaration so TypeScript doesn't error on the dynamic
-// import when @types/pg is not installed.  We define our own minimal
-// interfaces below instead.
-declare module "pg" {
-  export class Pool {
-    constructor(config?: Record<string, unknown>);
-    query(text: string, values?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
-    end(): Promise<void>;
-  }
-}
-
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -54,8 +43,10 @@ interface PgPool {
  */
 async function importPg(): Promise<{ Pool: new (config: PgPoolConfig) => PgPool } | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return await import(/* webpackIgnore: true */ "pg");
+    // Dynamic import with type suppression — pg ships without types and
+    // we define our own minimal interfaces above.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any
+    return await import("pg");
   } catch {
     return null;
   }
@@ -255,7 +246,7 @@ export class PostgresMemoryManager implements MemorySearchManager {
     const countResult = await pool.query(
       `SELECT count(*)::int AS cnt FROM ${table} WHERE active = true`,
     );
-    this.docCount = countResult.rows[0]?.cnt ?? 0;
+    this.docCount = Number(countResult.rows[0]?.cnt ?? 0);
   }
 
   private requirePool(): PgPool {
@@ -352,20 +343,24 @@ export class PostgresMemoryManager implements MemorySearchManager {
   }
 
   private rowsToResults(
-    rows: Array<{ doc_path: string; collection: string; content: string; score: number }>,
+    rawRows: Record<string, unknown>[],
     minScore: number,
     maxResults: number,
   ): MemorySearchResult[] {
+    type Row = { doc_path: string; collection: string; content: string; score: number };
+    const rows = rawRows as unknown as Row[];
     return rows
-      .filter((row) => row.score >= minScore)
+      .filter((row) => (row.score ?? 0) >= minScore)
       .slice(0, maxResults)
       .map((row) => ({
-        path: row.doc_path,
+        path: row.doc_path ?? "",
         startLine: 1,
-        endLine: row.content?.split("\n").length ?? 1,
-        score: Number(row.score),
+        endLine: (row.content ?? "").split("\n").length,
+        score: Number(row.score ?? 0),
         snippet: extractSnippet(row.content ?? ""),
-        source: (row.collection?.includes("session") ? "sessions" : "memory") as MemorySource,
+        source: ((row.collection ?? "").includes("session")
+          ? "sessions"
+          : "memory") as MemorySource,
       }));
   }
 
@@ -509,7 +504,7 @@ export class PostgresMemoryManager implements MemorySearchManager {
     const countResult = await pool.query(
       `SELECT count(*)::int AS cnt FROM ${this.tableName} WHERE active = true`,
     );
-    this.docCount = countResult.rows[0]?.cnt ?? 0;
+    this.docCount = Number(countResult.rows[0]?.cnt ?? 0);
     log.info(`sync complete: ${this.docCount} active documents`);
   }
 
