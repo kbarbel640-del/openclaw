@@ -296,9 +296,12 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   if (patch.payload) {
     job.payload = mergeCronPayload(job.payload, patch.payload);
   }
-  if (!patch.delivery && patch.payload?.kind === "agentTurn") {
+  const effectivePayloadKind = patch.payload?.kind ?? job.payload.kind;
+  if (!patch.delivery && effectivePayloadKind === "agentTurn" && patch.payload) {
     // Back-compat: legacy clients still update delivery via payload fields.
-    const legacyDeliveryPatch = buildLegacyDeliveryPatch(patch.payload);
+    const legacyDeliveryPatch = buildLegacyDeliveryPatch(
+      patch.payload as Extract<CronPayloadPatch, { kind: "agentTurn" }>,
+    );
     if (
       legacyDeliveryPatch &&
       job.sessionTarget === "isolated" &&
@@ -324,20 +327,23 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
 }
 
 function mergeCronPayload(existing: CronPayload, patch: CronPayloadPatch): CronPayload {
-  if (patch.kind !== existing.kind) {
-    return buildPayloadFromPatch(patch);
+  // When kind is omitted, treat it as a partial patch against the existing payload kind.
+  const effectiveKind = patch.kind ?? existing.kind;
+
+  if (effectiveKind !== existing.kind) {
+    return buildPayloadFromPatch(patch as CronPayloadPatch & { kind: string });
   }
 
-  if (patch.kind === "systemEvent") {
+  if (effectiveKind === "systemEvent") {
     if (existing.kind !== "systemEvent") {
-      return buildPayloadFromPatch(patch);
+      return buildPayloadFromPatch(patch as CronPayloadPatch & { kind: string });
     }
     const text = typeof patch.text === "string" ? patch.text : existing.text;
     return { kind: "systemEvent", text };
   }
 
   if (existing.kind !== "agentTurn") {
-    return buildPayloadFromPatch(patch);
+    return buildPayloadFromPatch(patch as CronPayloadPatch & { kind: string });
   }
 
   const next: Extract<CronPayload, { kind: "agentTurn" }> = { ...existing };
