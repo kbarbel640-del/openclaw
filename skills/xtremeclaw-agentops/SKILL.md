@@ -5,7 +5,19 @@ description: Run XtremeClaw AgentOps to scout fresh AI/Meme token candidates on 
 
 # XtremeClaw AgentOps
 
-Run the toolkit from the repository root.
+This skill targets the repository: `https://github.com/XtremeClaw/xtremeclaw-agentops`.
+
+Use this skill only when that repo is available locally.
+
+- If missing, clone it first:
+
+```bash
+git clone https://github.com/XtremeClaw/xtremeclaw-agentops.git
+cd xtremeclaw-agentops
+npm install
+```
+
+- “Repository root” means the folder containing `package.json` and `src/index.mjs` for `xtremeclaw-agentops`.
 
 ## Core commands
 
