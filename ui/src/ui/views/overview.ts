@@ -245,7 +245,7 @@ export function renderOverview(props: OverviewProps) {
         </div>
       `;
 
-  const cronStatus = props.cronEnabled == null ? "n/a" : props.cronEnabled ? "info" : "warn";
+  const cronStatus = props.cronEnabled == null ? "n/a" : props.cronEnabled ? "ok" : "warn";
   const cronText = props.cronEnabled == null ? "n/a" : props.cronEnabled ? "Enabled" : "Disabled";
 
   // Simplified stats row for Basic mode
