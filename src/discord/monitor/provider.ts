@@ -20,6 +20,7 @@ import {
   patchAllowlistUsersInConfigEntries,
   summarizeMapping,
 } from "../../channels/allowlists/resolve-utils.js";
+import { resolveDmPolicy, resolveGroupPolicy } from "../../channels/policy-resolve.js";
 import {
   isNativeCommandsExplicitlyDisabled,
   resolveNativeCommandsEnabled,
@@ -185,7 +186,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   const dmConfig = discordCfg.dm;
   let guildEntries = discordCfg.guilds;
   const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
-  const groupPolicy = discordCfg.groupPolicy ?? defaultGroupPolicy ?? "open";
+  const groupPolicy = resolveGroupPolicy({
+    accountPolicy: discordCfg.groupPolicy,
+    defaultPolicy: defaultGroupPolicy ?? "open",
+  });
   if (
     discordCfg.groupPolicy === undefined &&
     discordCfg.guilds === undefined &&
@@ -209,7 +213,11 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   );
   const replyToMode = opts.replyToMode ?? discordCfg.replyToMode ?? "off";
   const dmEnabled = dmConfig?.enabled ?? true;
-  const dmPolicy = discordCfg.dmPolicy ?? dmConfig?.policy ?? "pairing";
+  const dmPolicy = resolveDmPolicy({
+    accountPolicy: discordCfg.dmPolicy,
+    legacyPolicy: dmConfig?.policy,
+    defaultPolicy: "pairing",
+  });
   const groupDmEnabled = dmConfig?.groupEnabled ?? false;
   const groupDmChannels = dmConfig?.groupChannels;
   const nativeEnabled = resolveNativeCommandsEnabled({
