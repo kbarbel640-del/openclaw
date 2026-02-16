@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
-import { coerceExpiresAt } from "./oauth-utils.js";
 
 export const CHUTES_OAUTH_ISSUER = "https://api.chutes.ai";
 export const CHUTES_AUTHORIZE_ENDPOINT = `${CHUTES_OAUTH_ISSUER}/idp/authorize`;
@@ -8,6 +7,11 @@ export const CHUTES_TOKEN_ENDPOINT = `${CHUTES_OAUTH_ISSUER}/idp/token`;
 export const CHUTES_USERINFO_ENDPOINT = `${CHUTES_OAUTH_ISSUER}/idp/userinfo`;
 
 const DEFAULT_EXPIRES_BUFFER_MS = 5 * 60 * 1000;
+
+function coerceExpiresAt(expiresInSeconds: number, now: number): number {
+  const value = now + Math.max(0, Math.floor(expiresInSeconds)) * 1000 - DEFAULT_EXPIRES_BUFFER_MS;
+  return Math.max(value, now + 30_000);
+}
 
 export type ChutesPkce = { verifier: string; challenge: string };
 
@@ -179,12 +183,9 @@ export async function refreshChutesTokens(params: {
     throw new Error("Chutes OAuth credential is missing refresh token");
   }
 
-  const clientId =
-    params.credential.clientId?.trim() ?? process.env.CHUTES_CLIENT_ID?.trim();
+  const clientId = params.credential.clientId?.trim() ?? process.env.CHUTES_CLIENT_ID?.trim();
   if (!clientId) {
-    throw new Error(
-      "Missing CHUTES_CLIENT_ID for Chutes OAuth refresh (set env var or re-auth).",
-    );
+    throw new Error("Missing CHUTES_CLIENT_ID for Chutes OAuth refresh (set env var or re-auth).");
   }
   const clientSecret = process.env.CHUTES_CLIENT_SECRET?.trim() || undefined;
 
