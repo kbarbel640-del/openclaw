@@ -25,6 +25,15 @@ export async function pathExists(targetPath: string): Promise<boolean> {
   }
 }
 
+export function firstDefined<T>(...values: Array<T | undefined>): T | undefined {
+  for (const value of values) {
+    if (typeof value !== "undefined") {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
