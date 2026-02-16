@@ -748,7 +748,10 @@ export async function runEmbeddedAttempt(
               agentId: sessionAgentId,
             });
             if (manager) {
-              const memoryResults = await manager.search(effectivePrompt, { maxResults: 5 });
+              const memoryResults = await manager.search(effectivePrompt, {
+                maxResults: 5,
+                minScore: 0.7,
+              });
               if (memoryResults.length > 0) {
                 const memoryContext = memoryResults
                   .map((r) => `[${r.source ?? "memory"}:${r.path}] ${r.snippet}`)

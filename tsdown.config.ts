@@ -10,12 +10,14 @@ export default defineConfig([
     env,
     fixedExtension: false,
     platform: "node",
+    clean: false,
   },
   {
     entry: "src/entry.ts",
     env,
     fixedExtension: false,
     platform: "node",
+    clean: false,
   },
   {
     dts: true,
@@ -24,11 +26,13 @@ export default defineConfig([
     env,
     fixedExtension: false,
     platform: "node",
+    clean: false,
   },
   {
     entry: "src/extensionAPI.ts",
     env,
     fixedExtension: false,
     platform: "node",
+    clean: false,
   },
 ]);

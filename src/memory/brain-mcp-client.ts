@@ -111,6 +111,7 @@ export class BrainMcpClient {
     mode?: "semantic" | "unified";
     limit?: number;
     includeRelationships?: boolean;
+    similarityThreshold?: number;
   }): Promise<BrainSearchResult> {
     const startTime = Date.now();
 
@@ -121,6 +122,7 @@ export class BrainMcpClient {
         mode: params.mode ?? "semantic",
         limit: params.limit ?? 10,
         include_relationships: params.includeRelationships ?? false,
+        similarity_threshold: params.similarityThreshold ?? 0.7,
       });
 
       const args = [`query="${this.escapeArg(params.query)}"`, `search_request='${searchRequest}'`];
