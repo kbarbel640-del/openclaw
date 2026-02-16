@@ -22,10 +22,13 @@ vi.mock("../../infra/gateway-lock.js", () => ({
   acquireGatewayLock: () => acquireGatewayLock(),
 }));
 
+const setGatewayRestarting = vi.fn();
+
 vi.mock("../../infra/restart.js", () => ({
   consumeGatewaySigusr1RestartAuthorization: () => consumeGatewaySigusr1RestartAuthorization(),
   isGatewaySigusr1RestartExternallyAllowed: () => isGatewaySigusr1RestartExternallyAllowed(),
   markGatewaySigusr1RestartHandled: () => markGatewaySigusr1RestartHandled(),
+  setGatewayRestarting: (value: boolean) => setGatewayRestarting(value),
 }));
 
 vi.mock("../../infra/process-respawn.js", () => ({
