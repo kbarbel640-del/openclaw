@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyMergePatch } from "./merge-patch.js";
 
 describe("applyMergePatch", () => {
-  it("replaces arrays by default", () => {
+  function makeAgentListBaseAndPatch() {
     const base = {
       agents: {
         list: [
@@ -16,6 +16,11 @@ describe("applyMergePatch", () => {
         list: [{ id: "primary", memorySearch: { extraPaths: ["/tmp/memory.md"] } }],
       },
     };
+    return { base, patch };
+  }
+
+  it("replaces arrays by default", () => {
+    const { base, patch } = makeAgentListBaseAndPatch();
 
     const merged = applyMergePatch(base, patch) as {
       agents?: { list?: Array<{ id?: string; workspace?: string }> };
@@ -26,19 +31,7 @@ describe("applyMergePatch", () => {
   });
 
   it("merges object arrays by id when enabled", () => {
-    const base = {
-      agents: {
-        list: [
-          { id: "primary", workspace: "/tmp/one" },
-          { id: "secondary", workspace: "/tmp/two" },
-        ],
-      },
-    };
-    const patch = {
-      agents: {
-        list: [{ id: "primary", memorySearch: { extraPaths: ["/tmp/memory.md"] } }],
-      },
-    };
+    const { base, patch } = makeAgentListBaseAndPatch();
 
     const merged = applyMergePatch(base, patch, {
       mergeObjectArraysById: true,
@@ -70,10 +63,7 @@ describe("applyMergePatch", () => {
     };
     const patch = {
       agents: {
-        list: [
-          { id: "primary", model: "new-model" },
-          { workspace: "/tmp/orphan" }, // no id
-        ],
+        list: [{ id: "primary", model: "new-model" }, { workspace: "/tmp/orphan" }],
       },
     };
 
@@ -84,7 +74,6 @@ describe("applyMergePatch", () => {
         list?: Array<{ id?: string; workspace?: string; model?: string }>;
       };
     };
-    // Both original entries preserved, patch without id appended
     expect(merged.agents?.list).toHaveLength(3);
     const primary = merged.agents?.list?.find((entry) => entry.id === "primary");
     expect(primary?.workspace).toBe("/tmp/one");
@@ -117,16 +106,55 @@ describe("applyMergePatch", () => {
         list?: Array<{ id?: string; workspace?: string; model?: string; default?: boolean }>;
       };
     };
-    // All 4 agents must survive
     expect(merged.agents?.list).toHaveLength(4);
-    const main = merged.agents?.list?.find((e) => e.id === "main");
+    const main = merged.agents?.list?.find((entry) => entry.id === "main");
     expect(main?.model).toBe("claude-opus-4-20250918");
     expect(main?.default).toBe(true);
     expect(main?.workspace).toBe("/home/main");
-    // Others untouched
-    expect(merged.agents?.list?.find((e) => e.id === "ota")?.workspace).toBe("/home/ota");
-    expect(merged.agents?.list?.find((e) => e.id === "trading")?.workspace).toBe("/home/trading");
-    expect(merged.agents?.list?.find((e) => e.id === "codex")?.workspace).toBe("/home/codex");
+    expect(merged.agents?.list?.find((entry) => entry.id === "ota")?.workspace).toBe("/home/ota");
+    expect(merged.agents?.list?.find((entry) => entry.id === "trading")?.workspace).toBe(
+      "/home/trading",
+    );
+    expect(merged.agents?.list?.find((entry) => entry.id === "codex")?.workspace).toBe(
+      "/home/codex",
+    );
+  });
+
+  it("keeps existing id entries when patch mixes id and primitive entries", () => {
+    const base = {
+      agents: {
+        list: [
+          { id: "primary", workspace: "/tmp/one" },
+          { id: "secondary", workspace: "/tmp/two" },
+        ],
+      },
+    };
+    const patch = {
+      agents: {
+        list: [{ id: "primary", workspace: "/tmp/one-updated" }, "non-object entry"],
+      },
+    };
+
+    const merged = applyMergePatch(base, patch, {
+      mergeObjectArraysById: true,
+    }) as {
+      agents?: {
+        list?: Array<{ id?: string; workspace?: string } | string>;
+      };
+    };
+
+    expect(merged.agents?.list).toHaveLength(3);
+    const primary = merged.agents?.list?.find(
+      (entry): entry is { id?: string; workspace?: string } =>
+        typeof entry === "object" && entry !== null && "id" in entry && entry.id === "primary",
+    );
+    const secondary = merged.agents?.list?.find(
+      (entry): entry is { id?: string; workspace?: string } =>
+        typeof entry === "object" && entry !== null && "id" in entry && entry.id === "secondary",
+    );
+    expect(primary?.workspace).toBe("/tmp/one-updated");
+    expect(secondary?.workspace).toBe("/tmp/two");
+    expect(merged.agents?.list?.[2]).toBe("non-object entry");
   });
 
   it("falls back to replacement for non-id arrays even when enabled", () => {
