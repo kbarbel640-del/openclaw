@@ -8,7 +8,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import type { TelegramContext } from "./bot/types.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { resolveTextChunkLimit } from "../auto-reply/chunk.js";
-import { isControlCommandMessage } from "../auto-reply/command-detection.js";
+import { isAbortRequestText } from "../auto-reply/reply/abort.js";
 import { DEFAULT_GROUP_HISTORY_LIMIT, type HistoryEntry } from "../auto-reply/reply/history.js";
 import {
   isNativeCommandsExplicitlyDisabled,
@@ -88,10 +88,7 @@ export function getTelegramSequentialKey(ctx: {
   const chatId = msg?.chat?.id ?? ctx.chat?.id;
   const rawText = msg?.text ?? msg?.caption;
   const botUsername = ctx.me?.username;
-  if (
-    rawText &&
-    isControlCommandMessage(rawText, undefined, botUsername ? { botUsername } : undefined)
-  ) {
+  if (isAbortRequestText(rawText, botUsername ? { botUsername } : undefined)) {
     if (typeof chatId === "number") {
       return `telegram:${chatId}:control`;
     }
