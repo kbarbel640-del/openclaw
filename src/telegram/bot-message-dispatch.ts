@@ -91,12 +91,15 @@ export const dispatchTelegramMessage = async ({
       ? telegramCfg.blockStreaming
       : cfg.agents?.defaults?.blockStreamingDefault === "on";
   const canStreamDraft = streamMode !== "off" && !accountBlockStreamingEnabled;
+  const draftReplyToMessageId =
+    replyToMode !== "off" && typeof msg.message_id === "number" ? msg.message_id : undefined;
   const draftStream = canStreamDraft
     ? createTelegramDraftStream({
         api: bot.api,
         chatId,
         maxChars: draftMaxChars,
         thread: threadSpec,
+        replyToMessageId: draftReplyToMessageId,
         log: logVerbose,
         warn: logVerbose,
       })
@@ -117,6 +120,16 @@ export const dispatchTelegramMessage = async ({
       return;
     }
     if (streamMode === "partial") {
+      // Some providers briefly emit a shorter prefix snapshot (for example
+      // "Sure." -> "Sure" -> "Sure."). Keep the longer preview to avoid
+      // visible punctuation flicker.
+      if (
+        lastPartialText &&
+        lastPartialText.startsWith(text) &&
+        text.length < lastPartialText.length
+      ) {
+        return;
+      }
       lastPartialText = text;
       draftStream.update(text);
       return;
@@ -249,6 +262,25 @@ export const dispatchTelegramMessage = async ({
     skippedNonSilent: 0,
   };
   let finalizedViaPreviewMessage = false;
+  const clearGroupHistory = () => {
+    if (isGroup && historyKey) {
+      clearHistoryEntriesIfEnabled({ historyMap: groupHistories, historyKey, limit: historyLimit });
+    }
+  };
+  const deliveryBaseOptions = {
+    chatId: String(chatId),
+    token: opts.token,
+    runtime,
+    bot,
+    mediaLocalRoots,
+    replyToMode,
+    textLimit,
+    thread: threadSpec,
+    tableMode,
+    chunkMode,
+    linkPreview: telegramCfg.linkPreview,
+    replyQuoteText,
+  };
 
   let queuedFinal = false;
   try {
@@ -262,58 +294,58 @@ export const dispatchTelegramMessage = async ({
             await flushDraft();
             const hasMedia = Boolean(payload.mediaUrl) || (payload.mediaUrls?.length ?? 0) > 0;
             const previewMessageId = draftStream?.messageId();
-            const previewButtons = (
-              payload.channelData?.telegram as
-                | { buttons?: Array<Array<{ text: string; callback_data: string }>> }
-                | undefined
-            )?.buttons;
-            let draftStoppedForPreviewEdit = false;
-            if (!hasMedia && payload.text && typeof previewMessageId === "number") {
-              const canFinalizeViaPreviewEdit = payload.text.length <= draftMaxChars;
-              if (canFinalizeViaPreviewEdit) {
-                draftStream?.stop();
-                draftStoppedForPreviewEdit = true;
-                try {
-                  await editMessageTelegram(chatId, previewMessageId, payload.text, {
-                    api: bot.api,
-                    cfg,
-                    accountId: route.accountId,
-                    linkPreview: telegramCfg.linkPreview,
-                    buttons: previewButtons,
-                  });
-                  finalizedViaPreviewMessage = true;
-                  deliveryState.delivered = true;
-                  return;
-                } catch (err) {
-                  logVerbose(
-                    `telegram: preview final edit failed; falling back to standard send (${String(err)})`,
-                  );
-                }
-              } else {
+            const finalText = payload.text;
+            const canFinalizeViaPreviewEdit =
+              !hasMedia &&
+              typeof finalText === "string" &&
+              finalText.length > 0 &&
+              typeof previewMessageId === "number" &&
+              finalText.length <= draftMaxChars;
+            if (canFinalizeViaPreviewEdit) {
+              draftStream?.stop();
+              const currentPreviewText = streamMode === "block" ? draftText : lastPartialText;
+              if (
+                currentPreviewText &&
+                currentPreviewText.startsWith(finalText) &&
+                finalText.length < currentPreviewText.length
+              ) {
+                // Ignore regressive final edits (e.g., "Okay." -> "Ok"), which
+                // can appear transiently in some provider streams.
+                return;
+              }
+              const previewButtons = (
+                payload.channelData?.telegram as
+                  | { buttons?: Array<Array<{ text: string; callback_data: string }>> }
+                  | undefined
+              )?.buttons;
+              try {
+                await editMessageTelegram(chatId, previewMessageId, finalText, {
+                  api: bot.api,
+                  cfg,
+                  accountId: route.accountId,
+                  linkPreview: telegramCfg.linkPreview,
+                  buttons: previewButtons,
+                });
+                finalizedViaPreviewMessage = true;
+                deliveryState.delivered = true;
+                return;
+              } catch (err) {
                 logVerbose(
-                  `telegram: preview final too long for edit (${payload.text.length} > ${draftMaxChars}); falling back to standard send`,
+                  `telegram: preview final edit failed; falling back to standard send (${String(err)})`,
                 );
               }
             }
-            if (!draftStoppedForPreviewEdit) {
-              draftStream?.stop();
+            if (payload.text && payload.text.length > draftMaxChars) {
+              logVerbose(
+                `telegram: preview final too long for edit (${payload.text.length} > ${draftMaxChars}); falling back to standard send`,
+              );
             }
+            draftStream?.stop();
           }
           const result = await deliverReplies({
+            ...deliveryBaseOptions,
             replies: [payload],
-            chatId: String(chatId),
-            token: opts.token,
-            runtime,
-            bot,
-            mediaLocalRoots,
-            replyToMode,
-            textLimit,
-            thread: threadSpec,
-            tableMode,
-            chunkMode,
             onVoiceRecording: sendRecordVoice,
-            linkPreview: telegramCfg.linkPreview,
-            replyQuoteText,
           });
           if (result.delivered) {
             deliveryState.delivered = true;
@@ -356,27 +388,14 @@ export const dispatchTelegramMessage = async ({
   if (!deliveryState.delivered && deliveryState.skippedNonSilent > 0) {
     const result = await deliverReplies({
       replies: [{ text: EMPTY_RESPONSE_FALLBACK }],
-      chatId: String(chatId),
-      token: opts.token,
-      runtime,
-      bot,
-      mediaLocalRoots,
-      replyToMode,
-      textLimit,
-      thread: threadSpec,
-      tableMode,
-      chunkMode,
-      linkPreview: telegramCfg.linkPreview,
-      replyQuoteText,
+      ...deliveryBaseOptions,
     });
     sentFallback = result.delivered;
   }
 
   const hasFinalResponse = queuedFinal || sentFallback;
   if (!hasFinalResponse) {
-    if (isGroup && historyKey) {
-      clearHistoryEntriesIfEnabled({ historyMap: groupHistories, historyKey, limit: historyLimit });
-    }
+    clearGroupHistory();
     return;
   }
   removeAckReactionAfterReply({
@@ -396,7 +415,5 @@ export const dispatchTelegramMessage = async ({
       });
     },
   });
-  if (isGroup && historyKey) {
-    clearHistoryEntriesIfEnabled({ historyMap: groupHistories, historyKey, limit: historyLimit });
-  }
+  clearGroupHistory();
 };
