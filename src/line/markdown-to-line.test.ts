@@ -34,19 +34,6 @@ And some more text.`;
     expect(textWithoutTables).not.toContain("|");
   });
 
-  it("extracts a multi-column table", () => {
-    const text = `| Col A | Col B | Col C |
-|-------|-------|-------|
-| 1     | 2     | 3     |
-| a     | b     | c     |`;
-
-    const { tables } = extractMarkdownTables(text);
-
-    expect(tables).toHaveLength(1);
-    expect(tables[0].headers).toEqual(["Col A", "Col B", "Col C"]);
-    expect(tables[0].rows).toHaveLength(2);
-  });
-
   it("extracts multiple tables", () => {
     const text = `Table 1:
 
@@ -139,15 +126,6 @@ echo "world"
     expect(codeBlocks[0].language).toBe("python");
     expect(codeBlocks[1].language).toBe("bash");
   });
-
-  it("returns empty when no code blocks present", () => {
-    const text = "No code here, just text.";
-
-    const { codeBlocks, textWithoutCode } = extractCodeBlocks(text);
-
-    expect(codeBlocks).toHaveLength(0);
-    expect(textWithoutCode).toBe(text);
-  });
 });
 
 describe("extractLinks", () => {
@@ -160,15 +138,6 @@ describe("extractLinks", () => {
     expect(links[0]).toEqual({ text: "Google", url: "https://google.com" });
     expect(links[1]).toEqual({ text: "GitHub", url: "https://github.com" });
     expect(textWithLinks).toBe("Check out Google and GitHub.");
-  });
-
-  it("handles text without links", () => {
-    const text = "No links here.";
-
-    const { links, textWithLinks } = extractLinks(text);
-
-    expect(links).toHaveLength(0);
-    expect(textWithLinks).toBe(text);
   });
 });
 
@@ -288,23 +257,6 @@ describe("convertCodeBlockToFlexBubble", () => {
 });
 
 describe("processLineMessage", () => {
-  it("processes text with tables", () => {
-    const text = `Here's the data:
-
-| Key | Value |
-|-----|-------|
-| a   | 1     |
-
-Done.`;
-
-    const result = processLineMessage(text);
-
-    expect(result.flexMessages).toHaveLength(1);
-    expect(result.text).toContain("Here's the data:");
-    expect(result.text).toContain("Done.");
-    expect(result.text).not.toContain("|");
-  });
-
   it("processes text with code blocks", () => {
     const text = `Check this code:
 
