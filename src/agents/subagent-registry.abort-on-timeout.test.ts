@@ -29,6 +29,7 @@ vi.mock("../config/config.js", () => ({
   loadConfig: vi.fn(() => ({
     agents: { defaults: { subagents: { archiveAfterMinutes: 0 }, timeoutSeconds: 60 } },
   })),
+  STATE_DIR: "/tmp/openclaw-test",
 }));
 
 vi.mock("../config/sessions.js", () => ({
@@ -37,6 +38,10 @@ vi.mock("../config/sessions.js", () => ({
   })),
   resolveAgentIdFromSessionKey: vi.fn(() => "main"),
   resolveStorePath: vi.fn(() => "/tmp/test-store"),
+}));
+
+vi.mock("../runtime.js", () => ({
+  defaultRuntime: { error: vi.fn() },
 }));
 
 const abortSpy = vi.fn(() => true);
@@ -52,10 +57,6 @@ vi.mock("./subagent-announce.js", () => ({
 vi.mock("./subagent-registry.store.js", () => ({
   loadSubagentRegistryFromDisk: vi.fn(() => new Map()),
   saveSubagentRegistryToDisk: vi.fn(() => {}),
-}));
-
-vi.mock("../runtime.js", () => ({
-  defaultRuntime: { error: vi.fn() },
 }));
 
 describe("subagent abort on timeout", () => {

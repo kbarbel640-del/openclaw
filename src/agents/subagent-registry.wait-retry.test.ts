@@ -28,6 +28,22 @@ vi.mock("../config/config.js", () => ({
   loadConfig: vi.fn(() => ({
     agents: { defaults: { subagents: { archiveAfterMinutes: 0 }, timeoutSeconds: 60 } },
   })),
+  STATE_DIR: "/tmp/openclaw-test",
+}));
+
+vi.mock("../config/sessions.js", () => ({
+  loadSessionStore: vi.fn(() => ({})),
+  resolveAgentIdFromSessionKey: vi.fn(() => "main"),
+  resolveStorePath: vi.fn(() => "/tmp/test-store"),
+}));
+
+const errorSpy = vi.fn();
+vi.mock("../runtime.js", () => ({
+  defaultRuntime: { error: (...args: unknown[]) => errorSpy(...args) },
+}));
+
+vi.mock("./pi-embedded.js", () => ({
+  abortEmbeddedPiRun: vi.fn(() => false),
 }));
 
 const announceSpy = vi.fn(async () => true);
@@ -38,21 +54,6 @@ vi.mock("./subagent-announce.js", () => ({
 vi.mock("./subagent-registry.store.js", () => ({
   loadSubagentRegistryFromDisk: vi.fn(() => new Map()),
   saveSubagentRegistryToDisk: vi.fn(() => {}),
-}));
-
-const errorSpy = vi.fn();
-vi.mock("../runtime.js", () => ({
-  defaultRuntime: { error: (...args: unknown[]) => errorSpy(...args) },
-}));
-
-vi.mock("../config/sessions.js", () => ({
-  loadSessionStore: vi.fn(() => ({})),
-  resolveAgentIdFromSessionKey: vi.fn(() => "main"),
-  resolveStorePath: vi.fn(() => "/tmp/test-store"),
-}));
-
-vi.mock("./pi-embedded.js", () => ({
-  abortEmbeddedPiRun: vi.fn(() => false),
 }));
 
 describe("subagent wait retry on RPC failure", () => {
