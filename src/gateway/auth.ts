@@ -112,7 +112,10 @@ export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: str
   );
 
   const remoteIsTrustedProxy = isTrustedProxyAddress(req.socket?.remoteAddress, trustedProxies);
-  return (hostIsLocal || hostIsTailscaleServe || hostIsPrivateIp) && (!hasForwarded || remoteIsTrustedProxy);
+  return (
+    (hostIsLocal || hostIsTailscaleServe || hostIsPrivateIp) &&
+    (!hasForwarded || remoteIsTrustedProxy)
+  );
 }
 
 function getTailscaleUser(req?: IncomingMessage): TailscaleUser | null {
