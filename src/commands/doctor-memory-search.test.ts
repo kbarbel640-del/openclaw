@@ -81,6 +81,44 @@ describe("noteMemorySearchHealth", () => {
     });
     expect(note).not.toHaveBeenCalled();
   });
+
+  it("warns with a non-deprecated command when explicit provider has no API key", async () => {
+    resolveMemorySearchConfig.mockReturnValue({
+      provider: "openai",
+      local: {},
+      remote: {},
+    });
+    resolveApiKeyForProvider.mockRejectedValue(new Error("missing api key"));
+
+    await noteMemorySearchHealth(cfg);
+
+    expect(note).toHaveBeenCalledTimes(1);
+    const [message, section] = note.mock.calls[0] as [string, string];
+    expect(section).toBe("Memory search");
+    expect(message).toContain(
+      "openclaw config set agents.defaults.memorySearch.remote.apiKey <api-key>",
+    );
+    expect(message).not.toContain("openclaw auth add --provider");
+  });
+
+  it("warns with a non-deprecated command in auto mode when no provider credentials exist", async () => {
+    resolveMemorySearchConfig.mockReturnValue({
+      provider: "auto",
+      local: {},
+      remote: {},
+    });
+    resolveApiKeyForProvider.mockRejectedValue(new Error("missing api key"));
+
+    await noteMemorySearchHealth(cfg);
+
+    expect(note).toHaveBeenCalledTimes(1);
+    const [message, section] = note.mock.calls[0] as [string, string];
+    expect(section).toBe("Memory search");
+    expect(message).toContain(
+      "openclaw config set agents.defaults.memorySearch.remote.apiKey <api-key>",
+    );
+    expect(message).not.toContain("openclaw auth add --provider");
+  });
 });
 
 describe("detectLegacyWorkspaceDirs", () => {
