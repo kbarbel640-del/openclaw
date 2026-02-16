@@ -27,6 +27,25 @@ services:
         "18789",
       ]
 
+  slack-oauth:
+    build:
+      context: ./services/slack-oauth
+    environment:
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET}
+      SLACK_OAUTH_REDIRECT_URI: ${SLACK_OAUTH_REDIRECT_URI}
+      OPENCLAW_GATEWAY_URL: ws://openclaw-gateway:18789
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
+      SLACK_MODE: ${SLACK_MODE:-socket}
+      SLACK_ACCOUNT_ID: ${SLACK_ACCOUNT_ID:-}
+    ports:
+      - "${SLACK_OAUTH_PORT:-9876}:9876"
+    depends_on:
+      - openclaw-gateway
+    restart: unless-stopped
+
   openclaw-cli:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
     environment:
