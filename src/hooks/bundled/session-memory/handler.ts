@@ -21,9 +21,84 @@ import { generateSlugViaLLM } from "../../llm-slug-generator.js";
 const log = createSubsystemLogger("hooks/session-memory");
 
 /**
- * Read recent messages from session file for slug generation
+ * Find the most recent reset session file for a given session key
+ * When /new or /reset is called, the current session file is rotated to .jsonl.reset.<timestamp>
+ * This function finds that rotated file so we can read the previous conversation
  */
-async function getRecentSessionContent(
+async function findMostRecentResetFile(sessionFilePath: string): Promise<string | null> {
+  try {
+    const dir = path.dirname(sessionFilePath);
+    const basename = path.basename(sessionFilePath);
+
+    // Extract the base name without extension (e.g., "sess-main" from "sess-main.jsonl")
+    const baseMatch = basename.match(/^(.+)\.jsonl$/);
+    if (!baseMatch) {
+      return null;
+    }
+    const baseName = baseMatch[1];
+
+    // List all files in the directory
+    const files = await fs.readdir(dir);
+
+    // Find files matching the pattern: <baseName>.jsonl.reset.*
+    const resetFiles = files
+      .filter((f) => f.startsWith(`${baseName}.jsonl.reset.`))
+      .toSorted()
+      .toReversed(); // Most recent first (timestamps are in descending order)
+
+    if (resetFiles.length > 0) {
+      return path.join(dir, resetFiles[0]);
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read recent messages from session file for slug generation
+ * Includes fallback to reset files when the current session file is empty
+ */
+async function getRecentSessionContentWithResetFallback(
+  sessionFilePath: string,
+  messageCount: number = 15,
+): Promise<string | null> {
+  try {
+    const content = await fs.readFile(sessionFilePath, "utf-8");
+    const lines = content.trim().split("\n");
+
+    // Check if the file has meaningful content
+    const hasContent = lines.some((line) => {
+      try {
+        const entry = JSON.parse(line);
+        return entry.type === "message" && entry.message;
+      } catch {
+        return false;
+      }
+    });
+
+    // If no content found, try the reset file
+    if (!hasContent) {
+      log.debug("Current session file empty, looking for reset file");
+      const resetFile = await findMostRecentResetFile(sessionFilePath);
+      if (resetFile) {
+        log.debug("Found reset file, reading from:", { resetFile });
+        return getRecentSessionContentFromFile(resetFile, messageCount);
+      }
+      return null;
+    }
+
+    return getRecentSessionContentFromFile(sessionFilePath, messageCount);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Helper function to extract messages from a session file
+ */
+async function getRecentSessionContentFromFile(
   sessionFilePath: string,
   messageCount: number = 15,
 ): Promise<string | null> {
@@ -119,8 +194,8 @@ const saveSessionToMemory: HookHandler = async (event) => {
     let sessionContent: string | null = null;
 
     if (sessionFile) {
-      // Get recent conversation content
-      sessionContent = await getRecentSessionContent(sessionFile, messageCount);
+      // Get recent conversation content with fallback to reset files
+      sessionContent = await getRecentSessionContentWithResetFallback(sessionFile, messageCount);
       log.debug("Session content loaded", {
         length: sessionContent?.length ?? 0,
         messageCount,
