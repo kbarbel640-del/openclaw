@@ -332,6 +332,8 @@ export type PluginHookBeforeAgentStartEvent = {
 export type PluginHookBeforeAgentStartResult = {
   systemPrompt?: string;
   prependContext?: string;
+  /** Messages to inject into the conversation history before the prompt. */
+  injectMessages?: Array<{ role: string; content: string | unknown[]; timestamp?: number }>;
 };
 
 // llm_input hook
