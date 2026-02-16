@@ -119,11 +119,6 @@ export function peekSystemEvents(sessionKey: string): string[] {
   return peekSystemEventEntries(sessionKey).map((event) => event.text);
 }
 
-export function peekSystemEventEntries(sessionKey: string): SystemEvent[] {
-  const key = requireSessionKey(sessionKey);
-  return queues.get(key)?.queue.slice() ?? [];
-}
-
 export function hasSystemEvents(sessionKey: string) {
   const key = requireSessionKey(sessionKey);
   return (queues.get(key)?.queue.length ?? 0) > 0;
