@@ -61,4 +61,23 @@ describe("buildSystemPromptReport", () => {
 
     expect(report.injectedWorkspaceFiles[0]?.injectedChars).toBe(0);
   });
+
+  it("allows empty-string injected file content without falling back to basename matches", () => {
+    const file = makeBootstrapFile({ path: "/tmp/workspace/policies/AGENTS.md" });
+    const report = buildSystemPromptReport({
+      source: "run",
+      generatedAt: 0,
+      bootstrapMaxChars: 20_000,
+      systemPrompt: "system",
+      bootstrapFiles: [file],
+      injectedFiles: [
+        { path: "/tmp/workspace/policies/AGENTS.md", content: "" },
+        { path: "AGENTS.md", content: "fallback" },
+      ],
+      skillsPrompt: "",
+      tools: [],
+    });
+
+    expect(report.injectedWorkspaceFiles[0]?.injectedChars).toBe(0);
+  });
 });
