@@ -810,7 +810,7 @@ async function handleCollect(params: {
       const text = formatPlatformResults(platform, items);
       const wrapped = wrapExternalContent(text, {
         source: "social_platforms",
-        includeWarning: true,
+        includeWarning: false,
       });
 
       const payload: Record<string, unknown> = {
