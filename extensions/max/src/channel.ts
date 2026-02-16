@@ -12,15 +12,11 @@ import {
   type ChannelPlugin,
   type OpenClawConfig,
 } from "openclaw/plugin-sdk";
-import {
-  listMaxAccountIds,
-  resolveDefaultMaxAccountId,
-  resolveMaxAccount,
-} from "./accounts.js";
+import type { MaxProbe, ResolvedMaxAccount } from "./types.js";
+import { listMaxAccountIds, resolveDefaultMaxAccountId, resolveMaxAccount } from "./accounts.js";
 import { MaxConfigSchema } from "./config-schema.js";
 import { looksLikeMaxTargetId, normalizeMaxMessagingTarget } from "./normalize.js";
 import { getMaxRuntime } from "./runtime.js";
-import type { MaxProbe, ResolvedMaxAccount } from "./types.js";
 
 // ------------------------------------------------------------------
 // Meta — defined locally since MAX is not yet in CHAT_CHANNEL_ORDER.
@@ -45,10 +41,7 @@ const meta = {
 // ------------------------------------------------------------------
 
 function normalizeAllowEntry(entry: string): string {
-  return entry
-    .trim()
-    .replace(/^max:/i, "")
-    .toLowerCase();
+  return entry.trim().replace(/^max:/i, "").toLowerCase();
 }
 
 function formatAllowEntry(entry: string): string {
@@ -68,8 +61,7 @@ function parseReplyToMessageId(replyToId?: string | null) {
 // ------------------------------------------------------------------
 
 const maxMessageActions: ChannelMessageActionAdapter = {
-  listActions: (ctx) =>
-    getMaxRuntime().channel.max?.messageActions?.listActions?.(ctx) ?? [],
+  listActions: (ctx) => getMaxRuntime().channel.max?.messageActions?.listActions?.(ctx) ?? [],
   extractToolSend: (ctx) =>
     getMaxRuntime().channel.max?.messageActions?.extractToolSend?.(ctx) ?? null,
   supportsAction: (ctx) =>
@@ -155,9 +147,7 @@ export const maxPlugin: ChannelPlugin<ResolvedMaxAccount, MaxProbe> = {
       tokenSource: account.tokenSource,
     }),
     resolveAllowFrom: ({ cfg, accountId }) =>
-      (resolveMaxAccount({ cfg, accountId }).config.allowFrom ?? []).map((entry) =>
-        String(entry),
-      ),
+      (resolveMaxAccount({ cfg, accountId }).config.allowFrom ?? []).map((entry) => String(entry)),
     formatAllowFrom: ({ allowFrom }) =>
       allowFrom.map((entry) => formatAllowEntry(String(entry))).filter(Boolean),
   },
@@ -224,7 +214,8 @@ export const maxPlugin: ChannelPlugin<ResolvedMaxAccount, MaxProbe> = {
     textChunkLimit: 4000,
     sendText: async ({ to, text, accountId, deps, replyToId }) => {
       const send =
-        deps?.sendMax ?? getMaxRuntime().channel.max?.sendMessageMax ??
+        deps?.sendMax ??
+        getMaxRuntime().channel.max?.sendMessageMax ??
         (() => {
           throw new Error("MAX runtime sendMessageMax not available");
         });
@@ -239,7 +230,8 @@ export const maxPlugin: ChannelPlugin<ResolvedMaxAccount, MaxProbe> = {
     },
     sendMedia: async ({ to, text, mediaUrl, accountId, deps, replyToId }) => {
       const send =
-        deps?.sendMax ?? getMaxRuntime().channel.max?.sendMessageMax ??
+        deps?.sendMax ??
+        getMaxRuntime().channel.max?.sendMessageMax ??
         (() => {
           throw new Error("MAX runtime sendMessageMax not available");
         });
@@ -265,8 +257,7 @@ export const maxPlugin: ChannelPlugin<ResolvedMaxAccount, MaxProbe> = {
     },
     collectStatusIssues: (accounts) =>
       accounts.flatMap((account) => {
-        const lastError =
-          typeof account.lastError === "string" ? account.lastError.trim() : "";
+        const lastError = typeof account.lastError === "string" ? account.lastError.trim() : "";
         if (!lastError) {
           return [];
         }
@@ -353,7 +344,7 @@ export const maxPlugin: ChannelPlugin<ResolvedMaxAccount, MaxProbe> = {
           channels: {
             ...next.channels,
             max: {
-              ...(next.channels as Record<string, unknown>)?.max as Record<string, unknown>,
+              ...((next.channels as Record<string, unknown>)?.max as Record<string, unknown>),
               enabled: true,
               ...(input.useEnv
                 ? {}
@@ -444,10 +435,17 @@ export const maxPlugin: ChannelPlugin<ResolvedMaxAccount, MaxProbe> = {
       let cleared = false;
       let changed = false;
       if (nextMax) {
-        if (accountId === DEFAULT_ACCOUNT_ID && nextMax.botToken) {
-          delete nextMax.botToken;
-          cleared = true;
-          changed = true;
+        if (accountId === DEFAULT_ACCOUNT_ID) {
+          if (nextMax.botToken) {
+            delete nextMax.botToken;
+            cleared = true;
+            changed = true;
+          }
+          if (nextMax.tokenFile) {
+            delete nextMax.tokenFile;
+            cleared = true;
+            changed = true;
+          }
         }
         const accounts =
           nextMax.accounts && typeof nextMax.accounts === "object"
@@ -463,6 +461,13 @@ export const maxPlugin: ChannelPlugin<ResolvedMaxAccount, MaxProbe> = {
                 cleared = true;
               }
               delete nextEntry.botToken;
+              changed = true;
+            }
+            if ("tokenFile" in nextEntry) {
+              if (nextEntry.tokenFile) {
+                cleared = true;
+              }
+              delete nextEntry.tokenFile;
               changed = true;
             }
             if (Object.keys(nextEntry).length === 0) {
