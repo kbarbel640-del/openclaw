@@ -378,6 +378,7 @@ export const InboundDebounceSchema = z
   .object({
     debounceMs: z.number().int().nonnegative().optional(),
     byChannel: DebounceMsBySurfaceSchema,
+    debounceMedia: z.boolean().optional(),
   })
   .strict()
   .optional();
