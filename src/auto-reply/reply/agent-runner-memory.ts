@@ -19,6 +19,7 @@ import { registerAgentRunContext } from "../../infra/agent-events.js";
 import { buildThreadingToolContext, resolveEnforceFinalTag } from "./agent-runner-utils.js";
 import {
   resolveMemoryFlushContextWindowTokens,
+  resolveMemoryFlushPromptForRun,
   resolveMemoryFlushSettings,
   shouldRunMemoryFlush,
 } from "./memory-flush.js";
@@ -152,7 +153,10 @@ export async function runMemoryFlushIfNeeded(
           agentDir: params.followupRun.run.agentDir,
           config: params.followupRun.run.config,
           skillsSnapshot: params.followupRun.run.skillsSnapshot,
-          prompt: memoryFlushSettings.prompt,
+          prompt: resolveMemoryFlushPromptForRun({
+            prompt: memoryFlushSettings.prompt,
+            cfg: params.cfg,
+          }),
           extraSystemPrompt: flushSystemPrompt,
           ownerNumbers: params.followupRun.run.ownerNumbers,
           enforceFinalTag: resolveEnforceFinalTag(params.followupRun.run, provider),
