@@ -1,17 +1,13 @@
 import type { OpenClawConfig } from "../config/config.js";
-import { resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { listAgentIds } from "../agents/agent-scope.js";
 import { resolveMemoryBackendConfig } from "../memory/backend-config.js";
 import { getMemorySearchManager } from "../memory/index.js";
-import { normalizeAgentId } from "../routing/session-key.js";
 
 export async function startGatewayMemoryBackend(params: {
   cfg: OpenClawConfig;
   log: { info?: (msg: string) => void; warn: (msg: string) => void };
 }): Promise<void> {
-  const agentIds = new Set([
-    resolveDefaultAgentId(params.cfg),
-    ...(params.cfg.agents?.list ?? []).map((e) => normalizeAgentId(e?.id)),
-  ]);
+  const agentIds = listAgentIds(params.cfg);
 
   for (const agentId of agentIds) {
     const resolved = resolveMemoryBackendConfig({ cfg: params.cfg, agentId });
