@@ -29,7 +29,7 @@ async function githubRequest<T>(
   endpoint: string,
   token: string,
   method: string = "GET",
-  body?: any,
+  body?: Record<string, unknown>,
 ): Promise<T> {
   const response = await fetch(`https://api.github.com${endpoint}`, {
     method,
@@ -57,7 +57,7 @@ function extractDuplicateIssueNumber(commentBody: string): number | null {
   }
 
   // Try to match GitHub issue URL format: https://github.com/owner/repo/issues/123
-  match = commentBody.match(/github\.com\/[^\/]+\/[^\/]+\/issues\/(\d+)/);
+  match = commentBody.match(/github\.com\/[^/]+\/[^/]+\/issues\/(\d+)/);
   if (match) {
     return parseInt(match[1], 10);
   }
@@ -115,7 +115,9 @@ async function autoCloseDuplicates(): Promise<void> {
       token,
     );
 
-    if (pageIssues.length === 0) break;
+    if (pageIssues.length === 0) {
+      break;
+    }
 
     // Filter for issues created more than 3 days ago
     const oldEnoughIssues = pageIssues.filter(
@@ -126,7 +128,9 @@ async function autoCloseDuplicates(): Promise<void> {
     page++;
 
     // Safety limit to avoid infinite loops
-    if (page > 20) break;
+    if (page > 20) {
+      break;
+    }
   }
 
   const issues = allIssues;
@@ -219,8 +223,10 @@ async function autoCloseDuplicates(): Promise<void> {
       console.log(
         `[SUCCESS] Successfully closed issue #${issue.number} as duplicate of #${duplicateIssueNumber}`,
       );
-    } catch (error) {
-      console.error(`[ERROR] Failed to close issue #${issue.number} as duplicate: ${error}`);
+    } catch (error: unknown) {
+      console.error(
+        `[ERROR] Failed to close issue #${issue.number} as duplicate: ${String(error)}`,
+      );
     }
   }
 
@@ -230,6 +236,3 @@ async function autoCloseDuplicates(): Promise<void> {
 }
 
 autoCloseDuplicates().catch(console.error);
-
-// Make it a module
-export {};
