@@ -1076,7 +1076,28 @@ export const registerTelegramHandlers = ({
         return;
       }
 
+      // Deduplication check — same as the regular message handler
+      if (shouldSkipUpdate(ctx)) {
+        return;
+      }
+
       const chatId = post.chat.id;
+
+      // Use the full group allow-from context for access control (same as message handler)
+      const groupAllowContext = await resolveTelegramGroupAllowFromContext({
+        chatId,
+        accountId,
+        isForum: false,
+        messageThreadId: undefined,
+        groupAllowFrom,
+        resolveTelegramGroupConfig,
+      });
+      const {
+        storeAllowFrom,
+        groupConfig,
+        effectiveGroupAllow,
+        hasGroupAllowOverride,
+      } = groupAllowContext;
 
       // Check group allowlist (channels use the same groups config)
       const groupAllowlist = resolveGroupPolicy(chatId);
@@ -1084,9 +1105,65 @@ export const registerTelegramHandlers = ({
         return;
       }
 
-      const { groupConfig } = resolveTelegramGroupConfig(chatId, undefined);
       if (!groupConfig || groupConfig.enabled === false) {
+        logVerbose(`Blocked telegram channel ${chatId} (channel disabled)`);
         return;
+      }
+
+      // Group policy filtering (same as message handler)
+      const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
+      const groupPolicy = firstDefined(
+        groupConfig?.groupPolicy,
+        telegramCfg.groupPolicy,
+        defaultGroupPolicy,
+        "open",
+      );
+      if (groupPolicy === "disabled") {
+        logVerbose(`Blocked telegram channel message (groupPolicy: disabled)`);
+        return;
+      }
+
+      if (hasGroupAllowOverride) {
+        const senderId = post.sender_chat?.id ?? post.from?.id;
+        const senderUsername = post.sender_chat?.username ?? post.from?.username ?? "";
+        const allowed =
+          senderId != null &&
+          isSenderAllowed({
+            allow: effectiveGroupAllow,
+            senderId: String(senderId),
+            senderUsername,
+          });
+        if (!allowed) {
+          logVerbose(
+            `Blocked telegram channel sender ${senderId ?? "unknown"} (group allowFrom override)`,
+          );
+          return;
+        }
+      }
+
+      if (groupPolicy === "allowlist") {
+        const senderId = post.sender_chat?.id ?? post.from?.id;
+        if (senderId == null) {
+          logVerbose(`Blocked telegram channel message (no sender ID, groupPolicy: allowlist)`);
+          return;
+        }
+        if (!effectiveGroupAllow.hasEntries) {
+          logVerbose(
+            "Blocked telegram channel message (groupPolicy: allowlist, no allowlist entries)",
+          );
+          return;
+        }
+        const senderUsername = post.sender_chat?.username ?? post.from?.username ?? "";
+        if (
+          !isSenderAllowed({
+            allow: effectiveGroupAllow,
+            senderId: String(senderId),
+            senderUsername,
+          })
+        ) {
+          logVerbose(`Blocked telegram channel message from ${senderId} (groupPolicy: allowlist)`);
+          return;
+        }
       }
 
       // Build a synthetic `from` field since channel posts may not have one.
@@ -1118,18 +1195,43 @@ export const registerTelegramHandlers = ({
         message: { value: syntheticMsg, writable: true, enumerable: true },
       });
 
-      const storeAllowFrom = await readChannelAllowFromStore(
-        "telegram",
-        process.env,
-        accountId,
-      ).catch(() => []);
+      // Resolve media (same as message handler)
+      let media: Awaited<ReturnType<typeof resolveMedia>> = null;
+      try {
+        media = await resolveMedia(syntheticCtx, mediaMaxBytes, opts.token, opts.proxyFetch);
+      } catch (mediaErr) {
+        const errMsg = String(mediaErr);
+        if (errMsg.includes("exceeds") && errMsg.includes("MB limit")) {
+          logger.warn({ chatId, error: errMsg }, "channel post media exceeds size limit");
+        } else {
+          throw mediaErr;
+        }
+      }
+
+      const allMedia = media
+        ? [
+            {
+              path: media.path,
+              contentType: media.contentType,
+              stickerMetadata: media.stickerMetadata,
+            },
+          ]
+        : [];
+
+      // Compute debounce key (same pattern as message handler)
+      const senderId = post.sender_chat?.id ?? post.from?.id;
+      const senderIdStr = senderId ? String(senderId) : "";
+      const conversationKey = String(chatId);
+      const debounceKey = senderIdStr
+        ? `telegram:${accountId ?? "default"}:${conversationKey}:${senderIdStr}`
+        : null;
 
       await inboundDebouncer.enqueue({
         ctx: syntheticCtx,
         msg: syntheticMsg,
-        allMedia: [],
+        allMedia,
         storeAllowFrom,
-        debounceKey: null,
+        debounceKey,
         botUsername: ctx.me?.username,
       });
     } catch (err) {
