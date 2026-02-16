@@ -5,6 +5,7 @@ import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { OutboundChannel } from "./targets.js";
 import { resolveStateDir } from "../../config/paths.js";
+import { writeJsonAtomic } from "../json-files.js";
 
 const QUEUE_DIRNAME = "delivery-queue";
 const FAILED_DIRNAME = "failed";
@@ -100,10 +101,7 @@ export async function enqueueDelivery(
     retryCount: 0,
   };
   const filePath = path.join(queueDir, `${id}.json`);
-  const tmp = `${filePath}.${process.pid}.tmp`;
-  const json = JSON.stringify(entry, null, 2);
-  await fs.promises.writeFile(tmp, json, { encoding: "utf-8", mode: 0o600 });
-  await fs.promises.rename(tmp, filePath);
+  await writeJsonAtomic(filePath, entry);
   return id;
 }
 
@@ -131,12 +129,7 @@ export async function failDelivery(id: string, error: string, stateDir?: string)
   const entry: QueuedDelivery = JSON.parse(raw);
   entry.retryCount += 1;
   entry.lastError = error;
-  const tmp = `${filePath}.${process.pid}.tmp`;
-  await fs.promises.writeFile(tmp, JSON.stringify(entry, null, 2), {
-    encoding: "utf-8",
-    mode: 0o600,
-  });
-  await fs.promises.rename(tmp, filePath);
+  await writeJsonAtomic(filePath, entry);
 }
 
 /** Load all pending delivery entries from the queue directory. */
