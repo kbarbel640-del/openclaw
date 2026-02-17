@@ -1,0 +1,68 @@
+{
+  "id": "ic-persistent-storage",
+  "kind": "memory",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "canisterId": {
+        "type": "string",
+        "description": "UserVault canister ID (set after /vault-setup)"
+      },
+      "factoryCanisterId": {
+        "type": "string",
+        "description": "Factory canister ID for vault creation"
+      },
+      "network": {
+        "type": "string",
+        "enum": ["local", "ic"],
+        "default": "ic"
+      },
+      "autoSync": {
+        "type": "boolean",
+        "default": true,
+        "description": "Auto-sync memories to IC vault"
+      },
+      "syncOnSessionEnd": {
+        "type": "boolean",
+        "default": true,
+        "description": "Sync session data when session ends"
+      },
+      "syncOnAgentEnd": {
+        "type": "boolean",
+        "default": true,
+        "description": "Sync new memories when conversation ends"
+      }
+    }
+  },
+  "uiHints": {
+    "canisterId": {
+      "label": "Vault Canister ID",
+      "placeholder": "e.g. uxrrr-q7777-77774-qaaaq-cai",
+      "help": "Set automatically by /vault-setup. Your personal vault canister ID on the Internet Computer."
+    },
+    "factoryCanisterId": {
+      "label": "Factory Canister ID",
+      "placeholder": "e.g. bkyz2-fmaaa-aaaaa-qaaaq-cai",
+      "help": "Factory canister that creates user vaults. Usually pre-configured.",
+      "advanced": true
+    },
+    "network": {
+      "label": "Network",
+      "help": "Use 'local' for development with dfx, 'ic' for Internet Computer mainnet.",
+      "advanced": true
+    },
+    "autoSync": {
+      "label": "Auto Sync",
+      "help": "Automatically sync memories and sessions to your IC vault."
+    },
+    "syncOnSessionEnd": {
+      "label": "Sync on Session End",
+      "help": "Push session data to IC vault when a session ends."
+    },
+    "syncOnAgentEnd": {
+      "label": "Sync on Agent End",
+      "help": "Push new memories to IC vault when a conversation ends."
+    }
+  }
+}
