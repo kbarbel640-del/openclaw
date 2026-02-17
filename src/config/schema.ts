@@ -127,6 +127,7 @@ const FIELD_LABELS: Record<string, string> = {
   "agents.list.*.skills": "Agent Skill Filter",
   "agents.list.*.brainWorkspaceId": "Brain Workspace ID",
   "agents.list.*.taskDirective": "Task Directive",
+  "agents.list.*.maxRetries": "Max Retries",
   "gateway.remote.url": "Remote Gateway URL",
   "gateway.remote.sshTarget": "Remote Gateway SSH Target",
   "gateway.remote.sshIdentity": "Remote Gateway SSH Identity",
@@ -426,6 +427,8 @@ const FIELD_HELP: Record<string, string> = {
     "Brain MCP workspace UUID for this agent (used with brain-tiered memory backend).",
   "agents.list.*.taskDirective":
     "Text automatically appended to the task message when this agent is spawned as a subagent via sessions_spawn. Use this to inject mandatory instructions that models must follow (e.g., QA handoff, collaboration rules).",
+  "agents.list.*.maxRetries":
+    "Maximum number of automatic retry attempts when this agent fails or errors as a subagent (0 = no retry, default 0).",
   "agents.list[].skills":
     "Optional allowlist of skills for this agent (omit = all skills; empty = no skills).",
   "agents.list[].identity.avatar":

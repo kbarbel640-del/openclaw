@@ -1,13 +1,36 @@
+import crypto from "node:crypto";
 import { loadConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
+import { parseAgentSessionKey } from "../routing/session-key.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
-import { runSubagentAnnounceFlow, type SubagentRunOutcome } from "./subagent-announce.js";
+import { resolveAgentConfig } from "./agent-scope.js";
+import { AGENT_LANE_SUBAGENT } from "./lanes.js";
+import {
+  buildSubagentSystemPrompt,
+  runSubagentAnnounceFlow,
+  type SubagentRunOutcome,
+} from "./subagent-announce.js";
 import {
   loadSubagentRegistryFromDisk,
   saveSubagentRegistryToDisk,
 } from "./subagent-registry.store.js";
+import {
+  extractTranscriptSummary,
+  formatTranscriptForRetry,
+} from "./subagent-transcript-summary.js";
 import { resolveAgentTimeoutMs } from "./timeout.js";
+
+type RunCompletionInterceptor = (runId: string, entry: SubagentRunRecord) => boolean;
+let runCompletionInterceptor: RunCompletionInterceptor | null = null;
+
+export function setRunCompletionInterceptor(fn: RunCompletionInterceptor | null) {
+  runCompletionInterceptor = fn;
+}
+
+export function getSubagentRun(runId: string): SubagentRunRecord | undefined {
+  return subagentRuns.get(runId);
+}
 
 export type SubagentRunRecord = {
   runId: string;
@@ -25,6 +48,12 @@ export type SubagentRunRecord = {
   archiveAtMs?: number;
   cleanupCompletedAt?: number;
   cleanupHandled?: boolean;
+  /** Current retry number (0 = original attempt). */
+  retryCount?: number;
+  /** Maximum retries allowed (from agent config). */
+  maxRetries?: number;
+  /** Original task text before retry augmentation. */
+  originalTask?: string;
 };
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
@@ -183,6 +212,111 @@ async function sweepSubagentRuns() {
   }
 }
 
+function shouldRetry(entry: SubagentRunRecord): boolean {
+  if (!entry.outcome) return false;
+  if (entry.outcome.status === "ok") return false;
+  const max = entry.maxRetries ?? 0;
+  const count = entry.retryCount ?? 0;
+  return max > 0 && count < max;
+}
+
+async function executeRetry(entry: SubagentRunRecord): Promise<void> {
+  const retryNumber = (entry.retryCount ?? 0) + 1;
+  const cfg = loadConfig();
+
+  // Extract agent ID from child session key (e.g. "agent:vulcan:subagent:uuid" → "vulcan")
+  const parsed = parseAgentSessionKey(entry.childSessionKey);
+  const targetAgentId = parsed?.agentId;
+  if (!targetAgentId) return;
+
+  // Extract transcript summary from the failed session
+  const summary = await extractTranscriptSummary({ sessionKey: entry.childSessionKey });
+
+  // Build retry task with previous attempt context
+  const retryTask = formatTranscriptForRetry({
+    originalTask: entry.originalTask ?? entry.task,
+    summary,
+    retryNumber,
+    maxRetries: entry.maxRetries ?? 0,
+    failureReason: entry.outcome?.error,
+  });
+
+  // Resolve agent config for taskDirective
+  const targetAgentConfig = resolveAgentConfig(cfg, targetAgentId);
+  const directive = targetAgentConfig?.taskDirective?.trim();
+  const effectiveTask = directive ? `${retryTask}\n\n---\n\n${directive}` : retryTask;
+
+  // Generate new session key for the retry
+  const childSessionKey = `agent:${targetAgentId}:subagent:${crypto.randomUUID()}`;
+  const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
+
+  const retryLabel = entry.label ? `${entry.label} (retry ${retryNumber})` : `retry-${retryNumber}`;
+  const childSystemPrompt = buildSubagentSystemPrompt({
+    requesterSessionKey: entry.requesterSessionKey,
+    requesterOrigin,
+    childSessionKey,
+    label: retryLabel,
+    task: retryTask,
+  });
+
+  // Spawn the retry session via gateway
+  const childIdem = crypto.randomUUID();
+  let childRunId = childIdem;
+  const response = await callGateway<{ runId: string }>({
+    method: "agent",
+    params: {
+      message: effectiveTask,
+      sessionKey: childSessionKey,
+      idempotencyKey: childIdem,
+      deliver: false,
+      lane: AGENT_LANE_SUBAGENT,
+      extraSystemPrompt: childSystemPrompt,
+    },
+    timeoutMs: 10_000,
+  });
+  if (typeof response?.runId === "string" && response.runId) {
+    childRunId = response.runId;
+  }
+
+  // Register the retry as a new subagent run with incremented retry count
+  registerSubagentRun({
+    runId: childRunId,
+    childSessionKey,
+    requesterSessionKey: entry.requesterSessionKey,
+    requesterOrigin: entry.requesterOrigin,
+    requesterDisplayKey: entry.requesterDisplayKey,
+    task: retryTask,
+    cleanup: entry.cleanup,
+    label: entry.label,
+    retryCount: retryNumber,
+    maxRetries: entry.maxRetries,
+    originalTask: entry.originalTask ?? entry.task,
+  });
+}
+
+/** Helper to run the normal announce flow for a completed/failed entry. */
+function announceSubagentResult(runId: string, entry: SubagentRunRecord) {
+  if (!beginSubagentCleanup(runId)) return;
+  const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
+  void runSubagentAnnounceFlow({
+    childSessionKey: entry.childSessionKey,
+    childRunId: entry.runId,
+    requesterSessionKey: entry.requesterSessionKey,
+    requesterOrigin,
+    requesterDisplayKey: entry.requesterDisplayKey,
+    task: entry.task,
+    timeoutMs: 30_000,
+    cleanup: entry.cleanup,
+    waitForCompletion: false,
+    startedAt: entry.startedAt,
+    endedAt: entry.endedAt,
+    label: entry.label,
+    outcome: entry.outcome,
+  }).then((didAnnounce) => {
+    finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
+  });
+}
+
 function ensureListener() {
   if (listenerStarted) {
     return;
@@ -218,27 +352,19 @@ function ensureListener() {
     }
     persistSubagentRuns();
 
-    if (!beginSubagentCleanup(evt.runId)) {
+    // Let mission system claim this run before individual announce/retry
+    if (runCompletionInterceptor?.(evt.runId, entry)) return;
+
+    // Check if this failed run should be retried before announcing failure
+    if (shouldRetry(entry)) {
+      void executeRetry(entry).catch(() => {
+        // Retry spawn failed — fall through to normal announce
+        announceSubagentResult(evt.runId, entry);
+      });
       return;
     }
-    const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
-    void runSubagentAnnounceFlow({
-      childSessionKey: entry.childSessionKey,
-      childRunId: entry.runId,
-      requesterSessionKey: entry.requesterSessionKey,
-      requesterOrigin,
-      requesterDisplayKey: entry.requesterDisplayKey,
-      task: entry.task,
-      timeoutMs: 30_000,
-      cleanup: entry.cleanup,
-      waitForCompletion: false,
-      startedAt: entry.startedAt,
-      endedAt: entry.endedAt,
-      label: entry.label,
-      outcome: entry.outcome,
-    }).then((didAnnounce) => {
-      finalizeSubagentCleanup(evt.runId, entry.cleanup, didAnnounce);
-    });
+
+    announceSubagentResult(evt.runId, entry);
   });
 }
 
@@ -288,6 +414,9 @@ export function registerSubagentRun(params: {
   cleanup: "delete" | "keep";
   label?: string;
   runTimeoutSeconds?: number;
+  retryCount?: number;
+  maxRetries?: number;
+  originalTask?: string;
 }) {
   const now = Date.now();
   const cfg = loadConfig();
@@ -308,6 +437,9 @@ export function registerSubagentRun(params: {
     startedAt: now,
     archiveAtMs,
     cleanupHandled: false,
+    retryCount: params.retryCount ?? 0,
+    maxRetries: params.maxRetries ?? 0,
+    originalTask: params.originalTask ?? params.task,
   });
   ensureListener();
   persistSubagentRuns();
@@ -362,27 +494,20 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
     if (mutated) {
       persistSubagentRuns();
     }
-    if (!beginSubagentCleanup(runId)) {
+
+    // Let mission system claim this run before individual announce/retry
+    if (runCompletionInterceptor?.(runId, entry)) return;
+
+    // Check if this failed run should be retried before announcing failure
+    if (shouldRetry(entry)) {
+      void executeRetry(entry).catch(() => {
+        // Retry spawn failed — fall through to normal announce
+        announceSubagentResult(runId, entry);
+      });
       return;
     }
-    const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
-    void runSubagentAnnounceFlow({
-      childSessionKey: entry.childSessionKey,
-      childRunId: entry.runId,
-      requesterSessionKey: entry.requesterSessionKey,
-      requesterOrigin,
-      requesterDisplayKey: entry.requesterDisplayKey,
-      task: entry.task,
-      timeoutMs: 30_000,
-      cleanup: entry.cleanup,
-      waitForCompletion: false,
-      startedAt: entry.startedAt,
-      endedAt: entry.endedAt,
-      label: entry.label,
-      outcome: entry.outcome,
-    }).then((didAnnounce) => {
-      finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
-    });
+
+    announceSubagentResult(runId, entry);
   } catch {
     // ignore
   }
@@ -398,6 +523,7 @@ export function resetSubagentRegistryForTests() {
     listenerStop = null;
   }
   listenerStarted = false;
+  runCompletionInterceptor = null;
   persistSubagentRuns();
 }
 

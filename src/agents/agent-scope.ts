@@ -29,6 +29,7 @@ type ResolvedAgentConfig = {
   sandbox?: AgentEntry["sandbox"];
   tools?: AgentEntry["tools"];
   taskDirective?: string;
+  maxRetries?: number;
 };
 
 let defaultAgentWarned = false;
@@ -124,6 +125,7 @@ export function resolveAgentConfig(
     sandbox: entry.sandbox,
     tools: entry.tools,
     taskDirective: typeof entry.taskDirective === "string" ? entry.taskDirective : undefined,
+    maxRetries: typeof entry.maxRetries === "number" ? entry.maxRetries : undefined,
   };
 }
 

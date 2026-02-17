@@ -66,6 +66,8 @@ export type AgentConfig = {
   tools?: AgentToolsConfig;
   /** Text appended to the task message when this agent is spawned as a subagent. */
   taskDirective?: string;
+  /** Maximum retry attempts when this agent fails as a subagent (0 = no retry, default). */
+  maxRetries?: number;
 };
 
 export type AgentsConfig = {

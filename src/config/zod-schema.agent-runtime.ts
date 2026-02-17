@@ -457,6 +457,7 @@ export const AgentEntrySchema = z
     sandbox: AgentSandboxSchema,
     tools: AgentToolsSchema,
     taskDirective: z.string().optional(),
+    maxRetries: z.number().int().min(0).max(5).optional(),
   })
   .strict();
 

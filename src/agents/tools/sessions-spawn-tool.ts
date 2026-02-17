@@ -269,6 +269,8 @@ export function createSessionsSpawnTool(opts?: {
         cleanup,
         label: label || undefined,
         runTimeoutSeconds,
+        maxRetries: targetAgentConfig?.maxRetries ?? 0,
+        originalTask: task,
       });
 
       return jsonResult({
