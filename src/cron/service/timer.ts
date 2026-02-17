@@ -210,14 +210,14 @@ export async function onTimer(state: CronServiceState) {
   try {
     const dueJobs = await locked(state, async () => {
       await ensureLoaded(state, { forceReload: true, skipRecompute: true });
-      const due = findDueJobs(state);
+      const { due, clearedStaleMarkers } = findDueJobs(state);
 
       if (due.length === 0) {
         // Use maintenance-only recompute to avoid advancing past-due nextRunAtMs
         // values without execution. This prevents jobs from being silently skipped
         // when the timer wakes up but findDueJobs returns empty (see #13992).
         const changed = recomputeNextRunsForMaintenance(state);
-        if (changed) {
+        if (changed || clearedStaleMarkers) {
           await persist(state);
         }
         return [];
@@ -347,15 +347,19 @@ export async function onTimer(state: CronServiceState) {
   }
 }
 
-function findDueJobs(state: CronServiceState): CronJob[] {
+function findDueJobs(state: CronServiceState): { due: CronJob[]; clearedStaleMarkers: boolean } {
   if (!state.store) {
-    return [];
+    return { due: [], clearedStaleMarkers: false };
   }
   const now = state.deps.nowMs();
-  const jobs = collectRunnableJobs(state, now);
-  // If any stale markers were cleared, we return the jobs.
-  // The caller (onTimer) will persist the state after locking.
-  return jobs;
+  const markersBefore = state.store.jobs.filter(
+    (j) => typeof j.state?.runningAtMs === "number",
+  ).length;
+  const due = collectRunnableJobs(state, now);
+  const markersAfter = state.store.jobs.filter(
+    (j) => typeof j.state?.runningAtMs === "number",
+  ).length;
+  return { due, clearedStaleMarkers: markersAfter < markersBefore };
 }
 
 function isRunnableJob(params: {
