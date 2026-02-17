@@ -1535,21 +1535,6 @@ async function dispatchDiscordCommandInteraction(params: {
     return;
   }
 
-  const isGuild = Boolean(interaction.guild);
-  const channelId = rawChannelId || "unknown";
-  const interactionId = interaction.rawData.id;
-  const route = resolveAgentRoute({
-    cfg,
-    channel: "discord",
-    accountId,
-    guildId: interaction.guild?.id ?? undefined,
-    memberRoleIds,
-    peer: {
-      kind: isDirectMessage ? "direct" : isGroupDm ? "group" : "channel",
-      id: isDirectMessage ? user.id : channelId,
-    },
-    parentPeer: threadParentId ? { kind: "channel", id: threadParentId } : undefined,
-  });
   const threadBinding = isThreadChannel ? threadBindings.getByThreadId(rawChannelId) : undefined;
   const boundSessionKey = threadBinding?.targetSessionKey?.trim();
   const boundAgentId = boundSessionKey ? resolveAgentIdFromSessionKey(boundSessionKey) : undefined;
@@ -1560,12 +1545,6 @@ async function dispatchDiscordCommandInteraction(params: {
         agentId: boundAgentId ?? route.agentId,
       }
     : route;
-  const conversationLabel = isDirectMessage ? (user.globalName ?? user.username) : channelId;
-  const ownerAllowFrom = resolveDiscordOwnerAllowFrom({
-    channelConfig,
-    guildInfo,
-    sender: { id: sender.id, name: sender.name, tag: sender.tag },
-  });
   const ctxPayload = finalizeInboundContext({
     Body: prompt,
     BodyForAgent: prompt,
