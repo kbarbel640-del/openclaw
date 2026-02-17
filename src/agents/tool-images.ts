@@ -1,6 +1,5 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
-
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getImageMetadata, resizeToJpeg } from "../media/image-ops.js";
 
@@ -8,7 +7,7 @@ type ToolContentBlock = AgentToolResult<unknown>["content"][number];
 type ImageContentBlock = Extract<ToolContentBlock, { type: "image" }>;
 type TextContentBlock = Extract<ToolContentBlock, { type: "text" }>;
 
-// Anthropic Messages API limitations (observed in Moltbot sessions):
+// Anthropic Messages API limitations (observed in OpenClaw sessions):
 // - Images over ~2000px per side can fail in multi-image requests.
 // - Images over 5MB are rejected by the API.
 //
@@ -18,24 +17,85 @@ const MAX_IMAGE_DIMENSION_PX = 2000;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const log = createSubsystemLogger("agents/tool-images");
 
+// Valid base64: alphanumeric, +, /, with 0-2 trailing = padding only
+// This regex ensures = only appears at the end as valid padding
+const BASE64_REGEX = /^[A-Za-z0-9+/]*={0,2}$/;
+
+/**
+ * Validates and normalizes base64 image data before processing.
+ * - Strips data URL prefixes (e.g., "data:image/png;base64,")
+ * - Converts URL-safe base64 to standard base64 (- → +, _ → /)
+ * - Validates base64 character set and structure
+ * - Ensures the string is not empty after trimming
+ *
+ * Returns the cleaned base64 string or throws an error if invalid.
+ */
+function validateAndNormalizeBase64(base64: string): string {
+  let data = base64.trim();
+
+  // Strip data URL prefix if present (e.g., "data:image/png;base64,...")
+  const dataUrlMatch = data.match(/^data:[^;]+;base64,(.*)$/i);
+  if (dataUrlMatch) {
+    data = dataUrlMatch[1].trim();
+  }
+
+  if (!data) {
+    throw new Error("Base64 data is empty");
+  }
+
+  // Normalize URL-safe base64 to standard base64
+  // URL-safe uses - instead of + and _ instead of /
+  data = data.replace(/-/g, "+").replace(/_/g, "/");
+
+  // Check for valid base64 characters and structure
+  // The regex ensures = only appears as 0-2 trailing padding chars
+  // Node's Buffer.from silently ignores invalid chars, but Anthropic API rejects them
+  if (!BASE64_REGEX.test(data)) {
+    throw new Error("Base64 data contains invalid characters or malformed padding");
+  }
+
+  // Check that length is valid for base64 (must be multiple of 4 when padded)
+  // Remove padding for length check, then verify
+  const withoutPadding = data.replace(/=+$/, "");
+  const remainder = withoutPadding.length % 4;
+  if (remainder === 1) {
+    // A single char remainder is always invalid in base64
+    throw new Error("Base64 data has invalid length");
+  }
+
+  return data;
+}
+
 function isImageBlock(block: unknown): block is ImageContentBlock {
-  if (!block || typeof block !== "object") return false;
+  if (!block || typeof block !== "object") {
+    return false;
+  }
   const rec = block as Record<string, unknown>;
   return rec.type === "image" && typeof rec.data === "string" && typeof rec.mimeType === "string";
 }
 
 function isTextBlock(block: unknown): block is TextContentBlock {
-  if (!block || typeof block !== "object") return false;
+  if (!block || typeof block !== "object") {
+    return false;
+  }
   const rec = block as Record<string, unknown>;
   return rec.type === "text" && typeof rec.text === "string";
 }
 
 function inferMimeTypeFromBase64(base64: string): string | undefined {
   const trimmed = base64.trim();
-  if (!trimmed) return undefined;
-  if (trimmed.startsWith("/9j/")) return "image/jpeg";
-  if (trimmed.startsWith("iVBOR")) return "image/png";
-  if (trimmed.startsWith("R0lGOD")) return "image/gif";
+  if (!trimmed) {
+    return undefined;
+  }
+  if (trimmed.startsWith("/9j/")) {
+    return "image/jpeg";
+  }
+  if (trimmed.startsWith("iVBOR")) {
+    return "image/png";
+  }
+  if (trimmed.startsWith("R0lGOD")) {
+    return "image/gif";
+  }
   return undefined;
 }
 
@@ -91,7 +151,7 @@ async function resizeImageBase64IfNeeded(params: {
   const sideGrid = [sideStart, 1800, 1600, 1400, 1200, 1000, 800]
     .map((v) => Math.min(params.maxDimensionPx, v))
     .filter((v, i, arr) => v > 0 && arr.indexOf(v) === i)
-    .sort((a, b) => b - a);
+    .toSorted((a, b) => b - a);
 
   let smallest: { buffer: Buffer; size: number } | null = null;
   for (const side of sideGrid) {
@@ -149,8 +209,8 @@ export async function sanitizeContentBlocksImages(
       continue;
     }
 
-    const data = block.data.trim();
-    if (!data) {
+    const rawData = block.data.trim();
+    if (!rawData) {
       out.push({
         type: "text",
         text: `[${label}] omitted empty image payload`,
@@ -159,6 +219,11 @@ export async function sanitizeContentBlocksImages(
     }
 
     try {
+      // Validate and normalize base64 before processing
+      // This catches invalid base64 that Buffer.from() would silently accept
+      // but Anthropic's API would reject, preventing permanent session corruption
+      const data = validateAndNormalizeBase64(rawData);
+
       const inferredMimeType = inferMimeTypeFromBase64(data);
       const mimeType = inferredMimeType ?? block.mimeType;
       const resized = await resizeImageBase64IfNeeded({
@@ -189,9 +254,11 @@ export async function sanitizeImageBlocks(
   label: string,
   opts: { maxDimensionPx?: number; maxBytes?: number } = {},
 ): Promise<{ images: ImageContent[]; dropped: number }> {
-  if (images.length === 0) return { images, dropped: 0 };
+  if (images.length === 0) {
+    return { images, dropped: 0 };
+  }
   const sanitized = await sanitizeContentBlocksImages(images as ToolContentBlock[], label, opts);
-  const next = sanitized.filter(isImageBlock) as ImageContent[];
+  const next = sanitized.filter(isImageBlock);
   return { images: next, dropped: Math.max(0, images.length - next.length) };
 }
 
@@ -201,7 +268,9 @@ export async function sanitizeToolResultImages(
   opts: { maxDimensionPx?: number; maxBytes?: number } = {},
 ): Promise<AgentToolResult<unknown>> {
   const content = Array.isArray(result.content) ? result.content : [];
-  if (!content.some((b) => isImageBlock(b) || isTextBlock(b))) return result;
+  if (!content.some((b) => isImageBlock(b) || isTextBlock(b))) {
+    return result;
+  }
 
   const next = await sanitizeContentBlocksImages(content, label, opts);
   return { ...result, content: next };

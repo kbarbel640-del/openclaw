@@ -1,5 +1,5 @@
+import type { OpenClawConfig, PluginRuntime } from "openclaw/plugin-sdk";
 import { describe, expect, it, vi } from "vitest";
-import type { MoltbotConfig, PluginRuntime } from "clawdbot/plugin-sdk";
 import { linePlugin } from "./channel.js";
 import { setLineRuntime } from "./runtime.js";
 
@@ -33,18 +33,19 @@ function createRuntime(): { runtime: PluginRuntime; mocks: LineRuntimeMocks } {
   const sendMessageLine = vi.fn(async () => ({ messageId: "m-media", chatId: "c1" }));
   const chunkMarkdownText = vi.fn((text: string) => [text]);
   const resolveTextChunkLimit = vi.fn(() => 123);
-  const resolveLineAccount = vi.fn(({ cfg, accountId }: { cfg: MoltbotConfig; accountId?: string }) => {
-    const resolved = accountId ?? "default";
-    const lineConfig = (cfg.channels?.line ?? {}) as {
-      accounts?: Record<string, Record<string, unknown>>;
-    };
-    const accountConfig =
-      resolved !== "default" ? lineConfig.accounts?.[resolved] ?? {} : {};
-    return {
-      accountId: resolved,
-      config: { ...lineConfig, ...accountConfig },
-    };
-  });
+  const resolveLineAccount = vi.fn(
+    ({ cfg, accountId }: { cfg: OpenClawConfig; accountId?: string }) => {
+      const resolved = accountId ?? "default";
+      const lineConfig = (cfg.channels?.line ?? {}) as {
+        accounts?: Record<string, Record<string, unknown>>;
+      };
+      const accountConfig = resolved !== "default" ? (lineConfig.accounts?.[resolved] ?? {}) : {};
+      return {
+        accountId: resolved,
+        config: { ...lineConfig, ...accountConfig },
+      };
+    },
+  );
 
   const runtime = {
     channel: {
@@ -90,7 +91,7 @@ describe("linePlugin outbound.sendPayload", () => {
   it("sends flex message without dropping text", async () => {
     const { runtime, mocks } = createRuntime();
     setLineRuntime(runtime);
-    const cfg = { channels: { line: {} } } as MoltbotConfig;
+    const cfg = { channels: { line: {} } } as OpenClawConfig;
 
     const payload = {
       text: "Now playing:",
@@ -104,8 +105,9 @@ describe("linePlugin outbound.sendPayload", () => {
       },
     };
 
-    await linePlugin.outbound.sendPayload({
+    await linePlugin.outbound!.sendPayload!({
       to: "line:group:1",
+      text: payload.text,
       payload,
       accountId: "default",
       cfg,
@@ -121,7 +123,7 @@ describe("linePlugin outbound.sendPayload", () => {
   it("sends template message without dropping text", async () => {
     const { runtime, mocks } = createRuntime();
     setLineRuntime(runtime);
-    const cfg = { channels: { line: {} } } as MoltbotConfig;
+    const cfg = { channels: { line: {} } } as OpenClawConfig;
 
     const payload = {
       text: "Choose one:",
@@ -139,8 +141,9 @@ describe("linePlugin outbound.sendPayload", () => {
       },
     };
 
-    await linePlugin.outbound.sendPayload({
+    await linePlugin.outbound!.sendPayload!({
       to: "line:user:1",
+      text: payload.text,
       payload,
       accountId: "default",
       cfg,
@@ -157,7 +160,7 @@ describe("linePlugin outbound.sendPayload", () => {
   it("attaches quick replies when no text chunks are present", async () => {
     const { runtime, mocks } = createRuntime();
     setLineRuntime(runtime);
-    const cfg = { channels: { line: {} } } as MoltbotConfig;
+    const cfg = { channels: { line: {} } } as OpenClawConfig;
 
     const payload = {
       channelData: {
@@ -171,8 +174,9 @@ describe("linePlugin outbound.sendPayload", () => {
       },
     };
 
-    await linePlugin.outbound.sendPayload({
+    await linePlugin.outbound!.sendPayload!({
       to: "line:user:2",
+      text: "",
       payload,
       accountId: "default",
       cfg,
@@ -197,7 +201,7 @@ describe("linePlugin outbound.sendPayload", () => {
   it("sends media before quick-reply text so buttons stay visible", async () => {
     const { runtime, mocks } = createRuntime();
     setLineRuntime(runtime);
-    const cfg = { channels: { line: {} } } as MoltbotConfig;
+    const cfg = { channels: { line: {} } } as OpenClawConfig;
 
     const payload = {
       text: "Hello",
@@ -209,8 +213,9 @@ describe("linePlugin outbound.sendPayload", () => {
       },
     };
 
-    await linePlugin.outbound.sendPayload({
+    await linePlugin.outbound!.sendPayload!({
       to: "line:user:3",
+      text: payload.text,
       payload,
       accountId: "default",
       cfg,
@@ -235,7 +240,7 @@ describe("linePlugin outbound.sendPayload", () => {
   it("uses configured text chunk limit for payloads", async () => {
     const { runtime, mocks } = createRuntime();
     setLineRuntime(runtime);
-    const cfg = { channels: { line: { textChunkLimit: 123 } } } as MoltbotConfig;
+    const cfg = { channels: { line: { textChunkLimit: 123 } } } as OpenClawConfig;
 
     const payload = {
       text: "Hello world",
@@ -249,26 +254,25 @@ describe("linePlugin outbound.sendPayload", () => {
       },
     };
 
-    await linePlugin.outbound.sendPayload({
+    await linePlugin.outbound!.sendPayload!({
       to: "line:user:3",
+      text: payload.text,
       payload,
       accountId: "primary",
       cfg,
     });
 
-    expect(mocks.resolveTextChunkLimit).toHaveBeenCalledWith(
-      cfg,
-      "line",
-      "primary",
-      { fallbackLimit: 5000 },
-    );
+    expect(mocks.resolveTextChunkLimit).toHaveBeenCalledWith(cfg, "line", "primary", {
+      fallbackLimit: 5000,
+    });
     expect(mocks.chunkMarkdownText).toHaveBeenCalledWith("Hello world", 123);
   });
 });
 
 describe("linePlugin config.formatAllowFrom", () => {
   it("strips line:user: prefixes without lowercasing", () => {
-    const formatted = linePlugin.config.formatAllowFrom({
+    const formatted = linePlugin.config.formatAllowFrom!({
+      cfg: {} as OpenClawConfig,
       allowFrom: ["line:user:UABC", "line:UDEF"],
     });
     expect(formatted).toEqual(["UABC", "UDEF"]);
@@ -295,9 +299,9 @@ describe("linePlugin groups.resolveRequireMention", () => {
           },
         },
       },
-    } as MoltbotConfig;
+    } as OpenClawConfig;
 
-    const requireMention = linePlugin.groups.resolveRequireMention({
+    const requireMention = linePlugin.groups!.resolveRequireMention!({
       cfg,
       accountId: "primary",
       groupId: "group-1",

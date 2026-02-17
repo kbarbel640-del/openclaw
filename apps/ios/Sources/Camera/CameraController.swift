@@ -1,5 +1,5 @@
 import AVFoundation
-import MoltbotKit
+import OpenClawKit
 import Foundation
 
 actor CameraController {
@@ -36,7 +36,7 @@ actor CameraController {
         }
     }
 
-    func snap(params: MoltbotCameraSnapParams) async throws -> (
+    func snap(params: OpenClawCameraSnapParams) async throws -> (
         format: String,
         base64: String,
         width: Int,
@@ -93,14 +93,10 @@ actor CameraController {
         }
         withExtendedLifetime(delegate) {}
 
-        let maxPayloadBytes = 5 * 1024 * 1024
-        // Base64 inflates payloads by ~4/3; cap encoded bytes so the payload stays under 5MB (API limit).
-        let maxEncodedBytes = (maxPayloadBytes / 4) * 3
-        let res = try JPEGTranscoder.transcodeToJPEG(
-            imageData: rawData,
+        let res = try PhotoCapture.transcodeJPEGForGateway(
+            rawData: rawData,
             maxWidthPx: maxWidth,
-            quality: quality,
-            maxBytes: maxEncodedBytes)
+            quality: quality)
 
         return (
             format: format.rawValue,
@@ -109,7 +105,7 @@ actor CameraController {
             height: res.heightPx)
     }
 
-    func clip(params: MoltbotCameraClipParams) async throws -> (
+    func clip(params: OpenClawCameraClipParams) async throws -> (
         format: String,
         base64: String,
         durationMs: Int,
@@ -161,9 +157,9 @@ actor CameraController {
         await Self.warmUpCaptureSession()
 
         let movURL = FileManager().temporaryDirectory
-            .appendingPathComponent("moltbot-camera-\(UUID().uuidString).mov")
+            .appendingPathComponent("openclaw-camera-\(UUID().uuidString).mov")
         let mp4URL = FileManager().temporaryDirectory
-            .appendingPathComponent("moltbot-camera-\(UUID().uuidString).mp4")
+            .appendingPathComponent("openclaw-camera-\(UUID().uuidString).mp4")
 
         defer {
             try? FileManager().removeItem(at: movURL)
@@ -221,7 +217,7 @@ actor CameraController {
     }
 
     private nonisolated static func pickCamera(
-        facing: MoltbotCameraFacing,
+        facing: OpenClawCameraFacing,
         deviceId: String?) -> AVCaptureDevice?
     {
         if let deviceId, !deviceId.isEmpty {
@@ -335,8 +331,8 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
     func photoOutput(
         _ output: AVCapturePhotoOutput,
         didFinishProcessingPhoto photo: AVCapturePhoto,
-        error: Error?)
-    {
+        error: Error?
+    ) {
         guard !self.didResume else { return }
         self.didResume = true
 
@@ -364,8 +360,8 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
     func photoOutput(
         _ output: AVCapturePhotoOutput,
         didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
-        error: Error?)
-    {
+        error: Error?
+    ) {
         guard let error else { return }
         guard !self.didResume else { return }
         self.didResume = true

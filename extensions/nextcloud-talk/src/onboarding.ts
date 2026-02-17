@@ -1,14 +1,15 @@
 import {
   addWildcardAllowFrom,
   formatDocsLink,
+  mergeAllowFromEntries,
   promptAccountId,
   DEFAULT_ACCOUNT_ID,
   normalizeAccountId,
   type ChannelOnboardingAdapter,
   type ChannelOnboardingDmPolicy,
+  type OpenClawConfig,
   type WizardPrompter,
-} from "clawdbot/plugin-sdk";
-
+} from "openclaw/plugin-sdk";
 import {
   listNextcloudTalkAccountIds,
   resolveDefaultNextcloudTalkAccountId,
@@ -43,7 +44,7 @@ async function noteNextcloudTalkSecretHelp(prompter: WizardPrompter): Promise<vo
   await prompter.note(
     [
       "1) SSH into your Nextcloud server",
-      '2) Run: ./occ talk:bot:install "Moltbot" "<shared-secret>" "<webhook-url>" --feature reaction',
+      '2) Run: ./occ talk:bot:install "OpenClaw" "<shared-secret>" "<webhook-url>" --feature reaction',
       "3) Copy the shared secret you used in the command",
       "4) Enable the bot in your Nextcloud Talk room settings",
       "Tip: you can also set NEXTCLOUD_TALK_BOT_SECRET in your env.",
@@ -99,7 +100,7 @@ async function promptNextcloudTalkAllowFrom(params: {
     ...existingAllowFrom.map((item) => String(item).trim().toLowerCase()).filter(Boolean),
     ...resolvedIds,
   ];
-  const unique = [...new Set(merged)];
+  const unique = mergeAllowFromEntries(undefined, merged);
 
   if (accountId === DEFAULT_ACCOUNT_ID) {
     return {
@@ -160,7 +161,11 @@ const dmPolicy: ChannelOnboardingDmPolicy = {
   allowFromKey: "channels.nextcloud-talk.allowFrom",
   getCurrent: (cfg) => cfg.channels?.["nextcloud-talk"]?.dmPolicy ?? "pairing",
   setPolicy: (cfg, policy) => setNextcloudTalkDmPolicy(cfg as CoreConfig, policy as DmPolicy),
-  promptAllowFrom: promptNextcloudTalkAllowFromForAccount,
+  promptAllowFrom: promptNextcloudTalkAllowFromForAccount as (params: {
+    cfg: OpenClawConfig;
+    prompter: WizardPrompter;
+    accountId?: string | undefined;
+  }) => Promise<OpenClawConfig>,
 };
 
 export const nextcloudTalkOnboardingAdapter: ChannelOnboardingAdapter = {
@@ -197,7 +202,7 @@ export const nextcloudTalkOnboardingAdapter: ChannelOnboardingAdapter = {
         prompter,
         label: "Nextcloud Talk",
         currentId: accountId,
-        listAccountIds: listNextcloudTalkAccountIds,
+        listAccountIds: listNextcloudTalkAccountIds as (cfg: OpenClawConfig) => string[],
         defaultAccountId,
       });
     }
@@ -221,7 +226,9 @@ export const nextcloudTalkOnboardingAdapter: ChannelOnboardingAdapter = {
           message: "Enter Nextcloud instance URL (e.g., https://cloud.example.com)",
           validate: (value) => {
             const v = String(value ?? "").trim();
-            if (!v) return "Required";
+            if (!v) {
+              return "Required";
+            }
             if (!v.startsWith("http://") && !v.startsWith("https://")) {
               return "URL must start with http:// or https://";
             }
@@ -309,7 +316,8 @@ export const nextcloudTalkOnboardingAdapter: ChannelOnboardingAdapter = {
                 ...next.channels?.["nextcloud-talk"]?.accounts,
                 [accountId]: {
                   ...next.channels?.["nextcloud-talk"]?.accounts?.[accountId],
-                  enabled: next.channels?.["nextcloud-talk"]?.accounts?.[accountId]?.enabled ?? true,
+                  enabled:
+                    next.channels?.["nextcloud-talk"]?.accounts?.[accountId]?.enabled ?? true,
                   baseUrl,
                   ...(secret ? { botSecret: secret } : {}),
                 },

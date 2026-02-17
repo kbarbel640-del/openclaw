@@ -16,13 +16,47 @@ type ClaudeWebOrganizationsResponse = Array<{
 
 type ClaudeWebUsageResponse = ClaudeUsageResponse;
 
+function buildClaudeUsageWindows(data: ClaudeUsageResponse): UsageWindow[] {
+  const windows: UsageWindow[] = [];
+
+  if (data.five_hour?.utilization !== undefined) {
+    windows.push({
+      label: "5h",
+      usedPercent: clampPercent(data.five_hour.utilization),
+      resetAt: data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : undefined,
+    });
+  }
+
+  if (data.seven_day?.utilization !== undefined) {
+    windows.push({
+      label: "Week",
+      usedPercent: clampPercent(data.seven_day.utilization),
+      resetAt: data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : undefined,
+    });
+  }
+
+  const modelWindow = data.seven_day_sonnet || data.seven_day_opus;
+  if (modelWindow?.utilization !== undefined) {
+    windows.push({
+      label: data.seven_day_sonnet ? "Sonnet" : "Opus",
+      usedPercent: clampPercent(modelWindow.utilization),
+    });
+  }
+
+  return windows;
+}
+
 function resolveClaudeWebSessionKey(): string | undefined {
   const direct =
     process.env.CLAUDE_AI_SESSION_KEY?.trim() ?? process.env.CLAUDE_WEB_SESSION_KEY?.trim();
-  if (direct?.startsWith("sk-ant-")) return direct;
+  if (direct?.startsWith("sk-ant-")) {
+    return direct;
+  }
 
   const cookieHeader = process.env.CLAUDE_WEB_COOKIE?.trim();
-  if (!cookieHeader) return undefined;
+  if (!cookieHeader) {
+    return undefined;
+  }
   const stripped = cookieHeader.replace(/^cookie:\\s*/i, "");
   const match = stripped.match(/(?:^|;\\s*)sessionKey=([^;\\s]+)/i);
   const value = match?.[1]?.trim();
@@ -45,11 +79,15 @@ async function fetchClaudeWebUsage(
     timeoutMs,
     fetchFn,
   );
-  if (!orgRes.ok) return null;
+  if (!orgRes.ok) {
+    return null;
+  }
 
   const orgs = (await orgRes.json()) as ClaudeWebOrganizationsResponse;
   const orgId = orgs?.[0]?.uuid?.trim();
-  if (!orgId) return null;
+  if (!orgId) {
+    return null;
+  }
 
   const usageRes = await fetchJson(
     `https://claude.ai/api/organizations/${orgId}/usage`,
@@ -57,36 +95,16 @@ async function fetchClaudeWebUsage(
     timeoutMs,
     fetchFn,
   );
-  if (!usageRes.ok) return null;
+  if (!usageRes.ok) {
+    return null;
+  }
 
   const data = (await usageRes.json()) as ClaudeWebUsageResponse;
-  const windows: UsageWindow[] = [];
+  const windows = buildClaudeUsageWindows(data);
 
-  if (data.five_hour?.utilization !== undefined) {
-    windows.push({
-      label: "5h",
-      usedPercent: clampPercent(data.five_hour.utilization),
-      resetAt: data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : undefined,
-    });
+  if (windows.length === 0) {
+    return null;
   }
-
-  if (data.seven_day?.utilization !== undefined) {
-    windows.push({
-      label: "Week",
-      usedPercent: clampPercent(data.seven_day.utilization),
-      resetAt: data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : undefined,
-    });
-  }
-
-  const modelWindow = data.seven_day_sonnet || data.seven_day_opus;
-  if (modelWindow?.utilization !== undefined) {
-    windows.push({
-      label: data.seven_day_sonnet ? "Sonnet" : "Opus",
-      usedPercent: clampPercent(modelWindow.utilization),
-    });
-  }
-
-  if (windows.length === 0) return null;
   return {
     provider: "anthropic",
     displayName: PROVIDER_LABELS.anthropic,
@@ -104,7 +122,7 @@ export async function fetchClaudeUsage(
     {
       headers: {
         Authorization: `Bearer ${token}`,
-        "User-Agent": "moltbot",
+        "User-Agent": "openclaw",
         Accept: "application/json",
         "anthropic-version": "2023-06-01",
         "anthropic-beta": "oauth-2025-04-20",
@@ -121,7 +139,9 @@ export async function fetchClaudeUsage(
         error?: { message?: unknown } | null;
       };
       const raw = data?.error?.message;
-      if (typeof raw === "string" && raw.trim()) message = raw.trim();
+      if (typeof raw === "string" && raw.trim()) {
+        message = raw.trim();
+      }
     } catch {
       // ignore parse errors
     }
@@ -133,7 +153,9 @@ export async function fetchClaudeUsage(
       const sessionKey = resolveClaudeWebSessionKey();
       if (sessionKey) {
         const web = await fetchClaudeWebUsage(sessionKey, timeoutMs, fetchFn);
-        if (web) return web;
+        if (web) {
+          return web;
+        }
       }
     }
 
@@ -147,31 +169,7 @@ export async function fetchClaudeUsage(
   }
 
   const data = (await res.json()) as ClaudeUsageResponse;
-  const windows: UsageWindow[] = [];
-
-  if (data.five_hour?.utilization !== undefined) {
-    windows.push({
-      label: "5h",
-      usedPercent: clampPercent(data.five_hour.utilization),
-      resetAt: data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : undefined,
-    });
-  }
-
-  if (data.seven_day?.utilization !== undefined) {
-    windows.push({
-      label: "Week",
-      usedPercent: clampPercent(data.seven_day.utilization),
-      resetAt: data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : undefined,
-    });
-  }
-
-  const modelWindow = data.seven_day_sonnet || data.seven_day_opus;
-  if (modelWindow?.utilization !== undefined) {
-    windows.push({
-      label: data.seven_day_sonnet ? "Sonnet" : "Opus",
-      usedPercent: clampPercent(modelWindow.utilization),
-    });
-  }
+  const windows = buildClaudeUsageWindows(data);
 
   return {
     provider: "anthropic",

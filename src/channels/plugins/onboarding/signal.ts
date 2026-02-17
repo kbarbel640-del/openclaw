@@ -1,6 +1,7 @@
+import { formatCliCommand } from "../../../cli/command-format.js";
 import { detectBinary } from "../../../commands/onboard-helpers.js";
 import { installSignalCli } from "../../../commands/signal-install.js";
-import type { MoltbotConfig } from "../../../config/config.js";
+import type { OpenClawConfig } from "../../../config/config.js";
 import type { DmPolicy } from "../../../config/types.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../../../routing/session-key.js";
 import {
@@ -9,15 +10,35 @@ import {
   resolveSignalAccount,
 } from "../../../signal/accounts.js";
 import { formatDocsLink } from "../../../terminal/links.js";
-import { formatCliCommand } from "../../../cli/command-format.js";
 import { normalizeE164 } from "../../../utils.js";
 import type { WizardPrompter } from "../../../wizard/prompts.js";
 import type { ChannelOnboardingAdapter, ChannelOnboardingDmPolicy } from "../onboarding-types.js";
-import { addWildcardAllowFrom, promptAccountId } from "./helpers.js";
+import { addWildcardAllowFrom, mergeAllowFromEntries, promptAccountId } from "./helpers.js";
 
 const channel = "signal" as const;
+const MIN_E164_DIGITS = 5;
+const MAX_E164_DIGITS = 15;
+const DIGITS_ONLY = /^\d+$/;
+const INVALID_SIGNAL_ACCOUNT_ERROR =
+  "Invalid E.164 phone number (must start with + and country code, e.g. +15555550123)";
 
-function setSignalDmPolicy(cfg: MoltbotConfig, dmPolicy: DmPolicy) {
+export function normalizeSignalAccountInput(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const normalized = normalizeE164(trimmed);
+  const digits = normalized.slice(1);
+  if (!DIGITS_ONLY.test(digits)) {
+    return null;
+  }
+  if (digits.length < MIN_E164_DIGITS || digits.length > MAX_E164_DIGITS) {
+    return null;
+  }
+  return `+${digits}`;
+}
+
+function setSignalDmPolicy(cfg: OpenClawConfig, dmPolicy: DmPolicy) {
   const allowFrom =
     dmPolicy === "open" ? addWildcardAllowFrom(cfg.channels?.signal?.allowFrom) : undefined;
   return {
@@ -34,10 +55,10 @@ function setSignalDmPolicy(cfg: MoltbotConfig, dmPolicy: DmPolicy) {
 }
 
 function setSignalAllowFrom(
-  cfg: MoltbotConfig,
+  cfg: OpenClawConfig,
   accountId: string,
   allowFrom: string[],
-): MoltbotConfig {
+): OpenClawConfig {
   if (accountId === DEFAULT_ACCOUNT_ID) {
     return {
       ...cfg,
@@ -80,10 +101,10 @@ function isUuidLike(value: string): boolean {
 }
 
 async function promptSignalAllowFrom(params: {
-  cfg: MoltbotConfig;
+  cfg: OpenClawConfig;
   prompter: WizardPrompter;
   accountId?: string;
-}): Promise<MoltbotConfig> {
+}): Promise<OpenClawConfig> {
   const accountId =
     params.accountId && normalizeAccountId(params.accountId)
       ? (normalizeAccountId(params.accountId) ?? DEFAULT_ACCOUNT_ID)
@@ -107,30 +128,47 @@ async function promptSignalAllowFrom(params: {
     initialValue: existing[0] ? String(existing[0]) : undefined,
     validate: (value) => {
       const raw = String(value ?? "").trim();
-      if (!raw) return "Required";
+      if (!raw) {
+        return "Required";
+      }
       const parts = parseSignalAllowFromInput(raw);
       for (const part of parts) {
-        if (part === "*") continue;
-        if (part.toLowerCase().startsWith("uuid:")) {
-          if (!part.slice("uuid:".length).trim()) return "Invalid uuid entry";
+        if (part === "*") {
           continue;
         }
-        if (isUuidLike(part)) continue;
-        if (!normalizeE164(part)) return `Invalid entry: ${part}`;
+        if (part.toLowerCase().startsWith("uuid:")) {
+          if (!part.slice("uuid:".length).trim()) {
+            return "Invalid uuid entry";
+          }
+          continue;
+        }
+        if (isUuidLike(part)) {
+          continue;
+        }
+        if (!normalizeE164(part)) {
+          return `Invalid entry: ${part}`;
+        }
       }
       return undefined;
     },
   });
   const parts = parseSignalAllowFromInput(String(entry));
-  const normalized = parts
-    .map((part) => {
-      if (part === "*") return "*";
-      if (part.toLowerCase().startsWith("uuid:")) return `uuid:${part.slice(5).trim()}`;
-      if (isUuidLike(part)) return `uuid:${part}`;
-      return normalizeE164(part);
-    })
-    .filter(Boolean);
-  const unique = [...new Set(normalized)];
+  const normalized = parts.map((part) => {
+    if (part === "*") {
+      return "*";
+    }
+    if (part.toLowerCase().startsWith("uuid:")) {
+      return `uuid:${part.slice(5).trim()}`;
+    }
+    if (isUuidLike(part)) {
+      return `uuid:${part}`;
+    }
+    return normalizeE164(part);
+  });
+  const unique = mergeAllowFromEntries(
+    undefined,
+    normalized.filter((part): part is string => typeof part === "string" && part.trim().length > 0),
+  );
   return setSignalAllowFrom(params.cfg, accountId, unique);
 }
 
@@ -227,20 +265,36 @@ export const signalOnboardingAdapter: ChannelOnboardingAdapter = {
 
     let account = accountConfig.account ?? "";
     if (account) {
-      const keep = await prompter.confirm({
-        message: `Signal account set (${account}). Keep it?`,
-        initialValue: true,
-      });
-      if (!keep) account = "";
+      const normalizedExisting = normalizeSignalAccountInput(account);
+      if (!normalizedExisting) {
+        await prompter.note(
+          "Existing Signal account isn't a valid E.164 number. Please enter it again.",
+          "Signal",
+        );
+        account = "";
+      } else {
+        account = normalizedExisting;
+        const keep = await prompter.confirm({
+          message: `Signal account set (${account}). Keep it?`,
+          initialValue: true,
+        });
+        if (!keep) {
+          account = "";
+        }
+      }
     }
 
     if (!account) {
-      account = String(
+      const rawAccount = String(
         await prompter.text({
           message: "Signal bot number (E.164)",
-          validate: (value) => (value?.trim() ? undefined : "Required"),
+          validate: (value) =>
+            normalizeSignalAccountInput(String(value ?? ""))
+              ? undefined
+              : INVALID_SIGNAL_ACCOUNT_ERROR,
         }),
-      ).trim();
+      );
+      account = normalizeSignalAccountInput(rawAccount) ?? "";
     }
 
     if (account) {
@@ -282,9 +336,9 @@ export const signalOnboardingAdapter: ChannelOnboardingAdapter = {
 
     await prompter.note(
       [
-        'Link device with: signal-cli link -n "Moltbot"',
+        'Link device with: signal-cli link -n "OpenClaw"',
         "Scan QR in Signal → Linked Devices",
-        `Then run: ${formatCliCommand("moltbot gateway call channels.status --params '{\"probe\":true}'")}`,
+        `Then run: ${formatCliCommand("openclaw gateway call channels.status --params '{\"probe\":true}'")}`,
         `Docs: ${formatDocsLink("/signal", "signal")}`,
       ].join("\n"),
       "Signal next steps",

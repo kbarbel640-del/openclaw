@@ -1,11 +1,10 @@
 import process from "node:process";
-
-import { isTruthyEnvValue } from "../infra/env.js";
 import type { TelegramNetworkConfig } from "../config/types.telegram.js";
+import { isTruthyEnvValue } from "../infra/env.js";
 
 export const TELEGRAM_DISABLE_AUTO_SELECT_FAMILY_ENV =
-  "CLAWDBOT_TELEGRAM_DISABLE_AUTO_SELECT_FAMILY";
-export const TELEGRAM_ENABLE_AUTO_SELECT_FAMILY_ENV = "CLAWDBOT_TELEGRAM_ENABLE_AUTO_SELECT_FAMILY";
+  "OPENCLAW_TELEGRAM_DISABLE_AUTO_SELECT_FAMILY";
+export const TELEGRAM_ENABLE_AUTO_SELECT_FAMILY_ENV = "OPENCLAW_TELEGRAM_ENABLE_AUTO_SELECT_FAMILY";
 
 export type TelegramAutoSelectFamilyDecision = {
   value: boolean | null;
@@ -33,7 +32,7 @@ export function resolveTelegramAutoSelectFamilyDecision(params?: {
     return { value: params.network.autoSelectFamily, source: "config" };
   }
   if (Number.isFinite(nodeMajor) && nodeMajor >= 22) {
-    return { value: false, source: "default-node22" };
+    return { value: true, source: "default-node22" };
   }
   return { value: null };
 }

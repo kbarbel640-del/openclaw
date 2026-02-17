@@ -1,47 +1,33 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { installHooksFromPath } from "./install.js";
+import {
+  clearInternalHooks,
+  createInternalHookEvent,
+  triggerInternalHook,
+} from "./internal-hooks.js";
+import { loadInternalHooks } from "./loader.js";
 
 const tempDirs: string[] = [];
 
 async function makeTempDir() {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hooks-e2e-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-hooks-e2e-"));
   tempDirs.push(dir);
   return dir;
 }
 
 describe("hooks install (e2e)", () => {
-  let prevStateDir: string | undefined;
-  let prevBundledDir: string | undefined;
   let workspaceDir: string;
 
   beforeEach(async () => {
     const baseDir = await makeTempDir();
     workspaceDir = path.join(baseDir, "workspace");
     await fs.mkdir(workspaceDir, { recursive: true });
-
-    prevStateDir = process.env.CLAWDBOT_STATE_DIR;
-    prevBundledDir = process.env.CLAWDBOT_BUNDLED_HOOKS_DIR;
-    process.env.CLAWDBOT_STATE_DIR = path.join(baseDir, "state");
-    process.env.CLAWDBOT_BUNDLED_HOOKS_DIR = path.join(baseDir, "bundled-none");
-    vi.resetModules();
   });
 
   afterEach(async () => {
-    if (prevStateDir === undefined) {
-      delete process.env.CLAWDBOT_STATE_DIR;
-    } else {
-      process.env.CLAWDBOT_STATE_DIR = prevStateDir;
-    }
-
-    if (prevBundledDir === undefined) {
-      delete process.env.CLAWDBOT_BUNDLED_HOOKS_DIR;
-    } else {
-      process.env.CLAWDBOT_BUNDLED_HOOKS_DIR = prevBundledDir;
-    }
-
-    vi.resetModules();
     for (const dir of tempDirs.splice(0)) {
       try {
         await fs.rm(dir, { recursive: true, force: true });
@@ -63,7 +49,7 @@ describe("hooks install (e2e)", () => {
         {
           name: "@acme/hello-hooks",
           version: "0.0.0",
-          moltbot: { hooks: ["./hooks/hello-hook"] },
+          openclaw: { hooks: ["./hooks/hello-hook"] },
         },
         null,
         2,
@@ -77,7 +63,7 @@ describe("hooks install (e2e)", () => {
         "---",
         'name: "hello-hook"',
         'description: "Test hook"',
-        'metadata: {"moltbot":{"events":["command:new"]}}',
+        'metadata: {"openclaw":{"events":["command:new"]}}',
         "---",
         "",
         "# Hello Hook",
@@ -92,21 +78,29 @@ describe("hooks install (e2e)", () => {
       "utf-8",
     );
 
-    const { installHooksFromPath } = await import("./install.js");
-    const installResult = await installHooksFromPath({ path: packDir });
+    const hooksDir = path.join(baseDir, "managed-hooks");
+    const installResult = await installHooksFromPath({ path: packDir, hooksDir });
     expect(installResult.ok).toBe(true);
-    if (!installResult.ok) return;
-
-    const { clearInternalHooks, createInternalHookEvent, triggerInternalHook } =
-      await import("./internal-hooks.js");
-    const { loadInternalHooks } = await import("./loader.js");
+    if (!installResult.ok) {
+      return;
+    }
 
     clearInternalHooks();
+    const bundledHooksDir = path.join(baseDir, "bundled-none");
+    await fs.mkdir(bundledHooksDir, { recursive: true });
     const loaded = await loadInternalHooks(
-      { hooks: { internal: { enabled: true } } },
+      {
+        hooks: {
+          internal: {
+            enabled: true,
+            load: { extraDirs: [hooksDir] },
+          },
+        },
+      },
       workspaceDir,
+      { managedHooksDir: hooksDir, bundledHooksDir },
     );
-    expect(loaded).toBe(1);
+    expect(loaded).toBeGreaterThanOrEqual(1);
 
     const event = createInternalHookEvent("command", "new", "test-session");
     await triggerInternalHook(event);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_CONTEXT_TOKENS } from "../agents/defaults.js";
 import { applyModelDefaults } from "./defaults.js";
-import type { MoltbotConfig } from "./types.js";
+import type { OpenClawConfig } from "./types.js";
 
 describe("applyModelDefaults", () => {
   it("adds default aliases when models are present", () => {
@@ -9,15 +9,15 @@ describe("applyModelDefaults", () => {
       agents: {
         defaults: {
           models: {
-            "anthropic/claude-opus-4-5": {},
+            "anthropic/claude-opus-4-6": {},
             "openai/gpt-5.2": {},
           },
         },
       },
-    } satisfies MoltbotConfig;
+    } satisfies OpenClawConfig;
     const next = applyModelDefaults(cfg);
 
-    expect(next.agents?.defaults?.models?.["anthropic/claude-opus-4-5"]?.alias).toBe("opus");
+    expect(next.agents?.defaults?.models?.["anthropic/claude-opus-4-6"]?.alias).toBe("opus");
     expect(next.agents?.defaults?.models?.["openai/gpt-5.2"]?.alias).toBe("gpt");
   });
 
@@ -30,7 +30,7 @@ describe("applyModelDefaults", () => {
           },
         },
       },
-    } satisfies MoltbotConfig;
+    } satisfies OpenClawConfig;
 
     const next = applyModelDefaults(cfg);
 
@@ -47,7 +47,7 @@ describe("applyModelDefaults", () => {
           },
         },
       },
-    } satisfies MoltbotConfig;
+    } satisfies OpenClawConfig;
 
     const next = applyModelDefaults(cfg);
 
@@ -65,11 +65,21 @@ describe("applyModelDefaults", () => {
             baseUrl: "https://proxy.example/v1",
             apiKey: "sk-test",
             api: "openai-completions",
-            models: [{ id: "gpt-5.2", name: "GPT-5.2" }],
+            models: [
+              {
+                id: "gpt-5.2",
+                name: "GPT-5.2",
+                reasoning: false,
+                input: ["text"],
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 200_000,
+                maxTokens: 8192,
+              },
+            ],
           },
         },
       },
-    } satisfies MoltbotConfig;
+    } satisfies OpenClawConfig;
 
     const next = applyModelDefaults(cfg);
     const model = next.models?.providers?.myproxy?.models?.[0];
@@ -79,5 +89,36 @@ describe("applyModelDefaults", () => {
     expect(model?.cost).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
     expect(model?.contextWindow).toBe(DEFAULT_CONTEXT_TOKENS);
     expect(model?.maxTokens).toBe(8192);
+  });
+
+  it("clamps maxTokens to contextWindow", () => {
+    const cfg = {
+      models: {
+        providers: {
+          myproxy: {
+            baseUrl: "https://proxy.example/v1",
+            apiKey: "sk-test",
+            api: "openai-completions",
+            models: [
+              {
+                id: "gpt-5.2",
+                name: "GPT-5.2",
+                reasoning: false,
+                input: ["text"],
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 32768,
+                maxTokens: 40960,
+              },
+            ],
+          },
+        },
+      },
+    } satisfies OpenClawConfig;
+
+    const next = applyModelDefaults(cfg);
+    const model = next.models?.providers?.myproxy?.models?.[0];
+
+    expect(model?.contextWindow).toBe(32768);
+    expect(model?.maxTokens).toBe(32768);
   });
 });

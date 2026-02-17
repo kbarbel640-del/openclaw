@@ -1,10 +1,9 @@
 import { vi } from "vitest";
-
 import type { MockBaileysSocket } from "../../test/mocks/baileys.js";
 import { createMockBaileys } from "../../test/mocks/baileys.js";
 
 // Use globalThis to store the mock config so it survives vi.mock hoisting
-const CONFIG_KEY = Symbol.for("moltbot:testConfigMock");
+const CONFIG_KEY = Symbol.for("openclaw:testConfigMock");
 const DEFAULT_CONFIG = {
   channels: {
     whatsapp: {
@@ -37,7 +36,29 @@ vi.mock("../config/config.js", async (importOriginal) => {
     ...actual,
     loadConfig: () => {
       const getter = (globalThis as Record<symbol, unknown>)[CONFIG_KEY];
-      if (typeof getter === "function") return getter();
+      if (typeof getter === "function") {
+        return getter();
+      }
+      return DEFAULT_CONFIG;
+    },
+  };
+});
+
+// Some web modules live under `src/web/auto-reply/*` and import config via a different
+// relative path (`../../config/config.js`). Mock both specifiers so tests stay stable
+// across refactors that move files between folders.
+vi.mock("../../config/config.js", async (importOriginal) => {
+  // `../../config/config.js` is correct for modules under `src/web/auto-reply/*`.
+  // For typing in this file (which lives in `src/web/*`), refer to the same module
+  // via the local relative path.
+  const actual = await importOriginal<typeof import("../config/config.js")>();
+  return {
+    ...actual,
+    loadConfig: () => {
+      const getter = (globalThis as Record<symbol, unknown>)[CONFIG_KEY];
+      if (typeof getter === "function") {
+        return getter();
+      }
       return DEFAULT_CONFIG;
     },
   };
@@ -54,7 +75,7 @@ vi.mock("../media/store.js", () => ({
 
 vi.mock("@whiskeysockets/baileys", () => {
   const created = createMockBaileys();
-  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("moltbot:lastSocket")] =
+  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("openclaw:lastSocket")] =
     created.lastSocket;
   return created.mod;
 });
@@ -64,27 +85,37 @@ vi.mock("qrcode-terminal", () => ({
   generate: vi.fn(),
 }));
 
-export const baileys =
-  (await import("@whiskeysockets/baileys")) as unknown as typeof import("@whiskeysockets/baileys") & {
-    makeWASocket: ReturnType<typeof vi.fn>;
-    useMultiFileAuthState: ReturnType<typeof vi.fn>;
-    fetchLatestBaileysVersion: ReturnType<typeof vi.fn>;
-    makeCacheableSignalKeyStore: ReturnType<typeof vi.fn>;
-  };
+export const baileys = await import("@whiskeysockets/baileys");
 
 export function resetBaileysMocks() {
   const recreated = createMockBaileys();
-  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("moltbot:lastSocket")] =
+  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("openclaw:lastSocket")] =
     recreated.lastSocket;
-  baileys.makeWASocket.mockImplementation(recreated.mod.makeWASocket);
-  baileys.useMultiFileAuthState.mockImplementation(recreated.mod.useMultiFileAuthState);
-  baileys.fetchLatestBaileysVersion.mockImplementation(recreated.mod.fetchLatestBaileysVersion);
-  baileys.makeCacheableSignalKeyStore.mockImplementation(recreated.mod.makeCacheableSignalKeyStore);
+
+  const makeWASocket = vi.mocked(baileys.makeWASocket);
+  makeWASocket.mockReset();
+  makeWASocket.mockImplementation(recreated.mod.makeWASocket);
+
+  const useMultiFileAuthState = vi.mocked(baileys.useMultiFileAuthState);
+  useMultiFileAuthState.mockReset();
+  useMultiFileAuthState.mockImplementation(recreated.mod.useMultiFileAuthState);
+
+  const fetchLatestBaileysVersion = vi.mocked(baileys.fetchLatestBaileysVersion);
+  fetchLatestBaileysVersion.mockReset();
+  fetchLatestBaileysVersion.mockImplementation(recreated.mod.fetchLatestBaileysVersion);
+
+  const makeCacheableSignalKeyStore = vi.mocked(baileys.makeCacheableSignalKeyStore);
+  makeCacheableSignalKeyStore.mockReset();
+  makeCacheableSignalKeyStore.mockImplementation(recreated.mod.makeCacheableSignalKeyStore);
 }
 
 export function getLastSocket(): MockBaileysSocket {
-  const getter = (globalThis as Record<PropertyKey, unknown>)[Symbol.for("moltbot:lastSocket")];
-  if (typeof getter === "function") return (getter as () => MockBaileysSocket)();
-  if (!getter) throw new Error("Baileys mock not initialized");
+  const getter = (globalThis as Record<PropertyKey, unknown>)[Symbol.for("openclaw:lastSocket")];
+  if (typeof getter === "function") {
+    return (getter as () => MockBaileysSocket)();
+  }
+  if (!getter) {
+    throw new Error("Baileys mock not initialized");
+  }
   throw new Error("Invalid Baileys socket getter");
 }
