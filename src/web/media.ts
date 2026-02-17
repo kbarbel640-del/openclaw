@@ -26,6 +26,8 @@ type WebMediaOptions = {
   optimizeImages?: boolean;
 };
 
+type LoadWebMediaOptions = Pick<WebMediaOptions, "optimizeImages">;
+
 const HEIC_MIME_RE = /^image\/hei[cf]$/i;
 const HEIC_EXT_RE = /\.(heic|heif)$/i;
 const MB = 1024 * 1024;
@@ -217,10 +219,14 @@ async function loadWebMediaInternal(
   });
 }
 
-export async function loadWebMedia(mediaUrl: string, maxBytes?: number): Promise<WebMediaResult> {
+export async function loadWebMedia(
+  mediaUrl: string,
+  maxBytes?: number,
+  options: LoadWebMediaOptions = {},
+): Promise<WebMediaResult> {
   return await loadWebMediaInternal(mediaUrl, {
     maxBytes,
-    optimizeImages: true,
+    optimizeImages: options.optimizeImages ?? true,
   });
 }
 

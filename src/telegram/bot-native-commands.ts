@@ -48,6 +48,11 @@ import {
   resolveTelegramForumThreadId,
 } from "./bot/helpers.js";
 import { firstDefined, isSenderAllowed, normalizeAllowFromWithStore } from "./bot-access.js";
+import {
+  normalizeTelegramImageQuality,
+  readTelegramChatImageQuality,
+  setTelegramChatImageQuality,
+} from "./image-quality-store.js";
 import { readTelegramAllowFromStore } from "./pairing-store.js";
 
 type TelegramNativeCommandContext = Context & { match?: string };
@@ -86,6 +91,22 @@ type RegisterTelegramNativeCommandsParams = {
   shouldSkipUpdate: (ctx: unknown) => boolean;
   opts: { token: string };
 };
+
+const IMAGE_QUALITY_USAGE =
+  "Usage: /imagequality [normal|high]\n" +
+  "• /imagequality: show current setting\n" +
+  "• /imagequality normal: send images as photos (compressed)\n" +
+  "• /imagequality high: send images as documents (uncompressed)";
+
+function formatImageQualityReply(quality: "normal" | "high"): string {
+  if (quality === "high") {
+    return (
+      "🖼️ Image quality: high\n" +
+      "Images will be sent as documents to avoid Telegram photo compression."
+    );
+  }
+  return "🖼️ Image quality: normal\nImages will be sent as photos (Telegram compression enabled).";
+}
 
 async function resolveTelegramCommandAuth(params: {
   msg: NonNullable<TelegramNativeCommandContext["message"]>;
@@ -370,6 +391,61 @@ export const registerTelegramNativeCommands = ({
             : rawText
               ? ({ raw: rawText } satisfies CommandArgs)
               : undefined;
+          if (command.name === "imagequality") {
+            const requestedRaw =
+              typeof commandArgs?.values?.quality === "string"
+                ? commandArgs.values.quality
+                : rawText;
+            const requested = normalizeTelegramImageQuality(requestedRaw);
+
+            if (!requestedRaw) {
+              const current = await readTelegramChatImageQuality({
+                chatId,
+                accountId,
+              });
+              await withTelegramApiErrorLogging({
+                operation: "sendMessage",
+                runtime,
+                fn: () =>
+                  bot.api.sendMessage(chatId, formatImageQualityReply(current), {
+                    ...(threadIdForSend != null && { message_thread_id: threadIdForSend }),
+                  }),
+              });
+              return;
+            }
+
+            if (!requested) {
+              await withTelegramApiErrorLogging({
+                operation: "sendMessage",
+                runtime,
+                fn: () =>
+                  bot.api.sendMessage(chatId, IMAGE_QUALITY_USAGE, {
+                    ...(threadIdForSend != null && { message_thread_id: threadIdForSend }),
+                  }),
+              });
+              return;
+            }
+
+            const result = await setTelegramChatImageQuality({
+              chatId,
+              accountId,
+              quality: requested,
+            });
+            const action = result.changed ? "updated" : "unchanged";
+            await withTelegramApiErrorLogging({
+              operation: "sendMessage",
+              runtime,
+              fn: () =>
+                bot.api.sendMessage(
+                  chatId,
+                  `${formatImageQualityReply(result.quality)}\n(${action})`,
+                  {
+                    ...(threadIdForSend != null && { message_thread_id: threadIdForSend }),
+                  },
+                ),
+            });
+            return;
+          }
           const prompt = commandDefinition
             ? buildCommandTextFromArgs(commandDefinition, commandArgs)
             : rawText
@@ -500,6 +576,7 @@ export const registerTelegramNativeCommands = ({
                   tableMode,
                   chunkMode,
                   linkPreview: telegramCfg.linkPreview,
+                  accountId,
                 });
               },
               onError: (err, info) => {
@@ -576,6 +653,7 @@ export const registerTelegramNativeCommands = ({
             tableMode,
             chunkMode,
             linkPreview: telegramCfg.linkPreview,
+            accountId,
           });
         });
       }

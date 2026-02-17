@@ -125,7 +125,14 @@ export function listNativeCommandSpecs(params?: {
   provider?: string;
 }): NativeCommandSpec[] {
   return listChatCommands({ skillCommands: params?.skillCommands })
-    .filter((command) => command.scope !== "text" && command.nativeName)
+    .filter(
+      (command) =>
+        command.scope !== "text" &&
+        command.nativeName &&
+        (!command.providers ||
+          !params?.provider ||
+          command.providers.includes(params.provider.toLowerCase())),
+    )
     .map((command) => ({
       name: resolveNativeName(command, params?.provider) ?? command.key,
       description: command.description,
@@ -139,7 +146,14 @@ export function listNativeCommandSpecsForConfig(
   params?: { skillCommands?: SkillCommandSpec[]; provider?: string },
 ): NativeCommandSpec[] {
   return listChatCommandsForConfig(cfg, params)
-    .filter((command) => command.scope !== "text" && command.nativeName)
+    .filter(
+      (command) =>
+        command.scope !== "text" &&
+        command.nativeName &&
+        (!command.providers ||
+          !params?.provider ||
+          command.providers.includes(params.provider.toLowerCase())),
+    )
     .map((command) => ({
       name: resolveNativeName(command, params?.provider) ?? command.key,
       description: command.description,
@@ -156,6 +170,7 @@ export function findCommandByNativeName(
   return getChatCommands().find(
     (command) =>
       command.scope !== "text" &&
+      (!command.providers || !provider || command.providers.includes(provider.toLowerCase())) &&
       resolveNativeName(command, provider)?.toLowerCase() === normalized,
   );
 }

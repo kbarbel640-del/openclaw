@@ -61,6 +61,8 @@ export type ChatCommandDefinition = {
   argsMenu?: CommandArgMenuSpec | "auto";
   scope: CommandScope;
   category?: CommandCategory;
+  /** Restrict this command to specific channel providers (e.g. ["telegram"]). Undefined = all. */
+  providers?: string[];
 };
 
 export type NativeCommandSpec = {

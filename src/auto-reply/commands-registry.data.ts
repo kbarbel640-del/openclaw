@@ -21,6 +21,7 @@ type DefineChatCommandInput = {
   textAliases?: string[];
   scope?: CommandScope;
   category?: CommandCategory;
+  providers?: string[];
 };
 
 function defineChatCommand(command: DefineChatCommandInput): ChatCommandDefinition {
@@ -43,6 +44,7 @@ function defineChatCommand(command: DefineChatCommandInput): ChatCommandDefiniti
     textAliases: aliases,
     scope,
     category: command.category,
+    providers: command.providers,
   };
 }
 
@@ -241,6 +243,21 @@ function buildChatCommands(): ChatCommandDefinition[] {
       description: "Show your sender id.",
       textAlias: "/whoami",
       category: "status",
+    }),
+    defineChatCommand({
+      key: "imagequality",
+      nativeName: "imagequality",
+      description: "Set Telegram image quality mode.",
+      category: "options",
+      providers: ["telegram"],
+      args: [
+        {
+          name: "quality",
+          description: "high or normal",
+          type: "string",
+          choices: ["high", "normal"],
+        },
+      ],
     }),
     defineChatCommand({
       key: "subagents",

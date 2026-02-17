@@ -18,6 +18,7 @@ import { isGifMedia } from "../../media/mime.js";
 import { saveMediaBuffer } from "../../media/store.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import { loadWebMedia } from "../../web/media.js";
+import { readTelegramChatImageQuality } from "../image-quality-store.js";
 import { buildInlineKeyboard } from "../send.js";
 import { resolveTelegramVoiceSend } from "../voice.js";
 import { buildTelegramThreadParams, resolveTelegramReplyId } from "./helpers.js";
@@ -44,6 +45,8 @@ export async function deliverReplies(params: {
   linkPreview?: boolean;
   /** Optional quote text for Telegram reply_parameters. */
   replyQuoteText?: string;
+  /** Telegram account id (for per-chat preferences like image quality). */
+  accountId?: string;
 }) {
   const {
     replies,
@@ -125,10 +128,18 @@ export async function deliverReplies(params: {
     // Track if we need to send a follow-up text message after media
     // (when caption exceeds Telegram's 1024-char limit)
     let pendingFollowUpText: string | undefined;
+    const imageQuality = await readTelegramChatImageQuality({
+      chatId,
+      accountId: params.accountId,
+    });
     for (const mediaUrl of mediaList) {
       const isFirstMedia = first;
-      const media = await loadWebMedia(mediaUrl);
-      const kind = mediaKindFromMime(media.contentType ?? undefined);
+      const media = await loadWebMedia(mediaUrl, undefined, {
+        optimizeImages: imageQuality !== "high",
+      });
+      const detectedKind = mediaKindFromMime(media.contentType ?? undefined);
+      const kind =
+        imageQuality === "high" && detectedKind === "image" ? ("document" as const) : detectedKind;
       const isGif = isGifMedia({
         contentType: media.contentType,
         fileName: media.fileName,

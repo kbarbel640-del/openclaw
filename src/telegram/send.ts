@@ -29,6 +29,7 @@ import { recordSentMessage } from "./sent-message-cache.js";
 import { parseTelegramTarget, stripTelegramInternalPrefixes } from "./targets.js";
 import { resolveTelegramVoiceSend } from "./voice.js";
 import { buildTelegramThreadParams } from "./bot/helpers.js";
+import { readTelegramChatImageQuality } from "./image-quality-store.js";
 
 type TelegramSendOpts = {
   token?: string;
@@ -296,8 +297,15 @@ export async function sendMessageTelegram(
   };
 
   if (mediaUrl) {
-    const media = await loadWebMedia(mediaUrl, opts.maxBytes);
-    const kind = mediaKindFromMime(media.contentType ?? undefined);
+    const imageQuality = await readTelegramChatImageQuality({
+      chatId,
+      accountId: account.accountId,
+    });
+    const media = await loadWebMedia(mediaUrl, opts.maxBytes, {
+      optimizeImages: imageQuality !== "high",
+    });
+    const detectedKind = mediaKindFromMime(media.contentType ?? undefined);
+    const kind = imageQuality === "high" && detectedKind === "image" ? "document" : detectedKind;
     const isGif = isGifMedia({
       contentType: media.contentType,
       fileName: media.fileName,
