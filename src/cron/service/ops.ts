@@ -15,14 +15,13 @@ import { ensureLoaded, persist, warnIfDisabled } from "./store.js";
 import {
   applyJobResult,
   armTimer,
+  DEFAULT_JOB_TIMEOUT_MS,
   emit,
   executeJob,
   executeJobCore,
   stopTimer,
   wake,
 } from "./timer.js";
-
-const DEFAULT_JOB_TIMEOUT_MS = 10 * 60_000;
 
 async function ensureLoadedForRead(state: CronServiceState) {
   await ensureLoaded(state, { skipRecompute: true });
