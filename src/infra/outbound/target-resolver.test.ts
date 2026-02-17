@@ -75,4 +75,33 @@ describe("resolveMessagingTarget (directory fallback)", () => {
     expect(mocks.listGroups).not.toHaveBeenCalled();
     expect(mocks.listGroupsLive).not.toHaveBeenCalled();
   });
+
+  it("accepts object-style normalizeTarget results from plugins", async () => {
+    mocks.getChannelPlugin.mockReturnValue({
+      messaging: {
+        normalizeTarget: (raw: string) => ({ ok: true, to: raw.replace(/^qqbot:/i, "") }),
+        targetResolver: {
+          looksLikeId: (id: string) => /^[A-F0-9]{32}$/i.test(id.replace(/^qqbot:/i, "")),
+        },
+      },
+      directory: {
+        listGroups: mocks.listGroups,
+        listGroupsLive: mocks.listGroupsLive,
+      },
+    });
+
+    const result = await resolveMessagingTarget({
+      cfg,
+      channel: "discord",
+      input: "152BF619E18BD4CE359F3A25C9023836",
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.target.source).toBe("normalized");
+      expect(result.target.to).toBe("152BF619E18BD4CE359F3A25C9023836");
+    }
+    expect(mocks.listGroups).not.toHaveBeenCalled();
+    expect(mocks.listGroupsLive).not.toHaveBeenCalled();
+  });
 });
