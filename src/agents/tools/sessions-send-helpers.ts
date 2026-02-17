@@ -1,12 +1,37 @@
 import type { OpenClawConfig } from "../../config/config.js";
-import { normalizeChannelId as normalizeAnyChannelId } from "../../channels/plugins/index.js";
+import {
+  getChannelPlugin,
+  normalizeChannelId as normalizeAnyChannelId,
+} from "../../channels/plugins/index.js";
 import { normalizeChannelId as normalizeChatChannelId } from "../../channels/registry.js";
-import { normalizeTargetForProvider } from "../../infra/outbound/target-normalization.js";
 
 const ANNOUNCE_SKIP_TOKEN = "ANNOUNCE_SKIP";
 const REPLY_SKIP_TOKEN = "REPLY_SKIP";
 const DEFAULT_PING_PONG_TURNS = 5;
 const MAX_PING_PONG_TURNS = 5;
+
+function normalizeMessagingTarget(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const normalized = value as { ok?: unknown; to?: unknown; target?: unknown };
+  if (normalized.ok === false) {
+    return undefined;
+  }
+  if (typeof normalized.to === "string") {
+    const trimmed = normalized.to.trim();
+    return trimmed || undefined;
+  }
+  if (typeof normalized.target === "string") {
+    const trimmed = normalized.target.trim();
+    return trimmed || undefined;
+  }
+  return undefined;
+}
 
 export type AnnounceTarget = {
   channel: string;
@@ -59,7 +84,9 @@ export function resolveAnnounceTargetFromKey(sessionKey: string): AnnounceTarget
     return kind === "channel" ? `channel:${id}` : `group:${id}`;
   })();
   const normalized = normalizedChannel
-    ? normalizeTargetForProvider(normalizedChannel, kindTarget)
+    ? normalizeMessagingTarget(
+        getChannelPlugin(normalizedChannel)?.messaging?.normalizeTarget?.(kindTarget),
+      )
     : undefined;
   return {
     channel,
