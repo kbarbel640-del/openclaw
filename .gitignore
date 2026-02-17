@@ -40,6 +40,9 @@ Core/
 apps/ios/*.xcodeproj/
 apps/ios/*.xcworkspace/
 apps/ios/.swiftpm/
+apps/visionos/*.xcodeproj/
+apps/visionos/*.xcworkspace/
+apps/visionos/.swiftpm/
 vendor/
 apps/ios/Clawdbot.xcodeproj/
 apps/ios/Clawdbot.xcodeproj/**

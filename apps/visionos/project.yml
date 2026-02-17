@@ -1,0 +1,69 @@
+name: OpenClawVision
+options:
+  bundleIdPrefix: ai.openclaw
+  deploymentTarget:
+    visionOS: "2.0"
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+
+packages:
+  OpenClawKit:
+    path: ../shared/OpenClawKit
+
+schemes:
+  OpenClawVision:
+    shared: true
+    build:
+      targets:
+        OpenClawVision: all
+    test:
+      targets:
+        - OpenClawVisionTests
+
+targets:
+  OpenClawVision:
+    type: application
+    platform: visionOS
+    sources:
+      - path: Sources
+      - path: Resources
+    dependencies:
+      - package: OpenClawKit
+      - package: OpenClawKit
+        product: OpenClawProtocol
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.openclaw.visionos
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: OpenClaw Vision
+        CFBundleShortVersionString: "2026.2.16"
+        CFBundleVersion: "20260216"
+        NSMicrophoneUsageDescription: OpenClaw uses your microphone for voice conversations.
+        NSSpeechRecognitionUsageDescription: OpenClaw uses speech recognition for hands-free voice interactions.
+
+  OpenClawVisionTests:
+    type: bundle.unit-test
+    platform: visionOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: OpenClawVision
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.openclaw.visionos.tests
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+    info:
+      path: Tests/Info.plist
+      properties:
+        CFBundleDisplayName: OpenClawVisionTests
+        CFBundleShortVersionString: "2026.2.16"
+        CFBundleVersion: "20260216"
