@@ -41,7 +41,7 @@ function buildInjectedWorkspaceFiles(params: {
   injectedFiles: EmbeddedContextFile[];
 }): SessionSystemPromptReport["injectedWorkspaceFiles"] {
   const safeInjectedFiles = (params.injectedFiles ?? []).filter(
-    (f) => typeof f.path === "string" && f.path.length > 0,
+    (f) => typeof f.path === "string" && f.path.trim().length > 0,
   );
   const injectedByPath = new Map(safeInjectedFiles.map((f) => [f.path, f.content]));
   const injectedByBaseName = new Map<string, string>();
