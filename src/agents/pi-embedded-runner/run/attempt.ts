@@ -1,9 +1,10 @@
-import fs from "node:fs/promises";
-import os from "node:os";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
+import fs from "node:fs/promises";
+import os from "node:os";
+import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
@@ -103,7 +104,6 @@ import {
   shouldFlagCompactionTimeout,
 } from "./compaction-timeout.js";
 import { detectAndLoadPromptImages } from "./images.js";
-import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
@@ -743,6 +743,7 @@ export async function runEmbeddedAttempt(
       const STREAM_INACTIVITY_MS = 90_000;
       let lastStreamActivity = Date.now();
       let streamInactivityTimer: NodeJS.Timeout | null = null;
+      let streamWatchdogDone = false;
       const resetStreamActivity = () => {
         lastStreamActivity = Date.now();
       };
@@ -845,7 +846,7 @@ export async function runEmbeddedAttempt(
             abortRun(true);
             return;
           }
-          if (!aborted) {
+          if (!aborted && !streamWatchdogDone) {
             streamInactivityTimer = setTimeout(check, 30_000);
           }
         }, STREAM_INACTIVITY_MS);
@@ -1192,6 +1193,7 @@ export async function runEmbeddedAttempt(
         if (abortWarnTimer) {
           clearTimeout(abortWarnTimer);
         }
+        streamWatchdogDone = true;
         if (streamInactivityTimer) {
           clearTimeout(streamInactivityTimer);
         }
