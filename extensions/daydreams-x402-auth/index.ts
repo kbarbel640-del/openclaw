@@ -243,6 +243,24 @@ const X402_MODELS = [
   },
 ];
 
+const MODEL_ALIAS_BY_ID: Record<string, string | undefined> = {
+  [AUTO_MODEL_ID]: "Auto",
+  [DEFAULT_MODEL_ID]: "Kimi",
+  [OPUS_MODEL_ID]: "Opus",
+  [GPT5_MODEL_ID]: "GPT-5",
+  [CODEX_MODEL_ID]: "Codex",
+};
+
+function buildDefaultAllowlistedModels(): Record<string, { alias?: string }> {
+  const entries: Record<string, { alias?: string }> = {};
+  for (const model of X402_MODELS) {
+    const key = `x402/${model.id}`;
+    const alias = MODEL_ALIAS_BY_ID[model.id];
+    entries[key] = alias ? { alias } : {};
+  }
+  return entries;
+}
+
 function cloneX402Models() {
   return X402_MODELS.map((model) => ({
     ...model,
@@ -396,13 +414,7 @@ const x402Plugin = {
                 },
                 agents: {
                   defaults: {
-                    models: {
-                      [DEFAULT_AUTO_REF]: { alias: "Auto" },
-                      [DEFAULT_MODEL_REF]: { alias: "Kimi" },
-                      [OPUS_MODEL_REF]: { alias: "Opus" },
-                      [GPT5_MODEL_REF]: { alias: "GPT-5" },
-                      [CODEX_MODEL_REF]: { alias: "Codex" },
-                    },
+                    models: buildDefaultAllowlistedModels(),
                   },
                 },
               },
@@ -513,13 +525,7 @@ const x402Plugin = {
                 },
                 agents: {
                   defaults: {
-                    models: {
-                      [DEFAULT_AUTO_REF]: { alias: "Auto" },
-                      [DEFAULT_MODEL_REF]: { alias: "Kimi" },
-                      [OPUS_MODEL_REF]: { alias: "Opus" },
-                      [GPT5_MODEL_REF]: { alias: "GPT-5" },
-                      [CODEX_MODEL_REF]: { alias: "Codex" },
-                    },
+                    models: buildDefaultAllowlistedModels(),
                   },
                 },
               },

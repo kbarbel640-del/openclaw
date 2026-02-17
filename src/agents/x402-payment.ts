@@ -159,7 +159,6 @@ interface CachedPermit {
   network: string;
   asset: string;
   payTo: string;
-  as: string;
 }
 
 const ROUTER_CONFIG_CACHE = new Map<string, RouterConfig>();
@@ -372,6 +371,39 @@ function getDefaultRouterConfig(network: string): RouterConfig {
     tokenVersion: "2",
     paymentHeader: DEFAULT_PAYMENT_HEADER,
   };
+}
+
+function parseModelFromJsonBody(body: string): string | undefined {
+  const trimmed = body.trim();
+  if (!trimmed || !trimmed.startsWith("{")) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    const model = parsed.model;
+    return typeof model === "string" && model.trim() ? model : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function extractOutboundModelId(
+  input: unknown,
+  init?: RequestInit,
+): Promise<string | undefined> {
+  if (typeof init?.body === "string") {
+    return parseModelFromJsonBody(init.body);
+  }
+
+  if (typeof Request !== "undefined" && input instanceof Request) {
+    try {
+      return parseModelFromJsonBody(await input.clone().text());
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
 }
 
 async function fetchPermitNonce(
@@ -741,6 +773,7 @@ export function maybeWrapStreamFnWithX402Payment(params: {
   }
 
   const fetchWithPayment: typeof fetch = async (input, init) => {
+    const outboundModel = await extractOutboundModelId(input, init);
     const url = ((): string | null => {
       if (typeof input === "string") {
         return input;
@@ -788,6 +821,13 @@ export function maybeWrapStreamFnWithX402Payment(params: {
       parsed.pathname = "/v1/chat/completions";
       input = parsed.toString();
     }
+
+    const routedPath = parsed?.pathname || pathname || "unknown";
+    const routedModel = outboundModel || "unknown";
+    log.info(`x402 outbound router request path=${routedPath} model=${routedModel}`, {
+      path: routedPath,
+      model: routedModel,
+    });
 
     let routerConfig: RouterConfig;
     try {
