@@ -4,6 +4,7 @@ const CHARS_PER_TOKEN_ESTIMATE = 4;
 // Keep a conservative input budget to absorb tokenizer variance and provider framing overhead.
 const CONTEXT_INPUT_HEADROOM_RATIO = 0.75;
 const SINGLE_TOOL_RESULT_CONTEXT_SHARE = 0.5;
+const TOOL_RESULT_CHARS_PER_TOKEN_ESTIMATE = 2;
 const IMAGE_CHAR_ESTIMATE = 8_000;
 
 export const CONTEXT_LIMIT_TRUNCATION_NOTICE = "[truncated: output exceeded context limit]";
@@ -143,7 +144,12 @@ function estimateMessageChars(msg: AgentMessage): number {
         chars += estimateUnknownChars(block);
       }
     }
-    return chars;
+    const details = (msg as { details?: unknown }).details;
+    chars += estimateUnknownChars(details);
+    const weightedChars = Math.ceil(
+      chars * (CHARS_PER_TOKEN_ESTIMATE / TOOL_RESULT_CHARS_PER_TOKEN_ESTIMATE),
+    );
+    return Math.max(chars, weightedChars);
   }
 
   return 256;
@@ -181,8 +187,10 @@ function replaceToolResultText(msg: AgentMessage, text: string): AgentMessage {
   const replacementContent =
     typeof content === "string" || content === undefined ? text : [{ type: "text", text }];
 
+  const sourceRecord = msg as unknown as Record<string, unknown>;
+  const { details: _details, ...rest } = sourceRecord;
   return {
-    ...(msg as unknown as Record<string, unknown>),
+    ...rest,
     content: replacementContent,
   } as AgentMessage;
 }
@@ -297,7 +305,9 @@ export function installToolResultContextGuard(params: {
   );
   const maxSingleToolResultChars = Math.max(
     1_024,
-    Math.floor(contextWindowTokens * CHARS_PER_TOKEN_ESTIMATE * SINGLE_TOOL_RESULT_CONTEXT_SHARE),
+    Math.floor(
+      contextWindowTokens * TOOL_RESULT_CHARS_PER_TOKEN_ESTIMATE * SINGLE_TOOL_RESULT_CONTEXT_SHARE,
+    ),
   );
 
   // Agent.transformContext is private in pi-coding-agent, so access it via a

@@ -139,6 +139,35 @@ function stripReadContinuationNotice(text: string): string {
   return text.replace(READ_CONTINUATION_NOTICE_RE, "");
 }
 
+function stripReadTruncationContentDetails(
+  result: AgentToolResult<unknown>,
+): AgentToolResult<unknown> {
+  const details = (result as { details?: unknown }).details;
+  if (!details || typeof details !== "object") {
+    return result;
+  }
+
+  const detailsRecord = details as Record<string, unknown>;
+  const truncationRaw = detailsRecord.truncation;
+  if (!truncationRaw || typeof truncationRaw !== "object") {
+    return result;
+  }
+
+  const truncation = truncationRaw as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(truncation, "content")) {
+    return result;
+  }
+
+  const { content: _content, ...restTruncation } = truncation;
+  return {
+    ...result,
+    details: {
+      ...detailsRecord,
+      truncation: restTruncation,
+    },
+  };
+}
+
 async function executeReadWithAdaptivePaging(params: {
   base: AnyAgentTool;
   toolCallId: string;
@@ -575,7 +604,8 @@ export function createOpenClawReadTool(
         maxBytes: resolveAdaptiveReadMaxBytes(options),
       });
       const filePath = typeof record?.path === "string" ? String(record.path) : "<unknown>";
-      const normalizedResult = await normalizeReadImageResult(result, filePath);
+      const strippedDetailsResult = stripReadTruncationContentDetails(result);
+      const normalizedResult = await normalizeReadImageResult(strippedDetailsResult, filePath);
       return sanitizeToolResultImages(normalizedResult, `read:${filePath}`);
     },
   };

@@ -34,6 +34,24 @@ function makeLegacyToolResult(id: string, text: string): AgentMessage {
   } as unknown as AgentMessage;
 }
 
+function makeToolResultWithDetails(id: string, text: string, detailText: string): AgentMessage {
+  return {
+    role: "toolResult",
+    toolCallId: id,
+    toolName: "read",
+    content: [{ type: "text", text }],
+    details: {
+      truncation: {
+        truncated: true,
+        outputLines: 100,
+        content: detailText,
+      },
+    },
+    isError: false,
+    timestamp: Date.now(),
+  } as unknown as AgentMessage;
+}
+
 function getToolResultText(msg: AgentMessage): string {
   const content = (msg as { content?: unknown }).content;
   if (!Array.isArray(content)) {
@@ -226,5 +244,36 @@ describe("installToolResultContextGuard", () => {
 
     expect(oldResultText).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
     expect(newResultText).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
+  });
+
+  it("drops oversized read-tool details payloads when compacting tool results", async () => {
+    const agent = makeGuardableAgent();
+
+    installToolResultContextGuard({
+      agent,
+      contextWindowTokens: 1_000,
+    });
+
+    const contextForNextCall = [
+      makeUser("u".repeat(1_600)),
+      makeToolResultWithDetails("call_old", "x".repeat(900), "d".repeat(8_000)),
+      makeToolResultWithDetails("call_new", "y".repeat(900), "d".repeat(8_000)),
+    ];
+
+    await agent.transformContext?.(contextForNextCall, new AbortController().signal);
+
+    const oldResult = contextForNextCall[1] as unknown as {
+      details?: unknown;
+    };
+    const newResult = contextForNextCall[2] as unknown as {
+      details?: unknown;
+    };
+    const oldResultText = getToolResultText(contextForNextCall[1]);
+    const newResultText = getToolResultText(contextForNextCall[2]);
+
+    expect(oldResultText).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
+    expect(newResultText).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
+    expect(oldResult.details).toBeUndefined();
+    expect(newResult.details).toBeUndefined();
   });
 });
