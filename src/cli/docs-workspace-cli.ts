@@ -7,12 +7,7 @@
  */
 
 import type { Command } from "commander";
-import {
-  getDocAtCommit,
-  getDocDiff,
-  getDocHistory,
-  rollbackDoc,
-} from "../agents/tracked-docs.js";
+import { getDocAtCommit, getDocDiff, getDocHistory, rollbackDoc } from "../agents/tracked-docs.js";
 import { resolveDefaultAgentWorkspaceDir } from "../agents/workspace.js";
 import { colorize, isRich } from "../terminal/theme.js";
 
@@ -78,7 +73,9 @@ export function registerWorkspaceDocsCommands(program: Command): void {
       const workspaceDir = resolveWorkspaceDir(options);
       const diff = await getDocDiff({ workspaceDir, filename, fromSha: sha, toSha: options.to });
       if (!diff.trim()) {
-        console.log(`No differences found for ${filename} between ${sha} and ${options.to ?? "working tree"}.`);
+        console.log(
+          `No differences found for ${filename} between ${sha} and ${options.to ?? "working tree"}.`,
+        );
         return;
       }
       console.log(diff);
@@ -106,10 +103,7 @@ export function registerWorkspaceDocsCommands(program: Command): void {
     .option("-w, --workspace <dir>", "Workspace directory")
     .option("--reason <text>", "Reason for rollback (appended to commit message)")
     .action(
-      async (
-        filename: string,
-        options: { workspace?: string; to: string; reason?: string },
-      ) => {
+      async (filename: string, options: { workspace?: string; to: string; reason?: string }) => {
         const workspaceDir = resolveWorkspaceDir(options);
         const result = await rollbackDoc({
           workspaceDir,

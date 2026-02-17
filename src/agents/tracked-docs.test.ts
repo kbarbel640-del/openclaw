@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { runCommandWithTimeout } from "../process/exec.js";
 import {
   getDocAtCommit,
   getDocDiff,
@@ -10,7 +11,6 @@ import {
   TRACKED_DOC_FILENAMES,
   writeTrackedDoc,
 } from "./tracked-docs.js";
-import { runCommandWithTimeout } from "../process/exec.js";
 
 async function makeTempWorkspace(): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-tracked-docs-"));

@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { WorkspaceBootstrapFileName } from "./workspace.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { resolveUserPath } from "../utils.js";
-import type { WorkspaceBootstrapFileName } from "./workspace.js";
 import {
   DEFAULT_AGENTS_FILENAME,
   DEFAULT_SOUL_FILENAME,
@@ -141,7 +141,13 @@ export async function getDocHistory(params: {
   const limit = params.limit ?? 20;
 
   const result = await gitCommand(
-    ["log", `--max-count=${limit}`, "--format=%H%x00%ai%x00%an%x00%s%x00%b%x00---COMMIT---", "--", params.filename],
+    [
+      "log",
+      `--max-count=${limit}`,
+      "--format=%H%x00%ai%x00%an%x00%s%x00%b%x00---COMMIT---",
+      "--",
+      params.filename,
+    ],
     resolvedDir,
   );
 
@@ -175,10 +181,7 @@ export async function getDocAtCommit(params: {
   sha: string;
 }): Promise<string | null> {
   const resolvedDir = resolveUserPath(params.workspaceDir);
-  const result = await gitCommand(
-    ["show", `${params.sha}:${params.filename}`],
-    resolvedDir,
-  );
+  const result = await gitCommand(["show", `${params.sha}:${params.filename}`], resolvedDir);
   if (result.code !== 0) {
     return null;
   }
@@ -221,7 +224,10 @@ export async function rollbackDoc(params: {
   });
 
   if (content === null) {
-    return { committed: false, warning: `Could not find ${params.filename} at commit ${params.sha}` };
+    return {
+      committed: false,
+      warning: `Could not find ${params.filename} at commit ${params.sha}`,
+    };
   }
 
   return writeTrackedDoc({
