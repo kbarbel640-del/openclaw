@@ -87,6 +87,38 @@ export interface PermissionGrant {
   conditions: GrantConditions;
 }
 
+// ── Escalation Chain ────────────────────────────────────────────────────────
+
+/** A single tier in an escalation chain. */
+export interface EscalationTier {
+  /** Priority order (1 = first contact, 2 = second, etc.). */
+  priority: number;
+  /** DID of the human to contact at this tier. */
+  humanDid: DID;
+  /** How long to wait for a response before escalating to the next tier. */
+  timeoutSeconds: number;
+  /** Channel to use for this tier. Falls back to next available. */
+  channel: "signal" | "sms" | "email" | "dashboard";
+}
+
+/**
+ * An ordered escalation chain scoped to a tenant, project, or agent.
+ *
+ * When an event requires human intervention (SOC alert, action approval
+ * timeout, agent freeze), the system contacts humans in tier order.
+ * If no one responds across all tiers, the system triggers a DevSOC
+ * freeze — all agents at the scope are suspended until a human intervenes.
+ */
+export interface EscalationChain {
+  id: string;
+  scope: Scope;
+  tiers: EscalationTier[];
+  /** Action on total escalation failure (all tiers exhausted). */
+  fallbackAction: "freeze" | "continue" | "notify-only";
+  createdBy: DID;
+  createdAt: string;
+}
+
 // ── Device Enrollment ───────────────────────────────────────────────────────
 
 /** Authentication method type — ordered by strength. */
@@ -226,6 +258,8 @@ export interface Agent {
   id: string;
   /** Agent identity — did:key from Ed25519 keypair. */
   did: DID;
+  /** Every agent belongs to a tenant, regardless of assignment scope. */
+  tenantId: string;
   /** Where this agent operates — tenant-wide or within a specific project. */
   assignment: AgentAssignment;
   name: string;
