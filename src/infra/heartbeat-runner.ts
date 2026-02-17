@@ -35,7 +35,7 @@ import {
   updateSessionStore,
 } from "../config/sessions.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
-import { getQueueSize } from "../process/command-queue.js";
+import { getQueueSize, getTotalQueueSize } from "../process/command-queue.js";
 import { CommandLane } from "../process/lanes.js";
 import { normalizeAgentId, toAgentStoreSessionKey } from "../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
@@ -507,6 +507,15 @@ export async function runHeartbeatOnce(opts: {
 
   const queueSize = (opts.deps?.getQueueSize ?? getQueueSize)(CommandLane.Main);
   if (queueSize > 0) {
+    return { status: "skipped", reason: "requests-in-flight" };
+  }
+
+  // Cross-lane saturation guard: skip heartbeat when total sessions across all
+  // lanes (main + subagent + cron) exceed a safe threshold.  This prevents cron
+  // from piling on when the gateway is already busy with missions/subagents,
+  // which can cause event-loop starvation and launchd SIGTERM.
+  const totalSize = getTotalQueueSize();
+  if (totalSize >= 8) {
     return { status: "skipped", reason: "requests-in-flight" };
   }
 

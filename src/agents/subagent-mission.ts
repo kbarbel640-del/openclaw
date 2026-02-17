@@ -11,7 +11,11 @@ import {
   type SubagentRunOutcome,
 } from "./subagent-announce.js";
 import { loadMissionsFromDisk, saveMissionsToDisk } from "./subagent-mission.store.js";
-import { registerSubagentRun, setRunCompletionInterceptor } from "./subagent-registry.js";
+import {
+  getSubagentRun,
+  registerSubagentRun,
+  setRunCompletionInterceptor,
+} from "./subagent-registry.js";
 import {
   extractTranscriptSummary,
   formatTranscriptForRetry,
@@ -691,19 +695,77 @@ export function initMissionSystem() {
   // Restore persisted missions
   try {
     const restored = loadMissionsFromDisk();
+    const missionsNeedingRecovery: MissionRecord[] = [];
+
     for (const [id, mission] of restored.entries()) {
-      if (!missions.has(id)) {
-        missions.set(id, mission);
-        // Rebuild runId index
-        for (const [subtaskId, subtask] of mission.subtasks) {
-          if (subtask.runId && subtask.status === "running") {
-            runIdToMission.set(subtask.runId, {
-              missionId: id,
-              subtaskId,
-            });
+      if (missions.has(id)) continue;
+      missions.set(id, mission);
+
+      if (mission.status !== "running") continue;
+
+      let needsRecovery = false;
+
+      for (const [subtaskId, subtask] of mission.subtasks) {
+        if (subtask.status !== "running") continue;
+
+        // Check if the underlying run completed while gateway was down
+        const run = subtask.runId ? getSubagentRun(subtask.runId) : undefined;
+        if (run && typeof run.endedAt === "number" && run.endedAt > 0) {
+          // Run completed — update subtask status inline so advanceMission can proceed
+          subtask.endedAt = run.endedAt;
+          subtask.outcome = run.outcome;
+          if (run.outcome?.status === "ok") {
+            subtask.status = "ok";
+          } else {
+            subtask.status = "error";
+            skipDependentSubtasks(mission, subtask.id);
+          }
+          needsRecovery = true;
+        } else if (!run) {
+          // No registry entry — session was lost in the crash. Mark as error.
+          subtask.status = "error";
+          subtask.endedAt = Date.now();
+          subtask.outcome = { status: "error", error: "session lost during gateway restart" };
+          skipDependentSubtasks(mission, subtask.id);
+          needsRecovery = true;
+        } else {
+          // Run exists in registry but hasn't ended. If the subtask started
+          // before this gateway boot, the underlying LLM session is gone — the
+          // registry entry is a stale leftover from disk restore. Mark as error.
+          const bootTime = Date.now();
+          const startedAt = subtask.startedAt ?? run.startedAt ?? run.createdAt;
+          if (typeof startedAt === "number" && startedAt < bootTime - 30_000) {
+            subtask.status = "error";
+            subtask.endedAt = bootTime;
+            subtask.outcome = { status: "error", error: "session lost during gateway restart" };
+            skipDependentSubtasks(mission, subtask.id);
+            needsRecovery = true;
+          } else {
+            // Genuinely still in progress — re-index for interceptor
+            runIdToMission.set(subtask.runId!, { missionId: id, subtaskId });
           }
         }
       }
+
+      // Mark any un-spawned pending subtasks as error too — they were never
+      // going to run since the gateway restarted and the mission is stale.
+      if (needsRecovery) {
+        for (const [, sub] of mission.subtasks) {
+          if (sub.status === "pending") {
+            sub.status = "skipped";
+            sub.endedAt = Date.now();
+          }
+        }
+      }
+
+      // Always check running missions — subtasks may have been recovered in
+      // a previous restart but mission status never transitioned to terminal.
+      missionsNeedingRecovery.push(mission);
+    }
+
+    // Finalize recovered missions
+    for (const mission of missionsNeedingRecovery) {
+      checkMissionCompletion(mission);
     }
   } catch {
     // ignore restore failures
