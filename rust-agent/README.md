@@ -13,6 +13,7 @@ What is implemented now:
 - Host integrity baseline checks for key runtime files.
 - Bounded concurrency and queue limits to reduce memory spikes.
 - Session FIFO scheduling + decision state tracking + idempotency cache.
+- Typed session-key parsing (`main`, `direct`, `group`, `channel`, `cron`, `hook`, `node`).
 - Typed protocol frame foundation (`req`/`resp`/`event` classification).
 - Channel adapter scaffold (`whatsapp`, `telegram`, `slack`, `discord`, generic).
 
@@ -63,6 +64,7 @@ systemctl --user status openclaw-agent-rs.service
   - host integrity monitor,
   - VirusTotal lookups (if configured).
 - Emits a `security.decision` event with allow/review/block and reasons.
+- Includes session routing hints (`sessionKind`, `chatType`, `wasMentioned`, `replyBack`, `deliveryContext`) in decision events when available.
 - Writes blocked actions to `security.quarantine_dir`.
 
 ## Config knobs for performance and safety

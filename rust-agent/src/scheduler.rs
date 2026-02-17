@@ -4,6 +4,7 @@ use serde_json::Value;
 use tokio::sync::Mutex;
 
 use crate::config::{GroupActivationMode, SessionQueueMode};
+use crate::session_key::{parse_session_key, SessionKind};
 use crate::types::ActionRequest;
 
 #[derive(Debug, Clone)]
@@ -188,7 +189,8 @@ fn is_collectable(request: &ActionRequest) -> bool {
 }
 
 fn is_group_context(request: &ActionRequest, session_id: &str) -> bool {
-    if session_id.contains(":group:") || session_id.contains(":channel:") {
+    let parsed = parse_session_key(session_id);
+    if matches!(parsed.kind, SessionKind::Group | SessionKind::Channel) {
         return true;
     }
     raw_string(

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::session_key::{parse_session_key, SessionKind};
 use crate::types::{ActionRequest, Decision};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,6 +113,8 @@ pub struct SecurityDecisionPayload {
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel: Option<String>,
+    #[serde(rename = "sessionKind", skip_serializing_if = "Option::is_none")]
+    pub session_kind: Option<SessionKind>,
     #[serde(rename = "chatType", skip_serializing_if = "Option::is_none")]
     pub chat_type: Option<String>,
     #[serde(rename = "wasMentioned", skip_serializing_if = "Option::is_none")]
@@ -146,10 +149,18 @@ pub fn decision_event_frame(
             session_id: request.session_id.clone(),
             source: request.source.clone(),
             channel: request.channel.clone(),
+            session_kind: request
+                .session_id
+                .as_deref()
+                .map(|key| parse_session_key(key).kind),
             chat_type: raw_string(&request.raw, &["chatType", "chat_type"]),
             was_mentioned: raw_bool(&request.raw, &["wasMentioned", "WasMentioned"]),
             reply_back: raw_bool(&request.raw, &["replyBack", "reply_back"]),
-            delivery_context: extract_delivery_context(&request.raw, request.channel.as_deref()),
+            delivery_context: extract_delivery_context(
+                &request.raw,
+                request.channel.as_deref(),
+                request.session_id.as_deref(),
+            ),
             decision: decision.clone(),
         },
     };
@@ -159,9 +170,11 @@ pub fn decision_event_frame(
 fn extract_delivery_context(
     raw: &Value,
     fallback_channel: Option<&str>,
+    fallback_session_key: Option<&str>,
 ) -> Option<DeliveryContext> {
     let channel = raw_string(raw, &["channel", "provider", "platform"])
-        .or_else(|| fallback_channel.map(ToOwned::to_owned));
+        .or_else(|| fallback_channel.map(ToOwned::to_owned))
+        .or_else(|| fallback_session_key.and_then(|k| parse_session_key(k).channel));
     let to = raw_string(raw, &["to", "recipient", "peer", "target"]);
     let account_id = raw_string(raw, &["accountId", "account_id"]);
     let thread_id = raw_string(raw, &["threadId", "thread_id", "topicId", "topic_id"]);
@@ -457,6 +470,12 @@ mod tests {
         let frame = decision_event_frame("security.decision", &request, &decision);
         assert_eq!(
             frame.pointer("/payload/chatType").and_then(|v| v.as_str()),
+            Some("group")
+        );
+        assert_eq!(
+            frame
+                .pointer("/payload/sessionKind")
+                .and_then(|v| v.as_str()),
             Some("group")
         );
         assert_eq!(

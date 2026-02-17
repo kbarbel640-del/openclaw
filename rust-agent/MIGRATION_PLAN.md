@@ -27,6 +27,7 @@
   - `steer`: keep only the latest pending follow-up while a session is active.
   - `collect`: merge prompt-only follow-ups into a single pending turn.
 - Added group activation gating (`mention` or `always`) before scheduling group-context actions.
+- Added typed session-key parsing (`main/direct/group/channel/cron/hook/node`) for routing-aware scheduler behavior.
 - Implemented first pass idempotency dedupe cache with TTL + bounded entries.
 - Implemented dual-backend session state tracking:
   - JSON (default)
