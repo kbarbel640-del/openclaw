@@ -13,7 +13,9 @@ import { normalizeUsageDisplay, resolveResponseUsageMode } from "../thinking.js"
 import {
   formatAbortReplyText,
   isAbortTrigger,
+  isStopAllTrigger,
   setAbortMemory,
+  stopAllAgentSessions,
   stopSubagentsForRequester,
 } from "./abort.js";
 import { clearSessionQueues } from "./queue.js";
@@ -375,5 +377,57 @@ export const handleAbortTrigger: CommandHandler = async (params, allowTextComman
   } else if (params.command.abortKey) {
     setAbortMemory(params.command.abortKey, true);
   }
-  return { shouldContinue: false, reply: { text: "⚙️ Agent was aborted." } };
+
+  // Also stop any registered subagents (mirrors /stop behaviour).
+  const { stopped } = stopSubagentsForRequester({
+    cfg: params.cfg,
+    requesterSessionKey: abortTarget.key ?? params.sessionKey,
+  });
+
+  return { shouldContinue: false, reply: { text: formatAbortReplyText(stopped) } };
+};
+
+/**
+ * "stop all" / "abort all" — stops every recently-active session for the
+ * current agent, not just those registered via sessions_spawn.  Useful when
+ * a multi-step background task has activated several independent channel
+ * sessions that are not tracked in the subagent registry.
+ */
+export const handleStopAllCommand: CommandHandler = async (params, allowTextCommands) => {
+  if (!allowTextCommands) {
+    return null;
+  }
+  const trigger = params.command.rawBodyNormalized;
+  const isSlash = params.command.commandBodyNormalized === "/stop-all";
+  if (!isSlash && !isStopAllTrigger(trigger)) {
+    return null;
+  }
+  if (!params.command.isAuthorizedSender) {
+    logVerbose(
+      `Ignoring stop-all from unauthorized sender: ${params.command.senderId || "<unknown>"}`,
+    );
+    return { shouldContinue: false };
+  }
+
+  // First, cascade-stop all spawn-registered subagents.
+  const { stopped: subStopped } = stopSubagentsForRequester({
+    cfg: params.cfg,
+    requesterSessionKey: params.sessionKey,
+  });
+
+  // Then kill any other recently-active agent sessions not in the registry.
+  const { stopped: extraStopped } = stopAllAgentSessions({
+    cfg: params.cfg,
+    currentSessionKey: params.sessionKey,
+    sessionStore: params.sessionStore,
+  });
+
+  const totalStopped = subStopped + extraStopped;
+  const label = totalStopped === 1 ? "session" : "sessions";
+  const replyText =
+    totalStopped > 0
+      ? `⚙️ Stopped all active sessions (${totalStopped} ${label} halted).`
+      : "⚙️ No active sessions to stop.";
+
+  return { shouldContinue: false, reply: { text: replyText } };
 };

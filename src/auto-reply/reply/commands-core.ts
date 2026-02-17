@@ -26,6 +26,7 @@ import {
   handleActivationCommand,
   handleRestartCommand,
   handleSendPolicyCommand,
+  handleStopAllCommand,
   handleStopCommand,
   handleUsageCommand,
 } from "./commands-session.js";
@@ -58,6 +59,7 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
       handleDebugCommand,
       handleModelsCommand,
       handleStopCommand,
+      handleStopAllCommand,
       handleCompactCommand,
       handleAbortTrigger,
     ];
