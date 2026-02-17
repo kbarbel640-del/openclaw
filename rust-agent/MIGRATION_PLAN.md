@@ -12,6 +12,7 @@
 
 - Rust runtime process + Gateway WebSocket compatibility.
 - Typed protocol frame foundation (`req`/`resp`/`event`) and method-family classification.
+- Gateway known-method registry scaffold for RPC dispatch parity.
 - Rust defender policy engine with bounded worker concurrency.
 - Prompt injection scoring + command risk scoring.
 - Host integrity baseline checks.

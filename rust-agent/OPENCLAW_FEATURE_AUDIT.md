@@ -24,7 +24,7 @@ Status legend:
 | Area | Upstream OpenClaw Feature Surface | Rust Status | Notes |
 |---|---|---|---|
 | Runtime portability | macOS/Linux/Windows workflow; Linux service deployment | `Implemented` | Rust toolchain pinned to 1.83; Ubuntu build script and systemd user unit included. |
-| Gateway protocol connectivity | WS control plane (`connect`, events, session/gateway methods) | `Partial` | Rust bridge uses typed frame helpers (`req`/`resp`/`event`), emits `security.decision`; full RPC dispatch parity still pending. |
+| Gateway protocol connectivity | WS control plane (`connect`, events, session/gateway methods) | `Partial` | Rust bridge uses typed frame helpers (`req`/`resp`/`event`), method-family classification, and known-method registry; full RPC dispatch parity still pending. |
 | Full Gateway replacement | Sessions, presence, routing, config mutations, cron/webhooks, control UI serving | `Not Started` | Still provided by upstream TypeScript Gateway. |
 | Session model | `main` session, group isolation, activation/queue policies, reply-back | `Partial` | Session state counters + last-decision persistence added; scheduler/routing parity still pending. |
 | Channel integrations | WhatsApp, Telegram, Discord, Slack, IRC, Signal, Google Chat, Teams, Matrix, etc. | `Partial` | Rust adapter scaffold includes `whatsapp`, `telegram`, `slack`, `discord`, and generic extraction; full channel runtime parity remains pending. |

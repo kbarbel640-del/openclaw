@@ -10,6 +10,7 @@ use tracing::{debug, info, warn};
 
 use crate::channels::DriverRegistry;
 use crate::config::GatewayConfig;
+use crate::gateway::MethodRegistry;
 use crate::protocol::{
     classify_method, decision_event_frame, frame_kind, parse_frame_text, parse_rpc_request,
     parse_rpc_response, ConnectFrame, FrameKind,
@@ -21,6 +22,7 @@ pub struct GatewayBridge {
     decision_event: String,
     max_queue: usize,
     drivers: Arc<DriverRegistry>,
+    methods: Arc<MethodRegistry>,
 }
 
 impl GatewayBridge {
@@ -30,6 +32,7 @@ impl GatewayBridge {
             decision_event,
             max_queue: max_queue.max(16),
             drivers: Arc::new(DriverRegistry::default_registry()),
+            methods: Arc::new(MethodRegistry::default_registry()),
         }
     }
 
@@ -103,10 +106,15 @@ impl GatewayBridge {
                                 FrameKind::Req => {
                                     if let Some(req) = parse_rpc_request(&frame) {
                                         let family = classify_method(&req.method);
+                                        let resolved = self.methods.resolve(&req.method);
                                         debug!(
-                                            "rpc req id={} method={} family={family:?}",
+                                            "rpc req id={} method={} family={family:?} known={}",
                                             req.id, req.method
+                                            , resolved.known
                                         );
+                                        if !resolved.known {
+                                            warn!("unknown rpc method seen: {}", resolved.canonical);
+                                        }
                                     }
                                 }
                                 FrameKind::Resp => {

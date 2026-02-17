@@ -1,6 +1,7 @@
 mod bridge;
 mod channels;
 mod config;
+mod gateway;
 mod memory;
 mod protocol;
 mod runtime;
