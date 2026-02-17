@@ -70,8 +70,8 @@ describe("markAuthProfileFailure", () => {
         cfg: {
           auth: {
             cooldowns: {
-              billingBackoffHoursByProvider: { Anthropic: 1 },
-              billingMaxHours: 2,
+              billingBackoffByProvider: { Anthropic: "1h" },
+              billingMax: "2h",
             },
           },
         } as never,
@@ -116,7 +116,7 @@ describe("markAuthProfileFailure", () => {
         reason: "billing",
         agentDir,
         cfg: {
-          auth: { cooldowns: { failureWindowHours: 24 } },
+          auth: { cooldowns: { failureWindow: "24h" } },
         } as never,
       });
 
