@@ -1,8 +1,8 @@
-import type { GatewayPlugin } from "@buape/carbon/gateway";
 import type { EventEmitter } from "node:events";
-import type { RuntimeEnv } from "../../runtime.js";
+import type { GatewayPlugin } from "@buape/carbon/gateway";
 import { danger, warn } from "../../globals.js";
 import { computeBackoff, sleepWithAbort, type BackoffPolicy } from "../../infra/backoff.js";
+import type { RuntimeEnv } from "../../runtime.js";
 
 const RESUME_ATTEMPT_MARKER = "Attempting resume with backoff";
 const RECONNECT_MARKER = "Reconnecting with backoff";

@@ -1,5 +1,5 @@
-import type { GatewayPlugin } from "@buape/carbon/gateway";
 import { EventEmitter } from "node:events";
+import type { GatewayPlugin } from "@buape/carbon/gateway";
 import { describe, expect, it, vi } from "vitest";
 import {
   attachDiscordGatewayRecovery,
