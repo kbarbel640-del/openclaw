@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { CommandLane } from "../../process/lanes.js";
 import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
 import { runCliAgent } from "../../agents/cli-runner.js";
 import { getCliSessionId } from "../../agents/cli-session.js";
@@ -305,6 +306,25 @@ export async function runAgentTurnWithFallback(params: {
             suppressToolErrorWarnings: params.opts?.suppressToolErrorWarnings,
             bashElevated: params.followupRun.run.bashElevated,
             timeoutMs: params.followupRun.run.timeoutMs,
+            // ── Priority Preemption: Heartbeat lane routing ────────────
+            // When `messages.queue.priorityPreemption` is enabled AND this
+            // run is a heartbeat, route it to the dedicated "heartbeat"
+            // global lane instead of "main". This ensures heartbeat runs
+            // never consume a concurrency slot that human messages need.
+            //
+            // Without this, a heartbeat starting just before a human message
+            // would force the human to wait 30-60+ seconds for the heartbeat
+            // to finish — because both share the same "main" lane and its
+            // limited concurrency slots.
+            //
+            // The session lock (per-conversation) is unaffected — heartbeats
+            // still hold their session lock, which is correct because two
+            // runs on the same conversation must never overlap.
+            lane:
+              params.isHeartbeat &&
+              params.followupRun.run.config?.messages?.queue?.priorityPreemption
+                ? CommandLane.Heartbeat
+                : undefined,
             runId,
             images: params.opts?.images,
             abortSignal: params.opts?.abortSignal,
