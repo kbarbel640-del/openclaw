@@ -8,13 +8,14 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { OpenClawConfig } from "../../../config/config.js";
-import type { HookHandler } from "../../hooks.js";
 import { resolveAgentWorkspaceDir } from "../../../agents/agent-scope.js";
+import type { OpenClawConfig } from "../../../config/config.js";
 import { resolveStateDir } from "../../../config/paths.js";
 import { createSubsystemLogger } from "../../../logging/subsystem.js";
 import { resolveAgentIdFromSessionKey } from "../../../routing/session-key.js";
+import { hasInterSessionUserProvenance } from "../../../sessions/input-provenance.js";
 import { resolveHookConfig } from "../../config.js";
+import type { HookHandler } from "../../hooks.js";
 import { generateSlugViaLLM } from "../../llm-slug-generator.js";
 
 const log = createSubsystemLogger("hooks/session-memory");
@@ -40,6 +41,9 @@ async function getRecentSessionContent(
           const msg = entry.message;
           const role = msg.role;
           if ((role === "user" || role === "assistant") && msg.content) {
+            if (role === "user" && hasInterSessionUserProvenance(msg)) {
+              continue;
+            }
             // Extract text content
             const text = Array.isArray(msg.content)
               ? // oxlint-disable-next-line typescript/no-explicit-any
@@ -60,6 +64,46 @@ async function getRecentSessionContent(
     return recentMessages.join("\n");
   } catch {
     return null;
+  }
+}
+
+/**
+ * Try the active transcript first; if /new already rotated it,
+ * fallback to the latest .jsonl.reset.* sibling.
+ */
+async function getRecentSessionContentWithResetFallback(
+  sessionFilePath: string,
+  messageCount: number = 15,
+): Promise<string | null> {
+  const primary = await getRecentSessionContent(sessionFilePath, messageCount);
+  if (primary) {
+    return primary;
+  }
+
+  try {
+    const dir = path.dirname(sessionFilePath);
+    const base = path.basename(sessionFilePath);
+    const resetPrefix = `${base}.reset.`;
+    const files = await fs.readdir(dir);
+    const resetCandidates = files.filter((name) => name.startsWith(resetPrefix)).toSorted();
+
+    if (resetCandidates.length === 0) {
+      return primary;
+    }
+
+    const latestResetPath = path.join(dir, resetCandidates[resetCandidates.length - 1]);
+    const fallback = await getRecentSessionContent(latestResetPath, messageCount);
+
+    if (fallback) {
+      log.debug("Loaded session content from reset fallback", {
+        sessionFilePath,
+        latestResetPath,
+      });
+    }
+
+    return fallback || primary;
+  } catch {
+    return primary;
   }
 }
 
@@ -89,12 +133,35 @@ const saveSessionToMemory: HookHandler = async (event) => {
     const dateStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
 
     // Generate descriptive slug from session using LLM
+    // Prefer previousSessionEntry (old session before /new) over current (which may be empty)
     const sessionEntry = (context.previousSessionEntry || context.sessionEntry || {}) as Record<
       string,
       unknown
     >;
+    let currentSessionFile = (sessionEntry.sessionFile as string) || undefined;
+
+    // If sessionFile is empty or looks like a new/reset file, try to find the previous session file
+    if (!currentSessionFile || currentSessionFile.includes(".reset.")) {
+      // Look for previous session file in the sessions directory
+      const sessionsDir = path.dirname(currentSessionFile || "");
+      if (sessionsDir) {
+        try {
+          const files = await fs.readdir(sessionsDir);
+          const sessionFiles = files
+            .filter((f) => f.endsWith(".jsonl") && !f.includes(".reset."))
+            .toSorted()
+            .toReversed();
+          if (sessionFiles.length > 0) {
+            currentSessionFile = path.join(sessionsDir, sessionFiles[0]);
+            log.debug("Found previous session file", { file: currentSessionFile });
+          }
+        } catch {
+          // Ignore errors reading directory
+        }
+      }
+    }
+
     const currentSessionId = sessionEntry.sessionId as string;
-    const currentSessionFile = sessionEntry.sessionFile as string;
 
     log.debug("Session context resolved", {
       sessionId: currentSessionId,
@@ -115,15 +182,22 @@ const saveSessionToMemory: HookHandler = async (event) => {
     let sessionContent: string | null = null;
 
     if (sessionFile) {
-      // Get recent conversation content
-      sessionContent = await getRecentSessionContent(sessionFile, messageCount);
+      // Get recent conversation content, with fallback to rotated reset transcript.
+      sessionContent = await getRecentSessionContentWithResetFallback(sessionFile, messageCount);
       log.debug("Session content loaded", {
         length: sessionContent?.length ?? 0,
         messageCount,
       });
 
-      // Avoid calling the model provider in unit tests, keep hooks fast and deterministic.
-      if (sessionContent && cfg && !process.env.VITEST && process.env.NODE_ENV !== "test") {
+      // Avoid calling the model provider in unit tests; keep hooks fast and deterministic.
+      const isTestEnv =
+        process.env.OPENCLAW_TEST_FAST === "1" ||
+        process.env.VITEST === "true" ||
+        process.env.VITEST === "1" ||
+        process.env.NODE_ENV === "test";
+      const allowLlmSlug = !isTestEnv && hookConfig?.llmSlug !== false;
+
+      if (sessionContent && cfg && allowLlmSlug) {
         log.debug("Calling generateSlugViaLLM...");
         // Use LLM to generate a descriptive slug
         slug = await generateSlugViaLLM({ sessionContent, cfg });
