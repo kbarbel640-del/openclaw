@@ -459,13 +459,21 @@ for ((iteration = 1; iteration <= ITERATIONS; iteration++)); do
     if ! timeout "$WAIT_SECONDS" nak req -q --stream \
       -k 25800 -k 25801 -k 25803 -k 25804 -k 25805 -k 25806 \
       -p "$SENDER_PUBLIC_KEY" -t "s=$session_id" -s "$since_filter" "${RELAYS[@]}" >"$tmp_events"; then
-      true
+      if ! timeout "$WAIT_SECONDS" nak req -q --stream \
+        -k 25800 -k 25801 -k 25803 -k 25804 -k 25805 -k 25806 \
+        -t "s=$session_id" -s "$since_filter" "${RELAYS[@]}" >"$tmp_events"; then
+        true
+      fi
     fi
   else
     if ! timeout "$WAIT_SECONDS" nak req -q --stream \
       -k 25803 \
       -p "$SENDER_PUBLIC_KEY" -t "s=$session_id" -s "$since_filter" "${RELAYS[@]}" >"$tmp_events"; then
-      true
+      if ! timeout "$WAIT_SECONDS" nak req -q --stream \
+        -k 25803 \
+        -t "s=$session_id" -s "$since_filter" "${RELAYS[@]}" >"$tmp_events"; then
+        true
+      fi
     fi
   fi
 
