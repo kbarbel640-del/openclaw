@@ -188,10 +188,6 @@ export async function prepareSlackMessage(params: {
   }
 
   if (isGroupDm) {
-    if (!ctx.groupDmEnabled) {
-      logVerbose("slack: drop group dm (group dms disabled)");
-      return null;
-    }
     if (allowFromLower.length > 0) {
       const allowMatch = resolveSlackAllowListMatch({
         allowList: allowFromLower,
@@ -397,7 +393,7 @@ export async function prepareSlackMessage(params: {
       shouldAckReactionGate({
         scope: ctx.ackReactionScope as AckReactionScope | undefined,
         isDirect: isDirectMessage,
-        isGroup: isRoomish,
+        isGroup: isRoom,
         isMentionableGroup: isRoom,
         requireMention: Boolean(shouldRequireMention),
         canDetectMention,
