@@ -260,6 +260,6 @@ export function applyExtraParamsToAgent(
 
   // Normalize tool call arguments for providers that return objects instead of JSON strings.
   // Applied universally as a safety net — no-op when arguments are already correct.
-  // See: https://github.com/anthropics/claude-code/issues/19261
+  // See: https://github.com/openclaw/openclaw/issues/19261
   agent.streamFn = createToolArgsNormalizerWrapper(agent.streamFn);
 }

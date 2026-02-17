@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import type { AssistantMessageEvent, ToolCall } from "@mariozechner/pi-ai";
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
@@ -63,8 +64,7 @@ export function normalizeEvent(
         );
       }
       return {
-        type: "toolcall_end",
-        contentIndex: event.contentIndex,
+        ...event,
         toolCall: repairedToolCall,
         partial: repairedPartial,
       };
@@ -94,8 +94,7 @@ export function normalizeEvent(
     });
     if (repaired) {
       return {
-        type: "done",
-        reason: event.reason,
+        ...event,
         message: { ...message, content: repairedContent },
       };
     }
@@ -123,8 +122,10 @@ export function createToolArgsNormalizerWrapper(baseStreamFn: StreamFn | undefin
     // This shouldn't happen in practice since applyExtraParamsToAgent always
     // has a streamFn by this point, but handle gracefully.
     return (...args) => {
-      const { streamSimple } =
-        require("@mariozechner/pi-ai") as typeof import("@mariozechner/pi-ai");
+      const esmRequire = createRequire(import.meta.url);
+      const { streamSimple } = esmRequire(
+        "@mariozechner/pi-ai",
+      ) as typeof import("@mariozechner/pi-ai");
       return streamSimple(...args);
     };
   }

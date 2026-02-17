@@ -100,7 +100,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
         const { toolCallId, params, onUpdate, signal } = splitToolExecuteArgs(args);
         let executeParams = params;
         // Warn if params are empty but tool has required properties — likely a streaming parse bug.
-        // See: https://github.com/anthropics/claude-code/issues/19261
+        // See: https://github.com/openclaw/openclaw/issues/19261
         if (
           executeParams != null &&
           typeof executeParams === "object" &&
@@ -111,7 +111,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
         ) {
           logWarn(
             `[tools] ${normalizedName}: received empty params {} but tool has required properties. ` +
-              `This may indicate a provider streaming bug. See: https://github.com/anthropics/claude-code/issues/19261`,
+              `This may indicate a provider streaming bug. See: https://github.com/openclaw/openclaw/issues/19261`,
           );
         }
         try {
