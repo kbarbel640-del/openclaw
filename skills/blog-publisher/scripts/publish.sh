@@ -63,7 +63,7 @@ CONTENT=$(cat "$CONTENT_FILE")
 # Build tags YAML
 TAGS_YAML=""
 if [[ -n "$TAGS" ]]; then
-  TAGS_YAML="tags: [$(echo "$TAGS" | sed 's/,/, /g' | sed 's/[^,]*/"&"/g' | sed 's/, "/", "/g')]"
+  TAGS_YAML="tags: [$(echo "$TAGS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sed 's/.*/"&"/' | paste -sd',' - | sed 's/,/, /g')]"
 fi
 
 DRAFT_VAL="false"
