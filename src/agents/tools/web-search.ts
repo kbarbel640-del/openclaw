@@ -599,7 +599,7 @@ async function runGrokSearch(params: {
 async function runWebSearch(params: {
   query: string;
   count: number;
-  apiKey: string;
+  apiKey: string | undefined;
   timeoutSeconds: number;
   cacheTtlMs: number;
   provider: (typeof SEARCH_PROVIDERS)[number];
@@ -630,7 +630,7 @@ async function runWebSearch(params: {
   if (params.provider === "perplexity") {
     const { content, citations } = await runPerplexitySearch({
       query: params.query,
-      apiKey: params.apiKey,
+      apiKey: params.apiKey!, // Perplexity always requires a key (checked by caller)
       baseUrl: params.perplexityBaseUrl ?? DEFAULT_PERPLEXITY_BASE_URL,
       model: params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL,
       timeoutSeconds: params.timeoutSeconds,
@@ -658,7 +658,7 @@ async function runWebSearch(params: {
   if (params.provider === "grok") {
     const { content, citations, inlineCitations } = await runGrokSearch({
       query: params.query,
-      apiKey: params.apiKey,
+      apiKey: params.apiKey!, // Grok always requires a key (checked by caller)
       model: params.grokModel ?? DEFAULT_GROK_MODEL,
       timeoutSeconds: params.timeoutSeconds,
       inlineCitations: params.grokInlineCitations ?? false,
@@ -704,12 +704,16 @@ async function runWebSearch(params: {
     url.searchParams.set("freshness", params.freshness);
   }
 
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
+  if (params.apiKey) {
+    headers["X-Subscription-Token"] = params.apiKey;
+  }
+
   const res = await fetch(url.toString(), {
     method: "GET",
-    headers: {
-      Accept: "application/json",
-      "X-Subscription-Token": params.apiKey,
-    },
+    headers,
     signal: withTimeout(undefined, params.timeoutSeconds * 1000),
   });
 
@@ -788,7 +792,11 @@ export function createWebSearchTool(options?: {
             ? resolveGrokApiKey(grokConfig)
             : resolveSearchApiKey(search, braveConfig);
 
-      if (!apiKey) {
+      // When a custom baseUrl is configured (e.g. a credential-injecting proxy),
+      // the API key may be injected by the proxy — skip the key requirement.
+      const braveBaseUrl = resolveBraveBaseUrl(braveConfig, search);
+      const hasCustomBraveBaseUrl = provider === "brave" && braveBaseUrl !== DEFAULT_BRAVE_BASE_URL;
+      if (!apiKey && !hasCustomBraveBaseUrl) {
         return jsonResult(missingSearchKeyPayload(provider));
       }
       const params = args as Record<string, unknown>;
@@ -842,8 +850,10 @@ export function createWebSearchTool(options?: {
 }
 
 export const __testing = {
+  DEFAULT_BRAVE_BASE_URL,
   resolveBraveBaseUrl,
   resolveBraveConfig,
+  resolveSearchApiKey,
   inferPerplexityBaseUrlFromApiKey,
   resolvePerplexityBaseUrl,
   isDirectPerplexityBaseUrl,
