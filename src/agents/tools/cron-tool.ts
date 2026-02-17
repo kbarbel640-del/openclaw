@@ -887,17 +887,6 @@ function parseRelativeDurationMsFromText(text: unknown): number | undefined {
   return undefined;
 }
 
-function hasRecurringReminderHint(text: unknown): boolean {
-  if (typeof text !== "string") {
-    return false;
-  }
-  const raw = text.trim();
-  if (!raw) {
-    return false;
-  }
-  return /\b(every|each|daily|weekly|monthly|yearly|hourly|recurring|repeat(?:ing)?)\b/i.test(raw);
-}
-
 function collectReminderTextCandidates(job: Record<string, unknown>): unknown[] {
   const payload = isRecord(job.payload) ? job.payload : undefined;
   return [job.description, job.name, payload?.text, payload?.message];
@@ -914,22 +903,9 @@ function inferRequestedRelativeDurationMs(job: Record<string, unknown>): number 
   return undefined;
 }
 
-function hasRecurringIntentInReminderText(job: Record<string, unknown>): boolean {
-  const candidates = collectReminderTextCandidates(job);
-  for (const candidate of candidates) {
-    if (hasRecurringReminderHint(candidate)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 function validateRelativeReminderScheduleSemantics(job: Record<string, unknown>) {
   const requestedMs = inferRequestedRelativeDurationMs(job);
   if (requestedMs === undefined) {
-    return;
-  }
-  if (hasRecurringIntentInReminderText(job)) {
     return;
   }
 

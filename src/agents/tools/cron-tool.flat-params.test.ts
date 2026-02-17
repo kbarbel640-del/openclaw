@@ -95,13 +95,13 @@ describe("cron tool flat-params", () => {
     expect(callGatewayMock).toHaveBeenCalledTimes(0);
   });
 
-  it("keeps recurring schedules when text clearly indicates recurring intent", async () => {
+  it("keeps recurring schedules when reminder text is explicitly recurring", async () => {
     const tool = createCronTool();
     await tool.execute("call-recurring-intent", {
       action: "add",
       job: {
         name: "hourly-check",
-        description: "in 1 minute every day remind me to check messages",
+        description: "every day remind me to check messages",
         schedule: { kind: "every", everyMs: 60_000 },
         sessionTarget: "main",
         payload: { kind: "systemEvent", text: "recurring reminder: check messages" },
