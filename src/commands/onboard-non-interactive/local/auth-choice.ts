@@ -70,6 +70,7 @@ import {
   resolveCustomProviderId,
 } from "../../onboard-custom.js";
 import { applyOpenAIConfig } from "../../openai-model-default.js";
+import { setupAiFabricNonInteractive } from "../../setup-ai-fabric.js";
 import { detectZaiEndpoint } from "../../zai-endpoint-detect.js";
 import { resolveNonInteractiveApiKey } from "../api-keys.js";
 
@@ -843,6 +844,22 @@ export async function applyNonInteractiveAuthChoice(params: {
         `Cloud.ru FM configured (preset: ${preset.label}). ${docker.reason} — start proxy manually: docker compose -f ${CLOUDRU_COMPOSE_FILENAME} up -d`,
       );
     }
+
+    // AI Fabric MCP auto-discovery (non-interactive)
+    const projectId = opts.cloudruProjectId?.trim() ?? process.env["CLOUDRU_PROJECT_ID"]?.trim();
+    if (projectId && !opts.skipAiFabric) {
+      const fabricResult = await setupAiFabricNonInteractive({
+        config: nextConfig,
+        apiKey: resolved.key,
+        projectId,
+        workspaceDir,
+      });
+      nextConfig = fabricResult.config;
+      if (fabricResult.configured) {
+        runtime.log(`AI Fabric: MCP servers auto-connected for project ${projectId}.`);
+      }
+    }
+
     return nextConfig;
   }
 

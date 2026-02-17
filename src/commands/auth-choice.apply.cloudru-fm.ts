@@ -42,6 +42,7 @@ import {
   writeCloudruEnvFile,
   ensureGitignoreEntries,
 } from "./onboard-cloudru-fm.js";
+import { setupAiFabric } from "./setup-ai-fabric.js";
 
 const CLOUDRU_FM_CHOICES = new Set(Object.keys(CLOUDRU_FM_PRESETS));
 
@@ -247,6 +248,18 @@ export async function applyAuthChoiceCloudruFm(
       }
     }
   }
+
+  // -----------------------------------------------------------------------
+  // 6. AI Fabric MCP auto-discovery (optional)
+  // -----------------------------------------------------------------------
+
+  const fabricResult = await setupAiFabric({
+    config: nextConfig,
+    prompter: params.prompter,
+    apiKey,
+    workspaceDir,
+  });
+  nextConfig = fabricResult.config;
 
   return { config: nextConfig };
 }

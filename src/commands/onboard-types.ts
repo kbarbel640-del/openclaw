@@ -115,6 +115,10 @@ export type OnboardOptions = {
   opencodeZenApiKey?: string;
   xaiApiKey?: string;
   cloudruApiKey?: string;
+  /** Cloud.ru AI Fabric project ID for MCP auto-discovery. */
+  cloudruProjectId?: string;
+  /** Skip AI Fabric setup step in non-interactive mode. */
+  skipAiFabric?: boolean;
   qianfanApiKey?: string;
   customBaseUrl?: string;
   customApiKey?: string;
