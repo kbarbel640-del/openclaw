@@ -78,15 +78,15 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
     return Array.from(actions);
   },
   supportsButtons: ({ cfg }) => {
+    // Always return true if Telegram is enabled with a valid token.
+    // The actual button support is controlled at runtime by capabilities.inlineButtons,
+    // but the schema should always include the buttons parameter for better UX.
+    // This allows agents to always attempt to send buttons, and if disabled,
+    // the message will be sent without buttons (with optional warning).
     const accounts = listEnabledTelegramAccounts(cfg).filter(
       (account) => account.tokenSource !== "none",
     );
-    if (accounts.length === 0) {
-      return false;
-    }
-    return accounts.some((account) =>
-      isTelegramInlineButtonsEnabled({ cfg, accountId: account.accountId }),
-    );
+    return accounts.length > 0;
   },
   extractToolSend: ({ args }) => {
     return extractToolSend(args, "sendMessage");
