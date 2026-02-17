@@ -7,7 +7,7 @@ function assistantToolCall(id: string, opts?: { stopReason?: string }): AgentMes
     role: "assistant",
     content: [{ type: "toolCall", id, name: "exec", arguments: { command: "ls" } }],
     stopReason: opts?.stopReason,
-  } as AgentMessage;
+  } as unknown as AgentMessage;
 }
 
 function toolResult(id: string): AgentMessage {
@@ -16,14 +16,14 @@ function toolResult(id: string): AgentMessage {
     toolCallId: id,
     toolName: "exec",
     content: [{ type: "text", text: "result" }],
-  } as AgentMessage;
+  } as unknown as AgentMessage;
 }
 
 function textAssistant(text: string): AgentMessage {
   return {
     role: "assistant",
     content: [{ type: "text", text }],
-  } as AgentMessage;
+  } as unknown as AgentMessage;
 }
 
 describe("repairToolUseResultPairing — aborted message tool_use stripping (#16823)", () => {
@@ -89,7 +89,7 @@ describe("repairToolUseResultPairing — aborted message tool_use stripping (#16
         { type: "toolCall", id: "call_1", name: "exec", arguments: {} },
       ],
       stopReason: "aborted",
-    } as AgentMessage;
+    } as unknown as AgentMessage;
     const messages: AgentMessage[] = [abortedMsg, textAssistant("retry")];
     const report = repairToolUseResultPairing(messages);
     // Should keep the text content from the aborted message
