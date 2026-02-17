@@ -421,7 +421,12 @@ export const dispatchTelegramMessage = async ({
       },
     }));
   } finally {
-    if (!finalizedViaPreviewMessage) {
+    // Only clear (delete) the streamed draft message when it was NOT finalized
+    // via preview edit AND no content was successfully streamed.  When block
+    // streaming delivered content, the draft IS the reply — deleting it would
+    // erase the user-visible response (e.g. when only an error payload remains
+    // as a final delivery).
+    if (!finalizedViaPreviewMessage && !hasStreamedMessage) {
       await draftStream?.clear();
     }
     draftStream?.stop();

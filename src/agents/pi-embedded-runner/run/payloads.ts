@@ -55,7 +55,12 @@ function shouldShowToolErrorWarning(params: {
   }
   const isMutatingToolError =
     params.lastToolError.mutatingAction ?? isLikelyMutatingToolName(params.lastToolError.toolName);
-  if (isMutatingToolError && !params.hasUserFacingReply) {
+  // Always surface mutating tool failures — even when the assistant produced a
+  // reply.  The warning and the reply serve different purposes: the reply is
+  // the assistant's response; the warning tells the user a side-effect failed.
+  // Both conditions must be satisfied (warning shown AND reply preserved), not
+  // one OR the other.
+  if (isMutatingToolError) {
     return true;
   }
   if (params.suppressToolErrors) {

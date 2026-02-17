@@ -94,8 +94,11 @@ export function buildReplyPayloads(params: {
     sentTexts: messagingToolSentTexts,
   });
   // Filter out payloads already sent via pipeline or directly during tool flush.
+  // When block streaming succeeded, drop non-error final payloads (the text
+  // was already delivered via the stream).  Error payloads (e.g. tool failure
+  // warnings) must still be delivered — they were never part of the stream.
   const filteredPayloads = shouldDropFinalPayloads
-    ? []
+    ? dedupedPayloads.filter((p) => p.isError)
     : params.blockStreamingEnabled
       ? dedupedPayloads.filter((payload) => !params.blockReplyPipeline?.hasSentPayload(payload))
       : params.directlySentBlockKeys?.size
