@@ -234,7 +234,8 @@ function resolveBraveBaseUrl(search?: WebSearchConfig): string | undefined {
   if (!search || typeof search !== "object") {
     return undefined;
   }
-  const baseUrl = "baseUrl" in search && typeof search.baseUrl === "string" ? search.baseUrl : undefined;
+  const baseUrl =
+    "baseUrl" in search && typeof search.baseUrl === "string" ? search.baseUrl : undefined;
   return baseUrl?.trim() || undefined;
 }
 
