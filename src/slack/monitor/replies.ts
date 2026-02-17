@@ -57,6 +57,7 @@ export async function deliverReplies(params: {
   runtime: RuntimeEnv;
   textLimit: number;
   replyThreadTs?: string;
+  reasoningDisplay?: "inline" | "collapsed" | "hidden";
 }) {
   for (const payload of params.replies) {
     const threadTs = payload.replyToId ?? params.replyThreadTs;
@@ -73,8 +74,13 @@ export async function deliverReplies(params: {
       }
 
       // Render reasoning/thinking blocks as collapsed Slack attachments
-      // so they don't dominate the conversation.
-      if (isReasoningReply(trimmed)) {
+      // when configured via channels.slack.reasoningDisplay = "collapsed".
+      // Default is "inline" (current behavior, no change).
+      const reasoningDisplay = params.reasoningDisplay ?? "inline";
+      if (reasoningDisplay === "hidden" && isReasoningReply(trimmed)) {
+        continue;
+      }
+      if (reasoningDisplay === "collapsed" && isReasoningReply(trimmed)) {
         const body = extractReasoningBody(trimmed);
         const summary = buildReasoningSummary(body);
         const mrkdwnBody = markdownToSlackMrkdwn(body);
