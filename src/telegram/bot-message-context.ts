@@ -30,7 +30,12 @@ import {
 import type { OpenClawConfig } from "../config/config.js";
 import { loadConfig } from "../config/config.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../config/sessions.js";
-import type { DmPolicy, TelegramGroupConfig, TelegramTopicConfig } from "../config/types.js";
+import type {
+  DmPolicy,
+  TelegramGroupConfig,
+  TelegramTotpConfig,
+  TelegramTopicConfig,
+} from "../config/types.js";
 import { logVerbose, shouldLogVerbose } from "../globals.js";
 import { recordChannelActivity } from "../infra/channel-activity.js";
 import { resolveAgentRoute } from "../routing/resolve-route.js";
@@ -55,6 +60,7 @@ import {
 } from "./bot/helpers.js";
 import type { StickerMetadata, TelegramContext } from "./bot/types.js";
 import { enforceTelegramDmAccess } from "./dm-access.js";
+import { checkTotpGate } from "./totp-gate.js";
 import { evaluateTelegramGroupBaseAccess } from "./group-access.js";
 import { resolveTelegramGroupPromptSettings } from "./group-config-helpers.js";
 import {
@@ -111,6 +117,7 @@ export type BuildTelegramMessageContextParams = {
   resolveGroupActivation: ResolveGroupActivation;
   resolveGroupRequireMention: ResolveGroupRequireMention;
   resolveTelegramGroupConfig: ResolveTelegramGroupConfig;
+  totpConfig?: TelegramTotpConfig;
 };
 
 async function resolveStickerVisionSupport(params: {
@@ -151,6 +158,7 @@ export const buildTelegramMessageContext = async ({
   resolveGroupActivation,
   resolveGroupRequireMention,
   resolveTelegramGroupConfig,
+  totpConfig,
 }: BuildTelegramMessageContextParams) => {
   const msg = primaryCtx.message;
   const chatId = msg.chat.id;
@@ -277,6 +285,46 @@ export const buildTelegramMessageContext = async ({
     accountId: account.accountId,
     direction: "inbound",
   });
+
+  // TOTP 2FA gate for DMs
+  if (!isGroup && totpConfig?.enabled) {
+    const totpUserId = msg.from?.id ? String(msg.from.id) : String(chatId);
+    const totpMessageText = msg.text ?? msg.caption ?? "";
+    const totpResult = await checkTotpGate({
+      telegramUserId: totpUserId,
+      messageText: totpMessageText,
+      totpConfig,
+    });
+    if (totpResult.action === "prompt") {
+      await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        fn: () => bot.api.sendMessage(chatId, "🔐 Please enter your 6-digit authenticator code."),
+      });
+      return null;
+    }
+    if (totpResult.action === "rejected") {
+      await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        fn: () => bot.api.sendMessage(chatId, "❌ Invalid code. Please try again."),
+      });
+      return null;
+    }
+    if (totpResult.action === "rate_limited") {
+      await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        fn: () => bot.api.sendMessage(chatId, "⏳ Too many attempts. Please wait and try again."),
+      });
+      return null;
+    }
+    if (totpResult.action === "verified") {
+      await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        fn: () => bot.api.sendMessage(chatId, "✅ Authenticated. Your session is now active."),
+      });
+      return null;
+    }
+    // action === "pass" -> session already verified, continue normally
+  }
 
   const botUsername = primaryCtx.me?.username?.toLowerCase();
   const allowForCommands = isGroup ? effectiveGroupAllow : effectiveDmAllow;
