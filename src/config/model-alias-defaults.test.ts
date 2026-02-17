@@ -10,6 +10,7 @@ describe("applyModelDefaults", () => {
         defaults: {
           models: {
             "anthropic/claude-opus-4-6": {},
+            "anthropic/claude-sonnet-4-6": {},
             "openai/gpt-5.2": {},
           },
         },
@@ -18,6 +19,7 @@ describe("applyModelDefaults", () => {
     const next = applyModelDefaults(cfg);
 
     expect(next.agents?.defaults?.models?.["anthropic/claude-opus-4-6"]?.alias).toBe("opus");
+    expect(next.agents?.defaults?.models?.["anthropic/claude-sonnet-4-6"]?.alias).toBe("sonnet");
     expect(next.agents?.defaults?.models?.["openai/gpt-5.2"]?.alias).toBe("gpt");
   });
 

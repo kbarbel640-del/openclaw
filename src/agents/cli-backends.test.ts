@@ -33,4 +33,12 @@ describe("resolveCliBackendConfig reliability merge", () => {
     expect(resolved?.config.reliability?.watchdog?.resume?.maxMs).toBe(180_000);
     expect(resolved?.config.reliability?.watchdog?.fresh?.noOutputTimeoutRatio).toBe(0.8);
   });
+
+  it("includes Sonnet 4.6 aliases in built-in claude-cli backend", () => {
+    const resolved = resolveCliBackendConfig("claude-cli");
+
+    expect(resolved).not.toBeNull();
+    expect(resolved?.config.modelAliases?.["sonnet-4.6"]).toBe("sonnet");
+    expect(resolved?.config.modelAliases?.["claude-sonnet-4-6"]).toBe("sonnet");
+  });
 });
