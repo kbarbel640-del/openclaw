@@ -48,11 +48,34 @@ export async function downloadLineMedia(
 
   logVerbose(`line: downloaded media ${messageId} to ${filePath} (${buffer.length} bytes)`);
 
+  // Schedule cleanup so temp files don't accumulate indefinitely.
+  // 5 minutes is enough time for the media pipeline to process the file.
+  scheduleMediaCleanup(filePath, 5 * 60 * 1000);
+
   return {
     path: filePath,
     contentType,
     size: buffer.length,
   };
+}
+
+/**
+ * Schedule a temp file for deletion after a delay.
+ * Best-effort: errors are silently ignored (file may already be gone).
+ */
+function scheduleMediaCleanup(filePath: string, delayMs: number): void {
+  const timer = setTimeout(async () => {
+    try {
+      await fs.promises.unlink(filePath);
+      logVerbose(`line: cleaned up temp media ${path.basename(filePath)}`);
+    } catch {
+      // File already removed or inaccessible — ignore.
+    }
+  }, delayMs);
+  // Don't keep the process alive just for cleanup.
+  if (timer.unref) {
+    timer.unref();
+  }
 }
 
 function detectContentType(buffer: Buffer): string {
