@@ -1,9 +1,10 @@
 import { z } from "zod";
 import {
   HeartbeatSchema,
-  AgentSandboxSchema,
-  AgentModelSchema,
   MemorySearchSchema,
+  SandboxBrowserSchema,
+  SandboxDockerSchema,
+  SandboxPruneSchema,
 } from "./zod-schema.agent-runtime.js";
 import {
   BlockStreamingChunkSchema,
@@ -38,17 +39,6 @@ export const AgentDefaultsSchema = z
             params: z.record(z.string(), z.unknown()).optional(),
             /** Enable streaming for this model (default: true, false for Ollama to avoid SDK issue #1205). */
             streaming: z.boolean().optional(),
-            /** Per-model default thinking level (overrides global thinkingDefault). */
-            thinkingDefault: z
-              .union([
-                z.literal("off"),
-                z.literal("minimal"),
-                z.literal("low"),
-                z.literal("medium"),
-                z.literal("high"),
-                z.literal("xhigh"),
-              ])
-              .optional(),
           })
           .strict(),
       )
@@ -170,12 +160,35 @@ export const AgentDefaultsSchema = z
             "Maximum number of active children a single agent session can spawn (default: 5).",
           ),
         archiveAfterMinutes: z.number().int().positive().optional(),
-        model: AgentModelSchema.optional(),
+        model: z
+          .union([
+            z.string(),
+            z
+              .object({
+                primary: z.string().optional(),
+                fallbacks: z.array(z.string()).optional(),
+              })
+              .strict(),
+          ])
+          .optional(),
         thinking: z.string().optional(),
       })
       .strict()
       .optional(),
-    sandbox: AgentSandboxSchema,
+    sandbox: z
+      .object({
+        mode: z.union([z.literal("off"), z.literal("non-main"), z.literal("all")]).optional(),
+        workspaceAccess: z.union([z.literal("none"), z.literal("ro"), z.literal("rw")]).optional(),
+        sessionToolsVisibility: z.union([z.literal("spawned"), z.literal("all")]).optional(),
+        scope: z.union([z.literal("session"), z.literal("agent"), z.literal("shared")]).optional(),
+        perSession: z.boolean().optional(),
+        workspaceRoot: z.string().optional(),
+        docker: SandboxDockerSchema,
+        browser: SandboxBrowserSchema,
+        prune: SandboxPruneSchema,
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .optional();

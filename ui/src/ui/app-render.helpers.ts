@@ -1,6 +1,5 @@
 import { html } from "lit";
 import { repeat } from "lit/directives/repeat.js";
-import { t } from "../i18n/index.ts";
 import { refreshChat } from "./app-chat.ts";
 import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
@@ -160,7 +159,7 @@ export function renderChatControls(state: AppViewState) {
             sessionOptions,
             (entry) => entry.key,
             (entry) =>
-              html`<option value=${entry.key} title=${entry.key}>
+              html`<option value=${entry.key}>
                 ${entry.displayName ?? entry.key}
               </option>`,
           )}
@@ -187,7 +186,7 @@ export function renderChatControls(state: AppViewState) {
             });
           }
         }}
-        title=${t("chat.refreshTitle")}
+        title="Refresh chat data"
       >
         ${refreshIcon}
       </button>
@@ -205,7 +204,11 @@ export function renderChatControls(state: AppViewState) {
           });
         }}
         aria-pressed=${showThinking}
-        title=${disableThinkingToggle ? t("chat.onboardingDisabled") : t("chat.thinkingToggle")}
+        title=${
+          disableThinkingToggle
+            ? "Disabled during onboarding"
+            : "Toggle assistant thinking/working output"
+        }
       >
         ${icons.brain}
       </button>
@@ -222,7 +225,11 @@ export function renderChatControls(state: AppViewState) {
           });
         }}
         aria-pressed=${focusActive}
-        title=${disableFocusToggle ? t("chat.onboardingDisabled") : t("chat.focusToggle")}
+        title=${
+          disableFocusToggle
+            ? "Disabled during onboarding"
+            : "Toggle focus mode (hide sidebar + page header)"
+        }
       >
         ${focusIcon}
       </button>
@@ -249,96 +256,19 @@ function resolveMainSessionKey(
   return null;
 }
 
-/* ── Channel display labels ────────────────────────────── */
-const CHANNEL_LABELS: Record<string, string> = {
-  bluebubbles: "iMessage",
-  telegram: "Telegram",
-  discord: "Discord",
-  signal: "Signal",
-  slack: "Slack",
-  whatsapp: "WhatsApp",
-  matrix: "Matrix",
-  email: "Email",
-  sms: "SMS",
-};
-
-const KNOWN_CHANNEL_KEYS = Object.keys(CHANNEL_LABELS);
-
-/** Parsed type / context extracted from a session key. */
-export type SessionKeyInfo = {
-  /** Prefix for typed sessions (Subagent:/Cron:). Empty for others. */
-  prefix: string;
-  /** Human-readable fallback when no label / displayName is available. */
-  fallbackName: string;
-};
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-/**
- * Parse a session key to extract type information and a human-readable
- * fallback display name.  Exported for testing.
- */
-export function parseSessionKey(key: string): SessionKeyInfo {
-  // ── Main session ─────────────────────────────────
-  if (key === "main" || key === "agent:main:main") {
-    return { prefix: "", fallbackName: "Main Session" };
-  }
-
-  // ── Subagent ─────────────────────────────────────
-  if (key.includes(":subagent:")) {
-    return { prefix: "Subagent:", fallbackName: "Subagent:" };
-  }
-
-  // ── Cron job ─────────────────────────────────────
-  if (key.includes(":cron:")) {
-    return { prefix: "Cron:", fallbackName: "Cron Job:" };
-  }
-
-  // ── Direct chat  (agent:<x>:<channel>:direct:<id>) ──
-  const directMatch = key.match(/^agent:[^:]+:([^:]+):direct:(.+)$/);
-  if (directMatch) {
-    const channel = directMatch[1];
-    const identifier = directMatch[2];
-    const channelLabel = CHANNEL_LABELS[channel] ?? capitalize(channel);
-    return { prefix: "", fallbackName: `${channelLabel} · ${identifier}` };
-  }
-
-  // ── Group chat  (agent:<x>:<channel>:group:<id>) ────
-  const groupMatch = key.match(/^agent:[^:]+:([^:]+):group:(.+)$/);
-  if (groupMatch) {
-    const channel = groupMatch[1];
-    const channelLabel = CHANNEL_LABELS[channel] ?? capitalize(channel);
-    return { prefix: "", fallbackName: `${channelLabel} Group` };
-  }
-
-  // ── Channel-prefixed legacy keys (e.g. "bluebubbles:g-…") ──
-  for (const ch of KNOWN_CHANNEL_KEYS) {
-    if (key === ch || key.startsWith(`${ch}:`)) {
-      return { prefix: "", fallbackName: `${CHANNEL_LABELS[ch]} Session` };
-    }
-  }
-
-  // ── Unknown — return key as-is ───────────────────
-  return { prefix: "", fallbackName: key };
-}
-
 export function resolveSessionDisplayName(
   key: string,
   row?: SessionsListResult["sessions"][number],
-): string {
-  const label = row?.label?.trim() || "";
+) {
   const displayName = row?.displayName?.trim() || "";
-  const { prefix, fallbackName } = parseSessionKey(key);
-
-  if (label && label !== key) {
-    return prefix ? `${prefix} ${label}` : label;
-  }
+  const label = row?.label?.trim() || "";
   if (displayName && displayName !== key) {
-    return prefix ? `${prefix} ${displayName}` : displayName;
+    return `${displayName} (${key})`;
   }
-  return fallbackName;
+  if (label && label !== key) {
+    return `${label} (${key})`;
+  }
+  return key;
 }
 
 function resolveSessionOptions(

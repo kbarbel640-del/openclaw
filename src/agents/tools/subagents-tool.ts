@@ -11,12 +11,6 @@ import {
   parseAgentSessionKey,
   type ParsedAgentSessionKey,
 } from "../../routing/session-key.js";
-import {
-  formatDurationCompact,
-  formatTokenUsageDisplay,
-  resolveTotalTokens,
-  truncateLine,
-} from "../../shared/subagents-format.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
 import { AGENT_LANE_SUBAGENT } from "../lanes.js";
 import { abortEmbeddedPiRun } from "../pi-embedded.js";
@@ -67,6 +61,48 @@ type TargetResolution = {
   entry?: SubagentRunRecord;
   error?: string;
 };
+
+function formatDurationCompact(valueMs?: number) {
+  if (!valueMs || !Number.isFinite(valueMs) || valueMs <= 0) {
+    return "n/a";
+  }
+  const minutes = Math.max(1, Math.round(valueMs / 60_000));
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const minutesRemainder = minutes % 60;
+  if (hours < 24) {
+    return minutesRemainder > 0 ? `${hours}h${minutesRemainder}m` : `${hours}h`;
+  }
+  const days = Math.floor(hours / 24);
+  const hoursRemainder = hours % 24;
+  return hoursRemainder > 0 ? `${days}d${hoursRemainder}h` : `${days}d`;
+}
+
+function formatTokenShort(value?: number) {
+  if (!value || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  const n = Math.floor(value);
+  if (n < 1_000) {
+    return `${n}`;
+  }
+  if (n < 10_000) {
+    return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  if (n < 1_000_000) {
+    return `${Math.round(n / 1_000)}k`;
+  }
+  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
+}
+
+function truncate(text: string, maxLength: number) {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength).trimEnd()}...`;
+}
 
 function resolveRunLabel(entry: SubagentRunRecord, fallback = "subagent") {
   const raw = entry.label?.trim() || entry.task?.trim() || "";
@@ -137,6 +173,55 @@ function resolveModelDisplay(entry?: SessionEntry, fallbackModel?: string) {
     return modelRef.slice(slash + 1);
   }
   return modelRef;
+}
+
+function resolveTotalTokens(entry?: SessionEntry) {
+  if (!entry) {
+    return undefined;
+  }
+  if (typeof entry.totalTokens === "number" && Number.isFinite(entry.totalTokens)) {
+    return entry.totalTokens;
+  }
+  const input = typeof entry.inputTokens === "number" ? entry.inputTokens : 0;
+  const output = typeof entry.outputTokens === "number" ? entry.outputTokens : 0;
+  const total = input + output;
+  return total > 0 ? total : undefined;
+}
+
+function resolveIoTokens(entry?: SessionEntry) {
+  if (!entry) {
+    return undefined;
+  }
+  const input =
+    typeof entry.inputTokens === "number" && Number.isFinite(entry.inputTokens)
+      ? entry.inputTokens
+      : 0;
+  const output =
+    typeof entry.outputTokens === "number" && Number.isFinite(entry.outputTokens)
+      ? entry.outputTokens
+      : 0;
+  const total = input + output;
+  if (total <= 0) {
+    return undefined;
+  }
+  return { input, output, total };
+}
+
+function resolveUsageDisplay(entry?: SessionEntry) {
+  const io = resolveIoTokens(entry);
+  const promptCache = resolveTotalTokens(entry);
+  const parts: string[] = [];
+  if (io) {
+    const input = formatTokenShort(io.input) ?? "0";
+    const output = formatTokenShort(io.output) ?? "0";
+    parts.push(`tokens ${formatTokenShort(io.total)} (in ${input} / out ${output})`);
+  } else if (typeof promptCache === "number" && promptCache > 0) {
+    parts.push(`tokens ${formatTokenShort(promptCache)} prompt/cache`);
+  }
+  if (typeof promptCache === "number" && io && promptCache > io.total) {
+    parts.push(`prompt/cache ${formatTokenShort(promptCache)}`);
+  }
+  return parts.join(", ");
 }
 
 function resolveSubagentTarget(
@@ -413,43 +498,71 @@ export function createSubagentsTool(opts?: { agentSessionKey?: string }): AnyAge
         const cache = new Map<string, Record<string, SessionEntry>>();
 
         let index = 1;
-        const buildListEntry = (entry: SubagentRunRecord, runtimeMs: number) => {
-          const sessionEntry = resolveSessionEntryForKey({
-            cfg,
-            key: entry.childSessionKey,
-            cache,
-          }).entry;
-          const totalTokens = resolveTotalTokens(sessionEntry);
-          const usageText = formatTokenUsageDisplay(sessionEntry);
-          const status = resolveRunStatus(entry);
-          const runtime = formatDurationCompact(runtimeMs);
-          const label = truncateLine(resolveRunLabel(entry), 48);
-          const task = truncateLine(entry.task.trim(), 72);
-          const line = `${index}. ${label} (${resolveModelDisplay(sessionEntry, entry.model)}, ${runtime}${usageText ? `, ${usageText}` : ""}) ${status}${task.toLowerCase() !== label.toLowerCase() ? ` - ${task}` : ""}`;
-          const baseView = {
-            index,
-            runId: entry.runId,
-            sessionKey: entry.childSessionKey,
-            label,
-            task,
-            status,
-            runtime,
-            runtimeMs,
-            model: resolveModelRef(sessionEntry) || entry.model,
-            totalTokens,
-            startedAt: entry.startedAt,
-          };
-          index += 1;
-          return { line, view: entry.endedAt ? { ...baseView, endedAt: entry.endedAt } : baseView };
-        };
         const active = runs
           .filter((entry) => !entry.endedAt)
-          .map((entry) => buildListEntry(entry, now - (entry.startedAt ?? entry.createdAt)));
+          .map((entry) => {
+            const sessionEntry = resolveSessionEntryForKey({
+              cfg,
+              key: entry.childSessionKey,
+              cache,
+            }).entry;
+            const totalTokens = resolveTotalTokens(sessionEntry);
+            const usageText = resolveUsageDisplay(sessionEntry);
+            const status = resolveRunStatus(entry);
+            const runtime = formatDurationCompact(now - (entry.startedAt ?? entry.createdAt));
+            const label = truncate(resolveRunLabel(entry), 48);
+            const task = truncate(entry.task.trim(), 72);
+            const line = `${index}. ${label} (${resolveModelDisplay(sessionEntry, entry.model)}, ${runtime}${usageText ? `, ${usageText}` : ""}) ${status}${task.toLowerCase() !== label.toLowerCase() ? ` - ${task}` : ""}`;
+            const view = {
+              index,
+              runId: entry.runId,
+              sessionKey: entry.childSessionKey,
+              label,
+              task,
+              status,
+              runtime,
+              runtimeMs: now - (entry.startedAt ?? entry.createdAt),
+              model: resolveModelRef(sessionEntry) || entry.model,
+              totalTokens,
+              startedAt: entry.startedAt,
+            };
+            index += 1;
+            return { line, view };
+          });
         const recent = runs
           .filter((entry) => !!entry.endedAt && (entry.endedAt ?? 0) >= recentCutoff)
-          .map((entry) =>
-            buildListEntry(entry, (entry.endedAt ?? now) - (entry.startedAt ?? entry.createdAt)),
-          );
+          .map((entry) => {
+            const sessionEntry = resolveSessionEntryForKey({
+              cfg,
+              key: entry.childSessionKey,
+              cache,
+            }).entry;
+            const totalTokens = resolveTotalTokens(sessionEntry);
+            const usageText = resolveUsageDisplay(sessionEntry);
+            const status = resolveRunStatus(entry);
+            const runtime = formatDurationCompact(
+              (entry.endedAt ?? now) - (entry.startedAt ?? entry.createdAt),
+            );
+            const label = truncate(resolveRunLabel(entry), 48);
+            const task = truncate(entry.task.trim(), 72);
+            const line = `${index}. ${label} (${resolveModelDisplay(sessionEntry, entry.model)}, ${runtime}${usageText ? `, ${usageText}` : ""}) ${status}${task.toLowerCase() !== label.toLowerCase() ? ` - ${task}` : ""}`;
+            const view = {
+              index,
+              runId: entry.runId,
+              sessionKey: entry.childSessionKey,
+              label,
+              task,
+              status,
+              runtime,
+              runtimeMs: (entry.endedAt ?? now) - (entry.startedAt ?? entry.createdAt),
+              model: resolveModelRef(sessionEntry) || entry.model,
+              totalTokens,
+              startedAt: entry.startedAt,
+              endedAt: entry.endedAt,
+            };
+            index += 1;
+            return { line, view };
+          });
 
         const text = buildListText({ active, recent, recentMinutes });
         return jsonResult({
