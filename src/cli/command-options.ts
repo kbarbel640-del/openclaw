@@ -27,13 +27,13 @@ export function inheritOptionFromParent<T = unknown>(
     return undefined;
   }
 
-  const parent = command.parent;
-  if (!parent) {
-    return undefined;
+  let ancestor = command.parent;
+  while (ancestor) {
+    const source = getOptionSource(ancestor, name);
+    if (source && source !== "default") {
+      return ancestor.opts<Record<string, unknown>>()[name] as T | undefined;
+    }
+    ancestor = ancestor.parent;
   }
-  const parentSource = getOptionSource(parent, name);
-  if (!parentSource || parentSource === "default") {
-    return undefined;
-  }
-  return parent.opts<Record<string, unknown>>()[name] as T | undefined;
+  return undefined;
 }
