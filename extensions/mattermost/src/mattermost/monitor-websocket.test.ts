@@ -204,7 +204,7 @@ describe("mattermost websocket monitor", () => {
       socket.emitClose(1000);
     }, 0);
 
-    await connectOnce();
+    await connected;
 
     expect(onReaction).toHaveBeenCalledTimes(1);
     expect(onPosted).not.toHaveBeenCalled();
