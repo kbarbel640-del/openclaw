@@ -1,7 +1,4 @@
 import type { Message, ReactionTypeEmoji } from "@grammyjs/types";
-import type { TelegramGroupConfig, TelegramTopicConfig } from "../config/types.js";
-import type { TelegramMediaRef } from "./bot-message-context.js";
-import type { TelegramContext } from "./bot/types.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { hasControlCommand } from "../auto-reply/command-detection.js";
 import {
@@ -17,6 +14,7 @@ import { resolveChannelConfigWrites } from "../channels/plugins/config-writes.js
 import { loadConfig } from "../config/config.js";
 import { writeConfigFile } from "../config/io.js";
 import { loadSessionStore, resolveStorePath } from "../config/sessions.js";
+import type { TelegramGroupConfig, TelegramTopicConfig } from "../config/types.js";
 import { danger, logVerbose, warn } from "../globals.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
 import { readChannelAllowFromStore } from "../pairing/pairing-store.js";
@@ -29,6 +27,7 @@ import {
   normalizeAllowFromWithStore,
   type NormalizedAllowFrom,
 } from "./bot-access.js";
+import type { TelegramMediaRef } from "./bot-message-context.js";
 import { RegisterTelegramHandlerParams } from "./bot-native-commands.js";
 import { MEDIA_GROUP_TIMEOUT_MS, type MediaGroupEntry } from "./bot-updates.js";
 import { resolveMedia } from "./bot/delivery.js";
@@ -38,6 +37,7 @@ import {
   resolveTelegramForumThreadId,
   resolveTelegramGroupAllowFromContext,
 } from "./bot/helpers.js";
+import type { TelegramContext } from "./bot/types.js";
 import {
   evaluateTelegramGroupBaseAccess,
   evaluateTelegramGroupPolicyAccess,
@@ -316,36 +316,6 @@ export const registerTelegramHandlers = ({
     entry.timer = setTimeout(async () => {
       await runTextFragmentFlush(entry);
     }, TELEGRAM_TEXT_FRAGMENT_MAX_GAP_MS);
-  };
-
-  const enqueueMediaGroupFlush = async (mediaGroupId: string, entry: MediaGroupEntry) => {
-    mediaGroupBuffer.delete(mediaGroupId);
-    mediaGroupProcessing = mediaGroupProcessing
-      .then(async () => {
-        await processMediaGroup(entry);
-      })
-      .catch(() => undefined);
-    await mediaGroupProcessing;
-  };
-
-  const scheduleMediaGroupFlush = (mediaGroupId: string, entry: MediaGroupEntry) => {
-    clearTimeout(entry.timer);
-    entry.timer = setTimeout(async () => {
-      await enqueueMediaGroupFlush(mediaGroupId, entry);
-    }, mediaGroupTimeoutMs);
-  };
-
-  const getOrCreateMediaGroupEntry = (mediaGroupId: string) => {
-    const existing = mediaGroupBuffer.get(mediaGroupId);
-    if (existing) {
-      return existing;
-    }
-    const entry: MediaGroupEntry = {
-      messages: [],
-      timer: setTimeout(() => undefined, mediaGroupTimeoutMs),
-    };
-    mediaGroupBuffer.set(mediaGroupId, entry);
-    return entry;
   };
 
   const loadStoreAllowFrom = async () =>
