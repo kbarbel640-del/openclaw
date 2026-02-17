@@ -492,7 +492,7 @@ describe("smart prompting", () => {
       const lines = prompts.getFirstRunMessage();
       const text = lines.join("\n");
       expect(text).toContain("only stored on this device");
-      expect(text).toContain("no one else can access");
+      expect(text).toContain("Owner-only access control");
       expect(text).toContain("Switch devices");
       expect(text).toContain("Never lose");
       expect(text).toContain("openclaw ic-memory setup");
@@ -504,7 +504,7 @@ describe("smart prompting", () => {
       expect(text).toContain("127");
       expect(text).toContain("no backup");
       expect(text).toContain("lost, reset, or replaced");
-      expect(text).toContain("Only you hold the keys");
+      expect(text).toContain("Owner-only access control");
       expect(text).toContain("openclaw ic-memory setup");
     });
 
