@@ -69,7 +69,7 @@ export const CLOUDRU_FM_PRESETS: Record<string, CloudruModelPreset> = {
 
 export const CLOUDRU_PROXY_PORT_DEFAULT = 8082;
 export const CLOUDRU_BASE_URL = "https://foundation-models.api.cloud.ru/v1";
-export const CLOUDRU_PROXY_IMAGE = "legard/claude-code-proxy:v1.0.0";
+export const CLOUDRU_PROXY_IMAGE = "legard/claude-code-proxy:latest";
 export const CLOUDRU_PROXY_SENTINEL_KEY = "not-a-real-key-proxy-only";
 export const CLOUDRU_COMPOSE_FILENAME = "docker-compose.cloudru-proxy.yml";
 

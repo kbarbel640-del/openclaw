@@ -23,10 +23,9 @@ export type ProxyComposeParams = {
  * Generate a security-hardened Docker Compose YAML string.
  *
  * Security features:
- * - Pinned image version (not :latest)
+ * - Image tag from constants (CLOUDRU_PROXY_IMAGE)
  * - Localhost-only binding (127.0.0.1)
- * - no-new-privileges, cap_drop: ALL, read_only
- * - Non-root user (1000:1000)
+ * - no-new-privileges, cap_drop: ALL
  * - Resource limits (512 MB RAM, 1 CPU)
  * - Health check (10s interval, 5s timeout, 3 retries)
  */
@@ -49,12 +48,10 @@ export function generateProxyDockerCompose(params: ProxyComposeParams): string {
       PORT: "${port}"
       DISABLE_THINKING: "true"
     restart: unless-stopped
-    user: "1000:1000"
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    read_only: true
     deploy:
       resources:
         limits:
