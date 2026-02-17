@@ -467,12 +467,30 @@ export const AgentModelSchema = z.union([
     })
     .strict(),
 ]);
+export const AgentCapabilityCardSchema = z
+  .object({
+    id: z.string().optional(),
+    title: z.string(),
+    description: z.string().optional(),
+    keywords: z.array(z.string()).optional(),
+  })
+  .strict();
+export const AgentCapabilitiesSchema = z
+  .object({
+    tags: z.array(z.string()).optional(),
+    costTier: z.enum(["free", "cheap", "medium", "expensive"]).optional(),
+    typicalLatency: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .strict();
 export const AgentEntrySchema = z
   .object({
     id: z.string(),
     default: z.boolean().optional(),
     name: z.string().optional(),
     description: z.string().optional(),
+    capabilities: AgentCapabilitiesSchema.optional(),
+    capabilityCards: z.array(AgentCapabilityCardSchema).optional(),
     workspace: z.string().optional(),
     agentDir: z.string().optional(),
     model: AgentModelSchema.optional(),

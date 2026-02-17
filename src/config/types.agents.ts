@@ -18,12 +18,40 @@ export type AgentModelConfig =
       fallbacks?: string[];
     };
 
+export type AgentCapabilityCard = {
+  /** Optional stable identifier for this capability card. */
+  id?: string;
+  /** Short label for this capability. */
+  title: string;
+  /** Optional explanation of what this card covers. */
+  description?: string;
+  /** Keywords used for task-routing matching. */
+  keywords?: string[];
+};
+
+export type AgentCapabilityCostTier = "free" | "cheap" | "medium" | "expensive";
+
+export type AgentCapabilitiesConfig = {
+  /** Capability tags used for delegation routing. */
+  tags?: string[];
+  /** Relative cost profile used for cost-aware delegation ranking. */
+  costTier?: AgentCapabilityCostTier;
+  /** Typical completion latency for common tasks (for example "90s" or "2m"). */
+  typicalLatency?: string;
+  /** Additional routing notes and constraints. */
+  notes?: string;
+};
+
 export type AgentConfig = {
   id: string;
   default?: boolean;
   name?: string;
   /** Human-readable description of this agent's capabilities (used in fleet tables). */
   description?: string;
+  /** Structured capability metadata for routing and fleet table display. */
+  capabilities?: AgentCapabilitiesConfig;
+  /** Optional capability cards to help route tasks to the best-fit agents. */
+  capabilityCards?: AgentCapabilityCard[];
   workspace?: string;
   agentDir?: string;
   model?: AgentModelConfig;

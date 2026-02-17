@@ -58,6 +58,53 @@ describe("config schema regressions", () => {
     expect(res.ok).toBe(true);
   });
 
+  it("accepts capability cards on agent list entries", () => {
+    const res = validateConfigObject({
+      agents: {
+        list: [
+          {
+            id: "writer",
+            capabilityCards: [
+              {
+                id: "docs",
+                title: "Documentation",
+                description: "Draft release notes and docs updates",
+                keywords: ["documentation", "release notes", "changelog"],
+              },
+              {
+                title: "Refactor",
+                keywords: ["cleanup", "renaming", "simplify"],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
+
+  it("accepts capabilities metadata on agent list entries", () => {
+    const res = validateConfigObject({
+      agents: {
+        list: [
+          {
+            id: "athena",
+            description: "Deep analysis and architecture review",
+            capabilities: {
+              tags: ["research", "synthesis", "reasoning"],
+              costTier: "medium",
+              typicalLatency: "90s",
+              notes: "No file writes; search-only workflow.",
+            },
+          },
+        ],
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
+
   it("accepts subagent providerLimits values", () => {
     const res = validateConfigObject({
       agents: {

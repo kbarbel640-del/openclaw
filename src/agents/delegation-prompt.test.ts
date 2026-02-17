@@ -21,7 +21,9 @@ describe("buildDelegationPrompt", () => {
     });
 
     expect(prompt).toContain("Delegation Tier: Full Orchestrator");
-    expect(prompt).toContain("| Agent ID | Model | Description |");
+    expect(prompt).toContain(
+      "| Agent ID | Model | Description | Tags | Cost Tier | Typical Latency | Notes |",
+    );
     expect(prompt).not.toContain("## Provider Slots");
   });
 
@@ -81,10 +83,12 @@ describe("buildDelegationPrompt", () => {
     expect(prompt).toContain("Delegation Tier: Leaf Worker");
     expect(prompt).toContain("Complete your task directly. Do not attempt to spawn subagents.");
     expect(prompt).not.toContain("## Provider Slots");
-    expect(prompt).not.toContain("| Agent ID | Model | Description |");
+    expect(prompt).not.toContain(
+      "| Agent ID | Model | Description | Tags | Cost Tier | Typical Latency | Notes |",
+    );
   });
 
-  it("renders fleet table rows with id, model, and description", () => {
+  it("renders fleet table rows with capability metadata", () => {
     const prompt = buildDelegationPrompt({
       depth: 1,
       maxDepth: 3,
@@ -94,13 +98,71 @@ describe("buildDelegationPrompt", () => {
       globalSlotsAvailable: 4,
       maxConcurrent: 8,
       fleet: [
-        { id: "main", model: "anthropic/claude-opus-4", description: "Plans and routes" },
+        {
+          id: "main",
+          model: "anthropic/claude-opus-4",
+          description: "Plans and routes",
+          capabilities: {
+            tags: ["orchestration", "planning"],
+            costTier: "expensive",
+            typicalLatency: "2m",
+            notes: "high quality synthesis",
+          },
+        },
         { id: "worker", model: "openai/gpt-4.1-mini", description: "Implements fixes" },
       ],
     });
 
-    expect(prompt).toContain("| main | anthropic/claude-opus-4 | Plans and routes |");
-    expect(prompt).toContain("| worker | openai/gpt-4.1-mini | Implements fixes |");
+    expect(prompt).toContain(
+      "| main | anthropic/claude-opus-4 | Plans and routes | orchestration, planning | expensive | 2m | high quality synthesis |",
+    );
+    expect(prompt).toContain("| worker | openai/gpt-4.1-mini | Implements fixes | - | - | - | - |");
+  });
+
+  it("includes capability routing rankings when fleet entries are ranked", () => {
+    const prompt = buildDelegationPrompt({
+      depth: 1,
+      maxDepth: 4,
+      parentKey: "agent:main:subagent:parent",
+      childSlotsAvailable: 3,
+      maxChildrenPerAgent: 4,
+      globalSlotsAvailable: 6,
+      maxConcurrent: 8,
+      task: "Draft release notes for the changelog.",
+      fleet: [
+        {
+          id: "writer",
+          routing: {
+            score: 9,
+            costTier: "cheap",
+            typicalLatency: "60s",
+            matchedCardTitle: "Documentation",
+            matchedTerms: ["release", "changelog"],
+          },
+          model: "openai/gpt-4.1",
+          description: "Documentation and editing",
+        },
+        {
+          id: "engineer",
+          routing: {
+            score: 5,
+            costTier: "medium",
+            typicalLatency: "120s",
+            matchedCardTitle: "Code",
+            matchedTerms: ["changelog"],
+          },
+          model: "anthropic/claude-opus-4",
+          description: "Implementation",
+        },
+      ],
+    });
+
+    expect(prompt).toContain("## Capability Routing");
+    expect(prompt).toContain('- Based on task: "Draft release notes for the changelog."');
+    expect(prompt).toContain(
+      "| 1 | writer | 9 | cheap | 60s | Documentation | release, changelog |",
+    );
+    expect(prompt).toContain("| 2 | engineer | 5 | medium | 120s | Code | changelog |");
   });
 });
 
@@ -114,5 +176,31 @@ describe("buildSubagentSystemPrompt", () => {
 
     expect(prompt).toContain("# Subagent Context");
     expect(prompt).not.toContain("## Delegation Tier:");
+  });
+
+  it("adds reporting nudges when sessions_spawn enables reporting flags", () => {
+    const prompt = buildSubagentSystemPrompt({
+      requesterSessionKey: "agent:main:main",
+      childSessionKey: "agent:main:subagent:depth1",
+      task: "Do one scoped task",
+      completionReport: true,
+      progressReporting: true,
+    });
+
+    expect(prompt).toContain("## Reporting Tools");
+    expect(prompt).toContain("report_completion");
+    expect(prompt).toContain("report_progress");
+  });
+
+  it("omits reporting section when sessions_spawn flags are not enabled", () => {
+    const prompt = buildSubagentSystemPrompt({
+      requesterSessionKey: "agent:main:main",
+      childSessionKey: "agent:main:subagent:depth1",
+      task: "Do one scoped task",
+    });
+
+    expect(prompt).not.toContain("## Reporting Tools");
+    expect(prompt).not.toContain("report_completion");
+    expect(prompt).not.toContain("report_progress");
   });
 });
