@@ -16,6 +16,8 @@ type DiagnosticBaseEvent = {
   ts: number;
   seq: number;
   traceCtx?: DiagnosticTraceContext;
+  traceId?: string;
+  parentSpanId?: string;
 };
 
 export type DiagnosticUsageEvent = DiagnosticBaseEvent & {
