@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { __testing } from "./compaction-safeguard.js";
 
-const { collectToolFailures, formatToolFailuresSection } = __testing;
+const { formatToolFailuresSection } = __testing;
 
 describe("Compaction Safeguard Logging", () => {
   it("formats tool failures with excessive verbosity", () => {
