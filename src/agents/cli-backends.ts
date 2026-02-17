@@ -23,6 +23,7 @@ const CLAUDE_MODEL_ALIASES: Record<string, string> = {
   "sonnet-4.5": "sonnet",
   "sonnet-4.1": "sonnet",
   "sonnet-4.0": "sonnet",
+  "claude-sonnet-4-6": "sonnet",
   "claude-sonnet-4-5": "sonnet",
   "claude-sonnet-4-1": "sonnet",
   "claude-sonnet-4-0": "sonnet",
