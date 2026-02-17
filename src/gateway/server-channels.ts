@@ -80,6 +80,8 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
   const restartAttempts = new Map<string, number>();
   // Tracks accounts that were manually stopped so we don't auto-restart them.
   const manuallyStopped = new Set<string>();
+  // Track channel-level abort controllers for cancelling startup loops mid-execution
+  const channelStartupAborts = new Map<ChannelId, AbortController>();
 
   const restartKey = (channelId: ChannelId, accountId: string) => `${channelId}:${accountId}`;
 
@@ -124,10 +126,25 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
       return;
     }
 
-    await Promise.all(
-      accountIds.map(async (id) => {
+    // Create channel-level abort signal for cancelling the entire startup loop
+    const channelAbort = new AbortController();
+    channelStartupAborts.set(channelId, channelAbort);
+
+    try {
+      // Stagger account startup to avoid Discord rate limits
+      for (let accountIndex = 0; accountIndex < accountIds.length; accountIndex++) {
+        const id = accountIds[accountIndex];
+        // Add 2-second delay between accounts (except the first)
+        if (accountIndex > 0) {
+          await new Promise((r) => setTimeout(r, 2000));
+          // Break if stopChannel() was called during the delay
+          if (channelAbort.signal.aborted) {
+            break;
+          }
+        }
+
         if (store.tasks.has(id)) {
-          return;
+          continue;
         }
         const account = plugin.config.resolveAccount(cfg, id);
         const enabled = plugin.config.isEnabled
@@ -139,7 +156,7 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
             running: false,
             lastError: plugin.config.disabledReason?.(account, cfg) ?? "disabled",
           });
-          return;
+          continue;
         }
 
         let configured = true;
@@ -152,7 +169,7 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
             running: false,
             lastError: plugin.config.unconfiguredReason?.(account, cfg) ?? "not configured",
           });
-          return;
+          continue;
         }
 
         const rKey = restartKey(channelId, id);
@@ -221,11 +238,16 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
             }
           });
         store.tasks.set(id, tracked);
-      }),
-    );
+      }
+    } finally {
+      channelStartupAborts.delete(channelId);
+    }
   };
 
   const stopChannel = async (channelId: ChannelId, accountId?: string) => {
+    // Cancel any in-progress startup loop for this channel
+    channelStartupAborts.get(channelId)?.abort();
+
     const plugin = getChannelPlugin(channelId);
     const store = getStore(channelId);
     // Fast path: nothing running and no explicit plugin shutdown hook to run.
