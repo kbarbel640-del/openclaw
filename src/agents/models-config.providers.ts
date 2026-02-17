@@ -126,7 +126,7 @@ const NVIDIA_DEFAULT_COST = {
 const MISTRAL_BASE_URL = "https://api.mistral.ai/v1";
 const MISTRAL_DEFAULT_CONTEXT_WINDOW = 128000;
 const MISTRAL_DEFAULT_MAX_TOKENS = 8192;
-// Pricing: https://mistral.ai/products/la-plateprise#pricing
+// Pricing: https://mistral.ai/products/la-plateforme#pricing
 // Costs are per 1M tokens in USD
 const MISTRAL_LARGE_COST = {
   input: 2.0,
