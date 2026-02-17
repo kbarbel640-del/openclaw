@@ -25,6 +25,14 @@ export function applyModelOverrideToSessionEntry(params: {
       delete entry.modelOverride;
       updated = true;
     }
+    if (entry.modelProvider) {
+      delete entry.modelProvider;
+      updated = true;
+    }
+    if (entry.model) {
+      delete entry.model;
+      updated = true;
+    }
   } else {
     if (entry.providerOverride !== selection.provider) {
       entry.providerOverride = selection.provider;
@@ -32,6 +40,14 @@ export function applyModelOverrideToSessionEntry(params: {
     }
     if (entry.modelOverride !== selection.model) {
       entry.modelOverride = selection.model;
+      updated = true;
+    }
+    if (entry.modelProvider !== selection.provider) {
+      entry.modelProvider = selection.provider;
+      updated = true;
+    }
+    if (entry.model !== selection.model) {
+      entry.model = selection.model;
       updated = true;
     }
   }

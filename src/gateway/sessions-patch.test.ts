@@ -91,8 +91,63 @@ describe("gateway sessions patch", () => {
     }
     expect(res.entry.providerOverride).toBe("openai");
     expect(res.entry.modelOverride).toBe("gpt-5.2");
+    expect(res.entry.modelProvider).toBe("openai");
+    expect(res.entry.model).toBe("gpt-5.2");
     expect(res.entry.authProfileOverride).toBeUndefined();
     expect(res.entry.authProfileOverrideSource).toBeUndefined();
     expect(res.entry.authProfileOverrideCompactionCount).toBeUndefined();
+  });
+
+  test("model patch updates display fields for immediate visibility (issue #18603)", async () => {
+    const store: Record<string, SessionEntry> = {
+      "agent:main:main": {
+        sessionId: "sess",
+        updatedAt: 1,
+        modelProvider: "anthropic",
+        model: "claude-opus-4-5",
+      } as SessionEntry,
+    };
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: { model: "openai/gpt-5.2" },
+      loadGatewayModelCatalog: async () => [{ provider: "openai", id: "gpt-5.2" }],
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) {
+      return;
+    }
+    expect(res.entry.providerOverride).toBe("openai");
+    expect(res.entry.modelOverride).toBe("gpt-5.2");
+    expect(res.entry.modelProvider).toBe("openai");
+    expect(res.entry.model).toBe("gpt-5.2");
+  });
+
+  test("clearing model (null) clears display fields", async () => {
+    const store: Record<string, SessionEntry> = {
+      "agent:main:main": {
+        sessionId: "sess",
+        updatedAt: 1,
+        providerOverride: "openai",
+        modelOverride: "gpt-5.2",
+        modelProvider: "openai",
+        model: "gpt-5.2",
+      } as SessionEntry,
+    };
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: { model: null },
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) {
+      return;
+    }
+    expect(res.entry.providerOverride).toBeUndefined();
+    expect(res.entry.modelOverride).toBeUndefined();
+    expect(res.entry.modelProvider).toBeUndefined();
+    expect(res.entry.model).toBeUndefined();
   });
 });
