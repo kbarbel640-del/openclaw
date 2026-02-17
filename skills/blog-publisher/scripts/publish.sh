@@ -60,10 +60,10 @@ DATE=$(date +%Y-%m-%d)
 DATETIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 CONTENT=$(cat "$CONTENT_FILE")
 
-# Build tags YAML
+# Build tags YAML (includes leading newline to avoid blank line when empty)
 TAGS_YAML=""
 if [[ -n "$TAGS" ]]; then
-  TAGS_YAML="tags: [$(echo "$TAGS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sed 's/.*/"&"/' | paste -sd',' - | sed 's/,/, /g')]"
+  TAGS_YAML=$'\n'"tags: [$(echo "$TAGS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sed 's/.*/"&"/' | paste -sd',' - | sed 's/,/, /g')]"
 fi
 
 DRAFT_VAL="false"
@@ -106,8 +106,7 @@ case "$PLATFORM" in
 ---
 title: "${TITLE}"
 date: ${DATETIME}
-draft: ${DRAFT_VAL}
-${TAGS_YAML}
+draft: ${DRAFT_VAL}${TAGS_YAML}
 ---
 
 ${CONTENT}
@@ -131,8 +130,7 @@ FRONTMATTER
 ---
 layout: post
 title: "${TITLE}"
-date: ${DATETIME}
-${TAGS_YAML}
+date: ${DATETIME}${TAGS_YAML}
 published: $(if [[ "$DRAFT" == "true" ]]; then echo "false"; else echo "true"; fi)
 ---
 
@@ -157,8 +155,7 @@ FRONTMATTER
 title: "${TITLE}"
 pubDate: ${DATETIME}
 description: ""
-draft: ${DRAFT_VAL}
-${TAGS_YAML}
+draft: ${DRAFT_VAL}${TAGS_YAML}
 ---
 
 ${CONTENT}
@@ -185,8 +182,7 @@ FRONTMATTER
     cat > "$POST_FILE" << FRONTMATTER
 ---
 title: "${TITLE}"
-date: "${DATETIME}"
-${TAGS_YAML}
+date: "${DATETIME}"${TAGS_YAML}
 draft: ${DRAFT_VAL}
 ---
 

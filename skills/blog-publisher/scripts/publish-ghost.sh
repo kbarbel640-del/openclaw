@@ -56,14 +56,12 @@ TOKEN="$HEADER.$PAYLOAD.$SIGNATURE"
 RESPONSE=$(curl -s -X POST "${GHOST_API_URL}/ghost/api/admin/posts/" \
   -H "Authorization: Ghost $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"posts\": [{
-      \"title\": \"$TITLE\",
-      \"html\": \"<p>$(echo "$CONTENT" | sed 's/"/\\"/g' | tr '\n' ' ')</p>\",
-      \"status\": \"$STATUS\",
-      \"tags\": $TAGS_JSON
-    }]
-  }")
+  -d "$(jq -n \
+    --arg title "$TITLE" \
+    --arg html "<p>$(echo "$CONTENT" | tr '\n' ' ')</p>" \
+    --arg status "$STATUS" \
+    --argjson tags "$TAGS_JSON" \
+    '{posts: [{title: $title, html: $html, status: $status, tags: $tags}]}')")
 
 # Extract and display the post URL
 URL=$(echo "$RESPONSE" | grep -o '"url":"[^"]*"' | head -1 | cut -d'"' -f4)
