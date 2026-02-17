@@ -45,10 +45,10 @@ function setDiscordDmPolicy(cfg: OpenClawConfig, dmPolicy: DmPolicy) {
 async function noteDiscordTokenHelp(prompter: WizardPrompter): Promise<void> {
   await prompter.note(
     [
-      "1) Discord Developer Portal -> Applications -> New Application",
-      "2) Bot -> Add Bot -> Reset Token -> copy token",
-      "3) OAuth2 -> URL Generator -> scope 'bot' -> invite to your server",
-      "Tip: enable Message Content Intent if you need message text. (Bot -> Privileged Gateway Intents -> Message Content Intent)",
+      "1) Discord Developer Portal → Applications → New Application",
+      "2) Bot → Add Bot → Reset Token → copy token",
+      "3) OAuth2 → URL Generator → scope 'bot' → invite to your server",
+      "Tip: enable Message Content Intent if you need message text. (Bot → Privileged Gateway Intents → Message Content Intent)",
       `Docs: ${formatDocsLink("/discord", "discord")}`,
     ].join("\n"),
     "Discord bot token",
