@@ -114,12 +114,18 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount> = {
         accountId,
         clearBaseFields: ["botToken", "appToken", "name"],
       }),
-    isConfigured: (account) => Boolean(account.botToken && account.appToken),
+    isConfigured: (account) =>
+      account.config.mode === "http"
+        ? Boolean(account.botToken)
+        : Boolean(account.botToken && account.appToken),
     describeAccount: (account) => ({
       accountId: account.accountId,
       name: account.name,
       enabled: account.enabled,
-      configured: Boolean(account.botToken && account.appToken),
+      configured:
+        account.config.mode === "http"
+          ? Boolean(account.botToken)
+          : Boolean(account.botToken && account.appToken),
       botTokenSource: account.botTokenSource,
       appTokenSource: account.appTokenSource,
     }),
