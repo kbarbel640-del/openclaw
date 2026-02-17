@@ -107,15 +107,16 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
         return entry;
       }
     },
-    notifyApproval: async ({ id }) => {
-      const bus = activeBuses.get(DEFAULT_ACCOUNT_ID);
+    notifyApproval: async ({ id, accountId }) => {
+      const effectiveAccountId = accountId ?? DEFAULT_ACCOUNT_ID;
+      const bus = activeBuses.get(effectiveAccountId);
       if (!bus) {
-        throw new Error(`XMTP bus not running for account ${DEFAULT_ACCOUNT_ID}`);
+        throw new Error(`XMTP bus not running for account ${effectiveAccountId}`);
       }
       await bus.sendText(id, PAIRING_APPROVED_MESSAGE);
       getXmtpRuntime().channel.activity.record({
         channel: "xmtp",
-        accountId: DEFAULT_ACCOUNT_ID,
+        accountId: effectiveAccountId,
         direction: "outbound",
       });
     },
@@ -243,23 +244,38 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
         dbEncryptionKey: account.dbEncryptionKey,
         env: account.env,
         dbPath: account.config.dbPath,
+        shouldAutoConsent: (senderAddress: string) => {
+          const cfg = runtime.config.loadConfig() as OpenClawConfig;
+          const freshAccount = resolveXmtpAccount({ cfg, accountId: account.accountId });
+          const policy = freshAccount.config.dmPolicy ?? "pairing";
+          if (policy === "disabled") return false;
+          if (policy === "open" || policy === "pairing") return true;
+          // allowlist: only consent if sender is in the effective allowlist
+          const configuredAllow = normalizeAllowEntries(freshAccount.config.allowFrom ?? []);
+          return configuredAllow.includes(senderAddress) || configuredAllow.includes("*");
+        },
         onMessage: async ({ senderAddress, senderInboxId, conversationId, text, messageId }) => {
           const cfg = runtime.config.loadConfig() as OpenClawConfig;
-          runtime.channel.activity.record({
-            channel: "xmtp",
-            accountId: account.accountId,
-            direction: "inbound",
-          });
 
           const rawBody = text.trim();
           if (!rawBody) {
             return;
           }
 
-          const dmPolicy = account.config.dmPolicy ?? "pairing";
-          const configuredAllowFrom = normalizeAllowEntries(account.config.allowFrom ?? []);
+          runtime.channel.activity.record({
+            channel: "xmtp",
+            accountId: account.accountId,
+            direction: "inbound",
+          });
+
+          const freshAccount = resolveXmtpAccount({ cfg, accountId: account.accountId });
+          const dmPolicy = freshAccount.config.dmPolicy ?? "pairing";
+          const configuredAllowFrom = normalizeAllowEntries(freshAccount.config.allowFrom ?? []);
           const storeAllowFrom = normalizeAllowEntries(
-            await runtime.channel.pairing.readAllowFromStore("xmtp", account.accountId).catch(() => []),
+            await runtime.channel.pairing.readAllowFromStore("xmtp", account.accountId).catch((error) => {
+              ctx.log?.warn?.(`[${account.accountId}] Failed to read pairing store`, { error: String(error) });
+              return [];
+            }),
           );
           const effectiveAllowFrom = [...configuredAllowFrom, ...storeAllowFrom];
           const allowMatch = resolveAllowlistMatchSimple({
