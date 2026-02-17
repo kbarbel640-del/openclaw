@@ -611,10 +611,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   // Clean up orphaned sessions when a Discord channel is deleted (#19333).
   // The Guilds intent (required for CHANNEL_DELETE) is enabled by default
   // since guild message events already depend on it.
-  registerDiscordListener(
-    client.listeners,
-    new DiscordChannelDeleteListener({ cfg, logger }),
-  );
+  registerDiscordListener(client.listeners, new DiscordChannelDeleteListener({ cfg, logger }));
 
   runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
 

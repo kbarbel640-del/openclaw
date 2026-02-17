@@ -467,9 +467,7 @@ export class DiscordChannelDeleteListener extends ChannelDeleteListener {
         logger: this.params.logger,
       });
     } catch (err) {
-      this.params.logger.error(
-        danger(`discord channel-delete handler failed: ${String(err)}`),
-      );
+      this.params.logger.error(danger(`discord channel-delete handler failed: ${String(err)}`));
     } finally {
       logSlowDiscordListener({
         logger: this.params.logger,
@@ -495,9 +493,7 @@ async function handleDiscordChannelDelete(params: {
       : (params.data as Record<string, unknown>).channel &&
           typeof (params.data as Record<string, unknown>).channel === "object" &&
           "id" in ((params.data as Record<string, unknown>).channel as Record<string, unknown>)
-        ? String(
-            ((params.data as Record<string, unknown>).channel as Record<string, string>).id,
-          )
+        ? String(((params.data as Record<string, unknown>).channel as Record<string, string>).id)
         : undefined;
 
   if (!channelId) {
@@ -508,9 +504,8 @@ async function handleDiscordChannelDelete(params: {
   // Lazily import session store utilities to avoid circular dependencies
   // and keep the listener module lightweight.
   const { listAgentIds } = await import("../../agents/agent-scope.js");
-  const { loadSessionStore, resolveStorePath, updateSessionStore } = await import(
-    "../../config/sessions.js"
-  );
+  const { loadSessionStore, resolveStorePath, updateSessionStore } =
+    await import("../../config/sessions.js");
   const { archiveSessionTranscripts } = await import("../../gateway/session-utils.fs.js");
 
   const agentIds = listAgentIds(params.cfg);
