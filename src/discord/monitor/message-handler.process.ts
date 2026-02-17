@@ -38,6 +38,7 @@ import { createDiscordDraftStream } from "../draft-stream.js";
 import { reactMessageDiscord, removeReactionDiscord } from "../send.js";
 import { editMessageDiscord } from "../send.messages.js";
 import { normalizeDiscordSlug, resolveDiscordOwnerAllowFrom } from "./allow-list.js";
+import { notifyFanOutResponse, getFanOutRoundInfo, FANOUT_GUIDANCE } from "./fanout-coordinator.js";
 import { resolveTimestampMs } from "./format.js";
 import type { DiscordMessagePreflightContext } from "./message-handler.preflight.js";
 import {
@@ -251,6 +252,24 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   const replyContext = resolveReplyContext(message, resolveDiscordMessageText);
   if (forumContextLine) {
     combinedBody = `${combinedBody}\n${forumContextLine}`;
+  }
+
+  // Wrap fan-out bot messages with guidance text to enable cross-agent conversation
+  // while preventing infinite reply loops via the NO_REPLY directive.
+  if (ctx.isFanOutBotMessage) {
+    const agentDisplayName = author.globalName ?? author.username ?? sender.name ?? "Agent";
+    const channelLabel = displayChannelSlug ? `#${displayChannelSlug}` : `#${messageChannelId}`;
+    combinedBody = `[${agentDisplayName} in ${channelLabel}]: ${text}\n\n${FANOUT_GUIDANCE}`;
+  }
+
+  // If coordinator provided accumulated responses from prior agents in this round, append them
+  const _fanOutRoundInfo = getFanOutRoundInfo(ctx);
+  if (_fanOutRoundInfo && _fanOutRoundInfo.accumulatedResponses.length > 0) {
+    const accContext = _fanOutRoundInfo.accumulatedResponses.map((r) => `> ${r}`).join("\n\n");
+    combinedBody = `${combinedBody}\n\n--- Prior agent responses this round (round ${_fanOutRoundInfo.round}) ---\n${accContext}`;
+  } else if ((channelConfig?.fanOut ?? guildInfo?.fanOut ?? false) && !ctx.isFanOutBotMessage) {
+    // Human message in fan-out channel — add guidance
+    combinedBody = `${combinedBody}\n\n${FANOUT_GUIDANCE}`;
   }
 
   let threadStarterBody: string | undefined;
@@ -566,6 +585,9 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   // When draft streaming is active, suppress block streaming to avoid double-streaming.
   const disableBlockStreamingForDraft = draftStream ? true : undefined;
 
+  const fanOutDeliveredTexts: string[] = [];
+  const channelFanOut = channelConfig?.fanOut ?? guildInfo?.fanOut ?? false;
+
   const { dispatcher, replyOptions, markDispatchIdle } = createReplyDispatcherWithTyping({
     ...prefixOptions,
     humanDelay: resolveHumanDelayConfig(cfg, route.agentId),
@@ -642,6 +664,11 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         if (!finalizedViaPreviewMessage) {
           await draftStream.clear();
         }
+      }
+
+      // Track delivered text for fanOut coordinator
+      if (payload.text) {
+        fanOutDeliveredTexts.push(payload.text);
       }
 
       const replyToId = replyReference.use();
@@ -750,6 +777,17 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         void statusReactions.restoreInitial();
       }
     }
+  }
+
+  // Notify fan-out coordinator of response
+  if (channelFanOut) {
+    const responseText =
+      fanOutDeliveredTexts.length > 0 ? fanOutDeliveredTexts.join("\n") : undefined;
+    notifyFanOutResponse({
+      channelId: messageChannelId,
+      accountId,
+      responseText,
+    });
   }
 
   if (!dispatchResult?.queuedFinal) {

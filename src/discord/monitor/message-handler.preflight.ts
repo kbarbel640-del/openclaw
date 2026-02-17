@@ -9,6 +9,7 @@ import {
   buildMentionRegexes,
   matchesMentionWithExplicit,
 } from "../../auto-reply/reply/mentions.js";
+import { isSilentReplyText } from "../../auto-reply/tokens.js";
 import { formatAllowlistMatchMeta } from "../../channels/allowlist-match.js";
 import { resolveControlCommandGate } from "../../channels/command-gating.js";
 import { logInboundDrop } from "../../channels/logging.js";
@@ -147,12 +148,9 @@ export async function preflightDiscordMessage(
     pluralkitInfo,
   });
 
-  if (author.bot) {
-    if (!allowBots && !sender.isPluralKit) {
-      logVerbose("discord: drop bot message (allowBots=false)");
-      return null;
-    }
-  }
+  // Bot message filtering is deferred until after channel config is resolved
+  // so that fanOut channels can accept bot messages from other agents.
+  const isBotAuthor = Boolean(author.bot) && !sender.isPluralKit;
 
   const isGuildMessage = Boolean(params.data.guild_id);
   const channelInfo = await resolveDiscordChannelInfo(params.client, messageChannelId);
@@ -410,6 +408,21 @@ export async function preflightDiscordMessage(
     return null;
   }
 
+  // Deferred bot message check: allow bot messages in fanOut channels.
+  const channelFanOut = channelConfig?.fanOut ?? guildInfo?.fanOut ?? false;
+  if (isBotAuthor && !allowBots && !channelFanOut) {
+    logVerbose("discord: drop bot message (allowBots=false, fanOut=false)");
+    return null;
+  }
+
+  // Filter NO_REPLY messages from bots in fanOut channels — these are non-responses
+  // that should not be fanned out or trigger other agents.
+  const isFanOutBotMessage = isBotAuthor && channelFanOut;
+  if (isFanOutBotMessage && isSilentReplyText(baseText)) {
+    logVerbose("discord: drop fan-out bot NO_REPLY message");
+    return null;
+  }
+
   const groupDmAllowed =
     isGroupDm &&
     resolveGroupDmAllow({
@@ -474,14 +487,18 @@ export async function preflightDiscordMessage(
       : undefined;
 
   const threadOwnerId = threadChannel ? (threadChannel.ownerId ?? channelInfo?.ownerId) : undefined;
-  const shouldRequireMentionByConfig = resolveDiscordShouldRequireMention({
-    isGuildMessage,
-    isThread: Boolean(threadChannel),
-    botId,
-    threadOwnerId,
-    channelConfig,
-    guildInfo,
-  });
+  // Fan-out bot messages are actively injected with inline NO_REPLY guidance,
+  // so they no longer require a mention to be processed.
+  const shouldRequireMentionByConfig = isFanOutBotMessage
+    ? false
+    : resolveDiscordShouldRequireMention({
+        isGuildMessage,
+        isThread: Boolean(threadChannel),
+        botId,
+        threadOwnerId,
+        channelConfig,
+        guildInfo,
+      });
   const isBoundThreadSession = Boolean(boundSessionKey && threadChannel);
   const shouldRequireMention = resolvePreflightMentionRequirement({
     shouldRequireMention: shouldRequireMentionByConfig,
@@ -734,5 +751,6 @@ export async function preflightDiscordMessage(
     historyEntry,
     threadBindings: params.threadBindings,
     discordRestFetch: params.discordRestFetch,
+    isFanOutBotMessage,
   };
 }
