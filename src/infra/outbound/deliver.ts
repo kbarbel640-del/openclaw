@@ -244,9 +244,7 @@ export async function deliverOutboundPayloads(
       // AbortErrors (e.g., network timeouts) should NOT ack the delivery.
       // Treat them as failures so the message stays in the queue for retry.
       // See: https://github.com/openclaw/openclaw/issues/18574
-      await failDelivery(queueId, err instanceof Error ? err.message : String(err)).catch(
-        () => {},
-      );
+      await failDelivery(queueId, err instanceof Error ? err.message : String(err)).catch(() => {});
     }
     throw err;
   }
