@@ -15,6 +15,7 @@ What is implemented now:
 - Session FIFO scheduling + decision state tracking + idempotency cache.
 - Typed session-key parsing (`main`, `direct`, `group`, `channel`, `cron`, `hook`, `node`).
 - Typed protocol frame foundation (`req`/`resp`/`event` classification).
+- Gateway RPC parity scaffold for `sessions.list`, `sessions.patch`, and `session.status`.
 - Channel adapter scaffold (`whatsapp`, `telegram`, `slack`, `discord`, generic).
 
 This is intentionally phase 1: it keeps feature coverage by integrating with the
@@ -55,6 +56,7 @@ systemctl --user status openclaw-agent-rs.service
 
 - Connects to `gateway.url`.
 - Sends a `connect` frame as `openclaw-agent-rs`.
+- Responds to core session RPCs (`sessions.list`, `sessions.patch`, `session.status`) with typed `resp` frames.
 - Inspects incoming Gateway frames for actionable payloads (prompt/command/url/file).
 - Applies group activation policy (`mention` or `always`) before evaluation for group contexts.
 - Schedules one active request per session with configurable queue behavior (`followup`, `steer`, `collect`).

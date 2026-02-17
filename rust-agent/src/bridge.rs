@@ -10,10 +10,11 @@ use tracing::{debug, info, warn};
 
 use crate::channels::DriverRegistry;
 use crate::config::{GatewayConfig, GroupActivationMode, SessionQueueMode};
-use crate::gateway::MethodRegistry;
+use crate::gateway::{MethodRegistry, RpcDispatchOutcome, RpcDispatcher};
 use crate::protocol::{
     classify_method, decision_event_frame, frame_kind, parse_frame_text, parse_rpc_request,
-    parse_rpc_response, ConnectFrame, FrameKind,
+    parse_rpc_response, rpc_error_response_frame, rpc_success_response_frame, ConnectFrame,
+    FrameKind,
 };
 use crate::scheduler::{SessionScheduler, SessionSchedulerConfig, SubmitOutcome};
 use crate::security::ActionEvaluator;
@@ -25,6 +26,7 @@ pub struct GatewayBridge {
     scheduler_cfg: SessionSchedulerConfig,
     drivers: Arc<DriverRegistry>,
     methods: Arc<MethodRegistry>,
+    rpc: Arc<RpcDispatcher>,
 }
 
 impl GatewayBridge {
@@ -45,6 +47,7 @@ impl GatewayBridge {
             ),
             drivers: Arc::new(DriverRegistry::default_registry()),
             methods: Arc::new(MethodRegistry::default_registry()),
+            rpc: Arc::new(RpcDispatcher::new()),
         }
     }
 
@@ -129,6 +132,26 @@ impl GatewayBridge {
                                         if !resolved.known {
                                             warn!("unknown rpc method seen: {}", resolved.canonical);
                                         }
+                                        match self.rpc.handle_request(&req).await {
+                                            RpcDispatchOutcome::Handled(result) => {
+                                                let response =
+                                                    rpc_success_response_frame(&req.id, result);
+                                                let _ = decision_tx.send(response).await;
+                                                continue;
+                                            }
+                                            RpcDispatchOutcome::Error {
+                                                code,
+                                                message,
+                                                details,
+                                            } => {
+                                                let response = rpc_error_response_frame(
+                                                    &req.id, code, &message, details
+                                                );
+                                                let _ = decision_tx.send(response).await;
+                                                continue;
+                                            }
+                                            RpcDispatchOutcome::NotHandled => {}
+                                        }
                                     }
                                 }
                                 FrameKind::Resp => {
@@ -172,6 +195,7 @@ impl GatewayBridge {
                                             decision_tx.clone(),
                                             self.decision_event.clone(),
                                             scheduler.clone(),
+                                            self.rpc.clone(),
                                         );
                                     }
                                     SubmitOutcome::Queued => {}
@@ -225,12 +249,14 @@ fn spawn_session_worker(
     decision_tx: mpsc::Sender<serde_json::Value>,
     decision_event: String,
     scheduler: Arc<SessionScheduler>,
+    rpc: Arc<RpcDispatcher>,
 ) {
     tokio::spawn(async move {
         let _permit = slot;
         let mut current = request;
         loop {
             let decision = evaluator.evaluate(current.clone()).await;
+            rpc.record_decision(&current, &decision).await;
             let out = decision_event_frame(&decision_event, &current, &decision);
             let _ = decision_tx.send(out).await;
 
@@ -636,6 +662,182 @@ mod tests {
             GroupActivationMode::Always,
         );
         let evaluator: Arc<dyn ActionEvaluator> = Arc::new(SlowEvaluator);
+        bridge.run_once(evaluator).await?;
+        server.await??;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rpc_sessions_patch_returns_response_frame() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            let ws = accept_async(stream).await?;
+            let (mut write, mut read) = ws.split();
+
+            let _connect = read
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("missing connect frame"))??;
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-patch",
+                        "method": "sessions.patch",
+                        "params": {
+                            "sessionKey": "agent:main:discord:group:g1",
+                            "sendPolicy": "deny",
+                            "groupActivation": "mention",
+                            "queueMode": "steer"
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+
+            let response = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for rpc response"))?
+                .ok_or_else(|| anyhow::anyhow!("rpc response stream ended"))??;
+            let response_json: Value = serde_json::from_str(response.to_text()?)?;
+
+            assert_eq!(
+                response_json.get("type").and_then(Value::as_str),
+                Some("resp")
+            );
+            assert_eq!(
+                response_json.get("id").and_then(Value::as_str),
+                Some("req-patch")
+            );
+            assert_eq!(response_json.get("ok").and_then(Value::as_bool), Some(true));
+            assert_eq!(
+                response_json
+                    .pointer("/result/session/key")
+                    .and_then(Value::as_str),
+                Some("agent:main:discord:group:g1")
+            );
+            assert_eq!(
+                response_json
+                    .pointer("/result/session/sendPolicy")
+                    .and_then(Value::as_str),
+                Some("deny")
+            );
+            write.send(Message::Close(None)).await?;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let bridge = GatewayBridge::new(
+            GatewayConfig {
+                url: format!("ws://{addr}"),
+                token: None,
+            },
+            "security.decision".to_owned(),
+            16,
+            SessionQueueMode::Followup,
+            GroupActivationMode::Always,
+        );
+        let evaluator: Arc<dyn ActionEvaluator> = Arc::new(StubEvaluator);
+        bridge.run_once(evaluator).await?;
+        server.await??;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rpc_sessions_list_reflects_recorded_decisions() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            let ws = accept_async(stream).await?;
+            let (mut write, mut read) = ws.split();
+
+            let _connect = read
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("missing connect frame"))??;
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "event",
+                        "event": "agent",
+                        "payload": {
+                            "id": "req-action-1",
+                            "sessionKey": "agent:main:discord:group:g1",
+                            "chatType": "group",
+                            "wasMentioned": true,
+                            "command": "git status"
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+
+            let _decision = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for decision"))?
+                .ok_or_else(|| anyhow::anyhow!("decision stream ended"))??;
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-list",
+                        "method": "sessions.list",
+                        "params": {"limit": 10}
+                    })
+                    .to_string(),
+                ))
+                .await?;
+
+            let response = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for list response"))?
+                .ok_or_else(|| anyhow::anyhow!("list response stream ended"))??;
+            let response_json: Value = serde_json::from_str(response.to_text()?)?;
+
+            assert_eq!(
+                response_json.get("type").and_then(Value::as_str),
+                Some("resp")
+            );
+            assert_eq!(
+                response_json.get("id").and_then(Value::as_str),
+                Some("req-list")
+            );
+            assert_eq!(response_json.get("ok").and_then(Value::as_bool), Some(true));
+            assert_eq!(
+                response_json
+                    .pointer("/result/sessions/0/key")
+                    .and_then(Value::as_str),
+                Some("agent:main:discord:group:g1")
+            );
+            assert_eq!(
+                response_json
+                    .pointer("/result/sessions/0/totalRequests")
+                    .and_then(Value::as_u64),
+                Some(1)
+            );
+
+            write.send(Message::Close(None)).await?;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let bridge = GatewayBridge::new(
+            GatewayConfig {
+                url: format!("ws://{addr}"),
+                token: None,
+            },
+            "security.decision".to_owned(),
+            16,
+            SessionQueueMode::Followup,
+            GroupActivationMode::Always,
+        );
+        let evaluator: Arc<dyn ActionEvaluator> = Arc::new(StubEvaluator);
         bridge.run_once(evaluator).await?;
         server.await??;
         Ok(())

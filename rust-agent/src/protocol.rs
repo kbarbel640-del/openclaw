@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::session_key::{parse_session_key, SessionKind};
 use crate::types::{ActionRequest, Decision};
@@ -165,6 +165,33 @@ pub fn decision_event_frame(
         },
     };
     serde_json::to_value(frame).unwrap_or(Value::Null)
+}
+
+pub fn rpc_success_response_frame(id: &str, result: Value) -> Value {
+    json!({
+        "type": "resp",
+        "id": id,
+        "ok": true,
+        "result": result
+    })
+}
+
+pub fn rpc_error_response_frame(
+    id: &str,
+    code: i64,
+    message: &str,
+    details: Option<Value>,
+) -> Value {
+    json!({
+        "type": "resp",
+        "id": id,
+        "ok": false,
+        "error": {
+            "code": code,
+            "message": message,
+            "details": details
+        }
+    })
 }
 
 fn extract_delivery_context(
