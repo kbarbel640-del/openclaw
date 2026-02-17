@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
@@ -54,6 +54,18 @@ impl MethodRegistry {
                 },
                 MethodSpec {
                     name: "sessions.list",
+                    family: MethodFamily::Sessions,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "sessions.history",
+                    family: MethodFamily::Sessions,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "sessions.send",
                     family: MethodFamily::Sessions,
                     requires_auth: true,
                     min_role: "client",
@@ -126,6 +138,8 @@ pub struct RpcDispatcher {
     sessions: SessionRegistry,
 }
 
+const MAX_SESSION_HISTORY_PER_SESSION: usize = 128;
+
 impl RpcDispatcher {
     pub fn new() -> Self {
         Self {
@@ -137,6 +151,8 @@ impl RpcDispatcher {
         match normalize(&req.method).as_str() {
             "sessions.list" => self.handle_sessions_list(req).await,
             "sessions.patch" => self.handle_sessions_patch(req).await,
+            "sessions.history" => self.handle_sessions_history(req).await,
+            "sessions.send" => self.handle_sessions_send(req).await,
             "session.status" | "sessions.status" => self.handle_session_status(req).await,
             _ => RpcDispatchOutcome::NotHandled,
         }
@@ -166,7 +182,8 @@ impl RpcDispatcher {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
         };
-        if params.session_key.trim().is_empty() {
+        let session_key = params.session_key.trim().to_owned();
+        if session_key.is_empty() {
             return RpcDispatchOutcome::bad_request("sessionKey is required");
         }
 
@@ -213,6 +230,66 @@ impl RpcDispatcher {
             .await;
         RpcDispatchOutcome::Handled(json!({
             "session": patched
+        }))
+    }
+
+    async fn handle_sessions_history(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<SessionsHistoryParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+
+        let session_key = match params.session_key {
+            Some(v) if v.trim().is_empty() => {
+                return RpcDispatchOutcome::bad_request("sessionKey cannot be empty");
+            }
+            Some(v) => Some(v.trim().to_owned()),
+            None => None,
+        };
+
+        let history = self
+            .sessions
+            .history(session_key.as_deref(), params.limit)
+            .await;
+        RpcDispatchOutcome::Handled(json!({
+            "sessionKey": session_key,
+            "history": history,
+            "count": history.len()
+        }))
+    }
+
+    async fn handle_sessions_send(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<SessionsSendParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let session_key = params.session_key.trim().to_owned();
+        if session_key.is_empty() {
+            return RpcDispatchOutcome::bad_request("sessionKey is required");
+        }
+
+        let message = normalize_optional_text(params.message, 2_048);
+        let command = normalize_optional_text(params.command, 1_024);
+        if message.is_none() && command.is_none() {
+            return RpcDispatchOutcome::bad_request("message or command is required");
+        }
+
+        let (session, recorded) = self
+            .sessions
+            .record_send(SessionSend {
+                session_key,
+                request_id: params.request_id,
+                message,
+                command,
+                source: normalize_optional_text(params.source, 128)
+                    .unwrap_or_else(|| "rpc".to_owned()),
+                channel: normalize_optional_text(params.channel, 128),
+            })
+            .await;
+        RpcDispatchOutcome::Handled(json!({
+            "accepted": true,
+            "session": session,
+            "recorded": recorded
         }))
     }
 
@@ -302,6 +379,45 @@ impl SessionRegistry {
         if entry.channel.is_none() {
             entry.channel = request.channel.clone();
         }
+        entry.push_history(SessionHistoryEvent {
+            at_ms: now,
+            kind: SessionHistoryKind::Decision,
+            request_id: Some(request.id.clone()),
+            text: normalize_optional_text(request.prompt.clone(), 2_048),
+            command: normalize_optional_text(request.command.clone(), 1_024),
+            action: Some(decision.action),
+            risk_score: Some(decision.risk_score),
+            source: normalize_optional_text(Some(request.source.clone()), 128),
+            channel: request.channel.clone().or_else(|| entry.channel.clone()),
+        });
+    }
+
+    async fn record_send(&self, send: SessionSend) -> (SessionView, SessionHistoryRecord) {
+        let now = now_ms();
+        let mut guard = self.entries.lock().await;
+        let entry = guard
+            .entry(send.session_key.clone())
+            .or_insert_with(|| SessionEntry::new(&send.session_key));
+        entry.updated_at_ms = now;
+        if entry.channel.is_none() {
+            entry.channel = send.channel.clone();
+        }
+
+        let event = SessionHistoryEvent {
+            at_ms: now,
+            kind: SessionHistoryKind::Send,
+            request_id: send.request_id,
+            text: send.message,
+            command: send.command,
+            action: None,
+            risk_score: None,
+            source: Some(send.source),
+            channel: send.channel.or_else(|| entry.channel.clone()),
+        };
+        entry.push_history(event.clone());
+
+        let record = SessionHistoryRecord::from_event(&entry.key, event);
+        (entry.to_view(), record)
     }
 
     async fn patch(&self, patch: SessionPatch) -> SessionView {
@@ -344,6 +460,47 @@ impl SessionRegistry {
             .collect()
     }
 
+    async fn history(
+        &self,
+        session_key: Option<&str>,
+        limit: Option<usize>,
+    ) -> Vec<SessionHistoryRecord> {
+        let lim = limit.unwrap_or(100).clamp(1, 1_000);
+        let guard = self.entries.lock().await;
+        if let Some(key) = session_key {
+            return guard
+                .get(key)
+                .map(|entry| {
+                    entry
+                        .history
+                        .iter()
+                        .rev()
+                        .take(lim)
+                        .cloned()
+                        .map(|event| SessionHistoryRecord::from_event(&entry.key, event))
+                        .collect()
+                })
+                .unwrap_or_default();
+        }
+
+        let mut merged = guard
+            .values()
+            .flat_map(|entry| {
+                entry
+                    .history
+                    .iter()
+                    .rev()
+                    .take(lim)
+                    .cloned()
+                    .map(|event| SessionHistoryRecord::from_event(&entry.key, event))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        merged.sort_by(|a, b| b.at_ms.cmp(&a.at_ms));
+        merged.truncate(lim);
+        merged
+    }
+
     async fn summary(&self) -> SessionSummary {
         let guard = self.entries.lock().await;
         let total_sessions = guard.len() as u64;
@@ -368,6 +525,7 @@ struct SessionEntry {
     send_policy: Option<SendPolicyOverride>,
     group_activation: Option<GroupActivationMode>,
     queue_mode: Option<SessionQueueMode>,
+    history: VecDeque<SessionHistoryEvent>,
 }
 
 impl SessionEntry {
@@ -384,6 +542,7 @@ impl SessionEntry {
             send_policy: None,
             group_activation: None,
             queue_mode: None,
+            history: VecDeque::new(),
         }
     }
 
@@ -401,6 +560,13 @@ impl SessionEntry {
             queue_mode: self.queue_mode,
         }
     }
+
+    fn push_history(&mut self, event: SessionHistoryEvent) {
+        if self.history.len() >= MAX_SESSION_HISTORY_PER_SESSION {
+            let _ = self.history.pop_front();
+        }
+        self.history.push_back(event);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -409,6 +575,76 @@ struct SessionPatch {
     send_policy: Option<SendPolicyOverride>,
     group_activation: Option<GroupActivationMode>,
     queue_mode: Option<SessionQueueMode>,
+}
+
+#[derive(Debug, Clone)]
+struct SessionSend {
+    session_key: String,
+    request_id: Option<String>,
+    message: Option<String>,
+    command: Option<String>,
+    source: String,
+    channel: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+enum SessionHistoryKind {
+    Decision,
+    Send,
+}
+
+#[derive(Debug, Clone)]
+struct SessionHistoryEvent {
+    at_ms: u64,
+    kind: SessionHistoryKind,
+    request_id: Option<String>,
+    text: Option<String>,
+    command: Option<String>,
+    action: Option<DecisionAction>,
+    risk_score: Option<u8>,
+    source: Option<String>,
+    channel: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct SessionHistoryRecord {
+    #[serde(rename = "sessionKey")]
+    session_key: String,
+    #[serde(rename = "atMs")]
+    at_ms: u64,
+    kind: SessionHistoryKind,
+    #[serde(rename = "requestId", skip_serializing_if = "Option::is_none")]
+    request_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    action: Option<DecisionAction>,
+    #[serde(rename = "riskScore", skip_serializing_if = "Option::is_none")]
+    risk_score: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    channel: Option<String>,
+}
+
+impl SessionHistoryRecord {
+    fn from_event(session_key: &str, event: SessionHistoryEvent) -> Self {
+        Self {
+            session_key: session_key.to_owned(),
+            at_ms: event.at_ms,
+            kind: event.kind,
+            request_id: event.request_id,
+            text: event.text,
+            command: event.command,
+            action: event.action,
+            risk_score: event.risk_score,
+            source: event.source,
+            channel: event.channel,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -472,6 +708,27 @@ struct SessionsPatchParams {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
+struct SessionsHistoryParams {
+    #[serde(rename = "sessionKey", alias = "session_key")]
+    session_key: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SessionsSendParams {
+    #[serde(rename = "sessionKey", alias = "session_key")]
+    session_key: String,
+    #[serde(rename = "message", alias = "text", alias = "prompt", alias = "input")]
+    message: Option<String>,
+    command: Option<String>,
+    #[serde(rename = "requestId", alias = "request_id")]
+    request_id: Option<String>,
+    source: Option<String>,
+    channel: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
 struct SessionStatusParams {
     #[serde(rename = "sessionKey", alias = "session_key")]
     session_key: Option<String>,
@@ -514,6 +771,24 @@ fn parse_queue_mode(value: &str) -> Option<SessionQueueMode> {
     }
 }
 
+fn normalize_optional_text(value: Option<String>, max_len: usize) -> Option<String> {
+    let value = value?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.len() <= max_len {
+        return Some(trimmed.to_owned());
+    }
+    let mut end = max_len;
+    while end > 0 && !trimmed.is_char_boundary(end) {
+        end -= 1;
+    }
+    let mut out = trimmed[..end].to_owned();
+    out.push_str("...");
+    Some(out)
+}
+
 fn normalize(method: &str) -> String {
     method.trim().to_ascii_lowercase()
 }
@@ -528,6 +803,7 @@ fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use crate::protocol::MethodFamily;
+    use crate::types::{ActionRequest, Decision, DecisionAction};
 
     use super::{MethodRegistry, RpcDispatchOutcome, RpcDispatcher, RpcRequestFrame};
 
@@ -627,5 +903,143 @@ mod tests {
         };
         let out = dispatcher.handle_request(&req).await;
         assert!(matches!(out, RpcDispatchOutcome::Error { code: 404, .. }));
+    }
+
+    #[tokio::test]
+    async fn dispatcher_send_and_history_roundtrip() {
+        let dispatcher = RpcDispatcher::new();
+        let send = RpcRequestFrame {
+            id: "req-send".to_owned(),
+            method: "sessions.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g2",
+                "message": "hello from rpc",
+                "requestId": "out-1",
+                "channel": "discord"
+            }),
+        };
+        let out = dispatcher.handle_request(&send).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/accepted")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/recorded/kind")
+                        .and_then(serde_json::Value::as_str),
+                    Some("send")
+                );
+            }
+            _ => panic!("expected handled send"),
+        }
+
+        let history = RpcRequestFrame {
+            id: "req-history".to_owned(),
+            method: "sessions.history".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g2",
+                "limit": 5
+            }),
+        };
+        let out = dispatcher.handle_request(&history).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/history/0/sessionKey")
+                        .and_then(serde_json::Value::as_str),
+                    Some("agent:main:discord:group:g2")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/history/0/text")
+                        .and_then(serde_json::Value::as_str),
+                    Some("hello from rpc")
+                );
+            }
+            _ => panic!("expected handled history"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_history_includes_recorded_decisions() {
+        let dispatcher = RpcDispatcher::new();
+        let request = ActionRequest {
+            id: "req-42".to_owned(),
+            source: "agent".to_owned(),
+            session_id: Some("agent:main:discord:group:g3".to_owned()),
+            prompt: Some("review me".to_owned()),
+            command: Some("rm -rf /tmp".to_owned()),
+            tool_name: Some("exec".to_owned()),
+            channel: Some("discord".to_owned()),
+            url: None,
+            file_path: None,
+            raw: serde_json::json!({}),
+        };
+        let decision = Decision {
+            action: DecisionAction::Review,
+            risk_score: 71,
+            reasons: vec!["unsafe".to_owned()],
+            tags: vec!["risk".to_owned()],
+            source: "openclaw-agent-rs".to_owned(),
+        };
+        dispatcher.record_decision(&request, &decision).await;
+
+        let history = RpcRequestFrame {
+            id: "req-history".to_owned(),
+            method: "sessions.history".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g3",
+                "limit": 5
+            }),
+        };
+        let out = dispatcher.handle_request(&history).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/history/0/kind")
+                        .and_then(serde_json::Value::as_str),
+                    Some("decision")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/history/0/action")
+                        .and_then(serde_json::Value::as_str),
+                    Some("review")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/history/0/riskScore")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(71)
+                );
+            }
+            _ => panic!("expected handled history"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_rejects_sessions_send_without_payload() {
+        let dispatcher = RpcDispatcher::new();
+        let send = RpcRequestFrame {
+            id: "req-send".to_owned(),
+            method: "sessions.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g2"
+            }),
+        };
+        let out = dispatcher.handle_request(&send).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
     }
 }

@@ -15,6 +15,8 @@
 - Gateway known-method registry plus first RPC dispatcher for:
   - `sessions.list`
   - `sessions.patch`
+  - `sessions.history`
+  - `sessions.send`
   - `session.status`
 - Rust defender policy engine with bounded worker concurrency.
 - Prompt injection scoring + command risk scoring.

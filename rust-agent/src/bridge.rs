@@ -842,4 +842,117 @@ mod tests {
         server.await??;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn rpc_sessions_send_and_history_roundtrip() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            let ws = accept_async(stream).await?;
+            let (mut write, mut read) = ws.split();
+
+            let _connect = read
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("missing connect frame"))??;
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-send",
+                        "method": "sessions.send",
+                        "params": {
+                            "sessionKey": "agent:main:discord:group:g9",
+                            "message": "hello-session",
+                            "requestId": "rpc-out-9",
+                            "channel": "discord"
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+
+            let send_response = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for send response"))?
+                .ok_or_else(|| anyhow::anyhow!("send response stream ended"))??;
+            let send_json: Value = serde_json::from_str(send_response.to_text()?)?;
+            assert_eq!(send_json.get("type").and_then(Value::as_str), Some("resp"));
+            assert_eq!(
+                send_json.get("id").and_then(Value::as_str),
+                Some("req-send")
+            );
+            assert_eq!(send_json.get("ok").and_then(Value::as_bool), Some(true));
+            assert_eq!(
+                send_json
+                    .pointer("/result/recorded/kind")
+                    .and_then(Value::as_str),
+                Some("send")
+            );
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-history",
+                        "method": "sessions.history",
+                        "params": {
+                            "sessionKey": "agent:main:discord:group:g9",
+                            "limit": 10
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+
+            let history_response = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for history response"))?
+                .ok_or_else(|| anyhow::anyhow!("history response stream ended"))??;
+            let history_json: Value = serde_json::from_str(history_response.to_text()?)?;
+
+            assert_eq!(
+                history_json.get("type").and_then(Value::as_str),
+                Some("resp")
+            );
+            assert_eq!(
+                history_json.get("id").and_then(Value::as_str),
+                Some("req-history")
+            );
+            assert_eq!(history_json.get("ok").and_then(Value::as_bool), Some(true));
+            assert_eq!(
+                history_json
+                    .pointer("/result/count")
+                    .and_then(Value::as_u64),
+                Some(1)
+            );
+            assert_eq!(
+                history_json
+                    .pointer("/result/history/0/text")
+                    .and_then(Value::as_str),
+                Some("hello-session")
+            );
+
+            write.send(Message::Close(None)).await?;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let bridge = GatewayBridge::new(
+            GatewayConfig {
+                url: format!("ws://{addr}"),
+                token: None,
+            },
+            "security.decision".to_owned(),
+            16,
+            SessionQueueMode::Followup,
+            GroupActivationMode::Always,
+        );
+        let evaluator: Arc<dyn ActionEvaluator> = Arc::new(StubEvaluator);
+        bridge.run_once(evaluator).await?;
+        server.await??;
+        Ok(())
+    }
 }
