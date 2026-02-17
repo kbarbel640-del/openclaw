@@ -360,7 +360,7 @@ describe("diagnostics-otel service", () => {
     const modelCall = spanCalls.find((call) => String(call[0]).startsWith("chat "));
     expect(modelCall).toBeDefined();
     expect(modelCall![2]).toBeDefined();
-    expect(modelCall![2].__parentSpanContext?.traceId).toBe(traceId);
+    expect(modelCall![2]!.__parentSpanContext?.traceId).toBe(traceId);
 
     await service.stop?.(ctx);
   });
