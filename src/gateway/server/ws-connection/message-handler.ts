@@ -343,7 +343,11 @@ export function attachGatewayWsMessageHandler(params: {
         const disableControlUiDeviceAuth =
           isControlUi && configSnapshot.gateway?.controlUi?.dangerouslyDisableDeviceAuth === true;
         const allowControlUiBypass = allowInsecureControlUi || disableControlUiDeviceAuth;
-        const device = disableControlUiDeviceAuth ? null : deviceRaw;
+        // BUG #2248: When allowInsecureAuth is enabled and shared auth is available,
+        // skip device auth and rely on password/token auth instead
+        const skipDeviceAuthForInsecure =
+          allowInsecureControlUi && hasSharedAuth && Boolean(deviceRaw);
+        const device = disableControlUiDeviceAuth || skipDeviceAuthForInsecure ? null : deviceRaw;
 
         const hasDeviceTokenCandidate = Boolean(connectParams.auth?.token && device);
         let authResult: GatewayAuthResult = await authorizeGatewayConnect({
