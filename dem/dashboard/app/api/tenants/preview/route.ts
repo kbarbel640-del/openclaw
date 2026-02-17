@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     return NextResponse.json(types);
   }
 
-  const svc = getGovernanceService();
+  const { tenantService } = getGovernanceService();
   const config = {
     memberStructure: searchParams.get("memberStructure") as "single" | "multi" | undefined,
     memberCount: searchParams.get("memberCount")
@@ -29,7 +29,10 @@ export async function GET(request: Request) {
   };
 
   try {
-    const preview = svc.preview(entityType as Parameters<typeof svc.preview>[0], config);
+    const preview = tenantService.preview(
+      entityType as Parameters<typeof tenantService.preview>[0],
+      config,
+    );
     return NextResponse.json(preview);
   } catch {
     return NextResponse.json({ error: "Invalid entity type" }, { status: 400 });

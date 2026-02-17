@@ -185,6 +185,9 @@ const COLD_ACTIONS = new Set([
   "tenant.update",
   "project.create",
   "project.archive",
+  "policy.create",
+  "policy.update",
+  "policy.delete",
 ]);
 
 /** Actions that are hot-path only (no persistence, dashboard only). */

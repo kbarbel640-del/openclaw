@@ -6,8 +6,8 @@ type RouteParams = { params: Promise<{ tenantId: string; agentId: string }> };
 /** GET /api/tenants/:id/agents/:agentId — Get a single agent. */
 export async function GET(_request: Request, { params }: RouteParams) {
   const { tenantId, agentId } = await params;
-  const svc = getGovernanceService();
-  const agent = svc.getAgent(tenantId, agentId);
+  const { tenantService } = getGovernanceService();
+  const agent = tenantService.getAgent(tenantId, agentId);
 
   if (!agent) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
@@ -19,9 +19,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
 /** DELETE /api/tenants/:id/agents/:agentId — Remove an agent. */
 export async function DELETE(_request: Request, { params }: RouteParams) {
   const { tenantId, agentId } = await params;
-  const svc = getGovernanceService();
+  const { tenantService } = getGovernanceService();
 
-  if (!svc.removeAgent(tenantId, agentId)) {
+  if (!tenantService.removeAgent(tenantId, agentId)) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
 

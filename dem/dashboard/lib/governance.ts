@@ -5,19 +5,28 @@
  * Shared across all API routes via module-level singleton.
  */
 
+import { PolicyService } from "@six-fingered-man/governance/policies";
 import { TenantService } from "@six-fingered-man/governance/tenants";
 
-let instance: TenantService | null = null;
+export interface GovernanceServices {
+  tenantService: TenantService;
+  policyService: PolicyService;
+}
 
-export function getGovernanceService(): TenantService {
+let instance: GovernanceServices | null = null;
+
+export function getGovernanceService(): GovernanceServices {
   if (!instance) {
-    instance = new TenantService({
-      defaultModel: {
-        provider: "ollama",
-        model: "llama3.1:8b",
-        server: "localhost",
-      },
-    });
+    instance = {
+      tenantService: new TenantService({
+        defaultModel: {
+          provider: "ollama",
+          model: "llama3.1:8b",
+          server: "localhost",
+        },
+      }),
+      policyService: new PolicyService(),
+    };
   }
   return instance;
 }

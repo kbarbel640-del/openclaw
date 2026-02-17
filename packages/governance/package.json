@@ -10,7 +10,8 @@
     "./identity": "./src/identity/did.ts",
     "./ledger": "./src/ledger/index.ts",
     "./contracts": "./src/contracts/index.ts",
-    "./tenants": "./src/tenants/index.ts"
+    "./tenants": "./src/tenants/index.ts",
+    "./policies": "./src/policies/index.ts"
   },
   "scripts": {
     "build": "tsc",

@@ -528,7 +528,11 @@ export type LedgerAction =
   // Auth
   | "auth.challenge"
   | "auth.success"
-  | "auth.failure";
+  | "auth.failure"
+  // Policy
+  | "policy.create"
+  | "policy.update"
+  | "policy.delete";
 
 // ── Ledger Validation (Multi-Sig) ──────────────────────────────────────────
 
@@ -615,4 +619,169 @@ export interface MerkleRoot {
     blockNumber: number;
     anchoredAt: string;
   };
+}
+
+// ── MSP Policy Layer ─────────────────────────────────────────────────────────
+//
+// Three-gate authorization:
+//   Gate 0: MSP Policy (immutable floor) — "Is this resource available at all?"
+//   Gate 1: Contract (signed VC) — "Does this agent have permission?"
+//   Gate 2: Runtime — "Is it within scope, maturity, rate limits?"
+//
+// The MSP controls what exists. Customers select from what's available.
+
+// ── Resource Catalogs ────────────────────────────────────────────────────────
+
+/** A model the MSP makes available for agent assignment. */
+export interface ModelCatalogEntry {
+  id: string;
+  provider: string;
+  model: string;
+  server: string;
+  displayName: string;
+  costTier: "free" | "low" | "medium" | "high";
+  capabilityTier: "basic" | "standard" | "advanced" | "frontier";
+  contextWindow: number;
+  enabled: boolean;
+}
+
+/** A tool the MSP makes available for agent use. */
+export interface ToolCatalogEntry {
+  id: string;
+  name: string;
+  categories: string[];
+  riskLevel: "low" | "medium" | "high" | "critical";
+  requiresApproval: boolean;
+  enabled: boolean;
+}
+
+/** A secret reference the MSP makes available (metadata only, NEVER raw values). */
+export interface SecretCatalogEntry {
+  id: string;
+  name: string;
+  provider: string;
+  allowedScopes: PolicyScopeLevel[];
+}
+
+/** A skill the MSP makes available for agent assignment. */
+export interface SkillCatalogEntry {
+  id: string;
+  name: string;
+  categories: string[];
+  minMaturityLevel: MaturityLevel;
+  enabled: boolean;
+}
+
+/** Code policy — what languages, registries, and packages the MSP allows. */
+export interface CodePolicy {
+  allowedLanguages: string[];
+  approvedRegistries: string[];
+  versionConstraints: Record<string, string>;
+  blockedPackages: string[];
+}
+
+// ── Constraints ──────────────────────────────────────────────────────────────
+
+/** Maturity ceilings per function category — immutable floors set by MSP. */
+export type MaturityCeilings = Partial<Record<FunctionCategory, MaturityLevel>>;
+
+/** Sandbox enforcement level. */
+export type SandboxLevel = "none" | "code-only" | "all";
+
+/** Rate limit configuration. */
+export interface RateLimits {
+  /** Max requests per minute. */
+  requestsPerMinute?: number;
+  /** Max tokens per hour. */
+  tokensPerHour?: number;
+  /** Max cost (USD) per day. */
+  costPerDay?: number;
+}
+
+/** Policy constraints — immutable floors that child scopes cannot relax. */
+export interface PolicyConstraints {
+  maturityCeilings: MaturityCeilings;
+  sandboxFloor: SandboxLevel;
+  toolDenyList: string[];
+  requiredApprovals: string[];
+  rateLimits: RateLimits;
+}
+
+// ── Scope & Cascade ──────────────────────────────────────────────────────────
+
+/** Policy scope levels — cascades from global → entity-type → tenant → agent. */
+export type PolicyScopeLevel = "global" | "entity-type" | "tenant" | "agent";
+
+/** A policy scope identifying the target of a policy. */
+export interface PolicyScope {
+  level: PolicyScopeLevel;
+  /** Entity type (for entity-type scoped policies). */
+  entityType?: EntityType;
+  /** Tenant ID (for tenant-scoped policies). */
+  tenantId?: string;
+  /** Agent ID (for agent-scoped policies). */
+  agentId?: string;
+}
+
+/** Resource catalogs grouped in a policy document. */
+export interface PolicyCatalogs {
+  models: ModelCatalogEntry[];
+  tools: ToolCatalogEntry[];
+  secrets: SecretCatalogEntry[];
+  skills: SkillCatalogEntry[];
+  codePolicy: CodePolicy;
+}
+
+/** A policy document — what the MSP controls at a given scope. */
+export interface PolicyDocument {
+  id: string;
+  scope: PolicyScope;
+  catalogs: PolicyCatalogs;
+  constraints: PolicyConstraints;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: DID;
+}
+
+/** Fully resolved policy after cascade — what actually applies. */
+export interface EffectivePolicy {
+  catalogs: PolicyCatalogs;
+  constraints: PolicyConstraints;
+  /** Chain of policy IDs that contributed (global → ... → specific). */
+  appliedPolicies: string[];
+}
+
+// ── Gate 0 Check ─────────────────────────────────────────────────────────────
+
+/** Resource type for Gate 0 policy checks. */
+export type PolicyResourceType = "model" | "tool" | "skill" | "secret" | "language" | "package";
+
+/** Parameters for a Gate 0 policy check. */
+export interface PolicyCheckParams {
+  resourceType: PolicyResourceType;
+  resourceId: string;
+  scope: PolicyScope;
+}
+
+/** Result of a Gate 0 policy check. */
+export interface PolicyCheckResult {
+  allowed: boolean;
+  reason: string;
+  policyId?: string;
+  requiresApproval?: boolean;
+}
+
+/** Context for policy resolution (optional tenant/agent data for scoping). */
+export interface PolicyResolutionContext {
+  entityType?: EntityType;
+  tenantId?: string;
+  agentId?: string;
+}
+
+/** Input for setting/updating a policy. */
+export interface SetPolicyInput {
+  scope: PolicyScope;
+  catalogs: PolicyCatalogs;
+  constraints: PolicyConstraints;
+  updatedBy: DID;
 }

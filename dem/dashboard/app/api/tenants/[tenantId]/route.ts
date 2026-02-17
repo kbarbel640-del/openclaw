@@ -6,8 +6,8 @@ type RouteParams = { params: Promise<{ tenantId: string }> };
 /** GET /api/tenants/:id — Get a single tenant. */
 export async function GET(_request: Request, { params }: RouteParams) {
   const { tenantId } = await params;
-  const svc = getGovernanceService();
-  const tenant = svc.get(tenantId);
+  const { tenantService } = getGovernanceService();
+  const tenant = tenantService.get(tenantId);
 
   if (!tenant) {
     return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
@@ -20,9 +20,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
 export async function PATCH(request: Request, { params }: RouteParams) {
   const { tenantId } = await params;
   const body = await request.json();
-  const svc = getGovernanceService();
+  const { tenantService } = getGovernanceService();
 
-  const updated = svc.update(tenantId, body);
+  const updated = tenantService.update(tenantId, body);
   if (!updated) {
     return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
   }
@@ -33,9 +33,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 /** DELETE /api/tenants/:id — Delete a tenant. */
 export async function DELETE(_request: Request, { params }: RouteParams) {
   const { tenantId } = await params;
-  const svc = getGovernanceService();
+  const { tenantService } = getGovernanceService();
 
-  if (!svc.delete(tenantId)) {
+  if (!tenantService.delete(tenantId)) {
     return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
   }
 

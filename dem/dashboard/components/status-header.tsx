@@ -1,6 +1,16 @@
 "use client";
 
-import { Wifi, WifiOff, Users, Server, Skull, Loader, Fingerprint, Building2 } from "lucide-react";
+import {
+  Wifi,
+  WifiOff,
+  Users,
+  Server,
+  Skull,
+  Loader,
+  Fingerprint,
+  Building2,
+  Shield,
+} from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { useDashboardStore } from "@/lib/store";
@@ -75,6 +85,14 @@ export function StatusHeader() {
         >
           <Building2 className="h-4 w-4" />
           <span className="text-xs tracking-wider uppercase">Tenants</span>
+        </Link>
+
+        <Link
+          href="/policies"
+          className="flex items-center gap-2 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+        >
+          <Shield className="h-4 w-4" />
+          <span className="text-xs tracking-wider uppercase">Policies</span>
         </Link>
 
         <Link
