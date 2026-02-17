@@ -1,0 +1,4 @@
+{
+  "enabledMcpjsonServers": ["codex", "voicetree"],
+  "enableAllProjectMcpServers": true
+}
