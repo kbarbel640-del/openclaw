@@ -100,10 +100,9 @@ export async function getStatusSummary(
     defaultModel: DEFAULT_MODEL,
   });
   const configModel = resolved.model ?? DEFAULT_MODEL;
+  const explicitContextTokens = cfg.agents?.defaults?.contextTokens;
   const configContextTokens =
-    cfg.agents?.defaults?.contextTokens ??
-    lookupContextTokens(configModel) ??
-    DEFAULT_CONTEXT_TOKENS;
+    explicitContextTokens ?? lookupContextTokens(configModel) ?? DEFAULT_CONTEXT_TOKENS;
 
   const now = Date.now();
   const storeCache = new Map<string, Record<string, SessionEntry | undefined>>();
@@ -127,7 +126,11 @@ export async function getStatusSummary(
         const age = updatedAt ? now - updatedAt : null;
         const model = entry?.model ?? configModel ?? null;
         const contextTokens =
-          entry?.contextTokens ?? lookupContextTokens(model) ?? configContextTokens ?? null;
+          entry?.contextTokens ??
+          explicitContextTokens ??
+          lookupContextTokens(model) ??
+          configContextTokens ??
+          null;
         const total = resolveFreshSessionTotalTokens(entry);
         const totalTokensFresh =
           typeof entry?.totalTokens === "number" ? entry?.totalTokensFresh !== false : false;
