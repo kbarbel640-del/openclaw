@@ -6,7 +6,7 @@ import { CallRecordSchema, TerminalStates, type CallId, type CallRecord } from "
 export function persistCallRecord(storePath: string, call: CallRecord): void {
   const logPath = path.join(storePath, "calls.jsonl");
   const line = `${JSON.stringify(call)}\n`;
-  fs.appendFileSync(logPath, line);
+  fs.appendFileSync(logPath, line, { encoding: "utf-8", flush: true });
 }
 
 export function loadActiveCallsFromStore(storePath: string): {

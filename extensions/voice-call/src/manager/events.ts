@@ -83,19 +83,27 @@ function createInboundCall(params: {
     },
   };
 
+  persistCallRecord(params.ctx.storePath, callRecord);
   params.ctx.activeCalls.set(callId, callRecord);
   params.ctx.providerCallIdMap.set(params.providerCallId, callId);
-  persistCallRecord(params.ctx.storePath, callRecord);
 
   console.log(`[voice-call] Created inbound call record: ${callId} from ${params.from}`);
   return callRecord;
+}
+
+function cloneCallRecord(call: CallRecord): CallRecord {
+  return {
+    ...call,
+    transcript: [...call.transcript],
+    processedEventIds: [...call.processedEventIds],
+    metadata: call.metadata ? { ...call.metadata } : undefined,
+  };
 }
 
 export function processEvent(ctx: EventContext, event: NormalizedEvent): void {
   if (ctx.processedEventIds.has(event.id)) {
     return;
   }
-  ctx.processedEventIds.add(event.id);
 
   let call = findCall({
     activeCalls: ctx.activeCalls,
@@ -145,6 +153,15 @@ export function processEvent(ctx: EventContext, event: NormalizedEvent): void {
   if (!call) {
     return;
   }
+
+  const previousCall = cloneCallRecord(call);
+  const wasCallActive = ctx.activeCalls.get(call.callId) === call;
+  const previousProviderCallId = previousCall.providerCallId;
+  const previousProviderCallIdMapValue = previousProviderCallId
+    ? ctx.providerCallIdMap.get(previousProviderCallId)
+    : undefined;
+  let transcriptRejectionReason: string | null = null;
+  let clearDurationTimer = false;
 
   if (event.providerCallId && event.providerCallId !== call.providerCallId) {
     const previousProviderCallId = call.providerCallId;
@@ -202,8 +219,8 @@ export function processEvent(ctx: EventContext, event: NormalizedEvent): void {
       call.endedAt = event.timestamp;
       call.endReason = event.reason;
       transitionState(call, event.reason as CallState);
-      clearMaxDurationTimer(ctx, call.callId);
-      rejectTranscriptWaiter(ctx, call.callId, `Call ended: ${event.reason}`);
+      clearDurationTimer = true;
+      transcriptRejectionReason = `Call ended: ${event.reason}`;
       ctx.activeCalls.delete(call.callId);
       if (call.providerCallId) {
         ctx.providerCallIdMap.delete(call.providerCallId);
@@ -215,8 +232,8 @@ export function processEvent(ctx: EventContext, event: NormalizedEvent): void {
         call.endedAt = event.timestamp;
         call.endReason = "error";
         transitionState(call, "error");
-        clearMaxDurationTimer(ctx, call.callId);
-        rejectTranscriptWaiter(ctx, call.callId, `Call error: ${event.error}`);
+        clearDurationTimer = true;
+        transcriptRejectionReason = `Call error: ${event.error}`;
         ctx.activeCalls.delete(call.callId);
         if (call.providerCallId) {
           ctx.providerCallIdMap.delete(call.providerCallId);
@@ -225,5 +242,41 @@ export function processEvent(ctx: EventContext, event: NormalizedEvent): void {
       break;
   }
 
-  persistCallRecord(ctx.storePath, call);
+  try {
+    persistCallRecord(ctx.storePath, call);
+  } catch (err) {
+    Object.assign(call, previousCall);
+
+    if (wasCallActive) {
+      ctx.activeCalls.set(call.callId, call);
+    } else {
+      ctx.activeCalls.delete(call.callId);
+    }
+
+    if (event.providerCallId && event.providerCallId !== previousProviderCallId) {
+      const mappedCallId = ctx.providerCallIdMap.get(event.providerCallId);
+      if (mappedCallId === call.callId) {
+        ctx.providerCallIdMap.delete(event.providerCallId);
+      }
+    }
+
+    if (previousProviderCallId) {
+      if (previousProviderCallIdMapValue === undefined) {
+        ctx.providerCallIdMap.delete(previousProviderCallId);
+      } else {
+        ctx.providerCallIdMap.set(previousProviderCallId, previousProviderCallIdMapValue);
+      }
+    }
+
+    throw err;
+  }
+
+  if (clearDurationTimer) {
+    clearMaxDurationTimer(ctx, call.callId);
+  }
+  if (transcriptRejectionReason) {
+    rejectTranscriptWaiter(ctx, call.callId, transcriptRejectionReason);
+  }
+
+  ctx.processedEventIds.add(event.id);
 }

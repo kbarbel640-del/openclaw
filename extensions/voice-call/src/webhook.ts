@@ -365,7 +365,13 @@ export class VoiceCallWebhookServer {
     // Process each event. If processing fails (including persistence failures),
     // surface a 500 so providers can retry instead of silently dropping state.
     for (const event of result.events) {
-      this.manager.processEvent(event);
+      try {
+        this.manager.processEvent(event);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[voice-call] Failed to process event ${event.id}: ${message}`);
+        throw err;
+      }
     }
 
     // Send response
