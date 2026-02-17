@@ -194,7 +194,7 @@ out to QMD for retrieval. Key points:
     of no queries. Set `0` to keep alive indefinitely.
   - `coldStartTimeoutMs` (default `30000`): timeout for the first query while
     models load into RAM.
-  - `warmTimeoutMs` (default `10000`): timeout for subsequent queries with models
+  - `warmTimeoutMs` (default `15000`): timeout for subsequent queries with models
     already loaded.
 - `scope`: same schema as [`session.sendPolicy`](/gateway/configuration#session).
   Default is DM-only (`deny` all, `allow` direct chats); loosen it to surface QMD

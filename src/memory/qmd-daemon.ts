@@ -57,6 +57,7 @@ export class QmdDaemon {
   private startPromise: Promise<void> | null = null;
   private initialized = false;
   private queryMutex: Promise<void> = Promise.resolve();
+  private cleanupPromise: Promise<void> | null = null;
 
   private readonly command: string;
   private readonly env: NodeJS.ProcessEnv;
@@ -136,7 +137,12 @@ export class QmdDaemon {
     if (this.startPromise) {
       return this.startPromise;
     }
-    this.startPromise = this.doStart().finally(() => {
+    this.startPromise = (async () => {
+      if (this.cleanupPromise) {
+        await this.cleanupPromise.catch(() => undefined);
+      }
+      await this.doStart();
+    })().finally(() => {
       this.startPromise = null;
     });
     return this.startPromise;
@@ -239,7 +245,7 @@ export class QmdDaemon {
       return;
     }
     this.state = "stopped";
-    await this.cleanup();
+    await this.runCleanup();
     log.info("qmd daemon stopped");
   }
 
@@ -253,53 +259,58 @@ export class QmdDaemon {
       }
 
       this.lastQueryAt = Date.now();
-      this.resetIdleTimer();
+      this.clearIdleTimer();
 
-      const result = await this.rpcRequest<{
-        content?: Array<{ type: string; text?: string }>;
-        structuredContent?: { results?: QmdDaemonQueryResult[] };
-      }>(
-        "tools/call",
-        {
-          name: opts.tool,
-          arguments: {
-            query: text,
-            limit: opts.limit,
-            ...(opts.collection ? { collection: opts.collection } : {}),
+      try {
+        const result = await this.rpcRequest<{
+          content?: Array<{ type: string; text?: string }>;
+          structuredContent?: { results?: QmdDaemonQueryResult[] };
+        }>(
+          "tools/call",
+          {
+            name: opts.tool,
+            arguments: {
+              query: text,
+              limit: opts.limit,
+              ...(opts.collection ? { collection: opts.collection } : {}),
+            },
           },
-        },
-        { timeoutMs: opts.timeoutMs },
-      );
+          { timeoutMs: opts.timeoutMs },
+        );
 
-      // Check for MCP-level errors (isError flag)
-      if ((result as Record<string, unknown>)?.isError) {
-        const errText =
-          Array.isArray(result?.content) && result.content[0]?.type === "text"
-            ? (result.content[0] as { text: string }).text
-            : "unknown daemon error";
-        throw new Error(`qmd daemon tool error: ${errText}`);
-      }
+        // Check for MCP-level errors (isError flag)
+        if ((result as Record<string, unknown>)?.isError) {
+          const errText =
+            Array.isArray(result?.content) && result.content[0]?.type === "text"
+              ? (result.content[0] as { text: string }).text
+              : "unknown daemon error";
+          throw new Error(`qmd daemon tool error: ${errText}`);
+        }
 
-      // Parse result — QMD returns structured data in structuredContent.results
-      if (result?.structuredContent?.results && Array.isArray(result.structuredContent.results)) {
-        return result.structuredContent.results;
-      }
+        // Parse result — QMD returns structured data in structuredContent.results
+        if (result?.structuredContent?.results && Array.isArray(result.structuredContent.results)) {
+          return result.structuredContent.results;
+        }
 
-      // Fallback: try parsing text content as JSON
-      if (Array.isArray(result?.content) && result.content.length > 0) {
-        const first = result.content[0];
-        if (first?.type === "text" && typeof first.text === "string") {
-          try {
-            const parsed: unknown = JSON.parse(first.text);
-            if (Array.isArray(parsed)) {
-              return parsed as QmdDaemonQueryResult[];
+        // Fallback: try parsing text content as JSON
+        if (Array.isArray(result?.content) && result.content.length > 0) {
+          const first = result.content[0];
+          if (first?.type === "text" && typeof first.text === "string") {
+            try {
+              const parsed: unknown = JSON.parse(first.text);
+              if (Array.isArray(parsed)) {
+                return parsed as QmdDaemonQueryResult[];
+              }
+            } catch {
+              // Not JSON — structuredContent is preferred anyway
             }
-          } catch {
-            // Not JSON — structuredContent is preferred anyway
           }
         }
+        return [];
+      } finally {
+        this.lastQueryAt = Date.now();
+        this.resetIdleTimer();
       }
-      return [];
     });
   }
 
@@ -419,7 +430,7 @@ export class QmdDaemon {
     this.state = "error";
     this.initialized = false;
     this.lastCrashReason = reason;
-    this.cleanup().catch(() => undefined);
+    this.runCleanup().catch(() => undefined);
 
     const timeSinceStart = Date.now() - this.lastStartAt;
     if (timeSinceStart > STABILITY_RESET_MS) {
@@ -511,5 +522,18 @@ export class QmdDaemon {
 
     // Remove PID file
     await fs.rm(this.pidFilePath, { force: true }).catch(() => undefined);
+  }
+
+  private runCleanup(): Promise<void> {
+    if (this.cleanupPromise) {
+      return this.cleanupPromise;
+    }
+    const pending = this.cleanup().finally(() => {
+      if (this.cleanupPromise === pending) {
+        this.cleanupPromise = null;
+      }
+    });
+    this.cleanupPromise = pending;
+    return pending;
   }
 }
