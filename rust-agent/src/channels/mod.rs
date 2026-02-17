@@ -2,8 +2,21 @@ use serde_json::Value;
 
 use crate::types::ActionRequest;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChannelCapabilities {
+    pub name: &'static str,
+    pub supports_edit: bool,
+    pub supports_delete: bool,
+    pub supports_reactions: bool,
+    pub supports_threads: bool,
+    pub supports_polls: bool,
+    pub supports_media: bool,
+    pub default_dm_pairing: bool,
+}
+
 pub trait ChannelDriver: Send + Sync {
     fn extract(&self, frame: &Value) -> Option<ActionRequest>;
+    fn capabilities(&self) -> ChannelCapabilities;
 }
 
 pub struct DriverRegistry {
@@ -14,6 +27,7 @@ impl DriverRegistry {
     pub fn default_registry() -> Self {
         Self {
             drivers: vec![
+                Box::new(WhatsAppDriver),
                 Box::new(TelegramDriver),
                 Box::new(SlackDriver),
                 Box::new(DiscordDriver),
@@ -30,6 +44,10 @@ impl DriverRegistry {
         }
         None
     }
+
+    pub fn capabilities(&self) -> Vec<ChannelCapabilities> {
+        self.drivers.iter().map(|d| d.capabilities()).collect()
+    }
 }
 
 struct GenericDriver;
@@ -37,6 +55,19 @@ struct GenericDriver;
 impl ChannelDriver for GenericDriver {
     fn extract(&self, frame: &Value) -> Option<ActionRequest> {
         ActionRequest::from_gateway_frame(frame)
+    }
+
+    fn capabilities(&self) -> ChannelCapabilities {
+        ChannelCapabilities {
+            name: "generic",
+            supports_edit: false,
+            supports_delete: false,
+            supports_reactions: false,
+            supports_threads: false,
+            supports_polls: false,
+            supports_media: true,
+            default_dm_pairing: true,
+        }
     }
 }
 
@@ -46,6 +77,19 @@ impl ChannelDriver for DiscordDriver {
     fn extract(&self, frame: &Value) -> Option<ActionRequest> {
         extract_with_hints(frame, "discord", &["discord"])
     }
+
+    fn capabilities(&self) -> ChannelCapabilities {
+        ChannelCapabilities {
+            name: "discord",
+            supports_edit: true,
+            supports_delete: true,
+            supports_reactions: true,
+            supports_threads: true,
+            supports_polls: true,
+            supports_media: true,
+            default_dm_pairing: true,
+        }
+    }
 }
 
 struct TelegramDriver;
@@ -54,6 +98,19 @@ impl ChannelDriver for TelegramDriver {
     fn extract(&self, frame: &Value) -> Option<ActionRequest> {
         extract_with_hints(frame, "telegram", &["telegram", "grammy"])
     }
+
+    fn capabilities(&self) -> ChannelCapabilities {
+        ChannelCapabilities {
+            name: "telegram",
+            supports_edit: true,
+            supports_delete: true,
+            supports_reactions: true,
+            supports_threads: false,
+            supports_polls: true,
+            supports_media: true,
+            default_dm_pairing: true,
+        }
+    }
 }
 
 struct SlackDriver;
@@ -61,6 +118,40 @@ struct SlackDriver;
 impl ChannelDriver for SlackDriver {
     fn extract(&self, frame: &Value) -> Option<ActionRequest> {
         extract_with_hints(frame, "slack", &["slack"])
+    }
+
+    fn capabilities(&self) -> ChannelCapabilities {
+        ChannelCapabilities {
+            name: "slack",
+            supports_edit: true,
+            supports_delete: true,
+            supports_reactions: true,
+            supports_threads: true,
+            supports_polls: false,
+            supports_media: true,
+            default_dm_pairing: true,
+        }
+    }
+}
+
+struct WhatsAppDriver;
+
+impl ChannelDriver for WhatsAppDriver {
+    fn extract(&self, frame: &Value) -> Option<ActionRequest> {
+        extract_with_hints(frame, "whatsapp", &["whatsapp", "baileys"])
+    }
+
+    fn capabilities(&self) -> ChannelCapabilities {
+        ChannelCapabilities {
+            name: "whatsapp",
+            supports_edit: false,
+            supports_delete: false,
+            supports_reactions: true,
+            supports_threads: false,
+            supports_polls: true,
+            supports_media: true,
+            default_dm_pairing: true,
+        }
     }
 }
 
@@ -167,5 +258,37 @@ mod tests {
         });
         let request = registry.extract(&frame).expect("request");
         assert_eq!(request.channel.as_deref(), Some("slack"));
+    }
+
+    #[test]
+    fn whatsapp_driver_detects_source() {
+        let registry = DriverRegistry::default_registry();
+        let frame = json!({
+            "type": "event",
+            "event": "whatsapp.message",
+            "payload": {
+                "id": "req-5",
+                "tool": "exec",
+                "command": "git status"
+            }
+        });
+        let request = registry.extract(&frame).expect("request");
+        assert_eq!(request.channel.as_deref(), Some("whatsapp"));
+    }
+
+    #[test]
+    fn exposes_channel_capabilities() {
+        let registry = DriverRegistry::default_registry();
+        let caps = registry.capabilities();
+        assert!(caps
+            .iter()
+            .any(|c| c.name == "discord" && c.supports_threads));
+        assert!(caps
+            .iter()
+            .any(|c| c.name == "telegram" && c.supports_polls));
+        assert!(caps.iter().any(|c| c.name == "slack" && c.supports_threads));
+        assert!(caps
+            .iter()
+            .any(|c| c.name == "whatsapp" && c.supports_media));
     }
 }

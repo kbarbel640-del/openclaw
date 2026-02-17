@@ -24,10 +24,10 @@ Status legend:
 | Area | Upstream OpenClaw Feature Surface | Rust Status | Notes |
 |---|---|---|---|
 | Runtime portability | macOS/Linux/Windows workflow; Linux service deployment | `Implemented` | Rust toolchain pinned to 1.83; Ubuntu build script and systemd user unit included. |
-| Gateway protocol connectivity | WS control plane (`connect`, events, session/gateway methods) | `Partial` | Rust bridge connects and consumes action-like frames, emits `security.decision`; does not implement full RPC method set. |
+| Gateway protocol connectivity | WS control plane (`connect`, events, session/gateway methods) | `Partial` | Rust bridge uses typed frame helpers (`req`/`resp`/`event`), emits `security.decision`; full RPC dispatch parity still pending. |
 | Full Gateway replacement | Sessions, presence, routing, config mutations, cron/webhooks, control UI serving | `Not Started` | Still provided by upstream TypeScript Gateway. |
 | Session model | `main` session, group isolation, activation/queue policies, reply-back | `Partial` | Session state counters + last-decision persistence added; scheduler/routing parity still pending. |
-| Channel integrations | WhatsApp, Telegram, Discord, Slack, IRC, Signal, Google Chat, Teams, Matrix, etc. | `Deferred` | Kept on upstream Gateway; no Rust adapters yet. |
+| Channel integrations | WhatsApp, Telegram, Discord, Slack, IRC, Signal, Google Chat, Teams, Matrix, etc. | `Partial` | Rust adapter scaffold includes `whatsapp`, `telegram`, `slack`, `discord`, and generic extraction; full channel runtime parity remains pending. |
 | Tool execution layer | `exec`, `process`, `apply_patch`, browser/canvas/nodes, message, gateway, sessions_* | `Deferred` | Rust currently evaluates risk for actions instead of hosting the tool layer. |
 | Nodes + device features | macOS/iOS/Android nodes, camera/screen/location/system.run, canvas A2UI | `Deferred` | No node host in Rust yet. |
 | Voice stack | Voice Wake, Talk Mode, audio I/O flows | `Not Started` | Out of current Rust scope. |
@@ -42,7 +42,7 @@ Status legend:
 | Channel driver abstraction | Channel-specific frame parsing adapters | `Partial` | Trait-based registry added with first `discord` + generic drivers. |
 | Quarantine records | Persist blocked action payloads for forensics | `Implemented` | Append-only JSON files in configured quarantine directory. |
 | Backpressure + memory controls | Bounded worker concurrency, queue cap, eval timeout, memory metrics | `Implemented` | Semaphore + queue bounds + timeout + Linux RSS sampler. |
-| Test coverage (Rust) | Unit/integration validation for core safety/runtime behavior | `Partial` | Core security and bridge path covered; no end-to-end Gateway/channel matrix yet. |
+| Test coverage (Rust) | Unit/integration validation for core safety/runtime behavior | `Partial` | Core security/bridge/channel adapters/replay harness covered; full end-to-end Gateway/channel matrix still pending. |
 | Dockerized validation | Containerized CI-style runtime test matrix | `Not Started` | Docker Desktop installed on this machine but daemon not running yet. |
 
 ## Custom Defender Goal Coverage

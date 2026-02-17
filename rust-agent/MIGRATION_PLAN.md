@@ -11,6 +11,7 @@
 ### Phase 1 (implemented in this directory)
 
 - Rust runtime process + Gateway WebSocket compatibility.
+- Typed protocol frame foundation (`req`/`resp`/`event`) and method-family classification.
 - Rust defender policy engine with bounded worker concurrency.
 - Prompt injection scoring + command risk scoring.
 - Host integrity baseline checks.
@@ -28,7 +29,7 @@
 ### Phase 3 (in progress)
 
 - Migrate core channel adapters incrementally behind trait drivers.
-- Added first trait-based channel adapter scaffold (`discord` + generic fallback).
+- Added trait-based channel adapter scaffold (`whatsapp`, `telegram`, `slack`, `discord`, generic fallback) with capability descriptors.
 - Keep protocol schema stable for existing clients (macOS/iOS/Android/Web/CLI).
 
 ### Phase 4 (next)

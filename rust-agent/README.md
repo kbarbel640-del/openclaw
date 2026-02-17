@@ -12,6 +12,9 @@ What is implemented now:
 - VirusTotal lookups (file hash + URL) to add external threat intelligence.
 - Host integrity baseline checks for key runtime files.
 - Bounded concurrency and queue limits to reduce memory spikes.
+- Session decision state tracking + idempotency cache.
+- Typed protocol frame foundation (`req`/`resp`/`event` classification).
+- Channel adapter scaffold (`whatsapp`, `telegram`, `slack`, `discord`, generic).
 
 This is intentionally phase 1: it keeps feature coverage by integrating with the
 existing Gateway protocol while replacing high-risk runtime and guardrail logic
@@ -90,4 +93,17 @@ asserts emitted `security.decision` output.
 
 ```bash
 cargo test replay_harness_with_real_defender -- --nocapture
+# or:
+bash ./scripts/run-replay-harness.sh
+```
+
+## Protocol Corpus Snapshot
+
+The protocol corpus test validates typed frame classification and method-family
+mapping against versioned fixtures.
+
+```bash
+cargo test protocol_corpus_snapshot_matches_expectations -- --nocapture
+# or:
+bash ./scripts/run-protocol-corpus.sh
 ```

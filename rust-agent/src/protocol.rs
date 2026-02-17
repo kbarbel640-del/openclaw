@@ -45,6 +45,56 @@ impl ConnectFrame {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FrameKind {
+    Req,
+    Resp,
+    Event,
+    Error,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MethodFamily {
+    Connect,
+    Agent,
+    Session,
+    Sessions,
+    Node,
+    Cron,
+    Gateway,
+    Message,
+    Browser,
+    Canvas,
+    Pairing,
+    Config,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RpcRequestFrame {
+    pub id: String,
+    pub method: String,
+    pub params: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RpcResponseFrame {
+    pub id: String,
+    pub ok: Option<bool>,
+    pub result: Value,
+    pub error: Option<RpcErrorPayload>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RpcErrorPayload {
+    pub code: Option<i64>,
+    pub message: String,
+    pub details: Option<Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayEventFrame<T> {
     #[serde(rename = "type")]
@@ -88,6 +138,117 @@ pub fn parse_frame_text(text: &str) -> Result<Value, serde_json::Error> {
     serde_json::from_str::<Value>(text)
 }
 
+pub fn frame_kind(frame: &Value) -> FrameKind {
+    match frame.get("type").and_then(Value::as_str) {
+        Some("req") => FrameKind::Req,
+        Some("resp") => FrameKind::Resp,
+        Some("event") => FrameKind::Event,
+        Some("error") => FrameKind::Error,
+        _ => {
+            if frame.get("error").is_some() {
+                FrameKind::Error
+            } else {
+                FrameKind::Unknown
+            }
+        }
+    }
+}
+
+pub fn method_name(frame: &Value) -> Option<&str> {
+    frame.get("method").and_then(Value::as_str)
+}
+
+pub fn classify_method(method: &str) -> MethodFamily {
+    let normalized = method.trim().to_ascii_lowercase();
+    if normalized == "connect" {
+        return MethodFamily::Connect;
+    }
+    if normalized.starts_with("agent.") || normalized == "agent" {
+        return MethodFamily::Agent;
+    }
+    if normalized.starts_with("sessions.") || normalized == "sessions" {
+        return MethodFamily::Sessions;
+    }
+    if normalized.starts_with("session.") || normalized == "session" {
+        return MethodFamily::Session;
+    }
+    if normalized.starts_with("node.") || normalized == "node" {
+        return MethodFamily::Node;
+    }
+    if normalized.starts_with("cron.") || normalized == "cron" {
+        return MethodFamily::Cron;
+    }
+    if normalized.starts_with("gateway.") || normalized == "gateway" {
+        return MethodFamily::Gateway;
+    }
+    if normalized.starts_with("message.") || normalized == "message" {
+        return MethodFamily::Message;
+    }
+    if normalized.starts_with("browser.") || normalized == "browser" {
+        return MethodFamily::Browser;
+    }
+    if normalized.starts_with("canvas.") || normalized == "canvas" {
+        return MethodFamily::Canvas;
+    }
+    if normalized.starts_with("pairing.") || normalized == "pairing" {
+        return MethodFamily::Pairing;
+    }
+    if normalized.starts_with("config.") || normalized == "config" {
+        return MethodFamily::Config;
+    }
+    MethodFamily::Unknown
+}
+
+pub fn parse_rpc_request(frame: &Value) -> Option<RpcRequestFrame> {
+    if frame_kind(frame) != FrameKind::Req {
+        return None;
+    }
+    let method = method_name(frame)?.to_owned();
+    let id = frame
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_owned();
+    let params = frame.get("params").cloned().unwrap_or(Value::Null);
+    Some(RpcRequestFrame { id, method, params })
+}
+
+pub fn parse_rpc_response(frame: &Value) -> Option<RpcResponseFrame> {
+    if frame_kind(frame) != FrameKind::Resp {
+        return None;
+    }
+    let id = frame
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_owned();
+    let ok = frame.get("ok").and_then(Value::as_bool);
+    let result = frame.get("result").cloned().unwrap_or(Value::Null);
+    let error = parse_rpc_error(frame);
+    Some(RpcResponseFrame {
+        id,
+        ok,
+        result,
+        error,
+    })
+}
+
+pub fn parse_rpc_error(frame: &Value) -> Option<RpcErrorPayload> {
+    let err_obj = frame.get("error").and_then(Value::as_object)?;
+    let message = err_obj
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown error")
+        .to_owned();
+    let code = err_obj.get("code").and_then(Value::as_i64);
+    let details = err_obj.get("details").cloned();
+    Some(RpcErrorPayload {
+        code,
+        message,
+        details,
+    })
+}
+
 pub fn frame_root(frame: &Value) -> &Value {
     frame
         .get("payload")
@@ -106,11 +267,37 @@ pub fn frame_source(frame: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use serde::Deserialize;
+    use serde_json::{json, Value};
 
     use crate::types::{Decision, DecisionAction};
 
-    use super::{decision_event_frame, frame_root, frame_source, ConnectFrame};
+    use super::{
+        classify_method, decision_event_frame, frame_kind, frame_root, frame_source, method_name,
+        parse_rpc_error, parse_rpc_request, parse_rpc_response, ConnectFrame, FrameKind,
+        MethodFamily,
+    };
+
+    #[derive(Debug, Clone, Deserialize)]
+    struct ProtocolCorpus {
+        cases: Vec<ProtocolCase>,
+    }
+
+    #[derive(Debug, Clone, Deserialize)]
+    struct ProtocolCase {
+        name: String,
+        frame: Value,
+        expect: ProtocolExpectation,
+    }
+
+    #[derive(Debug, Clone, Deserialize)]
+    struct ProtocolExpectation {
+        kind: FrameKind,
+        method_family: Option<MethodFamily>,
+        request_id: Option<String>,
+        method: Option<String>,
+        response_has_error: Option<bool>,
+    }
 
     #[test]
     fn serializes_connect_frame() {
@@ -185,5 +372,112 @@ mod tests {
         );
         assert_eq!(frame_source(&payload_frame), "agent");
         assert_eq!(frame_source(&params_frame), "agent.exec");
+    }
+
+    #[test]
+    fn classifies_method_families() {
+        assert_eq!(classify_method("connect"), MethodFamily::Connect);
+        assert_eq!(classify_method("agent.exec"), MethodFamily::Agent);
+        assert_eq!(classify_method("sessions.patch"), MethodFamily::Sessions);
+        assert_eq!(classify_method("node.invoke"), MethodFamily::Node);
+        assert_eq!(classify_method("browser.open"), MethodFamily::Browser);
+        assert_eq!(classify_method("unknown.method"), MethodFamily::Unknown);
+    }
+
+    #[test]
+    fn parses_rpc_request_response_and_error() {
+        let req = json!({
+            "type": "req",
+            "id": "r-1",
+            "method": "agent.exec",
+            "params": {"command": "git status"}
+        });
+        let req_meta = parse_rpc_request(&req).expect("req");
+        assert_eq!(req_meta.id, "r-1");
+        assert_eq!(req_meta.method, "agent.exec");
+
+        let resp_ok = json!({
+            "type": "resp",
+            "id": "r-1",
+            "ok": true,
+            "result": {"status": "ok"}
+        });
+        let ok_meta = parse_rpc_response(&resp_ok).expect("resp");
+        assert_eq!(ok_meta.id, "r-1");
+        assert_eq!(ok_meta.ok, Some(true));
+        assert!(ok_meta.error.is_none());
+
+        let resp_err = json!({
+            "type": "resp",
+            "id": "r-2",
+            "ok": false,
+            "error": {"code": 403, "message": "denied", "details": {"policy":"tool_deny"}}
+        });
+        let err_meta = parse_rpc_response(&resp_err).expect("resp");
+        assert_eq!(err_meta.ok, Some(false));
+        let err = err_meta.error.expect("error");
+        assert_eq!(err.code, Some(403));
+        assert_eq!(err.message, "denied");
+        assert!(parse_rpc_error(&resp_err).is_some());
+    }
+
+    #[test]
+    fn protocol_corpus_snapshot_matches_expectations() {
+        let corpus: ProtocolCorpus =
+            serde_json::from_str(include_str!("../tests/protocol/frame-corpus.json"))
+                .expect("corpus");
+
+        for case in corpus.cases {
+            assert_eq!(
+                frame_kind(&case.frame),
+                case.expect.kind,
+                "case {} kind mismatch",
+                case.name
+            );
+
+            if let Some(expected_family) = case.expect.method_family {
+                let method = method_name(&case.frame).expect("method");
+                assert_eq!(
+                    classify_method(method),
+                    expected_family,
+                    "case {} method family mismatch",
+                    case.name
+                );
+            }
+
+            if let Some(expected_method) = case.expect.method {
+                let method = method_name(&case.frame).unwrap_or_default().to_owned();
+                assert_eq!(
+                    method, expected_method,
+                    "case {} method mismatch",
+                    case.name
+                );
+            }
+
+            if let Some(expected_request_id) = case.expect.request_id {
+                match frame_kind(&case.frame) {
+                    FrameKind::Req => {
+                        let req = parse_rpc_request(&case.frame).expect("req");
+                        assert_eq!(req.id, expected_request_id, "case {} req id", case.name);
+                    }
+                    FrameKind::Resp => {
+                        let resp = parse_rpc_response(&case.frame).expect("resp");
+                        assert_eq!(resp.id, expected_request_id, "case {} resp id", case.name);
+                    }
+                    _ => {}
+                }
+            }
+
+            if let Some(expected_has_error) = case.expect.response_has_error {
+                let has_error = parse_rpc_response(&case.frame)
+                    .map(|r| r.error.is_some())
+                    .unwrap_or(false);
+                assert_eq!(
+                    has_error, expected_has_error,
+                    "case {} response error mismatch",
+                    case.name
+                );
+            }
+        }
     }
 }

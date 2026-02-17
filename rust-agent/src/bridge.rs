@@ -10,7 +10,10 @@ use tracing::{debug, info, warn};
 
 use crate::channels::DriverRegistry;
 use crate::config::GatewayConfig;
-use crate::protocol::{decision_event_frame, parse_frame_text, ConnectFrame};
+use crate::protocol::{
+    classify_method, decision_event_frame, frame_kind, parse_frame_text, parse_rpc_request,
+    parse_rpc_response, ConnectFrame, FrameKind,
+};
 use crate::security::ActionEvaluator;
 
 pub struct GatewayBridge {
@@ -47,6 +50,15 @@ impl GatewayBridge {
     }
 
     async fn run_once(&self, evaluator: Arc<dyn ActionEvaluator>) -> Result<()> {
+        let capabilities = self
+            .drivers
+            .capabilities()
+            .into_iter()
+            .map(|c| c.name)
+            .collect::<Vec<_>>()
+            .join(",");
+        debug!("active channel drivers: {capabilities}");
+
         info!("connecting to gateway {}", self.gateway.url);
         let (stream, _resp) = connect_async(&self.gateway.url)
             .await
@@ -85,6 +97,40 @@ impl GatewayBridge {
                                     continue;
                                 }
                             };
+
+                            let kind = frame_kind(&frame);
+                            match kind {
+                                FrameKind::Req => {
+                                    if let Some(req) = parse_rpc_request(&frame) {
+                                        let family = classify_method(&req.method);
+                                        debug!(
+                                            "rpc req id={} method={} family={family:?}",
+                                            req.id, req.method
+                                        );
+                                    }
+                                }
+                                FrameKind::Resp => {
+                                    if let Some(resp) = parse_rpc_response(&frame) {
+                                        if let Some(err) = resp.error {
+                                            warn!(
+                                                "rpc resp error id={} code={:?} message={}",
+                                                resp.id, err.code, err.message
+                                            );
+                                        } else {
+                                            debug!(
+                                                "rpc resp id={} ok={:?}",
+                                                resp.id, resp.ok
+                                            );
+                                        }
+                                    }
+                                    continue;
+                                }
+                                FrameKind::Error => {
+                                    warn!("received rpc error frame");
+                                    continue;
+                                }
+                                FrameKind::Event | FrameKind::Unknown => {}
+                            }
 
                             if let Some(request) = self.drivers.extract(&frame) {
                                 let Ok(slot) = inflight.clone().try_acquire_owned() else {
