@@ -222,6 +222,7 @@ describe("config plugin validation", () => {
       } else {
         process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = prevBundledDir;
       }
+      clearPluginManifestRegistryCache();
     }
   });
 });
