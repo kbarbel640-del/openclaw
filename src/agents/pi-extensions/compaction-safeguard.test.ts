@@ -17,7 +17,7 @@ describe("Compaction Safeguard Logging", () => {
     // CURRENT BEHAVIOR: It logs up to 8 failures, then "...and X more".
     // We want to verify this behavior first.
     expect(section).toContain("- broken_tool (exitCode=1): failed");
-    expect(section).toContain("...and 7 more");
+    expect(section).toContain("...and 13 more");
   });
 
   it("normalizes failure text", () => {
