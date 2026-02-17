@@ -60,16 +60,17 @@ function hasFollowingNonThinkingBlock(
 }
 
 /**
- * Strip all `type: "thinking"` blocks from assistant messages that do NOT carry
- * an OpenAI reasoning signature (`rs_`-prefixed `thinkingSignature`).
+ * Strip all `type: "thinking"` blocks from assistant messages.
  *
- * When failing over from Anthropic (which produces unsigned thinking blocks) to
- * another provider (or back to Anthropic after a model change), stale thinking
- * blocks in the session history can cause 400 errors because the target API
- * either doesn't understand them or rejects invalid/missing signatures.
+ * When failing over from one provider to another (e.g. Anthropic → OpenAI),
+ * thinking blocks produced by the previous provider remain in session history
+ * and can cause 400 errors because the target API didn't produce them and
+ * cannot validate their signatures (or doesn't understand them at all).
  *
  * This should be called when the model has changed between providers so that
  * provider-specific thinking blocks don't leak across provider boundaries.
+ * All `type: "thinking"` content blocks are removed; assistant messages that
+ * become empty after stripping are dropped entirely.
  *
  * See: https://github.com/openclaw/openclaw/issues/19295
  */
