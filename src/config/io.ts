@@ -535,7 +535,19 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       );
     }
 
-    const cfg = coerceConfig(cloneUnknown(resolvedConfig));
+    const cfg = applyModelDefaults(
+      applyCompactionDefaults(
+        applyContextPruningDefaults(
+          applyAgentDefaults(
+            applySessionDefaults(
+              applyLoggingDefaults(
+                applyMessageDefaults(coerceConfig(cloneUnknown(resolvedConfig))),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
     normalizeConfigPaths(cfg);
     applyConfigEnvVars(cfg, deps.env);
 

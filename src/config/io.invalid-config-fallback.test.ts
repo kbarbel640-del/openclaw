@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_AGENT_MAX_CONCURRENT, DEFAULT_SUBAGENT_MAX_CONCURRENT } from "./agent-limits.js";
 import { withTempHome } from "./home-env.test-harness.js";
 import { createConfigIO } from "./io.js";
 
@@ -42,6 +43,9 @@ describe("config io invalid-config fallback", () => {
       expect(cfg.channels?.whatsapp?.dmPolicy).toBe("allowlist");
       expect(cfg.channels?.whatsapp?.allowFrom).toEqual(["+15555550123"]);
       expect(cfg.channels?.whatsapp?.dmPolicy ?? "pairing").toBe("allowlist");
+      expect(cfg.messages?.ackReactionScope).toBe("group-mentions");
+      expect(cfg.agents?.defaults?.maxConcurrent).toBe(DEFAULT_AGENT_MAX_CONCURRENT);
+      expect(cfg.agents?.defaults?.subagents?.maxConcurrent).toBe(DEFAULT_SUBAGENT_MAX_CONCURRENT);
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining(`Invalid config at ${configPath}:`),
       );
@@ -85,6 +89,9 @@ describe("config io invalid-config fallback", () => {
       expect(cfg.channels?.whatsapp?.dmPolicy).toBe("allowlist");
       expect(cfg.channels?.whatsapp?.allowFrom).toEqual(["+15555550123"]);
       expect(cfg.channels?.whatsapp?.dmPolicy ?? "pairing").toBe("allowlist");
+      expect(cfg.messages?.ackReactionScope).toBe("group-mentions");
+      expect(cfg.agents?.defaults?.maxConcurrent).toBe(DEFAULT_AGENT_MAX_CONCURRENT);
+      expect(cfg.agents?.defaults?.subagents?.maxConcurrent).toBe(DEFAULT_SUBAGENT_MAX_CONCURRENT);
     });
   });
 });
