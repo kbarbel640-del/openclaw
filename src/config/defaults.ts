@@ -199,10 +199,10 @@ export function applyModelDefaults(cfg: OpenClawConfig): OpenClawConfig {
         const cost = resolveModelCost(raw.cost);
         const costMutated =
           !raw.cost ||
-          raw.cost?.input !== cost.input ||
-          raw.cost?.output !== cost.output ||
-          raw.cost?.cacheRead !== cost.cacheRead ||
-          raw.cost?.cacheWrite !== cost.cacheWrite;
+          raw.cost?.input !== cost!.input ||
+          raw.cost?.output !== cost!.output ||
+          raw.cost?.cacheRead !== cost!.cacheRead ||
+          raw.cost?.cacheWrite !== cost!.cacheWrite;
         if (costMutated) {
           modelMutated = true;
         }
