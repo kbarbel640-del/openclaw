@@ -103,7 +103,7 @@ describe("web auto-reply", () => {
     let runError: unknown = null;
     const run = monitorWebChannel(
       false,
-      listenerFactory,
+      listenerFactory as never,
       true,
       async () => ({ text: "ok" }),
       runtime as never,
