@@ -1,9 +1,9 @@
 import {
-  getChannelPlugin,
   normalizeChannelId as normalizeAnyChannelId,
 } from "../../channels/plugins/index.js";
 import { normalizeChannelId as normalizeChatChannelId } from "../../channels/registry.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import { normalizeTargetForProvider } from "../../infra/outbound/target-normalization.js";
 
 const ANNOUNCE_SKIP_TOKEN = "ANNOUNCE_SKIP";
 const REPLY_SKIP_TOKEN = "REPLY_SKIP";
@@ -61,7 +61,7 @@ export function resolveAnnounceTargetFromKey(sessionKey: string): AnnounceTarget
     return kind === "channel" ? `channel:${id}` : `group:${id}`;
   })();
   const normalized = normalizedChannel
-    ? getChannelPlugin(normalizedChannel)?.messaging?.normalizeTarget?.(kindTarget)
+    ? normalizeTargetForProvider(normalizedChannel, kindTarget)
     : undefined;
   return {
     channel,
