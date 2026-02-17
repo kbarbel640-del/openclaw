@@ -62,6 +62,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     assistantTextBaseline: 0,
     suppressBlockChunks: false, // Avoid late chunk inserts after final text merge.
     lastReasoningSent: undefined,
+    thinkTagPrepended: false,
     compactionInFlight: false,
     pendingCompactionRetry: 0,
     compactionRetryResolve: undefined,
@@ -118,6 +119,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     state.lastStreamedReasoning = undefined;
     state.lastReasoningSent = undefined;
     state.suppressBlockChunks = false;
+    state.thinkTagPrepended = false;
     state.assistantMessageIndex += 1;
     state.lastAssistantTextMessageIndex = -1;
     state.lastAssistantTextNormalized = undefined;

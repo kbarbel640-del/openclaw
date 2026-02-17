@@ -38,6 +38,8 @@ export const AgentDefaultsSchema = z
             params: z.record(z.string(), z.unknown()).optional(),
             /** Enable streaming for this model (default: true, false for Ollama to avoid SDK issue #1205). */
             streaming: z.boolean().optional(),
+            /** Force-prepend an opening `<think>` tag to the model's response. */
+            forcePrependThinkTag: z.boolean().optional(),
             /** Per-model default thinking level (overrides global thinkingDefault). */
             thinkingDefault: z
               .union([
@@ -126,6 +128,7 @@ export const AgentDefaultsSchema = z
         z.literal("xhigh"),
       ])
       .optional(),
+    forcePrependThinkTag: z.boolean().optional(),
     verboseDefault: z.union([z.literal("off"), z.literal("on"), z.literal("full")]).optional(),
     elevatedDefault: z
       .union([z.literal("off"), z.literal("on"), z.literal("ask"), z.literal("full")])
