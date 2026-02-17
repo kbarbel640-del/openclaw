@@ -27,6 +27,25 @@ vi.mock("qrcode-terminal", () => ({
 
 const { registerQrCli } = await import("./qr-cli.js");
 
+function createRemoteQrConfig(params?: { withTailscale?: boolean }) {
+  return {
+    gateway: {
+      ...(params?.withTailscale ? { tailscale: { mode: "serve" } } : {}),
+      remote: { url: "wss://remote.example.com:444", token: "remote-tok" },
+      auth: { mode: "token", token: "local-tok" },
+    },
+    plugins: {
+      entries: {
+        "device-pair": {
+          config: {
+            publicUrl: "wss://wrong.example.com:443",
+          },
+        },
+      },
+    },
+  };
+}
+
 describe("registerQrCli", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -124,21 +143,7 @@ describe("registerQrCli", () => {
   });
 
   it("uses gateway.remote.url when --remote is set (ignores device-pair publicUrl)", async () => {
-    loadConfig.mockReturnValue({
-      gateway: {
-        remote: { url: "wss://remote.example.com:444", token: "remote-tok" },
-        auth: { mode: "token", token: "local-tok" },
-      },
-      plugins: {
-        entries: {
-          "device-pair": {
-            config: {
-              publicUrl: "wss://wrong.example.com:443",
-            },
-          },
-        },
-      },
-    });
+    loadConfig.mockReturnValue(createRemoteQrConfig());
 
     const program = new Command();
     registerQrCli(program);
@@ -152,21 +157,7 @@ describe("registerQrCli", () => {
   });
 
   it("reports gateway.remote.url as source in --remote json output", async () => {
-    loadConfig.mockReturnValue({
-      gateway: {
-        remote: { url: "wss://remote.example.com:444", token: "remote-tok" },
-        auth: { mode: "token", token: "local-tok" },
-      },
-      plugins: {
-        entries: {
-          "device-pair": {
-            config: {
-              publicUrl: "wss://wrong.example.com:443",
-            },
-          },
-        },
-      },
-    });
+    loadConfig.mockReturnValue(createRemoteQrConfig());
 
     const program = new Command();
     registerQrCli(program);
@@ -183,23 +174,26 @@ describe("registerQrCli", () => {
     expect(payload.urlSource).toBe("gateway.remote.url");
   });
 
-  it("prefers gateway.remote.url over tailscale when --remote is set", async () => {
+  it("errors when --remote is set but no remote URL is configured", async () => {
     loadConfig.mockReturnValue({
       gateway: {
-        tailscale: { mode: "serve" },
-        remote: { url: "wss://remote.example.com:444", token: "remote-tok" },
-        auth: { mode: "token", token: "local-tok" },
-      },
-      plugins: {
-        entries: {
-          "device-pair": {
-            config: {
-              publicUrl: "wss://wrong.example.com:443",
-            },
-          },
-        },
+        bind: "custom",
+        customBindHost: "gateway.local",
+        auth: { mode: "token", token: "tok" },
       },
     });
+
+    const program = new Command();
+    registerQrCli(program);
+
+    await expect(program.parseAsync(["qr", "--remote"], { from: "user" })).rejects.toThrow("exit");
+
+    const output = runtime.error.mock.calls.map((call) => String(call[0] ?? "")).join("\n");
+    expect(output).toContain("qr --remote requires");
+  });
+
+  it("prefers gateway.remote.url over tailscale when --remote is set", async () => {
+    loadConfig.mockReturnValue(createRemoteQrConfig({ withTailscale: true }));
     runCommandWithTimeout.mockResolvedValue({
       code: 0,
       stdout: '{"Self":{"DNSName":"ts-host.tailnet.ts.net."}}',
