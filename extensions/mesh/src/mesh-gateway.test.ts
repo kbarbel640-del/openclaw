@@ -34,6 +34,13 @@ type GatewayCallResult = {
   meta?: Record<string, unknown>;
 };
 
+type TestRespond = (
+  ok: boolean,
+  payload?: unknown,
+  error?: unknown,
+  meta?: Record<string, unknown>,
+) => void;
+
 function setupHandlers() {
   const handlers: Record<string, GatewayRequestHandler> = {};
   const api = {
@@ -54,7 +61,8 @@ async function callHandler(
     void handler({
       req: { type: "req", id: `test-${method}`, method, params },
       params,
-      respond: (ok, payload, error, meta) => resolve({ ok, payload, error, meta }),
+      respond: (ok: boolean, payload?: unknown, error?: unknown, meta?: Record<string, unknown>) =>
+        resolve({ ok, payload, error, meta }),
       client: null,
       isWebchatConnect: false,
       context: { deps: {} },
@@ -124,10 +132,10 @@ describe("mesh plugin gateway", () => {
   it("runs mesh workflow and returns completed status", async () => {
     const handlers = setupHandlers();
 
-    agentMethodMock.mockImplementation(({ respond }) => {
+    agentMethodMock.mockImplementation(({ respond }: { respond: TestRespond }) => {
       respond(true, { runId: "agent-run-1" });
     });
-    agentWaitMethodMock.mockImplementation(({ respond }) => {
+    agentWaitMethodMock.mockImplementation(({ respond }: { respond: TestRespond }) => {
       respond(true, { status: "ok" });
     });
 

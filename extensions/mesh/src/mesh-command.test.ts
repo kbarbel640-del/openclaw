@@ -22,14 +22,15 @@ type RegisteredCommand = {
   }) => Promise<{ text?: string }>;
 };
 
-function captureCommand() {
-  let command: RegisteredCommand | null = null;
+function captureCommand(): RegisteredCommand {
+  const registered: RegisteredCommand[] = [];
   const api = {
     registerCommand: (def: RegisteredCommand) => {
-      command = def;
+      registered.push(def);
     },
   } as unknown as OpenClawPluginApi;
   registerMeshCommand(api);
+  const command = registered[0];
   if (!command) {
     throw new Error("mesh command was not registered");
   }
