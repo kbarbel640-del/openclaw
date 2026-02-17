@@ -202,6 +202,19 @@ export interface AgentWorkspace {
 }
 
 /**
+ * Agent assignment scope.
+ *
+ * - Tenant-scoped agents (CEO, COO, CFO) operate across the entire tenant.
+ * - Project-scoped agents (security, dev, marketing) operate within one project.
+ *
+ * Scope determines which humans can command this agent: a human needs
+ * a grant at the agent's scope (or the agent's specific ID) to interact.
+ */
+export type AgentAssignment =
+  | { scope: "tenant"; tenantId: string }
+  | { scope: "project"; projectId: string };
+
+/**
  * An AI agent — an autonomous entity with its own cryptographic identity.
  *
  * Agents have a DID, a model assignment, per-function maturity levels,
@@ -213,7 +226,8 @@ export interface Agent {
   id: string;
   /** Agent identity — did:key from Ed25519 keypair. */
   did: DID;
-  projectId: string;
+  /** Where this agent operates — tenant-wide or within a specific project. */
+  assignment: AgentAssignment;
   name: string;
   role: string;
   model: ModelAssignment;
@@ -263,7 +277,13 @@ export type MaturityConfig = Partial<Record<FunctionCategory, MaturityLevel>>;
  * A tenant — the top-level organizational entity.
  *
  * One tenant = one legal entity or customer account.
- * Contains projects, human agents, and governance configuration.
+ * Contains projects, humans, and governance configuration.
+ *
+ * Agents live at two levels:
+ * - `agents` — tenant-scoped agents (CEO, COO, CFO) that operate across
+ *   all projects within this tenant.
+ * - `projects[].agents` — project-scoped agents that operate within
+ *   a single project and are isolated from other projects.
  */
 export interface Tenant {
   id: string;
@@ -272,6 +292,8 @@ export interface Tenant {
   name: string;
   isolation: TenantIsolation;
   defaultMaturity: MaturityConfig;
+  /** Tenant-scoped agents (CEO, COO, CFO, etc.). */
+  agents: Agent[];
   projects: Project[];
   humans: Human[];
   createdAt: string;
