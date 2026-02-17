@@ -117,6 +117,32 @@ describe("deliverOutboundPayloads", () => {
     }
   });
 
+  it("keeps payload replyToId across all chunked telegram sends", async () => {
+    const sendTelegram = vi.fn().mockResolvedValue({ messageId: "m1", chatId: "c1" });
+    const prevTelegramToken = process.env.TELEGRAM_BOT_TOKEN;
+    process.env.TELEGRAM_BOT_TOKEN = "";
+    try {
+      await deliverOutboundPayloads({
+        cfg: telegramChunkConfig,
+        channel: "telegram",
+        to: "123",
+        payloads: [{ text: "abcd", replyToId: "777" }],
+        deps: { sendTelegram },
+      });
+
+      expect(sendTelegram).toHaveBeenCalledTimes(2);
+      for (const call of sendTelegram.mock.calls) {
+        expect(call[2]).toEqual(expect.objectContaining({ replyToMessageId: 777 }));
+      }
+    } finally {
+      if (prevTelegramToken === undefined) {
+        delete process.env.TELEGRAM_BOT_TOKEN;
+      } else {
+        process.env.TELEGRAM_BOT_TOKEN = prevTelegramToken;
+      }
+    }
+  });
+
   it("passes explicit accountId to sendTelegram", async () => {
     const sendTelegram = vi.fn().mockResolvedValue({ messageId: "m1", chatId: "c1" });
 

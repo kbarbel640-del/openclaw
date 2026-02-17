@@ -1570,7 +1570,7 @@ describe("createTelegramBot", () => {
       ).toBeUndefined();
     }
   });
-  it("honors replyToMode=first for threaded replies", async () => {
+  it("honors replyToMode=first for threaded replies across all chunks of the first reply", async () => {
     onSpy.mockReset();
     sendMessageSpy.mockReset();
     replySpy.mockReset();
@@ -1593,14 +1593,10 @@ describe("createTelegramBot", () => {
     });
 
     expect(sendMessageSpy.mock.calls.length).toBeGreaterThan(1);
-    const [first, ...rest] = sendMessageSpy.mock.calls;
-    expect((first?.[2] as { reply_to_message_id?: number } | undefined)?.reply_to_message_id).toBe(
-      101,
-    );
-    for (const call of rest) {
-      expect(
-        (call[2] as { reply_to_message_id?: number } | undefined)?.reply_to_message_id,
-      ).toBeUndefined();
+    for (const call of sendMessageSpy.mock.calls) {
+      expect((call[2] as { reply_to_message_id?: number } | undefined)?.reply_to_message_id).toBe(
+        101,
+      );
     }
   });
   it("prefixes final replies with responsePrefix", async () => {

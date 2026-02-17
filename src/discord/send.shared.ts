@@ -347,7 +347,7 @@ async function sendDiscordText(
   const messageReference = replyTo ? { message_id: replyTo, fail_if_not_exists: false } : undefined;
   const flags = silent ? SUPPRESS_NOTIFICATIONS_FLAG : undefined;
   const chunks = buildDiscordTextChunks(text, { maxLinesPerMessage, chunkMode });
-  const sendChunk = async (chunk: string, isFirst: boolean) => {
+  const sendChunk = async (chunk: string) => {
     const chunkComponents = resolveDiscordSendComponents({
       components,
       text: chunk,
@@ -362,7 +362,7 @@ async function sendDiscordText(
     });
     const body = stripUndefinedFields({
       ...serializePayload(payload),
-      ...(isFirst && messageReference ? { message_reference: messageReference } : {}),
+      ...(messageReference ? { message_reference: messageReference } : {}),
     });
     return (await request(
       () =>
@@ -373,13 +373,11 @@ async function sendDiscordText(
     )) as { id: string; channel_id: string };
   };
   if (chunks.length === 1) {
-    return await sendChunk(chunks[0], true);
+    return await sendChunk(chunks[0]);
   }
   let last: { id: string; channel_id: string } | null = null;
-  let isFirst = true;
   for (const chunk of chunks) {
-    last = await sendChunk(chunk, isFirst);
-    isFirst = false;
+    last = await sendChunk(chunk);
   }
   if (!last) {
     throw new Error("Discord send failed (empty chunk result)");
@@ -450,7 +448,7 @@ async function sendDiscordMedia(
       rest,
       channelId,
       chunk,
-      undefined,
+      replyTo,
       request,
       maxLinesPerMessage,
       undefined,
