@@ -10,7 +10,7 @@ const DEFAULT_CONFIG: TeslaClientConfig = {
 
 function mockFetch(responses: Array<{ ok: boolean; status: number; body: unknown }>) {
   let callIndex = 0;
-  return vi.fn(async () => {
+  return vi.fn(async (_url: string, _init?: RequestInit) => {
     const resp = responses[callIndex++];
     if (!resp) {
       throw new Error(`Unexpected fetch call #${callIndex}`);
@@ -250,7 +250,7 @@ describe("TeslaClient", () => {
 
       const cmdCall = fetchMock.mock.calls[1]!;
       expect(cmdCall[0]).toContain("/api/1/vehicles/123/command/set_temps");
-      const body = JSON.parse((cmdCall[1] as { body: string }).body);
+      const body = JSON.parse((cmdCall[1] as unknown as { body: string }).body);
       expect(body).toEqual({ driver_temp: 22, passenger_temp: 23 });
     });
 
@@ -259,7 +259,7 @@ describe("TeslaClient", () => {
       await client.setChargeLimit(123, 30);
 
       const cmdCall = fetchMock.mock.calls[1]!;
-      const body = JSON.parse((cmdCall[1] as { body: string }).body);
+      const body = JSON.parse((cmdCall[1] as unknown as { body: string }).body);
       expect(body.percent).toBe(50);
     });
 
@@ -269,7 +269,7 @@ describe("TeslaClient", () => {
 
       const cmdCall = fetchMock.mock.calls[1]!;
       expect(cmdCall[0]).toContain("actuate_trunk");
-      const body = JSON.parse((cmdCall[1] as { body: string }).body);
+      const body = JSON.parse((cmdCall[1] as unknown as { body: string }).body);
       expect(body.which_trunk).toBe("rear");
     });
 
@@ -278,7 +278,7 @@ describe("TeslaClient", () => {
       await client.openFrunk(123);
 
       const cmdCall = fetchMock.mock.calls[1]!;
-      const body = JSON.parse((cmdCall[1] as { body: string }).body);
+      const body = JSON.parse((cmdCall[1] as unknown as { body: string }).body);
       expect(body.which_trunk).toBe("front");
     });
 
@@ -288,7 +288,7 @@ describe("TeslaClient", () => {
 
       const cmdCall = fetchMock.mock.calls[1]!;
       expect(cmdCall[0]).toContain("set_sentry_mode");
-      const body = JSON.parse((cmdCall[1] as { body: string }).body);
+      const body = JSON.parse((cmdCall[1] as unknown as { body: string }).body);
       expect(body.on).toBe(true);
     });
   });
