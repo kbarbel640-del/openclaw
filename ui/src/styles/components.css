@@ -1201,7 +1201,7 @@
 
 .log-level.ok {
   color: var(--ok);
-  border-color: var(--ok-subtle);
+  border-color: rgba(34, 197, 94, 0.3);
 }
 
 .log-level.warn {
