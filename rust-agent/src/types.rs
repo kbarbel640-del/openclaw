@@ -73,7 +73,10 @@ impl ActionRequest {
             ],
         )
         .unwrap_or_else(|| "unknown".to_owned());
-        let session_id = find_first_string(root, &["session_id", "sessionId"]);
+        let session_id = find_first_string(
+            root,
+            &["sessionKey", "session_key", "sessionId", "session_id"],
+        );
         let source = frame_source(frame);
 
         Some(Self {
@@ -159,5 +162,24 @@ mod tests {
         });
         let req = ActionRequest::from_gateway_frame(&frame);
         assert!(req.is_none());
+    }
+
+    #[test]
+    fn prefers_session_key_when_present() {
+        let frame = json!({
+            "type": "event",
+            "event": "agent",
+            "payload": {
+                "id": "req-2",
+                "sessionKey": "agent:main:discord:group:g1",
+                "input": "hello"
+            }
+        });
+
+        let req = ActionRequest::from_gateway_frame(&frame).expect("request");
+        assert_eq!(
+            req.session_id.as_deref(),
+            Some("agent:main:discord:group:g1")
+        );
     }
 }

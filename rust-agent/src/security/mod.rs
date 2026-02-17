@@ -316,7 +316,9 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::config::{Config, GatewayConfig, RuntimeConfig, SecurityConfig};
+    use crate::config::{
+        Config, GatewayConfig, GroupActivationMode, RuntimeConfig, SecurityConfig, SessionQueueMode,
+    };
     use crate::types::{ActionRequest, DecisionAction};
 
     use super::{ActionEvaluator, DefenderEngine};
@@ -348,6 +350,8 @@ mod tests {
                 decision_event: "security.decision".to_owned(),
                 worker_concurrency: 2,
                 max_queue: 16,
+                session_queue_mode: SessionQueueMode::Followup,
+                group_activation_mode: GroupActivationMode::Mention,
                 eval_timeout_ms: 1_000,
                 memory_sample_secs: 30,
                 idempotency_ttl_secs: 60,

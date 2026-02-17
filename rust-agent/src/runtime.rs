@@ -27,13 +27,17 @@ impl AgentRuntime {
             self.config.gateway.clone(),
             self.config.runtime.decision_event.clone(),
             self.config.runtime.max_queue,
+            self.config.runtime.session_queue_mode,
+            self.config.runtime.group_activation_mode,
         );
 
         info!(
-            "starting runtime (audit_only={}, workers={}, max_queue={}, idem_ttl_s={}, idem_max={})",
+            "starting runtime (audit_only={}, workers={}, max_queue={}, queue_mode={:?}, group_activation={:?}, idem_ttl_s={}, idem_max={})",
             self.config.runtime.audit_only,
             self.config.runtime.worker_concurrency,
             self.config.runtime.max_queue,
+            self.config.runtime.session_queue_mode,
+            self.config.runtime.group_activation_mode,
             self.config.runtime.idempotency_ttl_secs,
             self.config.runtime.idempotency_max_entries
         );

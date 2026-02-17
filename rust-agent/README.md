@@ -55,6 +55,8 @@ systemctl --user status openclaw-agent-rs.service
 - Connects to `gateway.url`.
 - Sends a `connect` frame as `openclaw-agent-rs`.
 - Inspects incoming Gateway frames for actionable payloads (prompt/command/url/file).
+- Applies group activation policy (`mention` or `always`) before evaluation for group contexts.
+- Schedules one active request per session with configurable queue behavior (`followup`, `steer`, `collect`).
 - Evaluates each action with:
   - prompt injection detector,
   - command risk detector,
@@ -67,6 +69,8 @@ systemctl --user status openclaw-agent-rs.service
 
 - `runtime.worker_concurrency`: upper bound for simultaneous evaluations.
 - `runtime.max_queue`: bounded work queue.
+- `runtime.session_queue_mode`: session queue behavior (`followup`, `steer`, `collect`).
+- `runtime.group_activation_mode`: group activation gating (`mention`, `always`).
 - `runtime.eval_timeout_ms`: fail-safe timeout per decision.
 - `runtime.memory_sample_secs`: periodic RSS logging cadence on Linux.
 - `runtime.idempotency_ttl_secs`: duplicate decision cache retention window.

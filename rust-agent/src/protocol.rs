@@ -112,7 +112,25 @@ pub struct SecurityDecisionPayload {
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel: Option<String>,
+    #[serde(rename = "chatType", skip_serializing_if = "Option::is_none")]
+    pub chat_type: Option<String>,
+    #[serde(rename = "wasMentioned", skip_serializing_if = "Option::is_none")]
+    pub was_mentioned: Option<bool>,
+    #[serde(rename = "replyBack", skip_serializing_if = "Option::is_none")]
+    pub reply_back: Option<bool>,
+    #[serde(rename = "deliveryContext", skip_serializing_if = "Option::is_none")]
+    pub delivery_context: Option<DeliveryContext>,
     pub decision: Decision,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryContext {
+    pub channel: Option<String>,
+    pub to: Option<String>,
+    #[serde(rename = "accountId", skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
+    #[serde(rename = "threadId", skip_serializing_if = "Option::is_none")]
+    pub thread_id: Option<String>,
 }
 
 pub fn decision_event_frame(
@@ -128,10 +146,70 @@ pub fn decision_event_frame(
             session_id: request.session_id.clone(),
             source: request.source.clone(),
             channel: request.channel.clone(),
+            chat_type: raw_string(&request.raw, &["chatType", "chat_type"]),
+            was_mentioned: raw_bool(&request.raw, &["wasMentioned", "WasMentioned"]),
+            reply_back: raw_bool(&request.raw, &["replyBack", "reply_back"]),
+            delivery_context: extract_delivery_context(&request.raw, request.channel.as_deref()),
             decision: decision.clone(),
         },
     };
     serde_json::to_value(frame).unwrap_or(Value::Null)
+}
+
+fn extract_delivery_context(
+    raw: &Value,
+    fallback_channel: Option<&str>,
+) -> Option<DeliveryContext> {
+    let channel = raw_string(raw, &["channel", "provider", "platform"])
+        .or_else(|| fallback_channel.map(ToOwned::to_owned));
+    let to = raw_string(raw, &["to", "recipient", "peer", "target"]);
+    let account_id = raw_string(raw, &["accountId", "account_id"]);
+    let thread_id = raw_string(raw, &["threadId", "thread_id", "topicId", "topic_id"]);
+    let has_any = channel.is_some() || to.is_some() || account_id.is_some() || thread_id.is_some();
+    if has_any {
+        Some(DeliveryContext {
+            channel,
+            to,
+            account_id,
+            thread_id,
+        })
+    } else {
+        None
+    }
+}
+
+fn raw_string(raw: &Value, keys: &[&str]) -> Option<String> {
+    let map = raw.as_object()?;
+    keys.iter().find_map(|key| {
+        map.get(*key).and_then(Value::as_str).and_then(|v| {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_owned())
+            }
+        })
+    })
+}
+
+fn raw_bool(raw: &Value, keys: &[&str]) -> Option<bool> {
+    let map = raw.as_object()?;
+    keys.iter()
+        .find_map(|key| map.get(*key))
+        .and_then(value_as_bool)
+}
+
+fn value_as_bool(value: &Value) -> Option<bool> {
+    match value {
+        Value::Bool(v) => Some(*v),
+        Value::Number(v) => v.as_i64().map(|n| n != 0),
+        Value::String(v) => match v.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 pub fn parse_frame_text(text: &str) -> Result<Value, serde_json::Error> {
@@ -344,6 +422,66 @@ mod tests {
         assert_eq!(
             frame.pointer("/payload/channel").and_then(|v| v.as_str()),
             Some("discord")
+        );
+    }
+
+    #[test]
+    fn decision_event_includes_delivery_hints() {
+        let request = crate::types::ActionRequest {
+            id: "req-2".to_owned(),
+            source: "agent".to_owned(),
+            session_id: Some("agent:main:discord:group:g1".to_owned()),
+            prompt: Some("hi".to_owned()),
+            command: None,
+            tool_name: Some("message".to_owned()),
+            channel: Some("discord".to_owned()),
+            url: None,
+            file_path: None,
+            raw: json!({
+                "chatType": "group",
+                "wasMentioned": true,
+                "replyBack": true,
+                "to": "group-123",
+                "accountId": "acc-1",
+                "threadId": "thread-42"
+            }),
+        };
+        let decision = Decision {
+            action: DecisionAction::Allow,
+            risk_score: 5,
+            reasons: vec![],
+            tags: vec![],
+            source: "openclaw-agent-rs".to_owned(),
+        };
+
+        let frame = decision_event_frame("security.decision", &request, &decision);
+        assert_eq!(
+            frame.pointer("/payload/chatType").and_then(|v| v.as_str()),
+            Some("group")
+        );
+        assert_eq!(
+            frame
+                .pointer("/payload/wasMentioned")
+                .and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            frame
+                .pointer("/payload/replyBack")
+                .and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            frame
+                .pointer("/payload/deliveryContext/channel")
+                .and_then(|v| v.as_str()),
+            Some("discord")
+        );
+        assert_eq!(
+            frame
+                .pointer("/payload/deliveryContext/to")
+                .and_then(|v| v.as_str()),
+            Some("group-123")
         );
     }
 

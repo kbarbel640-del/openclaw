@@ -24,6 +24,10 @@ pub struct RuntimeConfig {
     pub decision_event: String,
     pub worker_concurrency: usize,
     pub max_queue: usize,
+    #[serde(default = "default_session_queue_mode")]
+    pub session_queue_mode: SessionQueueMode,
+    #[serde(default = "default_group_activation_mode")]
+    pub group_activation_mode: GroupActivationMode,
     pub eval_timeout_ms: u64,
     pub memory_sample_secs: u64,
     #[serde(default = "default_idempotency_ttl_secs")]
@@ -61,6 +65,21 @@ pub enum PolicyAction {
     Block,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionQueueMode {
+    Followup,
+    Steer,
+    Collect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GroupActivationMode {
+    Mention,
+    Always,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -73,6 +92,8 @@ impl Default for Config {
                 decision_event: "security.decision".to_owned(),
                 worker_concurrency: 8,
                 max_queue: 256,
+                session_queue_mode: default_session_queue_mode(),
+                group_activation_mode: default_group_activation_mode(),
                 eval_timeout_ms: 2_500,
                 memory_sample_secs: 15,
                 idempotency_ttl_secs: default_idempotency_ttl_secs(),
@@ -170,6 +191,18 @@ impl Config {
                 self.runtime.max_queue = n.max(16);
             }
         }
+        if let Ok(v) = env::var("OPENCLAW_RS_SESSION_QUEUE_MODE") {
+            if let Some(mode) = parse_session_queue_mode(&v) {
+                self.runtime.session_queue_mode = mode;
+            }
+        }
+        if let Ok(v) = env::var("OPENCLAW_RS_GROUP_ACTIVATION_MODE")
+            .or_else(|_| env::var("OPENCLAW_RS_GROUP_ACTIVATION"))
+        {
+            if let Some(mode) = parse_group_activation_mode(&v) {
+                self.runtime.group_activation_mode = mode;
+            }
+        }
         if let Ok(v) = env::var("OPENCLAW_RS_ALLOWED_COMMAND_PREFIXES") {
             self.security.allowed_command_prefixes = split_csv(&v);
         }
@@ -264,4 +297,29 @@ fn default_idempotency_max_entries() -> usize {
 
 fn default_session_state_path() -> PathBuf {
     PathBuf::from(".openclaw-rs/session-state.json")
+}
+
+fn default_session_queue_mode() -> SessionQueueMode {
+    SessionQueueMode::Followup
+}
+
+fn default_group_activation_mode() -> GroupActivationMode {
+    GroupActivationMode::Mention
+}
+
+fn parse_session_queue_mode(s: &str) -> Option<SessionQueueMode> {
+    match s.trim().to_ascii_lowercase().as_str() {
+        "followup" => Some(SessionQueueMode::Followup),
+        "steer" => Some(SessionQueueMode::Steer),
+        "collect" => Some(SessionQueueMode::Collect),
+        _ => None,
+    }
+}
+
+fn parse_group_activation_mode(s: &str) -> Option<GroupActivationMode> {
+    match s.trim().to_ascii_lowercase().as_str() {
+        "mention" => Some(GroupActivationMode::Mention),
+        "always" => Some(GroupActivationMode::Always),
+        _ => None,
+    }
 }

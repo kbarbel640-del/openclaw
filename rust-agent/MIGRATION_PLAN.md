@@ -22,7 +22,11 @@
 ### Phase 2 (in progress)
 
 - Move session scheduler and idempotency dedupe cache to Rust.
-- Implemented first-pass session FIFO scheduler (one active request per session, bounded pending queue).
+- Implemented first-pass session FIFO scheduler with configurable queue modes:
+  - `followup`: preserve all follow-ups in order.
+  - `steer`: keep only the latest pending follow-up while a session is active.
+  - `collect`: merge prompt-only follow-ups into a single pending turn.
+- Added group activation gating (`mention` or `always`) before scheduling group-context actions.
 - Implemented first pass idempotency dedupe cache with TTL + bounded entries.
 - Implemented dual-backend session state tracking:
   - JSON (default)

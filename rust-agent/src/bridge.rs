@@ -9,30 +9,40 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{debug, info, warn};
 
 use crate::channels::DriverRegistry;
-use crate::config::GatewayConfig;
+use crate::config::{GatewayConfig, GroupActivationMode, SessionQueueMode};
 use crate::gateway::MethodRegistry;
 use crate::protocol::{
     classify_method, decision_event_frame, frame_kind, parse_frame_text, parse_rpc_request,
     parse_rpc_response, ConnectFrame, FrameKind,
 };
-use crate::scheduler::{SessionScheduler, SubmitOutcome};
+use crate::scheduler::{SessionScheduler, SessionSchedulerConfig, SubmitOutcome};
 use crate::security::ActionEvaluator;
 use crate::types::ActionRequest;
 
 pub struct GatewayBridge {
     gateway: GatewayConfig,
     decision_event: String,
-    max_queue: usize,
+    scheduler_cfg: SessionSchedulerConfig,
     drivers: Arc<DriverRegistry>,
     methods: Arc<MethodRegistry>,
 }
 
 impl GatewayBridge {
-    pub fn new(gateway: GatewayConfig, decision_event: String, max_queue: usize) -> Self {
+    pub fn new(
+        gateway: GatewayConfig,
+        decision_event: String,
+        max_queue: usize,
+        queue_mode: SessionQueueMode,
+        group_activation_mode: GroupActivationMode,
+    ) -> Self {
         Self {
             gateway,
             decision_event,
-            max_queue: max_queue.max(16),
+            scheduler_cfg: SessionSchedulerConfig::new(
+                max_queue.max(16),
+                queue_mode,
+                group_activation_mode,
+            ),
             drivers: Arc::new(DriverRegistry::default_registry()),
             methods: Arc::new(MethodRegistry::default_registry()),
         }
@@ -69,9 +79,10 @@ impl GatewayBridge {
             .await
             .with_context(|| "failed websocket connect")?;
         let (mut write, mut read) = stream.split();
-        let (decision_tx, mut decision_rx) = mpsc::channel::<serde_json::Value>(self.max_queue);
-        let inflight = Arc::new(Semaphore::new(self.max_queue));
-        let scheduler = Arc::new(SessionScheduler::new(self.max_queue));
+        let (decision_tx, mut decision_rx) =
+            mpsc::channel::<serde_json::Value>(self.scheduler_cfg.max_pending);
+        let inflight = Arc::new(Semaphore::new(self.scheduler_cfg.max_pending));
+        let scheduler = Arc::new(SessionScheduler::new(self.scheduler_cfg));
 
         let connect_frame = ConnectFrame::new(self.gateway.token.as_deref()).to_value();
         write
@@ -173,6 +184,15 @@ impl GatewayBridge {
                                             request_id, session_id
                                         );
                                     }
+                                    SubmitOutcome::IgnoredActivation {
+                                        request_id,
+                                        session_id,
+                                    } => {
+                                        debug!(
+                                            "ignored request {} due to group activation policy (session={})",
+                                            request_id, session_id
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -236,7 +256,9 @@ mod tests {
     use tokio::net::TcpListener;
     use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-    use crate::config::{Config, GatewayConfig, PolicyAction};
+    use crate::config::{
+        Config, GatewayConfig, GroupActivationMode, PolicyAction, SessionQueueMode,
+    };
     use crate::security::{ActionEvaluator, DefenderEngine};
     use crate::types::{ActionRequest, Decision, DecisionAction};
 
@@ -335,6 +357,8 @@ mod tests {
             },
             "security.decision".to_owned(),
             16,
+            SessionQueueMode::Followup,
+            GroupActivationMode::Always,
         );
         let evaluator: Arc<dyn ActionEvaluator> = Arc::new(StubEvaluator);
         bridge.run_once(evaluator).await?;
@@ -443,6 +467,8 @@ mod tests {
             cfg.gateway,
             cfg.runtime.decision_event,
             cfg.runtime.max_queue,
+            cfg.runtime.session_queue_mode,
+            cfg.runtime.group_activation_mode,
         );
         bridge.run_once(evaluator).await?;
         server.await??;
