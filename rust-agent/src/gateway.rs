@@ -41,6 +41,18 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "health",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "status",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "agent.exec",
                     family: MethodFamily::Agent,
                     requires_auth: true,
@@ -172,19 +184,40 @@ impl MethodRegistry {
 
 pub struct RpcDispatcher {
     sessions: SessionRegistry,
+    started_at_ms: u64,
 }
 
 const MAX_SESSION_HISTORY_PER_SESSION: usize = 128;
+const RUNTIME_NAME: &str = "openclaw-agent-rs";
+const RUNTIME_VERSION: &str = env!("CARGO_PKG_VERSION");
+const SUPPORTED_RPC_METHODS: &[&str] = &[
+    "health",
+    "status",
+    "sessions.list",
+    "sessions.preview",
+    "sessions.patch",
+    "sessions.resolve",
+    "sessions.reset",
+    "sessions.delete",
+    "sessions.compact",
+    "sessions.usage",
+    "sessions.history",
+    "sessions.send",
+    "session.status",
+];
 
 impl RpcDispatcher {
     pub fn new() -> Self {
         Self {
             sessions: SessionRegistry::new(),
+            started_at_ms: now_ms(),
         }
     }
 
     pub async fn handle_request(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
         match normalize(&req.method).as_str() {
+            "health" => self.handle_health().await,
+            "status" => self.handle_status().await,
             "sessions.list" => self.handle_sessions_list(req).await,
             "sessions.preview" => self.handle_sessions_preview(req).await,
             "sessions.patch" => self.handle_sessions_patch(req).await,
@@ -202,6 +235,37 @@ impl RpcDispatcher {
 
     pub async fn record_decision(&self, request: &ActionRequest, decision: &Decision) {
         self.sessions.record_decision(request, decision).await;
+    }
+
+    async fn handle_health(&self) -> RpcDispatchOutcome {
+        let now = now_ms();
+        let summary = self.sessions.summary().await;
+        RpcDispatchOutcome::Handled(json!({
+            "ok": true,
+            "service": RUNTIME_NAME,
+            "version": RUNTIME_VERSION,
+            "ts": now,
+            "uptimeMs": now.saturating_sub(self.started_at_ms),
+            "sessions": summary
+        }))
+    }
+
+    async fn handle_status(&self) -> RpcDispatchOutcome {
+        let now = now_ms();
+        let summary = self.sessions.summary().await;
+        RpcDispatchOutcome::Handled(json!({
+            "runtime": {
+                "name": RUNTIME_NAME,
+                "version": RUNTIME_VERSION,
+                "startedAtMs": self.started_at_ms,
+                "uptimeMs": now.saturating_sub(self.started_at_ms),
+            },
+            "sessions": summary,
+            "rpc": {
+                "supportedMethods": SUPPORTED_RPC_METHODS,
+                "count": SUPPORTED_RPC_METHODS.len()
+            }
+        }))
     }
 
     async fn handle_sessions_list(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
@@ -1996,6 +2060,57 @@ mod tests {
                 );
             }
             _ => panic!("expected filtered list handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_health_and_status_return_runtime_metadata() {
+        let dispatcher = RpcDispatcher::new();
+        let health = RpcRequestFrame {
+            id: "req-health".to_owned(),
+            method: "health".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&health).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload.pointer("/ok").and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/service")
+                        .and_then(serde_json::Value::as_str),
+                    Some("openclaw-agent-rs")
+                );
+            }
+            _ => panic!("expected health handled"),
+        }
+
+        let status = RpcRequestFrame {
+            id: "req-status".to_owned(),
+            method: "status".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&status).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/runtime/name")
+                        .and_then(serde_json::Value::as_str),
+                    Some("openclaw-agent-rs")
+                );
+                assert!(
+                    payload
+                        .pointer("/rpc/count")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap_or(0)
+                        >= 10
+                );
+            }
+            _ => panic!("expected status handled"),
         }
     }
 }

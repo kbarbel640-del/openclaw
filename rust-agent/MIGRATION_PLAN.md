@@ -13,6 +13,8 @@
 - Rust runtime process + Gateway WebSocket compatibility.
 - Typed protocol frame foundation (`req`/`resp`/`event`) and method-family classification.
 - Gateway known-method registry plus first RPC dispatcher for:
+  - `health`
+  - `status`
   - `sessions.list`
   - `sessions.preview`
   - `sessions.patch`

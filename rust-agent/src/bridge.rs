@@ -1375,4 +1375,70 @@ mod tests {
         server.await??;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn rpc_health_and_status_roundtrip() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            let ws = accept_async(stream).await?;
+            let (mut write, mut read) = ws.split();
+
+            let _connect = read
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("missing connect frame"))??;
+
+            for method in ["health", "status"] {
+                write
+                    .send(Message::Text(
+                        json!({
+                            "type": "req",
+                            "id": format!("req-{method}"),
+                            "method": method,
+                            "params": {}
+                        })
+                        .to_string(),
+                    ))
+                    .await?;
+                let response = timeout(Duration::from_secs(2), read.next())
+                    .await
+                    .map_err(|_| anyhow::anyhow!("timed out waiting for response"))?
+                    .ok_or_else(|| anyhow::anyhow!("response stream ended"))??;
+                let json: Value = serde_json::from_str(response.to_text()?)?;
+                assert_eq!(json.get("ok").and_then(Value::as_bool), Some(true));
+                if method == "health" {
+                    assert_eq!(
+                        json.pointer("/result/service").and_then(Value::as_str),
+                        Some("openclaw-agent-rs")
+                    );
+                } else {
+                    assert_eq!(
+                        json.pointer("/result/runtime/name").and_then(Value::as_str),
+                        Some("openclaw-agent-rs")
+                    );
+                }
+            }
+
+            write.send(Message::Close(None)).await?;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let bridge = GatewayBridge::new(
+            GatewayConfig {
+                url: format!("ws://{addr}"),
+                token: None,
+            },
+            "security.decision".to_owned(),
+            16,
+            SessionQueueMode::Followup,
+            GroupActivationMode::Always,
+        );
+        let evaluator: Arc<dyn ActionEvaluator> = Arc::new(StubEvaluator);
+        bridge.run_once(evaluator).await?;
+        server.await??;
+        Ok(())
+    }
 }
