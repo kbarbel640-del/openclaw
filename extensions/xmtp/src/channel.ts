@@ -272,7 +272,10 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
           const dmPolicy = freshAccount.config.dmPolicy ?? "pairing";
           const configuredAllowFrom = normalizeAllowEntries(freshAccount.config.allowFrom ?? []);
           const storeAllowFrom = normalizeAllowEntries(
-            await runtime.channel.pairing.readAllowFromStore("xmtp", account.accountId).catch(() => []),
+            await runtime.channel.pairing.readAllowFromStore("xmtp", account.accountId).catch((error) => {
+              ctx.log?.warn?.(`[${account.accountId}] Failed to read pairing store`, { error: String(error) });
+              return [];
+            }),
           );
           const effectiveAllowFrom = [...configuredAllowFrom, ...storeAllowFrom];
           const allowMatch = resolveAllowlistMatchSimple({
