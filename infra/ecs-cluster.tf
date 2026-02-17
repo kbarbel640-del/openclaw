@@ -1,5 +1,5 @@
 resource "aws_ecs_cluster" "main" {
-  name = "openclaw"
+  name = "openclaw-vento"
 
   setting {
     name  = "containerInsights"

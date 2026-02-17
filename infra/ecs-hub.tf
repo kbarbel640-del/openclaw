@@ -41,6 +41,7 @@ resource "aws_ecs_task_definition" "hub" {
       { name = "SLACK_OAUTH_REDIRECT_URI", valueFrom = "${aws_secretsmanager_secret.hub.arn}:SLACK_OAUTH_REDIRECT_URI::" },
       { name = "ADMIN_PASSWORD", valueFrom = "${aws_secretsmanager_secret.hub.arn}:ADMIN_PASSWORD::" },
       { name = "STATE_SECRET", valueFrom = "${aws_secretsmanager_secret.hub.arn}:STATE_SECRET::" },
+      { name = "OPENAI_API_KEY", valueFrom = "${aws_secretsmanager_secret.hub.arn}:OPENAI_API_KEY::" },
     ]
 
     mountPoints = [{

@@ -1,5 +1,5 @@
 resource "aws_ecr_repository" "hub" {
-  name                 = "openclaw-hub"
+  name                 = "openclaw-vento-hub"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
 
@@ -11,7 +11,7 @@ resource "aws_ecr_repository" "hub" {
 }
 
 resource "aws_ecr_repository" "openclaw" {
-  name                 = "openclaw"
+  name                 = "openclaw-vento"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
 
