@@ -38,8 +38,9 @@ export function resolveSlackThreadTargets(params: {
   message: SlackMessageEvent | SlackAppMentionEvent;
   replyToMode: ReplyToMode;
 }) {
-  const { incomingThreadTs, messageTs } = resolveSlackThreadContext(params);
+  const ctx = resolveSlackThreadContext(params);
+  const { incomingThreadTs, messageTs, isThreadReply } = ctx;
   const replyThreadTs = incomingThreadTs ?? (params.replyToMode === "all" ? messageTs : undefined);
   const statusThreadTs = replyThreadTs ?? messageTs;
-  return { replyThreadTs, statusThreadTs };
+  return { replyThreadTs, statusThreadTs, isThreadReply };
 }
