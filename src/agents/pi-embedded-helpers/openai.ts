@@ -60,6 +60,73 @@ function hasFollowingNonThinkingBlock(
 }
 
 /**
+ * Strip all `type: "thinking"` blocks from assistant messages that do NOT carry
+ * an OpenAI reasoning signature (`rs_`-prefixed `thinkingSignature`).
+ *
+ * When failing over from Anthropic (which produces unsigned thinking blocks) to
+ * another provider (or back to Anthropic after a model change), stale thinking
+ * blocks in the session history can cause 400 errors because the target API
+ * either doesn't understand them or rejects invalid/missing signatures.
+ *
+ * This should be called when the model has changed between providers so that
+ * provider-specific thinking blocks don't leak across provider boundaries.
+ *
+ * See: https://github.com/openclaw/openclaw/issues/19295
+ */
+export function stripNonNativeThinkingBlocks(messages: AgentMessage[]): AgentMessage[] {
+  const out: AgentMessage[] = [];
+
+  for (const msg of messages) {
+    if (!msg || typeof msg !== "object") {
+      out.push(msg);
+      continue;
+    }
+
+    const role = (msg as { role?: unknown }).role;
+    if (role !== "assistant") {
+      out.push(msg);
+      continue;
+    }
+
+    const assistantMsg = msg as Extract<AgentMessage, { role: "assistant" }>;
+    if (!Array.isArray(assistantMsg.content)) {
+      out.push(msg);
+      continue;
+    }
+
+    let changed = false;
+    type AssistantContentBlock = (typeof assistantMsg.content)[number];
+
+    const nextContent: AssistantContentBlock[] = [];
+    for (const block of assistantMsg.content) {
+      if (!block || typeof block !== "object") {
+        nextContent.push(block as AssistantContentBlock);
+        continue;
+      }
+      if ((block as { type?: unknown }).type !== "thinking") {
+        nextContent.push(block);
+        continue;
+      }
+      // Drop the thinking block.
+      changed = true;
+    }
+
+    if (!changed) {
+      out.push(msg);
+      continue;
+    }
+
+    if (nextContent.length === 0) {
+      continue;
+    }
+
+    out.push({ ...assistantMsg, content: nextContent } as AgentMessage);
+  }
+
+  return out;
+}
+
+/**
  * OpenAI Responses API can reject transcripts that contain a standalone `reasoning` item id
  * without the required following item.
  *
