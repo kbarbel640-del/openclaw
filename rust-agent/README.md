@@ -123,3 +123,16 @@ When using `x86_64-pc-windows-gnu` with `--features sqlite-state`, run through:
 .\scripts\with-mingw-env.ps1 "cargo +1.83.0-x86_64-pc-windows-gnu clippy --all-targets --features sqlite-state -- -D warnings"
 .\scripts\with-mingw-env.ps1 "cargo +1.83.0-x86_64-pc-windows-gnu build --release --features sqlite-state"
 ```
+
+## Docker parity smoke
+
+Runs the full Rust validation matrix in Linux (`test`, `clippy`, `release build`,
+default + `sqlite-state`):
+
+```bash
+bash ./scripts/run-docker-parity-smoke.sh
+```
+
+```powershell
+.\scripts\run-docker-parity-smoke.ps1
+```

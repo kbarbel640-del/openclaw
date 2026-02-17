@@ -43,7 +43,7 @@ Status legend:
 | Quarantine records | Persist blocked action payloads for forensics | `Implemented` | Append-only JSON files in configured quarantine directory. |
 | Backpressure + memory controls | Bounded worker concurrency, queue cap, eval timeout, memory metrics | `Implemented` | Semaphore + queue bounds + timeout + Linux RSS sampler. |
 | Test coverage (Rust) | Unit/integration validation for core safety/runtime behavior | `Partial` | Core security/bridge/channel adapters/replay harness covered, including bridge-level mention-activation and steer-queue semantics; full end-to-end Gateway/channel matrix still pending. |
-| Dockerized validation | Containerized CI-style runtime test matrix | `Not Started` | Docker Desktop installed on this machine but daemon not running yet. |
+| Dockerized validation | Containerized CI-style runtime test matrix | `Partial` | Added Docker parity smoke harness (`deploy/Dockerfile.parity`, run scripts) for default + `sqlite-state`; full compose-based Gateway/channel parity environment still pending. |
 
 ## Custom Defender Goal Coverage
 
