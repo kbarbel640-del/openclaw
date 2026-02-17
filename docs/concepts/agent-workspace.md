@@ -32,7 +32,7 @@ inside a sandbox workspace under `~/.openclaw/sandboxes`, not your host workspac
 {
   agents: {
     defaults: {
-      workspace: "/Users/ashinkuniyil/Desktop/AgentX OS"
+      workspace: "~/.openclaw/workspace"
     }
   },
 }
