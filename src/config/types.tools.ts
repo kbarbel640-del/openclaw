@@ -435,7 +435,7 @@ export type ToolsConfig = {
     /** Max results default (default: 20). */
     maxResults?: number;
     /** Platforms the user has enabled (default: all). */
-    allowedPlatforms?: Array<"instagram" | "tiktok" | "youtube" | "linkedin" | "twitter">;
+    allowedPlatforms?: Array<"instagram" | "tiktok" | "youtube" | "linkedin">;
   };
   media?: MediaToolsConfig;
   links?: LinkToolsConfig;

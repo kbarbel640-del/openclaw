@@ -26,7 +26,7 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 
-const SOCIAL_PLATFORMS = ["instagram", "tiktok", "youtube", "linkedin", "twitter"] as const;
+const SOCIAL_PLATFORMS = ["instagram", "tiktok", "youtube", "linkedin"] as const;
 type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
 
 const INSTAGRAM_MODES = ["url", "search"] as const;
@@ -49,7 +49,6 @@ const ACTOR_IDS: Record<string, string> = {
   instagram: "shu8hvrXbJbY3Eb9W",
   tiktok: "GdWCkxBtKWOsKjdch",
   youtube: "h7sDV53CddomktSi5",
-  twitter: "61RPP7dywgiy0JPD0",
 };
 
 const LINKEDIN_ACTOR_IDS: Record<LinkedinRunType, string> = {
@@ -101,13 +100,13 @@ const RequestSchema = Type.Object({
   ),
   urls: Type.Optional(
     Type.Array(Type.String(), {
-      description: "URLs to scrape (Instagram, TikTok, YouTube, LinkedIn, or Twitter/X URLs).",
+      description: "URLs to scrape (Instagram, TikTok, YouTube, or LinkedIn URLs).",
     }),
   ),
   queries: Type.Optional(
     Type.Array(Type.String(), {
       description:
-        "Search terms (Instagram search, TikTok search, YouTube search, LinkedIn company names, Twitter/X search).",
+        "Search terms (Instagram search, TikTok search, YouTube search, LinkedIn company names).",
     }),
   ),
   hashtags: Type.Optional(
@@ -117,7 +116,7 @@ const RequestSchema = Type.Object({
   ),
   profiles: Type.Optional(
     Type.Array(Type.String(), {
-      description: "Profile usernames/handles (TikTok, LinkedIn, or Twitter/X — without @).",
+      description: "Profile usernames/handles (TikTok or LinkedIn — without @).",
     }),
   ),
   maxResults: Type.Optional(
@@ -305,32 +304,6 @@ function buildYoutubeInput(params: {
     };
   }
   throw new ToolInputError("YouTube requires 'urls' or 'queries' parameter.");
-}
-
-function buildTwitterInput(params: {
-  urls?: string[];
-  queries?: string[];
-  profiles?: string[];
-  maxResults: number;
-}): Record<string, unknown> {
-  const input: Record<string, unknown> = {
-    maxItems: params.maxResults,
-  };
-  if (params.urls?.length) {
-    input.startUrls = params.urls;
-  }
-  if (params.queries?.length) {
-    input.searchTerms = params.queries;
-  }
-  if (params.profiles?.length) {
-    input.twitterHandles = params.profiles;
-  }
-  if (!params.urls?.length && !params.queries?.length && !params.profiles?.length) {
-    throw new ToolInputError(
-      "Twitter requires at least one of: urls (Twitter URLs), queries (search terms), or profiles (handles).",
-    );
-  }
-  return input;
 }
 
 interface LinkedInPreparedRun {
@@ -760,68 +733,6 @@ function formatLinkedInJobItem(item: Record<string, unknown>): string {
   return lines.join("\n");
 }
 
-function formatTwitterItem(item: Record<string, unknown>): string {
-  const author = item.author as Record<string, unknown> | undefined;
-  const authorName = author?.name ? `${str(author.name)} (@${str(author.userName)})` : "";
-  const lines: string[] = [`## Tweet${authorName ? ` by ${authorName}` : ""}`];
-  if (item.url ?? item.twitterUrl) {
-    lines.push(`**URL**: ${str(item.url ?? item.twitterUrl)}`);
-  }
-  const stats: string[] = [];
-  if (item.likeCount !== undefined) {
-    stats.push(`Likes: ${num(item.likeCount)}`);
-  }
-  if (item.retweetCount !== undefined) {
-    stats.push(`Retweets: ${num(item.retweetCount)}`);
-  }
-  if (item.replyCount !== undefined) {
-    stats.push(`Replies: ${num(item.replyCount)}`);
-  }
-  if (item.quoteCount !== undefined) {
-    stats.push(`Quotes: ${num(item.quoteCount)}`);
-  }
-  if (item.bookmarkCount !== undefined) {
-    stats.push(`Bookmarks: ${num(item.bookmarkCount)}`);
-  }
-  if (stats.length) {
-    lines.push(`**${stats.join(" | ")}**`);
-  }
-  if (item.text) {
-    lines.push(`**Text**: ${str(item.text)}`);
-  }
-  if (item.createdAt) {
-    lines.push(`**Posted**: ${str(item.createdAt)}`);
-  }
-  if (item.lang) {
-    lines.push(`**Language**: ${str(item.lang)}`);
-  }
-  if (item.isRetweet) {
-    lines.push(`**Retweet**: yes`);
-  }
-  if (item.isQuote) {
-    lines.push(`**Quote**: yes`);
-  }
-  if (author) {
-    const authorStats: string[] = [];
-    if (author.followers !== undefined) {
-      authorStats.push(`Followers: ${num(author.followers)}`);
-    }
-    if (author.isVerified) {
-      authorStats.push("Verified");
-    }
-    if (author.isBlueVerified) {
-      authorStats.push("Blue");
-    }
-    if (authorStats.length) {
-      lines.push(`**Author**: ${authorStats.join(" | ")}`);
-    }
-  }
-  lines.push(
-    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
-  );
-  return lines.join("\n");
-}
-
 function resolveLinkedInFormatter(
   runType?: LinkedinRunType,
 ): (item: Record<string, unknown>) => string {
@@ -851,9 +762,7 @@ function formatPlatformResults(
         ? formatTiktokItem
         : platform === "linkedin"
           ? resolveLinkedInFormatter(linkedinRunType)
-          : platform === "twitter"
-            ? formatTwitterItem
-            : formatYoutubeItem;
+          : formatYoutubeItem;
 
   const parts = items.map((item) => {
     try {
@@ -877,7 +786,7 @@ function formatPlatformResults(
 function buildToolDescription(allowed: Set<SocialPlatform>): string {
   const lines = [
     "Scrape structured data from social media platforms via Apify.",
-    "Always prefer this tool over web_fetch for Instagram, TikTok, YouTube, LinkedIn, and Twitter/X data.",
+    "Always prefer this tool over web_fetch for Instagram, TikTok, YouTube, and LinkedIn data.",
     "",
     "TWO-PHASE ASYNC PATTERN:",
     '1. Call with action="start" and a requests array → fires off all scraping jobs concurrently, returns immediately with run IDs.',
@@ -887,7 +796,7 @@ function buildToolDescription(allowed: Set<SocialPlatform>): string {
     "START ACTION:",
     '  action: "start"',
     "  requests: array of request objects (one per scraping job, no limit per platform). Each request has:",
-    '    - platform (required): "instagram" | "tiktok" | "youtube" | "linkedin" | "twitter"',
+    '    - platform (required): "instagram" | "tiktok" | "youtube" | "linkedin"',
     "    - platform-specific parameters (see below)",
     "    - maxResults (optional, 1-100, default 20)",
     "",
@@ -977,34 +886,6 @@ function buildToolDescription(allowed: Set<SocialPlatform>): string {
       "    hasSubtitles: boolean — Subtitles/CC filter | hasCC: boolean — Creative Commons filter",
       '    oldestPostDate: string — scrape channel videos after this date, e.g. "2024-01-01" or "30 days"',
       "    sortVideosBy: string — sort channel videos: NEWEST | POPULAR | OLDEST",
-      "",
-    );
-  }
-
-  if (allowed.has("twitter")) {
-    lines.push(
-      'TWITTER/X (platform="twitter"):',
-      "  Provide urls (Twitter/X URLs), queries (search terms), and/or profiles (handles without @).",
-      "  At least one is required. Supports advanced search syntax (e.g. 'from:NASA since:2024-01-01').",
-      "  actorInput options for Twitter:",
-      '    sort: string — sort search results: "Top" | "Latest" (default: "Latest")',
-      "    tweetLanguage: string — ISO 639-1 language code (e.g. 'en', 'es', 'fr')",
-      "    onlyVerifiedUsers: boolean — only tweets from verified users (default: false)",
-      "    onlyTwitterBlue: boolean — only tweets from Twitter Blue subscribers (default: false)",
-      "    onlyImage: boolean — only tweets with images (default: false)",
-      "    onlyVideo: boolean — only tweets with videos (default: false)",
-      "    onlyQuote: boolean — only quote tweets (default: false)",
-      "    author: string — filter by tweet author (Twitter handle)",
-      "    inReplyTo: string — tweets that are replies to this user",
-      "    mentioning: string — tweets mentioning this user",
-      "    minimumRetweets: number — min retweet count",
-      "    minimumFavorites: number — min favorite/like count",
-      "    minimumReplies: number — min reply count",
-      '    start: string — tweets after this date (e.g. "2024-01-01")',
-      '    end: string — tweets before this date (e.g. "2024-06-01")',
-      "    geotaggedNear: string — tweets near a location",
-      "    withinRadius: string — radius for geo filter",
-      "    conversationIds: string[] — specific conversation IDs",
       "",
     );
   }
@@ -1146,13 +1027,6 @@ async function handleStart(params: {
       }
       case "youtube": {
         input = { ...buildYoutubeInput({ urls, queries, maxResults }), ...actorInput };
-        break;
-      }
-      case "twitter": {
-        input = {
-          ...buildTwitterInput({ urls, queries, profiles, maxResults }),
-          ...actorInput,
-        };
         break;
       }
       default:
