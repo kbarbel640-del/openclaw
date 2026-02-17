@@ -314,8 +314,17 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     }
     return `\`\`\`txt\n${trimmed}\n\`\`\``;
   };
+  // Memory tools produce agent-internal JSON results that contain box-drawing
+  // characters, nested backticks, and file paths.  When delivered as tool
+  // summaries in Telegram partial-stream DM sessions the malformed markdown
+  // causes the delivery to fail, corrupting the draft stream and silently
+  // dropping the assistant's final reply.  Skip delivery entirely -- these
+  // results have no user-facing value.
+  const isInternalToolResult = (name?: string) =>
+    name === "memory_search" || name === "memory_get";
+
   const emitToolSummary = (toolName?: string, meta?: string) => {
-    if (!params.onToolResult) {
+    if (!params.onToolResult || isInternalToolResult(toolName)) {
       return;
     }
     const agg = formatToolAggregate(toolName, meta ? [meta] : undefined, {
@@ -335,7 +344,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     }
   };
   const emitToolOutput = (toolName?: string, meta?: string, output?: string) => {
-    if (!params.onToolResult || !output) {
+    if (!params.onToolResult || !output || isInternalToolResult(toolName)) {
       return;
     }
     const agg = formatToolAggregate(toolName, meta ? [meta] : undefined, {
