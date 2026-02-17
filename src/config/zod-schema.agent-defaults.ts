@@ -16,18 +16,26 @@ import {
 export const AgentDefaultsSchema = z
   .object({
     model: z
-      .object({
-        primary: z.string().optional(),
-        fallbacks: z.array(z.string()).optional(),
-      })
-      .strict()
+      .preprocess(
+        (val) => (typeof val === "string" ? { primary: val } : val),
+        z
+          .object({
+            primary: z.string().optional(),
+            fallbacks: z.array(z.string()).optional(),
+          })
+          .strict(),
+      )
       .optional(),
     imageModel: z
-      .object({
-        primary: z.string().optional(),
-        fallbacks: z.array(z.string()).optional(),
-      })
-      .strict()
+      .preprocess(
+        (val) => (typeof val === "string" ? { primary: val } : val),
+        z
+          .object({
+            primary: z.string().optional(),
+            fallbacks: z.array(z.string()).optional(),
+          })
+          .strict(),
+      )
       .optional(),
     models: z
       .record(
