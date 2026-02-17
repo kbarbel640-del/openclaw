@@ -130,7 +130,7 @@ export function resetBaileysMocks() {
 
   const makeWASocket = vi.mocked(baileys.makeWASocket);
   makeWASocket.mockReset();
-  makeWASocket.mockImplementation(recreated.mod.makeWASocket);
+  makeWASocket.mockImplementation(recreated.mod.makeWASocket as any);
 
   const useMultiFileAuthState = vi.mocked(baileys.useMultiFileAuthState);
   useMultiFileAuthState.mockReset();

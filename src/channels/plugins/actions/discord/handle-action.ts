@@ -67,7 +67,6 @@ export async function handleDiscordMessageAction(
         filename: filename ?? undefined,
         replyTo: replyTo ?? undefined,
         embeds,
-        components,
         asVoice,
         silent,
         __sessionKey: sessionKey ?? undefined,

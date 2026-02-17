@@ -240,8 +240,17 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         peer: { kind: "channel", id: threadParentId },
       });
     }
+  }
+  const mediaPayload = buildDiscordMediaPayload(mediaList);
+  const threadKeys = resolveThreadSessionKeys({
+    baseSessionKey,
+    threadId: threadChannel ? messageChannelId : undefined,
+    parentSessionKey,
+    useSuffix: false,
+  });
 
-    // Fetch full thread history for new thread sessions to provide prior-turn context.
+  // Fetch full thread history for new thread sessions to provide prior-turn context.
+  if (threadChannel) {
     const threadInitialHistoryLimit = discordConfig?.thread?.initialHistoryLimit ?? 20;
     if (threadInitialHistoryLimit > 0) {
       threadSessionPreviousTimestamp = readSessionUpdatedAt({
@@ -279,13 +288,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       }
     }
   }
-  const mediaPayload = buildDiscordMediaPayload(mediaList);
-  const threadKeys = resolveThreadSessionKeys({
-    baseSessionKey,
-    threadId: threadChannel ? messageChannelId : undefined,
-    parentSessionKey,
-    useSuffix: false,
-  });
+
   const replyPlan = await resolveDiscordAutoThreadReplyPlan({
     client,
     message,

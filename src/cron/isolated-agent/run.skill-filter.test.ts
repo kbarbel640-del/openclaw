@@ -1,12 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { runWithModelFallback } from "../../agents/model-fallback.js";
 
 // ---------- mocks ----------
 
 const buildWorkspaceSkillSnapshotMock = vi.fn();
+const resolveAgentConfigMock = vi.fn();
 const resolveAgentSkillsFilterMock = vi.fn();
 
 vi.mock("../../agents/agent-scope.js", () => ({
-  resolveAgentConfig: vi.fn().mockReturnValue(undefined),
+  resolveAgentConfig: resolveAgentConfigMock,
   resolveAgentDir: vi.fn().mockReturnValue("/tmp/agent-dir"),
   resolveAgentModelFallbacksOverride: vi.fn().mockReturnValue(undefined),
   resolveAgentWorkspaceDir: vi.fn().mockReturnValue("/tmp/workspace"),
@@ -49,6 +51,8 @@ vi.mock("../../agents/model-fallback.js", () => ({
     model: "gpt-4",
   }),
 }));
+
+const runWithModelFallbackMock = vi.mocked(runWithModelFallback);
 
 vi.mock("../../agents/pi-embedded.js", () => ({
   runEmbeddedPiAgent: vi.fn().mockResolvedValue({
@@ -105,10 +109,14 @@ vi.mock("../../config/sessions.js", () => ({
   updateSessionStore: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../../routing/session-key.js", () => ({
-  buildAgentMainSessionKey: vi.fn().mockReturnValue("agent:default:cron:test"),
-  normalizeAgentId: vi.fn((id: string) => id),
-}));
+vi.mock("../../routing/session-key.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../routing/session-key.js")>();
+  return {
+    ...actual,
+    buildAgentMainSessionKey: vi.fn().mockReturnValue("agent:default:cron:test"),
+    normalizeAgentId: vi.fn((id: string) => id),
+  };
+});
 
 vi.mock("../../infra/agent-events.js", () => ({
   registerAgentRunContext: vi.fn(),
@@ -166,6 +174,8 @@ vi.mock("../../agents/defaults.js", () => ({
   DEFAULT_PROVIDER: "openai",
 }));
 
+const { runCronIsolatedAgentTurn } = await import("./run.js");
+
 // ---------- helpers ----------
 
 function makeJob(overrides?: Record<string, unknown>) {
@@ -193,13 +203,17 @@ function makeParams(overrides?: Record<string, unknown>) {
 // ---------- tests ----------
 
 describe("runCronIsolatedAgentTurn — skill filter", () => {
+  let previousFastTestEnv: string | undefined;
   beforeEach(() => {
     vi.clearAllMocks();
+    previousFastTestEnv = process.env.OPENCLAW_TEST_FAST;
+    delete process.env.OPENCLAW_TEST_FAST;
     buildWorkspaceSkillSnapshotMock.mockReturnValue({
       prompt: "<available_skills></available_skills>",
       resolvedSkills: [],
       version: 42,
     });
+    resolveAgentConfigMock.mockReturnValue(undefined);
     resolveAgentSkillsFilterMock.mockReturnValue(undefined);
     // Fresh session object per test — prevents mutation leaking between tests
     resolveCronSessionMock.mockReturnValue({
@@ -216,10 +230,16 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
     });
   });
 
+  afterEach(() => {
+    if (previousFastTestEnv == null) {
+      delete process.env.OPENCLAW_TEST_FAST;
+      return;
+    }
+    process.env.OPENCLAW_TEST_FAST = previousFastTestEnv;
+  });
+
   it("passes agent-level skillFilter to buildWorkspaceSkillSnapshot", async () => {
     resolveAgentSkillsFilterMock.mockReturnValue(["meme-factory", "weather"]);
-
-    const { runCronIsolatedAgentTurn } = await import("./run.js");
 
     const result = await runCronIsolatedAgentTurn(
       makeParams({
@@ -239,8 +259,6 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
   it("omits skillFilter when agent has no skills config", async () => {
     resolveAgentSkillsFilterMock.mockReturnValue(undefined);
 
-    const { runCronIsolatedAgentTurn } = await import("./run.js");
-
     const result = await runCronIsolatedAgentTurn(
       makeParams({
         cfg: { agents: { list: [{ id: "general" }] } },
@@ -252,5 +270,147 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
     expect(buildWorkspaceSkillSnapshotMock).toHaveBeenCalledOnce();
     // When no skills config, skillFilter should be undefined (no filtering applied)
     expect(buildWorkspaceSkillSnapshotMock.mock.calls[0][1].skillFilter).toBeUndefined();
+  });
+
+  it("passes empty skillFilter when agent explicitly disables all skills", async () => {
+    resolveAgentSkillsFilterMock.mockReturnValue([]);
+
+    const result = await runCronIsolatedAgentTurn(
+      makeParams({
+        cfg: { agents: { list: [{ id: "silent", skills: [] }] } },
+        agentId: "silent",
+      }),
+    );
+
+    expect(result.status).toBe("ok");
+    expect(buildWorkspaceSkillSnapshotMock).toHaveBeenCalledOnce();
+    // Explicit empty skills list should forward [] to filter out all skills
+    expect(buildWorkspaceSkillSnapshotMock.mock.calls[0][1]).toHaveProperty("skillFilter", []);
+  });
+
+  it("refreshes cached snapshot when skillFilter changes without version bump", async () => {
+    resolveAgentSkillsFilterMock.mockReturnValue(["weather"]);
+    resolveCronSessionMock.mockReturnValue({
+      storePath: "/tmp/store.json",
+      store: {},
+      sessionEntry: {
+        sessionId: "test-session-id",
+        updatedAt: 0,
+        systemSent: false,
+        skillsSnapshot: {
+          prompt: "<available_skills><skill>meme-factory</skill></available_skills>",
+          skills: [{ name: "meme-factory" }],
+          version: 42,
+        },
+      },
+      systemSent: false,
+      isNewSession: true,
+    });
+
+    const result = await runCronIsolatedAgentTurn(
+      makeParams({
+        cfg: { agents: { list: [{ id: "weather-bot", skills: ["weather"] }] } },
+        agentId: "weather-bot",
+      }),
+    );
+
+    expect(result.status).toBe("ok");
+    expect(buildWorkspaceSkillSnapshotMock).toHaveBeenCalledOnce();
+    expect(buildWorkspaceSkillSnapshotMock.mock.calls[0][1]).toHaveProperty("skillFilter", [
+      "weather",
+    ]);
+  });
+
+  it("reuses cached snapshot when version and normalized skillFilter are unchanged", async () => {
+    resolveAgentSkillsFilterMock.mockReturnValue([" weather ", "meme-factory", "weather"]);
+    resolveCronSessionMock.mockReturnValue({
+      storePath: "/tmp/store.json",
+      store: {},
+      sessionEntry: {
+        sessionId: "test-session-id",
+        updatedAt: 0,
+        systemSent: false,
+        skillsSnapshot: {
+          prompt: "<available_skills><skill>weather</skill></available_skills>",
+          skills: [{ name: "weather" }],
+          skillFilter: ["meme-factory", "weather"],
+          version: 42,
+        },
+      },
+      systemSent: false,
+      isNewSession: true,
+    });
+
+    const result = await runCronIsolatedAgentTurn(
+      makeParams({
+        cfg: { agents: { list: [{ id: "weather-bot", skills: ["weather", "meme-factory"] }] } },
+        agentId: "weather-bot",
+      }),
+    );
+
+    expect(result.status).toBe("ok");
+    expect(buildWorkspaceSkillSnapshotMock).not.toHaveBeenCalled();
+  });
+
+  describe("model fallbacks", () => {
+    const defaultFallbacks = [
+      "anthropic/claude-opus-4-6",
+      "google-gemini-cli/gemini-3-pro-preview",
+      "nvidia/deepseek-ai/deepseek-v3.2",
+    ];
+
+    it("preserves defaults when agent overrides primary as string", async () => {
+      resolveAgentConfigMock.mockReturnValue({ model: "anthropic/claude-sonnet-4-5" });
+
+      const result = await runCronIsolatedAgentTurn(
+        makeParams({
+          cfg: {
+            agents: {
+              defaults: {
+                model: { primary: "openai-codex/gpt-5.3-codex", fallbacks: defaultFallbacks },
+              },
+            },
+          },
+          agentId: "scout",
+        }),
+      );
+
+      expect(result.status).toBe("ok");
+      expect(runWithModelFallbackMock).toHaveBeenCalledOnce();
+      const callCfg = runWithModelFallbackMock.mock.calls[0][0].cfg;
+      const model = callCfg?.agents?.defaults?.model as
+        | { primary?: string; fallbacks?: string[] }
+        | undefined;
+      expect(model?.primary).toBe("anthropic/claude-sonnet-4-5");
+      expect(model?.fallbacks).toEqual(defaultFallbacks);
+    });
+
+    it("preserves defaults when agent overrides primary in object form", async () => {
+      resolveAgentConfigMock.mockReturnValue({
+        model: { primary: "anthropic/claude-sonnet-4-5" },
+      });
+
+      const result = await runCronIsolatedAgentTurn(
+        makeParams({
+          cfg: {
+            agents: {
+              defaults: {
+                model: { primary: "openai-codex/gpt-5.3-codex", fallbacks: defaultFallbacks },
+              },
+            },
+          },
+          agentId: "scout",
+        }),
+      );
+
+      expect(result.status).toBe("ok");
+      expect(runWithModelFallbackMock).toHaveBeenCalledOnce();
+      const callCfg = runWithModelFallbackMock.mock.calls[0][0].cfg;
+      const model = callCfg?.agents?.defaults?.model as
+        | { primary?: string; fallbacks?: string[] }
+        | undefined;
+      expect(model?.primary).toBe("anthropic/claude-sonnet-4-5");
+      expect(model?.fallbacks).toEqual(defaultFallbacks);
+    });
   });
 });
