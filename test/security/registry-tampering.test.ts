@@ -70,7 +70,7 @@ afterEach(() => {
 
 describe("Registry Tampering Prevention (CVSS 8.5)", () => {
   describe("Registry Immutability", () => {
-    it("should prevent modification of registry after finalization", () => {
+    it("should prevent modification of registry after finalization", async () => {
       const dir = makeTempDir();
       writePlugin({
         id: "safe-plugin",
@@ -85,12 +85,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         dir,
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "safe-plugin": { enabled: true } },
           },
         },
@@ -106,7 +106,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
       expect(registry.plugins.length).toBe(pluginCount);
     });
 
-    it("should freeze all plugin records after finalization", () => {
+    it("should freeze all plugin records after finalization", async () => {
       const dir = makeTempDir();
       writePlugin({
         id: "plugin-a",
@@ -121,12 +121,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         dir,
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "plugin-a": { enabled: true } },
           },
         },
@@ -148,7 +148,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
       expect(plugin!.name).toBe(originalName);
     });
 
-    it("should freeze nested arrays in plugin records", () => {
+    it("should freeze nested arrays in plugin records", async () => {
       const dir = makeTempDir();
       writePlugin({
         id: "plugin-b",
@@ -164,12 +164,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         dir,
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "plugin-b": { enabled: true } },
           },
         },
@@ -191,7 +191,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
   });
 
   describe("Cross-Plugin Tampering Prevention", () => {
-    it("should prevent plugins from modifying other plugins' handlers", () => {
+    it("should prevent plugins from modifying other plugins' handlers", async () => {
       const dir = makeTempDir();
 
       // Create a legitimate plugin
@@ -217,12 +217,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         dir,
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "victim-plugin": { enabled: true } },
           },
         },
@@ -244,7 +244,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
       expect(victimTool!.pluginId).toBe(originalPluginId);
     });
 
-    it("should prevent plugins from accessing other plugins' internal state", () => {
+    it("should prevent plugins from accessing other plugins' internal state", async () => {
       const dir = makeTempDir();
 
       writePlugin({
@@ -271,12 +271,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         dir,
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "plugin-with-secrets": { enabled: true } },
           },
         },
@@ -294,7 +294,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
       expect(Object.isFrozen(registry.tools)).toBe(true);
     });
 
-    it("should isolate plugin registrations from each other", () => {
+    it("should isolate plugin registrations from each other", async () => {
       const dir = makeTempDir();
 
       writePlugin({
@@ -325,12 +325,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         filename: "beta.js",
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: {
               "plugin-alpha": { enabled: true },
               "plugin-beta": { enabled: true },
@@ -356,7 +356,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
   });
 
   describe("Registry Finalization Enforcement", () => {
-    it("should reject new registrations after finalization", () => {
+    it("should reject new registrations after finalization", async () => {
       const dir = makeTempDir();
       let capturedApi: any = null;
 
@@ -374,12 +374,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         dir,
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "late-registrant": { enabled: true } },
           },
         },
@@ -402,7 +402,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
       delete (globalThis as any).__capturedPluginApi;
     });
 
-    it("should freeze registry immediately after plugin loading completes", () => {
+    it("should freeze registry immediately after plugin loading completes", async () => {
       const dir = makeTempDir();
 
       writePlugin({
@@ -418,12 +418,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         dir,
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "timing-test": { enabled: true } },
           },
         },
@@ -440,7 +440,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
   });
 
   describe("Sensitive Data Protection", () => {
-    it("should not expose plugin source paths in cross-plugin access", () => {
+    it("should not expose plugin source paths in cross-plugin access", async () => {
       const dir = makeTempDir();
 
       writePlugin({
@@ -456,12 +456,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         dir,
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "source-protected": { enabled: true } },
           },
         },
@@ -475,7 +475,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
       expect(Object.isFrozen(plugin)).toBe(true);
     });
 
-    it("should prevent modification of plugin configuration schemas", () => {
+    it("should prevent modification of plugin configuration schemas", async () => {
       const dir = makeTempDir();
 
       const configSchema = {
@@ -514,12 +514,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         "utf-8",
       );
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "config-plugin": { enabled: true } },
           },
         },
@@ -535,7 +535,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
   });
 
   describe("Attack Scenario Simulations", () => {
-    it("should block malicious plugin trying to replace another plugin's handler", () => {
+    it("should block malicious plugin trying to replace another plugin's handler", async () => {
       const dir = makeTempDir();
 
       writePlugin({
@@ -564,12 +564,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         filename: "payment.js",
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "payment-plugin": { enabled: true } },
           },
         },
@@ -597,7 +597,7 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
       expect(paymentTool!.factory).toBe(originalFactory);
     });
 
-    it("should prevent data exfiltration via registry tampering", () => {
+    it("should prevent data exfiltration via registry tampering", async () => {
       const dir = makeTempDir();
 
       writePlugin({
@@ -617,12 +617,12 @@ describe("Registry Tampering Prevention (CVSS 8.5)", () => {
         dir,
       });
 
-      const registry = loadOpenClawPlugins({
+      const registry = await loadOpenClawPlugins({
         cache: false,
         workspaceDir: dir,
         config: {
           plugins: {
-            loadPaths: [dir],
+            load: { paths: [dir] },
             entries: { "data-source": { enabled: true } },
           },
         },

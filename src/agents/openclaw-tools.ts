@@ -19,7 +19,7 @@ import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 
-export function createOpenClawTools(options?: {
+export async function createOpenClawTools(options?: {
   sandboxBrowserBridgeUrl?: string;
   allowHostBrowserControl?: boolean;
   agentSessionKey?: string;
@@ -57,7 +57,7 @@ export function createOpenClawTools(options?: {
   requireExplicitMessageTarget?: boolean;
   /** If true, omit the message tool from the tool list. */
   disableMessageTool?: boolean;
-}): AnyAgentTool[] {
+}): Promise<AnyAgentTool[]> {
   const imageTool = options?.agentDir?.trim()
     ? createImageTool({
         config: options?.config,
@@ -148,7 +148,7 @@ export function createOpenClawTools(options?: {
     ...(imageTool ? [imageTool] : []),
   ];
 
-  const pluginTools = resolvePluginTools({
+  const pluginTools = await resolvePluginTools({
     context: {
       config: options?.config,
       workspaceDir: options?.workspaceDir,

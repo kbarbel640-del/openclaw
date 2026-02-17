@@ -2,7 +2,7 @@ import type { loadConfig } from "../config/config.js";
 import type { GatewayRequestHandler } from "./server-methods/types.js";
 import { loadOpenClawPlugins } from "../plugins/loader.js";
 
-export function loadGatewayPlugins(params: {
+export async function loadGatewayPlugins(params: {
   cfg: ReturnType<typeof loadConfig>;
   workspaceDir: string;
   log: {
@@ -14,7 +14,7 @@ export function loadGatewayPlugins(params: {
   coreGatewayHandlers: Record<string, GatewayRequestHandler>;
   baseMethods: string[];
 }) {
-  const pluginRegistry = loadOpenClawPlugins({
+  const pluginRegistry = await loadOpenClawPlugins({
     config: params.cfg,
     workspaceDir: params.workspaceDir,
     logger: {

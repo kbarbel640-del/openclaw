@@ -227,7 +227,7 @@ export async function startGatewayServer(
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);
   const defaultWorkspaceDir = resolveAgentWorkspaceDir(cfgAtStart, defaultAgentId);
   const baseMethods = listGatewayMethods();
-  const { pluginRegistry, gatewayMethods: baseGatewayMethods } = loadGatewayPlugins({
+  const { pluginRegistry, gatewayMethods: baseGatewayMethods } = await loadGatewayPlugins({
     cfg: cfgAtStart,
     workspaceDir: defaultWorkspaceDir,
     log,

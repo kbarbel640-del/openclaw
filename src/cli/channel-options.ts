@@ -20,11 +20,8 @@ function dedupe(values: string[]): string[] {
 export function resolveCliChannelOptions(): string[] {
   const catalog = listChannelPluginCatalogEntries().map((entry) => entry.id);
   const base = dedupe([...CHAT_CHANNEL_ORDER, ...catalog]);
-  if (isTruthyEnvValue(process.env.OPENCLAW_EAGER_CHANNEL_OPTIONS)) {
-    ensurePluginRegistryLoaded();
-    const pluginIds = listChannelPlugins().map((plugin) => plugin.id);
-    return dedupe([...base, ...pluginIds]);
-  }
+  // Note: OPENCLAW_EAGER_CHANNEL_OPTIONS disabled due to async plugin loading.
+  // The catalog entries above already include available channels.
   return base;
 }
 

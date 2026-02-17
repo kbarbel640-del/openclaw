@@ -199,15 +199,15 @@ export async function ensureOnboardingPluginInstalled(params: {
   return { cfg: next, installed: false };
 }
 
-export function reloadOnboardingPluginRegistry(params: {
+export async function reloadOnboardingPluginRegistry(params: {
   cfg: OpenClawConfig;
   runtime: RuntimeEnv;
   workspaceDir?: string;
-}): void {
+}): Promise<void> {
   const workspaceDir =
     params.workspaceDir ?? resolveAgentWorkspaceDir(params.cfg, resolveDefaultAgentId(params.cfg));
   const log = createSubsystemLogger("plugins");
-  loadOpenClawPlugins({
+  await loadOpenClawPlugins({
     config: params.cfg,
     workspaceDir,
     cache: false,

@@ -26,7 +26,7 @@ import { startGatewayMemoryBackend } from "./server-startup-memory.js";
 
 export async function startGatewaySidecars(params: {
   cfg: ReturnType<typeof loadConfig>;
-  pluginRegistry: ReturnType<typeof loadOpenClawPlugins>;
+  pluginRegistry: Awaited<ReturnType<typeof loadOpenClawPlugins>>;
   defaultWorkspaceDir: string;
   deps: CliDeps;
   startChannels: () => Promise<void>;

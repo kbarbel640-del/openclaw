@@ -33,7 +33,7 @@ export function createMessageCliHelpers(
 
   const runMessageAction = async (action: string, opts: Record<string, unknown>) => {
     setVerbose(Boolean(opts.verbose));
-    ensurePluginRegistryLoaded();
+    await ensurePluginRegistryLoaded();
     const deps = createDefaultDeps();
     await runCommandWithRuntime(
       defaultRuntime,

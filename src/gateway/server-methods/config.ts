@@ -107,7 +107,7 @@ export const configHandlers: GatewayRequestHandlers = {
     const snapshot = await readConfigFileSnapshot();
     respond(true, redactConfigSnapshot(snapshot), undefined);
   },
-  "config.schema": ({ params, respond }) => {
+  "config.schema": async ({ params, respond }) => {
     if (!validateConfigSchemaParams(params)) {
       respond(
         false,
@@ -121,7 +121,7 @@ export const configHandlers: GatewayRequestHandlers = {
     }
     const cfg = loadConfig();
     const workspaceDir = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
-    const pluginRegistry = loadOpenClawPlugins({
+    const pluginRegistry = await loadOpenClawPlugins({
       config: cfg,
       workspaceDir,
       logger: {

@@ -209,7 +209,7 @@ export async function runEmbeddedAttempt(
     const modelHasVision = params.model.input?.includes("image") ?? false;
     const toolsRaw = params.disableTools
       ? []
-      : createOpenClawCodingTools({
+      : await createOpenClawCodingTools({
           exec: {
             ...params.execOverrides,
             elevated: params.bashElevated,

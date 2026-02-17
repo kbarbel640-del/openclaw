@@ -258,7 +258,7 @@ export async function doctorCommand(
     }
   }
 
-  noteWorkspaceStatus(cfg);
+  await noteWorkspaceStatus(cfg);
 
   // Check and fix shell completion
   await doctorShellCompletion(runtime, prompter, {
