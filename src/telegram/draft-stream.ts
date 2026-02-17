@@ -75,10 +75,10 @@ export function createTelegramDraftStream(params: {
       }
     }
 
-    lastSentText = trimmed;
     try {
       if (typeof streamMessageId === "number") {
         await params.api.editMessageText(chatId, streamMessageId, trimmed);
+        lastSentText = trimmed;
         return true;
       }
       const sent = await params.api.sendMessage(chatId, trimmed, replyParams);
@@ -89,6 +89,7 @@ export function createTelegramDraftStream(params: {
         return false;
       }
       streamMessageId = Math.trunc(sentMessageId);
+      lastSentText = trimmed;
       return true;
     } catch (err) {
       stopped = true;
