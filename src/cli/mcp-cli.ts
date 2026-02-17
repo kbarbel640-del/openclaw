@@ -2,6 +2,22 @@ import type { Command } from "commander";
 import { defaultRuntime } from "../runtime.js";
 import { danger } from "../globals.js";
 
+/**
+ * Redact credentials from a URL before logging.
+ * Turns `https://user:token@host/path` into `https://user:***@host/path`.
+ */
+function redactUrlCredentials(raw: string): string {
+  try {
+    const url = new URL(raw);
+    if (url.password) {
+      url.password = "***";
+    }
+    return url.href;
+  } catch {
+    return raw;
+  }
+}
+
 export function registerMcpCli(program: Command) {
   const mcp = program
     .command("mcp")
@@ -153,7 +169,7 @@ export function registerMcpCli(program: Command) {
             defaultRuntime.log(`    command: ${config.command} ${(config.args ?? []).join(" ")}`);
           }
           if (transport === "sse" && config.url) {
-            defaultRuntime.log(`    url: ${config.url}`);
+            defaultRuntime.log(`    url: ${redactUrlCredentials(config.url)}`);
           }
           if (config.toolPrefix !== undefined) {
             defaultRuntime.log(`    toolPrefix: ${config.toolPrefix || "(empty — no prefix)"}`);

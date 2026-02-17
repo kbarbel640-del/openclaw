@@ -304,6 +304,94 @@ describe("schema type checks", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Extended schema constraints
+// ---------------------------------------------------------------------------
+
+describe("extended schema constraints", () => {
+  it("enforces minLength on strings", () => {
+    const contract = { input: { type: "string", minLength: 3 } };
+    expect(validateContractInput(contract, "ab").valid).toBe(false);
+    expect(validateContractInput(contract, "abc").valid).toBe(true);
+  });
+
+  it("enforces maxLength on strings", () => {
+    const contract = { input: { type: "string", maxLength: 5 } };
+    expect(validateContractInput(contract, "hello").valid).toBe(true);
+    expect(validateContractInput(contract, "toolong").valid).toBe(false);
+  });
+
+  it("enforces pattern on strings", () => {
+    const contract = { input: { type: "string", pattern: "^[A-Z]+$" } };
+    expect(validateContractInput(contract, "HELLO").valid).toBe(true);
+    expect(validateContractInput(contract, "hello").valid).toBe(false);
+  });
+
+  it("ignores invalid regex in pattern gracefully", () => {
+    const contract = { input: { type: "string", pattern: "[invalid" } };
+    // Should not throw — just skip the pattern check
+    expect(validateContractInput(contract, "anything").valid).toBe(true);
+  });
+
+  it("enforces minimum on numbers", () => {
+    const contract = { input: { type: "number", minimum: 0 } };
+    expect(validateContractInput(contract, 5).valid).toBe(true);
+    expect(validateContractInput(contract, 0).valid).toBe(true);
+    expect(validateContractInput(contract, -1).valid).toBe(false);
+  });
+
+  it("enforces maximum on numbers", () => {
+    const contract = { input: { type: "number", maximum: 100 } };
+    expect(validateContractInput(contract, 50).valid).toBe(true);
+    expect(validateContractInput(contract, 100).valid).toBe(true);
+    expect(validateContractInput(contract, 101).valid).toBe(false);
+  });
+
+  it("enforces additionalProperties: false", () => {
+    const contract = {
+      input: {
+        type: "object",
+        properties: { name: { type: "string" } },
+        additionalProperties: false,
+      },
+    };
+    expect(validateContractInput(contract, { name: "ok" }).valid).toBe(true);
+    const result = validateContractInput(contract, { name: "ok", extra: 1 });
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain("unknown property");
+  });
+
+  it("allows extra props when additionalProperties not set", () => {
+    const contract = {
+      input: {
+        type: "object",
+        properties: { name: { type: "string" } },
+      },
+    };
+    expect(validateContractInput(contract, { name: "ok", extra: 1 }).valid).toBe(true);
+  });
+
+  it("enforces minItems on arrays", () => {
+    const contract = { input: { type: "array", items: { type: "number" }, minItems: 2 } };
+    expect(validateContractInput(contract, [1]).valid).toBe(false);
+    expect(validateContractInput(contract, [1, 2]).valid).toBe(true);
+  });
+
+  it("enforces maxItems on arrays", () => {
+    const contract = { input: { type: "array", items: { type: "number" }, maxItems: 3 } };
+    expect(validateContractInput(contract, [1, 2, 3]).valid).toBe(true);
+    expect(validateContractInput(contract, [1, 2, 3, 4]).valid).toBe(false);
+  });
+
+  it("combines multiple string constraints", () => {
+    const contract = { input: { type: "string", minLength: 2, maxLength: 5, pattern: "^[a-z]+$" } };
+    expect(validateContractInput(contract, "ab").valid).toBe(true);
+    expect(validateContractInput(contract, "a").valid).toBe(false);     // too short
+    expect(validateContractInput(contract, "abcdef").valid).toBe(false); // too long
+    expect(validateContractInput(contract, "AB").valid).toBe(false);    // pattern fail
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Contract versioning & deprecation
 // ---------------------------------------------------------------------------
 

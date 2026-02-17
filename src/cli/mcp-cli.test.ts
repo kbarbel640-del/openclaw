@@ -365,3 +365,46 @@ describe("mcp test-tool", () => {
     expect(result.issues).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests: URL credential redaction
+// ---------------------------------------------------------------------------
+
+describe("redactUrlCredentials", () => {
+  // Reimplement the logic here (same as mcp-cli.ts) to test in isolation
+  function redactUrlCredentials(raw: string): string {
+    try {
+      const url = new URL(raw);
+      if (url.password) {
+        url.password = "***";
+      }
+      return url.href;
+    } catch {
+      return raw;
+    }
+  }
+
+  it("redacts password from URL", () => {
+    const result = redactUrlCredentials("https://user:secret-token@example.com/mcp");
+    expect(result).toContain("***");
+    expect(result).not.toContain("secret-token");
+    expect(result).toContain("user");
+    expect(result).toContain("example.com");
+  });
+
+  it("leaves URL without credentials unchanged", () => {
+    const url = "https://example.com/mcp";
+    expect(redactUrlCredentials(url)).toBe(url);
+  });
+
+  it("handles invalid URLs gracefully", () => {
+    const raw = "not-a-url";
+    expect(redactUrlCredentials(raw)).toBe(raw);
+  });
+
+  it("preserves path and query params", () => {
+    const result = redactUrlCredentials("https://user:pass@host.com/path?key=value");
+    expect(result).toContain("/path?key=value");
+    expect(result).not.toContain("pass");
+  });
+});

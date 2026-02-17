@@ -243,6 +243,40 @@ function validateAgainstSchema(
     }
   }
 
+  // String constraints.
+  if (typeof value === "string") {
+    const minLen = schema.minLength as number | undefined;
+    const maxLen = schema.maxLength as number | undefined;
+    const pattern = schema.pattern as string | undefined;
+    if (minLen !== undefined && value.length < minLen) {
+      errors.push(`${path}: string length ${value.length} is below minimum ${minLen}`);
+    }
+    if (maxLen !== undefined && value.length > maxLen) {
+      errors.push(`${path}: string length ${value.length} exceeds maximum ${maxLen}`);
+    }
+    if (pattern) {
+      try {
+        if (!new RegExp(pattern).test(value)) {
+          errors.push(`${path}: string does not match pattern "${pattern}"`);
+        }
+      } catch {
+        // Invalid regex in schema — skip silently.
+      }
+    }
+  }
+
+  // Numeric constraints.
+  if (typeof value === "number") {
+    const min = schema.minimum as number | undefined;
+    const max = schema.maximum as number | undefined;
+    if (min !== undefined && value < min) {
+      errors.push(`${path}: value ${value} is below minimum ${min}`);
+    }
+    if (max !== undefined && value > max) {
+      errors.push(`${path}: value ${value} exceeds maximum ${max}`);
+    }
+  }
+
   if (schema.type === "object" && typeof value === "object" && value !== null) {
     const obj = value as Record<string, unknown>;
 
@@ -251,6 +285,15 @@ function validateAgainstSchema(
       for (const key of schema.required) {
         if (!(key in obj)) {
           errors.push(`${path}.${key}: required field missing`);
+        }
+      }
+    }
+
+    // Reject extra properties when additionalProperties is false.
+    if (schema.additionalProperties === false && schema.properties) {
+      for (const key of Object.keys(obj)) {
+        if (!(key in schema.properties)) {
+          errors.push(`${path}.${key}: unknown property (additionalProperties is false)`);
         }
       }
     }
@@ -266,10 +309,21 @@ function validateAgainstSchema(
     }
   }
 
-  if (schema.type === "array" && Array.isArray(value) && schema.items) {
-    for (let i = 0; i < value.length; i++) {
-      const itemResult = validateAgainstSchema(schema.items, value[i], `${path}[${i}]`);
-      errors.push(...itemResult.errors);
+  // Array constraints.
+  if (schema.type === "array" && Array.isArray(value)) {
+    const minItems = schema.minItems as number | undefined;
+    const maxItems = schema.maxItems as number | undefined;
+    if (minItems !== undefined && value.length < minItems) {
+      errors.push(`${path}: array length ${value.length} is below minimum ${minItems}`);
+    }
+    if (maxItems !== undefined && value.length > maxItems) {
+      errors.push(`${path}: array length ${value.length} exceeds maximum ${maxItems}`);
+    }
+    if (schema.items) {
+      for (let i = 0; i < value.length; i++) {
+        const itemResult = validateAgainstSchema(schema.items, value[i], `${path}[${i}]`);
+        errors.push(...itemResult.errors);
+      }
     }
   }
 
