@@ -538,31 +538,58 @@ export const googlechatPlugin: ChannelPlugin<ResolvedGoogleChatAccount> = {
     startAccount: async (ctx) => {
       const account = ctx.account;
       ctx.log?.info(`[${account.accountId}] starting Google Chat webhook`);
-      ctx.setStatus({
-        accountId: account.accountId,
-        running: true,
-        lastStartAt: Date.now(),
-        webhookPath: resolveGoogleChatWebhookPath({ account }),
-        audienceType: account.config.audienceType,
-        audience: account.config.audience,
-      });
-      const unregister = await startGoogleChatMonitor({
-        account,
-        config: ctx.cfg,
-        runtime: ctx.runtime,
-        abortSignal: ctx.abortSignal,
-        webhookPath: account.config.webhookPath,
-        webhookUrl: account.config.webhookUrl,
-        statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
-      });
-      return () => {
-        unregister?.();
+      
+      try {
+        ctx.setStatus({
+          accountId: account.accountId,
+          running: true,
+          lastStartAt: Date.now(),
+          webhookPath: resolveGoogleChatWebhookPath({ account }),
+          audienceType: account.config.audienceType,
+          audience: account.config.audience,
+        });
+        
+        const unregister = await startGoogleChatMonitor({
+          account,
+          config: ctx.cfg,
+          runtime: ctx.runtime,
+          abortSignal: ctx.abortSignal,
+          webhookPath: account.config.webhookPath,
+          webhookUrl: account.config.webhookUrl,
+          statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
+        });
+        
+        ctx.log?.info(`[${account.accountId}] Google Chat webhook started successfully`);
+        
+        return () => {
+          unregister?.();
+          ctx.setStatus({
+            accountId: account.accountId,
+            running: false,
+            lastStopAt: Date.now(),
+          });
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        const errorStack = err instanceof Error ? err.stack : undefined;
+        
+        ctx.log?.error(
+          `[${account.accountId}] Google Chat channel startup failed: ${errorMsg}`,
+          errorStack ? { stack: errorStack } : undefined,
+        );
+        
         ctx.setStatus({
           accountId: account.accountId,
           running: false,
           lastStopAt: Date.now(),
+          lastError: errorMsg,
         });
-      };
+        
+        // Return a no-op cleanup function so the gateway doesn't crash
+        return () => {
+          ctx.log?.info(`[${account.accountId}] Google Chat cleanup (failed startup)`);
+        };
+      }
     },
   },
 };

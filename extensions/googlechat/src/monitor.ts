@@ -932,36 +932,72 @@ async function uploadAttachmentForReply(params: {
 }
 
 export function monitorGoogleChatProvider(options: GoogleChatMonitorOptions): () => void {
-  const core = getGoogleChatRuntime();
-  const webhookPath = resolveWebhookPath(options.webhookPath, options.webhookUrl);
-  if (!webhookPath) {
-    options.runtime.error?.(`[${options.account.accountId}] invalid webhook path`);
-    return () => {};
+  try {
+    const core = getGoogleChatRuntime();
+    const webhookPath = resolveWebhookPath(options.webhookPath, options.webhookUrl);
+    if (!webhookPath) {
+      const errMsg = `[${options.account.accountId}] invalid webhook path`;
+      options.runtime.error?.(errMsg);
+      throw new Error(errMsg);
+    }
+
+    const audienceType = normalizeAudienceType(options.account.config.audienceType);
+    const audience = options.account.config.audience?.trim();
+    
+    if (!audienceType) {
+      const errMsg = `[${options.account.accountId}] audienceType is required (app-url or project-number)`;
+      options.runtime.error?.(errMsg);
+      throw new Error(errMsg);
+    }
+    
+    if (!audience) {
+      const errMsg = `[${options.account.accountId}] audience is required`;
+      options.runtime.error?.(errMsg);
+      throw new Error(errMsg);
+    }
+    
+    const mediaMaxMb = options.account.config.mediaMaxMb ?? 20;
+
+    const unregister = registerGoogleChatWebhookTarget({
+      account: options.account,
+      config: options.config,
+      runtime: options.runtime,
+      core,
+      path: webhookPath,
+      audienceType,
+      audience,
+      statusSink: options.statusSink,
+      mediaMaxMb,
+    });
+
+    return unregister;
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    options.runtime.error?.(
+      `[${options.account.accountId}] Failed to initialize Google Chat monitor: ${errorMsg}`,
+      errorStack ? { stack: errorStack } : undefined,
+    );
+    // Re-throw so startAccount can handle it
+    throw err;
   }
-
-  const audienceType = normalizeAudienceType(options.account.config.audienceType);
-  const audience = options.account.config.audience?.trim();
-  const mediaMaxMb = options.account.config.mediaMaxMb ?? 20;
-
-  const unregister = registerGoogleChatWebhookTarget({
-    account: options.account,
-    config: options.config,
-    runtime: options.runtime,
-    core,
-    path: webhookPath,
-    audienceType,
-    audience,
-    statusSink: options.statusSink,
-    mediaMaxMb,
-  });
-
-  return unregister;
 }
 
 export async function startGoogleChatMonitor(
   params: GoogleChatMonitorOptions,
 ): Promise<() => void> {
-  return monitorGoogleChatProvider(params);
+  try {
+    return monitorGoogleChatProvider(params);
+  } catch (err) {
+    // Log and re-throw so the caller (startAccount) can handle it
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    params.runtime.error?.(
+      `[${params.account.accountId}] startGoogleChatMonitor failed: ${errorMsg}`,
+      errorStack ? { stack: errorStack } : undefined,
+    );
+    throw err;
+  }
 }
 
 export function resolveGoogleChatWebhookPath(params: {
