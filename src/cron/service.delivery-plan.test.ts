@@ -31,7 +31,12 @@ type DeliveryOverride = {
 
 async function withCronService(
   params: {
-    runIsolatedAgentJob?: () => Promise<{ status: "ok"; summary: string; delivered?: boolean }>;
+    runIsolatedAgentJob?: () => Promise<{
+      status: "ok" | "error";
+      summary?: string;
+      error?: string;
+      delivered?: boolean;
+    }>;
   },
   run: (context: {
     cron: CronService;
@@ -145,6 +150,57 @@ describe("CronService delivery plan consistency", () => {
         expect(result).toEqual({ ok: true, ran: true });
         expect(enqueueSystemEvent).not.toHaveBeenCalled();
         expect(requestHeartbeatNow).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  it("labels summary relays as delivery fallback when outbound send fails", async () => {
+    await withCronService(
+      {
+        runIsolatedAgentJob: vi.fn(async () => ({
+          status: "error",
+          summary: "done",
+          error: "cron announce delivery failed",
+        })),
+      },
+      async ({ cron, enqueueSystemEvent }) => {
+        const job = await addIsolatedAgentTurnJob(cron, {
+          name: "delivery-fallback-summary",
+          wakeMode: "next-heartbeat",
+          delivery: { mode: "announce", channel: "telegram", to: "123" } as DeliveryOverride,
+        });
+
+        const result = await cron.run(job.id, "force");
+        expect(result).toEqual({ ok: true, ran: true });
+        expect(enqueueSystemEvent).toHaveBeenCalledWith(
+          "Cron (delivery fallback): done",
+          expect.objectContaining({ agentId: undefined }),
+        );
+      },
+    );
+  });
+
+  it("still relays explicit fallback notice when delivery fails without summary", async () => {
+    await withCronService(
+      {
+        runIsolatedAgentJob: vi.fn(async () => ({
+          status: "error",
+          error: "cron delivery target is missing",
+        })),
+      },
+      async ({ cron, enqueueSystemEvent }) => {
+        const job = await addIsolatedAgentTurnJob(cron, {
+          name: "delivery-fallback-nosummary",
+          wakeMode: "next-heartbeat",
+          delivery: { mode: "announce", channel: "telegram", to: "123" } as DeliveryOverride,
+        });
+
+        const result = await cron.run(job.id, "force");
+        expect(result).toEqual({ ok: true, ran: true });
+        expect(enqueueSystemEvent).toHaveBeenCalledWith(
+          expect.stringContaining("Cron (delivery fallback): outbound delivery failed"),
+          expect.objectContaining({ agentId: undefined }),
+        );
       },
     );
   });

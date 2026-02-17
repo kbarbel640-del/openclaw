@@ -1,8 +1,9 @@
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
+import type { CronJob, CronRunOutcome, CronRunStatus, CronRunTelemetry } from "../types.js";
+import type { CronEvent, CronServiceState } from "./state.js";
 import { DEFAULT_AGENT_ID } from "../../routing/session-key.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
 import { sweepCronRunSessions } from "../session-reaper.js";
-import type { CronJob, CronRunOutcome, CronRunStatus, CronRunTelemetry } from "../types.js";
 import {
   computeJobNextRunAtMs,
   nextWakeAtMs,
@@ -10,10 +11,70 @@ import {
   resolveJobPayloadTextForMain,
 } from "./jobs.js";
 import { locked } from "./locked.js";
-import type { CronEvent, CronServiceState } from "./state.js";
 import { ensureLoaded, persist } from "./store.js";
 
 const MAX_TIMER_DELAY_MS = 60_000;
+
+const DELIVERY_FAILURE_HINTS = [
+  "delivery failed",
+  "announce delivery failed",
+  "delivery target is missing",
+  "sendtext",
+  "sendmedia",
+  "api error [/v2/users/",
+  "api error [/v2/groups/",
+];
+
+function normalizeErrorText(error?: string): string {
+  return typeof error === "string" ? error.trim() : "";
+}
+
+function truncateText(value: string, max = 180): string {
+  if (value.length <= max) {
+    return value;
+  }
+  return `${value.slice(0, max - 1)}…`;
+}
+
+function isLikelyDeliveryFailure(error?: string): boolean {
+  const normalized = normalizeErrorText(error).toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return DELIVERY_FAILURE_HINTS.some((hint) => normalized.includes(hint));
+}
+
+function buildIsolatedFallbackLabel(params: {
+  status: CronRunStatus;
+  summaryText?: string;
+  error?: string;
+  deliveryRequested: boolean;
+  delivered?: boolean;
+}): string | undefined {
+  if (!params.deliveryRequested || params.delivered) {
+    return undefined;
+  }
+
+  const summaryText = params.summaryText?.trim() ?? "";
+  const deliveryFailure = params.status === "error" && isLikelyDeliveryFailure(params.error);
+
+  if (summaryText) {
+    if (deliveryFailure) {
+      return `Cron (delivery fallback): ${summaryText}`;
+    }
+    return params.status === "error" ? `Cron (error): ${summaryText}` : `Cron: ${summaryText}`;
+  }
+
+  if (deliveryFailure) {
+    const reason = normalizeErrorText(params.error);
+    if (!reason) {
+      return "Cron (delivery fallback): outbound delivery failed";
+    }
+    return `Cron (delivery fallback): outbound delivery failed (${truncateText(reason)})`;
+  }
+
+  return undefined;
+}
 
 /**
  * Minimum gap between consecutive fires of the same cron job.  This is a
@@ -519,13 +580,17 @@ async function executeJobCore(
   // delivery) already sent the result, so posting the summary to main
   // would wake the main agent and cause a duplicate message.
   // See: https://github.com/openclaw/openclaw/issues/15692
-  const summaryText = res.summary?.trim();
   const deliveryPlan = resolveCronDeliveryPlan(job);
-  if (summaryText && deliveryPlan.requested && !res.delivered) {
-    const prefix = "Cron";
-    const label =
-      res.status === "error" ? `${prefix} (error): ${summaryText}` : `${prefix}: ${summaryText}`;
-    state.deps.enqueueSystemEvent(label, {
+  const summaryText = res.summary?.trim();
+  const fallbackLabel = buildIsolatedFallbackLabel({
+    status: res.status,
+    summaryText,
+    error: res.error,
+    deliveryRequested: deliveryPlan.requested,
+    delivered: res.delivered,
+  });
+  if (fallbackLabel) {
+    state.deps.enqueueSystemEvent(fallbackLabel, {
       agentId: job.agentId,
       sessionKey: job.sessionKey,
       contextKey: `cron:${job.id}`,
