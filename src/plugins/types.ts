@@ -483,6 +483,13 @@ export type PluginHookToolContext = {
   agentId?: string;
   sessionKey?: string;
   toolName: string;
+  senderId?: string;
+  senderName?: string;
+  senderUsername?: string;
+  senderE164?: string;
+  runId?: string;
+  intentTokenRaw?: string;
+  csrgPath?: string;
 };
 
 // before_tool_call hook
