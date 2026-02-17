@@ -353,8 +353,8 @@ describe("diagnostics-otel service", () => {
     // message.processed span should NOT have parent context (it should be a root span)
     const msgCall = spanCalls.find((call) => call[0] === "openclaw.message.processed");
     expect(msgCall).toBeDefined();
-    // message.processed should be a root span (no parentSpanId in the event)
-    expect(msgCall![2]).toBeUndefined();
+    // message.processed is a root span — 3rd arg is context.active() with no parent span context
+    expect(msgCall![2]?.__parentSpanContext).toBeUndefined();
 
     // model.usage span should have parent context
     const modelCall = spanCalls.find((call) => String(call[0]).startsWith("chat "));
