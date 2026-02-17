@@ -10,6 +10,18 @@ import { describe, expect, it } from "vitest";
  *
  * These tests verify that the fix allows fallback to password/token auth when device
  * signature validation fails and allowInsecureAuth is configured.
+ *
+ * NOTE: These are unit tests that verify config objects are set correctly.
+ * For stronger verification, integration tests in src/gateway/server.auth.e2e.test.ts
+ * would exercise the actual handler code (attachGatewayWsMessageHandler) with:
+ * - allowInsecureAuth: true
+ * - Stale device signature
+ * - Valid shared auth (password/token)
+ * to ensure device auth is actually skipped in the handler.
+ *
+ * Current implementation detail: allowInsecureAuth bypasses device auth based on
+ * credential PRESENCE (hasSharedAuth), not VALIDITY. Invalid credentials are
+ * still rejected by the final auth check. See message-handler.ts lines 348-350.
  */
 
 describe("BUG #2248: allowInsecureAuth bypass", () => {
