@@ -1,0 +1,19 @@
+{
+  "id": "blockrun",
+  "providers": ["blockrun"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "walletKey": {
+        "type": "string",
+        "description": "Private key for x402 micropayments (auto-generated if not set)"
+      },
+      "routingMode": {
+        "type": "string",
+        "enum": ["fast", "balanced", "powerful", "cheap", "reasoning"],
+        "description": "Smart routing mode for model selection"
+      }
+    }
+  }
+}
