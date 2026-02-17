@@ -81,8 +81,8 @@ export function wrapWindowsBuiltinCommand(argv: string[], platform: NodeJS.Platf
   if (!isWindowsShellBuiltin(command)) {
     return argv;
   }
-  // Wrap with cmd.exe /c: the entire command line is passed as a single argument
-  // after /c so that cmd.exe parses it correctly.
+  // Wrap with cmd.exe /c: arguments are passed separately so Node's spawn
+  // can properly quote them. cmd.exe /c treats everything after /c as the command.
   return ["cmd.exe", "/c", ...argv];
 }
 
