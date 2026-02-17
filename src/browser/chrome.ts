@@ -74,10 +74,10 @@ function cdpUrlForPort(cdpPort: number) {
 export async function findListeningPid(port: number): Promise<number | null> {
   if (process.platform !== "win32") return null;
   try {
-    const output = execSync(
-      `netstat -ano | findstr ":${port}" | findstr "LISTENING"`,
-      { encoding: "utf8", timeout: 3000 },
-    );
+    const output = execSync(`netstat -ano | findstr ":${port}" | findstr "LISTENING"`, {
+      encoding: "utf8",
+      timeout: 3000,
+    });
     const match = output.match(/LISTENING\s+(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   } catch {
@@ -364,7 +364,9 @@ export async function stopOpenClawChrome(running: RunningChrome, timeoutMs = 250
   if (await isChromeReachable(cdpUrlForPort(running.cdpPort), 200)) {
     const actualPid = await findListeningPid(running.cdpPort);
     if (actualPid) {
-      log.info(`🦞 Chrome still alive after proc.kill — killing PID ${actualPid} by port (Windows re-parenting)`);
+      log.info(
+        `🦞 Chrome still alive after proc.kill — killing PID ${actualPid} by port (Windows re-parenting)`,
+      );
       try {
         execSync(`taskkill /F /T /PID ${actualPid}`, { timeout: 5000 });
       } catch {
