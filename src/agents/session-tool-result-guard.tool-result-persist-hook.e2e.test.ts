@@ -140,7 +140,8 @@ describe("tool_result_persist hook", () => {
     sm.appendMessage({
       role: "assistant",
       content: [{ type: "toolCall", id: "call_1", name: "gateway", arguments: {} }],
-    } as AgentMessage);
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
 
     // Simulate a tool result containing sensitive data (like config.get output)
     sm.appendMessage({
@@ -191,7 +192,8 @@ describe("tool_result_persist hook", () => {
     sm.appendMessage({
       role: "assistant",
       content: [{ type: "toolCall", id: "call_1", name: "bash", arguments: {} }],
-    } as AgentMessage);
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
 
     // Some tools return string content directly, not array blocks
     sm.appendMessage({
@@ -227,7 +229,8 @@ describe("tool_result_persist hook", () => {
     sm.appendMessage({
       role: "assistant",
       content: [{ type: "toolCall", id: "call_1", name: "config", arguments: {} }],
-    } as AgentMessage);
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
 
     sm.appendMessage({
       role: "toolResult",
@@ -305,7 +308,8 @@ describe("tool_result_persist hook", () => {
     sm.appendMessage({
       role: "assistant",
       content: [{ type: "toolCall", id: "call_1", name: "read", arguments: {} }],
-    } as AgentMessage);
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
 
     sm.appendMessage({
       role: "toolResult",
