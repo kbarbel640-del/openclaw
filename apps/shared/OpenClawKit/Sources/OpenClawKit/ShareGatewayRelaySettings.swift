@@ -1,7 +1,4 @@
 import Foundation
-#if canImport(UIKit)
-import UIKit
-#endif
 
 public struct ShareGatewayRelayConfig: Codable, Sendable, Equatable {
     public let gatewayURLString: String
@@ -29,64 +26,37 @@ public struct ShareGatewayRelayConfig: Codable, Sendable, Equatable {
 }
 
 public enum ShareGatewayRelaySettings {
-    private static let relayPasteboardName = "ai.openclaw.share.gatewayRelay"
-    private static let relayPasteboardType = "ai.openclaw.share.gatewayRelay.v1"
-    private static let eventPasteboardName = "ai.openclaw.share.events"
-    private static let lastEventType = "ai.openclaw.share.gatewayRelay.event.v1"
+    private static let suiteName = "group.ai.openclaw.shared"
+    private static let relayConfigKey = "share.gatewayRelay.config.v1"
+    private static let lastEventKey = "share.gatewayRelay.event.v1"
+
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: self.suiteName) ?? .standard
+    }
 
     public static func loadConfig() -> ShareGatewayRelayConfig? {
-        #if canImport(UIKit)
-        guard let pasteboard = UIPasteboard(name: UIPasteboard.Name(self.relayPasteboardName), create: false) else {
-            return nil
-        }
-        guard let data = pasteboard.data(forPasteboardType: self.relayPasteboardType) else { return nil }
+        guard let data = self.defaults.data(forKey: self.relayConfigKey) else { return nil }
         return try? JSONDecoder().decode(ShareGatewayRelayConfig.self, from: data)
-        #else
-        return nil
-        #endif
     }
 
     public static func saveConfig(_ config: ShareGatewayRelayConfig) {
-        #if canImport(UIKit)
         guard let data = try? JSONEncoder().encode(config) else { return }
-        guard let pasteboard = UIPasteboard(name: UIPasteboard.Name(self.relayPasteboardName), create: true) else {
-            return
-        }
-        pasteboard.setData(data, forPasteboardType: self.relayPasteboardType)
-        #endif
+        self.defaults.set(data, forKey: self.relayConfigKey)
     }
 
     public static func clearConfig() {
-        #if canImport(UIKit)
-        guard let pasteboard = UIPasteboard(name: UIPasteboard.Name(self.relayPasteboardName), create: false) else {
-            return
-        }
-        pasteboard.items = []
-        #endif
+        self.defaults.removeObject(forKey: self.relayConfigKey)
     }
 
     public static func saveLastEvent(_ message: String) {
-        #if canImport(UIKit)
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let payload = "[\(timestamp)] \(message)"
-        guard let data = payload.data(using: .utf8) else { return }
-        guard let pasteboard = UIPasteboard(name: UIPasteboard.Name(self.eventPasteboardName), create: true) else {
-            return
-        }
-        pasteboard.setData(data, forPasteboardType: self.lastEventType)
-        #endif
+        self.defaults.set(payload, forKey: self.lastEventKey)
     }
 
     public static func loadLastEvent() -> String? {
-        #if canImport(UIKit)
-        guard let pasteboard = UIPasteboard(name: UIPasteboard.Name(self.eventPasteboardName), create: false) else {
-            return nil
-        }
-        guard let data = pasteboard.data(forPasteboardType: self.lastEventType) else { return nil }
-        let value = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let value = self.defaults.string(forKey: self.lastEventKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return value.isEmpty ? nil : value
-        #else
-        return nil
-        #endif
     }
 }

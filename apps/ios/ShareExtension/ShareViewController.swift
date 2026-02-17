@@ -380,9 +380,6 @@ final class ShareViewController: UIViewController {
                     unknownCount += 1
                 }
 
-                if sharedURL != nil, sharedText != nil {
-                    break
-                }
             }
         }
 
@@ -403,26 +400,16 @@ final class ShareViewController: UIViewController {
         }
 
         let maxBytes = 5_000_000
-        var data = rawData
-        var mimeType: String
-        var fileExt: String
-        if let image = UIImage(data: rawData), let normalized = self.normalizedJPEGData(from: image, maxBytes: maxBytes) {
-            data = normalized
-            mimeType = "image/jpeg"
-            fileExt = "jpg"
-        } else {
-            let utType = UTType(imageUTI)
-            mimeType = utType?.preferredMIMEType ?? "application/octet-stream"
-            fileExt = utType?.preferredFilenameExtension ?? "bin"
-            if data.count > maxBytes {
-                data = Data(data.prefix(maxBytes))
-            }
+        guard let image = UIImage(data: rawData),
+              let data = self.normalizedJPEGData(from: image, maxBytes: maxBytes)
+        else {
+            return nil
         }
 
         return ShareAttachment(
             type: "image",
-            mimeType: mimeType,
-            fileName: "shared-image-\(index + 1).\(fileExt)",
+            mimeType: "image/jpeg",
+            fileName: "shared-image-\(index + 1).jpg",
             content: data.base64EncodedString())
     }
 
@@ -446,7 +433,7 @@ final class ShareViewController: UIViewController {
         }
         guard let fallback = image.jpegData(compressionQuality: 0.35) else { return nil }
         if fallback.count <= maxBytes { return fallback }
-        return Data(fallback.prefix(maxBytes))
+        return nil
     }
 
     private func loadURL(from provider: NSItemProvider) async -> URL? {
