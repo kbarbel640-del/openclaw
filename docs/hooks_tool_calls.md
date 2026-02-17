@@ -116,7 +116,7 @@ api.on("before_tool_call", async (event, ctx) => {
 
 Fired after tool execution completes (success, error, or blocked).
 
-### Event Payload
+### after_tool_call Event
 
 ```typescript
 type PluginHookAfterToolCallEvent = {
@@ -125,10 +125,12 @@ type PluginHookAfterToolCallEvent = {
   result?: unknown; // Tool output (if successful)
   error?: string; // Error message (if failed)
   durationMs?: number; // Execution time in milliseconds
+  blocked?: boolean; // True if blocked by before_tool_call
+  blockReason?: string; // Reason if blocked
 };
 ```
 
-### Context
+### after_tool_call Context
 
 Same as `before_tool_call`.
 
@@ -173,13 +175,15 @@ api.on("after_tool_call", async (event, ctx) => {
 2. Handler returns `{ block: true, blockReason: "..." }`
 3. Tool execution is skipped
 4. Agent receives error result:
-   ```json
-   {
-     "status": "error",
-     "tool": "exec",
-     "error": "Blocked: command contains dangerous pattern 'rm -rf'"
-   }
-   ```
+
+```json
+{
+  "status": "error",
+  "tool": "exec",
+  "error": "Blocked: command contains dangerous pattern 'rm -rf'"
+}
+```
+
 5. `after_tool_call` fires with error reflecting the block
 
 ### Multiple Handlers
