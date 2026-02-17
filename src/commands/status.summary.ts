@@ -100,8 +100,9 @@ export async function getStatusSummary(
     defaultModel: DEFAULT_MODEL,
   });
   const configModel = resolved.model ?? DEFAULT_MODEL;
+  const explicitContextTokens = cfg.agents?.defaults?.contextTokens;
   const configContextTokens =
-    cfg.agents?.defaults?.contextTokens ??
+    explicitContextTokens ??
     lookupContextTokens(configModel) ??
     DEFAULT_CONTEXT_TOKENS;
 
@@ -127,7 +128,11 @@ export async function getStatusSummary(
         const age = updatedAt ? now - updatedAt : null;
         const model = entry?.model ?? configModel ?? null;
         const contextTokens =
-          entry?.contextTokens ?? lookupContextTokens(model) ?? configContextTokens ?? null;
+          entry?.contextTokens ??
+          explicitContextTokens ??
+          lookupContextTokens(model) ??
+          configContextTokens ??
+          null;
         const total = resolveFreshSessionTotalTokens(entry);
         const totalTokensFresh =
           typeof entry?.totalTokens === "number" ? entry?.totalTokensFresh !== false : false;
