@@ -22,6 +22,7 @@ import { resolveAgentRoute } from "../routing/resolve-route.js";
 import { resolveThreadSessionKeys } from "../routing/session-key.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
 import {
+  firstDefined,
   isSenderAllowed,
   normalizeAllowFromWithStore,
   type NormalizedAllowFrom,
@@ -551,7 +552,176 @@ export const registerTelegramHandlers = ({
       runtime.error?.(danger(`telegram reaction handler failed: ${String(err)}`));
     }
   });
+  const processInboundMessage = async (params: {
+    ctx: TelegramContext;
+    msg: Message;
+    chatId: number;
+    resolvedThreadId?: number;
+    storeAllowFrom: string[];
+    sendOversizeWarning: boolean;
+    oversizeLogMessage: string;
+  }) => {
+    const {
+      ctx,
+      msg,
+      chatId,
+      resolvedThreadId,
+      storeAllowFrom,
+      sendOversizeWarning,
+      oversizeLogMessage,
+    } = params;
 
+    // Text fragment handling - Telegram splits long pastes into multiple inbound messages (~4096 chars).
+    // We buffer “near-limit” messages and append immediately-following parts.
+    const text = typeof msg.text === "string" ? msg.text : undefined;
+    const isCommandLike = (text ?? "").trim().startsWith("/");
+    if (text && !isCommandLike) {
+      const nowMs = Date.now();
+      const senderId = msg.from?.id != null ? String(msg.from.id) : "unknown";
+      const key = `text:${chatId}:${resolvedThreadId ?? "main"}:${senderId}`;
+      const existing = textFragmentBuffer.get(key);
+
+      if (existing) {
+        const last = existing.messages.at(-1);
+        const lastMsgId = last?.msg.message_id;
+        const lastReceivedAtMs = last?.receivedAtMs ?? nowMs;
+        const idGap = typeof lastMsgId === "number" ? msg.message_id - lastMsgId : Infinity;
+        const timeGapMs = nowMs - lastReceivedAtMs;
+        const canAppend =
+          idGap > 0 &&
+          idGap <= TELEGRAM_TEXT_FRAGMENT_MAX_ID_GAP &&
+          timeGapMs >= 0 &&
+          timeGapMs <= TELEGRAM_TEXT_FRAGMENT_MAX_GAP_MS;
+
+        if (canAppend) {
+          const currentTotalChars = existing.messages.reduce(
+            (sum, m) => sum + (m.msg.text?.length ?? 0),
+            0,
+          );
+          const nextTotalChars = currentTotalChars + text.length;
+          if (
+            existing.messages.length + 1 <= TELEGRAM_TEXT_FRAGMENT_MAX_PARTS &&
+            nextTotalChars <= TELEGRAM_TEXT_FRAGMENT_MAX_TOTAL_CHARS
+          ) {
+            existing.messages.push({ msg, ctx, receivedAtMs: nowMs });
+            scheduleTextFragmentFlush(existing);
+            return;
+          }
+        }
+
+        // Not appendable (or limits exceeded): flush buffered entry first, then continue normally.
+        clearTimeout(existing.timer);
+        textFragmentBuffer.delete(key);
+        textFragmentProcessing = textFragmentProcessing
+          .then(async () => {
+            await flushTextFragments(existing);
+          })
+          .catch(() => undefined);
+        await textFragmentProcessing;
+      }
+
+      const shouldStart = text.length >= TELEGRAM_TEXT_FRAGMENT_START_THRESHOLD_CHARS;
+      if (shouldStart) {
+        const entry: TextFragmentEntry = {
+          key,
+          messages: [{ msg, ctx, receivedAtMs: nowMs }],
+          timer: setTimeout(() => {}, TELEGRAM_TEXT_FRAGMENT_MAX_GAP_MS),
+        };
+        textFragmentBuffer.set(key, entry);
+        scheduleTextFragmentFlush(entry);
+        return;
+      }
+    }
+
+    // Media group handling - buffer multi-image messages
+    const mediaGroupId = msg.media_group_id;
+    if (mediaGroupId) {
+      const existing = mediaGroupBuffer.get(mediaGroupId);
+      if (existing) {
+        clearTimeout(existing.timer);
+        existing.messages.push({ msg, ctx });
+        existing.timer = setTimeout(async () => {
+          mediaGroupBuffer.delete(mediaGroupId);
+          mediaGroupProcessing = mediaGroupProcessing
+            .then(async () => {
+              await processMediaGroup(existing);
+            })
+            .catch(() => undefined);
+          await mediaGroupProcessing;
+        }, mediaGroupTimeoutMs);
+      } else {
+        const entry: MediaGroupEntry = {
+          messages: [{ msg, ctx }],
+          timer: setTimeout(async () => {
+            mediaGroupBuffer.delete(mediaGroupId);
+            mediaGroupProcessing = mediaGroupProcessing
+              .then(async () => {
+                await processMediaGroup(entry);
+              })
+              .catch(() => undefined);
+            await mediaGroupProcessing;
+          }, mediaGroupTimeoutMs),
+        };
+        mediaGroupBuffer.set(mediaGroupId, entry);
+      }
+      return;
+    }
+
+    let media: Awaited<ReturnType<typeof resolveMedia>> = null;
+    try {
+      media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch);
+    } catch (mediaErr) {
+      const errMsg = String(mediaErr);
+      if (errMsg.includes("exceeds") && errMsg.includes("MB limit")) {
+        if (sendOversizeWarning) {
+          const limitMb = Math.round(mediaMaxBytes / (1024 * 1024));
+          await withTelegramApiErrorLogging({
+            operation: "sendMessage",
+            runtime,
+            fn: () =>
+              bot.api.sendMessage(chatId, `⚠️ File too large. Maximum size is ${limitMb}MB.`, {
+                reply_to_message_id: msg.message_id,
+              }),
+          }).catch(() => {});
+        }
+        logger.warn({ chatId, error: errMsg }, oversizeLogMessage);
+        return;
+      }
+      throw mediaErr;
+    }
+
+    // Skip sticker-only messages where the sticker was skipped (animated/video)
+    // These have no media and no text content to process.
+    const hasText = Boolean((msg.text ?? msg.caption ?? "").trim());
+    if (msg.sticker && !media && !hasText) {
+      logVerbose("telegram: skipping sticker-only message (unsupported sticker type)");
+      return;
+    }
+
+    const allMedia = media
+      ? [
+          {
+            path: media.path,
+            contentType: media.contentType,
+            stickerMetadata: media.stickerMetadata,
+          },
+        ]
+      : [];
+    const senderId = msg.from?.id ? String(msg.from.id) : "";
+    const conversationKey =
+      resolvedThreadId != null ? `${chatId}:topic:${resolvedThreadId}` : String(chatId);
+    const debounceKey = senderId
+      ? `telegram:${accountId ?? "default"}:${conversationKey}:${senderId}`
+      : null;
+    await inboundDebouncer.enqueue({
+      ctx,
+      msg,
+      allMedia,
+      storeAllowFrom,
+      debounceKey,
+      botUsername: ctx.me?.username,
+    });
+  };
   bot.on("callback_query", async (ctx) => {
     const callback = ctx.callbackQuery;
     if (!callback) {
@@ -945,121 +1115,14 @@ export const registerTelegramHandlers = ({
         return;
       }
 
-      // Text fragment handling - Telegram splits long pastes into multiple inbound messages (~4096 chars).
-      // We buffer “near-limit” messages and append immediately-following parts.
-      const text = typeof msg.text === "string" ? msg.text : undefined;
-      const isCommandLike = (text ?? "").trim().startsWith("/");
-      if (text && !isCommandLike) {
-        const nowMs = Date.now();
-        const senderId = msg.from?.id != null ? String(msg.from.id) : "unknown";
-        const key = `text:${chatId}:${resolvedThreadId ?? "main"}:${senderId}`;
-        const existing = textFragmentBuffer.get(key);
-
-        if (existing) {
-          const last = existing.messages.at(-1);
-          const lastMsgId = last?.msg.message_id;
-          const lastReceivedAtMs = last?.receivedAtMs ?? nowMs;
-          const idGap = typeof lastMsgId === "number" ? msg.message_id - lastMsgId : Infinity;
-          const timeGapMs = nowMs - lastReceivedAtMs;
-          const canAppend =
-            idGap > 0 &&
-            idGap <= TELEGRAM_TEXT_FRAGMENT_MAX_ID_GAP &&
-            timeGapMs >= 0 &&
-            timeGapMs <= TELEGRAM_TEXT_FRAGMENT_MAX_GAP_MS;
-
-          if (canAppend) {
-            const currentTotalChars = existing.messages.reduce(
-              (sum, m) => sum + (m.msg.text?.length ?? 0),
-              0,
-            );
-            const nextTotalChars = currentTotalChars + text.length;
-            if (
-              existing.messages.length + 1 <= TELEGRAM_TEXT_FRAGMENT_MAX_PARTS &&
-              nextTotalChars <= TELEGRAM_TEXT_FRAGMENT_MAX_TOTAL_CHARS
-            ) {
-              existing.messages.push({ msg, ctx, receivedAtMs: nowMs });
-              scheduleTextFragmentFlush(existing);
-              return;
-            }
-          }
-
-          // Not appendable (or limits exceeded): flush buffered entry first, then continue normally.
-          clearTimeout(existing.timer);
-          await runTextFragmentFlush(existing);
-        }
-
-        const shouldStart = text.length >= TELEGRAM_TEXT_FRAGMENT_START_THRESHOLD_CHARS;
-        if (shouldStart) {
-          const entry: TextFragmentEntry = {
-            key,
-            messages: [{ msg, ctx, receivedAtMs: nowMs }],
-            timer: setTimeout(() => {}, TELEGRAM_TEXT_FRAGMENT_MAX_GAP_MS),
-          };
-          textFragmentBuffer.set(key, entry);
-          scheduleTextFragmentFlush(entry);
-          return;
-        }
-      }
-
-      // Media group handling - buffer multi-image messages
-      const mediaGroupId = msg.media_group_id;
-      if (mediaGroupId) {
-        const entry = getOrCreateMediaGroupEntry(mediaGroupId);
-        entry.messages.push({ msg, ctx });
-        scheduleMediaGroupFlush(mediaGroupId, entry);
-        return;
-      }
-
-      let media: Awaited<ReturnType<typeof resolveMedia>> = null;
-      try {
-        media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch);
-      } catch (mediaErr) {
-        const errMsg = String(mediaErr);
-        if (errMsg.includes("exceeds") && errMsg.includes("MB limit")) {
-          const limitMb = Math.round(mediaMaxBytes / (1024 * 1024));
-          await withTelegramApiErrorLogging({
-            operation: "sendMessage",
-            runtime,
-            fn: () =>
-              bot.api.sendMessage(chatId, `⚠️ File too large. Maximum size is ${limitMb}MB.`, {
-                reply_to_message_id: msg.message_id,
-              }),
-          }).catch(() => {});
-          logger.warn({ chatId, error: errMsg }, "media exceeds size limit");
-          return;
-        }
-        throw mediaErr;
-      }
-
-      // Skip sticker-only messages where the sticker was skipped (animated/video)
-      // These have no media and no text content to process.
-      const hasText = Boolean((msg.text ?? msg.caption ?? "").trim());
-      if (msg.sticker && !media && !hasText) {
-        logVerbose("telegram: skipping sticker-only message (unsupported sticker type)");
-        return;
-      }
-
-      const allMedia = media
-        ? [
-            {
-              path: media.path,
-              contentType: media.contentType,
-              stickerMetadata: media.stickerMetadata,
-            },
-          ]
-        : [];
-      const conversationKey =
-        resolvedThreadId != null ? `${chatId}:topic:${resolvedThreadId}` : String(chatId);
-      const debounceKey = senderId
-        ? `telegram:${accountId ?? "default"}:${conversationKey}:${senderId}`
-        : null;
-      await inboundDebouncer.enqueue({
+      await processInboundMessage({
         ctx,
         msg,
-        allMedia,
+        chatId,
+        resolvedThreadId,
         storeAllowFrom,
-        debounceKey,
-        botUsername: ctx.me?.username,
+        sendOversizeWarning: true,
+        oversizeLogMessage: "media exceeds size limit",
       });
     } catch (err) {
       runtime.error?.(danger(`handler failed: ${String(err)}`));
@@ -1191,44 +1254,14 @@ export const registerTelegramHandlers = ({
         message: { value: syntheticMsg, writable: true, enumerable: true },
       });
 
-      // Resolve media (same as message handler)
-      let media: Awaited<ReturnType<typeof resolveMedia>> = null;
-      try {
-        media = await resolveMedia(syntheticCtx, mediaMaxBytes, opts.token, opts.proxyFetch);
-      } catch (mediaErr) {
-        const errMsg = String(mediaErr);
-        if (errMsg.includes("exceeds") && errMsg.includes("MB limit")) {
-          logger.warn({ chatId, error: errMsg }, "channel post media exceeds size limit");
-        } else {
-          throw mediaErr;
-        }
-      }
-
-      const allMedia = media
-        ? [
-            {
-              path: media.path,
-              contentType: media.contentType,
-              stickerMetadata: media.stickerMetadata,
-            },
-          ]
-        : [];
-
-      // Compute debounce key (same pattern as message handler)
-      const senderId = post.sender_chat?.id ?? post.from?.id;
-      const senderIdStr = senderId ? String(senderId) : "";
-      const conversationKey = String(chatId);
-      const debounceKey = senderIdStr
-        ? `telegram:${accountId ?? "default"}:${conversationKey}:${senderIdStr}`
-        : null;
-
-      await inboundDebouncer.enqueue({
-        ctx: syntheticCtx,
+      await processInboundMessage({
+        ctx: syntheticCtx as TelegramContext,
         msg: syntheticMsg,
-        allMedia,
+        chatId,
+        resolvedThreadId: undefined,
         storeAllowFrom,
-        debounceKey,
-        botUsername: ctx.me?.username,
+        sendOversizeWarning: false,
+        oversizeLogMessage: "channel post media exceeds size limit",
       });
     } catch (err) {
       runtime.error?.(danger(`channel_post handler failed: ${String(err)}`));
