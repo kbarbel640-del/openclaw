@@ -18,11 +18,14 @@ data:
           "k8sTrust": {
             "enabled": true,
             "allowedIdentities": [
+              {{- range $index, $identity := .Values.gateway.k8sTrust.allowedIdentities }}
+              {{- if $index }},{{- end }}
               {
-                "namespace": {{ .Release.Namespace | quote }},
-                "serviceAccount": {{ include "openclaw.worker.serviceAccountName" . | quote }},
-                "allowedRoles": ["node"]
+                "namespace": {{ tpl $identity.namespace $ | quote }},
+                "serviceAccount": {{ tpl $identity.serviceAccount $ | quote }},
+                "allowedRoles": {{ $identity.allowedRoles | toJson }}
               }
+              {{- end }}
             ],
             "ephemeralSessions": {{ .Values.gateway.k8sTrust.ephemeralSessions }},
             "auditLog": {{ .Values.gateway.k8sTrust.auditLog }}
@@ -30,4 +33,29 @@ data:
           {{- end }}
         }
       }
+      {{- if .Values.gateway.agentModel }},
+      "agents": {
+        "defaults": {
+          "model": {
+            "primary": {{ .Values.gateway.agentModel | quote }}
+          }
+        }
+      }
+      {{- end }}
+      {{- if and .Values.gateway.telegram .Values.gateway.telegram.enabled }},
+      "channels": {
+        "telegram": {
+          "enabled": true,
+          "dmPolicy": {{ .Values.gateway.telegram.dmPolicy | default "allowlist" | quote }},
+          "allowFrom": {{ .Values.gateway.telegram.allowFrom | toJson }}
+        }
+      },
+      "plugins": {
+        "entries": {
+          "telegram": {
+            "enabled": true
+          }
+        }
+      }
+      {{- end }}
     }
