@@ -23,6 +23,8 @@
   - `sessions.delete`
   - `sessions.compact`
   - `sessions.usage`
+  - `sessions.usage.timeseries`
+  - `sessions.usage.logs`
   - `sessions.history`
   - `sessions.send`
   - `session.status`

@@ -107,6 +107,18 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "sessions.usage.timeseries",
+                    family: MethodFamily::Sessions,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "sessions.usage.logs",
+                    family: MethodFamily::Sessions,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "sessions.history",
                     family: MethodFamily::Sessions,
                     requires_auth: true,
@@ -201,6 +213,8 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "sessions.delete",
     "sessions.compact",
     "sessions.usage",
+    "sessions.usage.timeseries",
+    "sessions.usage.logs",
     "sessions.history",
     "sessions.send",
     "session.status",
@@ -226,6 +240,8 @@ impl RpcDispatcher {
             "sessions.delete" => self.handle_sessions_delete(req).await,
             "sessions.compact" => self.handle_sessions_compact(req).await,
             "sessions.usage" => self.handle_sessions_usage(req).await,
+            "sessions.usage.timeseries" => self.handle_sessions_usage_timeseries(req).await,
+            "sessions.usage.logs" => self.handle_sessions_usage_logs(req).await,
             "sessions.history" => self.handle_sessions_history(req).await,
             "sessions.send" => self.handle_sessions_send(req).await,
             "session.status" | "sessions.status" => self.handle_session_status(req).await,
@@ -503,6 +519,58 @@ impl RpcDispatcher {
             "sessionKey": session_key,
             "sessions": usage,
             "count": usage.len()
+        }))
+    }
+
+    async fn handle_sessions_usage_timeseries(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<SessionsUsageTimeseriesParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let session_key = params
+            .session_key
+            .or(params.key)
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty());
+        let Some(session_key) = session_key else {
+            return RpcDispatchOutcome::bad_request("sessionKey|key is required");
+        };
+        let max_points = params.max_points.unwrap_or(200).clamp(1, 1_000);
+        let Some(points) = self
+            .sessions
+            .usage_timeseries(&session_key, max_points)
+            .await
+        else {
+            return RpcDispatchOutcome::not_found("session not found");
+        };
+        RpcDispatchOutcome::Handled(json!({
+            "key": session_key,
+            "points": points,
+            "count": points.len()
+        }))
+    }
+
+    async fn handle_sessions_usage_logs(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<SessionsUsageLogsParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let session_key = params
+            .session_key
+            .or(params.key)
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty());
+        let Some(session_key) = session_key else {
+            return RpcDispatchOutcome::bad_request("sessionKey|key is required");
+        };
+        let limit = params.limit.unwrap_or(200).clamp(1, 1_000);
+        let Some(logs) = self.sessions.usage_logs(&session_key, limit).await else {
+            return RpcDispatchOutcome::not_found("session not found");
+        };
+        RpcDispatchOutcome::Handled(json!({
+            "key": session_key,
+            "logs": logs,
+            "count": logs.len()
         }))
     }
 
@@ -979,6 +1047,70 @@ impl SessionRegistry {
             .collect()
     }
 
+    async fn usage_timeseries(
+        &self,
+        session_key: &str,
+        max_points: usize,
+    ) -> Option<Vec<SessionUsageTimeseriesPoint>> {
+        let guard = self.entries.lock().await;
+        let entry = guard.get(session_key)?;
+        let mut by_day: HashMap<String, SessionUsageTimeseriesPoint> = HashMap::new();
+        for event in &entry.history {
+            let date = format_utc_date(event.at_ms);
+            let point = by_day
+                .entry(date.clone())
+                .or_insert_with(|| SessionUsageTimeseriesPoint {
+                    date,
+                    total_events: 0,
+                    decision_events: 0,
+                    send_events: 0,
+                    allow_count: 0,
+                    review_count: 0,
+                    block_count: 0,
+                });
+            point.total_events += 1;
+            match event.kind {
+                SessionHistoryKind::Decision => {
+                    point.decision_events += 1;
+                    match event.action {
+                        Some(DecisionAction::Allow) => point.allow_count += 1,
+                        Some(DecisionAction::Review) => point.review_count += 1,
+                        Some(DecisionAction::Block) => point.block_count += 1,
+                        None => {}
+                    }
+                }
+                SessionHistoryKind::Send => {
+                    point.send_events += 1;
+                }
+            }
+        }
+        let mut points = by_day.into_values().collect::<Vec<_>>();
+        points.sort_by(|a, b| a.date.cmp(&b.date));
+        if points.len() > max_points {
+            points = points.split_off(points.len() - max_points);
+        }
+        Some(points)
+    }
+
+    async fn usage_logs(
+        &self,
+        session_key: &str,
+        limit: usize,
+    ) -> Option<Vec<SessionHistoryRecord>> {
+        let guard = self.entries.lock().await;
+        let entry = guard.get(session_key)?;
+        Some(
+            entry
+                .history
+                .iter()
+                .rev()
+                .take(limit.clamp(1, 1_000))
+                .cloned()
+                .map(|event| SessionHistoryRecord::from_event(&entry.key, event))
+                .collect(),
+        )
+    }
+
     async fn summary(&self) -> SessionSummary {
         let guard = self.entries.lock().await;
         let total_sessions = guard.len() as u64;
@@ -1200,6 +1332,23 @@ struct SessionUsageView {
     updated_at_ms: u64,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+struct SessionUsageTimeseriesPoint {
+    date: String,
+    #[serde(rename = "totalEvents")]
+    total_events: u64,
+    #[serde(rename = "decisionEvents")]
+    decision_events: u64,
+    #[serde(rename = "sendEvents")]
+    send_events: u64,
+    #[serde(rename = "allowCount")]
+    allow_count: u64,
+    #[serde(rename = "reviewCount")]
+    review_count: u64,
+    #[serde(rename = "blockCount")]
+    block_count: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SendPolicyOverride {
@@ -1331,6 +1480,25 @@ struct SessionsUsageParams {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
+struct SessionsUsageTimeseriesParams {
+    #[serde(rename = "sessionKey", alias = "session_key")]
+    session_key: Option<String>,
+    key: Option<String>,
+    #[serde(rename = "maxPoints", alias = "max_points")]
+    max_points: Option<usize>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct SessionsUsageLogsParams {
+    #[serde(rename = "sessionKey", alias = "session_key")]
+    session_key: Option<String>,
+    key: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
 struct SessionsHistoryParams {
     #[serde(rename = "sessionKey", alias = "session_key")]
     session_key: Option<String>,
@@ -1427,6 +1595,26 @@ fn truncate_text(value: &str, max_len: usize) -> String {
     let mut out = value[..end].to_owned();
     out.push_str("...");
     out
+}
+
+fn format_utc_date(ms: u64) -> String {
+    let days = (ms / 86_400_000) as i64;
+    let (year, month, day) = civil_from_days(days);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
+fn civil_from_days(days_since_unix_epoch: i64) -> (i32, u32, u32) {
+    let z = days_since_unix_epoch + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = mp + if mp < 10 { 3 } else { -9 };
+    let year = y + if month <= 2 { 1 } else { 0 };
+    (year as i32, month as u32, day as u32)
 }
 
 fn normalize(method: &str) -> String {
@@ -2005,6 +2193,109 @@ mod tests {
                 );
             }
             _ => panic!("expected usage handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_usage_timeseries_and_logs_from_history() {
+        let dispatcher = RpcDispatcher::new();
+        let session_key = "agent:main:discord:group:g-usage-detail";
+
+        let send = RpcRequestFrame {
+            id: "req-send-ud".to_owned(),
+            method: "sessions.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key,
+                "message": "hello"
+            }),
+        };
+        let _ = dispatcher.handle_request(&send).await;
+
+        let request = ActionRequest {
+            id: "req-dec-ud".to_owned(),
+            source: "agent".to_owned(),
+            session_id: Some(session_key.to_owned()),
+            prompt: Some("do this".to_owned()),
+            command: Some("git status".to_owned()),
+            tool_name: Some("exec".to_owned()),
+            channel: Some("discord".to_owned()),
+            url: None,
+            file_path: None,
+            raw: serde_json::json!({}),
+        };
+        let decision = Decision {
+            action: DecisionAction::Review,
+            risk_score: 55,
+            reasons: vec!["risk".to_owned()],
+            tags: vec!["tag".to_owned()],
+            source: "openclaw-agent-rs".to_owned(),
+        };
+        dispatcher.record_decision(&request, &decision).await;
+
+        let logs = RpcRequestFrame {
+            id: "req-usage-logs".to_owned(),
+            method: "sessions.usage.logs".to_owned(),
+            params: serde_json::json!({
+                "key": session_key,
+                "limit": 10
+            }),
+        };
+        let out = dispatcher.handle_request(&logs).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(2)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/logs/0/kind")
+                        .and_then(serde_json::Value::as_str),
+                    Some("decision")
+                );
+            }
+            _ => panic!("expected usage logs handled"),
+        }
+
+        let timeseries = RpcRequestFrame {
+            id: "req-usage-ts".to_owned(),
+            method: "sessions.usage.timeseries".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key,
+                "maxPoints": 20
+            }),
+        };
+        let out = dispatcher.handle_request(&timeseries).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/points/0/sendEvents")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/points/0/decisionEvents")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/points/0/reviewCount")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+            }
+            _ => panic!("expected usage timeseries handled"),
         }
     }
 

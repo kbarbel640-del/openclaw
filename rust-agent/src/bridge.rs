@@ -1287,6 +1287,114 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rpc_sessions_usage_timeseries_and_logs_roundtrip() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            let ws = accept_async(stream).await?;
+            let (mut write, mut read) = ws.split();
+
+            let _connect = read
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("missing connect frame"))??;
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-usage-detail-send",
+                        "method": "sessions.send",
+                        "params": {
+                            "sessionKey": "agent:main:discord:group:g13",
+                            "message": "hello usage detail"
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+            let _send_resp = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for send response"))?
+                .ok_or_else(|| anyhow::anyhow!("send response stream ended"))??;
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-usage-detail-logs",
+                        "method": "sessions.usage.logs",
+                        "params": {
+                            "key": "agent:main:discord:group:g13",
+                            "limit": 5
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+            let logs_resp = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for logs response"))?
+                .ok_or_else(|| anyhow::anyhow!("logs response stream ended"))??;
+            let logs_json: Value = serde_json::from_str(logs_resp.to_text()?)?;
+            assert_eq!(
+                logs_json.pointer("/result/count").and_then(Value::as_u64),
+                Some(1)
+            );
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-usage-detail-ts",
+                        "method": "sessions.usage.timeseries",
+                        "params": {
+                            "sessionKey": "agent:main:discord:group:g13",
+                            "maxPoints": 10
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+            let ts_resp = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for timeseries response"))?
+                .ok_or_else(|| anyhow::anyhow!("timeseries response stream ended"))??;
+            let ts_json: Value = serde_json::from_str(ts_resp.to_text()?)?;
+            assert_eq!(
+                ts_json.pointer("/result/count").and_then(Value::as_u64),
+                Some(1)
+            );
+            assert_eq!(
+                ts_json
+                    .pointer("/result/points/0/sendEvents")
+                    .and_then(Value::as_u64),
+                Some(1)
+            );
+
+            write.send(Message::Close(None)).await?;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let bridge = GatewayBridge::new(
+            GatewayConfig {
+                url: format!("ws://{addr}"),
+                token: None,
+            },
+            "security.decision".to_owned(),
+            16,
+            SessionQueueMode::Followup,
+            GroupActivationMode::Always,
+        );
+        let evaluator: Arc<dyn ActionEvaluator> = Arc::new(StubEvaluator);
+        bridge.run_once(evaluator).await?;
+        server.await??;
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn rpc_sessions_list_filters_roundtrip() -> Result<()> {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let addr = listener.local_addr()?;
