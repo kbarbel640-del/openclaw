@@ -1,0 +1,138 @@
+// OpenClaw Free Agent Configuration
+// Copy relevant sections to ~/.openclaw/openclaw.json
+//
+// This config sets up agents powered by free models (Kimi K2.5, DeepSeek, MiMo)
+// with the new skills: blog-publisher, site-deployer, voice-clone
+
+{
+  // Agent definitions
+  agents: {
+    // Default model for all agents (free)
+    defaults: {
+      model: "moonshot/kimi-k2.5",
+    },
+
+    // Agent list
+    list: [
+      // === Content Creator Agent ===
+      // Publishes blogs, deploys sites, manages content
+      {
+        id: "content-creator",
+        model: {
+          primary: "moonshot/kimi-k2.5",      // Free, 256k context
+          fallbacks: [
+            "qianfan/deepseek-v3.2",           // Free fallback, 98k context
+            "xiaomi/mimo-v2-flash",             // Free fallback, 262k context
+          ],
+        },
+        skills: [
+          "blog-publisher",
+          "site-deployer",
+          "github",
+          "canvas",
+          "summarize",
+        ],
+      },
+
+      // === Voice Agent ===
+      // Voice cloning and TTS operations
+      {
+        id: "voice-agent",
+        model: "moonshot/kimi-k2.5",
+        skills: [
+          "voice-clone",
+          "sherpa-onnx-tts",
+          "openai-whisper",
+        ],
+      },
+
+      // === Full Auto Agent ===
+      // All skills, coding, deploying, publishing, voice
+      {
+        id: "auto-agent",
+        model: {
+          primary: "moonshot/kimi-k2.5",
+          fallbacks: ["qianfan/deepseek-v3.2"],
+        },
+        skills: [
+          "blog-publisher",
+          "site-deployer",
+          "voice-clone",
+          "coding-agent",
+          "github",
+          "canvas",
+          "summarize",
+          "weather",
+        ],
+        subAgents: ["content-creator", "voice-agent"],
+      },
+    ],
+
+    // Route channels to agents
+    bindings: [
+      // Telegram -> Full auto agent
+      {
+        agentId: "auto-agent",
+        match: { channel: "telegram" },
+      },
+      // WhatsApp -> Content creator
+      {
+        agentId: "content-creator",
+        match: { channel: "whatsapp" },
+      },
+      // Discord -> Full auto agent
+      {
+        agentId: "auto-agent",
+        match: { channel: "discord" },
+      },
+    ],
+  },
+
+  // Skill-specific configuration
+  skills: {
+    entries: {
+      "voice-clone": {
+        env: {
+          ELEVENLABS_API_KEY: "${ELEVENLABS_API_KEY}",
+        },
+      },
+      "blog-publisher": {
+        env: {
+          // Uncomment and fill for Ghost CMS
+          // GHOST_API_URL: "https://your-ghost-blog.com",
+          // GHOST_ADMIN_API_KEY: "id:secret",
+
+          // Uncomment and fill for WordPress
+          // WP_API_URL: "https://your-wordpress-site.com",
+          // WP_USER: "admin",
+          // WP_APP_PASSWORD: "xxxx xxxx xxxx xxxx",
+        },
+      },
+      "site-deployer": {
+        env: {
+          // Uncomment the platform(s) you use
+          // VERCEL_TOKEN: "your-vercel-token",
+          // NETLIFY_AUTH_TOKEN: "your-netlify-token",
+          // CLOUDFLARE_API_TOKEN: "your-cf-token",
+          // FLY_API_TOKEN: "your-fly-token",
+        },
+      },
+    },
+  },
+
+  // TTS configuration (use cloned voice)
+  messages: {
+    tts: {
+      auto: "inbound",           // Speak on inbound messages
+      provider: "elevenlabs",
+      // voiceId: "<your-cloned-voice-id>",  // Set after cloning
+      model: "eleven_multilingual_v2",
+      voiceSettings: {
+        stability: 0.5,
+        similarityBoost: 0.75,
+        style: 0.5,
+        useSpeakerBoost: true,
+      },
+    },
+  },
+}

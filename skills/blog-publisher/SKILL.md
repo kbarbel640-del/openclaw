@@ -103,8 +103,27 @@ git log --oneline -1
 
 ## Scripts
 
+- `scripts/publish.sh` - Universal blog publisher with auto-detection
 - `scripts/publish-ghost.sh` - Publish to Ghost via Admin API
 - `scripts/publish-wp.sh` - Publish to WordPress via REST API
+
+### Universal Publish Script
+
+```bash
+# Auto-detect platform and publish
+scripts/publish.sh --title "My Post" --content content.md
+
+# With tags and custom slug
+scripts/publish.sh --title "My Post" --content content.md --tags "ai,agents" --slug "my-custom-slug"
+
+# Publish as draft
+scripts/publish.sh --title "My Post" --content content.md --draft
+
+# Specify blog directory
+scripts/publish.sh --title "My Post" --content content.md --dir ~/my-blog
+```
+
+The script auto-detects Hugo, Jekyll, Astro, Next.js, Ghost, and WordPress. For static sites, it creates the post file, builds, commits, and pushes.
 
 ## Tips
 

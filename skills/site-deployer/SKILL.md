@@ -103,7 +103,28 @@ curl -sI <deployment-url> | head -5
 
 ## Scripts
 
+- `scripts/deploy.sh` - Universal deploy script with auto-detection
 - `scripts/setup-gh-pages.sh` - Generate GitHub Pages workflow + configure repo
+
+For detailed platform-specific reference, see [references/platforms.md](references/platforms.md).
+
+### Universal Deploy Script
+
+```bash
+# Auto-detect platform and deploy
+scripts/deploy.sh auto
+
+# Deploy to specific platform
+scripts/deploy.sh vercel
+scripts/deploy.sh netlify --dir dist
+scripts/deploy.sh cloudflare --dir dist --project my-site
+scripts/deploy.sh gh-pages --dir dist
+scripts/deploy.sh fly
+scripts/deploy.sh railway
+
+# Staging/preview deploy
+scripts/deploy.sh vercel --staging
+```
 
 ## Environment Variables
 

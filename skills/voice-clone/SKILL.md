@@ -15,69 +15,60 @@ metadata:
 
 Clone voices and generate speech via the ElevenLabs API.
 
-## Capabilities
+For full API reference, see [references/elevenlabs-api.md](references/elevenlabs-api.md).
 
-| Feature              | Endpoint                           | Description                              |
-| -------------------- | ---------------------------------- | ---------------------------------------- |
-| **Instant Clone**    | `POST /v1/voices/add`              | Clone from 1+ audio samples (no training)|
-| **List Voices**      | `GET /v1/voices`                   | List all available + cloned voices       |
-| **Generate Speech**  | `POST /v1/text-to-speech/{id}`     | TTS with any voice (cloned or preset)    |
-| **Delete Voice**     | `DELETE /v1/voices/{id}`           | Remove a cloned voice                    |
-| **Voice Settings**   | `GET /v1/voices/{id}/settings`     | Get voice generation settings            |
+## Quick Start (Script)
+
+Use `scripts/voice-clone.sh` for all voice operations:
+
+```bash
+# Clone a voice from audio samples
+scripts/voice-clone.sh clone --name "MyVoice" --files sample1.mp3 sample2.mp3
+
+# List all voices
+scripts/voice-clone.sh list
+
+# Generate speech with a cloned voice
+scripts/voice-clone.sh generate --voice-id <id> --text "Hello world" --output speech.mp3
+
+# Delete a voice
+scripts/voice-clone.sh delete --voice-id <id>
+
+# Get voice settings
+scripts/voice-clone.sh settings --voice-id <id>
+```
 
 ## Workflow
 
-### 1. Clone a voice (Instant Voice Cloning)
-
-Requires 1+ audio samples (MP3, WAV, M4A). More samples = better quality.
+### 1. Clone a voice
 
 ```bash
-# Clone from audio file(s)
-curl -X POST "https://api.elevenlabs.io/v1/voices/add" \
-  -H "xi-api-key: $ELEVENLABS_API_KEY" \
-  -F "name=MyVoice" \
-  -F "description=Custom cloned voice" \
-  -F "files=@sample1.mp3" \
-  -F "files=@sample2.mp3"
+scripts/voice-clone.sh clone \
+  --name "MyVoice" \
+  --description "Custom cloned voice" \
+  --files sample1.mp3 sample2.mp3 sample3.mp3
 ```
 
-Response contains the new `voice_id` for TTS.
-
-**Audio sample tips:**
+**Audio sample requirements:**
 - Minimum 30 seconds, ideally 1-3 minutes per sample
-- Clean audio without background noise
-- Natural speaking voice (not whispering or shouting)
-- Supported formats: MP3, WAV, M4A, FLAC, OGG, WEBM
+- Clean audio, no background noise
+- Natural speaking voice
+- Formats: MP3, WAV, M4A, FLAC, OGG, WEBM
 
-### 2. List available voices
-
-```bash
-curl -s "https://api.elevenlabs.io/v1/voices" \
-  -H "xi-api-key: $ELEVENLABS_API_KEY" | jq '.voices[] | {voice_id, name, category}'
-```
-
-### 3. Generate speech with cloned voice
+### 2. Generate speech
 
 ```bash
-curl -X POST "https://api.elevenlabs.io/v1/text-to-speech/<voice_id>" \
-  -H "xi-api-key: $ELEVENLABS_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Hello, this is my cloned voice speaking.",
-    "model_id": "eleven_multilingual_v2",
-    "voice_settings": {
-      "stability": 0.5,
-      "similarity_boost": 0.75,
-      "style": 0.5,
-      "use_speaker_boost": true
-    }
-  }' \
-  --output speech.mp3
+scripts/voice-clone.sh generate \
+  --voice-id abc123 \
+  --text "Hello, this is my cloned voice speaking." \
+  --output speech.mp3 \
+  --stability 0.5 \
+  --similarity 0.75
 ```
 
-### 4. Use cloned voice with OpenClaw TTS
+### 3. Configure as OpenClaw TTS voice
 
-Once a voice is cloned, configure it as the default TTS voice in `~/.openclaw/openclaw.json`:
+Add the cloned voice to `~/.openclaw/openclaw.json`:
 
 ```json5
 {
@@ -97,16 +88,9 @@ Once a voice is cloned, configure it as the default TTS voice in `~/.openclaw/op
 }
 ```
 
-This makes all TTS output use the cloned voice across all channels.
+All TTS output across all channels (WhatsApp, Telegram, Discord, etc.) will use the cloned voice.
 
-### 5. Delete a cloned voice
-
-```bash
-curl -X DELETE "https://api.elevenlabs.io/v1/voices/<voice_id>" \
-  -H "xi-api-key: $ELEVENLABS_API_KEY"
-```
-
-## Voice Settings Reference
+## Voice Settings
 
 | Parameter          | Range   | Effect                                               |
 | ------------------ | ------- | ---------------------------------------------------- |
@@ -115,16 +99,9 @@ curl -X DELETE "https://api.elevenlabs.io/v1/voices/<voice_id>" \
 | `style`            | 0.0-1.0 | Higher = more expressive style (costs more latency)  |
 | `use_speaker_boost`| boolean | Enhance voice clarity (recommended for cloned voices)|
 
-## Integration with OpenClaw
+## Integration
 
-- Cloned voices work with all OpenClaw TTS channels (WhatsApp, Telegram, Discord, etc.)
 - Use the `tts` directive in messages: `[[[tts:text="Speak this with cloned voice"]]]`
 - Voice settings can be overridden per-channel in config
-- Works with `sherpa-onnx-tts` for offline fallback (different voice)
-
-## Notes
-
-- ElevenLabs free tier includes limited characters/month but supports instant cloning
-- Cloned voices are private to your account
+- Works with `sherpa-onnx-tts` as offline fallback (different voice)
 - Always get consent before cloning someone's voice
-- Audio quality of samples directly affects clone quality
