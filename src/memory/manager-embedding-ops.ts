@@ -40,7 +40,7 @@ const vectorToBlob = (embedding: number[]): Buffer =>
 
 const log = createSubsystemLogger("memory");
 
-export class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
+export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
   private buildEmbeddingBatches(chunks: MemoryChunk[]): MemoryChunk[][] {
     const batches: MemoryChunk[][] = [];
     let current: MemoryChunk[] = [];
