@@ -450,9 +450,18 @@ function resolveAgentErrorContext(opts?: {
   if (!opts?.cfg) {
     return undefined;
   }
-  const agentId = resolveSessionAgentId({ sessionKey: opts.sessionKey, config: opts.cfg });
-  const workspacePath = resolveAgentWorkspaceDir(opts.cfg, agentId);
-  return { agentId, workspacePath };
+  try {
+    const agentId = resolveSessionAgentId({ sessionKey: opts.sessionKey, config: opts.cfg });
+    // Skip context for single-agent setups — it adds noise without diagnostic value
+    if (!agentId || agentId === "main") {
+      return undefined;
+    }
+    const workspacePath = resolveAgentWorkspaceDir(opts.cfg, agentId);
+    return { agentId, workspacePath };
+  } catch {
+    // Don't let context resolution failures mask the original error
+    return undefined;
+  }
 }
 
 export function formatAssistantErrorText(
