@@ -157,7 +157,7 @@ function buildTaskScript({
     lines.push(`rem ${sanitizeCmdLine(description.trim())}`);
   }
   if (workingDirectory) {
-    lines.push(`cd /d ${quoteCmdArg(workingDirectory)}`);
+    lines.push(`cd /d ${quoteCmdArg(sanitizeCmdLine(workingDirectory))}`);
   }
   if (environment) {
     for (const [key, value] of Object.entries(environment)) {
@@ -167,7 +167,7 @@ function buildTaskScript({
       lines.push(`set ${sanitizeCmdLine(key)}=${sanitizeCmdLine(value)}`);
     }
   }
-  const command = programArguments.map(quoteCmdArg).join(" ");
+  const command = programArguments.map((a) => quoteCmdArg(sanitizeCmdLine(a))).join(" ");
   lines.push(command);
   return `${lines.join("\r\n")}\r\n`;
 }
