@@ -85,7 +85,7 @@ async function uploadFile(params: {
 
   const { response: res, release } = await fetchWithTimeoutGuarded(
     `${params.baseUrl}/files`,
-    { method: "POST", headers, body },
+    { method: "POST", headers, body: Buffer.from(body) },
     params.timeoutMs,
     params.fetchFn,
   );
