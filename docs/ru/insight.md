@@ -78,6 +78,72 @@ docker compose -f docker-compose.cloudru-proxy.yml logs -f
 1. **Image tag**: `legard/claude-code-proxy:v1.0.0` → `:latest` — образ публикуется только с тегом `:latest`
 2. **Docker security**: убраны `read_only: true` и `user: "1000:1000"` — образ использует `uv run` как entrypoint, которому нужна запись в `/app/.venv` и `/root/.cache`
 
+---
+
+# Инсайт: добавление пресета GPT-OSS-120B в визард
+
+> **Дата:** Февраль 2026
+
+## Симптомы
+
+Бот в Telegram работал в режиме `cloudru-fm/openai/gpt-oss-120b` (direct API) — без tools, без skills. Причина: модель `gpt-oss-120b` отсутствовала в пресетах визарда, конфиг был настроен вручную с direct provider вместо `claude-cli`.
+
+| Что не работало        | Причина                                                                     |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Skills (slash-команды) | Direct provider `cloudru-fm/...` не поддерживает tool use через Claude Code |
+| Fallback-модели        | Все 3 тира указывали на одну модель `openai/gpt-oss-120b`                   |
+| Автоматический onboard | Пресет `cloudru-fm-gpt-oss` отсутствовал в визарде                          |
+
+## Решение
+
+Добавлен пресет `cloudru-fm-gpt-oss` в 4 файла:
+
+| Файл                                  | Что добавлено                                                    |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| `src/config/cloudru-fm.constants.ts`  | Модель `"gpt-oss-120b": "openai/gpt-oss-120b"` + пресет с тирами |
+| `src/commands/onboard-types.ts`       | `"cloudru-fm-gpt-oss"` в union `AuthChoice`                      |
+| `src/commands/auth-choice-options.ts` | Пункт в группе `cloudru-fm` + опция меню                         |
+| `src/cli/program/register.onboard.ts` | `cloudru-fm-gpt-oss` в help-текст `--auth-choice`                |
+
+### Маппинг тиров
+
+| Tier              | claude-cli alias    | Model ID                |
+| ----------------- | ------------------- | ----------------------- |
+| big (primary)     | `claude-cli/opus`   | `openai/gpt-oss-120b`   |
+| middle (fallback) | `claude-cli/sonnet` | `zai-org/GLM-4.7`       |
+| small (fallback)  | `claude-cli/haiku`  | `zai-org/GLM-4.7-Flash` |
+
+## Ключевые инсайты
+
+### 1. Direct provider vs claude-cli
+
+`cloudru-fm/openai/gpt-oss-120b` — direct provider, запросы идут напрямую к модели. **Skills и tools не работают**, потому что Claude Code передаёт tool definitions только через CLI backend.
+
+`claude-cli/opus` — маршрут через CLI backend (прокси). Skills работают, tool use работает. Визард автоматически прописывает `cliBackends` с proxy URL и sentinel key.
+
+### 2. Забытый файл: register.onboard.ts
+
+`src/cli/program/register.onboard.ts:61` содержит **хардкод-список** допустимых значений `--auth-choice` в help-тексте Commander. При добавлении нового `AuthChoice` нужно обновлять **5 файлов**, а не 4:
+
+1. `src/config/cloudru-fm.constants.ts` — модель + пресет
+2. `src/commands/onboard-types.ts` — union type
+3. `src/commands/auth-choice-options.ts` — группа + опция меню
+4. `src/cli/program/register.onboard.ts` — help-текст CLI
+5. `auth-choice.apply.cloudru-fm.ts` — не нужно менять (обрабатывает любой ключ из `CLOUDRU_FM_PRESETS`)
+
+### 3. pnpm build перед onboard
+
+`pnpm openclaw` запускает код из `dist/`. Изменения в `src/` не подхватываются до `pnpm build`. Если визард показывает старые опции — забыли пересобрать.
+
+### 4. Dev vs Production конфиг
+
+| Команда                 | Конфиг                          | Порт  |
+| ----------------------- | ------------------------------- | ----- |
+| `pnpm openclaw onboard` | `~/.openclaw/openclaw.json`     | 18789 |
+| `gateway:dev`           | `~/.openclaw-dev/openclaw.json` | 19001 |
+
+`pnpm openclaw onboard` **не пишет** в dev-конфиг. Для обновления `~/.openclaw-dev/openclaw.json` нужно либо вручную скопировать поля `agents.defaults.model` и `models.providers.cloudru-fm.models`, либо использовать отдельный механизм.
+
 ## См. также
 
 - [Полная настройка OpenClaw](setup-cloudru-fm-full.md)

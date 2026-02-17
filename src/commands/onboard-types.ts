@@ -47,6 +47,7 @@ export type AuthChoice =
   | "cloudru-fm-glm47"
   | "cloudru-fm-flash"
   | "cloudru-fm-qwen"
+  | "cloudru-fm-gpt-oss"
   | "skip";
 export type AuthChoiceGroupId =
   | "openai"

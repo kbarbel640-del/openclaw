@@ -14,6 +14,7 @@ export const CLOUDRU_FM_MODELS = {
   "glm-4.7-flashx": "zai-org/GLM-4.7-FlashX",
   "glm-4.7-flash": "zai-org/GLM-4.7-Flash",
   "qwen3-coder-480b": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+  "gpt-oss-120b": "openai/gpt-oss-120b",
 } as const;
 
 export type CloudruModelId = (typeof CLOUDRU_FM_MODELS)[keyof typeof CLOUDRU_FM_MODELS];
@@ -59,6 +60,13 @@ export const CLOUDRU_FM_PRESETS: Record<string, CloudruModelPreset> = {
     middle: CLOUDRU_FM_MODELS["glm-4.7-flashx"],
     small: CLOUDRU_FM_MODELS["glm-4.7-flash"],
     label: "Qwen3-Coder-480B",
+    free: false,
+  },
+  "cloudru-fm-gpt-oss": {
+    big: CLOUDRU_FM_MODELS["gpt-oss-120b"],
+    middle: CLOUDRU_FM_MODELS["glm-4.7"],
+    small: CLOUDRU_FM_MODELS["glm-4.7-flash"],
+    label: "GPT OSS 120B",
     free: false,
   },
 } as const;

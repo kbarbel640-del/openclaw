@@ -161,7 +161,7 @@ const AUTH_CHOICE_GROUP_DEFS: {
     value: "cloudru-fm",
     label: "Cloud.ru FM",
     hint: "GLM-4.7 / Qwen3 via Claude Code proxy",
-    choices: ["cloudru-fm-glm47", "cloudru-fm-flash", "cloudru-fm-qwen"],
+    choices: ["cloudru-fm-glm47", "cloudru-fm-flash", "cloudru-fm-qwen", "cloudru-fm-gpt-oss"],
   },
   {
     value: "custom",
@@ -314,6 +314,11 @@ export function buildAuthChoiceOptions(params: {
     value: "cloudru-fm-qwen",
     label: "Cloud.ru Qwen3-Coder-480B",
     hint: "Coding-optimized, fallback to GLM-4.7-Flash",
+  });
+  options.push({
+    value: "cloudru-fm-gpt-oss",
+    label: "Cloud.ru GPT-OSS-120B",
+    hint: "GPT OSS 120B + GLM-4.7 fallback via proxy",
   });
 
   if (params.includeSkip) {
