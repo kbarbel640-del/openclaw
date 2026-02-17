@@ -16,7 +16,11 @@ import { createNodesTool } from "./tools/nodes-tool.js";
 import { createSessionStatusTool } from "./tools/session-status-tool.js";
 import { createSessionsHistoryTool } from "./tools/sessions-history-tool.js";
 import { createSessionsListTool } from "./tools/sessions-list-tool.js";
-import { createSessionsMissionTool } from "./tools/sessions-mission-tool.js";
+import {
+  createSessionsMissionTool,
+  createSpawnSequentialMissionTool,
+  createSpawnParallelMissionTool,
+} from "./tools/sessions-mission-tool.js";
 import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
@@ -145,6 +149,30 @@ export function createOpenClawTools(options?: {
       requesterAgentIdOverride: options?.requesterAgentIdOverride,
     }),
     createSessionsMissionTool({
+      agentSessionKey: options?.agentSessionKey,
+      agentChannel: options?.agentChannel,
+      agentAccountId: options?.agentAccountId,
+      agentTo: options?.agentTo,
+      agentThreadId: options?.agentThreadId,
+      agentGroupId: options?.agentGroupId,
+      agentGroupChannel: options?.agentGroupChannel,
+      agentGroupSpace: options?.agentGroupSpace,
+      sandboxed: options?.sandboxed,
+      requesterAgentIdOverride: options?.requesterAgentIdOverride,
+    }),
+    createSpawnSequentialMissionTool({
+      agentSessionKey: options?.agentSessionKey,
+      agentChannel: options?.agentChannel,
+      agentAccountId: options?.agentAccountId,
+      agentTo: options?.agentTo,
+      agentThreadId: options?.agentThreadId,
+      agentGroupId: options?.agentGroupId,
+      agentGroupChannel: options?.agentGroupChannel,
+      agentGroupSpace: options?.agentGroupSpace,
+      sandboxed: options?.sandboxed,
+      requesterAgentIdOverride: options?.requesterAgentIdOverride,
+    }),
+    createSpawnParallelMissionTool({
       agentSessionKey: options?.agentSessionKey,
       agentChannel: options?.agentChannel,
       agentAccountId: options?.agentAccountId,
