@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { VoiceCallConfig } from "./config.js";
-import type { CallManagerContext } from "./manager/context.js";
+import type { CallManagerContext, Logger } from "./manager/context.js";
 import { processEvent as processManagerEvent } from "./manager/events.js";
 import { getCallByProviderCallId as getCallByProviderCallIdFromMaps } from "./manager/lookup.js";
 import {
@@ -46,6 +46,7 @@ export class CallManager {
   private provider: VoiceCallProvider | null = null;
   private config: VoiceCallConfig;
   private storePath: string;
+  private logger: Logger;
   private webhookUrl: string | null = null;
   private transcriptWaiters = new Map<
     CallId,
@@ -57,8 +58,9 @@ export class CallManager {
   >();
   private maxDurationTimers = new Map<CallId, NodeJS.Timeout>();
 
-  constructor(config: VoiceCallConfig, storePath?: string) {
+  constructor(config: VoiceCallConfig, logger: Logger, storePath?: string) {
     this.config = config;
+    this.logger = logger;
     this.storePath = resolveDefaultStoreBase(config, storePath);
   }
 
@@ -137,6 +139,7 @@ export class CallManager {
       config: this.config,
       storePath: this.storePath,
       webhookUrl: this.webhookUrl,
+      logger: this.logger,
       transcriptWaiters: this.transcriptWaiters,
       maxDurationTimers: this.maxDurationTimers,
       onCallAnswered: (call) => {
