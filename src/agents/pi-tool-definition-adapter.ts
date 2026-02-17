@@ -6,6 +6,7 @@ import type {
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { randomUUID } from "node:crypto";
 import type { ClientToolDefinition } from "./pi-embedded-runner/run/params.js";
+import type { HookContext } from "./pi-tools.before-tool-call.js";
 import { logDebug, logError } from "../logger.js";
 import { isPlainObject } from "../utils.js";
 import {
@@ -96,6 +97,8 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
       parameters: tool.parameters,
       execute: async (...args: ToolExecuteArgs): Promise<AgentToolResult<unknown>> => {
         const { toolCallId, params, onUpdate, signal } = splitToolExecuteArgs(args);
+        const hookToolCallId =
+          typeof toolCallId === "string" && toolCallId.trim() ? toolCallId : `hook-${randomUUID()}`;
         const startedAt = Date.now();
         let executeParams = params;
         try {
@@ -103,23 +106,23 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
             const hookOutcome = await runBeforeToolCallHook({
               toolName: name,
               params,
-              toolCallId,
+              toolCallId: hookToolCallId,
             });
             if (hookOutcome.blocked) {
               throw new Error(hookOutcome.reason);
             }
             executeParams = hookOutcome.params;
           }
-          const result = await tool.execute(toolCallId, executeParams, signal, onUpdate);
+          const result = await tool.execute(hookToolCallId, executeParams, signal, onUpdate);
           const afterParams = beforeHookWrapped
-            ? (consumeAdjustedParamsForToolCall(toolCallId) ?? executeParams)
+            ? (consumeAdjustedParamsForToolCall(hookToolCallId) ?? executeParams)
             : executeParams;
           await runAfterToolCallHook({
             toolName: name,
             params: afterParams,
             result,
             durationMs: Date.now() - startedAt,
-            toolCallId,
+            toolCallId: hookToolCallId,
           });
           return result;
         } catch (err) {
@@ -134,7 +137,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
             throw err;
           }
           const afterParams = beforeHookWrapped
-            ? (consumeAdjustedParamsForToolCall(toolCallId) ?? executeParams)
+            ? (consumeAdjustedParamsForToolCall(hookToolCallId) ?? executeParams)
             : executeParams;
           const described = describeToolExecutionError(err);
           if (described.stack && described.stack !== described.message) {
@@ -152,7 +155,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
             params: afterParams,
             error: described.message,
             durationMs: Date.now() - startedAt,
-            toolCallId,
+            toolCallId: hookToolCallId,
           });
           return errorResult;
         }
@@ -170,7 +173,7 @@ export function toClientToolDefinitions(
     params: Record<string, unknown>,
     toolCallId: string,
   ) => void,
-  hookContext?: { agentId?: string; sessionKey?: string },
+  hookContext?: HookContext,
 ): ToolDefinition[] {
   return tools.map((tool) => {
     const func = tool.function;

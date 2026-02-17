@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetDiagnosticSessionStateForTest } from "../logging/diagnostic-session-state.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { toClientToolDefinitions, toToolDefinitions } from "./pi-tool-definition-adapter.js";
 import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
@@ -15,6 +16,7 @@ describe("before_tool_call hook integration", () => {
   };
 
   beforeEach(() => {
+    resetDiagnosticSessionStateForTest();
     hookRunner = {
       hasHooks: vi.fn(),
       runBeforeToolCall: vi.fn(),
@@ -118,6 +120,7 @@ describe("before_tool_call hook deduplication (#15502)", () => {
   };
 
   beforeEach(() => {
+    resetDiagnosticSessionStateForTest();
     hookRunner = {
       hasHooks: vi.fn(() => true),
       runBeforeToolCall: vi.fn(async () => undefined),
@@ -157,6 +160,7 @@ describe("before_tool_call hook integration for client tools", () => {
   };
 
   beforeEach(() => {
+    resetDiagnosticSessionStateForTest();
     hookRunner = {
       hasHooks: vi.fn(),
       runBeforeToolCall: vi.fn(),
