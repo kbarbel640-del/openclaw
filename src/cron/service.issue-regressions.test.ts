@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { CronService } from "./service.js";
+import { run } from "./service/ops.js";
 import { createCronServiceState, type CronEvent } from "./service/state.js";
 import { onTimer } from "./service/timer.js";
 import type { CronJob, CronJobState } from "./types.js";
@@ -636,5 +637,64 @@ describe("Cron issue regressions", () => {
     expect(secondDone?.state.lastRunAtMs).toBe(dueAt + 50);
     expect(secondDone?.state.lastDurationMs).toBe(20);
     expect(startedAtEvents).toEqual([dueAt, dueAt + 50]);
+  });
+
+  it("#17554: run() clears stale runningAtMs and executes the job", async () => {
+    const store = await makeStorePath();
+    const now = Date.parse("2026-02-06T10:05:00.000Z");
+    // STUCK_RUN_MS = 2 * 60 * 60 * 1000 = 7_200_000
+    const staleRunningAtMs = now - 2 * 60 * 60 * 1000 - 1;
+
+    await fs.writeFile(
+      store.storePath,
+      JSON.stringify(
+        {
+          version: 1,
+          jobs: [
+            {
+              id: "stale-running",
+              name: "stale-running",
+              enabled: true,
+              createdAtMs: now - 3_600_000,
+              updatedAtMs: now - 3_600_000,
+              schedule: { kind: "at", at: new Date(now - 60_000).toISOString() },
+              sessionTarget: "main",
+              wakeMode: "now",
+              payload: { kind: "systemEvent", text: "stale-running" },
+              state: {
+                runningAtMs: staleRunningAtMs,
+                lastRunAtMs: now - 3_600_000,
+                lastStatus: "ok",
+                nextRunAtMs: now - 60_000,
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const enqueueSystemEvent = vi.fn();
+    const state = createCronServiceState({
+      cronEnabled: true,
+      storePath: store.storePath,
+      log: noopLogger,
+      nowMs: () => now,
+      enqueueSystemEvent,
+      requestHeartbeatNow: vi.fn(),
+      runIsolatedAgentJob: vi.fn().mockResolvedValue({ status: "ok", summary: "ok" }),
+    });
+
+    // Do not call start() — it clears all runningAtMs markers on startup,
+    // which would hide the bug.  Call run() directly to verify that the
+    // stale marker is cleared by recomputeNextRunsForMaintenance.
+    const result = await run(state, "stale-running", "force");
+    expect(result).toEqual({ ok: true, ran: true });
+    expect(enqueueSystemEvent).toHaveBeenCalledWith(
+      "stale-running",
+      expect.objectContaining({ agentId: undefined }),
+    );
   });
 });
