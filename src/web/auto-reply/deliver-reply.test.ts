@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebInboundMsg } from "./types.js";
 import { deliverWebReply } from "./deliver-reply.js";
 
@@ -43,6 +43,9 @@ const replyLogger = {
 };
 
 describe("deliverWebReply", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
   it("sends chunked text replies and logs a summary", async () => {
     const msg = makeMsg();
 
@@ -175,11 +178,47 @@ describe("deliverWebReply", () => {
     expect(msg.reply).toHaveBeenCalledTimes(1);
     expect(
       String((msg.reply as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[0]),
-    ).toContain("⚠️ Media failed");
+    ).toBe("caption");
     expect(replyLogger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ mediaUrl: "http://example.com/img.jpg" }),
       "failed to send web media reply",
     );
+  });
+
+  it("skips invalid mediaUrl candidates (placeholders) and sends text only", async () => {
+    const msg = makeMsg();
+
+    await deliverWebReply({
+      replyResult: { text: "caption", mediaUrl: "image" },
+      msg,
+      maxMediaBytes: 1024 * 1024,
+      textLimit: 200,
+      replyLogger,
+      skipLog: true,
+    });
+
+    expect(loadWebMedia).not.toHaveBeenCalled();
+    expect(msg.sendMedia).not.toHaveBeenCalled();
+    expect(msg.reply).toHaveBeenCalledTimes(1);
+    expect(msg.reply).toHaveBeenCalledWith("caption");
+  });
+
+  it("strips internal tool-error banners from WhatsApp outbound text", async () => {
+    const msg = makeMsg();
+
+    await deliverWebReply({
+      replyResult: {
+        text: "⚠️ 🛠️ Exec: set -euo pipefail failed: Command exited with code 1\nReal message line 1\n\nReal message line 2",
+      },
+      msg,
+      maxMediaBytes: 1024 * 1024,
+      textLimit: 200,
+      replyLogger,
+      skipLog: true,
+    });
+
+    expect(msg.reply).toHaveBeenCalledTimes(1);
+    expect(msg.reply).toHaveBeenCalledWith("Real message line 1\n\nReal message line 2");
   });
 
   it("sends audio media as ptt voice note", async () => {

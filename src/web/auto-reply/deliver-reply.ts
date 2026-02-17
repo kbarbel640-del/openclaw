@@ -31,15 +31,43 @@ export async function deliverWebReply(params: {
   const replyStarted = Date.now();
   const tableMode = params.tableMode ?? "code";
   const chunkMode = params.chunkMode ?? "length";
-  const convertedText = markdownToWhatsApp(
-    convertMarkdownTables(replyResult.text || "", tableMode),
-  );
-  const textChunks = chunkMarkdownTextWithMode(convertedText, textLimit, chunkMode);
+
+  // WhatsApp safety: strip internal tool error banners that sometimes get echoed
+  // by agent runs (e.g. "⚠️ 🛠️ Exec: ...") so we don't spam group chats with logs.
+  const rawText = replyResult.text || "";
+  const sanitizedText = rawText
+    .split(/\r?\n/)
+    .filter((line) => {
+      const t = line.trim();
+      if (!t) {
+        return true;
+      }
+      if (/^⚠️\s*🛠️\s*(Exec|Read|Edit|Cron|Tool)\b/i.test(t)) {
+        return false;
+      }
+      if (/^Exec:\s*/i.test(t)) {
+        return false;
+      }
+      if (/^Command exited with code\s+\d+/i.test(t)) {
+        return false;
+      }
+      return true;
+    })
+    .join("\n")
+    .trim();
+
+  const convertedText = markdownToWhatsApp(convertMarkdownTables(sanitizedText, tableMode));
   const mediaList = replyResult.mediaUrls?.length
     ? replyResult.mediaUrls
     : replyResult.mediaUrl
       ? [replyResult.mediaUrl]
       : [];
+
+  const textChunks = chunkMarkdownTextWithMode(convertedText, textLimit, chunkMode);
+  if (mediaList.length === 0 && textChunks.length === 0) {
+    // Fully sanitized away.
+    return;
+  }
 
   const sendWithRetry = async (fn: () => Promise<unknown>, label: string, maxAttempts = 3) => {
     let lastErr: unknown;
@@ -99,6 +127,26 @@ export async function deliverWebReply(params: {
   // Media (with optional caption on first item)
   for (const [index, mediaUrl] of mediaList.entries()) {
     const caption = index === 0 ? remainingText.shift() || undefined : undefined;
+
+    // Guard: sometimes LLMs output placeholder strings like "image" or paste instructions.
+    // Only treat values as media sources if they look like an http(s) URL, file:// URL, or a path.
+    const rawMediaUrl = String(mediaUrl ?? "");
+    const normalized = rawMediaUrl.replace(/^\s*MEDIA\s*:\s*/i, "").trim();
+    const isRemote = /^https?:\/\//i.test(normalized);
+    const isFileUrl = /^file:\/\//i.test(normalized);
+    const isLocalPath =
+      normalized.startsWith("/") || normalized.startsWith("./") || normalized.startsWith("../");
+
+    if (!isRemote && !isFileUrl && !isLocalPath) {
+      whatsappOutboundLog.warn(
+        `Skipping invalid mediaUrl candidate for ${msg.from}: ${elide(rawMediaUrl, 120)}`,
+      );
+      if (index === 0 && caption) {
+        await sendWithRetry(() => msg.reply(caption), "text");
+      }
+      continue;
+    }
+
     try {
       const media = await loadWebMedia(mediaUrl, {
         maxBytes: maxMediaBytes,
@@ -176,10 +224,9 @@ export async function deliverWebReply(params: {
       whatsappOutboundLog.error(`Failed sending web media to ${msg.from}: ${formatError(err)}`);
       replyLogger.warn({ err, mediaUrl }, "failed to send web media reply");
       if (index === 0) {
-        const warning =
-          err instanceof Error ? `⚠️ Media failed: ${err.message}` : "⚠️ Media failed.";
-        const fallbackTextParts = [remainingText.shift() ?? caption ?? "", warning].filter(Boolean);
-        const fallbackText = fallbackTextParts.join("\n");
+        // Never leak internal/technical errors into user chats.
+        // If media fails, just send the intended text (caption/body) without warnings.
+        const fallbackText = (remainingText.shift() ?? caption ?? "").trim();
         if (fallbackText) {
           whatsappOutboundLog.warn(`Media skipped; sent text-only to ${msg.from}`);
           await msg.reply(fallbackText);

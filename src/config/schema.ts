@@ -36,7 +36,7 @@ export type ChannelUiMetadata = {
   configUiHints?: Record<string, ConfigUiHint>;
 };
 
-const GROUP_LABELS: Record<string, string> = {
+const _GROUP_LABELS: Record<string, string> = {
   wizard: "Wizard",
   update: "Update",
   diagnostics: "Diagnostics",
@@ -64,7 +64,7 @@ const GROUP_LABELS: Record<string, string> = {
   voicewake: "Voice Wake",
 };
 
-const GROUP_ORDER: Record<string, number> = {
+const _GROUP_ORDER: Record<string, number> = {
   wizard: 20,
   update: 25,
   diagnostics: 27,
@@ -92,7 +92,7 @@ const GROUP_ORDER: Record<string, number> = {
   logging: 900,
 };
 
-const FIELD_LABELS: Record<string, string> = {
+const _FIELD_LABELS: Record<string, string> = {
   "meta.lastTouchedVersion": "Config Last Touched Version",
   "meta.lastTouchedAt": "Config Last Touched At",
   "update.channel": "Update Channel",
@@ -388,7 +388,7 @@ const FIELD_LABELS: Record<string, string> = {
   "plugins.installs.*.installedAt": "Plugin Install Time",
 };
 
-const FIELD_HELP: Record<string, string> = {
+const _FIELD_HELP: Record<string, string> = {
   "meta.lastTouchedVersion": "Auto-set when OpenClaw writes the config.",
   "meta.lastTouchedAt": "ISO timestamp of the last config write (auto-set).",
   "update.channel": 'Update channel for git + npm installs ("stable", "beta", or "dev").',
@@ -760,7 +760,7 @@ const FIELD_HELP: Record<string, string> = {
     'Direct message access control ("pairing" recommended). "open" requires channels.slack.dm.allowFrom=["*"].',
 };
 
-const FIELD_PLACEHOLDERS: Record<string, string> = {
+const _FIELD_PLACEHOLDERS: Record<string, string> = {
   "gateway.remote.url": "ws://host:18789",
   "gateway.remote.tlsFingerprint": "sha256:ab12cd34…",
   "gateway.remote.sshTarget": "user@host",
@@ -773,7 +773,7 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
 
 const SENSITIVE_PATTERNS = [/token/i, /password/i, /secret/i, /api.?key/i];
 
-function isSensitivePath(path: string): boolean {
+function _isSensitivePath(path: string): boolean {
   return SENSITIVE_PATTERNS.some((pattern) => pattern.test(path));
 }
 
@@ -829,31 +829,7 @@ function mergeObjectSchema(base: JsonSchemaObject, extension: JsonSchemaObject):
   return merged;
 }
 
-export type ConfigSchemaResponse = {
-  schema: ConfigSchema;
-  uiHints: ConfigUiHints;
-  version: string;
-  generatedAt: string;
-};
-
-export type PluginUiMetadata = {
-  id: string;
-  name?: string;
-  description?: string;
-  configUiHints?: Record<
-    string,
-    Pick<ConfigUiHint, "label" | "help" | "advanced" | "sensitive" | "placeholder">
-  >;
-  configSchema?: JsonSchemaNode;
-};
-
-export type ChannelUiMetadata = {
-  id: string;
-  label?: string;
-  description?: string;
-  configSchema?: JsonSchemaNode;
-  configUiHints?: Record<string, ConfigUiHint>;
-};
+// NOTE: duplicate type exports removed (they are declared near the top of this file)
 
 function collectExtensionHintKeys(
   hints: ConfigUiHints,
