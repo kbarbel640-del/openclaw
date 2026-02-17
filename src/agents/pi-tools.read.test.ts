@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { AnyAgentTool } from "./pi-tools.types.js";
 import {
   assertRequiredParams,
   CLAUDE_PARAM_GROUPS,
   normalizeToolParams,
   wrapToolParamNormalization,
 } from "./pi-tools.read.js";
-import type { AnyAgentTool } from "./pi-tools.types.js";
 
 describe("assertRequiredParams", () => {
   describe("edit param groups", () => {
@@ -13,11 +13,7 @@ describe("assertRequiredParams", () => {
 
     it("accepts a complete edit with non-empty newText", () => {
       expect(() => {
-        assertRequiredParams(
-          { path: "a.ts", oldText: "foo", newText: "bar" },
-          groups,
-          "edit",
-        );
+        assertRequiredParams({ path: "a.ts", oldText: "foo", newText: "bar" }, groups, "edit");
       }).not.toThrow();
     });
 
@@ -53,41 +49,25 @@ describe("assertRequiredParams", () => {
 
     it("rejects missing newText entirely", () => {
       expect(() => {
-        assertRequiredParams(
-          { path: "a.ts", oldText: "foo" },
-          groups,
-          "edit",
-        );
+        assertRequiredParams({ path: "a.ts", oldText: "foo" }, groups, "edit");
       }).toThrow(/Missing required parameter/);
     });
 
     it("rejects missing path", () => {
       expect(() => {
-        assertRequiredParams(
-          { oldText: "foo", newText: "bar" },
-          groups,
-          "edit",
-        );
+        assertRequiredParams({ oldText: "foo", newText: "bar" }, groups, "edit");
       }).toThrow(/Missing required parameter/);
     });
 
     it("rejects missing oldText", () => {
       expect(() => {
-        assertRequiredParams(
-          { path: "a.ts", newText: "bar" },
-          groups,
-          "edit",
-        );
+        assertRequiredParams({ path: "a.ts", newText: "bar" }, groups, "edit");
       }).toThrow(/Missing required parameter/);
     });
 
     it("rejects empty oldText (not allowEmpty)", () => {
       expect(() => {
-        assertRequiredParams(
-          { path: "a.ts", oldText: "", newText: "bar" },
-          groups,
-          "edit",
-        );
+        assertRequiredParams({ path: "a.ts", oldText: "", newText: "bar" }, groups, "edit");
       }).toThrow(/Missing required parameter/);
     });
   });
