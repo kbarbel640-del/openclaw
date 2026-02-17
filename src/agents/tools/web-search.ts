@@ -404,6 +404,47 @@ function normalizeFreshness(value: string | undefined): string | undefined {
 }
 
 /**
+ * Brave Search requires ui_lang to be a full locale (e.g. "en-US"), not a bare
+ * language code like "en".  LLMs frequently send bare codes, causing a 422.
+ * Map common bare language codes to their default Brave locale.
+ */
+const BRAVE_UI_LANG_DEFAULTS: Record<string, string> = {
+  en: "en-US",
+  es: "es-ES",
+  de: "de-DE",
+  fr: "fr-FR",
+  pt: "pt-BR",
+  nl: "nl-NL",
+  it: "it-IT",
+  ja: "ja-JP",
+  ko: "ko-KR",
+  zh: "zh-CN",
+  ru: "ru-RU",
+  pl: "pl-PL",
+  da: "da-DK",
+  fi: "fi-FI",
+  el: "el-GR",
+  no: "no-NO",
+  sv: "sv-SE",
+  tr: "tr-TR",
+};
+
+function normalizeBraveUiLang(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  // Already a full locale (contains a hyphen) — pass through.
+  if (trimmed.includes("-")) {
+    return trimmed;
+  }
+  return BRAVE_UI_LANG_DEFAULTS[trimmed.toLowerCase()] ?? undefined;
+}
+
+/**
  * Map normalized freshness values (pd/pw/pm/py) to Perplexity's
  * search_recency_filter values (day/week/month/year).
  */
@@ -650,8 +691,9 @@ async function runWebSearch(params: {
   if (params.search_lang) {
     url.searchParams.set("search_lang", params.search_lang);
   }
-  if (params.ui_lang) {
-    url.searchParams.set("ui_lang", params.ui_lang);
+  const normalizedUiLang = normalizeBraveUiLang(params.ui_lang);
+  if (normalizedUiLang) {
+    url.searchParams.set("ui_lang", normalizedUiLang);
   }
   if (params.freshness) {
     url.searchParams.set("freshness", params.freshness);
