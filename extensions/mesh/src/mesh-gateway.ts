@@ -6,7 +6,9 @@ import { defaultRuntime } from "../../../src/runtime.js";
 import {
   ErrorCodes,
   errorShape,
-  formatValidationErrors,
+} from "../../../src/gateway/protocol/index.js";
+import { agentHandlers } from "../../../src/gateway/server-methods/agent.js";
+import {
   validateMeshPlanAutoParams,
   validateMeshPlanParams,
   validateMeshRetryParams,
@@ -15,8 +17,7 @@ import {
   type MeshPlanAutoParams,
   type MeshRunParams,
   type MeshWorkflowPlan,
-} from "../../../src/gateway/protocol/index.js";
-import { agentHandlers } from "../../../src/gateway/server-methods/agent.js";
+} from "./mesh-schema.js";
 
 type MeshStepStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
 type MeshRunStatus = "pending" | "running" | "completed" | "failed";
@@ -696,7 +697,7 @@ const meshHandlers: Record<
         undefined,
         errorShape(
           ErrorCodes.INVALID_REQUEST,
-          `invalid mesh.plan params: ${formatValidationErrors(validateMeshPlanParams.errors)}`,
+          "invalid mesh.plan params",
         ),
       );
       return;
@@ -729,7 +730,7 @@ const meshHandlers: Record<
         undefined,
         errorShape(
           ErrorCodes.INVALID_REQUEST,
-          `invalid mesh.plan.auto params: ${formatValidationErrors(validateMeshPlanAutoParams.errors)}`,
+          "invalid mesh.plan.auto params",
         ),
       );
       return;
@@ -780,7 +781,7 @@ const meshHandlers: Record<
         undefined,
         errorShape(
           ErrorCodes.INVALID_REQUEST,
-          `invalid mesh.run params: ${formatValidationErrors(validateMeshRunParams.errors)}`,
+          "invalid mesh.run params",
         ),
       );
       return;
@@ -824,7 +825,7 @@ const meshHandlers: Record<
         undefined,
         errorShape(
           ErrorCodes.INVALID_REQUEST,
-          `invalid mesh.status params: ${formatValidationErrors(validateMeshStatusParams.errors)}`,
+          "invalid mesh.status params",
         ),
       );
       return;
@@ -844,7 +845,7 @@ const meshHandlers: Record<
         undefined,
         errorShape(
           ErrorCodes.INVALID_REQUEST,
-          `invalid mesh.retry params: ${formatValidationErrors(validateMeshRetryParams.errors)}`,
+          "invalid mesh.retry params",
         ),
       );
       return;
