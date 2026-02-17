@@ -106,4 +106,32 @@ describe("sendMessageIMessage", () => {
     const params = requestMock.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(params.text).toBe("[[reply_to:new-id]] hello");
   });
+
+  it("sanitizes replyToId before writing the leading reply tag", async () => {
+    await sendMessageIMessage("chat_id:123", "hello", {
+      replyToId: " [ab]\n\u0000c\td ] ",
+      account: defaultAccount,
+      config: {},
+      client: {
+        request: (...args: unknown[]) => requestMock(...args),
+        stop: (...args: unknown[]) => stopMock(...args),
+      } as unknown as import("./client.js").IMessageRpcClient,
+    });
+    const params = requestMock.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(params.text).toBe("[[reply_to:abcd]] hello");
+  });
+
+  it("skips reply tagging when sanitized replyToId is empty", async () => {
+    await sendMessageIMessage("chat_id:123", "hello", {
+      replyToId: "[]\u0000\n\r",
+      account: defaultAccount,
+      config: {},
+      client: {
+        request: (...args: unknown[]) => requestMock(...args),
+        stop: (...args: unknown[]) => stopMock(...args),
+      } as unknown as import("./client.js").IMessageRpcClient,
+    });
+    const params = requestMock.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(params.text).toBe("hello");
+  });
 });

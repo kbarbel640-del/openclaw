@@ -556,12 +556,10 @@ describe("deliverOutboundPayloads", () => {
       deps: { sendWhatsApp },
     });
 
-    await vi.waitFor(() => {
-      expect(hookMocks.runner.runMessageSent).toHaveBeenCalledWith(
-        expect.objectContaining({ to: "+1555", content: "hello", success: true }),
-        expect.objectContaining({ channelId: "whatsapp" }),
-      );
-    });
+    expect(hookMocks.runner.runMessageSent).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "+1555", content: "hello", success: true }),
+      expect.objectContaining({ channelId: "whatsapp" }),
+    );
   });
 
   it("emits message_sent success for sendPayload deliveries", async () => {
@@ -589,12 +587,10 @@ describe("deliverOutboundPayloads", () => {
       payloads: [{ text: "payload text", channelData: { mode: "custom" } }],
     });
 
-    await vi.waitFor(() => {
-      expect(hookMocks.runner.runMessageSent).toHaveBeenCalledWith(
-        expect.objectContaining({ to: "!room:1", content: "payload text", success: true }),
-        expect.objectContaining({ channelId: "matrix" }),
-      );
-    });
+    expect(hookMocks.runner.runMessageSent).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "!room:1", content: "payload text", success: true }),
+      expect.objectContaining({ channelId: "matrix" }),
+    );
   });
 
   it("emits message_sent failure when delivery errors", async () => {
@@ -611,17 +607,15 @@ describe("deliverOutboundPayloads", () => {
       }),
     ).rejects.toThrow("downstream failed");
 
-    await vi.waitFor(() => {
-      expect(hookMocks.runner.runMessageSent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: "+1555",
-          content: "hi",
-          success: false,
-          error: "downstream failed",
-        }),
-        expect.objectContaining({ channelId: "whatsapp" }),
-      );
-    });
+    expect(hookMocks.runner.runMessageSent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "+1555",
+        content: "hi",
+        success: false,
+        error: "downstream failed",
+      }),
+      expect.objectContaining({ channelId: "whatsapp" }),
+    );
   });
 });
 

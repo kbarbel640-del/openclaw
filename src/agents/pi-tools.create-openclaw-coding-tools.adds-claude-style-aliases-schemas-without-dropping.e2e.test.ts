@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import "./test-helpers/fast-coding-tools.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 import { __testing, createOpenClawCodingTools } from "./pi-tools.js";
-import { createSandboxedReadTool } from "./pi-tools.read.js";
+import { createOpenClawReadTool, createSandboxedReadTool } from "./pi-tools.read.js";
 import { createHostSandboxFsBridge } from "./test-helpers/host-sandbox-fs-bridge.js";
 import { createBrowserTool } from "./tools/browser-tool.js";
 
@@ -574,5 +574,42 @@ describe("createOpenClawCodingTools", () => {
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  it("strips truncation.content details from read results while preserving other fields", async () => {
+    const baseRead: AgentTool = {
+      name: "read",
+      label: "read",
+      description: "test read",
+      parameters: Type.Object({
+        path: Type.String(),
+        offset: Type.Optional(Type.Number()),
+        limit: Type.Optional(Type.Number()),
+      }),
+      execute: vi.fn(async () => ({
+        content: [{ type: "text", text: "line-0001" }],
+        details: {
+          truncation: {
+            truncated: true,
+            outputLines: 1,
+            firstLineExceedsLimit: false,
+            content: "hidden duplicate payload",
+          },
+        },
+      })),
+    };
+
+    const wrapped = createOpenClawReadTool(
+      baseRead as unknown as Parameters<typeof createOpenClawReadTool>[0],
+    );
+    const result = await wrapped.execute("read-strip-1", { path: "demo.txt", limit: 1 });
+
+    const details = (result as { details?: { truncation?: Record<string, unknown> } }).details;
+    expect(details?.truncation).toMatchObject({
+      truncated: true,
+      outputLines: 1,
+      firstLineExceedsLimit: false,
+    });
+    expect(details?.truncation).not.toHaveProperty("content");
   });
 });

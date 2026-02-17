@@ -124,7 +124,7 @@ function ensureAgentRunListener() {
     const snapshot = createSnapshotFromLifecycleEvent({
       runId: evt.runId,
       phase,
-      data: typeof evt.data === "object" && evt.data ? (evt.data as Record<string, unknown>) : {},
+      data: evt.data,
     });
     agentRunStarts.delete(evt.runId);
     if (phase === "error") {
@@ -178,7 +178,10 @@ export async function waitForAgentJob(params: {
       resolve(entry);
     };
 
-    const scheduleErrorFinish = (snapshot: AgentRunSnapshot, delayMs = AGENT_RUN_ERROR_RETRY_GRACE_MS) => {
+    const scheduleErrorFinish = (
+      snapshot: AgentRunSnapshot,
+      delayMs = AGENT_RUN_ERROR_RETRY_GRACE_MS,
+    ) => {
       clearPendingErrorTimer();
       const effectiveDelay = Math.max(1, Math.min(Math.floor(delayMs), 2_147_483_647));
       pendingErrorTimer = setTimeout(() => {
@@ -221,7 +224,7 @@ export async function waitForAgentJob(params: {
       const snapshot = createSnapshotFromLifecycleEvent({
         runId: evt.runId,
         phase,
-        data: typeof evt.data === "object" && evt.data ? (evt.data as Record<string, unknown>) : {},
+        data: evt.data,
       });
       if (phase === "error") {
         scheduleErrorFinish(snapshot);
