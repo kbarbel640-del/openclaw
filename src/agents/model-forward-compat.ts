@@ -250,7 +250,10 @@ export function isForwardCompatModelId(provider: string, modelId: string): boole
   const lower = modelId.trim().toLowerCase();
 
   if (normalizedProvider === "openai-codex") {
-    if (lower === OPENAI_CODEX_GPT_53_MODEL_ID || lower.startsWith(`${OPENAI_CODEX_GPT_53_MODEL_ID}-`)) {
+    if (
+      lower === OPENAI_CODEX_GPT_53_MODEL_ID ||
+      lower.startsWith(`${OPENAI_CODEX_GPT_53_MODEL_ID}-`)
+    ) {
       return true;
     }
   }
