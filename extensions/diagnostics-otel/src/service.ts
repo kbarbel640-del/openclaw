@@ -51,16 +51,18 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
   let logProvider: LoggerProvider | null = null;
   let stopLogTransport: (() => void) | null = null;
   let unsubscribe: (() => void) | null = null;
+  let previousLogsExporter: string | undefined;
 
   return {
     id: "diagnostics-otel",
     async start(ctx) {
-      diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.WARN);
       const cfg = ctx.config.diagnostics;
       const otel = cfg?.otel;
       if (!cfg?.enabled || !otel?.enabled) {
         return;
       }
+
+      diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.WARN);
 
       const protocol = otel.protocol ?? process.env.OTEL_EXPORTER_OTLP_PROTOCOL ?? "http/protobuf";
       if (protocol !== "http/protobuf") {
@@ -113,6 +115,7 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
 
       if (tracesEnabled || metricsEnabled) {
         // Prevent NodeSDK from auto-configuring exporters for signals we manage manually
+        previousLogsExporter = process.env.OTEL_LOGS_EXPORTER;
         process.env.OTEL_LOGS_EXPORTER = "none";
 
         sdk = new NodeSDK({
@@ -646,6 +649,12 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         await sdk.shutdown().catch(() => undefined);
         sdk = null;
       }
+      if (previousLogsExporter === undefined) {
+        delete process.env.OTEL_LOGS_EXPORTER;
+      } else {
+        process.env.OTEL_LOGS_EXPORTER = previousLogsExporter;
+      }
+      previousLogsExporter = undefined;
     },
   } satisfies OpenClawPluginService;
 }
