@@ -9,6 +9,7 @@
  */
 
 import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { getDatabase } from "../../infra/database/client.js";
 import { memoryManager, type SearchResult } from "./memory-manager.js";
 
 const log = createSubsystemLogger("agent-memory/context");
@@ -136,13 +137,42 @@ export class ContextBuilder {
    * Build short-term context (today/yesterday)
    */
   private async buildShortTermContext(_agentId: string): Promise<ShortTermContext> {
-    // TODO: Query agent_decision_log, agent_learning_progress for today
-    // For now, return mock data
-    return {
-      todayLearnings: [],
-      todayDecisions: [],
-      recentInteractions: [],
-    };
+    try {
+      const db = getDatabase();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Query today's decisions from agent_decision_log
+      const rows = await db<
+        Array<{
+          decision_type: string;
+          decision_quality: string;
+          outcome: string | null;
+          impact_score: string | null;
+        }>
+      >`
+        SELECT decision_type, decision_quality, outcome, impact_score
+        FROM agent_decision_log
+        WHERE agent_id = ${_agentId}
+          AND time >= ${today}
+        ORDER BY time DESC
+        LIMIT 10
+      `;
+
+      const todayDecisions = rows.map((r) => ({
+        decision: `${r.decision_type} (${r.decision_quality})`,
+        outcome: r.outcome ?? undefined,
+      }));
+
+      return {
+        todayLearnings: [],
+        todayDecisions,
+        recentInteractions: [],
+      };
+    } catch {
+      // Non-blocking: DB may not be available
+      return { todayLearnings: [], todayDecisions: [], recentInteractions: [] };
+    }
   }
 
   /**
@@ -164,17 +194,28 @@ export class ContextBuilder {
     // Filter by token budget (prioritize by similarity)
     const filteredMemories = this.filterByTokenBudget(relevantMemories, maxTokens * 0.6); // 60% of budget
 
-    // TODO: Get expertise and reputation from database
-    // For now, return mock data
-    const expertise = {
-      strongAreas: [],
-      weakAreas: [],
-    };
-
-    const reputation = {
-      reliability: 0.5,
-      quality: "unknown" as const,
-    };
+    // Query expertise and reputation from agent_reputation table
+    let expertise = { strongAreas: [] as string[], weakAreas: [] as string[] };
+    let reputation = { reliability: 0.5, quality: "unknown" as string };
+    try {
+      const db = getDatabase();
+      const rows = await db<
+        Array<{ reliability_score: string; quality_rating: string }>
+      >`
+        SELECT reliability_score, quality_rating
+        FROM agent_reputation
+        WHERE agent_id = ${agentId}
+        LIMIT 1
+      `;
+      if (rows.length > 0) {
+        reputation = {
+          reliability: parseFloat(rows[0].reliability_score),
+          quality: rows[0].quality_rating,
+        };
+      }
+    } catch {
+      // Non-blocking: DB may not be available
+    }
 
     return {
       relevantMemories: filteredMemories,
@@ -184,15 +225,30 @@ export class ContextBuilder {
   }
 
   /**
-   * Get current agent state (energy, focus)
+   * Get current agent state (energy, focus) from agent_energy_state table
    */
   private async getCurrentState(_agentId: string): Promise<{ energy: number; focus: number }> {
-    // TODO: Query agent_energy_state table
-    // For now, return defaults
-    return {
-      energy: 0.8,
-      focus: 0.7,
-    };
+    try {
+      const db = getDatabase();
+      const rows = await db<
+        Array<{ energy_level: string; focus_level: string }>
+      >`
+        SELECT energy_level, focus_level
+        FROM agent_energy_state
+        WHERE agent_id = ${_agentId}
+        LIMIT 1
+      `;
+      if (rows.length > 0) {
+        return {
+          energy: parseFloat(rows[0].energy_level),
+          focus: parseFloat(rows[0].focus_level),
+        };
+      }
+    } catch {
+      // Non-blocking: DB may not be available or table may not exist yet
+    }
+    // Defaults when no data available
+    return { energy: 0.8, focus: 0.7 };
   }
 
   /**
