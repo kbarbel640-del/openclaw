@@ -51,6 +51,7 @@ See [Venice AI](/providers/venice).
 - [Xiaomi](/providers/xiaomi)
 - [GLM models](/providers/glm)
 - [MiniMax](/providers/minimax)
+- [MegaNova AI](/providers/meganova)
 - [Venice (Venice AI, privacy-focused)](/providers/venice)
 - [Hugging Face (Inference)](/providers/huggingface)
 - [Ollama (local models)](/providers/ollama)

@@ -41,6 +41,8 @@ import {
   applyOpencodeZenProviderConfig,
   applySyntheticConfig,
   applySyntheticProviderConfig,
+  applyMeganovaConfig,
+  applyMeganovaProviderConfig,
   applyTogetherConfig,
   applyTogetherProviderConfig,
   applyVeniceConfig,
@@ -59,6 +61,7 @@ import {
   MOONSHOT_DEFAULT_MODEL_REF,
   MISTRAL_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_REF,
+  MEGANOVA_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
   VENICE_DEFAULT_MODEL_REF,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
@@ -73,6 +76,7 @@ import {
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setSyntheticApiKey,
+  setMeganovaApiKey,
   setTogetherApiKey,
   setVeniceApiKey,
   setVercelAiGatewayApiKey,
@@ -103,6 +107,7 @@ const API_KEY_TOKEN_PROVIDER_AUTH_CHOICE: Record<string, AuthChoice> = {
   opencode: "opencode-zen",
   kilocode: "kilocode-api-key",
   qianfan: "qianfan-api-key",
+  meganova: "meganova-api-key",
 };
 
 const ZAI_AUTH_CHOICE_ENDPOINT: Partial<
@@ -306,6 +311,24 @@ const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProv
     applyProviderConfig: applySyntheticProviderConfig,
     normalize: (value) => String(value ?? "").trim(),
     validate: (value) => (String(value ?? "").trim() ? undefined : "Required"),
+  },
+  "meganova-api-key": {
+    provider: "meganova",
+    profileId: "meganova:default",
+    expectedProviders: ["meganova"],
+    envLabel: "MEGANOVA_API_KEY",
+    promptMessage: "Enter MegaNova API key",
+    setCredential: setMeganovaApiKey,
+    defaultModel: MEGANOVA_DEFAULT_MODEL_REF,
+    applyDefaultConfig: applyMeganovaConfig,
+    applyProviderConfig: applyMeganovaProviderConfig,
+    noteDefault: MEGANOVA_DEFAULT_MODEL_REF,
+    noteMessage: [
+      "MegaNova AI provides access to 30+ leading models through an OpenAI-compatible API,",
+      "including Claude, GPT-5, Gemini, DeepSeek, Llama, Qwen, and more.",
+      "Get your API key at: https://meganova.ai",
+    ].join("\n"),
+    noteTitle: "MegaNova AI",
   },
 };
 
