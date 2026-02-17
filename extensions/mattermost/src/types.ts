@@ -44,8 +44,11 @@ export type MattermostAccountConfig = {
   blockStreamingCoalesce?: BlockStreamingCoalesceConfig;
   /** Outbound response prefix override for this channel/account. */
   responsePrefix?: string;
-  /** Actions config. */
-  actions?: { reactions?: boolean };
+  /** Action toggles for this account. */
+  actions?: {
+    /** Enable message reaction actions. Default: true. */
+    reactions?: boolean;
+  };
 };
 
 export type MattermostConfig = {

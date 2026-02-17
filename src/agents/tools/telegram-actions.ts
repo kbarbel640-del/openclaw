@@ -1,7 +1,7 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { OpenClawConfig } from "../../config/config.js";
+import { createTelegramActionGate } from "../../telegram/accounts.js";
 import type { TelegramButtonStyle, TelegramInlineButtons } from "../../telegram/button-types.js";
-import { resolveTelegramAccount } from "../../telegram/accounts.js";
 import {
   resolveTelegramInlineButtonsScope,
   resolveTelegramTargetChatType,
@@ -18,7 +18,6 @@ import {
 import { getCacheStats, searchStickers } from "../../telegram/sticker-cache.js";
 import { resolveTelegramToken } from "../../telegram/token.js";
 import {
-  createActionGate,
   jsonResult,
   readNumberParam,
   readReactionParams,
@@ -89,8 +88,7 @@ export async function handleTelegramAction(
 ): Promise<AgentToolResult<unknown>> {
   const action = readStringParam(params, "action", { required: true });
   const accountId = readStringParam(params, "accountId");
-  const account = resolveTelegramAccount({ cfg, accountId });
-  const isActionEnabled = createActionGate(account.config.actions);
+  const isActionEnabled = createTelegramActionGate({ cfg, accountId });
 
   if (action === "react") {
     // Check reaction level first
@@ -400,6 +398,43 @@ export async function handleTelegramAction(
   if (action === "stickerCacheStats") {
     const stats = getCacheStats();
     return jsonResult({ ok: true, ...stats });
+  }
+
+  if (action === "sendPoll") {
+    const to = readStringParam(params, "to", { required: true });
+    const question = readStringParam(params, "question") ?? readStringParam(params, "pollQuestion");
+    if (!question) {
+      throw new Error("sendPoll requires 'question'");
+    }
+    const options = (params.options ?? params.pollOption) as string[] | undefined;
+    if (!options || options.length < 2) {
+      throw new Error("sendPoll requires at least 2 options");
+    }
+    const maxSelections =
+      typeof params.maxSelections === "number" ? params.maxSelections : undefined;
+    const isAnonymous = typeof params.isAnonymous === "boolean" ? params.isAnonymous : undefined;
+    const silent = typeof params.silent === "boolean" ? params.silent : undefined;
+    const replyToMessageId = readNumberParam(params, "replyTo");
+    const messageThreadId = readNumberParam(params, "threadId");
+    const pollAccountId = readStringParam(params, "accountId");
+
+    const res = await sendPollTelegram(
+      to,
+      { question, options, maxSelections },
+      {
+        accountId: pollAccountId?.trim() || undefined,
+        replyToMessageId,
+        messageThreadId,
+        isAnonymous,
+        silent,
+      },
+    );
+    return jsonResult({
+      ok: true,
+      messageId: res.messageId,
+      chatId: res.chatId,
+      pollId: res.pollId,
+    });
   }
 
   throw new Error(`Unsupported Telegram action: ${action}`);
