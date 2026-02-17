@@ -80,6 +80,8 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
   const restartAttempts = new Map<string, number>();
   // Tracks accounts that were manually stopped so we don't auto-restart them.
   const manuallyStopped = new Set<string>();
+  // Track channel-level abort controllers for cancelling startup loops mid-execution
+  const channelStartupAborts = new Map<ChannelId, AbortController>();
 
   const restartKey = (channelId: ChannelId, accountId: string) => `${channelId}:${accountId}`;
 
@@ -124,119 +126,128 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
       return;
     }
 
-    // Stagger account startup to avoid Discord rate limits
-    let lastAbort: AbortController | undefined;
-    for (let accountIndex = 0; accountIndex < accountIds.length; accountIndex++) {
-      const id = accountIds[accountIndex];
-      // Add 2-second delay between accounts (except the first)
-      if (accountIndex > 0) {
-        await new Promise((r) => setTimeout(r, 2000));
-        // Break if stopChannel() was called during the delay
-        if (lastAbort?.signal.aborted) {
-          break;
+    // Create channel-level abort signal for cancelling the entire startup loop
+    const channelAbort = new AbortController();
+    channelStartupAborts.set(channelId, channelAbort);
+
+    try {
+      // Stagger account startup to avoid Discord rate limits
+      for (let accountIndex = 0; accountIndex < accountIds.length; accountIndex++) {
+        const id = accountIds[accountIndex];
+        // Add 2-second delay between accounts (except the first)
+        if (accountIndex > 0) {
+          await new Promise((r) => setTimeout(r, 2000));
+          // Break if stopChannel() was called during the delay
+          if (channelAbort.signal.aborted) {
+            break;
+          }
         }
-      }
 
-      if (store.tasks.has(id)) {
-        continue;
-      }
-      const account = plugin.config.resolveAccount(cfg, id);
-      const enabled = plugin.config.isEnabled
-        ? plugin.config.isEnabled(account, cfg)
-        : isAccountEnabled(account);
-      if (!enabled) {
-        setRuntime(channelId, id, {
-          accountId: id,
-          running: false,
-          lastError: plugin.config.disabledReason?.(account, cfg) ?? "disabled",
-        });
-        continue;
-      }
-
-      let configured = true;
-      if (plugin.config.isConfigured) {
-        configured = await plugin.config.isConfigured(account, cfg);
-      }
-      if (!configured) {
-        setRuntime(channelId, id, {
-          accountId: id,
-          running: false,
-          lastError: plugin.config.unconfiguredReason?.(account, cfg) ?? "not configured",
-        });
-        continue;
-      }
-
-      const rKey = restartKey(channelId, id);
-      manuallyStopped.delete(rKey);
-
-      const abort = new AbortController();
-      lastAbort = abort;
-      store.aborts.set(id, abort);
-      restartAttempts.delete(rKey);
-      setRuntime(channelId, id, {
-        accountId: id,
-        running: true,
-        lastStartAt: Date.now(),
-        lastError: null,
-        reconnectAttempts: 0,
-      });
-
-      const log = channelLogs[channelId];
-      const task = startAccount({
-        cfg,
-        accountId: id,
-        account,
-        runtime: channelRuntimeEnvs[channelId],
-        abortSignal: abort.signal,
-        log,
-        getStatus: () => getRuntime(channelId, id),
-        setStatus: (next) => setRuntime(channelId, id, next),
-      });
-      const tracked = Promise.resolve(task)
-        .catch((err) => {
-          const message = formatErrorMessage(err);
-          setRuntime(channelId, id, { accountId: id, lastError: message });
-          log.error?.(`[${id}] channel exited: ${message}`);
-        })
-        .finally(() => {
-          store.aborts.delete(id);
-          store.tasks.delete(id);
+        if (store.tasks.has(id)) {
+          continue;
+        }
+        const account = plugin.config.resolveAccount(cfg, id);
+        const enabled = plugin.config.isEnabled
+          ? plugin.config.isEnabled(account, cfg)
+          : isAccountEnabled(account);
+        if (!enabled) {
           setRuntime(channelId, id, {
             accountId: id,
             running: false,
-            lastStopAt: Date.now(),
+            lastError: plugin.config.disabledReason?.(account, cfg) ?? "disabled",
           });
-        })
-        .then(async () => {
-          if (manuallyStopped.has(rKey)) {
-            return;
-          }
-          const attempt = (restartAttempts.get(rKey) ?? 0) + 1;
-          restartAttempts.set(rKey, attempt);
-          if (attempt > MAX_RESTART_ATTEMPTS) {
-            log.error?.(`[${id}] giving up after ${MAX_RESTART_ATTEMPTS} restart attempts`);
-            return;
-          }
-          const delayMs = computeBackoff(CHANNEL_RESTART_POLICY, attempt);
-          log.info?.(
-            `[${id}] auto-restart attempt ${attempt}/${MAX_RESTART_ATTEMPTS} in ${Math.round(delayMs / 1000)}s`,
-          );
+          continue;
+        }
+
+        let configured = true;
+        if (plugin.config.isConfigured) {
+          configured = await plugin.config.isConfigured(account, cfg);
+        }
+        if (!configured) {
           setRuntime(channelId, id, {
             accountId: id,
-            reconnectAttempts: attempt,
+            running: false,
+            lastError: plugin.config.unconfiguredReason?.(account, cfg) ?? "not configured",
           });
-          try {
-            await sleepWithAbort(delayMs);
-            await startChannel(channelId, id);
-          } catch {
-            // abort or startup failure — next crash will retry
-          }
+          continue;
+        }
+
+        const rKey = restartKey(channelId, id);
+        manuallyStopped.delete(rKey);
+
+        const abort = new AbortController();
+        store.aborts.set(id, abort);
+        restartAttempts.delete(rKey);
+        setRuntime(channelId, id, {
+          accountId: id,
+          running: true,
+          lastStartAt: Date.now(),
+          lastError: null,
+          reconnectAttempts: 0,
         });
-      store.tasks.set(id, tracked);
+
+        const log = channelLogs[channelId];
+        const task = startAccount({
+          cfg,
+          accountId: id,
+          account,
+          runtime: channelRuntimeEnvs[channelId],
+          abortSignal: abort.signal,
+          log,
+          getStatus: () => getRuntime(channelId, id),
+          setStatus: (next) => setRuntime(channelId, id, next),
+        });
+        const tracked = Promise.resolve(task)
+          .catch((err) => {
+            const message = formatErrorMessage(err);
+            setRuntime(channelId, id, { accountId: id, lastError: message });
+            log.error?.(`[${id}] channel exited: ${message}`);
+          })
+          .finally(() => {
+            store.aborts.delete(id);
+            store.tasks.delete(id);
+            setRuntime(channelId, id, {
+              accountId: id,
+              running: false,
+              lastStopAt: Date.now(),
+            });
+          })
+          .then(async () => {
+            if (manuallyStopped.has(rKey)) {
+              return;
+            }
+            const attempt = (restartAttempts.get(rKey) ?? 0) + 1;
+            restartAttempts.set(rKey, attempt);
+            if (attempt > MAX_RESTART_ATTEMPTS) {
+              log.error?.(`[${id}] giving up after ${MAX_RESTART_ATTEMPTS} restart attempts`);
+              return;
+            }
+            const delayMs = computeBackoff(CHANNEL_RESTART_POLICY, attempt);
+            log.info?.(
+              `[${id}] auto-restart attempt ${attempt}/${MAX_RESTART_ATTEMPTS} in ${Math.round(delayMs / 1000)}s`,
+            );
+            setRuntime(channelId, id, {
+              accountId: id,
+              reconnectAttempts: attempt,
+            });
+            try {
+              await sleepWithAbort(delayMs);
+              await startChannel(channelId, id);
+            } catch {
+              // abort or startup failure — next crash will retry
+            }
+          });
+        store.tasks.set(id, tracked);
+      }
+    } finally {
+      channelStartupAborts.delete(channelId);
     }
   };
 
   const stopChannel = async (channelId: ChannelId, accountId?: string) => {
+    // Cancel any in-progress startup loop for this channel
+    channelStartupAborts.get(channelId)?.abort();
+
     const plugin = getChannelPlugin(channelId);
     const store = getStore(channelId);
     // Fast path: nothing running and no explicit plugin shutdown hook to run.
