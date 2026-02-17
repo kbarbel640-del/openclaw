@@ -2,6 +2,32 @@ import { describe, expect, it, type Mock, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   type MockAuthProfile = { provider: string; [key: string]: unknown };
+  const defaultResolveEnvApiKey = (provider: string) => {
+    if (provider === "openai") {
+      return {
+        apiKey: "sk-openai-0123456789abcdefghijklmnopqrstuvwxyz",
+        source: "shell env: OPENAI_API_KEY",
+      };
+    }
+    if (provider === "anthropic") {
+      return {
+        apiKey: "sk-ant-oat01-ACCESS-TOKEN-1234567890",
+        source: "env: ANTHROPIC_OAUTH_TOKEN",
+      };
+    }
+    return null;
+  };
+  const defaultLoadConfig = {
+    agents: {
+      defaults: {
+        model: { primary: "anthropic/claude-opus-4-5", fallbacks: [] },
+        models: { "anthropic/claude-opus-4-5": { alias: "Opus" } },
+      },
+    },
+    models: { providers: {} },
+    env: { shellEnv: { enabled: true } },
+  };
+
   const store = {
     version: 1,
     profiles: {
@@ -45,34 +71,13 @@ const mocks = vi.hoisted(() => {
     resolveAuthStorePathForDisplay: vi
       .fn()
       .mockReturnValue("/tmp/openclaw-agent/auth-profiles.json"),
-    resolveEnvApiKey: vi.fn((provider: string) => {
-      if (provider === "openai") {
-        return {
-          apiKey: "sk-openai-0123456789abcdefghijklmnopqrstuvwxyz",
-          source: "shell env: OPENAI_API_KEY",
-        };
-      }
-      if (provider === "anthropic") {
-        return {
-          apiKey: "sk-ant-oat01-ACCESS-TOKEN-1234567890",
-          source: "env: ANTHROPIC_OAUTH_TOKEN",
-        };
-      }
-      return null;
-    }),
+    defaultResolveEnvApiKey,
+    resolveEnvApiKey: vi.fn(defaultResolveEnvApiKey),
     getCustomProviderApiKey: vi.fn().mockReturnValue(undefined),
     getShellEnvAppliedKeys: vi.fn().mockReturnValue(["OPENAI_API_KEY", "ANTHROPIC_OAUTH_TOKEN"]),
     shouldEnableShellEnvFallback: vi.fn().mockReturnValue(true),
-    loadConfig: vi.fn().mockReturnValue({
-      agents: {
-        defaults: {
-          model: { primary: "anthropic/claude-opus-4-5", fallbacks: [] },
-          models: { "anthropic/claude-opus-4-5": { alias: "Opus" } },
-        },
-      },
-      models: { providers: {} },
-      env: { shellEnv: { enabled: true } },
-    }),
+    defaultLoadConfig,
+    loadConfig: vi.fn().mockReturnValue(defaultLoadConfig),
   };
 });
 
@@ -117,10 +122,6 @@ vi.mock("../../config/config.js", async (importOriginal) => {
 });
 
 import { modelsStatusCommand } from "./list.status-command.js";
-
-const defaultResolveEnvApiKeyImpl:
-  | ((provider: string) => { apiKey: string; source: string } | null)
-  | undefined = mocks.resolveEnvApiKey.getMockImplementation();
 
 const runtime = {
   log: vi.fn(),
@@ -175,6 +176,16 @@ async function withAgentScopeOverrides<T>(
   }
 }
 
+function restoreResolveEnvApiKey(
+  original: ((provider: string) => { apiKey: string; source: string } | null) | undefined,
+): void {
+  if (original) {
+    mocks.resolveEnvApiKey.mockImplementation(original);
+    return;
+  }
+  mocks.resolveEnvApiKey.mockImplementation(mocks.defaultResolveEnvApiKey);
+}
+
 async function withLoadConfigOverride<T>(
   nextConfig: Record<string, unknown>,
   run: () => Promise<T>,
@@ -184,7 +195,11 @@ async function withLoadConfigOverride<T>(
   try {
     return await run();
   } finally {
-    mocks.loadConfig.mockImplementation(original);
+    if (original) {
+      mocks.loadConfig.mockImplementation(original);
+    } else {
+      mocks.loadConfig.mockReturnValue(mocks.defaultLoadConfig);
+    }
   }
 }
 
@@ -263,13 +278,13 @@ describe("modelsStatusCommand auth overview", () => {
         },
         async () => {
           await modelsStatusCommand({ json: true, agent: "main" }, localRuntime as never);
-          const payload = JSON.parse(String((localRuntime.log as vi.Mock).mock.calls[0][0]));
+          const payload = JSON.parse(String((localRuntime.log as Mock).mock.calls[0][0]));
           expect(payload.auth.missingProvidersInUse).toEqual([]);
         },
       );
     } finally {
       mocks.store.profiles = originalProfiles;
-      mocks.resolveEnvApiKey.mockImplementation(originalEnvImpl);
+      restoreResolveEnvApiKey(originalEnvImpl);
     }
   });
 
@@ -299,7 +314,7 @@ describe("modelsStatusCommand auth overview", () => {
         },
         async () => {
           await modelsStatusCommand({ json: true, agent: "main" }, localRuntime as never);
-          const payload = JSON.parse(String((localRuntime.log as vi.Mock).mock.calls[0][0]));
+          const payload = JSON.parse(String((localRuntime.log as Mock).mock.calls[0][0]));
           expect(payload.auth.missingProvidersInUse).toEqual([]);
           expect(payload.auth.cliReadiness.providersInUse).toContain("claude-cli");
           const backend = payload.auth.cliReadiness.backends.find(
@@ -312,7 +327,7 @@ describe("modelsStatusCommand auth overview", () => {
       );
     } finally {
       mocks.store.profiles = originalProfiles;
-      mocks.resolveEnvApiKey.mockImplementation(originalEnvImpl);
+      restoreResolveEnvApiKey(originalEnvImpl);
     }
   });
 
@@ -350,7 +365,7 @@ describe("modelsStatusCommand auth overview", () => {
       );
     } finally {
       mocks.store.profiles = originalProfiles;
-      mocks.resolveEnvApiKey.mockImplementation(originalEnvImpl);
+      restoreResolveEnvApiKey(originalEnvImpl);
     }
   });
 
@@ -394,7 +409,7 @@ describe("modelsStatusCommand auth overview", () => {
       );
     } finally {
       mocks.store.profiles = originalProfiles;
-      mocks.resolveEnvApiKey.mockImplementation(originalEnvImpl);
+      restoreResolveEnvApiKey(originalEnvImpl);
     }
   });
 
@@ -434,13 +449,7 @@ describe("modelsStatusCommand auth overview", () => {
       expect(localRuntime.exit).toHaveBeenCalledWith(1);
     } finally {
       mocks.store.profiles = originalProfiles;
-      if (originalEnvImpl) {
-        mocks.resolveEnvApiKey.mockImplementation(originalEnvImpl);
-      } else if (defaultResolveEnvApiKeyImpl) {
-        mocks.resolveEnvApiKey.mockImplementation(defaultResolveEnvApiKeyImpl);
-      } else {
-        mocks.resolveEnvApiKey.mockImplementation(() => null);
-      }
+      restoreResolveEnvApiKey(originalEnvImpl);
     }
   });
 });
