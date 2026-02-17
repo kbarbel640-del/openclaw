@@ -281,6 +281,9 @@ pub fn classify_method(method: &str) -> MethodFamily {
     if normalized == "connect" {
         return MethodFamily::Connect;
     }
+    if normalized == "health" || normalized == "status" {
+        return MethodFamily::Gateway;
+    }
     if normalized.starts_with("agent.") || normalized == "agent" {
         return MethodFamily::Agent;
     }
@@ -561,6 +564,8 @@ mod tests {
     #[test]
     fn classifies_method_families() {
         assert_eq!(classify_method("connect"), MethodFamily::Connect);
+        assert_eq!(classify_method("health"), MethodFamily::Gateway);
+        assert_eq!(classify_method("status"), MethodFamily::Gateway);
         assert_eq!(classify_method("agent.exec"), MethodFamily::Agent);
         assert_eq!(classify_method("sessions.patch"), MethodFamily::Sessions);
         assert_eq!(classify_method("node.invoke"), MethodFamily::Node);
