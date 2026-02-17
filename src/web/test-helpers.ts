@@ -134,15 +134,15 @@ export function resetBaileysMocks() {
 
   const useMultiFileAuthState = vi.mocked(baileys.useMultiFileAuthState);
   useMultiFileAuthState.mockReset();
-  useMultiFileAuthState.mockImplementation(recreated.mod.useMultiFileAuthState);
+  useMultiFileAuthState.mockImplementation(recreated.mod.useMultiFileAuthState as any);
 
   const fetchLatestBaileysVersion = vi.mocked(baileys.fetchLatestBaileysVersion);
   fetchLatestBaileysVersion.mockReset();
-  fetchLatestBaileysVersion.mockImplementation(recreated.mod.fetchLatestBaileysVersion);
+  fetchLatestBaileysVersion.mockImplementation(recreated.mod.fetchLatestBaileysVersion as any);
 
   const makeCacheableSignalKeyStore = vi.mocked(baileys.makeCacheableSignalKeyStore);
   makeCacheableSignalKeyStore.mockReset();
-  makeCacheableSignalKeyStore.mockImplementation(recreated.mod.makeCacheableSignalKeyStore);
+  makeCacheableSignalKeyStore.mockImplementation(recreated.mod.makeCacheableSignalKeyStore as any);
 }
 
 export function getLastSocket(): MockBaileysSocket {
