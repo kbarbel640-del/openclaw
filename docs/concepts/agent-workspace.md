@@ -32,8 +32,8 @@ inside a sandbox workspace under `~/.openclaw/sandboxes`, not your host workspac
 {
   agents: {
     defaults: {
-      workspace: "~/.openclaw/workspace"
-    }
+      workspace: "~/.openclaw/workspace",
+    },
   },
 }
 ```
@@ -48,8 +48,8 @@ file creation:
 {
   agents: {
     defaults: {
-      skipBootstrap: true
-    }
+      skipBootstrap: true,
+    },
   },
 }
 ```
