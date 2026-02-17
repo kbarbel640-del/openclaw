@@ -74,9 +74,7 @@ function hasParentTraversalSegment(entry: string): boolean {
 
 function isUnsafeHookManifestPath(entry: string): boolean {
   return (
-    path.posix.isAbsolute(entry) ||
-    path.win32.isAbsolute(entry) ||
-    hasParentTraversalSegment(entry)
+    path.posix.isAbsolute(entry) || path.win32.isAbsolute(entry) || hasParentTraversalSegment(entry)
   );
 }
 
