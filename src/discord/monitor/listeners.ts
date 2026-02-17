@@ -80,7 +80,7 @@ export class DiscordMessageListener extends MessageCreateListener {
   //
   // We *never* want MESSAGE_CREATE handling to block the event loop or the
   // queue: we enqueue work and return immediately.
-  handle(data: DiscordMessageEvent, client: Client) {
+  handle(data: DiscordMessageEvent, client: Client): Promise<void> {
     const startedAt = Date.now();
     queueMicrotask(() => {
       const task = Promise.resolve(this.handler(data, client));
@@ -98,6 +98,7 @@ export class DiscordMessageListener extends MessageCreateListener {
           });
         });
     });
+    return Promise.resolve();
   }
 }
 
