@@ -163,7 +163,9 @@ export async function sanitizeSessionMessagesImages(
     const role = (msg as { role?: unknown }).role;
     if (role === "toolResult") {
       const toolMsg = msg as Extract<AgentMessage, { role: "toolResult" }>;
-      const rawContent = Array.isArray(toolMsg.content) ? (toolMsg.content as unknown as ContentBlock[]) : [];
+      const rawContent = Array.isArray(toolMsg.content)
+        ? (toolMsg.content as unknown as ContentBlock[])
+        : [];
       const prunedContent = dropOldestImageBlocks(rawContent, toDropRef, label);
       const nextContent = (await sanitizeContentBlocksImages(
         prunedContent,

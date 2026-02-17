@@ -115,10 +115,7 @@ describe("sanitizeSessionMessagesImages – maxHistoryImages pruning", () => {
   });
 
   it("removes all images when maxHistoryImages is 0", async () => {
-    const messages = [
-      makeUserMessageWithImage("a"),
-      makeUserMessageWithImage("b"),
-    ];
+    const messages = [makeUserMessageWithImage("a"), makeUserMessageWithImage("b")];
     const out = await sanitizeSessionMessagesImages(messages, "test", { maxHistoryImages: 0 });
     expect(countImageBlocks(out)).toBe(0);
     expect(collectPlaceholders(out)).toHaveLength(2);

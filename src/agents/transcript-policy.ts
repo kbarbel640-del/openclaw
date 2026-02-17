@@ -1,6 +1,6 @@
 import { normalizeProviderId } from "./model-selection.js";
-import { DEFAULT_MAX_HISTORY_IMAGES } from "./pi-embedded-helpers/images.js";
 import { isAntigravityClaude, isGoogleModelApi } from "./pi-embedded-helpers/google.js";
+import { DEFAULT_MAX_HISTORY_IMAGES } from "./pi-embedded-helpers/images.js";
 import type { ToolCallIdMode } from "./tool-call-id.js";
 
 export type TranscriptSanitizeMode = "full" | "images-only";
