@@ -14,6 +14,7 @@ import { MediaStreamHandler } from "./media-stream.js";
 import type { VoiceCallProvider } from "./providers/base.js";
 import { OpenAIRealtimeSTTProvider } from "./providers/stt-openai-realtime.js";
 import type { TwilioProvider } from "./providers/twilio.js";
+import { SilenceFiller } from "./silence-filler.js";
 import type { NormalizedEvent, WebhookContext } from "./types.js";
 
 const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
@@ -32,6 +33,12 @@ export class VoiceCallWebhookServer {
 
   /** Media stream handler for bidirectional audio (when streaming enabled) */
   private mediaStreamHandler: MediaStreamHandler | null = null;
+
+  /** Silence filler — plays ambient SFX while agent is working */
+  private silenceFiller: SilenceFiller | null = null;
+
+  /** Maps callSid → streamSid for silence filler routing */
+  private callStreamSids = new Map<string, string>();
 
   constructor(
     config: VoiceCallConfig,
@@ -131,16 +138,22 @@ export class VoiceCallWebhookServer {
           });
         }
       },
-      onSpeechStart: (_providerCallId) => {
-        // VAD speech start — intentionally no barge-in here to avoid
-        // false triggers from background noise. Barge-in is handled
-        // in onPartialTranscript when actual speech is recognized.
+      onSpeechStart: (providerCallId) => {
+        // Only stop silence filler on VAD speech start (not TTS — too noise-sensitive)
+        const streamSid = this.callStreamSids.get(providerCallId);
+        if (streamSid) {
+          this.silenceFiller?.stop(streamSid);
+        }
       },
       onPartialTranscript: (callId, partial) => {
         console.log(`[voice-call] Partial for ${callId}: ${partial}`);
         // Barge-in: clear TTS when actual speech is recognized (not just VAD noise)
         if (this.provider.name === "twilio") {
           (this.provider as TwilioProvider).clearTtsQueue(callId);
+        }
+        const streamSid = this.callStreamSids.get(callId);
+        if (streamSid) {
+          this.mediaStreamHandler?.clearTtsQueue(streamSid);
         }
       },
       onConnect: (callId, streamSid) => {
@@ -149,6 +162,8 @@ export class VoiceCallWebhookServer {
         if (this.provider.name === "twilio") {
           (this.provider as TwilioProvider).registerCallStream(callId, streamSid);
         }
+        // Track for silence filler
+        this.callStreamSids.set(callId, streamSid);
 
         // Speak initial message if one was provided when call was initiated
         // Use setTimeout to allow stream setup to complete
@@ -174,10 +189,21 @@ export class VoiceCallWebhookServer {
         if (this.provider.name === "twilio") {
           (this.provider as TwilioProvider).unregisterCallStream(callId);
         }
+        // Clean up silence filler
+        const streamSid = this.callStreamSids.get(callId);
+        if (streamSid) {
+          this.silenceFiller?.stop(streamSid);
+        }
+        this.callStreamSids.delete(callId);
       },
     };
 
     this.mediaStreamHandler = new MediaStreamHandler(streamConfig);
+    this.silenceFiller = new SilenceFiller(this.mediaStreamHandler, {
+      thresholdMs: this.config.silenceFiller?.thresholdMs,
+      sfxSet: this.config.silenceFiller?.sfxSet,
+      enabled: this.config.silenceFiller?.enabled,
+    });
     console.log("[voice-call] Media streaming initialized");
   }
 
@@ -400,6 +426,14 @@ export class VoiceCallWebhookServer {
       return;
     }
 
+    // Start silence filler while waiting for the LLM / tool calls
+    const streamSid = call.providerCallId
+      ? this.callStreamSids.get(call.providerCallId)
+      : undefined;
+    if (streamSid) {
+      this.silenceFiller?.start(streamSid);
+    }
+
     try {
       const { generateVoiceResponse } = await import("./response-generator.js");
 
@@ -412,6 +446,11 @@ export class VoiceCallWebhookServer {
         userMessage,
       });
 
+      // Stop filler before speaking the response
+      if (streamSid) {
+        this.silenceFiller?.stop(streamSid);
+      }
+
       if (result.error) {
         console.error(`[voice-call] Response generation error: ${result.error}`);
         return;
@@ -420,8 +459,17 @@ export class VoiceCallWebhookServer {
       if (result.text) {
         console.log(`[voice-call] AI response: "${result.text}"`);
         await this.manager.speak(callId, result.text);
+
+        // Restart filler after speaking (in case next turn also needs tools)
+        if (streamSid) {
+          this.silenceFiller?.start(streamSid);
+        }
       }
     } catch (err) {
+      // Stop filler on error too
+      if (streamSid) {
+        this.silenceFiller?.stop(streamSid);
+      }
       console.error(`[voice-call] Auto-response error:`, err);
     }
   }
