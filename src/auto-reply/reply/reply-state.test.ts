@@ -283,7 +283,7 @@ describe("shouldRunMemoryFlush", () => {
     ).toBe(true);
   });
 
-  it("ignores stale cached totals", () => {
+  it("falls back to stale totals when freshness is missing to avoid skipping flush", () => {
     expect(
       shouldRunMemoryFlush({
         entry: { totalTokens: 96_000, totalTokensFresh: false, compactionCount: 1 },
@@ -291,7 +291,7 @@ describe("shouldRunMemoryFlush", () => {
         reserveTokensFloor: 5_000,
         softThresholdTokens: 2_000,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 

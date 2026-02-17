@@ -119,7 +119,9 @@ export function shouldRunMemoryFlush(params: {
   reserveTokensFloor: number;
   softThresholdTokens: number;
 }): boolean {
-  const totalTokens = resolveFreshSessionTotalTokens(params.entry);
+  // Prefer fresh totals, but fall back to stale totals as a lower bound to avoid
+  // skipping the flush when compaction is imminent but freshness metadata is missing.
+  const totalTokens = resolveFreshSessionTotalTokens(params.entry) ?? params.entry?.totalTokens;
   if (!totalTokens || totalTokens <= 0) {
     return false;
   }
