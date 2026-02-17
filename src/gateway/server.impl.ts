@@ -702,6 +702,7 @@ export async function startGatewayServer(
     tickInterval,
     healthInterval,
     dedupeCleanup,
+    modelCatalogRefresh: null,
     agentUnsub,
     heartbeatUnsub,
     chatRunState,

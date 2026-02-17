@@ -6,7 +6,6 @@ import { detectProviders, getUsage, type UsagePeriod } from "../../commands/prov
 import {
   ErrorCodes,
   errorShape,
-  formatValidationErrors,
   validateProvidersListParams,
   validateProvidersUsageParams,
 } from "../protocol/index.js";
@@ -21,10 +20,7 @@ export const providersHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid providers.list params: ${formatValidationErrors(validateProvidersListParams.errors)}`,
-        ),
+        errorShape(ErrorCodes.INVALID_REQUEST, "invalid providers.list params"),
       );
       return;
     }
@@ -50,10 +46,7 @@ export const providersHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid providers.usage params: ${formatValidationErrors(validateProvidersUsageParams.errors)}`,
-        ),
+        errorShape(ErrorCodes.INVALID_REQUEST, "invalid providers.usage params"),
       );
       return;
     }

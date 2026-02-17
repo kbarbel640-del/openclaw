@@ -344,7 +344,7 @@ async function querySecurityEventsFromPg(
     LIMIT ${limit} OFFSET ${offset}
   `;
 
-  return rows.map((row) => pgRowToSecurityEvent(row));
+  return rows.map((row: Record<string, unknown>) => pgRowToSecurityEvent(row));
 }
 
 /** Convert a PG row back to a SecurityEvent. */

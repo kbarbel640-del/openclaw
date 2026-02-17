@@ -42,6 +42,7 @@ import {
   errorShape,
   formatValidationErrors,
   PROTOCOL_VERSION,
+  type RequestFrame,
   validateConnectParams,
   validateRequestFrame,
 } from "../../protocol/index.js";
@@ -206,7 +207,7 @@ export function attachGatewayWsMessageHandler(params: {
         if (
           !isRequestFrame ||
           parsed.method !== "connect" ||
-          !validateConnectParams(parsed.params)
+          !validateConnectParams((parsed as RequestFrame).params)
         ) {
           const handshakeError = isRequestFrame
             ? parsed.method === "connect"
@@ -242,7 +243,7 @@ export function attachGatewayWsMessageHandler(params: {
           return;
         }
 
-        const frame = parsed;
+        const frame = parsed as RequestFrame;
         const connectParams = frame.params as ConnectParams;
         const clientLabel = connectParams.client.displayName ?? connectParams.client.id;
 

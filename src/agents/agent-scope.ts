@@ -30,6 +30,8 @@ type ResolvedAgentConfig = {
   subagents?: AgentEntry["subagents"];
   sandbox?: AgentEntry["sandbox"];
   tools?: AgentEntry["tools"];
+  role?: string;
+  expertise?: string[];
 };
 
 let defaultAgentWarned = false;
@@ -128,6 +130,13 @@ export function resolveAgentConfig(
     subagents: typeof entry.subagents === "object" && entry.subagents ? entry.subagents : undefined,
     sandbox: entry.sandbox,
     tools: entry.tools,
+    role:
+      typeof (entry as Record<string, unknown>).role === "string"
+        ? ((entry as Record<string, unknown>).role as string)
+        : undefined,
+    expertise: Array.isArray((entry as Record<string, unknown>).expertise)
+      ? ((entry as Record<string, unknown>).expertise as string[])
+      : undefined,
   };
 }
 

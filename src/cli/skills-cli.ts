@@ -88,6 +88,7 @@ export function registerSkillsCli(program: Command) {
       try {
         const config = loadConfig();
         const workspaceDir = resolveAgentWorkspaceDir(config, resolveDefaultAgentId(config));
+        const { buildWorkspaceSkillStatus } = await import("../agents/skills-status.js");
         const report = buildWorkspaceSkillStatus(workspaceDir, { config });
         defaultRuntime.log(formatSkillsCheck(report, opts));
       } catch (err) {

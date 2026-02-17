@@ -1,6 +1,8 @@
 import { html, nothing } from "lit";
+import type { AgentResourcesResult } from "../controllers/agent-resources.ts";
 import type {
   AgentIdentityResult,
+  AgentHierarchyResult,
   AgentsFilesListResult,
   AgentsListResult,
   ChannelsStatusSnapshot,
@@ -28,7 +30,14 @@ import {
   resolveModelPrimary,
 } from "./agents-utils.ts";
 
-export type AgentsPanel = "overview" | "files" | "tools" | "skills" | "channels" | "cron";
+export type AgentsPanel =
+  | "overview"
+  | "files"
+  | "tools"
+  | "skills"
+  | "channels"
+  | "cron"
+  | "hierarchy";
 
 export type AgentsProps = {
   loading: boolean;
@@ -84,6 +93,13 @@ export type AgentsProps = {
   onAgentSkillToggle: (agentId: string, skillName: string, enabled: boolean) => void;
   onAgentSkillsClear: (agentId: string) => void;
   onAgentSkillsDisableAll: (agentId: string) => void;
+  agentResourcesData?: AgentResourcesResult | null;
+  agentResourcesLoading?: boolean;
+  agentHierarchyLoading?: boolean;
+  agentHierarchyError?: string | null;
+  agentHierarchyData?: AgentHierarchyResult | null;
+  onHierarchyRefresh?: () => void;
+  onHierarchyNodeClick?: (sessionKey: string) => void;
 };
 
 export type AgentContext = {

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { OpenClawPluginApi, ProviderAuthContext } from "openclaw/plugin-sdk";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 
 // OAuth constants (from Anthropic's public PKCE client)
@@ -168,7 +169,7 @@ const anthropicAuthPlugin = {
   name: "Anthropic OAuth",
   description: "OAuth flow for Anthropic (Claude Pro/Max subscription)",
   configSchema: emptyPluginConfigSchema(),
-  register(api) {
+  register(api: OpenClawPluginApi) {
     api.registerProvider({
       id: PROVIDER_ID,
       label: PROVIDER_LABEL,
@@ -180,7 +181,7 @@ const anthropicAuthPlugin = {
           label: "Anthropic OAuth",
           hint: "Sign in with Claude Pro/Max",
           kind: "oauth",
-          run: async (ctx) => {
+          run: async (ctx: ProviderAuthContext) => {
             const spin = ctx.prompter.progress("Starting Anthropic OAuth...");
             try {
               const result = await loginAnthropic({

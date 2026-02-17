@@ -1,6 +1,5 @@
 import { html } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { until } from "lit/directives/until.js";
 import { icons } from "../icons.ts";
 import { toSanitizedMarkdownHtml } from "../markdown.ts";
 
@@ -30,12 +29,7 @@ export function renderMarkdownSidebar(props: MarkdownSidebarProps) {
               </button>
             `
             : props.content
-              ? html`<div class="sidebar-markdown">${until(
-                  toSanitizedMarkdownHtml(props.content).then((html) => unsafeHTML(html)),
-                  html`
-                    <span>Loading...</span>
-                  `,
-                )}</div>`
+              ? html`<div class="sidebar-markdown">${unsafeHTML(toSanitizedMarkdownHtml(props.content))}</div>`
               : html`
                   <div class="muted">No content available</div>
                 `

@@ -11,6 +11,19 @@ import {
 } from "./subagent-registry.store.js";
 import { resolveAgentTimeoutMs } from "./timeout.js";
 
+export type SubagentUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  toolCalls: number;
+};
+
+export type SubagentProgressRecord = {
+  percent: number;
+  status: string;
+  detail?: string;
+  lastUpdate: number;
+};
+
 export type SubagentRunRecord = {
   runId: string;
   childSessionKey: string;
@@ -34,6 +47,10 @@ export type SubagentRunRecord = {
   announceRetryCount?: number;
   /** Timestamp of the last announce retry attempt (for backoff). */
   lastAnnounceRetryAt?: number;
+  /** Real-time progress reported by the subagent. */
+  progress?: SubagentProgressRecord;
+  /** Token and tool usage accumulated during the run. */
+  usage?: SubagentUsage;
 };
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
@@ -570,6 +587,31 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
   }
 }
 
+export function getSubagentRunById(runId: string): SubagentRunRecord | undefined {
+  const key = runId.trim();
+  if (!key) {
+    return undefined;
+  }
+  return subagentRuns.get(key);
+}
+
+export function getSubagentRunBySessionKey(childSessionKey: string): SubagentRunRecord | undefined {
+  const key = childSessionKey.trim();
+  if (!key) {
+    return undefined;
+  }
+  let best: SubagentRunRecord | undefined;
+  for (const entry of subagentRuns.values()) {
+    if (entry.childSessionKey !== key) {
+      continue;
+    }
+    if (!best || entry.createdAt > best.createdAt) {
+      best = entry;
+    }
+  }
+  return best;
+}
+
 export function resetSubagentRegistryForTests(opts?: { persist?: boolean }) {
   subagentRuns.clear();
   resumedRuns.clear();
@@ -823,12 +865,25 @@ const lastNudgeMap = new Map<string, number>();
 const WATCHDOG_STALL_THRESHOLD_MS = 5 * 60_000; // 5 minutes with no progress
 const WATCHDOG_NUDGE_COOLDOWN_MS = 5 * 60_000; // Don't nudge same run within 5 minutes
 
-export function updateSubagentProgress(runId: string, update: { percent: number; status: string }) {
+export function updateSubagentProgress(
+  runId: string,
+  update: { percent: number; status: string; detail?: string },
+) {
+  const now = Date.now();
   progressMap.set(runId, {
     percent: update.percent,
     status: update.status,
-    updatedAt: Date.now(),
+    updatedAt: now,
   });
+  const entry = subagentRuns.get(runId);
+  if (entry) {
+    entry.progress = {
+      percent: update.percent,
+      status: update.status,
+      detail: update.detail,
+      lastUpdate: now,
+    };
+  }
 }
 
 /**

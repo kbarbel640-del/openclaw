@@ -399,6 +399,12 @@ export function formatValidationErrors(errors: ErrorObject[] | null | undefined)
 // Zod-based validators for schemas not compiled through AJV.
 import { FsPickDirectoryParamsSchema } from "./schema/fs.js";
 import { ProjectsListParamsSchema } from "./schema/projects.js";
+import {
+  ProvidersListParamsSchema,
+  ProvidersUsageParamsSchema,
+  type ProvidersListParams,
+  type ProvidersUsageParams,
+} from "./schema/providers.js";
 
 export function validateFsPickDirectoryParams(data: unknown): boolean {
   return FsPickDirectoryParamsSchema.safeParse(data).success;
@@ -421,6 +427,13 @@ export const validateModelsCooldownsParams: {
   },
   { errors: null as import("ajv").ErrorObject[] | null },
 );
+
+export function validateProvidersListParams(data: unknown): data is ProvidersListParams {
+  return ProvidersListParamsSchema.safeParse(data).success;
+}
+export function validateProvidersUsageParams(data: unknown): data is ProvidersUsageParams {
+  return ProvidersUsageParamsSchema.safeParse(data).success;
+}
 
 export {
   ConnectParamsSchema,

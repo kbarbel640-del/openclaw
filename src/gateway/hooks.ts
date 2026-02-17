@@ -231,6 +231,7 @@ export type HookAgentPayload = {
   model?: string;
   thinking?: string;
   timeoutSeconds?: number;
+  allowUnsafeExternalContent?: boolean;
 };
 
 const listHookChannelValues = () => ["last", ...listChannelPlugins().map((plugin) => plugin.id)];

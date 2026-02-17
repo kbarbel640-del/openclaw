@@ -185,7 +185,6 @@ async function spawnSingleTask(params: {
     childSessionKey,
     label,
     task: task.task,
-    cleanup,
   });
 
   const childIdem = crypto.randomUUID();
@@ -233,7 +232,7 @@ async function spawnSingleTask(params: {
     requesterOrigin,
     requesterDisplayKey,
     task: task.task,
-    cleanup,
+    cleanup: cleanup === "delete" ? "delete" : "keep",
     label,
     runTimeoutSeconds,
   });

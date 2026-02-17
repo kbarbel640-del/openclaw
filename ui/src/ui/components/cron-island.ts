@@ -30,11 +30,10 @@ export class CronIsland extends LitElement {
     wakeMode: "next-heartbeat",
     payloadKind: "systemEvent",
     payloadText: "",
-    deliver: false,
-    channel: "last",
-    to: "",
-    timeoutSeconds: "120",
-    postToMainPrefix: "",
+    deliveryMode: "none",
+    deliveryChannel: "last",
+    deliveryTo: "",
+    timeoutSeconds: "",
   };
 
   createRenderRoot() {
@@ -87,11 +86,10 @@ export class CronIsland extends LitElement {
         wakeMode: "next-heartbeat",
         payloadKind: "systemEvent",
         payloadText: "",
-        deliver: false,
-        channel: "last",
-        to: "",
-        timeoutSeconds: "120",
-        postToMainPrefix: "",
+        deliveryMode: "none",
+        deliveryChannel: "last",
+        deliveryTo: "",
+        timeoutSeconds: "",
       };
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
@@ -151,6 +149,7 @@ export class CronIsland extends LitElement {
 
   render() {
     const props: CronProps = {
+      basePath: "",
       loading: this.loading,
       status: this.status,
       jobs: this.jobs,

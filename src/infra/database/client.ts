@@ -137,7 +137,7 @@ export async function runMigrations(): Promise<void> {
   const applied = await db<{ name: string }[]>`
     SELECT name FROM migrations ORDER BY id
   `;
-  const appliedNames = new Set(applied.map((m) => m.name));
+  const appliedNames = new Set(applied.map((m: { name: string }) => m.name));
 
   // Define migrations in order
   const migrations: { name: string; up: string }[] = [

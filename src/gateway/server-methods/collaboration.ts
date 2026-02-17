@@ -1687,7 +1687,7 @@ export const collaborationHandlers: GatewayRequestHandlers = {
         requesterSessionKey,
         requesterDisplayKey: requesterSessionKey, // transform if needed
         task: p.task,
-        cleanup: "idle",
+        cleanup: "keep",
         runTimeoutSeconds: p.timeout,
       });
 

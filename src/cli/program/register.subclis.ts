@@ -289,6 +289,7 @@ const entries: SubCliEntry[] = [
   {
     name: "providers",
     description: "LLM provider detection and usage monitoring",
+    hasSubcommands: false,
     register: async (program) => {
       const mod = await import("../providers-cli.js");
       mod.registerProvidersCli(program);

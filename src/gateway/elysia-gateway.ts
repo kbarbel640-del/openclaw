@@ -34,7 +34,7 @@ export type HookDispatchers = {
     message: string;
     name: string;
     wakeMode: "now" | "next-heartbeat";
-    sessionKey: string;
+    sessionKey?: string;
     deliver: boolean;
     channel: HookMessageChannel;
     to?: string;

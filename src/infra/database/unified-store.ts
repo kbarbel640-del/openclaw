@@ -199,7 +199,7 @@ export async function queryUsageUnified(params: {
           ORDER BY SUM(cost_usd) DESC NULLS LAST, COUNT(*) DESC
         `;
 
-        return rows.map((row) => ({
+        return rows.map((row: AggRow) => ({
           providerId: row.provider_id,
           modelId: row.model_id,
           requests: parseInt(row.requests, 10),

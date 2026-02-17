@@ -11,7 +11,7 @@ import {
   type ChannelMessageActionName,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
-import { mattermostMessageActions } from "./actions.js";
+// mattermostMessageActions is declared locally below
 import { MattermostConfigSchema } from "./config-schema.js";
 import { resolveMattermostGroupRequireMention } from "./group-mentions.js";
 import {
@@ -241,7 +241,6 @@ export const mattermostPlugin: ChannelPlugin<ResolvedMattermostAccount> = {
   groups: {
     resolveRequireMention: resolveMattermostGroupRequireMention,
   },
-  actions: mattermostMessageActions,
   messaging: {
     normalizeTarget: normalizeMattermostMessagingTarget,
     targetResolver: {

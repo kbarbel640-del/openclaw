@@ -331,11 +331,7 @@ export function handleControlUiHttpRequest(
   if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
     const dirIndex = path.join(filePath, "index.html");
     if (fs.existsSync(dirIndex)) {
-      serveIndexHtml(res, dirIndex, {
-        basePath,
-        config: opts?.config,
-        agentId: opts?.agentId,
-      });
+      serveIndexHtml(res, dirIndex);
       return true;
     }
   }

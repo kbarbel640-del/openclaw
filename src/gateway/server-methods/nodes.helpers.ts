@@ -1,10 +1,10 @@
+import type { ErrorObject } from "ajv";
 import { ErrorCodes, errorShape, formatValidationErrors } from "../protocol/index.js";
-import type { AjvLikeError } from "../protocol/zod-validator.js";
 import { formatForLog } from "../ws-log.js";
 import type { RespondFn } from "./types.js";
 
 type ValidatorFn = ((value: unknown) => boolean) & {
-  errors?: AjvLikeError[] | null;
+  errors?: ErrorObject[] | null;
 };
 
 export function respondInvalidParams(params: {

@@ -68,7 +68,7 @@ export class McpClientManager {
       transport = new StdioClientTransport({
         command: config.command,
         args: config.args ?? [],
-        env: { ...cleanEnv, ...(config.env ?? {}) },
+        env: { ...cleanEnv, ...config.env },
       });
     } else if (config.type === "sse") {
       if (!config.url) {
@@ -105,7 +105,9 @@ export class McpClientManager {
     const allTools: AnyAgentTool[] = [];
 
     for (const [serverName, active] of this.clients.entries()) {
-      if (active.tools.length === 0) continue;
+      if (active.tools.length === 0) {
+        continue;
+      }
 
       const callFn = async (
         _serverName: string,

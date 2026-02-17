@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { gateway } from "../../services/gateway.ts";
-import { renderUsage, type UsageProps } from "../views/usage.ts";
+import { renderUsage } from "../views/usage.ts";
 
 type PeriodType = "24h" | "7d" | "30d" | "all";
 
@@ -63,16 +63,16 @@ export class UsageIsland extends LitElement {
   }
 
   render() {
-    const props: UsageProps = {
+    const props = {
       loading: this.loading,
       error: this.error,
       status: this.status,
       cost: this.cost,
       period: this.period,
-      onPeriodChange: (p) => void this.handlePeriodChange(p),
+      onPeriodChange: (p: PeriodType) => void this.handlePeriodChange(p),
       onRefresh: () => void this.handleRefresh(),
     };
 
-    return html`${renderUsage(props)}`;
+    return html`${renderUsage(props as unknown as Parameters<typeof renderUsage>[0])}`;
   }
 }

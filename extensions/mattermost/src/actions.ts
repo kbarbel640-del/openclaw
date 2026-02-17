@@ -191,6 +191,9 @@ export const mattermostMessageActions: ChannelMessageActionAdapter = {
       cfg,
     );
 
-    return { content: result.content };
+    return {
+      content: [{ type: "text" as const, text: result.content }],
+      details: null,
+    };
   },
 };

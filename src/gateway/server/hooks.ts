@@ -33,7 +33,7 @@ function buildDispatchers(params: { deps: CliDeps; logHooks: SubsystemLogger }) 
     name: string;
     agentId?: string;
     wakeMode: "now" | "next-heartbeat";
-    sessionKey: string;
+    sessionKey?: string;
     deliver: boolean;
     channel: HookMessageChannel;
     to?: string;
@@ -42,7 +42,7 @@ function buildDispatchers(params: { deps: CliDeps; logHooks: SubsystemLogger }) 
     timeoutSeconds?: number;
     allowUnsafeExternalContent?: boolean;
   }) => {
-    const sessionKey = value.sessionKey.trim();
+    const sessionKey = value.sessionKey?.trim() ?? "";
     const mainSessionKey = resolveMainSessionKeyFromConfig();
     const jobId = randomUUID();
     const now = Date.now();

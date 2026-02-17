@@ -1083,7 +1083,7 @@ export const chatHandlers: GatewayRequestHandlers = {
  * sessions.
  */
 export function injectChatMessage(params: {
-  context: GatewayRequestContext;
+  context: Pick<GatewayRequestContext, "broadcast" | "nodeSendToSession">;
   sessionKey: string;
   message: string;
   label?: string;

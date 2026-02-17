@@ -30,6 +30,9 @@ export type SessionsProps = {
     },
   ) => void;
   onDelete: (key: string) => void;
+  onPreview?: (key: string) => void;
+  onReset?: (key: string) => void;
+  onCompact?: (key: string) => void;
 };
 
 const THINK_LEVELS = ["", "off", "minimal", "low", "medium", "high", "xhigh"] as const;
