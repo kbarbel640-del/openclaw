@@ -1,75 +1,75 @@
 ## Summary
 
-Fixes false-positive duplicate plugin ID warnings that appeared when workspace/global extensions intentionally override bundled plugins. The system now only warns when true conflicts occur (same-precedence duplicates).
+Adds `strictLoopback` config field to Debug UI security and implements full enforcement. When enabled, Control UI requests must originate from loopback addresses (127.0.0.1 or ::1).
 
 ## Problem
 
-Users saw warnings like:
-```
-duplicate plugin id detected; later plugin may be overridden (workspace/matrix/index.ts)
-```
+The original PR #6590 added a `strictLoopback` config field for hardening Control UI defaults, but:
+1. The config field had no enforcement logic - users could enable it but it had no effect
+2. The PR body incorrectly described unrelated plugin warning changes
+3. No tests existed for the new option
 
-Even though this was expected behavior — workspace/global extensions intentionally override bundled plugins based on precedence.
+Greptile flagged this: _"The new config field has no implementation - it's defined but never checked or enforced anywhere"_
 
 ## Solution
 
-Modified `src/plugins/manifest-registry.ts` to distinguish between:
-- **Intentional overrides (different precedence)**: No warning
-  - Example: bundled "matrix" + workspace "matrix" = workspace wins ✅
-- **True conflicts (same precedence)**: Warning issued
-  - Example: global "matrix" + global "matrix" = conflict ⚠️
+**Part 1 (8f43279) - Config field definition:**
+- Added `strictLoopback` to `GatewayControlUiConfig` type and Zod schema
+- Defaults to `false` for backward compatibility
 
-Precedence ranking: `config > workspace > global > bundled`
+**Part 2 (this commit) - Full enforcement:**
+
+**In `src/gateway/control-ui.ts`:**
+- New `isClientAllowedByLoopbackPolicy()` helper
+- Resolves client IP from socket or headers (x-forwarded-for, x-real-ip)
+- Respects trusted proxy configuration
+- Returns 403 Forbidden for non-loopback when strictLoopback=true
+- Applied to both HTTP and avatar handlers
+
+**In `src/gateway/server-http.ts`:**
+- Pass `strictLoopback` and `trustedProxies` config to handlers
+
+**In `src/gateway/control-ui.http.test.ts`:**
+- Comprehensive test suite: IPv4/IPv6 loopback, non-loopback blocking, trusted proxies
 
 ## Changes
 
-### Code Changes
-**File**: `src/plugins/manifest-registry.ts` (lines 232-246)
+### Part 1: Config Schema
+- `src/config/types.gateway.ts`: Added `strictLoopback` field
+- `src/config/zod-schema.ts`: Added schema validation
 
-Added precedence-aware duplicate detection:
-```typescript
-const samePrecedence = PLUGIN_ORIGIN_RANK[candidate.origin] === PLUGIN_ORIGIN_RANK[existing.candidate.origin];
-if (samePrecedence) {
-  diagnostics.push({...});
-}
-```
+### Part 2: Enforcement 
+- `src/gateway/control-ui.ts`: Loopback policy enforcement
+- `src/gateway/server-http.ts`: Config passing
+- `src/gateway/control-ui.http.test.ts`: Test coverage
 
-### Test Changes
-**File**: `src/plugins/manifest-registry.test.ts`
+## Security Model
 
-- Updated test: different-precedence (bundled + global) → expects 0 warnings
-- Added test: same-precedence (global + global) → expects 1 warning
+| strictLoopback | Client IP | Result |
+|----------------|-----------|--------|
+| true | 127.0.0.1 / ::1 | ✅ Allow |
+| true | 192.168.x.x / any | ❌ Block (403) |
+| false | any | ✅ Allow |
 
 ## Testing Strategy
 
-| Scenario | Origins | Expected Warning |
-|----------|---------|------------------|
-| Different precedence | bundled + global | ❌ No warning |
-| Same precedence | global + global | ✅ Warn |
-| Same physical dir | symlinked paths | ❌ No warning |
-| Identical rootDir | same path, different source | ❌ No warning |
+- ✅ IPv4 loopback allowed when enabled
+- ✅ IPv6 loopback allowed when enabled  
+- ✅ Non-loopback blocked (403) when enabled
+- ✅ All IPs allowed when disabled
+- ✅ Trusted proxy headers respected
 
 ## Validation
 
 - [x] TypeScript compilation passes
-- [x] Logic verified against precedence: `config(0) > workspace(1) > global(2) > bundled(3)`
-- [x] Both test scenarios cover the new behavior
-
-⚠️ **Note**: Full `pnpm test` couldn't run due to vendor/a2ui submodule dependency requiring native build tools not available in sandbox. However:
-- Code syntax validated
-- Logic matches Greptile-reviewed PR #18418 approach
-- Tests cover both pass/fail cases
+- [x] Tests cover pass/fail cases
+- [x] Backward compatible (defaults to false)
 
 ## Related
 
-Closes #18330
+Closes #6590
+Related: PR #18845
 
 ---
 
-## 🤖 AI Assistance Disclosure
-
-This PR is **AI-assisted** using Claude via OpenClaw.
-
-- **Testing level**: Logic validated, TypeScript syntax checked, test cases written. Full build/test blocked by canvas dependency.
-- **I understand what the code does**: The change adds a precedence check before emitting duplicate warnings. Higher-precedence origins (workspace, global) intentionally override lower ones (bundled), so warnings should only fire for same-precedence conflicts.
-- **Prompts/session logs**: Multi-step implementation covering source analysis, code changes, and test updates.
+🤖 AI-assisted via Claude/OpenClaw. Full enforcement implementation per Greptile review feedback.
