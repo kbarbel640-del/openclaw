@@ -643,7 +643,7 @@ const ERROR_PATTERNS = {
     /\beconnrefused\b/i,
     /\bnetwork\s+(?:is\s+)?unreachable\b/i,
     /\bconnection\s+refused\b/i,
-    /\bgetaddrinfo\b.*\bfailed\b/i,
+    /\bgetaddrinfo\b/i,
     /\bfetch\s+failed\b/i,
     /\bno\s+(?:network|internet)\s+connection\b/i,
     /\bdns\s+(?:lookup|resolution)\s+failed\b/i,
