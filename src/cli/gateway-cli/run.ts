@@ -20,6 +20,7 @@ import { setConsoleSubsystemFilter, setConsoleTimestampPrefix } from "../../logg
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { defaultRuntime } from "../../runtime.js";
 import { formatCliCommand } from "../command-format.js";
+import { inheritOptionFromParent } from "../command-options.js";
 import { forceFreePortAndWait } from "../ports.js";
 import { ensureDevGatewayConfig } from "./dev.js";
 import { runGatewayLoop } from "./run-loop.js";
@@ -52,6 +53,49 @@ type GatewayRunOpts = {
 };
 
 const gatewayLog = createSubsystemLogger("gateway");
+
+function resolveGatewayRunOptions(opts: GatewayRunOpts, command?: Command): GatewayRunOpts {
+  const parentPort = inheritOptionFromParent<string>(command, "port");
+  const parentBind = inheritOptionFromParent<string>(command, "bind");
+  const parentToken = inheritOptionFromParent<string>(command, "token");
+  const parentAuth = inheritOptionFromParent<string>(command, "auth");
+  const parentPassword = inheritOptionFromParent<string>(command, "password");
+  const parentTailscale = inheritOptionFromParent<string>(command, "tailscale");
+  const parentTailscaleResetOnExit = inheritOptionFromParent<boolean>(
+    command,
+    "tailscaleResetOnExit",
+  );
+  const parentAllowUnconfigured = inheritOptionFromParent<boolean>(command, "allowUnconfigured");
+  const parentDev = inheritOptionFromParent<boolean>(command, "dev");
+  const parentReset = inheritOptionFromParent<boolean>(command, "reset");
+  const parentForce = inheritOptionFromParent<boolean>(command, "force");
+  const parentVerbose = inheritOptionFromParent<boolean>(command, "verbose");
+  const parentClaudeCliLogs = inheritOptionFromParent<boolean>(command, "claudeCliLogs");
+  const parentWsLog = inheritOptionFromParent<string>(command, "wsLog");
+  const parentCompact = inheritOptionFromParent<boolean>(command, "compact");
+  const parentRawStream = inheritOptionFromParent<boolean>(command, "rawStream");
+  const parentRawStreamPath = inheritOptionFromParent<string>(command, "rawStreamPath");
+  return {
+    ...opts,
+    port: opts.port ?? parentPort,
+    bind: opts.bind ?? parentBind,
+    token: opts.token ?? parentToken,
+    auth: opts.auth ?? parentAuth,
+    password: opts.password ?? parentPassword,
+    tailscale: opts.tailscale ?? parentTailscale,
+    tailscaleResetOnExit: Boolean(opts.tailscaleResetOnExit || parentTailscaleResetOnExit),
+    allowUnconfigured: Boolean(opts.allowUnconfigured || parentAllowUnconfigured),
+    dev: Boolean(opts.dev || parentDev),
+    reset: Boolean(opts.reset || parentReset),
+    force: Boolean(opts.force || parentForce),
+    verbose: Boolean(opts.verbose || parentVerbose),
+    claudeCliLogs: Boolean(opts.claudeCliLogs || parentClaudeCliLogs),
+    wsLog: parentWsLog ?? opts.wsLog,
+    compact: Boolean(opts.compact || parentCompact),
+    rawStream: Boolean(opts.rawStream || parentRawStream),
+    rawStreamPath: opts.rawStreamPath ?? parentRawStreamPath,
+  };
+}
 
 async function runGatewayCommand(opts: GatewayRunOpts) {
   const isDevProfile = process.env.OPENCLAW_PROFILE?.trim().toLowerCase() === "dev";
@@ -353,7 +397,7 @@ export function addGatewayRunCommand(cmd: Command): Command {
     .option("--compact", 'Alias for "--ws-log compact"', false)
     .option("--raw-stream", "Log raw model stream events to jsonl", false)
     .option("--raw-stream-path <path>", "Raw stream jsonl path")
-    .action(async (opts) => {
-      await runGatewayCommand(opts);
+    .action(async (opts, command) => {
+      await runGatewayCommand(resolveGatewayRunOptions(opts, command));
     });
 }
