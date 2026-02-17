@@ -17,7 +17,8 @@ export const msteamsOutbound: ChannelOutboundAdapter = {
   sendMedia: async ({ cfg, to, text, mediaUrl, buffer, deps }) => {
     const send =
       deps?.sendMSTeams ??
-      ((to, text, opts) => sendMessageMSTeams({ cfg, to, text, mediaUrl: opts?.mediaUrl, buffer: opts?.buffer }));
+      ((to, text, opts) =>
+        sendMessageMSTeams({ cfg, to, text, mediaUrl: opts?.mediaUrl, buffer: opts?.buffer }));
     const result = await send(to, text, { mediaUrl, buffer });
     return { channel: "msteams", ...result };
   },
