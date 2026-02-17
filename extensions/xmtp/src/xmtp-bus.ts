@@ -123,6 +123,16 @@ export async function startXmtpBus(options: XmtpBusOptions): Promise<XmtpBusHand
 
   const agentAddress = agent.address ?? user.account.address.toLowerCase();
 
+  agent.on("conversation", async (ctx) => {
+    try {
+      if (ctx.isDM(ctx.conversation)) {
+        ctx.conversation.updateConsentState("allowed");
+      }
+    } catch (err) {
+      onError?.(err as Error, "auto-consent conversation");
+    }
+  });
+
   agent.on("text", async (ctx) => {
     try {
       const senderAddressRaw = await ctx.getSenderAddress();

@@ -195,6 +195,46 @@ describe("startXmtpBus", () => {
     await bus.close();
   });
 
+  it("auto-consents to new DM conversations", async () => {
+    const updateConsentState = vi.fn();
+    const bus = await startXmtpBus({
+      walletKey: TEST_WALLET_KEY,
+      dbEncryptionKey: TEST_DB_KEY,
+      env: "dev",
+      dbPath: "/tmp/openclaw-xmtp-bus-test",
+      onMessage: vi.fn(async () => {}),
+    });
+
+    await xmtpMock.emit("conversation", {
+      conversation: { id: "conv-1", updateConsentState },
+      isDM: (_conv: unknown) => true,
+    });
+
+    expect(updateConsentState).toHaveBeenCalledWith("allowed");
+
+    await bus.close();
+  });
+
+  it("does not auto-consent to group conversations", async () => {
+    const updateConsentState = vi.fn();
+    const bus = await startXmtpBus({
+      walletKey: TEST_WALLET_KEY,
+      dbEncryptionKey: TEST_DB_KEY,
+      env: "dev",
+      dbPath: "/tmp/openclaw-xmtp-bus-test",
+      onMessage: vi.fn(async () => {}),
+    });
+
+    await xmtpMock.emit("conversation", {
+      conversation: { id: "conv-1", updateConsentState },
+      isDM: (_conv: unknown) => false,
+    });
+
+    expect(updateConsentState).not.toHaveBeenCalled();
+
+    await bus.close();
+  });
+
   it("ignores non-DM text events", async () => {
     const onMessage = vi.fn(async () => {});
     const bus = await startXmtpBus({
