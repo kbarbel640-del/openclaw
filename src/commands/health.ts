@@ -1,10 +1,11 @@
 import { inspect } from "util";
+import type { ChannelAccountSnapshot } from "../channels/plugins/types.js";
+import type { OpenClawConfig } from "../config/config.js";
+import type { RuntimeEnv } from "../runtime.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import { getChannelPlugin, listChannelPlugins } from "../channels/plugins/index.js";
-import type { ChannelAccountSnapshot } from "../channels/plugins/types.js";
 import { withProgress } from "../cli/progress.js";
-import type { OpenClawConfig } from "../config/config.js";
 import { loadConfig } from "../config/config.js";
 import { loadSessionStore, resolveStorePath } from "../config/sessions.js";
 import { buildGatewayConnectionDetails, callGateway } from "../gateway/call.js";
@@ -18,7 +19,6 @@ import {
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { buildChannelAccountBindings, resolvePreferredAccountId } from "../routing/bindings.js";
 import { normalizeAgentId } from "../routing/session-key.js";
-import type { RuntimeEnv } from "../runtime.js";
 import { styleHealthChannelLine } from "../terminal/health-style.js";
 import { isRich } from "../terminal/theme.js";
 
@@ -81,9 +81,9 @@ const debugHealth = (...args: unknown[]) => {
   if (isTruthyEnvValue(process.env.OPENCLAW_DEBUG_HEALTH)) {
     log.warn(
       "[health:debug] " +
-      args
-        .map((a) => (typeof a === "string" ? a : inspect(a, { breakLength: Infinity })))
-        .join(" "),
+        args
+          .map((a) => (typeof a === "string" ? a : inspect(a, { breakLength: Infinity })))
+          .join(" "),
     );
   }
 };
@@ -283,8 +283,8 @@ export const formatHealthChannelLines = (
     const filteredSummaries =
       accountIds && accountIds.length > 0
         ? accountIds
-          .map((accountId) => accountSummaries[accountId])
-          .filter((entry): entry is ChannelAccountHealthSummary => Boolean(entry))
+            .map((accountId) => accountSummaries[accountId])
+            .filter((entry): entry is ChannelAccountHealthSummary => Boolean(entry))
         : undefined;
     const listSummaries =
       accountMode === "all"
@@ -294,12 +294,12 @@ export const formatHealthChannelLines = (
       filteredSummaries && filteredSummaries.length > 0 ? filteredSummaries[0] : channelSummary;
     const botUsernames = listSummaries
       ? listSummaries
-        .map((account) => {
-          const probeRecord = asRecord(account.probe);
-          const bot = probeRecord ? asRecord(probeRecord.bot) : null;
-          return bot && typeof bot.username === "string" ? bot.username : null;
-        })
-        .filter((value): value is string => Boolean(value))
+          .map((account) => {
+            const probeRecord = asRecord(account.probe);
+            const bot = probeRecord ? asRecord(probeRecord.bot) : null;
+            return bot && typeof bot.username === "string" ? bot.username : null;
+          })
+          .filter((value): value is string => Boolean(value))
       : [];
     const linked = typeof baseSummary.linked === "boolean" ? baseSummary.linked : null;
     if (linked !== null) {
@@ -322,8 +322,8 @@ export const formatHealthChannelLines = (
     const accountTimings =
       accountMode === "all"
         ? listSummaries
-          .map((account) => formatAccountProbeTiming(account))
-          .filter((value): value is string => Boolean(value))
+            .map((account) => formatAccountProbeTiming(account))
+            .filter((value): value is string => Boolean(value))
         : [];
     const failedSummary = listSummaries.find((summary) => isProbeFailure(summary));
     if (failedSummary) {
@@ -473,21 +473,21 @@ export async function getHealthSnapshot(params?: {
 
       const summary = plugin.status?.buildChannelSummary
         ? await plugin.status.buildChannelSummary({
-          account,
-          cfg,
-          defaultAccountId: accountId,
-          snapshot,
-        })
+            account,
+            cfg,
+            defaultAccountId: accountId,
+            snapshot,
+          })
         : undefined;
       const record =
         summary && typeof summary === "object"
           ? (summary as ChannelAccountHealthSummary)
           : ({
-            accountId,
-            configured,
-            probe,
-            lastProbeAt,
-          } satisfies ChannelAccountHealthSummary);
+              accountId,
+              configured,
+              probe,
+              lastProbeAt,
+            } satisfies ChannelAccountHealthSummary);
       if (record.configured === undefined) {
         record.configured = configured;
       }
@@ -671,12 +671,12 @@ export async function healthCommand(
     const channelLines =
       Object.keys(accountIdsByChannel).length > 0
         ? formatHealthChannelLines(summary, {
-          accountMode: opts.verbose ? "all" : "default",
-          accountIdsByChannel,
-        })
+            accountMode: opts.verbose ? "all" : "default",
+            accountIdsByChannel,
+          })
         : formatHealthChannelLines(summary, {
-          accountMode: opts.verbose ? "all" : "default",
-        });
+            accountMode: opts.verbose ? "all" : "default",
+          });
     for (const line of channelLines) {
       runtime.log(styleHealthChannelLine(line, rich));
     }
