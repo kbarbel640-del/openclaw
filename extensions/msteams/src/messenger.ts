@@ -471,8 +471,7 @@ export async function sendMSTeamsMessages(params: {
       // "proxy that has been revoked" TypeError.  Fall back to proactive
       // messaging which uses adapter.continueConversation and does not
       // depend on the original request context.
-      const isProxyRevoked =
-        err instanceof TypeError && /proxy.*revoked/i.test(err.message);
+      const isProxyRevoked = err instanceof TypeError && /proxy.*revoked/i.test(err.message);
       if (!isProxyRevoked) {
         throw err;
       }
