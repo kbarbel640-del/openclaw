@@ -267,7 +267,7 @@ describe("applyExtraParamsToAgent", () => {
     const calls: Array<SimpleStreamOptions | undefined> = [];
     const baseStreamFn: StreamFn = (_model, _context, options) => {
       calls.push(options);
-      return { [Symbol.asyncIterator]: async function* () {} } as any;
+      return {} as ReturnType<StreamFn>;
     };
     const agent = { streamFn: baseStreamFn };
 
@@ -288,8 +288,6 @@ describe("applyExtraParamsToAgent", () => {
       },
       "anthropic",
       "claude-opus-4-6",
-      undefined,
-      "anthropic-messages",
     );
 
     const model = {
@@ -309,7 +307,7 @@ describe("applyExtraParamsToAgent", () => {
     const calls: Array<SimpleStreamOptions | undefined> = [];
     const baseStreamFn: StreamFn = (_model, _context, options) => {
       calls.push(options);
-      return { [Symbol.asyncIterator]: async function* () {} } as any;
+      return {} as ReturnType<StreamFn>;
     };
     const agent = { streamFn: baseStreamFn };
 
@@ -351,7 +349,7 @@ describe("applyExtraParamsToAgent", () => {
     const calls: Array<SimpleStreamOptions | undefined> = [];
     const baseStreamFn: StreamFn = (_model, _context, options) => {
       calls.push(options);
-      return { [Symbol.asyncIterator]: async function* () {} } as any;
+      return {} as ReturnType<StreamFn>;
     };
     const agent = { streamFn: baseStreamFn };
 
