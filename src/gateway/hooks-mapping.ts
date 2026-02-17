@@ -150,13 +150,14 @@ export async function applyHookMappings(
   if (mappings.length === 0) {
     return null;
   }
+
+  if (isEmptyGmailEvent(ctx)) {
+    return { ok: true, action: null, skipped: true };
+  }
+  
   for (const mapping of mappings) {
     if (!mappingMatches(mapping, ctx)) {
       continue;
-    }
-
-    if (isEmptyGmailEvent(ctx)) {
-      return { ok: true, action: null, skipped: true };
     }
 
     const base = buildActionFromMapping(mapping, ctx);
