@@ -23,13 +23,7 @@ export function buildInboundMetaSystemPrompt(ctx: TemplateContext): string {
   const payload = {
     schema: "openclaw.inbound_meta.v1",
     message_id: messageId,
-    sticker: ctx.Sticker
-      ? {
-          file_id: ctx.Sticker.fileId,
-          emoji: ctx.Sticker.emoji,
-          set_name: ctx.Sticker.setName,
-        }
-      : undefined,
+    sticker_file_id: ctx.Sticker?.fileId,
     message_id_full: messageIdFull && messageIdFull !== messageId ? messageIdFull : undefined,
     sender_id: safeTrim(ctx.SenderId),
     chat_id: chatId,
@@ -106,6 +100,24 @@ export function buildInboundUserContextPrefix(ctx: TemplateContext): string {
       ["Sender (untrusted metadata):", "```json", JSON.stringify(senderInfo, null, 2), "```"].join(
         "\n",
       ),
+    );
+  }
+
+  if (ctx.Sticker?.emoji || ctx.Sticker?.setName) {
+    blocks.push(
+      [
+        "Sticker context (untrusted, for context):",
+        "```json",
+        JSON.stringify(
+          {
+            emoji: ctx.Sticker.emoji,
+            set_name: ctx.Sticker.setName,
+          },
+          null,
+          2,
+        ),
+        "```",
+      ].join("\n"),
     );
   }
 
