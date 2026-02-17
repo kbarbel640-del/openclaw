@@ -37,7 +37,9 @@ vi.mock("@opentelemetry/api", () => ({
   },
   trace: {
     getTracer: () => telemetryState.tracer,
-    setSpanContext: (_ctx: unknown, _spanContext: unknown) => ({ __parentSpanContext: _spanContext }),
+    setSpanContext: (_ctx: unknown, _spanContext: unknown) => ({
+      __parentSpanContext: _spanContext,
+    }),
   },
   context: {
     active: () => ({}),
@@ -346,13 +348,17 @@ describe("diagnostics-otel service", () => {
     const msgCall = spanCalls.find((call) => call[0] === "openclaw.message.processed");
     expect(msgCall).toBeDefined();
     expect(msgCall![2]).toBeDefined();
-    expect((msgCall![2] as { __parentSpanContext?: { traceId: string } }).__parentSpanContext?.traceId).toBe(traceId);
+    expect(
+      (msgCall![2] as { __parentSpanContext?: { traceId: string } }).__parentSpanContext?.traceId,
+    ).toBe(traceId);
 
     // model.usage span should have parent context
     const modelCall = spanCalls.find((call) => String(call[0]).startsWith("chat "));
     expect(modelCall).toBeDefined();
     expect(modelCall![2]).toBeDefined();
-    expect((modelCall![2] as { __parentSpanContext?: { traceId: string } }).__parentSpanContext?.traceId).toBe(traceId);
+    expect(
+      (modelCall![2] as { __parentSpanContext?: { traceId: string } }).__parentSpanContext?.traceId,
+    ).toBe(traceId);
 
     await service.stop?.(ctx);
   });

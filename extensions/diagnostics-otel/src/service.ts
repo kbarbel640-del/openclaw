@@ -1,4 +1,11 @@
-import { context, metrics, trace, SpanContext, SpanStatusCode, TraceFlags } from "@opentelemetry/api";
+import {
+  context,
+  metrics,
+  trace,
+  SpanContext,
+  SpanStatusCode,
+  TraceFlags,
+} from "@opentelemetry/api";
 import type { SeverityNumber } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
@@ -418,10 +425,9 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         };
 
         const spanName = evt.model ? `chat ${evt.model}` : "chat unknown";
-        const parentTraceContext =
-          evt.traceId
-            ? { traceId: evt.traceId, parentSpanId: evt.parentSpanId }
-            : undefined;
+        const parentTraceContext = evt.traceId
+          ? { traceId: evt.traceId, parentSpanId: evt.parentSpanId }
+          : undefined;
         const span = spanWithDuration(spanName, spanAttrs, evt.durationMs, parentTraceContext);
         span.end();
       };
@@ -525,10 +531,9 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         if (evt.reason) {
           spanAttrs["openclaw.reason"] = evt.reason;
         }
-        const parentTraceContext =
-          evt.traceId
-            ? { traceId: evt.traceId, parentSpanId: evt.parentSpanId }
-            : undefined;
+        const parentTraceContext = evt.traceId
+          ? { traceId: evt.traceId, parentSpanId: evt.parentSpanId }
+          : undefined;
         const span = spanWithDuration(
           "openclaw.message.processed",
           spanAttrs,
