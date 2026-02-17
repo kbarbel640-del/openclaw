@@ -78,11 +78,11 @@ jobs:
             group-alias-check
 
       - name: Model check (negative suite, expected violations)
-        continue-on-error: true
+        id: negative_suite
         run: |
           set -euo pipefail
           cd clawdbot-formal-models
-          make -k \
+          if make -k \
             precedence-negative groups-negative elevated-negative nodes-policy-negative \
             attacker-negative attacker-nodes-negative attacker-nodes-allowlist-negative attacker-nodes-allowlist-negative \
             approvals-negative approvals-token-negative nodes-pipeline-negative \
@@ -97,7 +97,13 @@ jobs:
             queue-drain delivery-route-stability-negative delivery-pipeline-negative retry-termination-negative retry-eventual-success-negative \
             no-cross-stream-negative multi-event-eventual-emission-negative \
             dedupe-collision-fallback-negative crash-restart-dedupe-negative two-worker-dedupe-negative openclaw-session-key-conformance-negative \
-            routing-thread-parent-channel-override-negative routing-trirule-negative gateway-auth-proxy-header-spoof-negative
+            routing-thread-parent-channel-override-negative routing-trirule-negative gateway-auth-proxy-header-spoof-negative; then
+            echo "result=unexpected-pass" >> "$GITHUB_OUTPUT"
+            echo "::warning::Negative formal harnesses unexpectedly passed. These are intended to violate invariants."
+          else
+            echo "result=expected-failures" >> "$GITHUB_OUTPUT"
+            echo "Negative formal harnesses produced expected invariant violations."
+          fi
 
       - name: Upload drift diff artifact
         if: steps.drift.outputs.drift == 'true'
@@ -107,7 +113,7 @@ jobs:
           path: formal-models-drift.diff
 
       - name: Comment on PR (informational)
-        if: steps.drift.outputs.drift == 'true'
+        if: steps.drift.outputs.drift == 'true' && github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         uses: actions/github-script@v7
         with:
@@ -137,3 +143,4 @@ jobs:
           else
             echo "Formal conformance: no drift."
           fi
+          echo "Negative suite result: ${{ steps.negative_suite.outputs.result || 'unknown' }}"

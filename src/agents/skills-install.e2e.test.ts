@@ -62,7 +62,7 @@ describe("installSkill code safety scanning", () => {
         info: 0,
         findings: [
           {
-            ruleId: "dangerous-exec",
+            ruleId: "suspicious.dangerous_exec",
             severity: "critical",
             file: path.join(skillDir, "runner.js"),
             line: 1,

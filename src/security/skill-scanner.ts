@@ -44,6 +44,12 @@ const SCANNABLE_EXTENSIONS = new Set([
   ".cts",
   ".jsx",
   ".tsx",
+  ".md",
+  ".mdx",
+  ".json",
+  ".yaml",
+  ".yml",
+  ".toml",
 ]);
 
 const DEFAULT_MAX_SCAN_FILES = 500;
@@ -62,6 +68,8 @@ type LineRule = {
   severity: SkillScanSeverity;
   message: string;
   pattern: RegExp;
+  /** If set, rule only applies to matching file paths. */
+  filePattern?: RegExp;
   /** If set, the rule only fires when the *full source* also matches this pattern. */
   requiresContext?: RegExp;
 };
@@ -72,32 +80,34 @@ type SourceRule = {
   message: string;
   /** Primary pattern tested against the full source. */
   pattern: RegExp;
+  /** If set, rule only applies to matching file paths. */
+  filePattern?: RegExp;
   /** Secondary context pattern; both must match for the rule to fire. */
   requiresContext?: RegExp;
 };
 
 const LINE_RULES: LineRule[] = [
   {
-    ruleId: "dangerous-exec",
+    ruleId: "suspicious.dangerous_exec",
     severity: "critical",
     message: "Shell command execution detected (child_process)",
     pattern: /\b(exec|execSync|spawn|spawnSync|execFile|execFileSync)\s*\(/,
     requiresContext: /child_process/,
   },
   {
-    ruleId: "dynamic-code-execution",
+    ruleId: "suspicious.dynamic_code_execution",
     severity: "critical",
     message: "Dynamic code execution detected",
     pattern: /\beval\s*\(|new\s+Function\s*\(/,
   },
   {
-    ruleId: "crypto-mining",
+    ruleId: "malicious.crypto_mining",
     severity: "critical",
     message: "Possible crypto-mining reference detected",
     pattern: /stratum\+tcp|stratum\+ssl|coinhive|cryptonight|xmrig/i,
   },
   {
-    ruleId: "suspicious-network",
+    ruleId: "suspicious.nonstandard_network",
     severity: "warn",
     message: "WebSocket connection to non-standard port",
     pattern: /new\s+WebSocket\s*\(\s*["']wss?:\/\/[^"']*:(\d+)/,
@@ -108,31 +118,60 @@ const STANDARD_PORTS = new Set([80, 443, 8080, 8443, 3000]);
 
 const SOURCE_RULES: SourceRule[] = [
   {
-    ruleId: "potential-exfiltration",
+    ruleId: "suspicious.potential_exfiltration",
     severity: "warn",
     message: "File read combined with network send — possible data exfiltration",
     pattern: /readFileSync|readFile/,
     requiresContext: /\bfetch\b|\bpost\b|http\.request/i,
   },
   {
-    ruleId: "obfuscated-code",
+    ruleId: "suspicious.obfuscated_code",
     severity: "warn",
     message: "Hex-encoded string sequence detected (possible obfuscation)",
     pattern: /(\\x[0-9a-fA-F]{2}){6,}/,
   },
   {
-    ruleId: "obfuscated-code",
+    ruleId: "suspicious.obfuscated_code",
     severity: "warn",
     message: "Large base64 payload with decode call detected (possible obfuscation)",
     pattern: /(?:atob|Buffer\.from)\s*\(\s*["'][A-Za-z0-9+/=]{200,}["']/,
   },
   {
-    ruleId: "env-harvesting",
+    ruleId: "malicious.env_harvesting",
     severity: "critical",
     message:
       "Environment variable access combined with network send — possible credential harvesting",
     pattern: /process\.env/,
     requiresContext: /\bfetch\b|\bpost\b|http\.request/i,
+  },
+  {
+    ruleId: "suspicious.prompt_injection_instructions",
+    severity: "warn",
+    message: "Prompt-injection style instruction detected",
+    pattern:
+      /ignore\s+(all\s+)?previous\s+instructions|system\s*prompt\s*[:=]|you\s+are\s+now\s+(a|an)\b/i,
+    filePattern: /\.(md|mdx)$/i,
+  },
+  {
+    ruleId: "suspicious.privileged_always",
+    severity: "warn",
+    message: "Skill sets always=true (persistent invocation)",
+    pattern: /^\s*always\s*:\s*true\b/im,
+    filePattern: /\.(md|mdx)$/i,
+  },
+  {
+    ruleId: "suspicious.install_untrusted_source",
+    severity: "warn",
+    message: "Install source points to URL shortener or raw IP",
+    pattern:
+      /https?:\/\/(bit\.ly|tinyurl\.com|t\.co|goo\.gl|is\.gd)\/|https?:\/\/\d{1,3}(?:\.\d{1,3}){3}/i,
+    filePattern: /\.(json|yaml|yml|toml)$/i,
+  },
+  {
+    ruleId: "malicious.known_blocked_signature",
+    severity: "critical",
+    message: "Matched a known blocked malware signature",
+    pattern: /keepcold131\/ClawdAuthenticatorTool|ClawdAuthenticatorTool/i,
   },
 ];
 
@@ -150,11 +189,15 @@ function truncateEvidence(evidence: string, maxLen = 120): string {
 export function scanSource(source: string, filePath: string): SkillScanFinding[] {
   const findings: SkillScanFinding[] = [];
   const lines = source.split("\n");
+  const normalizedFilePath = filePath.replaceAll("\\", "/");
   const matchedLineRules = new Set<string>();
 
   // --- Line rules ---
   for (const rule of LINE_RULES) {
     if (matchedLineRules.has(rule.ruleId)) {
+      continue;
+    }
+    if (rule.filePattern && !rule.filePattern.test(normalizedFilePath)) {
       continue;
     }
 
@@ -170,8 +213,8 @@ export function scanSource(source: string, filePath: string): SkillScanFinding[]
         continue;
       }
 
-      // Special handling for suspicious-network: check port
-      if (rule.ruleId === "suspicious-network") {
+      // Special handling for suspicious network: check port
+      if (rule.ruleId === "suspicious.nonstandard_network") {
         const port = parseInt(match[1], 10);
         if (STANDARD_PORTS.has(port)) {
           continue;
@@ -202,6 +245,9 @@ export function scanSource(source: string, filePath: string): SkillScanFinding[]
     }
 
     if (!rule.pattern.test(source)) {
+      continue;
+    }
+    if (rule.filePattern && !rule.filePattern.test(normalizedFilePath)) {
       continue;
     }
     if (rule.requiresContext && !rule.requiresContext.test(source)) {

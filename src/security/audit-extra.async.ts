@@ -695,24 +695,26 @@ export async function collectPluginsCodeSafetyFindings(params: {
     if (summary.critical > 0) {
       const criticalFindings = summary.findings.filter((f) => f.severity === "critical");
       const details = formatCodeSafetyDetails(criticalFindings, pluginPath);
+      const reasonCodes = Array.from(new Set(criticalFindings.map((finding) => finding.ruleId)));
 
       findings.push({
         checkId: "plugins.code_safety",
         severity: "critical",
-        title: `Plugin "${pluginName}" contains dangerous code patterns`,
-        detail: `Found ${summary.critical} critical issue(s) in ${summary.scannedFiles} scanned file(s):\n${details}`,
+        title: `Plugin "${pluginName}" contains dangerous patterns`,
+        detail: `Found ${summary.critical} critical issue(s) in ${summary.scannedFiles} scanned file(s).\nReason codes: ${reasonCodes.join(", ")}\n${details}`,
         remediation:
           "Review the plugin source code carefully before use. If untrusted, remove the plugin from your OpenClaw extensions state directory.",
       });
     } else if (summary.warn > 0) {
       const warnFindings = summary.findings.filter((f) => f.severity === "warn");
       const details = formatCodeSafetyDetails(warnFindings, pluginPath);
+      const reasonCodes = Array.from(new Set(warnFindings.map((finding) => finding.ruleId)));
 
       findings.push({
         checkId: "plugins.code_safety",
         severity: "warn",
-        title: `Plugin "${pluginName}" contains suspicious code patterns`,
-        detail: `Found ${summary.warn} warning(s) in ${summary.scannedFiles} scanned file(s):\n${details}`,
+        title: `Plugin "${pluginName}" contains suspicious patterns`,
+        detail: `Found ${summary.warn} warning(s) in ${summary.scannedFiles} scanned file(s).\nReason codes: ${reasonCodes.join(", ")}\n${details}`,
         remediation: `Review the flagged code to ensure it is intentional and safe.`,
       });
     }
@@ -768,21 +770,23 @@ export async function collectInstalledSkillsCodeSafetyFindings(params: {
           (finding) => finding.severity === "critical",
         );
         const details = formatCodeSafetyDetails(criticalFindings, skillDir);
+        const reasonCodes = Array.from(new Set(criticalFindings.map((finding) => finding.ruleId)));
         findings.push({
           checkId: "skills.code_safety",
           severity: "critical",
-          title: `Skill "${skillName}" contains dangerous code patterns`,
-          detail: `Found ${summary.critical} critical issue(s) in ${summary.scannedFiles} scanned file(s) under ${skillDir}:\n${details}`,
+          title: `Skill "${skillName}" contains dangerous patterns`,
+          detail: `Found ${summary.critical} critical issue(s) in ${summary.scannedFiles} scanned file(s) under ${skillDir}.\nReason codes: ${reasonCodes.join(", ")}\n${details}`,
           remediation: `Review the skill source code before use. If untrusted, remove "${skillDir}".`,
         });
       } else if (summary.warn > 0) {
         const warnFindings = summary.findings.filter((finding) => finding.severity === "warn");
         const details = formatCodeSafetyDetails(warnFindings, skillDir);
+        const reasonCodes = Array.from(new Set(warnFindings.map((finding) => finding.ruleId)));
         findings.push({
           checkId: "skills.code_safety",
           severity: "warn",
-          title: `Skill "${skillName}" contains suspicious code patterns`,
-          detail: `Found ${summary.warn} warning(s) in ${summary.scannedFiles} scanned file(s) under ${skillDir}:\n${details}`,
+          title: `Skill "${skillName}" contains suspicious patterns`,
+          detail: `Found ${summary.warn} warning(s) in ${summary.scannedFiles} scanned file(s) under ${skillDir}.\nReason codes: ${reasonCodes.join(", ")}\n${details}`,
           remediation: "Review flagged lines to ensure the behavior is intentional and safe.",
         });
       }

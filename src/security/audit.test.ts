@@ -1777,14 +1777,14 @@ description: test skill
       (finding) => finding.checkId === "plugins.code_safety" && finding.severity === "critical",
     );
     expect(pluginFinding).toBeDefined();
-    expect(pluginFinding?.detail).toContain("dangerous-exec");
+    expect(pluginFinding?.detail).toContain("suspicious.dangerous_exec");
     expect(pluginFinding?.detail).toMatch(/\.hidden[\\/]+index\.js:\d+/);
 
     const skillFinding = deepRes.findings.find(
       (finding) => finding.checkId === "skills.code_safety" && finding.severity === "critical",
     );
     expect(skillFinding).toBeDefined();
-    expect(skillFinding?.detail).toContain("dangerous-exec");
+    expect(skillFinding?.detail).toContain("suspicious.dangerous_exec");
     expect(skillFinding?.detail).toMatch(/runner\.js:\d+/);
   });
 
