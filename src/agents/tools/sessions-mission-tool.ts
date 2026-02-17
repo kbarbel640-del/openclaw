@@ -1,5 +1,6 @@
 import { Type } from "@sinclair/typebox";
-import { exec } from "node:child_process";
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import type { AnyAgentTool } from "./common.js";
 import { loadConfig } from "../../config/config.js";
@@ -14,6 +15,16 @@ import {
   resolveInternalSessionKey,
   resolveMainSessionAlias,
 } from "./sessions-helpers.js";
+
+/** Resolve psql path once at import time — gateway's PATH may not include ~/bin. */
+const PSQL_PATH =
+  [
+    `${process.env.HOME}/bin/psql`,
+    "/Applications/Postgres.app/Contents/Versions/14/bin/psql",
+    "/opt/homebrew/bin/psql",
+    "/usr/local/bin/psql",
+    "psql",
+  ].find((p) => p === "psql" || existsSync(p)) ?? "psql";
 
 const SessionsMissionToolSchema = Type.Object({
   label: Type.String(),
@@ -181,15 +192,16 @@ function logMissionToOms(
     const agent = escapeSql(subtask.agentId);
     const sql =
       `INSERT INTO oms.backlog (backlog_code, title, agent_assigned, priority, status, description) ` +
-      `SELECT 'M-' || COALESCE(MAX(CAST(SUBSTRING(backlog_code FROM 3) AS INTEGER)), 0) + 1, ` +
-      `'${title}', '${agent}', 'medium', 'in_progress', '${description}' ` +
-      `FROM oms.backlog WHERE backlog_code LIKE 'M-%';`;
-    exec(`psql -d brain -c "${sql}"`, () => {});
+      `VALUES ('M-' || nextval('oms.mission_backlog_seq'), ` +
+      `'${title}', '${agent}', 'medium', 'in_progress', '${description}');\n`;
+    const proc = spawn(PSQL_PATH, ["-d", "brain"], { stdio: ["pipe", "ignore", "ignore"] });
+    proc.stdin?.write(sql);
+    proc.stdin?.end();
   }
 }
 
 function escapeSql(s: string): string {
-  return s.replace(/'/g, "''").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return s.replace(/'/g, "''");
 }
 
 export function createSessionsMissionTool(opts?: MissionToolOpts): AnyAgentTool {
