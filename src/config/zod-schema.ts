@@ -607,7 +607,19 @@ export const OpenClawSchema = z
       .object({
         enabled: z.boolean().optional(),
         projectId: z.string().optional(),
+        keyId: z.string().optional(),
         mcpConfigPath: z.string().optional(),
+        agents: z
+          .array(
+            z
+              .object({
+                id: z.string(),
+                name: z.string(),
+                endpoint: z.string().url(),
+              })
+              .strict(),
+          )
+          .optional(),
       })
       .strict()
       .optional(),

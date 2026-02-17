@@ -1,14 +1,15 @@
 /**
- * Cloud.ru AI Fabric — Simple Bearer-Token Client
+ * Cloud.ru AI Fabric — Simple Client with IAM Auth
  *
- * Lightweight HTTP client for the Cloud.ru AI Agents API that uses
- * a raw API key as a Bearer token directly (no IAM token exchange).
+ * Lightweight HTTP client for the Cloud.ru AI Agents API.
+ * Uses IAM token exchange (keyId + secret → Bearer token) via
+ * CloudruTokenProvider, with automatic caching and refresh.
  *
- * Use this for onboarding/wizard flows where only CLOUDRU_API_KEY
- * is available and the full IAM dance is unnecessary.
+ * For wizard/onboarding flows and MCP server discovery.
  */
 
 import type {
+  CloudruAuthConfig,
   CloudruApiErrorPayload,
   PaginatedResult,
   McpServer,
@@ -16,6 +17,7 @@ import type {
 } from "./types.js";
 import { resolveFetch } from "../infra/fetch.js";
 import { resolveRetryConfig, retryAsync } from "../infra/retry.js";
+import { CloudruTokenProvider, type CloudruAuthOptions } from "./cloudru-auth.js";
 import { CloudruApiError } from "./cloudru-client.js";
 import {
   CLOUDRU_AI_AGENTS_BASE_URL,
@@ -27,10 +29,12 @@ import {
 export type CloudruSimpleClientConfig = {
   /** Cloud.ru AI Fabric project ID. */
   projectId: string;
-  /** Raw API key (used as Bearer token directly). */
-  apiKey: string;
+  /** IAM credentials (keyId + secret) for token exchange. */
+  auth: CloudruAuthConfig;
   /** Override AI Agents base URL (for testing). */
   baseUrl?: string;
+  /** Override IAM token URL (for testing). */
+  iamUrl?: string;
   /** HTTP request timeout in ms. */
   timeoutMs?: number;
   /** Custom fetch implementation (for testing). */
@@ -39,17 +43,23 @@ export type CloudruSimpleClientConfig = {
 
 export class CloudruSimpleClient {
   readonly projectId: string;
-  private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
+  private readonly tokenProvider: CloudruTokenProvider;
 
   constructor(config: CloudruSimpleClientConfig) {
     this.projectId = config.projectId;
-    this.apiKey = config.apiKey;
     this.baseUrl = (config.baseUrl ?? CLOUDRU_AI_AGENTS_BASE_URL).replace(/\/+$/, "");
     this.timeoutMs = config.timeoutMs ?? CLOUDRU_DEFAULT_TIMEOUT_MS;
     this.fetchImpl = resolveFetch(config.fetchImpl) ?? fetch;
+
+    const authOpts: CloudruAuthOptions = {
+      iamUrl: config.iamUrl,
+      timeoutMs: this.timeoutMs,
+      fetchImpl: config.fetchImpl,
+    };
+    this.tokenProvider = new CloudruTokenProvider(config.auth, authOpts);
   }
 
   private url(path: string): string {
@@ -61,6 +71,8 @@ export class CloudruSimpleClient {
 
     return retryAsync(
       async () => {
+        const token = await this.tokenProvider.getToken();
+
         let fullUrl = this.url(path);
         if (query) {
           const params = new URLSearchParams();
@@ -82,7 +94,7 @@ export class CloudruSimpleClient {
           const res = await this.fetchImpl(fullUrl, {
             method: "GET",
             headers: {
-              Authorization: `Bearer ${this.apiKey}`,
+              Authorization: `Bearer ${token.token}`,
               "Content-Type": "application/json",
             },
             signal: controller.signal,
@@ -125,6 +137,11 @@ export class CloudruSimpleClient {
       limit: params?.limit ?? CLOUDRU_DEFAULT_PAGE_SIZE,
       offset: params?.offset ?? 0,
     });
+  }
+
+  /** Clear the auth token cache (for tests or forced re-auth). */
+  clearAuthCache(): void {
+    this.tokenProvider.clearCache();
   }
 }
 

@@ -845,12 +845,14 @@ export async function applyNonInteractiveAuthChoice(params: {
       );
     }
 
-    // AI Fabric MCP auto-discovery (non-interactive)
+    // AI Fabric MCP auto-discovery (non-interactive, requires IAM creds)
     const projectId = opts.cloudruProjectId?.trim() ?? process.env["CLOUDRU_PROJECT_ID"]?.trim();
-    if (projectId && !opts.skipAiFabric) {
+    const iamKeyId = process.env["CLOUDRU_IAM_KEY_ID"]?.trim();
+    const iamSecret = process.env["CLOUDRU_IAM_SECRET"]?.trim();
+    if (projectId && iamKeyId && iamSecret && !opts.skipAiFabric) {
       const fabricResult = await setupAiFabricNonInteractive({
         config: nextConfig,
-        apiKey: resolved.key,
+        auth: { keyId: iamKeyId, secret: iamSecret },
         projectId,
         workspaceDir,
       });

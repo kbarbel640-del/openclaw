@@ -54,7 +54,22 @@ export type { CloudruAuthOptions } from "./cloudru-auth.js";
 // Client
 export { CloudruClient, CloudruApiError } from "./cloudru-client.js";
 
+// Simple client (wizard flows)
+export { CloudruSimpleClient } from "./cloudru-client-simple.js";
+export type { CloudruSimpleClientConfig } from "./cloudru-client-simple.js";
+
 // Domain clients
 export { CloudruAgentsClient } from "./cloudru-agents-client.js";
 export { CloudruAgentSystemsClient } from "./cloudru-agent-systems-client.js";
 export { CloudruMcpClient } from "./cloudru-mcp-client.js";
+
+// A2A client
+export { CloudruA2AClient, A2AError } from "./cloudru-a2a-client.js";
+export type {
+  A2AClientConfig,
+  A2AMessage,
+  A2AMessagePart,
+  A2ASendParams,
+  A2ASendResult,
+  A2ATaskResponse,
+} from "./cloudru-a2a-client.js";

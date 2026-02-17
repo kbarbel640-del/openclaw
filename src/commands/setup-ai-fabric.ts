@@ -5,12 +5,13 @@
  * MCP server auto-discovery and configuration.
  *
  * Inserted into the Cloud.ru FM onboarding flow after proxy auto-start.
- * Uses CLOUDRU_API_KEY as Bearer token directly (no IAM exchange).
+ * Uses IAM token exchange (keyId + secret) for authentication.
  */
 
-import type { McpServer } from "../ai-fabric/types.js";
+import type { CloudruAuthConfig, McpServer } from "../ai-fabric/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
+import { CloudruAuthError } from "../ai-fabric/cloudru-auth.js";
 import { CloudruSimpleClient } from "../ai-fabric/cloudru-client-simple.js";
 import { CloudruApiError } from "../ai-fabric/cloudru-client.js";
 import { ensureGitignoreEntries } from "./onboard-cloudru-fm.js";
@@ -23,7 +24,8 @@ import {
 export type SetupAiFabricParams = {
   config: OpenClawConfig;
   prompter: WizardPrompter;
-  apiKey: string;
+  /** IAM credentials for Cloud.ru AI Fabric API. */
+  auth: CloudruAuthConfig;
   workspaceDir: string;
 };
 
@@ -46,7 +48,7 @@ export type SetupAiFabricResult = {
  * 7. Update .gitignore
  */
 export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupAiFabricResult> {
-  const { prompter, apiKey, workspaceDir } = params;
+  const { prompter, auth, workspaceDir } = params;
   let config = params.config;
 
   const wantsFabric = await prompter.confirm({
@@ -65,7 +67,7 @@ export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupA
   });
 
   const servers = await discoverMcpServers({
-    apiKey,
+    auth,
     projectId: projectId.trim(),
     prompter,
   });
@@ -75,7 +77,7 @@ export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupA
       "No MCP servers found in this project. You can add them later in Cloud.ru console.",
       "AI Fabric",
     );
-    config = applyAiFabricConfig(config, { projectId: projectId.trim() });
+    config = applyAiFabricConfig(config, { projectId: projectId.trim(), keyId: auth.keyId });
     return { config, configured: false };
   }
 
@@ -96,7 +98,7 @@ export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupA
       "No servers selected. You can re-run onboarding to connect MCP servers later.",
       "AI Fabric",
     );
-    config = applyAiFabricConfig(config, { projectId: projectId.trim() });
+    config = applyAiFabricConfig(config, { projectId: projectId.trim(), keyId: auth.keyId });
     return { config, configured: false };
   }
 
@@ -105,6 +107,7 @@ export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupA
 
   config = applyAiFabricConfig(config, {
     projectId: projectId.trim(),
+    keyId: auth.keyId,
     mcpConfigPath,
   });
   config = applyMcpArgsToCliBackend(config, mcpConfigPath);
@@ -121,7 +124,8 @@ export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupA
 
 export type SetupAiFabricNonInteractiveParams = {
   config: OpenClawConfig;
-  apiKey: string;
+  /** IAM credentials for Cloud.ru AI Fabric API. */
+  auth: CloudruAuthConfig;
   projectId: string;
   workspaceDir: string;
 };
@@ -133,28 +137,28 @@ export type SetupAiFabricNonInteractiveParams = {
 export async function setupAiFabricNonInteractive(
   params: SetupAiFabricNonInteractiveParams,
 ): Promise<SetupAiFabricResult> {
-  const { apiKey, projectId, workspaceDir } = params;
+  const { auth, projectId, workspaceDir } = params;
   let config = params.config;
 
   let servers: McpServer[];
   try {
-    const client = new CloudruSimpleClient({ projectId, apiKey });
+    const client = new CloudruSimpleClient({ projectId, auth });
     const result = await client.listMcpServers();
     servers = result.items.filter((s) => s.status === "RUNNING" || s.status === "AVAILABLE");
   } catch {
-    config = applyAiFabricConfig(config, { projectId });
+    config = applyAiFabricConfig(config, { projectId, keyId: auth.keyId });
     return { config, configured: false };
   }
 
   if (servers.length === 0) {
-    config = applyAiFabricConfig(config, { projectId });
+    config = applyAiFabricConfig(config, { projectId, keyId: auth.keyId });
     return { config, configured: false };
   }
 
   const mcpConfigPath = await writeMcpConfigFile({ workspaceDir, servers });
   await ensureGitignoreEntries({ workspaceDir, entries: [CLOUDRU_MCP_CONFIG_FILENAME] });
 
-  config = applyAiFabricConfig(config, { projectId, mcpConfigPath });
+  config = applyAiFabricConfig(config, { projectId, keyId: auth.keyId, mcpConfigPath });
   config = applyMcpArgsToCliBackend(config, mcpConfigPath);
 
   return { config, configured: true };
@@ -165,7 +169,7 @@ export async function setupAiFabricNonInteractive(
 // ---------------------------------------------------------------------------
 
 async function discoverMcpServers(params: {
-  apiKey: string;
+  auth: CloudruAuthConfig;
   projectId: string;
   prompter: WizardPrompter;
 }): Promise<McpServer[] | null> {
@@ -173,14 +177,18 @@ async function discoverMcpServers(params: {
   try {
     const client = new CloudruSimpleClient({
       projectId: params.projectId,
-      apiKey: params.apiKey,
+      auth: params.auth,
     });
     const result = await client.listMcpServers();
     spinner.stop(`Found ${result.items.length} MCP server${result.items.length === 1 ? "" : "s"}`);
     return result.items;
   } catch (err) {
     const detail =
-      err instanceof CloudruApiError ? `API error ${err.status}: ${err.message}` : String(err);
+      err instanceof CloudruAuthError
+        ? `IAM auth failed: ${err.message}`
+        : err instanceof CloudruApiError
+          ? `API error ${err.status}: ${err.message}`
+          : String(err);
     spinner.stop("MCP discovery failed");
     await params.prompter.note(
       `Could not list MCP servers: ${detail}\nYou can configure them manually later.`,
@@ -192,13 +200,14 @@ async function discoverMcpServers(params: {
 
 function applyAiFabricConfig(
   config: OpenClawConfig,
-  params: { projectId: string; mcpConfigPath?: string },
+  params: { projectId: string; keyId?: string; mcpConfigPath?: string },
 ): OpenClawConfig {
   return {
     ...config,
     aiFabric: {
       enabled: true,
       projectId: params.projectId,
+      ...(params.keyId ? { keyId: params.keyId } : {}),
       ...(params.mcpConfigPath ? { mcpConfigPath: params.mcpConfigPath } : {}),
     },
   };

@@ -250,16 +250,34 @@ export async function applyAuthChoiceCloudruFm(
   }
 
   // -----------------------------------------------------------------------
-  // 6. AI Fabric MCP auto-discovery (optional)
+  // 6. AI Fabric MCP auto-discovery (optional, requires IAM credentials)
   // -----------------------------------------------------------------------
 
-  const fabricResult = await setupAiFabric({
-    config: nextConfig,
-    prompter: params.prompter,
-    apiKey,
-    workspaceDir,
+  const wantsAiFabric = await params.prompter.confirm({
+    message: "Connect Cloud.ru AI Fabric (MCP servers & AI Agents)?",
+    initialValue: false,
   });
-  nextConfig = fabricResult.config;
+
+  if (wantsAiFabric) {
+    const iamKeyId = await params.prompter.text({
+      message: "Cloud.ru IAM key ID (for AI Fabric API)",
+      placeholder: "key-xxxx",
+      validate: (v) => (v.trim() ? undefined : "IAM key ID is required"),
+    });
+
+    const iamSecret = await params.prompter.text({
+      message: "Cloud.ru IAM secret",
+      validate: (v) => (v.trim() ? undefined : "IAM secret is required"),
+    });
+
+    const fabricResult = await setupAiFabric({
+      config: nextConfig,
+      prompter: params.prompter,
+      auth: { keyId: String(iamKeyId).trim(), secret: String(iamSecret).trim() },
+      workspaceDir,
+    });
+    nextConfig = fabricResult.config;
+  }
 
   return { config: nextConfig };
 }
