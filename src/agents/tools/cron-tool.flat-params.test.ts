@@ -57,42 +57,35 @@ describe("cron tool flat-params", () => {
     expect(callGatewayMock).toHaveBeenCalledTimes(0);
   });
 
-  it("rejects wrong absolute at when reminder text asks for short relative delay", async () => {
-    const now = Date.parse("2026-02-17T06:38:00.000Z");
-    vi.spyOn(Date, "now").mockReturnValue(now);
-
+  it("does not block add when reminder text and schedule.at are semantically inconsistent", async () => {
     const tool = createCronTool();
-    await expect(
-      tool.execute("call-relative-mismatch", {
-        action: "add",
-        job: {
-          name: "remind-check-messages-1m",
-          description: "1分钟后提醒看消息",
-          schedule: { kind: "at", at: "2026-02-17T16:51:07.000Z" },
-          sessionTarget: "isolated",
-          payload: { kind: "agentTurn", message: "⏰ 提醒：现在该看一下消息啦。" },
-          deleteAfterRun: true,
-        },
-      }),
-    ).rejects.toThrow("schedule.at mismatches explicit relative duration");
-    expect(callGatewayMock).toHaveBeenCalledTimes(0);
+    await tool.execute("call-relative-mismatch", {
+      action: "add",
+      job: {
+        name: "remind-check-messages-1m",
+        description: "1分钟后提醒看消息",
+        schedule: { kind: "at", at: "2026-02-17T16:51:07.000Z" },
+        sessionTarget: "isolated",
+        payload: { kind: "agentTurn", message: "⏰ 提醒：现在该看一下消息啦。" },
+        deleteAfterRun: true,
+      },
+    });
+    expect(callGatewayMock).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects one-shot relative reminders that are incorrectly generated as recurring", async () => {
+  it("does not block recurring schedule even if reminder text includes relative wording", async () => {
     const tool = createCronTool();
-    await expect(
-      tool.execute("call-relative-every", {
-        action: "add",
-        job: {
-          name: "remind-in-1-minute",
-          description: "remind me in 1 minute",
-          schedule: { kind: "every", everyMs: 60_000 },
-          sessionTarget: "main",
-          payload: { kind: "systemEvent", text: "reminder in 1 minute" },
-        },
-      }),
-    ).rejects.toThrow('explicit relative reminder requires schedule.kind="at"');
-    expect(callGatewayMock).toHaveBeenCalledTimes(0);
+    await tool.execute("call-relative-every", {
+      action: "add",
+      job: {
+        name: "remind-in-1-minute",
+        description: "remind me in 1 minute",
+        schedule: { kind: "every", everyMs: 60_000 },
+        sessionTarget: "main",
+        payload: { kind: "systemEvent", text: "reminder in 1 minute" },
+      },
+    });
+    expect(callGatewayMock).toHaveBeenCalledTimes(1);
   });
 
   it("keeps recurring schedules when reminder text is explicitly recurring", async () => {
