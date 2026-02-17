@@ -10,6 +10,7 @@ import { danger, logVerbose } from "../../globals.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { retryAsync } from "../../infra/retry.js";
 import { mediaKindFromMime } from "../../media/constants.js";
+import { probeVideoDimensions } from "../../media/video-dimensions.js";
 import { fetchRemoteMedia } from "../../media/fetch.js";
 import { isGifMedia } from "../../media/mime.js";
 import { saveMediaBuffer } from "../../media/store.js";
@@ -169,6 +170,10 @@ export async function deliverReplies(params: {
       const replyToMessageId =
         replyToId && (replyToMode === "all" || !hasReplied) ? replyToId : undefined;
       const shouldAttachButtonsToMedia = isFirstMedia && replyMarkup && !followUpText;
+      // Probe video dimensions so Telegram doesn't re-encode/distort portrait videos
+      const videoDims = kind === "video"
+        ? await probeVideoDimensions(media.buffer)
+        : undefined;
       const mediaParams: Record<string, unknown> = {
         caption: htmlCaption,
         ...(htmlCaption ? { parse_mode: "HTML" } : {}),
@@ -177,6 +182,7 @@ export async function deliverReplies(params: {
           replyToMessageId,
           thread,
         }),
+        ...(videoDims ? { width: videoDims.width, height: videoDims.height } : {}),
       };
       if (isGif) {
         await withTelegramApiErrorLogging({

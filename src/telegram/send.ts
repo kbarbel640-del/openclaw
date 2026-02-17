@@ -17,6 +17,7 @@ import { createTelegramRetryRunner } from "../infra/retry-policy.js";
 import { redactSensitiveText } from "../logging/redact.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { mediaKindFromMime } from "../media/constants.js";
+import { probeVideoDimensions } from "../media/video-dimensions.js";
 import { isGifMedia } from "../media/mime.js";
 import { normalizePollInput, type PollInput } from "../polls.js";
 import { loadWebMedia } from "../web/media.js";
@@ -544,10 +545,15 @@ export async function sendMessageTelegram(
       ...(hasThreadParams ? threadParams : {}),
       ...(!needsSeparateText && replyMarkup ? { reply_markup: replyMarkup } : {}),
     };
+    // Probe video dimensions so Telegram doesn't re-encode/distort portrait videos
+    const videoDims = kind === "video" && !isVideoNote
+      ? await probeVideoDimensions(media.buffer)
+      : undefined;
     const mediaParams = {
       ...(htmlCaption ? { caption: htmlCaption, parse_mode: "HTML" as const } : {}),
       ...baseMediaParams,
       ...(opts.silent === true ? { disable_notification: true } : {}),
+      ...(videoDims ? { width: videoDims.width, height: videoDims.height } : {}),
     };
     const sendMedia = async (
       label: string,
