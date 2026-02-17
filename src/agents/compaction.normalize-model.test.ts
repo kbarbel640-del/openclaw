@@ -80,6 +80,24 @@ describe("normalizeModelForCompaction", () => {
       baseUrl: "https://gateway.portkey.ai/v1",
     });
     const result = normalizeModelForCompaction(model);
+    expect(result).toBe(model);
+    expect(result.reasoning).toBe(false);
+  });
+
+  it("rejects spoofed anthropic.com subdomain in proxy URL", () => {
+    const model = makeModel({
+      baseUrl: "https://anthropic.com.evil.example",
+    });
+    const result = normalizeModelForCompaction(model);
+    expect(result).not.toBe(model);
+    expect(result.reasoning).toBe(false);
+  });
+
+  it("treats malformed baseUrl as proxy", () => {
+    const model = makeModel({
+      baseUrl: "not-a-valid-url",
+    });
+    const result = normalizeModelForCompaction(model);
     expect(result).not.toBe(model);
     expect(result.reasoning).toBe(false);
   });

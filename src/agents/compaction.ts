@@ -22,12 +22,25 @@ function normalizeModelForCompaction(model: CompactionModel): CompactionModel {
   if (model.api !== "anthropic-messages") {
     return model;
   }
-  const baseUrl = (model.baseUrl ?? "").trim().toLowerCase();
-  const isDirectAnthropic = !baseUrl || baseUrl.includes("anthropic.com");
+  const rawBaseUrl = (model.baseUrl ?? "").trim();
+  let isDirectAnthropic = !rawBaseUrl;
+  if (!isDirectAnthropic) {
+    try {
+      const parsed = new URL(rawBaseUrl);
+      const hostname = parsed.hostname.toLowerCase();
+      isDirectAnthropic = hostname === "anthropic.com" || hostname.endsWith(".anthropic.com");
+    } catch {
+      // Malformed URL: treat as non-direct/proxy to avoid enabling reasoning.
+      isDirectAnthropic = false;
+    }
+  }
   if (isDirectAnthropic) {
     return model;
   }
   // Proxy endpoint — disable reasoning to avoid unsupported thinking params.
+  if (!model.reasoning) {
+    return model;
+  }
   return { ...model, reasoning: false };
 }
 
