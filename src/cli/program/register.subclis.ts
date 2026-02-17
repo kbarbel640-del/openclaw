@@ -170,7 +170,9 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "pairing",
-    description: "Pairing helpers",
+    // Keep in sync with registerPairingCli description in src/cli/pairing-cli.ts
+    // and with HEAVY_SUBCMD_STUBS in src/cli/completion-cli.ts
+    description: "Secure DM pairing (approve inbound requests)",
     register: async (program) => {
       // Initialize plugins before registering pairing CLI.
       // The pairing CLI calls listPairingChannels() at registration time,
@@ -183,7 +185,9 @@ const entries: SubCliEntry[] = [
   },
   {
     name: "plugins",
-    description: "Plugin management",
+    // Keep in sync with registerPluginsCli description in src/cli/plugins-cli.ts
+    // and with HEAVY_SUBCMD_STUBS in src/cli/completion-cli.ts
+    description: "Manage OpenClaw plugins/extensions",
     register: async (program) => {
       const mod = await import("../plugins-cli.js");
       mod.registerPluginsCli(program);

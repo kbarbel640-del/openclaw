@@ -222,6 +222,30 @@ export async function usesSlowDynamicCompletion(
   return false;
 }
 
+/**
+ * Lightweight stubs for heavy subcommands (pairing, plugins) that would otherwise
+ * trigger loadConfig() → jiti transpilation of hundreds of TS files. Completion
+ * only needs command names and descriptions; these stubs avoid that cost.
+ *
+ * IMPORTANT: Keep descriptions and subcommand names in sync with the canonical files:
+ *   - pairing → src/cli/pairing-cli.ts (registerPairingCli, line ~56)
+ *   - plugins → src/cli/plugins-cli.ts (registerPluginsCli, line ~166)
+ *
+ * The sync is verified by the test in completion-cli.test.ts.
+ */
+export const HEAVY_SUBCMD_STUBS: Record<string, { desc: string; subs: string[] }> = {
+  pairing: {
+    // Keep in sync with registerPairingCli description in src/cli/pairing-cli.ts
+    desc: "Secure DM pairing (approve inbound requests)",
+    subs: ["list", "approve"],
+  },
+  plugins: {
+    // Keep in sync with registerPluginsCli description in src/cli/plugins-cli.ts
+    desc: "Manage OpenClaw plugins/extensions",
+    subs: ["list", "info", "enable", "disable", "uninstall", "install", "update", "doctor"],
+  },
+};
+
 export function registerCompletionCli(program: Command) {
   program
     .command("completion")
@@ -253,19 +277,7 @@ export function registerCompletionCli(program: Command) {
       }
 
       // Register all subcommands to build the full tree for completion.
-      // Heavy subcommands (pairing, plugins) trigger loadConfig() → jiti
-      // transpilation of hundreds of TS files. Completion only needs command
-      // names and descriptions, so register lightweight stubs for those.
-      const HEAVY_SUBCMD_STUBS: Record<string, { desc: string; subs: string[] }> = {
-        pairing: {
-          desc: "Pairing helpers",
-          subs: ["list", "approve"],
-        },
-        plugins: {
-          desc: "Plugin management",
-          subs: ["list", "info", "enable", "disable", "uninstall", "install", "update", "doctor"],
-        },
-      };
+      // Heavy subcommands use HEAVY_SUBCMD_STUBS to avoid loadConfig() overhead.
       const entries = getSubCliEntries();
       for (const entry of entries) {
         // Skip completion command itself to avoid cycle if we were to add it to the list
