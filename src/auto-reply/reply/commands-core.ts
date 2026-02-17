@@ -7,6 +7,7 @@ import { shouldHandleTextCommands } from "../commands-registry.js";
 import { handleAllowlistCommand } from "./commands-allowlist.js";
 import { handleApproveCommand } from "./commands-approve.js";
 import { handleBashCommand } from "./commands-bash.js";
+import { handleBookmarkCreateCommand, handleBookmarkListCommand } from "./commands-bookmarks.js";
 import { handleCompactCommand } from "./commands-compact.js";
 import { handleConfigCommand, handleDebugCommand } from "./commands-config.js";
 import { handleFastCommand } from "./commands-fast.js";
@@ -31,7 +32,9 @@ import {
   handleStopCommand,
   handleUsageCommand,
 } from "./commands-session.js";
+import { handleShareSessionCommand } from "./commands-share-session.js";
 import { handleSubagentsCommand } from "./commands-subagents.js";
+import { handleTemplateExpansion, handleTemplatesCommand } from "./commands-templates.js";
 import { handleTtsCommands } from "./commands-tts.js";
 import type {
   CommandHandler,
@@ -68,10 +71,17 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
       handleModelsCommand,
       handleStopCommand,
       handleCompactCommand,
+      handleBookmarkCreateCommand,
+      handleBookmarkListCommand,
       handleAbortTrigger,
       handleFastCommand,
       handlePlanCommand,
       handleInitCommand,
+      handleShareSessionCommand,
+      // Template expansion must come after all built-in command handlers so
+      // it only fires when no other handler claims the slash command.
+      handleTemplatesCommand,
+      handleTemplateExpansion,
     ];
   }
   const resetMatch = params.command.commandBodyNormalized.match(/^\/(new|reset)(?:\s|$)/);

@@ -483,6 +483,27 @@ function buildChatCommands(): ChatCommandDefinition[] {
       ],
     }),
     defineChatCommand({
+      key: "bookmark",
+      description: "Bookmark the current conversation point.",
+      textAlias: "/bookmark",
+      acceptsArgs: true,
+      category: "session",
+      args: [
+        {
+          name: "label",
+          description: "Optional label for the bookmark",
+          type: "string",
+          captureRemaining: true,
+        },
+      ],
+    }),
+    defineChatCommand({
+      key: "bookmarks",
+      description: "List all bookmarks for the current session.",
+      textAlias: "/bookmarks",
+      category: "session",
+    }),
+    defineChatCommand({
       key: "think",
       nativeName: "think",
       description: "Set thinking level.",
@@ -650,6 +671,18 @@ function buildChatCommands(): ChatCommandDefinition[] {
           captureRemaining: true,
         },
       ],
+    }),
+    defineChatCommand({
+      key: "share",
+      description: "Share current session as a public GitHub Gist.",
+      textAlias: "/share",
+      category: "session",
+    }),
+    defineChatCommand({
+      key: "templates",
+      description: "List available prompt templates.",
+      textAlias: "/templates",
+      category: "session",
     }),
     ...listChannelDocks()
       .filter((dock) => dock.capabilities.nativeCommands)
