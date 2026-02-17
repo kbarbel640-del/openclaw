@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { AnyAgentTool } from "./pi-tools.types.js";
 import { wrapToolWorkspaceRootGuard } from "./pi-tools.read.js";
+import type { AnyAgentTool } from "./pi-tools.types.js";
 
 function createStubTool(): AnyAgentTool {
   return {
