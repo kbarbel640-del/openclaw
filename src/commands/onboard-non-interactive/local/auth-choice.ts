@@ -2,6 +2,11 @@ import type { OpenClawConfig } from "../../../config/config.js";
 import type { RuntimeEnv } from "../../../runtime.js";
 import type { AuthChoice, OnboardOptions } from "../../onboard-types.js";
 import { upsertAuthProfile } from "../../../agents/auth-profiles.js";
+import {
+  checkDockerAvailability,
+  startProxyContainer,
+  waitForProxyHealth,
+} from "../../../agents/cloudru-proxy-lifecycle.js";
 import { normalizeProviderId } from "../../../agents/model-selection.js";
 import { parseDurationMs } from "../../../cli/parse-duration.js";
 import {
@@ -813,9 +818,31 @@ export async function applyNonInteractiveAuthChoice(params: {
       },
     };
 
-    runtime.log(
-      `Cloud.ru FM configured (preset: ${preset.label}). Start proxy: docker compose -f ${CLOUDRU_COMPOSE_FILENAME} up -d`,
-    );
+    // Auto-start proxy (non-interactive — no confirmation prompt)
+    const docker = await checkDockerAvailability();
+    if (docker.available && docker.composeAvailable) {
+      const startResult = await startProxyContainer({ workspaceDir });
+      if (startResult.ok) {
+        const healthResult = await waitForProxyHealth({ proxyUrl });
+        if (healthResult.ok) {
+          runtime.log(
+            `Cloud.ru FM configured (preset: ${preset.label}). Proxy healthy (${healthResult.latencyMs}ms).`,
+          );
+        } else {
+          runtime.log(
+            `Cloud.ru FM configured (preset: ${preset.label}). Proxy started but health check failed — check logs: docker compose -f ${CLOUDRU_COMPOSE_FILENAME} logs`,
+          );
+        }
+      } else {
+        runtime.log(
+          `Cloud.ru FM configured (preset: ${preset.label}). Failed to start proxy: ${startResult.error}`,
+        );
+      }
+    } else {
+      runtime.log(
+        `Cloud.ru FM configured (preset: ${preset.label}). ${docker.reason} — start proxy manually: docker compose -f ${CLOUDRU_COMPOSE_FILENAME} up -d`,
+      );
+    }
     return nextConfig;
   }
 

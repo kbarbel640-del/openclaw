@@ -20,6 +20,11 @@
 import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import { checkProxyHealth } from "../agents/cloudru-proxy-health.js";
 import {
+  checkDockerAvailability,
+  startProxyContainer,
+  waitForProxyHealth,
+} from "../agents/cloudru-proxy-lifecycle.js";
+import {
   CLOUDRU_FM_PRESETS,
   CLOUDRU_PROXY_PORT_DEFAULT,
   CLOUDRU_PROXY_SENTINEL_KEY,
@@ -186,21 +191,61 @@ export async function applyAuthChoiceCloudruFm(
   });
 
   // -----------------------------------------------------------------------
-  // 5. Pre-flight proxy health check (non-blocking)
+  // 5. Pre-flight proxy health check → auto-start if needed
   // -----------------------------------------------------------------------
 
   const health = await checkProxyHealth(proxyUrl);
-  if (!health.ok) {
-    await params.prompter.note(
-      `Cloud.ru proxy at ${proxyUrl} is not reachable. ` +
-        `Start it with: docker compose -f ${CLOUDRU_COMPOSE_FILENAME} up -d`,
-      "Proxy not running",
-    );
-  } else {
+  if (health.ok) {
     await params.prompter.note(
       `Cloud.ru proxy healthy (${health.latencyMs}ms). Model: ${preset.label}`,
       "Proxy connected",
     );
+  } else {
+    const docker = await checkDockerAvailability();
+    if (!docker.available || !docker.composeAvailable) {
+      await params.prompter.note(
+        `${docker.reason}. Start the proxy manually:\n` +
+          `docker compose -f ${CLOUDRU_COMPOSE_FILENAME} up -d`,
+        "Proxy not running",
+      );
+    } else {
+      const shouldStart = await params.prompter.confirm({
+        message: "Cloud.ru proxy is not running. Start it now?",
+        initialValue: true,
+      });
+      if (shouldStart) {
+        const spinner = params.prompter.progress("Starting Cloud.ru proxy...");
+        const startResult = await startProxyContainer({ workspaceDir });
+        if (!startResult.ok) {
+          spinner.stop("Failed to start proxy");
+          await params.prompter.note(
+            `docker compose up failed: ${startResult.error}\n` +
+              `Try manually: docker compose -f ${CLOUDRU_COMPOSE_FILENAME} up -d`,
+            "Proxy error",
+          );
+        } else {
+          spinner.update("Waiting for proxy health check...");
+          const waitResult = await waitForProxyHealth({ proxyUrl });
+          if (waitResult.ok) {
+            spinner.stop(
+              `Proxy healthy (${waitResult.latencyMs}ms, ${waitResult.attempts} attempts)`,
+            );
+          } else {
+            spinner.stop("Proxy started but health check failed");
+            await params.prompter.note(
+              `Proxy container started but /health did not respond.\n` +
+                `Check logs: docker compose -f ${CLOUDRU_COMPOSE_FILENAME} logs`,
+              "Health check timeout",
+            );
+          }
+        }
+      } else {
+        await params.prompter.note(
+          `Start it later: docker compose -f ${CLOUDRU_COMPOSE_FILENAME} up -d`,
+          "Proxy not started",
+        );
+      }
+    }
   }
 
   return { config: nextConfig };
