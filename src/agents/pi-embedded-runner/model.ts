@@ -42,7 +42,7 @@ export function buildInlineProviderModels(
 
 export function resolveModel(
   provider: string,
-  modelId: string,
+  modelId: string | undefined,
   agentDir?: string,
   cfg?: OpenClawConfig,
 ): {
