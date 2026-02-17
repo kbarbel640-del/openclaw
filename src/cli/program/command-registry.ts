@@ -2,7 +2,6 @@ import type { Command } from "commander";
 import { getPrimaryCommand, hasHelpOrVersion } from "../argv.js";
 import { reparseProgramFromActionArgs } from "./action-reparse.js";
 import type { ProgramContext } from "./context.js";
-import { registerWorkspaceCli } from "../workspace-cli.js";
 import { registerSubCliCommands } from "./register.subclis.js";
 
 type CommandRegisterParams = {
@@ -203,8 +202,17 @@ const coreEntries: CoreCliEntry[] = [
     },
   },
   {
-    id: "workspace",
-    register: ({ program }) => registerWorkspaceCli(program),
+    commands: [
+      {
+        name: "workspace",
+        description: "Workspace management and cloud sync",
+        hasSubcommands: true,
+      },
+    ],
+    register: async ({ program }) => {
+      const mod = await import("../workspace-cli.js");
+      mod.registerWorkspaceCli(program);
+    },
   },
 ];
 
