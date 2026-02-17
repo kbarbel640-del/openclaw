@@ -23,12 +23,12 @@ vi.mock("grammy", async (importOriginal) => {
   const actual = await importOriginal<typeof import("grammy")>();
   return {
     ...actual,
-    webhookCallback: webhookCallbackSpy,
+    webhookCallback: (...args: unknown[]) => webhookCallbackSpy(...args),
   };
 });
 
 vi.mock("./bot.js", () => ({
-  createTelegramBot: createTelegramBotSpy,
+  createTelegramBot: (...args: unknown[]) => createTelegramBotSpy(...args),
 }));
 
 describe("startTelegramWebhook", () => {
