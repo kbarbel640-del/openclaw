@@ -52,8 +52,8 @@ vi.mock("../infra/agent-events.js", () => ({
   emitAgentEvent: vi.fn(),
 }));
 
-import type { AnyAgentTool } from "../agents/tools/common.js";
 import { wrapToolWithBeforeToolCallHook } from "../agents/pi-tools.before-tool-call.js";
+import type { AnyAgentTool } from "../agents/tools/common.js";
 
 describe("tool call hooks", () => {
   beforeEach(() => {
