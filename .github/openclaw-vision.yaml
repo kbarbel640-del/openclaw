@@ -1,7 +1,7 @@
-# Vision Document: OpenClaw
-# A local-first personal AI assistant with multi-channel routing
-# Repo: openclaw/openclaw
-# Last updated: 2026-02-16
+  # Vision Document: OpenClaw (DRAFT - not yet enforced)
+  # A local-first personal AI assistant with multi-channel routing
+  # Repo: openclaw/openclaw
+  # Status: draft - maintainer review required before enforcement
 
 project: OpenClaw
 
@@ -22,8 +22,7 @@ principles:
 
   - name: Skills Ecosystem Integrity
     description: >
-      The ClawHub marketplace has been targeted by supply chain attacks
-      (341+ malicious skills identified). Any PR touching skill loading,
+      The ClawHub marketplace is a known supply chain attack surface. Any PR touching skill loading,
       skill execution paths, or extension mechanisms must include tests
       and security review. Skills execute with system-level permissions.
 
