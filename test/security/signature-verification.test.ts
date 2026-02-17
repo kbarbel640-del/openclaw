@@ -60,7 +60,7 @@ describe("Plugin Signature Verification", () => {
   });
 
   describe("Plugin Signing", () => {
-    it("should sign a plugin successfully", () => {
+    it("should sign a plugin successfully", async () => {
       const pluginPath = path.join(tempDir, "test-plugin.ts");
       const pluginCode = "export default { register: () => {} };";
       fs.writeFileSync(pluginPath, pluginCode);
@@ -75,7 +75,7 @@ describe("Plugin Signature Verification", () => {
       expect(signature.timestamp).toBeGreaterThan(0);
     });
 
-    it("should throw error when plugin file does not exist", () => {
+    it("should throw error when plugin file does not exist", async () => {
       const nonExistentPath = path.join(tempDir, "nonexistent.ts");
 
       expect(() => {
@@ -83,7 +83,7 @@ describe("Plugin Signature Verification", () => {
       }).toThrow("Plugin file not found");
     });
 
-    it("should throw error with invalid private key", () => {
+    it("should throw error with invalid private key", async () => {
       const pluginPath = path.join(tempDir, "test-plugin.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
@@ -94,7 +94,7 @@ describe("Plugin Signature Verification", () => {
   });
 
   describe("Signature Verification", () => {
-    it("should verify valid signature", () => {
+    it("should verify valid signature", async () => {
       const pluginPath = path.join(tempDir, "test-plugin.ts");
       const pluginCode = "export default { register: () => {} };";
       fs.writeFileSync(pluginPath, pluginCode);
@@ -105,7 +105,7 @@ describe("Plugin Signature Verification", () => {
       expect(isValid).toBe(true);
     });
 
-    it("should reject unsigned plugin", () => {
+    it("should reject unsigned plugin", async () => {
       const pluginPath = path.join(tempDir, "unsigned-plugin.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
@@ -115,7 +115,7 @@ describe("Plugin Signature Verification", () => {
       expect(result.error).toBe("No signature found");
     });
 
-    it("should reject tampered plugin", () => {
+    it("should reject tampered plugin", async () => {
       const pluginPath = path.join(tempDir, "test-plugin.ts");
       const originalCode = "export default { register: () => {} };";
       fs.writeFileSync(pluginPath, originalCode);
@@ -131,7 +131,7 @@ describe("Plugin Signature Verification", () => {
       }).toThrow("Invalid signature");
     });
 
-    it("should reject untrusted public key", () => {
+    it("should reject untrusted public key", async () => {
       const pluginPath = path.join(tempDir, "test-plugin.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
@@ -144,7 +144,7 @@ describe("Plugin Signature Verification", () => {
       }).toThrow("Untrusted public key");
     });
 
-    it("should accept plugin signed by any trusted key", () => {
+    it("should accept plugin signed by any trusted key", async () => {
       const pluginPath = path.join(tempDir, "test-plugin.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
@@ -159,7 +159,7 @@ describe("Plugin Signature Verification", () => {
       expect(isValid).toBe(true);
     });
 
-    it("should reject plugin when no trusted keys provided", () => {
+    it("should reject plugin when no trusted keys provided", async () => {
       const pluginPath = path.join(tempDir, "test-plugin.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
@@ -172,7 +172,7 @@ describe("Plugin Signature Verification", () => {
   });
 
   describe("Plugin Directory Verification", () => {
-    it("should verify plugin directory with valid signature", () => {
+    it("should verify plugin directory with valid signature", async () => {
       const pluginPath = path.join(tempDir, "index.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
@@ -187,7 +187,7 @@ describe("Plugin Signature Verification", () => {
       expect(result.signature?.version).toBe("1.0.0");
     });
 
-    it("should fail when signature file is missing", () => {
+    it("should fail when signature file is missing", async () => {
       const pluginPath = path.join(tempDir, "index.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
@@ -197,7 +197,7 @@ describe("Plugin Signature Verification", () => {
       expect(result.error).toBe("No signature found");
     });
 
-    it("should fail when signature file is corrupted", () => {
+    it("should fail when signature file is corrupted", async () => {
       const pluginPath = path.join(tempDir, "index.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
@@ -213,7 +213,7 @@ describe("Plugin Signature Verification", () => {
   });
 
   describe("Integrity Checks", () => {
-    it("should detect plugin tampering", () => {
+    it("should detect plugin tampering", async () => {
       const pluginPath = path.join(tempDir, "index.ts");
       const originalCode = "export default { register: () => {} };";
       fs.writeFileSync(pluginPath, originalCode);
@@ -232,7 +232,7 @@ describe("Plugin Signature Verification", () => {
       expect(PluginSigner.checkIntegrity(pluginPath, signaturePath)).toBe(false);
     });
 
-    it("should return false for missing files", () => {
+    it("should return false for missing files", async () => {
       const pluginPath = path.join(tempDir, "nonexistent.ts");
       const signaturePath = path.join(tempDir, "plugin.signature.json");
 
@@ -241,7 +241,7 @@ describe("Plugin Signature Verification", () => {
   });
 
   describe("Signature Metadata", () => {
-    it("should retrieve signature metadata without verification", () => {
+    it("should retrieve signature metadata without verification", async () => {
       const pluginPath = path.join(tempDir, "index.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
@@ -256,12 +256,12 @@ describe("Plugin Signature Verification", () => {
       expect(metadata?.algorithm).toBe("RSA-SHA256");
     });
 
-    it("should return null when signature file is missing", () => {
+    it("should return null when signature file is missing", async () => {
       const metadata = PluginSigner.getSignatureMetadata(tempDir);
       expect(metadata).toBeNull();
     });
 
-    it("should return null when signature file is corrupted", () => {
+    it("should return null when signature file is corrupted", async () => {
       const signaturePath = path.join(tempDir, "plugin.signature.json");
       fs.writeFileSync(signaturePath, "invalid json");
 
@@ -271,7 +271,7 @@ describe("Plugin Signature Verification", () => {
   });
 
   describe("Production Mode Behavior", () => {
-    it("should enforce signature verification in production", () => {
+    it("should enforce signature verification in production", async () => {
       // This test would be integrated with the loader tests
       // Here we just verify the signing mechanics work
       const pluginPath = path.join(tempDir, "index.ts");
@@ -288,7 +288,7 @@ describe("Plugin Signature Verification", () => {
   });
 
   describe("Multiple Versions", () => {
-    it("should sign and verify different versions separately", () => {
+    it("should sign and verify different versions separately", async () => {
       const pluginPath = path.join(tempDir, "index.ts");
       fs.writeFileSync(pluginPath, "export default { register: () => {} };");
 
