@@ -21,10 +21,12 @@ import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import androidx.core.content.ContextCompat
 import ai.openclaw.android.gateway.GatewaySession
-import ai.openclaw.android.isCanonicalMainSessionKey
 import ai.openclaw.android.normalizeMainKey
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
+import java.util.ArrayList
+import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -54,6 +56,61 @@ class TalkModeManager(
     private const val tag = "TalkMode"
     private const val defaultModelIdFallback = "eleven_v3"
     private const val defaultOutputFormatFallback = "pcm_24000"
+    private const val defaultTalkSessionKey = "agent:voice:main"
+    private val defaultRecognitionLanguages = listOf("en-US", "fr-FR")
+    private const val stickyLanguageVoteThreshold = 2
+    private const val stickyLanguagePersistTtlMs = 10 * 60 * 1000L
+    private const val languageDetectionClientCooldownMs = 8_000L
+    private const val languageDetectionUnavailableCooldownMs = 30_000L
+    private const val autoLanguageConfidenceThreshold = 0.45
+    private const val autoLanguageConfidenceLockThreshold = 0.95
+    private const val stickyLanguagePrefsName = "talk_mode_state"
+    private const val stickyLanguageTagKey = "sticky_language_tag"
+    private const val stickyLanguageCodeKey = "sticky_language_code"
+    private const val stickyLanguageLockedAtKey = "sticky_language_locked_at_ms"
+    private val frenchAccentRegex = Regex("[àâçéèêëîïôûùüÿœæ]", RegexOption.IGNORE_CASE)
+    private val frenchMarkers =
+      setOf(
+        "bonjour",
+        "salut",
+        "merci",
+        "francais",
+        "français",
+        "avec",
+        "pour",
+        "vous",
+        "nous",
+        "comment",
+        "pourquoi",
+        "aujourd",
+        "demain",
+      )
+    private val englishMarkers =
+      setOf(
+        "hello",
+        "thanks",
+        "please",
+        "with",
+        "for",
+        "what",
+        "why",
+        "today",
+        "tomorrow",
+      )
+    private val switchToFrenchRegexes =
+      listOf(
+        Regex("\\bspeak\\s+french\\b", RegexOption.IGNORE_CASE),
+        Regex("\\b(parle|parlez|réponds|reponds)\\s+(en\\s+)?fran[cç]ais\\b", RegexOption.IGNORE_CASE),
+        Regex("\\b(switch|change|set|continue|reply|respond|talk)\\s+(to\\s+|in\\s+)?french\\b", RegexOption.IGNORE_CASE),
+        Regex("\\b(french\\s+mode|mode\\s+fran[cç]ais)\\b", RegexOption.IGNORE_CASE),
+      )
+    private val switchToEnglishRegexes =
+      listOf(
+        Regex("\\bspeak\\s+english\\b", RegexOption.IGNORE_CASE),
+        Regex("\\b(parle|parlez|réponds|reponds)\\s+(en\\s+)?anglais\\b", RegexOption.IGNORE_CASE),
+        Regex("\\b(switch|change|set|continue|reply|respond|talk)\\s+(to\\s+|in\\s+)?english\\b", RegexOption.IGNORE_CASE),
+        Regex("\\b(english\\s+mode|mode\\s+anglais)\\b", RegexOption.IGNORE_CASE),
+      )
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -84,10 +141,14 @@ class TalkModeManager(
 
   private var silenceJob: Job? = null
   private val silenceWindowMs = 700L
+  private val assistantStabilizeWindowMs = 600L
   private var lastTranscript: String = ""
   private var lastHeardAtMs: Long? = null
   private var lastSpokenText: String? = null
+  private var lastSpeechStartedAtMs: Long = 0L
   private var lastInterruptedAtSeconds: Double? = null
+  private val interruptMinDelayMs = 900L
+  private val interruptMinCharsPartial = 14
 
   private var defaultVoiceId: String? = null
   private var currentVoiceId: String? = null
@@ -96,15 +157,36 @@ class TalkModeManager(
   private var currentModelId: String? = null
   private var defaultOutputFormat: String? = null
   private var apiKey: String? = null
+  private var apiBaseUrl: String? = null
+  private var recognitionLanguage: String? = null
+  private var recognitionLanguages: List<String> = emptyList()
+  private var recognitionLanguageExtrasEnabled = true
+  private var stickyLanguageTag: String = "en-US"
+  private var stickyLanguageCode: String = "en"
+  private var stickyLanguageLocked = false
+  private var stickyFrenchVotes = 0
+  private var stickyEnglishVotes = 0
+  private var stickyFrenchConfidence = 0.0
+  private var stickyEnglishConfidence = 0.0
+  private var languageDetectionExtrasSuspendedUntilMs = 0L
+  private var recognizerClientErrorStreak = 0
+  private var lastRecognizerEventAtMs = 0L
+  private val recognizerStallTimeoutMs = 12_000L
   private var voiceAliases: Map<String, String> = emptyMap()
   private var interruptOnSpeech: Boolean = true
   private var voiceOverrideActive = false
   private var modelOverrideActive = false
-  private var mainSessionKey: String = "main"
+  private var mainSessionKey: String = defaultTalkSessionKey
+  private var pinnedTalkSessionKey: String? = defaultTalkSessionKey
 
   private var pendingRunId: String? = null
   private var pendingFinal: CompletableDeferred<Boolean>? = null
   private var chatSubscribedSessionKey: String? = null
+  private val finalizeStateLock = Any()
+  private var finalizeInFlight = false
+  private var lastAssistantFingerprint: String? = null
+  private var lastAssistantSpokenAtMs = 0L
+  private val assistantDedupWindowMs = 8_000L
 
   private var player: MediaPlayer? = null
   private var streamingSource: StreamingMediaDataSource? = null
@@ -117,7 +199,7 @@ class TalkModeManager(
   fun setMainSessionKey(sessionKey: String?) {
     val trimmed = sessionKey?.trim().orEmpty()
     if (trimmed.isEmpty()) return
-    if (isCanonicalMainSessionKey(mainSessionKey)) return
+    if (!pinnedTalkSessionKey.isNullOrBlank()) return
     mainSessionKey = trimmed
   }
 
@@ -125,7 +207,12 @@ class TalkModeManager(
     if (_isEnabled.value == enabled) return
     _isEnabled.value = enabled
     if (enabled) {
-      Log.d(tag, "enabled")
+      recognitionLanguageExtrasEnabled = true
+      recognizerClientErrorStreak = 0
+      languageDetectionExtrasSuspendedUntilMs = 0L
+      lastRecognizerEventAtMs = 0L
+      restoreStickyLanguageStateIfFresh()
+      logLanguageState("enabled")
       start()
     } else {
       Log.d(tag, "disabled")
@@ -178,6 +265,7 @@ class TalkModeManager(
       try {
         recognizer?.destroy()
         recognizer = SpeechRecognizer.createSpeechRecognizer(context).also { it.setRecognitionListener(listener) }
+        lastRecognizerEventAtMs = SystemClock.elapsedRealtime()
         startListeningInternal(markListening = true)
         startSilenceMonitor()
         Log.d(tag, "listening")
@@ -191,6 +279,9 @@ class TalkModeManager(
   private fun stop() {
     stopRequested = true
     listeningMode = false
+    synchronized(finalizeStateLock) {
+      finalizeInFlight = false
+    }
     restartJob?.cancel()
     restartJob = null
     silenceJob?.cancel()
@@ -212,23 +303,118 @@ class TalkModeManager(
     systemTtsPending?.cancel()
     systemTtsPending = null
     systemTtsPendingId = null
+    if (stickyLanguageLocked) {
+      saveStickyLanguageState()
+    }
+    stickyLanguageLocked = false
+    stickyFrenchVotes = 0
+    stickyEnglishVotes = 0
+    stickyFrenchConfidence = 0.0
+    stickyEnglishConfidence = 0.0
   }
 
   private fun startListeningInternal(markListening: Boolean) {
     val r = recognizer ?: return
+    maybeRestoreLanguageDetectionExtras()
+    val useLanguageDetectionExtras = !stickyLanguageLocked && recognitionLanguageExtrasEnabled && recognitionLanguages.isNotEmpty()
+    val recognizerLanguage =
+      if (stickyLanguageLocked) {
+        stickyLanguageTag
+      } else {
+        resolvedRecognizerLanguage(useLanguageDetectionExtras)
+      }
     val intent =
       Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+
+        recognizerLanguage?.let { languageTag ->
+          putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
+          putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languageTag)
+        }
+
+        if (useLanguageDetectionExtras) {
+          putExtra("android.speech.extra.ENABLE_LANGUAGE_DETECTION", true)
+          putStringArrayListExtra(
+            "android.speech.extra.LANGUAGE_DETECTION_ALLOWED_LANGUAGES",
+            ArrayList(recognitionLanguages),
+          )
+          putExtra("android.speech.extra.ENABLE_LANGUAGE_SWITCH", true)
+          putStringArrayListExtra(
+            "android.speech.extra.LANGUAGE_SWITCH_ALLOWED_LANGUAGES",
+            ArrayList(recognitionLanguages),
+          )
+        }
       }
 
+    Log.d(
+      tag,
+      "startListening: lang=${recognizerLanguage ?: "auto"} detectExtras=$useLanguageDetectionExtras locked=$stickyLanguageLocked sticky=$stickyLanguageTag langs=${recognitionLanguages.joinToString(",")}",
+    )
     if (markListening) {
       _statusText.value = "Listening"
       _isListening.value = true
     }
-    r.startListening(intent)
+    try {
+      r.startListening(intent)
+      lastRecognizerEventAtMs = SystemClock.elapsedRealtime()
+    } catch (err: Throwable) {
+      if (markListening) {
+        _isListening.value = false
+      }
+      throw err
+    }
+  }
+
+  private fun resolvedRecognizerLanguage(useLanguageDetectionExtras: Boolean): String? {
+    recognitionLanguage?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    if (useLanguageDetectionExtras) return null
+    if (recognitionLanguages.isEmpty()) return null
+
+    val localeTag = Locale.getDefault().toLanguageTag().lowercase()
+    val localeLang = Locale.getDefault().language.lowercase()
+    val exact = recognitionLanguages.firstOrNull { it.lowercase() == localeTag }
+    if (exact != null) return exact
+    val prefix = recognitionLanguages.firstOrNull { it.lowercase().startsWith("$localeLang-") }
+    if (prefix != null) return prefix
+    return recognitionLanguages.firstOrNull()
+  }
+
+  private fun languageDetectionSuspendedRemainingMs(): Long {
+    val now = SystemClock.elapsedRealtime()
+    return if (languageDetectionExtrasSuspendedUntilMs > now) {
+      languageDetectionExtrasSuspendedUntilMs - now
+    } else {
+      0L
+    }
+  }
+
+  private fun maybeRestoreLanguageDetectionExtras() {
+    if (recognitionLanguageExtrasEnabled) return
+    if (recognitionLanguages.isEmpty()) return
+    if (languageDetectionSuspendedRemainingMs() > 0L) return
+    recognitionLanguageExtrasEnabled = true
+    recognizerClientErrorStreak = 0
+    languageDetectionExtrasSuspendedUntilMs = 0L
+    logLanguageState("language_detection_reenabled")
+  }
+
+  private fun suspendLanguageDetectionExtras(reason: String, cooldownMs: Long) {
+    recognitionLanguageExtrasEnabled = false
+    languageDetectionExtrasSuspendedUntilMs =
+      max(languageDetectionExtrasSuspendedUntilMs, SystemClock.elapsedRealtime() + cooldownMs)
+    logLanguageState("language_detection_suspended", "reason=$reason cooldownMs=$cooldownMs")
+  }
+
+  private fun logLanguageState(event: String, detail: String? = null) {
+    val remaining = languageDetectionSuspendedRemainingMs()
+    val suffix = detail?.takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
+    Log.d(
+      tag,
+      "lang_state event=$event code=$stickyLanguageCode tag=$stickyLanguageTag locked=$stickyLanguageLocked frVotes=$stickyFrenchVotes enVotes=$stickyEnglishVotes frConf=${String.format(Locale.US, "%.2f", stickyFrenchConfidence)} enConf=${String.format(Locale.US, "%.2f", stickyEnglishConfidence)} detectExtras=$recognitionLanguageExtrasEnabled detectCooldownMs=$remaining$suffix",
+    )
   }
 
   private fun scheduleRestart(delayMs: Long = 350) {
@@ -245,8 +431,13 @@ class TalkModeManager(
             val shouldInterrupt = _isSpeaking.value && interruptOnSpeech
             if (!shouldListen && !shouldInterrupt) return@post
             startListeningInternal(markListening = shouldListen)
-          } catch (_: Throwable) {
-            // handled by onError
+          } catch (err: Throwable) {
+            Log.w(tag, "restart failed: ${err.message ?: err::class.simpleName}")
+            _isListening.value = false
+            recreateRecognizer("restart_failure")
+            if (!stopRequested) {
+              scheduleRestart(delayMs = 900)
+            }
           }
         }
       }
@@ -255,7 +446,8 @@ class TalkModeManager(
   private fun handleTranscript(text: String, isFinal: Boolean) {
     val trimmed = text.trim()
     if (_isSpeaking.value && interruptOnSpeech) {
-      if (shouldInterrupt(trimmed)) {
+      if (shouldInterrupt(trimmed, isFinal = isFinal)) {
+        Log.d(tag, "speech interrupt accepted: final=$isFinal text=${trimmed.take(64)}")
         stopSpeaking()
       }
       return
@@ -264,6 +456,7 @@ class TalkModeManager(
     if (!_isListening.value) return
 
     if (trimmed.isNotEmpty()) {
+      updateStickyLanguageFromTranscript(trimmed, isFinal = isFinal)
       lastTranscript = trimmed
       lastHeardAtMs = SystemClock.elapsedRealtime()
     }
@@ -286,12 +479,44 @@ class TalkModeManager(
 
   private fun checkSilence() {
     if (!_isListening.value) return
+    val now = SystemClock.elapsedRealtime()
+    if (!_isSpeaking.value && lastRecognizerEventAtMs > 0) {
+      val idleMs = now - lastRecognizerEventAtMs
+      if (idleMs >= recognizerStallTimeoutMs) {
+        Log.w(tag, "recognizer stall detected idleMs=$idleMs; forcing restart")
+        lastRecognizerEventAtMs = now
+        _statusText.value = "Listening restart…"
+        recreateRecognizer("stall_watchdog")
+        scheduleRestart(delayMs = 300)
+        return
+      }
+    }
     val transcript = lastTranscript.trim()
     if (transcript.isEmpty()) return
     val lastHeard = lastHeardAtMs ?: return
-    val elapsed = SystemClock.elapsedRealtime() - lastHeard
+    val elapsed = now - lastHeard
     if (elapsed < silenceWindowMs) return
-    scope.launch { finalizeTranscript(transcript) }
+    if (!beginFinalizeIfIdle()) return
+    scope.launch {
+      try {
+        finalizeTranscript(transcript)
+      } finally {
+        endFinalize()
+      }
+    }
+  }
+
+  private fun beginFinalizeIfIdle(): Boolean =
+    synchronized(finalizeStateLock) {
+      if (finalizeInFlight) return@synchronized false
+      finalizeInFlight = true
+      true
+    }
+
+  private fun endFinalize() {
+    synchronized(finalizeStateLock) {
+      finalizeInFlight = false
+    }
   }
 
   private suspend fun finalizeTranscript(transcript: String) {
@@ -356,8 +581,14 @@ class TalkModeManager(
   private fun buildPrompt(transcript: String): String {
     val lines = mutableListOf(
       "Talk Mode active. Reply in a concise, spoken tone.",
-      "You may optionally prefix the response with JSON (first line) to set ElevenLabs voice (id or alias), e.g. {\"voice\":\"<id>\",\"once\":true}.",
+      "Return plain text only. Do not call tools, including any TTS/audio tools.",
+      "Do not emit JSON, metadata, or voice directives unless explicitly requested by the user.",
     )
+    if (stickyLanguageLocked && stickyLanguageCode == "fr") {
+      lines.add("System Note: The user is in French mode. Respond only in French unless explicitly asked to switch language.")
+    } else if (stickyLanguageLocked && stickyLanguageCode == "en") {
+      lines.add("System Note: The user is in English mode. Respond only in English unless explicitly asked to switch language.")
+    }
     lastInterruptedAtSeconds?.let {
       lines.add("Assistant speech interrupted at ${"%.1f".format(it)}s.")
       lastInterruptedAtSeconds = null
@@ -373,7 +604,7 @@ class TalkModeManager(
       buildJsonObject {
         put("sessionKey", JsonPrimitive(mainSessionKey.ifBlank { "main" }))
         put("message", JsonPrimitive(message))
-        put("thinking", JsonPrimitive("low"))
+        put("thinking", JsonPrimitive("off"))
         put("timeoutMs", JsonPrimitive(30_000))
         put("idempotencyKey", JsonPrimitive(runId))
       }
@@ -418,7 +649,8 @@ class TalkModeManager(
       if (!text.isNullOrBlank()) return text
       delay(300)
     }
-    return null
+    // Fallback for device/server clock skew or odd timestamp formatting.
+    return fetchLatestAssistantText(session, sinceSeconds = null)
   }
 
   private suspend fun fetchLatestAssistantText(
@@ -452,17 +684,22 @@ class TalkModeManager(
       Log.w(tag, "Unknown talk directive keys: ${parsed.unknownKeys}")
     }
     val directive = parsed.directive
-    val cleaned = parsed.stripped.trim()
+    val cleaned = sanitizeSpokenText(parsed.stripped.trim())
     if (cleaned.isEmpty()) return
+    val stickyVoice = if (stickyLanguageLocked) preferredVoiceForLanguageCode(stickyLanguageCode) else null
+    val now = SystemClock.elapsedRealtime()
+    val fingerprint = cleaned.lowercase(Locale.ROOT).replace(Regex("\\s+"), " ").trim()
+    lastAssistantFingerprint = fingerprint
+    lastAssistantSpokenAtMs = now
     _lastAssistantText.value = cleaned
 
-    val requestedVoice = directive?.voiceId?.trim()?.takeIf { it.isNotEmpty() }
+    val requestedVoice = if (stickyVoice != null) null else directive?.voiceId?.trim()?.takeIf { it.isNotEmpty() }
     val resolvedVoice = resolveVoiceAlias(requestedVoice)
     if (requestedVoice != null && resolvedVoice == null) {
       Log.w(tag, "unknown voice alias: $requestedVoice")
     }
 
-    if (directive?.voiceId != null) {
+    if (directive?.voiceId != null && stickyVoice == null) {
       if (directive.once != true) {
         currentVoiceId = resolvedVoice
         voiceOverrideActive = true
@@ -478,7 +715,12 @@ class TalkModeManager(
     val apiKey =
       apiKey?.trim()?.takeIf { it.isNotEmpty() }
         ?: System.getenv("ELEVENLABS_API_KEY")?.trim()
-    val preferredVoice = resolvedVoice ?: currentVoiceId ?: defaultVoiceId
+    val preferredVoice =
+      stickyVoice
+        ?: resolvedVoice
+        ?: if (!voiceOverrideActive) preferredVoiceForLanguageCode(stickyLanguageCode) else null
+        ?: currentVoiceId
+        ?: defaultVoiceId
     val voiceId =
       if (!apiKey.isNullOrEmpty()) {
         resolveVoiceId(preferredVoice, apiKey)
@@ -488,6 +730,7 @@ class TalkModeManager(
 
     _statusText.value = "Speaking…"
     _isSpeaking.value = true
+    lastSpeechStartedAtMs = SystemClock.elapsedRealtime()
     lastSpokenText = cleaned
     ensureInterruptListener()
 
@@ -520,7 +763,12 @@ class TalkModeManager(
             speakerBoost = directive?.speakerBoost,
             seed = TalkModeRuntime.validatedSeed(directive?.seed),
             normalize = TalkModeRuntime.validatedNormalize(directive?.normalize),
-            language = TalkModeRuntime.validatedLanguage(directive?.language),
+            language =
+              if (stickyLanguageLocked) {
+                stickyLanguageCode
+              } else {
+                TalkModeRuntime.validatedLanguage(directive?.language ?: stickyLanguageCode)
+              },
             latencyTier = TalkModeRuntime.validatedLatencyTier(directive?.latencyTier),
           )
         streamAndPlay(voiceId = voiceId!!, apiKey = apiKey!!, request = request)
@@ -801,12 +1049,43 @@ class TalkModeManager(
     pcmTrack = null
   }
 
-  private fun shouldInterrupt(transcript: String): Boolean {
+  private fun shouldInterrupt(transcript: String, isFinal: Boolean): Boolean {
     val trimmed = transcript.trim()
     if (trimmed.length < 3) return false
-    val spoken = lastSpokenText?.lowercase()
-    if (spoken != null && spoken.contains(trimmed.lowercase())) return false
+    val elapsedSinceSpeechStart = SystemClock.elapsedRealtime() - lastSpeechStartedAtMs
+    if (elapsedSinceSpeechStart < interruptMinDelayMs) return false
+
+    val normalized = trimmed.lowercase(Locale.ROOT)
+    val wordCount = normalized.split(Regex("\\s+")).count { it.isNotEmpty() }
+    if (!isFinal && (trimmed.length < interruptMinCharsPartial || wordCount < 3)) return false
+
+    val spoken = lastSpokenText?.lowercase(Locale.ROOT)
+    if (spoken != null && spoken.contains(normalized)) return false
     return true
+  }
+
+  private fun sanitizeSpokenText(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.isEmpty()) return trimmed
+    val normalized = trimmed.lowercase(Locale.ROOT)
+    val prefixes =
+      listOf(
+        "checking context",
+        "checking the context",
+        "let me check",
+        "one moment",
+        "un instant",
+        "je verifie",
+        "je vérifie",
+      )
+    for (prefix in prefixes) {
+      if (!normalized.startsWith(prefix)) continue
+      val tail = trimmed.substring(prefix.length).trimStart(' ', ':', '-', '.', ',', ';')
+      if (tail.length >= 8) {
+        return tail
+      }
+    }
+    return trimmed
   }
 
   private suspend fun reloadConfig() {
@@ -818,8 +1097,12 @@ class TalkModeManager(
       val root = json.parseToJsonElement(res).asObjectOrNull()
       val config = root?.get("config").asObjectOrNull()
       val talk = config?.get("talk").asObjectOrNull()
+      val messages = config?.get("messages").asObjectOrNull()
+      val tts = messages?.get("tts").asObjectOrNull()
+      val elevenlabs = tts?.get("elevenlabs").asObjectOrNull()
       val sessionCfg = config?.get("session").asObjectOrNull()
       val mainKey = normalizeMainKey(sessionCfg?.get("mainKey").asStringOrNull())
+      val talkSessionKey = talk?.get("sessionKey")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
       val voice = talk?.get("voiceId")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
       val aliases =
         talk?.get("voiceAliases").asObjectOrNull()?.entries?.mapNotNull { (key, value) ->
@@ -828,12 +1111,34 @@ class TalkModeManager(
         }?.toMap().orEmpty()
       val model = talk?.get("modelId")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
       val outputFormat = talk?.get("outputFormat")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
-      val key = talk?.get("apiKey")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+      val key =
+        talk?.get("apiKey")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+          ?: elevenlabs?.get("apiKey")?.asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+      val baseUrl =
+        TalkModeRuntime.validatedHttpBaseUrl(
+          talk?.get("apiBaseUrl")?.asStringOrNull()?.trim()
+            ?: elevenlabs?.get("baseUrl")?.asStringOrNull()?.trim(),
+        )
+      val recognitionLanguage =
+        TalkModeRuntime.validatedLocaleTag(
+          talk?.get("recognitionLanguage")?.asStringOrNull()?.trim()
+            ?: elevenlabs?.get("languageCode")?.asStringOrNull()?.trim(),
+        )
+      val configuredRecognitionLanguages =
+        ((talk?.get("recognitionLanguages") as? JsonArray) ?: JsonArray(emptyList()))
+          .mapNotNull { TalkModeRuntime.validatedLocaleTag(it.asStringOrNull()?.trim()) }
+          .distinct()
+      val recognitionLanguages =
+        when {
+          configuredRecognitionLanguages.isNotEmpty() -> configuredRecognitionLanguages
+          recognitionLanguage != null -> listOf(recognitionLanguage)
+          else -> defaultRecognitionLanguages
+        }
       val interrupt = talk?.get("interruptOnSpeech")?.asBooleanOrNull()
 
-      if (!isCanonicalMainSessionKey(mainSessionKey)) {
-        mainSessionKey = mainKey
-      }
+      val resolvedSessionKey = talkSessionKey ?: pinnedTalkSessionKey ?: defaultTalkSessionKey
+      pinnedTalkSessionKey = resolvedSessionKey
+      mainSessionKey = resolvedSessionKey.ifBlank { mainKey }
       defaultVoiceId = voice ?: envVoice?.takeIf { it.isNotEmpty() } ?: sagVoice?.takeIf { it.isNotEmpty() }
       voiceAliases = aliases
       if (!voiceOverrideActive) currentVoiceId = defaultVoiceId
@@ -841,14 +1146,36 @@ class TalkModeManager(
       if (!modelOverrideActive) currentModelId = defaultModelId
       defaultOutputFormat = outputFormat ?: defaultOutputFormatFallback
       apiKey = key ?: envKey?.takeIf { it.isNotEmpty() }
+      apiBaseUrl = baseUrl
+      this.recognitionLanguages = recognitionLanguages
+      this.recognitionLanguage = recognitionLanguage
+      syncStickyLanguageDefaults()
+      if (!voiceOverrideActive) {
+        preferredVoiceForLanguageCode(stickyLanguageCode)?.let { currentVoiceId = it }
+      }
       if (interrupt != null) interruptOnSpeech = interrupt
+      Log.d(
+        tag,
+        "config loaded: sessionKey=${mainSessionKey.ifBlank { "main" }} ttsBaseUrl=${apiBaseUrl ?: "default"} recognitionLanguage=${this.recognitionLanguage ?: "auto"} recognitionLanguages=${this.recognitionLanguages.joinToString(",")} sticky=${stickyLanguageTag}/${stickyLanguageCode} locked=$stickyLanguageLocked",
+      )
     } catch (_: Throwable) {
       defaultVoiceId = envVoice?.takeIf { it.isNotEmpty() } ?: sagVoice?.takeIf { it.isNotEmpty() }
       defaultModelId = defaultModelIdFallback
       if (!modelOverrideActive) currentModelId = defaultModelId
       apiKey = envKey?.takeIf { it.isNotEmpty() }
+      apiBaseUrl = null
+      recognitionLanguage = null
+      recognitionLanguages = emptyList()
+      recognitionLanguageExtrasEnabled = true
+      recognizerClientErrorStreak = 0
+      languageDetectionExtrasSuspendedUntilMs = 0L
+      if (pinnedTalkSessionKey.isNullOrBlank()) {
+        pinnedTalkSessionKey = defaultTalkSessionKey
+      }
+      mainSessionKey = pinnedTalkSessionKey ?: defaultTalkSessionKey
       voiceAliases = emptyMap()
       defaultOutputFormat = defaultOutputFormatFallback
+      syncStickyLanguageDefaults()
     }
   }
 
@@ -944,8 +1271,9 @@ class TalkModeManager(
     apiKey: String,
     request: ElevenLabsRequest,
   ): HttpURLConnection {
-    val baseUrl = "https://api.elevenlabs.io/v1/text-to-speech/$voiceId/stream"
+    val baseUrl = "${resolvedTtsApiBaseUrl()}/v1/text-to-speech/$voiceId/stream"
     val latencyTier = request.latencyTier
+    Log.d(tag, "tts request: baseUrl=$baseUrl language=${request.language ?: "auto"}")
     val url =
       if (latencyTier != null) {
         URL("$baseUrl?optimize_streaming_latency=$latencyTier")
@@ -1056,6 +1384,30 @@ class TalkModeManager(
       return normalized
     }
 
+    fun validatedLocaleTag(value: String?): String? {
+      val normalized = value?.trim()?.replace('_', '-') ?: return null
+      if (normalized.isEmpty()) return null
+      if (normalized.length > 16) return null
+      if (!normalized.all { it.isLetterOrDigit() || it == '-' }) return null
+      return normalized
+    }
+
+    fun validatedHttpBaseUrl(value: String?): String? {
+      val normalized = value?.trim()?.trimEnd('/') ?: return null
+      if (normalized.isEmpty()) return null
+      if (!(normalized.startsWith("http://") || normalized.startsWith("https://"))) return null
+      return normalized
+    }
+
+    fun isLoopbackHost(raw: String?): Boolean {
+      val host = raw?.trim()?.removePrefix("[")?.removeSuffix("]")?.lowercase().orEmpty()
+      if (host.isEmpty()) return false
+      if (host == "localhost") return true
+      if (host == "::1") return true
+      if (host == "0.0.0.0" || host == "::") return true
+      return host.startsWith("127.")
+    }
+
     fun validatedOutputFormat(value: String?): String? {
       val trimmed = value?.trim()?.lowercase() ?: return null
       if (trimmed.isEmpty()) return null
@@ -1114,6 +1466,285 @@ class TalkModeManager(
     return if (isLikelyVoiceId(trimmed)) trimmed else null
   }
 
+  private fun preferredVoiceForLanguageCode(code: String?): String? {
+    val normalized = code?.trim()?.lowercase().orEmpty()
+    val alias = if (normalized == "fr") "mia" else "aria"
+    return resolveVoiceAlias(alias)
+  }
+
+  private fun saveStickyLanguageState() {
+    if (!stickyLanguageLocked) return
+    runCatching {
+      context
+        .getSharedPreferences(stickyLanguagePrefsName, Context.MODE_PRIVATE)
+        .edit()
+        .putString(stickyLanguageTagKey, stickyLanguageTag)
+        .putString(stickyLanguageCodeKey, stickyLanguageCode)
+        .putLong(stickyLanguageLockedAtKey, System.currentTimeMillis())
+        .apply()
+    }.onFailure { err ->
+      Log.w(tag, "failed to persist sticky language: ${err.message ?: err::class.simpleName}")
+    }
+  }
+
+  private fun clearStickyLanguageState() {
+    runCatching {
+      context
+        .getSharedPreferences(stickyLanguagePrefsName, Context.MODE_PRIVATE)
+        .edit()
+        .remove(stickyLanguageTagKey)
+        .remove(stickyLanguageCodeKey)
+        .remove(stickyLanguageLockedAtKey)
+        .apply()
+    }
+  }
+
+  private fun restoreStickyLanguageStateIfFresh() {
+    if (stickyLanguageLocked) return
+    val prefs =
+      runCatching { context.getSharedPreferences(stickyLanguagePrefsName, Context.MODE_PRIVATE) }.getOrNull()
+        ?: return
+    val lockedAtMs = prefs.getLong(stickyLanguageLockedAtKey, 0L)
+    if (lockedAtMs <= 0L) return
+    val ageMs = System.currentTimeMillis() - lockedAtMs
+    if (ageMs < 0L || ageMs > stickyLanguagePersistTtlMs) {
+      clearStickyLanguageState()
+      return
+    }
+    val storedCode = prefs.getString(stickyLanguageCodeKey, null)?.trim()?.lowercase().orEmpty()
+    val restoredCode = if (storedCode == "fr") "fr" else if (storedCode == "en") "en" else return
+    val restoredTag =
+      normalizedStickyLanguageTag(prefs.getString(stickyLanguageTagKey, null))
+        ?: preferredLocaleForCode(restoredCode)
+    stickyLanguageTag = restoredTag
+    stickyLanguageCode = restoredCode
+    stickyLanguageLocked = true
+    stickyFrenchVotes = 0
+    stickyEnglishVotes = 0
+    stickyFrenchConfidence = 0.0
+    stickyEnglishConfidence = 0.0
+    if (!voiceOverrideActive) {
+      preferredVoiceForLanguageCode(restoredCode)?.let { currentVoiceId = it }
+    }
+    logLanguageState("sticky_restored", "ageMs=$ageMs")
+  }
+
+  private fun syncStickyLanguageDefaults() {
+    if (stickyLanguageLocked) return
+    val base =
+      normalizedStickyLanguageTag(recognitionLanguage)
+        ?: normalizedStickyLanguageTag(recognitionLanguages.firstOrNull())
+        ?: normalizedStickyLanguageTag(stickyLanguageTag)
+        ?: "en-US"
+    stickyLanguageTag = base
+    stickyLanguageCode = stickyLanguageCodeFromTag(base)
+    stickyFrenchVotes = 0
+    stickyEnglishVotes = 0
+    stickyFrenchConfidence = 0.0
+    stickyEnglishConfidence = 0.0
+  }
+
+  private fun normalizedStickyLanguageTag(value: String?): String? {
+    val raw = value?.trim()?.replace('_', '-')?.lowercase().orEmpty()
+    if (raw.isEmpty()) return null
+    return when {
+      raw.startsWith("fr") -> preferredLocaleForCode("fr")
+      raw.startsWith("en") -> preferredLocaleForCode("en")
+      else -> null
+    }
+  }
+
+  private fun stickyLanguageCodeFromTag(tag: String): String {
+    return if (tag.lowercase().startsWith("fr")) "fr" else "en"
+  }
+
+  private fun preferredLocaleForCode(code: String): String {
+    val normalized = code.trim().lowercase()
+    val exact =
+      recognitionLanguages.firstOrNull {
+        val candidate = it.trim().lowercase()
+        candidate == normalized || candidate.startsWith("$normalized-")
+      }
+    if (exact != null) return exact
+    return if (normalized == "fr") "fr-FR" else "en-US"
+  }
+
+  private fun updateStickyLanguageFromTranscript(text: String, isFinal: Boolean) {
+    val trimmed = text.trim()
+    if (trimmed.isEmpty()) return
+    val lower = trimmed.lowercase(Locale.ROOT)
+    val tokens = Regex("[a-zA-ZÀ-ÿ']+").findAll(lower).map { it.value }.toList()
+    val shortCommand = tokens.size in 1..6
+    val asksFrenchWord = lower.contains("french") || lower.contains("français") || lower.contains("francais")
+    val asksEnglishWord = lower.contains("english") || lower.contains("anglais")
+    val englishControlWords = listOf("switch", "change", "set", "continue", "reply", "respond", "talk", "speak", "mode")
+
+    if (switchToFrenchRegexes.any { it.containsMatchIn(lower) }) {
+      Log.i(tag, "manual french trigger matched: \"$trimmed\"")
+      lockStickyLanguage("fr", reason = "manual")
+      return
+    }
+    if (switchToEnglishRegexes.any { it.containsMatchIn(lower) }) {
+      Log.i(tag, "manual english trigger matched: \"$trimmed\"")
+      lockStickyLanguage("en", reason = "manual")
+      return
+    }
+    if (isFinal && shortCommand && asksFrenchWord) {
+      Log.i(tag, "manual french trigger (short command): \"$trimmed\"")
+      lockStickyLanguage("fr", reason = "manual_short")
+      return
+    }
+    if (isFinal && shortCommand && asksEnglishWord) {
+      Log.i(tag, "manual english trigger (short command): \"$trimmed\"")
+      lockStickyLanguage("en", reason = "manual_short")
+      return
+    }
+    if (
+      isFinal &&
+      asksFrenchWord &&
+      englishControlWords.any { lower.contains(it) }
+    ) {
+      Log.i(tag, "manual french trigger (fallback heuristic): \"$trimmed\"")
+      lockStickyLanguage("fr", reason = "manual_fallback")
+      return
+    }
+    if (
+      isFinal &&
+      asksEnglishWord &&
+      englishControlWords.any { lower.contains(it) }
+    ) {
+      Log.i(tag, "manual english trigger (fallback heuristic): \"$trimmed\"")
+      lockStickyLanguage("en", reason = "manual_fallback")
+      return
+    }
+
+    if (stickyLanguageLocked) return
+
+    val signal = inferLanguageSignalFromText(lower, tokens) ?: return
+    if (signal.confidence < autoLanguageConfidenceThreshold) return
+    applyAutoLanguageVote(signal.code, signal.confidence, isFinal = isFinal, reason = "transcript")
+  }
+
+  private fun updateStickyLanguageFromDetectedTag(detectedTag: String, isFinal: Boolean) {
+    if (stickyLanguageLocked) return
+    val code = stickyLanguageCodeFromTag(detectedTag)
+    applyAutoLanguageVote(code, confidence = 0.9, isFinal = isFinal, reason = "asr_detected")
+  }
+
+  private fun applyAutoLanguageVote(code: String, confidence: Double, isFinal: Boolean, reason: String) {
+    if (stickyLanguageLocked) return
+    val clamped = confidence.coerceIn(0.0, 1.0)
+    val weight = if (isFinal) 1.0 else 0.65
+    val weighted = clamped * weight
+
+    when (code) {
+      "fr" -> {
+        stickyFrenchVotes += if (isFinal) 2 else 1
+        stickyEnglishVotes = 0
+        stickyFrenchConfidence = (stickyFrenchConfidence + weighted).coerceAtMost(3.0)
+        stickyEnglishConfidence = 0.0
+        logLanguageState(
+          "vote_fr",
+          "reason=$reason conf=${String.format(Locale.US, "%.2f", clamped)} weighted=${String.format(Locale.US, "%.2f", weighted)} final=$isFinal",
+        )
+        if (
+          stickyFrenchVotes >= stickyLanguageVoteThreshold &&
+          stickyFrenchConfidence >= autoLanguageConfidenceLockThreshold
+        ) {
+          lockStickyLanguage("fr", reason = "auto_vote_$reason")
+        }
+      }
+
+      "en" -> {
+        stickyEnglishVotes += if (isFinal) 1 else 0
+        stickyFrenchVotes = 0
+        stickyEnglishConfidence = (stickyEnglishConfidence + weighted).coerceAtMost(3.0)
+        stickyFrenchConfidence = 0.0
+        logLanguageState(
+          "vote_en",
+          "reason=$reason conf=${String.format(Locale.US, "%.2f", clamped)} weighted=${String.format(Locale.US, "%.2f", weighted)} final=$isFinal",
+        )
+      }
+    }
+  }
+
+  private fun inferLanguageSignalFromText(lower: String, tokens: List<String>): LanguageSignal? {
+    if (tokens.isEmpty()) return null
+
+    val frHits = tokens.count { it in frenchMarkers }
+    val enHits = tokens.count { it in englishMarkers }
+    var frScore = 0.0
+    var enScore = 0.0
+
+    if (frenchAccentRegex.containsMatchIn(lower)) {
+      frScore += 0.8
+    }
+    frScore += minOf(1.0, frHits * 0.35)
+    enScore += minOf(1.0, enHits * 0.35)
+
+    if (frScore >= autoLanguageConfidenceThreshold && frScore >= enScore + 0.15) {
+      return LanguageSignal("fr", frScore.coerceAtMost(0.99))
+    }
+    if (enScore >= autoLanguageConfidenceThreshold && enScore >= frScore + 0.15) {
+      return LanguageSignal("en", enScore.coerceAtMost(0.99))
+    }
+    return null
+  }
+
+  private fun lockStickyLanguage(code: String, reason: String) {
+    val normalizedCode = if (code.lowercase() == "fr") "fr" else "en"
+    val targetTag = preferredLocaleForCode(normalizedCode)
+    val changed = !stickyLanguageTag.equals(targetTag, ignoreCase = true) || !stickyLanguageLocked
+    stickyLanguageTag = targetTag
+    stickyLanguageCode = normalizedCode
+    stickyLanguageLocked = true
+    stickyFrenchVotes = 0
+    stickyEnglishVotes = 0
+    stickyFrenchConfidence = 0.0
+    stickyEnglishConfidence = 0.0
+    saveStickyLanguageState()
+    if (!voiceOverrideActive) {
+      preferredVoiceForLanguageCode(normalizedCode)?.let { currentVoiceId = it }
+    }
+    logLanguageState("locked", "reason=$reason changed=$changed")
+    if (changed && _isEnabled.value) {
+      recreateRecognizer("sticky_language_$normalizedCode")
+      scheduleRestart(delayMs = 250)
+    }
+  }
+
+  private fun resolvedTtsApiBaseUrl(): String {
+    val configured = apiBaseUrl?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() } ?: return "https://api.elevenlabs.io"
+    return normalizeLoopbackBaseUrl(configured)
+  }
+
+  private fun normalizeLoopbackBaseUrl(baseUrl: String): String {
+    val uri = runCatching { URI(baseUrl) }.getOrNull() ?: return baseUrl
+    if (!TalkModeRuntime.isLoopbackHost(uri.host)) return baseUrl
+
+    val canvasHostUrl = session.currentCanvasHostUrl()
+    val canvasUri = canvasHostUrl?.let { runCatching { URI(it) }.getOrNull() }
+    val remoteHost = canvasUri?.host?.trim().orEmpty()
+    if (remoteHost.isEmpty()) {
+      Log.w(tag, "loopback TTS baseUrl cannot be normalized: canvas host unavailable")
+      return baseUrl
+    }
+
+    val scheme =
+      uri.scheme?.trim()?.takeIf { it.isNotEmpty() }
+        ?: canvasUri?.scheme?.trim()?.takeIf { it.isNotEmpty() }
+        ?: "http"
+    val port = if (uri.port > 0) uri.port else if (scheme == "https") 443 else 80
+    val formattedHost = if (remoteHost.contains(":")) "[${remoteHost}]" else remoteHost
+    val path = uri.rawPath?.takeIf { it.isNotEmpty() }.orEmpty()
+    val query = uri.rawQuery?.takeIf { it.isNotEmpty() }?.let { "?$it" }.orEmpty()
+    val normalized = "$scheme://$formattedHost:$port$path$query".trimEnd('/')
+    if (!normalized.equals(baseUrl, ignoreCase = true)) {
+      Log.d(tag, "normalized loopback TTS baseUrl $baseUrl -> $normalized")
+    }
+    return normalized
+  }
+
   private suspend fun resolveVoiceId(preferred: String?, apiKey: String): String? {
     val trimmed = preferred?.trim().orEmpty()
     if (trimmed.isNotEmpty()) {
@@ -1144,7 +1775,7 @@ class TalkModeManager(
 
   private suspend fun listVoices(apiKey: String): List<ElevenLabsVoice> {
     return withContext(Dispatchers.IO) {
-      val url = URL("https://api.elevenlabs.io/v1/voices")
+      val url = URL("${resolvedTtsApiBaseUrl()}/v1/voices")
       val conn = url.openConnection() as HttpURLConnection
       conn.requestMethod = "GET"
       conn.connectTimeout = 15_000
@@ -1180,19 +1811,29 @@ class TalkModeManager(
 
   private data class ElevenLabsVoice(val voiceId: String, val name: String?)
 
+  private data class LanguageSignal(val code: String, val confidence: Double)
+
   private val listener =
     object : RecognitionListener {
       override fun onReadyForSpeech(params: Bundle?) {
+        recognizerClientErrorStreak = 0
+        lastRecognizerEventAtMs = SystemClock.elapsedRealtime()
         if (_isEnabled.value) {
           _statusText.value = if (_isListening.value) "Listening" else _statusText.value
         }
       }
 
-      override fun onBeginningOfSpeech() {}
+      override fun onBeginningOfSpeech() {
+        lastRecognizerEventAtMs = SystemClock.elapsedRealtime()
+      }
 
-      override fun onRmsChanged(rmsdB: Float) {}
+      override fun onRmsChanged(rmsdB: Float) {
+        lastRecognizerEventAtMs = SystemClock.elapsedRealtime()
+      }
 
-      override fun onBufferReceived(buffer: ByteArray?) {}
+      override fun onBufferReceived(buffer: ByteArray?) {
+        lastRecognizerEventAtMs = SystemClock.elapsedRealtime()
+      }
 
       override fun onEndOfSpeech() {
         scheduleRestart()
@@ -1201,8 +1842,84 @@ class TalkModeManager(
       override fun onError(error: Int) {
         if (stopRequested) return
         _isListening.value = false
+        lastRecognizerEventAtMs = SystemClock.elapsedRealtime()
+        Log.w(
+          tag,
+          "speech recognizer error=$error detectExtras=$recognitionLanguageExtrasEnabled lang=${recognitionLanguage ?: "auto"} langs=${recognitionLanguages.joinToString(",")}",
+        )
         if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
           _statusText.value = "Microphone permission required"
+          return
+        }
+
+        val interruptProbeOnly = _isSpeaking.value && !listeningMode
+        val transientRetryError =
+          error == SpeechRecognizer.ERROR_CLIENT ||
+            error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
+            error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED ||
+            error == SpeechRecognizer.ERROR_TOO_MANY_REQUESTS ||
+            error == SpeechRecognizer.ERROR_NO_MATCH ||
+            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
+            error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ||
+            error == SpeechRecognizer.ERROR_NETWORK
+        if (!_isSpeaking.value && !listeningMode && transientRetryError) {
+          _statusText.value = "Listening"
+          scheduleRestart(delayMs = 700)
+          return
+        }
+        if (interruptProbeOnly) {
+          when (error) {
+            SpeechRecognizer.ERROR_CLIENT,
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
+            SpeechRecognizer.ERROR_SERVER_DISCONNECTED,
+            SpeechRecognizer.ERROR_TOO_MANY_REQUESTS,
+            SpeechRecognizer.ERROR_NO_MATCH,
+            SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
+            SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+            SpeechRecognizer.ERROR_NETWORK -> {
+              _statusText.value = "Speaking…"
+              scheduleRestart(delayMs = 900)
+              return
+            }
+          }
+        }
+
+        if (error == SpeechRecognizer.ERROR_CLIENT) {
+          recognizerClientErrorStreak += 1
+          if (recognitionLanguageExtrasEnabled && recognizerClientErrorStreak >= 2) {
+            suspendLanguageDetectionExtras("client_error", languageDetectionClientCooldownMs)
+          }
+          recreateRecognizer("client_error")
+          _statusText.value = if (listeningMode) "Listening" else "Speaking…"
+          scheduleRestart(delayMs = 900)
+          return
+        }
+
+        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+          recreateRecognizer("recognizer_busy")
+          _statusText.value = if (listeningMode) "Listening" else "Speaking…"
+          scheduleRestart(delayMs = 750)
+          return
+        }
+
+        if (error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED) {
+          recreateRecognizer("server_disconnected")
+          _statusText.value = if (listeningMode) "Listening" else "Speaking…"
+          scheduleRestart(delayMs = 1_200)
+          return
+        }
+
+        if (error == SpeechRecognizer.ERROR_TOO_MANY_REQUESTS) {
+          _statusText.value = if (listeningMode) "Listening" else "Speaking…"
+          scheduleRestart(delayMs = 1_500)
+          return
+        }
+
+        if (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED || error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) {
+          suspendLanguageDetectionExtras("language_unavailable", languageDetectionUnavailableCooldownMs)
+          recreateRecognizer("language_unavailable")
+          _statusText.value = if (listeningMode) "Listening" else "Speaking…"
+          scheduleRestart(delayMs = 900)
           return
         }
 
@@ -1215,6 +1932,10 @@ class TalkModeManager(
             SpeechRecognizer.ERROR_NO_MATCH -> "Listening"
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
             SpeechRecognizer.ERROR_SERVER -> "Server error"
+            SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> "Speech service disconnected"
+            SpeechRecognizer.ERROR_TOO_MANY_REQUESTS -> "Speech throttled"
+            SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED -> "Language not supported"
+            SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Language unavailable"
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Listening"
             else -> "Speech error ($error)"
           }
@@ -1222,18 +1943,53 @@ class TalkModeManager(
       }
 
       override fun onResults(results: Bundle?) {
+        recognizerClientErrorStreak = 0
+        lastRecognizerEventAtMs = SystemClock.elapsedRealtime()
+        results?.getString("android.speech.extra.DETECTED_LANGUAGE")?.let { detected ->
+          normalizedStickyLanguageTag(detected)?.let { detectedTag ->
+            updateStickyLanguageFromDetectedTag(detectedTag, isFinal = true)
+          }
+        }
         val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
         list.firstOrNull()?.let { handleTranscript(it, isFinal = true) }
         scheduleRestart()
       }
 
       override fun onPartialResults(partialResults: Bundle?) {
+        lastRecognizerEventAtMs = SystemClock.elapsedRealtime()
+        partialResults?.getString("android.speech.extra.DETECTED_LANGUAGE")?.let { detected ->
+          normalizedStickyLanguageTag(detected)?.let { detectedTag ->
+            updateStickyLanguageFromDetectedTag(detectedTag, isFinal = false)
+          }
+        }
         val list = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
         list.firstOrNull()?.let { handleTranscript(it, isFinal = false) }
       }
 
       override fun onEvent(eventType: Int, params: Bundle?) {}
     }
+
+  private fun recreateRecognizer(reason: String) {
+    mainHandler.post {
+      try {
+        recognizer?.cancel()
+      } catch (_: Throwable) {
+        // ignore
+      }
+      try {
+        recognizer?.destroy()
+      } catch (_: Throwable) {
+        // ignore
+      }
+      recognizer =
+        try {
+          SpeechRecognizer.createSpeechRecognizer(context).also { it.setRecognitionListener(listener) }
+        } catch (err: Throwable) {
+          Log.w(tag, "recreate recognizer failed ($reason): ${err.message ?: err::class.simpleName}")
+          null
+        }
+    }
+  }
 }
 
 private fun JsonElement?.asObjectOrNull(): JsonObject? = this as? JsonObject

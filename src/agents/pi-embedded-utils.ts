@@ -218,7 +218,15 @@ export function extractAssistantText(msg: AssistantMessage): string {
         .filter(Boolean)
     : [];
   const extracted = blocks.join("\n").trim();
-  return sanitizeUserFacingText(extracted);
+  if (extracted) {
+    return sanitizeUserFacingText(extracted);
+  }
+  // Fallback: if a provider only returns reasoning_content, surface it as text.
+  const thinking = extractAssistantThinking(msg);
+  if (!thinking) {
+    return "";
+  }
+  return sanitizeUserFacingText(thinking);
 }
 
 export function extractAssistantThinking(msg: AssistantMessage): string {

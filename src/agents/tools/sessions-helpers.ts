@@ -389,5 +389,26 @@ export function extractAssistantText(message: unknown): string | undefined {
     }
   }
   const joined = chunks.join("").trim();
-  return joined ? sanitizeUserFacingText(joined) : undefined;
+  if (joined) {
+    return sanitizeUserFacingText(joined);
+  }
+  // Fallback: if a provider only returns reasoning_content, surface it as text.
+  const thinkingChunks: string[] = [];
+  for (const block of content) {
+    if (!block || typeof block !== "object") {
+      continue;
+    }
+    if ((block as { type?: unknown }).type !== "thinking") {
+      continue;
+    }
+    const thinking = (block as { thinking?: unknown }).thinking;
+    if (typeof thinking === "string") {
+      const sanitized = sanitizeTextContent(thinking);
+      if (sanitized.trim()) {
+        thinkingChunks.push(sanitized);
+      }
+    }
+  }
+  const thinkingJoined = thinkingChunks.join("").trim();
+  return thinkingJoined ? sanitizeUserFacingText(thinkingJoined) : undefined;
 }
