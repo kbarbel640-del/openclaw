@@ -101,12 +101,12 @@ case "$PLATFORM" in
     POST_DIR="content/posts"
     mkdir -p "$POST_DIR"
     POST_FILE="${POST_DIR}/${DATE}-${SLUG}.md"
-
     cat > "$POST_FILE" << FRONTMATTER
 ---
 title: "${TITLE}"
 date: ${DATETIME}
-draft: ${DRAFT_VAL}${TAGS_YAML}
+draft: ${DRAFT_VAL}
+$([ -n "$TAGS_YAML" ] && echo "$TAGS_YAML")
 ---
 
 ${CONTENT}
