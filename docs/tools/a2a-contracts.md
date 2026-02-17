@@ -38,38 +38,38 @@ Contracts are declared per-agent in the `a2a` section of the agent config:
                 type: "object",
                 properties: {
                   query: { type: "string", description: "Research query" },
-                  depth: { type: "string", enum: ["shallow", "deep"] }
+                  depth: { type: "string", enum: ["shallow", "deep"] },
                 },
-                required: ["query"]
+                required: ["query"],
               },
               output: {
                 type: "object",
                 properties: {
                   findings: { type: "string" },
-                  sources: { type: "array", items: { type: "string" } }
-                }
-              }
-            }
-          }
-        }
-      }
-    ]
-  }
+                  sources: { type: "array", items: { type: "string" } },
+                },
+              },
+            },
+          },
+        },
+      },
+    ],
+  },
 }
 ```
 
 ## Contract schema reference
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `description` | `string` | Human-readable description of what the contract does |
-| `input` | JSON Schema | Schema for the input payload the agent expects |
-| `output` | JSON Schema | Schema for the output the agent returns |
-| `requiresApproval` | `boolean` | Whether this contract requires approval from the agent's owner |
-| `version` | `string` | Optional version identifier (e.g. `"2.1.0"`) |
-| `deprecated` | `boolean` | Mark this contract as deprecated |
-| `deprecatedMessage` | `string` | Custom deprecation message (defaults to "This contract is deprecated.") |
-| `supersededBy` | `string` | Name of the replacement contract |
+| Field               | Type        | Description                                                             |
+| ------------------- | ----------- | ----------------------------------------------------------------------- |
+| `description`       | `string`    | Human-readable description of what the contract does                    |
+| `input`             | JSON Schema | Schema for the input payload the agent expects                          |
+| `output`            | JSON Schema | Schema for the output the agent returns                                 |
+| `requiresApproval`  | `boolean`   | Whether this contract requires approval from the agent's owner          |
+| `version`           | `string`    | Optional version identifier (e.g. `"2.1.0"`)                            |
+| `deprecated`        | `boolean`   | Mark this contract as deprecated                                        |
+| `deprecatedMessage` | `string`    | Custom deprecation message (defaults to "This contract is deprecated.") |
+| `supersededBy`      | `string`    | Name of the replacement contract                                        |
 
 ## Sending structured messages
 
@@ -99,19 +99,19 @@ When a structured message is sent via `sessions_send`:
 
 ### Structured messages
 
-| Scenario | Result |
-|----------|--------|
-| Payload matches contract input schema | Message delivered with contract context |
-| Payload fails validation | Rejected with error listing specific failures |
-| Contract name not found, agent has other contracts | Rejected with list of available contracts |
-| Contract name not found, agent has no contracts | Delivered as best-effort (no validation) |
+| Scenario                                           | Result                                        |
+| -------------------------------------------------- | --------------------------------------------- |
+| Payload matches contract input schema              | Message delivered with contract context       |
+| Payload fails validation                           | Rejected with error listing specific failures |
+| Contract name not found, agent has other contracts | Rejected with list of available contracts     |
+| Contract name not found, agent has no contracts    | Delivered as best-effort (no validation)      |
 
 ### Plain text messages
 
-| Scenario | Result |
-|----------|--------|
-| Agent has `allowFreeform: true` (default) | Delivered normally |
-| Agent has `allowFreeform: false` | Rejected with list of available contracts |
+| Scenario                                  | Result                                    |
+| ----------------------------------------- | ----------------------------------------- |
+| Agent has `allowFreeform: true` (default) | Delivered normally                        |
+| Agent has `allowFreeform: false`          | Rejected with list of available contracts |
 
 ## Contract context injection
 
@@ -142,10 +142,10 @@ you can deprecate the old version and point callers to the replacement:
           type: "object",
           properties: {
             topic: { type: "string" },
-            maxSources: { type: "integer" }
+            maxSources: { type: "integer" },
           },
-          required: ["topic"]
-        }
+          required: ["topic"],
+        },
       },
 
       // Old version — still works but emits warnings
@@ -158,11 +158,11 @@ you can deprecate the old version and point callers to the replacement:
         input: {
           type: "object",
           properties: { topic: { type: "string" } },
-          required: ["topic"]
-        }
-      }
-    }
-  }
+          required: ["topic"],
+        },
+      },
+    },
+  },
 }
 ```
 
@@ -205,21 +205,21 @@ Other agents can discover available contracts using the config. Each contract is
                 type: "object",
                 properties: {
                   topic: { type: "string" },
-                  maxSources: { type: "integer" }
+                  maxSources: { type: "integer" },
                 },
-                required: ["topic"]
+                required: ["topic"],
               },
               output: {
                 type: "object",
                 properties: {
                   summary: { type: "string" },
                   sources: { type: "array", items: { type: "string" } },
-                  confidence: { type: "number" }
-                }
-              }
-            }
-          }
-        }
+                  confidence: { type: "number" },
+                },
+              },
+            },
+          },
+        },
       },
       {
         id: "reviewer",
@@ -231,15 +231,15 @@ Other agents can discover available contracts using the config. Each contract is
                 type: "object",
                 properties: {
                   findings: { type: "string" },
-                  sources: { type: "array", items: { type: "string" } }
+                  sources: { type: "array", items: { type: "string" } },
                 },
-                required: ["findings"]
-              }
-            }
-          }
-        }
-      }
-    ]
-  }
+                required: ["findings"],
+              },
+            },
+          },
+        },
+      },
+    ],
+  },
 }
 ```

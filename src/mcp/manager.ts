@@ -8,12 +8,12 @@
  * - Handles graceful shutdown and disconnect
  */
 
+import type { AnyAgentTool } from "../agents/tools/common.js";
 import { defaultRuntime } from "../runtime.js";
 import { connectMcpServer } from "./client.js";
 import { getMcpHealthMonitor, stopGlobalHealthMonitor } from "./health.js";
 import { createMcpToolsFromConnections } from "./tools.js";
 import type { McpConfig, McpServerConfig, McpServerConnection } from "./types.js";
-import type { AnyAgentTool } from "../agents/tools/common.js";
 
 const log = {
   info: (...args: unknown[]) => defaultRuntime.log("[mcp]", ...args),
@@ -96,7 +96,11 @@ export async function initializeMcpServers(
   // Register connected servers for health monitoring.
   const monitor = getMcpHealthMonitor();
   for (const conn of activeConnections) {
-    if (conn.status === "connected" && conn.config.healthCheckIntervalMs && conn.config.healthCheckIntervalMs > 0) {
+    if (
+      conn.status === "connected" &&
+      conn.config.healthCheckIntervalMs &&
+      conn.config.healthCheckIntervalMs > 0
+    ) {
       monitor.register(conn);
     }
   }

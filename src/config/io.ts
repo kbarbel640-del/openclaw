@@ -26,13 +26,13 @@ import {
   applyTalkApiKey,
 } from "./defaults.js";
 import { restoreEnvVarRefs } from "./env-preserve.js";
+import { resolveConfigEnvProfiles } from "./env-profiles.js";
 import {
   MissingEnvVarError,
   containsEnvVarReference,
   resolveConfigEnvVars,
 } from "./env-substitution.js";
 import { applyConfigEnvVars } from "./env-vars.js";
-import { resolveConfigEnvProfiles } from "./env-profiles.js";
 import { ConfigIncludeError, resolveConfigIncludes } from "./includes.js";
 import { findLegacyConfigIssues } from "./legacy.js";
 import { applyMergePatch } from "./merge-patch.js";

@@ -66,10 +66,7 @@ function createRequest(method: string, params?: Record<string, unknown>): JsonRp
   };
 }
 
-function createNotification(
-  method: string,
-  params?: Record<string, unknown>,
-): JsonRpcNotification {
+function createNotification(method: string, params?: Record<string, unknown>): JsonRpcNotification {
   return {
     jsonrpc: JSONRPC_VERSION,
     method,
@@ -570,7 +567,10 @@ export async function connectMcpServer(
         const request = createRequest("tools/call", { name: toolName, arguments: args });
         const response = await Promise.race([
           transport.send(request),
-          rejectAfter(effectiveTimeout, `MCP tool call "${toolName}" timed out (${effectiveTimeout}ms)`),
+          rejectAfter(
+            effectiveTimeout,
+            `MCP tool call "${toolName}" timed out (${effectiveTimeout}ms)`,
+          ),
         ]);
 
         if (response.error) {
@@ -606,10 +606,7 @@ export async function connectMcpServer(
       }
       try {
         const request = createRequest("ping");
-        await Promise.race([
-          transport.send(request),
-          rejectAfter(5000, "MCP ping timed out"),
-        ]);
+        await Promise.race([transport.send(request), rejectAfter(5000, "MCP ping timed out")]);
         return true;
       } catch {
         return false;

@@ -5,9 +5,7 @@ import type { McpServerConnection, McpToolDefinition, McpServerConfig } from "..
 // Helpers — mirror the CLI logic without pulling in Commander
 // ---------------------------------------------------------------------------
 
-function createMockConnection(
-  overrides: Partial<McpServerConnection> = {},
-): McpServerConnection {
+function createMockConnection(overrides: Partial<McpServerConnection> = {}): McpServerConnection {
   return {
     name: "test-server",
     config: { command: "echo", args: [] },
@@ -68,7 +66,13 @@ function callToolLogic(
   serverName: string,
   toolName: string,
   opts: CallToolOpts,
-): { ok: boolean; error?: string; params?: Record<string, unknown>; timeoutMs?: number; conn?: McpServerConnection } {
+): {
+  ok: boolean;
+  error?: string;
+  params?: Record<string, unknown>;
+  timeoutMs?: number;
+  conn?: McpServerConnection;
+} {
   const conn = connections.find((c) => c.name === serverName);
   if (!conn) {
     const available = connections.map((c) => c.name).join(", ") || "none";
@@ -76,13 +80,19 @@ function callToolLogic(
   }
 
   if (conn.status !== "connected") {
-    return { ok: false, error: `MCP server "${serverName}" is not connected (status: ${conn.status}).` };
+    return {
+      ok: false,
+      error: `MCP server "${serverName}" is not connected (status: ${conn.status}).`,
+    };
   }
 
   const tool = conn.tools.find((t) => t.name === toolName);
   if (!tool) {
     const available = conn.tools.map((t) => t.name).join(", ") || "none";
-    return { ok: false, error: `Tool "${toolName}" not found on server "${serverName}". Available: ${available}` };
+    return {
+      ok: false,
+      error: `Tool "${toolName}" not found on server "${serverName}". Available: ${available}`,
+    };
   }
 
   let params: Record<string, unknown>;
@@ -258,10 +268,7 @@ describe("mcp call-tool", () => {
   it("lists available tools when tool not found", () => {
     connections = [
       createMockConnection({
-        tools: [
-          createMockTool({ name: "alpha" }),
-          createMockTool({ name: "beta" }),
-        ],
+        tools: [createMockTool({ name: "alpha" }), createMockTool({ name: "beta" })],
       }),
     ];
     const result = callToolLogic(connections, "test-server", "gamma", {});

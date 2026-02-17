@@ -3,9 +3,7 @@ import type { McpServerConnection, McpToolDefinition } from "./types.js";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function createMockConnection(
-  overrides: Partial<McpServerConnection> = {},
-): McpServerConnection {
+function createMockConnection(overrides: Partial<McpServerConnection> = {}): McpServerConnection {
   return {
     name: "test-server",
     config: { command: "echo", args: [] },
@@ -41,8 +39,8 @@ function createMockTool(overrides: Partial<McpToolDefinition> = {}): McpToolDefi
 
 describe("MCP tool bridge", () => {
   // Re-import after potential mocks.
-  let createMcpToolsFromConnection: typeof import("./tools.js")["createMcpToolsFromConnection"];
-  let createMcpToolsFromConnections: typeof import("./tools.js")["createMcpToolsFromConnections"];
+  let createMcpToolsFromConnection: (typeof import("./tools.js"))["createMcpToolsFromConnection"];
+  let createMcpToolsFromConnections: (typeof import("./tools.js"))["createMcpToolsFromConnections"];
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -141,9 +139,7 @@ describe("MCP tool bridge", () => {
 
   it("handles MCP image content blocks", async () => {
     const callTool = vi.fn().mockResolvedValue({
-      content: [
-        { type: "image", data: "base64data==", mimeType: "image/png" },
-      ],
+      content: [{ type: "image", data: "base64data==", mimeType: "image/png" }],
     });
     const conn = createMockConnection({ tools: [createMockTool()], callTool });
     const tools = createMcpToolsFromConnection(conn);
@@ -264,8 +260,8 @@ describe("tool-policy group:mcp", () => {
 // ── Tool timeout resolution ──────────────────────────────────────────────────
 
 describe("Tool timeout resolution", () => {
-  let resolveToolTimeout: typeof import("./tools.js")["resolveToolTimeout"];
-  let createMcpToolsFromConnectionLocal: typeof import("./tools.js")["createMcpToolsFromConnection"];
+  let resolveToolTimeout: (typeof import("./tools.js"))["resolveToolTimeout"];
+  let createMcpToolsFromConnectionLocal: (typeof import("./tools.js"))["createMcpToolsFromConnection"];
 
   beforeEach(async () => {
     const mod = await import("./tools.js");

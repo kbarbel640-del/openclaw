@@ -1,3 +1,4 @@
+import type { McpConfig } from "../mcp/types.js";
 import type { AgentBinding, AgentsConfig } from "./types.agents.js";
 import type { ApprovalsConfig } from "./types.approvals.js";
 import type { AuthConfig } from "./types.auth.js";
@@ -24,7 +25,6 @@ import type { NodeHostConfig } from "./types.node-host.js";
 import type { PluginsConfig } from "./types.plugins.js";
 import type { SkillsConfig } from "./types.skills.js";
 import type { ToolsConfig } from "./types.tools.js";
-import type { McpConfig } from "../mcp/types.js";
 
 export type OpenClawConfig = {
   meta?: {

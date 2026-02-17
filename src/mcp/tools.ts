@@ -9,12 +9,12 @@
  * - Error wrapping for failed or timed-out calls
  */
 
-import { Type, type TObject, type TProperties, type TSchema } from "@sinclair/typebox";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
+import { Type, type TObject, type TProperties, type TSchema } from "@sinclair/typebox";
 import type { AnyAgentTool } from "../agents/tools/common.js";
 import { emitDiagnosticEvent } from "../infra/diagnostic-events.js";
-import { requiresMcpApproval, getMcpApprovalManager } from "./approvals.js";
 import { defaultRuntime } from "../runtime.js";
+import { requiresMcpApproval, getMcpApprovalManager } from "./approvals.js";
 import type {
   McpJsonSchema,
   McpServerConnection,
@@ -49,9 +49,7 @@ export function createMcpToolsFromConnection(
   existingToolNames?: Set<string>,
 ): AnyAgentTool[] {
   if (connection.status !== "connected") {
-    log.info(
-      `Skipping tools from MCP server "${connection.name}" (status: ${connection.status})`,
-    );
+    log.info(`Skipping tools from MCP server "${connection.name}" (status: ${connection.status})`);
     return [];
   }
 
@@ -136,14 +134,17 @@ function convertMcpTool(
         });
 
         if (decision !== "allow") {
-          log.debug(`MCP tool "${mcpTool.name}" ${decision === "timeout" ? "timed out" : "denied"}`);
+          log.debug(
+            `MCP tool "${mcpTool.name}" ${decision === "timeout" ? "timed out" : "denied"}`,
+          );
           return {
             content: [
               {
                 type: "text",
-                text: decision === "timeout"
-                  ? `MCP tool "${mcpTool.name}" approval timed out.`
-                  : `MCP tool "${mcpTool.name}" was denied by approval policy.`,
+                text:
+                  decision === "timeout"
+                    ? `MCP tool "${mcpTool.name}" approval timed out.`
+                    : `MCP tool "${mcpTool.name}" was denied by approval policy.`,
               },
             ],
             details: { status: decision === "timeout" ? "timeout" : "denied" },
@@ -304,7 +305,10 @@ function convertPropertySchema(schema: McpJsonSchema): TSchema {
   // Handle enum values.
   if (schema.enum && Array.isArray(schema.enum)) {
     const literals = schema.enum
-      .filter((v): v is string | number | boolean => typeof v === "string" || typeof v === "number" || typeof v === "boolean")
+      .filter(
+        (v): v is string | number | boolean =>
+          typeof v === "string" || typeof v === "number" || typeof v === "boolean",
+      )
       .map((v) => Type.Literal(v));
     if (literals.length > 0) {
       return Type.Union(literals, opts);
@@ -377,10 +381,7 @@ const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
  *
  * Returns undefined when the server default should be used (no per-tool override).
  */
-export function resolveToolTimeout(
-  config: McpServerConfig,
-  toolName: string,
-): number | undefined {
+export function resolveToolTimeout(config: McpServerConfig, toolName: string): number | undefined {
   const perTool = config.toolTimeouts?.[toolName];
   if (typeof perTool === "number" && perTool > 0) {
     return perTool;

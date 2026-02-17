@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import { defaultRuntime } from "../runtime.js";
 import { danger } from "../globals.js";
+import { defaultRuntime } from "../runtime.js";
 
 /**
  * Redact credentials from a URL before logging.
@@ -33,9 +33,7 @@ export function registerMcpCli(program: Command) {
 
         if (!isMcpInitialized()) {
           if (opts.json) {
-            defaultRuntime.log(
-              JSON.stringify({ initialized: false, servers: [] }, null, 2),
-            );
+            defaultRuntime.log(JSON.stringify({ initialized: false, servers: [] }, null, 2));
           } else {
             defaultRuntime.log("MCP not initialized (gateway not running?)");
           }
@@ -161,9 +159,7 @@ export function registerMcpCli(program: Command) {
           }
 
           const icon = enabled ? (issues.length === 0 ? "✓" : "⚠") : "○";
-          defaultRuntime.log(
-            `${icon} ${name}  transport=${transport}  enabled=${enabled}`,
-          );
+          defaultRuntime.log(`${icon} ${name}  transport=${transport}  enabled=${enabled}`);
 
           if (transport === "stdio" && config.command) {
             defaultRuntime.log(`    command: ${config.command} ${(config.args ?? []).join(" ")}`);
@@ -219,9 +215,7 @@ export function registerMcpCli(program: Command) {
           const conn = connections.find((c) => c.name === serverName);
           if (!conn) {
             const available = connections.map((c) => c.name).join(", ") || "none";
-            defaultRuntime.error(
-              `MCP server "${serverName}" not found. Available: ${available}`,
-            );
+            defaultRuntime.error(`MCP server "${serverName}" not found. Available: ${available}`);
             defaultRuntime.exit(1);
             return;
           }
@@ -249,14 +243,18 @@ export function registerMcpCli(program: Command) {
           try {
             params = JSON.parse(opts.params ?? "{}") as Record<string, unknown>;
           } catch {
-            defaultRuntime.error("Invalid JSON in --params. Use valid JSON: --params '{\"key\":\"value\"}'");
+            defaultRuntime.error(
+              'Invalid JSON in --params. Use valid JSON: --params \'{"key":"value"}\'',
+            );
             defaultRuntime.exit(1);
             return;
           }
 
           const timeoutMs = opts.timeout ? parseInt(opts.timeout, 10) : undefined;
           if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
-            defaultRuntime.error("Invalid --timeout value. Must be a positive integer (milliseconds).");
+            defaultRuntime.error(
+              "Invalid --timeout value. Must be a positive integer (milliseconds).",
+            );
             defaultRuntime.exit(1);
             return;
           }

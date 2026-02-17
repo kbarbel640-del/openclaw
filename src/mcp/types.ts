@@ -103,7 +103,11 @@ export type McpServerConnection = {
   /** Error message if status is "error". */
   error?: string;
   /** Call a tool on this server. Optional timeoutMs overrides the server default. */
-  callTool: (toolName: string, args: Record<string, unknown>, timeoutMs?: number) => Promise<McpToolCallResult>;
+  callTool: (
+    toolName: string,
+    args: Record<string, unknown>,
+    timeoutMs?: number,
+  ) => Promise<McpToolCallResult>;
   /** Send a JSON-RPC ping to check if the server is responsive. */
   ping: () => Promise<boolean>;
   /** Disconnect and reconnect (re-handshake, re-discover tools). */

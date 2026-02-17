@@ -18,6 +18,7 @@ import {
 } from "../hooks/internal-hooks.js";
 import { loadInternalHooks } from "../hooks/loader.js";
 import { isTruthyEnvValue } from "../infra/env.js";
+import { initializeMcpServers } from "../mcp/manager.js";
 import type { loadOpenClawPlugins } from "../plugins/loader.js";
 import { type PluginServicesHandle, startPluginServices } from "../plugins/services.js";
 import { startBrowserControlServerIfEnabled } from "./server-browser.js";
@@ -25,7 +26,6 @@ import {
   scheduleRestartSentinelWake,
   shouldWakeFromRestartSentinel,
 } from "./server-restart-sentinel.js";
-import { initializeMcpServers } from "../mcp/manager.js";
 import { startGatewayMemoryBackend } from "./server-startup-memory.js";
 
 const SESSION_LOCK_STALE_MS = 30 * 60 * 1000;

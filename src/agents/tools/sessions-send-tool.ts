@@ -9,6 +9,13 @@ import {
   INTERNAL_MESSAGE_CHANNEL,
 } from "../../utils/message-channel.js";
 import { AGENT_LANE_NESTED } from "../lanes.js";
+import {
+  parseA2AMessage,
+  findContract,
+  validateContractInput,
+  listAgentContracts,
+} from "./a2a-contracts.js";
+import type { AgentA2AConfig } from "./a2a-contracts.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
 import {
@@ -21,10 +28,12 @@ import {
   resolveSandboxedSessionToolContext,
   stripToolMessages,
 } from "./sessions-helpers.js";
-import { buildAgentToAgentMessageContext, buildAgentToAgentContractContext, resolvePingPongTurns } from "./sessions-send-helpers.js";
+import {
+  buildAgentToAgentMessageContext,
+  buildAgentToAgentContractContext,
+  resolvePingPongTurns,
+} from "./sessions-send-helpers.js";
 import { runSessionsSendA2AFlow } from "./sessions-send-tool.a2a.js";
-import { parseA2AMessage, findContract, validateContractInput, listAgentContracts } from "./a2a-contracts.js";
-import type { AgentA2AConfig } from "./a2a-contracts.js";
 
 const SessionsSendToolSchema = Type.Object({
   sessionKey: Type.Optional(Type.String()),
@@ -228,9 +237,10 @@ export function createSessionsSendTool(opts?: {
           const agentContracts = listAgentContracts(cfg, targetAgentId);
           if (agentContracts.length > 0) {
             const contractNames = agentContracts.map((c) => c.contractName);
-            const displayNames = contractNames.length > 10
-              ? contractNames.slice(0, 10).join(", ") + ` ... (${contractNames.length} total)`
-              : contractNames.join(", ");
+            const displayNames =
+              contractNames.length > 10
+                ? contractNames.slice(0, 10).join(", ") + ` ... (${contractNames.length} total)`
+                : contractNames.join(", ");
             return jsonResult({
               runId: crypto.randomUUID(),
               status: "error",
@@ -263,7 +273,9 @@ export function createSessionsSendTool(opts?: {
         const targetAgent = Array.isArray(agents)
           ? agents.find((a) => a.id === targetAgentId)
           : undefined;
-        const a2aCfg = (targetAgent as Record<string, unknown> | undefined)?.a2a as AgentA2AConfig | undefined;
+        const a2aCfg = (targetAgent as Record<string, unknown> | undefined)?.a2a as
+          | AgentA2AConfig
+          | undefined;
         if (a2aCfg?.allowFreeform === false) {
           const available = listAgentContracts(cfg, targetAgentId);
           return jsonResult({

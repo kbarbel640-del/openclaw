@@ -276,10 +276,10 @@ Connect external tool servers over the [Model Context Protocol](https://modelcon
         approval: "allowlist",
         approvedTools: ["read_file", "list_directory"],
         toolTimeouts: { search_files: 30000 },
-        healthCheckIntervalMs: 60000
-      }
-    }
-  }
+        healthCheckIntervalMs: 60000,
+      },
+    },
+  },
 }
 ```
 
@@ -303,8 +303,8 @@ Switch config blocks by setting `OPENCLAW_ENV`:
 {
   $env: {
     development: { agents: { default: { model: "gpt-4o-mini" } } },
-    production:  { agents: { default: { model: "claude-sonnet-4-20250514" } } }
-  }
+    production: { agents: { default: { model: "claude-sonnet-4-20250514" } } },
+  },
 }
 ```
 

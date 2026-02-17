@@ -56,24 +56,24 @@ Add an `mcp` section to your `openclaw.json`:
 
 ### Server config fields
 
-| Field          | Type       | Default   | Description |
-|----------------|------------|-----------|-------------|
-| `transport`    | `"stdio"` \| `"sse"` | `"stdio"` | Transport protocol |
-| `command`      | `string`   | —         | Command to spawn (stdio only, **required** for stdio) |
-| `args`         | `string[]` | `[]`      | Command arguments |
-| `env`          | `Record<string, string>` | `{}` | Environment variables (supports `${VAR}` references) |
-| `url`          | `string`   | —         | SSE endpoint URL (**required** for SSE) |
-| `headers`      | `Record<string, string>` | `{}` | HTTP headers for SSE transport |
-| `enabled`      | `boolean`  | `true`    | Enable/disable this server |
-| `toolPrefix`   | `string`   | server key | Override tool name prefix |
-| `toolTimeoutMs`| `number`   | `30000`   | Timeout for individual tool calls |
-| `maxRetries`   | `number`   | `3`       | Connection retry attempts |
+| Field           | Type                     | Default    | Description                                           |
+| --------------- | ------------------------ | ---------- | ----------------------------------------------------- |
+| `transport`     | `"stdio"` \| `"sse"`     | `"stdio"`  | Transport protocol                                    |
+| `command`       | `string`                 | —          | Command to spawn (stdio only, **required** for stdio) |
+| `args`          | `string[]`               | `[]`       | Command arguments                                     |
+| `env`           | `Record<string, string>` | `{}`       | Environment variables (supports `${VAR}` references)  |
+| `url`           | `string`                 | —          | SSE endpoint URL (**required** for SSE)               |
+| `headers`       | `Record<string, string>` | `{}`       | HTTP headers for SSE transport                        |
+| `enabled`       | `boolean`                | `true`     | Enable/disable this server                            |
+| `toolPrefix`    | `string`                 | server key | Override tool name prefix                             |
+| `toolTimeoutMs` | `number`                 | `30000`    | Timeout for individual tool calls                     |
+| `maxRetries`    | `number`                 | `3`        | Connection retry attempts                             |
 
 ### Top-level MCP config
 
-| Field     | Type      | Default | Description |
-|-----------|-----------|---------|-------------|
-| `enabled` | `boolean` | `true`  | Disable all MCP connections |
+| Field     | Type      | Default | Description                      |
+| --------- | --------- | ------- | -------------------------------- |
+| `enabled` | `boolean` | `true`  | Disable all MCP connections      |
 | `servers` | `object`  | `{}`    | Server definitions keyed by name |
 
 ## Tool naming
@@ -94,11 +94,11 @@ You can customize the prefix:
     servers: {
       "my-github-server": {
         command: "github-mcp",
-        toolPrefix: "gh",  // tools will be mcp_gh_*
+        toolPrefix: "gh", // tools will be mcp_gh_*
       },
       "direct-tools": {
         command: "my-server",
-        toolPrefix: "",     // no prefix — tools keep their original names
+        toolPrefix: "", // no prefix — tools keep their original names
       },
     },
   },
@@ -181,24 +181,24 @@ OPENCLAW_MCP_DEBUG=1 openclaw gateway run
 
 A server can be in one of these states:
 
-| Status       | Description |
-|--------------|-------------|
-| `connecting` | Handshake in progress |
-| `connected`  | Ready — tools are available |
+| Status       | Description                    |
+| ------------ | ------------------------------ |
+| `connecting` | Handshake in progress          |
+| `connected`  | Ready — tools are available    |
 | `error`      | Failed to connect (check logs) |
-| `closed`     | Disconnected |
+| `closed`     | Disconnected                   |
 
 ## Supported MCP features
 
-| Feature | Supported |
-|---------|-----------|
-| `tools/list` | ✓ |
-| `tools/call` | ✓ |
-| Tool text content | ✓ |
-| Tool image content | ✓ |
+| Feature               | Supported   |
+| --------------------- | ----------- |
+| `tools/list`          | ✓           |
+| `tools/call`          | ✓           |
+| Tool text content     | ✓           |
+| Tool image content    | ✓           |
 | Tool resource content | ✓ (as text) |
-| Stdio transport | ✓ |
-| SSE transport | ✓ |
-| `resources/*` | ✗ (planned) |
-| `prompts/*` | ✗ (planned) |
-| `sampling/*` | ✗ (planned) |
+| Stdio transport       | ✓           |
+| SSE transport         | ✓           |
+| `resources/*`         | ✗ (planned) |
+| `prompts/*`           | ✗ (planned) |
+| `sampling/*`          | ✗ (planned) |

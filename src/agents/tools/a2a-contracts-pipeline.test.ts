@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { OpenClawConfig } from "../../config/config.js";
 import {
   parseA2AMessage,
   findContract,
@@ -8,7 +9,6 @@ import {
 } from "./a2a-contracts.js";
 import type { AgentA2AConfig } from "./a2a-contracts.js";
 import { buildAgentToAgentContractContext } from "./sessions-send-helpers.js";
-import type { OpenClawConfig } from "../../config/config.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,9 +29,7 @@ function makeCfgWithContracts(
           ? {
               a2a: {
                 ...(a.contracts ? { contracts: a.contracts } : {}),
-                ...(a.allowFreeform !== undefined
-                  ? { allowFreeform: a.allowFreeform }
-                  : {}),
+                ...(a.allowFreeform !== undefined ? { allowFreeform: a.allowFreeform } : {}),
               },
             }
           : {}),
@@ -111,9 +109,7 @@ describe("A2A contract pipeline (send integration)", () => {
         },
       ]);
 
-      const message = JSON.stringify(
-        createA2AMessage("research.request", { depth: "invalid" }),
-      );
+      const message = JSON.stringify(createA2AMessage("research.request", { depth: "invalid" }));
       const structured = parseA2AMessage(message)!;
       const contract = findContract(cfg, "research-bot", structured.contract)!;
       const validation = validateContractInput(contract.contract, structured.payload);

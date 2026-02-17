@@ -29,36 +29,36 @@ profiles can contain variable references that are resolved later.
   // Base config — always applied
   model: "claude-sonnet-4-20250514",
   tools: {
-    exec: { security: "allowlist" }
+    exec: { security: "allowlist" },
   },
 
   // Environment overrides
   $env: {
     development: {
       model: "claude-haiku",
-      diagnostics: { enabled: true }
+      diagnostics: { enabled: true },
     },
     staging: {
       model: "claude-sonnet-4-20250514",
-      diagnostics: { enabled: true }
+      diagnostics: { enabled: true },
     },
     production: {
       model: "claude-sonnet-4-20250514",
       tools: {
-        exec: { security: "deny" }
-      }
-    }
-  }
+        exec: { security: "deny" },
+      },
+    },
+  },
 }
 ```
 
 ## Environment resolution
 
-| Priority | Source | Example |
-|----------|--------|---------|
-| 1 | `OPENCLAW_ENV` env var | `OPENCLAW_ENV=staging openclaw start` |
-| 2 | `NODE_ENV` env var | `NODE_ENV=production openclaw start` |
-| 3 | Default | `"development"` |
+| Priority | Source                 | Example                               |
+| -------- | ---------------------- | ------------------------------------- |
+| 1        | `OPENCLAW_ENV` env var | `OPENCLAW_ENV=staging openclaw start` |
+| 2        | `NODE_ENV` env var     | `NODE_ENV=production openclaw start`  |
+| 3        | Default                | `"development"`                       |
 
 ## Deep merge behavior
 
@@ -69,16 +69,16 @@ This means you only need to specify the fields you want to override:
 // Base
 {
   tools: {
-    exec: { security: "allowlist", ask: "on-miss" }
+    exec: { security: "allowlist", ask: "on-miss" },
   },
   $env: {
     production: {
       tools: {
-        exec: { security: "deny" }
+        exec: { security: "deny" },
         // ask: "on-miss" is preserved from base
-      }
-    }
-  }
+      },
+    },
+  },
 }
 
 // Resolved (production):
@@ -96,9 +96,9 @@ apply environment-specific overrides:
   $include: ["./shared/base.json5"],
   $env: {
     production: {
-      model: "claude-sonnet-4-20250514"
-    }
-  }
+      model: "claude-sonnet-4-20250514",
+    },
+  },
 }
 ```
 
@@ -111,9 +111,9 @@ Environment variables in profile values are resolved after `$env` merging:
   $env: {
     production: {
       providers: {
-        anthropic: { apiKey: "${ANTHROPIC_API_KEY}" }
-      }
-    }
-  }
+        anthropic: { apiKey: "${ANTHROPIC_API_KEY}" },
+      },
+    },
+  },
 }
 ```

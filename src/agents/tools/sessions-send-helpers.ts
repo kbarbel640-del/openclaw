@@ -178,16 +178,13 @@ export function buildAgentToAgentContractContext(params: {
   structured: A2AStructuredMessage;
   contract: A2AContract;
 }): string {
-  const lines = [
-    `Structured A2A contract invocation: "${params.structured.contract}".`,
-  ];
+  const lines = [`Structured A2A contract invocation: "${params.structured.contract}".`];
   if (params.contract.description) {
     lines.push(`Contract description: ${params.contract.description}`);
   }
   const payloadJson = JSON.stringify(params.structured.payload);
-  const truncatedPayload = payloadJson.length > 4000
-    ? payloadJson.slice(0, 4000) + "... (truncated)"
-    : payloadJson;
+  const truncatedPayload =
+    payloadJson.length > 4000 ? payloadJson.slice(0, 4000) + "... (truncated)" : payloadJson;
   lines.push(`Input payload: ${truncatedPayload}`);
   if (params.structured.correlationId) {
     lines.push(`Correlation ID: ${params.structured.correlationId}`);

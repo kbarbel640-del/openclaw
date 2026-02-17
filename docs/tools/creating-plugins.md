@@ -20,11 +20,11 @@ openclaw plugins create <name> [options]
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
+| Option                     | Description                                               |
+| -------------------------- | --------------------------------------------------------- |
 | `-d, --description <desc>` | Plugin description (default: `"OpenClaw plugin: <name>"`) |
-| `-o, --output <dir>` | Output directory (default: `extensions/<name>`) |
-| `--kind <kind>` | Plugin kind, e.g. `memory` for memory slot plugins |
+| `-o, --output <dir>`       | Output directory (default: `extensions/<name>`)           |
+| `--kind <kind>`            | Plugin kind, e.g. `memory` for memory slot plugins        |
 
 ### Examples
 

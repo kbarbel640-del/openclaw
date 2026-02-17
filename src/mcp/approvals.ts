@@ -52,9 +52,7 @@ export type McpApprovalResult = {
  * Function type for an approval handler that resolves approval decisions.
  * Implementations may prompt a user via CLI, gateway IPC, or auto-resolve.
  */
-export type McpApprovalHandler = (
-  request: McpApprovalRequest,
-) => Promise<McpApprovalDecision>;
+export type McpApprovalHandler = (request: McpApprovalRequest) => Promise<McpApprovalDecision>;
 
 // ---------------------------------------------------------------------------
 // Approval check
@@ -63,10 +61,7 @@ export type McpApprovalHandler = (
 /**
  * Determine whether an MCP tool call requires approval based on server config.
  */
-export function requiresMcpApproval(
-  serverConfig: McpServerConfig,
-  toolName: string,
-): boolean {
+export function requiresMcpApproval(serverConfig: McpServerConfig, toolName: string): boolean {
   const mode = resolveApprovalMode(serverConfig);
 
   switch (mode) {

@@ -122,8 +122,8 @@ export default {
   it("generates index.ts with valid TypeScript structure", () => {
     const { outDir } = scaffoldPlugin("my-plugin");
     const content = fs.readFileSync(path.join(outDir, "index.ts"), "utf-8");
-    expect(content).toContain('import type { OpenClawPluginApi }');
-    expect(content).toContain('import { emptyPluginConfigSchema }');
+    expect(content).toContain("import type { OpenClawPluginApi }");
+    expect(content).toContain("import { emptyPluginConfigSchema }");
     expect(content).toContain('id: "my-plugin"');
     expect(content).toContain("register(api: OpenClawPluginApi)");
   });

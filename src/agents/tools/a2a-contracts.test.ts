@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { OpenClawConfig } from "../../config/config.js";
 import {
   createA2AMessage,
   discoverContracts,
@@ -9,7 +10,6 @@ import {
   validateContractInput,
   validateContractOutput,
 } from "./a2a-contracts.js";
-import type { OpenClawConfig } from "../../config/config.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -87,9 +87,7 @@ describe("discoverContracts", () => {
   });
 
   it("skips agents without id", () => {
-    const cfg = makeCfg([
-      { a2a: { contracts: { "orphan.contract": researchContract } } },
-    ]);
+    const cfg = makeCfg([{ a2a: { contracts: { "orphan.contract": researchContract } } }]);
     expect(discoverContracts(cfg)).toEqual([]);
   });
 });
@@ -385,9 +383,9 @@ describe("extended schema constraints", () => {
   it("combines multiple string constraints", () => {
     const contract = { input: { type: "string", minLength: 2, maxLength: 5, pattern: "^[a-z]+$" } };
     expect(validateContractInput(contract, "ab").valid).toBe(true);
-    expect(validateContractInput(contract, "a").valid).toBe(false);     // too short
+    expect(validateContractInput(contract, "a").valid).toBe(false); // too short
     expect(validateContractInput(contract, "abcdef").valid).toBe(false); // too long
-    expect(validateContractInput(contract, "AB").valid).toBe(false);    // pattern fail
+    expect(validateContractInput(contract, "AB").valid).toBe(false); // pattern fail
   });
 });
 

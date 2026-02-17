@@ -56,9 +56,7 @@ export class McpHealthMonitor {
     }
 
     const effectiveInterval =
-      intervalMs ??
-      connection.config.healthCheckIntervalMs ??
-      DEFAULT_HEALTH_CHECK_INTERVAL_MS;
+      intervalMs ?? connection.config.healthCheckIntervalMs ?? DEFAULT_HEALTH_CHECK_INTERVAL_MS;
 
     if (effectiveInterval <= 0) {
       return;
@@ -87,9 +85,7 @@ export class McpHealthMonitor {
     }
 
     this.entries.set(connection.name, entry);
-    log.info(
-      `Health checks enabled for "${connection.name}" every ${effectiveInterval}ms`,
-    );
+    log.info(`Health checks enabled for "${connection.name}" every ${effectiveInterval}ms`);
   }
 
   /**

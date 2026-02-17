@@ -146,10 +146,7 @@ export function findContract(
 /**
  * List all contracts for a specific agent.
  */
-export function listAgentContracts(
-  cfg: OpenClawConfig,
-  agentId: string,
-): ResolvedContract[] {
+export function listAgentContracts(cfg: OpenClawConfig, agentId: string): ResolvedContract[] {
   return discoverContracts(cfg).filter((c) => c.agentId === agentId);
 }
 
@@ -336,8 +333,11 @@ function checkType(expected: string, value: unknown): boolean {
       return typeof value === "string";
     case "number":
     case "integer":
-      return typeof value === "number" && Number.isFinite(value) &&
-        (expected === "number" || Number.isInteger(value));
+      return (
+        typeof value === "number" &&
+        Number.isFinite(value) &&
+        (expected === "number" || Number.isInteger(value))
+      );
     case "boolean":
       return typeof value === "boolean";
     case "object":

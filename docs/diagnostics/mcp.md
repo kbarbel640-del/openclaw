@@ -22,37 +22,37 @@ Two event types are emitted for every MCP tool call:
 
 Emitted **before** a tool executes.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | `"mcp.tool.call"` | Event discriminant |
-| `serverName` | `string` | MCP server name (config key) |
-| `toolName` | `string` | Tool name on the MCP server |
-| `sessionKey` | `string?` | Session key (when available) |
-| `sessionId` | `string?` | Session ID (when available) |
+| Field        | Type              | Description                  |
+| ------------ | ----------------- | ---------------------------- |
+| `type`       | `"mcp.tool.call"` | Event discriminant           |
+| `serverName` | `string`          | MCP server name (config key) |
+| `toolName`   | `string`          | Tool name on the MCP server  |
+| `sessionKey` | `string?`         | Session key (when available) |
+| `sessionId`  | `string?`         | Session ID (when available)  |
 
 ### `mcp.tool.result`
 
 Emitted **after** a tool completes (success or failure).
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | `"mcp.tool.result"` | Event discriminant |
-| `serverName` | `string` | MCP server name |
-| `toolName` | `string` | Tool name on the MCP server |
-| `durationMs` | `number` | Execution time in milliseconds |
-| `isError` | `boolean` | Whether the call failed |
-| `error` | `string?` | Error message (when `isError=true`) |
-| `sessionKey` | `string?` | Session key (when available) |
-| `sessionId` | `string?` | Session ID (when available) |
+| Field        | Type                | Description                         |
+| ------------ | ------------------- | ----------------------------------- |
+| `type`       | `"mcp.tool.result"` | Event discriminant                  |
+| `serverName` | `string`            | MCP server name                     |
+| `toolName`   | `string`            | Tool name on the MCP server         |
+| `durationMs` | `number`            | Execution time in milliseconds      |
+| `isError`    | `boolean`           | Whether the call failed             |
+| `error`      | `string?`           | Error message (when `isError=true`) |
+| `sessionKey` | `string?`           | Session key (when available)        |
+| `sessionId`  | `string?`           | Session ID (when available)         |
 
 ## OTEL metrics
 
 When the `diagnostics-otel` extension is enabled, MCP events produce:
 
-| Metric | Type | Attributes |
-|--------|------|------------|
-| `openclaw.mcp.tool.call` | Counter | `openclaw.mcp.server`, `openclaw.mcp.tool` |
-| `openclaw.mcp.tool.result` | Counter | `openclaw.mcp.server`, `openclaw.mcp.tool`, `openclaw.mcp.isError` |
+| Metric                          | Type      | Attributes                                                         |
+| ------------------------------- | --------- | ------------------------------------------------------------------ |
+| `openclaw.mcp.tool.call`        | Counter   | `openclaw.mcp.server`, `openclaw.mcp.tool`                         |
+| `openclaw.mcp.tool.result`      | Counter   | `openclaw.mcp.server`, `openclaw.mcp.tool`, `openclaw.mcp.isError` |
 | `openclaw.mcp.tool.duration_ms` | Histogram | `openclaw.mcp.server`, `openclaw.mcp.tool`, `openclaw.mcp.isError` |
 
 ## OTEL traces
@@ -74,11 +74,11 @@ MCP diagnostics require no additional configuration beyond enabling diagnostics:
   diagnostics: {
     enabled: true,
     otel: {
-      traces: true,        // Enable trace spans for MCP calls
-      metrics: true,        // Enable counters and histograms
+      traces: true, // Enable trace spans for MCP calls
+      metrics: true, // Enable counters and histograms
       // endpoint: "http://localhost:4318"  // OTLP endpoint
-    }
-  }
+    },
+  },
 }
 ```
 
@@ -115,10 +115,10 @@ Set `healthCheckIntervalMs` on any MCP server config:
       "my-server": {
         command: "npx",
         args: ["-y", "my-mcp-server"],
-        healthCheckIntervalMs: 30000  // Ping every 30 seconds
-      }
-    }
-  }
+        healthCheckIntervalMs: 30000, // Ping every 30 seconds
+      },
+    },
+  },
 }
 ```
 
@@ -136,12 +136,12 @@ Set to `0` or omit to disable health checks for that server (the default).
 
 ### Choosing an interval
 
-| Use case | Recommended interval |
-|----------|---------------------|
-| Local stdio server | `30000`–`60000` (30–60s) |
-| Remote SSE server over network | `15000`–`30000` (15–30s) |
-| High-availability critical server | `5000`–`10000` (5–10s) |
-| Low-priority / rarely used | `120000`+ or disabled |
+| Use case                          | Recommended interval     |
+| --------------------------------- | ------------------------ |
+| Local stdio server                | `30000`–`60000` (30–60s) |
+| Remote SSE server over network    | `15000`–`30000` (15–30s) |
+| High-availability critical server | `5000`–`10000` (5–10s)   |
+| Low-priority / rarely used        | `120000`+ or disabled    |
 
 Shorter intervals detect failures faster but produce more network/IPC traffic.
 The timer uses `unref()` so it won't prevent Node.js from exiting.

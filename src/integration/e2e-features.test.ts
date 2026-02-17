@@ -12,24 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 // ── MCP imports ──────────────────────────────────────────────────────────────
-
-import type { McpServerConnection, McpToolDefinition, McpServerConfig } from "../mcp/types.js";
-import { createMcpToolsFromConnection } from "../mcp/tools.js";
-import {
-  McpApprovalManager,
-  requiresMcpApproval,
-  resolveApprovalMode,
-  resetMcpApprovalManagerForTest,
-} from "../mcp/approvals.js";
-
-// ── Config imports ───────────────────────────────────────────────────────────
-
-import { resolveConfigEnvProfiles, resolveActiveEnv } from "../config/env-profiles.js";
-
-// ── A2A imports ──────────────────────────────────────────────────────────────
-
 import {
   discoverContracts,
   findContract,
@@ -41,19 +24,26 @@ import {
 } from "../agents/tools/a2a-contracts.js";
 import type { AgentA2AConfig } from "../agents/tools/a2a-contracts.js";
 import { buildAgentToAgentContractContext } from "../agents/tools/sessions-send-helpers.js";
+// ── Config imports ───────────────────────────────────────────────────────────
 import type { OpenClawConfig } from "../config/config.js";
-
-// ── Diagnostics imports ──────────────────────────────────────────────────────
-
+// ── A2A imports ──────────────────────────────────────────────────────────────
+import { resolveConfigEnvProfiles, resolveActiveEnv } from "../config/env-profiles.js";
 import { emitDiagnosticEvent, onDiagnosticEvent } from "../infra/diagnostic-events.js";
+import {
+  McpApprovalManager,
+  requiresMcpApproval,
+  resolveApprovalMode,
+  resetMcpApprovalManagerForTest,
+} from "../mcp/approvals.js";
+import { createMcpToolsFromConnection } from "../mcp/tools.js";
+// ── Diagnostics imports ──────────────────────────────────────────────────────
+import type { McpServerConnection, McpToolDefinition, McpServerConfig } from "../mcp/types.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
-function createMockConnection(
-  overrides: Partial<McpServerConnection> = {},
-): McpServerConnection {
+function createMockConnection(overrides: Partial<McpServerConnection> = {}): McpServerConnection {
   return {
     name: "integration-server",
     config: { command: "echo", args: [] },
@@ -322,11 +312,15 @@ describe("E2E: A2A contract full pipeline", () => {
     ]);
 
     // Step 1: Sender creates a structured A2A message
-    const message = createA2AMessage("research.request", {
-      query: "quantum computing applications",
-      depth: "deep",
-      maxResults: 10,
-    }, "corr-123");
+    const message = createA2AMessage(
+      "research.request",
+      {
+        query: "quantum computing applications",
+        depth: "deep",
+        maxResults: 10,
+      },
+      "corr-123",
+    );
 
     // Step 2: Pipeline parses the JSON message
     const parsed = parseA2AMessage(JSON.stringify(message));
@@ -523,7 +517,7 @@ describe("E2E: MCP + env profiles + A2A together", () => {
         production: {
           mcp: {
             servers: {
-              "monitoring": {
+              monitoring: {
                 command: "npx",
                 args: ["-y", "mcp-monitor"],
                 approval: "always",

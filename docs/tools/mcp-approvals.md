@@ -27,14 +27,14 @@ Approval settings are per-server in the `mcp.servers` config:
       "file-reader": {
         command: "npx",
         args: ["-y", "@safe/mcp-reader"],
-        approval: "none"   // default
+        approval: "none", // default
       },
 
       // Dangerous server — always require approval
       "admin-tools": {
         command: "npx",
         args: ["-y", "@admin/mcp-tools"],
-        approval: "always"
+        approval: "always",
       },
 
       // Mixed server — approve only unlisted tools
@@ -42,27 +42,27 @@ Approval settings are per-server in the `mcp.servers` config:
         command: "npx",
         args: ["-y", "@dev/mcp-tools"],
         approval: "allowlist",
-        approvedTools: ["read_file", "list_dir", "search"]
-      }
-    }
-  }
+        approvedTools: ["read_file", "list_dir", "search"],
+      },
+    },
+  },
 }
 ```
 
 ## Approval modes
 
-| Mode | Behavior |
-|------|----------|
-| `none` | Execute without approval (default) |
-| `always` | Every tool call requires approval before execution |
+| Mode        | Behavior                                                     |
+| ----------- | ------------------------------------------------------------ |
+| `none`      | Execute without approval (default)                           |
+| `always`    | Every tool call requires approval before execution           |
 | `allowlist` | Tools in `approvedTools` run freely; others require approval |
 
 ## Config reference
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `approval` | `"none" \| "always" \| "allowlist"` | `"none"` | Approval mode for this server's tools |
-| `approvedTools` | `string[]` | `[]` | Tool names that skip approval when mode is `"allowlist"` |
+| Field           | Type                                | Default  | Description                                              |
+| --------------- | ----------------------------------- | -------- | -------------------------------------------------------- |
+| `approval`      | `"none" \| "always" \| "allowlist"` | `"none"` | Approval mode for this server's tools                    |
+| `approvedTools` | `string[]`                          | `[]`     | Tool names that skip approval when mode is `"allowlist"` |
 
 ## How approval works
 
@@ -83,19 +83,19 @@ When a tool call requires approval:
 {
   mcp: {
     servers: {
-      "database": {
+      database: {
         command: "npx",
         args: ["-y", "@db/mcp-server"],
         approval: "allowlist",
         approvedTools: [
-          "query",        // SELECT queries — safe
-          "list_tables",  // Schema inspection — safe
-          "describe"      // Column info — safe
+          "query", // SELECT queries — safe
+          "list_tables", // Schema inspection — safe
+          "describe", // Column info — safe
           // "insert", "update", "delete" — require approval
-        ]
-      }
-    }
-  }
+        ],
+      },
+    },
+  },
 }
 ```
 
@@ -109,16 +109,16 @@ When a tool call requires approval:
       "internal-api": {
         command: "node",
         args: ["./mcp-internal.js"],
-        approval: "none"
+        approval: "none",
       },
       // Third-party tools — gate everything
       "third-party": {
         url: "https://external.example.com/mcp",
         transport: "sse",
-        approval: "always"
-      }
-    }
-  }
+        approval: "always",
+      },
+    },
+  },
 }
 ```
 
@@ -136,16 +136,16 @@ You can use `group:mcp` in tool policy to allow/deny all MCP tools, and then use
 ```json5
 {
   tools: {
-    allow: ["group:mcp"]  // Make all MCP tools available
+    allow: ["group:mcp"], // Make all MCP tools available
   },
   mcp: {
     servers: {
       "risky-server": {
         command: "npx",
         args: ["-y", "@risky/tools"],
-        approval: "always"  // But require approval for this server
-      }
-    }
-  }
+        approval: "always", // But require approval for this server
+      },
+    },
+  },
 }
 ```
