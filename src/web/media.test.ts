@@ -390,10 +390,10 @@ describe("local media root guard", () => {
     // Use explicit localRoots matching the STATE_DIR-specific defaults (excluding os.tmpdir())
     // so the test is deterministic even when STATE_DIR lives under os.tmpdir().
     const stateDirRoots = [
-      path.join(STATE_DIR, "media"),
-      path.join(STATE_DIR, "agents"),
-      path.join(STATE_DIR, "workspace"),
-      path.join(STATE_DIR, "sandboxes"),
+      path.join(stateDir, "media"),
+      path.join(stateDir, "agents"),
+      path.join(stateDir, "workspace"),
+      path.join(stateDir, "sandboxes"),
     ];
 
     await expect(
