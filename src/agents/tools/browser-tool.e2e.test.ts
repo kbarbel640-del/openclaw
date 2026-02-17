@@ -54,9 +54,21 @@ const browserConfigMocks = vi.hoisted(() => ({
   resolveBrowserConfig: vi.fn(() => ({
     enabled: true,
     controlPort: 18791,
+    defaultProfile: "openclaw",
   })),
 }));
 vi.mock("../../browser/config.js", () => browserConfigMocks);
+
+const browserActionMocks = vi.hoisted(() => ({
+  browserAct: vi.fn(async () => ({ ok: true })),
+  browserArmDialog: vi.fn(async () => ({ ok: true })),
+  browserArmFileChooser: vi.fn(async () => ({ ok: true })),
+  browserConsoleMessages: vi.fn(async () => ({ ok: true, items: [] })),
+  browserNavigate: vi.fn(async () => ({ ok: true })),
+  browserPdfSave: vi.fn(async () => ({ ok: true })),
+  browserScreenshotAction: vi.fn(async () => ({ ok: true })),
+}));
+vi.mock("../../browser/client-actions.js", () => browserActionMocks);
 
 const nodesUtilsMocks = vi.hoisted(() => ({
   listNodes: vi.fn(async (..._args: unknown[]): Promise<Array<Record<string, unknown>>> => []),
@@ -271,6 +283,61 @@ describe("browser tool snapshot maxChars", () => {
       expect.objectContaining({ profile: "chrome" }),
     );
     expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
+  });
+
+  it("falls back to browser.defaultProfile when chrome relay has no attached tabs", async () => {
+    browserConfigMocks.resolveBrowserConfig.mockReturnValue({
+      enabled: true,
+      controlPort: 18791,
+      defaultProfile: "main",
+    });
+    browserActionMocks.browserAct
+      .mockRejectedValueOnce(new Error("404: tab not found"))
+      .mockResolvedValueOnce({ ok: true, profile: "main" });
+    browserClientMocks.browserTabs
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "main-1" }]);
+
+    const tool = createBrowserTool();
+    await expect(
+      tool.execute?.(null, {
+        action: "act",
+        profile: "chrome",
+        request: { kind: "wait" },
+      }),
+    ).resolves.toBeDefined();
+
+    expect(browserClientMocks.browserTabs).toHaveBeenNthCalledWith(
+      1,
+      undefined,
+      expect.objectContaining({ profile: "chrome" }),
+    );
+    expect(browserClientMocks.browserTabs).toHaveBeenNthCalledWith(
+      2,
+      undefined,
+      expect.objectContaining({ profile: "main" }),
+    );
+    expect(browserActionMocks.browserAct).toHaveBeenCalledTimes(2);
+    expect(browserActionMocks.browserAct.mock.calls[1]?.[2]).toMatchObject({ profile: "main" });
+  });
+
+  it("includes direct-CDP fallback guidance when chrome relay has no tabs", async () => {
+    browserConfigMocks.resolveBrowserConfig.mockReturnValue({
+      enabled: true,
+      controlPort: 18791,
+      defaultProfile: "main",
+    });
+    browserActionMocks.browserAct.mockRejectedValue(new Error("404: tab not found"));
+    browserClientMocks.browserTabs.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    const tool = createBrowserTool();
+    await expect(
+      tool.execute?.(null, {
+        action: "act",
+        profile: "chrome",
+        request: { kind: "wait" },
+      }),
+    ).rejects.toThrow(/profile="main"/i);
   });
 });
 

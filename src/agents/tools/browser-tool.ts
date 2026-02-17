@@ -222,6 +222,9 @@ export function createBrowserTool(opts?: {
   sandboxBridgeUrl?: string;
   allowHostControl?: boolean;
 }): AnyAgentTool {
+  const cfg = loadConfig();
+  const resolvedBrowser = resolveBrowserConfig(cfg.browser, cfg);
+  const defaultBrowserProfile = resolvedBrowser.defaultProfile;
   const targetDefault = opts?.sandboxBridgeUrl ? "sandbox" : "host";
   const hostHint =
     opts?.allowHostControl === false ? "Host target blocked by policy." : "Host target allowed.";
@@ -230,7 +233,7 @@ export function createBrowserTool(opts?: {
     name: "browser",
     description: [
       "Control the browser via OpenClaw's browser control server (status/start/stop/profiles/tabs/open/snapshot/screenshot/actions).",
-      'Profiles: use profile="chrome" for Chrome extension relay takeover (your existing Chrome tabs). Use profile="openclaw" for the isolated openclaw-managed browser.',
+      `Profiles: omit profile to use browser.defaultProfile (currently "${defaultBrowserProfile}") for direct CDP control. Use profile="chrome" only for Chrome extension relay takeover. Use profile="openclaw" for the isolated openclaw-managed browser.`,
       'If the user mentions the Chrome extension / Browser Relay / toolbar button / “attach tab”, ALWAYS use profile="chrome" (do not ask which profile).',
       'When a node-hosted browser proxy is available, the tool may auto-route to it. Pin a node with node=<id|name> or target="node".',
       "Chrome extension relay needs an attached tab: user must click the OpenClaw Browser Relay toolbar icon on the tab (badge ON). If no tab is connected, ask them to attach it.",
@@ -797,6 +800,10 @@ export function createBrowserTool(opts?: {
           } catch (err) {
             const msg = String(err);
             if (msg.includes("404:") && msg.includes("tab not found") && profile === "chrome") {
+              const requestTargetId =
+                typeof (request as { targetId?: unknown }).targetId === "string"
+                  ? ((request as { targetId?: string }).targetId?.trim() ?? "")
+                  : "";
               const tabs = proxyRequest
                 ? ((
                     (await proxyRequest({
@@ -807,8 +814,43 @@ export function createBrowserTool(opts?: {
                   ).tabs ?? [])
                 : await browserTabs(baseUrl, { profile }).catch(() => []);
               if (!tabs.length) {
+                const canTryDefaultProfile =
+                  !requestTargetId &&
+                  Boolean(defaultBrowserProfile) &&
+                  defaultBrowserProfile !== "chrome";
+                if (canTryDefaultProfile) {
+                  const fallbackTabs = proxyRequest
+                    ? ((
+                        (await proxyRequest({
+                          method: "GET",
+                          path: "/tabs",
+                          profile: defaultBrowserProfile,
+                        })) as { tabs?: unknown[] }
+                      ).tabs ?? [])
+                    : await browserTabs(baseUrl, { profile: defaultBrowserProfile }).catch(
+                        () => [],
+                      );
+                  if (fallbackTabs.length > 0) {
+                    const fallbackResult = proxyRequest
+                      ? await proxyRequest({
+                          method: "POST",
+                          path: "/act",
+                          profile: defaultBrowserProfile,
+                          body: request,
+                        })
+                      : await browserAct(baseUrl, request as Parameters<typeof browserAct>[1], {
+                          profile: defaultBrowserProfile,
+                        });
+                    return jsonResult(fallbackResult);
+                  }
+                }
+                const fallbackHint =
+                  defaultBrowserProfile && defaultBrowserProfile !== "chrome"
+                    ? ` If you intended direct CDP control, retry with profile="${defaultBrowserProfile}" (or omit profile to use browser.defaultProfile).`
+                    : "";
                 throw new Error(
-                  "No Chrome tabs are attached via the OpenClaw Browser Relay extension. Click the toolbar icon on the tab you want to control (badge ON), then retry.",
+                  "No Chrome tabs are attached via the OpenClaw Browser Relay extension. Click the toolbar icon on the tab you want to control (badge ON), then retry." +
+                    fallbackHint,
                   { cause: err },
                 );
               }
