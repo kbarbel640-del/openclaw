@@ -455,10 +455,11 @@ function New-OrionConfig {
             "id": "llama3",
             "name": "Llama 3",
             "reasoning": false,
-            "contextWindow": 16384,
+            "contextWindow": 8192,
             "maxTokens": 4096,
             "input": ["text"],
-            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "compat": { "maxTokensField": "max_tokens" }
           }
         ]
       }
@@ -466,7 +467,9 @@ function New-OrionConfig {
   },
   "agents": {
     "defaults": {
-      "model": "local_ollama/llama3"
+      "model": {
+        "primary": "local_ollama/llama3"
+      }
     }
   }
 }
