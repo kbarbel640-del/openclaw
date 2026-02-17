@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { WorkspaceBootstrapFile } from "../workspace.js";
 import { buildBootstrapContextFiles } from "./bootstrap.js";
 
-const makeFile = (
-  overrides: Partial<WorkspaceBootstrapFile>,
-): WorkspaceBootstrapFile => ({
+const makeFile = (overrides: Partial<WorkspaceBootstrapFile>): WorkspaceBootstrapFile => ({
   name: "AGENTS.md",
   path: "/tmp/AGENTS.md",
   content: "",
