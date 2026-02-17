@@ -1,14 +1,14 @@
 # Sophon Plugin
 
-Sophon adds task, project, and note tools backed by Supabase.
+Sophon adds task, project, and note tools backed by the hosted Sophon API.
 
 ## Setup
 
 Configure these env vars in `~/.openclaw/openclaw.json` under `env.vars`:
 
-- `SOPHON_SUPABASE_URL`
-- `SOPHON_SUPABASE_KEY`
-- `SOPHON_REFRESH_TOKEN` (preferred) or `SOPHON_USER_TOKEN`
+- `SOPHON_API_URL` (required): base URL for the Sophon API endpoint, for example `https://project.supabase.co/functions/v1/api-v1`.
+- `SOPHON_API_TOKEN` (required): API bearer token for Sophon.
+- Optional: `SOPHON_API_TIMEOUT_MS` (milliseconds, defaults to `20000`) and `SOPHON_API_BASE_URL`/`SOPHON_SUPABASE_URL` compatibility fallbacks.
 
 ## Tools
 
@@ -19,4 +19,4 @@ Configure these env vars in `~/.openclaw/openclaw.json` under `env.vars`:
 
 ## Auth Notes
 
-If refresh auth fails, re-auth in Sophon and update `SOPHON_REFRESH_TOKEN`, or set `SOPHON_USER_TOKEN` as a fallback.
+If `SOPHON_API_TOKEN` is unavailable, you can fallback to `SOPHON_USER_TOKEN`.

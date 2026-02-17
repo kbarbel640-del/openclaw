@@ -1,7 +1,7 @@
 {
   "id": "sophon",
   "name": "Sophon",
-  "description": "Manage tasks, projects, and notes in a Sophon workspace via Supabase.",
+  "description": "Manage tasks, projects, and notes in a Sophon workspace via API endpoints.",
   "version": "2026.2.16",
   "configSchema": {
     "type": "object",

@@ -5,8 +5,7 @@
   "description": "OpenClaw Sophon productivity plugin (tasks, projects, notes)",
   "type": "module",
   "dependencies": {
-    "@sinclair/typebox": "^0.34.48",
-    "@supabase/supabase-js": "^2.57.4"
+    "@sinclair/typebox": "^0.34.48"
   },
   "devDependencies": {
     "openclaw": "workspace:*"

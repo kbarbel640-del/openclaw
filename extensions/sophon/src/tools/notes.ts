@@ -1,6 +1,19 @@
 import { Type } from "@sinclair/typebox";
 import { jsonResult, type OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { getSupabase } from "../lib/supabase.js";
+import {
+  archiveNote,
+  createNote,
+  getNote,
+  listNotes,
+  patchNote,
+  type GetNoteResponse,
+  type ListNotesResponse,
+  type PatchNoteInput,
+} from "../lib/api.js";
+
+function compactObject<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
+}
 
 export function registerNoteTools(api: OpenClawPluginApi): void {
   api.registerTool({
@@ -10,25 +23,19 @@ export function registerNoteTools(api: OpenClawPluginApi): void {
     parameters: Type.Object({
       project_id: Type.Optional(Type.String({ format: "uuid" })),
       task_id: Type.Optional(Type.String({ format: "uuid" })),
+      team_id: Type.Optional(Type.String({ format: "uuid" })),
       search: Type.Optional(Type.String()),
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 25 })),
     }),
     async execute(_toolCallId, params) {
-      const supabase = await getSupabase();
-      let query = supabase
-        .from("notes")
-        .select("id, title, task_id, project_id, created_at, updated_at")
-        .is("archived_at", null)
-        .order("updated_at", { ascending: false })
-        .limit(params.limit ?? 25);
-
-      if (params.project_id) query = query.eq("project_id", params.project_id);
-      if (params.task_id) query = query.eq("task_id", params.task_id);
-      if (params.search) query = query.ilike("title", `%${params.search}%`);
-
-      const { data, error } = await query;
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult(data);
+      const response: ListNotesResponse = await listNotes({
+        project_id: params.project_id,
+        task_id: params.task_id,
+        team_id: params.team_id,
+        search: params.search,
+        limit: params.limit,
+      });
+      return jsonResult(response.notes);
     },
   });
 
@@ -40,11 +47,8 @@ export function registerNoteTools(api: OpenClawPluginApi): void {
       id: Type.String({ format: "uuid" }),
     }),
     async execute(_toolCallId, params) {
-      const supabase = await getSupabase();
-      const { data, error } = await supabase.from("notes").select("*").eq("id", params.id).single();
-
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult(data);
+      const response: GetNoteResponse = await getNote(params.id);
+      return jsonResult(response.note);
     },
   });
 
@@ -60,11 +64,16 @@ export function registerNoteTools(api: OpenClawPluginApi): void {
       team_id: Type.Optional(Type.String({ format: "uuid" })),
     }),
     async execute(_toolCallId, params) {
-      const supabase = await getSupabase();
-      const { data, error } = await supabase.from("notes").insert(params).select().single();
-
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult(data);
+      const response = await createNote(
+        compactObject({
+          title: params.title,
+          content: params.content,
+          task_id: params.task_id,
+          project_id: params.project_id,
+          team_id: params.team_id,
+        }),
+      );
+      return jsonResult(response.note);
     },
   });
 
@@ -78,24 +87,12 @@ export function registerNoteTools(api: OpenClawPluginApi): void {
       content: Type.Optional(Type.String()),
       task_id: Type.Optional(Type.String({ format: "uuid" })),
       project_id: Type.Optional(Type.String({ format: "uuid" })),
+      team_id: Type.Optional(Type.String({ format: "uuid" })),
     }),
     async execute(_toolCallId, params) {
       const { id, ...fields } = params;
-      const updates: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(fields)) {
-        if (value !== undefined) updates[key] = value;
-      }
-
-      const supabase = await getSupabase();
-      const { data, error } = await supabase
-        .from("notes")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult(data);
+      const response = await patchNote(id, compactObject(fields) as PatchNoteInput);
+      return jsonResult(response.note);
     },
   });
 
@@ -108,16 +105,8 @@ export function registerNoteTools(api: OpenClawPluginApi): void {
       reason: Type.Optional(Type.String()),
     }),
     async execute(_toolCallId, params) {
-      const supabase = await getSupabase();
-      const { data, error } = await supabase
-        .from("notes")
-        .update({ archived_at: new Date().toISOString() })
-        .eq("id", params.id)
-        .select()
-        .single();
-
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult({ note: data, reason: params.reason ?? null });
+      const response = await archiveNote(params.id);
+      return jsonResult(response.note);
     },
   });
 }

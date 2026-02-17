@@ -1,12 +1,24 @@
 import { Type } from "@sinclair/typebox";
 import { jsonResult, optionalStringEnum, type OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { getSupabase } from "../lib/supabase.js";
+import {
+  archiveTask,
+  completeTask,
+  createTask,
+  getTask,
+  listTasks,
+  patchTask,
+  type ListTasksResponse,
+  type PatchTaskInput,
+} from "../lib/api.js";
 
 const STATUS_VALUES = ["backlog", "in_progress", "completed", "blocked", "waiting"] as const;
 const PRIORITY_VALUES = ["p1", "p2", "p3", "p4", "p5"] as const;
 
-const TASK_LIST_COLUMNS =
-  "id, title, status_label, priority_level, top_level_category, project_id, due_date, completed_at, is_recurring, created_at, updated_at";
+const DATE_ONLY = Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
+
+function compactObject<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
+}
 
 export function registerTaskTools(api: OpenClawPluginApi): void {
   api.registerTool({
@@ -18,29 +30,23 @@ export function registerTaskTools(api: OpenClawPluginApi): void {
       priority: optionalStringEnum(PRIORITY_VALUES),
       project_id: Type.Optional(Type.String()),
       category: Type.Optional(Type.String()),
-      due_before: Type.Optional(Type.String({ format: "date-time" })),
-      due_after: Type.Optional(Type.String({ format: "date-time" })),
+      due_before: Type.Optional(DATE_ONLY),
+      due_after: Type.Optional(DATE_ONLY),
+      team_id: Type.Optional(Type.String({ format: "uuid" })),
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 25 })),
     }),
     async execute(_toolCallId, params) {
-      const supabase = await getSupabase();
-      let query = supabase
-        .from("tasks")
-        .select(TASK_LIST_COLUMNS)
-        .is("archived_at", null)
-        .order("updated_at", { ascending: false })
-        .limit(params.limit ?? 25);
-
-      if (params.status) query = query.eq("status_label", params.status);
-      if (params.priority) query = query.eq("priority_level", params.priority);
-      if (params.project_id) query = query.eq("project_id", params.project_id);
-      if (params.category) query = query.eq("top_level_category", params.category);
-      if (params.due_before) query = query.lte("due_date", params.due_before);
-      if (params.due_after) query = query.gte("due_date", params.due_after);
-
-      const { data, error } = await query;
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult(data);
+      const response: ListTasksResponse = await listTasks({
+        status: params.status,
+        priority: params.priority,
+        project_id: params.project_id,
+        category: params.category,
+        due_before: params.due_before,
+        due_after: params.due_after,
+        team_id: params.team_id,
+        limit: params.limit,
+      });
+      return jsonResult(response.tasks);
     },
   });
 
@@ -52,10 +58,8 @@ export function registerTaskTools(api: OpenClawPluginApi): void {
       id: Type.String({ format: "uuid" }),
     }),
     async execute(_toolCallId, params) {
-      const supabase = await getSupabase();
-      const { data, error } = await supabase.from("tasks").select("*").eq("id", params.id).single();
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult(data);
+      const response = await getTask(params.id);
+      return jsonResult(response.task);
     },
   });
 
@@ -71,14 +75,12 @@ export function registerTaskTools(api: OpenClawPluginApi): void {
       priority_level: optionalStringEnum(PRIORITY_VALUES),
       top_level_category: Type.Optional(Type.String()),
       project_id: Type.Optional(Type.String({ format: "uuid" })),
-      due_date: Type.Optional(Type.String({ format: "date-time" })),
+      due_date: Type.Optional(DATE_ONLY),
       team_id: Type.Optional(Type.String({ format: "uuid" })),
     }),
     async execute(_toolCallId, params) {
-      const supabase = await getSupabase();
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert({
+      const response = await createTask(
+        compactObject({
           title: params.title,
           description: params.description,
           desired_outcome: params.desired_outcome,
@@ -88,11 +90,9 @@ export function registerTaskTools(api: OpenClawPluginApi): void {
           project_id: params.project_id,
           due_date: params.due_date,
           team_id: params.team_id,
-        })
-        .select()
-        .single();
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult(data);
+        }),
+      );
+      return jsonResult(response.task);
     },
   });
 
@@ -109,28 +109,13 @@ export function registerTaskTools(api: OpenClawPluginApi): void {
       priority_level: optionalStringEnum(PRIORITY_VALUES),
       top_level_category: Type.Optional(Type.String()),
       project_id: Type.Optional(Type.String({ format: "uuid" })),
-      due_date: Type.Optional(Type.String({ format: "date-time" })),
+      due_date: Type.Optional(DATE_ONLY),
+      team_id: Type.Optional(Type.String({ format: "uuid" })),
     }),
     async execute(_toolCallId, params) {
       const { id, ...fields } = params;
-      const updates: Record<string, unknown> = {};
-
-      for (const [key, value] of Object.entries(fields)) {
-        if (value !== undefined) {
-          updates[key] = value;
-        }
-      }
-
-      const supabase = await getSupabase();
-      const { data, error } = await supabase
-        .from("tasks")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult(data);
+      const response = await patchTask(id, compactObject(fields) as PatchTaskInput);
+      return jsonResult(response.task);
     },
   });
 
@@ -142,19 +127,8 @@ export function registerTaskTools(api: OpenClawPluginApi): void {
       id: Type.String({ format: "uuid" }),
     }),
     async execute(_toolCallId, params) {
-      const supabase = await getSupabase();
-      const { data, error } = await supabase
-        .from("tasks")
-        .update({
-          status_label: "completed",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", params.id)
-        .select()
-        .single();
-
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult(data);
+      const response = await completeTask(params.id);
+      return jsonResult(response.task);
     },
   });
 
@@ -167,16 +141,8 @@ export function registerTaskTools(api: OpenClawPluginApi): void {
       reason: Type.Optional(Type.String()),
     }),
     async execute(_toolCallId, params) {
-      const supabase = await getSupabase();
-      const { data, error } = await supabase
-        .from("tasks")
-        .update({ archived_at: new Date().toISOString() })
-        .eq("id", params.id)
-        .select()
-        .single();
-
-      if (error) throw new Error(`Sophon API error: ${error.message}`);
-      return jsonResult({ task: data, reason: params.reason ?? null });
+      const response = await archiveTask(params.id);
+      return jsonResult(response.task);
     },
   });
 }
