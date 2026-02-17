@@ -13,6 +13,7 @@ import {
   isGoogleModelApi,
   sanitizeGoogleTurnOrdering,
   sanitizeSessionMessagesImages,
+  stripNonNativeThinkingBlocks,
 } from "../pi-embedded-helpers.js";
 import { cleanToolSchemaForGemini } from "../pi-tools.schema.js";
 import {
@@ -465,6 +466,14 @@ export async function sanitizeSessionHistory(params: {
     ? downgradeOpenAIReasoningBlocks(sanitizedToolResults)
     : sanitizedToolResults;
 
+  // Strip all thinking blocks when the model/provider has changed.  Thinking
+  // blocks are provider-specific (Anthropic uses unsigned blocks, OpenAI uses
+  // rs_-signed blocks) and can cause 400 errors when sent to a provider that
+  // didn't produce them.  See #19295.
+  const sanitizedThinkingCrossProvider = modelChanged
+    ? stripNonNativeThinkingBlocks(sanitizedOpenAI)
+    : sanitizedOpenAI;
+
   if (hasSnapshot && (!priorSnapshot || modelChanged)) {
     appendModelSnapshot(params.sessionManager, {
       timestamp: Date.now(),
@@ -475,11 +484,11 @@ export async function sanitizeSessionHistory(params: {
   }
 
   if (!policy.applyGoogleTurnOrdering) {
-    return sanitizedOpenAI;
+    return sanitizedThinkingCrossProvider;
   }
 
   return applyGoogleTurnOrderingFix({
-    messages: sanitizedOpenAI,
+    messages: sanitizedThinkingCrossProvider,
     modelApi: params.modelApi,
     sessionManager: params.sessionManager,
     sessionId: params.sessionId,
