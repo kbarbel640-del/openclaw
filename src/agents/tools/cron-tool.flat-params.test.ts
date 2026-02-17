@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const callGatewayMock = vi.fn();
 vi.mock("../../gateway/call.js", () => ({
@@ -15,6 +15,10 @@ describe("cron tool flat-params", () => {
   beforeEach(() => {
     callGatewayMock.mockReset();
     callGatewayMock.mockResolvedValue({ ok: true });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("preserves explicit top-level sessionKey during flat-params recovery", async () => {
@@ -41,6 +45,7 @@ describe("cron tool flat-params", () => {
         action: "add",
         job: {
           name: "bad-recurring-job",
+          // Any positive everyMs would work here; 60_000 is a readable 1-minute sample.
           schedule: { kind: "every", everyMs: 60_000 },
           sessionTarget: "isolated",
           payload: { kind: "agentTurn", message: "ping" },
@@ -48,6 +53,28 @@ describe("cron tool flat-params", () => {
         },
       }),
     ).rejects.toThrow('deleteAfterRun=true is only valid with schedule.kind="at"');
+
+    expect(callGatewayMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("rejects wrong absolute at when reminder text asks for short relative delay", async () => {
+    const now = Date.parse("2026-02-17T06:38:00.000Z");
+    vi.spyOn(Date, "now").mockReturnValue(now);
+
+    const tool = createCronTool();
+    await expect(
+      tool.execute("call-relative-mismatch", {
+        action: "add",
+        job: {
+          name: "remind-check-messages-1m",
+          description: "1分钟后提醒看消息",
+          schedule: { kind: "at", at: "2026-02-17T16:51:07.000Z" },
+          sessionTarget: "isolated",
+          payload: { kind: "agentTurn", message: "⏰ 提醒：现在该看一下消息啦。" },
+          deleteAfterRun: true,
+        },
+      }),
+    ).rejects.toThrow("schedule.at mismatches explicit relative duration");
 
     expect(callGatewayMock).toHaveBeenCalledTimes(0);
   });

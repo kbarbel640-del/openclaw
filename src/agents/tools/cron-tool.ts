@@ -2,6 +2,7 @@ import { Type } from "@sinclair/typebox";
 import type { CronDelivery, CronMessageChannel } from "../../cron/types.js";
 import { loadConfig } from "../../config/config.js";
 import { normalizeCronJobCreate, normalizeCronJobPatch } from "../../cron/normalize.js";
+import { parseAbsoluteTimeMs } from "../../cron/parse.js";
 import { normalizeHttpWebhookUrl } from "../../cron/webhook-url.js";
 import { parseAgentSessionKey } from "../../sessions/session-key-utils.js";
 import { extractTextFromChatContent } from "../../shared/chat-content.js";
@@ -791,6 +792,142 @@ function validateDeleteAfterRunCompatibility(job: Record<string, unknown>) {
   }
 }
 
+function parseRelativeDurationMsFromText(text: unknown): number | undefined {
+  if (typeof text !== "string") {
+    return undefined;
+  }
+  const raw = text.trim();
+  if (!raw) {
+    return undefined;
+  }
+
+  const toMs = (amount: number, unit: string): number | undefined => {
+    const normalized = unit.toLowerCase();
+    if (
+      normalized === "毫秒" ||
+      normalized === "ms" ||
+      normalized === "millisecond" ||
+      normalized === "milliseconds"
+    ) {
+      return amount;
+    }
+    if (
+      normalized === "秒" ||
+      normalized === "秒钟" ||
+      normalized === "s" ||
+      normalized === "sec" ||
+      normalized === "secs" ||
+      normalized === "second" ||
+      normalized === "seconds"
+    ) {
+      return amount * 1_000;
+    }
+    if (
+      normalized === "分" ||
+      normalized === "分钟" ||
+      normalized === "m" ||
+      normalized === "min" ||
+      normalized === "mins" ||
+      normalized === "minute" ||
+      normalized === "minutes"
+    ) {
+      return amount * 60_000;
+    }
+    if (
+      normalized === "小时" ||
+      normalized === "小時" ||
+      normalized === "h" ||
+      normalized === "hr" ||
+      normalized === "hrs" ||
+      normalized === "hour" ||
+      normalized === "hours"
+    ) {
+      return amount * 3_600_000;
+    }
+    if (
+      normalized === "天" ||
+      normalized === "日" ||
+      normalized === "d" ||
+      normalized === "day" ||
+      normalized === "days"
+    ) {
+      return amount * 86_400_000;
+    }
+    return undefined;
+  };
+
+  const zhMatch = raw.match(
+    /([0-9]+(?:\.[0-9]+)?)\s*(毫秒|秒钟|秒|分钟|分|小时|小時|天|日)\s*(后|後)/,
+  );
+  if (zhMatch) {
+    const amount = Number.parseFloat(zhMatch[1] ?? "");
+    const unit = zhMatch[2] ?? "";
+    if (Number.isFinite(amount) && amount > 0) {
+      const ms = toMs(amount, unit);
+      if (ms !== undefined) {
+        return Math.max(1, Math.round(ms));
+      }
+    }
+  }
+
+  const enMatch = raw.match(
+    /\bin\s+([0-9]+(?:\.[0-9]+)?)\s*(milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d)\b/i,
+  );
+  if (enMatch) {
+    const amount = Number.parseFloat(enMatch[1] ?? "");
+    const unit = enMatch[2] ?? "";
+    if (Number.isFinite(amount) && amount > 0) {
+      const ms = toMs(amount, unit);
+      if (ms !== undefined) {
+        return Math.max(1, Math.round(ms));
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function inferRequestedRelativeDurationMs(job: Record<string, unknown>): number | undefined {
+  const payload = isRecord(job.payload) ? job.payload : undefined;
+  const candidates: unknown[] = [job.description, job.name, payload?.text, payload?.message];
+  for (const candidate of candidates) {
+    const ms = parseRelativeDurationMsFromText(candidate);
+    if (ms !== undefined) {
+      return ms;
+    }
+  }
+  return undefined;
+}
+
+function validateRelativeReminderAgainstAtSchedule(job: Record<string, unknown>) {
+  const schedule = isRecord(job.schedule) ? job.schedule : null;
+  if (!schedule || normalizeScheduleKind(schedule.kind) !== "at") {
+    return;
+  }
+  const atValue = typeof schedule.at === "string" ? schedule.at.trim() : "";
+  if (!atValue) {
+    return;
+  }
+  const requestedMs = inferRequestedRelativeDurationMs(job);
+  if (requestedMs === undefined) {
+    return;
+  }
+  const atMs = parseAbsoluteTimeMs(atValue);
+  if (atMs === null) {
+    return;
+  }
+  const actualDeltaMs = atMs - Date.now();
+  const toleranceMs = Math.max(30_000, Math.round(requestedMs * 0.5));
+  if (Math.abs(actualDeltaMs - requestedMs) <= toleranceMs) {
+    return;
+  }
+  throw new Error(
+    `schedule.at mismatches explicit relative duration in reminder text (expected about ${Math.round(
+      requestedMs / 1000,
+    )}s from now, got ${Math.round(actualDeltaMs / 1000)}s). Recompute time before creating the job.`,
+  );
+}
+
 export function createCronTool(opts?: CronToolOptions): AnyAgentTool {
   return {
     label: "Cron",
@@ -982,6 +1119,7 @@ Use jobId as canonical identifier; id is accepted for compatibility.`,
           const job = sanitizeCronAddJobForGateway(normalizedJob) ?? normalizedJob;
           if (job && typeof job === "object") {
             validateDeleteAfterRunCompatibility(job as Record<string, unknown>);
+            validateRelativeReminderAgainstAtSchedule(job as Record<string, unknown>);
           }
           if (job && typeof job === "object") {
             const cfg = loadConfig();
