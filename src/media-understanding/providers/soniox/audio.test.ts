@@ -57,7 +57,7 @@ function buildSonioxFetchMock(opts?: {
     }
 
     // Get transcript text
-    if (url.includes("/transcript") && method === "GET") {
+    if (url.endsWith("/transcript") && method === "GET") {
       if (opts?.failAt === "transcript") {
         return new Response(opts.errorBody ?? "transcript error", {
           status: opts.errorStatus ?? 500,
