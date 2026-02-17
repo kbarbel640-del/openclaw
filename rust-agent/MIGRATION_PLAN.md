@@ -23,9 +23,11 @@
 
 - Move session scheduler and idempotency dedupe cache to Rust.
 - Implemented first pass idempotency dedupe cache with TTL + bounded entries.
-- Implemented JSON-backed session state tracking as an interim store.
+- Implemented dual-backend session state tracking:
+  - JSON (default)
+  - SQLite WAL backend behind `sqlite-state` feature (auto-selected for `.db/.sqlite/.sqlite3` paths)
 - Introduce a compact internal event model (`bytes` + pooled buffers).
-- Persist runtime state in SQLite with WAL mode.
+- Keep scheduler/routing parity migration in progress.
 
 ### Phase 3 (in progress)
 

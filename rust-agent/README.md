@@ -71,7 +71,7 @@ systemctl --user status openclaw-agent-rs.service
 - `runtime.memory_sample_secs`: periodic RSS logging cadence on Linux.
 - `runtime.idempotency_ttl_secs`: duplicate decision cache retention window.
 - `runtime.idempotency_max_entries`: cap for idempotency cache footprint.
-- `runtime.session_state_path`: JSON state store for session counters and last decisions.
+- `runtime.session_state_path`: JSON state store by default; use `.db/.sqlite/.sqlite3` with `sqlite-state` for SQLite WAL-backed state.
 - `security.review_threshold`: minimum risk for "review".
 - `security.block_threshold`: minimum risk for "block".
 - `security.protect_paths`: files to hash and verify at runtime.
@@ -106,4 +106,14 @@ mapping against versioned fixtures.
 cargo test protocol_corpus_snapshot_matches_expectations -- --nocapture
 # or:
 bash ./scripts/run-protocol-corpus.sh
+```
+
+## Windows GNU toolchain helper (SQLite feature)
+
+When using `x86_64-pc-windows-gnu` with `--features sqlite-state`, run through:
+
+```powershell
+.\scripts\with-mingw-env.ps1 "cargo +1.83.0-x86_64-pc-windows-gnu test --features sqlite-state"
+.\scripts\with-mingw-env.ps1 "cargo +1.83.0-x86_64-pc-windows-gnu clippy --all-targets --features sqlite-state -- -D warnings"
+.\scripts\with-mingw-env.ps1 "cargo +1.83.0-x86_64-pc-windows-gnu build --release --features sqlite-state"
 ```

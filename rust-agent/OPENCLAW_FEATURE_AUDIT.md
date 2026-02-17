@@ -26,7 +26,7 @@ Status legend:
 | Runtime portability | macOS/Linux/Windows workflow; Linux service deployment | `Implemented` | Rust toolchain pinned to 1.83; Ubuntu build script and systemd user unit included. |
 | Gateway protocol connectivity | WS control plane (`connect`, events, session/gateway methods) | `Partial` | Rust bridge uses typed frame helpers (`req`/`resp`/`event`), method-family classification, and known-method registry; full RPC dispatch parity still pending. |
 | Full Gateway replacement | Sessions, presence, routing, config mutations, cron/webhooks, control UI serving | `Not Started` | Still provided by upstream TypeScript Gateway. |
-| Session model | `main` session, group isolation, activation/queue policies, reply-back | `Partial` | Session state counters + last-decision persistence added; scheduler/routing parity still pending. |
+| Session model | `main` session, group isolation, activation/queue policies, reply-back | `Partial` | Session state counters + last-decision persistence added with JSON default and optional SQLite WAL backend (`sqlite-state`); scheduler/routing parity still pending. |
 | Channel integrations | WhatsApp, Telegram, Discord, Slack, IRC, Signal, Google Chat, Teams, Matrix, etc. | `Partial` | Rust adapter scaffold includes `whatsapp`, `telegram`, `slack`, `discord`, and generic extraction; full channel runtime parity remains pending. |
 | Tool execution layer | `exec`, `process`, `apply_patch`, browser/canvas/nodes, message, gateway, sessions_* | `Deferred` | Rust currently evaluates risk for actions instead of hosting the tool layer. |
 | Nodes + device features | macOS/iOS/Android nodes, camera/screen/location/system.run, canvas A2UI | `Deferred` | No node host in Rust yet. |
@@ -39,7 +39,7 @@ Status legend:
 | Decision policy engine | Risk aggregation -> `allow/review/block` with thresholds | `Implemented` | `security/mod.rs` classifier with `audit_only` override. |
 | Tool/channel policy controls | Per-tool policy floors and channel-aware risk weighting | `Implemented` | `tool_policies`, `tool_risk_bonus`, and `channel_risk_bonus` are configurable in TOML. |
 | Idempotency dedupe | Repeated action/request suppression | `Partial` | Request id/signature idempotency cache added with TTL + bounded entries. |
-| Channel driver abstraction | Channel-specific frame parsing adapters | `Partial` | Trait-based registry added with first `discord` + generic drivers. |
+| Channel driver abstraction | Channel-specific frame parsing adapters | `Partial` | Trait-based registry added with `whatsapp`, `telegram`, `slack`, `discord`, and generic drivers. |
 | Quarantine records | Persist blocked action payloads for forensics | `Implemented` | Append-only JSON files in configured quarantine directory. |
 | Backpressure + memory controls | Bounded worker concurrency, queue cap, eval timeout, memory metrics | `Implemented` | Semaphore + queue bounds + timeout + Linux RSS sampler. |
 | Test coverage (Rust) | Unit/integration validation for core safety/runtime behavior | `Partial` | Core security/bridge/channel adapters/replay harness covered; full end-to-end Gateway/channel matrix still pending. |
@@ -63,7 +63,7 @@ Status legend:
 
 - `Partial` for deeper optimizations:
   - pooled binary event buffers
-  - state store (SQLite WAL) for scheduler/session hot paths (JSON state store implemented as interim step)
+  - scheduler/session hot-path tuning and indexing on SQLite backend for larger deployments
   - throughput benchmarking vs upstream runtime
 
 ### Goal 3: Defender AI + VirusTotal hardening against prompt injection and host compromise
@@ -85,5 +85,5 @@ Status legend:
 
 1. Add Docker compose profile for: Gateway + Rust defender + mock action producer + assertor.
 2. Expand policy engine with tamper-evident signed policy bundle loading.
-3. Migrate JSON session state store to SQLite WAL backend for larger deployments.
-4. Add additional channel drivers (Telegram/Slack/WhatsApp) behind the shared adapter trait.
+3. Add deterministic scheduler/routing parity tests over the Rust session model.
+4. Expand channel runtime parity beyond extraction adapters (transport lifecycle, retry/backoff, webhook ingress).
