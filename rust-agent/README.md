@@ -57,6 +57,7 @@ systemctl --user status openclaw-agent-rs.service
 - Connects to `gateway.url`.
 - Sends a `connect` frame as `openclaw-agent-rs`.
 - Responds to core session RPCs (`sessions.list`, `sessions.preview`, `sessions.patch`, `sessions.resolve`, `sessions.reset`, `sessions.delete`, `sessions.compact`, `sessions.usage`, `sessions.history`, `sessions.send`, `session.status`) with typed `resp` frames.
+- Supports list filtering knobs on `sessions.list` (`includeGlobal`, `includeUnknown`, `agentId`, `search`) for parity-friendly session queries.
 - Inspects incoming Gateway frames for actionable payloads (prompt/command/url/file).
 - Applies group activation policy (`mention` or `always`) before evaluation for group contexts.
 - Schedules one active request per session with configurable queue behavior (`followup`, `steer`, `collect`).

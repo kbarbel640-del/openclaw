@@ -211,7 +211,14 @@ impl RpcDispatcher {
         };
         let sessions = self
             .sessions
-            .list(params.limit, params.active_minutes)
+            .list(SessionListQuery {
+                limit: params.limit.unwrap_or(200).clamp(1, 1_000),
+                active_minutes: params.active_minutes,
+                include_global: params.include_global.unwrap_or(true),
+                include_unknown: params.include_unknown.unwrap_or(true),
+                search: normalize_optional_text(params.search, 128),
+                agent_id: normalize_optional_text(params.agent_id, 64),
+            })
             .await;
         RpcDispatchOutcome::Handled(json!({
             "sessions": sessions,
@@ -555,6 +562,16 @@ struct SessionRegistry {
     entries: Mutex<HashMap<String, SessionEntry>>,
 }
 
+#[derive(Debug, Clone)]
+struct SessionListQuery {
+    limit: usize,
+    active_minutes: Option<u64>,
+    include_global: bool,
+    include_unknown: bool,
+    search: Option<String>,
+    agent_id: Option<String>,
+}
+
 impl SessionRegistry {
     fn new() -> Self {
         Self {
@@ -662,18 +679,48 @@ impl SessionRegistry {
             .cloned()
     }
 
-    async fn list(&self, limit: Option<usize>, active_minutes: Option<u64>) -> Vec<SessionView> {
+    async fn list(&self, query: SessionListQuery) -> Vec<SessionView> {
         let guard = self.entries.lock().await;
         let mut items = guard.values().cloned().collect::<Vec<_>>();
-        if let Some(mins) = active_minutes {
+        if let Some(mins) = query.active_minutes {
             let min_updated = now_ms().saturating_sub(mins.saturating_mul(60_000));
             items.retain(|entry| entry.updated_at_ms >= min_updated);
         }
+        if !query.include_unknown {
+            items.retain(|entry| entry.kind != SessionKind::Other);
+        }
+        if !query.include_global {
+            items.retain(|entry| !is_global_session(entry));
+        }
+        if let Some(agent_id) = query.agent_id {
+            items.retain(|entry| {
+                entry
+                    .agent_id
+                    .as_deref()
+                    .map(|v| v.eq_ignore_ascii_case(&agent_id))
+                    .unwrap_or(false)
+            });
+        }
+        if let Some(search) = query.search {
+            let needle = search.to_ascii_lowercase();
+            items.retain(|entry| {
+                entry.key.to_ascii_lowercase().contains(&needle)
+                    || entry
+                        .channel
+                        .as_deref()
+                        .map(|v| v.to_ascii_lowercase().contains(&needle))
+                        .unwrap_or(false)
+                    || entry
+                        .agent_id
+                        .as_deref()
+                        .map(|v| v.to_ascii_lowercase().contains(&needle))
+                        .unwrap_or(false)
+            });
+        }
         items.sort_by(|a, b| b.updated_at_ms.cmp(&a.updated_at_ms));
-        let lim = limit.unwrap_or(200).clamp(1, 1000);
         items
             .into_iter()
-            .take(lim)
+            .take(query.limit)
             .map(|entry| entry.to_view())
             .collect()
     }
@@ -855,6 +902,7 @@ impl SessionRegistry {
             .map(|entry| SessionUsageView {
                 key: entry.key,
                 kind: entry.kind,
+                agent_id: entry.agent_id,
                 channel: entry.channel,
                 total_requests: entry.total_requests,
                 allowed_count: entry.allowed_count,
@@ -883,6 +931,7 @@ impl SessionRegistry {
 struct SessionEntry {
     key: String,
     kind: SessionKind,
+    agent_id: Option<String>,
     channel: Option<String>,
     updated_at_ms: u64,
     total_requests: u64,
@@ -903,6 +952,7 @@ impl SessionEntry {
         Self {
             key: session_key.to_owned(),
             kind: parsed.kind,
+            agent_id: parsed.agent_id,
             channel: parsed.channel,
             updated_at_ms: now_ms(),
             total_requests: 0,
@@ -922,6 +972,7 @@ impl SessionEntry {
         SessionView {
             key: self.key.clone(),
             kind: self.kind,
+            agent_id: self.agent_id.clone(),
             channel: self.channel.clone(),
             updated_at_ms: self.updated_at_ms,
             total_requests: self.total_requests,
@@ -1066,6 +1117,8 @@ struct SessionPreviewItem {
 struct SessionUsageView {
     key: String,
     kind: SessionKind,
+    #[serde(rename = "agentId", skip_serializing_if = "Option::is_none")]
+    agent_id: Option<String>,
     channel: Option<String>,
     #[serde(rename = "totalRequests")]
     total_requests: u64,
@@ -1095,6 +1148,8 @@ pub enum SendPolicyOverride {
 struct SessionView {
     key: String,
     kind: SessionKind,
+    #[serde(rename = "agentId", skip_serializing_if = "Option::is_none")]
+    agent_id: Option<String>,
     channel: Option<String>,
     #[serde(rename = "updatedAtMs")]
     updated_at_ms: u64,
@@ -1134,6 +1189,13 @@ struct SessionsListParams {
     limit: Option<usize>,
     #[serde(rename = "activeMinutes", alias = "active_minutes")]
     active_minutes: Option<u64>,
+    #[serde(rename = "includeGlobal", alias = "include_global")]
+    include_global: Option<bool>,
+    #[serde(rename = "includeUnknown", alias = "include_unknown")]
+    include_unknown: Option<bool>,
+    #[serde(rename = "agentId", alias = "agent_id")]
+    agent_id: Option<String>,
+    search: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1266,6 +1328,10 @@ fn parse_queue_mode(value: &str) -> Option<SessionQueueMode> {
         "collect" => Some(SessionQueueMode::Collect),
         _ => None,
     }
+}
+
+fn is_global_session(entry: &SessionEntry) -> bool {
+    entry.key.eq_ignore_ascii_case("global") || entry.kind == SessionKind::Main
 }
 
 fn normalize_optional_text(value: Option<String>, max_len: usize) -> Option<String> {
@@ -1875,6 +1941,61 @@ mod tests {
                 );
             }
             _ => panic!("expected usage handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_list_applies_agent_unknown_and_global_filters() {
+        let dispatcher = RpcDispatcher::new();
+        for session_key in [
+            "agent:ops:discord:group:help",
+            "custom:other:session",
+            "main",
+        ] {
+            let patch = RpcRequestFrame {
+                id: format!("req-{session_key}"),
+                method: "sessions.patch".to_owned(),
+                params: serde_json::json!({
+                    "sessionKey": session_key
+                }),
+            };
+            let _ = dispatcher.handle_request(&patch).await;
+        }
+
+        let filtered = RpcRequestFrame {
+            id: "req-list-filtered".to_owned(),
+            method: "sessions.list".to_owned(),
+            params: serde_json::json!({
+                "includeUnknown": false,
+                "includeGlobal": false,
+                "agentId": "ops",
+                "search": "help",
+                "limit": 20
+            }),
+        };
+        let out = dispatcher.handle_request(&filtered).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/sessions/0/key")
+                        .and_then(serde_json::Value::as_str),
+                    Some("agent:ops:discord:group:help")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/sessions/0/agentId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("ops")
+                );
+            }
+            _ => panic!("expected filtered list handled"),
         }
     }
 }

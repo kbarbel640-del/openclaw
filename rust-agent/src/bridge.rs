@@ -1285,4 +1285,94 @@ mod tests {
         server.await??;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn rpc_sessions_list_filters_roundtrip() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            let ws = accept_async(stream).await?;
+            let (mut write, mut read) = ws.split();
+
+            let _connect = read
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("missing connect frame"))??;
+
+            for (id, key) in [
+                ("req-lf-p1", "agent:ops:discord:group:help"),
+                ("req-lf-p2", "custom:other:session"),
+                ("req-lf-p3", "main"),
+            ] {
+                write
+                    .send(Message::Text(
+                        json!({
+                            "type": "req",
+                            "id": id,
+                            "method": "sessions.patch",
+                            "params": { "sessionKey": key }
+                        })
+                        .to_string(),
+                    ))
+                    .await?;
+                let _ = timeout(Duration::from_secs(2), read.next())
+                    .await
+                    .map_err(|_| anyhow::anyhow!("timed out waiting for patch response"))?
+                    .ok_or_else(|| anyhow::anyhow!("patch response stream ended"))??;
+            }
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-lf-list",
+                        "method": "sessions.list",
+                        "params": {
+                            "includeUnknown": false,
+                            "includeGlobal": false,
+                            "agentId": "ops",
+                            "search": "help",
+                            "limit": 20
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+            let list_response = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for list response"))?
+                .ok_or_else(|| anyhow::anyhow!("list response stream ended"))??;
+            let list_json: Value = serde_json::from_str(list_response.to_text()?)?;
+            assert_eq!(
+                list_json.pointer("/result/count").and_then(Value::as_u64),
+                Some(1)
+            );
+            assert_eq!(
+                list_json
+                    .pointer("/result/sessions/0/key")
+                    .and_then(Value::as_str),
+                Some("agent:ops:discord:group:help")
+            );
+
+            write.send(Message::Close(None)).await?;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let bridge = GatewayBridge::new(
+            GatewayConfig {
+                url: format!("ws://{addr}"),
+                token: None,
+            },
+            "security.decision".to_owned(),
+            16,
+            SessionQueueMode::Followup,
+            GroupActivationMode::Always,
+        );
+        let evaluator: Arc<dyn ActionEvaluator> = Arc::new(StubEvaluator);
+        bridge.run_once(evaluator).await?;
+        server.await??;
+        Ok(())
+    }
 }

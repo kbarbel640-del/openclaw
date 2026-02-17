@@ -24,6 +24,7 @@
   - `sessions.history`
   - `sessions.send`
   - `session.status`
+- Extended `sessions.list` with filter parity for `includeGlobal`, `includeUnknown`, `agentId`, and `search`.
 - Rust defender policy engine with bounded worker concurrency.
 - Prompt injection scoring + command risk scoring.
 - Host integrity baseline checks.
