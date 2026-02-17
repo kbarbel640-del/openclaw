@@ -597,6 +597,87 @@ Internal hooks must be enabled for this to run.
 openclaw hooks enable boot-md
 ```
 
+### Runtime Security Guard (Reference — Plugin Hook)
+
+> **Note**: This reference uses the **Plugin Hook API** (`before_tool_call`), not the Internal Hook event system described above. The Plugin Hook API provides native `block` / `blockReason` support for tool calls. See [Plugins](/tools/plugin) for details.
+
+This reference demonstrates a runtime security guard pattern using the Plugin Hook `before_tool_call` hook to intercept and optionally block tool calls. It complements VirusTotal's signature-based scanning with LLM-specific threat detection (prompt injection, shell injection, SSRF).
+
+**Hook**: `before_tool_call` (Plugin Hook API)
+
+**Requirements**: None (runs on all platforms)
+
+**What it does**:
+
+1. Intercepts tool calls before execution via the Plugin Hook API
+2. Scans tool arguments against configurable risk patterns
+3. Returns `{ block: true, blockReason: "..." }` to block dangerous calls
+
+**Plugin Hook types** (from `src/plugins/types.ts`):
+
+```typescript
+// Event received by the handler
+type PluginHookBeforeToolCallEvent = {
+  toolName: string;
+  params: Record<string, unknown>;
+};
+
+// Result returned by the handler
+type PluginHookBeforeToolCallResult = {
+  params?: Record<string, unknown>;  // modify tool params
+  block?: boolean;                    // block the tool call
+  blockReason?: string;               // user-visible reason
+};
+
+// Context provided to the handler
+type PluginHookToolContext = {
+  agentId?: string;
+  sessionKey?: string;
+  toolName: string;
+};
+```
+
+**Example plugin implementation**:
+
+```typescript
+const HIGH_RISK = [
+  /curl\s+.*\|\s*sh/i,
+  /reverse\s*shell/i,
+  /169\.254\.169\.254/,
+];
+
+export default function (api) {
+  api.on("before_tool_call", (event, ctx) => {
+    const text = JSON.stringify(event.params);
+    const hit = HIGH_RISK.find((re) => re.test(text));
+    if (!hit) return;
+
+    api.logger.warn(
+      `🛡️ Blocked ${event.toolName}: risky pattern — ${hit}`
+    );
+
+    return {
+      block: true,
+      blockReason: `Blocked by runtime security guard (${hit})`,
+    };
+  });
+}
+```
+
+**How blocking works** (from `src/agents/pi-tools.before-tool-call.ts`):
+
+```
+Tool call initiated
+    ↓
+Plugin hook runner: runBeforeToolCall(event, ctx)
+    ↓
+If result.block === true → tool call is rejected with result.blockReason
+    ↓
+Otherwise → tool call proceeds (with optionally modified params)
+```
+
+**Reference implementation**: [`guard-scanner`](https://github.com/koatora20/guard-scanner) — 186 threat patterns across 20 categories, 56 tests, zero dependencies.
+
 ## Best Practices
 
 ### Keep Handlers Fast
