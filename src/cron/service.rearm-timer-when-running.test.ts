@@ -112,10 +112,7 @@ describe("CronService - timer re-arm when running (#12025)", () => {
     armTimer(state);
 
     expect(state.timer).toBe(existingTimer);
-    expect(noopLogger.debug).toHaveBeenCalledWith(
-      {},
-      "cron: armTimer skipped - tick in progress",
-    );
+    expect(noopLogger.debug).toHaveBeenCalledWith({}, "cron: armTimer skipped - tick in progress");
 
     clearTimeout(existingTimer);
     await store.cleanup();
