@@ -88,7 +88,7 @@ export async function resolveDiscordUserAllowlist(params: {
     }));
   }
   const fetcher = params.fetcher ?? fetch;
-  const guilds = await listGuilds(token, fetcher);
+  let guilds: DiscordGuildSummary[] | null = null;
   const results: DiscordUserResolution[] = [];
 
   for (const input of params.entries) {
@@ -106,6 +106,16 @@ export async function resolveDiscordUserAllowlist(params: {
     if (!query) {
       results.push({ input, resolved: false });
       continue;
+    }
+
+    if (guilds === null) {
+      try {
+        guilds = await listGuilds(token, fetcher);
+      } catch {
+        // API unreachable or token invalid — mark remaining username entries as unresolved
+        results.push({ input, resolved: false, note: "guild lookup failed" });
+        continue;
+      }
     }
 
     const guildName = parsed.guildName?.trim();
