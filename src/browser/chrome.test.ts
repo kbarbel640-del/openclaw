@@ -282,8 +282,7 @@ describe("browser chrome helpers", () => {
     Object.defineProperty(process, "platform", { value: "win32", configurable: true });
 
     // Mock child_process.execSync to capture the taskkill call
-    const { execSync: realExecSync } = await import("node:child_process");
-    const mockExecSync = vi.fn().mockImplementation((cmd: string) => {
+    const _mockExecSync = vi.fn().mockImplementation((cmd: string) => {
       if (cmd.includes("netstat")) {
         return "  TCP    127.0.0.1:12345    0.0.0.0:0    LISTENING       99999\r\n";
       }

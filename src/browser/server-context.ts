@@ -261,8 +261,12 @@ function createProfileContext(
       // if CDP is still alive before clearing state.
       if (process.platform === "win32") {
         setTimeout(async () => {
-          if (!opts.getState()) return;
-          if (getProfileState().running?.pid !== running.pid) return;
+          if (!opts.getState()) {
+            return;
+          }
+          if (getProfileState().running?.pid !== running.pid) {
+            return;
+          }
           if (await isHttpReachable(500)) {
             // Chrome is still alive on the port — don't clear state.
             return;

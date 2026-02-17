@@ -72,7 +72,9 @@ function cdpUrlForPort(cdpPort: number) {
  * Returns null on non-Windows platforms or if no listener is found.
  */
 export async function findListeningPid(port: number): Promise<number | null> {
-  if (process.platform !== "win32") return null;
+  if (process.platform !== "win32") {
+    return null;
+  }
   try {
     const output = execSync(`netstat -ano | findstr ":${port}" | findstr "LISTENING"`, {
       encoding: "utf8",
