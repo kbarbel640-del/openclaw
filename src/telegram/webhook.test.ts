@@ -1,37 +1,39 @@
 import { describe, expect, it, vi } from "vitest";
 import { startTelegramWebhook } from "./webhook.js";
 
-const handlerSpy = vi.fn(
-  (_req: unknown, res: { writeHead: (status: number) => void; end: (body?: string) => void }) => {
-    res.writeHead(200);
-    res.end("ok");
-  },
-);
-const setWebhookSpy = vi.fn();
-const stopSpy = vi.fn();
-const webhookCallbackSpy = vi.fn(() => handlerSpy);
-
-const createTelegramBotSpy = vi.fn(() => ({
-  api: { setWebhook: setWebhookSpy },
-  stop: stopSpy,
-}));
+const telegramMocks = vi.hoisted(() => {
+  const handlerSpy = vi.fn(
+    (_req: unknown, res: { writeHead: (status: number) => void; end: (body?: string) => void }) => {
+      res.writeHead(200);
+      res.end("ok");
+    },
+  );
+  const setWebhookSpy = vi.fn();
+  const stopSpy = vi.fn();
+  const webhookCallbackSpy = vi.fn(() => handlerSpy);
+  const createTelegramBotSpy = vi.fn(() => ({
+    api: { setWebhook: setWebhookSpy },
+    stop: stopSpy,
+  }));
+  return { handlerSpy, setWebhookSpy, stopSpy, webhookCallbackSpy, createTelegramBotSpy };
+});
 
 vi.mock("grammy", async (importOriginal) => {
   const actual = await importOriginal<typeof import("grammy")>();
   return {
     ...actual,
-    webhookCallback: webhookCallbackSpy,
+    webhookCallback: telegramMocks.webhookCallbackSpy,
   };
 });
 
 vi.mock("./bot.js", () => ({
-  createTelegramBot: createTelegramBotSpy,
+  createTelegramBot: telegramMocks.createTelegramBotSpy,
 }));
 
 describe("startTelegramWebhook", () => {
   it("starts server, registers webhook, and serves health", async () => {
-    createTelegramBotSpy.mockClear();
-    webhookCallbackSpy.mockClear();
+    telegramMocks.createTelegramBotSpy.mockClear();
+    telegramMocks.webhookCallbackSpy.mockClear();
     const abort = new AbortController();
     const cfg = { bindings: [] };
     const { server } = await startTelegramWebhook({
@@ -42,7 +44,7 @@ describe("startTelegramWebhook", () => {
       port: 0, // random free port
       abortSignal: abort.signal,
     });
-    expect(createTelegramBotSpy).toHaveBeenCalledWith(
+    expect(telegramMocks.createTelegramBotSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         accountId: "opie",
         config: expect.objectContaining({ bindings: [] }),
@@ -56,8 +58,8 @@ describe("startTelegramWebhook", () => {
 
     const health = await fetch(`${url}/healthz`);
     expect(health.status).toBe(200);
-    expect(setWebhookSpy).toHaveBeenCalled();
-    expect(webhookCallbackSpy).toHaveBeenCalledWith(
+    expect(telegramMocks.setWebhookSpy).toHaveBeenCalled();
+    expect(telegramMocks.webhookCallbackSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         api: expect.objectContaining({
           setWebhook: expect.any(Function),
@@ -75,8 +77,8 @@ describe("startTelegramWebhook", () => {
   });
 
   it("invokes webhook handler on matching path", async () => {
-    handlerSpy.mockClear();
-    createTelegramBotSpy.mockClear();
+    telegramMocks.handlerSpy.mockClear();
+    telegramMocks.createTelegramBotSpy.mockClear();
     const abort = new AbortController();
     const cfg = { bindings: [] };
     const { server } = await startTelegramWebhook({
@@ -88,7 +90,7 @@ describe("startTelegramWebhook", () => {
       abortSignal: abort.signal,
       path: "/hook",
     });
-    expect(createTelegramBotSpy).toHaveBeenCalledWith(
+    expect(telegramMocks.createTelegramBotSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         accountId: "opie",
         config: expect.objectContaining({ bindings: [] }),
@@ -99,7 +101,7 @@ describe("startTelegramWebhook", () => {
       throw new Error("no addr");
     }
     await fetch(`http://127.0.0.1:${addr.port}/hook`, { method: "POST" });
-    expect(handlerSpy).toHaveBeenCalled();
+    expect(telegramMocks.handlerSpy).toHaveBeenCalled();
     abort.abort();
   });
 
