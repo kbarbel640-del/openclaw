@@ -7,10 +7,11 @@ describe("installUncaughtExceptionHandler", () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
   let originalExit: typeof process.exit;
+  let cleanup: () => void;
 
   beforeAll(() => {
     originalExit = process.exit.bind(process);
-    installUncaughtExceptionHandler();
+    cleanup = installUncaughtExceptionHandler();
   });
 
   beforeEach(() => {
@@ -34,6 +35,7 @@ describe("installUncaughtExceptionHandler", () => {
   });
 
   afterAll(() => {
+    cleanup();
     process.exit = originalExit;
   });
 
@@ -79,5 +81,17 @@ describe("installUncaughtExceptionHandler", () => {
       "[openclaw] Uncaught exception:",
       expect.stringContaining("foo"),
     );
+  });
+
+  it("does not register duplicate handlers on repeated calls", () => {
+    const secondCleanup = installUncaughtExceptionHandler();
+
+    const err = new Error("Single fire test");
+    process.emit("uncaughtException", err, "uncaughtException");
+
+    // Should only fire once (one exit call), not twice
+    expect(exitCalls).toEqual([1]);
+
+    secondCleanup();
   });
 });

@@ -176,14 +176,30 @@ export function isUndiciTlsSessionBug(err: unknown): boolean {
 }
 
 /**
+ * The handler function reference, used for deregistration in tests.
+ * @internal Exported for test cleanup only.
+ */
+export let _uncaughtExceptionHandler: ((error: Error) => void) | null = null;
+
+/**
  * Installs a global `uncaughtException` handler that suppresses known transient
  * errors (like the undici TLS session bug) instead of crashing the process.
  *
  * Unknown exceptions still trigger `process.exit(1)` to preserve crash semantics
  * for genuinely unexpected errors.
+ *
+ * Safe to call multiple times — only the first call registers a listener.
+ *
+ * @returns A cleanup function that removes the listener (primarily for tests).
  */
-export function installUncaughtExceptionHandler(): void {
-  process.on("uncaughtException", (error) => {
+export function installUncaughtExceptionHandler(): () => void {
+  if (_uncaughtExceptionHandler) {
+    return () => {
+      /* already installed, no-op cleanup */
+    };
+  }
+
+  const handler = (error: Error): void => {
     if (isUndiciTlsSessionBug(error)) {
       console.warn(
         "[openclaw] Suppressed undici TLS session bug (non-fatal):",
@@ -194,7 +210,15 @@ export function installUncaughtExceptionHandler(): void {
 
     console.error("[openclaw] Uncaught exception:", formatUncaughtError(error));
     process.exit(1);
-  });
+  };
+
+  _uncaughtExceptionHandler = handler;
+  process.on("uncaughtException", handler);
+
+  return () => {
+    process.removeListener("uncaughtException", handler);
+    _uncaughtExceptionHandler = null;
+  };
 }
 
 export function installUnhandledRejectionHandler(): void {
