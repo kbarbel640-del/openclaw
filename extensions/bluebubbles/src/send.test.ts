@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "./test-mocks.js";
-import type { BlueBubblesSendTarget } from "./types.js";
 import { getCachedBlueBubblesPrivateApiStatus } from "./probe.js";
 import { sendMessageBlueBubbles, resolveChatGuidForTarget } from "./send.js";
 import { installBlueBubblesFetchTestHooks } from "./test-harness.js";
+import type { BlueBubblesSendTarget } from "./types.js";
 
 const mockFetch = vi.fn();
 
@@ -317,6 +317,71 @@ describe("send", () => {
       expect(result).toBe("iMessage;-;test@example.com");
     });
 
+    it("prefers a service-matching DM when target specifies sms", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [
+              {
+                guid: "iMessage;-;+15551234567",
+                participants: [{ address: "+15551234567" }],
+              },
+              {
+                guid: "SMS;-;+15551234567",
+                participants: [{ address: "+15551234567" }],
+              },
+            ],
+          }),
+      });
+
+      const target: BlueBubblesSendTarget = {
+        kind: "handle",
+        address: "+15551234567",
+        service: "sms",
+      };
+      const result = await resolveChatGuidForTarget({
+        baseUrl: "http://localhost:1234",
+        password: "test",
+        target,
+      });
+
+      expect(result).toBe("SMS;-;+15551234567");
+    });
+
+    it("falls back to any DM when requested service is unavailable", async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  guid: "iMessage;-;+15551234567",
+                  participants: [{ address: "+15551234567" }],
+                },
+              ],
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: [] }),
+        });
+
+      const target: BlueBubblesSendTarget = {
+        kind: "handle",
+        address: "+15551234567",
+        service: "sms",
+      };
+      const result = await resolveChatGuidForTarget({
+        baseUrl: "http://localhost:1234",
+        password: "test",
+        target,
+      });
+
+      expect(result).toBe("iMessage;-;+15551234567");
+    });
+
     it("extracts guid from various response formats", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -624,6 +689,76 @@ describe("send", () => {
           password: "test",
         }),
       ).rejects.toThrow("send failed (500)");
+    });
+
+    it("falls back from iMessage to SMS for phone handle auto targets", async () => {
+      mockFetch
+        // Initial chat resolution (auto): iMessage appears first
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  guid: "iMessage;-;+15551234567",
+                  participants: [{ address: "+15551234567" }],
+                },
+                {
+                  guid: "SMS;-;+15551234567",
+                  participants: [{ address: "+15551234567" }],
+                },
+              ],
+            }),
+        })
+        // First send attempt on iMessage fails
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          text: () => Promise.resolve("Message Send Error"),
+        })
+        // Re-resolve with sms service preference
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  guid: "iMessage;-;+15551234567",
+                  participants: [{ address: "+15551234567" }],
+                },
+                {
+                  guid: "SMS;-;+15551234567",
+                  participants: [{ address: "+15551234567" }],
+                },
+              ],
+            }),
+        })
+        // SMS retry succeeds
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                data: { guid: "sms-msg-123" },
+              }),
+            ),
+        });
+
+      const result = await sendMessageBlueBubbles("+15551234567", "Hello", {
+        serverUrl: "http://localhost:1234",
+        password: "test",
+      });
+
+      expect(result.messageId).toBe("sms-msg-123");
+      expect(mockFetch).toHaveBeenCalledTimes(4);
+
+      const firstSend = mockFetch.mock.calls[1];
+      const firstBody = JSON.parse(firstSend[1].body);
+      expect(firstBody.chatGuid).toBe("iMessage;-;+15551234567");
+
+      const secondSend = mockFetch.mock.calls[3];
+      const secondBody = JSON.parse(secondSend[1].body);
+      expect(secondBody.chatGuid).toBe("SMS;-;+15551234567");
     });
 
     it("handles empty response body", async () => {

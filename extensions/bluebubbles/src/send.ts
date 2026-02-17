@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import crypto from "node:crypto";
+import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { stripMarkdown } from "openclaw/plugin-sdk";
 import { resolveBlueBubblesAccount } from "./accounts.js";
 import { getCachedBlueBubblesPrivateApiStatus } from "./probe.js";
@@ -73,6 +73,8 @@ function resolveEffectId(raw?: string): string | undefined {
 
 type BlueBubblesChatRecord = Record<string, unknown>;
 
+type BlueBubblesHandleService = "imessage" | "sms" | "auto";
+
 function extractChatGuid(chat: BlueBubblesChatRecord): string | null {
   const candidates = [
     chat.chatGuid,
@@ -107,6 +109,35 @@ function extractChatIdentifierFromChatGuid(chatGuid: string): string | null {
   }
   const identifier = parts[2]?.trim();
   return identifier ? identifier : null;
+}
+
+function extractServiceFromChatGuid(
+  chatGuid: string,
+): Exclude<BlueBubblesHandleService, "auto"> | null {
+  const service = chatGuid.split(";")[0]?.trim().toLowerCase();
+  if (service === "imessage") {
+    return "imessage";
+  }
+  if (service === "sms") {
+    return "sms";
+  }
+  return null;
+}
+
+function guidMatchesHandleService(chatGuid: string, service: BlueBubblesHandleService): boolean {
+  if (service === "auto") {
+    return true;
+  }
+  return extractServiceFromChatGuid(chatGuid) === service;
+}
+
+function isLikelyPhoneHandle(handle: string): boolean {
+  const normalized = normalizeBlueBubblesHandle(handle);
+  if (!normalized || normalized.includes("@")) {
+    return false;
+  }
+  const digits = normalized.replace(/[^\d]/g, "");
+  return digits.length >= 7;
 }
 
 function extractParticipantAddresses(chat: BlueBubblesChatRecord): string[] {
@@ -183,12 +214,14 @@ export async function resolveChatGuidForTarget(params: {
 
   const normalizedHandle =
     params.target.kind === "handle" ? normalizeBlueBubblesHandle(params.target.address) : "";
+  const targetService = params.target.kind === "handle" ? params.target.service : "auto";
   const targetChatId = params.target.kind === "chat_id" ? params.target.chatId : null;
   const targetChatIdentifier =
     params.target.kind === "chat_identifier" ? params.target.chatIdentifier : null;
 
   const limit = 500;
-  let participantMatch: string | null = null;
+  let directFallback: string | null = null;
+  let participantFallback: string | null = null;
   for (let offset = 0; offset < 5000; offset += limit) {
     const chats = await queryChats({
       baseUrl: params.baseUrl,
@@ -239,9 +272,14 @@ export async function resolveChatGuidForTarget(params: {
         const guid = extractChatGuid(chat);
         const directHandle = guid ? extractHandleFromChatGuid(guid) : null;
         if (directHandle && directHandle === normalizedHandle) {
-          return guid;
+          if (guidMatchesHandleService(guid, targetService)) {
+            return guid;
+          }
+          if (!directFallback) {
+            directFallback = guid;
+          }
         }
-        if (!participantMatch && guid) {
+        if (!participantFallback && guid) {
           // Only consider DM chats (`;-;` separator) as participant matches.
           // Group chats (`;+;` separator) should never match when searching by handle/phone.
           // This prevents routing "send to +1234567890" to a group chat that contains that number.
@@ -251,14 +289,17 @@ export async function resolveChatGuidForTarget(params: {
               normalizeBlueBubblesHandle(entry),
             );
             if (participants.includes(normalizedHandle)) {
-              participantMatch = guid;
+              if (guidMatchesHandleService(guid, targetService)) {
+                return guid;
+              }
+              participantFallback = guid;
             }
           }
         }
       }
     }
   }
-  return participantMatch;
+  return directFallback ?? participantFallback;
 }
 
 /**
@@ -379,52 +420,86 @@ export async function sendMessageBlueBubbles(
       "BlueBubbles send failed: reply/effect requires Private API, but it is disabled on the BlueBubbles server.",
     );
   }
-  const payload: Record<string, unknown> = {
-    chatGuid,
-    tempGuid: crypto.randomUUID(),
-    message: strippedText,
-  };
-  if (canUsePrivateApi) {
-    payload.method = "private-api";
-  }
-
-  // Add reply threading support
-  if (wantsReplyThread && canUsePrivateApi) {
-    payload.selectedMessageGuid = opts.replyToMessageGuid;
-    payload.partIndex = typeof opts.replyToPartIndex === "number" ? opts.replyToPartIndex : 0;
-  }
-
-  // Add message effects support
-  if (effectId) {
-    payload.effectId = effectId;
-  }
-
   const url = buildBlueBubblesApiUrl({
     baseUrl,
     path: "/api/v1/message/text",
     password,
   });
-  const res = await blueBubblesFetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
-    opts.timeoutMs,
-  );
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`BlueBubbles send failed (${res.status}): ${errorText || "unknown"}`);
-  }
-  const body = await res.text();
-  if (!body) {
-    return { messageId: "ok" };
-  }
+
+  const sendToChatGuid = async (resolvedChatGuid: string): Promise<BlueBubblesSendResult> => {
+    const payload: Record<string, unknown> = {
+      chatGuid: resolvedChatGuid,
+      tempGuid: crypto.randomUUID(),
+      message: strippedText,
+    };
+    if (canUsePrivateApi) {
+      payload.method = "private-api";
+    }
+
+    if (wantsReplyThread && canUsePrivateApi) {
+      payload.selectedMessageGuid = opts.replyToMessageGuid;
+      payload.partIndex = typeof opts.replyToPartIndex === "number" ? opts.replyToPartIndex : 0;
+    }
+
+    if (effectId) {
+      payload.effectId = effectId;
+    }
+
+    const res = await blueBubblesFetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+      opts.timeoutMs,
+    );
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`BlueBubbles send failed (${res.status}): ${errorText || "unknown"}`);
+    }
+    const body = await res.text();
+    if (!body) {
+      return { messageId: "ok" };
+    }
+    try {
+      const parsed = JSON.parse(body) as unknown;
+      return { messageId: extractBlueBubblesMessageId(parsed) };
+    } catch {
+      return { messageId: "ok" };
+    }
+  };
+
   try {
-    const parsed = JSON.parse(body) as unknown;
-    return { messageId: extractBlueBubblesMessageId(parsed) };
-  } catch {
-    return { messageId: "ok" };
+    return await sendToChatGuid(chatGuid);
+  } catch (error) {
+    const canFallbackToSms =
+      target.kind === "handle" &&
+      target.service === "auto" &&
+      isLikelyPhoneHandle(target.address) &&
+      !needsPrivateApi &&
+      extractServiceFromChatGuid(chatGuid) === "imessage";
+    if (!canFallbackToSms) {
+      throw error;
+    }
+
+    try {
+      const smsChatGuid = await resolveChatGuidForTarget({
+        baseUrl,
+        password,
+        timeoutMs: opts.timeoutMs,
+        target: {
+          kind: "handle",
+          address: target.address,
+          service: "sms",
+        },
+      });
+      if (!smsChatGuid || smsChatGuid === chatGuid) {
+        throw error;
+      }
+      return await sendToChatGuid(smsChatGuid);
+    } catch {
+      throw error;
+    }
   }
 }
