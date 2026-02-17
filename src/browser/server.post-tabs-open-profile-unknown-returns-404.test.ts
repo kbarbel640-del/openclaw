@@ -1,6 +1,7 @@
 import { fetch as realFetch } from "undici";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getBrowserControlServerAuth,
   getBrowserControlServerBaseUrl,
   getBrowserControlServerTestState,
   getCdpMocks,
@@ -11,6 +12,15 @@ import {
   startBrowserControlServerFromConfig,
   stopBrowserControlServer,
 } from "./server.control-server.test-harness.js";
+
+/** Build auth headers from the currently running browser control server. */
+function makeAuthHeaders(): Record<string, string> {
+  const auth = getBrowserControlServerAuth();
+  if (auth.token) {
+    return { Authorization: `Bearer ${auth.token}` };
+  }
+  return {};
+}
 
 const state = getBrowserControlServerTestState();
 const cdpMocks = getCdpMocks();
@@ -77,10 +87,11 @@ describe("profile CRUD endpoints", () => {
   it("validates profile create/delete endpoints", async () => {
     await startBrowserControlServerFromConfig();
     const base = getBrowserControlServerBaseUrl();
+    const authHeaders = makeAuthHeaders();
 
     const createMissingName = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({}),
     });
     expect(createMissingName.status).toBe(400);
@@ -89,7 +100,7 @@ describe("profile CRUD endpoints", () => {
 
     const createInvalidName = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ name: "Invalid Name!" }),
     });
     expect(createInvalidName.status).toBe(400);
@@ -98,7 +109,7 @@ describe("profile CRUD endpoints", () => {
 
     const createDuplicate = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ name: "openclaw" }),
     });
     expect(createDuplicate.status).toBe(409);
@@ -107,7 +118,7 @@ describe("profile CRUD endpoints", () => {
 
     const createRemote = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ name: "remote", cdpUrl: "http://10.0.0.42:9222" }),
     });
     expect(createRemote.status).toBe(200);
@@ -122,7 +133,7 @@ describe("profile CRUD endpoints", () => {
 
     const createBadRemote = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ name: "badremote", cdpUrl: "ws://bad" }),
     });
     expect(createBadRemote.status).toBe(400);
@@ -131,6 +142,7 @@ describe("profile CRUD endpoints", () => {
 
     const deleteMissing = await realFetch(`${base}/profiles/nonexistent`, {
       method: "DELETE",
+      headers: authHeaders,
     });
     expect(deleteMissing.status).toBe(404);
     const deleteMissingBody = (await deleteMissing.json()) as { error: string };
@@ -138,6 +150,7 @@ describe("profile CRUD endpoints", () => {
 
     const deleteDefault = await realFetch(`${base}/profiles/openclaw`, {
       method: "DELETE",
+      headers: authHeaders,
     });
     expect(deleteDefault.status).toBe(400);
     const deleteDefaultBody = (await deleteDefault.json()) as { error: string };
@@ -145,6 +158,7 @@ describe("profile CRUD endpoints", () => {
 
     const deleteInvalid = await realFetch(`${base}/profiles/Invalid-Name!`, {
       method: "DELETE",
+      headers: authHeaders,
     });
     expect(deleteInvalid.status).toBe(400);
     const deleteInvalidBody = (await deleteInvalid.json()) as { error: string };

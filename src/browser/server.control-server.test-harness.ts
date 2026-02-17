@@ -227,6 +227,7 @@ vi.mock("./screenshot.js", () => ({
 const server = await import("./server.js");
 export const startBrowserControlServerFromConfig = server.startBrowserControlServerFromConfig;
 export const stopBrowserControlServer = server.stopBrowserControlServer;
+export const getBrowserControlServerAuth = server.getBrowserControlServerAuth;
 
 export function makeResponse(
   body: unknown,

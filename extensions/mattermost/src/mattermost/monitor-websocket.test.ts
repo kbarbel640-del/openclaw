@@ -185,6 +185,10 @@ describe("mattermost websocket monitor", () => {
       webSocketFactory: () => socket,
     });
 
+    // Start connectOnce() first so that its ws.on("open"|"message"|"close")
+    // listeners are registered before we fire synthetic socket events.
+    const connectPromise = connectOnce();
+
     socket.emitOpen();
     socket.emitMessage(
       Buffer.from(
@@ -202,7 +206,7 @@ describe("mattermost websocket monitor", () => {
     );
     socket.emitClose(1000);
 
-    await connectOnce();
+    await connectPromise;
 
     expect(onReaction).toHaveBeenCalledTimes(1);
     expect(onPosted).not.toHaveBeenCalled();

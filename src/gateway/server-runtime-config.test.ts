@@ -92,6 +92,8 @@ describe("resolveGatewayRuntimeConfig", () => {
         resolveGatewayRuntimeConfig({
           cfg,
           port: 18789,
+          // Isolate from real env so a configured OPENCLAW_GATEWAY_TOKEN doesn't mask the error
+          env: {},
         }),
       ).rejects.toThrow("gateway auth mode is token, but no token was configured");
     });

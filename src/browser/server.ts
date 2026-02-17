@@ -19,8 +19,14 @@ import {
 } from "./server-middleware.js";
 
 let state: BrowserServerState | null = null;
+let currentBrowserAuth: { token?: string; password?: string } = {};
 const log = createSubsystemLogger("browser");
 const logServer = log.child("server");
+
+/** Returns the active browser control server auth config (useful for tests). */
+export function getBrowserControlServerAuth(): { token?: string; password?: string } {
+  return currentBrowserAuth;
+}
 
 export async function startBrowserControlServerFromConfig(): Promise<BrowserServerState | null> {
   if (state) {
@@ -43,6 +49,9 @@ export async function startBrowserControlServerFromConfig(): Promise<BrowserServ
   } catch (err) {
     logServer.warn(`failed to auto-configure browser auth: ${String(err)}`);
   }
+
+  // Persist for test helpers / introspection
+  currentBrowserAuth = browserAuth;
 
   const app = express();
   installBrowserCommonMiddleware(app);
@@ -123,6 +132,7 @@ export async function stopBrowserControlServer(): Promise<void> {
     });
   }
   state = null;
+  currentBrowserAuth = {};
 
   // Optional: avoid importing heavy Playwright bridge when this process never used it.
   if (isPwAiLoaded()) {
