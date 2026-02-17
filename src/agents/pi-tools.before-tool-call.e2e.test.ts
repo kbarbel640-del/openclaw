@@ -151,7 +151,8 @@ describe("before_tool_call hook deduplication (#15502)", () => {
       sessionKey: "main",
     });
     const [def] = toToolDefinitions([wrapped]);
-    const extensionContext = {} as Parameters<typeof def.execute>[2];
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const extensionContext = {} as any;
     // oxlint-disable-next-line typescript/no-explicit-any
     const signal = undefined as any;
     // oxlint-disable-next-line typescript/no-explicit-any
@@ -196,7 +197,8 @@ describe("before_tool_call hook integration for client tools", () => {
       onClientToolCall,
       { agentId: "main", sessionKey: "main" },
     );
-    const extensionContext = {} as Parameters<typeof tool.execute>[2];
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const extensionContext = {} as any;
     // oxlint-disable-next-line typescript/no-explicit-any
     const signal = undefined as any;
     await tool.execute("client-call-1", { value: "ok" }, extensionContext, undefined, signal);
