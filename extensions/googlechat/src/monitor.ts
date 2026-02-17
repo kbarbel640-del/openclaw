@@ -943,19 +943,19 @@ export function monitorGoogleChatProvider(options: GoogleChatMonitorOptions): ()
 
     const audienceType = normalizeAudienceType(options.account.config.audienceType);
     const audience = options.account.config.audience?.trim();
-    
+
     if (!audienceType) {
       const errMsg = `[${options.account.accountId}] audienceType is required (app-url or project-number)`;
       options.runtime.error?.(errMsg);
       throw new Error(errMsg);
     }
-    
+
     if (!audience) {
       const errMsg = `[${options.account.accountId}] audience is required`;
       options.runtime.error?.(errMsg);
       throw new Error(errMsg);
     }
-    
+
     const mediaMaxMb = options.account.config.mediaMaxMb ?? 20;
 
     const unregister = registerGoogleChatWebhookTarget({
@@ -974,10 +974,10 @@ export function monitorGoogleChatProvider(options: GoogleChatMonitorOptions): ()
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack : undefined;
-    options.runtime.error?.(
-      `[${options.account.accountId}] Failed to initialize Google Chat monitor: ${errorMsg}`,
-      errorStack ? { stack: errorStack } : undefined,
-    );
+    const fullMessage = errorStack
+      ? `[${options.account.accountId}] Failed to initialize Google Chat monitor: ${errorMsg}\n${errorStack}`
+      : `[${options.account.accountId}] Failed to initialize Google Chat monitor: ${errorMsg}`;
+    options.runtime.error?.(fullMessage);
     // Re-throw so startAccount can handle it
     throw err;
   }
@@ -992,10 +992,10 @@ export async function startGoogleChatMonitor(
     // Log and re-throw so the caller (startAccount) can handle it
     const errorMsg = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack : undefined;
-    params.runtime.error?.(
-      `[${params.account.accountId}] startGoogleChatMonitor failed: ${errorMsg}`,
-      errorStack ? { stack: errorStack } : undefined,
-    );
+    const fullMessage = errorStack
+      ? `[${params.account.accountId}] startGoogleChatMonitor failed: ${errorMsg}\n${errorStack}`
+      : `[${params.account.accountId}] startGoogleChatMonitor failed: ${errorMsg}`;
+    params.runtime.error?.(fullMessage);
     throw err;
   }
 }
