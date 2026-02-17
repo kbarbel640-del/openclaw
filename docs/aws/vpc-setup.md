@@ -74,9 +74,10 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
-Install OpenClaw:
+Install OpenClaw, ffmpeg (audio format conversion), and build tools (for whisper-cpp):
 
 ```bash
+sudo apt-get install -y ffmpeg build-essential cmake git
 sudo npm i -g clawdbot@latest
 ```
 
@@ -123,19 +124,73 @@ cat > ~/.clawdbot/agents/main/agent/auth-profiles.json << 'EOF'
 EOF
 ```
 
-Run `clawdbot doctor` to verify everything is clean.
+### Set Up Local Audio Transcription (whisper-cpp)
 
-## Start the Gateway
+Install whisper-cpp for free, local voice message transcription (no API key needed):
 
 ```bash
-nohup clawdbot gateway run --bind loopback --port 18789 --force > /tmp/clawdbot-gateway.log 2>&1 &
+cd /tmp
+git clone https://github.com/ggerganov/whisper.cpp.git
+cd whisper.cpp
+cmake -B build
+cmake --build build --config Release -j2
+sudo cp build/bin/whisper-cli /usr/local/bin/
+```
+
+Download the base English model (~141 MB):
+
+```bash
+mkdir -p ~/.local/share/whisper-cpp
+curl -L -o ~/.local/share/whisper-cpp/ggml-base.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+```
+
+Set the model path (add to `~/.bashrc` so it persists):
+
+```bash
+echo 'export WHISPER_CPP_MODEL=$HOME/.local/share/whisper-cpp/ggml-base.en.bin' >> ~/.bashrc
+```
+
+Run `clawdbot doctor` to verify everything is clean.
+
+## Install the Gateway Service
+
+Install the gateway as a systemd user service so it auto-restarts on crash and starts on boot:
+
+```bash
+clawdbot daemon install --port 18789 --token <gateway-token> --force
+```
+
+Add your Anthropic API key and whisper model path to the service unit (the installer does not include these automatically):
+
+```bash
+sed -i '/CLAWDBOT_SERVICE_VERSION/a Environment=ANTHROPIC_API_KEY=<your-anthropic-api-key>' \
+  ~/.config/systemd/user/clawdbot-gateway.service
+sed -i '/ANTHROPIC_API_KEY/a Environment=WHISPER_CPP_MODEL=/home/ubuntu/.local/share/whisper-cpp/ggml-base.en.bin' \
+  ~/.config/systemd/user/clawdbot-gateway.service
+```
+
+Enable linger so the service runs even when not logged in, then start it:
+
+```bash
+loginctl enable-linger $(whoami)
+systemctl --user daemon-reload
+systemctl --user enable clawdbot-gateway
+systemctl --user start clawdbot-gateway
 ```
 
 Verify it started:
 
 ```bash
-ss -ltnp | grep 18789
-tail -n 30 /tmp/clawdbot-gateway.log
+systemctl --user status clawdbot-gateway
+```
+
+### Service Management
+
+```bash
+systemctl --user restart clawdbot-gateway   # restart
+systemctl --user stop clawdbot-gateway      # stop
+journalctl --user -u clawdbot-gateway -f    # follow logs
 ```
 
 ## Connect via SSH Tunnel
