@@ -36,6 +36,7 @@ import {
   updateSessionStore,
 } from "../config/sessions.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { isEmbeddedPiRunActive } from "../agents/pi-embedded-runner/runs.js";
 import { getQueueSize } from "../process/command-queue.js";
 import { CommandLane } from "../process/lanes.js";
 import { normalizeAgentId, toAgentStoreSessionKey } from "../routing/session-key.js";
@@ -546,6 +547,20 @@ export async function runHeartbeatOnce(opts: {
   }
 
   const { entry, sessionKey, storePath } = resolveHeartbeatSession(cfg, agentId, heartbeat);
+
+  // Skip heartbeat if the session's embedded agent is already actively processing.
+  // The queue-size check above catches queued requests, but an active run (no queue
+  // entry) would still proceed without this guard, causing contention or wasted tokens.
+  const activeSessionId = entry?.sessionId;
+  if (activeSessionId && isEmbeddedPiRunActive(activeSessionId)) {
+    emitHeartbeatEvent({
+      status: "skipped",
+      reason: "session-busy",
+      durationMs: (opts.deps?.nowMs?.() ?? Date.now()) - startedAt,
+    });
+    return { status: "skipped", reason: "session-busy" };
+  }
+
   const previousUpdatedAt = entry?.updatedAt;
   const delivery = resolveHeartbeatDeliveryTarget({ cfg, entry, heartbeat });
   const heartbeatAccountId = heartbeat?.accountId?.trim();
