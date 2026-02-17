@@ -6,6 +6,7 @@ import {
 } from "../tools-common/tool-exec.js";
 import {
   batchDeleteRecords,
+  createApp,
   createField,
   createRecord,
   deleteField,
@@ -21,6 +22,8 @@ import { getBitableMeta } from "./meta.js";
 import {
   BatchDeleteRecordsSchema,
   type BatchDeleteRecordsParams,
+  CreateAppSchema,
+  type CreateAppParams,
   CreateFieldSchema,
   type CreateFieldParams,
   CreateRecordSchema,
@@ -111,6 +114,18 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
       listRecords(client, app_token, table_id, page_size, page_token),
   });
 
+  registerBitableTool<CreateAppParams>(api, {
+    name: "feishu_bitable_create_app",
+    label: "Feishu Bitable Create App",
+    description: "Create a new Bitable (multidimensional table) application",
+    parameters: CreateAppSchema,
+    run: (client, { name, folder_token }) =>
+      createApp(client, name, folder_token, {
+        debug: (msg) => api.logger.debug?.(msg),
+        warn: (msg) => api.logger.warn?.(msg),
+      }),
+  });
+
   registerBitableTool<CreateFieldParams>(api, {
     name: "feishu_bitable_create_field",
     label: "Feishu Bitable Create Field",
@@ -198,5 +213,5 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
       batchDeleteRecords(client, app_token, table_id, record_ids),
   });
 
-  api.logger.debug?.("feishu_bitable: Registered 11 bitable tools");
+  api.logger.debug?.("feishu_bitable: Registered 12 bitable tools");
 }

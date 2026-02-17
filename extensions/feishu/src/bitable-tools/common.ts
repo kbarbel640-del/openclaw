@@ -15,12 +15,14 @@ type AppTableFieldCreatePayload = NonNullable<
 type AppTableFieldUpdatePayload = NonNullable<
   Parameters<BitableClient["bitable"]["appTableField"]["update"]>[0]
 >;
+type AppCreatePayload = NonNullable<Parameters<BitableClient["bitable"]["app"]["create"]>[0]>;
 type AppTableRecordCreatePayload = NonNullable<
   Parameters<BitableClient["bitable"]["appTableRecord"]["create"]>[0]
 >;
 
 export type BitableFieldCreateData = AppTableFieldCreatePayload["data"];
 export type BitableFieldUpdateData = AppTableFieldUpdatePayload["data"];
+export type BitableAppCreateData = NonNullable<AppCreatePayload["data"]>;
 export type BitableFieldDescription = NonNullable<BitableFieldCreateData["description"]>;
 export type BitableRecordFields = NonNullable<AppTableRecordCreatePayload["data"]>["fields"];
 

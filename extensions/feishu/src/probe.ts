@@ -1,5 +1,5 @@
-import type { FeishuProbeResult } from "./types.js";
 import { createFeishuClient, type FeishuClientCredentials } from "./client.js";
+import type { FeishuProbeResult } from "./types.js";
 
 const DECIMAL_RADIX = 10;
 const MINUTES_TO_MS = 60 * 1000;

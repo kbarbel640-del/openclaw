@@ -1,5 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import type {
+  BitableAppCreateData,
   BitableFieldCreateData,
   BitableFieldDescription,
   BitableFieldUpdateData,
@@ -58,6 +59,11 @@ export type CreateRecordParams = {
   app_token: string;
   table_id: string;
   fields: Record<string, unknown>;
+};
+
+export type CreateAppParams = {
+  name: BitableAppCreateData["name"];
+  folder_token?: BitableAppCreateData["folder_token"];
 };
 
 export type UpdateRecordParams = {
@@ -188,6 +194,17 @@ export const CreateRecordSchema = Type.Object({
     description:
       "Field values keyed by field name. Format by type: Text='string', Number=123, SingleSelect='Option', MultiSelect=['A','B'], DateTime=timestamp_ms, User=[{id:'ou_xxx'}], URL={text:'Display',link:'https://...'}",
   }),
+});
+
+export const CreateAppSchema = Type.Object({
+  name: Type.String({
+    description: "Name for the new Bitable application",
+  }),
+  folder_token: Type.Optional(
+    Type.String({
+      description: "Optional folder token to place the Bitable in a specific folder",
+    }),
+  ),
 });
 
 export const UpdateRecordSchema = Type.Object({
