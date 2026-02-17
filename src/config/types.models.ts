@@ -35,7 +35,7 @@ export type ModelDefinitionConfig = {
     cacheRead?: number;
     cacheWrite?: number;
   };
-  contextWindow: number;
+  contextWindow?: number;
   maxTokens: number;
   headers?: Record<string, string>;
   compat?: ModelCompatConfig;
