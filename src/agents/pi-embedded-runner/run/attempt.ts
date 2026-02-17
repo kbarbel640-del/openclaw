@@ -97,6 +97,7 @@ import {
 } from "../system-prompt.js";
 import { splitSdkTools } from "../tool-split.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
+import { resolveFastModeThinkLevel } from "../../../auto-reply/fast-mode.js";
 import { flushPendingToolResultsAfterIdle } from "../wait-for-idle-before-flush.js";
 import {
   selectCompactionTimeoutSnapshot,
@@ -430,9 +431,11 @@ export async function runEmbeddedAttempt(
     });
     const ttsHint = params.config ? buildTtsSystemPromptHint(params.config) : undefined;
 
+    const effectiveThinkLevel = resolveFastModeThinkLevel(params.thinkLevel ?? "auto") as typeof params.thinkLevel;
+
     const appendPrompt = buildEmbeddedSystemPrompt({
       workspaceDir: effectiveWorkspace,
-      defaultThinkLevel: params.thinkLevel,
+      defaultThinkLevel: effectiveThinkLevel,
       reasoningLevel: params.reasoningLevel ?? "off",
       extraSystemPrompt: params.extraSystemPrompt,
       ownerNumbers: params.ownerNumbers,
@@ -576,7 +579,7 @@ export async function runEmbeddedAttempt(
         authStorage: params.authStorage,
         modelRegistry: params.modelRegistry,
         model: params.model,
-        thinkingLevel: mapThinkingLevel(params.thinkLevel),
+        thinkingLevel: mapThinkingLevel(effectiveThinkLevel),
         tools: builtInTools,
         customTools: allCustomTools,
         sessionManager,
