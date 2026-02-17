@@ -17,6 +17,7 @@ import {
   insertMessage,
   queryConversations,
   pgRowToSessionEntry,
+  type PgSessionRow,
 } from "./db.js";
 
 const DATABASE_URL =
@@ -236,7 +237,7 @@ describe("PostgreSQL queryConversations date-range filtering", () => {
 
 describe("listSessionsFromStore with PostgreSQL-sourced sessions", () => {
   async function buildStoreFromPg(): Promise<Record<string, SessionEntry>> {
-    const rows = await sql`
+    const rows = await sql<PgSessionRow[]>`
       SELECT * FROM lp_conversations
       WHERE session_key LIKE ${testPrefix + "%"}
     `;

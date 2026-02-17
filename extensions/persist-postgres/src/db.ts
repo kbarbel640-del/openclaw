@@ -41,9 +41,7 @@ export async function ensureSchema(sql: postgres.Sql) {
     )
   `;
 
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_lp_conv_session ON lp_conversations (session_key)
-  `;
+  // session_key UNIQUE constraint already creates an implicit index — no explicit index needed
 
   await sql`
     CREATE INDEX IF NOT EXISTS idx_lp_conv_last_msg ON lp_conversations (last_message_at DESC)
@@ -95,7 +93,8 @@ export async function upsertConversation(
 }
 
 /**
- * Insert a message into PostgreSQL and increment the conversation's message_count.
+ * Insert a message and increment message_count atomically using a CTE.
+ * Single-statement atomicity avoids the need for an explicit transaction.
  */
 export async function insertMessage(
   sql: postgres.Sql,
@@ -107,19 +106,21 @@ export async function insertMessage(
   },
 ) {
   const rows = await sql`
-    INSERT INTO lp_messages (conversation_id, role, content, metadata)
-    VALUES (
-      ${opts.conversationId},
-      ${opts.role},
-      ${opts.content},
-      ${sql.json((opts.metadata ?? {}) as postgres.JSONValue)}
+    WITH ins AS (
+      INSERT INTO lp_messages (conversation_id, role, content, metadata)
+      VALUES (
+        ${opts.conversationId},
+        ${opts.role},
+        ${opts.content},
+        ${sql.json((opts.metadata ?? {}) as postgres.JSONValue)}
+      )
+      RETURNING *
+    ), _upd AS (
+      UPDATE lp_conversations
+      SET message_count = message_count + 1
+      WHERE id = (SELECT conversation_id FROM ins)
     )
-    RETURNING *
-  `;
-  await sql`
-    UPDATE lp_conversations
-    SET message_count = message_count + 1
-    WHERE id = ${opts.conversationId}
+    SELECT * FROM ins
   `;
   return rows[0] as PgMessageRow;
 }
