@@ -2,7 +2,7 @@ import type { CronDeliveryMode, CronJob, CronMessageChannel } from "./types.js";
 
 export type CronDeliveryPlan = {
   mode: CronDeliveryMode;
-  channel: CronMessageChannel;
+  channel?: CronMessageChannel;
   to?: string;
   source: "delivery" | "payload";
   requested: boolean;
@@ -36,10 +36,12 @@ export function resolveCronDeliveryPlan(job: CronJob): CronDeliveryPlan {
   const mode =
     normalizedMode === "announce"
       ? "announce"
-      : normalizedMode === "none"
-        ? "none"
-        : normalizedMode === "silent"
-          ? "silent"
+      : normalizedMode === "webhook"
+        ? "webhook"
+        : normalizedMode === "none"
+          ? "none"
+          : normalizedMode === "silent"
+            ? "silent"
           : normalizedMode === "deliver"
             ? "announce"
             : undefined;
@@ -57,7 +59,7 @@ export function resolveCronDeliveryPlan(job: CronJob): CronDeliveryPlan {
     const resolvedMode = mode ?? "announce";
     return {
       mode: resolvedMode,
-      channel,
+      channel: resolvedMode === "announce" ? channel : undefined,
       to,
       source: "delivery",
       requested: resolvedMode === "announce",

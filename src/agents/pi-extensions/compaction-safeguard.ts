@@ -1,8 +1,11 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ExtensionAPI, FileOperations } from "@mariozechner/pi-coding-agent";
 import { completeSimple, getModel } from "@mariozechner/pi-ai";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { extractSections } from "../../auto-reply/reply/post-compaction-context.js";
 import {
   BASE_CHUNK_RATIO,
   MIN_CHUNK_RATIO,
@@ -368,6 +371,40 @@ async function extractAndWriteContextTransfer(
   }
 }
 
+/**
+ * Read and format critical workspace context for compaction summary.
+ * Extracts "Session Startup" and "Red Lines" from AGENTS.md.
+ * Limited to 2000 chars to avoid bloating the summary.
+ */
+async function readWorkspaceContextForSummary(): Promise<string> {
+  const MAX_SUMMARY_CONTEXT_CHARS = 2000;
+  const workspaceDir = process.cwd();
+  const agentsPath = path.join(workspaceDir, "AGENTS.md");
+
+  try {
+    if (!fs.existsSync(agentsPath)) {
+      return "";
+    }
+
+    const content = await fs.promises.readFile(agentsPath, "utf-8");
+    const sections = extractSections(content, ["Session Startup", "Red Lines"]);
+
+    if (sections.length === 0) {
+      return "";
+    }
+
+    const combined = sections.join("\n\n");
+    const safeContent =
+      combined.length > MAX_SUMMARY_CONTEXT_CHARS
+        ? combined.slice(0, MAX_SUMMARY_CONTEXT_CHARS) + "\n...[truncated]..."
+        : combined;
+
+    return `\n\n<workspace-critical-rules>\n${safeContent}\n</workspace-critical-rules>`;
+  } catch {
+    return "";
+  }
+}
+
 export default function compactionSafeguardExtension(api: ExtensionAPI): void {
   api.on("session_before_compact", async (event, ctx) => {
     const { preparation, customInstructions, signal } = event;
@@ -529,6 +566,12 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       } else {
         // Fall back to the session model's API key (likely same provider)
         await extractAndWriteContextTransfer(allMessages, apiKey, workspaceDir, signal);
+      }
+
+      // Append workspace critical context (Session Startup + Red Lines from AGENTS.md)
+      const workspaceContext = await readWorkspaceContextForSummary();
+      if (workspaceContext) {
+        summary += workspaceContext;
       }
 
       return {
