@@ -8,6 +8,8 @@ import {
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
 import type { NostrProfile } from "./config-schema.js";
+import type { MetricEvent, MetricsSnapshot } from "./metrics.js";
+import type { ProfilePublishResult } from "./nostr-profile.js";
 import { NostrConfigSchema } from "./config-schema.js";
 import {
   normalizePubkey,
@@ -15,8 +17,7 @@ import {
   type NostrBusHandle,
   type NostrInboundMessage,
 } from "./nostr-bus.js";
-import type { MetricEvent, MetricsSnapshot } from "./metrics.js";
-import type { ProfilePublishResult } from "./nostr-profile.js";
+import { nostrOnboardingAdapter } from "./onboarding.js";
 import { getNostrRuntime } from "./runtime.js";
 import {
   listNostrAccountIds,
@@ -54,6 +55,7 @@ const metricsSnapshots = new Map<string, MetricsSnapshot>();
 
 export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
   id: "nostr",
+  onboarding: nostrOnboardingAdapter,
   meta: {
     id: "nostr",
     label: "Nostr",

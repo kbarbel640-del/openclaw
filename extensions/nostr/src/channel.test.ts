@@ -54,6 +54,13 @@ describe("nostrPlugin", () => {
     });
   });
 
+  describe("onboarding", () => {
+    it("exposes onboarding adapter", () => {
+      expect(nostrPlugin.onboarding).toBeTypeOf("object");
+      expect(nostrPlugin.onboarding?.channel).toBe("nostr");
+    });
+  });
+
   describe("messaging", () => {
     it("has target resolver", () => {
       expect(nostrPlugin.messaging?.targetResolver?.looksLikeId).toBeTypeOf("function");
