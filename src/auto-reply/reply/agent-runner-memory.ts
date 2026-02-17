@@ -220,47 +220,30 @@ export async function runPeriodicExtractionIfNeeded(params: {
 
   try {
     await runWithModelFallback({
-      cfg: params.followupRun.run.config,
-      provider: params.followupRun.run.provider,
-      model: params.followupRun.run.model,
-      agentDir: params.followupRun.run.agentDir,
-      fallbacksOverride: resolveAgentModelFallbacksOverride(
-        params.followupRun.run.config,
-        resolveAgentIdFromSessionKey(params.followupRun.run.sessionKey),
-      ),
+      ...resolveModelFallbackOptions(params.followupRun.run),
       run: (provider, model) => {
-        const authProfile = resolveRunAuthProfile(params.followupRun.run, provider);
-        const embeddedContext = buildEmbeddedContextFromTemplate({
+        const { authProfile, embeddedContext, senderContext } = buildEmbeddedRunContexts({
           run: params.followupRun.run,
           sessionCtx: params.sessionCtx,
           hasRepliedRef: params.opts?.hasRepliedRef,
+          provider,
         });
-        const senderContext = buildTemplateSenderContext(params.sessionCtx);
+        const runBaseParams = buildEmbeddedRunBaseParams({
+          run: params.followupRun.run,
+          provider,
+          model,
+          runId: flushRunId,
+          authProfile,
+        });
         return runEmbeddedPiAgent({
           ...embeddedContext,
           ...senderContext,
-          sessionFile: params.followupRun.run.sessionFile,
-          workspaceDir: params.followupRun.run.workspaceDir,
-          agentDir: params.followupRun.run.agentDir,
-          config: params.followupRun.run.config,
-          skillsSnapshot: params.followupRun.run.skillsSnapshot,
+          ...runBaseParams,
           prompt: resolveMemoryFlushPromptForRun({
             prompt: extractionSettings.prompt,
             cfg: params.cfg,
           }),
           extraSystemPrompt: flushSystemPrompt,
-          ownerNumbers: params.followupRun.run.ownerNumbers,
-          enforceFinalTag: resolveEnforceFinalTag(params.followupRun.run, provider),
-          provider,
-          model,
-          ...authProfile,
-          thinkLevel: params.followupRun.run.thinkLevel,
-          verboseLevel: params.followupRun.run.verboseLevel,
-          reasoningLevel: params.followupRun.run.reasoningLevel,
-          execOverrides: params.followupRun.run.execOverrides,
-          bashElevated: params.followupRun.run.bashElevated,
-          timeoutMs: params.followupRun.run.timeoutMs,
-          runId: flushRunId,
         });
       },
     });
