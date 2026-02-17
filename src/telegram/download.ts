@@ -8,15 +8,50 @@ export type TelegramFileInfo = {
   file_path?: string;
 };
 
+// Retry helper для fetch с экспоненциальным backoff
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+  baseDelayMs = 2000,
+): Promise<Response> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) {
+        return res;
+      }
+      // Если HTTP ошибка (4xx, 5xx) — retry
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      // Сетевая ошибка — retry
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+
+    // Ждём перед следующей попыткой (экспоненциальный backoff)
+    if (attempt < maxRetries - 1) {
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError || new Error(`Failed after ${maxRetries} retries`);
+}
+
 export async function getTelegramFile(
   token: string,
   fileId: string,
   timeoutMs = 30_000,
 ): Promise<TelegramFileInfo> {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`,
     { signal: AbortSignal.timeout(timeoutMs) },
+    3, // 3 retries
+    1000, // начальная задержка 1с
   );
+
   if (!res.ok) {
     throw new Error(`getFile failed: ${res.status} ${res.statusText}`);
   }
@@ -37,7 +72,14 @@ export async function downloadTelegramFile(
     throw new Error("file_path missing");
   }
   const url = `https://api.telegram.org/file/bot${token}/${info.file_path}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+
+  const res = await fetchWithRetry(
+    url,
+    { signal: AbortSignal.timeout(timeoutMs) },
+    3, // 3 retries
+    2000, // начальная задержка 2с (файлы могут быть большими)
+  );
+
   if (!res.ok || !res.body) {
     throw new Error(`Failed to download telegram file: HTTP ${res.status}`);
   }

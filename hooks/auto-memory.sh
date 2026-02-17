@@ -1,32 +1,80 @@
 #!/bin/bash
 # Auto-Memory Hook — автоматически анализирует чат и пишет в память
-# Запускается раз в 5 сообщений через memory-counter trigger
+# Запускается через agentHooks.UserPromptSubmit
 
-COUNTER_FILE="/tmp/openclaw-msg-counter"
+# Получаем prompt из JSON stdin
 INPUT=$(cat)
+USER_MSG=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('prompt','').strip())" 2>/dev/null)
 
-# Пропускаем heartbeat/system
-USER_MSG=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('prompt',''))" 2>/dev/null)
-if echo "$USER_MSG" | grep -qiE '^(HEARTBEAT|heartbeat_ok|📊|Context check)'; then
+# === ФИЛЬТР 1: Пропускаем служебные сообщения ===
+if echo "$USER_MSG" | grep -qiE '^(HEARTBEAT|heartbeat_ok|📊|Context check|🔍|System:|Read HEARTBEAT)'; then
   exit 0
 fi
 
-# Читаем счётчик
+# === ФИЛЬТР 2: Пропускаем короткие сообщения ===
+if [ -z "$USER_MSG" ] || [ ${#USER_MSG} -lt 30 ]; then
+  exit 0
+fi
+
+# === ФИЛЬТР 3: Пропускаем рутинные ответы ===
+if echo "$USER_MSG" | grep -qiE '^(ок|понял|сделаю|хорошо|ясно|ага|done|ok|HEARTBEAT_OK)$'; then
+  exit 0
+fi
+
+# === ФИЛЬТР 4: Проверяем ключевые слова проектов/решений ===
+# Если нет ключевых слов — пропускаем (не пишем шум)
+KEYWORDS=(
+  'проект' 'система' 'автоматиз' 'скрипт' 'бот' 'приложение'
+  'решение' 'план' 'идея' 'архитектура' 'протокол' 'алгоритм'
+  'ошибка' 'баг' 'фикс' 'проблема' 'решил' 'сделал' 'готово'
+  'надо' 'нужно' 'стоит' 'создать' 'построить' 'запилить'
+  'предпочитаю' 'люблю' 'не люблю' 'хочу' 'важно' 'критично'
+  'content factory' 'ai secretar' 'molt' 'gateway' 'telegram'
+  'код' 'фича' 'функция' 'модуль' 'компонент'
+  'память' 'memory' 'контекст' 'конфиг' 'настройка'
+)
+
+HAS_KEYWORD=false
+for keyword in "${KEYWORDS[@]}"; do
+  if echo "$USER_MSG" | grep -qi "$keyword"; then
+    HAS_KEYWORD=true
+    break
+  fi
+done
+
+if [ "$HAS_KEYWORD" = false ]; then
+  exit 0
+fi
+
+# Счётчик сообщений (локальный)
+COUNTER_FILE="/tmp/openclaw-auto-memory-counter"
 COUNT=0
 if [ -f "$COUNTER_FILE" ]; then
   COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo 0)
 fi
+COUNT=$((COUNT + 1))
+echo "$COUNT" > "$COUNTER_FILE"
 
-# Не каждые 5 сообщений — выходим
+# Запускаем только каждые 5 сообщений
 if [ $((COUNT % 5)) -ne 0 ]; then
   exit 0
 fi
 
-# Получаем последние сообщения из сессии (если доступно)
-# Или используем текущий prompt как контекст
-GROQ_KEY="${GROQ_API_KEY:-YOUR_GROQ_KEY_HERE}"
+# Проверяем GROQ ключ
+GROQ_KEY="${GROQ_API_KEY}"
+if [ -z "$GROQ_KEY" ] || [ "$GROQ_KEY" = "YOUR_GROQ_KEY_HERE" ]; then
+  echo "[auto-memory] Ошибка: GROQ_API_KEY не установлен" >&2
+  exit 0
+fi
 
-SYSTEM_PROMPT='Ты — Memory Extractor. Проанализируй сообщение пользователя и извлеки ВАЖНУЮ информацию для сохранения.
+# Обрезаем сообщение для API (макс 1500 символов)
+TRIMMED_MSG="${USER_MSG:0:1500}"
+
+# Формируем JSON через Python (корректное эскейпирование)
+JSON_PAYLOAD=$(python3 << PYEOF
+import json
+
+system_prompt = '''Ты — Memory Extractor. Проанализируй сообщение пользователя и извлеки ВАЖНУЮ информацию.
 
 Извлекай ТОЛЬКО:
 1. Решения или предпочтения пользователя
@@ -39,26 +87,54 @@ SYSTEM_PROMPT='Ты — Memory Extractor. Проанализируй сообщ�
 TYPE: [decision|preference|error|lesson|task]
 CONTENT: 1-3 предложения суть
 
-Будь конкретен. Не добавляй воду.'
+Будь конкретен. Не добавляй воду.'''
 
-# Escape для JSON
-ESCAPED_MSG=$(echo "$USER_MSG" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()[:2000]))" 2>/dev/null)
+user_msg = '''$TRIMMED_MSG'''
 
-# Вызываем Groq
-RESPONSE=$(curl -s --max-time 5 "https://api.groq.com/openai/v1/chat/completions" \
+payload = {
+    "model": "llama-3.3-70b-versatile",
+    "messages": [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_msg}
+    ],
+    "max_tokens": 150,
+    "temperature": 0.3
+}
+
+print(json.dumps(payload))
+PYEOF
+)
+
+# Вызываем Groq с таймаутом
+RESPONSE=$(curl -s --max-time 10 "https://api.groq.com/openai/v1/chat/completions" \
   -H "Authorization: Bearer $GROQ_KEY" \
   -H "Content-Type: application/json" \
-  -d "{\"model\":\"llama-3.3-70b-versatile\",\"messages\":[{\"role\":\"system\",\"content\":\"$SYSTEM_PROMPT\"},{\"role\":\"user\",\"content\":$ESCAPED_MSG}],\"max_tokens\":150}" 2>/dev/null)
+  -d "$JSON_PAYLOAD" 2>/dev/null)
+
+# Проверяем ответ
+if [ -z "$RESPONSE" ]; then
+  exit 0
+fi
+
+# Проверяем на ошибку
+if echo "$RESPONSE" | grep -q '"error"'; then
+  exit 0
+fi
 
 # Парсим результат
 RESULT=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'])" 2>/dev/null)
 
-# Если SKIP или пусто — выходим
+# Если ошибка или SKIP — выходим
 if [ -z "$RESULT" ] || [ "$RESULT" = "SKIP" ] || echo "$RESULT" | grep -q "^SKIP"; then
   exit 0
 fi
 
-# Записываем в auto-memory
+# === ФИЛЬТР 5: Проверяем что результат содержит осмысленный контент ===
+if echo "$RESULT" | grep -qiE '^(SKIP|НЕТ|нет|ничего|пусто)'; then
+  exit 0
+fi
+
+# Записываем в память
 DATE=$(date +%Y-%m-%d)
 AUTO_DIR="/Users/vladdick/moltbot/memory/auto"
 mkdir -p "$AUTO_DIR"
@@ -67,7 +143,7 @@ echo "---" >> "$AUTO_DIR/$DATE.md"
 echo "$(date '+%H:%M') | $RESULT" >> "$AUTO_DIR/$DATE.md"
 echo "" >> "$AUTO_DIR/$DATE.md"
 
-# Уведомление (тихое, в лог)
-echo "[auto-memory] Записано: $RESULT" >&2
+# Уведомление (тихое)
+echo "[auto-memory] Записано в память" >&2
 
 exit 0

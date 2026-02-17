@@ -4,7 +4,7 @@
 
 - **Логи первым делом** — при проблеме сначала логи (`./scripts/clawlog.sh`, session JSONL), не гадать
 - **memory_search** — Voyage AI `voyage-3` через OpenAI-compatible endpoint
-- **Обновление документов** — MEMORY.md и другие docs можно обновлять динамически при получении новых знаний, но всегда информировать Влада: что изменено, где, зачем
+- **MEMORY.md — динамический документ** — можно обновлять при получении важных новых знаний, но всегда информировать Влада: что изменено, где, зачем
 
 ## Memory & PARA структура
 
@@ -26,16 +26,28 @@
 - Gateway из `~/moltbot/dist/index.js` (git checkout), НЕ npm пакет
 - `/opt/homebrew/bin/moltbot` → симлинк на `~/moltbot/moltbot.mjs`
 - Обновляться через `git pull`, НЕ `npm i -g moltbot`
-- GitHub: `vladdick88`, READ к `moltbot/moltbot`, для PR нужен форк
+- **GitHub**: `vladdick88`, READ к `moltbot/moltbot`
+- **Форк**: `vladdick88/openclaw` — все кастомные хуки коммитятся туда
+- **PR #9085** — статус OPEN, ревью нет
 - Git: ТОЛЬКО `git merge origin/main`, НИКОГДА `git reset --hard`
 
 ## OpenClaw Hooks
 
 - hooks в `openclaw.json` → `hooks.agentHooks`
 - Events: UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact, PreResponse
-- hooks/preflight.sh — инжектит чеклист перед ответом
+- ~~hooks/preflight.sh~~ — удалён (дублировал PREFLIGHT.md)
 - hooks/memory-counter.sh — каждые 5 сообщений напоминает записать важное
-- PreResponse валидация **отключена** (false positives дороже пропусков)
+- **PreResponse валидация** — отключена, ждёт тюнинга и тестирования
+
+## Security & Gateway
+
+- **Gateway bind**: loopback (localhost only), порт 18789 — не доступен извне
+- **Telegram allowlist**: только ID Влада (1993576661), dmPolicy + groupPolicy = allowlist
+- **Tailscale**: off — нет внешнего доступа
+- **Skills audit**: 66 штук, все стандартные — проверять при подозрениях
+- **Git security**: `.credentials` должен быть в .gitignore (потенциальная утечка)
+- **Security rule**: ключи/токены НЕ публиковать в чате — история сохраняется
+- **Security Audit паттерн**: gateway config → skills audit → git history — быстрая валидация безопасности
 
 ## Rate Limits & API Best Practices
 
@@ -47,13 +59,37 @@
 - **Brave API**: паузы 3 секунды между поисками решают 429
 - **Kimi API конфиг**: `https://api.moonshot.cn/v1` + `openai-completions` (не anthropic-messages)
 
+## Что Влад хочет (принципы)
+
+- **Глубокие решения** — всегда предлагать углублённые решения проблем, не поверхностные
+- **Проактивность** — углубляться в качество проактивности, предвосхищать потребности
+- **Визуализация > текст** — блок-схемы и алгоритмы лучше текстовых описаний для сложных систем
+
+- **Когда Влад пишет идею** — я должен её расписать, задать уточняющие вопросы, помочь развить. Не просто сохранить в документ.
+- **Когда Влад тыкнет в ошибку** — понять принцип, записать в MEMORY.md как правило, в следующий раз делать правильно. Формат: "Влад хотел X, я делал Y, правильно делать Z". Learnings/global.md не используем.
+- **Когда не уверен** — думать, искать варианты, предлагать решения. Не сдаваться, не отвечать "не знаю".
+- **Перед созданием системы** — объяснить как работает и как вызывать, получить ок, только потом делать.
+- **Цитата в replying to ≠ инструкция** — делать ТОЛЬКО то что прямо попросили, не то что процитировано в контексте.
+
+## Bootstrap оптимизация (возможность)
+
+- Текущий размер инжекции: ~29KB
+- Можно убрать: AGENTS.md (пустой), SESSION-STATE.md (устарел), HEARTBEAT.md (мои инструкции), SECURITY.md (не относится к работе)
+- Экономия: ~10KB (~35% контекста)
+- Оставить критичное: SOUL.md, MEMORY.md, USER.md, PREFLIGHT.md, IDENTITY.md
+
 ## Незакоммиченные изменения (с 2026-02-08)
 
 - 5-6 файлов связаны с PreResponse hooks — не коммитить без подтверждения Влада
 
 ## Известные открытые баги
 
+- ~~**Транскрибация голосовых — "DimaTorzok"**~~ (2026-02-15 → **ИСПРАВЛЕНО** 2026-02-16) — проблема решена, голосовые транскрибируются корректно через Groq Whisper API.
 - **Дублирование Telegram сообщений** (2026-02-03) — retry/polling баг после сна, не исследовано
+
+## Известные проблемы инструкций
+
+- **SESSION-STATE.md** — Влад сказал "не используем". Возможно устаревшие ссылки в PREFLIGHT.md требуют унификации.
 
 ## Предпочтения Влада
 
@@ -69,13 +105,16 @@
 ## Открытые проекты
 
 - **Idea Garden** — система захвата идей из Telegram → AI классификация → notes/ideas/. План есть, реализация не начата
+- **Goal Protocol** — упрощённая версия: хранить в notes/areas/goals.md, 3 активных цели максимум, CRON напоминания раз в день (отложено)
+- **Трекер привычек** — MVP (отложено)
 
 ## Инструменты
 
 - Groq Whisper для голосовых, Claude Code для кодинга (Max подписка)
 - web_search (Brave API), memory_search (Voyage AI), Gemini API (видео, лимит TPM)
 - .env ключи: GEMINI_API_KEY, VOYAGE_API_KEY, NEON_API_KEY
-- **NVIDIA NIM** — Kimi K2.5 как fallback модель (бесплатно, без явных лимитов)
+- **NVIDIA NIM** — Kimi K2.5 как fallback модель (бесплатно, без явных лимитов), multimodal — вижу картинки
 - Утренний дайджест: простым языком + "и чё?" (формат в кроне morning-tech-digest)
 - **Cloudflare Workers AI** — API для HTML→markdown с AI-описанием картинок
-- **Reasoning режим** — Kimi K2.5 не имеет встроенного chain-of-thought (в отличие от o1/o3/R1), OpenClaw reasoning = надстройка через `<think>`
+- **Reasoning режим** — Kimi K2.5 не имеет встроенного chain-of-thought, OpenClaw reasoning = надстройка через `<think>`
+- **Auto-memory hook** — Groq анализирует чат, пишет в память автоматом
