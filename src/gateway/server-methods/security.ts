@@ -5,7 +5,6 @@
  * security events, alerts, and system status.
  */
 
-import type { GatewayRequestHandlers } from "./types.js";
 import { loadConfig } from "../../config/config.js";
 import { runSecurityAudit } from "../../security/audit.js";
 import {
@@ -19,6 +18,7 @@ import {
 } from "../../security/events-store.js";
 import { type SecurityEventCategory, type SecurityEventSeverity } from "../../security/events.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
+import type { GatewayRequestHandlers } from "./types.js";
 
 // Valid categories for validation
 const VALID_CATEGORIES = new Set<SecurityEventCategory>([

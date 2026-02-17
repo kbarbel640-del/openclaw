@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { ModelCatalogEntry } from "./model-catalog.js";
 import {
   MODEL_CAPABILITIES_REGISTRY,
   enrichCatalogWithCapabilities,
@@ -14,6 +13,7 @@ import {
   getReasoningModels,
   getVisionModels,
 } from "./model-capabilities.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
 
 describe("model-capabilities", () => {
   describe("getModelCapabilities", () => {

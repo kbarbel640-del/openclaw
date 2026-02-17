@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type { AgentRole } from "../config/types.agents.js";
-import type { ModelCatalogEntry } from "./model-catalog.js";
 import {
   selectModelForTask,
   analyzeResponseQuality,
   shouldEscalate,
   type QualitySignals,
 } from "./adaptive-routing.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
 
 // ── Mock Model Catalog ──
 

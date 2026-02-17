@@ -3,6 +3,14 @@
  * Handles CRUD operations for messages using PostgreSQL + TimescaleDB + Redis.
  */
 
+import {
+  getChatDbClient,
+  REDIS_KEYS,
+  REDIS_TTL,
+  fromJsonb,
+  fromTimestamp,
+  toJsonb,
+} from "../db/client.js";
 import type {
   ChannelMessage,
   CreateMessageParams,
@@ -12,14 +20,6 @@ import type {
   MessageSearchResult,
   UpdateMessageParams,
 } from "../types/messages.js";
-import {
-  getChatDbClient,
-  REDIS_KEYS,
-  REDIS_TTL,
-  fromJsonb,
-  fromTimestamp,
-  toJsonb,
-} from "../db/client.js";
 import { extractMentions, generateMessageId } from "../types/messages.js";
 
 // Database row type

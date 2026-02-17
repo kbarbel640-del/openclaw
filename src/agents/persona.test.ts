@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
-import type { WorkspaceBootstrapFile } from "./workspace.js";
 import { applyPersonaToBootstrapFiles, resolvePersonaKey } from "./persona.js";
+import type { WorkspaceBootstrapFile } from "./workspace.js";
 
 describe("persona", () => {
   it("resolves per-agent persona over defaults", () => {

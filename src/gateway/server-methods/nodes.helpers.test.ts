@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import type { RespondFn } from "./types.js";
 import { ErrorCodes } from "../protocol/index.js";
 import {
   respondInvalidParams,
@@ -7,6 +6,7 @@ import {
   safeParseJson,
   uniqueSortedStrings,
 } from "./nodes.helpers.js";
+import type { RespondFn } from "./types.js";
 
 describe("uniqueSortedStrings", () => {
   it("filters out non-string values", () => {

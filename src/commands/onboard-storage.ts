@@ -4,8 +4,6 @@
  */
 
 import type { OpenClawConfig } from "../config/config.js";
-import type { RuntimeEnv } from "../runtime.js";
-import type { WizardPrompter } from "../wizard/prompts.js";
 import {
   initializeStorage,
   getStorageBackend,
@@ -15,7 +13,9 @@ import {
   isSqliteAvailable,
   type StorageBackend,
 } from "../infra/database/index.js";
+import type { RuntimeEnv } from "../runtime.js";
 import { shortenHomePath } from "../utils.js";
+import type { WizardPrompter } from "../wizard/prompts.js";
 
 export type StorageSetupResult = {
   backend: StorageBackend;

@@ -1,6 +1,9 @@
 // @ts-expect-error - echarts doesn't have proper ESM types
 import * as echarts from "echarts";
 import { html, nothing, type TemplateResult } from "lit";
+import { formatAgo } from "../format.ts";
+import { icons } from "../icons.ts";
+import { renderEmptyState } from "../render-utils.ts";
 import type {
   AgentDelegationMetrics,
   AgentHierarchyNode,
@@ -8,9 +11,6 @@ import type {
   AgentHierarchyUsage,
   CollaborationEdge,
 } from "../types.ts";
-import { formatAgo } from "../format.ts";
-import { icons } from "../icons.ts";
-import { renderEmptyState } from "../render-utils.ts";
 
 /* ═══════════════════════════════════════════════════════════════
    Public API

@@ -3,8 +3,8 @@
  */
 
 import type { OpenClawConfig } from "../config/config.js";
-import type { ModelCapabilities } from "./model-capabilities.js";
 import { registerModelPattern } from "./capability-inference.js";
+import type { ModelCapabilities } from "./model-capabilities.js";
 
 /**
  * Load and register model patterns from config.

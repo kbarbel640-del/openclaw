@@ -6,15 +6,15 @@
 import { StoreController } from "@nanostores/lit";
 import { LitElement, html, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { ChannelsStatusSnapshot, ConfigUiHints, NostrProfile } from "../types.ts";
-import type { ChannelsProps } from "../views/channels.types.ts";
 import { gateway } from "../../services/gateway.ts";
 import { $connected } from "../../stores/app.ts";
+import type { ChannelsStatusSnapshot, ConfigUiHints, NostrProfile } from "../types.ts";
 import {
   createNostrProfileFormState,
   type NostrProfileFormState,
 } from "../views/channels.nostr-profile-form.ts";
 import { renderChannels } from "../views/channels.ts";
+import type { ChannelsProps } from "../views/channels.types.ts";
 
 @customElement("channels-island")
 export class ChannelsIsland extends LitElement {

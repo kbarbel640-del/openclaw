@@ -1,12 +1,12 @@
 import { StoreController } from "@nanostores/lit";
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { SystemInfoResult } from "../controllers/system-info.ts";
-import type { PresenceEntry, CronStatus } from "../types.ts";
 import { gateway } from "../../services/gateway.ts";
 import { $connected } from "../../stores/app.ts";
 import { $hello } from "../../stores/gateway.ts";
+import type { SystemInfoResult } from "../controllers/system-info.ts";
 import { loadSettings, saveSettings, type UiSettings } from "../storage.ts";
+import type { PresenceEntry, CronStatus } from "../types.ts";
 import { renderOverview, type OverviewProps } from "../views/overview.ts";
 
 @customElement("overview-island")

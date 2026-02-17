@@ -1,5 +1,6 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { gateway } from "../../services/gateway.ts";
 import type {
   SecurityEvent,
   SecurityEventCategory,
@@ -8,7 +9,6 @@ import type {
   SecuritySummary,
   SecurityAuditReport,
 } from "../controllers/security.ts";
-import { gateway } from "../../services/gateway.ts";
 import { renderSecurity, type SecurityProps } from "../views/security.ts";
 
 @customElement("security-island")

@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import type { ModelCatalogEntry, ProviderId } from "./types.js";
 import {
   providerSupports,
   getProviderCapabilities,
@@ -9,6 +8,7 @@ import {
   scoreCapabilityMatch,
   suggestAlternatives,
 } from "./capabilities.js";
+import type { ModelCatalogEntry, ProviderId } from "./types.js";
 
 describe("capabilities", () => {
   describe("providerSupports", () => {

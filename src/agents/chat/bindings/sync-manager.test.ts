@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ExternalPlatform, IPlatformAdapter } from "./types.js";
 import {
   registerAdapter,
   getAdapter,
@@ -10,6 +9,7 @@ import {
   deleteBinding,
   onBindingEvent,
 } from "./sync-manager.js";
+import type { ExternalPlatform, IPlatformAdapter } from "./types.js";
 
 const mockDbClient = {
   query: vi.fn(),

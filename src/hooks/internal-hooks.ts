@@ -8,8 +8,8 @@
 import os from "node:os";
 import type { WorkspaceBootstrapFile } from "../agents/workspace.js";
 import type { OpenClawConfig } from "../config/config.js";
-import type { JsonHookEntry } from "./json-loader.js";
 import { resolveStateDir } from "../config/paths.js";
+import type { JsonHookEntry } from "./json-loader.js";
 import { loadAllJsonHooks } from "./json-loader.js";
 import { matchesEvent, runShellHook } from "./shell-runner.js";
 

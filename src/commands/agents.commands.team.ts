@@ -1,8 +1,8 @@
 import type { OpenClawConfig } from "../config/config.js";
-import type { RuntimeEnv } from "../runtime.js";
 import { writeConfigFile } from "../config/config.js";
 import { logConfigUpdated } from "../config/logging.js";
 import { normalizeAgentId } from "../routing/session-key.js";
+import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { requireValidConfig } from "./agents.command-shared.js";
 import { findAgentEntryIndex, listAgentEntries } from "./agents.config.js";

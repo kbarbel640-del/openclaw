@@ -15,8 +15,8 @@
  */
 
 import type postgres from "postgres";
-import type { EnergyState, EnergyBaseline } from "../models/types.js";
 import { unifiedCacheGetOrSet, unifiedCacheDelete } from "../../../infra/cache/unified-cache.js";
+import type { EnergyState, EnergyBaseline } from "../models/types.js";
 
 const ENERGY_CACHE_TTL = 120; // 2 minutes — energy changes fast
 

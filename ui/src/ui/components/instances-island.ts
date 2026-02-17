@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { PresenceEntry } from "../types.ts";
 import { gateway } from "../../services/gateway.ts";
+import type { PresenceEntry } from "../types.ts";
 import { renderInstances, type InstancesProps } from "../views/instances.ts";
 
 @customElement("instances-island")

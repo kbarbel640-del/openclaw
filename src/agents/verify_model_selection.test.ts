@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { OpenClawConfig } from "../config/config";
-import type { ModelCatalogEntry } from "./model-catalog";
 import {
   initAutoModelSelection,
   resetAutoModelSelection,
   computeAutoSelections,
 } from "./model-auto-select";
+import type { ModelCatalogEntry } from "./model-catalog";
 import { resolveDefaultModelForAgent, resolveCodingModelForAgent } from "./model-selection";
 import { resolveImplicitProviders } from "./models-config.providers";
 

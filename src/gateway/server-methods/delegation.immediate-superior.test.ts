@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
 import {
   addSubagentRunForTests,
   resetSubagentRegistryForTests,
 } from "../../agents/subagent-registry.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { resolveDelegationCreateTarget } from "./delegation.js";
 
 const cfg: OpenClawConfig = {

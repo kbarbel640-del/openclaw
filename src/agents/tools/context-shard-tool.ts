@@ -7,7 +7,6 @@
  */
 
 import { z } from "zod";
-import type { AnyAgentTool } from "./common.js";
 import {
   createShardPlan,
   estimateStringTokens,
@@ -17,6 +16,7 @@ import {
   type MergeStrategy,
 } from "../context-sharding.js";
 import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
+import type { AnyAgentTool } from "./common.js";
 import { jsonResult } from "./common.js";
 
 const shardResultShape = z.object({

@@ -1,5 +1,5 @@
-import type { AjvLikeError } from "../protocol/zod-validator.js";
 import { ErrorCodes, errorShape, formatValidationErrors } from "../protocol/index.js";
+import type { AjvLikeError } from "../protocol/zod-validator.js";
 import { formatForLog } from "../ws-log.js";
 import type { RespondFn } from "./types.js";
 

@@ -3,7 +3,6 @@
  * Provides standard slash commands for channel management.
  */
 
-import type { AgentChannelMemberRole, AgentListeningMode } from "../types/channels.js";
 import {
   addMember,
   removeMember,
@@ -16,6 +15,7 @@ import {
   unmuteAgent,
   getChannel,
 } from "../store/channel-store.js";
+import type { AgentChannelMemberRole, AgentListeningMode } from "../types/channels.js";
 import {
   registerCommand,
   type CommandContext,

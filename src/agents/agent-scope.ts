@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
-import type { AgentRole } from "../config/types.agents.js";
 import { resolveStateDir } from "../config/paths.js";
+import type { AgentRole } from "../config/types.agents.js";
 import {
   DEFAULT_AGENT_ID,
   normalizeAgentId,

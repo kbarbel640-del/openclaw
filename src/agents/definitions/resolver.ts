@@ -8,11 +8,11 @@
 import os from "node:os";
 import path from "node:path";
 import type { OpenClawConfig } from "../../config/config.js";
-import type { AgentConfig } from "../../config/types.agents.js";
-import type { AgentDefinition } from "./types.js";
 import { resolveStateDir } from "../../config/paths.js";
+import type { AgentConfig } from "../../config/types.agents.js";
 import { resolveAgentDir } from "../agent-scope.js";
 import { loadAgentDefinitions, loadAgentDefinitionsFromDir } from "./loader.js";
+import type { AgentDefinition } from "./types.js";
 
 /** Cache for loaded definitions keyed by agentDir. */
 const definitionCache = new Map<string, AgentDefinition[]>();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { AjvLikeError } from "./zod-validator.js";
 import { formatValidationErrors } from "./index.js";
+import type { AjvLikeError } from "./zod-validator.js";
 
 const makeError = (overrides: Partial<AjvLikeError>): AjvLikeError => ({
   keyword: "type",

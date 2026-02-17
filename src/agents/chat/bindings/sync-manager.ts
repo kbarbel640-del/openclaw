@@ -3,6 +3,8 @@
  * Handles bidirectional message synchronization between agent channels and external platforms.
  */
 
+import { getChatDbClient, toJsonb, fromJsonb } from "../db/client.js";
+import { createMessage } from "../store/message-store.js";
 import type {
   BindingDirection,
   BindingEvent,
@@ -15,8 +17,6 @@ import type {
   SyncOptions,
   SyncStatus,
 } from "./types.js";
-import { getChatDbClient, toJsonb, fromJsonb } from "../db/client.js";
-import { createMessage } from "../store/message-store.js";
 
 type BindingRow = {
   binding_id: string;

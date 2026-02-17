@@ -10,8 +10,8 @@
  */
 
 import type postgres from "postgres";
-import type { AgentMemory, PersonInsight } from "../models/types.js";
 import { unifiedCacheGetOrSet, unifiedCacheDelete } from "../../../infra/cache/unified-cache.js";
+import type { AgentMemory, PersonInsight } from "../models/types.js";
 
 const MEMORY_CACHE_TTL = 600; // 10 minutes
 

@@ -4,10 +4,10 @@
  */
 
 import type { RuntimeEnv } from "../../runtime.js";
-import type { UsagePeriod } from "./types.js";
 import { defaultRuntime } from "../../runtime.js";
 import { renderTable, type TableColumn } from "../../terminal/table.js";
 import { theme, isRich } from "../../terminal/theme.js";
+import type { UsagePeriod } from "./types.js";
 import { formatUsageForDisplay, getUsage, isUsageTrackingAvailable } from "./usage.js";
 
 export type ProvidersUsageOptions = {

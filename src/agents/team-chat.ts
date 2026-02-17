@@ -1,7 +1,7 @@
-import type { AgentRole } from "../config/types.agents.js";
-import type { OpenClawConfig } from "../config/types.js";
 import { loadConfig } from "../config/config.js";
 import { resolveMainSessionKey } from "../config/sessions/main-session.js";
+import type { AgentRole } from "../config/types.agents.js";
+import type { OpenClawConfig } from "../config/types.js";
 import { listAgentIds, resolveAgentRole } from "./agent-scope.js";
 
 /**

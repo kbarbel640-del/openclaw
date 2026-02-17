@@ -3,10 +3,6 @@
  */
 
 import { randomBytes } from "node:crypto";
-import type { ProviderAuthResult } from "../../plugins/types.js";
-import type { RuntimeEnv } from "../../runtime.js";
-import type { WizardPrompter } from "../../wizard/prompts.js";
-import type { GatewayRequestHandlers } from "./types.js";
 import {
   removeAuthProfilesForProvider,
   upsertAuthProfile,
@@ -20,7 +16,11 @@ import { getProviderById, PROVIDER_REGISTRY } from "../../commands/providers/reg
 import { loadConfig } from "../../config/config.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { resolvePluginProviders } from "../../plugins/providers.js";
+import type { ProviderAuthResult } from "../../plugins/types.js";
+import type { RuntimeEnv } from "../../runtime.js";
+import type { WizardPrompter } from "../../wizard/prompts.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
+import type { GatewayRequestHandlers } from "./types.js";
 
 const log = createSubsystemLogger("auth");
 

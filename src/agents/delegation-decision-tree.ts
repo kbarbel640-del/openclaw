@@ -6,8 +6,8 @@
  */
 
 import type { AgentRole } from "../config/types.agents.js";
-import type { DelegationRecord } from "./delegation-types.js";
 import { AGENT_ROLE_RANK } from "./agent-scope.js";
+import type { DelegationRecord } from "./delegation-types.js";
 
 export type DecisionTreeResult = {
   recommendation: "approve" | "reject" | "redirect";

@@ -6,10 +6,10 @@
 import { StoreController } from "@nanostores/lit";
 import { LitElement, html, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { DevicePairingList } from "../controllers/devices.ts";
-import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/exec-approvals.ts";
 import { gateway } from "../../services/gateway.ts";
 import { $connected } from "../../stores/app.ts";
+import type { DevicePairingList } from "../controllers/devices.ts";
+import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/exec-approvals.ts";
 import { renderNodes, type NodesProps } from "../views/nodes.ts";
 
 @customElement("nodes-island")

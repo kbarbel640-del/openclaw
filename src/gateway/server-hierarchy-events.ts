@@ -1,5 +1,3 @@
-import type { DelegationMetrics } from "../agents/delegation-types.js";
-import type { OpenClawConfig } from "../config/types.openclaw.js";
 import {
   listAgentIds,
   resolveAgentConfig,
@@ -8,6 +6,7 @@ import {
   resolveDefaultAgentId,
 } from "../agents/agent-scope.js";
 import { getAllDelegations, getAgentDelegationMetrics } from "../agents/delegation-registry.js";
+import type { DelegationMetrics } from "../agents/delegation-types.js";
 import { resolveAgentIdentity } from "../agents/identity.js";
 import { resolveDefaultModelForAgent } from "../agents/model-selection.js";
 import {
@@ -16,6 +15,7 @@ import {
   type SubagentUsage,
 } from "../agents/subagent-registry.js";
 import { loadConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { onAgentEvent } from "../infra/agent-events.js";
 import { parseAgentSessionKey } from "../routing/session-key.js";
 import { getAllCollaborativeSessions } from "./server-methods/collaboration.js";

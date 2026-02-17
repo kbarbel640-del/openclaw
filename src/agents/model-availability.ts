@@ -1,10 +1,10 @@
 import type { OpenClawConfig } from "../config/config.js";
-import type { ModelCatalogEntry } from "./model-catalog.js";
 import {
   ensureAuthProfileStore,
   getProfileCooldownRemainingMs,
   listProfilesForProvider,
 } from "./auth-profiles.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
 import { isModelCoolingDown } from "./model-fallback.js";
 import { normalizeProviderId, type ModelRef } from "./model-selection.js";
 

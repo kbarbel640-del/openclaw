@@ -13,8 +13,8 @@
  */
 
 import type postgres from "postgres";
-import type { AssertivenessRule, ConflictHistory } from "../models/types.js";
 import { unifiedCacheGetOrSet } from "../../../infra/cache/unified-cache.js";
+import type { AssertivenessRule, ConflictHistory } from "../models/types.js";
 
 const NEGOTIATION_CACHE_TTL = 1800; // 30 minutes
 

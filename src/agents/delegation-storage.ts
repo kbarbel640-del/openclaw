@@ -8,8 +8,8 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { DelegationRecord } from "./delegation-types.js";
 import { resolveStateDir } from "../config/paths.js";
+import type { DelegationRecord } from "./delegation-types.js";
 
 function shouldSilenceStoreIoError(err: unknown): boolean {
   const code = (err as NodeJS.ErrnoException | undefined)?.code;

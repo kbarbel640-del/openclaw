@@ -4,11 +4,11 @@
  */
 
 import type { RuntimeEnv } from "../../runtime.js";
-import type { ProviderStatus } from "./types.js";
 import { defaultRuntime } from "../../runtime.js";
 import { renderTable, type TableColumn } from "../../terminal/table.js";
 import { theme, isRich } from "../../terminal/theme.js";
 import { detectProviders, type DetectionOptions } from "./detection.js";
+import type { ProviderStatus } from "./types.js";
 
 export type ProvidersListOptions = {
   /** Output as JSON */

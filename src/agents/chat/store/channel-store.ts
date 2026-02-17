@@ -3,6 +3,14 @@
  * Handles CRUD operations for channels and members using PostgreSQL + Redis.
  */
 
+import {
+  getChatDbClient,
+  REDIS_KEYS,
+  REDIS_TTL,
+  fromJsonb,
+  fromTimestamp,
+  toJsonb,
+} from "../db/client.js";
 import type {
   AgentChannel,
   AgentChannelMember,
@@ -13,14 +21,6 @@ import type {
   ExternalBinding,
   UpdateChannelParams,
 } from "../types/channels.js";
-import {
-  getChatDbClient,
-  REDIS_KEYS,
-  REDIS_TTL,
-  fromJsonb,
-  fromTimestamp,
-  toJsonb,
-} from "../db/client.js";
 import { generateChannelId } from "../types/channels.js";
 
 // Database row types

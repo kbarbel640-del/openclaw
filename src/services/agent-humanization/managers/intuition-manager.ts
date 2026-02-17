@@ -10,8 +10,8 @@
  */
 
 import type postgres from "postgres";
-import type { IntuitionRule } from "../models/types.js";
 import { unifiedCacheGetOrSet, unifiedCacheDelete } from "../../../infra/cache/unified-cache.js";
+import type { IntuitionRule } from "../models/types.js";
 
 const INTUITION_CACHE_TTL = 1200; // 20 minutes
 

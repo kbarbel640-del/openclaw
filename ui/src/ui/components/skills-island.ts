@@ -1,8 +1,8 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { gateway } from "../../services/gateway.ts";
 import type { SkillMessageMap } from "../controllers/skills.ts";
 import type { SkillStatusReport } from "../types.ts";
-import { gateway } from "../../services/gateway.ts";
 import { renderSkills, type SkillsProps } from "../views/skills.ts";
 
 function clearMessageKey(map: SkillMessageMap, key: string): SkillMessageMap {

@@ -14,8 +14,8 @@
  */
 
 import type postgres from "postgres";
-import type { AgentReputation, TrackRecord } from "../models/types.js";
 import { unifiedCacheGetOrSet, unifiedCacheDelete } from "../../../infra/cache/unified-cache.js";
+import type { AgentReputation, TrackRecord } from "../models/types.js";
 
 const REPUTATION_CACHE_TTL = 1800; // 30 minutes
 

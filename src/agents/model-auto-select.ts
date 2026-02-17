@@ -7,23 +7,23 @@
 
 import type { OpenClawConfig } from "../config/config.js";
 import type { AgentRole } from "../config/types.agents.js";
-import type {
-  CostTier,
-  ModelCapabilities,
-  ModelCapability,
-  PerformanceTier,
-} from "./model-capabilities.js";
-import type { ModelCatalogEntry } from "./model-catalog.js";
-import type { ModelRef } from "./model-selection.js";
 import {
   ensureAuthProfileStore,
   isProfileInCooldown,
   resolveAuthProfileOrder,
   type AuthProfileStore,
 } from "./auth-profiles.js";
+import type {
+  CostTier,
+  ModelCapabilities,
+  ModelCapability,
+  PerformanceTier,
+} from "./model-capabilities.js";
 import { getModelCapabilitiesFromCatalog } from "./model-capabilities.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
 import { isLatestModel } from "./model-catalog.js";
 import { isModelCoolingDown } from "./model-fallback.js";
+import type { ModelRef } from "./model-selection.js";
 import { modelKey } from "./model-selection.js";
 import { classifyComplexity } from "./task-classifier.js";
 

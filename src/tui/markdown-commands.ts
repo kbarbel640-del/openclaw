@@ -5,14 +5,14 @@
  * the TUI slash command system and auto-reply command registry.
  */
 
-import type { SlashCommand } from "@mariozechner/pi-tui";
 import os from "node:os";
+import type { SlashCommand } from "@mariozechner/pi-tui";
+import { buildCommandPrompt } from "../commands/definitions/executor.js";
+import { loadCommandDefinitions } from "../commands/definitions/loader.js";
 import type {
   CommandDefinition,
   CommandDefinitionLoadResult,
 } from "../commands/definitions/types.js";
-import { buildCommandPrompt } from "../commands/definitions/executor.js";
-import { loadCommandDefinitions } from "../commands/definitions/loader.js";
 import { resolveStateDir } from "../config/paths.js";
 
 /** Cached markdown command definitions. */

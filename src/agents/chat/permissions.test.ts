@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import type { AgentChannel } from "./types/channels.js";
 import {
   checkPermission,
   checkAgentAction,
@@ -11,6 +10,7 @@ import {
   hasAllPermissions,
   canAccessChannel,
 } from "./permissions.js";
+import type { AgentChannel } from "./types/channels.js";
 
 describe("permissions", () => {
   const createChannel = (

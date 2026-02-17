@@ -69,7 +69,6 @@ function normalizeKey(value?: string) {
   return trimmed ? trimmed : undefined;
 }
 
-
 export function classifySessionKind(params: {
   key: string;
   gatewayKind?: string | null;

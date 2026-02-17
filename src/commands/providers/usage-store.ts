@@ -2,13 +2,13 @@
  * Usage store for persisting LLM usage data to TimescaleDB.
  */
 
-import type { ProviderUsage, UsageEntry, UsagePeriod, UsageTotals } from "./types.js";
 import {
   getDatabase,
   isDatabaseConnected,
   type LlmUsageInsert,
 } from "../../infra/database/index.js";
 import { calculateCost } from "./registry.js";
+import type { ProviderUsage, UsageEntry, UsagePeriod, UsageTotals } from "./types.js";
 
 /**
  * Record a usage entry to the database.

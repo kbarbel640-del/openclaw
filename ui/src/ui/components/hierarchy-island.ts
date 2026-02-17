@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { AgentHierarchyResult } from "../types.ts";
 import { gateway } from "../../services/gateway.ts";
+import type { AgentHierarchyResult } from "../types.ts";
 import { renderAgentsHierarchy, type AgentsHierarchyProps } from "../views/agents-hierarchy.ts";
 
 @customElement("hierarchy-island")

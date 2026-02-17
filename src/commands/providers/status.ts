@@ -3,13 +3,13 @@
  * Shows detailed status for one or more providers.
  */
 
-import type { RuntimeEnv } from "../../runtime.js";
-import type { ProviderStatus } from "./types.js";
 import { getModelCooldownSnapshot } from "../../agents/model-fallback.js";
+import type { RuntimeEnv } from "../../runtime.js";
 import { defaultRuntime } from "../../runtime.js";
 import { theme, isRich } from "../../terminal/theme.js";
 import { detectProvider, detectProviders } from "./detection.js";
 import { getProviderById } from "./registry.js";
+import type { ProviderStatus } from "./types.js";
 
 export type ProvidersStatusOptions = {
   /** Provider ID to check (optional, shows all if not specified) */

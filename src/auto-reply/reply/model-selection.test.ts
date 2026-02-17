@@ -18,7 +18,6 @@ const makeEntry = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-
 describe("createModelSelectionState parent inheritance", () => {
   const defaultProvider = "openai";
   const defaultModel = "gpt-4o-mini";

@@ -6,9 +6,9 @@
  */
 
 import type { AnyAgentTool } from "../tools/common.js";
-import type { McpConfig, McpServerState, McpToolCallResult } from "./types.js";
 import { McpClient } from "./client.js";
 import { mcpToolsToAgentTools } from "./tool-bridge.js";
+import type { McpConfig, McpServerState, McpToolCallResult } from "./types.js";
 
 /**
  * Manages a set of MCP server connections for an agent session.

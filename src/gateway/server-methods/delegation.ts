@@ -5,9 +5,6 @@
  * Pattern follows collaboration.ts.
  */
 
-import type { DelegationDirection, DelegationReview } from "../../agents/delegation-types.js";
-import type { DelegationRecord } from "../../agents/delegation-types.js";
-import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 import { AGENT_ROLE_RANK, resolveAgentRole } from "../../agents/agent-scope.js";
 import { evaluateDelegationRequest } from "../../agents/delegation-decision-tree.js";
 import {
@@ -20,6 +17,8 @@ import {
   reviewDelegation,
   updateDelegationState,
 } from "../../agents/delegation-registry.js";
+import type { DelegationDirection, DelegationReview } from "../../agents/delegation-types.js";
+import type { DelegationRecord } from "../../agents/delegation-types.js";
 import { resolvePreferredSuperior } from "../../agents/hierarchy-superior.js";
 import { resolveAgentIdentity } from "../../agents/identity.js";
 import { loadConfig } from "../../config/config.js";
@@ -32,6 +31,7 @@ import { delegationAutoRunScheduler } from "../delegation-auto-run.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { broadcastHierarchyFullRefresh } from "../server-hierarchy-events.js";
 import { injectChatMessage } from "./chat.js";
+import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 
 function assertDelegationReviewer(params: { record: DelegationRecord; reviewerId: string }): void {
   if (params.record.toAgentId !== params.reviewerId) {

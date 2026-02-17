@@ -11,9 +11,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import type { CommandDefinition, CommandDefinitionLoadResult } from "./types.js";
 import { parseFrontmatterBlock } from "../../markdown/frontmatter.js";
 import { parseBooleanValue } from "../../utils/boolean.js";
+import type { CommandDefinition, CommandDefinitionLoadResult } from "./types.js";
 
 const MD_EXTENSION = ".md";
 

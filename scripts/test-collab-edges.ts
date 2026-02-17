@@ -15,8 +15,8 @@
 // or using the internal dispatcher.
 // Let's use the same pattern as demo-collab.ts which imports `collaborationHandlers` directly or mocks the client.
 
-import type { GatewayClient } from "../src/gateway/server-methods/types.js";
 import { collaborationHandlers } from "../src/gateway/server-methods/collaboration.js";
+import type { GatewayClient } from "../src/gateway/server-methods/types.js";
 
 // Mock Client Factory
 function mockClient(agentId: string): GatewayClient {

@@ -1,8 +1,8 @@
-import type { IncomingMessage } from "node:http";
-import { Elysia } from "elysia";
 import fs from "node:fs";
+import type { IncomingMessage } from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { Elysia } from "elysia";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // Spy on environment boundaries only (config loading + Node.js socket extraction)
 import * as configModule from "../config/config.js";

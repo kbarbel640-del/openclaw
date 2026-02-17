@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { ModelCapabilities } from "./model-capabilities.js";
-import type { ModelCatalogEntry } from "./model-catalog.js";
 import {
   ROLE_REQUIREMENTS,
   computeAutoSelections,
@@ -12,6 +10,8 @@ import {
   resetAutoModelSelection,
   selectModelForRole,
 } from "./model-auto-select.js";
+import type { ModelCapabilities } from "./model-capabilities.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
 
 // ── Helpers ──
 

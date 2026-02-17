@@ -6,10 +6,10 @@
 import { StoreController } from "@nanostores/lit";
 import { LitElement, html, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { AuthProviderEntry, OAuthFlowState } from "../controllers/auth.ts";
-import type { ProviderHealthEntry } from "../controllers/providers-health.ts";
 import { gateway } from "../../services/gateway.ts";
 import { $connected } from "../../stores/app.ts";
+import type { AuthProviderEntry, OAuthFlowState } from "../controllers/auth.ts";
+import type { ProviderHealthEntry } from "../controllers/providers-health.ts";
 import { renderProviders, type ProvidersProps } from "../views/providers.ts";
 
 @customElement("providers-island")

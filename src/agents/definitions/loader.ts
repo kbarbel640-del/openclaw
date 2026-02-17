@@ -12,8 +12,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AgentRole } from "../../config/types.agents.js";
-import type { AgentDefinition, AgentDefinitionLoadResult } from "./types.js";
 import { parseFrontmatterBlock } from "../../markdown/frontmatter.js";
+import type { AgentDefinition, AgentDefinitionLoadResult } from "./types.js";
 
 const VALID_ROLES: Set<string> = new Set(["orchestrator", "lead", "specialist", "worker"]);
 const MD_EXTENSION = ".md";

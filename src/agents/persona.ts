@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
-import type { WorkspaceBootstrapFile } from "./workspace.js";
 import { resolveAgentConfig } from "./agent-scope.js";
+import type { WorkspaceBootstrapFile } from "./workspace.js";
 
 export function resolvePersonaKey(cfg: OpenClawConfig | undefined, agentId: string | undefined) {
   if (!cfg) {

@@ -4,11 +4,11 @@
  */
 
 import type { CollaborationEvent } from "../collaboration/types.js";
+import { getChatDbClient, REDIS_KEYS, toJsonb, fromJsonb } from "../db/client.js";
 import type { AgentPresence } from "../presence/manager.js";
 import type { AgentChannelThread } from "../threads/manager.js";
 import type { AgentChannel, AgentChannelMember } from "../types/channels.js";
 import type { ChannelMessage } from "../types/messages.js";
-import { getChatDbClient, REDIS_KEYS, toJsonb, fromJsonb } from "../db/client.js";
 
 export type ChannelEventType =
   | "channel.message"

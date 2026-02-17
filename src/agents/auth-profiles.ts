@@ -34,7 +34,7 @@ export type {
 export {
   calculateAuthProfileCooldownMs,
   clearAuthProfileCooldown,
-clearExpiredCooldowns,
+  clearExpiredCooldowns,
   getProfileCooldownRemainingMs,
   getProfileHealthStatus,
   getSoonestCooldownExpiry,

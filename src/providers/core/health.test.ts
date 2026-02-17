@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { ProviderId } from "./types.js";
 import {
   recordSuccess,
   recordFailure,
@@ -8,6 +7,7 @@ import {
   getProvidersByHealth,
   clearHealthMetrics,
 } from "./health.js";
+import type { ProviderId } from "./types.js";
 
 describe("health", () => {
   beforeEach(() => {

@@ -3,9 +3,9 @@
  * Persists health state to Redis for cross-restart continuity.
  */
 
-import type { ProviderHealthMetrics, ProviderId, ProviderStatus } from "./types.js";
 import { cacheGet, cacheSet, CACHE_KEYS, CACHE_TTL } from "../../infra/cache/cache.js";
 import { isRedisConnected } from "../../infra/cache/redis.js";
+import type { ProviderHealthMetrics, ProviderId, ProviderStatus } from "./types.js";
 
 /**
  * In-memory health metrics store, backed by Redis for cross-restart persistence.

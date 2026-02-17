@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import type { CollaborationSession, AgentResponse } from "./types.js";
 import {
   coordinateMessage,
   getNextInChain,
   checkConsensus,
   aggregateResponses,
 } from "./coordinator.js";
+import type { CollaborationSession, AgentResponse } from "./types.js";
 
 // Mock session-manager (coordinateMessage does not use it directly, but requestHandoff does)
 vi.mock("./session-manager.js", () => ({

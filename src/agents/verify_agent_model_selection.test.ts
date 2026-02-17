@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
-import type { ModelCatalogEntry } from "./model-catalog.js";
 import {
   initAutoModelSelection,
   getAutoSelectedModel,
   resetAutoModelSelection,
 } from "./model-auto-select.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
 import { resolveDefaultModelForAgent } from "./model-selection.js";
 
 // Mock configuration

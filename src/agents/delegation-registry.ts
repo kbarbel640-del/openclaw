@@ -5,7 +5,15 @@
  * Pattern follows subagent-registry.ts.
  */
 
+import { loadConfig } from "../config/config.js";
 import type { AgentRole } from "../config/types.agents.js";
+import { emitAgentEvent } from "../infra/agent-events.js";
+import { AGENT_ROLE_RANK } from "./agent-scope.js";
+import {
+  deleteDelegationRecord,
+  loadAllDelegationRecords,
+  saveDelegationRecord,
+} from "./delegation-storage.js";
 import type {
   DelegationDirection,
   DelegationInteraction,
@@ -16,14 +24,6 @@ import type {
   DelegationReview,
   DelegationState,
 } from "./delegation-types.js";
-import { loadConfig } from "../config/config.js";
-import { emitAgentEvent } from "../infra/agent-events.js";
-import { AGENT_ROLE_RANK } from "./agent-scope.js";
-import {
-  deleteDelegationRecord,
-  loadAllDelegationRecords,
-  saveDelegationRecord,
-} from "./delegation-storage.js";
 
 const delegations = new Map<string, DelegationRecord>();
 let restoreAttempted = false;

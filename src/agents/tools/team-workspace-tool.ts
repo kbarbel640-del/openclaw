@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { AnyAgentTool } from "./common.js";
 import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import {
   buildTeamContextSummary,
@@ -10,6 +9,7 @@ import {
   writeTeamArtifact,
   writeTeamContext,
 } from "../team-workspace.js";
+import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringArrayParam, readStringParam } from "./common.js";
 
 const TEAM_WORKSPACE_ACTIONS = [

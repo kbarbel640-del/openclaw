@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { EventLogEntry } from "../types.ts";
 import { gateway } from "../../services/gateway.ts";
+import type { EventLogEntry } from "../types.ts";
 import { renderDebug, type DebugProps } from "../views/debug.ts";
 
 @customElement("debug-island")

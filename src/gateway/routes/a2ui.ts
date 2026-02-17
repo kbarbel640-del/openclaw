@@ -4,10 +4,10 @@
  * GET /__openclaw__/a2ui/* — Serves the A2UI (canvas host UI) static assets.
  */
 
-import { Elysia } from "elysia";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Elysia } from "elysia";
 import { CANVAS_WS_PATH } from "../../canvas-host/a2ui.js";
 import { detectMime } from "../../media/mime.js";
 

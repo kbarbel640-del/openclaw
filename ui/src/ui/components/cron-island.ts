@@ -1,8 +1,8 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { gateway } from "../../services/gateway.ts";
 import type { CronJob, CronRunLogEntry, CronStatus } from "../types.ts";
 import type { CronFormState } from "../ui-types.ts";
-import { gateway } from "../../services/gateway.ts";
 import { renderCron, type CronProps } from "../views/cron.ts";
 
 @customElement("cron-island")

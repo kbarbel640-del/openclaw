@@ -13,8 +13,8 @@
  */
 
 import type postgres from "postgres";
-import type { MistakePattern } from "../models/types.js";
 import { unifiedCacheGetOrSet, unifiedCacheDelete } from "../../../infra/cache/unified-cache.js";
+import type { MistakePattern } from "../models/types.js";
 
 const LEARNING_CACHE_TTL = 900; // 15 minutes
 

@@ -1,8 +1,8 @@
 import { z } from "zod";
-import type { AnyAgentTool } from "./common.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { readInboxByAgent, readInboxBySession } from "./agent-inbox.js";
+import type { AnyAgentTool } from "./common.js";
 import { jsonResult } from "./common.js";
 
 const SessionsInboxToolSchema = zodToToolJsonSchema(

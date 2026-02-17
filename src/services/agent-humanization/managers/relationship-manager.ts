@@ -8,8 +8,8 @@
  */
 
 import type postgres from "postgres";
-import type { AgentRelationship } from "../models/types.js";
 import { unifiedCacheGetOrSet, unifiedCacheDelete } from "../../../infra/cache/unified-cache.js";
+import type { AgentRelationship } from "../models/types.js";
 
 const RELATIONSHIP_CACHE_TTL = 1800; // 30 minutes
 

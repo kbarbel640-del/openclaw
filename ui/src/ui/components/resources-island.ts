@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { AgentResourcesResult } from "../controllers/agent-resources.ts";
 import { gateway } from "../../services/gateway.ts";
+import type { AgentResourcesResult } from "../controllers/agent-resources.ts";
 import { renderResources, type ResourcesProps } from "../views/resources.ts";
 
 @customElement("resources-island")

@@ -13,14 +13,14 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { AgentRole } from "../config/types.agents.js";
 import type { AuthProfileStore } from "./auth-profiles.js";
-import type { ModelCatalogEntry } from "./model-catalog.js";
-import type { ModelRef } from "./model-selection.js";
 import {
   COST_TIER_ORDER,
   ROLE_REQUIREMENTS,
   rankModelsForRole,
   type RoleRequirements,
 } from "./model-auto-select.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
+import type { ModelRef } from "./model-selection.js";
 import { classifyComplexity, type TaskComplexity } from "./task-classifier.js";
 
 /**

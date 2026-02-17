@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
 import { resolveModelForTaskIntent, resolveModelForTaskType } from "../agents/model-selection.js";
 import { classifyComplexity, classifyTask } from "../agents/task-classifier.js";
+import type { OpenClawConfig } from "../config/config.js";
 
 describe("agent task classification integration", () => {
   describe("classifyTask for agent prompts", () => {

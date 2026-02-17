@@ -1,9 +1,7 @@
 import crypto from "node:crypto";
 import { z } from "zod";
-import type { AgentRole } from "../../config/types.agents.js";
-import type { GatewayMessageChannel } from "../../utils/message-channel.js";
-import type { AnyAgentTool } from "./common.js";
 import { loadConfig } from "../../config/config.js";
+import type { AgentRole } from "../../config/types.agents.js";
 import { callGateway } from "../../gateway/call.js";
 import {
   isSubagentSessionKey,
@@ -11,6 +9,7 @@ import {
   parseAgentSessionKey,
 } from "../../routing/session-key.js";
 import { normalizeDeliveryContext } from "../../utils/delivery-context.js";
+import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import {
   canSpawnRole,
   listAgentIds,
@@ -22,6 +21,7 @@ import { AGENT_LANE_SUBAGENT } from "../lanes.js";
 import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { buildSubagentSystemPrompt } from "../subagent-announce.js";
 import { registerSubagentRun, getSubagentRunById } from "../subagent-registry.js";
+import type { AnyAgentTool } from "./common.js";
 import { jsonResult } from "./common.js";
 import {
   resolveDisplaySessionKey,

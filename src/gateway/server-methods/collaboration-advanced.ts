@@ -7,13 +7,13 @@
  * - Broadcasting/notifications
  */
 
-import type { GatewayRequestHandlers } from "./types.js";
 import {
   getCollaborationMetrics,
   exportCollaborationAsMarkdown,
 } from "../../agents/collaboration-storage.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { getCollaborationContext } from "./collaboration.js";
+import type { GatewayRequestHandlers } from "./types.js";
 
 type VoteRecord = {
   agentId: string;

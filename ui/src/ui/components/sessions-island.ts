@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { SessionsListResult } from "../types.ts";
 import { gateway } from "../../services/gateway.ts";
+import type { SessionsListResult } from "../types.ts";
 import { renderSessions, type SessionsProps } from "../views/sessions.ts";
 
 @customElement("sessions-island")

@@ -2,9 +2,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import type { McpToolDefinition, McpToolCallResult } from "./types.js";
 import { loadMcpConfig, hasMcpConfig } from "./config.js";
 import { mcpToolToAgentTool, mcpToolsToAgentTools } from "./tool-bridge.js";
+import type { McpToolDefinition, McpToolCallResult } from "./types.js";
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "mcp-test-"));

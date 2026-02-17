@@ -1,8 +1,8 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import type { TwitterData } from "../controllers/twitter.ts";
 import { gateway } from "../../services/gateway.ts";
+import type { TwitterData } from "../controllers/twitter.ts";
 import { renderTwitterView } from "../views/twitter.ts";
 
 @customElement("twitter-island")

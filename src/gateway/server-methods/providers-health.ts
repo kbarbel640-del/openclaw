@@ -5,8 +5,6 @@
  * registry metadata and runtime health metrics so the UI gets a unified view.
  */
 
-import type { ProviderHealthMetrics } from "../../providers/core/types.js";
-import type { GatewayRequestHandlers } from "./types.js";
 import { detectProviders } from "../../commands/providers/index.js";
 import { getProviderById } from "../../commands/providers/registry.js";
 import {
@@ -15,7 +13,9 @@ import {
   getProvidersByHealth,
   isProviderHealthy,
 } from "../../providers/core/health.js";
+import type { ProviderHealthMetrics } from "../../providers/core/types.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
+import type { GatewayRequestHandlers } from "./types.js";
 
 /**
  * Derive a UI-friendly healthStatus from detection + runtime data.

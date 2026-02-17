@@ -238,7 +238,10 @@ function findUnsupportedSchemaKeywords(schema: unknown, path: string): string[] 
   return violations;
 }
 
-export function sanitizeToolsForGoogle<TSchemaType extends TSchema = TSchema, TResult = unknown>(params: {
+export function sanitizeToolsForGoogle<
+  TSchemaType extends TSchema = TSchema,
+  TResult = unknown,
+>(params: {
   tools: AgentTool<TSchemaType, TResult>[];
   provider: string;
 }): AgentTool<TSchemaType, TResult>[] {

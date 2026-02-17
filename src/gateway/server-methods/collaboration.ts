@@ -1,7 +1,4 @@
 import crypto from "node:crypto";
-import type { AgentRole } from "../../config/types.agents.js";
-import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
-import type { GatewayClient } from "./types.js";
 import { resolveAgentRole } from "../../agents/agent-scope.js";
 import { listAgentIds, resolveAgentConfig } from "../../agents/agent-scope.js";
 import { persistMessage, loadMessages } from "../../agents/collaboration-messaging.js";
@@ -23,10 +20,13 @@ import {
   resolveAgentMainSessionKey,
   resolveMainSessionKey,
 } from "../../config/sessions/main-session.js";
+import type { AgentRole } from "../../config/types.agents.js";
 import { callGateway } from "../call.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { broadcastHierarchyFullRefresh } from "../server-hierarchy-events.js";
 import { injectChatMessage } from "./chat.js";
+import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
+import type { GatewayClient } from "./types.js";
 
 /**
  * COLLABORATION SYSTEM

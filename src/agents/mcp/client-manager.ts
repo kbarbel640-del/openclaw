@@ -12,8 +12,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { AnyAgentTool } from "../tools/common.js";
-import type { McpServerConfig, McpConfig, McpToolDefinition } from "./types.js";
 import { mcpToolsToAgentTools } from "./tool-bridge.js";
+import type { McpServerConfig, McpConfig, McpToolDefinition } from "./types.js";
 
 interface ActiveClient {
   client: Client;

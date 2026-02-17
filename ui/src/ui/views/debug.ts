@@ -1,6 +1,6 @@
 import { html, nothing } from "lit";
-import type { EventLogEntry } from "../types.ts";
 import { formatEventPayload } from "../presenter.ts";
+import type { EventLogEntry } from "../types.ts";
 
 export type DebugProps = {
   loading: boolean;

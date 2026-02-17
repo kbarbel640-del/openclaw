@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BrowserRouteContext, BrowserServerState } from "./server-context.js";
 // The barrel `../config/config.js` re-exports from `../config/io.js`.
 // Vitest's vi.mock does not intercept ESM barrel re-exports reliably,
 // so we spy on the source module directly.
@@ -9,6 +8,7 @@ import * as configIo from "../config/io.js";
 import * as chromePaths from "./chrome-paths.js";
 import { resolveBrowserConfig } from "./config.js";
 import { createBrowserProfilesService } from "./profiles-service.js";
+import type { BrowserRouteContext, BrowserServerState } from "./server-context.js";
 import * as trashModule from "./trash.js";
 
 function createCtx(resolved: BrowserServerState["resolved"]) {

@@ -3,6 +3,13 @@
  * A coordinator agent routes messages to appropriate specialists.
  */
 
+import {
+  getActiveSession,
+  emitExpertActivated,
+  emitHandoffRequested,
+  emitHandoffAccepted,
+  recordContribution,
+} from "./session-manager.js";
 import type {
   CollaborationSession,
   ExpertPanelConfig,
@@ -11,13 +18,6 @@ import type {
   AgentResponse,
   HandoffRequest,
 } from "./types.js";
-import {
-  getActiveSession,
-  emitExpertActivated,
-  emitHandoffRequested,
-  emitHandoffAccepted,
-  recordContribution,
-} from "./session-manager.js";
 
 export type CoordinatorDecision = {
   targetAgents: string[];

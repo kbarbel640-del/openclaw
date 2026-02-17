@@ -7,9 +7,9 @@
  */
 
 import { z } from "zod";
-import type { AnyAgentTool } from "./common.js";
 import { zodToToolJsonSchema } from "../schema/zod-tool-schema.js";
 import { analyzeTaskForDecomposition, processDecomposition } from "../task-decomposition.js";
+import type { AnyAgentTool } from "./common.js";
 import { jsonResult } from "./common.js";
 
 const subtaskShape = z.object({

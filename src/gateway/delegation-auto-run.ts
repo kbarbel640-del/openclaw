@@ -1,8 +1,8 @@
 import type { CliDeps } from "../cli/deps.js";
-import type { AgentCommandOpts } from "../commands/agent/types.js";
-import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
+import type { AgentCommandOpts } from "../commands/agent/types.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../utils/message-channel.js";
 

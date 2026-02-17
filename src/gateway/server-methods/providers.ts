@@ -2,7 +2,6 @@
  * Gateway handlers for providers endpoints.
  */
 
-import type { GatewayRequestHandlers } from "./types.js";
 import { detectProviders, getUsage, type UsagePeriod } from "../../commands/providers/index.js";
 import {
   ErrorCodes,
@@ -11,6 +10,7 @@ import {
   validateProvidersListParams,
   validateProvidersUsageParams,
 } from "../protocol/index.js";
+import type { GatewayRequestHandlers } from "./types.js";
 
 export const providersHandlers: GatewayRequestHandlers = {
   /**

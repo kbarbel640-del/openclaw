@@ -1,9 +1,9 @@
 import { StoreController } from "@nanostores/lit";
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { HealthData } from "../controllers/health.ts";
 import { gateway } from "../../services/gateway.ts";
 import { $connected } from "../../stores/app.ts";
+import type { HealthData } from "../controllers/health.ts";
 import { renderHealth, type HealthProps } from "../views/health.ts";
 
 @customElement("health-island")

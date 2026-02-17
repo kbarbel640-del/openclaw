@@ -3,6 +3,7 @@
  * Handles session lifecycle, participant management, and mode execution.
  */
 
+import { getChatDbClient, toJsonb, fromJsonb } from "../db/client.js";
 import type {
   AgentResponse,
   CollaborationConfig,
@@ -14,7 +15,6 @@ import type {
   CreateSessionParams,
   ParticipantRole,
 } from "./types.js";
-import { getChatDbClient, toJsonb, fromJsonb } from "../db/client.js";
 
 type SessionRow = {
   session_id: string;

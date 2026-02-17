@@ -3,8 +3,8 @@
  * Provides classification of models by their capabilities for dynamic selection.
  */
 
-import type { ModelCatalogEntry } from "./model-catalog.js";
 import { inferModelCapabilities } from "./capability-inference.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
 
 export type ModelCapability = "coding" | "reasoning" | "vision" | "general" | "fast" | "creative";
 

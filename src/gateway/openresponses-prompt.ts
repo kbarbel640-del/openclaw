@@ -5,8 +5,8 @@
  * a unified agent prompt from a list of conversation items.
  */
 
-import type { ContentPart, ItemParam } from "./open-responses.schema.js";
 import { buildHistoryContextFromEntries, type HistoryEntry } from "../auto-reply/reply/history.js";
+import type { ContentPart, ItemParam } from "./open-responses.schema.js";
 
 /** Extract plain text from a string-or-parts content field. */
 export function extractTextContent(content: string | ContentPart[]): string {

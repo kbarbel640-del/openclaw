@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import type { RequestFrame } from "./protocol/index.js";
-import type { GatewayClient, GatewayRequestContext, RespondFn } from "./server-methods/types.js";
 import { handleNodeInvokeResult } from "./server-methods/nodes.handlers.invoke-result.js";
+import type { GatewayClient, GatewayRequestContext, RespondFn } from "./server-methods/types.js";
 
 describe("late-arriving invoke results", () => {
   test("returns success for unknown invoke ids for both success and error payloads", async () => {

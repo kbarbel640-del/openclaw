@@ -9,15 +9,15 @@
  * logic into Web-Standard Response objects returned from Elysia handlers.
  */
 
-import { Elysia } from "elysia";
 import fs from "node:fs";
 import path from "node:path";
-import type { ControlUiRootState } from "../control-ui-shared.js";
+import { Elysia } from "elysia";
 import { resolveAgentAvatar } from "../../agents/identity-avatar.js";
 import { loadConfig } from "../../config/config.js";
 import { resolveControlUiRootSync } from "../../infra/control-ui-assets.js";
 import { DEFAULT_ASSISTANT_IDENTITY, resolveAssistantIdentity } from "../assistant-identity.js";
 import { isLocalDirectRequest } from "../auth.js";
+import type { ControlUiRootState } from "../control-ui-shared.js";
 import {
   buildControlUiAvatarUrl,
   CONTROL_UI_AVATAR_PREFIX,
