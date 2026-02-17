@@ -152,12 +152,14 @@ describe("before_tool_call hook deduplication (#15502)", () => {
     });
     const [def] = toToolDefinitions([wrapped]);
     const extensionContext = {} as Parameters<typeof def.execute>[2];
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const signal = undefined as any;
     await def.execute(
       "call-dedup",
       { url: "https://example.com" },
       extensionContext,
       undefined,
-      undefined as any,
+      signal,
     );
 
     expect(hookRunner.runBeforeToolCall).toHaveBeenCalledTimes(1);
@@ -199,7 +201,9 @@ describe("before_tool_call hook integration for client tools", () => {
       { agentId: "main", sessionKey: "main" },
     );
     const extensionContext = {} as Parameters<typeof tool.execute>[2];
-    await tool.execute("client-call-1", { value: "ok" }, extensionContext, undefined, undefined as any);
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const signal = undefined as any;
+    await tool.execute("client-call-1", { value: "ok" }, extensionContext, undefined, signal);
 
     expect(onClientToolCall).toHaveBeenCalledWith("client_tool", {
       value: "ok",
