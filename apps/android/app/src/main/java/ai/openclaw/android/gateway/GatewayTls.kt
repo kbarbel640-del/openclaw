@@ -65,7 +65,7 @@ fun buildGatewayTlsConfig(
       override fun getAcceptedIssuers(): Array<X509Certificate> = defaultTrust.acceptedIssuers
     }
 
-  val context = SSLContext.getInstance("TLS")
+  val context = SSLContext.getInstance("TLSv1.2")
   context.init(null, arrayOf(trustManager), SecureRandom())
   val verifier =
     if (expected != null || params.allowTOFU) {
@@ -101,7 +101,7 @@ suspend fun probeGatewayTlsFingerprint(
         override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
       }
 
-    val context = SSLContext.getInstance("TLS")
+    val context = SSLContext.getInstance("TLSv1.2")
     context.init(null, arrayOf(trustAll), SecureRandom())
 
     val socket = (context.socketFactory.createSocket() as SSLSocket)
