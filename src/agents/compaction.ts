@@ -24,6 +24,16 @@ export function buildCompactionSummarizationInstructions(customInstructions?: st
   return `${IDENTIFIER_PRESERVATION_INSTRUCTIONS}\n\nAdditional focus:\n${customInstructions}`;
 }
 
+function buildMergeSummarizationInstructions(customInstructions?: string): string {
+  if (!customInstructions || customInstructions.trim().length === 0) {
+    return `${MERGE_SUMMARIES_INSTRUCTIONS}\n\n${IDENTIFIER_PRESERVATION_INSTRUCTIONS}`;
+  }
+  return (
+    `${MERGE_SUMMARIES_INSTRUCTIONS}\n\n${IDENTIFIER_PRESERVATION_INSTRUCTIONS}` +
+    `\n\nAdditional focus:\n${customInstructions}`
+  );
+}
+
 export function estimateMessagesTokens(messages: AgentMessage[]): number {
   // SECURITY: toolResult.details can contain untrusted/verbose payloads; never include in LLM-facing compaction.
   const safe = stripToolResultDetails(messages);
@@ -158,6 +168,7 @@ async function summarizeChunks(params: {
   reserveTokens: number;
   maxChunkTokens: number;
   customInstructions?: string;
+  resolvedInstructions?: string;
   previousSummary?: string;
 }): Promise<string> {
   if (params.messages.length === 0) {
@@ -168,11 +179,10 @@ async function summarizeChunks(params: {
   const safeMessages = stripToolResultDetails(params.messages);
   const chunks = chunkMessagesByMaxTokens(safeMessages, params.maxChunkTokens);
   let summary = params.previousSummary;
+  const effectiveInstructions =
+    params.resolvedInstructions ?? buildCompactionSummarizationInstructions(params.customInstructions);
 
   for (const chunk of chunks) {
-    const effectiveInstructions = buildCompactionSummarizationInstructions(
-      params.customInstructions,
-    );
     summary = await retryAsync(
       () =>
         generateSummary(
@@ -211,6 +221,7 @@ export async function summarizeWithFallback(params: {
   maxChunkTokens: number;
   contextWindow: number;
   customInstructions?: string;
+  resolvedInstructions?: string;
   previousSummary?: string;
 }): Promise<string> {
   const { messages, contextWindow } = params;
@@ -322,14 +333,13 @@ export async function summarizeInStages(params: {
     timestamp: Date.now(),
   }));
 
-  const mergeInstructions = params.customInstructions
-    ? `${MERGE_SUMMARIES_INSTRUCTIONS}\n\nAdditional focus:\n${params.customInstructions}`
-    : MERGE_SUMMARIES_INSTRUCTIONS;
+  const mergeInstructions = buildMergeSummarizationInstructions(params.customInstructions);
 
   return summarizeWithFallback({
     ...params,
     messages: summaryMessages,
-    customInstructions: mergeInstructions,
+    customInstructions: undefined,
+    resolvedInstructions: mergeInstructions,
   });
 }
 

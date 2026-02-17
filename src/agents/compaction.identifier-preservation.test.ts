@@ -89,6 +89,27 @@ describe("compaction identifier-preservation instructions", () => {
       expect(call[5]).toContain("Preserve all opaque identifiers exactly as written");
     }
   });
+
+  it("keeps merge directives as primary instructions in staged merge prompts", async () => {
+    await summarizeInStages({
+      messages: [makeMessage(1), makeMessage(2), makeMessage(3), makeMessage(4)],
+      model: testModel,
+      apiKey: "test-key",
+      signal: new AbortController().signal,
+      reserveTokens: 4000,
+      maxChunkTokens: 1000,
+      contextWindow: 200_000,
+      parts: 2,
+      minMessagesForSplit: 4,
+      customInstructions: "Focus on unresolved blockers.",
+    });
+
+    const mergeCall = mockGenerateSummary.mock.calls.at(-1);
+    expect(mergeCall?.[5]).toContain("Merge these partial summaries into a single cohesive summary");
+    expect(mergeCall?.[5]).toContain("Preserve all opaque identifiers exactly as written");
+    expect(mergeCall?.[5]).toContain("Additional focus:\nFocus on unresolved blockers.");
+    expect(mergeCall?.[5]).not.toContain("Additional focus:\nMerge these partial summaries");
+  });
 });
 
 describe("buildCompactionSummarizationInstructions", () => {
