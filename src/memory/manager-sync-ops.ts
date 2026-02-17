@@ -1,11 +1,9 @@
-import type { DatabaseSync } from "node:sqlite";
-import chokidar, { FSWatcher } from "chokidar";
 import { randomUUID } from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { SessionFileEntry } from "./session-files.js";
-import type { MemorySource, MemorySyncProgressUpdate } from "./types.js";
+import type { DatabaseSync } from "node:sqlite";
+import chokidar, { FSWatcher } from "chokidar";
 import { resolveAgentDir } from "../agents/agent-scope.js";
 import { ResolvedMemorySearchConfig } from "../agents/memory-search.js";
 import { type OpenClawConfig } from "../config/config.js";
@@ -32,6 +30,7 @@ import {
 } from "./internal.js";
 import { type MemoryFileEntry } from "./internal.js";
 import { ensureMemoryIndexSchema } from "./memory-schema.js";
+import type { SessionFileEntry } from "./session-files.js";
 import {
   buildSessionEntry,
   listSessionFilesForAgent,
@@ -39,6 +38,7 @@ import {
 } from "./session-files.js";
 import { loadSqliteVecExtension } from "./sqlite-vec.js";
 import { requireNodeSqlite } from "./sqlite.js";
+import type { MemorySource, MemorySyncProgressUpdate } from "./types.js";
 
 type MemoryIndexMeta = {
   model: string;
@@ -131,6 +131,10 @@ export abstract class MemoryManagerSyncOps {
 
   protected abstract readonly cache: { enabled: boolean; maxEntries?: number };
   protected abstract db: DatabaseSync;
+  protected batchFailureCount = 0;
+  protected batchFailureLastError?: string;
+  protected batchFailureLastProvider?: string;
+  protected batchFailureLock: Promise<void> = Promise.resolve();
   protected abstract computeProviderKey(): string;
   protected abstract sync(params?: {
     reason?: string;
@@ -392,7 +396,7 @@ export abstract class MemoryManagerSyncOps {
     this.watcher.on("unlink", markDirty);
   }
 
-  private ensureSessionListener() {
+  protected ensureSessionListener() {
     if (!this.sources.has("sessions") || this.sessionUnsubscribe) {
       return;
     }
@@ -827,7 +831,7 @@ export abstract class MemoryManagerSyncOps {
     return state;
   }
 
-  private async runSync(params?: {
+  protected async runSync(params?: {
     reason?: string;
     force?: boolean;
     progress?: (update: MemorySyncProgressUpdate) => void;
