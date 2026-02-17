@@ -1,6 +1,7 @@
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
 import { formatDurationCompact } from "../infra/format-time/format-duration.ts";
+import { getDiagnosticSessionState } from "../logging/diagnostic-session-state.js";
 import { killProcessTree } from "../process/kill-tree.js";
 import { getProcessSupervisor } from "../process/supervisor/index.js";
 import {
@@ -15,6 +16,7 @@ import {
   setJobTtlMs,
 } from "./bash-process-registry.js";
 import { deriveSessionName, pad, sliceLogLines, truncateMiddle } from "./bash-tools.shared.js";
+import { recordCommandPoll, resetCommandPollCount } from "./command-poll-backoff.js";
 import { encodeKeySequence, encodePaste } from "./pty-keys.js";
 
 export type ProcessToolDefaults = {
@@ -109,6 +111,24 @@ function failText(text: string): AgentToolResult<unknown> {
     ],
     details: { status: "failed" },
   };
+}
+
+function recordPollRetrySuggestion(sessionId: string, hasNewOutput: boolean): number | undefined {
+  try {
+    const sessionState = getDiagnosticSessionState({ sessionId });
+    return recordCommandPoll(sessionState, sessionId, hasNewOutput);
+  } catch {
+    return undefined;
+  }
+}
+
+function resetPollRetrySuggestion(sessionId: string): void {
+  try {
+    const sessionState = getDiagnosticSessionState({ sessionId });
+    resetCommandPollCount(sessionState, sessionId);
+  } catch {
+    // Ignore diagnostics state failures for process tool behavior.
+  }
 }
 
 export function createProcessTool(
@@ -279,6 +299,7 @@ export function createProcessTool(
         case "poll": {
           if (!scopedSession) {
             if (scopedFinished) {
+              resetPollRetrySuggestion(params.sessionId);
               return {
                 content: [
                   {
@@ -304,6 +325,7 @@ export function createProcessTool(
                 },
               };
             }
+            resetPollRetrySuggestion(params.sessionId);
             return failText(`No session found for ${params.sessionId}`);
           }
           if (!scopedSession.backgrounded) {
@@ -337,7 +359,13 @@ export function createProcessTool(
               : "failed"
             : "running";
           const output = [stdout.trimEnd(), stderr.trimEnd()].filter(Boolean).join("\n").trim();
-          const stderrTail = truncateErrorOutput(scopedSession.stderrTail ?? stderr);
+          const hasNewOutput = output.length > 0;
+          const retryInMs = exited
+            ? undefined
+            : recordPollRetrySuggestion(params.sessionId, hasNewOutput);
+          if (exited) {
+            resetPollRetrySuggestion(params.sessionId);
+          }
           return {
             content: [
               {
@@ -357,7 +385,7 @@ export function createProcessTool(
               exitCode: exited ? exitCode : undefined,
               aggregated: scopedSession.aggregated,
               name: deriveSessionName(scopedSession.command),
-              stderr: stderrTail,
+              ...(typeof retryInMs === "number" ? { retryInMs } : {}),
             },
           };
         }
@@ -570,6 +598,7 @@ export function createProcessTool(
             }
             markExited(scopedSession, null, "SIGKILL", "failed");
           }
+          resetPollRetrySuggestion(params.sessionId);
           return {
             content: [
               {
@@ -588,6 +617,7 @@ export function createProcessTool(
 
         case "clear": {
           if (scopedFinished) {
+            resetPollRetrySuggestion(params.sessionId);
             deleteSession(params.sessionId);
             return {
               content: [{ type: "text", text: `Cleared session ${params.sessionId}.` }],
@@ -622,6 +652,7 @@ export function createProcessTool(
               markExited(scopedSession, null, "SIGKILL", "failed");
               deleteSession(params.sessionId);
             }
+            resetPollRetrySuggestion(params.sessionId);
             return {
               content: [
                 {
@@ -638,6 +669,7 @@ export function createProcessTool(
             };
           }
           if (scopedFinished) {
+            resetPollRetrySuggestion(params.sessionId);
             deleteSession(params.sessionId);
             return {
               content: [{ type: "text", text: `Removed session ${params.sessionId}.` }],

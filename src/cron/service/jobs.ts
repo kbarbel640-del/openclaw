@@ -110,7 +110,18 @@ export function computeJobNextRunAtMs(job: CronJob, nowMs: number): number | und
             : null;
     return atMs !== null ? atMs : undefined;
   }
-  return computeNextRunAtMs(job.schedule, nowMs);
+  const next = computeNextRunAtMs(job.schedule, nowMs);
+  // Guard against the scheduler returning a time within the same second as
+  // nowMs.  When a cron job completes within the same wall-clock second it
+  // was scheduled for, some croner versions/timezone combinations may return
+  // the current second (or computeNextRunAtMs may return undefined, which
+  // triggers recomputation).  Advancing to the next second and retrying
+  // ensures we always land on the *next* occurrence.  (See #17821)
+  if (next === undefined && job.schedule.kind === "cron") {
+    const nextSecondMs = (Math.floor(nowMs / 1000) + 1) * 1000;
+    return computeNextRunAtMs(job.schedule, nextSecondMs);
+  }
+  return next;
 }
 
 /** Maximum consecutive schedule errors before auto-disabling a job. */
@@ -206,6 +217,27 @@ function walkSchedulableJobs(
   return changed;
 }
 
+function recomputeJobNextRunAtMs(params: { state: CronServiceState; job: CronJob; nowMs: number }) {
+  let changed = false;
+  try {
+    const newNext = computeJobNextRunAtMs(params.job, params.nowMs);
+    if (params.job.state.nextRunAtMs !== newNext) {
+      params.job.state.nextRunAtMs = newNext;
+      changed = true;
+    }
+    // Clear schedule error count on successful computation.
+    if (params.job.state.scheduleErrorCount) {
+      params.job.state.scheduleErrorCount = undefined;
+      changed = true;
+    }
+  } catch (err) {
+    if (recordScheduleComputeError({ state: params.state, job: params.job, err })) {
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 export function recomputeNextRuns(state: CronServiceState): boolean {
   return walkSchedulableJobs(state, ({ job, nowMs: now }) => {
     let changed = false;
@@ -215,21 +247,8 @@ export function recomputeNextRuns(state: CronServiceState): boolean {
     const nextRun = job.state.nextRunAtMs;
     const isDueOrMissing = nextRun === undefined || now >= nextRun;
     if (isDueOrMissing) {
-      try {
-        const newNext = computeJobNextRunAtMs(job, now);
-        if (job.state.nextRunAtMs !== newNext) {
-          job.state.nextRunAtMs = newNext;
-          changed = true;
-        }
-        // Clear schedule error count on successful computation.
-        if (job.state.scheduleErrorCount) {
-          job.state.scheduleErrorCount = undefined;
-          changed = true;
-        }
-      } catch (err) {
-        if (recordScheduleComputeError({ state, job, err })) {
-          changed = true;
-        }
+      if (recomputeJobNextRunAtMs({ state, job, nowMs: now })) {
+        changed = true;
       }
     }
     return changed;
@@ -250,21 +269,8 @@ export function recomputeNextRunsForMaintenance(state: CronServiceState): boolea
     // If a job was past-due but not found by findDueJobs, recomputing would
     // cause it to be silently skipped.
     if (job.state.nextRunAtMs === undefined) {
-      try {
-        const newNext = computeJobNextRunAtMs(job, now);
-        if (job.state.nextRunAtMs !== newNext) {
-          job.state.nextRunAtMs = newNext;
-          changed = true;
-        }
-        // Clear schedule error count on successful computation.
-        if (job.state.scheduleErrorCount) {
-          job.state.scheduleErrorCount = undefined;
-          changed = true;
-        }
-      } catch (err) {
-        if (recordScheduleComputeError({ state, job, err })) {
-          changed = true;
-        }
+      if (recomputeJobNextRunAtMs({ state, job, nowMs: now })) {
+        changed = true;
       }
     }
     return changed;
