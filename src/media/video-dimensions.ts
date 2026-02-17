@@ -9,18 +9,20 @@ export interface VideoDimensions {
  * Probe video dimensions from a Buffer using ffprobe.
  * Returns undefined if ffprobe is unavailable or fails (graceful degradation).
  */
-export async function probeVideoDimensions(
-  buffer: Buffer,
-): Promise<VideoDimensions | undefined> {
+export async function probeVideoDimensions(buffer: Buffer): Promise<VideoDimensions | undefined> {
   try {
     const result = await new Promise<string>((resolve, reject) => {
       const proc = execFile(
         "ffprobe",
         [
-          "-v", "error",
-          "-select_streams", "v:0",
-          "-show_entries", "stream=width,height",
-          "-of", "json",
+          "-v",
+          "error",
+          "-select_streams",
+          "v:0",
+          "-show_entries",
+          "stream=width,height",
+          "-of",
+          "json",
           "pipe:0",
         ],
         { timeout: 5000 },
