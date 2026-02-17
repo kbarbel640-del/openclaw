@@ -216,6 +216,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "commands.config": "Allow /config",
   "commands.debug": "Allow /debug",
   "commands.restart": "Allow Restart",
+  "commands.update": "Allow Update",
   "commands.useAccessGroups": "Use Access Groups",
   "commands.ownerAllowFrom": "Command Owners",
   "ui.seamColor": "Accent Color",

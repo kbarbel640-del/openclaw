@@ -114,6 +114,8 @@ export type CommandsConfig = {
   debug?: boolean;
   /** Allow restart commands/tools (default: false). */
   restart?: boolean;
+  /** Allow /update command to pull and rebuild from git (default: false). */
+  update?: boolean;
   /** Enforce access-group allowlists/policies for commands (default: true). */
   useAccessGroups?: boolean;
   /** Explicit owner allowlist for owner-only tools/commands (channel-native IDs). */

@@ -420,6 +420,13 @@ function buildChatCommands(): ChatCommandDefinition[] {
       category: "tools",
     }),
     defineChatCommand({
+      key: "update",
+      nativeName: "update",
+      description: "Update OpenClaw from git and restart.",
+      textAlias: "/update",
+      category: "tools",
+    }),
+    defineChatCommand({
       key: "activation",
       nativeName: "activation",
       description: "Set group activation mode.",
