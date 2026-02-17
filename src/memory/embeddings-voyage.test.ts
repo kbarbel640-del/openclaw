@@ -96,19 +96,6 @@ describe("voyage embedding provider", () => {
 
   it("passes input_type=document for embedBatch", async () => {
     const fetchMock = withFetchPreconnect(
-<<<<<<< HEAD
-      vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
-        return new Response(
-          JSON.stringify({
-            data: [{ embedding: [0.1, 0.2] }, { embedding: [0.3, 0.4] }],
-          }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
-      }),
-=======
       vi.fn<FetchMock>(
         async (_input: RequestInfo | URL, _init?: RequestInit) =>
           new Response(
@@ -118,7 +105,6 @@ describe("voyage embedding provider", () => {
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
       ),
->>>>>>> 03a725142 (test(fetch): align mocks openclaw#19194 thanks @sebslight)
     );
     vi.stubGlobal("fetch", fetchMock);
 

@@ -33,7 +33,7 @@ function createOAuthFetchFn(params: {
   username: string;
   passthrough?: boolean;
 }) {
-  return withFetchPreconnect(async (input, init) => {
+  return withFetchPreconnect(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = urlToString(input);
     if (url === CHUTES_TOKEN_ENDPOINT) {
       return new Response(
