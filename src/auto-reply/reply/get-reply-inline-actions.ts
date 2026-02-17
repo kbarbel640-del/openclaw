@@ -382,6 +382,18 @@ export async function handleInlineActions(params: {
     return { kind: "reply", reply: commandResult.reply };
   }
 
+  // Template expansion: replace the inbound body so the agent receives the
+  // template content instead of the raw "/template-name" slash command.
+  if (commandResult.expandedBody !== undefined) {
+    const expanded = commandResult.expandedBody;
+    ctx.Body = expanded;
+    ctx.BodyForAgent = expanded;
+    sessionCtx.Body = expanded;
+    sessionCtx.BodyForAgent = expanded;
+    sessionCtx.BodyStripped = expanded;
+    cleanedBody = expanded;
+  }
+
   return {
     kind: "continue",
     directives,

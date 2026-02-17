@@ -56,6 +56,12 @@ export type HandleCommandsParams = {
 export type CommandHandlerResult = {
   reply?: ReplyPayload;
   shouldContinue: boolean;
+  /**
+   * When set, the pipeline replaces the inbound body with this text before
+   * passing control to the agent runner. Used by template expansion so that
+   * `/template-name` is transparently replaced by the template content.
+   */
+  expandedBody?: string;
 };
 
 export type CommandHandler = (
