@@ -245,16 +245,17 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
         dbPath: account.config.dbPath,
         onMessage: async ({ senderAddress, senderInboxId, conversationId, text, messageId }) => {
           const cfg = runtime.config.loadConfig() as OpenClawConfig;
-          runtime.channel.activity.record({
-            channel: "xmtp",
-            accountId: account.accountId,
-            direction: "inbound",
-          });
 
           const rawBody = text.trim();
           if (!rawBody) {
             return;
           }
+
+          runtime.channel.activity.record({
+            channel: "xmtp",
+            accountId: account.accountId,
+            direction: "inbound",
+          });
 
           const dmPolicy = account.config.dmPolicy ?? "pairing";
           const configuredAllowFrom = normalizeAllowEntries(account.config.allowFrom ?? []);
