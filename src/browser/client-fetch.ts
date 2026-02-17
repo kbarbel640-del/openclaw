@@ -100,7 +100,7 @@ function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number):
     return new Error(`Request timed out after ${timeoutMs}ms`);
   }
 
-  // For connection failures to remote (non-loopback) URLs, add sandbox hint
+  // For connection failures to absolute HTTP URLs, add sandbox hint
   const isLocal = !isAbsoluteHttp(url);
   const looksLikeConnectionFailure =
     msgLower.includes("econnrefused") ||
