@@ -37,6 +37,10 @@ export function incrementSessionGenerationId(queueKey: string): number {
   return next;
 }
 
+export function clearSessionGenerationId(queueKey: string): boolean {
+  return SESSION_GENERATION_IDS.delete(queueKey);
+}
+
 export function isGenerationCurrent(queueKey: string, generationId: number): boolean {
   return (SESSION_GENERATION_IDS.get(queueKey) ?? 0) === generationId;
 }

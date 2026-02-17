@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
+  clearSessionGenerationId,
   getSessionGenerationId,
   incrementSessionGenerationId,
   isGenerationCurrent,
@@ -42,6 +43,25 @@ describe("session generation id helpers", () => {
     });
   });
 
+  describe("clearSessionGenerationId", () => {
+    it("resets generation back to 0", () => {
+      incrementSessionGenerationId("c1");
+      incrementSessionGenerationId("c1");
+      expect(getSessionGenerationId("c1")).toBe(2);
+      clearSessionGenerationId("c1");
+      expect(getSessionGenerationId("c1")).toBe(0);
+    });
+
+    it("returns true when key existed", () => {
+      incrementSessionGenerationId("c2");
+      expect(clearSessionGenerationId("c2")).toBe(true);
+    });
+
+    it("returns false when key did not exist", () => {
+      expect(clearSessionGenerationId("nonexistent")).toBe(false);
+    });
+  });
+
   describe("isGenerationCurrent", () => {
     it("returns true when generationId matches current", () => {
       expect(isGenerationCurrent("q1", 0)).toBe(true);
@@ -56,6 +76,29 @@ describe("session generation id helpers", () => {
 
     it("returns false for future generationIds", () => {
       expect(isGenerationCurrent("q3", 5)).toBe(false);
+    });
+  });
+
+  describe("clearSessionGenerationId", () => {
+    it("removes the entry so subsequent reads return 0", () => {
+      incrementSessionGenerationId("c1");
+      incrementSessionGenerationId("c1");
+      expect(getSessionGenerationId("c1")).toBe(2);
+      clearSessionGenerationId("c1");
+      expect(getSessionGenerationId("c1")).toBe(0);
+    });
+
+    it("is a no-op for unknown keys", () => {
+      clearSessionGenerationId("nonexistent");
+      expect(getSessionGenerationId("nonexistent")).toBe(0);
+    });
+
+    it("does not affect other keys", () => {
+      incrementSessionGenerationId("c2");
+      incrementSessionGenerationId("c3");
+      clearSessionGenerationId("c2");
+      expect(getSessionGenerationId("c2")).toBe(0);
+      expect(getSessionGenerationId("c3")).toBe(1);
     });
   });
 });
