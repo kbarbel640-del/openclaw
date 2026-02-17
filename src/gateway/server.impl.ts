@@ -6,6 +6,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import type { ControlUiRootState } from "./control-ui.js";
 import type { startBrowserControlServerIfEnabled } from "./server-browser.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { initOrchestratorRegistry } from "../agents/orchestrator-request-registry.js";
 import { getActiveEmbeddedRunCount } from "../agents/pi-embedded-runner/runs.js";
 import { registerSkillsChangeListener } from "../agents/skills/refresh.js";
 import { initSubagentRegistry } from "../agents/subagent-registry.js";
@@ -238,6 +239,7 @@ export async function startGatewayServer(
     () => getTotalQueueSize() + getTotalPendingReplies() + getActiveEmbeddedRunCount(),
   );
   initSubagentRegistry();
+  initOrchestratorRegistry();
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);
   const defaultWorkspaceDir = resolveAgentWorkspaceDir(cfgAtStart, defaultAgentId);
   const baseMethods = listGatewayMethods();

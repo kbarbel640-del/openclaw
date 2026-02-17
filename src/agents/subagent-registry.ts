@@ -3,6 +3,7 @@ import { normalizeSubagentProviderLimitKey } from "../config/agent-limits.js";
 import { loadConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { runSubagentAnnounceFlow, type SubagentRunOutcome } from "./subagent-announce.js";
 import {
@@ -33,6 +34,7 @@ export type SubagentRunRecord = {
 };
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
+const log = createSubsystemLogger("agents/subagent-registry");
 let sweeper: NodeJS.Timeout | null = null;
 let listenerStarted = false;
 let listenerStop: (() => void) | null = null;
@@ -591,6 +593,17 @@ export function releaseSubagentRun(runId: string) {
   if (subagentRuns.size === 0) {
     stopSweeper();
   }
+}
+
+export function updateRunRecord(runId: string, patch: Partial<SubagentRunRecord>): void {
+  restoreSubagentRunsOnce();
+  const entry = subagentRuns.get(runId);
+  if (!entry) {
+    log.warn(`subagent run not found for update: ${runId}`);
+    return;
+  }
+  Object.assign(entry, patch);
+  persistSubagentRuns();
 }
 
 export function listSubagentRunsForRequester(requesterSessionKey: string): SubagentRunRecord[] {
