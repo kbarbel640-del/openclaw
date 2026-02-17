@@ -1,4 +1,11 @@
-import { metrics, trace, SpanStatusCode, diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+import {
+  metrics,
+  trace,
+  SpanStatusCode,
+  diag,
+  DiagConsoleLogger,
+  DiagLogLevel,
+} from "@opentelemetry/api";
 import type { SeverityNumber } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
@@ -123,8 +130,9 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
 
         try {
           sdk.start();
-          ctx.logger.info(`diagnostics-otel: SDK started (traces=${tracesEnabled}, metrics=${metricsEnabled}, traceUrl=${traceUrl}, metricUrl=${metricUrl})`);
-
+          ctx.logger.info(
+            `diagnostics-otel: SDK started (traces=${tracesEnabled}, metrics=${metricsEnabled}, traceUrl=${traceUrl}, metricUrl=${metricUrl})`,
+          );
         } catch (err) {
           ctx.logger.error(`diagnostics-otel: SDK start failed: ${String(err)}`);
         }
