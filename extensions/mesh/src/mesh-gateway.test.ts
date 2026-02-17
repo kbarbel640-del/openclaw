@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GatewayRequestHandler, OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const agentCommandMock = vi.hoisted(() => vi.fn());
 const normalizeAgentIdMock = vi.hoisted(() => vi.fn((value: string) => value));
@@ -141,7 +141,10 @@ describe("mesh plugin gateway", () => {
     });
 
     expect(res.ok).toBe(true);
-    const payload = res.payload as { status?: string; stats?: { succeeded?: number; total?: number } };
+    const payload = res.payload as {
+      status?: string;
+      stats?: { succeeded?: number; total?: number };
+    };
     expect(payload.status).toBe("completed");
     expect(payload.stats?.total).toBe(1);
     expect(payload.stats?.succeeded).toBe(1);

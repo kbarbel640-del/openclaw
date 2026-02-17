@@ -3,6 +3,7 @@
 Mesh is a workflow orchestration plugin for OpenClaw.
 
 It adds deterministic multi-step execution on top of existing OpenClaw agents:
+
 - explicit workflow plans (DAG)
 - step dependencies
 - run status tracking
@@ -11,6 +12,7 @@ It adds deterministic multi-step execution on top of existing OpenClaw agents:
 ## Features
 
 Gateway methods:
+
 - `mesh.plan`
 - `mesh.plan.auto`
 - `mesh.run`
@@ -18,6 +20,7 @@ Gateway methods:
 - `mesh.retry`
 
 Chat command:
+
 - `/mesh <goal>`
 - `/mesh plan <goal>`
 - `/mesh run <goal|mesh-plan-id>`
@@ -55,10 +58,10 @@ Current plugin config schema is empty (no required settings):
   plugins: {
     entries: {
       mesh: {
-        enabled: true
-      }
-    }
-  }
+        enabled: true,
+      },
+    },
+  },
 }
 ```
 

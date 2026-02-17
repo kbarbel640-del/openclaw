@@ -1,13 +1,14 @@
+import type {
+  GatewayRequestHandlerOptions,
+  OpenClawPluginApi,
+  RespondFn,
+} from "openclaw/plugin-sdk";
 import { randomUUID } from "node:crypto";
-import type { GatewayRequestHandlerOptions, OpenClawPluginApi, RespondFn } from "openclaw/plugin-sdk";
 import { agentCommand } from "../../../src/commands/agent.js";
+import { ErrorCodes, errorShape } from "../../../src/gateway/protocol/index.js";
+import { agentHandlers } from "../../../src/gateway/server-methods/agent.js";
 import { normalizeAgentId } from "../../../src/routing/session-key.js";
 import { defaultRuntime } from "../../../src/runtime.js";
-import {
-  ErrorCodes,
-  errorShape,
-} from "../../../src/gateway/protocol/index.js";
-import { agentHandlers } from "../../../src/gateway/server-methods/agent.js";
 import {
   validateMeshPlanAutoParams,
   validateMeshPlanParams,
@@ -124,10 +125,7 @@ function normalizePlan(plan: MeshWorkflowPlan): MeshWorkflowPlan {
   };
 }
 
-function createPlanFromParams(params: {
-  goal: string;
-  steps?: MeshAutoStep[];
-}): MeshWorkflowPlan {
+function createPlanFromParams(params: { goal: string; steps?: MeshAutoStep[] }): MeshWorkflowPlan {
   const now = Date.now();
   const goal = params.goal.trim();
   const sourceSteps = params.steps?.length
@@ -165,7 +163,9 @@ function createPlanFromParams(params: {
   };
 }
 
-function validatePlanGraph(plan: MeshWorkflowPlan): { ok: true; order: string[] } | { ok: false; error: string } {
+function validatePlanGraph(
+  plan: MeshWorkflowPlan,
+): { ok: true; order: string[] } | { ok: false; error: string } {
   const ids = new Set<string>();
   for (const step of plan.steps) {
     if (ids.has(step.id)) {
@@ -232,7 +232,12 @@ async function callGatewayHandler(
 ): Promise<{ ok: boolean; payload?: unknown; error?: unknown; meta?: Record<string, unknown> }> {
   return await new Promise((resolve) => {
     let settled = false;
-    const settle = (result: { ok: boolean; payload?: unknown; error?: unknown; meta?: Record<string, unknown> }) => {
+    const settle = (result: {
+      ok: boolean;
+      payload?: unknown;
+      error?: unknown;
+      meta?: Record<string, unknown>;
+    }) => {
       if (settled) {
         return;
       }
@@ -648,7 +653,8 @@ async function generateAutoPlan(params: {
   const prompt = buildAutoPlannerPrompt({ goal: params.goal, maxSteps: params.maxSteps });
   const timeoutSeconds = Math.ceil((params.timeoutMs ?? AUTO_PLAN_TIMEOUT_MS) / 1000);
   const resolvedAgentId = normalizeAgentId(params.agentId ?? "main");
-  const plannerSessionKey = params.sessionKey?.trim() || `agent:${resolvedAgentId}:${PLANNER_MAIN_KEY}`;
+  const plannerSessionKey =
+    params.sessionKey?.trim() || `agent:${resolvedAgentId}:${PLANNER_MAIN_KEY}`;
 
   try {
     const runResult = await agentCommand(
@@ -686,20 +692,10 @@ async function generateAutoPlan(params: {
   }
 }
 
-const meshHandlers: Record<
-  string,
-  (opts: GatewayRequestHandlerOptions) => Promise<void> | void
-> = {
+const meshHandlers: Record<string, (opts: GatewayRequestHandlerOptions) => Promise<void> | void> = {
   "mesh.plan": ({ params, respond }: GatewayRequestHandlerOptions) => {
     if (!validateMeshPlanParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          "invalid mesh.plan params",
-        ),
-      );
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid mesh.plan params"));
       return;
     }
     const p = params;
@@ -728,10 +724,7 @@ const meshHandlers: Record<
       respond(
         false,
         undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          "invalid mesh.plan.auto params",
-        ),
+        errorShape(ErrorCodes.INVALID_REQUEST, "invalid mesh.plan.auto params"),
       );
       return;
     }
@@ -776,14 +769,7 @@ const meshHandlers: Record<
   "mesh.run": async (opts: GatewayRequestHandlerOptions) => {
     const { params, respond } = opts;
     if (!validateMeshRunParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          "invalid mesh.run params",
-        ),
-      );
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid mesh.run params"));
       return;
     }
     const p = params as MeshRunParams;
@@ -823,10 +809,7 @@ const meshHandlers: Record<
       respond(
         false,
         undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          "invalid mesh.status params",
-        ),
+        errorShape(ErrorCodes.INVALID_REQUEST, "invalid mesh.status params"),
       );
       return;
     }
@@ -843,10 +826,7 @@ const meshHandlers: Record<
       respond(
         false,
         undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          "invalid mesh.retry params",
-        ),
+        errorShape(ErrorCodes.INVALID_REQUEST, "invalid mesh.retry params"),
       );
       return;
     }
@@ -857,7 +837,11 @@ const meshHandlers: Record<
       return;
     }
     if (run.status === "running") {
-      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, "mesh run is currently running"));
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, "mesh run is currently running"),
+      );
       return;
     }
     const stepIds = resolveStepIdsForRetry(run, params.stepIds);

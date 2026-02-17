@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { registerMeshCommand } from "./mesh-command.js";
 
 const callGatewayMock = vi.hoisted(() => vi.fn());
