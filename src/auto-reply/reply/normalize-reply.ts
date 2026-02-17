@@ -58,6 +58,8 @@ export function normalizeReplyPayload(
     }
     let rest = normalized;
     while (rest.startsWith(resolvedHeartbeatPrompt)) {
+      // Only suppress payloads that are exactly the heartbeat prompt (possibly repeated/stacked).
+      // Prefix matches with additional content are treated as real replies and must not be dropped.
       rest = rest.slice(resolvedHeartbeatPrompt.length).trimStart();
       if (!rest) {
         return true;
