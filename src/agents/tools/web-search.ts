@@ -119,7 +119,8 @@ function resolveSearchApiKey(search?: WebSearchConfig): string | undefined {
   const fromConfig =
     search && "apiKey" in search && typeof search.apiKey === "string" ? search.apiKey.trim() : "";
   const fromEnv = (process.env.BRAVE_API_KEY ?? "").trim();
-  return fromConfig || fromEnv || undefined;
+  const fromOpenWebUIEnv = (process.env.BRAVE_SEARCH_API_KEY ?? "").trim();
+  return fromConfig || fromEnv || fromOpenWebUIEnv || undefined;
 }
 
 function missingSearchKeyPayload(provider: (typeof SEARCH_PROVIDERS)[number]) {
