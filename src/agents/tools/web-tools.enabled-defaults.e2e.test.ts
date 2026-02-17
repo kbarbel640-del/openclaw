@@ -104,18 +104,19 @@ describe("web_search country and language parameters", () => {
   ) {
     const mockFetch = installMockFetch({ web: { results: [] } });
     const tool = createWebSearchTool({
-      config: config?.baseUrl || config?.apiKey
-        ? {
-            tools: {
-              web: {
-                search: {
-                  ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
-                  ...(config.apiKey ? { apiKey: config.apiKey } : {}),
+      config:
+        config?.baseUrl || config?.apiKey
+          ? {
+              tools: {
+                web: {
+                  search: {
+                    ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
+                    ...(config.apiKey ? { apiKey: config.apiKey } : {}),
+                  },
                 },
               },
-            },
-          }
-        : undefined,
+            }
+          : undefined,
       sandboxed: true,
     });
     expect(tool).not.toBeNull();
@@ -148,9 +149,7 @@ describe("web_search country and language parameters", () => {
       {},
       { baseUrl: "https://proxy.example/brave", apiKey: "config-key" },
     );
-    expect(url.toString().startsWith("https://proxy.example/brave/res/v1/web/search?")).toBe(
-      true,
-    );
+    expect(url.toString().startsWith("https://proxy.example/brave/res/v1/web/search?")).toBe(true);
   });
 
   it("blocks non-loopback custom Brave baseUrl when using BRAVE_API_KEY from env", async () => {
@@ -174,9 +173,7 @@ describe("web_search country and language parameters", () => {
 
   it("allows loopback custom Brave baseUrl when using BRAVE_API_KEY from env", async () => {
     const url = await runBraveSearchAndGetUrl({}, { baseUrl: "http://127.0.0.1:9100/brave" });
-    expect(url.toString().startsWith("http://127.0.0.1:9100/brave/res/v1/web/search?")).toBe(
-      true,
-    );
+    expect(url.toString().startsWith("http://127.0.0.1:9100/brave/res/v1/web/search?")).toBe(true);
   });
 });
 
