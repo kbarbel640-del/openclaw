@@ -431,7 +431,9 @@ class SseTransport extends EventEmitter {
         }
         this.messagesUrl = resolved.href;
       } catch {
-        this.messagesUrl = data;
+        log.error(`SSE endpoint URL could not be parsed: ${data}`);
+        this.emit("error", new Error("SSE endpoint URL parse failure"));
+        return;
       }
       this.emit("endpoint");
       return;

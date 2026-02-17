@@ -304,15 +304,29 @@ function convertPropertySchema(schema: McpJsonSchema): TSchema {
   }
 
   // Handle enum values.
+  // Per AGENTS.md: avoid Type.Union in tool input schemas (no anyOf/oneOf/allOf).
+  // Use Type.Unsafe with enum annotation for string enums; fall back to
+  // Type.String with enum values in description for mixed-type enums.
   if (schema.enum && Array.isArray(schema.enum)) {
-    const literals = schema.enum
-      .filter(
-        (v): v is string | number | boolean =>
-          typeof v === "string" || typeof v === "number" || typeof v === "boolean",
-      )
-      .map((v) => Type.Literal(v));
-    if (literals.length > 0) {
-      return Type.Union(literals, opts);
+    const values = schema.enum.filter(
+      (v): v is string | number | boolean =>
+        typeof v === "string" || typeof v === "number" || typeof v === "boolean",
+    );
+    if (values.length > 0) {
+      const allStrings = values.every((v): v is string => typeof v === "string");
+      if (allStrings) {
+        return Type.Unsafe<string>({
+          type: "string",
+          enum: values,
+          ...opts,
+        });
+      }
+      // Mixed-type enum — encode values in description to avoid anyOf/oneOf.
+      const enumDesc = `One of: ${values.map((v) => JSON.stringify(v)).join(", ")}`;
+      return Type.String({
+        ...opts,
+        description: opts.description ? `${opts.description}. ${enumDesc}` : enumDesc,
+      });
     }
   }
 

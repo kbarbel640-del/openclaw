@@ -30,7 +30,7 @@ const McpServerConfigSchema = z
     toolTimeoutMs: z.number().int().positive().optional(),
     toolTimeouts: z.record(z.string(), z.number().int().positive()).optional(),
     maxRetries: z.number().int().nonnegative().optional(),
-    healthCheckIntervalMs: z.number().int().positive().optional(),
+    healthCheckIntervalMs: z.number().int().nonnegative().optional(),
     approval: z.enum(["none", "always", "allowlist"]).optional(),
     approvedTools: z.array(z.string()).optional(),
   })
