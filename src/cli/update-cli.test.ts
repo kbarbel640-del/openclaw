@@ -679,7 +679,9 @@ describe("update-cli", () => {
 
     await updateCommand({});
 
-    expect(defaultRuntime.log).toHaveBeenCalledWith(expect.stringContaining("Already up to date (1.2.3)"));
+    expect(defaultRuntime.log).toHaveBeenCalledWith(
+      expect.stringContaining("Already up to date (1.2.3)"),
+    );
   });
 
   it("keeps channel persistence when target version resolution fails", async () => {
