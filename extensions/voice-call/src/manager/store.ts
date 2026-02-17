@@ -6,10 +6,7 @@ import { CallRecordSchema, TerminalStates, type CallId, type CallRecord } from "
 export function persistCallRecord(storePath: string, call: CallRecord): void {
   const logPath = path.join(storePath, "calls.jsonl");
   const line = `${JSON.stringify(call)}\n`;
-  // Fire-and-forget async write to avoid blocking event loop.
-  fsp.appendFile(logPath, line).catch((err) => {
-    console.error("[voice-call] Failed to persist call record:", err);
-  });
+  fs.appendFileSync(logPath, line);
 }
 
 export function loadActiveCallsFromStore(storePath: string): {
