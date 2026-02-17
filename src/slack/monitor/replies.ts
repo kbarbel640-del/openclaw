@@ -5,8 +5,47 @@ import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.j
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { MarkdownTableMode } from "../../config/types.base.js";
 import type { RuntimeEnv } from "../../runtime.js";
-import { markdownToSlackMrkdwnChunks } from "../format.js";
+import { markdownToSlackMrkdwn, markdownToSlackMrkdwnChunks } from "../format.js";
 import { sendMessageSlack } from "../send.js";
+
+const REASONING_PREFIX = "Reasoning:\n";
+
+/**
+ * Detect whether a reply payload contains reasoning/thinking content
+ * produced by {@link formatReasoningMessage}.
+ */
+export function isReasoningReply(text: string): boolean {
+  return text.startsWith(REASONING_PREFIX);
+}
+
+/**
+ * Extract the reasoning body (without the "Reasoning:" prefix and italic
+ * markdown wrappers added by {@link formatReasoningMessage}).
+ */
+export function extractReasoningBody(text: string): string {
+  const body = text.slice(REASONING_PREFIX.length);
+  // Strip per-line italic wrappers (_..._) added by formatReasoningMessage
+  return body
+    .split("\n")
+    .map((line) => (line.startsWith("_") && line.endsWith("_") ? line.slice(1, -1) : line))
+    .join("\n");
+}
+
+/**
+ * Build a short summary line for collapsed reasoning display.
+ * Shows a truncated preview so users know what the model considered.
+ */
+function buildReasoningSummary(body: string, maxLen = 80): string {
+  const firstLine =
+    body
+      .split("\n")
+      .find((l) => l.trim())
+      ?.trim() ?? "";
+  if (firstLine.length <= maxLen) {
+    return firstLine;
+  }
+  return `${firstLine.slice(0, maxLen - 1)}…`;
+}
 
 export async function deliverReplies(params: {
   replies: ReplyPayload[];
@@ -30,6 +69,29 @@ export async function deliverReplies(params: {
       if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN)) {
         continue;
       }
+
+      // Render reasoning/thinking blocks as collapsed Slack attachments
+      // so they don't dominate the conversation.
+      if (isReasoningReply(trimmed)) {
+        const body = extractReasoningBody(trimmed);
+        const summary = buildReasoningSummary(body);
+        const mrkdwnBody = markdownToSlackMrkdwn(body);
+        await sendMessageSlack(params.target, `💭 Thinking: ${summary}`, {
+          token: params.token,
+          threadTs,
+          accountId: params.accountId,
+          attachments: [
+            {
+              color: "#d0d0d0",
+              fallback: `Reasoning: ${summary}`,
+              text: mrkdwnBody,
+              mrkdwn_in: ["text"],
+            },
+          ],
+        });
+        continue;
+      }
+
       await sendMessageSlack(params.target, trimmed, {
         token: params.token,
         threadTs,
