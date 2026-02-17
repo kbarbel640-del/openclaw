@@ -68,6 +68,18 @@ function validateHookId(hookId: string): string | null {
   return null;
 }
 
+function hasParentTraversalSegment(entry: string): boolean {
+  return entry.split(/[\\/]+/).some((segment) => segment === "..");
+}
+
+function isUnsafeHookManifestPath(entry: string): boolean {
+  return (
+    path.posix.isAbsolute(entry) ||
+    path.win32.isAbsolute(entry) ||
+    hasParentTraversalSegment(entry)
+  );
+}
+
 export function resolveHookInstallDir(hookId: string, hooksDir?: string): string {
   const hooksBase = hooksDir ? resolveUserPath(hooksDir) : path.join(CONFIG_DIR, "hooks");
   const hookIdError = validateHookId(hookId);
@@ -193,8 +205,13 @@ async function installHookPackageFromDir(params: {
     return { ok: false, error: `hook pack already exists: ${targetDir} (delete it first)` };
   }
 
+  const packageDir = path.resolve(params.packageDir);
   const resolvedHooks = [] as string[];
   for (const entry of hookEntries) {
+    if (isUnsafeHookManifestPath(entry)) {
+      return { ok: false, error: `invalid hook path in package.json openclaw.hooks[]: ${entry}` };
+    }
+
     const hookDir = path.resolve(params.packageDir, entry);
     if (!isPathInside(params.packageDir, hookDir)) {
       return {
