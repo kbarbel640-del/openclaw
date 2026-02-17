@@ -171,7 +171,7 @@ export function validateConfigObjectRaw(
     allIssues.push(...avatarIssues);
   }
   if (allIssues.length > 0) {
-    return { ok: false, issues: allIssues, config: finalConfig }; // Always return config
+    return { ok: false, issues: allIssues }; // REMOVED config from error return
   }
   return {
     ok: true,
@@ -184,7 +184,7 @@ export function validateConfigObject(
 ): { ok: true; config: OpenClawConfig } | { ok: false; issues: ConfigValidationIssue[] } {
   const result = validateConfigObjectRaw(raw);
   if (!result.ok) {
-    return result;
+    return { ok: false, issues: result.issues }; // Ensure no config is returned on error
   }
   return {
     ok: true,
