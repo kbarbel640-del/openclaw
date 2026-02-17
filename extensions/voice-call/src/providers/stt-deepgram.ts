@@ -113,6 +113,7 @@ class DeepgramSTTSessionImpl implements DeepgramSTTSession {
   private transcriptQueue: string[] = [];
   private transcriptResolvers: Array<(value: string) => void> = [];
   private audioBuffer: Buffer[] = []; // Buffer audio packets until WebSocket is connected
+  private currentTranscript = ""; // Accumulate transcript for UtteranceEnd fallback
 
   constructor(
     private readonly apiKey: string,
@@ -134,6 +135,7 @@ class DeepgramSTTSessionImpl implements DeepgramSTTSession {
       punctuate: this.punctuate.toString(),
       interim_results: this.interimResults.toString(),
       endpointing: this.endpointing.toString(),
+      utterance_end_ms: "1000", // Fallback for noisy phone lines - triggers on word gaps
       encoding: "mulaw",
       sample_rate: "8000",
       channels: "1",
@@ -191,26 +193,53 @@ class DeepgramSTTSessionImpl implements DeepgramSTTSession {
       if (!transcript) return;
 
       const isFinal = message.is_final || false;
-      // speech_final not used: we trigger on is_final alone (Deepgram may not set speech_final consistently)
+      const speechFinal = message.speech_final || false;
 
-      // Trigger on is_final - speech_final may not be set depending on Deepgram config
-      if (isFinal) {
-        // Final transcript (end of utterance)
+      // Update accumulating transcript (for UtteranceEnd fallback)
+      if (transcript) {
+        this.currentTranscript = transcript;
+      }
+
+      // CASE 1: Standard endpointing (clean audio, normal silence detection)
+      if (isFinal && speechFinal) {
+        // Fire transcript callback
         if (this.onTranscriptCallback) {
-          this.onTranscriptCallback(transcript);
+          this.onTranscriptCallback(this.currentTranscript);
         }
         // Resolve any waiting promises
         const resolver = this.transcriptResolvers.shift();
         if (resolver) {
-          resolver(transcript);
+          resolver(this.currentTranscript);
         } else {
-          this.transcriptQueue.push(transcript);
+          this.transcriptQueue.push(this.currentTranscript);
         }
-      } else if (this.interimResults) {
-        // Partial/interim transcript
+        // Clear accumulated transcript
+        this.currentTranscript = "";
+      } else if (this.interimResults && !isFinal) {
+        // Partial/interim transcript (just update display, don't fire)
         if (this.onPartialCallback) {
           this.onPartialCallback(transcript);
         }
+      }
+    }
+
+    // CASE 2: UtteranceEnd (noisy phone lines, word-gap detection)
+    // This fires when no new words detected for utterance_end_ms (1000ms)
+    if (message.type === "UtteranceEnd") {
+      if (this.currentTranscript.length > 0) {
+        // Fire transcript callback with accumulated transcript
+        if (this.onTranscriptCallback) {
+          this.onTranscriptCallback(this.currentTranscript);
+        }
+        // Resolve any waiting promises
+        const resolver = this.transcriptResolvers.shift();
+        if (resolver) {
+          resolver(this.currentTranscript);
+        } else {
+          this.transcriptQueue.push(this.currentTranscript);
+        }
+        // Clear accumulated transcript
+        this.currentTranscript = "";
       }
     }
 
