@@ -35,10 +35,10 @@ describe("diagnostic-events trace context", () => {
     unsub();
 
     expect(events).toHaveLength(1);
-    expect(events[0]!.traceId).toBe(traceId);
-    expect(events[0]!.parentSpanId).toBe(parentSpanId);
-    expect(events[0]!.ts).toBeGreaterThan(0);
-    expect(events[0]!.seq).toBe(1);
+    expect(events[0].traceId).toBe(traceId);
+    expect(events[0].parentSpanId).toBe(parentSpanId);
+    expect(events[0].ts).toBeGreaterThan(0);
+    expect(events[0].seq).toBe(1);
   });
 
   test("trace context fields pass through on message.processed events", () => {
@@ -60,8 +60,8 @@ describe("diagnostic-events trace context", () => {
     unsub();
 
     expect(events).toHaveLength(1);
-    expect(events[0]!.traceId).toBe(traceId);
-    expect(events[0]!.parentSpanId).toBe(parentSpanId);
+    expect(events[0].traceId).toBe(traceId);
+    expect(events[0].parentSpanId).toBe(parentSpanId);
   });
 
   test("trace context fields are optional and default to undefined", () => {
@@ -79,8 +79,8 @@ describe("diagnostic-events trace context", () => {
     unsub();
 
     expect(events).toHaveLength(1);
-    expect(events[0]!.traceId).toBeUndefined();
-    expect(events[0]!.parentSpanId).toBeUndefined();
+    expect(events[0].traceId).toBeUndefined();
+    expect(events[0].parentSpanId).toBeUndefined();
   });
 
   test("trace context fields pass through on message.queued events", () => {
@@ -99,7 +99,7 @@ describe("diagnostic-events trace context", () => {
     unsub();
 
     expect(events).toHaveLength(1);
-    expect(events[0]!.traceId).toBe(traceId);
+    expect(events[0].traceId).toBe(traceId);
   });
 
   test("seq increments across events", () => {
@@ -122,7 +122,7 @@ describe("diagnostic-events trace context", () => {
     unsub();
 
     expect(events).toHaveLength(2);
-    expect(events[0]!.seq).toBe(1);
-    expect(events[1]!.seq).toBe(2);
+    expect(events[0].seq).toBe(1);
+    expect(events[1].seq).toBe(2);
   });
 });
