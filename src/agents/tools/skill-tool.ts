@@ -1,5 +1,4 @@
 import path from "node:path";
-import { z } from "zod";
 import { SkillLoader } from "../skills/skill-loader.js";
 import { type AnyAgentTool, jsonResult, readStringParam } from "./common.js";
 

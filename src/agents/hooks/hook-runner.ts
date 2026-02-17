@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { HooksFileSchema, type HooksFile, type HookConfig, type HookAction } from "./types.js";
+import { HooksFileSchema, type HookConfig, type HookAction } from "./types.js";
 
 const execAsync = promisify(exec);
 
@@ -33,8 +33,13 @@ export class HookRunner {
     this.loaded = true;
   }
 
-  async runHooks(toolName: string, args: any): Promise<{ action: HookAction; message?: string }> {
-    if (!this.loaded) await this.loadHooks();
+  async runHooks(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<{ action: HookAction; message?: string }> {
+    if (!this.loaded) {
+      await this.loadHooks();
+    }
 
     for (const hook of this.hooks) {
       if (this.matches(hook, toolName, args)) {
@@ -55,18 +60,24 @@ export class HookRunner {
     return { action: "allow" };
   }
 
-  private matches(hook: HookConfig, toolName: string, args: any): boolean {
+  private matches(hook: HookConfig, toolName: string, args: Record<string, unknown>): boolean {
     if (hook.matcher.tool) {
       const toolRegex = new RegExp(hook.matcher.tool);
-      if (!toolRegex.test(toolName)) return false;
+      if (!toolRegex.test(toolName)) {
+        return false;
+      }
     }
 
     if (hook.matcher.args) {
       for (const [key, pattern] of Object.entries(hook.matcher.args)) {
         const val = args?.[key];
-        if (val === undefined) return false;
+        if (val === undefined) {
+          return false;
+        }
         const argRegex = new RegExp(String(pattern));
-        if (!argRegex.test(String(val))) return false;
+        if (!argRegex.test(String(val))) {
+          return false;
+        }
       }
     }
 

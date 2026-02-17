@@ -1,5 +1,4 @@
 import { describe, expect, test, vi } from "vitest";
-import type { RequestFrame } from "./protocol/index.js";
 import { handleNodeInvokeResult } from "./server-methods/nodes.handlers.invoke-result.js";
 import type { GatewayClient, GatewayRequestContext, RespondFn } from "./server-methods/types.js";
 

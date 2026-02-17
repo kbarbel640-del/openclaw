@@ -14,7 +14,7 @@ import { $connected, $theme, $themeResolved } from "../../stores/app.ts";
 import { $hello } from "../../stores/gateway.ts";
 import { icons } from "../icons.ts";
 import { TAB_GROUPS, iconForTab, titleForTab, pathForTab, type Tab } from "../navigation.ts";
-import { loadSettings, saveSettings, type UiSettings } from "../storage.ts";
+import { loadSettings, saveSettings } from "../storage.ts";
 import { resolveTheme, type ThemeMode, type ResolvedTheme } from "../theme.ts";
 
 function applyTheme(resolved: ResolvedTheme): void {
@@ -143,7 +143,7 @@ export class NavIsland extends LitElement {
     const connected = this.connectedCtrl.value;
     const hello = this.helloCtrl.value;
     const lastError = this.errorCtrl.value;
-    const snapshot = hello?.snapshot as { uptimeMs?: number } | undefined;
+    const _snapshot = hello?.snapshot as { uptimeMs?: number } | undefined;
 
     return html`
       <header class="topbar">

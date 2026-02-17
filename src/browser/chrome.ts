@@ -18,10 +18,7 @@ import {
   isProfileDecorated,
 } from "./chrome.profile-decoration.js";
 import type { ResolvedBrowserConfig, ResolvedBrowserProfile } from "./config.js";
-import {
-  DEFAULT_OPENCLAW_BROWSER_COLOR,
-  DEFAULT_OPENCLAW_BROWSER_PROFILE_NAME,
-} from "./constants.js";
+import { DEFAULT_OPENCLAW_BROWSER_COLOR } from "./constants.js";
 
 const log = createSubsystemLogger("browser").child("chrome");
 

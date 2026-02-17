@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,12 +19,12 @@ function writeJson(dir: string, filename: string, data: unknown): void {
 describe("loadMergedMcpConfig", () => {
   let tmpDir: string;
   let fakeHome: string;
-  let originalHomedir: typeof os.homedir;
+  let _originalHomedir: typeof os.homedir;
 
   beforeEach(() => {
     tmpDir = makeTmpDir();
     fakeHome = makeTmpDir();
-    originalHomedir = os.homedir;
+    _originalHomedir = os.homedir;
     // Override os.homedir to point to our fake home
     vi.spyOn(os, "homedir").mockReturnValue(fakeHome);
   });
