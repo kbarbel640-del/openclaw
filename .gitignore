@@ -90,3 +90,9 @@ package-lock.json
 # Hub runtime data
 .openclaw/
 services/hub/data/
+
+# Terraform
+infra/.terraform/
+infra/terraform.tfvars
+infra/*.tfstate
+infra/*.tfstate.backup

@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { requireAuth } from "./auth/middleware.js";
+import { initProvider } from "./container/index.js";
 import { initDb } from "./db/index.js";
 import { loadEnv } from "./env.js";
 import { createApiRoutes } from "./routes/api.js";
@@ -20,6 +21,7 @@ const env = await loadEnv();
 // Ensure data directory exists and initialise DB
 mkdirSync(dirname(env.DB_PATH), { recursive: true });
 initDb(env.DB_PATH);
+await initProvider();
 
 const app = new Hono();
 

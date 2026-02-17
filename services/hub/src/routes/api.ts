@@ -1,23 +1,18 @@
 import { Hono } from "hono";
 import type { Env } from "../env.js";
+import { getProvider } from "../container/index.js";
 import {
   createInstance,
   getInstance,
   listInstances,
   deleteInstance,
+  updateInstanceContainerId,
+  updateInstanceUrls,
   listConnections,
   listConnectionsByInstance,
   deleteConnection,
   listEventLogs,
 } from "../db/queries.js";
-import {
-  spawnInstance,
-  startInstance,
-  stopInstance,
-  removeInstance,
-  getContainerLogs,
-  getContainerStatus,
-} from "../docker/manager.js";
 
 export function createApiRoutes(env: Env) {
   const api = new Hono();
@@ -42,9 +37,9 @@ export function createApiRoutes(env: Env) {
     }
 
     if (spawn) {
-      // Docker spawn path
       try {
-        const result = await spawnInstance({ name, image: env.OPENCLAW_IMAGE });
+        const provider = getProvider();
+        const result = await provider.spawn({ name, image: env.OPENCLAW_IMAGE });
         const instance = createInstance({
           name,
           gatewayUrl: result.gatewayUrl,
@@ -64,8 +59,8 @@ export function createApiRoutes(env: Env) {
           201,
         );
       } catch (err) {
-        console.error("Docker spawn failed:", err);
-        return c.json({ error: `Docker spawn failed: ${(err as Error).message}` }, 500);
+        console.error("Container spawn failed:", err);
+        return c.json({ error: `Container spawn failed: ${(err as Error).message}` }, 500);
       }
     }
 
@@ -144,10 +139,10 @@ export function createApiRoutes(env: Env) {
       return c.json({ error: "Not found" }, 404);
     }
 
-    // Remove Docker container if managed
+    // Remove container if managed
     if (instance.containerId) {
       try {
-        await removeInstance(instance.containerId);
+        await getProvider().remove(instance.containerId);
       } catch (err) {
         console.error("Failed to remove container:", err);
       }
@@ -169,10 +164,15 @@ export function createApiRoutes(env: Env) {
       return c.json({ error: "Not found" }, 404);
     }
     if (!instance.containerId) {
-      return c.json({ error: "Not a Docker-managed instance" }, 400);
+      return c.json({ error: "Not a managed instance" }, 400);
     }
     try {
-      await startInstance(instance.containerId);
+      const provider = getProvider();
+      const result = await provider.start(instance.containerId);
+      updateInstanceUrls(id, result.gatewayUrl, result.bridgeUrl);
+      if (result.newContainerId) {
+        updateInstanceContainerId(id, result.newContainerId);
+      }
       return c.json({ ok: true });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 500);
@@ -186,10 +186,10 @@ export function createApiRoutes(env: Env) {
       return c.json({ error: "Not found" }, 404);
     }
     if (!instance.containerId) {
-      return c.json({ error: "Not a Docker-managed instance" }, 400);
+      return c.json({ error: "Not a managed instance" }, 400);
     }
     try {
-      await stopInstance(instance.containerId);
+      await getProvider().stop(instance.containerId);
       return c.json({ ok: true });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 500);
@@ -209,7 +209,7 @@ export function createApiRoutes(env: Env) {
     }
     const tail = c.req.query("tail") ? parseInt(c.req.query("tail")!, 10) : 200;
     try {
-      const logs = await getContainerLogs(instance.containerId, tail);
+      const logs = await getProvider().getLogs(instance.containerId, tail);
       return c.json({ logs });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 500);
@@ -226,7 +226,7 @@ export function createApiRoutes(env: Env) {
       return c.json({ status: "manual" });
     }
     try {
-      const status = await getContainerStatus(instance.containerId);
+      const status = await getProvider().getStatus(instance.containerId);
       return c.json({ status });
     } catch (err) {
       return c.json({ status: "unknown", error: (err as Error).message });

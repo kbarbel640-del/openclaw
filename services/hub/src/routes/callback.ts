@@ -1,8 +1,13 @@
 import { Hono } from "hono";
 import { html } from "hono/html";
 import type { Env } from "../env.js";
-import { getInstance, upsertConnection, updateInstanceUrls } from "../db/queries.js";
-import { waitForContainerRestart, getContainerStartedAt } from "../docker/manager.js";
+import { getProvider } from "../container/index.js";
+import {
+  getInstance,
+  upsertConnection,
+  updateInstanceUrls,
+  updateInstanceContainerId,
+} from "../db/queries.js";
 import { patchGatewayConfig } from "../gateway/config-patch.js";
 import { exchangeCode } from "../oauth/slack.js";
 import { consumeState } from "../oauth/state.js";
@@ -98,8 +103,9 @@ export function createCallbackRoute(env: Env) {
     // Patch the OpenClaw instance config via gateway WS
     if (instance.deviceCredentials && instance.containerId) {
       try {
-        // Record start time so we can detect the container restart
-        const startedAt = await getContainerStartedAt(instance.containerId);
+        const provider = getProvider();
+        // Record restart marker so we can detect the container restart
+        const marker = await provider.getRestartMarker(instance.containerId);
 
         await patchGatewayConfig({
           gatewayUrl: instance.gatewayUrl,
@@ -110,13 +116,15 @@ export function createCallbackRoute(env: Env) {
         });
 
         // The channels config change causes a full gateway restart which
-        // cycles the container.  PublishAllPorts means Docker assigns new
-        // random host ports, so we must re-inspect and update the DB.
+        // may cycle the container.  Detect restart and update DB with new URLs.
         try {
-          const newUrls = await waitForContainerRestart(instance.containerId, startedAt);
-          updateInstanceUrls(instanceId, newUrls.gatewayUrl, newUrls.bridgeUrl);
+          const result = await provider.waitForRestart(instance.containerId, marker);
+          updateInstanceUrls(instanceId, result.gatewayUrl, result.bridgeUrl);
+          if (result.newContainerId) {
+            updateInstanceContainerId(instanceId, result.newContainerId);
+          }
           console.log(
-            `Instance ${instanceId} ports refreshed: gateway=${newUrls.gatewayUrl} bridge=${newUrls.bridgeUrl}`,
+            `Instance ${instanceId} ports refreshed: gateway=${result.gatewayUrl} bridge=${result.bridgeUrl}`,
           );
         } catch (restartErr) {
           console.warn("Could not detect container restart (ports may be stale):", restartErr);

@@ -9,6 +9,13 @@ export type Env = {
   PORT: number;
   STATE_SECRET: string;
   DB_PATH: string;
+  CONTAINER_PROVIDER: string;
+  ECS_CLUSTER: string;
+  ECS_TASK_DEFINITION: string;
+  ECS_SUBNETS: string[];
+  ECS_SECURITY_GROUPS: string[];
+  ECS_LOG_GROUP: string;
+  ECS_EFS_FILE_SYSTEM_ID: string;
 };
 
 function requireEnv(key: string): string {
@@ -33,5 +40,14 @@ export async function loadEnv(): Promise<Env> {
     PORT: parseInt(process.env.PORT || "9876", 10),
     STATE_SECRET: process.env.STATE_SECRET || randomBytes(32).toString("hex"),
     DB_PATH: process.env.DB_PATH || "./data/hub.db",
+    CONTAINER_PROVIDER: process.env.CONTAINER_PROVIDER || "docker",
+    ECS_CLUSTER: process.env.ECS_CLUSTER || "",
+    ECS_TASK_DEFINITION: process.env.ECS_TASK_DEFINITION || "",
+    ECS_SUBNETS: process.env.ECS_SUBNETS ? process.env.ECS_SUBNETS.split(",") : [],
+    ECS_SECURITY_GROUPS: process.env.ECS_SECURITY_GROUPS
+      ? process.env.ECS_SECURITY_GROUPS.split(",")
+      : [],
+    ECS_LOG_GROUP: process.env.ECS_LOG_GROUP || "",
+    ECS_EFS_FILE_SYSTEM_ID: process.env.ECS_EFS_FILE_SYSTEM_ID || "",
   };
 }

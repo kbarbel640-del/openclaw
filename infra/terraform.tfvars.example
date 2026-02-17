@@ -1,0 +1,14 @@
+region           = "us-east-1"
+environment      = "production"
+hosted_zone_name = "getvento.com"
+domain_name      = "admin.getvento.com"
+vpc_cidr         = "10.0.0.0/16"
+
+hub_cpu    = 512
+hub_memory = 1024
+
+instance_cpu    = 1024
+instance_memory = 2048
+
+hub_image_tag      = "latest"
+openclaw_image_tag = "latest"
