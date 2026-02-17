@@ -456,8 +456,7 @@ export const MediaUnderstandingModelSchema = z
     profile: z.string().optional(),
     preferredProfile: z.string().optional(),
   })
-  .strict()
-  .optional();
+  .strict();
 
 export const ToolsMediaUnderstandingSchema = z
   .object({
