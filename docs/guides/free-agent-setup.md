@@ -130,42 +130,38 @@ For fully offline operation with zero API costs:
 
 Requires [Ollama](https://ollama.ai) running locally on port 11434.
 
-## Automation Examples
+## Full Multi-Agent System
 
-### Auto-publish blogs with free agent
+For the complete 5-agent orchestrated setup with automated research, creative mode, and autonomous task proposals, see:
+
+- **[AGENTS.md](AGENTS.md)** - Operating instructions and quick commands
+- **[free-agent-config.example.json5](free-agent-config.example.json5)** - Full config (copy to `~/.openclaw/openclaw.json`)
+
+### Agents Overview
+
+| Agent | Role | What it does |
+| ----- | ---- | ------------ |
+| Commander | Orchestrator | Routes tasks, coordinates all agents |
+| Researcher | AI Scout | Scans X.com, HackerNews, GitHub daily |
+| Creator | Content | Blog posts, social media, creative mode |
+| Deployer | DevOps | Deploys sites, manages code |
+| Voice | Audio | Voice cloning, TTS |
+
+### Setup Automated Research
 
 ```bash
-# Via Telegram/WhatsApp/Discord:
-"Write a blog post about AI agents and publish it to my Hugo site"
-
-# The agent will:
-# 1. Generate the content using Kimi K2.5 (free)
-# 2. Create the markdown file with proper frontmatter
-# 3. Build and verify the site
-# 4. Git push to trigger deployment
+# Set up cron jobs for daily research + content proposals
+skills/agent-manager/scripts/setup-cron-jobs.sh --tz "Europe/Berlin"
 ```
 
-### Deploy a website
+### Quick Commands (via any channel)
 
-```bash
-# Via any channel:
-"Deploy my project at ~/my-site to Vercel"
-
-# The agent will:
-# 1. Detect the framework
-# 2. Build the project
-# 3. Deploy to the target platform
-# 4. Return the live URL
 ```
-
-### Clone a voice and use it
-
-```bash
-# Via any channel:
-"Clone the voice from this audio sample and use it for TTS"
-
-# The agent will:
-# 1. Upload the sample to ElevenLabs
-# 2. Create the voice clone
-# 3. Configure OpenClaw to use it for all TTS
+"Status"                    → All agent activity
+"Research AI agents"        → Researcher scans sources
+"Write a blog about X"     → Creator drafts content
+"Deploy my site to Vercel"  → Deployer handles it
+"Clone this voice"          → Voice agent processes
+"Creative mode"             → Autonomous brainstorming
+"What's new?"               → Latest research findings
 ```
