@@ -227,6 +227,7 @@ export function createSessionsSendTool(opts?: {
 
       // ── A2A contract validation ──────────────────────────────────
       let contractContext: string | undefined;
+      let contractWarnings: string[] = [];
       const structured = parseA2AMessage(message);
       if (structured) {
         const targetAgentId = resolveAgentIdFromSessionKey(resolvedKey);
@@ -260,6 +261,9 @@ export function createSessionsSendTool(opts?: {
               error: `Contract "${structured.contract}" input validation failed: ${validation.errors.join("; ")}`,
               sessionKey: displayKey,
             });
+          }
+          if (validation.warnings && validation.warnings.length > 0) {
+            contractWarnings = validation.warnings;
           }
           contractContext = buildAgentToAgentContractContext({
             structured,
@@ -344,6 +348,7 @@ export function createSessionsSendTool(opts?: {
             status: "accepted",
             sessionKey: displayKey,
             delivery,
+            ...(contractWarnings.length > 0 ? { warnings: contractWarnings } : {}),
           });
         } catch (err) {
           const messageText =
@@ -433,6 +438,7 @@ export function createSessionsSendTool(opts?: {
         reply,
         sessionKey: displayKey,
         delivery,
+        ...(contractWarnings.length > 0 ? { warnings: contractWarnings } : {}),
       });
     },
   };

@@ -394,7 +394,8 @@ export function parseA2AMessage(message: string): A2AStructuredMessage | null {
       parsed &&
       typeof parsed === "object" &&
       parsed._a2a === true &&
-      typeof parsed.contract === "string"
+      typeof parsed.contract === "string" &&
+      "payload" in parsed
     ) {
       return parsed as A2AStructuredMessage;
     }

@@ -250,6 +250,17 @@ describe("parseA2AMessage", () => {
   it("returns null for JSON without contract field", () => {
     expect(parseA2AMessage(JSON.stringify({ _a2a: true }))).toBeNull();
   });
+
+  it("returns null for JSON without payload field", () => {
+    expect(parseA2AMessage(JSON.stringify({ _a2a: true, contract: "foo" }))).toBeNull();
+  });
+
+  it("accepts message with explicit null payload", () => {
+    const result = parseA2AMessage(JSON.stringify({ _a2a: true, contract: "foo", payload: null }));
+    expect(result).not.toBeNull();
+    expect(result!.contract).toBe("foo");
+    expect(result!.payload).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

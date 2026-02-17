@@ -182,7 +182,7 @@ export function buildAgentToAgentContractContext(params: {
   if (params.contract.description) {
     lines.push(`Contract description: ${params.contract.description}`);
   }
-  const payloadJson = JSON.stringify(params.structured.payload);
+  const payloadJson = JSON.stringify(params.structured.payload) ?? "null";
   const truncatedPayload =
     payloadJson.length > 4000 ? payloadJson.slice(0, 4000) + "... (truncated)" : payloadJson;
   lines.push(`Input payload: ${truncatedPayload}`);
