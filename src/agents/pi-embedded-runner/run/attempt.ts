@@ -594,7 +594,7 @@ export async function runEmbeddedAttempt(
         agent: activeSession.agent,
         contextWindowTokens: Math.max(
           1,
-          Math.floor(params.model.contextWindow ?? DEFAULT_CONTEXT_TOKENS),
+          Math.floor(params.model.contextWindow ?? params.model.maxTokens ?? DEFAULT_CONTEXT_TOKENS),
         ),
       });
       const cacheTrace = createCacheTrace({

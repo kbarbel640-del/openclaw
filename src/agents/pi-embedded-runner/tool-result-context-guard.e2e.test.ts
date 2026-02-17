@@ -46,7 +46,7 @@ function makeGuardableAgent(
 }
 
 describe("installToolResultContextGuard", () => {
-  it("compacts older tool results when total context overflows, even if each result fits individually", async () => {
+  it("compacts oldest-first when total context overflows, even if each result fits individually", async () => {
     const agent = makeGuardableAgent();
 
     installToolResultContextGuard({
@@ -70,7 +70,7 @@ describe("installToolResultContextGuard", () => {
     const newResultText = getToolResultText(contextForNextCall[2] as AgentMessage);
 
     expect(oldResultText).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
-    expect(newResultText.length).toBe(1_000);
+    expect(newResultText).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
     expect(newResultText).not.toContain(CONTEXT_LIMIT_TRUNCATION_NOTICE);
   });
 
@@ -97,7 +97,7 @@ describe("installToolResultContextGuard", () => {
 
     expect(first).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
     expect(second).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
-    expect(third).toBe("c".repeat(800));
+    expect(third).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
   });
 
   it("survives repeated large tool results by compacting older outputs before later turns", async () => {
@@ -140,7 +140,7 @@ describe("installToolResultContextGuard", () => {
     expect(newResultText).toContain(CONTEXT_LIMIT_TRUNCATION_NOTICE);
   });
 
-  it("compacts older tool results and then truncates the newest one when overflow remains", async () => {
+  it("keeps compacting oldest-first until overflow clears, including the newest tool result when needed", async () => {
     const agent = makeGuardableAgent();
 
     installToolResultContextGuard({
@@ -160,8 +160,8 @@ describe("installToolResultContextGuard", () => {
     const newResultText = getToolResultText(contextForNextCall[2] as AgentMessage);
 
     expect(oldResultText).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
-    expect(newResultText.length).toBeLessThan(1_000);
-    expect(newResultText).toContain(CONTEXT_LIMIT_TRUNCATION_NOTICE);
+    expect(newResultText).toBe(PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
+    expect(newResultText).not.toContain(CONTEXT_LIMIT_TRUNCATION_NOTICE);
   });
 
   it("wraps an existing transformContext and guards the transformed output", async () => {

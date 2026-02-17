@@ -1,18 +1,16 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { calculateMaxToolResultChars } from "./tool-result-truncation.js";
 
 const CHARS_PER_TOKEN_ESTIMATE = 4;
 // Keep a conservative input budget to absorb tokenizer variance and provider framing overhead.
-const CONTEXT_INPUT_HEADROOM_RATIO = 0.85;
+const CONTEXT_INPUT_HEADROOM_RATIO = 0.75;
+const SINGLE_TOOL_RESULT_CONTEXT_SHARE = 0.5;
 const IMAGE_CHAR_ESTIMATE = 8_000;
 
 export const CONTEXT_LIMIT_TRUNCATION_NOTICE = "[truncated: output exceeded context limit]";
-const CONTEXT_LIMIT_TRUNCATION_SUFFIX = `\n\n${CONTEXT_LIMIT_TRUNCATION_NOTICE}`;
+const CONTEXT_LIMIT_TRUNCATION_SUFFIX = `\n${CONTEXT_LIMIT_TRUNCATION_NOTICE}`;
 
 export const PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER =
-  "[old tool result compacted to keep context within limit]";
-
-type ToolResultLike = Extract<AgentMessage, { role: "toolResult" }>;
+  "[compacted: tool output removed to free context]";
 
 type GuardableTransformContext = (
   messages: AgentMessage[],
@@ -31,11 +29,20 @@ function isImageBlock(block: unknown): boolean {
   return !!block && typeof block === "object" && (block as { type?: unknown }).type === "image";
 }
 
+function isToolResultMessage(msg: AgentMessage): boolean {
+  const role = (msg as { role?: unknown }).role;
+  const type = (msg as { type?: unknown }).type;
+  return role === "toolResult" || role === "tool" || type === "toolResult";
+}
+
 function getToolResultContent(msg: AgentMessage): unknown[] {
-  if ((msg as { role?: unknown }).role !== "toolResult") {
+  if (!isToolResultMessage(msg)) {
     return [];
   }
   const content = (msg as { content?: unknown }).content;
+  if (typeof content === "string") {
+    return [{ type: "text", text: content }];
+  }
   return Array.isArray(content) ? content : [];
 }
 
@@ -48,16 +55,6 @@ function getToolResultText(msg: AgentMessage): string {
     }
   }
   return chunks.join("\n");
-}
-
-function toolResultHasImages(msg: AgentMessage): boolean {
-  const content = getToolResultContent(msg);
-  for (const block of content) {
-    if (isImageBlock(block)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function estimateMessageChars(msg: AgentMessage): number {
@@ -113,7 +110,7 @@ function estimateMessageChars(msg: AgentMessage): number {
     return chars;
   }
 
-  if (msg.role === "toolResult") {
+  if (isToolResultMessage(msg)) {
     let chars = 0;
     const content = getToolResultContent(msg);
     for (const block of content) {
@@ -156,12 +153,21 @@ function truncateTextToBudget(text: string, maxChars: number): string {
   return text.slice(0, cutPoint) + CONTEXT_LIMIT_TRUNCATION_SUFFIX;
 }
 
-function truncateToolResultToChars(msg: AgentMessage, maxChars: number): AgentMessage {
-  if ((msg as { role?: unknown }).role !== "toolResult") {
-    return msg;
-  }
+function replaceToolResultText(msg: AgentMessage, text: string): AgentMessage {
+  const content = (msg as { content?: unknown }).content;
+  const replacementContent =
+    typeof content === "string" || content === undefined
+      ? text
+      : [{ type: "text", text }];
 
-  if (toolResultHasImages(msg)) {
+  return {
+    ...(msg as unknown as Record<string, unknown>),
+    content: replacementContent,
+  } as AgentMessage;
+}
+
+function truncateToolResultToChars(msg: AgentMessage, maxChars: number): AgentMessage {
+  if (!isToolResultMessage(msg)) {
     return msg;
   }
 
@@ -175,50 +181,37 @@ function truncateToolResultToChars(msg: AgentMessage, maxChars: number): AgentMe
   }
 
   const truncatedText = truncateTextToBudget(rawText, maxChars);
-  return {
-    ...(msg as unknown as Record<string, unknown>),
-    content: [{ type: "text", text: truncatedText }],
-  } as AgentMessage;
+  return replaceToolResultText(msg, truncatedText);
 }
 
 function compactExistingToolResultsInPlace(params: {
   messages: AgentMessage[];
   charsNeeded: number;
-  skipMessageIndex?: number;
 }): number {
-  const { messages, charsNeeded, skipMessageIndex } = params;
+  const { messages, charsNeeded } = params;
   if (charsNeeded <= 0) {
     return 0;
   }
 
   let reduced = 0;
   for (let i = 0; i < messages.length; i++) {
-    if (skipMessageIndex !== undefined && i === skipMessageIndex) {
-      continue;
-    }
-
     const msg = messages[i];
-    if ((msg as { role?: unknown }).role !== "toolResult") {
-      continue;
-    }
-    if (toolResultHasImages(msg)) {
+    if (!isToolResultMessage(msg)) {
       continue;
     }
 
     const text = getToolResultText(msg);
-    if (!text) {
+    if (!text || text === PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER) {
       continue;
     }
 
-    const before = text.length;
-    const after = PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER.length;
-    if (before <= after) {
+    const before = estimateMessageChars(msg);
+    const compacted = replaceToolResultText(msg, PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER);
+    applyMessageMutationInPlace(msg, compacted);
+    const after = estimateMessageChars(msg);
+    if (after >= before) {
       continue;
     }
-
-    (msg as unknown as ToolResultLike).content = [
-      { type: "text", text: PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER },
-    ];
 
     reduced += before - after;
     if (reduced >= charsNeeded) {
@@ -244,25 +237,6 @@ function applyMessageMutationInPlace(target: AgentMessage, source: AgentMessage)
   Object.assign(targetRecord, sourceRecord);
 }
 
-function findNewestCompactableToolResultIndex(messages: AgentMessage[]): number | undefined {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if ((message as { role?: unknown }).role !== "toolResult") {
-      continue;
-    }
-    if (toolResultHasImages(message)) {
-      continue;
-    }
-    const text = getToolResultText(message);
-    if (!text) {
-      continue;
-    }
-    return i;
-  }
-
-  return undefined;
-}
-
 function enforceToolResultContextBudgetInPlace(params: {
   messages: AgentMessage[];
   contextBudgetChars: number;
@@ -272,7 +246,7 @@ function enforceToolResultContextBudgetInPlace(params: {
 
   // Ensure each tool result has an upper bound before considering total context usage.
   for (const message of messages) {
-    if ((message as { role?: unknown }).role !== "toolResult") {
+    if (!isToolResultMessage(message)) {
       continue;
     }
     const truncated = truncateToolResultToChars(message, maxSingleToolResultChars);
@@ -284,36 +258,11 @@ function enforceToolResultContextBudgetInPlace(params: {
     return;
   }
 
-  // Prefer compacting older tool outputs first and preserve the newest one for targeted truncation.
-  const newestToolResultIndex = findNewestCompactableToolResultIndex(messages);
+  // Compact oldest tool outputs first until the context is back under budget.
   compactExistingToolResultsInPlace({
     messages,
     charsNeeded: currentChars - contextBudgetChars,
-    skipMessageIndex: newestToolResultIndex,
   });
-
-  currentChars = estimateContextChars(messages);
-  if (currentChars <= contextBudgetChars) {
-    return;
-  }
-
-  // If overflow remains, trim the newest text-only tool result to the remaining budget.
-  if (newestToolResultIndex !== undefined) {
-    const candidate = messages[newestToolResultIndex];
-    const candidateChars = estimateMessageChars(candidate);
-    const nonCandidateChars = currentChars - candidateChars;
-    const availableForCandidate = Math.max(0, contextBudgetChars - nonCandidateChars);
-    const truncated = truncateToolResultToChars(candidate, availableForCandidate);
-    applyMessageMutationInPlace(candidate, truncated);
-  }
-
-  currentChars = estimateContextChars(messages);
-  if (currentChars > contextBudgetChars) {
-    compactExistingToolResultsInPlace({
-      messages,
-      charsNeeded: currentChars - contextBudgetChars,
-    });
-  }
 }
 
 export function installToolResultContextGuard(params: {
@@ -325,9 +274,11 @@ export function installToolResultContextGuard(params: {
     1_024,
     Math.floor(contextWindowTokens * CHARS_PER_TOKEN_ESTIMATE * CONTEXT_INPUT_HEADROOM_RATIO),
   );
-  const maxSingleToolResultChars = Math.min(
-    calculateMaxToolResultChars(contextWindowTokens),
-    contextBudgetChars,
+  const maxSingleToolResultChars = Math.max(
+    1_024,
+    Math.floor(
+      contextWindowTokens * CHARS_PER_TOKEN_ESTIMATE * SINGLE_TOOL_RESULT_CONTEXT_SHARE,
+    ),
   );
 
   const originalTransformContext = params.agent.transformContext;
