@@ -39,16 +39,19 @@ export const AUTO_AUDIO_KEY_PROVIDERS = [
   "groq",
   "deepgram",
   "google",
+  "google-vertex",
   "mistral",
 ] as const;
+  
 export const AUTO_IMAGE_KEY_PROVIDERS = [
   "openai",
   "anthropic",
   "google",
+  "google-vertex",
   "minimax",
   "zai",
 ] as const;
-export const AUTO_VIDEO_KEY_PROVIDERS = ["google"] as const;
+export const AUTO_VIDEO_KEY_PROVIDERS = ["google", "google-vertex"] as const;
 export const DEFAULT_IMAGE_MODELS: Record<string, string> = {
   openai: "gpt-5-mini",
   anthropic: "claude-opus-4-6",
