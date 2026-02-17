@@ -22,6 +22,7 @@ import { resolveUserPath } from "../../../utils.js";
 import { normalizeMessageChannel } from "../../../utils/message-channel.js";
 import { isReasoningTagProvider } from "../../../utils/provider-utils.js";
 import { resolveOpenClawAgentDir } from "../../agent-paths.js";
+import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
 import { resolveSessionAgentIds } from "../../agent-scope.js";
 import { createAnthropicPayloadLogger } from "../../anthropic-payload-log.js";
 import { makeBootstrapWarn, resolveBootstrapContextForRun } from "../../bootstrap-files.js";
@@ -96,6 +97,7 @@ import {
   createSystemPromptOverride,
 } from "../system-prompt.js";
 import { splitSdkTools } from "../tool-split.js";
+import { installToolResultContextGuard } from "../tool-result-context-guard.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
 import { flushPendingToolResultsAfterIdle } from "../wait-for-idle-before-flush.js";
 import {
@@ -492,6 +494,7 @@ export async function runEmbeddedAttempt(
 
     let sessionManager: ReturnType<typeof guardSessionManager> | undefined;
     let session: Awaited<ReturnType<typeof createAgentSession>>["session"] | undefined;
+    let removeToolResultContextGuard: (() => void) | undefined;
     try {
       await repairSessionFileIfNeeded({
         sessionFile: params.sessionFile,
@@ -587,6 +590,13 @@ export async function runEmbeddedAttempt(
         throw new Error("Embedded agent session missing");
       }
       const activeSession = session;
+      removeToolResultContextGuard = installToolResultContextGuard({
+        agent: activeSession.agent,
+        contextWindowTokens: Math.max(
+          1,
+          Math.floor(params.model.contextWindow ?? DEFAULT_CONTEXT_TOKENS),
+        ),
+      });
       const cacheTrace = createCacheTrace({
         cfg: params.config,
         env: process.env,
@@ -1251,6 +1261,7 @@ export async function runEmbeddedAttempt(
       // flushPendingToolResults() fires while tools are still executing, inserting
       // synthetic "missing tool result" errors and causing silent agent failures.
       // See: https://github.com/openclaw/openclaw/issues/8643
+      removeToolResultContextGuard?.();
       await flushPendingToolResultsAfterIdle({
         agent: session?.agent,
         sessionManager,
