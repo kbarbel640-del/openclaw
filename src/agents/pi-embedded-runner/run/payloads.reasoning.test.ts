@@ -1,6 +1,6 @@
+import type { AssistantMessage } from "@mariozechner/pi-ai";
 import { describe, expect, it } from "vitest";
 import { buildEmbeddedRunPayloads } from "./payloads.js";
-import type { AssistantMessage } from "@mariozechner/pi-ai";
 
 describe("reasoning suppression in payloads", () => {
   const makeAssistant = (overrides: Partial<AssistantMessage>): AssistantMessage => ({

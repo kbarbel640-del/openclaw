@@ -13,9 +13,7 @@ import {
   normalizeTextForComparison,
 } from "../../pi-embedded-helpers.js";
 import type { ToolResultFormat } from "../../pi-embedded-subscribe.js";
-import {
-  extractAssistantText,
-} from "../../pi-embedded-utils.js";
+import { extractAssistantText } from "../../pi-embedded-utils.js";
 import { isLikelyMutatingToolName } from "../../tool-mutation.js";
 
 type ToolMetaEntry = { toolName: string; meta?: string };
