@@ -30,6 +30,11 @@ const MAX_REMOTE_NODES = 1_000;
 const remoteNodes = new Map<string, RemoteNodeRecord>();
 let remoteRegistry: NodeRegistry | null = null;
 
+/** Returns the current number of cached remote node records. Exported for tests only. */
+export function getRemoteNodeCount(): number {
+  return remoteNodes.size;
+}
+
 function describeNode(nodeId: string): string {
   const record = remoteNodes.get(nodeId);
   const name = record?.displayName?.trim();
@@ -124,6 +129,10 @@ function upsertNode(record: {
 
   // Evict the oldest entry (Map insertion order) when at capacity,
   // but only if this is a genuinely new node (updates reuse the slot).
+  // Note: eviction is based purely on insertion age, not connection state.
+  // This is an intentional tradeoff — with a cap of 1 000 (far above any
+  // realistic deployment), evicting a still-connected node is vanishingly
+  // rare and the node will re-register on its next heartbeat anyway.
   if (!existing && remoteNodes.size >= MAX_REMOTE_NODES) {
     const oldest = remoteNodes.keys().next().value;
     if (oldest) {
