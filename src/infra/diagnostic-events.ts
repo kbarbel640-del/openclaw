@@ -147,6 +147,25 @@ export type DiagnosticToolLoopEvent = DiagnosticBaseEvent & {
   pairedToolName?: string;
 };
 
+export type DiagnosticMcpToolCallEvent = DiagnosticBaseEvent & {
+  type: "mcp.tool.call";
+  serverName: string;
+  toolName: string;
+  sessionKey?: string;
+  sessionId?: string;
+};
+
+export type DiagnosticMcpToolResultEvent = DiagnosticBaseEvent & {
+  type: "mcp.tool.result";
+  serverName: string;
+  toolName: string;
+  sessionKey?: string;
+  sessionId?: string;
+  durationMs: number;
+  isError: boolean;
+  error?: string;
+};
+
 export type DiagnosticEventPayload =
   | DiagnosticUsageEvent
   | DiagnosticWebhookReceivedEvent
@@ -160,7 +179,9 @@ export type DiagnosticEventPayload =
   | DiagnosticLaneDequeueEvent
   | DiagnosticRunAttemptEvent
   | DiagnosticHeartbeatEvent
-  | DiagnosticToolLoopEvent;
+  | DiagnosticToolLoopEvent
+  | DiagnosticMcpToolCallEvent
+  | DiagnosticMcpToolResultEvent;
 
 export type DiagnosticEventInput = DiagnosticEventPayload extends infer Event
   ? Event extends DiagnosticEventPayload

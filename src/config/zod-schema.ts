@@ -13,6 +13,61 @@ import {
   SessionSendPolicySchema,
 } from "./zod-schema.session.js";
 
+// ---------------------------------------------------------------------------
+// MCP (Model Context Protocol) config schema
+// ---------------------------------------------------------------------------
+
+const McpServerConfigSchema = z
+  .object({
+    transport: z.enum(["stdio", "sse"]).optional(),
+    command: z.string().optional(),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    url: z.string().url().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    enabled: z.boolean().optional(),
+    toolPrefix: z.string().optional(),
+    toolTimeoutMs: z.number().int().positive().optional(),
+    toolTimeouts: z.record(z.string(), z.number().int().positive()).optional(),
+    maxRetries: z.number().int().nonnegative().optional(),
+    healthCheckIntervalMs: z.number().int().positive().optional(),
+    approval: z.enum(["none", "always", "allowlist"]).optional(),
+    approvedTools: z.array(z.string()).optional(),
+  })
+  .strict()
+  .superRefine((val, ctx) => {
+    const transport = val.transport ?? "stdio";
+    if (transport === "stdio" && !val.command) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "MCP server with stdio transport requires a 'command' field",
+        path: ["command"],
+      });
+    }
+    if (transport === "sse" && !val.url) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "MCP server with sse transport requires a 'url' field",
+        path: ["url"],
+      });
+    }
+    if (val.approvedTools && val.approvedTools.length > 0 && val.approval !== "allowlist") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "'approvedTools' is only meaningful when approval is 'allowlist'",
+        path: ["approvedTools"],
+      });
+    }
+  });
+
+const McpConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    servers: z.record(z.string(), McpServerConfigSchema).optional(),
+  })
+  .strict()
+  .optional();
+
 const BrowserSnapshotDefaultsSchema = z
   .object({
     mode: z.literal("efficient").optional(),
@@ -285,6 +340,7 @@ export const OpenClawSchema = z
     nodeHost: NodeHostSchema,
     agents: AgentsSchema,
     tools: ToolsSchema,
+    mcp: McpConfigSchema,
     bindings: BindingsSchema,
     broadcast: BroadcastSchema,
     audio: AudioSchema,

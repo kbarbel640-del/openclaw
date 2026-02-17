@@ -154,6 +154,15 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "mcp",
+    description: "Manage MCP (Model Context Protocol) server connections",
+    hasSubcommands: true,
+    register: async (program) => {
+      const mod = await import("../mcp-cli.js");
+      mod.registerMcpCli(program);
+    },
+  },
+  {
     name: "dns",
     description: "DNS helpers for wide-area discovery (Tailscale + CoreDNS)",
     hasSubcommands: true,

@@ -204,6 +204,18 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         unit: "1",
         description: "Run attempts",
       });
+      const mcpToolCallCounter = meter.createCounter("openclaw.mcp.tool.call", {
+        unit: "1",
+        description: "MCP tool invocations",
+      });
+      const mcpToolResultCounter = meter.createCounter("openclaw.mcp.tool.result", {
+        unit: "1",
+        description: "MCP tool results by outcome",
+      });
+      const mcpToolDurationHistogram = meter.createHistogram("openclaw.mcp.tool.duration_ms", {
+        unit: "ms",
+        description: "MCP tool call duration",
+      });
 
       if (logsEnabled) {
         const logExporter = new OTLPLogExporter({
@@ -570,6 +582,37 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         queueDepthHistogram.record(evt.queued, { "openclaw.channel": "heartbeat" });
       };
 
+      const recordMcpToolCall = (
+        evt: Extract<DiagnosticEventPayload, { type: "mcp.tool.call" }>,
+      ) => {
+        const attrs = {
+          "openclaw.mcp.server": evt.serverName,
+          "openclaw.mcp.tool": evt.toolName,
+        };
+        mcpToolCallCounter.add(1, attrs);
+        // Trace spans are emitted on the result event with actual duration.
+        // The call event only increments the counter.
+      };
+
+      const recordMcpToolResult = (
+        evt: Extract<DiagnosticEventPayload, { type: "mcp.tool.result" }>,
+      ) => {
+        const attrs: Record<string, string | number> = {
+          "openclaw.mcp.server": evt.serverName,
+          "openclaw.mcp.tool": evt.toolName,
+          "openclaw.mcp.isError": evt.isError ? 1 : 0,
+        };
+        mcpToolResultCounter.add(1, attrs);
+        mcpToolDurationHistogram.record(evt.durationMs, attrs);
+        if (tracesEnabled) {
+          const span = spanWithDuration("openclaw.mcp.tool.result", attrs, evt.durationMs);
+          if (evt.isError) {
+            span.setStatus({ code: SpanStatusCode.ERROR, message: evt.error ?? "MCP tool error" });
+          }
+          span.end();
+        }
+      };
+
       unsubscribe = onDiagnosticEvent((evt: DiagnosticEventPayload) => {
         switch (evt.type) {
           case "model.usage":
@@ -607,6 +650,12 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
             return;
           case "diagnostic.heartbeat":
             recordHeartbeat(evt);
+            return;
+          case "mcp.tool.call":
+            recordMcpToolCall(evt);
+            return;
+          case "mcp.tool.result":
+            recordMcpToolResult(evt);
             return;
         }
       });

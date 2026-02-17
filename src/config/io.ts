@@ -32,6 +32,7 @@ import {
   resolveConfigEnvVars,
 } from "./env-substitution.js";
 import { applyConfigEnvVars } from "./env-vars.js";
+import { resolveConfigEnvProfiles } from "./env-profiles.js";
 import { ConfigIncludeError, resolveConfigIncludes } from "./includes.js";
 import { findLegacyConfigIssues } from "./legacy.js";
 import { applyMergePatch } from "./merge-patch.js";
@@ -500,13 +501,16 @@ function resolveConfigForRead(
   resolvedIncludes: unknown,
   env: NodeJS.ProcessEnv,
 ): ConfigReadResolution {
+  // Resolve $env profile directives AFTER $include but BEFORE ${VAR} substitution.
+  const withEnvProfiles = resolveConfigEnvProfiles(resolvedIncludes, env);
+
   // Apply config.env to process.env BEFORE substitution so ${VAR} can reference config-defined vars.
-  if (resolvedIncludes && typeof resolvedIncludes === "object" && "env" in resolvedIncludes) {
-    applyConfigEnvVars(resolvedIncludes as OpenClawConfig, env);
+  if (withEnvProfiles && typeof withEnvProfiles === "object" && "env" in withEnvProfiles) {
+    applyConfigEnvVars(withEnvProfiles as OpenClawConfig, env);
   }
 
   return {
-    resolvedConfigRaw: resolveConfigEnvVars(resolvedIncludes, env),
+    resolvedConfigRaw: resolveConfigEnvVars(withEnvProfiles, env),
     // Capture env snapshot after substitution for write-time ${VAR} restoration.
     envSnapshotForRestore: { ...env } as Record<string, string | undefined>,
   };

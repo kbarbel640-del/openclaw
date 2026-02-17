@@ -4,6 +4,7 @@ import type { CanvasHostHandler, CanvasHostServer } from "../canvas-host/server.
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
 import { stopGmailWatcher } from "../hooks/gmail-watcher.js";
 import type { HeartbeatRunner } from "../infra/heartbeat-runner.js";
+import { shutdownMcpServers } from "../mcp/manager.js";
 import type { PluginServicesHandle } from "../plugins/services.js";
 
 export function createGatewayCloseHandler(params: {
@@ -67,6 +68,8 @@ export function createGatewayCloseHandler(params: {
     if (params.pluginServices) {
       await params.pluginServices.stop().catch(() => {});
     }
+    // Disconnect MCP servers before stopping other services.
+    await shutdownMcpServers().catch(() => {});
     await stopGmailWatcher();
     params.cron.stop();
     params.heartbeatRunner.stop();

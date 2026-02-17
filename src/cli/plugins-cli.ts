@@ -746,4 +746,114 @@ export function registerPluginsCli(program: Command) {
       lines.push(`${theme.muted("Docs:")} ${docs}`);
       defaultRuntime.log(lines.join("\n"));
     });
+
+  // ─── create ─────────────────────────────────────────────────────────
+  plugins
+    .command("create <name>")
+    .description("Scaffold a new OpenClaw plugin")
+    .option("-d, --description <desc>", "Plugin description")
+    .option("-o, --output <dir>", "Output directory (default: extensions/<name>)")
+    .option("--kind <kind>", "Plugin kind (e.g. memory)")
+    .action(
+      async (name: string, opts: { description?: string; output?: string; kind?: string }) => {
+        const pluginId = name
+          .replace(/^@[^/]+\//, "")
+          .replace(/[^a-z0-9-]/gi, "-")
+          .replace(/^-+|-+$/g, "")
+          .toLowerCase();
+
+        if (!pluginId) {
+          defaultRuntime.error("Invalid plugin name: resolved to an empty identifier.");
+          process.exitCode = 1;
+          return;
+        }
+
+        const outDir = opts.output
+          ? path.resolve(opts.output)
+          : path.resolve(process.cwd(), "extensions", pluginId);
+
+        if (fs.existsSync(outDir)) {
+          defaultRuntime.error(`Directory already exists: ${outDir}`);
+          process.exitCode = 1;
+          return;
+        }
+
+        fs.mkdirSync(outDir, { recursive: true });
+
+        const description = opts.description ?? `OpenClaw plugin: ${pluginId}`;
+
+        // package.json
+        const packageJson = {
+          name: `@openclaw/${pluginId}`,
+          version: "0.1.0",
+          private: true,
+          description,
+          type: "module",
+          devDependencies: { openclaw: "workspace:*" },
+          openclaw: { extensions: ["./index.ts"] },
+        };
+        fs.writeFileSync(
+          path.join(outDir, "package.json"),
+          JSON.stringify(packageJson, null, 2) + "\n",
+        );
+
+        // openclaw.plugin.json
+        const manifest: Record<string, unknown> = {
+          id: pluginId,
+          name: pluginId,
+          description,
+          configSchema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {},
+          },
+        };
+        if (opts.kind) {
+          manifest.kind = opts.kind;
+        }
+        fs.writeFileSync(
+          path.join(outDir, "openclaw.plugin.json"),
+          JSON.stringify(manifest, null, 2) + "\n",
+        );
+
+        // index.ts
+        const indexContent = `import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+
+export default {
+  id: "${pluginId}",
+  name: "${pluginId}",
+  description: "${description.replace(/"/g, '\\"')}",
+  configSchema: emptyPluginConfigSchema(),
+
+  register(api: OpenClawPluginApi) {
+    api.logger.info("${pluginId} plugin loaded");
+
+    // Register a tool:
+    // api.registerTool(myTool);
+
+    // Register a lifecycle hook:
+    // api.registerHook(["agent:beforeRun"], async (ctx) => { ... });
+
+    // Register a CLI command:
+    // api.registerCli((program) => {
+    //   program.command("my-command").action(() => { ... });
+    // });
+  },
+};
+`;
+        fs.writeFileSync(path.join(outDir, "index.ts"), indexContent);
+
+        defaultRuntime.log(theme.success(`Plugin scaffolded at ${shortenHomePath(outDir)}`));
+        defaultRuntime.log("");
+        defaultRuntime.log("Files created:");
+        defaultRuntime.log(`  ${theme.muted("├─")} package.json`);
+        defaultRuntime.log(`  ${theme.muted("├─")} openclaw.plugin.json`);
+        defaultRuntime.log(`  ${theme.muted("└─")} index.ts`);
+        defaultRuntime.log("");
+        defaultRuntime.log(
+          `${theme.muted("Next:")} Enable it with ${theme.accent(`openclaw plugins enable ${pluginId}`)}`,
+        );
+      },
+    );
 }

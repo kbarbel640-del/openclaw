@@ -151,6 +151,7 @@ Available groups:
 - `group:automation`: `cron`, `gateway`
 - `group:messaging`: `message`
 - `group:nodes`: `nodes`
+- `group:mcp`: all tools from connected MCP servers (matched by `mcp_` prefix)
 - `group:openclaw`: all built-in OpenClaw tools (excludes provider plugins)
 
 Example (allow only file tools + browser):

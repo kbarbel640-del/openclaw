@@ -37,6 +37,9 @@ export const TOOL_GROUPS: Record<string, string[]> = {
   "group:messaging": ["message"],
   // Nodes + device tools
   "group:nodes": ["nodes"],
+  // MCP (Model Context Protocol) remote tools — populated dynamically at runtime.
+  // Tool names follow the pattern mcp_{server}_{tool} and are matched by prefix.
+  "group:mcp": [],
   // All OpenClaw native tools (excludes provider plugins).
   "group:openclaw": [
     "browser",
@@ -134,10 +137,19 @@ export type AllowlistResolution = {
   strippedAllowlist: boolean;
 };
 
-export function expandToolGroups(list?: string[]) {
+export function expandToolGroups(list?: string[], availableToolNames?: Set<string>) {
   const normalized = normalizeToolList(list);
   const expanded: string[] = [];
   for (const value of normalized) {
+    // Dynamic group: group:mcp resolves to all available tools prefixed with "mcp_".
+    if (value === "group:mcp" && availableToolNames) {
+      for (const name of availableToolNames) {
+        if (name.startsWith("mcp_")) {
+          expanded.push(name);
+        }
+      }
+      continue;
+    }
     const group = TOOL_GROUPS[value];
     if (group) {
       expanded.push(...group);

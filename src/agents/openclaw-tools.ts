@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
+import { resolveMcpTools } from "../mcp/manager.js";
 import { resolvePluginTools } from "../plugins/tools.js";
 import type { GatewayMessageChannel } from "../utils/message-channel.js";
 import { resolveSessionAgentId } from "./agent-scope.js";
@@ -178,5 +179,10 @@ export function createOpenClawTools(options?: {
     toolAllowlist: options?.pluginToolAllowlist,
   });
 
-  return [...tools, ...pluginTools];
+  const allTools = [...tools, ...pluginTools];
+
+  // MCP tools — append tools from connected MCP servers.
+  const mcpTools = resolveMcpTools(new Set(allTools.map((t) => t.name)));
+
+  return [...allTools, ...mcpTools];
 }
