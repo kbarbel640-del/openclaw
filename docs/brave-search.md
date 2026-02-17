@@ -25,6 +25,8 @@ OpenClaw uses Brave Search as the default provider for `web_search`.
       search: {
         provider: "brave",
         apiKey: "BRAVE_API_KEY_HERE",
+        // Optional endpoint override for proxies/self-hosted routing
+        baseUrl: "https://api.search.brave.com",
         maxResults: 5,
         timeoutSeconds: 30,
       },

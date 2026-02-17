@@ -3,6 +3,8 @@ import { withEnv } from "../../test-utils/env.js";
 import { __testing } from "./web-search.js";
 
 const {
+  resolveBraveBaseUrl,
+  resolveBraveSearchEndpoint,
   inferPerplexityBaseUrlFromApiKey,
   resolvePerplexityBaseUrl,
   isDirectPerplexityBaseUrl,
@@ -14,6 +16,27 @@ const {
   resolveGrokInlineCitations,
   extractGrokContent,
 } = __testing;
+
+describe("web_search brave baseUrl", () => {
+  it("uses default Brave baseUrl when not configured", () => {
+    expect(resolveBraveBaseUrl(undefined)).toBe("https://api.search.brave.com");
+  });
+
+  it("uses configured Brave baseUrl", () => {
+    expect(resolveBraveBaseUrl({ baseUrl: "https://proxy.example/brave" })).toBe(
+      "https://proxy.example/brave",
+    );
+  });
+
+  it("builds Brave endpoint from baseUrl", () => {
+    expect(resolveBraveSearchEndpoint("https://proxy.example/brave")).toBe(
+      "https://proxy.example/brave/res/v1/web/search",
+    );
+    expect(resolveBraveSearchEndpoint("https://proxy.example/brave/res/v1/web/search")).toBe(
+      "https://proxy.example/brave/res/v1/web/search",
+    );
+  });
+});
 
 describe("web_search perplexity baseUrl defaults", () => {
   it("detects a Perplexity key prefix", () => {

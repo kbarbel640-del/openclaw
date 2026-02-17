@@ -100,9 +100,23 @@ describe("web_search country and language parameters", () => {
       ui_lang: string;
       freshness: string;
     }>,
+    config?: { baseUrl?: string },
   ) {
     const mockFetch = installMockFetch({ web: { results: [] } });
-    const tool = createWebSearchTool({ config: undefined, sandboxed: true });
+    const tool = createWebSearchTool({
+      config: config?.baseUrl
+        ? {
+            tools: {
+              web: {
+                search: {
+                  baseUrl: config.baseUrl,
+                },
+              },
+            },
+          }
+        : undefined,
+      sandboxed: true,
+    });
     expect(tool).not.toBeNull();
     await tool?.execute?.("call-1", { query: "test", ...params });
     expect(mockFetch).toHaveBeenCalled();
@@ -126,6 +140,11 @@ describe("web_search country and language parameters", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(result?.details).toMatchObject({ error: "invalid_freshness" });
+  });
+
+  it("uses configured Brave baseUrl", async () => {
+    const url = await runBraveSearchAndGetUrl({}, { baseUrl: "https://proxy.example/brave" });
+    expect(url.toString().startsWith("https://proxy.example/brave/res/v1/web/search?")).toBe(true);
   });
 });
 
