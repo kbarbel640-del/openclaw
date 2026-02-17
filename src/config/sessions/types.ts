@@ -74,6 +74,8 @@ export type SessionEntry = {
   model?: string;
   contextTokens?: number;
   compactionCount?: number;
+  /** When true, blocks message processing until user confirms post-compaction context. */
+  compactionPendingVerification?: boolean;
   memoryFlushAt?: number;
   memoryFlushCompactionCount?: number;
   cliSessionIds?: Record<string, string>;

@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { ExecToolDefaults } from "../../agents/bash-tools.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
@@ -202,6 +204,63 @@ export async function runPreparedReply(
     return undefined;
   }
   const isBareNewOrReset = rawBodyTrimmed === "/new" || rawBodyTrimmed === "/reset";
+
+  // ── Post-compaction verification gate ──────────────────────────────
+  // After compaction, block message processing until user types 'ok'.
+  if (sessionEntry?.compactionPendingVerification && !isNewSession && !isBareNewOrReset) {
+    const inboundText = (ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "").trim().toLowerCase();
+    if (inboundText === "ok") {
+      // Clear the gate and proceed with normal processing
+      sessionEntry.compactionPendingVerification = undefined;
+      sessionEntry.updatedAt = Date.now();
+      if (sessionStore && sessionKey) {
+        sessionStore[sessionKey] = sessionEntry;
+        if (storePath) {
+          await updateSessionStore(storePath, (store) => {
+            const entry = store[sessionKey];
+            if (entry) {
+              entry.compactionPendingVerification = undefined;
+              entry.updatedAt = Date.now();
+            }
+          });
+        }
+      }
+      // Fall through to normal processing
+    } else {
+      // Deliver static verification payload
+      typing.cleanup();
+      let contextSummary = "";
+      try {
+        const ctxTransferPath = path.join(workspaceDir, ".context-transfer.json");
+        const raw = await fs.readFile(ctxTransferPath, "utf-8");
+        const data = JSON.parse(raw);
+        if (data && typeof data === "object") {
+          const lines: string[] = [];
+          for (const [key, value] of Object.entries(data)) {
+            if (typeof value === "string") {
+              lines.push(`- **${key}:** ${value}`);
+            } else if (Array.isArray(value)) {
+              lines.push(`- **${key}:**`);
+              for (const item of value) {
+                lines.push(`  - ${typeof item === "string" ? item : JSON.stringify(item)}`);
+              }
+            } else {
+              lines.push(`- **${key}:** ${JSON.stringify(value)}`);
+            }
+          }
+          if (lines.length > 0) {
+            contextSummary = "\n\n" + lines.join("\n");
+          }
+        }
+      } catch {
+        // .context-transfer.json may not exist — that's fine
+      }
+      return {
+        text: `⚠️ Context compacted. Review before continuing:${contextSummary || "\n\n(No context transfer summary available.)"}\n\nType 'ok' to resume.`,
+      };
+    }
+  }
+
   const isBareSessionReset =
     isNewSession &&
     ((baseBodyTrimmedRaw.length === 0 && rawBodyTrimmed.length > 0) || isBareNewOrReset);

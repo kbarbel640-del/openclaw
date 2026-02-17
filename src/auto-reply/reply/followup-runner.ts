@@ -9,7 +9,11 @@ import { lookupContextTokens } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
-import { resolveAgentIdFromSessionKey, type SessionEntry } from "../../config/sessions.js";
+import {
+  resolveAgentIdFromSessionKey,
+  type SessionEntry,
+  updateSessionStore,
+} from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -273,6 +277,21 @@ export function createFollowupRunner(params: {
           sessionKey,
           storePath,
         });
+        // Set verification gate — blocks future messages until user confirms context
+        if (sessionEntry && sessionStore && sessionKey) {
+          sessionEntry.compactionPendingVerification = true;
+          sessionEntry.updatedAt = Date.now();
+          sessionStore[sessionKey] = sessionEntry;
+          if (storePath) {
+            await updateSessionStore(storePath, (store) => {
+              const entry = store[sessionKey];
+              if (entry) {
+                entry.compactionPendingVerification = true;
+                entry.updatedAt = Date.now();
+              }
+            });
+          }
+        }
         if (queued.run.verboseLevel && queued.run.verboseLevel !== "off") {
           const suffix = typeof count === "number" ? ` (count ${count})` : "";
           finalPayloads.unshift({

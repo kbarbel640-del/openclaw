@@ -13,7 +13,11 @@ import {
   waitForEmbeddedPiRunEnd,
 } from "../../agents/pi-embedded.js";
 import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
-import { type SessionEntry, resolveSessionFilePath } from "../../config/sessions.js";
+import {
+  type SessionEntry,
+  resolveSessionFilePath,
+  updateSessionStore,
+} from "../../config/sessions.js";
 import { listChatCommands, shouldHandleTextCommands } from "../commands-registry.js";
 import { listSkillCommandsForWorkspace } from "../skill-commands.js";
 import { resolveBlockStreamingChunking } from "./block-streaming.js";
@@ -483,6 +487,21 @@ export async function resolveReplyDirectives(params: {
               storePath,
               tokensAfter: result.result?.tokensAfter,
             });
+            // Set verification gate — blocks processing until user confirms context
+            if (sessionEntry && sessionStore && sessionKey) {
+              sessionEntry.compactionPendingVerification = true;
+              sessionEntry.updatedAt = Date.now();
+              sessionStore[sessionKey] = sessionEntry;
+              if (storePath) {
+                await updateSessionStore(storePath, (store) => {
+                  const entry = store[sessionKey];
+                  if (entry) {
+                    entry.compactionPendingVerification = true;
+                    entry.updatedAt = Date.now();
+                  }
+                });
+              }
+            }
           }
           return {
             ok: result.ok && result.compacted,
