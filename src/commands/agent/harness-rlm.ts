@@ -5,15 +5,15 @@ import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { inspect } from "node:util";
 import vm from "node:vm";
+import { runWithModelFallback } from "../../agents/model-fallback.js";
 import type { EmbeddedPiRunResult } from "../../agents/pi-embedded-runner/types.js";
+import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import type { SkillSnapshot } from "../../agents/skills.js";
 import type { ThinkLevel, VerboseLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import { getLogger } from "../../logging/logger.js";
 import type { InputProvenance } from "../../sessions/input-provenance.js";
 import type { AgentStreamParams } from "./types.js";
-import { runWithModelFallback } from "../../agents/model-fallback.js";
-import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
-import { getLogger } from "../../logging/logger.js";
 
 const RLM_MAX_CHILDREN = 64;
 const RLM_MAX_ITERATIONS_PER_DEPTH = 24;

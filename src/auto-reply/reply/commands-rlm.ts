@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { CommandHandler } from "./commands-types.js";
 import { resolveAgentDir } from "../../agents/agent-scope.js";
 import { resolveRlmOptions } from "../../commands/agent/harness-rlm-options.js";
 import { runRlmHarness } from "../../commands/agent/harness-rlm.js";
 import { logVerbose } from "../../globals.js";
 import { normalizeAgentId } from "../../routing/session-key.js";
+import type { CommandHandler } from "./commands-types.js";
 
 function extractRlmQuery(commandBodyNormalized: string): string | null {
   const trimmed = commandBodyNormalized.trim();

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
 import { runRlmHarness } from "../../commands/agent/harness-rlm.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { handleRlmCommand } from "./commands-rlm.js";
 import { buildCommandTestParams } from "./commands.test-harness.js";
 
