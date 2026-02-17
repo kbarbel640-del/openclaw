@@ -182,7 +182,7 @@ describe("sanitizeSessionHistory", () => {
     expect(result.map((msg) => msg.role)).toEqual(["user"]);
   });
 
-  it("does not downgrade openai reasoning when the model has not changed", async () => {
+  it("drops orphaned openai reasoning even when the model has not changed", async () => {
     const sessionEntries: Array<{ type: string; customType: string; data: unknown }> = [
       {
         type: "custom",
@@ -223,10 +223,10 @@ describe("sanitizeSessionHistory", () => {
       sessionId: "test-session",
     });
 
-    expect(result).toEqual(messages);
+    expect(result).toEqual([]);
   });
 
-  it("downgrades openai reasoning only when the model changes", async () => {
+  it("downgrades openai reasoning when the model changes", async () => {
     const sessionEntries: Array<{ type: string; customType: string; data: unknown }> = [
       {
         type: "custom",
