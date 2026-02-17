@@ -17,7 +17,7 @@ type SendWebhookMessageOpts = {
 };
 
 function webhookExecuteUrl(webhookId: string, webhookToken: string) {
-  return `https://discord.com/api/v10/webhooks/${encodeURIComponent(webhookId)}/${encodeURIComponent(webhookToken)}?wait=true`;
+  return `/webhooks/${encodeURIComponent(webhookId)}/${encodeURIComponent(webhookToken)}?wait=true`;
 }
 
 function chunkWebhookText(
