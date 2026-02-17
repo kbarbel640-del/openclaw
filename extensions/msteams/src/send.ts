@@ -113,36 +113,48 @@ export async function sendMessageMSTeams(
     sharePointSiteId,
   } = ctx;
 
-  // Handle inline buffer (base64 data) - convert to mediaUrl format
-  let resolvedMediaUrl = mediaUrl;
-  if (buffer && !mediaUrl) {
-    // Assume it's a data URL or raw base64 - wrap as data URL if needed
-    if (buffer.startsWith("data:")) {
-      resolvedMediaUrl = buffer;
-    } else {
-      // Assume raw base64 - wrap as image/png by default
-      resolvedMediaUrl = `data:image/png;base64,${buffer}`;
-    }
-  }
-
-  log.debug?.("sending proactive message", {
-    conversationId,
-    conversationType,
-    textLength: messageText.length,
-    hasMedia: Boolean(resolvedMediaUrl),
-  });
-
   // Handle media if present
-  if (resolvedMediaUrl) {
+  if (mediaUrl || buffer) {
     const mediaMaxBytes =
       resolveChannelMediaMaxBytes({
         cfg,
         resolveChannelLimitMb: ({ cfg }) => cfg.channels?.msteams?.mediaMaxMb,
       }) ?? MSTEAMS_MAX_MEDIA_BYTES;
-    const media = await loadWebMedia(resolvedMediaUrl, mediaMaxBytes);
+
+    let media: {
+      buffer: Buffer;
+      contentType?: string;
+      fileName?: string;
+    };
+
+    if (buffer && !mediaUrl) {
+      // Inline buffer: decode directly to avoid loadWebMedia data URL issues
+      let base64 = buffer;
+      let contentType = "image/png"; // Default
+      if (buffer.startsWith("data:")) {
+        const matches = buffer.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches && matches[2]) {
+          contentType = matches[1] ?? "image/png";
+          base64 = matches[2];
+        } else {
+          // Fallback for malformed data URLs or non-base64
+          base64 = buffer.split(",")[1] ?? buffer;
+        }
+      }
+      media = {
+        buffer: Buffer.from(base64, "base64"),
+        contentType,
+      };
+    } else if (mediaUrl) {
+      // URL: use loadWebMedia
+      media = await loadWebMedia(mediaUrl, mediaMaxBytes);
+    } else {
+      // Should not happen due to outer check
+      throw new Error("No media provided");
+    }
     const isLargeFile = media.buffer.length >= FILE_CONSENT_THRESHOLD_BYTES;
     const isImage = media.contentType?.startsWith("image/") ?? false;
-    const fallbackFileName = await extractFilename(resolvedMediaUrl);
+    const fallbackFileName = mediaUrl ? await extractFilename(mediaUrl) : "file";
     const fileName = media.fileName ?? fallbackFileName;
 
     log.debug?.("processing media", {

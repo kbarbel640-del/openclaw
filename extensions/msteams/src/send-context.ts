@@ -88,11 +88,7 @@ async function findConversationReference(recipient: {
 
   // For user lookups, get all conversations and prefer "personal" type
   // to avoid stale group/channel references that cause 403 BotNotInConversationRoster
-  const all = await recipient.store.list();
-  const userConversations = all.filter((entry) => {
-    const ref = entry.reference;
-    return ref.user?.aadObjectId === recipient.id || ref.user?.id === recipient.id;
-  });
+  const userConversations = await recipient.store.findAllByUserId(recipient.id);
 
   if (userConversations.length === 0) {
     return null;
