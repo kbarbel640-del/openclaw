@@ -1678,6 +1678,20 @@
                 "pages": ["fr-FR/reference/rpc", "fr-FR/reference/device-models"]
               },
               {
+                "group": "Modèles",
+                "pages": [
+                  "fr-FR/reference/AGENTS.default",
+                  "fr-FR/reference/templates/AGENTS",
+                  "fr-FR/reference/templates/BOOT",
+                  "fr-FR/reference/templates/BOOTSTRAP",
+                  "fr-FR/reference/templates/HEARTBEAT",
+                  "fr-FR/reference/templates/IDENTITY",
+                  "fr-FR/reference/templates/SOUL",
+                  "fr-FR/reference/templates/TOOLS",
+                  "fr-FR/reference/templates/USER"
+                ]
+              },
+              {
                 "group": "Projet",
                 "pages": ["fr-FR/reference/credits"]
               }
