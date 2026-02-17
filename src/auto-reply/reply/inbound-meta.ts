@@ -68,6 +68,7 @@ export function buildInboundUserContextPrefix(ctx: TemplateContext): string {
     thread_label: safeTrim(ctx.ThreadLabel),
     is_forum: ctx.IsForum === true ? true : undefined,
     was_mentioned: ctx.WasMentioned === true ? true : undefined,
+    group_members: safeTrim(ctx.GroupMembers),
   };
   if (Object.values(conversationInfo).some((v) => v !== undefined)) {
     blocks.push(

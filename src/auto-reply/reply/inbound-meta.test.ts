@@ -127,4 +127,23 @@ describe("buildInboundUserContextPrefix", () => {
     expect(text).toContain("Conversation info (untrusted metadata):");
     expect(text).toContain('"conversation_label": "ops-room"');
   });
+
+  it("includes group_members when GroupMembers is set", () => {
+    const text = buildInboundUserContextPrefix({
+      ChatType: "group",
+      ConversationLabel: "family-chat",
+      GroupMembers: "+15551234567, +15559876543",
+    } as TemplateContext);
+
+    expect(text).toContain('"group_members": "+15551234567, +15559876543"');
+  });
+
+  it("omits group_members when GroupMembers is empty", () => {
+    const text = buildInboundUserContextPrefix({
+      ChatType: "group",
+      ConversationLabel: "work-chat",
+    } as TemplateContext);
+
+    expect(text).not.toContain("group_members");
+  });
 });
