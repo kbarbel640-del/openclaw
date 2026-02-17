@@ -99,7 +99,7 @@ export async function listMattermostDirectoryGroups(
       continue;
     }
   }
-  return entries;
+  return params.limit && params.limit > 0 ? entries.slice(0, params.limit) : entries;
 }
 
 /**
@@ -151,7 +151,7 @@ export async function listMattermostDirectoryPeers(
       });
     }
 
-    return users
+    const entries = users
       .filter((u) => u.id !== me.id)
       .map((u) => ({
         kind: "user" as const,
@@ -160,6 +160,7 @@ export async function listMattermostDirectoryPeers(
         handle:
           [u.first_name, u.last_name].filter(Boolean).join(" ").trim() || u.nickname || undefined,
       }));
+    return params.limit && params.limit > 0 ? entries.slice(0, params.limit) : entries;
   } catch (err) {
     console.debug?.("[mattermost-directory] listPeers failed:", (err as Error)?.message);
     return [];
