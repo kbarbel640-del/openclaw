@@ -4,8 +4,8 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildModelAliasIndex } from "../../agents/model-selection.js";
 import type { OpenClawConfig } from "../../config/config.js";
-import { saveSessionStore } from "../../config/sessions.js";
 import type { SessionEntry } from "../../config/sessions.js";
+import { saveSessionStore } from "../../config/sessions.js";
 import { formatZonedTimestamp } from "../../infra/format-time/format-datetime.ts";
 import { enqueueSystemEvent, resetSystemEventsForTest } from "../../infra/system-events.js";
 import { applyResetModelOverride } from "./session-reset-model.js";
@@ -1318,7 +1318,7 @@ describe("persistSessionUsageUpdate", () => {
     expect(stored[sessionKey].resolvedModel).toBe("anthropic/claude-haiku-4.5");
   });
 
-  it("preserves existing resolvedModel when not provided in update", async () => {
+  it("clears stale resolvedModel when switching to a direct model", async () => {
     const storePath = await createStorePath("openclaw-usage-");
     const sessionKey = "main";
     await seedSessionStore({
@@ -1331,16 +1331,19 @@ describe("persistSessionUsageUpdate", () => {
       },
     });
 
+    // Subsequent run uses a direct model — no resolvedModel provided.
     await persistSessionUsageUpdate({
       storePath,
       sessionKey,
       usage: { input: 10_000, output: 1_000, total: 11_000 },
       lastCallUsage: { input: 10_000, output: 1_000, total: 11_000 },
+      modelUsed: "openai/gpt-4",
+      providerUsed: "openai",
       contextTokensUsed: 200_000,
     });
 
     const stored = JSON.parse(await fs.readFile(storePath, "utf-8"));
-    expect(stored[sessionKey].resolvedModel).toBe("anthropic/claude-sonnet-4.5");
+    expect(stored[sessionKey].resolvedModel).toBeUndefined();
   });
 });
 

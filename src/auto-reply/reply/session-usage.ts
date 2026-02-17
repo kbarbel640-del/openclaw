@@ -93,7 +93,7 @@ export async function persistSessionUsageUpdate(params: {
             totalTokensFresh: typeof totalTokens === "number",
             modelProvider: params.providerUsed ?? entry.modelProvider,
             model: params.modelUsed ?? entry.model,
-            resolvedModel: params.resolvedModel ?? entry.resolvedModel,
+            resolvedModel: params.resolvedModel,
             contextTokens: resolvedContextTokens,
             systemPromptReport: params.systemPromptReport ?? entry.systemPromptReport,
             updatedAt: Date.now(),
@@ -116,7 +116,7 @@ export async function persistSessionUsageUpdate(params: {
           const patch: Partial<SessionEntry> = {
             modelProvider: params.providerUsed ?? entry.modelProvider,
             model: params.modelUsed ?? entry.model,
-            resolvedModel: params.resolvedModel ?? entry.resolvedModel,
+            resolvedModel: params.resolvedModel,
             contextTokens: params.contextTokensUsed ?? entry.contextTokens,
             systemPromptReport: params.systemPromptReport ?? entry.systemPromptReport,
             updatedAt: Date.now(),
