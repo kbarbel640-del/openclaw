@@ -151,13 +151,13 @@ describe("before_tool_call hook deduplication (#15502)", () => {
       sessionKey: "main",
     });
     const [def] = toToolDefinitions([wrapped]);
-    const extensionContext = {} as Parameters<typeof def.execute>[4];
+    const extensionContext = {} as Parameters<typeof def.execute>[2];
     await def.execute(
       "call-dedup",
       { url: "https://example.com" },
-      undefined,
-      undefined,
       extensionContext,
+      undefined,
+      undefined as any,
     );
 
     expect(hookRunner.runBeforeToolCall).toHaveBeenCalledTimes(1);
@@ -198,8 +198,8 @@ describe("before_tool_call hook integration for client tools", () => {
       onClientToolCall,
       { agentId: "main", sessionKey: "main" },
     );
-    const extensionContext = {} as Parameters<typeof tool.execute>[4];
-    await tool.execute("client-call-1", { value: "ok" }, undefined, undefined, extensionContext);
+    const extensionContext = {} as Parameters<typeof tool.execute>[2];
+    await tool.execute("client-call-1", { value: "ok" }, extensionContext, undefined, undefined as any);
 
     expect(onClientToolCall).toHaveBeenCalledWith("client_tool", {
       value: "ok",
