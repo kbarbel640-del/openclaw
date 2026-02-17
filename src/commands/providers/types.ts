@@ -154,6 +154,8 @@ export type ProviderDefinition = {
   isLocal?: boolean;
   /** Whether this provider requires explicit authentication */
   requiresAuth?: boolean;
+  /** Suggested model IDs available for this provider */
+  models?: string[];
 };
 
 /**

@@ -54,6 +54,7 @@ export const PROVIDER_REGISTRY: ProviderDefinition[] = [
     envVars: ["GROQ_API_KEY"],
     authModes: ["api-key"],
     defaultBaseUrl: "https://api.groq.com/openai/v1",
+    models: ["groq/deepseek-r1-distill-llama-70b"],
   },
   {
     id: "mistral",
@@ -61,12 +62,18 @@ export const PROVIDER_REGISTRY: ProviderDefinition[] = [
     envVars: ["MISTRAL_API_KEY"],
     authModes: ["api-key"],
     defaultBaseUrl: "https://api.mistral.ai/v1",
+    models: [
+      "mistral/mistral-large-latest",
+      "mistral/mistral-small-latest",
+      "mistral/codestral-latest",
+    ],
   },
   {
     id: "xai",
     name: "xAI",
     envVars: ["XAI_API_KEY"],
     authModes: ["api-key"],
+    models: ["xai/grok-2", "xai/grok-2-mini"],
   },
   {
     id: "openai-codex",
