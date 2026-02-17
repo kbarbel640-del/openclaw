@@ -1,16 +1,16 @@
 ---
-summary: "Social media scraping via Apify (Instagram, TikTok, YouTube)"
+summary: "Social media scraping via Apify (Instagram, TikTok, YouTube, LinkedIn)"
 read_when:
   - You want to scrape social media platforms
   - You need an Apify API key for social scraping
-  - You want Instagram, TikTok, or YouTube data extraction
+  - You want Instagram, TikTok, YouTube, or LinkedIn data extraction
 title: "Social Tools"
 ---
 
 # Social tools
 
 OpenClaw ships a `social_platforms` tool backed by **Apify** Actors for structured
-social media data extraction. It supports **Instagram**, **TikTok**, and **YouTube**.
+social media data extraction. It supports **Instagram**, **TikTok**, **YouTube**, and **LinkedIn**.
 
 ## How it works
 
@@ -36,7 +36,7 @@ social media data extraction. It supports **Instagram**, **TikTok**, and **YouTu
       baseUrl: "https://api.apify.com",
       cacheTtlMinutes: 15,
       maxResults: 20,
-      allowedPlatforms: ["instagram", "tiktok", "youtube"],
+      allowedPlatforms: ["instagram", "tiktok", "youtube", "linkedin"],
     },
   },
 }
@@ -45,7 +45,7 @@ social media data extraction. It supports **Instagram**, **TikTok**, and **YouTu
 Notes:
 
 - `tools.social.enabled` defaults to true when an API key is present.
-- `allowedPlatforms` controls which platforms are available (default: all three).
+- `allowedPlatforms` controls which platforms are available (default: all four).
 - `maxResults` sets the default result limit (default: 20, max: 100).
 
 ## social_platforms
@@ -66,7 +66,7 @@ Notes:
 
 - `action` (required): `"start"`
 - `requests` (required): Array of request objects, each with:
-  - `platform` (required): `"instagram"`, `"tiktok"`, or `"youtube"`
+  - `platform` (required): `"instagram"`, `"tiktok"`, `"youtube"`, or `"linkedin"`
   - Platform-specific parameters (see below)
   - `maxResults` (optional): Maximum results to return (1–100, default: 20)
   - `actorInput` (optional): Object with additional Actor-specific input parameters (see platform options below)
@@ -74,7 +74,7 @@ Notes:
 #### Collect action
 
 - `action` (required): `"collect"`
-- `runs` (required): Array of `{ runId, platform, datasetId }` objects from the start response
+- `runs` (required): Array of `{ runId, platform, datasetId, linkedinAction? }` objects from the start response
 
 ### Platform parameters
 
@@ -143,6 +143,37 @@ Notes:
 - `oldestPostDate`: date filter for channel scraping, e.g. `"2024-01-01"` or `"30 days"`
 - `sortVideosBy`: `NEWEST` | `POPULAR` | `OLDEST`
 
+#### LinkedIn
+
+- `linkedinAction` (required): `"profiles"`, `"company"`, or `"jobs"`
+
+**Profiles** (`linkedinAction: "profiles"`):
+
+- Provide `urls` (profile URLs) and/or `profiles` (usernames)
+- Returns: profile info, work experience, education, certifications
+- Up to 1000 profiles per batch
+
+**Company** (`linkedinAction: "company"`):
+
+- Requires `urls` (LinkedIn company profile URLs, e.g. `https://www.linkedin.com/company/tesla-motors`)
+- `includePosts` (optional, default: `true`): also scrape company posts using the same URLs
+- When `includePosts=true`, fires two concurrent runs (details + posts) returning two run references
+- Returns: company name, industry, website, employee count, description, specialities
+
+**Jobs** (`linkedinAction: "jobs"`):
+
+- Requires `urls` (LinkedIn jobs search URLs from `linkedin.com/jobs/search/`)
+- Returns: job title, company, location, salary, description
+
+**actorInput options:**
+
+- Profiles: `includeEmail` (boolean, default: false) — include email if available
+- Company posts: `limit` (number, 1–100, default: 100) — max posts per company
+- Jobs: `scrapeCompany` (boolean, default: true) — include company details with job listings
+- Jobs: `count` (number, min 100) — limit total jobs scraped
+- Jobs: `splitByLocation` (boolean, default: false) — split search by city to bypass 1000 job limit
+- Jobs: `splitCountry` (string) — country code for location split (e.g. `"US"`, `"GB"`)
+
 ### Platform capabilities
 
 | Platform      | Actions                                                                     |
@@ -150,6 +181,7 @@ Notes:
 | **Instagram** | Scrape URLs (posts, comments, mentions) or search (hashtags, places, users) |
 | **TikTok**    | Search queries, hashtags, video URLs, or profiles                           |
 | **YouTube**   | Search terms or direct video/channel URLs                                   |
+| **LinkedIn**  | Profile details, company info + posts, or job listings                      |
 
 ### Examples
 
@@ -203,18 +235,37 @@ await social_platforms({
   ],
 });
 
-// TikTok profiles with date filtering and comment scraping
+// LinkedIn: scrape company details + posts, and profiles in parallel
 await social_platforms({
   action: "start",
   requests: [
     {
-      platform: "tiktok",
-      tiktokType: "profiles",
-      profiles: ["apifyofficial"],
+      platform: "linkedin",
+      linkedinAction: "company",
+      urls: ["https://www.linkedin.com/company/tesla-motors"],
+    },
+    {
+      platform: "linkedin",
+      linkedinAction: "profiles",
+      profiles: ["satyanadella", "neal-mohan"],
+    },
+  ],
+});
+// → company action returns 2 run refs (details + posts), profiles returns 1
+
+// LinkedIn: scrape job listings
+await social_platforms({
+  action: "start",
+  requests: [
+    {
+      platform: "linkedin",
+      linkedinAction: "jobs",
+      urls: [
+        "https://www.linkedin.com/jobs/search/?keywords=software+engineer&location=San+Francisco",
+      ],
       actorInput: {
-        profileSorting: "popular",
-        oldestPostDateUnified: "30 days",
-        commentsPerPost: 10,
+        scrapeCompany: true,
+        count: 200,
       },
     },
   ],

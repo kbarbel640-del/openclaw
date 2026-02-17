@@ -49,13 +49,10 @@ const ACTOR_IDS: Record<string, string> = {
   instagram: "shu8hvrXbJbY3Eb9W",
   tiktok: "GdWCkxBtKWOsKjdch",
   youtube: "h7sDV53CddomktSi5",
-};
-
-const LINKEDIN_ACTOR_IDS: Record<LinkedinRunType, string> = {
-  profiles: "GOvL4O4RwFqsdIqXF",
-  company_details: "AjfNXEI9qTA2IdaAX",
-  company_posts: "eUv8d0ndjClMLtT1B",
-  jobs: "hKByXkMQaC5Qt9UMN",
+  linkedin_profiles: "GOvL4O4RwFqsdIqXF",
+  linkedin_company_details: "AjfNXEI9qTA2IdaAX",
+  linkedin_company_posts: "eUv8d0ndjClMLtT1B",
+  linkedin_jobs: "hKByXkMQaC5Qt9UMN",
 };
 
 const SOCIAL_CACHE = new Map<string, CacheEntry<Record<string, unknown>>>();
@@ -306,24 +303,93 @@ function buildYoutubeInput(params: {
   throw new ToolInputError("YouTube requires 'urls' or 'queries' parameter.");
 }
 
-interface LinkedInPreparedRun {
+// ---------------------------------------------------------------------------
+// Unified platform handler interface
+// ---------------------------------------------------------------------------
+
+interface PreparedRun {
   actorId: string;
   input: Record<string, unknown>;
-  runType: LinkedinRunType;
+  runType?: string;
 }
 
-function prepareLinkedInRuns(params: {
-  action: LinkedinAction;
+interface CommonParams {
   urls?: string[];
-  profiles?: string[];
   queries?: string[];
+  hashtags?: string[];
+  profiles?: string[];
   maxResults: number;
-  includePosts: boolean;
   actorInput: Record<string, unknown>;
-}): LinkedInPreparedRun[] {
-  switch (params.action) {
+}
+
+interface PlatformHandler {
+  prepare(req: Record<string, unknown>, common: CommonParams): PreparedRun[];
+  format(item: Record<string, unknown>, runType?: string): string;
+}
+
+function prepareInstagram(req: Record<string, unknown>, common: CommonParams): PreparedRun[] {
+  const mode = readStringParam(req, "instagramMode", { required: true });
+  const type = readStringParam(req, "instagramType", { required: true });
+  return [
+    {
+      actorId: ACTOR_IDS.instagram,
+      input: {
+        ...buildInstagramInput({
+          mode,
+          type,
+          urls: common.urls,
+          queries: common.queries,
+          maxResults: common.maxResults,
+        }),
+        ...common.actorInput,
+      },
+    },
+  ];
+}
+
+function prepareTiktok(req: Record<string, unknown>, common: CommonParams): PreparedRun[] {
+  const type = readStringParam(req, "tiktokType", { required: true });
+  return [
+    {
+      actorId: ACTOR_IDS.tiktok,
+      input: {
+        ...buildTiktokInput({
+          type,
+          queries: common.queries,
+          hashtags: common.hashtags,
+          urls: common.urls,
+          profiles: common.profiles,
+          maxResults: common.maxResults,
+        }),
+        ...common.actorInput,
+      },
+    },
+  ];
+}
+
+function prepareYoutube(_req: Record<string, unknown>, common: CommonParams): PreparedRun[] {
+  return [
+    {
+      actorId: ACTOR_IDS.youtube,
+      input: {
+        ...buildYoutubeInput({
+          urls: common.urls,
+          queries: common.queries,
+          maxResults: common.maxResults,
+        }),
+        ...common.actorInput,
+      },
+    },
+  ];
+}
+
+function prepareLinkedIn(req: Record<string, unknown>, common: CommonParams): PreparedRun[] {
+  const action = readStringParam(req, "linkedinAction", { required: true }) as LinkedinAction;
+  const includePosts = req.includePosts !== false;
+
+  switch (action) {
     case "profiles": {
-      const usernames = [...(params.urls ?? []), ...(params.profiles ?? [])];
+      const usernames = [...(common.urls ?? []), ...(common.profiles ?? [])];
       if (!usernames.length) {
         throw new ToolInputError(
           "LinkedIn profiles action requires 'urls' (profile URLs) or 'profiles' (usernames).",
@@ -331,32 +397,32 @@ function prepareLinkedInRuns(params: {
       }
       return [
         {
-          actorId: LINKEDIN_ACTOR_IDS.profiles,
-          input: { usernames, ...params.actorInput },
+          actorId: ACTOR_IDS.linkedin_profiles,
+          input: { usernames, ...common.actorInput },
           runType: "profiles",
         },
       ];
     }
     case "company": {
-      if (!params.urls?.length) {
+      if (!common.urls?.length) {
         throw new ToolInputError(
           "LinkedIn company action requires 'urls' (LinkedIn company profile URLs).",
         );
       }
-      const runs: LinkedInPreparedRun[] = [
+      const runs: PreparedRun[] = [
         {
-          actorId: LINKEDIN_ACTOR_IDS.company_details,
-          input: { profileUrls: params.urls, ...params.actorInput },
+          actorId: ACTOR_IDS.linkedin_company_details,
+          input: { profileUrls: common.urls, ...common.actorInput },
           runType: "company_details",
         },
       ];
-      if (params.includePosts) {
+      if (includePosts) {
         runs.push({
-          actorId: LINKEDIN_ACTOR_IDS.company_posts,
+          actorId: ACTOR_IDS.linkedin_company_posts,
           input: {
-            company_names: params.urls,
-            limit: Math.min(params.maxResults, 100),
-            ...params.actorInput,
+            company_names: common.urls,
+            limit: Math.min(common.maxResults, 100),
+            ...common.actorInput,
           },
           runType: "company_posts",
         });
@@ -364,23 +430,45 @@ function prepareLinkedInRuns(params: {
       return runs;
     }
     case "jobs": {
-      if (!params.urls?.length) {
+      if (!common.urls?.length) {
         throw new ToolInputError(
           "LinkedIn jobs action requires 'urls' (LinkedIn jobs search URLs).",
         );
       }
       return [
         {
-          actorId: LINKEDIN_ACTOR_IDS.jobs,
-          input: { urls: params.urls, ...params.actorInput },
+          actorId: ACTOR_IDS.linkedin_jobs,
+          input: { urls: common.urls, ...common.actorInput },
           runType: "jobs",
         },
       ];
     }
     default:
-      throw new ToolInputError(`Unknown LinkedIn action: ${String(params.action)}`);
+      throw new ToolInputError(`Unknown LinkedIn action: ${String(action)}`);
   }
 }
+
+function formatLinkedInItem(item: Record<string, unknown>, runType?: string): string {
+  switch (runType) {
+    case "profiles":
+      return formatLinkedInProfileItem(item);
+    case "company_details":
+      return formatLinkedInCompanyItem(item);
+    case "company_posts":
+      return formatLinkedInPostItem(item);
+    case "jobs":
+      return formatLinkedInJobItem(item);
+    default:
+      return `\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\``;
+  }
+}
+
+const HANDLERS: Record<SocialPlatform, PlatformHandler> = {
+  instagram: { prepare: prepareInstagram, format: formatInstagramItem },
+  tiktok: { prepare: prepareTiktok, format: formatTiktokItem },
+  youtube: { prepare: prepareYoutube, format: formatYoutubeItem },
+  linkedin: { prepare: prepareLinkedIn, format: formatLinkedInItem },
+};
 
 // ---------------------------------------------------------------------------
 // Apify async API helpers
@@ -487,33 +575,45 @@ function num(value: unknown): string {
   return str(value);
 }
 
+function rawDataBlock(data: unknown): string {
+  return `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\`\n</details>`;
+}
+
+function formatStats(entries: [string, unknown][]): string | null {
+  const parts = entries
+    .filter(([, v]) => v !== undefined)
+    .map(([label, v]) => `${label}: ${num(v)}`);
+  return parts.length ? `**${parts.join(" | ")}**` : null;
+}
+
+function pushField(lines: string[], label: string, ...values: unknown[]): void {
+  const val = values.find((v) => v !== undefined && v !== null && v !== "");
+  if (val !== undefined) {
+    lines.push(`**${label}**: ${str(val)}`);
+  }
+}
+
+function pushNumField(lines: string[], label: string, ...values: unknown[]): void {
+  const val = values.find((v) => v !== undefined && v !== null);
+  if (val !== undefined) {
+    lines.push(`**${label}**: ${num(val)}`);
+  }
+}
+
 function formatInstagramItem(item: Record<string, unknown>): string {
   const lines: string[] = [`## Instagram Post by @${str(item.ownerUsername)}`];
-  if (item.url) {
-    lines.push(`**URL**: ${str(item.url)}`);
+  pushField(lines, "URL", item.url);
+  pushField(lines, "Type", item.type);
+  const stats = formatStats([
+    ["Likes", item.likesCount],
+    ["Comments", item.commentsCount],
+  ]);
+  if (stats) {
+    lines.push(stats);
   }
-  if (item.type) {
-    lines.push(`**Type**: ${str(item.type)}`);
-  }
-  const stats: string[] = [];
-  if (item.likesCount !== undefined) {
-    stats.push(`Likes: ${num(item.likesCount)}`);
-  }
-  if (item.commentsCount !== undefined) {
-    stats.push(`Comments: ${num(item.commentsCount)}`);
-  }
-  if (stats.length) {
-    lines.push(`**${stats.join(" | ")}**`);
-  }
-  if (item.caption) {
-    lines.push(`**Caption**: ${str(item.caption)}`);
-  }
-  if (item.timestamp) {
-    lines.push(`**Posted**: ${str(item.timestamp)}`);
-  }
-  lines.push(
-    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
-  );
+  pushField(lines, "Caption", item.caption);
+  pushField(lines, "Posted", item.timestamp);
+  lines.push(rawDataBlock(item));
   return lines.join("\n");
 }
 
@@ -523,72 +623,44 @@ function formatTiktokItem(item: Record<string, unknown>): string {
       ? (item.authorMeta as Record<string, unknown>).name
       : item.author;
   const lines: string[] = [`## TikTok Video by @${str(author)}`];
-  if (item.webVideoUrl) {
-    lines.push(`**URL**: ${str(item.webVideoUrl)}`);
+  pushField(lines, "URL", item.webVideoUrl);
+  const stats = formatStats([
+    ["Plays", item.playCount],
+    ["Likes", item.diggCount],
+    ["Shares", item.shareCount],
+    ["Comments", item.commentCount],
+  ]);
+  if (stats) {
+    lines.push(stats);
   }
-  const stats: string[] = [];
-  if (item.playCount !== undefined) {
-    stats.push(`Plays: ${num(item.playCount)}`);
-  }
-  if (item.diggCount !== undefined) {
-    stats.push(`Likes: ${num(item.diggCount)}`);
-  }
-  if (item.shareCount !== undefined) {
-    stats.push(`Shares: ${num(item.shareCount)}`);
-  }
-  if (item.commentCount !== undefined) {
-    stats.push(`Comments: ${num(item.commentCount)}`);
-  }
-  if (stats.length) {
-    lines.push(`**${stats.join(" | ")}**`);
-  }
-  if (item.text) {
-    lines.push(`**Description**: ${str(item.text)}`);
-  }
+  pushField(lines, "Description", item.text);
   const videoMeta = item.videoMeta as Record<string, unknown> | undefined;
   if (videoMeta?.duration) {
     lines.push(`**Duration**: ${num(videoMeta.duration)}s`);
   }
-  if (item.createTimeISO) {
-    lines.push(`**Posted**: ${str(item.createTimeISO)}`);
-  }
-  lines.push(
-    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
-  );
+  pushField(lines, "Posted", item.createTimeISO);
+  lines.push(rawDataBlock(item));
   return lines.join("\n");
 }
 
 function formatYoutubeItem(item: Record<string, unknown>): string {
   const lines: string[] = [`## ${str(item.title)}`];
-  if (item.url) {
-    lines.push(`**URL**: ${str(item.url)}`);
-  }
+  pushField(lines, "URL", item.url);
   if (item.channelName) {
     const subs = item.numberOfSubscribers ? ` (${num(item.numberOfSubscribers)} subscribers)` : "";
     lines.push(`**Channel**: ${str(item.channelName)}${subs}`);
   }
-  const stats: string[] = [];
-  if (item.viewCount !== undefined) {
-    stats.push(`Views: ${num(item.viewCount)}`);
+  const stats = formatStats([
+    ["Views", item.viewCount],
+    ["Likes", item.likes],
+  ]);
+  if (stats) {
+    lines.push(stats);
   }
-  if (item.likes !== undefined) {
-    stats.push(`Likes: ${num(item.likes)}`);
-  }
-  if (stats.length) {
-    lines.push(`**${stats.join(" | ")}**`);
-  }
-  if (item.duration) {
-    lines.push(`**Duration**: ${str(item.duration)}`);
-  }
-  if (item.date) {
-    lines.push(`**Published**: ${str(item.date)}`);
-  }
-  if (item.text) {
-    lines.push(`**Description**: ${str(item.text)}`);
-  }
-  lines.push(
-    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
-  );
+  pushField(lines, "Duration", item.duration);
+  pushField(lines, "Published", item.date);
+  pushField(lines, "Description", item.text);
+  lines.push(rawDataBlock(item));
   return lines.join("\n");
 }
 
@@ -618,9 +690,7 @@ function formatLinkedInProfileItem(item: Record<string, unknown>): string {
           lines.push(`  - ${str(edu.school)} — ${str(edu.degree)}`);
         }
       }
-      lines.push(
-        `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(profile, null, 2)}\n\`\`\`\n</details>`,
-      );
+      lines.push(rawDataBlock(profile));
       parts.push(lines.join("\n"));
     }
     const failed = item.failedUsernames as string[] | undefined;
@@ -634,120 +704,54 @@ function formatLinkedInProfileItem(item: Record<string, unknown>): string {
 
 function formatLinkedInCompanyItem(item: Record<string, unknown>): string {
   const lines: string[] = [`## LinkedIn Company: ${str(item.name || item.companyName)}`];
-  if (item.industry) {
-    lines.push(`**Industry**: ${str(item.industry)}`);
-  }
-  if (item.website) {
-    lines.push(`**Website**: ${str(item.website)}`);
-  }
-  if (item.employeesCount ?? item.staffCount) {
-    lines.push(`**Employees**: ${num(item.employeesCount ?? item.staffCount)}`);
-  }
-  if (item.description) {
-    lines.push(`**Description**: ${str(item.description)}`);
-  }
-  if (item.specialities) {
-    lines.push(`**Specialities**: ${str(item.specialities)}`);
-  }
-  if (item.foundedYear ?? item.founded) {
-    lines.push(`**Founded**: ${str(item.foundedYear ?? item.founded)}`);
-  }
-  if (item.headquarters) {
-    lines.push(`**Headquarters**: ${str(item.headquarters)}`);
-  }
-  if (item.followerCount ?? item.followersCount) {
-    lines.push(`**Followers**: ${num(item.followerCount ?? item.followersCount)}`);
-  }
-  if (item.linkedinUrl ?? item.url) {
-    lines.push(`**LinkedIn**: ${str(item.linkedinUrl ?? item.url)}`);
-  }
-  lines.push(
-    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
-  );
+  pushField(lines, "Industry", item.industry);
+  pushField(lines, "Website", item.website);
+  pushNumField(lines, "Employees", item.employeesCount, item.staffCount);
+  pushField(lines, "Description", item.description);
+  pushField(lines, "Specialities", item.specialities);
+  pushField(lines, "Founded", item.foundedYear, item.founded);
+  pushField(lines, "Headquarters", item.headquarters);
+  pushNumField(lines, "Followers", item.followerCount, item.followersCount);
+  pushField(lines, "LinkedIn", item.linkedinUrl, item.url);
+  lines.push(rawDataBlock(item));
   return lines.join("\n");
 }
 
 function formatLinkedInPostItem(item: Record<string, unknown>): string {
   const lines: string[] = [`## LinkedIn Post`];
-  if (item.company ?? item.companyName) {
-    lines.push(`**Company**: ${str(item.company ?? item.companyName)}`);
+  pushField(lines, "Company", item.company, item.companyName);
+  pushField(lines, "URL", item.postUrl, item.url);
+  const stats = formatStats([
+    ["Reactions", item.totalReactionCount],
+    ["Comments", item.commentsCount],
+  ]);
+  if (stats) {
+    lines.push(stats);
   }
-  if (item.postUrl ?? item.url) {
-    lines.push(`**URL**: ${str(item.postUrl ?? item.url)}`);
-  }
-  const stats: string[] = [];
-  if (item.totalReactionCount !== undefined) {
-    stats.push(`Reactions: ${num(item.totalReactionCount)}`);
-  }
-  if (item.commentsCount !== undefined) {
-    stats.push(`Comments: ${num(item.commentsCount)}`);
-  }
-  if (stats.length) {
-    lines.push(`**${stats.join(" | ")}**`);
-  }
-  if (item.text ?? item.content) {
-    lines.push(`**Content**: ${str(item.text ?? item.content)}`);
-  }
-  if (item.postedAt ?? item.publishedAt) {
-    lines.push(`**Posted**: ${str(item.postedAt ?? item.publishedAt)}`);
-  }
-  lines.push(
-    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
-  );
+  pushField(lines, "Content", item.text, item.content);
+  pushField(lines, "Posted", item.postedAt, item.publishedAt);
+  lines.push(rawDataBlock(item));
   return lines.join("\n");
 }
 
 function formatLinkedInJobItem(item: Record<string, unknown>): string {
   const lines: string[] = [`## ${str(item.title)}`];
-  if (item.companyName) {
-    lines.push(`**Company**: ${str(item.companyName)}`);
-  }
-  if (item.location) {
-    lines.push(`**Location**: ${str(item.location)}`);
-  }
-  if (item.link) {
-    lines.push(`**URL**: ${str(item.link)}`);
-  }
+  pushField(lines, "Company", item.companyName);
+  pushField(lines, "Location", item.location);
+  pushField(lines, "URL", item.link);
   if (Array.isArray(item.salaryInfo) && item.salaryInfo.length) {
     lines.push(`**Salary**: ${(item.salaryInfo as string[]).join(" - ")}`);
   }
-  if (item.employmentType) {
-    lines.push(`**Type**: ${str(item.employmentType)}`);
-  }
-  if (item.seniorityLevel) {
-    lines.push(`**Level**: ${str(item.seniorityLevel)}`);
-  }
-  if (item.postedAt) {
-    lines.push(`**Posted**: ${str(item.postedAt)}`);
-  }
-  if (item.applicantsCount) {
-    lines.push(`**Applicants**: ${str(item.applicantsCount)}`);
-  }
+  pushField(lines, "Type", item.employmentType);
+  pushField(lines, "Level", item.seniorityLevel);
+  pushField(lines, "Posted", item.postedAt);
+  pushField(lines, "Applicants", item.applicantsCount);
   if (item.descriptionText) {
     const desc = str(item.descriptionText);
     lines.push(`**Description**: ${desc.length > 500 ? desc.slice(0, 500) + "…" : desc}`);
   }
-  lines.push(
-    `\n<details><summary>Raw data</summary>\n\n\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\`\n</details>`,
-  );
+  lines.push(rawDataBlock(item));
   return lines.join("\n");
-}
-
-function resolveLinkedInFormatter(
-  runType?: LinkedinRunType,
-): (item: Record<string, unknown>) => string {
-  switch (runType) {
-    case "profiles":
-      return formatLinkedInProfileItem;
-    case "company_details":
-      return formatLinkedInCompanyItem;
-    case "company_posts":
-      return formatLinkedInPostItem;
-    case "jobs":
-      return formatLinkedInJobItem;
-    default:
-      return (item) => `\`\`\`json\n${JSON.stringify(item, null, 2)}\n\`\`\``;
-  }
 }
 
 function formatPlatformResults(
@@ -755,18 +759,10 @@ function formatPlatformResults(
   items: unknown[],
   linkedinRunType?: LinkedinRunType,
 ): string {
-  const formatter =
-    platform === "instagram"
-      ? formatInstagramItem
-      : platform === "tiktok"
-        ? formatTiktokItem
-        : platform === "linkedin"
-          ? resolveLinkedInFormatter(linkedinRunType)
-          : formatYoutubeItem;
-
+  const handler = HANDLERS[platform];
   const parts = items.map((item) => {
     try {
-      return formatter(item as Record<string, unknown>);
+      return handler.format(item as Record<string, unknown>, linkedinRunType);
     } catch {
       return `## [unreadable item]\n${JSON.stringify(item).slice(0, 200)}`;
     }
@@ -969,71 +965,28 @@ async function handleStart(params: {
       throw new ToolInputError(`Platform "${platform}" is not enabled.`);
     }
 
-    const maxResults = readNumberParam(req, "maxResults") ?? params.defaultMaxResults;
-    const urls = readStringArrayParam(req, "urls");
-    const queries = readStringArrayParam(req, "queries");
-    const hashtags = readStringArrayParam(req, "hashtags");
-    const profiles = readStringArrayParam(req, "profiles");
+    const common: CommonParams = {
+      urls: readStringArrayParam(req, "urls"),
+      queries: readStringArrayParam(req, "queries"),
+      hashtags: readStringArrayParam(req, "hashtags"),
+      profiles: readStringArrayParam(req, "profiles"),
+      maxResults: readNumberParam(req, "maxResults") ?? params.defaultMaxResults,
+      actorInput:
+        req.actorInput && typeof req.actorInput === "object" && !Array.isArray(req.actorInput)
+          ? (req.actorInput as Record<string, unknown>)
+          : {},
+    };
 
-    const actorInput =
-      req.actorInput && typeof req.actorInput === "object" && !Array.isArray(req.actorInput)
-        ? (req.actorInput as Record<string, unknown>)
-        : {};
-
-    if (platform === "linkedin") {
-      const action = readStringParam(req, "linkedinAction", {
-        required: true,
-      }) as LinkedinAction;
-      const includePosts = req.includePosts !== false;
-      const linkedInRuns = prepareLinkedInRuns({
-        action,
-        urls,
-        profiles,
-        queries,
-        maxResults,
-        includePosts,
-        actorInput,
+    const handler = HANDLERS[platform];
+    const runs = handler.prepare(req, common);
+    for (const run of runs) {
+      prepared.push({
+        platform,
+        actorId: run.actorId,
+        input: run.input,
+        linkedinRunType: run.runType as LinkedinRunType | undefined,
       });
-      for (const run of linkedInRuns) {
-        prepared.push({
-          platform,
-          actorId: run.actorId,
-          input: run.input,
-          linkedinRunType: run.runType,
-        });
-      }
-      continue;
     }
-
-    const actorId = ACTOR_IDS[platform];
-    let input: Record<string, unknown>;
-    switch (platform) {
-      case "instagram": {
-        const mode = readStringParam(req, "instagramMode", { required: true });
-        const type = readStringParam(req, "instagramType", { required: true });
-        input = {
-          ...buildInstagramInput({ mode, type, urls, queries, maxResults }),
-          ...actorInput,
-        };
-        break;
-      }
-      case "tiktok": {
-        const type = readStringParam(req, "tiktokType", { required: true });
-        input = {
-          ...buildTiktokInput({ type, queries, hashtags, urls, profiles, maxResults }),
-          ...actorInput,
-        };
-        break;
-      }
-      case "youtube": {
-        input = { ...buildYoutubeInput({ urls, queries, maxResults }), ...actorInput };
-        break;
-      }
-      default:
-        throw new ToolInputError(`Unknown platform: ${String(platform)}`);
-    }
-
-    prepared.push({ platform, actorId, input });
   }
 
   // Fire all Actor starts concurrently.

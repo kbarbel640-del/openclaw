@@ -86,7 +86,7 @@ async function startAndCollect(
     requests,
   });
   const startDetails = startResult?.details as {
-    runs: { runId: string; platform: string; datasetId: string }[];
+    runs: { runId: string; platform: string; datasetId: string; linkedinAction?: string }[];
   };
 
   const collectResult = await tool.execute?.("call", {
@@ -315,6 +315,212 @@ describe("social_platforms", () => {
 
     const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
     expect(body.startUrls).toEqual([{ url: "https://youtube.com/watch?v=abc" }]);
+  });
+
+  // -- LinkedIn --
+
+  it("builds correct LinkedIn profiles input", async () => {
+    const mockFetch = createAsyncMockFetch([]);
+    // @ts-expect-error mock
+    global.fetch = mockFetch;
+
+    const tool = createSocialPlatformsTool({
+      config: { tools: { social: { cacheTtlMinutes: 0 } } },
+    })!;
+    await tool.execute?.("call", {
+      action: "start",
+      requests: [
+        {
+          platform: "linkedin",
+          linkedinAction: "profiles",
+          profiles: ["satyanadella", "neal-mohan"],
+        },
+      ],
+    });
+
+    const url = requestUrl(mockFetch.mock.calls[0][0]);
+    expect(url).toContain("/v2/acts/GOvL4O4RwFqsdIqXF/");
+    const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
+    expect(body.usernames).toEqual(["satyanadella", "neal-mohan"]);
+  });
+
+  it("builds correct LinkedIn company input with posts", async () => {
+    const mockFetch = createAsyncMockFetch([]);
+    // @ts-expect-error mock
+    global.fetch = mockFetch;
+
+    const tool = createSocialPlatformsTool({
+      config: { tools: { social: { cacheTtlMinutes: 0 } } },
+    })!;
+    await tool.execute?.("call", {
+      action: "start",
+      requests: [
+        {
+          platform: "linkedin",
+          linkedinAction: "company",
+          urls: ["https://www.linkedin.com/company/tesla-motors"],
+        },
+      ],
+    });
+
+    // Two runs should be started: company_details + company_posts
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    const url0 = requestUrl(mockFetch.mock.calls[0][0]);
+    expect(url0).toContain("/v2/acts/AjfNXEI9qTA2IdaAX/");
+    const body0 = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
+    expect(body0.profileUrls).toEqual(["https://www.linkedin.com/company/tesla-motors"]);
+
+    const url1 = requestUrl(mockFetch.mock.calls[1][0]);
+    expect(url1).toContain("/v2/acts/eUv8d0ndjClMLtT1B/");
+    const body1 = JSON.parse(mockFetch.mock.calls[1][1]?.body as string);
+    expect(body1.company_names).toEqual(["https://www.linkedin.com/company/tesla-motors"]);
+  });
+
+  it("builds LinkedIn company input without posts when includePosts=false", async () => {
+    const mockFetch = createAsyncMockFetch([]);
+    // @ts-expect-error mock
+    global.fetch = mockFetch;
+
+    const tool = createSocialPlatformsTool({
+      config: { tools: { social: { cacheTtlMinutes: 0 } } },
+    })!;
+    await tool.execute?.("call", {
+      action: "start",
+      requests: [
+        {
+          platform: "linkedin",
+          linkedinAction: "company",
+          urls: ["https://www.linkedin.com/company/tesla-motors"],
+          includePosts: false,
+        },
+      ],
+    });
+
+    // Only one run: company_details (no posts)
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const url = requestUrl(mockFetch.mock.calls[0][0]);
+    expect(url).toContain("/v2/acts/AjfNXEI9qTA2IdaAX/");
+  });
+
+  it("builds correct LinkedIn jobs input", async () => {
+    const mockFetch = createAsyncMockFetch([]);
+    // @ts-expect-error mock
+    global.fetch = mockFetch;
+
+    const tool = createSocialPlatformsTool({
+      config: { tools: { social: { cacheTtlMinutes: 0 } } },
+    })!;
+    await tool.execute?.("call", {
+      action: "start",
+      requests: [
+        {
+          platform: "linkedin",
+          linkedinAction: "jobs",
+          urls: ["https://www.linkedin.com/jobs/search/?keywords=engineer"],
+        },
+      ],
+    });
+
+    const url = requestUrl(mockFetch.mock.calls[0][0]);
+    expect(url).toContain("/v2/acts/hKByXkMQaC5Qt9UMN/");
+    const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
+    expect(body.urls).toEqual(["https://www.linkedin.com/jobs/search/?keywords=engineer"]);
+  });
+
+  it("returns linkedinAction in run refs for collect phase", async () => {
+    const mockFetch = createAsyncMockFetch([]);
+    // @ts-expect-error mock
+    global.fetch = mockFetch;
+
+    const tool = createSocialPlatformsTool({
+      config: { tools: { social: { cacheTtlMinutes: 0 } } },
+    })!;
+    const result = await tool.execute?.("call", {
+      action: "start",
+      requests: [
+        {
+          platform: "linkedin",
+          linkedinAction: "profiles",
+          profiles: ["testuser"],
+        },
+      ],
+    });
+
+    const details = result?.details as {
+      runs: { runId: string; platform: string; linkedinAction?: string }[];
+    };
+    expect(details.runs).toHaveLength(1);
+    expect(details.runs[0].platform).toBe("linkedin");
+    expect(details.runs[0].linkedinAction).toBe("profiles");
+  });
+
+  it("formats LinkedIn company results as markdown", async () => {
+    const mockFetch = createAsyncMockFetch([
+      {
+        name: "Tesla Motors",
+        industry: "Automotive",
+        website: "https://tesla.com",
+        employeesCount: 127000,
+        description: "Electric vehicles and clean energy.",
+      },
+    ]);
+    // @ts-expect-error mock
+    global.fetch = mockFetch;
+
+    const tool = createSocialPlatformsTool({
+      config: { tools: { social: { cacheTtlMinutes: 0 } } },
+    })!;
+
+    // Start
+    const startResult = await tool.execute?.("call", {
+      action: "start",
+      requests: [
+        {
+          platform: "linkedin",
+          linkedinAction: "company",
+          urls: ["https://www.linkedin.com/company/tesla-motors"],
+          includePosts: false,
+        },
+      ],
+    });
+    const runs = (startResult.details as { runs: unknown[] }).runs;
+
+    // Collect
+    const collectResult = await tool.execute?.("call", { action: "collect", runs });
+    const details = collectResult?.details as { completed: Record<string, unknown>[] };
+    expect(details.completed).toHaveLength(1);
+    const text = details.completed[0].text as string;
+    expect(text).toContain("LinkedIn Company: Tesla Motors");
+    expect(text).toContain("Automotive");
+    expect(text).toContain("127,000");
+  });
+
+  it("merges actorInput into LinkedIn Actor input", async () => {
+    const mockFetch = createAsyncMockFetch([]);
+    // @ts-expect-error mock
+    global.fetch = mockFetch;
+
+    const tool = createSocialPlatformsTool({
+      config: { tools: { social: { cacheTtlMinutes: 0 } } },
+    })!;
+    await tool.execute?.("call", {
+      action: "start",
+      requests: [
+        {
+          platform: "linkedin",
+          linkedinAction: "profiles",
+          profiles: ["testuser"],
+          actorInput: {
+            includeEmail: true,
+          },
+        },
+      ],
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
+    expect(body.usernames).toEqual(["testuser"]);
+    expect(body.includeEmail).toBe(true);
   });
 
   // -- actorInput overrides --
