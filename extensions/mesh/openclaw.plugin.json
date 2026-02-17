@@ -1,0 +1,10 @@
+{
+  "id": "mesh",
+  "name": "Mesh",
+  "description": "Workflow orchestration plugin with DAG planning, runs, and retries.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
