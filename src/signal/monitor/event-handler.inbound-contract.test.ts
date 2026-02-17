@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import type { MsgContext } from "../../auto-reply/templating.js";
 import { buildDispatchInboundCaptureMock } from "../../../test/helpers/dispatch-inbound-capture.js";
 import { expectInboundContextContract } from "../../../test/helpers/inbound-contract.js";
-import type { MsgContext } from "../../auto-reply/templating.js";
 
 let capturedCtx: MsgContext | undefined;
 
@@ -79,8 +79,13 @@ describe("signal createSignalEventHandler inbound contract", () => {
     });
 
     expect(capturedCtx).toBeTruthy();
-    expect(capturedCtx?.ChatType).toBe("direct");
-    expect(capturedCtx?.To).toBe("+15550002222");
-    expect(capturedCtx?.OriginatingTo).toBe("+15550002222");
+    const context = capturedCtx as unknown as {
+      ChatType?: string;
+      To?: string;
+      OriginatingTo?: string;
+    };
+    expect(context.ChatType).toBe("direct");
+    expect(context.To).toBe("+15550002222");
+    expect(context.OriginatingTo).toBe("+15550002222");
   });
 });
