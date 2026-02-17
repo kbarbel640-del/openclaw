@@ -257,8 +257,9 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
             direction: "inbound",
           });
 
-          const dmPolicy = account.config.dmPolicy ?? "pairing";
-          const configuredAllowFrom = normalizeAllowEntries(account.config.allowFrom ?? []);
+          const freshAccount = resolveXmtpAccount({ cfg, accountId: account.accountId });
+          const dmPolicy = freshAccount.config.dmPolicy ?? "pairing";
+          const configuredAllowFrom = normalizeAllowEntries(freshAccount.config.allowFrom ?? []);
           const storeAllowFrom = normalizeAllowEntries(
             await runtime.channel.pairing.readAllowFromStore("xmtp", account.accountId).catch(() => []),
           );
