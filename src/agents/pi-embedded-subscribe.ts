@@ -314,8 +314,13 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     }
     return `\`\`\`txt\n${trimmed}\n\`\`\``;
   };
+  const isExecToolResult = (name?: string) => {
+    const n = name?.trim().toLowerCase();
+    return n === "exec" || n === "bash";
+  };
+
   const emitToolSummary = (toolName?: string, meta?: string) => {
-    if (!params.onToolResult) {
+    if (!params.onToolResult || isExecToolResult(toolName)) {
       return;
     }
     const agg = formatToolAggregate(toolName, meta ? [meta] : undefined, {
@@ -335,7 +340,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     }
   };
   const emitToolOutput = (toolName?: string, meta?: string, output?: string) => {
-    if (!params.onToolResult || !output) {
+    if (!params.onToolResult || !output || isExecToolResult(toolName)) {
       return;
     }
     const agg = formatToolAggregate(toolName, meta ? [meta] : undefined, {
