@@ -25,7 +25,7 @@ export const FOLLOWUP_QUEUES = new Map<string, FollowupQueueState>();
  * against the latest before sending to avoid delivering stale replies.
  * See: https://github.com/openclaw/openclaw/issues/19426
  */
-const SESSION_GENERATION_IDS = new Map<string, number>();
+export const SESSION_GENERATION_IDS = new Map<string, number>();
 
 export function getSessionGenerationId(queueKey: string): number {
   return SESSION_GENERATION_IDS.get(queueKey) ?? 0;

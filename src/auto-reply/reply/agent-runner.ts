@@ -120,7 +120,7 @@ export async function runReplyAgent(params: {
   sessionCtx: TemplateContext;
   shouldInjectGroupIntro: boolean;
   typingMode: TypingMode;
-  generationId: number;
+  generationId?: number;
 }): Promise<ReplyPayload | ReplyPayload[] | undefined> {
   const {
     commandBody,
@@ -147,7 +147,7 @@ export async function runReplyAgent(params: {
     sessionCtx,
     shouldInjectGroupIntro,
     typingMode,
-    generationId,
+    generationId = 0,
   } = params;
 
   let activeSessionEntry = sessionEntry;
