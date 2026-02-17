@@ -7,6 +7,7 @@ import {
   resolveAgentMainSessionKey,
 } from "../config/sessions.js";
 import { resolveStorePath } from "../config/sessions/paths.js";
+import { runCronDirectCommand } from "../cron/direct-command.js";
 import { runCronIsolatedAgentTurn } from "../cron/isolated-agent.js";
 import { appendCronRunLog, resolveCronRunLogPath } from "../cron/run-log.js";
 import { CronService } from "../cron/service.js";
@@ -195,6 +196,28 @@ export function buildGatewayCronService(params: {
         agentId,
         sessionKey: `cron:${job.id}`,
         lane: "cron",
+      });
+    },
+    runDirectCommandJob: async ({
+      job,
+      command,
+      args,
+      cwd,
+      env,
+      timeoutSeconds,
+      maxOutputBytes,
+    }) => {
+      return await runCronDirectCommand({
+        jobId: job.id,
+        payload: {
+          kind: "directCommand",
+          command,
+          args,
+          cwd,
+          env,
+          timeoutSeconds,
+          maxOutputBytes,
+        },
       });
     },
     log: getChildLogger({ module: "cron", storePath }),
