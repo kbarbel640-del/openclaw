@@ -28,6 +28,8 @@ export type SendMSTeamsMessageParams = {
   text: string;
   /** Optional media URL */
   mediaUrl?: string;
+  /** Optional base64-encoded buffer for inline media (e.g., data:image/png;base64,...) */
+  buffer?: string;
 };
 
 export type SendMSTeamsMessageResult = {
@@ -93,7 +95,7 @@ export type SendMSTeamsCardResult = {
 export async function sendMessageMSTeams(
   params: SendMSTeamsMessageParams,
 ): Promise<SendMSTeamsMessageResult> {
-  const { cfg, to, text, mediaUrl } = params;
+  const { cfg, to, text, mediaUrl, buffer } = params;
   const tableMode = getMSTeamsRuntime().channel.text.resolveMarkdownTableMode({
     cfg,
     channel: "msteams",
@@ -111,24 +113,36 @@ export async function sendMessageMSTeams(
     sharePointSiteId,
   } = ctx;
 
+  // Handle inline buffer (base64 data) - convert to mediaUrl format
+  let resolvedMediaUrl = mediaUrl;
+  if (buffer && !mediaUrl) {
+    // Assume it's a data URL or raw base64 - wrap as data URL if needed
+    if (buffer.startsWith("data:")) {
+      resolvedMediaUrl = buffer;
+    } else {
+      // Assume raw base64 - wrap as image/png by default
+      resolvedMediaUrl = `data:image/png;base64,${buffer}`;
+    }
+  }
+
   log.debug?.("sending proactive message", {
     conversationId,
     conversationType,
     textLength: messageText.length,
-    hasMedia: Boolean(mediaUrl),
+    hasMedia: Boolean(resolvedMediaUrl),
   });
 
   // Handle media if present
-  if (mediaUrl) {
+  if (resolvedMediaUrl) {
     const mediaMaxBytes =
       resolveChannelMediaMaxBytes({
         cfg,
         resolveChannelLimitMb: ({ cfg }) => cfg.channels?.msteams?.mediaMaxMb,
       }) ?? MSTEAMS_MAX_MEDIA_BYTES;
-    const media = await loadWebMedia(mediaUrl, mediaMaxBytes);
+    const media = await loadWebMedia(resolvedMediaUrl, mediaMaxBytes);
     const isLargeFile = media.buffer.length >= FILE_CONSENT_THRESHOLD_BYTES;
     const isImage = media.contentType?.startsWith("image/") ?? false;
-    const fallbackFileName = await extractFilename(mediaUrl);
+    const fallbackFileName = await extractFilename(resolvedMediaUrl);
     const fileName = media.fileName ?? fallbackFileName;
 
     log.debug?.("processing media", {
