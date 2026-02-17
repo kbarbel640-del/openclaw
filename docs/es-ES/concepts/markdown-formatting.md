@@ -139,7 +139,6 @@ Lenguajes admitidos incluyen: `python`, `javascript`, `typescript`, `bash`, `jso
 
 ```markdown
 ---
-
 ---
 
 ---
