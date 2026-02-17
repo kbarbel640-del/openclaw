@@ -347,8 +347,6 @@ describe("CallManager", () => {
     });
 
     const first = manager.continueCall(started.callId, "First prompt");
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
     const second = await manager.continueCall(started.callId, "Second prompt");
     expect(second.success).toBe(false);
     expect(second.error).toBe("Already waiting for transcript");

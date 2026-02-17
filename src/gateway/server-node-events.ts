@@ -19,22 +19,64 @@ const MAX_EXEC_EVENT_OUTPUT_CHARS = 180;
 const VOICE_TRANSCRIPT_DEDUPE_WINDOW_MS = 1500;
 const MAX_RECENT_VOICE_TRANSCRIPTS = 200;
 
-const recentVoiceTranscripts = new Map<string, { text: string; ts: number }>();
+const recentVoiceTranscripts = new Map<string, { fingerprint: string; ts: number }>();
+
+function normalizeNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeFiniteInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : null;
+}
+
+function resolveVoiceTranscriptFingerprint(obj: Record<string, unknown>, text: string): string {
+  const eventId =
+    normalizeNonEmptyString(obj.eventId) ??
+    normalizeNonEmptyString(obj.providerEventId) ??
+    normalizeNonEmptyString(obj.transcriptId);
+  if (eventId) {
+    return `event:${eventId}`;
+  }
+
+  const callId = normalizeNonEmptyString(obj.providerCallId) ?? normalizeNonEmptyString(obj.callId);
+  const sequence = normalizeFiniteInteger(obj.sequence) ?? normalizeFiniteInteger(obj.seq);
+  if (callId && sequence !== null) {
+    return `call-seq:${callId}:${sequence}`;
+  }
+
+  const eventTimestamp =
+    normalizeFiniteInteger(obj.timestamp) ??
+    normalizeFiniteInteger(obj.ts) ??
+    normalizeFiniteInteger(obj.eventTimestamp);
+  if (callId && eventTimestamp !== null) {
+    return `call-ts:${callId}:${eventTimestamp}`;
+  }
+
+  if (eventTimestamp !== null) {
+    return `timestamp:${eventTimestamp}|text:${text}`;
+  }
+
+  return `text:${text}`;
+}
 
 function shouldDropDuplicateVoiceTranscript(params: {
   sessionKey: string;
-  text: string;
+  fingerprint: string;
   now: number;
 }): boolean {
   const previous = recentVoiceTranscripts.get(params.sessionKey);
   if (
     previous &&
-    previous.text === params.text &&
+    previous.fingerprint === params.fingerprint &&
     params.now - previous.ts <= VOICE_TRANSCRIPT_DEDUPE_WINDOW_MS
   ) {
     return true;
   }
-  recentVoiceTranscripts.set(params.sessionKey, { text: params.text, ts: params.now });
+  recentVoiceTranscripts.set(params.sessionKey, { fingerprint: params.fingerprint, ts: params.now });
 
   if (recentVoiceTranscripts.size > MAX_RECENT_VOICE_TRANSCRIPTS) {
     const cutoff = params.now - VOICE_TRANSCRIPT_DEDUPE_WINDOW_MS * 2;
@@ -45,6 +87,13 @@ function shouldDropDuplicateVoiceTranscript(params: {
       if (recentVoiceTranscripts.size <= MAX_RECENT_VOICE_TRANSCRIPTS) {
         break;
       }
+    }
+    while (recentVoiceTranscripts.size > MAX_RECENT_VOICE_TRANSCRIPTS) {
+      const oldestKey = recentVoiceTranscripts.keys().next().value;
+      if (oldestKey === undefined) {
+        break;
+      }
+      recentVoiceTranscripts.delete(oldestKey);
     }
   }
 
@@ -168,7 +217,8 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
       const sessionKey = sessionKeyRaw.length > 0 ? sessionKeyRaw : rawMainKey;
       const { storePath, entry, canonicalKey } = loadSessionEntry(sessionKey);
       const now = Date.now();
-      if (shouldDropDuplicateVoiceTranscript({ sessionKey: canonicalKey, text, now })) {
+      const fingerprint = resolveVoiceTranscriptFingerprint(obj, text);
+      if (shouldDropDuplicateVoiceTranscript({ sessionKey: canonicalKey, fingerprint, now })) {
         return;
       }
       const sessionId = entry?.sessionId ?? randomUUID();

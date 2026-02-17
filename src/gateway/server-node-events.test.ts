@@ -198,6 +198,30 @@ describe("voice transcript events", () => {
     expect(updateSessionStoreMock).toHaveBeenCalledTimes(1);
   });
 
+  it("does not dedupe identical text when source event IDs differ", async () => {
+    const ctx = buildCtx();
+
+    await handleNodeEvent(ctx, "node-v1", {
+      event: "voice.transcript",
+      payloadJSON: JSON.stringify({
+        text: "hello from mic",
+        sessionKey: "voice-dedupe-eventid-session",
+        eventId: "evt-voice-1",
+      }),
+    });
+    await handleNodeEvent(ctx, "node-v1", {
+      event: "voice.transcript",
+      payloadJSON: JSON.stringify({
+        text: "hello from mic",
+        sessionKey: "voice-dedupe-eventid-session",
+        eventId: "evt-voice-2",
+      }),
+    });
+
+    expect(agentCommandMock).toHaveBeenCalledTimes(2);
+    expect(updateSessionStoreMock).toHaveBeenCalledTimes(2);
+  });
+
   it("forwards transcript with voice provenance", async () => {
     const ctx = buildCtx();
 

@@ -36,6 +36,7 @@ type ConversationContext = Pick<
   | "provider"
   | "config"
   | "storePath"
+  | "activeTurnCalls"
   | "transcriptWaiters"
   | "maxDurationTimers"
 >;
@@ -241,9 +242,10 @@ export async function continueCall(
   if (TerminalStates.has(call.state)) {
     return { success: false, error: "Call has ended" };
   }
-  if (ctx.transcriptWaiters.has(callId)) {
+  if (ctx.activeTurnCalls.has(callId) || ctx.transcriptWaiters.has(callId)) {
     return { success: false, error: "Already waiting for transcript" };
   }
+  ctx.activeTurnCalls.add(callId);
 
   const turnStartedAt = Date.now();
 
@@ -291,6 +293,7 @@ export async function continueCall(
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   } finally {
+    ctx.activeTurnCalls.delete(callId);
     clearTranscriptWaiter(ctx, callId);
   }
 }
