@@ -1,0 +1,14 @@
+{
+  "name": "@openclaw/clawback",
+  "version": "2026.2.16",
+  "description": "Intelligent model router for OpenClaw",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
