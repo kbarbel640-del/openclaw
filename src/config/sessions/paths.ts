@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { logVerbose } from "../../globals.js";
 import { expandHomePrefix, resolveRequiredHomeDir } from "../../infra/home-dir.js";
 import { DEFAULT_AGENT_ID, normalizeAgentId } from "../../routing/session-key.js";
 import { logVerbose } from "../../globals.js";
