@@ -178,7 +178,13 @@ describe("before_tool_call hook deduplication (#15502)", () => {
     const [def] = toToolDefinitions([withAbort]);
 
     const extensionContext = {} as Parameters<typeof def.execute>[4];
-    await def.execute("call-abort-dedup", { command: "ls" }, undefined, undefined, extensionContext);
+    await def.execute(
+      "call-abort-dedup",
+      { command: "ls" },
+      undefined,
+      undefined,
+      extensionContext,
+    );
 
     expect(hookRunner.runBeforeToolCall).toHaveBeenCalledTimes(1);
   });
