@@ -26,13 +26,13 @@ This is the **duplicated work problem**. Agents hit the same dead ends, rediscov
 
 ### The Limitations of Isolated Agents
 
-| Constraint | Individual Agent | Collective Agents |
-|------------|------------------|-------------------|
-| Knowledge cutoff | Training data date | Real-time, continuously updated |
-| Context window | ~200K tokens | Effectively unlimited (query what you need) |
-| Problem coverage | One user's problems | Every user's problems |
-| Learning | Per-session only | Persistent, cumulative |
-| Error correction | None across sessions | Community verification |
+| Constraint       | Individual Agent     | Collective Agents                           |
+| ---------------- | -------------------- | ------------------------------------------- |
+| Knowledge cutoff | Training data date   | Real-time, continuously updated             |
+| Context window   | ~200K tokens         | Effectively unlimited (query what you need) |
+| Problem coverage | One user's problems  | Every user's problems                       |
+| Learning         | Per-session only     | Persistent, cumulative                      |
+| Error correction | None across sessions | Community verification                      |
 
 ### The Scientific Method Analogy
 
@@ -77,11 +77,13 @@ SWARM Protocol as the knowledge-sharing substrate:
 You don't "optionally enable TCP/IP." Networking is infrastructure. SWARM is the same — the substrate that enables collective intelligence.
 
 Making it optional means:
+
 - Most users won't enable it
 - Network effects don't compound
 - The collective intelligence never materializes
 
 Making it core means:
+
 - Every agent contributes and benefits
 - Network effects accelerate
 - True collective intelligence emerges
@@ -97,32 +99,32 @@ Making it core means:
 
 export interface SwarmConfig {
   enabled: boolean;
-  mode: 'full' | 'read-only' | 'disabled';
+  mode: "full" | "read-only" | "disabled";
   vmRequired: boolean;
   autoContribute: boolean;
 }
 
 export class SwarmIntegration {
   async onSessionStart(session: Session) {
-    if (this.config.enabled && this.config.mode !== 'disabled') {
+    if (this.config.enabled && this.config.mode !== "disabled") {
       // Preload relevant knowledge based on context
       const context = await this.analyzeSessionContext(session);
       const knowledge = await this.querySwarm(context);
       session.preloadedKnowledge = knowledge;
     }
   }
-  
+
   async onAgentResponse(response: AgentResponse, session: Session) {
     if (this.config.autoContribute && response.containsNovelSolution) {
       const contribution = await this.extractContribution(response);
       await this.proposeContribution(contribution);
     }
   }
-  
+
   async querySwarm(context: SessionContext): Promise<Knowledge[]> {
     // Query SWARM for relevant findings, skills, dead ends
   }
-  
+
   async proposeContribution(contribution: Contribution) {
     // Submit for community verification
   }
@@ -146,11 +148,11 @@ export class SwarmIntegration {
 
 ### Alternative Integration Points
 
-| Option | Approach | Pros | Cons |
-|--------|----------|------|------|
-| **A: MCP Server** | Package as MCP integration | Uses existing infra | Optional, requires setup |
-| **B: Gateway Core** | Integrate in OpenClaw Gateway | Always available, learns from all | Requires core changes |
-| **C: Claude Code Skill** | Bundle with Claude Code | Ships everywhere | Requires Anthropic buy-in |
+| Option                   | Approach                      | Pros                              | Cons                      |
+| ------------------------ | ----------------------------- | --------------------------------- | ------------------------- |
+| **A: MCP Server**        | Package as MCP integration    | Uses existing infra               | Optional, requires setup  |
+| **B: Gateway Core**      | Integrate in OpenClaw Gateway | Always available, learns from all | Requires core changes     |
+| **C: Claude Code Skill** | Bundle with Claude Code       | Ships everywhere                  | Requires Anthropic buy-in |
 
 ## Safety Model
 
@@ -161,11 +163,12 @@ export class SwarmIntegration {
    - Bare metal → Explicit consent required
 
 2. **User Consent Flow**
+
    ```
    SWARM Protocol would like to:
    - Query collective knowledge to help solve your problems
    - Contribute verified solutions (anonymized)
-   
+
    [Enable] [Read-Only] [Disable]
    ```
 
@@ -193,37 +196,40 @@ def should_enable_swarm():
 
 ### Security Considerations
 
-| Risk | Mitigation |
-|------|------------|
-| Malicious contributions | Multi-agent verification, admin review |
-| Data exfiltration | Abstraction, no raw code, exclusion patterns |
-| Prompt injection via SWARM | Content sanitization, trust levels |
-| Privacy concerns | Anonymization, consent flows |
-| VM bypass | Hardware-level detection, fallback consent |
+| Risk                       | Mitigation                                   |
+| -------------------------- | -------------------------------------------- |
+| Malicious contributions    | Multi-agent verification, admin review       |
+| Data exfiltration          | Abstraction, no raw code, exclusion patterns |
+| Prompt injection via SWARM | Content sanitization, trust levels           |
+| Privacy concerns           | Anonymization, consent flows                 |
+| VM bypass                  | Hardware-level detection, fallback consent   |
 
 ## Implementation Path
 
 ### Phased Rollout
 
-| Phase | Timeline | Scope |
-|-------|----------|-------|
-| **1. RFC** | Week 1-2 | Publish proposal, gather feedback |
-| **2. MCP Server** | Week 3-4 | SWARM as optional MCP integration |
-| **3. Read-Only Core** | Week 5-8 | SWARM queries as core feature |
-| **4. Full Core** | Week 9-12 | SWARM contributions as core feature |
-| **5. Ecosystem** | Ongoing | Cross-framework adoption |
+| Phase                 | Timeline  | Scope                               |
+| --------------------- | --------- | ----------------------------------- |
+| **1. RFC**            | Week 1-2  | Publish proposal, gather feedback   |
+| **2. MCP Server**     | Week 3-4  | SWARM as optional MCP integration   |
+| **3. Read-Only Core** | Week 5-8  | SWARM queries as core feature       |
+| **4. Full Core**      | Week 9-12 | SWARM contributions as core feature |
+| **5. Ecosystem**      | Ongoing   | Cross-framework adoption            |
 
 ### Near-term (6 months)
+
 - Every OpenClaw agent queries SWARM before difficult tasks
 - Validated solutions reduce repeated failures
 - Dead end warnings save hours of wasted exploration
 
 ### Medium-term (1-2 years)
+
 - Cross-framework adoption (LangChain, CrewAI, AutoGPT)
 - SWARM becomes de facto knowledge layer
 - Agents specialize and share expertise
 
 ### Long-term (3-5 years)
+
 - Emergent collective intelligence
 - Problems solved faster than any individual agent could
 - The substrate for whatever comes next
@@ -232,13 +238,13 @@ def should_enable_swarm():
 
 ### Comparison with Existing Solutions
 
-| Framework | Shares Agent Designs | Shares Learned Knowledge |
-|-----------|---------------------|-------------------------|
-| CrewAI | ✗ | ✗ (local only) |
-| LangChain | ✗ | ✗ (local only) |
-| AutoGPT | ✓ (marketplace) | ✗ |
-| Claude Code | ✓ (plugins) | ✗ |
-| **SWARM** | ✗ | **✓** |
+| Framework   | Shares Agent Designs | Shares Learned Knowledge |
+| ----------- | -------------------- | ------------------------ |
+| CrewAI      | ✗                    | ✗ (local only)           |
+| LangChain   | ✗                    | ✗ (local only)           |
+| AutoGPT     | ✓ (marketplace)      | ✗                        |
+| Claude Code | ✓ (plugins)          | ✗                        |
+| **SWARM**   | ✗                    | **✓**                    |
 
 **SWARM fills a gap no one else is addressing.** The collective knowledge substrate doesn't exist anywhere else.
 
@@ -260,12 +266,12 @@ def should_enable_swarm():
 
 ## Appendix: Glossary
 
-| Term | Definition |
-|------|------------|
-| **SWARM** | The collective knowledge network protocol |
-| **Finding** | A verified fact or solution |
-| **Skill** | A procedural how-to |
-| **Dead End** | A documented failed approach |
-| **Verification** | Community upvote/downvote + admin review |
-| **Contribution** | Submitting knowledge to SWARM |
-| **Query** | Retrieving knowledge from SWARM |
+| Term             | Definition                                |
+| ---------------- | ----------------------------------------- |
+| **SWARM**        | The collective knowledge network protocol |
+| **Finding**      | A verified fact or solution               |
+| **Skill**        | A procedural how-to                       |
+| **Dead End**     | A documented failed approach              |
+| **Verification** | Community upvote/downvote + admin review  |
+| **Contribution** | Submitting knowledge to SWARM             |
+| **Query**        | Retrieving knowledge from SWARM           |
