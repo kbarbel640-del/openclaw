@@ -33,6 +33,9 @@ import { recordSentMessage } from "./sent-message-cache.js";
 import { parseTelegramTarget, stripTelegramInternalPrefixes } from "./targets.js";
 import { resolveTelegramVoiceSend } from "./voice.js";
 
+type TelegramApi = Bot["api"];
+type TelegramApiOverride = Partial<TelegramApi>;
+
 type TelegramSendOpts = {
   token?: string;
   accountId?: string;
@@ -40,7 +43,7 @@ type TelegramSendOpts = {
   mediaUrl?: string;
   mediaLocalRoots?: readonly string[];
   maxBytes?: number;
-  api?: Bot["api"];
+  api?: TelegramApiOverride;
   retry?: RetryConfig;
   textMode?: "markdown" | "html";
   plainText?: string;
@@ -73,7 +76,7 @@ type TelegramMessageLike = {
 type TelegramReactionOpts = {
   token?: string;
   accountId?: string;
-  api?: Bot["api"];
+  api?: TelegramApiOverride;
   remove?: boolean;
   verbose?: boolean;
   retry?: RetryConfig;
@@ -196,6 +199,17 @@ function isTelegramMessageNotModifiedError(err: unknown): boolean {
   return MESSAGE_NOT_MODIFIED_RE.test(formatErrorMessage(err));
 }
 
+/**
+ * Telegram private chats have positive numeric IDs.
+ * Groups and supergroups have negative IDs (typically -100… for supergroups).
+ * Private chats never support forum topics, so `message_thread_id` must
+ * not be included in API calls targeting them (#17242).
+ */
+function isTelegramPrivateChat(chatId: string): boolean {
+  const n = Number(chatId);
+  return Number.isFinite(n) && n > 0;
+}
+
 function hasMessageThreadIdParam(params?: Record<string, unknown>): boolean {
   if (!params) {
     return false;
@@ -278,13 +292,13 @@ async function withTelegramHtmlParseFallback<T>(params: {
 type TelegramApiContext = {
   cfg: ReturnType<typeof loadConfig>;
   account: ResolvedTelegramAccount;
-  api: Bot["api"];
+  api: TelegramApi;
 };
 
 function resolveTelegramApiContext(opts: {
   token?: string;
   accountId?: string;
-  api?: Bot["api"];
+  api?: TelegramApiOverride;
   cfg?: ReturnType<typeof loadConfig>;
 }): TelegramApiContext {
   const cfg = opts.cfg ?? loadConfig();
@@ -294,7 +308,7 @@ function resolveTelegramApiContext(opts: {
   });
   const token = resolveToken(opts.token, account);
   const client = resolveTelegramClientOptions(account);
-  const api = opts.api ?? new Bot(token, client ? { client } : undefined).api;
+  const api = (opts.api ?? new Bot(token, client ? { client } : undefined).api) as TelegramApi;
   return { cfg, account, api };
 }
 
@@ -428,9 +442,10 @@ export async function sendMessageTelegram(
   const mediaUrl = opts.mediaUrl?.trim();
   const replyMarkup = buildInlineKeyboard(opts.buttons);
 
+  const isPrivate = isTelegramPrivateChat(chatId);
   const threadParams = buildTelegramThreadReplyParams({
-    targetMessageThreadId: target.messageThreadId,
-    messageThreadId: opts.messageThreadId,
+    targetMessageThreadId: isPrivate ? undefined : target.messageThreadId,
+    messageThreadId: isPrivate ? undefined : opts.messageThreadId,
     replyToMessageId: opts.replyToMessageId,
     quoteText: opts.quoteText,
   });
@@ -752,7 +767,7 @@ type TelegramDeleteOpts = {
   token?: string;
   accountId?: string;
   verbose?: boolean;
-  api?: Bot["api"];
+  api?: TelegramApiOverride;
   retry?: RetryConfig;
 };
 
@@ -780,7 +795,7 @@ type TelegramEditOpts = {
   token?: string;
   accountId?: string;
   verbose?: boolean;
-  api?: Bot["api"];
+  api?: TelegramApiOverride;
   retry?: RetryConfig;
   textMode?: "markdown" | "html";
   /** Controls whether link previews are shown in the edited message. */
@@ -897,7 +912,7 @@ type TelegramStickerOpts = {
   token?: string;
   accountId?: string;
   verbose?: boolean;
-  api?: Bot["api"];
+  api?: TelegramApiOverride;
   retry?: RetryConfig;
   /** Message ID to reply to (for threading) */
   replyToMessageId?: number;
@@ -924,9 +939,10 @@ export async function sendStickerTelegram(
   const target = parseTelegramTarget(to);
   const chatId = normalizeChatId(target.chatId);
 
+  const isPrivate = isTelegramPrivateChat(chatId);
   const threadParams = buildTelegramThreadReplyParams({
-    targetMessageThreadId: target.messageThreadId,
-    messageThreadId: opts.messageThreadId,
+    targetMessageThreadId: isPrivate ? undefined : target.messageThreadId,
+    messageThreadId: isPrivate ? undefined : opts.messageThreadId,
     replyToMessageId: opts.replyToMessageId,
   });
   const hasThreadParams = Object.keys(threadParams).length > 0;
@@ -972,7 +988,7 @@ type TelegramPollOpts = {
   token?: string;
   accountId?: string;
   verbose?: boolean;
-  api?: Bot["api"];
+  api?: TelegramApiOverride;
   retry?: RetryConfig;
   /** Message ID to reply to (for threading) */
   replyToMessageId?: number;
@@ -1002,9 +1018,10 @@ export async function sendPollTelegram(
   // Normalize the poll input (validates question, options, maxSelections)
   const normalizedPoll = normalizePollInput(poll, { maxOptions: 10 });
 
+  const isPrivate = isTelegramPrivateChat(chatId);
   const threadParams = buildTelegramThreadReplyParams({
-    targetMessageThreadId: target.messageThreadId,
-    messageThreadId: opts.messageThreadId,
+    targetMessageThreadId: isPrivate ? undefined : target.messageThreadId,
+    messageThreadId: isPrivate ? undefined : opts.messageThreadId,
     replyToMessageId: opts.replyToMessageId,
   });
 
