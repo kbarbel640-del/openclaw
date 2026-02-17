@@ -13,11 +13,7 @@ import {
   normalizeTextForComparison,
 } from "../../pi-embedded-helpers.js";
 import type { ToolResultFormat } from "../../pi-embedded-subscribe.js";
-import {
-  extractAssistantText,
-  extractAssistantThinking,
-  formatReasoningMessage,
-} from "../../pi-embedded-utils.js";
+import { extractAssistantText } from "../../pi-embedded-utils.js";
 import { isLikelyMutatingToolName } from "../../tool-mutation.js";
 
 type ToolMetaEntry = { toolName: string; meta?: string };
@@ -156,13 +152,10 @@ export function buildEmbeddedRunPayloads(params: {
     }
   }
 
-  const reasoningText =
-    params.lastAssistant && params.reasoningLevel === "on"
-      ? formatReasoningMessage(extractAssistantThinking(params.lastAssistant))
-      : "";
-  if (reasoningText) {
-    replyItems.push({ text: reasoningText });
-  }
+  // NOTE: reasoning/thinking text is intentionally NOT added to replyItems.
+  // Reasoning is agent-internal and should not be forwarded to channel
+  // delivery.  It contains chain-of-thought that breaks parsers (Telegram,
+  // iMessage) and confuses end users.  See #18667.
 
   const fallbackAnswerText = params.lastAssistant ? extractAssistantText(params.lastAssistant) : "";
   const shouldSuppressRawErrorText = (text: string) => {

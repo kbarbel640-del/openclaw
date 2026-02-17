@@ -288,10 +288,14 @@ export function handleMessageEnd(
   ctx.finalizeAssistantTexts({ text, addedDuringMessage, chunkerHasBuffered });
 
   const onBlockReply = ctx.params.onBlockReply;
+  // Suppress reasoning from channel delivery (onBlockReply): reasoning text
+  // contains internal chain-of-thought that breaks channel parsers and
+  // confuses end users.  Only emit when no channel callback exists (for
+  // non-channel consumers that fold reasoning into assistantTexts).
   const shouldEmitReasoning = Boolean(
     ctx.state.includeReasoning &&
     formattedReasoning &&
-    onBlockReply &&
+    !onBlockReply &&
     formattedReasoning !== ctx.state.lastReasoningSent,
   );
   const shouldEmitReasoningBeforeAnswer =
