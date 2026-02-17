@@ -114,6 +114,7 @@ final class NodeAppModel {
     private var talkVoiceWakeSuspended = false
     private var backgroundVoiceWakeSuspended = false
     private var backgroundTalkSuspended = false
+    private var backgroundTalkKeptActive = false
     private var backgroundedAt: Date?
     private var reconnectAfterBackgroundArmed = false
 
@@ -269,15 +270,18 @@ final class NodeAppModel {
 
 
     func setScenePhase(_ phase: ScenePhase) {
+        let keepTalkActive = UserDefaults.standard.bool(forKey: "talk.background.enabled")
         switch phase {
         case .background:
             self.isBackgrounded = true
             self.stopGatewayHealthMonitor()
             self.backgroundedAt = Date()
             self.reconnectAfterBackgroundArmed = true
-            // Be conservative: release the mic when the app backgrounds.
+            // Release voice wake mic in background.
             self.backgroundVoiceWakeSuspended = self.voiceWake.suspendForExternalAudioCapture()
-            self.backgroundTalkSuspended = self.talkMode.suspendForBackground()
+            let shouldKeepTalkActive = keepTalkActive && self.talkMode.isEnabled
+            self.backgroundTalkKeptActive = shouldKeepTalkActive
+            self.backgroundTalkSuspended = self.talkMode.suspendForBackground(keepActive: shouldKeepTalkActive)
         case .active, .inactive:
             self.isBackgrounded = false
             if self.operatorConnected {
@@ -289,8 +293,12 @@ final class NodeAppModel {
                 Task { [weak self] in
                     guard let self else { return }
                     let suspended = await MainActor.run { self.backgroundTalkSuspended }
-                    await MainActor.run { self.backgroundTalkSuspended = false }
-                    await self.talkMode.resumeAfterBackground(wasSuspended: suspended)
+                    let keptActive = await MainActor.run { self.backgroundTalkKeptActive }
+                    await MainActor.run {
+                        self.backgroundTalkSuspended = false
+                        self.backgroundTalkKeptActive = false
+                    }
+                    await self.talkMode.resumeAfterBackground(wasSuspended: suspended, wasKeptActive: keptActive)
                 }
             }
             if phase == .active, self.reconnectAfterBackgroundArmed {
@@ -1618,6 +1626,10 @@ private extension NodeAppModel {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                     continue
                 }
+                if !self.gatewayAutoReconnectEnabled {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    continue
+                }
                 if await self.isOperatorConnected() {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                     continue
@@ -1697,6 +1709,10 @@ private extension NodeAppModel {
 
             while !Task.isCancelled {
                 if self.gatewayPairingPaused {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    continue
+                }
+                if !self.gatewayAutoReconnectEnabled {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                     continue
                 }
@@ -1787,10 +1803,18 @@ private extension NodeAppModel {
                     }
                     GatewayDiagnostics.log("gateway connect error: \(error.localizedDescription)")
 
+                    // If auth is missing/rejected, pause reconnect churn until the user intervenes.
+                    // Reconnect loops only spam the same failing handshake and make onboarding noisy.
+                    let lower = error.localizedDescription.lowercased()
+                    if lower.contains("unauthorized") || lower.contains("gateway token missing") {
+                        await MainActor.run {
+                            self.gatewayAutoReconnectEnabled = false
+                        }
+                    }
+
                     // If pairing is required, stop reconnect churn. The user must approve the request
                     // on the gateway before another connect attempt will succeed, and retry loops can
                     // generate multiple pending requests.
-                    let lower = error.localizedDescription.lowercased()
                     if lower.contains("not_paired") || lower.contains("pairing required") {
                         let requestId: String? = {
                             // GatewayResponseError for connect decorates the message with `(requestId: ...)`.
