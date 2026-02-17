@@ -555,8 +555,10 @@ export async function compactEmbeddedPiSessionDirect(
       applySystemPromptOverrideToSession(session, systemPromptOverride());
 
       try {
+        // Guard against undefined session.messages (defensive fix for compaction crash)
+        const sessionMessages = session.messages ?? [];
         const prior = await sanitizeSessionHistory({
-          messages: session.messages,
+          messages: sessionMessages,
           modelApi: model.api,
           modelId,
           provider,
@@ -571,7 +573,7 @@ export async function compactEmbeddedPiSessionDirect(
           ? validateAnthropicTurns(validatedGemini)
           : validatedGemini;
         // Capture full message history BEFORE limiting — plugins need the complete conversation
-        const preCompactionMessages = [...session.messages];
+        const preCompactionMessages = [...sessionMessages];
         const truncated = limitHistoryTurns(
           validated,
           getDmHistoryLimitFromSessionKey(params.sessionKey, params.config),
@@ -614,7 +616,7 @@ export async function compactEmbeddedPiSessionDirect(
         }
 
         const diagEnabled = log.isEnabled("debug");
-        const preMetrics = diagEnabled ? summarizeCompactionMessages(session.messages) : undefined;
+        const preMetrics = diagEnabled ? summarizeCompactionMessages(sessionMessages) : undefined;
         if (diagEnabled && preMetrics) {
           log.debug(
             `[compaction-diag] start runId=${runId} sessionKey=${params.sessionKey ?? params.sessionId} ` +
@@ -633,10 +635,11 @@ export async function compactEmbeddedPiSessionDirect(
           session.compact(params.customInstructions),
         );
         // Estimate tokens after compaction by summing token estimates for remaining messages
+        const postCompactionMessages = session.messages ?? [];
         let tokensAfter: number | undefined;
         try {
           tokensAfter = 0;
-          for (const message of session.messages) {
+          for (const message of postCompactionMessages) {
             tokensAfter += estimateTokens(message);
           }
           // Sanity check: tokensAfter should be less than tokensBefore
@@ -654,9 +657,9 @@ export async function compactEmbeddedPiSessionDirect(
           hookRunner
             .runAfterCompaction(
               {
-                messageCount: session.messages.length,
+                messageCount: postCompactionMessages.length,
                 tokenCount: tokensAfter,
-                compactedCount: limited.length - session.messages.length,
+                compactedCount: limited.length - postCompactionMessages.length,
                 sessionFile: params.sessionFile,
               },
               hookCtx,
@@ -666,7 +669,9 @@ export async function compactEmbeddedPiSessionDirect(
             });
         }
 
-        const postMetrics = diagEnabled ? summarizeCompactionMessages(session.messages) : undefined;
+        const postMetrics = diagEnabled
+          ? summarizeCompactionMessages(postCompactionMessages)
+          : undefined;
         if (diagEnabled && preMetrics && postMetrics) {
           log.debug(
             `[compaction-diag] end runId=${runId} sessionKey=${params.sessionKey ?? params.sessionId} ` +
