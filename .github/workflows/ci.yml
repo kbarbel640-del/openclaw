@@ -204,6 +204,7 @@ jobs:
         if: matrix.task == 'test' && matrix.runtime == 'node'
         run: echo "OPENCLAW_VITEST_REPORT_DIR=$RUNNER_TEMP/vitest-reports" >> "$GITHUB_ENV"
 
+      - name: Configure Node test resources
         if: matrix.task == 'test' && matrix.runtime == 'node'
         run: |
           # `pnpm test` runs `scripts/test-parallel.mjs`, which spawns multiple Node processes.
