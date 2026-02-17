@@ -27,7 +27,9 @@ export function extractReasoningBody(text: string): string {
   // Strip per-line italic wrappers (_..._) added by formatReasoningMessage
   return body
     .split("\n")
-    .map((line) => (line.startsWith("_") && line.endsWith("_") ? line.slice(1, -1) : line))
+    .map((line) =>
+      line.length >= 3 && line.startsWith("_") && line.endsWith("_") ? line.slice(1, -1) : line,
+    )
     .join("\n");
 }
 
