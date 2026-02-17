@@ -18,7 +18,7 @@ import {
 } from "../../stream-mode.js";
 import type { SlackStreamSession } from "../../streaming.js";
 import { appendSlackStream, startSlackStream, stopSlackStream } from "../../streaming.js";
-import { resolveSlackThreadContext, resolveSlackThreadTargets } from "../../threading.js";
+import { resolveSlackThreadTargets } from "../../threading.js";
 import { createSlackReplyDeliveryPlan, deliverReplies, resolveSlackThreadTs } from "../replies.js";
 import type { PreparedSlackMessage } from "./types.js";
 
@@ -85,11 +85,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     });
   }
 
-  const { statusThreadTs } = resolveSlackThreadTargets({
-    message,
-    replyToMode: ctx.replyToMode,
-  });
-  const { isThreadReply } = resolveSlackThreadContext({
+  const { statusThreadTs, isThreadReply } = resolveSlackThreadTargets({
     message,
     replyToMode: ctx.replyToMode,
   });
