@@ -1,9 +1,9 @@
 # Intelligent Delegation Spec — OpenClaw Formalization
 
-_Final v2 — 2026-02-16_
+_Final v3 — 2026-02-16_
 _Based on: Tomašev, Franklin, Osindero — "Intelligent AI Delegation" (arXiv:2602.11865, Feb 2026)_
 _Target branch: `feat/subagent-comms` (extends existing orchestrator request registry)_
-_Reviewed by: Opus (architecture), Codex (code-grounded, partial — killed after 20min reasoning)_
+_Reviewed by: Opus (architecture, 3C/6W/8S), Codex GPT-5.3 (code-grounded, 3C/6W/3S)_
 
 ---
 
@@ -24,29 +24,34 @@ This spec formalizes six capabilities into OpenClaw's subagent infrastructure, b
 
 **Note:** `sessions_tree` exposes `runStatus` and `pendingRequestCount` but NOT `blockedReason`. `sessions_list` exposes all three. The tree derives a simplified status: `"blocked"` if pendingRequests > 0, else `"running"`.
 
-### Critical Architecture Files (reviewers confirmed)
+### Critical Architecture Files (verified by both reviewers)
 
-| File                                      | Role                                       | Lines |
-| ----------------------------------------- | ------------------------------------------ | ----- |
-| `src/agents/tools/sessions-spawn-tool.ts` | Spawn flow (tool interface)                | ~380  |
-| `src/agents/subagent-registry.ts`         | Run registration, `SubagentRunRecord` type | ~614  |
-| `src/agents/subagent-announce.ts`         | Post-completion announce flow              | ~200+ |
-| `src/agents/pi-tools.ts`                  | Tool list resolution for agents            | ~438  |
-| `src/agents/pi-tools.policy.ts`           | Tool policy pipeline (allow/deny)          | ~260  |
-| `src/agents/delegation-prompt.ts`         | Fleet table prompt injection               | ~100  |
-| `src/agents/system-prompt.ts`             | System prompt builder                      | large |
-| `src/config/zod-schema.agent-runtime.ts`  | Agent config schema (Zod)                  | ~640  |
+| File                                      | Role                                                            | Lines |
+| ----------------------------------------- | --------------------------------------------------------------- | ----- |
+| `src/agents/tools/sessions-spawn-tool.ts` | Spawn flow (tool interface)                                     | ~380  |
+| `src/agents/subagent-registry.ts`         | Run registration, `SubagentRunRecord` type, cleanup lifecycle   | ~614  |
+| `src/agents/subagent-announce.ts`         | Post-completion announce flow (returns `boolean` only)          | ~200+ |
+| `src/agents/pi-tools.ts`                  | Tool list construction for agents                               | ~438  |
+| `src/agents/pi-tools.policy.ts`           | Tool policy pipeline (allow/deny), no session-store read path   | ~260  |
+| `src/agents/delegation-prompt.ts`         | Fleet table prompt injection                                    | ~100  |
+| `src/agents/system-prompt.ts`             | System prompt builder                                           | large |
+| `src/agents/schema/typebox.ts`            | **⚠️ Bans `Type.Union([Type.Literal])` for tool schemas**       | —     |
+| `src/config/zod-schema.agent-runtime.ts`  | Agent config schema (Zod)                                       | ~640  |
+| `src/gateway/server-methods/agent.ts`     | Agent RPC handler, rewrites session entries via field allowlist | —     |
+| `src/gateway/sessions-patch.ts`           | Session patch handler, rejects unknown keys                     | —     |
+| `src/gateway/protocol/schema/sessions.ts` | Session patch schema validation                                 | —     |
+| `src/gateway/protocol/schema/agent.ts`    | Agent RPC param schema (`AgentParamsSchema`)                    | —     |
 
 ### What This Spec Adds
 
-| Feature                              | Priority | Complexity  |
-| ------------------------------------ | -------- | ----------- |
-| **A. Verification Contracts**        | P0       | Medium      |
-| **B. Agent Capability Cards**        | P1       | Low         |
-| **C. Structured Completion Reports** | P0       | Medium      |
-| **D. Progress Streaming**            | P1       | Medium      |
-| **E. Per-Spawn Tool Scoping**        | P2       | Medium-High |
-| **F. Agent Performance Tracking**    | P2       | Low         |
+| Feature                              | Priority | Complexity |
+| ------------------------------------ | -------- | ---------- |
+| **A. Verification Contracts**        | P0       | Medium     |
+| **B. Agent Capability Cards**        | P1       | Low        |
+| **C. Structured Completion Reports** | P0       | Medium     |
+| **D. Progress Streaming**            | P1       | Medium     |
+| **E. Per-Spawn Tool Scoping**        | P2       | High       |
+| **F. Agent Performance Tracking**    | P2       | Low        |
 
 ### Backward Compatibility
 
@@ -56,6 +61,7 @@ All new `sessions_spawn` fields are optional. Existing spawn calls without these
 
 1. **Merge `feat/subagent-comms` to main** — all new work builds on this branch. Must be clean first.
 2. **Extract core spawn logic** from `sessions-spawn-tool.ts` into a reusable function (see Wave 0).
+3. **Initialize orchestrator registry on gateway boot** — currently only subagent registry is initialized at `src/gateway/server.impl.ts:240`. Orchestrator registry init (`initOrchestratorRegistry()`) must also be called to ensure pending request state survives restarts.
 
 ---
 
@@ -105,28 +111,35 @@ export type VerificationContract = {
 
 **⚠️ CRITICAL: Verification hook goes in `runSubagentAnnounceFlow()` in `src/agents/subagent-announce.ts`.** NOT in the spawn tool. The announce flow has two code paths (RPC `agent.wait` + lifecycle event fallback) that both converge here. If verification is placed elsewhere, one path bypasses it.
 
+**⚠️ RESTART SAFETY (Codex finding): Cleanup is marked "handled" in `subagent-registry.ts:406` BEFORE `runSubagentAnnounceFlow()` executes. A gateway restart during verification strands the run.** Must defer the "handled" marker until after verification completes, or add a persisted `verificationState` field.
+
 ```
 1. Parent calls sessions_spawn({ task, verification, ... })
-   → verification contract stored on SubagentRunRecord
+   → verification contract + original spawn params stored on SubagentRunRecord
 2. Subagent runs normally (no awareness of verification)
 3. Subagent completes (or times out)
 4. runSubagentAnnounceFlow() fires (both code paths converge here)
    4a. Wait for embedded run settlement (existing: waitForEmbeddedPiRunEnd)
    4b. Wait for compaction if in progress (existing)
    4c. NEW: If verification contract exists on the run record:
+       - Set verificationState: "running" on run record, persist
        - Run artifact checks (file exists, size, JSON schema)
-       - Parse completion report from final message (if requireCompletionReport)
-       - Apply verificationTimeoutMs (default 30s) to the checks
-       - If ALL pass → proceed to announce as normal
+       - Parse completion report from final tool call (if requireCompletionReport)
+       - Apply verificationTimeoutMs (default 30s)
+       - If ALL pass → set verificationState: "passed", proceed to announce
        - If ANY fail → execute onFailure:
-         * "fail": mark as failed, announce with verification failure details
-         * "escalate": announce failure + structured details to parent
-         * "retry_once": call extracted spawn function (Wave 0) with
-           { retryOf: originalRunId, retryReason: failureDetails }
-           appended to the task prompt
-   4d. Store VerificationResult on SubagentRunRecord
+         * "fail": set verificationState: "failed", announce with details
+         * "escalate": set verificationState: "failed", announce failure + details
+         * "retry_once": check retryAttemptedAt marker (idempotency guard)
+           - If already retried → treat as "fail"
+           - Else → set retryAttemptedAt, call extracted spawn function with
+             { retryOf: originalRunId, retryReason: failureDetails }
+   4d. Store VerificationResult on SubagentRunRecord, persist
+   4e. THEN mark as "handled" (moved from before verification)
 5. Announce to parent (existing flow continues)
 ```
+
+**On restart recovery:** If gateway restarts mid-verification, the run record has `verificationState: "running"` but is NOT marked handled. The registry resume logic (`subagent-registry.ts:194`) will re-trigger the announce flow, which re-runs verification. This is safe because artifact checks are idempotent. The `retryAttemptedAt` marker prevents duplicate retries.
 
 #### 2.3 SubagentRunRecord Extension
 
@@ -145,15 +158,38 @@ export type VerificationResult = {
 };
 
 // Add to SubagentRunRecord:
-//   verification?: VerificationContract;      // the contract (from spawn)
-//   verificationResult?: VerificationResult;  // the outcome (post-run)
+//   verification?: VerificationContract;        // the contract (from spawn)
+//   verificationResult?: VerificationResult;    // the outcome (post-run)
+//   verificationState?: "pending" | "running" | "passed" | "failed";  // restart-safe state
+//   retryAttemptedAt?: number;                  // idempotency guard for retry_once
+//   originalSpawnParams?: {                     // captured at spawn time for faithful retry
+//     agentId: string;
+//     model?: string;
+//     thinking?: string;
+//     runTimeoutSeconds?: number;
+//     label?: string;
+//   };
 ```
 
-#### 2.4 Retry Behavior
+**Codex finding:** `retry_once` needs original spawn parameters (model, thinking level, timeouts) to faithfully reproduce the original spawn. Current run records don't store these — they're resolved dynamically in the spawn tool. The `originalSpawnParams` field captures them at spawn time.
+
+#### 2.4 Registry Persistence Changes
+
+`runSubagentAnnounceFlow()` currently returns only `boolean`. It has no access to update/persist run records — persistence is encapsulated in a private `persistSubagentRuns()` function in the registry.
+
+**Required changes:**
+
+1. Export a `updateRunRecord(runId, patch)` function from `subagent-registry.ts` that applies a partial update and persists
+2. Pass the `runId` into `runSubagentAnnounceFlow()` (or a callback for record updates)
+3. Announce flow uses `updateRunRecord()` to write verification state/results
+
+#### 2.5 Retry Behavior
 
 When `onFailure: "retry_once"`:
 
-- The retried spawn includes failure context in the task prompt:
+- Check `retryAttemptedAt` — if already set, treat as `"fail"` (idempotency)
+- Set `retryAttemptedAt = Date.now()` on the run record, persist
+- Call extracted spawn function with `originalSpawnParams` + failure context:
   ```
   [RETRY — Previous attempt failed verification]
   Failure reason: File output/results.json was empty (0 bytes, minimum 100 bytes required).
@@ -162,23 +198,66 @@ When `onFailure: "retry_once"`:
 - The retried run carries `{ retryOf: originalRunId }` metadata
 - Only one retry — if the retry also fails verification, it becomes a `"fail"`
 
-**Prerequisite:** Core spawn logic must be extracted from `sessions-spawn-tool.ts` into a reusable function (Wave 0). The spawn tool is a 380-line monolith with provider limit checks, depth checks, config resolution, model overrides. Without extraction, retry requires either duplicating all that logic or synthetic tool calls (both terrible).
+**Prerequisite:** Core spawn logic must be extracted from `sessions-spawn-tool.ts` into a reusable function (Wave 0).
 
-#### 2.5 Acceptance Criteria
+#### 2.6 Extracted Spawn Function Contract (Wave 0b)
+
+```typescript
+// New: src/agents/spawn-core.ts
+
+export type SpawnCoreParams = {
+  agentId: string;
+  task: string;
+  requesterSessionKey: string;
+  requesterOrigin?: DeliveryContext;
+  model?: string;
+  thinking?: string;
+  runTimeoutSeconds?: number;
+  label?: string;
+  verification?: VerificationContract;
+  completionReport?: boolean;
+  progressReporting?: boolean;
+  // ... other spawn params
+};
+
+export type SpawnCoreResult = {
+  childSessionKey: string;
+  runId: string;
+  agentId: string;
+};
+
+/**
+ * Core spawn logic extracted from sessions-spawn-tool.ts.
+ * Handles: provider limits, depth checks, config resolution, model overrides,
+ * run registration, gateway agent RPC call.
+ *
+ * The tool becomes a thin wrapper: validate LLM params → call spawnCore().
+ * Verification retry calls spawnCore() directly.
+ */
+export async function spawnCore(params: SpawnCoreParams): Promise<SpawnCoreResult>;
+```
+
+#### 2.7 Acceptance Criteria
 
 - [ ] `sessions_spawn` accepts optional `verification` field
-- [ ] Verification contract stored on `SubagentRunRecord`
+- [ ] Verification contract + `originalSpawnParams` stored on `SubagentRunRecord`
 - [ ] Verification runs inside `runSubagentAnnounceFlow()` after run settlement
+- [ ] `verificationState` persisted for restart safety
+- [ ] "Handled" marker deferred until after verification completes
 - [ ] Artifact checks: file existence, minBytes, JSON validity, minItems, requiredKeys
 - [ ] `verificationTimeoutMs` applies to all checks (default 30s)
 - [ ] `onFailure: "fail"` marks run as failed with structured failure details
 - [ ] `onFailure: "escalate"` announces failure to parent with details
-- [ ] `onFailure: "retry_once"` re-spawns with failure context (requires Wave 0)
+- [ ] `onFailure: "retry_once"` re-spawns with original params + failure context
+- [ ] `retryAttemptedAt` prevents duplicate retries across restarts
 - [ ] `sessions_tree` shows verification status per node
+- [ ] `updateRunRecord()` exported from registry for announce-flow updates
 - [ ] Unit tests for each verification check type
 - [ ] E2E test: spawn with contract, valid file → passes
 - [ ] E2E test: spawn with contract, invalid file → triggers onFailure
 - [ ] E2E test: verification timeout → maps to onFailure path
+- [ ] E2E test: restart during verification → re-runs verification on resume
+- [ ] E2E test: retry idempotency → second retry attempt treated as "fail"
 - [ ] Handles race: verification doesn't run while compaction is in progress
 
 ---
@@ -187,11 +266,11 @@ When `onFailure: "retry_once"`:
 
 ### Problem
 
-Agent routing is tribal knowledge in MEMORY.md. New sessions lose this context. Orchestrators make suboptimal routing decisions.
+Agent routing is tribal knowledge in MEMORY.md. New sessions lose this context.
 
 ### Design
 
-Add a `capabilities` field to agent definitions in `openclaw.json`. Use alongside existing `description` field (which already powers the fleet table in `delegation-prompt.ts`).
+Add `capabilities` field to agent definitions in `openclaw.json`.
 
 #### 3.1 Config Schema Extension
 
@@ -205,73 +284,43 @@ Add a `capabilities` field to agent definitions in `openclaw.json`. Use alongsid
   "capabilities": {
     "tags": ["research", "synthesis", "reasoning", "code-review"],
     "costTier": "medium", // "free" | "cheap" | "medium" | "expensive"
-    "typicalLatency": "90s", // human-readable hint
+    "typicalLatency": "90s",
     "notes": "No file writes, no tool access beyond search. Daily quota limits.",
   },
 }
 ```
 
-**Review decisions:**
-
-- `description` stays as-is for fleet table. `capabilities` is for machine-queryable metadata.
-- Combined `strengths`/`weaknesses` into single `notes` field — the distinction was arbitrary.
-- `costTier` is manually set for now. Future: derive from model pricing config via `resolveModelCost()`.
-- Removed `maxConcurrency` — overlaps with existing `subagents.maxChildrenPerAgent`.
+**Decisions:** `description` stays for fleet table. Combined `strengths`/`weaknesses` into `notes`. `costTier` manually set for now. Removed `maxConcurrency` (overlaps `subagents.maxChildrenPerAgent`).
 
 #### 3.2 Schema Validation
 
-Must update both:
+Update both:
 
 1. `src/config/types.agents.ts` — TypeScript type
-2. `src/config/zod-schema.agent-runtime.ts` — Zod schema (for `openclaw doctor` validation)
-
-Both files need the new `capabilities` object. It's optional and `.passthrough()` or `.strict()` depending on convention.
+2. `src/config/zod-schema.agent-runtime.ts` — Zod schema (for `openclaw doctor`)
 
 #### 3.3 Routing Helper
 
 ```typescript
 // New: src/agents/capability-routing.ts
 
-export type RoutingHint = {
-  taskType?: string; // "research" | "code" | "review" | "grunt" | "debug"
-  costPreference?: string; // "cheapest" | "balanced" | "best"
-  requiredTags?: string[]; // must-have capabilities
-};
-
-export type AgentSuggestion = {
-  agentId: string;
-  score: number;
-  reason: string;
-};
-
-/**
- * Given a routing hint, return ranked agent IDs from config.
- * Does NOT auto-spawn — recommends only. Orchestrator decides.
- */
 export function suggestAgents(hint: RoutingHint, config: OpenClawConfig): AgentSuggestion[];
 ```
 
+Does NOT auto-spawn — recommends only.
+
 #### 3.4 System Prompt Injection
 
-Enhance the existing fleet table in `delegation-prompt.ts` to include capability tags:
-
-```
-## Available Subagents
-| Agent | Tags | Cost | Latency | Notes |
-|-------|------|------|---------|-------|
-| minimax | code, grunt, parallel | cheap | 30s | Bulk work, pattern-following |
-| athena | research, synthesis, review | medium | 90s | Deep analysis, daily quota |
-...
-```
+Enhance fleet table in `delegation-prompt.ts` to include capability tags.
 
 #### 3.5 Acceptance Criteria
 
 - [ ] `capabilities` field accepted in agent config schema
 - [ ] `openclaw doctor` validates new field (Zod schema updated)
 - [ ] `suggestAgents()` returns ranked list based on tags/cost
-- [ ] Fleet table in system prompt includes capability data when available
-- [ ] Existing configs without `capabilities` still work (backward compatible)
-- [ ] Unit tests for routing logic (tag matching, cost preference)
+- [ ] Fleet table includes capability data when available
+- [ ] Backward compatible (missing `capabilities` = works as before)
+- [ ] Unit tests for routing logic
 
 ---
 
@@ -279,20 +328,28 @@ Enhance the existing fleet table in `delegation-prompt.ts` to include capability
 
 ### Problem
 
-Subagent results arrive as free-text prose. The orchestrator must read through it to determine success/failure/artifacts. Wastes context and is error-prone.
+Subagent results arrive as free-text prose. Wastes orchestrator context and is error-prone.
 
 ### Design
 
-**Tool-based approach** (per review recommendation): Create a `report_completion` tool that subagents call as their final action. Tool calls have structured schemas enforced by the API — no parsing ambiguity.
+Tool-based approach: `report_completion` tool that subagents call as final action.
 
 #### 4.1 New Tool: `report_completion`
 
+**⚠️ SCHEMA CONSTRAINT (Codex finding): The repo bans `Type.Union([Type.Literal])` in tool schemas (`src/agents/schema/typebox.ts:13`) for provider compatibility. Must use `optionalStringEnum()` helper instead.**
+
 ```typescript
 // New: src/agents/tools/report-completion-tool.ts
+// Use optionalStringEnum() from src/agents/schema/typebox.ts — NOT Type.Union([Type.Literal])
+
+import { optionalStringEnum } from "../schema/typebox.js";
+
+const COMPLETION_STATUSES = ["complete", "partial", "failed"] as const;
+const CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
 
 const ReportCompletionSchema = Type.Object({
-  status: Type.Union([Type.Literal("complete"), Type.Literal("partial"), Type.Literal("failed")]),
-  confidence: Type.Union([Type.Literal("high"), Type.Literal("medium"), Type.Literal("low")]),
+  status: optionalStringEnum(COMPLETION_STATUSES), // NOT Type.Union
+  confidence: optionalStringEnum(CONFIDENCE_LEVELS), // NOT Type.Union
   artifacts: Type.Optional(
     Type.Array(
       Type.Object({
@@ -307,55 +364,41 @@ const ReportCompletionSchema = Type.Object({
 });
 ```
 
-#### 4.2 Fallback: Text Delimiter Parser
+#### 4.2 Detecting Last Tool Call
 
-For models without robust tool support, also support text-based reports:
+**Codex finding:** The announce flow reads sanitized assistant text after stripping tool-result messages (`src/agents/tools/agent-step.ts`). The "last tool call was `report_completion`" check needs explicit telemetry plumbing — either:
+
+1. Store the tool call name on the run record via agent event listener, OR
+2. Read the raw session transcript in announce flow and scan for `report_completion` tool use
+
+Option 1 is cleaner (no transcript parsing). The existing `onAgentEvent` listener in `subagent-registry.ts:331` already tracks lifecycle events — extend it to capture the last tool call name.
+
+#### 4.3 Fallback: Text Delimiter Parser
 
 ```typescript
 // New: src/agents/completion-report-parser.ts
-
-export type CompletionReport = {
-  status: "complete" | "partial" | "failed";
-  confidence: "high" | "medium" | "low";
-  artifacts: Array<{ path: string; description?: string }>;
-  blockers: string[];
-  summary: string;
-  warnings: string[];
-};
-
-/**
- * Extract from tool call result OR parse from text delimiters.
- * Searches from END of message backward.
- * Case-insensitive. Skips content inside fenced code blocks.
- * Returns null if no report found.
- */
+// Searches from END of message backward, case-insensitive, skips fenced code blocks
 export function parseCompletionReport(text: string): CompletionReport | null;
 ```
 
-#### 4.3 Integration
+#### 4.4 Integration
 
-1. **Tool availability:** `report_completion` available to ALL subagents by default (included in default tool list). No tool-missing errors.
-2. **Prompt injection:** Only inject usage instructions when spawner sets `completionReport: true` (standalone option, independent of verification):
-   ```
-   Before finishing, call the report_completion tool with your status, artifacts, and summary.
-   ```
-3. **Post-completion parsing:** In `runSubagentAnnounceFlow()`, check if last tool call was `report_completion`. If not, try text parser as fallback. Store parsed report on `SubagentRunRecord.completionReport`.
-4. **`sessions_tree` enhancement:**
-   ```
-   └─ minimax-batch-1 ✅ complete (high) [42s]
-   └─ minimax-batch-2 ⚠️ partial (medium) [38s] — 1 blocker
-   └─ minimax-batch-3 ❌ failed (low) [12s]
-   ```
+1. **Tool availability:** Available to ALL subagents by default.
+2. **Prompt injection:** Only when spawner sets `completionReport: true`.
+3. **Post-completion:** Check last tool call name → parse tool result. Fallback to text parser.
+4. **`sessions_tree` enhancement:** Shows completion status/confidence.
 
-#### 4.4 Acceptance Criteria
+#### 4.5 Acceptance Criteria
 
-- [ ] `report_completion` tool created and available to subagents
+- [ ] `report_completion` tool using `optionalStringEnum()` (not `Type.Union`)
+- [ ] Last tool call name captured via agent event listener
 - [ ] Text fallback parser: searches from end, case-insensitive, skips code blocks
 - [ ] Parsed report stored on `SubagentRunRecord.completionReport`
-- [ ] `sessions_tree` shows completion status/confidence when report exists
+- [ ] `sessions_tree` shows completion status/confidence
 - [ ] `completionReport: true` spawn option triggers prompt injection
 - [ ] Verification contract can require completion report
-- [ ] Unit tests: tool call parsing, text parsing, malformed, missing, edge cases
+- [ ] Schema conformance test (no `anyOf` in tool schema output)
+- [ ] Unit tests: tool call parsing, text parsing, malformed, missing
 
 ---
 
@@ -363,64 +406,56 @@ export function parseCompletionReport(text: string): CompletionReport | null;
 
 ### Problem
 
-After spawning a subagent, the orchestrator has no signal until completion or timeout. Long-running tasks create a "black hole."
+Long-running tasks create a "black hole" — no signal until completion or timeout.
 
 ### Design
 
-Lightweight non-blocking `report_progress` tool for status updates.
+Non-blocking `report_progress` tool.
 
 #### 5.1 New Tool: `report_progress`
+
+**⚠️ Same schema constraint: use `optionalStringEnum()`, not `Type.Union([Type.Literal])`.**
 
 ```typescript
 // New: src/agents/tools/report-progress-tool.ts
 
+const PROGRESS_LEVELS = ["L0_operational", "L1_plan_update", "L2_detail"] as const;
+
 const ReportProgressSchema = Type.Object({
   phase: Type.String({ description: "Current phase or step" }),
   percentComplete: Type.Optional(Type.Number({ minimum: 0, maximum: 100 })),
-  level: Type.Optional(
-    Type.Union([
-      Type.Literal("L0_operational"),
-      Type.Literal("L1_plan_update"),
-      Type.Literal("L2_detail"),
-    ]),
-  ),
+  level: optionalStringEnum(PROGRESS_LEVELS),
   metrics: Type.Optional(Type.Record(Type.String(), Type.Union([Type.String(), Type.Number()]))),
 });
 ```
 
 #### 5.2 Behavior
 
-- **Non-blocking:** Fire-and-forget. Returns immediately, no wait for parent response.
-- **Rate limited:** Max 1 update per 30 seconds per subagent (per review: 10s is a no-op given LLM turn cadence; 30s is the real practical limit).
-- **Storage:** Append-only log on `SubagentRunRecord.progressLog`, capped at 100 entries (oldest evicted). Stored separately from main registry to avoid bloating persistence I/O.
-- **Availability:** Available to ALL subagents. Prompt instructions injected only when spawner opts in via `progressReporting: true`.
+- **Non-blocking:** Returns immediately.
+- **Rate limited:** 1 update per 30 seconds per subagent.
+- **Availability:** All subagents. Prompt instructions only when `progressReporting: true`.
 
-#### 5.3 `sessions_tree` Enhancement
+#### 5.3 Storage
 
-```typescript
-// Extend SessionsTreeNode
-type SessionsTreeNode = {
-  // ... existing fields ...
-  latestProgress?: {
-    phase: string;
-    percentComplete?: number;
-    updatedAt: number;
-  };
-};
-```
+**Codex finding: spec was internally contradictory** — said "store on `SubagentRunRecord.progressLog`" AND "store separately from registry." Resolution:
 
-Display: `└─ minimax-batch-1 🔄 running [42s] — "Processing batch 3/5" (60%)`
+**Store in a separate per-run file:** `~/.openclaw/state/progress/<runId>.jsonl`
+
+- Append-only JSONL, one line per progress update
+- Read by `sessions_tree` on demand (not loaded into memory with registry)
+- Cleaned up when run record is cleaned up
+- `SubagentRunRecord` gets only `latestProgress?: { phase, percentComplete, updatedAt }` (last update, kept lean)
 
 #### 5.4 Acceptance Criteria
 
-- [ ] `report_progress` tool available to all subagents
-- [ ] Non-blocking (returns immediately)
-- [ ] Rate limited (1/30s/child)
-- [ ] Progress log capped at 100 entries, stored separately from registry
+- [ ] `report_progress` tool using `optionalStringEnum()`
+- [ ] Non-blocking, rate limited (1/30s)
+- [ ] Progress stored in separate per-run JSONL file
+- [ ] `SubagentRunRecord.latestProgress` has only latest update
 - [ ] `sessions_tree` shows latest progress for running sessions
-- [ ] `progressReporting: true` spawn option triggers prompt instructions
+- [ ] `progressReporting: true` triggers prompt instructions
+- [ ] Cleanup of progress files when run record is cleaned
 - [ ] Unit tests for rate limiting, storage, display
-- [ ] E2E test: spawn, report progress, verify in tree
 
 ---
 
@@ -428,53 +463,81 @@ Display: `└─ minimax-batch-1 🔄 running [42s] — "Processing batch 3/5" (
 
 ### Problem
 
-All subagents of a given type get the same tool access. Research agents don't need `message`. Code agents shouldn't have `gog`. Principle of least privilege is violated.
+All subagents of a given type get the same tool access. Principle of least privilege violated.
 
 ### Design
 
-Add optional `toolsAllow` and `toolsDeny` overrides to `sessions_spawn` that narrow (never widen) the agent's configured tool access.
+Per-spawn `toolsAllow` and `toolsDeny` overrides that narrow (never widen) agent config.
 
 #### 6.1 Schema Extension
 
 ```typescript
-// Extend sessions_spawn parameters
-toolsAllow?: string[];  // intersected with agent config (can only narrow)
-toolsDeny?: string[];   // subtracted after allow (can only narrow)
+toolsAllow?: string[];  // intersected with agent config
+toolsDeny?: string[];   // subtracted after allow
 ```
 
 Resolution: `Final = (AgentConfig ∩ spawnAllow) − spawnDeny`
 
 #### 6.2 Threading Mechanism
 
-**⚠️ CRITICAL: There is currently no way to pass per-spawn tool restrictions to the child session's tool resolution.**
+**⚠️ CRITICAL (Codex finding): The SessionEntry approach from v2 DOES NOT WORK.** Codex identified 4 blocking issues:
 
-The spawn tool (`sessions-spawn-tool.ts`) sends a message via `callGateway({ method: "agent" })`. Tool resolution happens later in `pi-tools.ts` / `pi-tools.policy.ts` when the agent processes the message. There's no bridge between the two.
+1. `SessionEntry` has no `toolOverrides` field (`src/config/sessions/types.ts:25`)
+2. `sessions.patch` rejects unknown keys (`src/gateway/protocol/schema/sessions.ts:50`)
+3. Patch application has no handling for overrides (`src/gateway/sessions-patch.ts:61`)
+4. Agent startup rewrites session entries via explicit field allowlist that drops unthreaded fields (`src/gateway/server-methods/agent.ts:256`)
+5. `pi-tools.policy.ts` has no session-store read path
 
-**Chosen approach (Option 2 from review): Store on SessionEntry.**
+**Revised approach (Codex suggestion): Ephemeral RPC param threading.**
 
-1. `sessions-spawn-tool.ts` writes `toolOverrides: { allow, deny }` to the child's `SessionEntry` in the session store
-2. `pi-tools.policy.ts` reads `toolOverrides` from the session entry during tool resolution
-3. Applies intersection/subtraction logic
+Thread tool overrides through the `agent` gateway RPC, not persistent session state:
 
-This is cleanest because `SessionEntry` is already the canonical source for per-session overrides (e.g., `thinkingLevel`). Requires modifying:
+1. **Extend `AgentParamsSchema`** (`src/gateway/protocol/schema/agent.ts:54`) with:
+   ```typescript
+   toolOverrides: Type.Optional(
+     Type.Object({
+       allow: Type.Optional(Type.Array(Type.String())),
+       deny: Type.Optional(Type.Array(Type.String())),
+     }),
+   );
+   ```
+2. **Thread through gateway handler** (`src/gateway/server-methods/agent.ts:399`) into command invocation
+3. **Thread through `AgentCommandOpts`** (`src/commands/agent/types.ts`) → `runEmbeddedPiAgent()`
+4. **Thread through embedded run params** (`src/agents/pi-embedded-runner/run/params.ts:21`) → `attempt.ts`
+5. **Apply as extra policy layer** in `createOpenClawCodingTools()` / `createOpenClawTools()` (`src/agents/pi-tools.ts:119`)
 
-- `src/config/sessions.ts` — add `toolOverrides` to `SessionEntry` type
-- `src/agents/tools/sessions-spawn-tool.ts` — write overrides to session store
-- `src/agents/pi-tools.policy.ts` — read and apply overrides
+This avoids all persistent-state issues. Tool overrides are ephemeral — they exist only for the duration of the RPC call that spawns the agent run. No session store pollution, no patch schema changes, no restart concerns.
 
-#### 6.3 Enforcement
+#### 6.3 Files Modified (complete list)
 
-- **Validate at spawn time:** If `toolsAllow` contains tools not in agent config, return error (don't silently ignore). Gives orchestrator feedback.
-- **Scoping can only narrow, never widen.** Enforced by intersection logic.
+| File                                           | Change                                                 |
+| ---------------------------------------------- | ------------------------------------------------------ |
+| `src/gateway/protocol/schema/agent.ts`         | Add `toolOverrides` to `AgentParamsSchema`             |
+| `src/gateway/server-methods/agent.ts`          | Thread `toolOverrides` to command invocation           |
+| `src/commands/agent.ts`                        | Thread to `runEmbeddedPiAgent()`                       |
+| `src/commands/agent/types.ts`                  | Add to `AgentCommandOpts`                              |
+| `src/agents/pi-embedded-runner/run/params.ts`  | Add to run params                                      |
+| `src/agents/pi-embedded-runner/run/attempt.ts` | Pass to tool construction                              |
+| `src/agents/pi-tools.ts`                       | Apply override policy in `createOpenClawCodingTools()` |
+| `src/agents/openclaw-tools.ts`                 | Apply override policy in `createOpenClawTools()`       |
+| `src/agents/tools/sessions-spawn-tool.ts`      | Pass overrides in `callGateway({ method: "agent" })`   |
 
-#### 6.4 Acceptance Criteria
+#### 6.4 Enforcement
+
+- **Validate at spawn time** in `sessions-spawn-tool.ts`: if `toolsAllow` contains tools not in agent config, return error.
+- **Apply at tool construction** in `pi-tools.ts`: intersect/subtract before building tool list.
+- **Can only narrow, never widen.** Enforced by intersection.
+
+#### 6.5 Acceptance Criteria
 
 - [ ] `sessions_spawn` accepts `toolsAllow` and `toolsDeny`
-- [ ] Tool overrides stored on `SessionEntry`
-- [ ] `pi-tools.policy.ts` reads and applies overrides
-- [ ] Widening attempt returns spawn error (not silent)
+- [ ] Overrides threaded through gateway RPC → command → embedded runner → tool construction
+- [ ] Applied as policy layer in `pi-tools.ts` / `openclaw-tools.ts`
+- [ ] Widening attempt returns spawn error
 - [ ] Unit tests: allow-only, deny-only, both, empty, widening blocked
 - [ ] E2E test: spawn with `toolsDeny=["message"]`, verify tool unavailable
+- [ ] E2E test: override survival through full RPC chain
+- [ ] E2E test: `SessionEntry` patch does NOT affect tool overrides (ephemeral only)
 
 ---
 
@@ -482,11 +545,11 @@ This is cleanest because `SessionEntry` is already the canonical source for per-
 
 ### Problem
 
-Agent routing decisions are based on anecdotal experience. No systematic data on which agents succeed at what tasks.
+No systematic data on agent success rates for routing decisions.
 
 ### Design
 
-Automatically log performance metrics after each subagent run.
+Auto-log performance metrics after each subagent run.
 
 #### 7.1 Performance Record
 
@@ -504,43 +567,25 @@ export type AgentPerformanceRecord = {
   outcome: "success" | "partial" | "failure" | "timeout";
   verificationPassed?: boolean;
   completionReport?: { status: string; confidence: string };
-  tokens?: { input: number | null; output: number | null }; // null = unknown (not 0)
+  tokens?: { input: number | null; output: number | null }; // null = unknown (race condition)
   retryOf?: string;
   escalatedFrom?: string;
 };
 ```
 
-**Review note:** Token data from `waitForSessionUsage()` is often stale or missing (race condition — `totalTokensFresh` exists for this reason). Store `null` for unknown, not `0`.
-
 #### 7.2 Storage
 
-- JSONL append-only: `~/.openclaw/data/agent-performance-YYYY-MM-DD.jsonl`
+- JSONL: `~/.openclaw/data/agent-performance-YYYY-MM-DD.jsonl`
 - Daily rotation, 30-day retention
-- Lightweight: no message content, metadata only
+- No message content, metadata only
 
-#### 7.3 Query + Prompt Integration
+#### 7.3 Acceptance Criteria
 
-```typescript
-export function getAgentStats(
-  agentId: string,
-  opts?: { days?: number },
-): {
-  totalRuns: number;
-  successRate: number;
-  avgRuntimeMs: number;
-  escalationRate: number;
-};
-```
-
-Stats summary available alongside capability cards in system prompt.
-
-#### 7.4 Acceptance Criteria
-
-- [ ] Performance record written after every subagent run
+- [ ] Record written after every subagent run completion
 - [ ] JSONL append-only with daily rotation
 - [ ] `getAgentStats()` returns aggregates
-- [ ] 30-day retention with cleanup
 - [ ] Token data uses `null` for unknown
+- [ ] 30-day retention with cleanup
 - [ ] Unit tests for recording, aggregation, rotation
 
 ---
@@ -551,111 +596,133 @@ Stats summary available alongside capability cards in system prompt.
 
 **0a — Merge `feat/subagent-comms` to main**
 
-- Ensure branch is clean, tests pass
-- Resolve any merge conflicts
+- Tests pass, no conflicts
 
 **0b — Extract core spawn logic**
 
-- Extract from `sessions-spawn-tool.ts` (~380 lines) into `src/agents/spawn-core.ts`
-- The tool becomes a thin wrapper calling the extracted function
-- This enables programmatic re-spawn (for verification retry) without duplicating logic
+- Extract from `sessions-spawn-tool.ts` into `src/agents/spawn-core.ts`
+- Define clear function contract (see §2.6 `SpawnCoreParams` / `SpawnCoreResult`)
+- Tool becomes thin wrapper: validate LLM params → call `spawnCore()`
 - **Files:** `sessions-spawn-tool.ts` → refactor, NEW `spawn-core.ts`
-- **Tests:** Existing spawn tests must still pass (no behavior change)
+- **Tests:** ALL existing spawn tests must still pass
+
+**0c — Export `updateRunRecord()` from registry**
+
+- Add `updateRunRecord(runId, patch)` to `subagent-registry.ts`
+- Applies partial update + calls `persistSubagentRuns()`
+- Enables announce flow to write verification state
+
+**0d — Initialize orchestrator registry on gateway boot**
+
+- Add `initOrchestratorRegistry()` call in `src/gateway/server.impl.ts:240`
+- Currently only subagent registry is initialized; pending requests not restored after restart
 
 ### Wave 1: Core Types + Parsers (parallel, no dependencies)
 
 **1a — Completion Report Tool + Parser**
 
-- `src/agents/tools/report-completion-tool.ts` + tests
-- `src/agents/completion-report-parser.ts` + tests (text fallback)
-- Pure tool + parsing logic, no integration
+- `src/agents/tools/report-completion-tool.ts` (using `optionalStringEnum()`) + tests
+- `src/agents/completion-report-parser.ts` + tests
+- Schema conformance test: verify no `anyOf` in tool schema output
 
 **1b — Verification Types + Runner**
 
 - `src/agents/spawn-verification.types.ts`
-- `src/agents/spawn-verification.ts` (runs artifact checks) + tests
-- Pure validation logic, no integration
+- `src/agents/spawn-verification.ts` (artifact checks) + tests
 
 **1c — Progress Tool**
 
-- `src/agents/tools/report-progress-tool.ts` + tests
-- Non-blocking fire-and-forget, rate limiting logic
-- Pure tool, no integration
+- `src/agents/tools/report-progress-tool.ts` (using `optionalStringEnum()`) + tests
+- Rate limiting, per-run JSONL storage
 
 ### Wave 2: Integration (sequential, depends on 0 + 1)
 
-**2a — Wire completion reports into flow**
+**2a — Wire completion reports**
 
-- `report_completion` added to default subagent tool list (`openclaw-tools.ts`)
-- `report_progress` added to default subagent tool list
+- Add `report_completion` + `report_progress` to default tool list (`openclaw-tools.ts`)
+- Extend agent event listener to capture last tool call name (`subagent-registry.ts:331`)
 - Post-completion parsing in `runSubagentAnnounceFlow()`
-- `SubagentRunRecord` extended with `completionReport` field
-- `sessions_tree` displays completion status
+- `SubagentRunRecord` extended with `completionReport`, `latestProgress`
+- `sessions_tree` displays status
 
-**2b — Wire verification into announce flow**
+**2b — Wire verification**
 
-- Verification hook in `runSubagentAnnounceFlow()` (after run settlement, before announce)
-- `SubagentRunRecord` extended with `verification` + `verificationResult`
+- Verification hook in `runSubagentAnnounceFlow()` (after settlement, before announce)
+- Defer "handled" marker until after verification (`subagent-registry.ts:406`)
+- `SubagentRunRecord` extended with `verification`, `verificationResult`, `verificationState`, `retryAttemptedAt`, `originalSpawnParams`
 - `sessions_spawn` schema extended with `verification` field
-- `sessions_tree` shows verification status
-- Retry logic using extracted `spawn-core.ts`
+- Retry logic using `spawnCore()` from Wave 0b
+- Restart recovery: re-run verification for runs with `verificationState: "running"`
 
-**2c — Wire progress into registry**
+**2c — Wire progress storage**
 
-- Progress storage on `SubagentRunRecord.progressLog` (separate from main persistence)
-- `sessions_tree` shows latest progress
+- Per-run JSONL files at `~/.openclaw/state/progress/<runId>.jsonl`
+- `sessions_tree` reads latest progress on demand
+- Cleanup hook when run records are cleaned
 
-### Wave 3: Capability Cards + Performance (parallel, separate files)
+### Wave 3: Capability Cards + Performance (parallel)
 
 **3a — Capability Cards**
 
-- Config type extension (`types.agents.ts`)
-- Zod schema extension (`zod-schema.agent-runtime.ts`)
+- `types.agents.ts` + `zod-schema.agent-runtime.ts` extensions
 - `capability-routing.ts` + tests
 - Enhanced fleet table in `delegation-prompt.ts`
 
 **3b — Performance Tracking**
 
 - `performance-tracker.ts` + tests
-- Hook into `runSubagentAnnounceFlow()` (after verification, before announce)
+- Hook into `runSubagentAnnounceFlow()` (after verification)
 - JSONL storage with rotation
 
-### Wave 4: Per-Spawn Tool Scoping
+### Wave 4: Per-Spawn Tool Scoping (RPC threading)
 
-- `SessionEntry` type extension (`src/config/sessions.ts`)
-- Spawn tool writes overrides to session store
-- `pi-tools.policy.ts` reads and applies overrides
-- Validation at spawn time (reject widening)
-- Tests
+- `AgentParamsSchema` extension (`gateway/protocol/schema/agent.ts`)
+- Thread through: gateway handler → command → embedded runner → tool construction
+- Apply policy in `pi-tools.ts` + `openclaw-tools.ts`
+- Validation in `sessions-spawn-tool.ts`
+- Full chain of files (see §6.3)
 
 ### File Conflict Analysis
 
-| Wave | New Files                                                          | Modified Files                                                                                    |
-| ---- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| 0b   | `spawn-core.ts`                                                    | `sessions-spawn-tool.ts`                                                                          |
-| 1a   | `report-completion-tool.ts`, `completion-report-parser.ts` + tests | —                                                                                                 |
-| 1b   | `spawn-verification.types.ts`, `spawn-verification.ts` + tests     | —                                                                                                 |
-| 1c   | `report-progress-tool.ts` + tests                                  | —                                                                                                 |
-| 2a   | —                                                                  | `openclaw-tools.ts`, `subagent-announce.ts`, `subagent-registry.ts`, `sessions-tree-tool.ts`      |
-| 2b   | —                                                                  | `subagent-announce.ts`, `subagent-registry.ts`, `sessions-spawn-tool.ts`, `sessions-tree-tool.ts` |
-| 2c   | —                                                                  | `subagent-registry.ts`, `sessions-tree-tool.ts`                                                   |
-| 3a   | `capability-routing.ts` + tests                                    | `types.agents.ts`, `zod-schema.agent-runtime.ts`, `delegation-prompt.ts`                          |
-| 3b   | `performance-tracker.ts` + tests                                   | `subagent-announce.ts`                                                                            |
-| 4    | —                                                                  | `sessions.ts`, `sessions-spawn-tool.ts`, `pi-tools.policy.ts`                                     |
+| Wave | New Files                                                          | Modified Files                                                                                                                                                                                                                                               |
+| ---- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0b   | `spawn-core.ts`                                                    | `sessions-spawn-tool.ts`                                                                                                                                                                                                                                     |
+| 0c   | —                                                                  | `subagent-registry.ts`                                                                                                                                                                                                                                       |
+| 0d   | —                                                                  | `server.impl.ts`                                                                                                                                                                                                                                             |
+| 1a   | `report-completion-tool.ts`, `completion-report-parser.ts` + tests | —                                                                                                                                                                                                                                                            |
+| 1b   | `spawn-verification.types.ts`, `spawn-verification.ts` + tests     | —                                                                                                                                                                                                                                                            |
+| 1c   | `report-progress-tool.ts` + tests                                  | —                                                                                                                                                                                                                                                            |
+| 2a   | —                                                                  | `openclaw-tools.ts`, `subagent-announce.ts`, `subagent-registry.ts`, `sessions-tree-tool.ts`                                                                                                                                                                 |
+| 2b   | —                                                                  | `subagent-announce.ts`, `subagent-registry.ts`, `sessions-spawn-tool.ts`, `sessions-tree-tool.ts`                                                                                                                                                            |
+| 2c   | —                                                                  | `sessions-tree-tool.ts`                                                                                                                                                                                                                                      |
+| 3a   | `capability-routing.ts` + tests                                    | `types.agents.ts`, `zod-schema.agent-runtime.ts`, `delegation-prompt.ts`                                                                                                                                                                                     |
+| 3b   | `performance-tracker.ts` + tests                                   | `subagent-announce.ts`                                                                                                                                                                                                                                       |
+| 4    | —                                                                  | `gateway/protocol/schema/agent.ts`, `gateway/server-methods/agent.ts`, `commands/agent.ts`, `commands/agent/types.ts`, `pi-embedded-runner/run/params.ts`, `pi-embedded-runner/run/attempt.ts`, `pi-tools.ts`, `openclaw-tools.ts`, `sessions-spawn-tool.ts` |
 
-**No conflicts within Wave 1.** Wave 2a-2c share files (sequential). Wave 3a/3b are parallel (different files). Wave 4 is independent.
+**No conflicts within Wave 1.** Wave 2a-2c sequential. Wave 3a/3b parallel. Wave 4 independent.
+
+### High-Risk Test Scenarios (Codex-identified)
+
+These MUST be covered:
+
+- [ ] Restart during verification → run resumes, verification re-runs
+- [ ] Retry idempotency → `retryAttemptedAt` prevents duplicate retries
+- [ ] Dual-trigger dedupe → lifecycle event + `agent.wait` don't both trigger verification
+- [ ] `SessionEntry` patch doesn't affect ephemeral tool overrides
+- [ ] Schema conformance → no `anyOf` in tool schema output (provider compatibility)
+- [ ] Original spawn param capture → retry uses same model/thinking/timeout
 
 ### Task Sizing
 
-| Wave      | Estimated Agent-Hours | Parallelism      |
-| --------- | --------------------- | ---------------- |
-| 0         | 1-2h                  | Sequential       |
-| 1 (a+b+c) | 1.5h                  | ✅ Full parallel |
-| 2 (a+b+c) | 3-4h                  | ⚠️ Sequential    |
-| 3 (a+b)   | 1.5h                  | ✅ Parallel      |
-| 4         | 1.5h                  | After Wave 2     |
+| Wave        | Estimated Agent-Hours | Parallelism      |
+| ----------- | --------------------- | ---------------- |
+| 0 (a+b+c+d) | 2-3h                  | Sequential       |
+| 1 (a+b+c)   | 1.5h                  | ✅ Full parallel |
+| 2 (a+b+c)   | 3-4h                  | ⚠️ Sequential    |
+| 3 (a+b)     | 1.5h                  | ✅ Parallel      |
+| 4           | 2-3h                  | After Wave 2     |
 
-**Total: ~9-11 agent-hours**
+**Total: ~10-15 agent-hours**
 
 ---
 
@@ -663,39 +730,60 @@ Stats summary available alongside capability cards in system prompt.
 
 ### No `validationCommand` in v1
 
-Removed per review. On macOS host, there's no process sandbox — any command runs with full user permissions. The command string originates from LLM output. Built-in artifact checks handle the primary failure mode (missing/malformed output).
+Removed. Built-in artifact checks handle primary failure modes.
 
 ### Tool Scoping Cannot Widen
 
-Per-spawn `toolsAllow` is intersected with agent config, never unioned. Widening attempts are rejected at spawn time with an error (not silently ignored).
+Validated at spawn time (error on widening attempt). Enforced by intersection in tool construction.
 
-### Progress Reporting Rate Limits
+### Progress Rate Limits
 
-1 update/30s/child prevents spam. Progress log capped at 100 entries per run.
+1/30s/child. Progress log capped at 100 entries per run.
 
 ### Performance Data Privacy
 
-JSONL contains no message content — only metadata (run IDs, agent IDs, timing, outcomes).
+JSONL metadata only — no message content.
+
+### Restart Safety
+
+Verification state persisted before execution. Idempotent re-run on restart. Retry guarded by `retryAttemptedAt` marker.
 
 ---
 
 ## 10. Non-Goals
 
-- **Auto-routing:** Data layer only. Orchestrator still makes final call.
-- **ZKP / multi-agent verification games:** Overkill for internal fleet.
-- **Financial delegation / smart contracts:** Not relevant.
-- **Decentralized identity:** We control all agents; session keys suffice.
-- **Cross-organization delegation:** All agents within one OpenClaw instance.
-- **`validationCommand`:** Deferred to v2 behind config flag.
+- Auto-routing, ZKP verification, financial delegation, decentralized identity, cross-org delegation, `validationCommand` (deferred to v2).
 
 ---
 
 ## 11. Open Questions (Resolved)
 
-| #   | Question                              | Resolution                                                                |
-| --- | ------------------------------------- | ------------------------------------------------------------------------- |
-| 1   | Completion report format              | **Tool call** (`report_completion`) primary, text delimiters as fallback  |
-| 2   | Progress tool availability            | **All subagents** get the tool; prompt instructions only when opted in    |
-| 3   | Performance tracking granularity      | **Per-run only**; orchestrator computes aggregates as needed              |
-| 4   | Pass failure reason to retried agent? | **Yes** — append failure context to retry task prompt                     |
-| 5   | Capability card format                | **Hybrid**: structured `tags` for routing + free-text `notes` for prompts |
+| #   | Question                              | Resolution                                                                                   |
+| --- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1   | Completion report format              | **Tool call** (`report_completion`) with `optionalStringEnum()`, text delimiters as fallback |
+| 2   | Progress tool availability            | **All subagents** get the tool; prompt instructions only when opted in                       |
+| 3   | Performance tracking granularity      | **Per-run only**                                                                             |
+| 4   | Pass failure reason to retried agent? | **Yes** + capture original spawn params for faithful retry                                   |
+| 5   | Capability card format                | **Hybrid**: structured `tags` + free-text `notes`                                            |
+
+---
+
+## 12. Review Findings Summary
+
+### Opus Review (architecture) — 3 Critical / 6 Warn / 8 Suggest
+
+- ✅ C1: Verification insertion point → fixed to `runSubagentAnnounceFlow()`
+- ✅ C2: Spawn refactor prerequisite → Wave 0b with defined contract
+- ✅ C3: Tool scoping threading → revised to ephemeral RPC approach (per Codex)
+
+### Codex Review (code-grounded) — 3 Critical / 6 Warn / 3 Suggest
+
+- ✅ C1: Tool scoping SessionEntry blockers → switched to RPC threading
+- ✅ C2: Restart safety / persistence gaps → added `verificationState`, `retryAttemptedAt`, deferred "handled" marker, `updateRunRecord()` export
+- ✅ C3: Schema `Type.Union` ban → switched to `optionalStringEnum()` throughout
+- ✅ W1: Last tool call detection → agent event listener extension
+- ✅ W2: Orchestrator registry not initialized on boot → Wave 0d
+- ✅ W3: Progress storage contradiction → separate per-run JSONL
+- ✅ W4: Wave 4 file list incomplete → expanded to 9 files
+- ✅ W5: Retry needs original spawn params → `originalSpawnParams` field
+- ✅ W6: Missing test scenarios → §8 high-risk test list
