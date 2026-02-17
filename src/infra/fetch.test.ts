@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { withFetchPreconnect } from "../test-utils/fetch-mock.js";
 import { resolveFetch, wrapFetchWithAbortSignal } from "./fetch.js";
 
 function createForeignSignalHarness() {
@@ -30,12 +29,10 @@ function createForeignSignalHarness() {
 describe("wrapFetchWithAbortSignal", () => {
   it("adds duplex for requests with a body", async () => {
     let seenInit: RequestInit | undefined;
-    const fetchImpl = withFetchPreconnect(
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-        seenInit = init;
-        return {} as Response;
-      }),
-    );
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      seenInit = init;
+      return {} as Response;
+    });
 
     const wrapped = wrapFetchWithAbortSignal(fetchImpl);
 
@@ -46,12 +43,10 @@ describe("wrapFetchWithAbortSignal", () => {
 
   it("converts foreign abort signals to native controllers", async () => {
     let seenSignal: AbortSignal | undefined;
-    const fetchImpl = withFetchPreconnect(
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-        seenSignal = init?.signal as AbortSignal | undefined;
-        return {} as Response;
-      }),
-    );
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      seenSignal = init?.signal as AbortSignal | undefined;
+      return {} as Response;
+    });
 
     const wrapped = wrapFetchWithAbortSignal(fetchImpl);
 
@@ -76,8 +71,8 @@ describe("wrapFetchWithAbortSignal", () => {
     process.on("unhandledRejection", onUnhandled);
 
     const fetchError = new TypeError("fetch failed");
-    const fetchImpl = withFetchPreconnect(
-      vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => Promise.reject(fetchError)),
+    const fetchImpl = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
+      Promise.reject(fetchError),
     );
     const wrapped = wrapFetchWithAbortSignal(fetchImpl);
 
@@ -97,11 +92,9 @@ describe("wrapFetchWithAbortSignal", () => {
 
   it("cleans up listener and rethrows when fetch throws synchronously", () => {
     const syncError = new TypeError("sync fetch failure");
-    const fetchImpl = withFetchPreconnect(
-      vi.fn(() => {
-        throw syncError;
-      }),
-    );
+    const fetchImpl = vi.fn(() => {
+      throw syncError;
+    });
     const wrapped = wrapFetchWithAbortSignal(fetchImpl);
 
     const { fakeSignal, removeEventListener } = createForeignSignalHarness();
@@ -113,8 +106,8 @@ describe("wrapFetchWithAbortSignal", () => {
   it("preserves original rejection when listener cleanup throws", async () => {
     const fetchError = new TypeError("fetch failed");
     const cleanupError = new TypeError("cleanup failed");
-    const fetchImpl = withFetchPreconnect(
-      vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => Promise.reject(fetchError)),
+    const fetchImpl = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
+      Promise.reject(fetchError),
     );
     const wrapped = wrapFetchWithAbortSignal(fetchImpl);
 
@@ -135,11 +128,9 @@ describe("wrapFetchWithAbortSignal", () => {
   it("preserves original sync throw when listener cleanup throws", () => {
     const syncError = new TypeError("sync fetch failure");
     const cleanupError = new TypeError("cleanup failed");
-    const fetchImpl = withFetchPreconnect(
-      vi.fn(() => {
-        throw syncError;
-      }),
-    );
+    const fetchImpl = vi.fn(() => {
+      throw syncError;
+    });
     const wrapped = wrapFetchWithAbortSignal(fetchImpl);
 
     const removeEventListener = vi.fn(() => {
@@ -159,7 +150,7 @@ describe("wrapFetchWithAbortSignal", () => {
   it("skips listener cleanup when foreign signal is already aborted", async () => {
     const addEventListener = vi.fn();
     const removeEventListener = vi.fn();
-    const fetchImpl = withFetchPreconnect(vi.fn(async () => ({ ok: true }) as Response));
+    const fetchImpl = vi.fn(async () => ({ ok: true }) as Response);
     const wrapped = wrapFetchWithAbortSignal(fetchImpl);
 
     const fakeSignal = {
@@ -175,7 +166,7 @@ describe("wrapFetchWithAbortSignal", () => {
   });
 
   it("returns the same function when called with an already wrapped fetch", () => {
-    const fetchImpl = withFetchPreconnect(vi.fn(async () => ({ ok: true }) as Response));
+    const fetchImpl = vi.fn(async () => ({ ok: true }) as Response);
     const wrapped = wrapFetchWithAbortSignal(fetchImpl);
 
     expect(wrapFetchWithAbortSignal(wrapped)).toBe(wrapped);

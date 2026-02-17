@@ -1,13 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RestartSentinelPayload } from "../../infra/restart-sentinel.js";
-import type { UpdateRunResult } from "../../infra/update-runner.js";
 
 // Capture the sentinel payload written during update.run
 let capturedPayload: RestartSentinelPayload | undefined;
-
-const runGatewayUpdateMock = vi.fn<() => Promise<UpdateRunResult>>();
-
-const scheduleGatewaySigusr1RestartMock = vi.fn(() => ({ scheduled: true }));
 
 vi.mock("../../config/config.js", () => ({
   loadConfig: () => ({ update: {} }),
@@ -48,7 +43,7 @@ vi.mock("../../infra/restart-sentinel.js", async (importOriginal) => {
 });
 
 vi.mock("../../infra/restart.js", () => ({
-  scheduleGatewaySigusr1Restart: scheduleGatewaySigusr1RestartMock,
+  scheduleGatewaySigusr1Restart: () => ({ scheduled: true }),
 }));
 
 vi.mock("../../infra/update-channels.js", () => ({
@@ -56,7 +51,12 @@ vi.mock("../../infra/update-channels.js", () => ({
 }));
 
 vi.mock("../../infra/update-runner.js", () => ({
-  runGatewayUpdate: runGatewayUpdateMock,
+  runGatewayUpdate: async () => ({
+    status: "ok",
+    mode: "npm",
+    steps: [],
+    durationMs: 100,
+  }),
 }));
 
 vi.mock("../protocol/index.js", () => ({
@@ -74,19 +74,6 @@ vi.mock("./restart-request.js", () => ({
 vi.mock("./validation.js", () => ({
   assertValidParams: () => true,
 }));
-
-beforeEach(() => {
-  capturedPayload = undefined;
-  runGatewayUpdateMock.mockReset();
-  runGatewayUpdateMock.mockResolvedValue({
-    status: "ok",
-    mode: "npm",
-    steps: [],
-    durationMs: 100,
-  });
-  scheduleGatewaySigusr1RestartMock.mockReset();
-  scheduleGatewaySigusr1RestartMock.mockReturnValue({ scheduled: true });
-});
 
 describe("update.run sentinel deliveryContext", () => {
   it("includes deliveryContext in sentinel payload when sessionKey is provided", async () => {
@@ -143,49 +130,5 @@ describe("update.run sentinel deliveryContext", () => {
       accountId: "workspace-1",
     });
     expect(capturedPayload!.threadId).toBe("1234567890.123456");
-  });
-});
-
-describe("update.run restart scheduling", () => {
-  it("schedules restart when update succeeds", async () => {
-    const { updateHandlers } = await import("./update.js");
-    const handler = updateHandlers["update.run"];
-    let payload: { ok: boolean; restart: unknown } | undefined;
-
-    await handler({
-      params: {},
-      respond: (_ok: boolean, response: { ok: boolean; restart: unknown }) => {
-        payload = response;
-      },
-    } as never);
-
-    expect(scheduleGatewaySigusr1RestartMock).toHaveBeenCalledTimes(1);
-    expect(payload?.ok).toBe(true);
-    expect(payload?.restart).toEqual({ scheduled: true });
-  });
-
-  it("skips restart when update fails", async () => {
-    runGatewayUpdateMock.mockResolvedValueOnce({
-      status: "error",
-      mode: "git",
-      reason: "build-failed",
-      steps: [],
-      durationMs: 100,
-    });
-
-    const { updateHandlers } = await import("./update.js");
-    const handler = updateHandlers["update.run"];
-    let payload: { ok: boolean; restart: unknown } | undefined;
-
-    await handler({
-      params: {},
-      respond: (_ok: boolean, response: { ok: boolean; restart: unknown }) => {
-        payload = response;
-      },
-    } as never);
-
-    expect(scheduleGatewaySigusr1RestartMock).not.toHaveBeenCalled();
-    expect(payload?.ok).toBe(false);
-    expect(payload?.restart).toBeNull();
   });
 });

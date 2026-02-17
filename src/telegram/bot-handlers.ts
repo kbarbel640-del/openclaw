@@ -55,21 +55,23 @@ import {
 import { buildInlineKeyboard } from "./send.js";
 import { wasSentByBot } from "./sent-message-cache.js";
 
-export const registerTelegramHandlers = ({
-  cfg,
-  accountId,
-  bot,
-  opts,
-  runtime,
-  mediaMaxBytes,
-  telegramCfg,
-  groupAllowFrom,
-  resolveGroupPolicy,
-  resolveTelegramGroupConfig,
-  shouldSkipUpdate,
-  processMessage,
-  logger,
-}: RegisterTelegramHandlerParams) => {
+export const registerTelegramHandlers = (deps: RegisterTelegramHandlerParams) => {
+  const {
+    cfg,
+    accountId,
+    bot,
+    opts,
+    runtime,
+    mediaMaxBytes,
+    telegramCfg,
+    groupAllowFrom,
+    resolveGroupPolicy,
+    resolveTelegramGroupConfig,
+    shouldSkipUpdate,
+    processMessage,
+    logger,
+    apiRoot,
+  } = deps;
   const DEFAULT_TEXT_FRAGMENT_MAX_GAP_MS = 1500;
   const TELEGRAM_TEXT_FRAGMENT_START_THRESHOLD_CHARS = 4000;
   const TELEGRAM_TEXT_FRAGMENT_MAX_GAP_MS =
@@ -248,7 +250,7 @@ export const registerTelegramHandlers = ({
 
       const allMedia: TelegramMediaRef[] = [];
       for (const { ctx } of entry.messages) {
-        const media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch);
+        const media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch, apiRoot);
         if (media) {
           allMedia.push({
             path: media.path,
@@ -639,7 +641,7 @@ export const registerTelegramHandlers = ({
 
     let media: Awaited<ReturnType<typeof resolveMedia>> = null;
     try {
-      media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch);
+      media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch, apiRoot);
     } catch (mediaErr) {
       const errMsg = String(mediaErr);
       if (errMsg.includes("exceeds") && errMsg.includes("MB limit")) {

@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { withFetchPreconnect } from "../../test-utils/fetch-mock.js";
 
 vi.mock("../../infra/net/fetch-guard.js", () => {
   return {
@@ -34,7 +33,7 @@ describe("web_fetch firecrawl apiKey normalization", () => {
       );
     });
 
-    global.fetch = withFetchPreconnect(fetchSpy);
+    global.fetch = fetchSpy;
 
     const { createWebFetchTool } = await import("./web-tools.js");
     const tool = createWebFetchTool({

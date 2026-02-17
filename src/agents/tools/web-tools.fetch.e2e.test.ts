@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ssrf from "../../infra/net/ssrf.js";
-import { withFetchPreconnect } from "../../test-utils/fetch-mock.js";
 import { createWebFetchTool } from "./web-tools.js";
 
 type MockResponse = {
@@ -93,7 +92,7 @@ function requestUrl(input: RequestInfo | URL): string {
 
 function installMockFetch(impl: (input: RequestInfo | URL) => Promise<Response>) {
   const mockFetch = vi.fn(async (input: RequestInfo | URL) => await impl(input));
-  global.fetch = withFetchPreconnect(mockFetch);
+  global.fetch = mockFetch as typeof global.fetch;
   return mockFetch;
 }
 

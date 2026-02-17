@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { withFetchPreconnect } from "../../test-utils/fetch-mock.js";
 import {
   createBaseWebFetchToolConfig,
   installWebFetchSsrfHarness,
@@ -24,7 +23,7 @@ describe("web_fetch response size limits", () => {
     });
 
     const fetchSpy = vi.fn().mockResolvedValue(response);
-    global.fetch = withFetchPreconnect(fetchSpy);
+    global.fetch = fetchSpy;
 
     const tool = createWebFetchTool(baseToolConfig);
     const result = await tool?.execute?.("call", { url: "https://example.com/stream" });

@@ -1,7 +1,6 @@
 import net from "node:net";
 import { describe, expect, it, vi } from "vitest";
 import { CHUTES_TOKEN_ENDPOINT, CHUTES_USERINFO_ENDPOINT } from "../agents/chutes-oauth.js";
-import { withFetchPreconnect } from "../test-utils/fetch-mock.js";
 import { loginChutes } from "./chutes-oauth.js";
 
 async function getFreePort(): Promise<number> {
@@ -32,8 +31,8 @@ function createOAuthFetchFn(params: {
   refreshToken: string;
   username: string;
   passthrough?: boolean;
-}) {
-  return withFetchPreconnect(async (input: RequestInfo | URL, init?: RequestInit) => {
+}): typeof fetch {
+  return async (input, init) => {
     const url = urlToString(input);
     if (url === CHUTES_TOKEN_ENDPOINT) {
       return new Response(
@@ -55,7 +54,7 @@ function createOAuthFetchFn(params: {
       return fetch(input, init);
     }
     return new Response("not found", { status: 404 });
-  });
+  };
 }
 
 describe("loginChutes", () => {
@@ -158,7 +157,7 @@ describe("loginChutes", () => {
   });
 
   it("rejects pasted redirect URLs missing state", async () => {
-    const fetchFn = withFetchPreconnect(async () => new Response("not found", { status: 404 }));
+    const fetchFn: typeof fetch = async () => new Response("not found", { status: 404 });
 
     await expect(
       loginChutes({

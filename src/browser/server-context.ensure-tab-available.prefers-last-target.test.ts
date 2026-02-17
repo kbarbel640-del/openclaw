@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { withFetchPreconnect } from "../test-utils/fetch-mock.js";
 import type { BrowserServerState } from "./server-context.js";
 import "./server-context.chrome-test-harness.js";
 import { createBrowserRouteContext } from "./server-context.js";
@@ -57,7 +56,7 @@ function stubChromeJsonList(responses: unknown[]) {
     } as unknown as Response;
   });
 
-  global.fetch = withFetchPreconnect(fetchMock);
+  global.fetch = fetchMock;
   return fetchMock;
 }
 

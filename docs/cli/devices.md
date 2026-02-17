@@ -21,15 +21,12 @@ openclaw devices list
 openclaw devices list --json
 ```
 
-### `openclaw devices approve [requestId] [--latest]`
+### `openclaw devices approve <requestId>`
 
-Approve a pending device pairing request. If `requestId` is omitted, OpenClaw
-automatically approves the most recent pending request.
+Approve a pending device pairing request.
 
 ```
-openclaw devices approve
 openclaw devices approve <requestId>
-openclaw devices approve --latest
 ```
 
 ### `openclaw devices reject <requestId>`

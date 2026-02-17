@@ -266,25 +266,6 @@ async function maybeRepairTelegramAllowFromUsernames(cfg: OpenClawConfig): Promi
     return { config: cfg, changes: [] };
   }
 
-  const tokens = Array.from(
-    new Set(
-      listTelegramAccountIds(cfg)
-        .map((accountId) => resolveTelegramAccount({ cfg, accountId }))
-        .map((account) => (account.tokenSource === "none" ? "" : account.token))
-        .map((token) => token.trim())
-        .filter(Boolean),
-    ),
-  );
-
-  if (tokens.length === 0) {
-    return {
-      config: cfg,
-      changes: [
-        `- Telegram allowFrom contains @username entries, but no Telegram bot token is configured; cannot auto-resolve (run onboarding or replace with numeric sender IDs).`,
-      ],
-    };
-  }
-
   const resolveUserId = async (raw: string): Promise<string | null> => {
     const trimmed = raw.trim();
     if (!trimmed) {
@@ -301,11 +282,18 @@ async function maybeRepairTelegramAllowFromUsernames(cfg: OpenClawConfig): Promi
       return null;
     }
     const username = stripped.startsWith("@") ? stripped : `@${stripped}`;
-    for (const token of tokens) {
+    for (const accountId of listTelegramAccountIds(cfg)) {
+      const resolved = resolveTelegramAccount({ cfg, accountId });
+      const token = resolved.token?.trim();
+      if (!token || resolved.tokenSource === "none") {
+        continue;
+      }
+      const apiRoot = resolved.apiRoot;
+
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
       try {
-        const url = `https://api.telegram.org/bot${token}/getChat?chat_id=${encodeURIComponent(username)}`;
+        const url = `${apiRoot}/bot${token}/getChat?chat_id=${encodeURIComponent(username)}`;
         const res = await fetch(url, { signal: controller.signal }).catch(() => null);
         if (!res || !res.ok) {
           continue;

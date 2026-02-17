@@ -400,10 +400,9 @@ async function maybeRestartService(params: {
 
     try {
       let restarted = false;
-      let restartInitiated = false;
       if (params.restartScriptPath) {
         await runRestartScript(params.restartScriptPath);
-        restartInitiated = true;
+        restarted = true;
       } else {
         restarted = await runDaemonRestart();
       }
@@ -423,16 +422,6 @@ async function maybeRestartService(params: {
         } finally {
           delete process.env.OPENCLAW_UPDATE_IN_PROGRESS;
         }
-      }
-
-      if (!params.opts.json && restartInitiated) {
-        defaultRuntime.log(theme.success("Daemon restart initiated."));
-        defaultRuntime.log(
-          theme.muted(
-            `Verify with \`${replaceCliName(formatCliCommand("openclaw gateway status"), CLI_NAME)}\` once the gateway is back.`,
-          ),
-        );
-        defaultRuntime.log("");
       }
     } catch (err) {
       if (!params.opts.json) {

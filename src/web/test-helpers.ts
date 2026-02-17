@@ -93,35 +93,20 @@ export function resetBaileysMocks() {
     recreated.lastSocket;
 
   const makeWASocket = vi.mocked(baileys.makeWASocket);
-  const makeWASocketImpl: typeof baileys.makeWASocket = (...args) =>
-    (recreated.mod.makeWASocket as unknown as typeof baileys.makeWASocket)(...args);
   makeWASocket.mockReset();
-  makeWASocket.mockImplementation(makeWASocketImpl);
+  makeWASocket.mockImplementation(recreated.mod.makeWASocket);
 
   const useMultiFileAuthState = vi.mocked(baileys.useMultiFileAuthState);
-  const useMultiFileAuthStateImpl: typeof baileys.useMultiFileAuthState = (...args) =>
-    (recreated.mod.useMultiFileAuthState as unknown as typeof baileys.useMultiFileAuthState)(
-      ...args,
-    );
   useMultiFileAuthState.mockReset();
-  useMultiFileAuthState.mockImplementation(useMultiFileAuthStateImpl);
+  useMultiFileAuthState.mockImplementation(recreated.mod.useMultiFileAuthState);
 
   const fetchLatestBaileysVersion = vi.mocked(baileys.fetchLatestBaileysVersion);
-  const fetchLatestBaileysVersionImpl: typeof baileys.fetchLatestBaileysVersion = (...args) =>
-    (
-      recreated.mod.fetchLatestBaileysVersion as unknown as typeof baileys.fetchLatestBaileysVersion
-    )(...args);
   fetchLatestBaileysVersion.mockReset();
-  fetchLatestBaileysVersion.mockImplementation(fetchLatestBaileysVersionImpl);
+  fetchLatestBaileysVersion.mockImplementation(recreated.mod.fetchLatestBaileysVersion);
 
   const makeCacheableSignalKeyStore = vi.mocked(baileys.makeCacheableSignalKeyStore);
-  const makeCacheableSignalKeyStoreImpl: typeof baileys.makeCacheableSignalKeyStore = (...args) =>
-    (
-      recreated.mod
-        .makeCacheableSignalKeyStore as unknown as typeof baileys.makeCacheableSignalKeyStore
-    )(...args);
   makeCacheableSignalKeyStore.mockReset();
-  makeCacheableSignalKeyStore.mockImplementation(makeCacheableSignalKeyStoreImpl);
+  makeCacheableSignalKeyStore.mockImplementation(recreated.mod.makeCacheableSignalKeyStore);
 }
 
 export function getLastSocket(): MockBaileysSocket {

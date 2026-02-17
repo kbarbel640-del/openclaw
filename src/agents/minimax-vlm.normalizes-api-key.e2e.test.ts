@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { withFetchPreconnect } from "../test-utils/fetch-mock.js";
 
 describe("minimaxUnderstandImage apiKey normalization", () => {
   const priorFetch = global.fetch;
@@ -22,7 +21,7 @@ describe("minimaxUnderstandImage apiKey normalization", () => {
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     });
-    global.fetch = withFetchPreconnect(fetchSpy);
+    global.fetch = fetchSpy;
 
     const { minimaxUnderstandImage } = await import("./minimax-vlm.js");
     const text = await minimaxUnderstandImage({

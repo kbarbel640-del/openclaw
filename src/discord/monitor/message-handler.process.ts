@@ -503,8 +503,6 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     runtime.error?.(danger("discord: missing reply target"));
     return;
   }
-  // Keep DM routes user-addressed so follow-up sends resolve direct session keys.
-  const lastRouteTo = isDirectMessage ? `user:${author.id}` : effectiveTo;
 
   const inboundHistory =
     shouldIncludeChannelHistory && historyLimit > 0
@@ -555,16 +553,15 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     OriginatingChannel: "discord" as const,
     OriginatingTo: autoThreadContext?.OriginatingTo ?? replyTarget,
   });
-  const persistedSessionKey = ctxPayload.SessionKey ?? route.sessionKey;
 
   await recordInboundSession({
     storePath,
-    sessionKey: persistedSessionKey,
+    sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
     ctx: ctxPayload,
     updateLastRoute: {
-      sessionKey: persistedSessionKey,
+      sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
       channel: "discord",
-      to: lastRouteTo,
+      to: effectiveTo,
       accountId: route.accountId,
     },
     onRecordError: (err) => {

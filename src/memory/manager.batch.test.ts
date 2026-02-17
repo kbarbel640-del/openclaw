@@ -43,8 +43,7 @@ describe("memory indexing with OpenAI batches", () => {
 
   async function readOpenAIBatchUploadRequests(body: FormData) {
     let uploadedRequests: Array<{ custom_id?: string }> = [];
-    const entries = body.entries() as IterableIterator<[string, FormDataEntryValue]>;
-    for (const [key, value] of entries) {
+    for (const [key, value] of body.entries()) {
       if (key !== "file") {
         continue;
       }
@@ -52,7 +51,7 @@ describe("memory indexing with OpenAI batches", () => {
       uploadedRequests = text
         .split("\n")
         .filter(Boolean)
-        .map((line: string) => JSON.parse(line) as { custom_id?: string });
+        .map((line) => JSON.parse(line) as { custom_id?: string });
     }
     return uploadedRequests;
   }

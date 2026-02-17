@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { withFetchPreconnect } from "../test-utils/fetch-mock.js";
 import * as cdpModule from "./cdp.js";
 import * as pwAiModule from "./pw-ai-module.js";
 import type { BrowserServerState } from "./server-context.js";
@@ -71,7 +70,7 @@ describe("browser server-context remote profile tab operations", () => {
       throw new Error("unexpected fetch");
     });
 
-    global.fetch = withFetchPreconnect(fetchMock);
+    global.fetch = fetchMock;
 
     const state = makeState("remote");
     const ctx = createBrowserRouteContext({ getState: () => state });
@@ -136,7 +135,7 @@ describe("browser server-context remote profile tab operations", () => {
       throw new Error("unexpected fetch");
     });
 
-    global.fetch = withFetchPreconnect(fetchMock);
+    global.fetch = fetchMock;
 
     const state = makeState("remote");
     const ctx = createBrowserRouteContext({ getState: () => state });
@@ -163,7 +162,7 @@ describe("browser server-context remote profile tab operations", () => {
       throw new Error("unexpected fetch");
     });
 
-    global.fetch = withFetchPreconnect(fetchMock);
+    global.fetch = fetchMock;
 
     const state = makeState("remote");
     const ctx = createBrowserRouteContext({ getState: () => state });
@@ -189,7 +188,7 @@ describe("browser server-context remote profile tab operations", () => {
       throw new Error("unexpected fetch");
     });
 
-    global.fetch = withFetchPreconnect(fetchMock);
+    global.fetch = fetchMock;
 
     const state = makeState("remote");
     const ctx = createBrowserRouteContext({ getState: () => state });
@@ -221,7 +220,7 @@ describe("browser server-context remote profile tab operations", () => {
       } as unknown as Response;
     });
 
-    global.fetch = withFetchPreconnect(fetchMock);
+    global.fetch = fetchMock;
 
     const state = makeState("remote");
     const ctx = createBrowserRouteContext({ getState: () => state });
@@ -256,7 +255,7 @@ describe("browser server-context tab selection state", () => {
       } as unknown as Response;
     });
 
-    global.fetch = withFetchPreconnect(fetchMock);
+    global.fetch = fetchMock;
 
     const state = makeState("openclaw");
     const ctx = createBrowserRouteContext({ getState: () => state });

@@ -4,7 +4,6 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ModelDefinitionConfig } from "../../config/types.models.js";
-import { withFetchPreconnect } from "../../test-utils/fetch-mock.js";
 import { createOpenClawCodingTools } from "../pi-tools.js";
 import { createHostSandboxFsBridge } from "../test-helpers/host-sandbox-fs-bridge.js";
 import { __testing, createImageTool, resolveImageModelConfigForTool } from "./image-tool.js";
@@ -48,7 +47,7 @@ function stubMinimaxOkFetch() {
       base_resp: { status_code: 0, status_msg: "" },
     }),
   });
-  global.fetch = withFetchPreconnect(fetch);
+  global.fetch = fetch;
   vi.stubEnv("MINIMAX_API_KEY", "minimax-test");
   return fetch;
 }
@@ -415,7 +414,7 @@ describe("image tool implicit imageModel config", () => {
         base_resp: { status_code: 0, status_msg: "" },
       }),
     });
-    global.fetch = withFetchPreconnect(fetch);
+    global.fetch = fetch;
     vi.stubEnv("MINIMAX_API_KEY", "minimax-test");
 
     const cfg: OpenClawConfig = {
@@ -488,7 +487,7 @@ describe("image tool MiniMax VLM routing", () => {
         base_resp: baseResp,
       }),
     });
-    global.fetch = withFetchPreconnect(fetch);
+    global.fetch = fetch;
 
     const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-minimax-vlm-"));
     vi.stubEnv("MINIMAX_API_KEY", "minimax-test");
