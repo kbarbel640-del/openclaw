@@ -36,7 +36,6 @@ export function createDeepgramTelephonyTtsProvider(
   const deepgramTts = new DeepgramTTSProvider({
     apiKey,
     voice: streamingConfig.deepgramTtsVoice || "aura-asteria-en",
-    model: streamingConfig.deepgramTtsModel || "aura-asteria-en",
     encoding: "mulaw", // Twilio requires µ-law
     sampleRate: 8000, // 8kHz for telephony
     container: "none", // Raw audio, no container

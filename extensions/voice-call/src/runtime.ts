@@ -156,10 +156,10 @@ export async function createVoiceCallRuntime(params: {
   }
 
   // Set up the stream path for WebSocket connections (always, if streaming enabled)
-  if (config.streaming?.enabled && config.tailscale?.mode !== "off") {
+  if (config.streaming?.enabled && config.tailscale && config.tailscale.mode !== "off") {
     const streamPath = config.streaming.streamPath || "/voice/stream";
     await setupTailscaleExposureRoute({
-      mode: config.tailscale.mode === "funnel" ? "funnel" : "serve",
+      mode: config.tailscale?.mode === "funnel" ? "funnel" : "serve",
       path: streamPath,
       localUrl: `http://127.0.0.1:${config.serve.port}`,
     });

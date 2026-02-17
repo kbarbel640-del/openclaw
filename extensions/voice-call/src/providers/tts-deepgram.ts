@@ -14,7 +14,7 @@ export interface DeepgramTTSConfig {
   /** Deepgram API key (uses DEEPGRAM_API_KEY env if not set) */
   apiKey?: string;
   /**
-   * Voice to use.
+   * Voice to use (passed as "model" param to Deepgram API).
    * Available voices:
    * - aura-asteria-en (female, warm, conversational)
    * - aura-luna-en (female, friendly, expressive)
@@ -30,8 +30,6 @@ export interface DeepgramTTSConfig {
    * - aura-zeus-en (male, powerful, commanding)
    */
   voice?: string;
-  /** Model to use (default: aura) */
-  model?: string;
   /** Encoding format (default: mulaw for telephony) */
   encoding?: string;
   /** Sample rate in Hz (default: 8000 for telephony) */
@@ -66,7 +64,6 @@ export type DeepgramAuraVoice = (typeof DEEPGRAM_AURA_VOICES)[number];
 export class DeepgramTTSProvider {
   private apiKey: string;
   private voice: DeepgramAuraVoice;
-  private model: string;
   private encoding: string;
   private sampleRate: number;
   private container: string;
@@ -74,7 +71,6 @@ export class DeepgramTTSProvider {
   constructor(config: DeepgramTTSConfig = {}) {
     this.apiKey = config.apiKey || process.env.DEEPGRAM_API_KEY || "";
     this.voice = (config.voice as DeepgramAuraVoice) || "aura-arcas-en";
-    this.model = config.model || "aura";
     this.encoding = config.encoding || "mulaw";
     this.sampleRate = config.sampleRate || 8000;
     this.container = config.container || "none";

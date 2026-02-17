@@ -100,9 +100,13 @@ export class DeepgramSTTProvider {
  * WebSocket-based session for real-time speech-to-text via Deepgram.
  */
 class DeepgramSTTSessionImpl implements DeepgramSTTSession {
+  private static readonly MAX_RECONNECT_ATTEMPTS = 5;
+
   private ws: WebSocket | null = null;
   private connected = false;
   private closed = false;
+  private explicitClose = false; // Track whether close() was called intentionally
+  private reconnectAttempts = 0;
   private onTranscriptCallback: ((transcript: string) => void) | null = null;
   private onPartialCallback: ((partial: string) => void) | null = null;
   private onSpeechStartCallback: (() => void) | null = null;
@@ -167,7 +171,12 @@ class DeepgramSTTSessionImpl implements DeepgramSTTSession {
 
       this.ws.on("close", () => {
         this.connected = false;
-        this.closed = true;
+        // Only attempt reconnection if not explicitly closed
+        if (!this.explicitClose && !this.closed) {
+          void this.attemptReconnect();
+        } else {
+          this.closed = true;
+        }
       });
     });
   }
@@ -182,7 +191,7 @@ class DeepgramSTTSessionImpl implements DeepgramSTTSession {
       if (!transcript) return;
 
       const isFinal = message.is_final || false;
-      const speechFinal = message.speech_final || false;
+      // speech_final not used: we trigger on is_final alone (Deepgram may not set speech_final consistently)
 
       // Trigger on is_final - speech_final may not be set depending on Deepgram config
       if (isFinal) {
@@ -280,7 +289,38 @@ class DeepgramSTTSessionImpl implements DeepgramSTTSession {
     this.onSpeechStartCallback = callback;
   }
 
+  private async attemptReconnect(): Promise<void> {
+    if (this.closed || this.explicitClose) return;
+
+    if (this.reconnectAttempts >= DeepgramSTTSessionImpl.MAX_RECONNECT_ATTEMPTS) {
+      console.error(
+        `[deepgram-stt] Max reconnect attempts (${DeepgramSTTSessionImpl.MAX_RECONNECT_ATTEMPTS}) reached`,
+      );
+      this.closed = true;
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = Math.min(1000 * 2 ** (this.reconnectAttempts - 1), 10000); // Exponential backoff, max 10s
+
+    console.log(
+      `[deepgram-stt] Reconnecting ${this.reconnectAttempts}/${DeepgramSTTSessionImpl.MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`,
+    );
+
+    await new Promise((r) => setTimeout(r, delay));
+
+    try {
+      await this.connect();
+      console.log("[deepgram-stt] Reconnection successful");
+      this.reconnectAttempts = 0; // Reset on successful reconnection
+    } catch (err) {
+      console.error("[deepgram-stt] Reconnection failed:", err);
+      void this.attemptReconnect(); // Try again
+    }
+  }
+
   close(): void {
+    this.explicitClose = true; // Mark as intentional close
     if (this.ws) {
       // Send close frame to indicate end of audio
       this.ws.send(JSON.stringify({ type: "CloseStream" }));
