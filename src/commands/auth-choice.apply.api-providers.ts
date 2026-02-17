@@ -79,6 +79,7 @@ import {
 import type { AuthChoice } from "./onboard-types.js";
 import { OPENCODE_ZEN_DEFAULT_MODEL } from "./opencode-zen-model-default.js";
 import { detectZaiEndpoint } from "./zai-endpoint-detect.js";
+import { configureZaiMcpTools } from "./zai-mcp-tools-config.js";
 
 const API_KEY_TOKEN_PROVIDER_AUTH_CHOICE: Record<string, AuthChoice> = {
   openrouter: "openrouter-api-key",
@@ -648,6 +649,15 @@ export async function applyAuthChoiceApiProviders(
         }),
       noteDefault: defaultModel,
     });
+
+    // Auto-configure Z.AI MCP tools (zread, vision, web-search)
+    try {
+      await configureZaiMcpTools(apiKey, params.agentDir);
+      await params.prompter.note("Z.AI MCP tools (zread, vision, web-search) auto-configured.", "MCP Tools");
+    } catch (e) {
+      // Non-fatal, just log and continue
+      console.warn("Failed to auto-configure Z.AI MCP tools:", e);
+    }
 
     return { config: nextConfig, agentModelOverride };
   }
