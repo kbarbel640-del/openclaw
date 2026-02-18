@@ -148,3 +148,24 @@ This is not a defect in sidecar auth flow. It is a tenant onboarding prerequisit
 
 - Use an Olumie tenant user to complete auth (preferred), OR
 - Invite the operator as a B2B guest and ensure mailbox/calendar access is valid for the intended workflows.
+
+---
+
+## Proof Evidence (Increment 4 — Calendar read-only list endpoint)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc003.sh
+- Result: PASS
+
+### What was proven
+
+- Sidecar exposes GET /graph/:profile_id/calendar/list?days=7
+- When DISCONNECTED, endpoint fails closed with:
+  - 409 NOT_AUTHENTICATED + next_action RUN_DEVICE_CODE_AUTH
+- When CONNECTED, endpoint calls Graph calendarview read-only and returns minimal fields only:
+  - id, subject, start, end, location
+- No calendar writes/invites/sends were introduced.
+
+### Notes
+
+- Proof currently validates the fail-closed behavior without requiring tenant auth.
