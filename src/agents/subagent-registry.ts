@@ -5,11 +5,14 @@ import { defaultRuntime } from "../runtime.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { resetAnnounceQueuesForTests } from "./subagent-announce-queue.js";
 import { runSubagentAnnounceFlow, type SubagentRunOutcome } from "./subagent-announce.js";
+import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
 import {
   loadSubagentRegistryFromDisk,
   saveSubagentRegistryToDisk,
 } from "./subagent-registry.store.js";
 import { resolveAgentTimeoutMs } from "./timeout.js";
+
+type AnnounceGiveUpReason = "retry-limit" | "expiry";
 
 export type SubagentRunRecord = {
   runId: string;
@@ -35,6 +38,10 @@ export type SubagentRunRecord = {
   announceRetryCount?: number;
   /** Timestamp of the last announce retry attempt (for backoff). */
   lastAnnounceRetryAt?: number;
+  /** Timestamp when a terminal give-up notice was injected into requester session. */
+  announceGiveUpNotifiedAt?: number;
+  /** Reason for terminal give-up notice. */
+  announceGiveUpReason?: AnnounceGiveUpReason;
 };
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
@@ -66,7 +73,7 @@ function resolveAnnounceRetryDelayMs(retryCount: number) {
   return Math.min(baseDelay, MAX_ANNOUNCE_RETRY_DELAY_MS);
 }
 
-function logAnnounceGiveUp(entry: SubagentRunRecord, reason: "retry-limit" | "expiry") {
+function logAnnounceGiveUp(entry: SubagentRunRecord, reason: AnnounceGiveUpReason) {
   const retryCount = entry.announceRetryCount ?? 0;
   const endedAgoMs =
     typeof entry.endedAt === "number" ? Math.max(0, Date.now() - entry.endedAt) : undefined;
@@ -74,6 +81,59 @@ function logAnnounceGiveUp(entry: SubagentRunRecord, reason: "retry-limit" | "ex
   defaultRuntime.log(
     `[warn] Subagent announce give up (${reason}) run=${entry.runId} child=${entry.childSessionKey} requester=${entry.requesterSessionKey} retries=${retryCount} endedAgo=${endedAgoLabel}`,
   );
+}
+
+function buildAnnounceGiveUpMessage(
+  entry: SubagentRunRecord,
+  reason: AnnounceGiveUpReason,
+): string {
+  const taskLabel = entry.label?.trim() || entry.task.trim() || "subagent task";
+  const reasonText =
+    reason === "retry-limit"
+      ? "delivery retries were exhausted"
+      : "the delivery window expired before completion callback succeeded";
+  return [
+    `[System Message] Subagent completion callback for "${taskLabel}" could not be auto-delivered (${reasonText}).`,
+    `Child session: ${entry.childSessionKey}.`,
+    "Please provide a brief follow-up and check subagent status/history if the final result is needed.",
+  ].join("\n");
+}
+
+async function notifyAnnounceGiveUp(entry: SubagentRunRecord, reason: AnnounceGiveUpReason) {
+  if (typeof entry.announceGiveUpNotifiedAt === "number") {
+    return;
+  }
+  const requesterDepth = getSubagentDepthFromSessionStore(entry.requesterSessionKey);
+  const requesterIsSubagent = requesterDepth >= 1;
+  const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
+  try {
+    await callGateway({
+      method: "agent",
+      params: {
+        sessionKey: entry.requesterSessionKey,
+        message: buildAnnounceGiveUpMessage(entry, reason),
+        deliver: !requesterIsSubagent,
+        channel: requesterIsSubagent ? undefined : requesterOrigin?.channel,
+        accountId: requesterIsSubagent ? undefined : requesterOrigin?.accountId,
+        to: requesterIsSubagent ? undefined : requesterOrigin?.to,
+        threadId:
+          !requesterIsSubagent &&
+          requesterOrigin?.threadId != null &&
+          requesterOrigin.threadId !== ""
+            ? String(requesterOrigin.threadId)
+            : undefined,
+        idempotencyKey: `announce-giveup:v1:${entry.runId}:${reason}`,
+      },
+      timeoutMs: 15_000,
+    });
+    entry.announceGiveUpNotifiedAt = Date.now();
+    entry.announceGiveUpReason = reason;
+    persistSubagentRuns();
+  } catch (err) {
+    defaultRuntime.error?.(
+      `Subagent announce give-up notify failed for run=${entry.runId}: ${String(err)}`,
+    );
+  }
 }
 
 function persistSubagentRuns() {
@@ -129,15 +189,19 @@ function resumeSubagentRun(runId: string) {
   }
   // Skip entries that have exhausted their retry budget or expired (#18264).
   if ((entry.announceRetryCount ?? 0) >= MAX_ANNOUNCE_RETRY_COUNT) {
-    logAnnounceGiveUp(entry, "retry-limit");
+    const reason: AnnounceGiveUpReason = "retry-limit";
+    logAnnounceGiveUp(entry, reason);
     entry.cleanupCompletedAt = Date.now();
     persistSubagentRuns();
+    void notifyAnnounceGiveUp(entry, reason);
     return;
   }
   if (typeof entry.endedAt === "number" && Date.now() - entry.endedAt > ANNOUNCE_EXPIRY_MS) {
-    logAnnounceGiveUp(entry, "expiry");
+    const reason: AnnounceGiveUpReason = "expiry";
+    logAnnounceGiveUp(entry, reason);
     entry.cleanupCompletedAt = Date.now();
     persistSubagentRuns();
+    void notifyAnnounceGiveUp(entry, reason);
     return;
   }
 
@@ -332,9 +396,12 @@ function finalizeSubagentCleanup(runId: string, cleanup: "delete" | "keep", didA
     const endedAgo = typeof entry.endedAt === "number" ? now - entry.endedAt : 0;
     if (retryCount >= MAX_ANNOUNCE_RETRY_COUNT || endedAgo > ANNOUNCE_EXPIRY_MS) {
       // Give up: mark as completed to break the infinite retry loop.
-      logAnnounceGiveUp(entry, retryCount >= MAX_ANNOUNCE_RETRY_COUNT ? "retry-limit" : "expiry");
+      const reason: AnnounceGiveUpReason =
+        retryCount >= MAX_ANNOUNCE_RETRY_COUNT ? "retry-limit" : "expiry";
+      logAnnounceGiveUp(entry, reason);
       entry.cleanupCompletedAt = now;
       persistSubagentRuns();
+      void notifyAnnounceGiveUp(entry, reason);
       retryDeferredCompletedAnnounces(runId);
       return;
     }
@@ -383,9 +450,11 @@ function retryDeferredCompletedAnnounces(excludeRunId?: string) {
     // Force-expire announces that have been pending too long (#18264).
     const endedAgo = now - (entry.endedAt ?? now);
     if (endedAgo > ANNOUNCE_EXPIRY_MS) {
-      logAnnounceGiveUp(entry, "expiry");
+      const reason: AnnounceGiveUpReason = "expiry";
+      logAnnounceGiveUp(entry, reason);
       entry.cleanupCompletedAt = now;
       persistSubagentRuns();
+      void notifyAnnounceGiveUp(entry, reason);
       continue;
     }
     resumedRuns.delete(runId);
@@ -490,6 +559,8 @@ export function replaceSubagentRunAfterSteer(params: {
     suppressAnnounceReason: undefined,
     announceRetryCount: undefined,
     lastAnnounceRetryAt: undefined,
+    announceGiveUpNotifiedAt: undefined,
+    announceGiveUpReason: undefined,
     archiveAtMs,
     runTimeoutSeconds,
   };
@@ -540,6 +611,8 @@ export function registerSubagentRun(params: {
     startedAt: now,
     archiveAtMs,
     cleanupHandled: false,
+    announceGiveUpNotifiedAt: undefined,
+    announceGiveUpReason: undefined,
   });
   ensureListener();
   persistSubagentRuns();
