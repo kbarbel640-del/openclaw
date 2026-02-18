@@ -3,21 +3,23 @@ import fsPromises from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { SessionConfig } from "../types.base.js";
+import type { SessionEntry } from "./types.js";
 import {
   clearSessionStoreCacheForTest,
   loadSessionStore,
   resolveAndPersistSessionFile,
   updateSessionStore,
 } from "../sessions.js";
-import type { SessionConfig } from "../types.base.js";
 import {
   resolveSessionFilePath,
   resolveSessionTranscriptPathInDir,
+  dotQuote,
+  dotUnquote,
   validateSessionId,
 } from "./paths.js";
 import { resolveSessionResetPolicy } from "./reset.js";
 import { appendAssistantMessageToSessionTranscript } from "./transcript.js";
-import type { SessionEntry } from "./types.js";
 
 function useTempSessionsFixture(prefix: string) {
   let tempDir = "";
@@ -268,5 +270,37 @@ describe("resolveAndPersistSessionFile", () => {
     expect(result.sessionEntry.sessionId).toBe(sessionId);
     const saved = loadSessionStore(fixture.storePath(), { skipCache: true });
     expect(saved[sessionKey]?.sessionFile).toBe(fallbackSessionFile);
+  });
+});
+
+describe("validateSessionId with special characters", () => {
+  it("accepts WhatsApp-style IDs with colons and plus signs", () => {
+    expect(validateSessionId("agent:wa-relay:whatsapp:+15551234567")).toBe(
+      "agent:wa-relay:whatsapp:+15551234567",
+    );
+  });
+
+  it("rejects IDs with path traversal characters", () => {
+    expect(() => validateSessionId("../escape")).toThrow("Invalid session ID");
+    expect(() => validateSessionId("foo/bar")).toThrow("Invalid session ID");
+  });
+});
+
+describe("dotQuote / dotUnquote", () => {
+  it("encodes special characters", () => {
+    expect(dotQuote("agent:wa:+1234")).toBe("agent.3Awa.3A.2B1234");
+  });
+
+  it("encodes dots", () => {
+    expect(dotQuote("foo.bar")).toBe("foo.2Ebar");
+  });
+
+  it("roundtrips", () => {
+    const original = "agent:wa-relay:whatsapp:+15551234567";
+    expect(dotUnquote(dotQuote(original))).toBe(original);
+  });
+
+  it("leaves safe characters unchanged", () => {
+    expect(dotQuote("simple-id_123")).toBe("simple-id_123");
   });
 });
