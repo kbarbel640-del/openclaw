@@ -28,6 +28,7 @@ export function renderUsageTab(state: AppViewState) {
     totals: state.usageResult?.totals ?? null,
     aggregates: state.usageResult?.aggregates ?? null,
     costDaily: state.usageCostSummary?.daily ?? [],
+    providerUsage: state.usageProviderSummary,
     selectedSessions: state.usageSelectedSessions,
     selectedDays: state.usageSelectedDays,
     selectedHours: state.usageSelectedHours,

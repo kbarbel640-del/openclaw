@@ -29,6 +29,7 @@ import {
   renderFilterChips,
   renderSessionsCard,
   renderUsageInsights,
+  renderUsageOverviewQuotaPanel,
 } from "./usage-render-overview.ts";
 import { usageStylesString } from "./usageStyles.ts";
 import {
@@ -761,6 +762,8 @@ export function renderUsage(props: UsageProps) {
       displaySessionCount,
       totalSessions,
     )}
+
+    ${renderUsageOverviewQuotaPanel(props.providerUsage)}
 
     ${renderUsageMosaic(aggregateSessions, props.timeZone, props.selectedHours, props.onSelectHour)}
 
