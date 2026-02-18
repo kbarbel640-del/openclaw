@@ -258,17 +258,25 @@ describe("pairing store", () => {
   });
 
   it("rejects wrong code of different length without timing leak", async () => {
-    await withTempStateDir(async () => {
-      await upsertChannelPairingRequest({
-        channel: "signal",
-        id: "+15557777777",
+    const spy = vi.spyOn(crypto, "timingSafeEqual");
+    try {
+      await withTempStateDir(async () => {
+        await upsertChannelPairingRequest({
+          channel: "signal",
+          id: "+15557777777",
+        });
+        spy.mockClear();
+        // Short code — previously short-circuited before timingSafeEqual, leaking length info.
+        // With zero-padding, timingSafeEqual must still be called regardless of length mismatch.
+        const rejected = await approveChannelPairingCode({
+          channel: "signal",
+          code: "ZZZ",
+        });
+        expect(rejected).toBeNull();
+        expect(spy).toHaveBeenCalled();
       });
-      // Short code — hits the length-check branch before timingSafeEqual
-      const rejected = await approveChannelPairingCode({
-        channel: "signal",
-        code: "ZZZ",
-      });
-      expect(rejected).toBeNull();
-    });
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
