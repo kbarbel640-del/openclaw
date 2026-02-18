@@ -796,9 +796,18 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
       const error = err as { code?: string };
       if (error?.code === "INVALID_CONFIG") {
+        deps.logger.error(
+          "Gateway is running with empty config due to validation errors in " +
+            configPath +
+            ". Fix the config and restart. Details were logged above.",
+        );
         return {};
       }
-      deps.logger.error(`Failed to read config at ${configPath}`, err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      deps.logger.error(
+        `Failed to read config at ${configPath}: ${errMsg}. ` +
+          "Gateway will start with empty/default config.",
+      );
       return {};
     }
   }
