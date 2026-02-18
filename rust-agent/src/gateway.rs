@@ -3262,12 +3262,19 @@ impl RpcDispatcher {
 
         let account_id = normalize_optional_text(params.account_id, 128);
         let thread_id = normalize_optional_text(params.thread_id, 128);
-        let session_key = normalize_optional_text(params.session_key, 256)
+        let requested_session_key = normalize_optional_text(params.session_key, 256)
             .and_then(|value| {
                 let canonical = canonicalize_session_key(&value);
                 (!canonical.is_empty()).then_some(canonical)
             })
             .unwrap_or_else(|| derive_outbound_session_key(&channel, &to));
+        let (session_key, send_policy) = self
+            .sessions
+            .resolve_send_target(&requested_session_key)
+            .await;
+        if send_policy == Some(SendPolicyOverride::Deny) {
+            return RpcDispatchOutcome::bad_request("send blocked by session policy");
+        }
         let mirrored_message = message.clone().or_else(|| {
             (!media_urls.is_empty()).then(|| format!("[media] {}", media_urls.join(" ")))
         });
@@ -4323,9 +4330,16 @@ impl RpcDispatcher {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
         };
-        let session_key = canonicalize_session_key(&params.session_key);
-        if session_key.is_empty() {
+        let requested_session_key = canonicalize_session_key(&params.session_key);
+        if requested_session_key.is_empty() {
             return RpcDispatchOutcome::bad_request("sessionKey is required");
+        }
+        let (session_key, send_policy) = self
+            .sessions
+            .resolve_send_target(&requested_session_key)
+            .await;
+        if send_policy == Some(SendPolicyOverride::Deny) {
+            return RpcDispatchOutcome::bad_request("send blocked by session policy");
         }
 
         let message = normalize_optional_text(params.message, 2_048);
@@ -9405,6 +9419,23 @@ impl SessionRegistry {
             .map(|entry| entry.to_view(false, false))
     }
 
+    async fn resolve_send_target(
+        &self,
+        session_key: &str,
+    ) -> (String, Option<SendPolicyOverride>) {
+        let guard = self.entries.lock().await;
+        if let Some(entry) = guard.get(session_key) {
+            return (entry.key.clone(), entry.send_policy);
+        }
+        if let Some((key, entry)) = guard
+            .iter()
+            .find(|(existing_key, _)| existing_key.eq_ignore_ascii_case(session_key))
+        {
+            return (key.clone(), entry.send_policy);
+        }
+        (session_key.to_owned(), None)
+    }
+
     async fn resolve_key(&self, candidate: &str) -> Option<String> {
         let guard = self.entries.lock().await;
         if guard.contains_key(candidate) {
@@ -13001,6 +13032,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dispatcher_send_method_respects_session_send_policy() {
+        let dispatcher = RpcDispatcher::new();
+        let patch = RpcRequestFrame {
+            id: "req-send-policy-patch".to_owned(),
+            method: "sessions.patch".to_owned(),
+            params: serde_json::json!({
+                "key": "agent:main:discord:group:g-send-policy",
+                "sendPolicy": "deny"
+            }),
+        };
+        let _ = dispatcher.handle_request(&patch).await;
+
+        let send = RpcRequestFrame {
+            id: "req-send-policy-denied".to_owned(),
+            method: "send".to_owned(),
+            params: serde_json::json!({
+                "to": "+15550001111",
+                "message": "blocked outbound",
+                "sessionKey": "AGENT:MAIN:DISCORD:GROUP:G-SEND-POLICY",
+                "idempotencyKey": "send-policy-1"
+            }),
+        };
+        match dispatcher.handle_request(&send).await {
+            RpcDispatchOutcome::Error { code, message, .. } => {
+                assert_eq!(code, 400);
+                assert_eq!(message, "send blocked by session policy");
+            }
+            _ => panic!("expected send policy rejection"),
+        }
+
+        let history = RpcRequestFrame {
+            id: "req-send-policy-history".to_owned(),
+            method: "sessions.history".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g-send-policy",
+                "limit": 1
+            }),
+        };
+        match dispatcher.handle_request(&history).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(0)
+                );
+            }
+            _ => panic!("expected send policy history handled"),
+        }
+    }
+
+    #[tokio::test]
     async fn dispatcher_poll_method_follows_parity_contract() {
         let dispatcher = RpcDispatcher::new();
 
@@ -13211,6 +13294,56 @@ mod tests {
                 assert!(message.contains("Use `chat.send`"));
             }
             _ => panic!("expected sessions.send webchat channel rejection"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_sessions_send_respects_session_send_policy() {
+        let dispatcher = RpcDispatcher::new();
+        let patch = RpcRequestFrame {
+            id: "req-sessions-send-policy-patch".to_owned(),
+            method: "sessions.patch".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g-sessions-send-policy",
+                "sendPolicy": "deny"
+            }),
+        };
+        let _ = dispatcher.handle_request(&patch).await;
+
+        let send = RpcRequestFrame {
+            id: "req-sessions-send-policy-denied".to_owned(),
+            method: "sessions.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "discord:group:g-sessions-send-policy",
+                "message": "blocked by policy"
+            }),
+        };
+        match dispatcher.handle_request(&send).await {
+            RpcDispatchOutcome::Error { code, message, .. } => {
+                assert_eq!(code, 400);
+                assert_eq!(message, "send blocked by session policy");
+            }
+            _ => panic!("expected sessions.send policy rejection"),
+        }
+
+        let history = RpcRequestFrame {
+            id: "req-sessions-send-policy-history".to_owned(),
+            method: "sessions.history".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g-sessions-send-policy",
+                "limit": 1
+            }),
+        };
+        match dispatcher.handle_request(&history).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(0)
+                );
+            }
+            _ => panic!("expected sessions.send policy history handled"),
         }
     }
 
