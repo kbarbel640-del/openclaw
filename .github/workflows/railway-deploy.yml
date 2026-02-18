@@ -1,0 +1,32 @@
+name: Trigger Railway Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  trigger-deploy:
+    runs-on: ubuntu-latest
+    # Only run in the fork, not upstream openclaw
+    if: github.repository == 'as3445/openclaw'
+    steps:
+      - name: Push version bump to template repo
+        run: |
+          git clone https://x-access-token:${{ secrets.GH_PAT }}@github.com/as3445/openclaw-railway-template.git /tmp/tpl
+          cd /tmp/tpl
+          git config user.email "nox@openclaw.ai"
+          git config user.name "Nox (CI)"
+          echo "${{ github.sha }}" > .openclaw-version
+          git add .openclaw-version
+          git diff --cached --quiet && echo "No change" && exit 0
+          git commit -m "deploy: openclaw $(echo ${{ github.sha }} | cut -c1-8)"
+          git push
+
+      - name: Trigger Railway redeploy
+        run: |
+          curl -s -X POST "https://backboard.railway.com/graphql/v2" \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"mutation { serviceInstanceRedeploy(input: { serviceId: \"53445341-b553-4aa6-84a9-4b807969df68\", environmentId: \"20bf8488-1e1e-4534-96c6-1bea4e098208\" }) }"}' \
+            -o /dev/null -w "HTTP %{http_code}\n"
+          echo "Railway redeploy triggered"
