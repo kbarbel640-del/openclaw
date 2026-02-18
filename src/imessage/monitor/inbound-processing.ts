@@ -219,7 +219,7 @@ export function resolveIMessageInboundDecision(params: {
     return { kind: "drop", reason: "empty body" };
   }
 
-  // Echo detection: check if the received message matches a recently sent message (within 5 seconds).
+  // Echo detection: check if the received message matches a recently sent bot reply.
   // Scope by conversation so same text in different chats is not conflated.
   if (params.echoCache && messageText) {
     const echoScope = buildIMessageEchoScope({

@@ -40,7 +40,6 @@ export async function deliverReplies(params: {
       continue;
     }
     if (mediaList.length === 0) {
-      sentMessageCache?.remember(scope, text);
       for (const chunk of chunkTextWithMode(text, textLimit, chunkMode)) {
         await sendMessageIMessage(target, chunk, {
           maxBytes,
