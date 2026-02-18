@@ -15,6 +15,7 @@ import {
   summarizeInStages,
 } from "../compaction.js";
 import { getCompactionSafeguardRuntime } from "./compaction-safeguard-runtime.js";
+import { containsThinkingBlocks } from "../thinking-block-guard.js";
 const FALLBACK_SUMMARY =
   "Summary unavailable due to context limits. Older messages were truncated.";
 const TURN_PREFIX_INSTRUCTIONS =
@@ -237,6 +238,16 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       const contextWindowTokens = runtime?.contextWindowTokens ?? modelContextWindow;
       const turnPrefixMessages = preparation.turnPrefixMessages ?? [];
       let messagesToSummarize = preparation.messagesToSummarize;
+
+      // Check for thinking blocks in messages to be summarized
+      // These will be replaced with a summary, so their thinking blocks will be lost (acceptable)
+      const hasThinkingInSummary = containsThinkingBlocks(messagesToSummarize);
+      if (hasThinkingInSummary) {
+        console.warn(
+          `Compaction: ${messagesToSummarize.length} messages with thinking blocks will be summarized. ` +
+            `Thinking content will be incorporated into summary but original blocks will be replaced.`,
+        );
+      }
 
       const maxHistoryShare = runtime?.maxHistoryShare ?? 0.5;
 

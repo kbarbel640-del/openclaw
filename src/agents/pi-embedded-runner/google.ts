@@ -83,6 +83,7 @@ export function sanitizeAntigravityThinkingBlocks(messages: AgentMessage[]): Age
     type AssistantContentBlock = Extract<AgentMessage, { role: "assistant" }>["content"][number];
     const nextContent: AssistantContentBlock[] = [];
     let contentChanged = false;
+    let hasNonThinkingContent = false;
     for (const block of assistant.content) {
       if (
         !block ||
@@ -90,6 +91,7 @@ export function sanitizeAntigravityThinkingBlocks(messages: AgentMessage[]): Age
         (block as { type?: unknown }).type !== "thinking"
       ) {
         nextContent.push(block);
+        hasNonThinkingContent = true;
         continue;
       }
       const rec = block as {
@@ -101,7 +103,11 @@ export function sanitizeAntigravityThinkingBlocks(messages: AgentMessage[]): Age
       const candidate =
         rec.thinkingSignature ?? rec.signature ?? rec.thought_signature ?? rec.thoughtSignature;
       if (!isValidAntigravitySignature(candidate)) {
-        contentChanged = true;
+        // CRITICAL: Never strip thinking blocks entirely, as this violates
+        // Anthropic's API requirement that thinking blocks cannot be modified.
+        // If the signature is invalid, preserve the block as-is rather than removing it.
+        // If the message has no other content, it will be dropped entirely below.
+        nextContent.push(block);
         continue;
       }
       if (rec.thinkingSignature !== candidate) {
@@ -118,7 +124,9 @@ export function sanitizeAntigravityThinkingBlocks(messages: AgentMessage[]): Age
     if (contentChanged) {
       touched = true;
     }
-    if (nextContent.length === 0) {
+    // If we only have thinking blocks left (no other content), drop the entire message
+    // rather than sending a message with only thinking blocks, as this may not be valid.
+    if (nextContent.length === 0 || !hasNonThinkingContent) {
       touched = true;
       continue;
     }
