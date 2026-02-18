@@ -405,6 +405,42 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "node.pair.request",
+                    family: MethodFamily::Node,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "node.pair.list",
+                    family: MethodFamily::Node,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "node.pair.approve",
+                    family: MethodFamily::Node,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "node.pair.reject",
+                    family: MethodFamily::Node,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "node.pair.verify",
+                    family: MethodFamily::Node,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "node.rename",
+                    family: MethodFamily::Node,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "node.invoke",
                     family: MethodFamily::Node,
                     requires_auth: true,
@@ -511,6 +547,7 @@ pub struct RpcDispatcher {
     models: ModelRegistry,
     agents: AgentRegistry,
     agent_runs: AgentRunRegistry,
+    nodes: NodePairRegistry,
     skills: SkillsRegistry,
     cron: CronRegistry,
     config: ConfigRegistry,
@@ -555,6 +592,8 @@ static CRON_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static WEB_LOGIN_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static WIZARD_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static DEVICE_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+static NODE_PAIR_REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+static NODE_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 const SUPPORTED_RPC_METHODS: &[&str] = &[
     "health",
     "status",
@@ -603,6 +642,12 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "device.pair.remove",
     "device.token.rotate",
     "device.token.revoke",
+    "node.pair.request",
+    "node.pair.list",
+    "node.pair.approve",
+    "node.pair.reject",
+    "node.pair.verify",
+    "node.rename",
     "browser.request",
     "config.get",
     "config.set",
@@ -639,6 +684,7 @@ impl RpcDispatcher {
             models: ModelRegistry::new(),
             agents: AgentRegistry::new(),
             agent_runs: AgentRunRegistry::new(),
+            nodes: NodePairRegistry::new(),
             skills: SkillsRegistry::new(),
             cron: CronRegistry::new(),
             config: ConfigRegistry::new(),
@@ -699,6 +745,12 @@ impl RpcDispatcher {
             "device.pair.remove" => self.handle_device_pair_remove(req).await,
             "device.token.rotate" => self.handle_device_token_rotate(req).await,
             "device.token.revoke" => self.handle_device_token_revoke(req).await,
+            "node.pair.request" => self.handle_node_pair_request(req).await,
+            "node.pair.list" => self.handle_node_pair_list(req).await,
+            "node.pair.approve" => self.handle_node_pair_approve(req).await,
+            "node.pair.reject" => self.handle_node_pair_reject(req).await,
+            "node.pair.verify" => self.handle_node_pair_verify(req).await,
+            "node.rename" => self.handle_node_rename(req).await,
             "browser.request" => self.handle_browser_request(req).await,
             "config.get" => self.handle_config_get(req).await,
             "config.set" => self.handle_config_set(req).await,
@@ -744,6 +796,12 @@ impl RpcDispatcher {
             }
             "device.pair.resolved" => {
                 self.devices.ingest_pair_resolved(payload).await;
+            }
+            "node.pair.requested" => {
+                self.nodes.ingest_pair_requested(payload).await;
+            }
+            "node.pair.resolved" => {
+                self.nodes.ingest_pair_resolved(payload).await;
             }
             _ => {}
         }
@@ -1986,6 +2044,128 @@ impl RpcDispatcher {
             "role": token.role,
             "revokedAtMs": token.revoked_at_ms.unwrap_or_else(now_ms)
         }))
+    }
+
+    async fn handle_node_pair_request(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<NodePairRequestParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid node.pair.request params: {err}"
+                ));
+            }
+        };
+        let request = match self.nodes.request(params).await {
+            Ok(value) => value,
+            Err(message) => return RpcDispatchOutcome::bad_request(message),
+        };
+        self.system
+            .log_line(format!(
+                "node.pair.request node={} created={}",
+                request.request.node_id, request.created
+            ))
+            .await;
+        RpcDispatchOutcome::Handled(json!(request))
+    }
+
+    async fn handle_node_pair_list(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        if let Err(err) = decode_params::<NodePairListParams>(&req.params) {
+            return RpcDispatchOutcome::bad_request(format!(
+                "invalid node.pair.list params: {err}"
+            ));
+        }
+        let list = self.nodes.list().await;
+        RpcDispatchOutcome::Handled(json!(list))
+    }
+
+    async fn handle_node_pair_approve(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<NodePairApproveParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid node.pair.approve params: {err}"
+                ));
+            }
+        };
+        let Some(request_id) = normalize_optional_text(Some(params.request_id), 128) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid node.pair.approve params: requestId required",
+            );
+        };
+        let Some(approved) = self.nodes.approve(&request_id).await else {
+            return RpcDispatchOutcome::bad_request("unknown requestId");
+        };
+        self.system
+            .log_line(format!(
+                "node pairing approved node={}",
+                approved.node.node_id
+            ))
+            .await;
+        RpcDispatchOutcome::Handled(json!(approved))
+    }
+
+    async fn handle_node_pair_reject(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<NodePairRejectParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid node.pair.reject params: {err}"
+                ));
+            }
+        };
+        let Some(request_id) = normalize_optional_text(Some(params.request_id), 128) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid node.pair.reject params: requestId required",
+            );
+        };
+        let Some(rejected) = self.nodes.reject(&request_id).await else {
+            return RpcDispatchOutcome::bad_request("unknown requestId");
+        };
+        RpcDispatchOutcome::Handled(json!(rejected))
+    }
+
+    async fn handle_node_pair_verify(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<NodePairVerifyParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid node.pair.verify params: {err}"
+                ));
+            }
+        };
+        let Some(node_id) = normalize_optional_text(Some(params.node_id), 128) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid node.pair.verify params: nodeId required",
+            );
+        };
+        let Some(token) = normalize_optional_text(Some(params.token), 256) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid node.pair.verify params: token required",
+            );
+        };
+        let verified = self.nodes.verify(&node_id, &token).await;
+        RpcDispatchOutcome::Handled(json!(verified))
+    }
+
+    async fn handle_node_rename(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<NodeRenameParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid node.rename params: {err}"
+                ));
+            }
+        };
+        let Some(node_id) = normalize_optional_text(Some(params.node_id), 128) else {
+            return RpcDispatchOutcome::bad_request("invalid node.rename params: nodeId required");
+        };
+        let Some(display_name) = normalize_optional_text(Some(params.display_name), 128) else {
+            return RpcDispatchOutcome::bad_request("displayName required");
+        };
+        let Some(renamed) = self.nodes.rename(&node_id, &display_name).await else {
+            return RpcDispatchOutcome::bad_request("unknown nodeId");
+        };
+        RpcDispatchOutcome::Handled(json!(renamed))
     }
 
     async fn handle_browser_request(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
@@ -4603,6 +4783,438 @@ impl SkillsRegistry {
             config: config_view,
         })
     }
+}
+
+struct NodePairRegistry {
+    state: Mutex<NodePairState>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct NodePairState {
+    pending_by_id: HashMap<String, NodePairPendingRequest>,
+    paired_by_node_id: HashMap<String, PairedNodeEntry>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NodePairRequestResult {
+    status: &'static str,
+    request: NodePairPendingRequest,
+    created: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NodePairListResult {
+    pending: Vec<NodePairPendingRequest>,
+    paired: Vec<PairedNodeEntry>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NodePairApproveResult {
+    #[serde(rename = "requestId")]
+    request_id: String,
+    node: PairedNodeEntry,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NodePairRejectResult {
+    #[serde(rename = "requestId")]
+    request_id: String,
+    #[serde(rename = "nodeId")]
+    node_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NodePairVerifyResult {
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    node: Option<PairedNodeEntry>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct NodeRenameResult {
+    #[serde(rename = "nodeId")]
+    node_id: String,
+    #[serde(rename = "displayName")]
+    display_name: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct NodePairPendingRequest {
+    #[serde(rename = "requestId")]
+    request_id: String,
+    #[serde(rename = "nodeId")]
+    node_id: String,
+    #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    #[serde(rename = "coreVersion", skip_serializing_if = "Option::is_none")]
+    core_version: Option<String>,
+    #[serde(rename = "uiVersion", skip_serializing_if = "Option::is_none")]
+    ui_version: Option<String>,
+    #[serde(rename = "deviceFamily", skip_serializing_if = "Option::is_none")]
+    device_family: Option<String>,
+    #[serde(rename = "modelIdentifier", skip_serializing_if = "Option::is_none")]
+    model_identifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    caps: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    commands: Option<Vec<String>>,
+    #[serde(rename = "remoteIp", skip_serializing_if = "Option::is_none")]
+    remote_ip: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    silent: Option<bool>,
+    #[serde(rename = "isRepair", skip_serializing_if = "Option::is_none")]
+    is_repair: Option<bool>,
+    ts: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct PairedNodeEntry {
+    #[serde(rename = "nodeId")]
+    node_id: String,
+    token: String,
+    #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    #[serde(rename = "coreVersion", skip_serializing_if = "Option::is_none")]
+    core_version: Option<String>,
+    #[serde(rename = "uiVersion", skip_serializing_if = "Option::is_none")]
+    ui_version: Option<String>,
+    #[serde(rename = "deviceFamily", skip_serializing_if = "Option::is_none")]
+    device_family: Option<String>,
+    #[serde(rename = "modelIdentifier", skip_serializing_if = "Option::is_none")]
+    model_identifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    caps: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    commands: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bins: Option<Vec<String>>,
+    #[serde(rename = "remoteIp", skip_serializing_if = "Option::is_none")]
+    remote_ip: Option<String>,
+    #[serde(rename = "createdAtMs")]
+    created_at_ms: u64,
+    #[serde(rename = "approvedAtMs")]
+    approved_at_ms: u64,
+    #[serde(rename = "lastConnectedAtMs", skip_serializing_if = "Option::is_none")]
+    last_connected_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct NodePairRequestedEventPayload {
+    #[serde(rename = "requestId", alias = "request_id")]
+    request_id: Option<String>,
+    #[serde(rename = "nodeId", alias = "node_id")]
+    node_id: Option<String>,
+    #[serde(rename = "displayName", alias = "display_name")]
+    display_name: Option<String>,
+    platform: Option<String>,
+    version: Option<String>,
+    #[serde(rename = "coreVersion", alias = "core_version")]
+    core_version: Option<String>,
+    #[serde(rename = "uiVersion", alias = "ui_version")]
+    ui_version: Option<String>,
+    #[serde(rename = "deviceFamily", alias = "device_family")]
+    device_family: Option<String>,
+    #[serde(rename = "modelIdentifier", alias = "model_identifier")]
+    model_identifier: Option<String>,
+    caps: Option<Vec<String>>,
+    commands: Option<Vec<String>>,
+    #[serde(rename = "remoteIp", alias = "remote_ip")]
+    remote_ip: Option<String>,
+    silent: Option<bool>,
+    #[serde(rename = "isRepair", alias = "is_repair")]
+    is_repair: Option<bool>,
+    ts: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct NodePairResolvedEventPayload {
+    #[serde(rename = "requestId", alias = "request_id")]
+    request_id: Option<String>,
+}
+
+impl NodePairRegistry {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(NodePairState::default()),
+        }
+    }
+
+    async fn request(
+        &self,
+        params: NodePairRequestParams,
+    ) -> Result<NodePairRequestResult, String> {
+        let Some(node_id) = normalize_optional_text(Some(params.node_id), 128) else {
+            return Err("invalid node.pair.request params: nodeId required".to_owned());
+        };
+        let now = now_ms();
+        let mut guard = self.state.lock().await;
+        if let Some(existing) = guard
+            .pending_by_id
+            .values()
+            .find(|entry| entry.node_id == node_id)
+            .cloned()
+        {
+            return Ok(NodePairRequestResult {
+                status: "pending",
+                request: existing,
+                created: false,
+            });
+        }
+        let request = NodePairPendingRequest {
+            request_id: next_node_pair_request_id(),
+            node_id: node_id.clone(),
+            display_name: normalize_optional_text(params.display_name, 128),
+            platform: normalize_optional_text(params.platform, 128),
+            version: normalize_optional_text(params.version, 128),
+            core_version: normalize_optional_text(params.core_version, 128),
+            ui_version: normalize_optional_text(params.ui_version, 128),
+            device_family: normalize_optional_text(params.device_family, 128),
+            model_identifier: normalize_optional_text(params.model_identifier, 128),
+            caps: {
+                let values = normalize_string_list(params.caps, 128, 128);
+                (!values.is_empty()).then_some(values)
+            },
+            commands: {
+                let values = normalize_string_list(params.commands, 256, 160);
+                (!values.is_empty()).then_some(values)
+            },
+            remote_ip: normalize_optional_text(params.remote_ip, 128),
+            silent: params.silent,
+            is_repair: Some(guard.paired_by_node_id.contains_key(&node_id)),
+            ts: now,
+        };
+        guard
+            .pending_by_id
+            .insert(request.request_id.clone(), request.clone());
+        prune_oldest_node_pending(&mut guard.pending_by_id, 512);
+        Ok(NodePairRequestResult {
+            status: "pending",
+            request,
+            created: true,
+        })
+    }
+
+    async fn list(&self) -> NodePairListResult {
+        let guard = self.state.lock().await;
+        let mut pending = guard
+            .pending_by_id
+            .values()
+            .cloned()
+            .collect::<Vec<NodePairPendingRequest>>();
+        pending.sort_by(|a, b| {
+            b.ts.cmp(&a.ts)
+                .then_with(|| a.request_id.cmp(&b.request_id))
+        });
+        let mut paired = guard
+            .paired_by_node_id
+            .values()
+            .cloned()
+            .collect::<Vec<PairedNodeEntry>>();
+        paired.sort_by(|a, b| {
+            b.approved_at_ms
+                .cmp(&a.approved_at_ms)
+                .then_with(|| a.node_id.cmp(&b.node_id))
+        });
+        NodePairListResult { pending, paired }
+    }
+
+    async fn approve(&self, request_id: &str) -> Option<NodePairApproveResult> {
+        let mut guard = self.state.lock().await;
+        let request = guard.pending_by_id.remove(request_id)?;
+        let now = now_ms();
+        let existing = guard.paired_by_node_id.get(&request.node_id).cloned();
+        let node = PairedNodeEntry {
+            node_id: request.node_id.clone(),
+            token: next_node_pair_token(&request.node_id),
+            display_name: request.display_name,
+            platform: request.platform,
+            version: request.version,
+            core_version: request.core_version,
+            ui_version: request.ui_version,
+            device_family: request.device_family,
+            model_identifier: request.model_identifier,
+            caps: request.caps,
+            commands: request.commands,
+            bins: None,
+            remote_ip: request.remote_ip,
+            created_at_ms: existing.as_ref().map_or(now, |value| value.created_at_ms),
+            approved_at_ms: now,
+            last_connected_at_ms: existing.and_then(|value| value.last_connected_at_ms),
+        };
+        guard
+            .paired_by_node_id
+            .insert(node.node_id.clone(), node.clone());
+        prune_oldest_node_pairs(&mut guard.paired_by_node_id, 2_048);
+        Some(NodePairApproveResult {
+            request_id: request_id.to_owned(),
+            node,
+        })
+    }
+
+    async fn reject(&self, request_id: &str) -> Option<NodePairRejectResult> {
+        let mut guard = self.state.lock().await;
+        let request = guard.pending_by_id.remove(request_id)?;
+        Some(NodePairRejectResult {
+            request_id: request_id.to_owned(),
+            node_id: request.node_id,
+        })
+    }
+
+    async fn verify(&self, node_id: &str, token: &str) -> NodePairVerifyResult {
+        let normalized_node_id = node_id.trim();
+        if normalized_node_id.is_empty() || token.trim().is_empty() {
+            return NodePairVerifyResult {
+                ok: false,
+                node: None,
+            };
+        }
+        let guard = self.state.lock().await;
+        let Some(node) = guard.paired_by_node_id.get(normalized_node_id).cloned() else {
+            return NodePairVerifyResult {
+                ok: false,
+                node: None,
+            };
+        };
+        if node.token == token {
+            NodePairVerifyResult {
+                ok: true,
+                node: Some(node),
+            }
+        } else {
+            NodePairVerifyResult {
+                ok: false,
+                node: None,
+            }
+        }
+    }
+
+    async fn rename(&self, node_id: &str, display_name: &str) -> Option<NodeRenameResult> {
+        let normalized_node_id = node_id.trim();
+        if normalized_node_id.is_empty() {
+            return None;
+        }
+        let trimmed_name = display_name.trim();
+        if trimmed_name.is_empty() {
+            return None;
+        }
+        let mut guard = self.state.lock().await;
+        let node = guard.paired_by_node_id.get_mut(normalized_node_id)?;
+        node.display_name = Some(trimmed_name.to_owned());
+        Some(NodeRenameResult {
+            node_id: normalized_node_id.to_owned(),
+            display_name: trimmed_name.to_owned(),
+        })
+    }
+
+    async fn ingest_pair_requested(&self, payload: Value) {
+        let Ok(event) = serde_json::from_value::<NodePairRequestedEventPayload>(payload) else {
+            return;
+        };
+        let Some(request_id) = normalize_optional_text(event.request_id, 128) else {
+            return;
+        };
+        let Some(node_id) = normalize_optional_text(event.node_id, 128) else {
+            return;
+        };
+        let request = NodePairPendingRequest {
+            request_id: request_id.clone(),
+            node_id: node_id.clone(),
+            display_name: normalize_optional_text(event.display_name, 128),
+            platform: normalize_optional_text(event.platform, 128),
+            version: normalize_optional_text(event.version, 128),
+            core_version: normalize_optional_text(event.core_version, 128),
+            ui_version: normalize_optional_text(event.ui_version, 128),
+            device_family: normalize_optional_text(event.device_family, 128),
+            model_identifier: normalize_optional_text(event.model_identifier, 128),
+            caps: {
+                let values = normalize_string_list(event.caps, 128, 128);
+                (!values.is_empty()).then_some(values)
+            },
+            commands: {
+                let values = normalize_string_list(event.commands, 256, 160);
+                (!values.is_empty()).then_some(values)
+            },
+            remote_ip: normalize_optional_text(event.remote_ip, 128),
+            silent: event.silent,
+            is_repair: event.is_repair,
+            ts: event.ts.unwrap_or_else(now_ms),
+        };
+        let mut guard = self.state.lock().await;
+        guard
+            .pending_by_id
+            .retain(|key, pending| key == &request_id || pending.node_id != node_id);
+        guard.pending_by_id.insert(request_id, request);
+        prune_oldest_node_pending(&mut guard.pending_by_id, 512);
+    }
+
+    async fn ingest_pair_resolved(&self, payload: Value) {
+        let Ok(event) = serde_json::from_value::<NodePairResolvedEventPayload>(payload) else {
+            return;
+        };
+        let Some(request_id) = normalize_optional_text(event.request_id, 128) else {
+            return;
+        };
+        let mut guard = self.state.lock().await;
+        let _ = guard.pending_by_id.remove(&request_id);
+    }
+}
+
+fn prune_oldest_node_pending(
+    pending_by_id: &mut HashMap<String, NodePairPendingRequest>,
+    max_pending: usize,
+) {
+    while pending_by_id.len() > max_pending {
+        let Some(oldest_key) = pending_by_id
+            .iter()
+            .min_by_key(|(_, pending)| pending.ts)
+            .map(|(key, _)| key.clone())
+        else {
+            break;
+        };
+        let _ = pending_by_id.remove(&oldest_key);
+    }
+}
+
+fn prune_oldest_node_pairs(
+    paired_by_node_id: &mut HashMap<String, PairedNodeEntry>,
+    max_pairs: usize,
+) {
+    while paired_by_node_id.len() > max_pairs {
+        let Some(oldest_key) = paired_by_node_id
+            .iter()
+            .min_by_key(|(_, node)| node.approved_at_ms)
+            .map(|(key, _)| key.clone())
+        else {
+            break;
+        };
+        let _ = paired_by_node_id.remove(&oldest_key);
+    }
+}
+
+fn next_node_pair_request_id() -> String {
+    let sequence = NODE_PAIR_REQUEST_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("node-pair-{}-{sequence}", now_ms())
+}
+
+fn next_node_pair_token(node_id: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let sequence = NODE_TOKEN_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let mut hasher = Sha256::new();
+    hasher.update(node_id.as_bytes());
+    hasher.update(now_ms().to_le_bytes());
+    hasher.update(sequence.to_le_bytes());
+    let digest = format!("{:x}", hasher.finalize());
+    format!("ntk_{}", &digest[..48])
 }
 
 struct DeviceRegistry {
@@ -7590,6 +8202,65 @@ struct UpdateRunParams {
     restart_delay_ms: Option<u64>,
     #[serde(rename = "timeoutMs", alias = "timeout_ms")]
     timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NodePairRequestParams {
+    #[serde(rename = "nodeId", alias = "node_id")]
+    node_id: String,
+    #[serde(rename = "displayName", alias = "display_name")]
+    display_name: Option<String>,
+    platform: Option<String>,
+    version: Option<String>,
+    #[serde(rename = "coreVersion", alias = "core_version")]
+    core_version: Option<String>,
+    #[serde(rename = "uiVersion", alias = "ui_version")]
+    ui_version: Option<String>,
+    #[serde(rename = "deviceFamily", alias = "device_family")]
+    device_family: Option<String>,
+    #[serde(rename = "modelIdentifier", alias = "model_identifier")]
+    model_identifier: Option<String>,
+    caps: Option<Vec<String>>,
+    commands: Option<Vec<String>>,
+    #[serde(rename = "remoteIp", alias = "remote_ip")]
+    remote_ip: Option<String>,
+    silent: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct NodePairListParams {}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NodePairApproveParams {
+    #[serde(rename = "requestId", alias = "request_id")]
+    request_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NodePairRejectParams {
+    #[serde(rename = "requestId", alias = "request_id")]
+    request_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NodePairVerifyParams {
+    #[serde(rename = "nodeId", alias = "node_id")]
+    node_id: String,
+    token: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NodeRenameParams {
+    #[serde(rename = "nodeId", alias = "node_id")]
+    node_id: String,
+    #[serde(rename = "displayName", alias = "display_name")]
+    display_name: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -12359,6 +13030,214 @@ mod tests {
                 );
             }
             _ => panic!("expected device.pair.reject handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_node_pairing_methods_follow_parity_contract() {
+        let dispatcher = RpcDispatcher::new();
+
+        let invalid_list = RpcRequestFrame {
+            id: "req-node-list-invalid".to_owned(),
+            method: "node.pair.list".to_owned(),
+            params: serde_json::json!({
+                "extra": true
+            }),
+        };
+        let out = dispatcher.handle_request(&invalid_list).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let request = RpcRequestFrame {
+            id: "req-node-request".to_owned(),
+            method: "node.pair.request".to_owned(),
+            params: serde_json::json!({
+                "nodeId": "node-1",
+                "displayName": "Mac Mini",
+                "platform": "darwin",
+                "caps": ["browser", "camera"],
+                "commands": ["browser.proxy"]
+            }),
+        };
+        let request_id = match dispatcher.handle_request(&request).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/status")
+                        .and_then(serde_json::Value::as_str),
+                    Some("pending")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/created")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                payload
+                    .pointer("/request/requestId")
+                    .and_then(serde_json::Value::as_str)
+                    .map(ToOwned::to_owned)
+                    .expect("node pair request id")
+            }
+            _ => panic!("expected node.pair.request handled"),
+        };
+
+        match dispatcher.handle_request(&request).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/created")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(false)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/request/requestId")
+                        .and_then(serde_json::Value::as_str),
+                    Some(request_id.as_str())
+                );
+            }
+            _ => panic!("expected duplicate node.pair.request handled"),
+        }
+
+        let list = RpcRequestFrame {
+            id: "req-node-list".to_owned(),
+            method: "node.pair.list".to_owned(),
+            params: serde_json::json!({}),
+        };
+        match dispatcher.handle_request(&list).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/pending/0/requestId")
+                        .and_then(serde_json::Value::as_str),
+                    Some(request_id.as_str())
+                );
+            }
+            _ => panic!("expected node.pair.list handled"),
+        }
+
+        let approve = RpcRequestFrame {
+            id: "req-node-approve".to_owned(),
+            method: "node.pair.approve".to_owned(),
+            params: serde_json::json!({
+                "requestId": request_id.clone()
+            }),
+        };
+        let token = match dispatcher.handle_request(&approve).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/requestId")
+                        .and_then(serde_json::Value::as_str),
+                    Some(request_id.as_str())
+                );
+                let token = payload
+                    .pointer("/node/token")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default();
+                assert!(token.starts_with("ntk_"));
+                token.to_owned()
+            }
+            _ => panic!("expected node.pair.approve handled"),
+        };
+
+        let verify_bad = RpcRequestFrame {
+            id: "req-node-verify-bad".to_owned(),
+            method: "node.pair.verify".to_owned(),
+            params: serde_json::json!({
+                "nodeId": "node-1",
+                "token": "bad-token"
+            }),
+        };
+        match dispatcher.handle_request(&verify_bad).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload.pointer("/ok").and_then(serde_json::Value::as_bool),
+                    Some(false)
+                );
+            }
+            _ => panic!("expected node.pair.verify handled"),
+        }
+
+        let verify_ok = RpcRequestFrame {
+            id: "req-node-verify-ok".to_owned(),
+            method: "node.pair.verify".to_owned(),
+            params: serde_json::json!({
+                "nodeId": "node-1",
+                "token": token
+            }),
+        };
+        match dispatcher.handle_request(&verify_ok).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload.pointer("/ok").and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/node/nodeId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("node-1")
+                );
+            }
+            _ => panic!("expected node.pair.verify handled"),
+        }
+
+        let rename = RpcRequestFrame {
+            id: "req-node-rename".to_owned(),
+            method: "node.rename".to_owned(),
+            params: serde_json::json!({
+                "nodeId": "node-1",
+                "displayName": "Ops Node"
+            }),
+        };
+        match dispatcher.handle_request(&rename).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/displayName")
+                        .and_then(serde_json::Value::as_str),
+                    Some("Ops Node")
+                );
+            }
+            _ => panic!("expected node.rename handled"),
+        }
+
+        dispatcher
+            .ingest_event_frame(&serde_json::json!({
+                "event": "node.pair.requested",
+                "payload": {
+                    "requestId": "req-node-2",
+                    "nodeId": "node-2",
+                    "displayName": "Aux Node",
+                    "ts": 11
+                }
+            }))
+            .await;
+
+        let reject = RpcRequestFrame {
+            id: "req-node-reject".to_owned(),
+            method: "node.pair.reject".to_owned(),
+            params: serde_json::json!({
+                "requestId": "req-node-2"
+            }),
+        };
+        match dispatcher.handle_request(&reject).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/requestId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("req-node-2")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/nodeId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("node-2")
+                );
+            }
+            _ => panic!("expected node.pair.reject handled"),
         }
     }
 
