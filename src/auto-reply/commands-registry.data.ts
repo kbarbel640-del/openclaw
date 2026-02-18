@@ -263,6 +263,33 @@ function buildChatCommands(): ChatCommandDefinition[] {
       category: "status",
     }),
     defineChatCommand({
+      key: "workflow",
+      nativeName: "workflow",
+      description: "List and run Agentic Engineering workflows.",
+      textAlias: "/workflow",
+      category: "management",
+      args: [
+        {
+          name: "action",
+          description: "list | run | status | help",
+          type: "string",
+          choices: ["list", "run", "status", "help"],
+        },
+        {
+          name: "workflow",
+          description: "Workflow id (for run)",
+          type: "string",
+        },
+        {
+          name: "goal",
+          description: "Goal text (for run)",
+          type: "string",
+          captureRemaining: true,
+        },
+      ],
+      argsMenu: "auto",
+    }),
+    defineChatCommand({
       key: "subagents",
       nativeName: "subagents",
       description: "List, kill, log, spawn, or steer subagent runs for this session.",

@@ -882,6 +882,62 @@ describe("handleCommands context", () => {
   });
 });
 
+describe("handleCommands workflow", () => {
+  it("lists available workflows", async () => {
+    callGatewayMock.mockReset();
+    const cfg = {
+      commands: { text: true },
+      channels: { whatsapp: { allowFrom: ["*"] } },
+    } as OpenClawConfig;
+    const params = buildParams("/workflow list", cfg);
+    const result = await handleCommands(params);
+    expect(result.shouldContinue).toBe(false);
+    expect(result.reply?.text).toContain("Available workflows:");
+    expect(result.reply?.text).toContain("research-code-review");
+    expect(result.reply?.text).toContain("bug-triage");
+    expect(result.reply?.text).toContain("security-patch");
+  });
+
+  it("dispatches a workflow run via agent call", async () => {
+    callGatewayMock.mockReset();
+    callGatewayMock.mockResolvedValueOnce({ runId: "workflow-run-123" });
+    const cfg = {
+      commands: { text: true },
+      channels: { whatsapp: { allowFrom: ["*"] } },
+    } as OpenClawConfig;
+    const params = buildParams(
+      "/workflow run research-code-review Improve retry behavior in sessions patch",
+      cfg,
+    );
+    const result = await handleCommands(params);
+    expect(result.shouldContinue).toBe(false);
+    expect(result.reply?.text).toContain('Dispatched workflow "Research -> Code -> Review"');
+    expect(result.reply?.text).toContain("workflow-run-123");
+    expect(callGatewayMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "agent",
+        params: expect.objectContaining({
+          timeout: 0,
+          deliver: false,
+          sessionKey: "agent:main:main",
+        }),
+      }),
+    );
+  });
+
+  it("returns usage for /workflow run without goal", async () => {
+    callGatewayMock.mockReset();
+    const cfg = {
+      commands: { text: true },
+      channels: { whatsapp: { allowFrom: ["*"] } },
+    } as OpenClawConfig;
+    const params = buildParams("/workflow run bug-triage", cfg);
+    const result = await handleCommands(params);
+    expect(result.shouldContinue).toBe(false);
+    expect(result.reply?.text).toContain("Usage: /workflow run bug-triage <goal>");
+  });
+});
+
 describe("handleCommands subagents", () => {
   it("lists subagents when none exist", async () => {
     resetSubagentRegistryForTests();
