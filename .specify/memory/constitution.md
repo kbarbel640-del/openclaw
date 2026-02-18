@@ -86,6 +86,13 @@ Boundary discipline:
 3. Unhealthy mode routing MUST remain allowlisted (health endpoints only).
 4. Any boundary change MUST update the contract doc and include verification evidence in the PR.
 
+Additional Sidecar contract rules:
+
+- Contract surface: Only `/status` and `/doctor` are stable external contract endpoints. All other sidecar routes are internal unless explicitly promoted (contract doc + tests + release note).
+- Health schema: `/status` and `/doctor` MUST continue to include required fields `version`, `uptime`, and `profiles_count` (additive fields allowed).
+- Timeout policy: The plugin command path and doctor probes use different timeouts; any PR touching timeout behavior MUST include explicit rationale.
+- PR evidence: PRs touching sidecar boundary MUST include file:line “Boundary Evidence” in the PR description and must update the contract doc when the boundary changes.
+
 ## Engineering Constraints
 
 - Runtime baseline MUST remain Node 22+ while preserving Bun and Node execution paths.
@@ -122,4 +129,4 @@ Constitution versioning policy:
 Compliance review is required at plan time (Constitution Check), during implementation
 (task structure and validation evidence), and in pull request review.
 
-**Version**: 1.1.2 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-18
+**Version**: 1.2.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-18

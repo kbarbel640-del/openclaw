@@ -17,6 +17,14 @@ This extension wires OpenClaw to a local Ted sidecar over loopback HTTP.
 
 ## Non-negotiables (security + correctness)
 
+- Contract surface policy:
+  - Treat only `/status` and `/doctor` as stable external contract.
+  - Any other sidecar endpoint usage must be explicitly promoted in `docs/integration/ted-sidecar-contract.md` and test-backed.
+- Timeout policy:
+  - If touching timeout behavior (plugin vs doctor), include explicit rationale and update the contract doc.
+- Boundary evidence:
+  - PRs that touch sidecar boundary files MUST include file:line evidence in the PR description (Boundary Evidence section).
+
 - Loopback-only base URL enforcement:
   - Allowed hosts are `127.0.0.1`, `localhost`, `::1` (`extensions/ted-sidecar/index.ts:28`).
   - Non-loopback base URLs are rejected (`extensions/ted-sidecar/index.ts:41`).

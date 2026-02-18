@@ -9,6 +9,13 @@ Ted Engine is a loopback-only HTTP server.
 
 ## Non-negotiables
 
+- Contract surface policy:
+  - Only `/status` and `/doctor` are stable external contract.
+  - All other routes are internal unless explicitly promoted via the contract doc + tests.
+- Health schema policy:
+  - `/status` and `/doctor` must include required fields: `version`, `uptime`, `profiles_count`.
+  - Additive fields are allowed but must remain optional.
+
 - Must remain loopback-bound (`sidecars/ted-engine/server.mjs:1564`).
 - `/status` and `/doctor` must remain stable and safe.
 - `/status` and `/doctor` currently share one handler and one payload shape (`sidecars/ted-engine/server.mjs:1471`).
