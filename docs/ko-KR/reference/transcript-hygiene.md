@@ -47,10 +47,14 @@ title: "트랜스크립트 위생"
 
 이미지 페이로드는 항상 크기 제한으로 인한 프로바이더 측 거부를 방지하기 위해 정리됩니다 (초과 크기 base64 이미지를 축소/재압축).
 
+이것은 또한 비전 지원 모델의 이미지 기반 토큰 압력을 제어하는 데 도움이 됩니다.
+낮은 최대 차원은 일반적으로 토큰 사용량을 줄이고, 높은 차원은 세부 사항을 보존합니다.
+
 구현:
 
 - `src/agents/pi-embedded-helpers/images.ts`의 `sanitizeSessionMessagesImages`
 - `src/agents/tool-images.ts`의 `sanitizeContentBlocksImages`
+- 최대 이미지 크기는 `agents.defaults.imageMaxDimensionPx`를 통해 구성 가능합니다 (기본값: `1200`).
 
 ---
 

@@ -33,6 +33,7 @@ Npm 사양은 **레지스트리 전용**입니다 (패키지 이름 + 선택적 
 3. 게이트웨이를 재시작한 다음 `plugins.entries.<id>.config`에서 구성합니다.
 
 구체적인 플러그인 예시는 [Voice Call](/ko-KR/plugins/voice-call)을 참조하세요.
+타사 목록을 찾고 계신가요? [커뮤니티 플러그인](/ko-KR/plugins/community)을 참조하세요.
 
 ## 사용 가능한 공식 플러그인
 

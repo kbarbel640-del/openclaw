@@ -19,8 +19,27 @@ title: "하위 에이전트"
 - `/subagents log <id|#> [limit] [tools]`
 - `/subagents info <id|#>`
 - `/subagents send <id|#> <message>`
+- `/subagents steer <id|#> <message>`
+- `/subagents spawn <agentId> <task> [--model <model>] [--thinking <level>]`
 
 `/subagents info`는 실행 메타데이터(상태, 타임스탬프, 세션 ID, 전사 경로, 정리)를 보여줍니다.
+
+### Spawn 동작
+
+`/subagents spawn`은 내부 릴레이가 아닌 사용자 명령으로 백그라운드 하위 에이전트를 시작하며, 실행이 완료될 때 요청자 채팅에 하나의 최종 완료 업데이트를 보냅니다.
+
+- spawn 명령은 비차단입니다; 즉시 실행 ID를 반환합니다.
+- 완료 시, 하위 에이전트는 요약/결과 메시지를 요청자 채팅 채널로 알립니다.
+- 수동 생성의 경우, 전달은 복원력이 있습니다:
+  - OpenClaw는 먼저 안정적인 멱등성 키로 직접 `agent` 전달을 시도합니다.
+  - 직접 전달이 실패하면 대기열 라우팅으로 대체합니다.
+  - 대기열 라우팅도 사용할 수 없는 경우, 최종 포기 전 짧은 지수 백오프로 공지가 재시도됩니다.
+- 완료 메시지는 시스템 메시지이며 다음을 포함합니다:
+  - `Result` (`assistant` 답장 텍스트, 또는 어시스턴트 답장이 비어 있는 경우 최신 `toolResult`)
+  - `Status` (`completed successfully` / `failed` / `timed out`)
+  - 간단한 실행 시간/토큰 통계
+- `--model`과 `--thinking`은 해당 특정 실행의 기본값을 재정의합니다.
+- 완료 후 세부 정보 및 출력을 검사하려면 `info`/`log`를 사용하세요.
 
 주요 목표:
 

@@ -35,6 +35,11 @@ OpenClaw는 실행할 때마다 자체 시스템 프롬프트를 조립합니다
 - 압축 요약 및 가지치기 아티팩트
 - 프로바이더 래퍼 또는 안전 헤더 (보이지 않지만 여전히 계산됨)
 
+이미지의 경우, OpenClaw는 프로바이더 호출 전에 스크립트/도구 이미지 페이로드를 축소합니다. `agents.defaults.imageMaxDimensionPx` (기본값: `1200`)를 사용하여 이를 조정하세요:
+
+- 낮은 값은 일반적으로 비전 토큰 사용량과 페이로드 크기를 줄입니다.
+- 높은 값은 OCR/UI 중심 스크린샷에 대해 더 많은 시각적 세부 정보를 보존합니다.
+
 실제 구성 요소 (주입된 파일, 도구, 스킬, 시스템 프롬프트 크기별) 분석은 `/context list` 또는 `/context detail`을 사용하세요. [컨텍스트](/ko-KR/concepts/context)를 참조하세요.
 
 ## 현재 토큰 사용량을 보는 방법
@@ -87,10 +92,26 @@ agents:
       every: "55m"
 ```
 
+### 예제: Anthropic 1M 컨텍스트 베타 헤더 활성화하기
+
+Anthropic의 1M 컨텍스트 윈도우는 현재 베타로 제한됩니다. OpenClaw는 지원되는 Opus 또는 Sonnet 모델에서 `context1m`을 활성화할 때 필요한 `anthropic-beta` 값을 주입할 수 있습니다.
+
+```yaml
+agents:
+  defaults:
+    models:
+      "anthropic/claude-opus-4-6":
+        params:
+          context1m: true
+```
+
+이는 Anthropic의 `context-1m-2025-08-07` 베타 헤더로 매핑됩니다.
+
 ## 토큰 압박 줄이는 팁
 
 - `/compact`를 사용하여 긴 세션을 요약합니다.
 - 워크플로에서 큰 도구 출력을 줄입니다.
+- 스크린샷 중심 세션을 위해 `agents.defaults.imageMaxDimensionPx`를 낮추세요.
 - 스킬 설명을 짧게 유지하세요 (스킬 목록이 프롬프트에 주입됨).
 - 자세하고 탐사적인 작업에 작은 모델을 선호하세요.
 

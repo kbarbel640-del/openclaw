@@ -124,6 +124,32 @@ cd ./extensions/voice-call && pnpm install
 - `tunnel.allowNgrokFreeTierLoopbackBypass: true`는 `serve.bind`가 로컬 루프백일 때 (ngrok 로컬 에이전트) **단지** `tunnel.provider="ngrok"`일 때 Twilio 웹훅을 허용합니다. 로컬 개발에만 사용하세요.
 - ngrok 무료 tier URL은 변경되거나 중간 행동을 추가할 수 있습니다; `publicUrl`이 변동하면 Twilio 서명이 실패합니다. 상용 환경에서는 안정적인 도메인이나 Tailscale 퍼널을 선호하세요.
 
+## Stale call reaper
+
+종료 웹훅을 전혀 받지 못한 통화를 종료하려면 `staleCallReaperSeconds`를 사용하세요 (예: 완료되지 않은 알림 모드 통화). 기본값은 `0` (비활성화)입니다.
+
+권장 범위:
+
+- **상용 환경:** 알림 스타일 흐름의 경우 `120`–`300`초.
+- 이 값을 **`maxDurationSeconds`보다 높게** 유지하여 정상적인 통화가 완료될 수 있도록 하세요. 좋은 시작점은 `maxDurationSeconds + 30–60`초입니다.
+
+예제:
+
+```json5
+{
+  plugins: {
+    entries: {
+      "voice-call": {
+        config: {
+          maxDurationSeconds: 300,
+          staleCallReaperSeconds: 360,
+        },
+      },
+    },
+  },
+}
+```
+
 ## Webhook 보안
 
 프록시나 터널이 게이트웨이 앞단에 있을 때, 플러그인은 서명 검증을 위해 공개 URL을 재구성합니다. 이러한 옵션들은 어떤 전달 헤더가 신뢰될지 제어합니다.

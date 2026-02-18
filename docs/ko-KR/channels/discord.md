@@ -708,5 +708,6 @@ High-signal Discord fields:
 
 - [Pairing](/ko-KR/channels/pairing)
 - [Channel routing](/ko-KR/channels/channel-routing)
+- [Multi-agent routing](/ko-KR/concepts/multi-agent)
 - [Troubleshooting](/ko-KR/channels/troubleshooting)
 - [Slash commands](/ko-KR/tools/slash-commands)

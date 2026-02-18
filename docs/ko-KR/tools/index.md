@@ -423,7 +423,7 @@ Discord/Google Chat/Slack/Telegram/WhatsApp/Signal/iMessage/MS Teams에서 메�
 주요 내용:
 
 - `add`는 전체 크론 작업 객체가 필요 (`cron.add` RPC와 동일한 스키마).
-- `update`는 `{ id, patch }`을 사용.
+- `update`는 `{ jobId, patch }`를 사용 (`id`는 호환성을 위해 수용됨).
 
 ### `gateway`
 
@@ -456,15 +456,28 @@ Discord/Google Chat/Slack/Telegram/WhatsApp/Signal/iMessage/MS Teams에서 메�
 
 주요 내용:
 
-- `main`은 정규직 채팅 키이며, 글로벌/알 수 없는 것은 숨겨집니다.
+- `main`은 정규 직접 채팅 키이며, 글로벌/알 수 없는 것은 숨겨집니다.
 - `messageLimit > 0`은 각 세션에서 마지막 N개의 메시지를 가져옵니다 (도구 메시지는 필터링됨).
+- 세션 타겟팅은 `tools.sessions.visibility`에 의해 제어됩니다 (기본값 `tree`: 현재 세션 + 생성된 하위 에이전트 세션). 여러 사용자를 위한 공유 에이전트를 실행하는 경우, `tools.sessions.visibility: "self"`로 설정하여 교차 세션 탐색을 방지하는 것을 고려하세요.
 - `sessions_send`는 `timeoutSeconds > 0`일 때 최종 완료를 대기합니다.
-- 전달/공지 사항은 완료 후 발생하고 최선의 결과로만 이루어지며, `status: "ok"`는 에이전트 실행이 완료되었음을 확인하지 않고 공지 사항이 전달되었음을 표시합니다.
-- `sessions_spawn`는 하위 에이전트 실행을 시작하며 요청 채팅에 공지 답장을 게시합니다.
+- 전달/공지 사항은 완료 후 발생하고 최선의 결과로만 이루어지며, `status: "ok"`는 에이전트 실행이 완료되었음을 확인하며 공지 사항이 전달되었음을 나타내지 않습니다.
+- `sessions_spawn`는 하위 에이전트 실행을 시작하며 요청자 채팅에 공지 답장을 게시합니다.
+  - 답장 형식에는 `Status`, `Result`, 그리고 간단한 통계가 포함됩니다.
+  - `Result`는 어시스턴트 완료 텍스트이며, 누락된 경우 최근 `toolResult`가 대체로 사용됩니다.
+- 수동 완료 모드 생성은 먼저 직접 전송하며, 일시적 실패에 대한 대기열 대체 및 재시도가 있습니다 (`status: "ok"`는 실행이 완료되었음을 의미하며, 공지가 전달되었음을 의미하지 않음).
 - `sessions_spawn`는 비차단이며 `status: "accepted"`를 즉시 반환합니다.
-- `sessions_send`는 답장 백 ping-pong을 실행합니다 (답장 `REPLY_SKIP`으로 중단; `session.agentToAgent.maxPingPongTurns` 통해 최대 턴 설정, 0–5).
-- ping-pong 후 대상 에이전트는 **announce step**을 실행하며, 공지 사항을 억제하려면 `ANNOUNCE_SKIP`으로 답장하세요.
+- `sessions_send`는 답장 백 핑퐁을 실행합니다 (답장 `REPLY_SKIP`으로 중단; `session.agentToAgent.maxPingPongTurns`를 통해 최대 턴 설정, 0–5).
+- 핑퐁 후 대상 에이전트는 **announce step**을 실행하며, 공지 사항을 억제하려면 `ANNOUNCE_SKIP`으로 답장하세요.
 - 샌드박스 제한: 현재 세션이 샌드박스 격리되고 `agents.defaults.sandbox.sessionToolsVisibility: "spawned"`인 경우, OpenClaw는 `tools.sessions.visibility`를 `tree`로 제한합니다.
+
+### `agents_list`
+
+현재 세션이 `sessions_spawn`으로 타겟팅할 수 있는 에이전트 ID를 나열합니다.
+
+주요 내용:
+
+- 결과는 에이전트별 허용 목록 (`agents.list[].subagents.allowAgents`)으로 제한됩니다.
+- `["*"]`이 구성된 경우, 도구는 구성된 모든 에이전트를 포함하며 `allowAny: true`로 표시됩니다.
 
 ### `agents_list`
 

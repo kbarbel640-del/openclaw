@@ -169,6 +169,7 @@ title: "세션 도구"
 - 하위 에이전트는 `sessions_spawn`을 호출할 수 없습니다 (하위 에이전트 → 하위 에이전트 생성 없음).
 - 항상 비동기 처리: `{ status: "accepted", runId, childSessionKey }`를 즉시 반환합니다.
 - 완료 후, OpenClaw는 하위 에이전트 **알림 단계**를 실행하고 요청자 채팅 채널에 결과를 게시합니다.
+  - 어시스턴트 최종 응답이 비어 있으면, 하위 에이전트 기록의 최신 `toolResult`가 `Result`로 포함됩니다.
 - 알림 단계 동안 정확히 `ANNOUNCE_SKIP`로 응답하여 침묵을 유지합니다.
 - 알림 응답은 `Status`/`Result`/`Notes`로 정규화됩니다; `Status`는 모델 텍스트가 아닌 런타임 결과에서 가져옵니다.
 - 하위 에이전트 세션은 `agents.defaults.subagents.archiveAfterMinutes` (기본값: 60) 후 자동 아카이브됩니다.

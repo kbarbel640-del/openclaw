@@ -290,6 +290,7 @@ Slack 조작은 `channels.slack.actions.*`로 제어됩니다.
 - 메시지 수정/삭제/스레드 방송은 시스템 이벤트로 매핑됩니다.
 - 반응 추가/삭제 이벤트는 시스템 이벤트로 매핑됩니다.
 - 멤버 가입/탈퇴, 채널 생성/이름 변경, 핀 추가/제거 이벤트는 시스템 이벤트로 매핑됩니다.
+- 어시스턴트 스레드 상태 업데이트 (스레드에서 "입력 중..." 표시기용)는 `assistant.threads.setStatus`를 사용하며 봇 범위 `assistant:write`가 필요합니다.
 - `channel_id_changed`는 `configWrites`가 활성화되었을 때 채널 구성 키를 마이그레이션할 수 있습니다.
 - 채널 주제/목적 메타데이터는 신뢰할 수 없는 컨텍스트로 취급되며 라우팅 컨텍스트에 주입될 수 있습니다.
 - 블록 작업 및 모달 상호작용은 구조화된 `Slack interaction: ...` 시스템 이벤트와 풍부한 페이로드 필드를 방출합니다:
@@ -351,6 +352,7 @@ Slack 조작은 `channels.slack.actions.*`로 제어됩니다.
         "mpim:history",
         "users:read",
         "app_mentions:read",
+        "assistant:write",
         "reactions:read",
         "reactions:write",
         "pins:read",
@@ -458,6 +460,32 @@ openclaw pairing list slack
 
   </Accordion>
 </AccordionGroup>
+
+## 텍스트 스트리밍
+
+OpenClaw는 Agents and AI Apps API를 통해 Slack 네이티브 텍스트 스트리밍을 지원합니다.
+
+기본적으로 스트리밍이 활성화되어 있습니다. 계정별로 비활성화하려면:
+
+```yaml
+channels:
+  slack:
+    streaming: false
+```
+
+### Requirements
+
+1. Slack 앱 설정에서 **Agents and AI Apps**를 활성화합니다.
+2. 앱에 `assistant:write` 범위가 있는지 확인합니다.
+3. 해당 메시지에 사용할 수 있는 응답 스레드가 있어야 합니다. 스레드 선택은 여전히 `replyToMode`를 따릅니다.
+
+### Behavior
+
+- 첫 번째 텍스트 청크는 스트림을 시작합니다 (`chat.startStream`).
+- 나중 텍스트 청크는 동일한 스트림에 추가됩니다 (`chat.appendStream`).
+- 응답 종료는 스트림을 완료합니다 (`chat.stopStream`).
+- 미디어 및 텍스트가 아닌 페이로드는 일반 전달로 대체됩니다.
+- 스트리밍이 응답 중 실패하면, OpenClaw는 나머지 페이로드에 대해 일반 전달로 대체됩니다.
 
 ## 구성 참조 포인터
 

@@ -757,4 +757,5 @@ Telegram 전용 특징적 필드:
 
 - [페어링](/ko-KR/channels/pairing)
 - [채널 라우팅](/ko-KR/channels/channel-routing)
+- [멀티 에이전트 라우팅](/ko-KR/concepts/multi-agent)
 - [문제 해결](/ko-KR/channels/troubleshooting)

@@ -242,6 +242,70 @@ export default myHandler;
 
 - **`gateway:startup`**: 채널이 시작되고 후크가 로드된 후
 
+### 메시지 이벤트
+
+메시지가 수신되거나 전송될 때 트리거됨:
+
+- **`message`**: 모든 메시지 이벤트 (일반 리스너)
+- **`message:received`**: 모든 채널에서 인바운드 메시지가 수신될 때
+- **`message:sent`**: 아웃바운드 메시지가 성공적으로 전송될 때
+
+#### 메시지 이벤트 컨텍스트
+
+메시지 이벤트에는 메시지에 대한 풍부한 컨텍스트가 포함됩니다:
+
+```typescript
+// message:received context
+{
+  from: string,           // 발신자 식별자 (전화번호, 사용자 ID 등)
+  content: string,        // 메시지 콘텐츠
+  timestamp?: number,     // 수신 시 Unix 타임스탬프
+  channelId: string,      // 채널 (예: "whatsapp", "telegram", "discord")
+  accountId?: string,     // 다중 계정 설정용 프로바이더 계정 ID
+  conversationId?: string, // 채팅/대화 ID
+  messageId?: string,     // 프로바이더로부터의 메시지 ID
+  metadata?: {            // 프로바이더별 추가 데이터
+    to?: string,
+    provider?: string,
+    surface?: string,
+    threadId?: string,
+    senderId?: string,
+    senderName?: string,
+    senderUsername?: string,
+    senderE164?: string,
+  }
+}
+
+// message:sent context
+{
+  to: string,             // 수신자 식별자
+  content: string,        // 전송된 메시지 콘텐츠
+  success: boolean,       // 전송 성공 여부
+  error?: string,         // 전송 실패 시 오류 메시지
+  channelId: string,      // 채널 (예: "whatsapp", "telegram", "discord")
+  accountId?: string,     // 프로바이더 계정 ID
+  conversationId?: string, // 채팅/대화 ID
+  messageId?: string,     // 프로바이더가 반환한 메시지 ID
+}
+```
+
+#### 예제: 메시지 로거 후크
+
+```typescript
+import type { HookHandler } from "../../src/hooks/hooks.js";
+import { isMessageReceivedEvent, isMessageSentEvent } from "../../src/hooks/internal-hooks.js";
+
+const handler: HookHandler = async (event) => {
+  if (isMessageReceivedEvent(event)) {
+    console.log(`[message-logger] Received from ${event.context.from}: ${event.context.content}`);
+  } else if (isMessageSentEvent(event)) {
+    console.log(`[message-logger] Sent to ${event.context.to}: ${event.context.content}`);
+  }
+};
+
+export default handler;
+```
+
 ### 도구 결과 후크 (플러그인 API)
 
 이 후크는 이벤트 스트림 리스너가 아니며, 플러그인이 OpenClaw가 저장하기 전에 도구 결과를 동기적으로 조정할 수 있도록 합니다.

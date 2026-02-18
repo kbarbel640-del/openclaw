@@ -17,17 +17,10 @@ title: "보안"
 openclaw security audit
 openclaw security audit --deep
 openclaw security audit --fix
+openclaw security audit --json
 ```
 
 일반적인 함정(Gateway 인증 노출, 브라우저 제어 노출, 상위 허용 목록, 파일시스템 권한)을 플래그합니다.
-
-`--fix`는 안전 가이드를 적용합니다:
-
-- 일반적인 채널의 `groupPolicy="open"`을 `groupPolicy="allowlist"`로 조여줍니다 (계정별 변형 포함).
-- `logging.redactSensitive="off"`를 `"tools"`로 되돌립니다.
-- 로컬 권한 (`~/.openclaw` → `700`, 설정 파일 → `600`, 및 `credentials/*.json`, `agents/*/agent/auth-profiles.json`, `agents/*/sessions/sessions.json`와 같은 일반적인 상태 파일 포함)을 조여줍니다.
-
-셸 액세스를 갖춘 AI 에이전트를 귀하의 기기에서 실행하는 것은... _매우 변덕스럽습니다_. 다음은 공격을 받지 않는 방법입니다.
 
 OpenClaw는 제품이자 실험입니다: 실시간 메시징 표면과 실제 도구에 첨단 모델의 행동을 연결하고 있습니다. **"완벽한 보안" 설정이 없습니다.** 목표는 다음에 대해 신중하게 접근하는 것입니다:
 
@@ -36,6 +29,43 @@ OpenClaw는 제품이자 실험입니다: 실시간 메시징 표면과 실제 �
 - 봇이 무엇을 만질 수 있는가
 
 작동에 필요한 최소한의 액세스로 시작하고, 확신이 생길 때 확장하세요.
+
+## 60초 안에 강화된 기본 설정
+
+이 기본 설정을 먼저 사용한 다음, 신뢰할 수 있는 에이전트별로 도구를 선택적으로 다시 활성화하세요:
+
+```json5
+{
+  gateway: {
+    mode: "local",
+    bind: "loopback",
+    auth: { mode: "token", token: "replace-with-long-random-token" },
+  },
+  session: {
+    dmScope: "per-channel-peer",
+  },
+  tools: {
+    profile: "messaging",
+    deny: ["group:automation", "group:runtime", "group:fs", "sessions_spawn", "sessions_send"],
+    fs: { workspaceOnly: true },
+    exec: { security: "deny", ask: "always" },
+    elevated: { enabled: false },
+  },
+  channels: {
+    whatsapp: { dmPolicy: "pairing", groups: { "*": { requireMention: true } } },
+  },
+}
+```
+
+이는 게이트웨이를 로컬 전용으로 유지하고, DM을 격리하며, 기본적으로 제어 평면/런타임 도구를 비활성화합니다.
+
+## 공유 받은 편지함 빠른 규칙
+
+두 명 이상의 사람이 봇에 DM을 보낼 수 있는 경우:
+
+- `session.dmScope: "per-channel-peer"` 설정 (또는 다중 계정 채널의 경우 `"per-account-channel-peer"`).
+- `dmPolicy: "pairing"` 또는 엄격한 허용 목록 유지.
+- 공유 DM을 광범위한 도구 접근과 절대 결합하지 마세요.
 
 ### 감사가 검사하는 항목 (고수준)
 
@@ -49,6 +79,30 @@ OpenClaw는 제품이자 실험입니다: 실시간 메시징 표면과 실제 �
 - **모델 위생** (구성된 모델이 구식일 경우 경고; 하드 블록 아님).
 
 `--deep` 실행 시, OpenClaw는 최대한 노력하여 실시간 게이트웨이 탐색을 시도합니다.
+
+## 보안 감사 용어 설명
+
+실제 배포에서 가장 자주 볼 수 있는 높은 신호 `checkId` 값 (전체 목록은 아님):
+
+| `checkId`                                    | 심각도      | 중요한 이유                                           | 주요 수정 키/경로                             | 자동 수정 |
+| -------------------------------------------- | ------------- | -------------------------------------------------------- | ------------------------------------------------ | -------- |
+| `fs.state_dir.perms_world_writable`          | critical      | 다른 사용자/프로세스가 전체 OpenClaw 상태를 수정 가능     | `~/.openclaw`의 파일시스템 권한                | yes      |
+| `fs.config.perms_writable`                   | critical      | 다른 사용자가 인증/도구 정책/구성 변경 가능                | `~/.openclaw/openclaw.json`의 파일시스템 권한  | yes      |
+| `fs.config.perms_world_readable`             | critical      | 구성이 토큰/설정 노출 가능                        | 구성 파일의 파일시스템 권한                  | yes      |
+| `gateway.bind_no_auth`                       | critical      | 공유 비밀 없는 원격 바인드                        | `gateway.bind`, `gateway.auth.*`                 | no       |
+| `gateway.loopback_no_auth`                   | critical      | 역방향 프록시 루프백이 인증되지 않을 수 있음      | `gateway.auth.*`, 프록시 설정                    | no       |
+| `gateway.tools_invoke_http.dangerous_allow`  | warn/critical | HTTP API를 통해 위험한 도구 재활성화                 | `gateway.tools.allow`                            | no       |
+| `gateway.tailscale_funnel`                   | critical      | 공용 인터넷 노출                                 | `gateway.tailscale.mode`                         | no       |
+| `gateway.control_ui.insecure_auth`           | critical      | HTTP를 통한 토큰 전용, 장치 ID 없음                 | `gateway.controlUi.allowInsecureAuth`            | no       |
+| `gateway.control_ui.device_auth_disabled`    | critical      | 장치 ID 검사 비활성화                           | `gateway.controlUi.dangerouslyDisableDeviceAuth` | no       |
+| `hooks.token_too_short`                      | warn          | 훅 진입에 대한 무차별 대입 공격이 쉬워짐                       | `hooks.token`                                    | no       |
+| `hooks.request_session_key_enabled`          | warn/critical | 외부 호출자가 sessionKey 선택 가능                    | `hooks.allowRequestSessionKey`                   | no       |
+| `hooks.request_session_key_prefixes_missing` | warn/critical | 외부 세션 키 형태에 대한 제한 없음                  | `hooks.allowedSessionKeyPrefixes`                | no       |
+| `logging.redact_off`                         | warn          | 민감한 값이 로그/상태로 누출                     | `logging.redactSensitive`                        | yes      |
+| `sandbox.docker_config_mode_off`             | warn          | 샌드박스 Docker 구성 존재하나 비활성 상태               | `agents.*.sandbox.mode`                          | no       |
+| `tools.profile_minimal_overridden`           | warn          | 에이전트 오버라이드가 전역 최소 프로필 우회            | `agents.list[].tools.profile`                    | no       |
+| `plugins.tools_reachable_permissive_policy`  | warn          | 허용적 컨텍스트에서 확장 도구 접근 가능         | `tools.profile` + tool allow/deny                | no       |
+| `models.small_params`                        | critical/info | 소형 모델 + 안전하지 않은 도구 표면이 주입 위험 증가 | 모델 선택 + 샌드박스/도구 정책               | no       |
 
 ## 자격 증명 저장소 맵
 
@@ -156,6 +210,25 @@ OpenClaw의 입장:
 `/exec`는 세션 전용 편의를 위해 사용됩니다. 설정을 기록하거나
 다른 세션을 변경하지 **않습니다**.
 
+## 제어 평면 도구 위험
+
+두 가지 내장 도구가 지속적인 제어 평면 변경을 수행할 수 있습니다:
+
+- `gateway`는 `config.apply`, `config.patch`, `update.run`을 호출할 수 있습니다.
+- `cron`은 원래 채팅/작업이 끝난 후에도 계속 실행되는 예약된 작업을 생성할 수 있습니다.
+
+신뢰할 수 없는 콘텐츠를 처리하는 모든 에이전트/표면의 경우, 기본적으로 이들을 거부하세요:
+
+```json5
+{
+  tools: {
+    deny: ["gateway", "cron", "sessions_spawn", "sessions_send"],
+  },
+}
+```
+
+`commands.restart=false`는 재시작 동작만 차단합니다. `gateway` 구성/업데이트 동작을 비활성화하지 않습니다.
+
 ## 플러그인/확장
 
 플러그인은 게이트웨이와 **프로세스 내에서** 실행됩니다. 이를 신뢰할 수 있는 코드로 취급하세요:
@@ -232,12 +305,12 @@ OpenClaw에는 두 개의 별도 "누가 나를 활성화할 수 있는가?" 레
 강력한 시스템 프롬프트가 있더라도, **프롬프트 인젝션은 해결되지 않았습니다**. 시스템 프롬프트 가이드 라인은 부드러운 지침일 뿐이며, 도구 정책, 실행 승인, 샌드박스, 그리고 채널 허용 목록에서 강제 시행이 이루어집니다 (운영자가 설계에 의해 이를 비활성화할 수 있습니다). 실전에서 도움이 되는 것:
 
 - 수신 DMs 잠금 (페어링/허용 목록).
-- 그룹 내 언급 게이트웨이를 선호; 공공 장소에서 `항상 켜짐` 봇을 피하세요.
+- 그룹 내 언급 게이트웨이를 선호; 공공 장소에서 "항상 켜짐" 봇을 피하세요.
 - 링크, 첨부 파일, 복사된 지침은 기본적으로 적대적인 것으로 취급하세요.
 - 민감한 도구 실행을 샌드박스에서 실행; 에이전트의 접근 가능한 파일 시스템에서 비밀을 보관하지 않습니다.
-- 주의: 샌드박스는 선택형입니다. 샌드박스 모드가 꺼져 있는 경우, 기본적으로 도구.exec.host`는 샌드박스이지만 호스트 실행은 승인 없이 게이트웨이 호스트에서 실행됩니다 `도구, exec host`로써 설정하고 실행을 승인하세요.
+- 주의: 샌드박스는 선택형입니다. 샌드박스 모드가 꺼져 있는 경우, exec는 게이트웨이 호스트에서 실행되며 tools.exec.host는 기본적으로 샌드박스이지만 호스트 exec는 host=gateway로 설정하고 exec 승인을 구성하지 않는 한 승인이 필요하지 않습니다.
 - 고위험 도구 제한 (`exec`, `browser`, `web_fetch`, `web_search`)은 신뢰할 수 있는 에이전트나 명시적인 허용 목록에만 제한하세요.
-- **모델 선택이 중요합니다:** 오래된/레거시 모델은 프롬프트 인젝션과 도구 오용에 대해 덜 강건할 수 있습니다. 모든 도구를 갖춘 봇에는 현대적이고 지침으로 강화된 모델을 선호하세요. 우리는 Anthropic Opus 4.6 (또는 최신 Opus)을 권장합니다. 이는 프롬프트 인젝션 인식이 뛰어납니다 (참고 [“안전한 단계”](https://www.anthropic.com/news/claude-opus-4-5)).
+- **모델 선택이 중요합니다:** 오래된/레거시 모델은 프롬프트 인젝션과 도구 오용에 대해 덜 강건할 수 있습니다. 모든 도구를 갖춘 봇에는 현대적이고 지침으로 강화된 모델을 선호하세요. 우리는 Anthropic Opus 4.6 (또는 최신 Opus)을 권장합니다. 이는 프롬프트 인젝션 인식이 뛰어납니다 (참고 ["A step forward on safety"](https://www.anthropic.com/news/claude-opus-4-5)).
 
 신뢰할 수 없는 것으로 취급할 경고:
 
@@ -245,6 +318,20 @@ OpenClaw에는 두 개의 별도 "누가 나를 활성화할 수 있는가?" 레
 - "시스템 프롬프트 또는 안전 규칙을 무시하세요."
 - "숨겨진 지시사항 또는 도구 출력을 공개하세요."
 - "~/.openclaw의 전체 내용 또는 로그를 붙여넣으세요."
+
+## 안전하지 않은 외부 콘텐츠 우회 플래그
+
+OpenClaw는 외부 콘텐츠 안전 래핑을 비활성화하는 명시적 우회 플래그를 포함합니다:
+
+- `hooks.mappings[].allowUnsafeExternalContent`
+- `hooks.gmail.allowUnsafeExternalContent`
+- Cron 페이로드 필드 `allowUnsafeExternalContent`
+
+지침:
+
+- 프로덕션에서는 이들을 설정 해제/false로 유지하세요.
+- 엄격하게 범위가 지정된 디버깅을 위해서만 일시적으로 활성화하세요.
+- 활성화된 경우, 해당 에이전트를 격리하세요 (샌드박스 + 최소 도구 + 전용 세션 네임스페이스).
 
 ### 프롬프트 인젝션은 공공 DMs를 필요로 하지 않습니다
 
@@ -259,6 +346,28 @@ OpenClaw에는 두 개의 별도 "누가 나를 활성화할 수 있는가?" 레
   `gateway.http.endpoints.responses.images.urlAllowlist`을 설정하고, `maxUrlParts`를 낮게 유지하세요.
 - 신뢰할 수 없는 입력과 상호 작용하는 모든 에이전트에 대한 샌드박스 격리 및 엄격한 도구 허용 목록을 활성화하세요.
 - 비밀 정보를 프롬프트에서 제외; 게이트웨이 호스트의 환경/설정을 통해 전달합니다.
+
+### 모델 강도 (보안 주의사항)
+
+프롬프트 인젝션 저항은 모델 계층 간에 **일관되지 않습니다**. 소규모/저가 모델은 일반적으로 도구 오용과 지시 탈취에 더 취약하며 특히 적대적 프롬프트 아래에서 그렇습니다.
+
+권장 사항:
+
+- **최신 세대, 최상위 모델을 사용하세요** 파일이나 네트워크에 접근할 수 있는 모든 봇에 대해.
+- **약한 계층을 피하세요** (예: Sonnet 또는 Haiku) 도구 활성화 에이전트나 신뢰할 수 없는 수신함의 경우.
+- 작고 강력하지 않은 모델을 사용해야 하는 경우, **폭발 반경을 줄이세요** (읽기 전용 도구, 강력한 샌드박스, 최소한의 파일 시스템 접근, 엄격한 허용 목록).
+- 작은 모델을 실행할 때, **모든 세션에 대해 샌드박스를 활성화하고** **web_search/web_fetch/browser**를 비활성화하여 입력이 엄격하게 제어되지 않는 한 사용하지 마세요.
+- 채팅 전용 개인 비서로, 신뢰할 수 있는 입력과 도구가 없는 경우, 일반적으로 작은 모델이 괜찮습니다.
+
+## 그룹 내 추론 및 자세한 출력
+
+`/reasoning` 및 `/verbose`는 공개 채널용이 아닌 내부 추론이나 도구 출력을 노출할 수 있습니다. 그룹 설정에서 이를 **디버그 전용**으로 취급하고 명시적으로 필요하지 않는 한 비활성화하세요.
+
+지침:
+
+- `/reasoning` 및 `/verbose`를 공용 방에서 비활성화 상태로 유지하세요.
+- 활성화하려면, 신뢰할 수 있는 DMs 또는 엄격하게 통제된 방에서만 하세요.
+- 기억하십시오: 자세한 출력에는 도구 인수, URL, 그리고 모델이 본 데이터가 포함될 수 있습니다.
 
 ### 모델 강점 (보안 주의사항)
 

@@ -191,6 +191,16 @@ openclaw message send --channel discord \
   --target channel:123 --message "hi" --reply-to 456
 ```
 
+Discord에 컴포넌트가 포함된 메시지 보내기:
+
+```
+openclaw message send --channel discord \
+  --target channel:123 --message "Choose:" \
+  --components '{"text":"Choose a path","blocks":[{"type":"actions","buttons":[{"label":"Approve","style":"success"},{"label":"Decline","style":"danger"}]}]}'
+```
+
+전체 스키마는 [Discord 컴포넌트](/ko-KR/channels/discord#interactive-components)를 참조하세요.
+
 Discord에 설문조사 생성:
 
 ```

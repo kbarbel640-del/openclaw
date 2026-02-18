@@ -113,6 +113,17 @@ openclaw cron add \
 
 크론 표현식은 `croner`를 사용합니다. 시간대를 생략하면 게이트웨이 호스트의 로컬 시간대가 사용됩니다.
 
+여러 게이트웨이에 걸쳐 시간대 상단 부하 스파이크를 줄이기 위해, OpenClaw는
+반복되는 시간대 상단 표현식(예: `0 * * * *`, `0 */2 * * *`)에 대해 최대 5분의
+결정론적 작업별 스태거 윈도우를 적용합니다. `0 7 * * *`와 같은 고정 시간 표현식은
+정확하게 유지됩니다.
+
+모든 크론 스케줄에 대해 `schedule.staggerMs`로 명시적 스태거 윈도우를 설정할 수 있습니다
+(`0`은 정확한 타이밍 유지). CLI 단축키:
+
+- `--stagger 30s` (또는 `1m`, `5m`)로 명시적 스태거 윈도우 설정.
+- `--exact`로 `staggerMs = 0` 강제 설정.
+
 ### 메인 vs 격리 실행
 
 #### 메인 세션 작업 (시스템 이벤트)
@@ -390,6 +401,19 @@ openclaw cron add \
   --to "+15551234567"
 ```
 
+명시적 30초 스태거를 사용한 반복 크론 작업:
+
+```bash
+openclaw cron add \
+  --name "Minute watcher" \
+  --cron "0 * * * * *" \
+  --tz "UTC" \
+  --stagger 30s \
+  --session isolated \
+  --message "Run minute watcher checks." \
+  --announce
+```
+
 반복 격리 작업 (Telegram 주제에 전달):
 
 ```bash
@@ -445,6 +469,12 @@ openclaw cron edit <jobId> \
   --message "Updated prompt" \
   --model "opus" \
   --thinking low
+```
+
+기존 크론 작업을 정확한 스케줄로 실행하도록 강제 (스태거 없음):
+
+```bash
+openclaw cron edit <jobId> --exact
 ```
 
 실행 히스토리:

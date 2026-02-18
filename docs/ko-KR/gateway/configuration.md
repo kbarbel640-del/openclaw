@@ -126,6 +126,7 @@ OpenClaw 는 스키마와 완전히 일치하는 구성만 허용합니다. 알 
 
     - `agents.defaults.models` 는 모델 카탈로그를 정의하며 `/model` 의 허용 목록으로 작동합니다.
     - 모델 참조는 `provider/model` 형식을 사용합니다 (예: `anthropic/claude-opus-4-6`).
+    - `agents.defaults.imageMaxDimensionPx` 는 프로바이더 호출 전 전사본/도구 이미지 다운스케일링을 제어합니다 (기본값 `1200`); 낮은 값은 일반적으로 스크린샷이 많은 실행에서 비전 토큰 사용량을 줄입니다.
     - 채팅에서 모델 전환은 [Models CLI](/ko-KR/concepts/models)를, 인증 로테이션 및 대체 동작은 [Model Failover](/ko-KR/concepts/model-failover)를 참조하세요.
     - 커스텀/자체 호스팅 프로바이더는 레퍼런스의 [Custom providers](/ko-KR/gateway/configuration-reference#custom-providers-and-base-urls)를 참조하세요.
 

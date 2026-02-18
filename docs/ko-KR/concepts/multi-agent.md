@@ -140,7 +140,153 @@ openclaw agents list --bindings
 - `binding`: `(channel, accountId, peer)` 및 선택적으로 guild/team ID별로 메시지를 `agentId`로 라우팅합니다.
 - 다이렉트 채팅은 `agent:<agentId>:<mainKey>`로 압축됩니다 (에이전트별 “주”; `session.mainKey`).
 
-## 예시: 두 개의 WhatsApp → 두 개의 에이전트
+## 빠른 시작
+
+<Steps>
+  <Step title="각 에이전트 워크스페이스 생성">
+
+마법사를 사용하거나 워크스페이스를 수동으로 생성합니다:
+
+```bash
+openclaw agents add coding
+openclaw agents add social
+```
+
+각 에이전트는 `SOUL.md`, `AGENTS.md` 및 선택적 `USER.md`를 포함한 자체 워크스페이스와 `~/.openclaw/agents/<agentId>` 아래의 전용 `agentDir` 및 세션 저장소를 받습니다.
+
+  </Step>
+
+  <Step title="채널 계정 생성">
+
+선호하는 채널에서 에이전트당 하나의 계정을 생성합니다:
+
+- Discord: 에이전트당 하나의 봇, Message Content Intent 활성화, 각 토큰 복사.
+- Telegram: BotFather를 통해 에이전트당 하나의 봇, 각 토큰 복사.
+- WhatsApp: 계정당 각 전화번호 링크.
+
+```bash
+openclaw channels login --channel whatsapp --account work
+```
+
+채널 가이드 참조: [Discord](/ko-KR/channels/discord), [Telegram](/ko-KR/channels/telegram), [WhatsApp](/ko-KR/channels/whatsapp).
+
+  </Step>
+
+  <Step title="에이전트, 계정 및 바인딩 추가">
+
+`agents.list` 아래에 에이전트를 추가하고, `channels.<channel>.accounts` 아래에 채널 계정을 추가하며, `bindings`로 연결합니다 (아래 예제 참조).
+
+  </Step>
+
+  <Step title="재시작 및 확인">
+
+```bash
+openclaw gateway restart
+openclaw agents list --bindings
+openclaw channels status --probe
+```
+
+  </Step>
+</Steps>
+
+## 플랫폼 예제
+
+### Discord 봇 에이전트별
+
+각 Discord 봇 계정은 고유한 `accountId`에 매핑됩니다. 각 계정을 에이전트에 바인딩하고 봇별 허용 목록을 유지합니다.
+
+```json5
+{
+  agents: {
+    list: [
+      { id: "main", workspace: "~/.openclaw/workspace-main" },
+      { id: "coding", workspace: "~/.openclaw/workspace-coding" },
+    ],
+  },
+  bindings: [
+    { agentId: "main", match: { channel: "discord", accountId: "default" } },
+    { agentId: "coding", match: { channel: "discord", accountId: "coding" } },
+  ],
+  channels: {
+    discord: {
+      groupPolicy: "allowlist",
+      accounts: {
+        default: {
+          token: "DISCORD_BOT_TOKEN_MAIN",
+          guilds: {
+            "123456789012345678": {
+              channels: {
+                "222222222222222222": { allow: true, requireMention: false },
+              },
+            },
+          },
+        },
+        coding: {
+          token: "DISCORD_BOT_TOKEN_CODING",
+          guilds: {
+            "123456789012345678": {
+              channels: {
+                "333333333333333333": { allow: true, requireMention: false },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+}
+```
+
+참고 사항:
+
+- 각 봇을 길드에 초대하고 Message Content Intent를 활성화합니다.
+- 토큰은 `channels.discord.accounts.<id>.token`에 있습니다 (기본 계정은 `DISCORD_BOT_TOKEN` 사용 가능).
+
+### Telegram 봇 에이전트별
+
+```json5
+{
+  agents: {
+    list: [
+      { id: "main", workspace: "~/.openclaw/workspace-main" },
+      { id: "alerts", workspace: "~/.openclaw/workspace-alerts" },
+    ],
+  },
+  bindings: [
+    { agentId: "main", match: { channel: "telegram", accountId: "default" } },
+    { agentId: "alerts", match: { channel: "telegram", accountId: "alerts" } },
+  ],
+  channels: {
+    telegram: {
+      accounts: {
+        default: {
+          botToken: "123456:ABC...",
+          dmPolicy: "pairing",
+        },
+        alerts: {
+          botToken: "987654:XYZ...",
+          dmPolicy: "allowlist",
+          allowFrom: ["tg:123456789"],
+        },
+      },
+    },
+  },
+}
+```
+
+참고 사항:
+
+- BotFather로 에이전트당 하나의 봇을 생성하고 각 토큰을 복사합니다.
+- 토큰은 `channels.telegram.accounts.<id>.botToken`에 있습니다 (기본 계정은 `TELEGRAM_BOT_TOKEN` 사용 가능).
+
+### WhatsApp 번호 에이전트별
+
+게이트웨이를 시작하기 전에 각 계정을 링크합니다:
+
+```bash
+openclaw channels login --channel whatsapp --account personal
+openclaw channels login --channel whatsapp --account biz
+```
 
 `~/.openclaw/openclaw.json` (JSON5):
 

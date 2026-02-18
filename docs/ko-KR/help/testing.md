@@ -91,7 +91,7 @@ OpenClaw에는 세 가지 Vitest 스위트(단위/통합, E2E, 라이브)와 소
   - 비용이 발생함 / 속도 제한 사용
   - "모두" 대신 좁혀진 하위 집합 실행을 선호
   - 라이브 실행은 누락된 API 키를 가져오기 위해 `~/.profile`을 소스합니다
-  - Anthropic 키 회전: `OPENCLAW_LIVE_ANTHROPIC_KEYS="sk-...,sk-..."` (또는 `OPENCLAW_LIVE_ANTHROPIC_KEY=sk-...`) 또는 여러 `ANTHROPIC_API_KEY*` 변수를 설정; 테스트는 속도 제한에서 다시 시도합니다
+- API 키 회전 (프로바이더별): `*_API_KEYS`를 쉼표/세미콜론 형식으로 설정하거나 `*_API_KEY_1`, `*_API_KEY_2` (예: `OPENAI_API_KEYS`, `ANTHROPIC_API_KEYS`, `GEMINI_API_KEYS`) 또는 `OPENCLAW_LIVE_*_KEY`를 통한 라이브별 재정의; 테스트는 속도 제한 응답에서 재시도합니다
 
 ## 어떤 스위트를 실행해야 하나요?
 
@@ -200,7 +200,7 @@ OPENCLAW_LIVE_SETUP_TOKEN=1 OPENCLAW_LIVE_SETUP_TOKEN_PROFILE=anthropic:setup-to
   - `pnpm test:live` (또는 Vitest를 직접 호출할 경우 `OPENCLAW_LIVE_TEST=1`)
   - `OPENCLAW_LIVE_CLI_BACKEND=1`
 - 기본값:
-  - 모델: `claude-cli/claude-sonnet-4-5`
+  - 모델: `claude-cli/claude-sonnet-4-6`
   - 명령어: `claude`
   - 인수: `["-p","--output-format","json","--dangerously-skip-permissions"]`
 - 덮어쓰기 (선택적):
@@ -219,7 +219,7 @@ OPENCLAW_LIVE_SETUP_TOKEN=1 OPENCLAW_LIVE_SETUP_TOKEN_PROFILE=anthropic:setup-to
 
 ```bash
 OPENCLAW_LIVE_CLI_BACKEND=1 \
-  OPENCLAW_LIVE_CLI_BACKEND_MODEL="claude-cli/claude-sonnet-4-5" \
+  OPENCLAW_LIVE_CLI_BACKEND_MODEL="claude-cli/claude-sonnet-4-6" \
   pnpm test:live src/gateway/gateway-cli-backend.live.test.ts
 ```
 

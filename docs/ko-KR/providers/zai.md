@@ -32,5 +32,6 @@ openclaw onboard --zai-api-key "$ZAI_API_KEY"
 ## Notes
 
 - GLM models are available as `zai/<model>` (example: `zai/glm-5`).
+- `tool_stream`은 Z.AI 도구 호출 스트리밍에 기본적으로 활성화됩니다. 비활성화하려면 `agents.defaults.models["zai/<model>"].params.tool_stream`을 `false`로 설정하세요.
 - See [/providers/glm](/ko-KR/providers/glm) for the model family overview.
 - Z.AI uses Bearer auth with your API key.

@@ -17,6 +17,20 @@ title: "모델 프로바이더"
 - `agents.defaults.models`를 설정하면 허용 목록이 됩니다.
 - CLI 도우미: `openclaw onboard`, `openclaw models list`, `openclaw models set <provider/model>`.
 
+## API 키 로테이션
+
+- 선택된 프로바이더에 대해 일반 프로바이더 로테이션을 지원합니다.
+- 다음을 통해 여러 키를 구성할 수 있습니다:
+  - `OPENCLAW_LIVE_<PROVIDER>_KEY` (단일 라이브 오버라이드, 최우선 순위)
+  - `<PROVIDER>_API_KEYS` (쉼표 또는 세미콜론 목록)
+  - `<PROVIDER>_API_KEY` (주 키)
+  - `<PROVIDER>_API_KEY_*` (번호가 매겨진 목록, 예: `<PROVIDER>_API_KEY_1`)
+- Google 프로바이더의 경우, `GOOGLE_API_KEY`도 대체로 포함됩니다.
+- 키 선택 순서는 우선순위를 유지하고 중복 값을 제거합니다.
+- 요청은 속도 제한 응답 (예: `429`, `rate_limit`, `quota`, `resource exhausted`)에서만 다음 키로 재시도됩니다.
+- 속도 제한이 아닌 실패는 즉시 실패하며, 키 로테이션을 시도하지 않습니다.
+- 모든 후보 키가 실패하면, 마지막 시도에서 최종 오류가 반환됩니다.
+
 ## 기본 제공 프로바이더 (pi-ai 카탈로그)
 
 OpenClaw는 pi-ai 카탈로그와 함께 제공됩니다. 이 프로바이더는 **설정 필요 없음**
@@ -26,6 +40,7 @@ OpenClaw는 pi-ai 카탈로그와 함께 제공됩니다. 이 프로바이더는
 
 - 프로바이더: `openai`
 - 인증: `OPENAI_API_KEY`
+- 선택적 로테이션: `OPENAI_API_KEYS`, `OPENAI_API_KEY_1`, `OPENAI_API_KEY_2`, 그리고 `OPENCLAW_LIVE_OPENAI_KEY` (단일 오버라이드)
 - 예제 모델: `openai/gpt-5.1-codex`
 - CLI: `openclaw onboard --auth-choice openai-api-key`
 
@@ -39,6 +54,7 @@ OpenClaw는 pi-ai 카탈로그와 함께 제공됩니다. 이 프로바이더는
 
 - 프로바이더: `anthropic`
 - 인증: `ANTHROPIC_API_KEY` 또는 `claude setup-token`
+- 선택적 로테이션: `ANTHROPIC_API_KEYS`, `ANTHROPIC_API_KEY_1`, `ANTHROPIC_API_KEY_2`, 그리고 `OPENCLAW_LIVE_ANTHROPIC_KEY` (단일 오버라이드)
 - 예제 모델: `anthropic/claude-opus-4-6`
 - CLI: `openclaw onboard --auth-choice token` (setup-token 을 붙여넣습니다) 또는 `openclaw models auth paste-token --provider anthropic`
 
@@ -78,6 +94,7 @@ OpenClaw는 pi-ai 카탈로그와 함께 제공됩니다. 이 프로바이더는
 
 - 프로바이더: `google`
 - 인증: `GEMINI_API_KEY`
+- 선택적 로테이션: `GEMINI_API_KEYS`, `GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`, `GOOGLE_API_KEY` 대체, 그리고 `OPENCLAW_LIVE_GEMINI_KEY` (단일 오버라이드)
 - 예제 모델: `google/gemini-3-pro-preview`
 - CLI: `openclaw onboard --auth-choice gemini-api-key`
 

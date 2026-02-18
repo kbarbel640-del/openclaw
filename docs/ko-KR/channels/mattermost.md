@@ -70,7 +70,6 @@ Mattermost는 다이렉트 메시지에 자동으로 응답합니다. 채널 동
 
 - `oncall` (기본값): 채널에서 @언급될 때만 응답합니다.
 - `onmessage`: 채널 메시지마다 응답합니다.
-- `always`: 채널의 모든 메시지에 응답 (채널 동작은 `onmessage`와 동일).
 - `onchar`: 메시지가 트리거 접두어로 시작할 때 응답합니다.
 
 설정 예시:
@@ -90,25 +89,6 @@ Mattermost는 다이렉트 메시지에 자동으로 응답합니다. 채널 동
 
 - `onchar`도 명시적인 @언급에 응답합니다.
 - `channels.mattermost.requireMention`은 기존 설정에 대해 적용되지만 `chatmode`가 선호됩니다.
-- 현재 제한사항: Mattermost 플러그인 이벤트 동작(`#11797`)으로 인해 `chatmode: "onmessage"`와
-  `chatmode: "always"`는 명시적인 그룹 언급 재정의를 통해 @언급 없이 반응할 수 있습니다.
-  사용:
-
-```json5
-{
-  channels: {
-    mattermost: {
-      groupPolicy: "open",
-      groups: {
-        "*": { requireMention: false },
-      },
-    },
-  },
-}
-```
-
-참조: [버그: Mattermost 플러그인이 WebSocket을 통해 채널 메시지 이벤트를 수신하지 않음 #11797](https://github.com/open-webui/open-webui/issues/11797).
-관련 수정 범위: [수정(mattermost): 그룹 언급 게이트에서 chatmode 언급 대체 기능 존중 #14995](https://github.com/open-webui/open-webui/pull/14995).
 
 ## 액세스 제어 (다이렉트 메시지)
 
@@ -134,6 +114,26 @@ Mattermost는 다이렉트 메시지에 자동으로 응답합니다. 채널 동
 
 단순 ID는 채널로 간주됩니다.
 
+## 반응 (메시지 도구)
+
+- `message action=react`를 `channel=mattermost`와 함께 사용합니다.
+- `messageId`는 Mattermost post id입니다.
+- `emoji`는 `thumbsup` 또는 `:+1:`과 같은 이름을 허용합니다 (콜론은 선택 사항).
+- 반응을 제거하려면 `remove=true` (boolean)를 설정합니다.
+- 반응 추가/제거 이벤트는 라우팅된 에이전트 세션에 시스템 이벤트로 전달됩니다.
+
+예시:
+
+```
+message action=react channel=mattermost target=channel:<channelId> messageId=<postId> emoji=thumbsup
+message action=react channel=mattermost target=channel:<channelId> messageId=<postId> emoji=thumbsup remove=true
+```
+
+설정:
+
+- `channels.mattermost.actions.reactions`: 반응 동작 활성화/비활성화 (기본값 true).
+- 계정별 재정의: `channels.mattermost.accounts.<id>.actions.reactions`.
+
 ## 멀티 계정
 
 Mattermost는 `channels.mattermost.accounts`에서 여러 계정을 지원합니다:
@@ -153,7 +153,6 @@ Mattermost는 `channels.mattermost.accounts`에서 여러 계정을 지원합니
 
 ## 문제 해결
 
-- 채널에서 응답 없음: 봇이 채널에 있는지 확인하고 모드 동작을 올바르게 사용합니다: 언급 (`oncall`), 트리거 접두어 사용 (`onchar`), 또는 `onmessage`/`always` 사용:
-  `channels.mattermost.groups["*"].requireMention = false` (일반적으로 `groupPolicy: "open"` 사용).
+- 채널에서 응답 없음: 봇이 채널에 있는지 확인하고 언급 (`oncall`), 트리거 접두어 사용 (`onchar`), 또는 `chatmode: "onmessage"` 설정을 확인하십시오.
 - 인증 오류: 봇 토큰, 기본 URL 및 계정 활성화 상태를 확인하십시오.
 - 멀티 계정 문제: 환경 변수는 `default` 계정에만 적용됩니다.

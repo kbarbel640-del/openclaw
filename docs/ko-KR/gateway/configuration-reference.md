@@ -595,6 +595,20 @@ exec ssh -T gateway-host imsg "$@"
 }
 ```
 
+### `agents.defaults.imageMaxDimensionPx`
+
+프로바이더 호출 전 트랜스크립트/도구 이미지 블록에서 가장 긴 이미지 측면의 최대 픽셀 크기입니다.
+기본값: `1200`.
+
+값이 낮을수록 일반적으로 스크린샷이 많은 실행에서 비전 토큰 사용량과 요청 페이로드 크기가 줄어듭니다.
+값이 높을수록 더 많은 시각적 세부 정보가 보존됩니다.
+
+```json5
+{
+  agents: { defaults: { imageMaxDimensionPx: 1200 } },
+}
+```
+
 ### `agents.defaults.userTimezone`
 
 시스템 프롬프트 컨텍스트용 시간대 (메시지 타임스탬프가 아님). 호스트 시간대로 대체됩니다.
@@ -664,6 +678,7 @@ exec ssh -T gateway-host imsg "$@"
 구성된 별칭이 항상 기본값을 이깁니다.
 
 Z.AI GLM-4.x 모델은 `--thinking off` 를 설정하거나 `agents.defaults.models["zai/<model>"].params.thinking` 를 정의하지 않는 한 자동으로 사고 모드를 활성화합니다.
+Z.AI 모델은 도구 호출 스트리밍을 위해 기본적으로 `tool_stream` 을 활성화합니다. 비활성화하려면 `agents.defaults.models["zai/<model>"].params.tool_stream` 을 `false` 로 설정하세요.
 
 ### `agents.defaults.cliBackends`
 
@@ -988,7 +1003,7 @@ scripts/sandbox-browser-setup.sh   # 선택적 브라우저 이미지
 
 - `id`: 안정적인 에이전트 id (필수).
 - `default`: 여러 개가 설정된 경우, 첫 번째가 적용됩니다 (경고가 기록됨). 설정되지 않은 경우, 목록의 첫 번째 항목이 기본값으로 설정됩니다.
-- `model`: 문자열 형식은 `primary` 만 재정의합니다; 객체 형식 `{ primary, fallbacks }` 는 둘 다 재정의합니다 (`[]` 는 글로벌 대체를 비활성화).
+- `model`: 문자열 형식은 `primary` 만 재정의합니다; 객체 형식 `{ primary, fallbacks }` 는 둘 다 재정의합니다 (`[]` 는 글로벌 대체를 비활성화). `primary` 만 재정의하는 Cron 작업은 `fallbacks: []` 를 설정하지 않는 한 기본 대체를 상속합니다.
 - `identity.avatar`: 워크스페이스 상대 경로, `http(s)` URL 또는 `data:` URI.
 - `identity`는 기본값을 유도합니다: `emoji` 에서 `ackReaction`, `name`/`emoji` 에서 `mentionPatterns`.
 - `subagents.allowAgents`: `sessions_spawn` 을 위한 에이전트 id 의 허용 목록 (`["*"]` = 어떤 것이든; 기본값: 동일한 에이전트만).
@@ -2418,7 +2433,7 @@ macOS 온보딩 어시스턴트가 작성합니다. 기본값을 유도합니다
 - 파일 배열: 순서대로 깊은 병합 (이후 것이 이전 것을 재정의).
 - 형제 키: 인클루드 후 병합 (인클루드된 값을 재정의).
 - 중첩 인클루드: 최대 10 레벨 깊이.
-- 경로: 상대 (인클루드하는 파일 기준), 절대 또는 `../` 부모 참조.
+- 경로: 인클루드하는 파일을 기준으로 해석되지만, 최상위 구성 디렉토리 (메인 구성 파일의 `dirname`) 내에 있어야 합니다. 절대/`../` 형식은 여전히 해당 경계 내에서 해석되는 경우에만 허용됩니다.
 - 오류: 누락된 파일, 파싱 오류 및 순환 인클루드에 대한 명확한 메시지.
 
 ---

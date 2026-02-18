@@ -21,12 +21,15 @@ openclaw devices list
 openclaw devices list --json
 ```
 
-### `openclaw devices approve <requestId>`
+### `openclaw devices approve [requestId] [--latest]`
 
-Approve a pending device pairing request.
+대기 중인 디바이스 페어링 요청을 승인합니다. `requestId`가 생략되면 OpenClaw는
+가장 최근의 대기 요청을 자동으로 승인합니다.
 
 ```
+openclaw devices approve
 openclaw devices approve <requestId>
+openclaw devices approve --latest
 ```
 
 ### `openclaw devices reject <requestId>`
@@ -59,11 +62,12 @@ openclaw devices revoke --device <deviceId> --role node
 - `--token <token>`: Gateway token (if required).
 - `--password <password>`: Gateway password (password auth).
 - `--timeout <ms>`: RPC timeout.
-- `--json`: JSON output (recommended for scripting).
+- `--json`: JSON 출력 (스크립팅에 권장).
 
-Note: when you set `--url`, the CLI does not fall back to config or environment credentials. Pass `--token` or `--password` explicitly. Missing explicit credentials is an error.
+참고: `--url`을 설정할 때, CLI는 구성이나 환경 변수 인증을 대체하지 않습니다.
+`--token` 또는 `--password`를 명시적으로 전달하세요. 명시적 인증이 누락되면 오류가 발생합니다.
 
 ## Notes
 
-- Token rotation returns a new token (sensitive). Treat it like a secret.
-- These commands require `operator.pairing` (or `operator.admin`) scope.
+- 토큰 로테이션은 새 토큰을 반환합니다 (민감한 정보). 비밀처럼 다루세요.
+- 이러한 명령어는 `operator.pairing` (또는 `operator.admin`) 범위가 필요합니다.

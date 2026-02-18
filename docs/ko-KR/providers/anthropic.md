@@ -77,6 +77,26 @@ Anthropic API 키 인증을 사용할 때, OpenClaw는 모든 Anthropic 모델�
 
 OpenClaw에는 Anthropic API 요청을 위한 `extended-cache-ttl-2025-04-11` 베타 플래그가 포함되어 있습니다. 제공자 헤더를 재정의할 경우 이를 유지하세요(자세한 내용은 [/gateway/configuration](/ko-KR/gateway/configuration) 참조).
 
+## 1M 컨텍스트 윈도우 (Anthropic 베타)
+
+Anthropic의 1M 컨텍스트 윈도우는 베타로 제한됩니다. OpenClaw에서는 지원되는 Opus/Sonnet 모델에 대해 `params.context1m: true`로 모델별로 활성화하세요.
+
+```json5
+{
+  agents: {
+    defaults: {
+      models: {
+        "anthropic/claude-opus-4-6": {
+          params: { context1m: true },
+        },
+      },
+    },
+  },
+}
+```
+
+OpenClaw는 이를 Anthropic 요청에서 `anthropic-beta: context-1m-2025-08-07`로 매핑합니다.
+
 ## Option B: Claude 설정 토큰
 
 **적합한 사용 사례:** Claude 구독을 사용할 때.

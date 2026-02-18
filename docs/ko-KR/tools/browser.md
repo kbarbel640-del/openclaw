@@ -534,7 +534,7 @@ JSON에서의 역할 스냅샷은 `refs` 및 작은 `stats` 블록 (lines/chars/
 - 쿠키: `cookies`, `cookies set`, `cookies clear`
 - 저장소: `storage local|session get|set|clear`
 - 오프라인: `set offline on|off`
-- 헤더: `set headers --json '{"X-Debug":"1"}'` (또는 `--clear`)
+- 헤더: `set headers --headers-json '{"X-Debug":"1"}'` (레거시 `set headers --json '{"X-Debug":"1"}'`는 여전히 지원됨)
 - HTTP 기본 인증: `set credentials user pass` (또는 `--clear`)
 - 지리 위치 설정: `set geo <lat> <lon> --origin "https://example.com"` (또는 `--clear`)
 - 미디어: `set media dark|light|no-preference|none`
