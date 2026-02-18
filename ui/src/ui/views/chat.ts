@@ -1,6 +1,6 @@
+import { virtualize } from "@lit-labs/virtualizer/virtualize.js";
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
-import { repeat } from "lit/directives/repeat.js";
 import {
   renderMessageGroup,
   renderReadingIndicatorGroup,
@@ -229,10 +229,10 @@ export function renderChat(props: ChatProps) {
             `
           : nothing
       }
-      ${repeat(
-        buildChatItems(props),
-        (item) => item.key,
-        (item) => {
+      ${virtualize({
+        items: buildChatItems(props),
+        keyFunction: (item) => item.key,
+        renderItem: (item) => {
           if (item.kind === "divider") {
             return html`
               <div class="chat-divider" role="separator" data-ts=${String(item.timestamp)}>
@@ -265,9 +265,9 @@ export function renderChat(props: ChatProps) {
             });
           }
 
-          return nothing;
+          return html``;
         },
-      )}
+      })}
     </div>
   `;
 
