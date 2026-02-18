@@ -142,6 +142,23 @@ describe("buildBootstrapContextFiles", () => {
     expect(truncations.length).toBeGreaterThanOrEqual(1);
     expect(truncations.some((t) => t.name === "USER.md")).toBe(true);
   });
+
+  it("reports skipped files in truncations array with 0 budgetChars", () => {
+    const files = [
+      makeFile({ name: "AGENTS.md", content: "a".repeat(100) }),
+      makeFile({ name: "TOOLS.md", content: "b".repeat(100) }),
+    ];
+    const { truncations } = buildBootstrapContextFiles(files, { totalMaxChars: 70 });
+
+    const agentsTrunc = truncations.find((t) => t.name === "AGENTS.md");
+    expect(agentsTrunc).toBeDefined();
+    expect(agentsTrunc?.budgetChars).toBeGreaterThan(0);
+
+    const skippedTrunc = truncations.find((t) => t.name === "TOOLS.md");
+    expect(skippedTrunc).toBeDefined();
+    expect(skippedTrunc?.budgetChars).toBe(0);
+    expect(skippedTrunc?.originalChars).toBe(100);
+  });
 });
 
 describe("resolveBootstrapMaxChars", () => {

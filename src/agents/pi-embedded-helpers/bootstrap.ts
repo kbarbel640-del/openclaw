@@ -208,28 +208,39 @@ export function buildBootstrapContextFiles(
   const result: EmbeddedContextFile[] = [];
   const truncations: BootstrapTruncationInfo[] = [];
   for (const file of files) {
-    if (remainingTotalChars <= 0) {
-      break;
-    }
     if (file.missing) {
       const missingText = `[MISSING] Expected at: ${file.path}`;
       const cappedMissingText = clampToBudget(missingText, remainingTotalChars);
+      // If we can't fit even a char of missing text, we stop trying to add it
       if (!cappedMissingText) {
-        break;
+        // But we continue to process truncations logic? No, missing file doesn't warn about truncation usually.
+        // If budget is exhaust, we skip.
       }
       remainingTotalChars = Math.max(0, remainingTotalChars - cappedMissingText.length);
-      result.push({
-        path: file.path,
-        content: cappedMissingText,
+      if (cappedMissingText) {
+        result.push({
+          path: file.path,
+          content: cappedMissingText,
+        });
+      }
+      continue;
+    }
+
+    if (remainingTotalChars < MIN_BOOTSTRAP_FILE_BUDGET_CHARS) {
+      if (remainingTotalChars > 0) {
+        opts?.warn?.(
+          `remaining bootstrap budget is ${remainingTotalChars} chars (<${MIN_BOOTSTRAP_FILE_BUDGET_CHARS}); skipping additional bootstrap files`,
+        );
+        remainingTotalChars = 0;
+      }
+      truncations.push({
+        name: file.name,
+        originalChars: (file.content ?? "").length,
+        budgetChars: 0,
       });
       continue;
     }
-    if (remainingTotalChars < MIN_BOOTSTRAP_FILE_BUDGET_CHARS) {
-      opts?.warn?.(
-        `remaining bootstrap budget is ${remainingTotalChars} chars (<${MIN_BOOTSTRAP_FILE_BUDGET_CHARS}); skipping additional bootstrap files`,
-      );
-      break;
-    }
+
     const fileMaxChars = Math.max(1, Math.min(maxChars, remainingTotalChars));
     const trimmed = trimBootstrapContent(file.content ?? "", file.name, fileMaxChars);
     const contentWithinBudget = clampToBudget(trimmed.content, remainingTotalChars);
