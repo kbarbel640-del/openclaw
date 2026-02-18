@@ -615,6 +615,7 @@ export function createBrowserRouteContext(opts: ContextOptions): BrowserRouteCon
 
       result.push({
         name,
+        driver: profile.driver === "extension" ? "extension" : "openclaw",
         cdpPort: profile.cdpPort,
         cdpUrl: profile.cdpUrl,
         color: profile.color,
