@@ -116,8 +116,6 @@ describe("subagent-announce-queue", () => {
     expect(sender.prompts[1]).toContain("Queued #2");
     expect(sender.prompts[1]).toContain("queued item two");
   });
-});
-
   it("gives up and drops items after 3 consecutive send failures", async () => {
     let attempts = 0;
     const send = vi.fn(async () => {
@@ -137,7 +135,7 @@ describe("subagent-announce-queue", () => {
     });
 
     await waitFor(() => attempts >= 3);
-    // Give-up clears the queue — no further retries after 3
+    // Give-up clears the queue — no further retries after 3 consecutive failures
     const attemptsBefore = attempts;
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(attempts).toBe(attemptsBefore);
@@ -169,3 +167,4 @@ describe("subagent-announce-queue", () => {
     await waitFor(() => sendPrompts.length >= 1);
     expect(sendPrompts).toEqual(["recover item"]);
   });
+});
