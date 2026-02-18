@@ -9,6 +9,10 @@ import { buildGatewayConnectionDetails } from "../gateway/call.js";
 import { resolveGatewayProbeAuth } from "../gateway/probe-auth.js";
 import { probeGateway } from "../gateway/probe.js";
 import { collectChannelSecurityFindings } from "./audit-channel.js";
+import { collectToolValidatorFindings } from "./tool-call-validator.js";
+import { collectAnomalyDetectorFindings } from "./anomaly-detector.js";
+import { collectDmPolicyFindings } from "./dm-policy-audit.js";
+import { collectIdentityFindings } from "./identity-keypair.js";
 import {
   collectAttackSurfaceSummaryFindings,
   collectExposureMatrixFindings,
@@ -684,6 +688,11 @@ export async function runSecurityAudit(opts: SecurityAuditOptions): Promise<Secu
       remediation: `Run "${formatCliCommand("openclaw status --all")}" to debug connectivity/auth, then re-run "${formatCliCommand("openclaw security audit --deep")}".`,
     });
   }
+
+  findings.push(...collectToolValidatorFindings());
+  findings.push(...collectAnomalyDetectorFindings());
+  findings.push(...collectDmPolicyFindings());
+  findings.push(...collectIdentityFindings());
 
   const summary = countBySeverity(findings);
   return { ts: Date.now(), summary, findings, deep };

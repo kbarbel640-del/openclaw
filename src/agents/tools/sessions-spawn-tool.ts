@@ -1,9 +1,13 @@
-import { Type } from "@sinclair/typebox";
+﻿import { Type } from "@sinclair/typebox";
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import { optionalStringEnum } from "../schema/typebox.js";
 import { spawnSubagentDirect } from "../subagent-spawn.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
+
+/** AF-002: cap concurrent sub-agent spawns per requester to limit runaway spawn storms. */
+const MAX_CONCURRENT_SPAWNS = 10;
+const _activeSpawnsByRequester = new Map<string, number>();
 
 const SessionsSpawnToolSchema = Type.Object({
   task: Type.String(),
@@ -57,29 +61,48 @@ export function createSessionsSpawnTool(opts?: {
           ? Math.max(0, Math.floor(timeoutSecondsCandidate))
           : undefined;
 
-      const result = await spawnSubagentDirect(
-        {
-          task,
-          label: label || undefined,
-          agentId: requestedAgentId,
-          model: modelOverride,
-          thinking: thinkingOverrideRaw,
-          runTimeoutSeconds,
-          cleanup,
-          expectsCompletionMessage: true,
-        },
-        {
-          agentSessionKey: opts?.agentSessionKey,
-          agentChannel: opts?.agentChannel,
-          agentAccountId: opts?.agentAccountId,
-          agentTo: opts?.agentTo,
-          agentThreadId: opts?.agentThreadId,
-          agentGroupId: opts?.agentGroupId,
-          agentGroupChannel: opts?.agentGroupChannel,
-          agentGroupSpace: opts?.agentGroupSpace,
-          requesterAgentIdOverride: opts?.requesterAgentIdOverride,
-        },
-      );
+      // AF-002: enforce per-requester concurrent spawn cap
+      const requesterKey =
+        opts?.requesterAgentIdOverride ?? opts?.agentSessionKey ?? "default";
+      const activeCount = _activeSpawnsByRequester.get(requesterKey) ?? 0;
+      if (activeCount >= MAX_CONCURRENT_SPAWNS) {
+        return jsonResult({
+          error: "spawn_limit_exceeded",
+          message: `Too many concurrent sub-agent spawns for this requester (max ${MAX_CONCURRENT_SPAWNS}). Try again after existing spawns complete.`,
+        });
+      }
+      _activeSpawnsByRequester.set(requesterKey, activeCount + 1);
+
+      let result: Awaited<ReturnType<typeof spawnSubagentDirect>>;
+      try {
+        result = await spawnSubagentDirect(
+          {
+            task,
+            label: label || undefined,
+            agentId: requestedAgentId,
+            model: modelOverride,
+            thinking: thinkingOverrideRaw,
+            runTimeoutSeconds,
+            cleanup,
+            expectsCompletionMessage: true,
+          },
+          {
+            agentSessionKey: opts?.agentSessionKey,
+            agentChannel: opts?.agentChannel,
+            agentAccountId: opts?.agentAccountId,
+            agentTo: opts?.agentTo,
+            agentThreadId: opts?.agentThreadId,
+            agentGroupId: opts?.agentGroupId,
+            agentGroupChannel: opts?.agentGroupChannel,
+            agentGroupSpace: opts?.agentGroupSpace,
+            requesterAgentIdOverride: opts?.requesterAgentIdOverride,
+          },
+        );
+      } finally {
+        const after = (_activeSpawnsByRequester.get(requesterKey) ?? 1) - 1;
+        if (after <= 0) _activeSpawnsByRequester.delete(requesterKey);
+        else _activeSpawnsByRequester.set(requesterKey, after);
+      }
 
       return jsonResult(result);
     },

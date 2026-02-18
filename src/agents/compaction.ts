@@ -387,3 +387,32 @@ export function pruneHistoryForContextShare(params: {
 export function resolveContextWindowTokens(model?: ExtensionContext["model"]): number {
   return Math.max(1, Math.floor(model?.contextWindow ?? DEFAULT_CONTEXT_TOKENS));
 }
+
+/**
+ * LM-002: Jailbreak via Multi-turn Context mitigation.
+ * Injects a system prompt reminder into the message history if it has been
+ * absent from recent turns — preventing "forgotten" system constraints in
+ * long multi-turn sessions.
+ */
+export function injectSystemPromptReminderIfNeeded(
+  messages: AgentMessage[],
+  systemPrompt: string,
+  opts?: { lookbackMessages?: number },
+): AgentMessage[] {
+  if (!systemPrompt || messages.length === 0) return messages;
+  const lookback = opts?.lookbackMessages ?? 10;
+  const recent = messages.slice(-lookback);
+  const systemPresent = recent.some(
+    (m) =>
+      (m as { role?: string }).role === "system" ||
+      (typeof (m as { content?: unknown }).content === "string" &&
+        ((m as { content: string }).content).includes(systemPrompt.slice(0, 80))),
+  );
+  if (systemPresent) return messages;
+  const reminder = {
+    role: "user",
+    content: `[System reminder — your operating constraints remain in effect:\n${systemPrompt}\n]`,
+    timestamp: Date.now(),
+  } as AgentMessage;
+  return [...messages, reminder];
+}
