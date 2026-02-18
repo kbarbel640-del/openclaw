@@ -7,7 +7,8 @@
  * This module implements the missing history sync response handling.
  */
 
-import type { WASocket, proto } from "@whiskeysockets/baileys";
+import type { WASocket } from "@whiskeysockets/baileys";
+import { proto } from "@whiskeysockets/baileys";
 import { getChildLogger } from "../../logging.js";
 
 const logger = getChildLogger({ module: "history-sync-patch" });
