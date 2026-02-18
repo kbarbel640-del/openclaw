@@ -248,7 +248,23 @@ function stripUnsupportedSchemaKeywords(schema: unknown): unknown {
     return schema.map((item) => stripUnsupportedSchemaKeywords(item));
   }
   const record = { ...(schema as Record<string, unknown>) };
+  // Recurse into properties values without checking property names against the keyword set,
+  // mirroring the approach in findUnsupportedSchemaKeywords.
+  if (
+    record.properties &&
+    typeof record.properties === "object" &&
+    !Array.isArray(record.properties)
+  ) {
+    const props = { ...(record.properties as Record<string, unknown>) };
+    for (const key of Object.keys(props)) {
+      props[key] = stripUnsupportedSchemaKeywords(props[key]);
+    }
+    record.properties = props;
+  }
   for (const key of Object.keys(record)) {
+    if (key === "properties") {
+      continue;
+    }
     if (GOOGLE_SCHEMA_UNSUPPORTED_KEYWORDS.has(key)) {
       delete record[key];
       continue;
