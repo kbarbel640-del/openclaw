@@ -465,6 +465,12 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "browser.request",
+                    family: MethodFamily::Browser,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "browser.open",
                     family: MethodFamily::Browser,
                     requires_auth: true,
@@ -597,6 +603,7 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "device.pair.remove",
     "device.token.rotate",
     "device.token.revoke",
+    "browser.request",
     "config.get",
     "config.set",
     "config.patch",
@@ -692,6 +699,7 @@ impl RpcDispatcher {
             "device.pair.remove" => self.handle_device_pair_remove(req).await,
             "device.token.rotate" => self.handle_device_token_rotate(req).await,
             "device.token.revoke" => self.handle_device_token_revoke(req).await,
+            "browser.request" => self.handle_browser_request(req).await,
             "config.get" => self.handle_config_get(req).await,
             "config.set" => self.handle_config_set(req).await,
             "config.patch" => self.handle_config_patch(req).await,
@@ -1978,6 +1986,53 @@ impl RpcDispatcher {
             "role": token.role,
             "revokedAtMs": token.revoked_at_ms.unwrap_or_else(now_ms)
         }))
+    }
+
+    async fn handle_browser_request(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = req.params.as_object();
+        let method = params
+            .and_then(|value| value.get("method"))
+            .and_then(Value::as_str)
+            .map(|value| value.trim().to_ascii_uppercase())
+            .unwrap_or_default();
+        let path = params
+            .and_then(|value| value.get("path"))
+            .and_then(Value::as_str)
+            .map(|value| value.trim().to_owned())
+            .unwrap_or_default();
+        let timeout_ms = params
+            .and_then(|value| value.get("timeoutMs").or_else(|| value.get("timeout_ms")))
+            .and_then(json_value_as_timeout_ms);
+        let query = params
+            .and_then(|value| value.get("query"))
+            .filter(|value| value.is_object())
+            .cloned();
+
+        if method.is_empty() || path.is_empty() {
+            return RpcDispatchOutcome::bad_request("method and path are required");
+        }
+        if !matches!(method.as_str(), "GET" | "POST" | "DELETE") {
+            return RpcDispatchOutcome::bad_request("method must be GET, POST, or DELETE");
+        }
+
+        self.system
+            .log_line(format!(
+                "browser.request method={} path={} timeoutMs={}",
+                method,
+                truncate_text(&path, 256),
+                timeout_ms.unwrap_or(0)
+            ))
+            .await;
+
+        RpcDispatchOutcome::Error {
+            code: 503,
+            message: "browser control is disabled".to_owned(),
+            details: Some(json!({
+                "method": method,
+                "path": path,
+                "query": query
+            })),
+        }
     }
 
     async fn handle_config_get(&self, _req: &RpcRequestFrame) -> RpcDispatchOutcome {
@@ -5555,6 +5610,23 @@ fn json_value_as_bool(value: &Value) -> Option<bool> {
         },
         _ => None,
     }
+}
+
+fn json_value_as_timeout_ms(value: &Value) -> Option<u64> {
+    let Value::Number(raw) = value else {
+        return None;
+    };
+    if let Some(value) = raw.as_u64() {
+        return Some(value.max(1));
+    }
+    if let Some(value) = raw.as_i64() {
+        return Some(value.max(1) as u64);
+    }
+    let value = raw.as_f64()?;
+    if !value.is_finite() {
+        return None;
+    }
+    Some(value.floor().max(1.0) as u64)
 }
 
 fn discover_skills(
@@ -11887,6 +11959,88 @@ mod tests {
             }
             _ => panic!("expected web.login.wait handled"),
         }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_browser_request_validates_and_reports_unavailable_contract() {
+        let dispatcher = RpcDispatcher::new();
+
+        let missing = RpcRequestFrame {
+            id: "req-browser-missing".to_owned(),
+            method: "browser.request".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&missing).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let invalid_method = RpcRequestFrame {
+            id: "req-browser-invalid-method".to_owned(),
+            method: "browser.request".to_owned(),
+            params: serde_json::json!({
+                "method": "PATCH",
+                "path": "/tabs"
+            }),
+        };
+        let out = dispatcher.handle_request(&invalid_method).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let non_object_params = RpcRequestFrame {
+            id: "req-browser-non-object".to_owned(),
+            method: "browser.request".to_owned(),
+            params: serde_json::json!("raw"),
+        };
+        let out = dispatcher.handle_request(&non_object_params).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let valid_request = RpcRequestFrame {
+            id: "req-browser-valid".to_owned(),
+            method: "browser.request".to_owned(),
+            params: serde_json::json!({
+                "method": "get",
+                "path": "/tabs",
+                "query": {
+                    "profile": "default"
+                },
+                "timeoutMs": 0
+            }),
+        };
+        match dispatcher.handle_request(&valid_request).await {
+            RpcDispatchOutcome::Error {
+                code,
+                message,
+                details,
+            } => {
+                assert_eq!(code, 503);
+                assert_eq!(message, "browser control is disabled");
+                assert_eq!(
+                    details
+                        .as_ref()
+                        .and_then(|value| value.pointer("/method"))
+                        .and_then(serde_json::Value::as_str),
+                    Some("GET")
+                );
+                assert_eq!(
+                    details
+                        .as_ref()
+                        .and_then(|value| value.pointer("/path"))
+                        .and_then(serde_json::Value::as_str),
+                    Some("/tabs")
+                );
+            }
+            _ => panic!("expected browser.request unavailable response"),
+        }
+
+        let non_numeric_timeout = RpcRequestFrame {
+            id: "req-browser-timeout-string".to_owned(),
+            method: "browser.request".to_owned(),
+            params: serde_json::json!({
+                "method": "POST",
+                "path": "/navigate",
+                "timeoutMs": "1500"
+            }),
+        };
+        let out = dispatcher.handle_request(&non_numeric_timeout).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 503, .. }));
     }
 
     #[tokio::test]
