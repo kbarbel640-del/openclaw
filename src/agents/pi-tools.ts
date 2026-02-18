@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import {
   codingTools,
   createEditTool,
@@ -15,6 +16,7 @@ import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
 import { createApplyPatchTool } from "./apply-patch.js";
+import { findSubtaskBySessionKey } from "./subagent-mission.js";
 import {
   createExecTool,
   createProcessTool,
@@ -264,8 +266,44 @@ export function createOpenClawCodingTools(options?: {
         return [];
       }
       // Wrap with param normalization for Claude Code compatibility
+      const base = wrapToolParamNormalization(
+        createWriteTool(workspaceRoot),
+        CLAUDE_PARAM_GROUPS.write,
+      );
+      const sessionKey = options?.sessionKey;
+      if (!sessionKey) return [base];
+      // Mission subtask write hook: auto-prepend existing file content so
+      // sequential subtasks append rather than overwrite shared output files.
       return [
-        wrapToolParamNormalization(createWriteTool(workspaceRoot), CLAUDE_PARAM_GROUPS.write),
+        {
+          ...base,
+          execute: async (
+            toolCallId: string,
+            params: unknown,
+            signal?: AbortSignal,
+            onUpdate?: (update: unknown) => void,
+          ) => {
+            const subtask = findSubtaskBySessionKey(sessionKey);
+            if (subtask) {
+              const p = params as Record<string, unknown>;
+              const filePath = p.path as string | undefined;
+              if (filePath) {
+                const absolutePath = filePath.startsWith("/")
+                  ? filePath
+                  : `${workspaceRoot}/${filePath}`;
+                try {
+                  const existing = await readFile(absolutePath, "utf-8");
+                  if (existing) {
+                    p.content = existing + "\n" + ((p.content as string) ?? "");
+                  }
+                } catch {
+                  // File doesn't exist yet — normal first write, no prepend needed
+                }
+              }
+            }
+            return base.execute(toolCallId, params, signal, onUpdate);
+          },
+        },
       ];
     }
     if (tool.name === "edit") {

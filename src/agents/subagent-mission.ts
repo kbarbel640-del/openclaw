@@ -1038,3 +1038,21 @@ export function resetMissionSystemForTests() {
   runIdToMission.clear();
   setRunCompletionInterceptor(null);
 }
+
+/**
+ * Look up a subtask by its child session key.
+ * Used by the write-tool hook to detect if the current session is a mission
+ * subtask, so it can auto-prepend existing file content (append mode).
+ */
+export function findSubtaskBySessionKey(
+  childSessionKey: string,
+): SubtaskRecord | undefined {
+  for (const mission of missions.values()) {
+    for (const subtask of mission.subtasks.values()) {
+      if (subtask.childSessionKey === childSessionKey) {
+        return subtask;
+      }
+    }
+  }
+  return undefined;
+}
