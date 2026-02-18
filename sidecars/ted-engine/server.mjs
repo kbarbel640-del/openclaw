@@ -76,6 +76,44 @@ function clearGraphLastError(profileId) {
   graphLastErrorByProfile.delete(profileId);
 }
 
+function getTokenAccessToken(tokenRecord) {
+  if (!tokenRecord || typeof tokenRecord !== "object") {
+    return null;
+  }
+  const accessToken =
+    typeof tokenRecord.access_token === "string" ? tokenRecord.access_token.trim() : "";
+  return accessToken || null;
+}
+
+function getTokenExpiryMs(tokenRecord) {
+  if (!tokenRecord || typeof tokenRecord !== "object") {
+    return null;
+  }
+  const issuedAt = Number(tokenRecord.stored_at_ms || tokenRecord.issued_at_ms || 0);
+  const expiresInSec = Number(tokenRecord.expires_in || 0);
+  if (
+    !Number.isFinite(issuedAt) ||
+    issuedAt <= 0 ||
+    !Number.isFinite(expiresInSec) ||
+    expiresInSec <= 0
+  ) {
+    return null;
+  }
+  return issuedAt + expiresInSec * 1000;
+}
+
+function hasUsableAccessToken(tokenRecord) {
+  const token = getTokenAccessToken(tokenRecord);
+  if (!token) {
+    return false;
+  }
+  const expiryMs = getTokenExpiryMs(tokenRecord);
+  if (!expiryMs) {
+    return true;
+  }
+  return expiryMs > Date.now();
+}
+
 function isExampleGraphProfile(profile) {
   return (
     profile.tenant_id === "11111111-1111-1111-1111-111111111111" ||
@@ -130,8 +168,8 @@ function buildGraphStatusPayload(profileId) {
       ? profile.delegated_scopes.filter((scope) => typeof scope === "string")
       : [];
   const tokenRecord = getTokenRecord(profileId);
-  const authState = tokenRecord ? "CONNECTED" : "DISCONNECTED";
-  const authStore = tokenRecord ? getAuthStoreLabel(profileId) : "NONE";
+  const authState = hasUsableAccessToken(tokenRecord) ? "CONNECTED" : "DISCONNECTED";
+  const authStore = getAuthStoreLabel(profileId);
   return {
     profile_id: profileId,
     configured,
@@ -143,6 +181,109 @@ function buildGraphStatusPayload(profileId) {
     next_action: authState === "CONNECTED" ? "NONE" : "RUN_DEVICE_CODE_AUTH",
     last_error: graphLastErrorByProfile.get(profileId) || null,
   };
+}
+
+function toRecipientList(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items
+    .filter((v) => typeof v === "string")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0)
+    .map((address) => ({ emailAddress: { address } }));
+}
+
+async function createGraphDraft(profileId, req, res, route) {
+  const cfg = getGraphProfileConfig(profileId);
+  if (!cfg.ok) {
+    setGraphLastError(profileId, cfg.error);
+    sendJson(res, cfg.status, { profile_id: profileId, error: cfg.error });
+    logLine(`POST ${route} -> ${cfg.status}`);
+    return;
+  }
+
+  const tokenRecord = getTokenRecord(profileId);
+  if (!hasUsableAccessToken(tokenRecord)) {
+    setGraphLastError(profileId, "NOT_AUTHENTICATED");
+    sendJson(res, 409, { error: "NOT_AUTHENTICATED", next_action: "RUN_DEVICE_CODE_AUTH" });
+    logLine(`POST ${route} -> 409`);
+    return;
+  }
+
+  const body = await readJsonBody(req).catch(() => null);
+  if (!body || typeof body !== "object") {
+    setGraphLastError(profileId, "invalid_json_body");
+    sendJson(res, 400, { profile_id: profileId, error: "invalid_json_body" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const subject = typeof body.subject === "string" ? body.subject.trim() : "";
+  const toRecipients = toRecipientList(body.to);
+  const ccRecipients = toRecipientList(body.cc);
+  const bccRecipients = toRecipientList(body.bcc);
+  if (!subject || toRecipients.length === 0) {
+    setGraphLastError(profileId, "invalid_draft_payload");
+    sendJson(res, 400, { profile_id: profileId, error: "invalid_draft_payload" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const bodyText = typeof body.body_text === "string" ? body.body_text : "";
+  const bodyHtml = typeof body.body_html === "string" ? body.body_html : "";
+  const graphBody = {
+    contentType: bodyHtml ? "HTML" : "Text",
+    content: bodyHtml || bodyText || "",
+  };
+
+  const accessToken = getTokenAccessToken(tokenRecord);
+  const graphReq = {
+    subject,
+    toRecipients,
+    ccRecipients,
+    bccRecipients,
+    body: graphBody,
+  };
+
+  try {
+    const response = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(graphReq),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 401 || response.status === 403) {
+      setGraphLastError(profileId, "NOT_AUTHENTICATED");
+      sendJson(res, 409, { error: "NOT_AUTHENTICATED", next_action: "RUN_DEVICE_CODE_AUTH" });
+      logLine(`POST ${route} -> 409`);
+      return;
+    }
+    if (!response.ok) {
+      const code =
+        typeof payload?.error?.code === "string" ? payload.error.code : "graph_draft_create_failed";
+      setGraphLastError(profileId, code);
+      sendJson(res, 502, { profile_id: profileId, error: code });
+      logLine(`POST ${route} -> 502`);
+      return;
+    }
+    clearGraphLastError(profileId);
+    sendJson(res, 200, {
+      profile_id: profileId,
+      draft_created: true,
+      message_id: typeof payload.id === "string" ? payload.id : null,
+      web_link: typeof payload.webLink === "string" ? payload.webLink : undefined,
+      subject,
+    });
+    logLine(`POST ${route} -> 200`);
+  } catch {
+    setGraphLastError(profileId, "graph_draft_network_error");
+    sendJson(res, 502, { profile_id: profileId, error: "graph_draft_network_error" });
+    logLine(`POST ${route} -> 502`);
+  }
 }
 
 async function readJsonBody(req) {
@@ -294,7 +435,11 @@ async function pollGraphDeviceCode(profileId, req, res, route) {
     const payload = await response.json().catch(() => ({}));
 
     if (response.ok) {
-      const stored = storeTokenRecord(profileId, payload);
+      const tokenRecord = {
+        ...payload,
+        stored_at_ms: Date.now(),
+      };
+      const stored = storeTokenRecord(profileId, tokenRecord);
       if (!stored) {
         setGraphLastError(profileId, "token_store_failed");
         sendJson(res, 500, { profile_id: profileId, error: "token_store_failed" });
@@ -393,6 +538,13 @@ const server = http.createServer(async (req, res) => {
     clearGraphLastError(profileId);
     sendJson(res, 200, { profile_id: profileId, revoked: true });
     logLine(`${method} ${route} -> 200`);
+    return;
+  }
+
+  const graphDraftCreateMatch = route.match(/^\/graph\/([^/]+)\/mail\/draft\/create$/);
+  if (method === "POST" && graphDraftCreateMatch) {
+    const profileId = decodeURIComponent(graphDraftCreateMatch[1] || "").trim();
+    await createGraphDraft(profileId, req, res, route);
     return;
   }
 

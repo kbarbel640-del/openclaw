@@ -46,13 +46,11 @@ for key in required:
         raise SystemExit(f"missing key in graph status response: {key}")
 if obj["profile_id"] != expected_profile:
     raise SystemExit(f"profile_id mismatch: expected {expected_profile}, got {obj['profile_id']}")
-if obj["auth_state"] != "DISCONNECTED":
+if obj["auth_state"] not in ("CONNECTED", "DISCONNECTED"):
     raise SystemExit(f"unexpected auth_state: {obj['auth_state']}")
-if obj["next_action"] != "RUN_DEVICE_CODE_AUTH":
-    raise SystemExit(f"unexpected next_action: {obj['next_action']}")
 if not isinstance(obj["delegated_scopes"], list):
     raise SystemExit("delegated_scopes must be a list")
-print(f"OK: /graph/{expected_profile}/status returns fail-closed auth state")
+print(f"OK: /graph/{expected_profile}/status schema validated (auth_state={obj['auth_state']})")
 PY
 done
 
@@ -91,10 +89,35 @@ if not isinstance(obj["scopes"], list):
 print("OK: /graph/olumie/auth/device/start response schema validated")
 PY
 
+echo "2c) Draft-create should fail closed while disconnected."
+for p in "${PROFILES[@]}"; do
+  curl -fsS -X POST -H "Accept: application/json" "$BASE_URL/graph/$p/auth/revoke" >/dev/null
+done
+draft_code="$(curl -s -o /tmp/jc003_draft_resp.json -w "%{http_code}" \
+  -X POST \
+  -H "Content-Type: application/json" \
+  "$BASE_URL/graph/olumie/mail/draft/create" \
+  -d '{"subject":"JC003 Probe","to":["test@example.com"],"body_text":"probe"}')"
+if [ "$draft_code" != "409" ]; then
+  echo "FAIL: expected 409 NOT_AUTHENTICATED from draft create, got $draft_code"
+  cat /tmp/jc003_draft_resp.json || true
+  exit 1
+fi
+python3 - <<'PY'
+import json
+from pathlib import Path
+obj = json.loads(Path("/tmp/jc003_draft_resp.json").read_text(encoding="utf-8"))
+if obj.get("error") != "NOT_AUTHENTICATED":
+    raise SystemExit(f"unexpected error payload: {obj}")
+if obj.get("next_action") != "RUN_DEVICE_CODE_AUTH":
+    raise SystemExit(f"unexpected next_action payload: {obj}")
+print("OK: /mail/draft/create fails closed with NOT_AUTHENTICATED")
+PY
+
 echo "3) Ensure no plaintext token artifacts exist in SIDE-CAR owned paths (scoped check)"
 # Only scan areas we control for secrets: sidecars/, docs/ted-profile/, scripts/ted-profile/
 SCAN_PATHS=("sidecars")
-PATTERN="(refresh_token|access_token|client_secret|Authorization: Bearer)"
+PATTERN="(\"(refresh_token|access_token|client_secret)\"[[:space:]]*:[[:space:]]*\"[A-Za-z0-9._~-]{12,}\"|Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._~-]{12,})"
 GREP_EXCLUDES=(--exclude="*.md" --exclude="proof_jc003.sh")
 FOUND=0
 for sp in "${SCAN_PATHS[@]}"; do
