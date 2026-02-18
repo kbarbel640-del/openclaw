@@ -24,7 +24,10 @@ const ALLOWED_TRANSITIONS: Set<string> = new Set([
 
 const TRIGGER_MAP: Map<string, Set<TransitionTrigger>> = new Map([
   ["green:blue", new Set<TransitionTrigger>(["human_approve"])],
-  ["green:red", new Set<TransitionTrigger>(["human_reject", "staleness_timeout", "constraint_violation"])],
+  [
+    "green:red",
+    new Set<TransitionTrigger>(["human_reject", "staleness_timeout", "constraint_violation"]),
+  ],
   ["blue:red", new Set<TransitionTrigger>(["human_reject"])],
   ["red:blue", new Set<TransitionTrigger>(["human_resolve"])],
 ]);

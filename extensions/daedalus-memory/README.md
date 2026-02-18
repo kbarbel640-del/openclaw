@@ -16,11 +16,11 @@ sessions.
 
 Based on the DAEDALUS dual-memory architecture and tri-color trust model:
 
-| Trust Level | Tag | Meaning | In Search Results? |
-|------------|-----|---------|-------------------|
-| Blue | [VERIFIED] | Human-approved | Yes (default) |
-| Green | [SUGGESTED] | AI-proposed, pending review | Yes (default) |
-| Red | [QUARANTINED] | Rejected or flagged | No (unless explicitly requested) |
+| Trust Level | Tag           | Meaning                     | In Search Results?               |
+| ----------- | ------------- | --------------------------- | -------------------------------- |
+| Blue        | [VERIFIED]    | Human-approved              | Yes (default)                    |
+| Green       | [SUGGESTED]   | AI-proposed, pending review | Yes (default)                    |
+| Red         | [QUARANTINED] | Rejected or flagged         | No (unless explicitly requested) |
 
 **The core invariant:** AI agents can propose facts but never auto-commit
 to verified knowledge. Green to Blue requires explicit human action.
@@ -78,13 +78,13 @@ openclaw daedalus stale --days 7       # Flag old suggestions
 
 In `openclaw.json` under `plugins.daedalus-memory`:
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `staleness_days` | number | `7` | Days before unreviewed green facts are flagged red |
-| `show_trust_tags` | boolean | `true` | Include [VERIFIED]/[SUGGESTED] tags in auto-recall |
-| `data_dir` | string | `"daedalus-memory"` | Database directory (relative to OpenClaw data) |
-| `autoCapture` | boolean | `false` | Auto-extract facts from conversations |
-| `autoRecall` | boolean | `true` | Auto-inject relevant memories into context |
+| Field             | Type    | Default             | Description                                        |
+| ----------------- | ------- | ------------------- | -------------------------------------------------- |
+| `staleness_days`  | number  | `7`                 | Days before unreviewed green facts are flagged red |
+| `show_trust_tags` | boolean | `true`              | Include [VERIFIED]/[SUGGESTED] tags in auto-recall |
+| `data_dir`        | string  | `"daedalus-memory"` | Database directory (relative to OpenClaw data)     |
+| `autoCapture`     | boolean | `false`             | Auto-extract facts from conversations              |
+| `autoRecall`      | boolean | `true`              | Auto-inject relevant memories into context         |
 
 ## Validation Rules
 

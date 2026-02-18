@@ -7,13 +7,12 @@
 
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-
+import { registerDaedalusMemoryCli } from "./commands.js";
 import { createDaedalusDb } from "./db.js";
 import type { FactInput } from "./db.js";
+import { formatRelevantMemoriesContext, formatSearchResultsForTool } from "./retrieval.js";
 import { validateFact, formatViolations } from "./validator.js";
 import type { FactLookup } from "./validator.js";
-import { formatRelevantMemoriesContext, formatSearchResultsForTool } from "./retrieval.js";
-import { registerDaedalusMemoryCli } from "./commands.js";
 
 // ============================================================================
 // Config
@@ -29,9 +28,7 @@ interface DaedalusConfig {
 
 function parseConfig(raw: unknown): DaedalusConfig {
   const cfg =
-    raw && typeof raw === "object" && !Array.isArray(raw)
-      ? (raw as Record<string, unknown>)
-      : {};
+    raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
 
   return {
     staleness_days: typeof cfg.staleness_days === "number" ? cfg.staleness_days : 7,
@@ -231,7 +228,12 @@ const daedalusMemoryPlugin = {
           }
           if (existing.trust_level === "blue") {
             return {
-              content: [{ type: "text" as const, text: `Fact ${params.id} is [VERIFIED] (human-approved). Only the user can demote verified facts via 'daedalus reject ${params.id}'.` }],
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Fact ${params.id} is [VERIFIED] (human-approved). Only the user can demote verified facts via 'daedalus reject ${params.id}'.`,
+                },
+              ],
               details: { id: params.id, trust_level: "blue", protected: true },
             };
           }
@@ -291,9 +293,7 @@ const daedalusMemoryPlugin = {
               text = content
                 .filter(
                   (b): b is Record<string, unknown> =>
-                    !!b &&
-                    typeof b === "object" &&
-                    (b as Record<string, unknown>).type === "text",
+                    !!b && typeof b === "object" && (b as Record<string, unknown>).type === "text",
                 )
                 .map((b) => b.text as string)
                 .join(" ");
@@ -330,9 +330,7 @@ const daedalusMemoryPlugin = {
             }
           }
           if (captured > 0) {
-            api.logger.info(
-              `daedalus-memory: auto-captured ${captured} fact(s) from conversation`,
-            );
+            api.logger.info(`daedalus-memory: auto-captured ${captured} fact(s) from conversation`);
           }
         } catch (err) {
           api.logger.warn(`daedalus-memory: auto-capture failed: ${String(err)}`);

@@ -7,8 +7,8 @@
 
 import type { Command } from "commander";
 import type { DaedalusDb } from "./db.js";
-import type { TrustLevel } from "./trust.js";
 import { formatFactDetail, formatSearchResultsForTool } from "./retrieval.js";
+import type { TrustLevel } from "./trust.js";
 
 interface Logger {
   info: (message: string) => void;
@@ -24,9 +24,7 @@ export function registerDaedalusMemoryCli(params: {
 }): void {
   const { program, db, logger } = params;
 
-  const root = program
-    .command("daedalus")
-    .description("DAEDALUS trust-scored memory commands");
+  const root = program.command("daedalus").description("DAEDALUS trust-scored memory commands");
 
   // -- pending ---------------------------------------------------------------
 
@@ -45,9 +43,7 @@ export function registerDaedalusMemoryCli(params: {
         }
 
         for (const fact of facts) {
-          const ageDays = Math.floor(
-            (Date.now() - Date.parse(fact.created_at)) / 86_400_000,
-          );
+          const ageDays = Math.floor((Date.now() - Date.parse(fact.created_at)) / 86_400_000);
           console.log(`[${fact.id}] (age: ${ageDays} days) ${fact.fact_text}`);
         }
       } catch (err) {

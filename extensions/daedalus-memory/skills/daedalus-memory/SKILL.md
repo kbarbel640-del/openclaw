@@ -1,7 +1,7 @@
 ---
 name: daedalus-memory
 description: Trust-scored memory with blue/green/red provenance tracking
-metadata: {"openclaw":{"emoji":"\ud83e\udde0","always":false}}
+metadata: { "openclaw": { "emoji": "\ud83e\udde0", "always": false } }
 ---
 
 # DAEDALUS Memory
@@ -31,6 +31,7 @@ Store a fact as a subject-predicate-object triple with a human-readable descript
 All facts you store enter as [SUGGESTED]. The user will review them.
 
 Parameters:
+
 - `subject` — Who or what the fact is about (e.g., "Cristian")
 - `predicate` — The relationship (e.g., "works_at", "prefers", "lives_in")
 - `object` — The value (e.g., "Mercedes-Benz", "Python", "Stuttgart")
@@ -45,25 +46,27 @@ Does not permanently delete; preserves the audit trail.
 
 The user has these commands available (you don't call these — the user does):
 
-| Command | What it does |
-|---------|-------------|
-| `daedalus pending` | List all [SUGGESTED] facts awaiting review |
-| `daedalus approve <id>` | Promote a fact to [VERIFIED] |
-| `daedalus reject <id>` | Move a fact to [QUARANTINED] |
-| `daedalus resolve <id>` | Restore a [QUARANTINED] fact to [VERIFIED] |
-| `daedalus info <id>` | Show full detail and trust history for a fact |
-| `daedalus stats` | Show count of facts by trust level |
-| `daedalus search <query>` | Search facts (supports `--trust` filter) |
-| `daedalus stale` | Flag old [SUGGESTED] facts as [QUARANTINED] |
+| Command                   | What it does                                  |
+| ------------------------- | --------------------------------------------- |
+| `daedalus pending`        | List all [SUGGESTED] facts awaiting review    |
+| `daedalus approve <id>`   | Promote a fact to [VERIFIED]                  |
+| `daedalus reject <id>`    | Move a fact to [QUARANTINED]                  |
+| `daedalus resolve <id>`   | Restore a [QUARANTINED] fact to [VERIFIED]    |
+| `daedalus info <id>`      | Show full detail and trust history for a fact |
+| `daedalus stats`          | Show count of facts by trust level            |
+| `daedalus search <query>` | Search facts (supports `--trust` filter)      |
+| `daedalus stale`          | Flag old [SUGGESTED] facts as [QUARANTINED]   |
 
 ## When to Store Information
 
 Store a fact when:
+
 - The user shares personal information (name, preferences, work details)
 - The user makes a decision or states a preference
 - Important project context is established
 
 Do NOT store:
+
 - Transient conversation details
 - Speculative or uncertain information
 - Information the user explicitly asks you not to remember
@@ -73,6 +76,7 @@ When in doubt, ask the user before storing.
 ## References
 
 This memory system implements concepts from:
+
 - Tri-Color Trust Model (doi:10.5281/zenodo.18510367)
 - Dual-Memory Architecture with Trust Gradients (doi:10.5281/zenodo.18507663)
 - ARIADNE Working Memory Specification (doi:10.5281/zenodo.18506520)

@@ -82,8 +82,6 @@ export function validateFact(
 export function formatViolations(violations: ValidationViolation[]): string {
   if (violations.length === 0) return "Validation passed";
 
-  const lines = violations.map(
-    (v) => `  \u2717 [${v.rule}] ${v.message}`,
-  );
+  const lines = violations.map((v) => `  \u2717 [${v.rule}] ${v.message}`);
   return `Validation failed:\n${lines.join("\n")}`;
 }

@@ -8,7 +8,6 @@
 import { createRequire } from "node:module";
 import type { DatabaseSync } from "node:sqlite";
 import { v4 as uuidv4 } from "uuid";
-
 import {
   type TrustLevel,
   type Origin,
@@ -269,7 +268,7 @@ export class DaedalusDb {
 
   /** Searches facts by keyword relevance, excluding red facts by default. */
   searchFacts(query: string, options?: SearchOptions): SearchResult[] {
-    const trustLevels = options?.trust_levels ?? ["blue", "green"] as TrustLevel[];
+    const trustLevels = options?.trust_levels ?? (["blue", "green"] as TrustLevel[]);
     const limit = options?.limit ?? 5;
     return this.scoredSearch(query, trustLevels, limit);
   }
@@ -284,13 +283,15 @@ export class DaedalusDb {
     const stmt = this.db.prepare(sql);
     const rows = stmt.all(...trustLevels) as unknown as Fact[];
 
-    const keywords = [...new Set(
-      query
-        .toLowerCase()
-        .split(/\s+/)
-        .map((k) => k.trim())
-        .filter((k) => k.length > 0),
-    )];
+    const keywords = [
+      ...new Set(
+        query
+          .toLowerCase()
+          .split(/\s+/)
+          .map((k) => k.trim())
+          .filter((k) => k.length > 0),
+      ),
+    ];
 
     const scored: SearchResult[] = [];
 
@@ -360,9 +361,7 @@ export class DaedalusDb {
       );
       stmt.run(to, now, now, id);
     } else {
-      const stmt = this.db.prepare(
-        "UPDATE facts SET trust_level = ?, updated_at = ? WHERE id = ?",
-      );
+      const stmt = this.db.prepare("UPDATE facts SET trust_level = ?, updated_at = ? WHERE id = ?");
       stmt.run(to, now, id);
     }
 
