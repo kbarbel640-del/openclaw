@@ -65,10 +65,7 @@ export function resolveSubagentToolPolicy(cfg?: OpenClawConfig): SandboxToolPoli
   const baseDeny = recursiveEnabled
     ? [...SUBAGENT_TOOL_DENY_ALWAYS]
     : [...SUBAGENT_TOOL_DENY_ALWAYS, ...SUBAGENT_TOOL_DENY_UNLESS_RECURSIVE];
-  const deny = [
-    ...baseDeny,
-    ...(Array.isArray(configured?.deny) ? configured.deny : []),
-  ];
+  const deny = [...baseDeny, ...(Array.isArray(configured?.deny) ? configured.deny : [])];
   const allow = Array.isArray(configured?.allow) ? configured.allow : undefined;
   return { allow, deny };
 }
