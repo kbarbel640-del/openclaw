@@ -27,7 +27,10 @@ import {
 } from "../routing/session-key.js";
 import { isCronRunSessionKey } from "../sessions/session-key-utils.js";
 import { normalizeSessionDeliveryFields } from "../utils/delivery-context.js";
-import { readSessionTitleFieldsFromTranscript } from "./session-utils.fs.js";
+import {
+  readSessionTitleFieldsFromTranscript,
+  searchSessionTranscript as searchSessionTranscriptFs,
+} from "./session-utils.fs.js";
 import type {
   GatewayAgentRow,
   GatewaySessionRow,
@@ -45,7 +48,9 @@ export {
   readSessionPreviewItemsFromTranscript,
   readSessionMessages,
   resolveSessionTranscriptCandidates,
+  searchSessionTranscript,
 } from "./session-utils.fs.js";
+export type { SearchMatch } from "./session-utils.fs.js";
 export type {
   GatewayAgentRow,
   GatewaySessionRow,
@@ -680,6 +685,7 @@ export function listSessionsFromStore(params: {
   const label = typeof opts.label === "string" ? opts.label.trim() : "";
   const agentId = typeof opts.agentId === "string" ? normalizeAgentId(opts.agentId) : "";
   const search = typeof opts.search === "string" ? opts.search.trim().toLowerCase() : "";
+  const searchContent = opts.searchContent === true;
   const activeMinutes =
     typeof opts.activeMinutes === "number" && Number.isFinite(opts.activeMinutes)
       ? Math.max(1, Math.floor(opts.activeMinutes))
@@ -796,7 +802,17 @@ export function listSessionsFromStore(params: {
   if (search) {
     sessions = sessions.filter((s) => {
       const fields = [s.displayName, s.label, s.subject, s.sessionId, s.key];
-      return fields.some((f) => typeof f === "string" && f.toLowerCase().includes(search));
+      const metadataMatch = fields.some(
+        (f) => typeof f === "string" && f.toLowerCase().includes(search),
+      );
+      if (metadataMatch) {
+        return true;
+      }
+      if (searchContent && s.sessionId) {
+        const matches = searchSessionTranscriptFs(s.sessionId, storePath, search, { limit: 1 });
+        return matches.length > 0;
+      }
+      return false;
     });
   }
 
