@@ -115,11 +115,10 @@ export function buildReplyPayloads(params: {
   const filteredPayloads = shouldDropFinalPayloads
     ? []
     : params.blockStreamingEnabled
-      ? mediaFilteredPayloads.filter(
-          (payload) =>
-            params.blockReplyPipeline?.isAborted()
-              ? !params.blockReplyPipeline.hasEnqueuedPayload(payload)
-              : !params.blockReplyPipeline?.hasSentPayload(payload),
+      ? mediaFilteredPayloads.filter((payload) =>
+          params.blockReplyPipeline?.isAborted()
+            ? !params.blockReplyPipeline.hasEnqueuedPayload(payload)
+            : !params.blockReplyPipeline?.hasSentPayload(payload),
         )
       : params.directlySentBlockKeys?.size
         ? mediaFilteredPayloads.filter(
