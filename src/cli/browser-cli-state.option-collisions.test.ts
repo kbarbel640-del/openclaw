@@ -65,7 +65,7 @@ describe("browser state option collisions", () => {
     expect(request.body?.targetId).toBe("tab-1");
   });
 
-  it("accepts legacy `browser set headers --json <payload>` via positional fallback", async () => {
+  it("accepts legacy parent `--json` by parsing payload via positional headers fallback", async () => {
     const program = new Command();
     const browser = program
       .command("browser")

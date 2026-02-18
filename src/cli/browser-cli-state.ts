@@ -116,7 +116,7 @@ export function registerBrowserStateCommands(
         }
         const parsed = JSON.parse(String(headersJsonValue)) as unknown;
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          throw new Error("headers json must be an object");
+          throw new Error("Headers JSON must be a JSON object");
         }
         const headers: Record<string, string> = {};
         for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {

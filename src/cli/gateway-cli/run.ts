@@ -1,7 +1,8 @@
+import type { Command } from "commander";
 import fs from "node:fs";
 import path from "node:path";
-import type { Command } from "commander";
 import type { GatewayAuthMode } from "../../config/config.js";
+import type { GatewayWsLogStyle } from "../../gateway/ws-logging.js";
 import {
   CONFIG_PATH,
   loadConfig,
@@ -11,7 +12,6 @@ import {
 } from "../../config/config.js";
 import { resolveGatewayAuth } from "../../gateway/auth.js";
 import { startGatewayServer } from "../../gateway/server.js";
-import type { GatewayWsLogStyle } from "../../gateway/ws-logging.js";
 import { setGatewayWsLogStyle } from "../../gateway/ws-logging.js";
 import { setVerbose } from "../../globals.js";
 import { GatewayLockError } from "../../infra/gateway-lock.js";
@@ -54,47 +54,48 @@ type GatewayRunOpts = {
 
 const gatewayLog = createSubsystemLogger("gateway");
 
+const GATEWAY_RUN_VALUE_KEYS = [
+  "port",
+  "bind",
+  "token",
+  "auth",
+  "password",
+  "tailscale",
+  "wsLog",
+  "rawStreamPath",
+] as const;
+
+const GATEWAY_RUN_BOOLEAN_KEYS = [
+  "tailscaleResetOnExit",
+  "allowUnconfigured",
+  "dev",
+  "reset",
+  "force",
+  "verbose",
+  "claudeCliLogs",
+  "compact",
+  "rawStream",
+] as const;
+
 function resolveGatewayRunOptions(opts: GatewayRunOpts, command?: Command): GatewayRunOpts {
-  const parentPort = inheritOptionFromParent<string>(command, "port");
-  const parentBind = inheritOptionFromParent<string>(command, "bind");
-  const parentToken = inheritOptionFromParent<string>(command, "token");
-  const parentAuth = inheritOptionFromParent<string>(command, "auth");
-  const parentPassword = inheritOptionFromParent<string>(command, "password");
-  const parentTailscale = inheritOptionFromParent<string>(command, "tailscale");
-  const parentTailscaleResetOnExit = inheritOptionFromParent<boolean>(
-    command,
-    "tailscaleResetOnExit",
-  );
-  const parentAllowUnconfigured = inheritOptionFromParent<boolean>(command, "allowUnconfigured");
-  const parentDev = inheritOptionFromParent<boolean>(command, "dev");
-  const parentReset = inheritOptionFromParent<boolean>(command, "reset");
-  const parentForce = inheritOptionFromParent<boolean>(command, "force");
-  const parentVerbose = inheritOptionFromParent<boolean>(command, "verbose");
-  const parentClaudeCliLogs = inheritOptionFromParent<boolean>(command, "claudeCliLogs");
-  const parentWsLog = inheritOptionFromParent<string>(command, "wsLog");
-  const parentCompact = inheritOptionFromParent<boolean>(command, "compact");
-  const parentRawStream = inheritOptionFromParent<boolean>(command, "rawStream");
-  const parentRawStreamPath = inheritOptionFromParent<string>(command, "rawStreamPath");
-  return {
-    ...opts,
-    port: opts.port ?? parentPort,
-    bind: opts.bind ?? parentBind,
-    token: opts.token ?? parentToken,
-    auth: opts.auth ?? parentAuth,
-    password: opts.password ?? parentPassword,
-    tailscale: opts.tailscale ?? parentTailscale,
-    tailscaleResetOnExit: Boolean(opts.tailscaleResetOnExit || parentTailscaleResetOnExit),
-    allowUnconfigured: Boolean(opts.allowUnconfigured || parentAllowUnconfigured),
-    dev: Boolean(opts.dev || parentDev),
-    reset: Boolean(opts.reset || parentReset),
-    force: Boolean(opts.force || parentForce),
-    verbose: Boolean(opts.verbose || parentVerbose),
-    claudeCliLogs: Boolean(opts.claudeCliLogs || parentClaudeCliLogs),
-    wsLog: parentWsLog ?? opts.wsLog,
-    compact: Boolean(opts.compact || parentCompact),
-    rawStream: Boolean(opts.rawStream || parentRawStream),
-    rawStreamPath: opts.rawStreamPath ?? parentRawStreamPath,
-  };
+  const resolved: GatewayRunOpts = { ...opts };
+
+  for (const key of GATEWAY_RUN_VALUE_KEYS) {
+    const inherited = inheritOptionFromParent(command, key);
+    if (key === "wsLog") {
+      // wsLog has a child default ("auto"), so prefer inherited parent CLI value when present.
+      resolved[key] = inherited ?? resolved[key];
+      continue;
+    }
+    resolved[key] = resolved[key] ?? inherited;
+  }
+
+  for (const key of GATEWAY_RUN_BOOLEAN_KEYS) {
+    const inherited = inheritOptionFromParent<boolean>(command, key);
+    resolved[key] = Boolean(resolved[key] || inherited);
+  }
+
+  return resolved;
 }
 
 async function runGatewayCommand(opts: GatewayRunOpts) {
