@@ -7,6 +7,7 @@ import {
   isMessagingToolDuplicateNormalized,
   normalizeTextForComparison,
 } from "./pi-embedded-helpers.js";
+import { hasToolCall } from "../utils/transcript-tools.js";
 import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
 import { appendRawStream } from "./pi-embedded-subscribe.raw-stream.js";
 import {
@@ -281,6 +282,14 @@ export function handleMessageEnd(
       },
     });
     ctx.state.emittedAssistantUpdate = true;
+  }
+
+  // #20005: When the assistant message contains tool calls, any text blocks are
+  // "narration" (e.g., "Let me search for that...") and should NOT be delivered
+  // to the user. Clear text added during this message before finalizing.
+  const messageHasToolCalls = hasToolCall(assistantMessage as Record<string, unknown>);
+  if (messageHasToolCalls && ctx.state.assistantTexts.length > ctx.state.assistantTextBaseline) {
+    ctx.state.assistantTexts.splice(ctx.state.assistantTextBaseline);
   }
 
   const addedDuringMessage = ctx.state.assistantTexts.length > ctx.state.assistantTextBaseline;
