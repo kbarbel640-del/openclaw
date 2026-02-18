@@ -231,11 +231,6 @@ export async function startGatewayServer(
   const cfgAtStart = loadConfig();
 
   initializeOptimizer({
-    cache: {
-      enabled: true,
-      ttl: 3600000,
-      maxSize: 1000,
-    },
     pool: {
       maxConnectionsPerHost: 50,
       keepAlive: true,

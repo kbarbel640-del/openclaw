@@ -32,18 +32,6 @@ export type HeartbeatStatus = {
 };
 
 export type OptimizerStats = {
-  cache: {
-    hits: number;
-    misses: number;
-    evictions: number;
-    stampedePrevented: number;
-    skippedForTools: number;
-    hitRate: string;
-    size: number;
-    maxSize: number;
-    byteSize: number;
-    maxByteSize: number;
-  };
   pool: {
     httpRequestsServed: number;
     httpConnectionsReused: number;

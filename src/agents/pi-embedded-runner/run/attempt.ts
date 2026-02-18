@@ -7,7 +7,6 @@ import { createAgentSession, SessionManager, SettingsManager } from "@mariozechn
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
-import { getOptimizer } from "../../../infra/optimizer/index.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
 import {
@@ -644,13 +643,6 @@ export async function runEmbeddedAttempt(
       }
       if (anthropicPayloadLogger) {
         activeSession.agent.streamFn = anthropicPayloadLogger.wrapStreamFn(
-          activeSession.agent.streamFn,
-        );
-      }
-
-      const optimizer = getOptimizer();
-      if (optimizer?.streamCache) {
-        activeSession.agent.streamFn = optimizer.streamCache.wrapStreamFn(
           activeSession.agent.streamFn,
         );
       }
