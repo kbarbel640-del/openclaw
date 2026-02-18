@@ -159,6 +159,18 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "agent.identity.get",
+                    family: MethodFamily::Agent,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "agent.wait",
+                    family: MethodFamily::Agent,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "skills.status",
                     family: MethodFamily::Gateway,
                     requires_auth: true,
@@ -456,6 +468,7 @@ pub struct RpcDispatcher {
     talk: TalkRegistry,
     models: ModelRegistry,
     agents: AgentRegistry,
+    agent_runs: AgentRunRegistry,
     skills: SkillsRegistry,
     cron: CronRegistry,
     config: ConfigRegistry,
@@ -518,6 +531,8 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "agents.files.list",
     "agents.files.get",
     "agents.files.set",
+    "agent.identity.get",
+    "agent.wait",
     "skills.status",
     "skills.bins",
     "skills.install",
@@ -572,6 +587,7 @@ impl RpcDispatcher {
             talk: TalkRegistry::new(),
             models: ModelRegistry::new(),
             agents: AgentRegistry::new(),
+            agent_runs: AgentRunRegistry::new(),
             skills: SkillsRegistry::new(),
             cron: CronRegistry::new(),
             config: ConfigRegistry::new(),
@@ -603,6 +619,8 @@ impl RpcDispatcher {
             "agents.files.list" => self.handle_agents_files_list(req).await,
             "agents.files.get" => self.handle_agents_files_get(req).await,
             "agents.files.set" => self.handle_agents_files_set(req).await,
+            "agent.identity.get" => self.handle_agent_identity_get(req).await,
+            "agent.wait" => self.handle_agent_wait(req).await,
             "skills.status" => self.handle_skills_status(req).await,
             "skills.bins" => self.handle_skills_bins(req).await,
             "skills.install" => self.handle_skills_install(req).await,
@@ -1041,6 +1059,81 @@ impl RpcDispatcher {
             "agentId": agent_id,
             "workspace": workspace,
             "file": file
+        }))
+    }
+
+    async fn handle_agent_identity_get(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<AgentIdentityParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid agent.identity.get params: {err}"
+                ));
+            }
+        };
+        let explicit_agent_id = params
+            .agent_id
+            .and_then(|value| normalize_optional_text(Some(value), 64))
+            .map(|value| normalize_agent_id(&value));
+        let session_agent_id = match params
+            .session_key
+            .and_then(|value| normalize_optional_text(Some(value), 512))
+        {
+            Some(session_key) => match resolve_agent_id_from_session_key_input(&session_key) {
+                Ok(agent_id) => Some(agent_id),
+                Err(err) => return RpcDispatchOutcome::bad_request(err),
+            },
+            None => None,
+        };
+        if let (Some(explicit), Some(from_session)) = (&explicit_agent_id, &session_agent_id) {
+            if !explicit.eq_ignore_ascii_case(from_session) {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid agent.identity.get params: agent \"{explicit}\" does not match session key agent \"{from_session}\""
+                ));
+            }
+        }
+        let identity = match self
+            .agents
+            .identity(explicit_agent_id.or(session_agent_id))
+            .await
+        {
+            Ok(value) => value,
+            Err(err) => return RpcDispatchOutcome::bad_request(err),
+        };
+        RpcDispatchOutcome::Handled(json!(identity))
+    }
+
+    async fn handle_agent_wait(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<AgentWaitParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid agent.wait params: {err}"
+                ));
+            }
+        };
+        let run_id = match normalize_optional_text(Some(params.run_id), 256) {
+            Some(value) => value,
+            None => {
+                return RpcDispatchOutcome::bad_request(
+                    "invalid agent.wait params: runId is required",
+                );
+            }
+        };
+        let timeout_ms = params.timeout_ms.unwrap_or(30_000);
+        let snapshot = self.agent_runs.wait(&run_id, timeout_ms).await;
+        if let Some(snapshot) = snapshot {
+            return RpcDispatchOutcome::Handled(json!({
+                "runId": run_id,
+                "status": snapshot.status,
+                "startedAt": snapshot.started_at,
+                "endedAt": snapshot.ended_at,
+                "error": snapshot.error
+            }));
+        }
+        RpcDispatchOutcome::Handled(json!({
+            "runId": run_id,
+            "status": "timeout"
         }))
     }
 
@@ -2420,6 +2513,13 @@ impl RpcDispatcher {
                 account_id: normalize_optional_text(params.account_id, 128),
             })
             .await;
+        if let Some(run_id) = recorded
+            .request_id
+            .clone()
+            .and_then(|value| normalize_optional_text(Some(value), 256))
+        {
+            self.agent_runs.complete_ok(run_id).await;
+        }
         RpcDispatchOutcome::Handled(json!({
             "accepted": true,
             "session": session,
@@ -3008,6 +3108,49 @@ impl AgentRegistry {
             .map(|entry| entry.workspace.clone())
     }
 
+    async fn identity(&self, requested_agent_id: Option<String>) -> Result<Value, String> {
+        let agent_id = requested_agent_id
+            .map(|value| normalize_agent_id(&value))
+            .unwrap_or_else(|| DEFAULT_AGENT_ID.to_owned());
+        let guard = self.state.lock().await;
+        let Some(entry) = guard.entries.get(&agent_id) else {
+            return Err(format!(
+                "invalid agent.identity.get params: unknown agent id \"{agent_id}\""
+            ));
+        };
+        let name = entry
+            .identity
+            .as_ref()
+            .and_then(|identity| identity.name.clone())
+            .or_else(|| entry.name.clone());
+        let emoji = entry
+            .identity
+            .as_ref()
+            .and_then(|identity| identity.emoji.clone());
+        let avatar = entry
+            .identity
+            .as_ref()
+            .and_then(|identity| identity.avatar_url.clone())
+            .or_else(|| {
+                entry
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.avatar.clone())
+            });
+        let mut payload = serde_json::Map::new();
+        payload.insert("agentId".to_owned(), Value::String(agent_id));
+        if let Some(name) = name {
+            payload.insert("name".to_owned(), Value::String(name));
+        }
+        if let Some(avatar) = avatar {
+            payload.insert("avatar".to_owned(), Value::String(avatar));
+        }
+        if let Some(emoji) = emoji {
+            payload.insert("emoji".to_owned(), Value::String(emoji));
+        }
+        Ok(Value::Object(payload))
+    }
+
     async fn list(&self) -> AgentListSnapshot {
         let guard = self.state.lock().await;
         let mut ids = guard.entries.keys().cloned().collect::<Vec<_>>();
@@ -3322,6 +3465,113 @@ fn is_valid_agent_id(value: &str) -> bool {
         return false;
     }
     chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+}
+
+fn resolve_agent_id_from_session_key_input(session_key: &str) -> Result<String, String> {
+    let trimmed = session_key.trim();
+    if trimmed.is_empty() {
+        return Ok(DEFAULT_AGENT_ID.to_owned());
+    }
+    let parsed = parse_session_key(trimmed);
+    if normalize(trimmed).starts_with("agent:") {
+        let malformed_agent = parsed
+            .agent_id
+            .as_ref()
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true);
+        let malformed_shape = matches!(parsed.kind, SessionKind::Other)
+            && parsed
+                .scope_id
+                .as_ref()
+                .map(|value| value.trim().is_empty())
+                .unwrap_or(true)
+            && parsed
+                .channel
+                .as_ref()
+                .map(|value| value.trim().is_empty())
+                .unwrap_or(true);
+        if malformed_agent || malformed_shape {
+            return Err(format!(
+                "invalid agent.identity.get params: malformed session key \"{trimmed}\""
+            ));
+        }
+    }
+    Ok(parsed
+        .agent_id
+        .map(|value| normalize_agent_id(&value))
+        .unwrap_or_else(|| DEFAULT_AGENT_ID.to_owned()))
+}
+
+struct AgentRunRegistry {
+    state: Mutex<AgentRunState>,
+}
+
+#[derive(Debug, Clone)]
+struct AgentRunState {
+    entries: HashMap<String, AgentRunSnapshot>,
+}
+
+#[derive(Debug, Clone)]
+struct AgentRunSnapshot {
+    status: String,
+    started_at: u64,
+    ended_at: u64,
+    error: Option<String>,
+}
+
+impl AgentRunRegistry {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(AgentRunState {
+                entries: HashMap::new(),
+            }),
+        }
+    }
+
+    async fn complete_ok(&self, run_id: String) {
+        let now = now_ms();
+        let mut guard = self.state.lock().await;
+        guard.entries.insert(
+            run_id,
+            AgentRunSnapshot {
+                status: "ok".to_owned(),
+                started_at: now,
+                ended_at: now,
+                error: None,
+            },
+        );
+        if guard.entries.len() > 4_096 {
+            let mut oldest_key: Option<String> = None;
+            let mut oldest = u64::MAX;
+            for (entry_key, entry) in &guard.entries {
+                if entry.ended_at < oldest {
+                    oldest = entry.ended_at;
+                    oldest_key = Some(entry_key.clone());
+                }
+            }
+            if let Some(oldest_key) = oldest_key {
+                let _ = guard.entries.remove(&oldest_key);
+            }
+        }
+    }
+
+    async fn wait(&self, run_id: &str, timeout_ms: u64) -> Option<AgentRunSnapshot> {
+        let run_key = run_id.trim();
+        if run_key.is_empty() {
+            return None;
+        }
+        {
+            let guard = self.state.lock().await;
+            if let Some(snapshot) = guard.entries.get(run_key) {
+                return Some(snapshot.clone());
+            }
+        }
+        if timeout_ms == 0 {
+            return None;
+        }
+        let guard = self.state.lock().await;
+        guard.entries.get(run_key).cloned()
+    }
 }
 
 struct CronRegistry {
@@ -6283,6 +6533,24 @@ struct AgentsFilesSetParams {
     agent_id: String,
     name: String,
     content: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct AgentIdentityParams {
+    #[serde(rename = "agentId", alias = "agent_id")]
+    agent_id: Option<String>,
+    #[serde(rename = "sessionKey", alias = "session_key")]
+    session_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentWaitParams {
+    #[serde(rename = "runId", alias = "run_id")]
+    run_id: String,
+    #[serde(rename = "timeoutMs", alias = "timeout_ms")]
+    timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -10406,6 +10674,107 @@ mod tests {
                 }));
             }
             _ => panic!("expected agents.list handled after delete"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_agent_identity_and_wait_methods_follow_parity_contract() {
+        let dispatcher = RpcDispatcher::new();
+
+        let identity_default = RpcRequestFrame {
+            id: "req-agent-identity-default".to_owned(),
+            method: "agent.identity.get".to_owned(),
+            params: serde_json::json!({}),
+        };
+        match dispatcher.handle_request(&identity_default).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/agentId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("main")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/emoji")
+                        .and_then(serde_json::Value::as_str),
+                    Some(super::DEFAULT_AGENT_IDENTITY_EMOJI)
+                );
+            }
+            _ => panic!("expected agent.identity.get handled"),
+        }
+
+        let malformed = RpcRequestFrame {
+            id: "req-agent-identity-malformed".to_owned(),
+            method: "agent.identity.get".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:"
+            }),
+        };
+        let out = dispatcher.handle_request(&malformed).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let mismatch = RpcRequestFrame {
+            id: "req-agent-identity-mismatch".to_owned(),
+            method: "agent.identity.get".to_owned(),
+            params: serde_json::json!({
+                "agentId": "ops",
+                "sessionKey": "agent:main:discord:group:g1"
+            }),
+        };
+        let out = dispatcher.handle_request(&mismatch).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let send = RpcRequestFrame {
+            id: "req-agent-wait-send".to_owned(),
+            method: "sessions.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g-agent-wait",
+                "message": "hello",
+                "requestId": "run-agent-123"
+            }),
+        };
+        let out = dispatcher.handle_request(&send).await;
+        assert!(matches!(out, RpcDispatchOutcome::Handled(_)));
+
+        let wait_ok = RpcRequestFrame {
+            id: "req-agent-wait-ok".to_owned(),
+            method: "agent.wait".to_owned(),
+            params: serde_json::json!({
+                "runId": "run-agent-123",
+                "timeoutMs": 0
+            }),
+        };
+        match dispatcher.handle_request(&wait_ok).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/status")
+                        .and_then(serde_json::Value::as_str),
+                    Some("ok")
+                );
+            }
+            _ => panic!("expected agent.wait handled"),
+        }
+
+        let wait_timeout = RpcRequestFrame {
+            id: "req-agent-wait-timeout".to_owned(),
+            method: "agent.wait".to_owned(),
+            params: serde_json::json!({
+                "runId": "run-missing",
+                "timeoutMs": 0
+            }),
+        };
+        match dispatcher.handle_request(&wait_timeout).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/status")
+                        .and_then(serde_json::Value::as_str),
+                    Some("timeout")
+                );
+            }
+            _ => panic!("expected agent.wait handled"),
         }
     }
 
