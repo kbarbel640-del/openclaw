@@ -1,9 +1,7 @@
 import type { AssistantMessage, Model, ToolResultMessage } from "@mariozechner/pi-ai";
 import { streamOpenAIResponses } from "@mariozechner/pi-ai";
-import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it } from "vitest";
-import { sanitizeSessionHistory } from "./pi-embedded-runner/google.js";
 
 function buildModel(): Model<"openai-responses"> {
   return {
@@ -20,20 +18,57 @@ function buildModel(): Model<"openai-responses"> {
   };
 }
 
-function makeInMemorySessionManager(): SessionManager {
-  return {
-    getEntries: () => [],
-    appendCustomEntry: () => undefined,
-  } as unknown as SessionManager;
+function extractInput(payload: Record<string, unknown> | undefined): unknown[] {
+  return Array.isArray(payload?.input) ? (payload.input as unknown[]) : [];
+}
+
+function extractInputTypes(input: unknown[]) {
+  return input
+    .map((item) =>
+      item && typeof item === "object" ? (item as Record<string, unknown>).type : undefined,
+    )
+    .filter((t): t is string => typeof t === "string");
+}
+
+async function runAbortedOpenAIResponsesStream(params: {
+  messages: Array<
+    AssistantMessage | ToolResultMessage | { role: "user"; content: string; timestamp: number }
+  >;
+  tools?: Array<{
+    name: string;
+    description: string;
+    parameters: ReturnType<typeof Type.Object>;
+  }>;
+}) {
+  const controller = new AbortController();
+  controller.abort();
+
+  let payload: Record<string, unknown> | undefined;
+
+  const stream = streamOpenAIResponses(
+    buildModel(),
+    {
+      systemPrompt: "system",
+      messages: params.messages,
+      ...(params.tools ? { tools: params.tools } : {}),
+    },
+    {
+      apiKey: "test",
+      signal: controller.signal,
+      onPayload: (nextPayload) => {
+        payload = nextPayload as Record<string, unknown>;
+      },
+    },
+  );
+
+  await stream.result();
+
+  const input = extractInput(payload);
+  return { input, types: extractInputTypes(input) };
 }
 
 describe("openai-responses reasoning replay", () => {
-  it("does not replay orphan reasoning for tool-call-only turns", async () => {
-    const model = buildModel();
-    const controller = new AbortController();
-    controller.abort();
-    let payload: Record<string, unknown> | undefined;
-
+  it("replays reasoning for tool-call-only turns (OpenAI requires it)", async () => {
     const assistantToolOnly: AssistantMessage = {
       role: "assistant",
       api: "openai-responses",
@@ -77,69 +112,38 @@ describe("openai-responses reasoning replay", () => {
       timestamp: Date.now(),
     };
 
-    const sanitizedMessages = await sanitizeSessionHistory({
+    const { input, types } = await runAbortedOpenAIResponsesStream({
       messages: [
-        {
-          role: "user",
-          content: "Call noop.",
-          timestamp: Date.now(),
-        },
+        { role: "user", content: "Call noop.", timestamp: Date.now() },
         assistantToolOnly,
         toolResult,
+        { role: "user", content: "Now reply with ok.", timestamp: Date.now() },
+      ],
+      tools: [
         {
-          role: "user",
-          content: "Now reply with ok.",
-          timestamp: Date.now(),
+          name: "noop",
+          description: "no-op",
+          parameters: Type.Object({}, { additionalProperties: false }),
         },
       ],
-      modelApi: "openai-responses",
-      provider: "openai",
-      modelId: "gpt-5.2",
-      sessionManager: makeInMemorySessionManager(),
-      sessionId: "test-session",
     });
 
-    const stream = streamOpenAIResponses(
-      model,
-      {
-        systemPrompt: "system",
-        messages: sanitizedMessages,
-        tools: [
-          {
-            name: "noop",
-            description: "no-op",
-            parameters: Type.Object({}, { additionalProperties: false }),
-          },
-        ],
-      },
-      {
-        apiKey: "test",
-        signal: controller.signal,
-        onPayload: (nextPayload) => {
-          payload = nextPayload as Record<string, unknown>;
-        },
-      },
-    );
-
-    await stream.result();
-
-    const input = Array.isArray(payload?.input) ? payload?.input : [];
-    const types = input
-      .map((item) =>
-        item && typeof item === "object" ? (item as Record<string, unknown>).type : undefined,
-      )
-      .filter((t): t is string => typeof t === "string");
-
+    expect(types).toContain("reasoning");
     expect(types).toContain("function_call");
-    expect(types).not.toContain("reasoning");
+    expect(types.indexOf("reasoning")).toBeLessThan(types.indexOf("function_call"));
+
+    const functionCall = input.find(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        (item as Record<string, unknown>).type === "function_call",
+    ) as Record<string, unknown> | undefined;
+
+    expect(functionCall?.call_id).toBe("call_123");
+    expect(functionCall?.id).toBe("fc_123");
   });
 
   it("still replays reasoning when paired with an assistant message", async () => {
-    const model = buildModel();
-    const controller = new AbortController();
-    controller.abort();
-    let payload: Record<string, unknown> | undefined;
-
     const assistantWithText: AssistantMessage = {
       role: "assistant",
       api: "openai-responses",
@@ -169,42 +173,13 @@ describe("openai-responses reasoning replay", () => {
       ],
     };
 
-    const sanitizedMessages = await sanitizeSessionHistory({
+    const { types } = await runAbortedOpenAIResponsesStream({
       messages: [
         { role: "user", content: "Hi", timestamp: Date.now() },
         assistantWithText,
         { role: "user", content: "Ok", timestamp: Date.now() },
       ],
-      modelApi: "openai-responses",
-      provider: "openai",
-      modelId: "gpt-5.2",
-      sessionManager: makeInMemorySessionManager(),
-      sessionId: "test-session",
     });
-
-    const stream = streamOpenAIResponses(
-      model,
-      {
-        systemPrompt: "system",
-        messages: sanitizedMessages,
-      },
-      {
-        apiKey: "test",
-        signal: controller.signal,
-        onPayload: (nextPayload) => {
-          payload = nextPayload as Record<string, unknown>;
-        },
-      },
-    );
-
-    await stream.result();
-
-    const input = Array.isArray(payload?.input) ? payload?.input : [];
-    const types = input
-      .map((item) =>
-        item && typeof item === "object" ? (item as Record<string, unknown>).type : undefined,
-      )
-      .filter((t): t is string => typeof t === "string");
 
     expect(types).toContain("reasoning");
     expect(types).toContain("message");

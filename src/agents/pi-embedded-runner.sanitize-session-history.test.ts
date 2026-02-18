@@ -12,7 +12,6 @@ type SanitizeSessionHistory =
   typeof import("./pi-embedded-runner/google.js").sanitizeSessionHistory;
 let sanitizeSessionHistory: SanitizeSessionHistory;
 
-// Mock dependencies
 vi.mock("./pi-embedded-helpers.js", async () => {
   const actual = await vi.importActual("./pi-embedded-helpers.js");
   return {
@@ -22,8 +21,47 @@ vi.mock("./pi-embedded-helpers.js", async () => {
   };
 });
 
-// We don't mock session-transcript-repair.js as it is a pure function and complicates mocking.
-// We rely on the real implementation which should pass through our simple messages.
+function now() {
+  return Date.now();
+}
+
+function makeOpenAIResponsesAssistantMessage(params: {
+  stopReason: "stop" | "toolUse" | "aborted";
+  content: unknown[];
+}): AgentMessage {
+  return {
+    role: "assistant",
+    api: "openai-responses",
+    provider: "openai",
+    model: "gpt-5.2",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: params.stopReason,
+    timestamp: now(),
+    content: params.content,
+  } as unknown as AgentMessage;
+}
+
+function makeToolResult(params: {
+  toolCallId: string;
+  toolName: string;
+  text: string;
+}): AgentMessage {
+  return {
+    role: "toolResult",
+    toolCallId: params.toolCallId,
+    toolName: params.toolName,
+    content: [{ type: "text", text: params.text }],
+    isError: false,
+    timestamp: now(),
+  } as unknown as AgentMessage;
+}
 
 describe("sanitizeSessionHistory", () => {
   const mockSessionManager = {
@@ -31,7 +69,7 @@ describe("sanitizeSessionHistory", () => {
     appendCustomEntry: vi.fn(),
   } as unknown as SessionManager;
 
-  const mockMessages: AgentMessage[] = [{ role: "user", content: "hello" }];
+  const mockMessages: AgentMessage[] = [{ role: "user", content: "hello", timestamp: now() }];
 
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -127,6 +165,7 @@ describe("sanitizeSessionHistory", () => {
       {
         role: "user",
         content: "forwarded instruction",
+        timestamp: now(),
         provenance: {
           kind: "inter_session",
           sourceSessionKey: "agent:main:req",
@@ -154,9 +193,8 @@ describe("sanitizeSessionHistory", () => {
     vi.mocked(helpers.isGoogleModelApi).mockReturnValue(false);
 
     const messages: AgentMessage[] = [
-      { role: "user", content: "hello" },
-      {
-        role: "assistant",
+      { role: "user", content: "hello", timestamp: now() },
+      makeOpenAIResponsesAssistantMessage({
         stopReason: "aborted",
         content: [
           {
@@ -165,7 +203,7 @@ describe("sanitizeSessionHistory", () => {
             thinkingSignature: "sig",
           },
         ],
-      },
+      }),
     ];
 
     const result = await sanitizeSessionHistory({
@@ -182,10 +220,10 @@ describe("sanitizeSessionHistory", () => {
 
   it("does not synthesize tool results for openai-responses", async () => {
     const messages: AgentMessage[] = [
-      {
-        role: "assistant",
+      makeOpenAIResponsesAssistantMessage({
+        stopReason: "toolUse",
         content: [{ type: "toolCall", id: "call_1", name: "read", arguments: {} }],
-      },
+      }),
     ];
 
     const result = await sanitizeSessionHistory({
@@ -201,12 +239,14 @@ describe("sanitizeSessionHistory", () => {
   });
 
   it("drops malformed tool calls missing input or arguments", async () => {
+    const malformedAssistant = makeOpenAIResponsesAssistantMessage({
+      stopReason: "toolUse",
+      content: [{ type: "toolCall", id: "call_1", name: "read" } as unknown],
+    });
+
     const messages: AgentMessage[] = [
-      {
-        role: "assistant",
-        content: [{ type: "toolCall", id: "call_1", name: "read" }],
-      },
-      { role: "user", content: "hello" },
+      malformedAssistant,
+      { role: "user", content: "hello", timestamp: now() } as unknown as AgentMessage,
     ];
 
     const result = await sanitizeSessionHistory({
@@ -268,8 +308,8 @@ describe("sanitizeSessionHistory", () => {
 
   it("drops reasoning signatures followed only by toolCall producers", async () => {
     const messages: AgentMessage[] = [
-      {
-        role: "assistant",
+      makeOpenAIResponsesAssistantMessage({
+        stopReason: "toolUse",
         content: [
           {
             type: "thinking",
@@ -278,13 +318,8 @@ describe("sanitizeSessionHistory", () => {
           },
           { type: "toolCall", id: "call_1", name: "read", arguments: {} },
         ],
-      },
-      {
-        role: "toolResult",
-        toolCallId: "call_1",
-        toolName: "read",
-        content: [{ type: "text", text: "ok" }],
-      } as unknown as AgentMessage,
+      }),
+      makeToolResult({ toolCallId: "call_1", toolName: "read", text: "ok" }),
     ];
 
     const result = await sanitizeSessionHistory({
@@ -295,10 +330,14 @@ describe("sanitizeSessionHistory", () => {
       sessionId: "test-session",
     });
 
-    const assistant = result.find((message) => message.role === "assistant");
+    const assistant = result.find(
+      (message): message is Extract<AgentMessage, { role: "assistant" }> =>
+        message.role === "assistant",
+    );
+
     expect(assistant).toBeDefined();
     expect(
-      assistant?.content.some(
+      assistant.content.some(
         (block) =>
           block && typeof block === "object" && (block as { type?: string }).type === "thinking",
       ),
@@ -314,24 +353,19 @@ describe("sanitizeSessionHistory", () => {
       }),
     ];
     const sessionManager = makeInMemorySessionManager(sessionEntries);
+
     const messages: AgentMessage[] = [
-      {
-        role: "assistant",
+      makeOpenAIResponsesAssistantMessage({
+        stopReason: "toolUse",
         content: [{ type: "toolCall", id: "tool_abc123", name: "read", arguments: {} }],
-      },
-      {
-        role: "toolResult",
-        toolCallId: "tool_abc123",
-        toolName: "read",
-        content: [{ type: "text", text: "ok" }],
-      } as unknown as AgentMessage,
-      { role: "user", content: "continue" },
-      {
-        role: "toolResult",
+      }),
+      makeToolResult({ toolCallId: "tool_abc123", toolName: "read", text: "ok" }),
+      { role: "user", content: "continue", timestamp: now() } as unknown as AgentMessage,
+      makeToolResult({
         toolCallId: "tool_01VihkDRptyLpX1ApUPe7ooU",
         toolName: "read",
-        content: [{ type: "text", text: "stale result" }],
-      } as unknown as AgentMessage,
+        text: "stale result",
+      }),
     ];
 
     const result = await sanitizeSessionHistory({
