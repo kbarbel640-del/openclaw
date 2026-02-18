@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { CliDeps } from "../../cli/deps.js";
+import type { CronJob } from "../../cron/types.js";
+import type { createSubsystemLogger } from "../../logging/subsystem.js";
+import type { HookMessageChannel, HooksConfigResolved } from "../hooks.js";
 import { loadConfig } from "../../config/config.js";
 import { resolveMainSessionKeyFromConfig } from "../../config/sessions.js";
 import { runCronIsolatedAgentTurn } from "../../cron/isolated-agent.js";
-import type { CronJob } from "../../cron/types.js";
 import { requestHeartbeatNow } from "../../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
-import type { createSubsystemLogger } from "../../logging/subsystem.js";
-import type { HookMessageChannel, HooksConfigResolved } from "../hooks.js";
 import { createHooksRequestHandler } from "../server-http.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
@@ -83,14 +83,21 @@ export function createGatewayHooksRequestHandler(params: {
           sessionKey,
           lane: "cron",
         });
-        const summary = result.summary?.trim() || result.error?.trim() || result.status;
-        const prefix =
-          result.status === "ok" ? `Hook ${value.name}` : `Hook ${value.name} (${result.status})`;
-        enqueueSystemEvent(`${prefix}: ${summary}`.trim(), {
-          sessionKey: mainSessionKey,
-        });
-        if (value.wakeMode === "now") {
-          requestHeartbeatNow({ reason: `hook:${jobId}` });
+        // When `result.delivered` is true the announce flow (or direct outbound
+        // delivery) already sent the result to the target channel. Posting a
+        // summary to the main session would wake the main agent and cause a
+        // duplicate message — same pattern fixed for the cron timer path in
+        // ea95e88dd (#15692).
+        if (!result.delivered) {
+          const summary = result.summary?.trim() || result.error?.trim() || result.status;
+          const prefix =
+            result.status === "ok" ? `Hook ${value.name}` : `Hook ${value.name} (${result.status})`;
+          enqueueSystemEvent(`${prefix}: ${summary}`.trim(), {
+            sessionKey: mainSessionKey,
+          });
+          if (value.wakeMode === "now") {
+            requestHeartbeatNow({ reason: `hook:${jobId}` });
+          }
         }
       } catch (err) {
         logHooks.warn(`hook agent failed: ${String(err)}`);
