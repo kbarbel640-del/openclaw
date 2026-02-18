@@ -83,5 +83,5 @@ export function isAncestor(callerKey: string, targetKey: string): boolean {
 
 export function getSubtreeLeafFirst(sessionKey: string): string[] {
   const all = getDescendants(sessionKey);
-  return [...all.reverse(), sessionKey];
+  return [...all.toReversed(), sessionKey];
 }
