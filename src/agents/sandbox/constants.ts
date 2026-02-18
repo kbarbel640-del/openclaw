@@ -38,6 +38,22 @@ export const DEFAULT_TOOL_DENY = [
 export const DEFAULT_SANDBOX_BROWSER_IMAGE = "openclaw-sandbox-browser:bookworm-slim";
 export const DEFAULT_SANDBOX_COMMON_IMAGE = "openclaw-sandbox-common:bookworm-slim";
 
+// ---------------------------------------------------------------------------
+// Expanso validation sandbox
+// ---------------------------------------------------------------------------
+
+/** Docker image name for the Expanso pipeline-validation sandbox. */
+export const EXPANSO_SANDBOX_IMAGE = "openclaw-expanso-sandbox:latest";
+
+/** Container name prefix for Expanso validation sandbox containers. */
+export const EXPANSO_SANDBOX_CONTAINER_PREFIX = "openclaw-sbx-expanso-";
+
+/** Working directory inside the Expanso sandbox container. */
+export const EXPANSO_SANDBOX_WORKDIR = "/workspace";
+
+/** Path inside the Expanso container where the pipeline YAML is placed. */
+export const EXPANSO_SANDBOX_PIPELINE_PATH = "/workspace/pipeline.yaml";
+
 export const DEFAULT_SANDBOX_BROWSER_PREFIX = "openclaw-sbx-browser-";
 export const DEFAULT_SANDBOX_BROWSER_CDP_PORT = 9222;
 export const DEFAULT_SANDBOX_BROWSER_VNC_PORT = 5900;

@@ -1,0 +1,74 @@
+# Expanso Validation Sandbox
+#
+# A minimal, hardened Docker image for running the `expanso validate` binary
+# against untrusted pipeline YAML configurations in an isolated environment.
+#
+# Security properties:
+#  - Read-only root filesystem (enforced by the sandbox runner via --read-only)
+#  - No network access at runtime (--network none)
+#  - ALL Linux capabilities dropped
+#  - Runs as a non-root user (sandboxuser)
+#  - Minimal attack surface: only expanso binary + required runtime libs
+#
+# Usage (by the sandbox runner):
+#   docker run --rm \
+#     --read-only \
+#     --network none \
+#     --tmpfs /workspace \
+#     --tmpfs /tmp \
+#     --cap-drop ALL \
+#     -v /host/tmp/pipeline.yaml:/workspace/pipeline.yaml:ro \
+#     openclaw-expanso-sandbox:latest \
+#     expanso validate /workspace/pipeline.yaml
+
+FROM debian:bookworm-slim AS base
+
+# Install runtime dependencies and download the expanso binary.
+# expanso is a Go static binary — only curl/ca-certs needed for the download step.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user to run validation commands.
+RUN groupadd -r sandboxuser \
+ && useradd -r -g sandboxuser -d /home/sandboxuser -s /sbin/nologin sandboxuser \
+ && mkdir -p /home/sandboxuser \
+ && chown sandboxuser:sandboxuser /home/sandboxuser
+
+# Download the expanso binary.
+# ARG allows CI/CD to pin a specific release via --build-arg EXPANSO_VERSION=x.y.z
+ARG EXPANSO_VERSION=latest
+ARG TARGETARCH=amd64
+
+RUN set -eux; \
+    if [ "${EXPANSO_VERSION}" = "latest" ]; then \
+      EXPANSO_VERSION=$(curl -fsSL https://api.github.com/repos/benthosdev/benthos/releases/latest \
+        | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
+    fi; \
+    DOWNLOAD_URL="https://github.com/benthosdev/benthos/releases/download/v${EXPANSO_VERSION}/benthos_${EXPANSO_VERSION}_linux_${TARGETARCH}.tar.gz"; \
+    curl -fsSL "${DOWNLOAD_URL}" -o /tmp/expanso.tar.gz; \
+    tar -xzf /tmp/expanso.tar.gz -C /tmp benthos; \
+    mv /tmp/benthos /usr/local/bin/expanso; \
+    chmod 0755 /usr/local/bin/expanso; \
+    rm -f /tmp/expanso.tar.gz; \
+    expanso --version
+
+# Create a read-only-safe workspace directory that the runner will shadow with
+# a tmpfs or host-bind mount at runtime.
+RUN mkdir -p /workspace && chown sandboxuser:sandboxuser /workspace
+
+# Drop build-time tools (curl is no longer needed).
+RUN apt-get purge -y curl \
+ && apt-get autoremove -y \
+ && rm -rf /var/lib/apt/lists/*
+
+# Switch to non-root user for all subsequent layers and the default entrypoint.
+USER sandboxuser
+WORKDIR /workspace
+
+# Default entrypoint: run expanso validate on a pipeline file.
+# Override by passing the path as CMD, e.g.: docker run ... /workspace/pipeline.yaml
+ENTRYPOINT ["expanso", "validate"]
+CMD ["/workspace/pipeline.yaml"]

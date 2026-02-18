@@ -20,6 +20,9 @@ import {
   DEFAULT_SANDBOX_MAX_AGE_DAYS,
   DEFAULT_SANDBOX_WORKDIR,
   DEFAULT_SANDBOX_WORKSPACE_ROOT,
+  EXPANSO_SANDBOX_CONTAINER_PREFIX,
+  EXPANSO_SANDBOX_IMAGE,
+  EXPANSO_SANDBOX_WORKDIR,
 } from "./constants.js";
 import { resolveSandboxToolPolicyForAgent } from "./tool-policy.js";
 
@@ -168,5 +171,81 @@ export function resolveSandboxConfigForAgent(
       globalPrune: agent?.prune,
       agentPrune: agentSandbox?.prune,
     }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Expanso validation sandbox
+// ---------------------------------------------------------------------------
+
+/**
+ * Parameters for {@link resolveExpansoValidationSandboxDockerConfig}.
+ */
+export type ExpansoValidationSandboxParams = {
+  /**
+   * Absolute path on the host to a temporary directory that will be bind-mounted
+   * into the container at {@link EXPANSO_SANDBOX_WORKDIR} (read-only).
+   *
+   * When provided, the caller is responsible for writing the pipeline YAML into
+   * this directory before starting the container, and for removing the directory
+   * afterwards.
+   *
+   * When omitted, the working directory is backed by an in-container tmpfs —
+   * useful for integration tests or pre-flight checks where no pipeline file
+   * needs to be injected from the host.
+   */
+  hostWorkspacePath?: string;
+};
+
+/**
+ * Builds a {@link SandboxDockerConfig} for the Expanso pipeline-validation
+ * sandbox.
+ *
+ * The returned config is intentionally restrictive:
+ *  - Uses the dedicated `openclaw-expanso-sandbox` image that ships the
+ *    `expanso validate` binary.
+ *  - Network is disabled (`none`) — the binary only reads the local YAML file.
+ *  - Root filesystem is read-only; writable paths are limited to `/tmp` and,
+ *    if {@link ExpansoValidationSandboxParams.hostWorkspacePath} is omitted,
+ *    a tmpfs at `/workspace`.
+ *  - All Linux capabilities are dropped.
+ *  - A tight pid/memory/cpu budget prevents resource exhaustion from malformed
+ *    pipeline configs.
+ *
+ * @param params - Optional host workspace path for bind-mounting the pipeline.
+ * @returns A fully-resolved {@link SandboxDockerConfig}.
+ */
+export function resolveExpansoValidationSandboxDockerConfig(
+  params: ExpansoValidationSandboxParams = {},
+): SandboxDockerConfig {
+  const { hostWorkspacePath } = params;
+
+  // When a host path is provided, mount it read-only so the container can read
+  // the pipeline YAML but cannot modify the host filesystem.
+  const binds: string[] = hostWorkspacePath
+    ? [`${hostWorkspacePath}:${EXPANSO_SANDBOX_WORKDIR}:ro`]
+    : [];
+
+  // When no host path is given, back the workspace with tmpfs so the caller
+  // can still write files into it via docker exec / stdin before validation.
+  const tmpfs: string[] = hostWorkspacePath
+    ? ["/tmp", "/var/tmp", "/run"]
+    : ["/tmp", "/var/tmp", "/run", EXPANSO_SANDBOX_WORKDIR];
+
+  return {
+    image: EXPANSO_SANDBOX_IMAGE,
+    containerPrefix: EXPANSO_SANDBOX_CONTAINER_PREFIX,
+    workdir: EXPANSO_SANDBOX_WORKDIR,
+    readOnlyRoot: true,
+    tmpfs,
+    network: "none",
+    capDrop: ["ALL"],
+    env: { LANG: "C.UTF-8" },
+    // Tight resource budget: expanso validate is a quick, single-file operation.
+    pidsLimit: 64,
+    memory: "256m",
+    memorySwap: "256m",
+    cpus: 0.5,
+    binds: binds.length ? binds : undefined,
   };
 }

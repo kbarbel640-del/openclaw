@@ -4,11 +4,17 @@ export {
   resolveSandboxDockerConfig,
   resolveSandboxPruneConfig,
   resolveSandboxScope,
+  resolveExpansoValidationSandboxDockerConfig,
+  type ExpansoValidationSandboxParams,
 } from "./sandbox/config.js";
 export {
   DEFAULT_SANDBOX_BROWSER_IMAGE,
   DEFAULT_SANDBOX_COMMON_IMAGE,
   DEFAULT_SANDBOX_IMAGE,
+  EXPANSO_SANDBOX_CONTAINER_PREFIX,
+  EXPANSO_SANDBOX_IMAGE,
+  EXPANSO_SANDBOX_PIPELINE_PATH,
+  EXPANSO_SANDBOX_WORKDIR,
 } from "./sandbox/constants.js";
 export { ensureSandboxWorkspaceForSession, resolveSandboxContext } from "./sandbox/context.js";
 
