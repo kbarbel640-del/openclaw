@@ -72,6 +72,10 @@ export const createTelegramMessageProcessor = (deps: TelegramMessageProcessorDep
       resolveTelegramGroupConfig,
     });
     if (!context) {
+      logger.info(
+        { chatId: primaryCtx.message?.chat?.id, reason: "context-rejected" },
+        "telegram inbound message dropped",
+      );
       return;
     }
     await dispatchTelegramMessage({

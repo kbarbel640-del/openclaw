@@ -166,13 +166,14 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     const updateId = resolveTelegramUpdateId(ctx);
     if (typeof updateId === "number" && lastUpdateId !== null) {
       if (updateId <= lastUpdateId) {
+        logger.info({ updateId, lastUpdateId, reason: "offset" }, "telegram update skipped");
         return true;
       }
     }
     const key = buildTelegramUpdateKey(ctx);
     const skipped = recentUpdates.check(key);
-    if (skipped && key && shouldLogVerbose()) {
-      logVerbose(`telegram dedupe: skipped ${key}`);
+    if (skipped && key) {
+      logger.info({ updateId, key, reason: "dedupe" }, "telegram update skipped");
     }
     return skipped;
   };

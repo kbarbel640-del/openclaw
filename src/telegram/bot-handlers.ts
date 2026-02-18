@@ -1042,6 +1042,10 @@ export const registerTelegramHandlers = ({
         return;
       }
       if (shouldSkipUpdate(ctx)) {
+        logger.info(
+          { chatId: msg.chat.id, messageId: msg.message_id },
+          "telegram message handler: update skipped",
+        );
         return;
       }
 
