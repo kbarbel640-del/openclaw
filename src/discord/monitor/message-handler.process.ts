@@ -32,6 +32,8 @@ import {
   resolveForwardedMediaList,
   resolveMediaList,
 } from "./message-utils.js";
+import { getPresence } from "./presence-cache.js";
+import { buildDiscordPresenceMetadata } from "./presence-context.js";
 import { buildDirectLabel, buildGuildLabel, resolveReplyContext } from "./reply-context.js";
 import { deliverDiscordReply } from "./reply-delivery.js";
 import { resolveDiscordAutoThreadReplyPlan, resolveDiscordThreadStarter } from "./threading.js";
@@ -372,6 +374,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   const forumContextLine = isForumStarter ? `[Forum parent: #${forumParentSlug}]` : null;
   const groupChannel = isGuildMessage && displayChannelSlug ? `#${displayChannelSlug}` : undefined;
   const groupSubject = isDirectMessage ? undefined : groupChannel;
+  const senderId = sender.id ?? author.id;
   const untrustedChannelMetadata = isGuildMessage
     ? buildUntrustedChannelMetadata({
         source: "discord",
@@ -379,6 +382,12 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         entries: [channelInfo?.topic],
       })
     : undefined;
+  const senderPresenceMetadata = discordConfig?.intents?.presence
+    ? buildDiscordPresenceMetadata(getPresence(accountId, senderId))
+    : undefined;
+  const untrustedContext = [untrustedChannelMetadata, senderPresenceMetadata].filter(
+    (entry): entry is string => Boolean(entry),
+  );
   const senderName = sender.isPluralKit
     ? (sender.name ?? author.username)
     : (data.member?.nickname ?? author.globalName ?? author.username);
@@ -394,7 +403,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   const ownerAllowFrom = resolveDiscordOwnerAllowFrom({
     channelConfig,
     guildInfo,
-    sender: { id: sender.id, name: sender.name, tag: sender.tag },
+    sender: { id: senderId, name: sender.name, tag: sender.tag },
   });
   const storePath = resolveStorePath(cfg.session?.store, {
     agentId: route.agentId,
@@ -528,12 +537,12 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     ChatType: isDirectMessage ? "direct" : "channel",
     ConversationLabel: fromLabel,
     SenderName: senderName,
-    SenderId: sender.id,
+    SenderId: senderId,
     SenderUsername: senderUsername,
     SenderTag: senderTag,
     GroupSubject: groupSubject,
     GroupChannel: groupChannel,
-    UntrustedContext: untrustedChannelMetadata ? [untrustedChannelMetadata] : undefined,
+    UntrustedContext: untrustedContext.length > 0 ? untrustedContext : undefined,
     GroupSystemPrompt: isGuildMessage ? groupSystemPrompt : undefined,
     GroupSpace: isGuildMessage ? (guildInfo?.id ?? guildSlug) || undefined : undefined,
     OwnerAllowFrom: ownerAllowFrom,

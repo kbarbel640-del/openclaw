@@ -14,6 +14,7 @@ const dispatchInboundMessage = vi.fn(async (_params?: DispatchInboundParams) => 
   counts: { final: 0, tool: 0, block: 0 },
 }));
 const recordInboundSession = vi.fn(async () => {});
+const getPresence = vi.fn();
 const readSessionUpdatedAt = vi.fn(() => undefined);
 const resolveStorePath = vi.fn(() => "/tmp/openclaw-discord-process-test-sessions.json");
 
@@ -45,6 +46,10 @@ vi.mock("../../channels/session.js", () => ({
   recordInboundSession,
 }));
 
+vi.mock("./presence-cache.js", () => ({
+  getPresence,
+}));
+
 vi.mock("../../config/sessions.js", () => ({
   readSessionUpdatedAt,
   resolveStorePath,
@@ -60,6 +65,7 @@ beforeEach(() => {
   removeReactionDiscord.mockClear();
   dispatchInboundMessage.mockReset();
   recordInboundSession.mockReset();
+  getPresence.mockReset();
   readSessionUpdatedAt.mockReset();
   resolveStorePath.mockReset();
   dispatchInboundMessage.mockResolvedValue({
@@ -67,6 +73,7 @@ beforeEach(() => {
     counts: { final: 0, tool: 0, block: 0 },
   });
   recordInboundSession.mockResolvedValue(undefined);
+  getPresence.mockReturnValue(undefined);
   readSessionUpdatedAt.mockReturnValue(undefined);
   resolveStorePath.mockReturnValue("/tmp/openclaw-discord-process-test-sessions.json");
 });
@@ -252,5 +259,51 @@ describe("processDiscordMessage session routing", () => {
       to: "channel:c1",
       accountId: "default",
     });
+  });
+});
+
+describe("processDiscordMessage presence context", () => {
+  it("adds sender presence as untrusted context when presence intent is enabled", async () => {
+    getPresence.mockReturnValue({
+      status: "idle",
+      activities: [{ type: 2, name: "Spotify", details: "Lo-fi", state: "Deep work" }],
+    });
+    const ctx = await createBaseContext({
+      discordConfig: { intents: { presence: true } },
+    });
+
+    // oxlint-disable-next-line typescript/no-explicit-any
+    await processDiscordMessage(ctx as any);
+
+    expect(getPresence).toHaveBeenCalledWith("default", "U1");
+    const dispatchCall = dispatchInboundMessage.mock.calls.at(-1) as
+      | [
+          {
+            ctx?: {
+              UntrustedContext?: string[];
+            };
+          },
+        ]
+      | undefined;
+    const untrustedContext = dispatchCall?.[0]?.ctx?.UntrustedContext ?? [];
+    expect(untrustedContext).toHaveLength(1);
+    expect(untrustedContext[0]).toContain("Discord sender presence (best-effort, may be stale)");
+    expect(untrustedContext[0]).toContain("Sender status: idle");
+    expect(untrustedContext[0]).toContain("Listening: Spotify");
+  });
+
+  it("does not read sender presence when presence intent is disabled", async () => {
+    getPresence.mockReturnValue({
+      status: "online",
+      activities: [{ type: 0, name: "OpenClaw" }],
+    });
+    const ctx = await createBaseContext({
+      discordConfig: {},
+    });
+
+    // oxlint-disable-next-line typescript/no-explicit-any
+    await processDiscordMessage(ctx as any);
+
+    expect(getPresence).not.toHaveBeenCalled();
   });
 });
