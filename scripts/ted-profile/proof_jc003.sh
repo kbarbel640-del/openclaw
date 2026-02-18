@@ -114,6 +114,18 @@ if obj.get("next_action") != "RUN_DEVICE_CODE_AUTH":
 print("OK: /mail/draft/create fails closed with NOT_AUTHENTICATED")
 PY
 
+echo "3b) Calendar list endpoint should fail-closed when DISCONNECTED (no live auth required)..."
+# Force disconnected state for deterministic proof
+curl -fsS -X POST "$BASE_URL/graph/olumie/auth/revoke" >/dev/null || true
+cal_resp=$(curl -sS -o /tmp/cal.out -w "%{http_code}" "$BASE_URL/graph/olumie/calendar/list?days=7") || true
+if [ "$cal_resp" = "409" ]; then
+  grep -q "NOT_AUTHENTICATED" /tmp/cal.out && echo "OK: calendar list fail-closed (NOT_AUTHENTICATED)" || { echo "FAIL: expected NOT_AUTHENTICATED body"; cat /tmp/cal.out; exit 1; }
+else
+  echo "FAIL: expected 409 when disconnected, got $cal_resp"
+  cat /tmp/cal.out || true
+  exit 1
+fi
+
 echo "3) Ensure no plaintext token artifacts exist in SIDE-CAR owned paths (scoped check)"
 # Only scan areas we control for secrets: sidecars/, docs/ted-profile/, scripts/ted-profile/
 SCAN_PATHS=("sidecars")
