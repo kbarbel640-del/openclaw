@@ -220,6 +220,12 @@
   .schedule-card .stat-value { color: var(--text); font-weight: 600; }
 
   footer { text-align: center; padding: 20px; color: var(--muted); font-size: 0.7rem; border-top: 1px solid var(--border); margin-top: 20px; }
+  /* Hourly rate visibility toggle */
+  body:not(.rate-visible) #defaultRateControl { opacity: 0.3; pointer-events: none; }
+  body:not(.rate-visible) .hourly-rate-col { display: none; }
+  #rateToggle { cursor: pointer; user-select: none; transition: color 0.2s; }
+  #rateToggle:hover { color: var(--text); }
+  body.rate-visible #rateToggle { color: var(--accent); }
 
   /* Shift Planning Styles */
   .skill-checkbox { width: 20px; height: 20px; cursor: pointer; accent-color: var(--green); }
@@ -343,7 +349,7 @@
       rgba(0,0,0,0.35) 3px, rgba(0,0,0,0.35) 6px
     ) !important;
   }
-  .timeline-worker-bar.partial-participation { opacity: 0.5; }
+  .timeline-worker-bar.partial-participation { border: 1px dashed rgba(255,255,255,0.65); }
   .timeline-total-label {
     background: var(--surface2); color: var(--accent);
     font-size: 0.7rem; font-weight: 700;
@@ -396,11 +402,11 @@
     </div>
     <div style="display:flex;align-items:center;gap:6px;">
       <label style="color:var(--muted);font-size:0.8rem;">Product No.:</label>
-      <input type="text" id="headerProductNo" placeholder="e.g., PN-001" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 10px;font-size:0.8rem;width:120px;" onchange="saveHeaderFields()">
+      <input type="text" id="headerProductNo" placeholder="e.g., PN-001" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 10px;font-size:0.8rem;width:180px;" onchange="saveHeaderFields()">
     </div>
     <div style="display:flex;align-items:center;gap:6px;">
       <label style="color:var(--muted);font-size:0.8rem;">Product Description:</label>
-      <input type="text" id="headerProductDesc" placeholder="e.g., M12 Cable Assembly" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 10px;font-size:0.8rem;width:220px;" onchange="saveHeaderFields()">
+      <input type="text" id="headerProductDesc" placeholder="e.g., M12 Cable Assembly" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 10px;font-size:0.8rem;width:330px;" onchange="saveHeaderFields()">
     </div>
     <div style="display:flex;align-items:center;gap:6px;">
       <label style="color:var(--muted);font-size:0.8rem;">Calculation By:</label>
@@ -468,9 +474,9 @@
         <button class="secondary" onclick="document.getElementById('importWorkerCSV').click()">📤 Import CSV</button>
         <input type="file" id="importWorkerCSV" accept=".csv" style="display:none" onchange="importWorkersCSV(this)">
         <button class="secondary" onclick="clearWorkerData()">🗑️ Clear All</button>
-        <div class="control-group" style="margin-left:auto;">
-          <label>Default Hourly Rate ($/hr):</label>
-          <input type="number" id="defaultHourlyRate" value="15.00" min="0" step="0.50" style="width:100px" onchange="updateWorkerCosts()">
+        <div class="control-group" id="defaultRateControl" style="margin-left:auto;">
+          <label>Default Hourly Rate (€/hr):</label>
+          <input type="number" id="defaultHourlyRate" value="33.435" min="0" step="0.001" style="width:100px" onchange="updateWorkerCosts()">
         </div>
       </div>
       <div style="border: 1px solid var(--border); border-radius: 8px; overflow-x: auto;">
@@ -489,7 +495,7 @@
               <th class="calc-col" style="width:85px">Daily Part. Hrs</th>
               <th class="input-col" style="width:70px">Work Days/Yr</th>
               <th class="calc-col" style="width:80px">Net Work Hrs</th>
-              <th class="input-col" style="width:80px">Hourly Rate</th>
+              <th class="input-col hourly-rate-col" style="width:80px">Hourly Rate</th>
               <th style="width:60px">Actions</th>
             </tr>
           </thead>
@@ -642,6 +648,7 @@
           <option value="60">1 Hour</option>
           <option value="30" selected>30 Min</option>
           <option value="15">15 Min</option>
+          <option value="5">5 Min</option>
         </select>
       </div>
       <div class="table-scroll">
@@ -719,7 +726,7 @@
 </div>
 
 <footer>
-  Line Balancing & Capacity Planning V1.0.0
+  Line Balancing <span id="rateToggle" onclick="toggleRateVisibility()" title="Toggle hourly rate visibility">&amp;</span> Capacity Planning V1.0.0
 </footer>
 
 <!-- SheetJS for Excel export/import -->
@@ -751,11 +758,11 @@ let processes = [
 ];
 
 let workers = [
-  { uid: 'w1', code: 'M01 - MC', name: 'Muhitdin Cagin', shiftStart: '06:00', shiftEnd: '11:15', breakMin: 15, participationRate: 60, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
-  { uid: 'w2', code: 'M02 - PK', name: 'Petra Krause', shiftStart: '06:00', shiftEnd: '14:00', breakMin: 30, participationRate: 30, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
-  { uid: 'w3', code: 'M03 - DM', name: 'Diana Menger', shiftStart: '07:00', shiftEnd: '12:15', breakMin: 15, participationRate: 97, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
-  { uid: 'w4', code: 'M04 - JN', name: 'Jonas Nickel', shiftStart: '06:00', shiftEnd: '13:30', breakMin: 30, participationRate: 97, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
-  { uid: 'w5', code: 'M05 - SA', name: 'Saeideh Alinezhad', shiftStart: '07:00', shiftEnd: '15:30', breakMin: 30, participationRate: 97, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w1', code: 'M01 - MC', name: 'Muhitdin Cagin', shiftStart: '06:00', shiftEnd: '11:15', breakMin: 15, participationRate: 60, workingDaysPerYear: 210, hourlyRate: 33.435, skills: [], assignments: [] },
+  { uid: 'w2', code: 'M02 - PK', name: 'Petra Krause', shiftStart: '06:00', shiftEnd: '14:00', breakMin: 30, participationRate: 30, workingDaysPerYear: 210, hourlyRate: 33.435, skills: [], assignments: [] },
+  { uid: 'w3', code: 'M03 - DM', name: 'Diana Menger', shiftStart: '07:00', shiftEnd: '12:15', breakMin: 15, participationRate: 97, workingDaysPerYear: 210, hourlyRate: 33.435, skills: [], assignments: [] },
+  { uid: 'w4', code: 'M04 - JN', name: 'Jonas Nickel', shiftStart: '06:00', shiftEnd: '13:30', breakMin: 30, participationRate: 97, workingDaysPerYear: 210, hourlyRate: 33.435, skills: [], assignments: [] },
+  { uid: 'w5', code: 'M05 - SA', name: 'Saeideh Alinezhad', shiftStart: '07:00', shiftEnd: '15:30', breakMin: 30, participationRate: 97, workingDaysPerYear: 210, hourlyRate: 33.435, skills: [], assignments: [] },
 ];
 
 // Global capacity settings
@@ -966,7 +973,7 @@ function renderWorkerTable() {
       <td><input type="text" class="readonly calc" value="${dailyParticipation.toFixed(2)}" readonly></td>
       <td><input type="number" value="${workingDays}" min="1" max="365" step="1" onchange="updateWorker(${i},'workingDaysPerYear',parseInt(this.value)||210)"></td>
       <td><input type="text" class="readonly calc" value="${netWorkHrs.toFixed(2)}" readonly></td>
-      <td><input type="number" value="${w.hourlyRate.toFixed(2)}" min="0" step="0.01" onchange="updateWorker(${i},'hourlyRate',parseFloat(this.value)||0)"></td>
+      <td class="hourly-rate-col"><input type="number" value="${w.hourlyRate.toFixed(3)}" min="0" step="0.001" onchange="updateWorker(${i},'hourlyRate',parseFloat(this.value)||0)"></td>
       <td class="actions">
         <button class="btn-delete" onclick="deleteWorker(${i})">✕</button>
       </td>
@@ -983,7 +990,7 @@ function updateWorker(idx, field, value) {
 }
 
 function addWorker() {
-  const rate = parseFloat(document.getElementById('defaultHourlyRate').value) || 17.42;
+  const rate = parseFloat(document.getElementById('defaultHourlyRate').value) || 33.435;
   workers.push({
     uid: genUid(),
     code: 'EMP' + String(workers.length + 1).padStart(3, '0'),
@@ -1009,6 +1016,10 @@ function deleteWorker(idx) {
 
 function updateWorkerCosts() {
   renderWorkerTable();
+}
+
+function toggleRateVisibility() {
+  document.body.classList.toggle('rate-visible');
 }
 
 function renderScheduleSummary() {
@@ -2228,7 +2239,7 @@ function renderKPIs() {
   const totalMachines = Object.values(stationResources).reduce((s, r) => s + r.machines.reduce((ms, m) => ms + m.qty, 0), 0);
 
   // Calculate labor cost per unit
-  const avgHourlyRate = workers.length > 0 ? getTotalDailyLaborCost() / getTotalDailyWorkHours() : 15;
+  const avgHourlyRate = workers.length > 0 ? getTotalDailyLaborCost() / getTotalDailyWorkHours() : 33.435;
   const laborCostPerUnit = totalWorkers > 0 ? (totalWorkers * avgHourlyRate * (bottleneck / 3600)) : 0;
 
   const effColor = efficiency > 85 ? 'var(--green)' : efficiency > 70 ? 'var(--yellow)' : 'var(--red)';
@@ -2242,7 +2253,7 @@ function renderKPIs() {
     <div class="kpi-card"><div class="kpi-value">${idleTime.toFixed(1)}s</div><div class="kpi-label">Idle Time</div></div>
     <div class="kpi-card"><div class="kpi-value">${totalWorkers.toFixed(2)}</div><div class="kpi-label">Total Workers</div></div>
     <div class="kpi-card"><div class="kpi-value">${totalMachines}</div><div class="kpi-label">Total Machines</div></div>
-    <div class="kpi-card cost"><div class="kpi-value">$${laborCostPerUnit.toFixed(3)}</div><div class="kpi-label">Labor Cost/Unit</div></div>
+    <div class="kpi-card cost"><div class="kpi-value">€${laborCostPerUnit.toFixed(3)}</div><div class="kpi-label">Labor Cost/Unit</div></div>
   `;
 }
 
@@ -2416,7 +2427,7 @@ function renderAnalysis() {
   // Costs
   const totalDailyCost = getTotalDailyLaborCost();
   const totalWorkers = Object.values(stationResources).reduce((s, r) => s + r.workers, 0);
-  const avgHourlyRate = workers.length > 0 && totalWorkHours > 0 ? totalDailyCost / totalWorkHours : 17.42;
+  const avgHourlyRate = workers.length > 0 && totalWorkHours > 0 ? totalDailyCost / totalWorkHours : 33.435;
   const laborCostPerUnit = totalWorkers > 0 ? (totalWorkers * avgHourlyRate * (bottleneck / 3600)) : 0;
 
   // Capacity calculation based on average net working hours per worker
@@ -2655,7 +2666,7 @@ function importWorkersCSV(input) {
         shiftEnd: cols[3] || '14:00',
         breakMin: parseInt(cols[4]) || 30,
         participationRate: parseFloat(cols[5]) || 97,
-        hourlyRate: parseFloat(cols[6]) || 17.42
+        hourlyRate: parseFloat(cols[6]) || 33.435
       });
     }
     if (newWorkers.length > 0) {
@@ -3098,7 +3109,7 @@ function importAllDataExcel(input) {
               breakMin: parseInt(row[6]) || 30,
               participationRate: parseFloat(row[7]) || 100,
               workingDaysPerYear: parseInt(row[8]) || 210,
-              hourlyRate: parseFloat(row[9]) || 15,
+              hourlyRate: parseFloat(row[9]) || 33.435,
               skills: skills,
               assignments: assignments
             };
