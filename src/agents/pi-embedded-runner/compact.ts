@@ -63,7 +63,7 @@ import {
   compactWithSafetyTimeout,
   EMBEDDED_COMPACTION_TIMEOUT_MS,
 } from "./compaction-safety-timeout.js";
-import { buildEmbeddedExtensionPaths } from "./extensions.js";
+import { buildEmbeddedExtensions } from "./extensions.js";
 import {
   logToolSchemasForGoogle,
   sanitizeSessionHistory,
@@ -543,7 +543,7 @@ export async function compactEmbeddedPiSessionDirect(
       });
       // Call for side effects (sets compaction/pruning runtime state + lifecycle emitter).
       // Context decay is not active during compaction (no sessionFile).
-      const { lifecycleEmitter } = buildEmbeddedExtensionPaths({
+      const { lifecycleEmitter } = buildEmbeddedExtensions({
         cfg: params.config,
         sessionManager,
         provider,

@@ -1,7 +1,6 @@
-import type { Api, Model } from "@mariozechner/pi-ai";
-import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import type { Api, Model } from "@mariozechner/pi-ai";
+import type { ExtensionFactory, SessionManager } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ContextDecayConfig } from "../../config/types.agent-defaults.js";
 import { loadSwappedFileStoreSync } from "../context-decay/file-store.js";
@@ -14,21 +13,16 @@ import { ContextLifecycleEmitter } from "../context-lifecycle/emitter.js";
 import { resolveContextWindowInfo } from "../context-window-guard.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { setCompactionSafeguardRuntime } from "../pi-extensions/compaction-safeguard-runtime.js";
+import compactionSafeguardExtension from "../pi-extensions/compaction-safeguard.js";
+import contextDecayExtension from "../pi-extensions/context-decay/extension.js";
 import { setContextDecayRuntime } from "../pi-extensions/context-decay/runtime.js";
+import contextPruningExtension from "../pi-extensions/context-pruning/extension.js";
 import { setContextPruningRuntime } from "../pi-extensions/context-pruning/runtime.js";
 import { computeEffectiveSettings } from "../pi-extensions/context-pruning/settings.js";
 import { makeToolPrunablePredicate } from "../pi-extensions/context-pruning/tools.js";
 import { ensurePiCompactionReserveTokens } from "../pi-settings.js";
 import { isCacheTtlEligibleProvider, readLastCacheTtlTimestamp } from "./cache-ttl.js";
 import { log } from "./logger.js";
-
-function resolvePiExtensionPath(id: string): string {
-  const self = fileURLToPath(import.meta.url);
-  const dir = path.dirname(self);
-  // In dev this file is `.ts` (tsx), in production it's `.js`.
-  const ext = path.extname(self) === ".ts" ? "ts" : "js";
-  return path.join(dir, "..", "pi-extensions", `${id}.${ext}`);
-}
 
 function resolveContextWindowTokens(params: {
   cfg: OpenClawConfig | undefined;
@@ -52,7 +46,7 @@ function buildContextPruningExtension(params: {
   modelId: string;
   model: Model<Api> | undefined;
   lifecycleEmitter?: ContextLifecycleEmitter;
-}): { additionalExtensionPaths?: string[] } {
+}): { factory?: ExtensionFactory } {
   const raw = params.cfg?.agents?.defaults?.contextPruning;
   if (raw?.mode !== "cache-ttl") {
     return {};
@@ -74,9 +68,7 @@ function buildContextPruningExtension(params: {
     lifecycleEmitter: params.lifecycleEmitter,
   });
 
-  return {
-    additionalExtensionPaths: [resolvePiExtensionPath("context-pruning")],
-  };
+  return { factory: contextPruningExtension };
 }
 
 function resolveLifecycleEmitter(params: {
@@ -113,7 +105,7 @@ function buildContextDecayExtension(params: {
   sessionKey?: string;
   sessionFile?: string;
   lifecycleEmitter?: ContextLifecycleEmitter;
-}): { additionalExtensionPaths?: string[]; resolvedConfig?: ContextDecayConfig } {
+}): { factory?: ExtensionFactory; resolvedConfig?: ContextDecayConfig } {
   const config = resolveContextDecayConfig(params.sessionKey, params.cfg);
   if (!isContextDecayActive(config)) {
     return {};
@@ -132,7 +124,7 @@ function buildContextDecayExtension(params: {
   });
 
   return {
-    additionalExtensionPaths: [resolvePiExtensionPath("context-decay")],
+    factory: contextDecayExtension,
     resolvedConfig: config,
   };
 }
@@ -141,7 +133,7 @@ function resolveCompactionMode(cfg?: OpenClawConfig): "default" | "safeguard" {
   return cfg?.agents?.defaults?.compaction?.mode === "safeguard" ? "safeguard" : "default";
 }
 
-export function buildEmbeddedExtensionPaths(params: {
+export function buildEmbeddedExtensions(params: {
   cfg: OpenClawConfig | undefined;
   sessionManager: SessionManager;
   provider: string;
@@ -151,11 +143,11 @@ export function buildEmbeddedExtensionPaths(params: {
   sessionId?: string;
   sessionFile?: string;
 }): {
-  paths: string[];
+  extensionFactories: ExtensionFactory[];
   contextDecayConfig?: ContextDecayConfig;
   lifecycleEmitter?: ContextLifecycleEmitter;
 } {
-  const paths: string[] = [];
+  const extensionFactories: ExtensionFactory[] = [];
   if (resolveCompactionMode(params.cfg) === "safeguard") {
     const compactionCfg = params.cfg?.agents?.defaults?.compaction;
     const contextWindowInfo = resolveContextWindowInfo({
@@ -169,7 +161,7 @@ export function buildEmbeddedExtensionPaths(params: {
       maxHistoryShare: compactionCfg?.maxHistoryShare,
       contextWindowTokens: contextWindowInfo.tokens,
     });
-    paths.push(resolvePiExtensionPath("compaction-safeguard"));
+    extensionFactories.push(compactionSafeguardExtension);
   }
   const contextWindowTokens = resolveContextWindowTokens(params);
   const lifecycleEmitter = resolveLifecycleEmitter({
@@ -179,8 +171,8 @@ export function buildEmbeddedExtensionPaths(params: {
     contextWindowTokens,
   });
   const pruning = buildContextPruningExtension({ ...params, lifecycleEmitter });
-  if (pruning.additionalExtensionPaths) {
-    paths.push(...pruning.additionalExtensionPaths);
+  if (pruning.factory) {
+    extensionFactories.push(pruning.factory);
   }
   const decay = buildContextDecayExtension({
     cfg: params.cfg,
@@ -189,17 +181,17 @@ export function buildEmbeddedExtensionPaths(params: {
     sessionFile: params.sessionFile,
     lifecycleEmitter,
   });
-  if (decay.additionalExtensionPaths) {
-    paths.push(...decay.additionalExtensionPaths);
+  if (decay.factory) {
+    extensionFactories.push(decay.factory);
   }
-  if (pruning.additionalExtensionPaths && decay.additionalExtensionPaths) {
+  if (pruning.factory && decay.factory) {
     log.warn(
       "contextDecay and contextPruning (cache-ttl) are both active — " +
         "they serve overlapping purposes and may interfere. " +
         "Consider setting contextPruning.mode to 'off' when using contextDecay.",
     );
   }
-  return { paths, contextDecayConfig: decay.resolvedConfig, lifecycleEmitter };
+  return { extensionFactories, contextDecayConfig: decay.resolvedConfig, lifecycleEmitter };
 }
 
 export { ensurePiCompactionReserveTokens };
