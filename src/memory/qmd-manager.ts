@@ -897,7 +897,20 @@ export class QmdMemoryManager implements MemorySearchManager {
   }
 
   private async ensureMcporterDaemonStarted(mcporter: ResolvedQmdMcporterConfig): Promise<void> {
-    if (!mcporter.enabled || !mcporter.startDaemon) {
+    if (!mcporter.enabled) {
+      return;
+    }
+    if (!mcporter.startDaemon) {
+      type McporterWarnGlobal = typeof globalThis & {
+        __openclawMcporterColdStartWarned?: boolean;
+      };
+      const g: McporterWarnGlobal = globalThis;
+      if (!g.__openclawMcporterColdStartWarned) {
+        g.__openclawMcporterColdStartWarned = true;
+        log.warn(
+          "mcporter qmd bridge enabled but startDaemon=false; each query may cold-start QMD MCP. Consider setting memory.qmd.mcporter.startDaemon=true to keep it warm.",
+        );
+      }
       return;
     }
     type McporterGlobal = typeof globalThis & {
