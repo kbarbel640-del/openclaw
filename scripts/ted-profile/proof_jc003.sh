@@ -56,6 +56,13 @@ print(f"OK: /graph/{expected_profile}/status returns fail-closed auth state")
 PY
 done
 
+echo "2a) Ensure draft-required scopes are declared (Mail.ReadWrite)..."
+for p in "${PROFILES[@]}"; do
+  s=$(curl -fsS -H "Accept: application/json" "$BASE_URL/graph/$p/status")
+  echo "$s" | grep -q '"delegated_scopes"' || { echo "FAIL: no delegated_scopes in status for $p"; exit 1; }
+  echo "$s" | grep -q '"Mail.ReadWrite"' || { echo "FAIL: $p missing Mail.ReadWrite in delegated_scopes"; exit 1; }
+done
+
 echo "2b) Device-code start endpoint should exist and return challenge schema."
 start_payload="$(curl -fsS -X POST -H "Accept: application/json" "$BASE_URL/graph/olumie/auth/device/start")"
 python3 - "$start_payload" <<'PY'
