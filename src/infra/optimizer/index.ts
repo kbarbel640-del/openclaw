@@ -44,16 +44,25 @@ export {
   type PerformanceStats,
 } from "./performance-monitor.js";
 
+export {
+  createStreamCacheWrapper,
+  getStreamCacheWrapper,
+  type StreamCacheConfig,
+  type StreamCacheWrapper,
+} from "./stream-cache.js";
+
 import { ConnectionPoolManager, getConnectionPool } from "./connection-pool.js";
 import { LLMResponseCache, getLLMCache } from "./llm-cache.js";
 import { MessageQueue, getMessageQueue } from "./message-queue.js";
 import { PerformanceMonitor, startPerformanceMonitor } from "./performance-monitor.js";
+import { getStreamCacheWrapper, type StreamCacheWrapper } from "./stream-cache.js";
 
 export interface OptimizerConfig {
   cache?: {
     enabled?: boolean;
     ttl?: number;
     maxSize?: number;
+    skipCacheForTools?: boolean;
   };
   pool?: {
     maxConnectionsPerHost?: number;
@@ -74,6 +83,7 @@ export interface OptimizerInstance {
   pool: ConnectionPoolManager;
   queue: MessageQueue;
   monitor: PerformanceMonitor;
+  streamCache: StreamCacheWrapper;
   getStats: () => {
     cache: ReturnType<LLMResponseCache["getStats"]>;
     pool: ReturnType<ConnectionPoolManager["getMetrics"]>;
@@ -106,11 +116,19 @@ export function initializeOptimizer(config: OptimizerConfig = {}): OptimizerInst
     sampleInterval: config.monitor?.sampleInterval ?? 5000,
   });
 
+  const streamCache = getStreamCacheWrapper({
+    enabled: config.cache?.enabled ?? true,
+    ttl: config.cache?.ttl ?? 3600000,
+    maxSize: config.cache?.maxSize ?? 1000,
+    skipCacheForTools: config.cache?.skipCacheForTools ?? true,
+  });
+
   const instance: OptimizerInstance = {
     cache,
     pool,
     queue,
     monitor,
+    streamCache,
     getStats() {
       return {
         cache: cache.getStats(),
@@ -122,6 +140,7 @@ export function initializeOptimizer(config: OptimizerConfig = {}): OptimizerInst
     async shutdown() {
       monitor.stop();
       queue.pause();
+      streamCache.clear();
       await pool.close();
       cache.clear();
     },

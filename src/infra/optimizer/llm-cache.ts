@@ -178,6 +178,52 @@ export class LLMResponseCache extends EventEmitter {
       maxSize: this.config.maxSize,
     };
   }
+
+  getCachedEntry(key: string): CacheEntry | null {
+    if (!this.config.enabled) {
+      return null;
+    }
+
+    const entry = this.cache.get(key);
+    if (!entry) {
+      return null;
+    }
+
+    if (Date.now() - entry.timestamp > this.config.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    this.updateAccessOrder(key);
+    this.stats.hits++;
+    this.stats.totalSaved++;
+    this.emit("hit", { key, entry });
+
+    return entry;
+  }
+
+  setCachedEntry(key: string, response: unknown): void {
+    if (!this.config.enabled) {
+      return;
+    }
+
+    if (this.cache.size >= this.config.maxSize) {
+      this.evictLRU();
+    }
+
+    const entry: CacheEntry = {
+      key,
+      messages: [],
+      model: "",
+      response,
+      timestamp: Date.now(),
+      accessCount: 0,
+    };
+
+    this.cache.set(key, entry);
+    this.accessOrder.push(key);
+    this.emit("set", { key, entry });
+  }
 }
 
 let globalCache: LLMResponseCache | null = null;
