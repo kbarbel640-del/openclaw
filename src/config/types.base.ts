@@ -158,12 +158,21 @@ export type DiagnosticsCacheTraceConfig = {
   includeSystem?: boolean;
 };
 
+export type DiagnosticsLlmTracingConfig = {
+  enabled?: boolean;
+  endpoint?: string;
+  headers?: Record<string, string>;
+  serviceName?: string;
+  sampleRate?: number;
+};
+
 export type DiagnosticsConfig = {
   enabled?: boolean;
   /** Optional ad-hoc diagnostics flags (e.g. "telegram.http"). */
   flags?: string[];
   otel?: DiagnosticsOtelConfig;
   cacheTrace?: DiagnosticsCacheTraceConfig;
+  llmTracing?: DiagnosticsLlmTracingConfig;
 };
 
 export type WebReconnectConfig = {

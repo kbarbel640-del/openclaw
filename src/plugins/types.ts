@@ -324,6 +324,8 @@ export type PluginHookAgentContext = {
   sessionId?: string;
   workspaceDir?: string;
   messageProvider?: string;
+  hostId?: string;
+  gatewayInstanceId?: string;
 };
 
 // before_model_resolve hook
