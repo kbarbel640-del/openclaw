@@ -10,13 +10,13 @@ import {
   type ChannelAccountSnapshot,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
-import type { ZulipAccountConfig, ZulipConfig } from "./types.js";
 import { zulipMessageActions } from "./actions.js";
 import { ZulipConfigSchema } from "./config-schema.js";
 import { resolveZulipGroupRequireMention } from "./group-mentions.js";
 import { looksLikeZulipTargetId, normalizeZulipMessagingTarget } from "./normalize.js";
 import { zulipOnboardingAdapter } from "./onboarding.js";
 import { getZulipRuntime } from "./runtime.js";
+import type { ZulipAccountConfig, ZulipConfig } from "./types.js";
 import {
   listZulipAccountIds,
   resolveDefaultZulipAccountId,
