@@ -31,16 +31,26 @@ export const DIGITALOCEAN_GRADIENT_BASE_URL = "https://api.digitalocean.com/v2/a
 export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID = "llama3.3-70b-instruct";
 export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_REF = `digitalocean/${DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID}`;
 
+const DIGITALOCEAN_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 export function buildDigitalOceanGradientModelDefinition(params: {
   modelId: string;
-  displayName?: string;
+  name?: string;
+  reasoning?: boolean;
   contextWindow?: number;
   maxTokens?: number;
 }): ModelDefinitionConfig {
   return {
     id: params.modelId,
-    reference: `digitalocean/${params.modelId}`,
-    displayName: params.displayName || params.modelId,
+    name: params.name || params.modelId,
+    reasoning: params.reasoning ?? true,
+    input: ["text"],
+    cost: DIGITALOCEAN_DEFAULT_COST,
     contextWindow: params.contextWindow ?? 128000,
     maxTokens: params.maxTokens ?? 8192,
   };
@@ -50,13 +60,15 @@ export function buildDigitalOceanGradientModels(): ModelDefinitionConfig[] {
   return [
     buildDigitalOceanGradientModelDefinition({
       modelId: "llama3.3-70b-instruct",
-      displayName: "Llama 3.3 70B Instruct",
+      name: "Llama 3.3 70B Instruct",
+      reasoning: false,
       contextWindow: 128000,
       maxTokens: 8192,
     }),
     buildDigitalOceanGradientModelDefinition({
       modelId: "deepseek-r1-distill-llama-70b",
-      displayName: "DeepSeek R1 Distill Llama 70B",
+      name: "DeepSeek R1 Distill Llama 70B",
+      reasoning: true,
       contextWindow: 128000,
       maxTokens: 8192,
     }),
