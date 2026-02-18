@@ -6,6 +6,10 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Internals: extract `normalizeAllowList` to a shared utility in `src/channels/allowlist-match.ts`, removing per-channel duplicates in Signal and Slack monitors.
+- CLI/Doctor: add `openclaw doctor --fix` deprecated-config migration checks with typed interfaces replacing untyped casts.
+- Docs: add migration guide for deprecated config fields at `docs/reference/migration-guide.md`.
+
 - Subagents: nested sub-agents (sub-sub-agents) with configurable depth. Set `agents.defaults.subagents.maxSpawnDepth: 2` to allow sub-agents to spawn their own children. Includes `maxChildrenPerAgent` limit (default 5), depth-aware tool policy, and proper announce chain routing. (#14447) Thanks @tyler6204.
 
 ### Fixes
