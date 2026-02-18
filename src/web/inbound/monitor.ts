@@ -19,7 +19,7 @@ import {
   extractText,
 } from "./extract.js";
 import { downloadInboundMedia } from "./media.js";
-import { createWebSendApi, resolveMentionJids } from "./send-api.js";
+import { createWebSendApi, ParticipantMentionInfo, resolveMentionJids } from "./send-api.js";
 import type { WebInboundMessage, WebListenerCloseReason } from "./types.js";
 
 export async function monitorWebInbox(options: {
@@ -114,7 +114,12 @@ export async function monitorWebInbox(options: {
   });
   const groupMetaCache = new Map<
     string,
-    { subject?: string; participants?: string[]; expires: number }
+    {
+      subject?: string;
+      participants?: string[];
+      participantInfo?: ParticipantMentionInfo[];
+      expires: number;
+    }
   >();
   const GROUP_META_TTL_MS = 5 * 60 * 1000; // 5 minutes
   const lidLookup = sock.signalRepository?.lidMapping;
@@ -129,6 +134,13 @@ export async function monitorWebInbox(options: {
     }
     try {
       const meta = await sock.groupMetadata(jid);
+      const participantInfo: ParticipantMentionInfo[] =
+        meta.participants?.map((p) => ({
+          jid: p.id,
+          name: p.name,
+          notify: p.notify,
+          phoneNumber: p.phoneNumber,
+        })) ?? [];
       const participants =
         (
           await Promise.all(
@@ -141,6 +153,7 @@ export async function monitorWebInbox(options: {
       const entry = {
         subject: meta.subject,
         participants,
+        participantInfo,
         expires: Date.now() + GROUP_META_TTL_MS,
       };
       groupMetaCache.set(jid, entry);
@@ -190,10 +203,12 @@ export async function monitorWebInbox(options: {
 
       let groupSubject: string | undefined;
       let groupParticipants: string[] | undefined;
+      let groupParticipantInfo: ParticipantMentionInfo[] | undefined;
       if (group) {
         const meta = await getGroupMeta(remoteJid);
         groupSubject = meta.subject;
         groupParticipants = meta.participants;
+        groupParticipantInfo = meta.participantInfo;
       }
       const messageTimestampMs = msg.messageTimestamp
         ? Number(msg.messageTimestamp) * 1000
@@ -286,7 +301,10 @@ export async function monitorWebInbox(options: {
         }
       };
       const reply = async (text: string) => {
-        const mentionJids = await resolveMentionJids(text, { lidLookup });
+        const mentionJids = await resolveMentionJids(text, {
+          lidLookup,
+          participants: groupParticipantInfo,
+        });
         const mentionPayload = mentionJids.length > 0 ? { mentions: mentionJids } : {};
         await sock.sendMessage(chatJid, { text, ...mentionPayload });
       };
@@ -298,7 +316,10 @@ export async function monitorWebInbox(options: {
           return;
         }
 
-        const mentionJids = await resolveMentionJids(body, { lidLookup });
+        const mentionJids = await resolveMentionJids(body, {
+          lidLookup,
+          participants: groupParticipantInfo,
+        });
         if (mentionJids.length === 0) {
           await sock.sendMessage(chatJid, payload);
           return;
@@ -386,6 +407,15 @@ export async function monitorWebInbox(options: {
     },
     defaultAccountId: options.accountId,
     lidLookup,
+    getParticipants: () => {
+      const allParticipants: ParticipantMentionInfo[] = [];
+      for (const meta of groupMetaCache.values()) {
+        if (meta.participantInfo) {
+          allParticipants.push(...meta.participantInfo);
+        }
+      }
+      return allParticipants;
+    },
   });
 
   return {

@@ -5,6 +5,14 @@ import type { ActiveWebSendOptions } from "../active-listener.js";
 
 type MentionLidLookup = {
   getLIDForPN?: (pn: string) => Promise<string | null>;
+  getPNForLID?: (lid: string) => Promise<string | null>;
+};
+
+export type ParticipantMentionInfo = {
+  jid: string;
+  name?: string;
+  notify?: string;
+  phoneNumber?: string;
 };
 
 const MENTION_TOKEN_REGEX = /@(\+?\d{6,20})(?:@(s\.whatsapp\.net|lid|hosted\.lid|hosted))?/gi;
@@ -31,9 +39,20 @@ function inferMentionDomain(digits: string, explicitDomain?: string): "s.whatsap
   if (explicitDomain) {
     return normalizeMentionDomain(explicitDomain);
   }
-  // WhatsApp LID identifiers are long numeric handles (often 15+ digits).
-  // Phone numbers in mentions are usually shorter and map to @s.whatsapp.net.
   return digits.length >= 15 ? "lid" : "s.whatsapp.net";
+}
+
+function normalizeTextForMatch(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u200b-\u200d\ufeff]/g, "")
+    .trim();
+}
+
+function extractDigits(text: string): string {
+  return text.replace(/\D/g, "");
 }
 
 export function extractMentionJids(text: string): string[] {
@@ -56,7 +75,7 @@ export function extractMentionJids(text: string): string[] {
       continue;
     }
 
-    const digits = rawNumber.replace(/\D/g, "");
+    const digits = extractDigits(rawNumber);
     if (!digits) {
       continue;
     }
@@ -68,21 +87,79 @@ export function extractMentionJids(text: string): string[] {
   return [...mentions];
 }
 
+export function extractNameMentions(text: string): string[] {
+  if (!text) {
+    return [];
+  }
+  const namePattern = /@([A-Za-z][A-Za-z0-9_\s]{1,30}?)(?=[\s)\]}"'`>.,!?;:]|$)/g;
+  const names = new Set<string>();
+  for (const match of text.matchAll(namePattern)) {
+    const name = match[1]?.trim();
+    if (name && name.length >= 2) {
+      names.add(name);
+    }
+  }
+  return [...names];
+}
+
 function normalizeMentionJid(jid: string): string {
   return jid.replace(/:\d+(?=@)/, "").replace(/@hosted\.lid$/, "@lid");
 }
 
+function mentionUserPart(jid: string): string {
+  return jid.split("@")[0] ?? "";
+}
+
+function findParticipantByName(
+  name: string,
+  participants: ParticipantMentionInfo[],
+): ParticipantMentionInfo | undefined {
+  const normalizedSearch = normalizeTextForMatch(name);
+  for (const p of participants) {
+    if (p.name && normalizeTextForMatch(p.name) === normalizedSearch) {
+      return p;
+    }
+    if (p.notify && normalizeTextForMatch(p.notify) === normalizedSearch) {
+      return p;
+    }
+    const nameParts = (p.name ?? p.notify ?? "").split(/\s+/);
+    for (const part of nameParts) {
+      if (normalizeTextForMatch(part) === normalizedSearch) {
+        return p;
+      }
+    }
+  }
+  for (const p of participants) {
+    const pName = normalizeTextForMatch(p.name ?? p.notify ?? "");
+    if (pName.startsWith(normalizedSearch) || normalizedSearch.startsWith(pName)) {
+      if (pName.length >= 3 && normalizedSearch.length >= 3) {
+        return p;
+      }
+    }
+  }
+  return undefined;
+}
+
+function resolveNameToJid(name: string, participants: ParticipantMentionInfo[]): string | null {
+  const participant = findParticipantByName(name, participants);
+  if (participant) {
+    return participant.jid;
+  }
+  const digits = extractDigits(name);
+  if (digits.length >= 6) {
+    const domain = digits.length >= 15 ? "lid" : "s.whatsapp.net";
+    return `${digits}@${domain}`;
+  }
+  return null;
+}
+
 export async function resolveMentionJids(
   text: string,
-  options?: { lidLookup?: MentionLidLookup },
+  options?: { lidLookup?: MentionLidLookup; participants?: ParticipantMentionInfo[] },
 ): Promise<string[]> {
-  const extracted = extractMentionJids(text);
-  if (extracted.length === 0) {
-    return [];
-  }
-
   const resolved = new Set<string>();
-  for (const jid of extracted) {
+  const numericJids = extractMentionJids(text);
+  for (const jid of numericJids) {
     let nextJid = normalizeMentionJid(jid);
 
     if (nextJid.endsWith("@s.whatsapp.net") && options?.lidLookup?.getLIDForPN) {
@@ -96,7 +173,29 @@ export async function resolveMentionJids(
       }
     }
 
+    if (nextJid.endsWith("@s.whatsapp.net") && options?.lidLookup?.getPNForLID) {
+      try {
+        const lidCandidate = `${mentionUserPart(nextJid)}@lid`;
+        const pnJid = await options.lidLookup.getPNForLID(lidCandidate);
+        if (pnJid) {
+          nextJid = lidCandidate;
+        }
+      } catch {
+        // Best-effort lookup only.
+      }
+    }
+
     resolved.add(nextJid);
+  }
+
+  if (options?.participants && options.participants.length > 0) {
+    const nameMentions = extractNameMentions(text);
+    for (const name of nameMentions) {
+      const jid = resolveNameToJid(name, options.participants);
+      if (jid) {
+        resolved.add(normalizeMentionJid(jid));
+      }
+    }
   }
 
   return [...resolved];
@@ -123,7 +222,13 @@ export function createWebSendApi(params: {
   };
   defaultAccountId: string;
   lidLookup?: MentionLidLookup;
+  getParticipants?: () => ParticipantMentionInfo[];
 }) {
+  const resolveMentions = async (text: string) => {
+    const participants = params.getParticipants?.() ?? [];
+    return resolveMentionJids(text, { lidLookup: params.lidLookup, participants });
+  };
+
   return {
     sendMessage: async (
       to: string,
@@ -133,7 +238,7 @@ export function createWebSendApi(params: {
       sendOptions?: ActiveWebSendOptions,
     ): Promise<{ messageId: string }> => {
       const jid = toWhatsappJid(to);
-      const mentionJids = await resolveMentionJids(text, { lidLookup: params.lidLookup });
+      const mentionJids = await resolveMentions(text);
       const mentionPayload = mentionJids.length > 0 ? { mentions: mentionJids } : undefined;
 
       let payload: AnyMessageContent;
