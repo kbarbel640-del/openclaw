@@ -113,6 +113,8 @@ export const AgentDefaultsSchema = z
           })
           .strict()
           .optional(),
+        dmChannelId: z.string().optional(),
+        dmChannelProvider: z.string().optional(),
       })
       .strict()
       .optional(),

@@ -305,6 +305,20 @@ export type AgentCompactionConfig = {
   maxHistoryShare?: number;
   /** Pre-compaction memory flush (agentic turn). Default: enabled. */
   memoryFlush?: AgentCompactionMemoryFlushConfig;
+  /**
+   * When set, the post-compaction verification gate message is always routed
+   * to this channel target (e.g. "channel:1466364708805410846") regardless of
+   * which channel triggered the compaction. Useful when compaction can fire
+   * from group chats or forum threads but the pause prompt should always land
+   * in the user's DM.
+   *
+   * Format: "<channel>:<id>" matching the routeReply `to` field, e.g.
+   * "channel:1466364708805410846" for a Discord DM channel.
+   * The `dmChannelProvider` field selects which channel plugin to use (default: "discord").
+   */
+  dmChannelId?: string;
+  /** Channel plugin name for dmChannelId routing (default: "discord"). */
+  dmChannelProvider?: string;
 };
 
 export type AgentCompactionMemoryFlushConfig = {

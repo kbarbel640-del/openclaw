@@ -1,15 +1,21 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { resolveSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
 import type { ExecToolDefaults } from "../../agents/bash-tools.js";
+import type { OpenClawConfig } from "../../config/config.js";
+import type { MsgContext, TemplateContext } from "../templating.js";
+import type { GetReplyOptions, ReplyPayload } from "../types.js";
+import type { buildCommandContext } from "./commands.js";
+import type { InlineDirectives } from "./directive-handling.js";
+import type { createModelSelectionState } from "./model-selection.js";
+import type { TypingController } from "./typing.js";
+import { resolveSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
 import {
   abortEmbeddedPiRun,
   isEmbeddedPiRunActive,
   isEmbeddedPiRunStreaming,
   resolveEmbeddedSessionLane,
 } from "../../agents/pi-embedded.js";
-import type { OpenClawConfig } from "../../config/config.js";
 import {
   resolveGroupSessionKey,
   resolveSessionFilePath,
@@ -23,7 +29,6 @@ import { normalizeMainKey } from "../../routing/session-key.js";
 import { isReasoningTagProvider } from "../../utils/provider-utils.js";
 import { hasControlCommand } from "../command-detection.js";
 import { buildInboundMediaNote } from "../media-note.js";
-import type { MsgContext, TemplateContext } from "../templating.js";
 import {
   type ElevatedLevel,
   formatXHighModelHint,
@@ -34,20 +39,15 @@ import {
   type VerboseLevel,
 } from "../thinking.js";
 import { SILENT_REPLY_TOKEN } from "../tokens.js";
-import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { runReplyAgent } from "./agent-runner.js";
 import { applySessionHints } from "./body.js";
-import type { buildCommandContext } from "./commands.js";
-import type { InlineDirectives } from "./directive-handling.js";
 import { buildGroupChatContext, buildGroupIntro } from "./groups.js";
 import { buildInboundMetaSystemPrompt, buildInboundUserContextPrefix } from "./inbound-meta.js";
-import type { createModelSelectionState } from "./model-selection.js";
 import { resolveQueueSettings } from "./queue.js";
 import { routeReply } from "./route-reply.js";
 import { BARE_SESSION_RESET_PROMPT } from "./session-reset-prompt.js";
 import { ensureSkillSnapshot, prependSystemEvents } from "./session-updates.js";
 import { resolveTypingMode } from "./typing-mode.js";
-import type { TypingController } from "./typing.js";
 import { appendUntrustedContext } from "./untrusted-context.js";
 
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
@@ -257,9 +257,32 @@ export async function runPreparedReply(
       } catch {
         // .context-transfer.json may not exist — that's fine
       }
-      return {
-        text: `⚠️ Context compacted. Review before continuing:${contextSummary || "\n\n(No context transfer summary available.)"}\n\nType 'ok' to resume.`,
-      };
+      const verificationText = `⚠️ Context compacted. Review before continuing:${contextSummary || "\n\n(No context transfer summary available.)"}\n\nType 'ok' to resume.`;
+      const verificationPayload: ReplyPayload = { text: verificationText };
+
+      // If dmChannelId is configured and we're not already in a DM, route the
+      // verification message there regardless of the originating channel.
+      const compactionCfg = cfg?.agents?.defaults?.compaction;
+      const dmChannelId = compactionCfg?.dmChannelId;
+      const isDirect = sessionCtx.ChatType === "direct";
+      if (dmChannelId && !isDirect) {
+        const dmProvider = compactionCfg?.dmChannelProvider ?? "discord";
+        const routeResult = await routeReply({
+          payload: verificationPayload,
+          channel: dmProvider,
+          to: dmChannelId,
+          sessionKey: sessionKey ?? "",
+          accountId: sessionCtx.AccountId,
+          cfg,
+        });
+        if (routeResult.ok) {
+          // Message delivered to DM — return undefined so nothing goes to the thread.
+          return undefined;
+        }
+        // Fall through and deliver in-channel if DM routing failed.
+      }
+
+      return verificationPayload;
     }
   }
 
