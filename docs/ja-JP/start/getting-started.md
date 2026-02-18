@@ -3,7 +3,14 @@ summary: "OpenClawをインストールして、数分で最初のチャット�
 read_when:
   - ゼロからの初回セットアップ時
   - 動作するチャット環境への最短パスを知りたい場合
-title: "はじめに"
+title: "Getting Started"
+x-i18n:
+  generated_at: "2026-02-19T02:00:00Z"
+  model: human-verified
+  provider: manual
+  source_hash: 4ec86bd0345cc7a70236e566da2ccb9ff17764cc5a7c3b23eab8d5d558251520
+  source_path: start/getting-started.md
+  workflow: manual
 ---
 
 # はじめに

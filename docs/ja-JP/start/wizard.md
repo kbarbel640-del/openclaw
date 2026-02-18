@@ -4,13 +4,20 @@ read_when:
   - オンボーディングウィザードの実行または設定時
   - 新しいマシンのセットアップ時
 title: "オンボーディングウィザード (CLI)"
-sidebarTitle: "オンボーディング (CLI)"
+sidebarTitle: "Onboarding (CLI)"
+x-i18n:
+  generated_at: "2026-02-19T02:00:00Z"
+  model: human-verified
+  provider: manual
+  source_hash: 381ed1422a371c4b7484612166505c18564c6f869d155c32966d998aa3b5942f
+  source_path: start/wizard.md
+  workflow: manual
 ---
 
 # オンボーディングウィザード (CLI)
 
 オンボーディングウィザードは、macOS、Linux、またはWindows（WSL2経由、強く推奨）でOpenClawをセットアップするための**推奨**される方法です。
-ローカルGatewayまたはリモートGateway接続、さらにチャネル、スキル、ワークスペースのデフォルトを1つのガイド付きフローで設定します。
+ローカルGatewayまたはリモートGateway接続、さらにチャネル、Skills、ワークスペースのデフォルトを1つのガイド付きフローで設定します。
 
 ```bash
 openclaw onboard
@@ -52,7 +59,7 @@ openclaw agents add <name>
     - Telegram + WhatsApp DMはデフォルトで**許可リスト** (電話番号の入力を求められます)
   </Tab>
   <Tab title="詳細設定 (完全な制御)">
-    - すべてのステップを公開 (モード、ワークスペース、gateway、チャネル、デーモン、スキル)。
+    - すべてのステップを公開 (モード、ワークスペース、gateway、チャネル、デーモン、Skills)。
   </Tab>
 </Tabs>
 
@@ -67,7 +74,7 @@ openclaw agents add <name>
 4. **チャネル** — WhatsApp、Telegram、Discord、Google Chat、Mattermost、Signal、BlueBubbles、またはiMessage。
 5. **デーモン** — LaunchAgent (macOS) またはsystemdユーザーユニット (Linux/WSL2) をインストールします。
 6. **ヘルスチェック** — Gatewayを起動し、実行されていることを確認します。
-7. **スキル** — 推奨スキルとオプションの依存関係をインストールします。
+7. **Skills** — 推奨Skillsとオプションの依存関係をインストールします。
 
 <Note>
 ウィザードを再実行しても、明示的に**リセット**を選択（または`--reset`を渡す）しない限り、何も消去されません。

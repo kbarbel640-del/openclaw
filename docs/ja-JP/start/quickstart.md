@@ -3,7 +3,14 @@ summary: "クイックスタートは「はじめに」に移動しました。"
 read_when:
   - 最速のセットアップ手順を探している場合
   - 古いリンクからここにアクセスした場合
-title: "クイックスタート"
+title: "Quick start"
+x-i18n:
+  generated_at: "2026-02-19T02:00:00Z"
+  model: human-verified
+  provider: manual
+  source_hash: c03779abfcd92ec98e7eb4e7367f4a2a42e284fc78822e3eff4fdd301ecf697d
+  source_path: start/quickstart.md
+  workflow: manual
 ---
 
 # クイックスタート
