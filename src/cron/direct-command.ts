@@ -128,7 +128,18 @@ export async function runCronDirectCommand(params: {
     };
 
     child.on("error", (err) => {
-      finish({ status: "error", error: `failed to start command: ${String(err)}` });
+      const error = `failed to start command: ${String(err)}`;
+      const result = createResultObject({
+        status: "error",
+        stdout,
+        stderr: Buffer.from(error, "utf8"),
+      });
+      finish({
+        status: "error",
+        error,
+        summary: formatDirectCommandResult(result),
+        result,
+      });
     });
 
     child.stdout.on("data", (chunk: Buffer | string) => {

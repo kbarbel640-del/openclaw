@@ -305,6 +305,10 @@ export function buildGatewayCronService(params: {
         if (!bestEffort) {
           return withDirectCommandDeliveryError(directCommandResult, String(err));
         }
+        cronLogger.warn(
+          { err: String(err), jobId: job.id },
+          "cron: direct command delivery failed (best-effort)",
+        );
       }
 
       return directCommandResult;

@@ -51,6 +51,23 @@ describe("runCronDirectCommand", () => {
     expect(parsed.captured.stderr).toContain("boom");
   });
 
+  it("returns deterministic summary payload when command fails to start", async () => {
+    const result = await runCronDirectCommand({
+      jobId: "job-start-fail",
+      payload: {
+        kind: "directCommand",
+        command: "/definitely-not-a-real-openclaw-command",
+      },
+    });
+
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("failed to start command");
+    const parsed = parseSummary(result.summary);
+    expect(parsed.status).toBe("error");
+    expect(parsed.summary).toContain("failed to start command");
+    expect(parsed.captured.stderr).toContain("failed to start command");
+  });
+
   it("times out long-running commands", async () => {
     const result = await runCronDirectCommand({
       jobId: "job-timeout",
