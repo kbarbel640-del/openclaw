@@ -30,6 +30,8 @@ const artifactsDir = path.join(__dirname, "artifacts");
 const dealsDir = path.join(artifactsDir, "deals");
 const triageDir = path.join(artifactsDir, "triage");
 const triageLedgerPath = path.join(triageDir, "triage.jsonl");
+const patternsDir = path.join(artifactsDir, "patterns");
+const patternsLedgerPath = path.join(patternsDir, "patterns.jsonl");
 const graphProfilesConfigPath = path.join(__dirname, "config", "graph.profiles.json");
 const graphLastErrorByProfile = new Map();
 
@@ -261,6 +263,153 @@ function appendAudit(action, details) {
     at: new Date().toISOString(),
     details,
   });
+}
+
+function appendPatternEvent(event) {
+  ensureDirectory(patternsDir);
+  fs.appendFileSync(patternsLedgerPath, `${JSON.stringify(event)}\n`, "utf8");
+}
+
+function readPatternEvents() {
+  try {
+    if (!fs.existsSync(patternsLedgerPath)) {
+      return [];
+    }
+    const raw = fs.readFileSync(patternsLedgerPath, "utf8");
+    if (!raw.trim()) {
+      return [];
+    }
+    const out = [];
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(line);
+        if (parsed && typeof parsed === "object") {
+          out.push(parsed);
+        }
+      } catch {
+        // Skip malformed lines.
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function buildPatternState() {
+  const proposed = new Map();
+  const active = new Map();
+  for (const event of readPatternEvents()) {
+    const patternId = typeof event.pattern_id === "string" ? event.pattern_id.trim() : "";
+    if (!patternId) {
+      continue;
+    }
+    if (event.kind === "pattern_proposed") {
+      proposed.set(patternId, {
+        pattern_id: patternId,
+        pattern_type: typeof event.pattern_type === "string" ? event.pattern_type : "",
+        match: event.match && typeof event.match === "object" ? event.match : {},
+        suggest: event.suggest && typeof event.suggest === "object" ? event.suggest : {},
+        notes: typeof event.notes === "string" ? event.notes : "",
+        proposed_at: typeof event.at === "string" ? event.at : null,
+      });
+      continue;
+    }
+    if (event.kind === "pattern_approved") {
+      const existing = proposed.get(patternId) || active.get(patternId);
+      if (!existing) {
+        continue;
+      }
+      active.set(patternId, {
+        ...existing,
+        approved_at: typeof event.at === "string" ? event.at : null,
+        approved_by: typeof event.approved_by === "string" ? event.approved_by : "",
+      });
+      proposed.delete(patternId);
+    }
+  }
+  return {
+    active: [...active.values()],
+    proposed: [...proposed.values()],
+  };
+}
+
+function listPatternsEndpoint(res, route) {
+  sendJson(res, 200, buildPatternState());
+  logLine(`GET ${route} -> 200`);
+}
+
+async function proposePattern(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  const patternType = typeof body.pattern_type === "string" ? body.pattern_type.trim() : "";
+  const match = body.match && typeof body.match === "object" ? body.match : null;
+  const suggest = body.suggest && typeof body.suggest === "object" ? body.suggest : null;
+  const notes = typeof body.notes === "string" ? body.notes.trim() : "";
+  if (!patternType || !match || !suggest) {
+    sendJson(res, 400, { error: "invalid_pattern_payload" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const rand = Math.random().toString(36).slice(2, 8);
+  const patternId = `pat-${Date.now()}-${rand}`;
+  appendPatternEvent({
+    kind: "pattern_proposed",
+    pattern_id: patternId,
+    pattern_type: patternType,
+    match,
+    suggest,
+    notes: notes || undefined,
+    at: now,
+  });
+  sendJson(res, 201, { proposed: true, pattern_id: patternId });
+  logLine(`POST ${route} -> 201`);
+}
+
+async function approvePattern(patternId, req, res, route) {
+  if (!patternId || !isSlugSafe(patternId)) {
+    sendJson(res, 400, { error: "invalid_pattern_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const body = await readJsonBody(req).catch(() => null);
+  const approvedBy = typeof body?.approved_by === "string" ? body.approved_by.trim() : "";
+  if (!approvedBy) {
+    sendJson(res, 400, { error: "invalid_approved_by" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const state = buildPatternState();
+  const proposed = state.proposed.find((p) => p.pattern_id === patternId);
+  if (!proposed) {
+    sendJson(res, 404, { error: "pattern_not_found", pattern_id: patternId });
+    logLine(`POST ${route} -> 404`);
+    return;
+  }
+
+  appendPatternEvent({
+    kind: "pattern_approved",
+    pattern_id: patternId,
+    pattern_type: proposed.pattern_type,
+    match: proposed.match,
+    suggest: proposed.suggest,
+    notes: proposed.notes || undefined,
+    approved_by: approvedBy,
+    at: new Date().toISOString(),
+  });
+  sendJson(res, 200, { approved: true, pattern_id: patternId });
+  logLine(`POST ${route} -> 200`);
 }
 
 async function createDeal(req, res, route) {
@@ -1031,6 +1180,23 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "POST" && route === "/triage/ingest") {
     await ingestTriageItem(req, res, route);
+    return;
+  }
+
+  if (method === "GET" && route === "/triage/patterns") {
+    listPatternsEndpoint(res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/triage/patterns/propose") {
+    await proposePattern(req, res, route);
+    return;
+  }
+
+  const triagePatternApproveMatch = route.match(/^\/triage\/patterns\/([^/]+)\/approve$/);
+  if (method === "POST" && triagePatternApproveMatch) {
+    const patternId = decodeURIComponent(triagePatternApproveMatch[1] || "").trim();
+    await approvePattern(patternId, req, res, route);
     return;
   }
 
