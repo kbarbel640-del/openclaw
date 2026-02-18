@@ -102,3 +102,25 @@ Ted Engine can (a) read limited email/calendar context and (b) create **drafts o
 
 - Improvement: update proof_jc003.sh to start/stop the sidecar automatically so proof is fully deterministic.
 - Device polling + real tenant consent is intentionally not required for this proof increment.
+
+---
+
+## Proof Evidence (Increment 3 — Draft-only email draft creation endpoint)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc003.sh
+- Result: PASS
+
+### What was proven
+
+- Sidecar exposes POST /graph/:profile_id/mail/draft/create
+- Validates payload (subject + at least one recipient)
+- Enforces draft-only behavior (Graph create draft via /me/messages; no send path)
+- Fail-closed when not authenticated:
+  - Returns 409 NOT_AUTHENTICATED with next_action RUN_DEVICE_CODE_AUTH
+- Status reflects CONNECTED/DISCONNECTED without leaking tokens
+- Sidecar-only token scan gate passes (no plaintext secret material in sidecars)
+
+### Notes
+
+- Proof intentionally verifies fail-closed behavior without requiring live tenant auth.
