@@ -15,8 +15,8 @@ dependencies:
   # WebSocket
   web_socket_channel: ^2.4.0
   
-  # Audio
-  record: ^5.2.0
+  # Audio — mic recording disabled in v1, pendant is primary source
+  # record: ^5.2.0  # Disabled: record_linux 0.7.2 has breaking API changes
   
   # Storage
   sqflite: ^2.3.0

@@ -1,8 +1,8 @@
-/// Audio pipeline — pendant Opus frames OR phone mic → gateway stream.
+/// Audio pipeline — pendant Opus frames → gateway stream.
+/// Phone mic fallback planned for v2 (pending record package fix).
 
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:record/record.dart';
 import 'gateway_service.dart';
 import 'limitless_service.dart';
 
@@ -11,10 +11,8 @@ enum AudioSource { pendant, microphone, none }
 class AudioService {
   final GatewayService _gateway;
   final LimitlessService _limitless;
-  final AudioRecorder _recorder = AudioRecorder();
 
   StreamSubscription? _pendantSub;
-  StreamSubscription? _micSub;
   AudioSource _activeSource = AudioSource.none;
 
   int _framesSent = 0;
@@ -35,31 +33,18 @@ class AudioService {
     });
   }
 
-  /// Fallback: stream from phone microphone.
+  /// Placeholder: phone mic streaming (v2)
   Future<void> startMicStream() async {
+    // TODO: Add phone mic recording in v2
+    // The `record` package has a broken `record_linux` dependency.
+    // For now, pendant is the primary audio source.
     stopAll();
     _activeSource = AudioSource.microphone;
     _gateway.sendAudioControl('start');
-
-    if (await _recorder.hasPermission()) {
-      final stream = await _recorder.startStream(const RecordConfig(
-        encoder: AudioEncoder.opus,
-        sampleRate: 16000,
-        numChannels: 1,
-        bitRate: 24000,
-      ));
-
-      _micSub = stream.listen((data) {
-        _gateway.sendAudioFrame(Uint8List.fromList(data));
-        _framesSent++;
-      });
-    }
   }
 
   void stopAll() {
     _pendantSub?.cancel();
-    _micSub?.cancel();
-    _recorder.stop();
     if (_activeSource != AudioSource.none) {
       _gateway.sendAudioControl('stop');
     }
@@ -69,6 +54,5 @@ class AudioService {
 
   void dispose() {
     stopAll();
-    _recorder.dispose();
   }
 }
