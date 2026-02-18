@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 export function safeEqualSecret(
   provided: string | undefined | null,
@@ -7,10 +7,8 @@ export function safeEqualSecret(
   if (typeof provided !== "string" || typeof expected !== "string") {
     return false;
   }
-  const providedBuffer = Buffer.from(provided);
-  const expectedBuffer = Buffer.from(expected);
-  if (providedBuffer.length !== expectedBuffer.length) {
-    return false;
-  }
-  return timingSafeEqual(providedBuffer, expectedBuffer);
+  const key = randomBytes(32);
+  const a = createHmac("sha256", key).update(provided).digest();
+  const b = createHmac("sha256", key).update(expected).digest();
+  return timingSafeEqual(a, b);
 }
