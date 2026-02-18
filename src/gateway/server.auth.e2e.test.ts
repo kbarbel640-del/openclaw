@@ -318,6 +318,30 @@ describe("gateway server auth/connect", () => {
       );
     });
 
+    test("connect (req) handshake falls back to npm_package_version when higher-precedence env values are blank", async () => {
+      await withRuntimeVersionEnv(
+        {
+          OPENCLAW_VERSION: " ",
+          OPENCLAW_SERVICE_VERSION: "\t",
+          npm_package_version: "1.0.0-package",
+        },
+        async () => {
+          const ws = await openWs(port);
+          const res = await connectReq(ws);
+          expect(res.ok).toBe(true);
+          const payload = res.payload as
+            | {
+                type?: unknown;
+                server?: { version?: string };
+              }
+            | undefined;
+          expect(payload?.type).toBe("hello-ok");
+          expect(payload?.server?.version).toBe("1.0.0-package");
+          ws.close();
+        },
+      );
+    });
+
     test("does not grant admin when scopes are empty", async () => {
       const ws = await openWs(port);
       const res = await connectReq(ws, { scopes: [] });

@@ -105,6 +105,14 @@ describe("version resolution", () => {
     ).toBe("2.0.0");
 
     expect(
+      resolveRuntimeServiceVersion({
+        OPENCLAW_VERSION: " ",
+        OPENCLAW_SERVICE_VERSION: "\t",
+        npm_package_version: " 1.0.0-package ",
+      }),
+    ).toBe("1.0.0-package");
+
+    expect(
       resolveRuntimeServiceVersion(
         {
           OPENCLAW_VERSION: "",
