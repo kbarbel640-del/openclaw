@@ -3,6 +3,10 @@ import { recordChannelActivity } from "../../infra/channel-activity.js";
 import { toWhatsappJid } from "../../utils.js";
 import type { ActiveWebSendOptions } from "../active-listener.js";
 
+type MentionLidLookup = {
+  getLIDForPN?: (pn: string) => Promise<string | null>;
+};
+
 const MENTION_TOKEN_REGEX = /@(\+?\d{6,20})(?:@(s\.whatsapp\.net|lid|hosted\.lid|hosted))?/gi;
 const MENTION_LEFT_BOUNDARY = /[\s([{"'`<]/;
 const MENTION_RIGHT_BOUNDARY = /[\s)\]}"'`>.,!?;:]/;
@@ -64,6 +68,40 @@ export function extractMentionJids(text: string): string[] {
   return [...mentions];
 }
 
+function normalizeMentionJid(jid: string): string {
+  return jid.replace(/:\d+(?=@)/, "").replace(/@hosted\.lid$/, "@lid");
+}
+
+export async function resolveMentionJids(
+  text: string,
+  options?: { lidLookup?: MentionLidLookup },
+): Promise<string[]> {
+  const extracted = extractMentionJids(text);
+  if (extracted.length === 0) {
+    return [];
+  }
+
+  const resolved = new Set<string>();
+  for (const jid of extracted) {
+    let nextJid = normalizeMentionJid(jid);
+
+    if (nextJid.endsWith("@s.whatsapp.net") && options?.lidLookup?.getLIDForPN) {
+      try {
+        const lidJid = await options.lidLookup.getLIDForPN(nextJid);
+        if (lidJid) {
+          nextJid = normalizeMentionJid(lidJid);
+        }
+      } catch {
+        // Best-effort lookup only.
+      }
+    }
+
+    resolved.add(nextJid);
+  }
+
+  return [...resolved];
+}
+
 function recordWhatsAppOutbound(accountId: string) {
   recordChannelActivity({
     channel: "whatsapp",
@@ -84,6 +122,7 @@ export function createWebSendApi(params: {
     sendPresenceUpdate: (presence: WAPresence, jid?: string) => Promise<unknown>;
   };
   defaultAccountId: string;
+  lidLookup?: MentionLidLookup;
 }) {
   return {
     sendMessage: async (
@@ -94,7 +133,7 @@ export function createWebSendApi(params: {
       sendOptions?: ActiveWebSendOptions,
     ): Promise<{ messageId: string }> => {
       const jid = toWhatsappJid(to);
-      const mentionJids = extractMentionJids(text);
+      const mentionJids = await resolveMentionJids(text, { lidLookup: params.lidLookup });
       const mentionPayload = mentionJids.length > 0 ? { mentions: mentionJids } : undefined;
 
       let payload: AnyMessageContent;

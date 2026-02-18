@@ -19,7 +19,7 @@ import {
   extractText,
 } from "./extract.js";
 import { downloadInboundMedia } from "./media.js";
-import { createWebSendApi } from "./send-api.js";
+import { createWebSendApi, resolveMentionJids } from "./send-api.js";
 import type { WebInboundMessage, WebListenerCloseReason } from "./types.js";
 
 export async function monitorWebInbox(options: {
@@ -286,10 +286,25 @@ export async function monitorWebInbox(options: {
         }
       };
       const reply = async (text: string) => {
-        await sock.sendMessage(chatJid, { text });
+        const mentionJids = await resolveMentionJids(text, { lidLookup });
+        const mentionPayload = mentionJids.length > 0 ? { mentions: mentionJids } : {};
+        await sock.sendMessage(chatJid, { text, ...mentionPayload });
       };
       const sendMedia = async (payload: AnyMessageContent) => {
-        await sock.sendMessage(chatJid, payload);
+        const caption = (payload as { caption?: unknown }).caption;
+        const body = typeof caption === "string" ? caption : "";
+        if (!body) {
+          await sock.sendMessage(chatJid, payload);
+          return;
+        }
+
+        const mentionJids = await resolveMentionJids(body, { lidLookup });
+        if (mentionJids.length === 0) {
+          await sock.sendMessage(chatJid, payload);
+          return;
+        }
+
+        await sock.sendMessage(chatJid, { ...payload, mentions: mentionJids });
       };
       const timestamp = messageTimestampMs;
       const mentionedJids = extractMentionedJids(msg.message as proto.IMessage | undefined);
@@ -370,6 +385,7 @@ export async function monitorWebInbox(options: {
       sendPresenceUpdate: (presence, jid?: string) => sock.sendPresenceUpdate(presence, jid),
     },
     defaultAccountId: options.accountId,
+    lidLookup,
   });
 
   return {
