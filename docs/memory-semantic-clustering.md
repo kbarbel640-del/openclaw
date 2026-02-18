@@ -278,12 +278,6 @@ If you see:
 3. **Cold Start**: No improvement without indexed memories
 4. **Computational Cost**: O(n²) clustering may be slow for >200 results (rare)
 
-## Related Configuration
-
-- [Memory Backend](./memory-backend.md) - Choose between SQLite and QMD
-- [Temporal Decay](./temporal-decay.md) - Boost recent memories
-- [Query Expansion](./query-expansion.md) - Improve FTS queries
-
 ## Implementation Details
 
 **Files:**
