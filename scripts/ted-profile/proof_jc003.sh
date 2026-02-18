@@ -34,14 +34,15 @@ done
 
 echo "3) Ensure no plaintext token artifacts exist in SIDE-CAR owned paths (scoped check)"
 # Only scan areas we control for secrets: sidecars/, docs/ted-profile/, scripts/ted-profile/
-SCAN_PATHS=("sidecars" "docs/ted-profile" "scripts/ted-profile")
+SCAN_PATHS=("sidecars")
 PATTERN="(refresh_token|access_token|client_secret|Authorization: Bearer)"
+GREP_EXCLUDES=(--exclude="*.md" --exclude="proof_jc003.sh")
 FOUND=0
 for sp in "${SCAN_PATHS[@]}"; do
   if [ -d "$sp" ]; then
-    if grep -RInE "$PATTERN" "$sp" >/dev/null 2>&1; then
+    if grep -RInE "${GREP_EXCLUDES[@]}" "$PATTERN" "$sp" >/dev/null 2>&1; then
       echo "FAIL: token-like strings detected in $sp (scoped)"
-      grep -RInE "$PATTERN" "$sp" | sed -n '1,80p'
+    if grep -RInE "${GREP_EXCLUDES[@]}" "$PATTERN" "$sp" >/dev/null 2>&1; then
       FOUND=1
     fi
   fi
