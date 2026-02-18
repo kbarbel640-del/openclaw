@@ -20,6 +20,7 @@ function createMockListener() {
     sendPoll: vi.fn(async () => ({ messageId: "poll-1" })),
     sendReaction: vi.fn(async () => undefined),
     sendComposingTo: vi.fn(async () => undefined),
+    downloadMedia: vi.fn(async () => ({ buffer: Buffer.from(""), mimetype: "image/jpeg" })),
   };
 }
 
