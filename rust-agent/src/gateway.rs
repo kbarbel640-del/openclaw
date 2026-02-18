@@ -6,6 +6,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::sync::Mutex;
 
+use crate::channels::{ChannelCapabilities, DriverRegistry};
 use crate::config::{GroupActivationMode, SessionQueueMode};
 use crate::protocol::{MethodFamily, RpcRequestFrame};
 use crate::session_key::{parse_session_key, SessionKind};
@@ -85,6 +86,36 @@ impl MethodRegistry {
                 },
                 MethodSpec {
                     name: "system-event",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "wake",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "talk.config",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "talk.mode",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "channels.status",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "channels.logout",
                     family: MethodFamily::Gateway,
                     requires_auth: true,
                     min_role: "client",
@@ -234,6 +265,8 @@ impl MethodRegistry {
 pub struct RpcDispatcher {
     sessions: SessionRegistry,
     system: SystemRegistry,
+    talk: TalkRegistry,
+    channel_capabilities: Vec<ChannelCapabilities>,
     started_at_ms: u64,
 }
 
@@ -251,6 +284,11 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "set-heartbeats",
     "system-presence",
     "system-event",
+    "wake",
+    "talk.config",
+    "talk.mode",
+    "channels.status",
+    "channels.logout",
     "sessions.list",
     "sessions.preview",
     "sessions.patch",
@@ -268,9 +306,16 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
 
 impl RpcDispatcher {
     pub fn new() -> Self {
+        let channel_capabilities = DriverRegistry::default_registry()
+            .capabilities()
+            .into_iter()
+            .filter(|cap| cap.name != "generic")
+            .collect::<Vec<_>>();
         Self {
             sessions: SessionRegistry::new(),
             system: SystemRegistry::new(),
+            talk: TalkRegistry::new(),
+            channel_capabilities,
             started_at_ms: now_ms(),
         }
     }
@@ -285,6 +330,11 @@ impl RpcDispatcher {
             "set-heartbeats" => self.handle_set_heartbeats(req).await,
             "system-presence" | "presence" => self.handle_system_presence().await,
             "system-event" => self.handle_system_event(req).await,
+            "wake" => self.handle_wake(req).await,
+            "talk.config" => self.handle_talk_config(req).await,
+            "talk.mode" => self.handle_talk_mode(req).await,
+            "channels.status" => self.handle_channels_status(req).await,
+            "channels.logout" => self.handle_channels_logout(req).await,
             "sessions.list" => self.handle_sessions_list(req).await,
             "sessions.preview" => self.handle_sessions_preview(req).await,
             "sessions.patch" => self.handle_sessions_patch(req).await,
@@ -451,6 +501,197 @@ impl RpcDispatcher {
             })
             .await;
         RpcDispatchOutcome::Handled(json!({ "ok": true }))
+    }
+
+    async fn handle_wake(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<WakeParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let mode = match parse_wake_mode(params.mode) {
+            Ok(mode) => mode,
+            Err(err) => return RpcDispatchOutcome::bad_request(err),
+        };
+        let Some(text) = normalize_optional_text(params.text, 2_048) else {
+            return RpcDispatchOutcome::bad_request("invalid wake params: text required");
+        };
+
+        self.system
+            .upsert_presence(SystemPresenceUpdate {
+                text: text.clone(),
+                device_id: None,
+                instance_id: None,
+                host: Some("gateway".to_owned()),
+                ip: None,
+                mode: Some(mode.to_owned()),
+                version: Some(RUNTIME_VERSION.to_owned()),
+                platform: None,
+                device_family: None,
+                model_identifier: None,
+                last_input_seconds: None,
+                reason: Some("wake".to_owned()),
+                roles: Vec::new(),
+                scopes: Vec::new(),
+                tags: vec!["wake".to_owned()],
+            })
+            .await;
+        if mode == "now" {
+            self.system
+                .update_last_heartbeat(json!({
+                    "status": "wake-requested",
+                    "reason": "wake",
+                    "mode": mode,
+                    "preview": text
+                }))
+                .await;
+        }
+
+        RpcDispatchOutcome::Handled(json!({ "ok": true }))
+    }
+
+    async fn handle_talk_config(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<TalkConfigParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let mut talk = serde_json::Map::new();
+        talk.insert("outputFormat".to_owned(), Value::String("pcm16".to_owned()));
+        talk.insert("interruptOnSpeech".to_owned(), Value::Bool(true));
+        if params.include_secrets.unwrap_or(false) {
+            talk.insert("apiKey".to_owned(), Value::String("redacted".to_owned()));
+        }
+        RpcDispatchOutcome::Handled(json!({
+            "config": {
+                "talk": Value::Object(talk),
+                "session": { "mainKey": "main" },
+                "ui": { "seamColor": "#4b5563" }
+            }
+        }))
+    }
+
+    async fn handle_talk_mode(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<TalkModeParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let Some(enabled) = params.enabled else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid talk.mode params: enabled (boolean) required",
+            );
+        };
+        let phase = normalize_optional_text(params.phase, 64);
+        let state = self.talk.set_mode(enabled, phase).await;
+        RpcDispatchOutcome::Handled(json!({
+            "enabled": state.enabled,
+            "phase": state.phase,
+            "ts": state.updated_at_ms
+        }))
+    }
+
+    async fn handle_channels_status(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<ChannelsStatusParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let probe = params.probe.unwrap_or(false);
+        let timeout_ms = params.timeout_ms.unwrap_or(10_000).max(1_000);
+
+        let mut channel_order = Vec::new();
+        let mut channel_labels = serde_json::Map::new();
+        let mut channel_detail_labels = serde_json::Map::new();
+        let mut channel_meta = Vec::new();
+        let mut channels = serde_json::Map::new();
+        let mut channel_accounts = serde_json::Map::new();
+        let mut channel_default_account_id = serde_json::Map::new();
+
+        for capability in &self.channel_capabilities {
+            let id = capability.name.to_owned();
+            let label = channel_label(capability.name);
+            channel_order.push(id.clone());
+            channel_labels.insert(id.clone(), Value::String(label.clone()));
+            channel_detail_labels.insert(id.clone(), Value::String(label.clone()));
+            channel_meta.push(json!({
+                "id": id,
+                "label": label,
+                "detailLabel": label
+            }));
+            channels.insert(
+                id.clone(),
+                json!({
+                    "configured": true,
+                    "enabled": true,
+                    "linked": true,
+                    "running": false,
+                    "connected": false,
+                    "supports": {
+                        "edit": capability.supports_edit,
+                        "delete": capability.supports_delete,
+                        "reactions": capability.supports_reactions,
+                        "threads": capability.supports_threads,
+                        "polls": capability.supports_polls,
+                        "media": capability.supports_media,
+                        "dmPairing": capability.default_dm_pairing
+                    }
+                }),
+            );
+            let mut account = json!({
+                "accountId": "default",
+                "name": "default",
+                "enabled": true,
+                "configured": true,
+                "linked": true,
+                "running": false,
+                "connected": false,
+                "mode": "polling"
+            });
+            if probe {
+                account["probe"] = json!({
+                    "ok": true,
+                    "source": "rust-parity",
+                    "timeoutMs": timeout_ms
+                });
+            }
+            channel_accounts.insert(id.clone(), Value::Array(vec![account]));
+            channel_default_account_id.insert(id, Value::String("default".to_owned()));
+        }
+
+        RpcDispatchOutcome::Handled(json!({
+            "ts": now_ms(),
+            "channelOrder": channel_order,
+            "channelLabels": channel_labels,
+            "channelDetailLabels": channel_detail_labels,
+            "channelMeta": channel_meta,
+            "channels": channels,
+            "channelAccounts": channel_accounts,
+            "channelDefaultAccountId": channel_default_account_id
+        }))
+    }
+
+    async fn handle_channels_logout(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<ChannelsLogoutParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let Some(channel) = normalize_optional_text(params.channel, 64).map(|v| normalize(&v))
+        else {
+            return RpcDispatchOutcome::bad_request("invalid channels.logout channel");
+        };
+        let supported = self
+            .channel_capabilities
+            .iter()
+            .any(|cap| cap.name.eq_ignore_ascii_case(&channel));
+        if !supported {
+            return RpcDispatchOutcome::bad_request("invalid channels.logout channel");
+        }
+        let account_id =
+            normalize_optional_text(params.account_id, 64).unwrap_or_else(|| "default".to_owned());
+        RpcDispatchOutcome::Handled(json!({
+            "channel": channel,
+            "accountId": account_id,
+            "cleared": false,
+            "loggedOut": false,
+            "supported": false
+        }))
     }
 
     async fn handle_sessions_list(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
@@ -1337,6 +1578,37 @@ fn presence_key_from_value(value: &Value, index: usize) -> String {
         return format!("presence:idx:{index}");
     };
     build_presence_key(map, &format!("idx:{index}"))
+}
+
+struct TalkRegistry {
+    state: Mutex<TalkState>,
+}
+
+#[derive(Debug, Clone)]
+struct TalkState {
+    enabled: bool,
+    phase: Option<String>,
+    updated_at_ms: u64,
+}
+
+impl TalkRegistry {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(TalkState {
+                enabled: false,
+                phase: None,
+                updated_at_ms: now_ms(),
+            }),
+        }
+    }
+
+    async fn set_mode(&self, enabled: bool, phase: Option<String>) -> TalkState {
+        let mut guard = self.state.lock().await;
+        guard.enabled = enabled;
+        guard.phase = phase;
+        guard.updated_at_ms = now_ms();
+        guard.clone()
+    }
 }
 
 struct SessionRegistry {
@@ -2577,6 +2849,43 @@ struct SystemEventParams {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
+struct WakeParams {
+    mode: Option<String>,
+    text: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct TalkConfigParams {
+    #[serde(rename = "includeSecrets", alias = "include_secrets")]
+    include_secrets: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct TalkModeParams {
+    enabled: Option<bool>,
+    phase: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct ChannelsStatusParams {
+    probe: Option<bool>,
+    #[serde(rename = "timeoutMs", alias = "timeout_ms")]
+    timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct ChannelsLogoutParams {
+    channel: Option<String>,
+    #[serde(rename = "accountId", alias = "account_id")]
+    account_id: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
 struct SessionsPreviewParams {
     keys: Option<Vec<String>>,
     limit: Option<usize>,
@@ -2755,6 +3064,35 @@ fn parse_reset_reason(value: Option<String>) -> Result<String, String> {
         "new" => Ok("new".to_owned()),
         "reset" => Ok("reset".to_owned()),
         _ => Err("reason must be new|reset".to_owned()),
+    }
+}
+
+fn parse_wake_mode(value: Option<String>) -> Result<&'static str, String> {
+    let Some(mode) = normalize_optional_text(value, 32) else {
+        return Err("invalid wake params: mode required".to_owned());
+    };
+    match normalize(&mode).as_str() {
+        "now" => Ok("now"),
+        "next-heartbeat" => Ok("next-heartbeat"),
+        _ => Err("invalid wake params: mode must be now|next-heartbeat".to_owned()),
+    }
+}
+
+fn channel_label(id: &str) -> String {
+    match normalize(id).as_str() {
+        "whatsapp" => "WhatsApp".to_owned(),
+        "telegram" => "Telegram".to_owned(),
+        "slack" => "Slack".to_owned(),
+        "discord" => "Discord".to_owned(),
+        other => {
+            let mut chars = other.chars();
+            let Some(first) = chars.next() else {
+                return String::new();
+            };
+            let mut out = first.to_uppercase().collect::<String>();
+            out.push_str(chars.as_str());
+            out
+        }
     }
 }
 
@@ -5315,6 +5653,213 @@ mod tests {
                 }));
             }
             _ => panic!("expected system-presence handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_wake_validates_mode_and_updates_heartbeat() {
+        let dispatcher = RpcDispatcher::new();
+
+        let missing_mode = RpcRequestFrame {
+            id: "req-wake-missing-mode".to_owned(),
+            method: "wake".to_owned(),
+            params: serde_json::json!({
+                "text": "ping"
+            }),
+        };
+        let out = dispatcher.handle_request(&missing_mode).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let wake = RpcRequestFrame {
+            id: "req-wake-now".to_owned(),
+            method: "wake".to_owned(),
+            params: serde_json::json!({
+                "mode": "now",
+                "text": "wake now"
+            }),
+        };
+        let out = dispatcher.handle_request(&wake).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload.pointer("/ok").and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+            }
+            _ => panic!("expected wake handled"),
+        }
+
+        let last_heartbeat = RpcRequestFrame {
+            id: "req-wake-last-heartbeat".to_owned(),
+            method: "last-heartbeat".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&last_heartbeat).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/status")
+                        .and_then(serde_json::Value::as_str),
+                    Some("wake-requested")
+                );
+                assert_eq!(
+                    payload.pointer("/mode").and_then(serde_json::Value::as_str),
+                    Some("now")
+                );
+            }
+            _ => panic!("expected last-heartbeat after wake"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_talk_methods_return_config_and_track_mode() {
+        let dispatcher = RpcDispatcher::new();
+
+        let config = RpcRequestFrame {
+            id: "req-talk-config".to_owned(),
+            method: "talk.config".to_owned(),
+            params: serde_json::json!({
+                "includeSecrets": false
+            }),
+        };
+        let out = dispatcher.handle_request(&config).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/config/talk/outputFormat")
+                        .and_then(serde_json::Value::as_str),
+                    Some("pcm16")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/config/session/mainKey")
+                        .and_then(serde_json::Value::as_str),
+                    Some("main")
+                );
+            }
+            _ => panic!("expected talk.config handled"),
+        }
+
+        let invalid_mode = RpcRequestFrame {
+            id: "req-talk-mode-invalid".to_owned(),
+            method: "talk.mode".to_owned(),
+            params: serde_json::json!({
+                "phase": "listen"
+            }),
+        };
+        let out = dispatcher.handle_request(&invalid_mode).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let set_mode = RpcRequestFrame {
+            id: "req-talk-mode-valid".to_owned(),
+            method: "talk.mode".to_owned(),
+            params: serde_json::json!({
+                "enabled": true,
+                "phase": "listen"
+            }),
+        };
+        let out = dispatcher.handle_request(&set_mode).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/enabled")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/phase")
+                        .and_then(serde_json::Value::as_str),
+                    Some("listen")
+                );
+                assert!(payload
+                    .pointer("/ts")
+                    .and_then(serde_json::Value::as_u64)
+                    .is_some());
+            }
+            _ => panic!("expected talk.mode handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_channels_methods_report_status_and_validate_logout() {
+        let dispatcher = RpcDispatcher::new();
+
+        let status = RpcRequestFrame {
+            id: "req-channels-status".to_owned(),
+            method: "channels.status".to_owned(),
+            params: serde_json::json!({
+                "probe": true,
+                "timeoutMs": 2500
+            }),
+        };
+        let out = dispatcher.handle_request(&status).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                let order = payload
+                    .pointer("/channelOrder")
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                assert!(!order.is_empty());
+                assert!(order.iter().any(|v| v.as_str() == Some("discord")));
+                assert_eq!(
+                    payload
+                        .pointer("/channelDefaultAccountId/discord")
+                        .and_then(serde_json::Value::as_str),
+                    Some("default")
+                );
+                assert!(payload
+                    .pointer("/channelAccounts/discord/0/probe/ok")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false));
+            }
+            _ => panic!("expected channels.status handled"),
+        }
+
+        let invalid_logout = RpcRequestFrame {
+            id: "req-channels-logout-invalid".to_owned(),
+            method: "channels.logout".to_owned(),
+            params: serde_json::json!({
+                "channel": "unknown"
+            }),
+        };
+        let out = dispatcher.handle_request(&invalid_logout).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let valid_logout = RpcRequestFrame {
+            id: "req-channels-logout-valid".to_owned(),
+            method: "channels.logout".to_owned(),
+            params: serde_json::json!({
+                "channel": "discord"
+            }),
+        };
+        let out = dispatcher.handle_request(&valid_logout).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/channel")
+                        .and_then(serde_json::Value::as_str),
+                    Some("discord")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/accountId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("default")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/supported")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(false)
+                );
+            }
+            _ => panic!("expected channels.logout handled"),
         }
     }
 }
