@@ -95,14 +95,23 @@ export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: str
   if (!req) {
     return false;
   }
+
+  const host = resolveHostName(req.headers?.host);
+  const socketIp = req.socket?.remoteAddress ?? "";
+
+  // Tailscale Serve adds X-Forwarded-For with the real client IP, so the
+  // loopback check below would reject it. Handle Tailscale Serve separately:
+  // the socket arrives on loopback and the Host header ends with .ts.net.
+  if (host.endsWith(".ts.net") && isLoopbackAddress(socketIp)) {
+    return true;
+  }
+
   const clientIp = resolveRequestClientIp(req, trustedProxies) ?? "";
   if (!isLoopbackAddress(clientIp)) {
     return false;
   }
 
-  const host = resolveHostName(req.headers?.host);
   const hostIsLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
-  const hostIsTailscaleServe = host.endsWith(".ts.net");
 
   const hasForwarded = Boolean(
     req.headers?.["x-forwarded-for"] ||
@@ -111,7 +120,7 @@ export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: str
   );
 
   const remoteIsTrustedProxy = isTrustedProxyAddress(req.socket?.remoteAddress, trustedProxies);
-  return (hostIsLocal || hostIsTailscaleServe) && (!hasForwarded || remoteIsTrustedProxy);
+  return hostIsLocal && (!hasForwarded || remoteIsTrustedProxy);
 }
 
 function getTailscaleUser(req?: IncomingMessage): TailscaleUser | null {
