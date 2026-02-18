@@ -34,6 +34,7 @@ import {
 } from "./gateway.ts";
 import { GatewayBrowserClient } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
+import { notifyReplyComplete } from "./reply-notifications.ts";
 import type { UiSettings } from "./storage.ts";
 import type {
   AgentsListResult,
@@ -254,6 +255,10 @@ function handleChatGatewayEvent(host: GatewayHost, payload: ChatEventPayload | u
   handleTerminalChatEvent(host, payload, state);
   if (state === "final" && shouldReloadHistoryForFinalEvent(payload)) {
     void loadChatHistory(host as unknown as OpenClawApp);
+  }
+  if (state === "final") {
+    const text = payload?.message?.content?.[0]?.text;
+    notifyReplyComplete(typeof text === "string" ? text : undefined);
   }
 }
 

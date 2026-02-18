@@ -338,11 +338,14 @@ export function createAgentEventHandler({
     chatRunState.buffers.delete(clientRunId);
     chatRunState.deltaSentAt.delete(clientRunId);
     if (jobState === "done") {
+      const runContext = getAgentRunContext(clientRunId);
+      const isHeartbeat = runContext?.isHeartbeat ?? false;
       const payload = {
         runId: clientRunId,
         sessionKey,
         seq,
         state: "final" as const,
+        isHeartbeat,
         message:
           text && !shouldSuppressSilent
             ? {
