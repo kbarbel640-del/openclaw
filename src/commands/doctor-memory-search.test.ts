@@ -81,6 +81,13 @@ describe("noteMemorySearchHealth", () => {
     });
     expect(note).not.toHaveBeenCalled();
   });
+
+  it("does not warn when memory.backend is qmd", async () => {
+    const qmdCfg = { memory: { backend: "qmd" } } as unknown as OpenClawConfig;
+    await noteMemorySearchHealth(qmdCfg);
+    expect(note).not.toHaveBeenCalled();
+    expect(resolveMemorySearchConfig).not.toHaveBeenCalled();
+  });
 });
 
 describe("detectLegacyWorkspaceDirs", () => {

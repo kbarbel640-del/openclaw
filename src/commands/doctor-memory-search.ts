@@ -1,9 +1,9 @@
 import fsSync from "node:fs";
+import type { OpenClawConfig } from "../config/config.js";
 import { resolveAgentDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { resolveMemorySearchConfig } from "../agents/memory-search.js";
 import { resolveApiKeyForProvider } from "../agents/model-auth.js";
 import { formatCliCommand } from "../cli/command-format.js";
-import type { OpenClawConfig } from "../config/config.js";
 import { note } from "../terminal/note.js";
 import { resolveUserPath } from "../utils.js";
 
@@ -12,6 +12,12 @@ import { resolveUserPath } from "../utils.js";
  * Runs as part of `openclaw doctor` — config-only, no network calls.
  */
 export async function noteMemorySearchHealth(cfg: OpenClawConfig): Promise<void> {
+  // QMD manages its own embeddings via the qmd binary — openclaw's built-in
+  // provider configuration is not used and should not be validated here.
+  if (cfg.memory?.backend === "qmd") {
+    return;
+  }
+
   const agentId = resolveDefaultAgentId(cfg);
   const agentDir = resolveAgentDir(cfg, agentId);
   const resolved = resolveMemorySearchConfig(cfg, agentId);
