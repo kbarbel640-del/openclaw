@@ -1,4 +1,6 @@
 import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { resolveHumanDelayConfig } from "../../agents/identity.js";
 import { resolveTextChunkLimit } from "../../auto-reply/chunk.js";
 import { hasControlCommand } from "../../auto-reply/command-detection.js";
@@ -20,6 +22,7 @@ import { readSessionUpdatedAt, resolveStorePath } from "../../config/sessions.js
 import { danger, logVerbose, shouldLogVerbose } from "../../globals.js";
 import { waitForTransportReady } from "../../infra/transport-ready.js";
 import { mediaKindFromMime } from "../../media/constants.js";
+import { saveMediaBuffer } from "../../media/store.js";
 import { buildPairingReply } from "../../pairing/pairing-messages.js";
 import {
   readChannelAllowFromStore,
@@ -210,12 +213,49 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
     const attachments = includeAttachments ? (message.attachments ?? []) : [];
     // Filter to valid attachments with paths
     const validAttachments = attachments.filter((entry) => entry?.original_path && !entry?.missing);
-    const firstAttachment = validAttachments[0];
-    const mediaPath = firstAttachment?.original_path ?? undefined;
-    const mediaType = firstAttachment?.mime_type ?? undefined;
+    // Copy iMessage attachments from ~/Library/Messages/Attachments into the
+    // managed media store so they fall under the default mediaLocalRoots.
+    // This is necessary since the 2026.2.15 hardening that blocks direct reads
+    // of paths outside the state directory (fixes #20206).
+    const resolvedAttachments = await Promise.all(
+      validAttachments.map(async (a) => {
+        const rawPath = a.original_path;
+        if (!rawPath) {
+          return null;
+        }
+        const expanded = rawPath.startsWith("~/")
+          ? path.join(os.homedir(), rawPath.slice(2))
+          : rawPath;
+        try {
+          const buf = await fs.readFile(expanded);
+          const saved = await saveMediaBuffer(
+            buf,
+            a.mime_type ?? undefined,
+            "inbound",
+            25 * 1024 * 1024, // iMessage supports large attachments
+            path.basename(expanded),
+          );
+          return { path: saved.path, mime: saved.contentType ?? a.mime_type ?? undefined };
+        } catch (err) {
+          // If copy fails (file missing/permission denied), fall back to original
+          // path and let the security check surface a clear error.
+          logVerbose(
+            `imessage: attachment copy failed for ${path.basename(expanded)}: ${String(err)}`,
+          );
+          return { path: expanded, mime: a.mime_type ?? undefined };
+        }
+      }),
+    );
+    const savedAttachments = resolvedAttachments.filter(Boolean) as {
+      path: string;
+      mime: string | undefined;
+    }[];
+    const firstAttachment = savedAttachments[0];
+    const mediaPath = firstAttachment?.path;
+    const mediaType = firstAttachment?.mime;
     // Build arrays for all attachments (for multi-image support)
-    const mediaPaths = validAttachments.map((a) => a.original_path).filter(Boolean) as string[];
-    const mediaTypes = validAttachments.map((a) => a.mime_type ?? undefined);
+    const mediaPaths = savedAttachments.map((a) => a.path);
+    const mediaTypes = savedAttachments.map((a) => a.mime);
     const kind = mediaKindFromMime(mediaType ?? undefined);
     const placeholder = kind ? `<media:${kind}>` : attachments?.length ? "<media:attachment>" : "";
     const bodyText = messageText || placeholder;
