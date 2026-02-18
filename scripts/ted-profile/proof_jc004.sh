@@ -2,6 +2,7 @@
 set -euo pipefail
 
 BASE_URL="${TED_SIDECAR_URL:-http://127.0.0.1:48080}"
+JC004_ITEM_ID="proof_item_$(date +%s)"
 echo "JC-004 proof: Deal ledger + triage queue"
 
 DEAL_ID="jc004-deal-$(date +%s)-$RANDOM"
@@ -68,7 +69,7 @@ echo "=== JC-004 Increment 2: triage ingest endpoint (proof-first) ==="
 INGEST_CODE="$(curl -sS -o /tmp/jc004_ingest.out -w "%{http_code}" \
   -X POST "$BASE_URL/triage/ingest" \
   -H "Content-Type: application/json" \
-  -d '{"item_id":"proof_item","source_type":"manual","source_ref":"proof","summary":"proof ingest"}' || true)"
+  -d '{"item_id":"'$JC004_ITEM_ID'","source_type":"manual","source_ref":"proof","summary":"proof ingest"}' || true)"
 
 if [ "$INGEST_CODE" = "404" ]; then
   echo "EXPECTED_FAIL_UNTIL_JC004_INC2_IMPLEMENTED: missing /triage/ingest"
