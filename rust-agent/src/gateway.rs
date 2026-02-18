@@ -441,6 +441,18 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "node.list",
+                    family: MethodFamily::Node,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "node.describe",
+                    family: MethodFamily::Node,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "node.invoke",
                     family: MethodFamily::Node,
                     requires_auth: true,
@@ -648,6 +660,8 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "node.pair.reject",
     "node.pair.verify",
     "node.rename",
+    "node.list",
+    "node.describe",
     "browser.request",
     "config.get",
     "config.set",
@@ -751,6 +765,8 @@ impl RpcDispatcher {
             "node.pair.reject" => self.handle_node_pair_reject(req).await,
             "node.pair.verify" => self.handle_node_pair_verify(req).await,
             "node.rename" => self.handle_node_rename(req).await,
+            "node.list" => self.handle_node_list(req).await,
+            "node.describe" => self.handle_node_describe(req).await,
             "browser.request" => self.handle_browser_request(req).await,
             "config.get" => self.handle_config_get(req).await,
             "config.set" => self.handle_config_set(req).await,
@@ -2166,6 +2182,53 @@ impl RpcDispatcher {
             return RpcDispatchOutcome::bad_request("unknown nodeId");
         };
         RpcDispatchOutcome::Handled(json!(renamed))
+    }
+
+    async fn handle_node_list(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        if let Err(err) = decode_params::<NodeListParams>(&req.params) {
+            return RpcDispatchOutcome::bad_request(format!("invalid node.list params: {err}"));
+        }
+        let nodes = self.nodes.list_nodes().await;
+        RpcDispatchOutcome::Handled(json!({
+            "ts": now_ms(),
+            "nodes": nodes
+        }))
+    }
+
+    async fn handle_node_describe(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<NodeDescribeParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid node.describe params: {err}"
+                ));
+            }
+        };
+        let Some(node_id) = normalize_optional_text(Some(params.node_id), 128) else {
+            return RpcDispatchOutcome::bad_request("nodeId required");
+        };
+        let Some(node) = self.nodes.describe_node(&node_id).await else {
+            return RpcDispatchOutcome::bad_request("unknown nodeId");
+        };
+        RpcDispatchOutcome::Handled(json!({
+            "ts": now_ms(),
+            "nodeId": node.node_id,
+            "displayName": node.display_name,
+            "platform": node.platform,
+            "version": node.version,
+            "coreVersion": node.core_version,
+            "uiVersion": node.ui_version,
+            "deviceFamily": node.device_family,
+            "modelIdentifier": node.model_identifier,
+            "remoteIp": node.remote_ip,
+            "caps": node.caps,
+            "commands": node.commands,
+            "pathEnv": node.path_env,
+            "permissions": node.permissions,
+            "connectedAtMs": node.connected_at_ms,
+            "paired": node.paired,
+            "connected": node.connected
+        }))
     }
 
     async fn handle_browser_request(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
@@ -4838,6 +4901,38 @@ struct NodeRenameResult {
     display_name: String,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+struct NodeInventoryEntry {
+    #[serde(rename = "nodeId")]
+    node_id: String,
+    #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    #[serde(rename = "coreVersion", skip_serializing_if = "Option::is_none")]
+    core_version: Option<String>,
+    #[serde(rename = "uiVersion", skip_serializing_if = "Option::is_none")]
+    ui_version: Option<String>,
+    #[serde(rename = "deviceFamily", skip_serializing_if = "Option::is_none")]
+    device_family: Option<String>,
+    #[serde(rename = "modelIdentifier", skip_serializing_if = "Option::is_none")]
+    model_identifier: Option<String>,
+    #[serde(rename = "remoteIp", skip_serializing_if = "Option::is_none")]
+    remote_ip: Option<String>,
+    caps: Vec<String>,
+    commands: Vec<String>,
+    #[serde(rename = "pathEnv", skip_serializing_if = "Option::is_none")]
+    path_env: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    permissions: Option<Value>,
+    #[serde(rename = "connectedAtMs", skip_serializing_if = "Option::is_none")]
+    connected_at_ms: Option<u64>,
+    paired: bool,
+    connected: bool,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct NodePairPendingRequest {
     #[serde(rename = "requestId")]
@@ -5116,6 +5211,44 @@ impl NodePairRegistry {
         })
     }
 
+    async fn list_nodes(&self) -> Vec<NodeInventoryEntry> {
+        let guard = self.state.lock().await;
+        let mut nodes = guard
+            .paired_by_node_id
+            .values()
+            .map(node_inventory_from_paired)
+            .collect::<Vec<_>>();
+        nodes.sort_by(|a, b| {
+            if a.connected != b.connected {
+                return if a.connected {
+                    std::cmp::Ordering::Less
+                } else {
+                    std::cmp::Ordering::Greater
+                };
+            }
+            let a_key = a.display_name.as_ref().map_or_else(
+                || a.node_id.to_ascii_lowercase(),
+                |value| value.to_ascii_lowercase(),
+            );
+            let b_key = b.display_name.as_ref().map_or_else(
+                || b.node_id.to_ascii_lowercase(),
+                |value| value.to_ascii_lowercase(),
+            );
+            a_key.cmp(&b_key).then_with(|| a.node_id.cmp(&b.node_id))
+        });
+        nodes
+    }
+
+    async fn describe_node(&self, node_id: &str) -> Option<NodeInventoryEntry> {
+        let normalized_node_id = node_id.trim();
+        if normalized_node_id.is_empty() {
+            return None;
+        }
+        let guard = self.state.lock().await;
+        let node = guard.paired_by_node_id.get(normalized_node_id)?;
+        Some(node_inventory_from_paired(node))
+    }
+
     async fn ingest_pair_requested(&self, payload: Value) {
         let Ok(event) = serde_json::from_value::<NodePairRequestedEventPayload>(payload) else {
             return;
@@ -5166,6 +5299,27 @@ impl NodePairRegistry {
         };
         let mut guard = self.state.lock().await;
         let _ = guard.pending_by_id.remove(&request_id);
+    }
+}
+
+fn node_inventory_from_paired(node: &PairedNodeEntry) -> NodeInventoryEntry {
+    NodeInventoryEntry {
+        node_id: node.node_id.clone(),
+        display_name: node.display_name.clone(),
+        platform: node.platform.clone(),
+        version: node.version.clone(),
+        core_version: node.core_version.clone(),
+        ui_version: node.ui_version.clone(),
+        device_family: node.device_family.clone(),
+        model_identifier: node.model_identifier.clone(),
+        remote_ip: node.remote_ip.clone(),
+        caps: node.caps.clone().unwrap_or_default(),
+        commands: node.commands.clone().unwrap_or_default(),
+        path_env: None,
+        permissions: None,
+        connected_at_ms: node.last_connected_at_ms,
+        paired: true,
+        connected: false,
     }
 }
 
@@ -8261,6 +8415,17 @@ struct NodeRenameParams {
     node_id: String,
     #[serde(rename = "displayName", alias = "display_name")]
     display_name: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct NodeListParams {}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NodeDescribeParams {
+    #[serde(rename = "nodeId", alias = "node_id")]
+    node_id: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -13202,6 +13367,80 @@ mod tests {
             }
             _ => panic!("expected node.rename handled"),
         }
+
+        let node_list_invalid = RpcRequestFrame {
+            id: "req-node-list-params-invalid".to_owned(),
+            method: "node.list".to_owned(),
+            params: serde_json::json!({
+                "extra": true
+            }),
+        };
+        let out = dispatcher.handle_request(&node_list_invalid).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let node_list = RpcRequestFrame {
+            id: "req-node-list-live".to_owned(),
+            method: "node.list".to_owned(),
+            params: serde_json::json!({}),
+        };
+        match dispatcher.handle_request(&node_list).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/nodes/0/nodeId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("node-1")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/nodes/0/paired")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/nodes/0/connected")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(false)
+                );
+            }
+            _ => panic!("expected node.list handled"),
+        }
+
+        let describe = RpcRequestFrame {
+            id: "req-node-describe".to_owned(),
+            method: "node.describe".to_owned(),
+            params: serde_json::json!({
+                "nodeId": "node-1"
+            }),
+        };
+        match dispatcher.handle_request(&describe).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/displayName")
+                        .and_then(serde_json::Value::as_str),
+                    Some("Ops Node")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/paired")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+            }
+            _ => panic!("expected node.describe handled"),
+        }
+
+        let describe_unknown = RpcRequestFrame {
+            id: "req-node-describe-unknown".to_owned(),
+            method: "node.describe".to_owned(),
+            params: serde_json::json!({
+                "nodeId": "node-missing"
+            }),
+        };
+        let out = dispatcher.handle_request(&describe_unknown).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
 
         dispatcher
             .ingest_event_frame(&serde_json::json!({
