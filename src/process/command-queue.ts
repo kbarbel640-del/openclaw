@@ -103,6 +103,9 @@ function drainLane(lane: string) {
             diag.error(
               `lane task error: lane=${lane} durationMs=${Date.now() - startTime} error="${String(err)}"`,
             );
+            if (err instanceof Error && err.stack) {
+              diag.error(`lane task stack: ${err.stack}`);
+            }
           }
           if (completedCurrentGeneration) {
             pump();

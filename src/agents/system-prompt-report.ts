@@ -1,5 +1,5 @@
-import path from "node:path";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
+import path from "node:path";
 import type { SessionSystemPromptReport } from "../config/sessions/types.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
@@ -40,9 +40,12 @@ function buildInjectedWorkspaceFiles(params: {
   bootstrapFiles: WorkspaceBootstrapFile[];
   injectedFiles: EmbeddedContextFile[];
 }): SessionSystemPromptReport["injectedWorkspaceFiles"] {
-  const injectedByPath = new Map(params.injectedFiles.map((f) => [f.path, f.content]));
+  const validFiles = params.injectedFiles.filter(
+    (f) => typeof f.path === "string" && f.path.trim().length > 0,
+  );
+  const injectedByPath = new Map(validFiles.map((f) => [f.path, f.content]));
   const injectedByBaseName = new Map<string, string>();
-  for (const file of params.injectedFiles) {
+  for (const file of validFiles) {
     const normalizedPath = file.path.replace(/\\/g, "/");
     const baseName = path.posix.basename(normalizedPath);
     if (!injectedByBaseName.has(baseName)) {
