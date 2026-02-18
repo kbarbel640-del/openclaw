@@ -288,6 +288,8 @@ export class OpenClawApp extends LitElement {
   @state() usageLogFilterTools: string[] = [];
   @state() usageLogFilterHasTools = false;
   @state() usageLogFilterQuery = "";
+  // Tracks whether the user has triggered at least one Refresh; gates Provider Quota rendering.
+  @state() usageQuotaRefreshed = false;
 
   // Non-reactive (don’t trigger renders just for timer bookkeeping).
   usageQueryDebounceTimer: number | null = null;

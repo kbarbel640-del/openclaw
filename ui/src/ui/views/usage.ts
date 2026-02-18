@@ -753,6 +753,8 @@ export function renderUsage(props: UsageProps) {
       }
     </section>
 
+    ${props.quotaRefreshed ? renderUsageOverviewQuotaPanel(props.providerUsage) : nothing}
+
     ${renderUsageInsights(
       displayTotals,
       activeAggregates,
@@ -762,8 +764,6 @@ export function renderUsage(props: UsageProps) {
       displaySessionCount,
       totalSessions,
     )}
-
-    ${renderUsageOverviewQuotaPanel(props.providerUsage)}
 
     ${renderUsageMosaic(aggregateSessions, props.timeZone, props.selectedHours, props.onSelectHour)}
 

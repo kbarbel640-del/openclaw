@@ -35,6 +35,8 @@ export type UsageProps = {
   aggregates: UsageAggregates | null;
   costDaily: CostDailyEntry[];
   providerUsage: ProviderUsageSummary | null;
+  /** True once the user has triggered at least one Refresh; gates Provider Quota rendering. */
+  quotaRefreshed: boolean;
   selectedSessions: string[]; // Support multiple session selection
   selectedDays: string[]; // Support multiple day selection
   selectedHours: number[]; // Support multiple hour selection

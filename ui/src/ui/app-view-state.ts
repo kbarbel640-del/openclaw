@@ -186,6 +186,7 @@ export type AppViewState = {
   usageLogFilterTools: string[];
   usageLogFilterHasTools: boolean;
   usageLogFilterQuery: string;
+  usageQuotaRefreshed: boolean;
   cronLoading: boolean;
   cronJobs: CronJob[];
   cronStatus: CronStatus | null;
