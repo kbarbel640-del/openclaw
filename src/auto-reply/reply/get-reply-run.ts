@@ -1,21 +1,15 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { ExecToolDefaults } from "../../agents/bash-tools.js";
-import type { OpenClawConfig } from "../../config/config.js";
-import type { MsgContext, TemplateContext } from "../templating.js";
-import type { GetReplyOptions, ReplyPayload } from "../types.js";
-import type { buildCommandContext } from "./commands.js";
-import type { InlineDirectives } from "./directive-handling.js";
-import type { createModelSelectionState } from "./model-selection.js";
-import type { TypingController } from "./typing.js";
 import { resolveSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
+import type { ExecToolDefaults } from "../../agents/bash-tools.js";
 import {
   abortEmbeddedPiRun,
   isEmbeddedPiRunActive,
   isEmbeddedPiRunStreaming,
   resolveEmbeddedSessionLane,
 } from "../../agents/pi-embedded.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import {
   resolveGroupSessionKey,
   resolveSessionFilePath,
@@ -29,6 +23,7 @@ import { normalizeMainKey } from "../../routing/session-key.js";
 import { isReasoningTagProvider } from "../../utils/provider-utils.js";
 import { hasControlCommand } from "../command-detection.js";
 import { buildInboundMediaNote } from "../media-note.js";
+import type { MsgContext, TemplateContext } from "../templating.js";
 import {
   type ElevatedLevel,
   formatXHighModelHint,
@@ -39,15 +34,21 @@ import {
   type VerboseLevel,
 } from "../thinking.js";
 import { SILENT_REPLY_TOKEN } from "../tokens.js";
+import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { runReplyAgent } from "./agent-runner.js";
 import { applySessionHints } from "./body.js";
+import type { buildCommandContext } from "./commands.js";
+import { buildAgentFreezeContext, buildUserVerificationText } from "./compaction-held-messages.js";
+import type { InlineDirectives } from "./directive-handling.js";
 import { buildGroupChatContext, buildGroupIntro } from "./groups.js";
 import { buildInboundMetaSystemPrompt, buildInboundUserContextPrefix } from "./inbound-meta.js";
+import type { createModelSelectionState } from "./model-selection.js";
 import { resolveQueueSettings } from "./queue.js";
 import { routeReply } from "./route-reply.js";
 import { BARE_SESSION_RESET_PROMPT } from "./session-reset-prompt.js";
 import { ensureSkillSnapshot, prependSystemEvents } from "./session-updates.js";
 import { resolveTypingMode } from "./typing-mode.js";
+import type { TypingController } from "./typing.js";
 import { appendUntrustedContext } from "./untrusted-context.js";
 
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
@@ -209,11 +210,35 @@ export async function runPreparedReply(
 
   // ── Post-compaction verification gate ──────────────────────────────
   // After compaction, block message processing until user types 'ok'.
+  // Held messages are accumulated and shown to the user for triage.
+  // Agent freeze instructions are injected as system context (invisible to user).
+  let postCompactionAgentContext = "";
   if (sessionEntry?.compactionPendingVerification && !isNewSession && !isBareNewOrReset) {
     const inboundText = (ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "").trim().toLowerCase();
     if (inboundText === "ok") {
-      // Clear the gate and proceed with normal processing
+      // Build agent system context from context-transfer.json + held messages.
+      // This is injected invisibly; the user only sees their normal reply.
+      try {
+        const ctxTransferPath = path.join(workspaceDir, ".context-transfer.json");
+        const raw = await fs.readFile(ctxTransferPath, "utf-8");
+        const data = JSON.parse(raw) as Record<string, unknown>;
+        if (data && typeof data === "object") {
+          postCompactionAgentContext = buildAgentFreezeContext({
+            contextData: data,
+            heldMessages: sessionEntry.compactionHeldMessages ?? [],
+          });
+        }
+      } catch {
+        // .context-transfer.json may not exist — use held messages only
+        postCompactionAgentContext = buildAgentFreezeContext({
+          contextData: null,
+          heldMessages: sessionEntry.compactionHeldMessages ?? [],
+        });
+      }
+
+      // Clear the gate and held messages, then proceed with normal processing
       sessionEntry.compactionPendingVerification = undefined;
+      sessionEntry.compactionHeldMessages = undefined;
       sessionEntry.updatedAt = Date.now();
       if (sessionStore && sessionKey) {
         sessionStore[sessionKey] = sessionEntry;
@@ -222,79 +247,59 @@ export async function runPreparedReply(
             const entry = store[sessionKey];
             if (entry) {
               entry.compactionPendingVerification = undefined;
+              entry.compactionHeldMessages = undefined;
               entry.updatedAt = Date.now();
             }
           });
         }
       }
-      // Fall through to normal processing
+      // Fall through to normal processing with postCompactionAgentContext set
     } else {
-      // Deliver static verification payload
+      // Accumulate this message as a held message
+      const heldMsg = {
+        body: (ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "").trim(),
+        timestamp: Date.now(),
+        senderId: sessionCtx.SenderId?.trim() || undefined,
+      };
+      if (!sessionEntry.compactionHeldMessages) {
+        sessionEntry.compactionHeldMessages = [];
+      }
+      sessionEntry.compactionHeldMessages.push(heldMsg);
+      sessionEntry.updatedAt = Date.now();
+      if (sessionStore && sessionKey) {
+        sessionStore[sessionKey] = sessionEntry;
+      }
+      if (storePath) {
+        await updateSessionStore(storePath, (store) => {
+          const entry = store[sessionKey];
+          if (entry) {
+            if (!entry.compactionHeldMessages) {
+              entry.compactionHeldMessages = [];
+            }
+            entry.compactionHeldMessages.push(heldMsg);
+            entry.updatedAt = Date.now();
+          }
+        });
+      }
+
+      // Build user-facing verification message (no agent internals — just context + held msgs)
       typing.cleanup();
-      let contextSummary = "";
+      const heldMsgs = sessionEntry.compactionHeldMessages ?? [];
+      let contextData: Record<string, unknown> | null = null;
       try {
         const ctxTransferPath = path.join(workspaceDir, ".context-transfer.json");
         const raw = await fs.readFile(ctxTransferPath, "utf-8");
-        const data = JSON.parse(raw);
-        if (data && typeof data === "object") {
-          const lines: string[] = [];
-
-          // Next actions (most important — show first)
-          const nextActions = Array.isArray(data.nextActions) ? data.nextActions : [];
-          if (nextActions.length > 0) {
-            lines.push("**Next actions:**");
-            for (const item of nextActions) {
-              if (item && typeof item === "object") {
-                const action = typeof item.action === "string" ? item.action : JSON.stringify(item);
-                const ctx = typeof item.context === "string" ? ` — ${item.context}` : "";
-                const p = typeof item.priority === "number" ? `${item.priority}. ` : "• ";
-                lines.push(`${p}${action}${ctx}`);
-              } else if (typeof item === "string") {
-                lines.push(`• ${item}`);
-              }
-            }
-          }
-
-          // Active tasks
-          const activeTasks = Array.isArray(data.activeTasks) ? data.activeTasks : [];
-          if (activeTasks.length > 0) {
-            lines.push("\n**Active tasks:**");
-            for (const task of activeTasks) {
-              if (task && typeof task === "object") {
-                const desc =
-                  typeof task.description === "string" ? task.description : JSON.stringify(task);
-                const status = typeof task.status === "string" ? ` [${task.status}]` : "";
-                lines.push(`• ${desc}${status}`);
-              }
-            }
-          }
-
-          // Pending decisions
-          const decisions = Array.isArray(data.pendingDecisions) ? data.pendingDecisions : [];
-          if (decisions.length > 0) {
-            lines.push("\n**Pending decisions:**");
-            for (const d of decisions) {
-              lines.push(`• ${typeof d === "string" ? d : JSON.stringify(d)}`);
-            }
-          }
-
-          // Do not touch
-          const doNotTouch = Array.isArray(data.doNotTouch) ? data.doNotTouch : [];
-          if (doNotTouch.length > 0) {
-            lines.push("\n**Do not touch:**");
-            for (const d of doNotTouch) {
-              lines.push(`• ${typeof d === "string" ? d : JSON.stringify(d)}`);
-            }
-          }
-
-          if (lines.length > 0) {
-            contextSummary = "\n\n" + lines.join("\n");
-          }
+        const parsed = JSON.parse(raw) as unknown;
+        if (parsed && typeof parsed === "object") {
+          contextData = parsed as Record<string, unknown>;
         }
       } catch {
-        // .context-transfer.json may not exist — that's fine
+        // .context-transfer.json may not exist — contextData stays null
       }
-      const verificationText = `⚠️ Context compacted. Review before continuing:${contextSummary || "\n\n(No context transfer summary available.)"}\n\nType 'ok' to resume.`;
+      const verificationText = buildUserVerificationText({
+        contextData,
+        heldMessages: heldMsgs,
+      });
       const verificationPayload: ReplyPayload = { text: verificationText };
 
       // If dmChannelId is configured and we're not already in a DM, route the
@@ -549,7 +554,8 @@ export async function runPreparedReply(
       timeoutMs,
       blockReplyBreak: resolvedBlockStreamingBreak,
       ownerNumbers: command.ownerList.length > 0 ? command.ownerList : undefined,
-      extraSystemPrompt: extraSystemPrompt || undefined,
+      extraSystemPrompt:
+        [extraSystemPrompt, postCompactionAgentContext].filter(Boolean).join("\n\n") || undefined,
       ...(isReasoningTagProvider(provider) ? { enforceFinalTag: true } : {}),
     },
   };
