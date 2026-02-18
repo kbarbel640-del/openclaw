@@ -74,6 +74,7 @@ export async function monitorWebChannel(
       whatsapp: {
         ...baseCfg.channels?.whatsapp,
         ackReaction: account.ackReaction,
+        reactionNotifications: account.reactionNotifications,
         messagePrefix: account.messagePrefix,
         allowFrom: account.allowFrom,
         groupAllowFrom: account.groupAllowFrom,
@@ -197,6 +198,7 @@ export async function monitorWebChannel(
       sendReadReceipts: account.sendReadReceipts,
       debounceMs: inboundDebounceMs,
       shouldDebounce,
+      reactionNotifications: account.reactionNotifications,
       onMessage: async (msg: WebInboundMsg) => {
         handledMessages += 1;
         lastMessageAt = Date.now();
