@@ -11,6 +11,12 @@
       },
       "timeoutMs": {
         "type": "number"
+      },
+      "sidecarPath": {
+        "type": "string"
+      },
+      "autostart": {
+        "type": "boolean"
       }
     }
   },
@@ -22,6 +28,14 @@
     "timeoutMs": {
       "label": "Timeout (ms)",
       "help": "HTTP timeout for /ted doctor and /ted status requests."
+    },
+    "sidecarPath": {
+      "label": "Sidecar Path",
+      "help": "Optional path to ted sidecar server.mjs (default: sidecars/ted-engine/server.mjs)."
+    },
+    "autostart": {
+      "label": "Autostart Sidecar",
+      "help": "When true (default), gateway startup spawns the local Ted Engine sidecar process."
     }
   }
 }

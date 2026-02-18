@@ -95,3 +95,6 @@ apps/ios/LocalSigning.xcconfig
 # local tooling
 .codex/
 .specify/
+
+# sidecar runtime logs
+sidecars/ted-engine/logs/

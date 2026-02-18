@@ -20,6 +20,81 @@ import { DEFAULT_GATEWAY_DAEMON_RUNTIME, type GatewayDaemonRuntime } from "./dae
 import type { DoctorOptions, DoctorPrompter } from "./doctor-prompter.js";
 
 const execFileAsync = promisify(execFile);
+const TED_SIDECAR_TIMEOUT_MS = 2_000;
+
+type TedSidecarProbeResult =
+  | { ok: true; status: Record<string, unknown>; doctor: Record<string, unknown> }
+  | { ok: false; error: string };
+
+function getTedSidecarConfig(cfg: OpenClawConfig): {
+  enabled: boolean;
+  baseUrl: string;
+} {
+  const entry = cfg.plugins?.entries?.["ted-sidecar"];
+  const enabled = entry?.enabled === true;
+  const rawBaseUrl =
+    typeof entry?.config === "object" &&
+    entry?.config &&
+    "baseUrl" in (entry.config as Record<string, unknown>) &&
+    typeof (entry.config as Record<string, unknown>).baseUrl === "string"
+      ? ((entry.config as Record<string, unknown>).baseUrl as string)
+      : "";
+  const envBaseUrl = process.env.TED_SIDECAR_BASE_URL?.trim() ?? "";
+  const baseUrl = (rawBaseUrl.trim() || envBaseUrl || "http://127.0.0.1:48080").replace(/\/+$/, "");
+  return { enabled, baseUrl };
+}
+
+function isTedSidecarLoopbackBaseUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.trim().toLowerCase();
+    return host === "127.0.0.1" || host === "localhost" || host === "::1";
+  } catch {
+    return false;
+  }
+}
+
+async function probeTedSidecar(baseUrl: string): Promise<TedSidecarProbeResult> {
+  try {
+    const [statusResp, doctorResp] = await Promise.all([
+      fetch(`${baseUrl}/status`, {
+        method: "GET",
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(TED_SIDECAR_TIMEOUT_MS),
+      }),
+      fetch(`${baseUrl}/doctor`, {
+        method: "GET",
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(TED_SIDECAR_TIMEOUT_MS),
+      }),
+    ]);
+    if (!statusResp.ok) {
+      return { ok: false, error: `/status failed (${statusResp.status})` };
+    }
+    if (!doctorResp.ok) {
+      return { ok: false, error: `/doctor failed (${doctorResp.status})` };
+    }
+    const [status, doctor] = await Promise.all([statusResp.json(), doctorResp.json()]);
+    if (
+      !status ||
+      typeof status !== "object" ||
+      !doctor ||
+      typeof doctor !== "object" ||
+      typeof (status as Record<string, unknown>).version !== "string" ||
+      typeof (status as Record<string, unknown>).uptime !== "number" ||
+      typeof (status as Record<string, unknown>).profiles_count !== "number"
+    ) {
+      return { ok: false, error: "invalid sidecar payload schema" };
+    }
+    return {
+      ok: true,
+      status: status as Record<string, unknown>,
+      doctor: doctor as Record<string, unknown>,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "unknown_error" };
+  }
+}
 
 function detectGatewayRuntime(programArguments: string[] | undefined): GatewayDaemonRuntime {
   const first = programArguments?.[0];
@@ -291,5 +366,42 @@ export async function maybeScanExtraGatewayServices(
       "If you need multiple gateways (e.g., a rescue bot on the same host), isolate ports + config/state (see docs: /gateway#multiple-gateways-same-host).",
     ].join("\n"),
     "Gateway recommendation",
+  );
+}
+
+export async function noteTedSidecarHealth(
+  cfg: OpenClawConfig,
+  mode: "local" | "remote",
+): Promise<void> {
+  if (mode !== "local") {
+    note("Ted sidecar check skipped in remote mode.", "Ted sidecar");
+    return;
+  }
+
+  const tedSidecar = getTedSidecarConfig(cfg);
+  if (!tedSidecar.enabled) {
+    note(
+      "ted-sidecar plugin is disabled. Enable with plugins.entries.ted-sidecar.enabled=true",
+      "Ted sidecar",
+    );
+    return;
+  }
+
+  if (!isTedSidecarLoopbackBaseUrl(tedSidecar.baseUrl)) {
+    note(
+      `ted-sidecar baseUrl must be loopback-only (current: ${tedSidecar.baseUrl})`,
+      "Ted sidecar",
+    );
+    return;
+  }
+
+  const probe = await probeTedSidecar(tedSidecar.baseUrl);
+  if (!probe.ok) {
+    note(`unhealthy: ${probe.error}`, "Ted sidecar");
+    return;
+  }
+  note(
+    `healthy at ${tedSidecar.baseUrl} (/status + /doctor responding)`,
+    "Ted sidecar",
   );
 }
