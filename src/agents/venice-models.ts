@@ -213,6 +213,24 @@ export const VENICE_MODEL_CATALOG = [
     maxTokens: 8192,
     privacy: "private",
   },
+  {
+    id: "minimax-m25",
+    name: "MiniMax M2.5",
+    reasoning: true,
+    input: ["text"],
+    contextWindow: 198000,
+    maxTokens: 8192,
+    privacy: "private",
+  },
+  {
+    id: "zai-org-glm-5",
+    name: "GLM 5",
+    reasoning: true,
+    input: ["text"],
+    contextWindow: 198000,
+    maxTokens: 8192,
+    privacy: "private",
+  },
 
   // ============================================
   // ANONYMIZED MODELS (Proxied through Venice)
@@ -244,6 +262,15 @@ export const VENICE_MODEL_CATALOG = [
     reasoning: true,
     input: ["text", "image"],
     contextWindow: 198000,
+    maxTokens: 8192,
+    privacy: "anonymized",
+  },
+  {
+    id: "claude-sonnet-4-6",
+    name: "Claude Sonnet 4.6 (via Venice)",
+    reasoning: true,
+    input: ["text", "image"],
+    contextWindow: 1000000,
     maxTokens: 8192,
     privacy: "anonymized",
   },

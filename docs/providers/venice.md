@@ -122,9 +122,9 @@ openclaw models list | grep venice
 | **Fast + cheap**           | `qwen3-4b`                       | Lightweight, still capable               |
 | **Complex reasoning**      | `deepseek-v3.2`                  | Strong reasoning, private                |
 
-## Available Models (28 Total)
+## Available Models (31 Total)
 
-### Private Models (19) — Fully Private, No Logging
+### Private Models (21) — Fully Private, No Logging
 
 | Model ID                         | Name                    | Context (tokens) | Features                       |
 | -------------------------------- | ----------------------- | ---------------- | ------------------------------ |
@@ -146,14 +146,17 @@ openclaw models list | grep venice
 | `openai-gpt-oss-120b`            | OpenAI GPT OSS 120B     | 128k             | General                        |
 | `zai-org-glm-4.7`                | GLM 4.7                 | 198k             | Reasoning, multilingual        |
 | `zai-org-glm-4.7-flash`          | GLM 4.7 Flash           | 128k             | Reasoning, fast                |
+| `zai-org-glm-5`                  | GLM 5                   | 198k             | Reasoning, code, top OS model  |
 | `minimax-m21`                    | MiniMax M2.1            | 198k             | Reasoning                      |
+| `minimax-m25`                    | MiniMax M2.5            | 198k             | Reasoning, code                |
 
-### Anonymized Models (9) — Via Venice Proxy
+### Anonymized Models (10) — Via Venice Proxy
 
 | Model ID                 | Original          | Context (tokens) | Features          |
 | ------------------------ | ----------------- | ---------------- | ----------------- |
 | `claude-opus-4-6`        | Claude Opus 4.6   | 1M               | Reasoning, vision |
 | `claude-opus-45`         | Claude Opus 4.5   | 198k             | Reasoning, vision |
+| `claude-sonnet-4-6`      | Claude Sonnet 4.6 | 1M               | Reasoning, vision |
 | `claude-sonnet-45`       | Claude Sonnet 4.5 | 198k             | Reasoning, vision |
 | `openai-gpt-52`          | GPT-5.2           | 256k             | Reasoning         |
 | `openai-gpt-52-codex`    | GPT-5.2 Codex     | 256k             | Reasoning, vision |
