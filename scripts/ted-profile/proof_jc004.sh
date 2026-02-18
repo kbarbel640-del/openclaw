@@ -159,3 +159,51 @@ if [ "$APPROVE_CODE" != "200" ]; then
 fi
 
 echo "OK: pattern propose/approve endpoints responded"
+
+echo
+echo "=== JC-004 Increment 4: Apply active patterns as suggestions on ingest (proof-first) ==="
+
+# Step A: Propose + approve a domain->deal pattern
+PAT_PAYLOAD='{
+  "pattern_type":"SENDER_DOMAIN_TO_DEAL",
+  "match":{"domain":"example.com"},
+  "suggest":{"deal_id":"proof_deal"},
+  "notes":"proof inc4"
+}'
+PAT_RESP="$(curl -sS -X POST "$BASE_URL/triage/patterns/propose" -H "Content-Type: application/json" -d "$PAT_PAYLOAD")"
+PATTERN_ID="$(echo "$PAT_RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("pattern_id",""))' 2>/dev/null || true)"
+if [ -z "$PATTERN_ID" ]; then
+  echo "FAIL: propose did not return pattern_id"
+  echo "$PAT_RESP"
+  exit 1
+fi
+
+curl -sS -X POST "$BASE_URL/triage/patterns/$PATTERN_ID/approve" -H "Content-Type: application/json" -d '{"approved_by":"proof_inc4"}' >/dev/null
+
+# Step B: Ingest an item that should match the domain pattern
+# We simulate a source_ref containing an email domain; implementation will parse it.
+JC004_ITEM_ID_INC4="proof_item_inc4_$(date +%s)"
+INGEST_PAYLOAD='{
+  "item_id":"'"$JC004_ITEM_ID_INC4"'",
+  "source_type":"email",
+  "source_ref":"from:someone@example.com",
+  "summary":"proof inc4 ingest should get suggestion"
+}'
+INGEST_RESP="$(curl -sS -X POST "$BASE_URL/triage/ingest" -H "Content-Type: application/json" -d "$INGEST_PAYLOAD")"
+
+# Step C: Validate ingest response (or subsequent triage list) includes suggested_deal_id = proof_deal
+# Accept either:
+# - direct field in ingest response, OR
+# - triage/list contains the item with suggested_deal_id
+if echo "$INGEST_RESP" | grep -q '"suggested_deal_id"[[:space:]]*:[[:space:]]*"proof_deal"'; then
+  echo "OK: ingest response includes suggested_deal_id=proof_deal"
+else
+  # fall back to triage list check
+  TRIAGE="$(curl -sS "$BASE_URL/triage/list")"
+  echo "$TRIAGE" | grep -q "$JC004_ITEM_ID_INC4" || { echo "FAIL: ingested item not found in triage list"; echo "$TRIAGE"; exit 1; }
+  echo "$TRIAGE" | grep -q '"suggested_deal_id"[[:space:]]*:[[:space:]]*"proof_deal"' || {
+    echo "EXPECTED_FAIL_UNTIL_JC004_INC4_IMPLEMENTED: no suggested_deal_id applied by pattern"
+    exit 1
+  }
+  echo "OK: triage item shows suggested_deal_id=proof_deal"
+fi
