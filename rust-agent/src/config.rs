@@ -3,6 +3,8 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use base64::Engine as _;
+use ring::signature;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +57,25 @@ pub struct SecurityConfig {
     pub tool_risk_bonus: HashMap<String, u8>,
     #[serde(default = "default_channel_risk_bonus")]
     pub channel_risk_bonus: HashMap<String, u8>,
+    #[serde(default)]
+    pub signed_policy_bundle: Option<PathBuf>,
+    #[serde(default)]
+    pub signed_policy_signature: Option<PathBuf>,
+    #[serde(default)]
+    pub signed_policy_public_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct SignedPolicyBundle {
+    review_threshold: Option<u8>,
+    block_threshold: Option<u8>,
+    allowed_command_prefixes: Option<Vec<String>>,
+    blocked_command_patterns: Option<Vec<String>>,
+    prompt_injection_patterns: Option<Vec<String>>,
+    tool_policies: Option<HashMap<String, PolicyAction>>,
+    tool_risk_bonus: Option<HashMap<String, u8>>,
+    channel_risk_bonus: Option<HashMap<String, u8>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -131,6 +152,9 @@ impl Default for Config {
                 tool_policies: HashMap::new(),
                 tool_risk_bonus: default_tool_risk_bonus(),
                 channel_risk_bonus: default_channel_risk_bonus(),
+                signed_policy_bundle: None,
+                signed_policy_signature: None,
+                signed_policy_public_key: None,
             },
         }
     }
@@ -147,6 +171,7 @@ impl Config {
             Self::default()
         };
         cfg.apply_env_overrides();
+        cfg.apply_signed_policy_bundle(path)?;
         cfg.validate()?;
         Ok(cfg)
     }
@@ -224,6 +249,93 @@ impl Config {
         if let Ok(v) = env::var("OPENCLAW_RS_SESSION_STATE_PATH") {
             self.runtime.session_state_path = PathBuf::from(v);
         }
+        if let Ok(v) = env::var("OPENCLAW_RS_SIGNED_POLICY_BUNDLE") {
+            let trimmed = v.trim();
+            if !trimmed.is_empty() {
+                self.security.signed_policy_bundle = Some(PathBuf::from(trimmed));
+            }
+        }
+        if let Ok(v) = env::var("OPENCLAW_RS_SIGNED_POLICY_SIGNATURE") {
+            let trimmed = v.trim();
+            if !trimmed.is_empty() {
+                self.security.signed_policy_signature = Some(PathBuf::from(trimmed));
+            }
+        }
+        if let Ok(v) = env::var("OPENCLAW_RS_SIGNED_POLICY_PUBLIC_KEY") {
+            let trimmed = v.trim();
+            if !trimmed.is_empty() {
+                self.security.signed_policy_public_key = Some(trimmed.to_owned());
+            }
+        }
+    }
+
+    fn apply_signed_policy_bundle(&mut self, config_path: &Path) -> Result<()> {
+        let Some(bundle_ref) = self.security.signed_policy_bundle.as_ref() else {
+            return Ok(());
+        };
+        let signature_ref = self
+            .security
+            .signed_policy_signature
+            .as_ref()
+            .context("security.signed_policy_signature is required when signed_policy_bundle is set")?;
+        let public_key = self
+            .security
+            .signed_policy_public_key
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .context("security.signed_policy_public_key is required when signed_policy_bundle is set")?;
+
+        let bundle_path = resolve_config_relative_path(config_path, bundle_ref);
+        let signature_path = resolve_config_relative_path(config_path, signature_ref);
+        let bundle_bytes = std::fs::read(&bundle_path)
+            .with_context(|| format!("failed reading signed policy bundle {}", bundle_path.display()))?;
+        let signature_text = std::fs::read_to_string(&signature_path).with_context(|| {
+            format!(
+                "failed reading signed policy signature {}",
+                signature_path.display()
+            )
+        })?;
+        verify_bundle_signature(&bundle_bytes, &signature_text, public_key).with_context(|| {
+            format!(
+                "signed policy verification failed for {}",
+                bundle_path.display()
+            )
+        })?;
+
+        let bundle_text = String::from_utf8(bundle_bytes)
+            .context("signed policy bundle must be valid UTF-8 TOML")?;
+        let policy = toml::from_str::<SignedPolicyBundle>(&bundle_text)
+            .context("failed parsing signed policy bundle TOML")?;
+        self.apply_policy_bundle(policy);
+        Ok(())
+    }
+
+    fn apply_policy_bundle(&mut self, bundle: SignedPolicyBundle) {
+        if let Some(v) = bundle.review_threshold {
+            self.security.review_threshold = v;
+        }
+        if let Some(v) = bundle.block_threshold {
+            self.security.block_threshold = v;
+        }
+        if let Some(v) = bundle.allowed_command_prefixes {
+            self.security.allowed_command_prefixes = v;
+        }
+        if let Some(v) = bundle.blocked_command_patterns {
+            self.security.blocked_command_patterns = v;
+        }
+        if let Some(v) = bundle.prompt_injection_patterns {
+            self.security.prompt_injection_patterns = v;
+        }
+        if let Some(v) = bundle.tool_policies {
+            self.security.tool_policies = v;
+        }
+        if let Some(v) = bundle.tool_risk_bonus {
+            self.security.tool_risk_bonus = v;
+        }
+        if let Some(v) = bundle.channel_risk_bonus {
+            self.security.channel_risk_bonus = v;
+        }
     }
 
     fn validate(&self) -> Result<()> {
@@ -256,6 +368,75 @@ fn split_csv(input: &str) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .map(ToOwned::to_owned)
         .collect()
+}
+
+fn resolve_config_relative_path(config_path: &Path, target: &Path) -> PathBuf {
+    if target.is_absolute() {
+        return target.to_path_buf();
+    }
+    let base_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
+    base_dir.join(target)
+}
+
+fn verify_bundle_signature(
+    bundle_bytes: &[u8],
+    signature_text: &str,
+    public_key_text: &str,
+) -> Result<()> {
+    let signature_bytes = decode_compact_text_bytes(
+        signature_text,
+        64,
+        "security.signed_policy_signature",
+    )?;
+    let public_key_bytes = decode_compact_text_bytes(
+        public_key_text,
+        32,
+        "security.signed_policy_public_key",
+    )?;
+    let key = signature::UnparsedPublicKey::new(&signature::ED25519, &public_key_bytes);
+    key.verify(bundle_bytes, &signature_bytes)
+        .map_err(|_| anyhow::anyhow!("signature verification failed"))?;
+    Ok(())
+}
+
+fn decode_compact_text_bytes(input: &str, expected_len: usize, field_name: &str) -> Result<Vec<u8>> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("{field_name} cannot be empty");
+    }
+
+    let decoded_base64 = base64::engine::general_purpose::STANDARD.decode(trimmed);
+    let bytes = match decoded_base64 {
+        Ok(bytes) => bytes,
+        Err(_) if is_hex_string(trimmed) => decode_hex_string(trimmed)?,
+        Err(err) => {
+            return Err(anyhow::anyhow!(
+                "{field_name} must be base64 (preferred) or hex bytes: {err}"
+            ));
+        }
+    };
+
+    if bytes.len() != expected_len {
+        anyhow::bail!(
+            "{field_name} must decode to {expected_len} bytes, got {}",
+            bytes.len()
+        );
+    }
+    Ok(bytes)
+}
+
+fn is_hex_string(input: &str) -> bool {
+    !input.is_empty() && input.len() % 2 == 0 && input.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn decode_hex_string(input: &str) -> Result<Vec<u8>> {
+    let mut bytes = Vec::with_capacity(input.len() / 2);
+    for chunk in input.as_bytes().chunks_exact(2) {
+        let hex = std::str::from_utf8(chunk).context("invalid hex bytes")?;
+        let value = u8::from_str_radix(hex, 16).context("invalid hex digits")?;
+        bytes.push(value);
+    }
+    Ok(bytes)
 }
 
 fn parse_bool(s: &str) -> bool {
@@ -321,5 +502,155 @@ fn parse_group_activation_mode(s: &str) -> Option<GroupActivationMode> {
         "mention" => Some(GroupActivationMode::Mention),
         "always" => Some(GroupActivationMode::Always),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use base64::Engine as _;
+    use ring::rand::SystemRandom;
+    use ring::signature::{Ed25519KeyPair, KeyPair};
+
+    use super::Config;
+
+    fn temp_dir(tag: &str) -> std::path::PathBuf {
+        let mut dir = std::env::temp_dir();
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        dir.push(format!("openclaw-rs-config-{tag}-{stamp}"));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        dir
+    }
+
+    fn base_config_toml() -> String {
+        r#"
+[gateway]
+url = "ws://127.0.0.1:18789/ws"
+token = ""
+
+[runtime]
+audit_only = false
+decision_event = "security.decision"
+worker_concurrency = 2
+max_queue = 32
+session_queue_mode = "followup"
+group_activation_mode = "mention"
+eval_timeout_ms = 1200
+memory_sample_secs = 10
+idempotency_ttl_secs = 120
+idempotency_max_entries = 1024
+session_state_path = ".openclaw-rs/session-state.json"
+
+[security]
+review_threshold = 35
+block_threshold = 65
+virustotal_api_key = ""
+virustotal_timeout_ms = 400
+quarantine_dir = ".openclaw-rs/quarantine"
+protect_paths = ["./openclaw.mjs"]
+allowed_command_prefixes = ["git "]
+blocked_command_patterns = ["(?i)\\brm\\s+-rf\\s+/"]
+prompt_injection_patterns = ["(?i)ignore\\s+all\\s+previous\\s+instructions"]
+tool_policies = {}
+tool_risk_bonus = {}
+channel_risk_bonus = {}
+"#
+        .to_owned()
+    }
+
+    #[test]
+    fn load_applies_verified_signed_policy_bundle() {
+        let dir = temp_dir("signed-policy-ok");
+        let bundle_path = dir.join("policy-bundle.toml");
+        let sig_path = dir.join("policy-bundle.sig");
+        let cfg_path = dir.join("openclaw-rs.toml");
+        std::fs::write(
+            &bundle_path,
+            r#"
+review_threshold = 20
+block_threshold = 50
+allowed_command_prefixes = ["git ", "rg "]
+tool_policies = { exec = "block" }
+channel_risk_bonus = { discord = 12 }
+"#,
+        )
+        .expect("write bundle");
+        let bundle_bytes = std::fs::read(&bundle_path).expect("read bundle");
+        let rng = SystemRandom::new();
+        let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("pkcs8");
+        let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("keypair");
+        let signature = signing_key.sign(&bundle_bytes);
+        std::fs::write(
+            &sig_path,
+            base64::engine::general_purpose::STANDARD.encode(signature.as_ref()),
+        )
+        .expect("write signature");
+        let public_key =
+            base64::engine::general_purpose::STANDARD.encode(signing_key.public_key().as_ref());
+        let config_toml = format!(
+            "{}\nsigned_policy_bundle = \"{}\"\nsigned_policy_signature = \"{}\"\nsigned_policy_public_key = \"{}\"\n",
+            base_config_toml(),
+            bundle_path.file_name().expect("bundle file").to_string_lossy(),
+            sig_path.file_name().expect("sig file").to_string_lossy(),
+            public_key
+        );
+        std::fs::write(&cfg_path, config_toml).expect("write config");
+
+        let cfg = Config::load(&cfg_path).expect("load config");
+        assert_eq!(cfg.security.review_threshold, 20);
+        assert_eq!(cfg.security.block_threshold, 50);
+        assert_eq!(
+            cfg.security.allowed_command_prefixes,
+            vec!["git ".to_owned(), "rg ".to_owned()]
+        );
+        assert_eq!(
+            cfg.security.tool_policies.get("exec").copied(),
+            Some(super::PolicyAction::Block)
+        );
+        assert_eq!(cfg.security.channel_risk_bonus.get("discord"), Some(&12));
+    }
+
+    #[test]
+    fn load_rejects_tampered_signed_policy_bundle() {
+        let dir = temp_dir("signed-policy-bad");
+        let bundle_path = dir.join("policy-bundle.toml");
+        let sig_path = dir.join("policy-bundle.sig");
+        let cfg_path = dir.join("openclaw-rs.toml");
+        std::fs::write(&bundle_path, "review_threshold = 15\nblock_threshold = 45\n")
+            .expect("write bundle");
+        let bundle_bytes = std::fs::read(&bundle_path).expect("read bundle");
+        let rng = SystemRandom::new();
+        let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("pkcs8");
+        let signing_key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("keypair");
+        let signature = signing_key.sign(&bundle_bytes);
+        std::fs::write(
+            &sig_path,
+            base64::engine::general_purpose::STANDARD.encode(signature.as_ref()),
+        )
+        .expect("write signature");
+        std::fs::write(
+            &bundle_path,
+            "review_threshold = 30\nblock_threshold = 60\n# tampered\n",
+        )
+        .expect("tamper bundle");
+
+        let public_key =
+            base64::engine::general_purpose::STANDARD.encode(signing_key.public_key().as_ref());
+        let config_toml = format!(
+            "{}\nsigned_policy_bundle = \"{}\"\nsigned_policy_signature = \"{}\"\nsigned_policy_public_key = \"{}\"\n",
+            base_config_toml(),
+            bundle_path.file_name().expect("bundle file").to_string_lossy(),
+            sig_path.file_name().expect("sig file").to_string_lossy(),
+            public_key
+        );
+        std::fs::write(&cfg_path, config_toml).expect("write config");
+
+        let err = Config::load(&cfg_path).expect_err("expected signed policy verify failure");
+        let message = format!("{err:#}");
+        assert!(message.contains("signed policy verification failed"));
     }
 }

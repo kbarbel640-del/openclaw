@@ -108,6 +108,9 @@ systemctl --user status openclaw-agent-rs.service
 - `security.tool_policies`: per-tool floor action (`allow`, `review`, `block`).
 - `security.tool_risk_bonus`: per-tool additive risk scoring.
 - `security.channel_risk_bonus`: per-channel additive risk scoring.
+- `security.signed_policy_bundle`: optional TOML bundle path for signed policy overrides.
+- `security.signed_policy_signature`: signature file for the bundle (base64/hex Ed25519 signature).
+- `security.signed_policy_public_key`: Ed25519 public key used to verify the bundle signature.
 
 ## Planned migration phases
 

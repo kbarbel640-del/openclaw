@@ -41,3 +41,11 @@ prompt_injection_patterns = [
 tool_policies = { gateway = "review", nodes = "review" }
 tool_risk_bonus = { exec = 20, bash = 20, process = 10, apply_patch = 12, browser = 8, gateway = 20, nodes = 20 }
 channel_risk_bonus = { discord = 10, slack = 8, telegram = 6, whatsapp = 6, webchat = 8 }
+
+# Optional signed policy bundle (Ed25519) for tamper-evident policy updates.
+# The signature covers the exact bytes of `signed_policy_bundle`.
+# - `signed_policy_signature`: base64 or hex encoded 64-byte signature.
+# - `signed_policy_public_key`: base64 or hex encoded 32-byte Ed25519 public key.
+# signed_policy_bundle = "./policy-bundle.toml"
+# signed_policy_signature = "./policy-bundle.sig"
+# signed_policy_public_key = "BASE64_OR_HEX_PUBLIC_KEY"

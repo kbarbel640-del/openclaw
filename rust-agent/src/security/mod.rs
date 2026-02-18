@@ -373,6 +373,9 @@ mod tests {
                 tool_policies: std::collections::HashMap::new(),
                 tool_risk_bonus: std::collections::HashMap::new(),
                 channel_risk_bonus: std::collections::HashMap::new(),
+                signed_policy_bundle: None,
+                signed_policy_signature: None,
+                signed_policy_public_key: None,
             },
         }
     }
