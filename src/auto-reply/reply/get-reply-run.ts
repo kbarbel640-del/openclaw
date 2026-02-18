@@ -38,7 +38,13 @@ import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { runReplyAgent } from "./agent-runner.js";
 import { applySessionHints } from "./body.js";
 import type { buildCommandContext } from "./commands.js";
-import { buildAgentFreezeContext, buildUserVerificationText } from "./compaction-held-messages.js";
+import { isCompactionAck } from "./compaction-ack.js";
+import {
+  buildAgentFreezeContext,
+  buildTriagePrompt,
+  buildUserVerificationText,
+  parseTriageResponse,
+} from "./compaction-held-messages.js";
 import type { InlineDirectives } from "./directive-handling.js";
 import { buildGroupChatContext, buildGroupIntro } from "./groups.js";
 import { buildInboundMetaSystemPrompt, buildInboundUserContextPrefix } from "./inbound-meta.js";
@@ -208,56 +214,179 @@ export async function runPreparedReply(
   }
   const isBareNewOrReset = rawBodyTrimmed === "/new" || rawBodyTrimmed === "/reset";
 
-  // ── Post-compaction verification gate ──────────────────────────────
-  // After compaction, block message processing until user types 'ok'.
-  // Held messages are accumulated and shown to the user for triage.
-  // Agent freeze instructions are injected as system context (invisible to user).
+  // ── Post-compaction verification gate (Issue #88/#90) ──────────────
+  //
+  // Stage-1: After compaction, block processing until user sends any recognized ack
+  //          ("ok", "okay", "looks good", "lgtm", etc. — fuzzy match via isCompactionAck).
+  //          Non-ack messages are accumulated as held messages shown back to the user.
+  //
+  // Stage-2: If held messages exist when the user acks, show a numbered triage prompt
+  //          and enter compactionTriagePending. The user then approves/skips individual
+  //          messages before the gate fully clears.
+  //          If no held messages, skip stage-2 and proceed immediately.
+  //
+  // Agent freeze context is injected as an invisible system event after the gate clears.
   let postCompactionAgentContext = "";
-  if (sessionEntry?.compactionPendingVerification && !isNewSession && !isBareNewOrReset) {
-    const inboundText = (ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "").trim().toLowerCase();
-    if (inboundText === "ok") {
-      // Build agent system context from context-transfer.json + held messages.
-      // This is injected invisibly; the user only sees their normal reply.
-      try {
-        const ctxTransferPath = path.join(workspaceDir, ".context-transfer.json");
-        const raw = await fs.readFile(ctxTransferPath, "utf-8");
-        const data = JSON.parse(raw) as Record<string, unknown>;
-        if (data && typeof data === "object") {
-          postCompactionAgentContext = buildAgentFreezeContext({
-            contextData: data,
-            heldMessages: sessionEntry.compactionHeldMessages ?? [],
-          });
-        }
-      } catch {
-        // .context-transfer.json may not exist — use held messages only
-        postCompactionAgentContext = buildAgentFreezeContext({
-          contextData: null,
-          heldMessages: sessionEntry.compactionHeldMessages ?? [],
+
+  // ── Stage-2 triage gate (entered after stage-1 ack when held messages exist) ─
+  if (sessionEntry?.compactionTriagePending && !isNewSession && !isBareNewOrReset) {
+    const heldMessages = sessionEntry.compactionHeldMessages ?? [];
+    const inboundRaw = (ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "").trim();
+
+    // Parse triage response
+    const triage = parseTriageResponse(inboundRaw, heldMessages.length);
+
+    let approvedMessages: typeof heldMessages = [];
+    let trageInstruction: string | undefined;
+
+    if (triage.kind === "all") {
+      approvedMessages = heldMessages;
+    } else if (triage.kind === "none") {
+      approvedMessages = [];
+    } else if (triage.kind === "indices") {
+      approvedMessages = triage.approved.map((i) => heldMessages[i]).filter(Boolean);
+    } else {
+      // freeform — inject all messages with user instruction
+      approvedMessages = heldMessages;
+      trageInstruction = triage.instruction;
+    }
+
+    // Read context-transfer.json for freeze context
+    let ctxData: Record<string, unknown> | null = null;
+    try {
+      const ctxTransferPath = path.join(workspaceDir, ".context-transfer.json");
+      const raw = await fs.readFile(ctxTransferPath, "utf-8");
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === "object") {
+        ctxData = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // .context-transfer.json may not exist
+    }
+
+    postCompactionAgentContext = buildAgentFreezeContext({
+      contextData: ctxData,
+      heldMessages,
+      approvedMessages,
+      trageInstruction,
+    });
+
+    // Clear all compaction state
+    sessionEntry.compactionTriagePending = undefined;
+    sessionEntry.compactionPendingVerification = undefined;
+    sessionEntry.compactionHeldMessages = undefined;
+    sessionEntry.compactionApprovedMessages = undefined;
+    sessionEntry.updatedAt = Date.now();
+    if (sessionStore && sessionKey) {
+      sessionStore[sessionKey] = sessionEntry;
+      if (storePath) {
+        await updateSessionStore(storePath, (store) => {
+          const entry = store[sessionKey];
+          if (entry) {
+            entry.compactionTriagePending = undefined;
+            entry.compactionPendingVerification = undefined;
+            entry.compactionHeldMessages = undefined;
+            entry.compactionApprovedMessages = undefined;
+            entry.updatedAt = Date.now();
+          }
         });
       }
+    }
+    // Fall through to normal processing with postCompactionAgentContext set
+  } else if (sessionEntry?.compactionPendingVerification && !isNewSession && !isBareNewOrReset) {
+    // ── Stage-1: waiting for initial ack ────────────────────────────
+    const inboundRaw = (ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "").trim();
 
-      // Clear the gate and held messages, then proceed with normal processing
-      sessionEntry.compactionPendingVerification = undefined;
-      sessionEntry.compactionHeldMessages = undefined;
-      sessionEntry.updatedAt = Date.now();
-      if (sessionStore && sessionKey) {
-        sessionStore[sessionKey] = sessionEntry;
-        if (storePath) {
-          await updateSessionStore(storePath, (store) => {
-            const entry = store[sessionKey];
-            if (entry) {
-              entry.compactionPendingVerification = undefined;
-              entry.compactionHeldMessages = undefined;
-              entry.updatedAt = Date.now();
-            }
+    if (isCompactionAck(inboundRaw)) {
+      // User acked — check if there are held messages requiring stage-2 triage
+      const heldMessages = sessionEntry.compactionHeldMessages ?? [];
+
+      if (heldMessages.length > 0) {
+        // Held messages exist → enter stage-2 triage
+        // Mark triage pending, keep held messages, clear stage-1 gate
+        sessionEntry.compactionPendingVerification = undefined;
+        sessionEntry.compactionTriagePending = true;
+        sessionEntry.updatedAt = Date.now();
+        if (sessionStore && sessionKey) {
+          sessionStore[sessionKey] = sessionEntry;
+          if (storePath) {
+            await updateSessionStore(storePath, (store) => {
+              const entry = store[sessionKey];
+              if (entry) {
+                entry.compactionPendingVerification = undefined;
+                entry.compactionTriagePending = true;
+                entry.updatedAt = Date.now();
+              }
+            });
+          }
+        }
+
+        typing.cleanup();
+        const triageText = buildTriagePrompt(heldMessages);
+        const triagePayload: ReplyPayload = { text: triageText };
+
+        // Route to DM if configured
+        const compactionCfg = cfg?.agents?.defaults?.compaction;
+        const dmChannelId = compactionCfg?.dmChannelId;
+        const isDirect = sessionCtx.ChatType === "direct";
+        if (dmChannelId && !isDirect) {
+          const dmProvider = compactionCfg?.dmChannelProvider ?? "discord";
+          const routeResult = await routeReply({
+            payload: triagePayload,
+            channel: dmProvider,
+            to: dmChannelId,
+            sessionKey: sessionKey ?? "",
+            accountId: sessionCtx.AccountId,
+            cfg,
+          });
+          if (routeResult.ok) {
+            return undefined;
+          }
+        }
+        return triagePayload;
+      } else {
+        // No held messages → skip stage-2, clear gate and proceed immediately
+        // Build agent freeze context from context-transfer.json
+        try {
+          const ctxTransferPath = path.join(workspaceDir, ".context-transfer.json");
+          const raw = await fs.readFile(ctxTransferPath, "utf-8");
+          const data = JSON.parse(raw) as Record<string, unknown>;
+          if (data && typeof data === "object") {
+            postCompactionAgentContext = buildAgentFreezeContext({
+              contextData: data,
+              heldMessages: [],
+            });
+          }
+        } catch {
+          // .context-transfer.json may not exist — use empty context
+          postCompactionAgentContext = buildAgentFreezeContext({
+            contextData: null,
+            heldMessages: [],
           });
         }
+
+        sessionEntry.compactionPendingVerification = undefined;
+        sessionEntry.compactionHeldMessages = undefined;
+        sessionEntry.updatedAt = Date.now();
+        if (sessionStore && sessionKey) {
+          sessionStore[sessionKey] = sessionEntry;
+          if (storePath) {
+            await updateSessionStore(storePath, (store) => {
+              const entry = store[sessionKey];
+              if (entry) {
+                entry.compactionPendingVerification = undefined;
+                entry.compactionHeldMessages = undefined;
+                entry.updatedAt = Date.now();
+              }
+            });
+          }
+        }
+        // Fall through to normal processing with postCompactionAgentContext set
       }
-      // Fall through to normal processing with postCompactionAgentContext set
     } else {
-      // Accumulate this message as a held message
+      // Non-ack during stage-1: accumulate as held message
       const heldMsg = {
-        body: (ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "").trim(),
+        body: inboundRaw,
         timestamp: Date.now(),
         senderId: sessionCtx.SenderId?.trim() || undefined,
       };
@@ -282,7 +411,7 @@ export async function runPreparedReply(
         });
       }
 
-      // Build user-facing verification message (no agent internals — just context + held msgs)
+      // Build user-facing verification message (no agent internals)
       typing.cleanup();
       const heldMsgs = sessionEntry.compactionHeldMessages ?? [];
       let contextData: Record<string, unknown> | null = null;
@@ -302,8 +431,7 @@ export async function runPreparedReply(
       });
       const verificationPayload: ReplyPayload = { text: verificationText };
 
-      // If dmChannelId is configured and we're not already in a DM, route the
-      // verification message there regardless of the originating channel.
+      // Route to DM if configured
       const compactionCfg = cfg?.agents?.defaults?.compaction;
       const dmChannelId = compactionCfg?.dmChannelId;
       const isDirect = sessionCtx.ChatType === "direct";
@@ -318,7 +446,6 @@ export async function runPreparedReply(
           cfg,
         });
         if (routeResult.ok) {
-          // Message delivered to DM — return undefined so nothing goes to the thread.
           return undefined;
         }
         // Fall through and deliver in-channel if DM routing failed.
