@@ -118,6 +118,11 @@ const TRANSIENT_HTTP_ERROR_CODES = new Set([500, 502, 503, 521, 522, 523, 524, 5
 const TRANSIENT_API_ERROR_TYPES = new Set(["api_error", "server_error", "internal_error"]);
 const TRANSIENT_API_ERROR_MESSAGE =
   "The AI service encountered a temporary error. Please try again in a moment.";
+export const AUTH_CONFIG_ERROR_MESSAGE =
+  "The AI service is temporarily unavailable. The administrator has been notified.";
+
+const FAILOVER_WRAPPER_RE = /^(?:FailoverError:\s*|All models failed\s*\(\d+\):\s*)/i;
+const AUTH_API_ERROR_TYPES = new Set(["authentication_error", "permission_error"]);
 const HTTP_ERROR_HINTS = [
   "error",
   "bad request",
@@ -135,6 +140,44 @@ const HTTP_ERROR_HINTS = [
   "too many requests",
   "permission",
 ];
+
+/**
+ * Detect failover wrapper messages like "FailoverError: HTTP 401 authentication_error"
+ * or "All models failed (3): anthropic/claude-opus-4-5: rate limit | openai/gpt-4: timeout".
+ * These should never be shown to end users as they leak provider/model details.
+ */
+export function isFailoverWrapperMessage(raw: string): boolean {
+  return FAILOVER_WRAPPER_RE.test(raw.trim());
+}
+
+/**
+ * Strip the failover wrapper prefix to get the underlying error message.
+ */
+function stripFailoverWrapper(raw: string): string {
+  return raw.trim().replace(FAILOVER_WRAPPER_RE, "").trim();
+}
+
+/**
+ * Detect auth/permission errors from API JSON payloads (e.g., Anthropic's
+ * `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`).
+ * These should never be forwarded to end users as they leak credential details.
+ */
+export function isAuthApiError(raw: string): boolean {
+  const info = parseApiErrorInfo(raw);
+  if (!info) {
+    return false;
+  }
+  if (info.type && AUTH_API_ERROR_TYPES.has(info.type)) {
+    return true;
+  }
+  if (info.httpCode) {
+    const code = Number(info.httpCode);
+    if (code === 401 || code === 403) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function extractLeadingHttpStatus(raw: string): { code: number; rest: string } | null {
   const match = raw.match(HTTP_STATUS_CODE_PREFIX_RE);
@@ -428,6 +471,20 @@ export function formatRawAssistantErrorForUi(raw?: string): string {
     return "LLM request failed with an unknown error.";
   }
 
+  // Strip failover wrappers — these leak provider/model names.
+  // "All models failed" contains a chain of provider/model details; always suppress entirely.
+  // "FailoverError:" wraps a single error; recurse into it after stripping.
+  if (isFailoverWrapperMessage(trimmed)) {
+    if (/^All models failed/i.test(trimmed)) {
+      return AUTH_CONFIG_ERROR_MESSAGE;
+    }
+    const inner = stripFailoverWrapper(trimmed);
+    if (!inner) {
+      return AUTH_CONFIG_ERROR_MESSAGE;
+    }
+    return formatRawAssistantErrorForUi(inner);
+  }
+
   const leadingStatus = extractLeadingHttpStatus(trimmed);
   if (leadingStatus && isCloudflareOrHtmlErrorPage(trimmed)) {
     return `The AI service is temporarily unavailable (HTTP ${leadingStatus.code}). Please try again in a moment.`;
@@ -439,8 +496,18 @@ export function formatRawAssistantErrorForUi(raw?: string): string {
     return TRANSIENT_API_ERROR_MESSAGE;
   }
 
+  // Suppress auth/permission errors — never expose credential details or provider names.
+  if (isAuthApiError(trimmed)) {
+    return AUTH_CONFIG_ERROR_MESSAGE;
+  }
+
   const httpMatch = trimmed.match(HTTP_STATUS_PREFIX_RE);
   if (httpMatch) {
+    const code = Number(httpMatch[1]);
+    // Suppress 401/403 even as plain HTTP status lines
+    if (code === 401 || code === 403) {
+      return AUTH_CONFIG_ERROR_MESSAGE;
+    }
     const rest = httpMatch[2].trim();
     if (!rest.startsWith("{")) {
       return `HTTP ${httpMatch[1]}: ${rest}`;
@@ -449,6 +516,10 @@ export function formatRawAssistantErrorForUi(raw?: string): string {
 
   const info = parseApiErrorInfo(trimmed);
   if (info?.message) {
+    // Suppress auth errors that come through as parsed API payloads
+    if (info.type && AUTH_API_ERROR_TYPES.has(info.type)) {
+      return AUTH_CONFIG_ERROR_MESSAGE;
+    }
     const prefix = info.httpCode ? `HTTP ${info.httpCode}` : "LLM error";
     const type = info.type ? ` ${info.type}` : "";
     const requestId = info.requestId ? ` (request_id: ${info.requestId})` : "";
@@ -517,6 +588,12 @@ export function formatAssistantErrorText(
     return `LLM request rejected: ${invalidRequest[1]}`;
   }
 
+  // Suppress failover wrapper messages FIRST — these contain provider/model names
+  // and can also match rate-limit/auth patterns in the inner details.
+  if (isFailoverWrapperMessage(raw)) {
+    return AUTH_CONFIG_ERROR_MESSAGE;
+  }
+
   const transientCopy = formatRateLimitOrOverloadedErrorCopy(raw);
   if (transientCopy) {
     return transientCopy;
@@ -526,6 +603,11 @@ export function formatAssistantErrorText(
   // these should never leak raw error details to end users.
   if (isTransientApiError(raw) || isTransientHttpError(raw)) {
     return TRANSIENT_API_ERROR_MESSAGE;
+  }
+
+  // Suppress auth/permission errors — never expose credential or provider details.
+  if (isAuthApiError(raw) || isAuthErrorMessage(raw)) {
+    return AUTH_CONFIG_ERROR_MESSAGE;
   }
 
   if (isTimeoutErrorMessage(raw)) {
@@ -577,6 +659,14 @@ export function sanitizeUserFacingText(text: string, opts?: { errorContext?: boo
 
     if (isBillingErrorMessage(trimmed)) {
       return BILLING_ERROR_USER_MESSAGE;
+    }
+
+    // Suppress auth/permission and failover wrapper errors in error context
+    if (isAuthApiError(trimmed) || isAuthErrorMessage(trimmed)) {
+      return AUTH_CONFIG_ERROR_MESSAGE;
+    }
+    if (isFailoverWrapperMessage(trimmed)) {
+      return AUTH_CONFIG_ERROR_MESSAGE;
     }
 
     if (isRawApiErrorPayload(trimmed) || isLikelyHttpErrorText(trimmed)) {
@@ -812,6 +902,11 @@ export function classifyFailoverReason(raw: string): FailoverReason | null {
   }
   if (isTransientHttpError(raw)) {
     // Treat transient 5xx provider failures as retryable transport issues.
+    return "timeout";
+  }
+  if (isTransientApiError(raw)) {
+    // Treat transient API errors (api_error, server_error, internal_error JSON payloads)
+    // as retryable — these should trigger failover to the next model.
     return "timeout";
   }
   if (isRateLimitErrorMessage(raw)) {

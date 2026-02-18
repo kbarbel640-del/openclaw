@@ -1,6 +1,7 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 import { describe, expect, it } from "vitest";
 import {
+  AUTH_CONFIG_ERROR_MESSAGE,
   BILLING_ERROR_USER_MESSAGE,
   formatBillingErrorMessage,
   formatAssistantErrorText,
@@ -157,6 +158,36 @@ describe("formatAssistantErrorText", () => {
     const msg = makeAssistantError("request ended without sending any chunks");
     expect(formatAssistantErrorText(msg)).toBe("LLM request timed out.");
   });
+
+  // --- Auth / permission error suppression ---
+  it("suppresses 401 authentication_error JSON payloads", () => {
+    const msg = makeAssistantError(
+      '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_abc"}',
+    );
+    expect(formatAssistantErrorText(msg)).toBe(AUTH_CONFIG_ERROR_MESSAGE);
+  });
+  it("suppresses permission_error JSON payloads", () => {
+    const msg = makeAssistantError(
+      '{"type":"error","error":{"type":"permission_error","message":"Your API key does not have permission"},"request_id":"req_xyz"}',
+    );
+    expect(formatAssistantErrorText(msg)).toBe(AUTH_CONFIG_ERROR_MESSAGE);
+  });
+  it("suppresses plain auth error messages (unauthorized, invalid api key)", () => {
+    const msg = makeAssistantError("unauthorized");
+    expect(formatAssistantErrorText(msg)).toBe(AUTH_CONFIG_ERROR_MESSAGE);
+  });
+
+  // --- Failover wrapper suppression ---
+  it("suppresses FailoverError wrapper messages", () => {
+    const msg = makeAssistantError("FailoverError: HTTP 401 authentication_error");
+    expect(formatAssistantErrorText(msg)).toBe(AUTH_CONFIG_ERROR_MESSAGE);
+  });
+  it("suppresses 'All models failed' wrapper messages", () => {
+    const msg = makeAssistantError(
+      "All models failed (3): anthropic/claude-opus-4-5: rate limit | openai/gpt-4.1: timeout | google/gemini-2.5-pro: auth",
+    );
+    expect(formatAssistantErrorText(msg)).toBe(AUTH_CONFIG_ERROR_MESSAGE);
+  });
 });
 
 describe("formatRawAssistantErrorForUi", () => {
@@ -194,5 +225,35 @@ describe("formatRawAssistantErrorForUi", () => {
     expect(formatRawAssistantErrorForUi(htmlError)).toBe(
       "The AI service is temporarily unavailable (HTTP 521). Please try again in a moment.",
     );
+  });
+
+  it("suppresses authentication_error JSON payloads", () => {
+    expect(
+      formatRawAssistantErrorForUi(
+        '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',
+      ),
+    ).toBe(AUTH_CONFIG_ERROR_MESSAGE);
+  });
+
+  it("suppresses plain HTTP 401 status lines", () => {
+    expect(formatRawAssistantErrorForUi("401 Unauthorized")).toBe(AUTH_CONFIG_ERROR_MESSAGE);
+  });
+
+  it("suppresses plain HTTP 403 status lines", () => {
+    expect(formatRawAssistantErrorForUi("403 Forbidden")).toBe(AUTH_CONFIG_ERROR_MESSAGE);
+  });
+
+  it("strips FailoverError wrapper and sanitizes inner error", () => {
+    expect(formatRawAssistantErrorForUi("FailoverError: HTTP 401 authentication_error")).toBe(
+      AUTH_CONFIG_ERROR_MESSAGE,
+    );
+  });
+
+  it("strips 'All models failed' wrapper and returns safe message", () => {
+    expect(
+      formatRawAssistantErrorForUi(
+        "All models failed (2): anthropic/claude-opus-4-5: 401 | openai/gpt-4.1: 429",
+      ),
+    ).toBe(AUTH_CONFIG_ERROR_MESSAGE);
   });
 });
