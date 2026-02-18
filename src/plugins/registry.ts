@@ -463,10 +463,10 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
   };
 
   const normalizeLogger = (logger: PluginLogger): PluginLogger => ({
-    info: logger.info,
-    warn: logger.warn,
-    error: logger.error,
-    debug: logger.debug,
+    info: logger.info.bind(logger),
+    warn: logger.warn.bind(logger),
+    error: logger.error.bind(logger),
+    debug: logger.debug?.bind(logger),
   });
 
   const createApi = (
