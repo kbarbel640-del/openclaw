@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
@@ -110,6 +111,9 @@ describe("writeOAuthCredentials", () => {
     "PI_CODING_AGENT_DIR",
     "OPENCLAW_OAUTH_DIR",
   ]);
+
+  let tempStateDir: string;
+  const authProfilePathFor = (dir: string) => path.join(dir, "auth-profiles.json");
 
   afterEach(async () => {
     await lifecycle.cleanup();
