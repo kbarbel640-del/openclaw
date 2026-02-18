@@ -241,6 +241,14 @@ function createOpenAIResponsesStoreWrapper(baseStreamFn: StreamFn | undefined): 
   };
 }
 
+function stripAnthropic1MSuffix(modelId: string): string {
+  return modelId.trim().replace(/-1m$/i, "");
+}
+
+function hasAnthropic1MSuffix(modelId: string): boolean {
+  return /-1m$/i.test(modelId.trim());
+}
+
 function createCodexDefaultTransportWrapper(baseStreamFn: StreamFn | undefined): StreamFn {
   const underlying = baseStreamFn ?? streamSimple;
   return (model, context, options) =>
@@ -251,7 +259,7 @@ function createCodexDefaultTransportWrapper(baseStreamFn: StreamFn | undefined):
 }
 
 function isAnthropic1MModel(modelId: string): boolean {
-  const normalized = modelId.trim().toLowerCase();
+  const normalized = stripAnthropic1MSuffix(modelId).trim().toLowerCase();
   return ANTHROPIC_1M_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
@@ -286,7 +294,9 @@ function resolveAnthropicBetas(
     }
   }
 
-  if (extraParams?.context1m === true) {
+  const context1mExplicit = extraParams?.context1m === true;
+  const context1mFromSuffix = hasAnthropic1MSuffix(modelId);
+  if (context1mExplicit || context1mFromSuffix) {
     if (isAnthropic1MModel(modelId)) {
       betas.add(ANTHROPIC_CONTEXT_1M_BETA);
     } else {
@@ -338,6 +348,12 @@ function createAnthropicBetaHeadersWrapper(
 ): StreamFn {
   const underlying = baseStreamFn ?? streamSimple;
   return (model, context, options) => {
+    // Strip `-1m` suffix from model ID before sending to the Anthropic API.
+    // The suffix is a convention for requesting 1M context; the actual API
+    // model name does not include it.
+    const effectiveModel = hasAnthropic1MSuffix(model.id)
+      ? { ...model, id: stripAnthropic1MSuffix(model.id) }
+      : model;
     const isOauth = isAnthropicOAuthApiKey(options?.apiKey);
     const requestedContext1m = betas.includes(ANTHROPIC_CONTEXT_1M_BETA);
     const effectiveBetas =
@@ -346,7 +362,7 @@ function createAnthropicBetaHeadersWrapper(
         : betas;
     if (isOauth && requestedContext1m) {
       log.warn(
-        `ignoring context1m for OAuth token auth on ${model.provider}/${model.id}; Anthropic rejects context-1m beta with OAuth auth`,
+        `ignoring context1m for OAuth token auth on ${effectiveModel.provider}/${effectiveModel.id}; Anthropic rejects context-1m beta with OAuth auth`,
       );
     }
 
@@ -357,7 +373,7 @@ function createAnthropicBetaHeadersWrapper(
       ? (PI_AI_OAUTH_ANTHROPIC_BETAS as readonly string[])
       : (PI_AI_DEFAULT_ANTHROPIC_BETAS as readonly string[]);
     const allBetas = [...new Set([...piAiBetas, ...effectiveBetas])];
-    return underlying(model, context, {
+    return underlying(effectiveModel, context, {
       ...options,
       headers: mergeAnthropicBetaHeader(options?.headers, allBetas),
     });
