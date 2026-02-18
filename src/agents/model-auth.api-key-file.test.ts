@@ -40,6 +40,12 @@ describe("getCustomProviderApiKey with apiKeyFile", () => {
     expect(getCustomProviderApiKey(cfg, "custom")).toBe("sk-from-file");
   });
 
+  it("apiKeyFile takes precedence even when apiKey is the placeholder", () => {
+    fs.writeFileSync(keyFile, "sk-real-secret\n");
+    const cfg = makeConfig({ apiKey: "__apiKeyFile__", apiKeyFile: keyFile });
+    expect(getCustomProviderApiKey(cfg, "custom")).toBe("sk-real-secret");
+  });
+
   it("returns undefined when apiKeyFile does not exist", () => {
     const cfg = makeConfig({ apiKeyFile: "/nonexistent/path/key" });
     expect(getCustomProviderApiKey(cfg, "custom")).toBeUndefined();

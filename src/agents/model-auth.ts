@@ -51,7 +51,7 @@ function resolveProviderConfig(
   );
 }
 
-export function readApiKeyFile(filePath: string): string | undefined {
+function readApiKeyFile(filePath: string): string | undefined {
   if (!fs.existsSync(filePath)) {
     log.warn(`apiKeyFile not found: ${filePath}`);
     return undefined;
