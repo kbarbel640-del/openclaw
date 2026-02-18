@@ -38,7 +38,9 @@ describe("config env vars", () => {
       Path: ["system-bin", "shared-bin"].join(path.delimiter),
     };
     applyConfigEnvVars(
-      { env: { vars: { PATH: ["openclaw-bin", "shared-bin"].join(path.delimiter) } } } as OpenClawConfig,
+      {
+        env: { vars: { PATH: ["openclaw-bin", "shared-bin"].join(path.delimiter) } },
+      } as OpenClawConfig,
       env,
     );
     expect(env.Path).toBe(["openclaw-bin", "shared-bin", "system-bin"].join(path.delimiter));
