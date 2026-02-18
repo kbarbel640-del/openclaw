@@ -12,6 +12,7 @@
  *   --dry-run          Show what would be synced without making changes
  *   --max <n>          Limit number of files to process (default: unlimited)
  *   --file <path>      Sync a specific file only (repeatable)
+ *   --force            Force full translation even if English hasn't changed
  *   --no-pr            Skip PR creation (just write files)
  *   --base-sha <sha>   Override the last sync SHA
  *   --provider <name>  Force provider: "openai" or "anthropic" (auto-detected from env)
@@ -56,6 +57,7 @@ interface Options {
   dryRun: boolean;
   max: number;
   files: string[];
+  force: boolean;
   noPr: boolean;
   baseSha: string | null;
   model: string;
@@ -86,6 +88,7 @@ function parseArgs(): Options {
     dryRun: false,
     max: Infinity,
     files: [],
+    force: false,
     noPr: false,
     baseSha: null,
     model: detected.model,
@@ -102,6 +105,9 @@ function parseArgs(): Options {
         break;
       case "--file":
         opts.files.push(args[++i]);
+        break;
+      case "--force":
+        opts.force = true;
         break;
       case "--no-pr":
         opts.noPr = true;
@@ -348,6 +354,112 @@ async function callAnthropic(
 }
 
 // ---------------------------------------------------------------------------
+// Korean detection + chunking for large files
+// ---------------------------------------------------------------------------
+
+function hasKorean(text: string): boolean {
+  return /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(text);
+}
+
+const MAX_CHUNK_CHARS = 25000;
+
+function splitIntoChunks(content: string): string[] {
+  const lines = content.split("\n");
+  const sections: string[][] = [];
+  let current: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("## ") && current.length > 0) {
+      sections.push(current);
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length) {
+    sections.push(current);
+  }
+
+  const chunks: string[] = [];
+  let chunkLines: string[] = [];
+
+  for (const section of sections) {
+    const sectionText = section.join("\n");
+    const candidate = chunkLines.join("\n") + "\n" + sectionText;
+    if (chunkLines.length > 0 && candidate.length > MAX_CHUNK_CHARS) {
+      chunks.push(chunkLines.join("\n"));
+      chunkLines = [...section];
+    } else {
+      chunkLines.push(...section);
+    }
+  }
+  if (chunkLines.length) {
+    chunks.push(chunkLines.join("\n"));
+  }
+
+  return chunks;
+}
+
+async function callWithRetry(
+  fn: () => Promise<string>,
+  maxRetries = 3,
+  label = "",
+): Promise<string> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isRateLimit = msg.includes("429") || msg.toLowerCase().includes("rate limit");
+      const isTimeout = msg.toLowerCase().includes("timeout");
+      if ((isRateLimit || isTimeout) && attempt < maxRetries) {
+        const delay = isRateLimit ? 60000 : 5000;
+        console.warn(
+          `  [retry ${attempt}/${maxRetries}] ${label}: ${msg.slice(0, 80)} — waiting ${delay / 1000}s`,
+        );
+        await new Promise((r) => setTimeout(r, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error("callWithRetry: exhausted retries");
+}
+
+async function translateContent(
+  content: string,
+  makeMessages: (chunk: string) => LLMMessage[],
+  provider: Provider,
+  model: string,
+  system: string,
+  label = "",
+): Promise<string> {
+  if (content.length <= MAX_CHUNK_CHARS) {
+    return callWithRetry(() => callLLM(provider, model, system, makeMessages(content)), 3, label);
+  }
+
+  const chunks = splitIntoChunks(content);
+  console.log(`  [chunked] ${chunks.length} chunks (${content.length} chars total)`);
+  const translated: string[] = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    process.stdout.write(`  [chunk ${i + 1}/${chunks.length}] ${chunks[i].length} chars ... `);
+    const result = await callWithRetry(
+      () => callLLM(provider, model, system, makeMessages(chunks[i])),
+      3,
+      `${label} chunk ${i + 1}`,
+    );
+    translated.push(result);
+    process.stdout.write(`✓\n`);
+    if (i < chunks.length - 1) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+
+  return translated.join("\n");
+}
+
+// ---------------------------------------------------------------------------
 // Translation prompts
 // ---------------------------------------------------------------------------
 
@@ -417,6 +529,7 @@ async function processModifiedFile(
   model: string,
   glossary: string,
   verbose: boolean,
+  force: boolean,
   /** For renamed files, pass the old path to read old English and current Korean */
   oldFilePath?: string,
 ): Promise<string | null> {
@@ -425,6 +538,7 @@ async function processModifiedFile(
   // Korean translations live under docs/ko-KR/ mirroring the English path
   const koFile = toKoPath(oldFilePath || file);
   const curKo = gitShow(TARGET_BRANCH, koFile);
+  const system = buildSystemPrompt(glossary);
 
   if (!newEn) {
     if (verbose) {
@@ -433,31 +547,59 @@ async function processModifiedFile(
     return null;
   }
 
-  // If Korean file doesn't exist yet, do a full translation
-  if (!curKo) {
+  // If Korean file doesn't exist yet, or has no Korean content, do a full translation
+  if (!curKo || !hasKorean(curKo)) {
     if (verbose) {
-      console.log(`  [new] Full translation (no Korean version exists)`);
+      console.log(
+        !curKo
+          ? `  [new] Full translation (no Korean version exists)`
+          : `  [new] Full translation (existing file has no Korean content)`,
+      );
     }
-    return callLLM(provider, model, buildSystemPrompt(glossary), [
-      { role: "user", content: buildFullTranslatePrompt(newEn) },
-    ]);
+    return translateContent(
+      newEn,
+      (chunk) => [{ role: "user", content: buildFullTranslatePrompt(chunk) }],
+      provider,
+      model,
+      system,
+      file,
+    );
   }
 
-  // If old English is same as new (shouldn't happen but safety check)
+  // If old English is same as new, skip — unless --force
   if (oldEn === newEn) {
-    if (verbose) {
-      console.log(`  [skip] No actual content change`);
+    if (!force) {
+      if (verbose) {
+        console.log(`  [skip] No actual content change (use --force to translate anyway)`);
+      }
+      return null;
     }
-    return null;
+    // --force: redo full translation
+    if (verbose) {
+      console.log(`  [force] Full translation (--force flag set)`);
+    }
+    return translateContent(
+      newEn,
+      (chunk) => [{ role: "user", content: buildFullTranslatePrompt(chunk) }],
+      provider,
+      model,
+      system,
+      file,
+    );
   }
 
   // 3-way merge: old EN + new EN + current KO → updated KO
   if (verbose) {
     console.log(`  [sync] 3-way merge translation`);
   }
-  return callLLM(provider, model, buildSystemPrompt(glossary), [
-    { role: "user", content: buildSyncPrompt(oldEn || "", newEn, curKo) },
-  ]);
+  return callWithRetry(
+    () =>
+      callLLM(provider, model, system, [
+        { role: "user", content: buildSyncPrompt(oldEn || "", newEn, curKo) },
+      ]),
+    3,
+    file,
+  );
 }
 
 async function processNewFile(
@@ -475,9 +617,15 @@ async function processNewFile(
   if (verbose) {
     console.log(`  [new] Full translation`);
   }
-  return callLLM(provider, model, buildSystemPrompt(glossary), [
-    { role: "user", content: buildFullTranslatePrompt(newEn) },
-  ]);
+  const system = buildSystemPrompt(glossary);
+  return translateContent(
+    newEn,
+    (chunk) => [{ role: "user", content: buildFullTranslatePrompt(chunk) }],
+    provider,
+    model,
+    system,
+    file,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -593,6 +741,7 @@ async function main() {
           opts.model,
           glossary,
           opts.verbose,
+          opts.force,
           change.renamedFrom,
         );
       } else {
@@ -604,6 +753,7 @@ async function main() {
           opts.model,
           glossary,
           opts.verbose,
+          opts.force,
         );
       }
 
@@ -648,15 +798,19 @@ async function main() {
       git(`add docs/`);
       git(`add ${SYNC_STATE_PATH}`);
 
-      const commitMsg = `docs(i18n): sync Korean translations to ${mainSha.slice(0, 10)}
+      const commitMsg = `docs(i18n): sync Korean translations to ${mainSha.slice(0, 10)}\n\nSynced ${processed} files from main branch changes.\nBase: ${baseSha.slice(0, 10)} → ${mainSha.slice(0, 10)}`;
 
-Synced ${processed} files from main branch changes.
-Base: ${baseSha.slice(0, 10)} → ${mainSha.slice(0, 10)}`;
-
-      execSync(`git commit -m "$(cat <<'EOF'\n${commitMsg}\nEOF\n)"`, {
-        cwd: REPO_ROOT,
-        encoding: "utf-8",
-      });
+      const tmpCommitMsg = `/tmp/docs-sync-commit-${Date.now()}.txt`;
+      writeFileSync(tmpCommitMsg, commitMsg);
+      try {
+        execSync(`git commit -F "${tmpCommitMsg}"`, { cwd: REPO_ROOT, encoding: "utf-8" });
+      } finally {
+        try {
+          unlinkSync(tmpCommitMsg);
+        } catch {
+          /* ignore */
+        }
+      }
 
       git(`push -u origin ${branchName}`);
 
@@ -676,10 +830,21 @@ ${changes.map((c) => `- [${c.status}] \`${c.file}\``).join("\n")}
 
 🤖 Generated by \`scripts/docs-sync-korean.ts\``;
 
-      const prUrl = execSync(
-        `gh pr create --base ${TARGET_BRANCH} --title "docs(i18n): sync Korean translations (${new Date().toISOString().slice(0, 10)})" --body "$(cat <<'PREOF'\n${prBody}\nPREOF\n)"`,
-        { cwd: REPO_ROOT, encoding: "utf-8" },
-      ).trim();
+      const tmpPrBody = `/tmp/docs-sync-pr-body-${Date.now()}.txt`;
+      writeFileSync(tmpPrBody, prBody);
+      let prUrl = "";
+      try {
+        prUrl = execSync(
+          `gh pr create --base ${TARGET_BRANCH} --title "docs(i18n): sync Korean translations (${new Date().toISOString().slice(0, 10)})" --body-file "${tmpPrBody}"`,
+          { cwd: REPO_ROOT, encoding: "utf-8" },
+        ).trim();
+      } finally {
+        try {
+          unlinkSync(tmpPrBody);
+        } catch {
+          /* ignore */
+        }
+      }
 
       console.log(`✅ PR created: ${prUrl}`);
 
