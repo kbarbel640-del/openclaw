@@ -161,6 +161,12 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "agent",
+                    family: MethodFamily::Agent,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "agent.identity.get",
                     family: MethodFamily::Agent,
                     requires_auth: true,
@@ -527,6 +533,12 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "poll",
+                    family: MethodFamily::Message,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "chat.send",
                     family: MethodFamily::Message,
                     requires_auth: true,
@@ -684,6 +696,7 @@ const MAX_EXEC_APPROVALS_NODE_SNAPSHOTS: usize = 512;
 const DEFAULT_EXEC_APPROVAL_TIMEOUT_MS: u64 = 120_000;
 const MAX_EXEC_APPROVAL_PENDING: usize = 4_096;
 const EXEC_APPROVAL_RESOLVED_GRACE_MS: u64 = 15_000;
+const AGENT_RUN_COMPLETE_DELAY_MS: u64 = 25;
 const MAX_CHAT_RUNS: usize = 4_096;
 const CHAT_RUN_COMPLETE_DELAY_MS: u64 = 25;
 const MAX_SEND_CACHE_ENTRIES: usize = 4_096;
@@ -700,6 +713,7 @@ static EXEC_APPROVAL_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static EXEC_APPROVAL_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static CHAT_INJECT_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static SEND_MESSAGE_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+static POLL_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 const SUPPORTED_RPC_METHODS: &[&str] = &[
     "health",
     "status",
@@ -720,6 +734,7 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "agents.files.list",
     "agents.files.get",
     "agents.files.set",
+    "agent",
     "agent.identity.get",
     "agent.wait",
     "skills.status",
@@ -769,6 +784,7 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "exec.approval.resolve",
     "chat.history",
     "send",
+    "poll",
     "chat.send",
     "chat.abort",
     "chat.inject",
@@ -845,6 +861,7 @@ impl RpcDispatcher {
             "agents.files.list" => self.handle_agents_files_list(req).await,
             "agents.files.get" => self.handle_agents_files_get(req).await,
             "agents.files.set" => self.handle_agents_files_set(req).await,
+            "agent" => self.handle_agent(req).await,
             "agent.identity.get" => self.handle_agent_identity_get(req).await,
             "agent.wait" => self.handle_agent_wait(req).await,
             "skills.status" => self.handle_skills_status(req).await,
@@ -894,6 +911,7 @@ impl RpcDispatcher {
             "exec.approval.resolve" => self.handle_exec_approval_resolve(req).await,
             "chat.history" => self.handle_chat_history(req).await,
             "send" => self.handle_send(req).await,
+            "poll" => self.handle_poll(req).await,
             "chat.send" => self.handle_chat_send(req).await,
             "chat.abort" => self.handle_chat_abort(req).await,
             "chat.inject" => self.handle_chat_inject(req).await,
@@ -1327,6 +1345,99 @@ impl RpcDispatcher {
             "agentId": agent_id,
             "workspace": workspace,
             "file": file
+        }))
+    }
+
+    async fn handle_agent(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<AgentParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!("invalid agent params: {err}"))
+            }
+        };
+        let _ = (
+            params.agent_id.as_deref(),
+            params.session_id.as_deref(),
+            params.thinking.as_deref(),
+            params.deliver,
+            params.thread_id.as_deref(),
+            params.group_id.as_deref(),
+            params.group_channel.as_deref(),
+            params.group_space.as_deref(),
+            params.timeout,
+            params.lane.as_deref(),
+            params.extra_system_prompt.as_deref(),
+            params.input_provenance.as_ref(),
+            params.label.as_deref(),
+            params.spawned_by.as_deref(),
+        );
+        let Some(run_id) = normalize_optional_text(Some(params.idempotency_key), 256) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid agent params: idempotencyKey is required",
+            );
+        };
+        match self.agent_runs.start_run(&run_id).await {
+            AgentRunStartOutcome::InFlight => {
+                return RpcDispatchOutcome::Handled(json!({
+                    "runId": run_id,
+                    "status": "in_flight"
+                }));
+            }
+            AgentRunStartOutcome::Completed => {
+                return RpcDispatchOutcome::Handled(json!({
+                    "runId": run_id,
+                    "status": "ok"
+                }));
+            }
+            AgentRunStartOutcome::Started => {}
+        }
+        let session_key = normalize_optional_text(params.session_key, 512)
+            .map(|value| canonicalize_session_key(&value))
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| canonicalize_session_key(DEFAULT_MAIN_KEY));
+        if session_key.is_empty() {
+            return RpcDispatchOutcome::bad_request("invalid agent params: sessionKey is required");
+        }
+        let sanitized_message = match sanitize_chat_send_message_input(&params.message) {
+            Ok(value) => value,
+            Err(err) => return RpcDispatchOutcome::bad_request(err),
+        };
+        let message = normalize_optional_text(Some(sanitized_message), 12_000);
+        let has_attachments = params
+            .attachments
+            .as_ref()
+            .map(|value| !value.is_empty())
+            .unwrap_or(false);
+        if message.is_none() && !has_attachments {
+            return RpcDispatchOutcome::bad_request("invalid agent params: message is required");
+        }
+        let channel = normalize_optional_text(params.reply_channel.or(params.channel), 128);
+        let to = normalize_optional_text(params.reply_to.or(params.to), 256);
+        let account_id =
+            normalize_optional_text(params.reply_account_id.or(params.account_id), 128);
+        let stored_message = message.or_else(|| has_attachments.then(|| "[attachment]".to_owned()));
+        let _ = self
+            .sessions
+            .record_send(SessionSend {
+                session_key,
+                request_id: Some(run_id.clone()),
+                message: stored_message,
+                command: None,
+                source: "agent".to_owned(),
+                channel,
+                to,
+                account_id,
+            })
+            .await;
+        let agent_runs = self.agent_runs.clone();
+        let complete_run_id = run_id.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(AGENT_RUN_COMPLETE_DELAY_MS)).await;
+            agent_runs.complete_ok(complete_run_id).await;
+        });
+        RpcDispatchOutcome::Handled(json!({
+            "runId": run_id,
+            "status": "started"
         }))
     }
 
@@ -2909,6 +3020,130 @@ impl RpcDispatcher {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
+        self.send.set(cache_key, payload.clone()).await;
+        RpcDispatchOutcome::Handled(payload)
+    }
+
+    async fn handle_poll(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<GatewayPollParams>(&req.params) {
+            Ok(value) => value,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!("invalid poll params: {err}"));
+            }
+        };
+        let Some(idempotency_key) = normalize_optional_text(Some(params.idempotency_key), 256)
+        else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid poll params: idempotencyKey is required",
+            );
+        };
+        let cache_key = format!("poll:{idempotency_key}");
+        if let Some(cached) = self.send.get(&cache_key).await {
+            return RpcDispatchOutcome::Handled(cached);
+        }
+        let run_id = idempotency_key;
+
+        let Some(to) = normalize_optional_text(Some(params.to), 512) else {
+            return RpcDispatchOutcome::bad_request("invalid poll params: to is required");
+        };
+        let Some(question) = normalize_optional_text(Some(params.question), 2_048) else {
+            return RpcDispatchOutcome::bad_request("invalid poll params: question is required");
+        };
+        let options = params
+            .options
+            .into_iter()
+            .filter_map(|value| normalize_optional_text(Some(value), 1_024))
+            .collect::<Vec<_>>();
+        if !(2..=12).contains(&options.len()) {
+            return RpcDispatchOutcome::bad_request(
+                "invalid poll params: options must contain between 2 and 12 entries",
+            );
+        }
+        if let Some(max_selections) = params.max_selections {
+            if max_selections == 0 || max_selections > 12 {
+                return RpcDispatchOutcome::bad_request(
+                    "invalid poll params: maxSelections must be between 1 and 12",
+                );
+            }
+            if max_selections > options.len() {
+                return RpcDispatchOutcome::bad_request(
+                    "invalid poll params: maxSelections cannot exceed options length",
+                );
+            }
+        }
+        if let Some(duration_hours) = params.duration_hours {
+            if duration_hours == 0 {
+                return RpcDispatchOutcome::bad_request(
+                    "invalid poll params: durationHours must be >= 1",
+                );
+            }
+        }
+
+        let channel_input = normalize_optional_text(params.channel.clone(), 64);
+        let requested_channel = channel_input.unwrap_or_else(|| DEFAULT_SEND_CHANNEL.to_owned());
+        let Some(capability) = self
+            .channel_capabilities
+            .iter()
+            .find(|capability| capability.name.eq_ignore_ascii_case(&requested_channel))
+        else {
+            let unsupported = params.channel.unwrap_or(requested_channel);
+            return RpcDispatchOutcome::bad_request(format!(
+                "unsupported poll channel: {unsupported}"
+            ));
+        };
+        let channel = capability.name.to_owned();
+        if !capability.supports_polls {
+            return RpcDispatchOutcome::bad_request(format!("unsupported poll channel: {channel}"));
+        }
+        if params.duration_seconds.is_some() && !channel.eq_ignore_ascii_case("telegram") {
+            return RpcDispatchOutcome::bad_request(
+                "durationSeconds is only supported for Telegram polls",
+            );
+        }
+        if params.is_anonymous.is_some() && !channel.eq_ignore_ascii_case("telegram") {
+            return RpcDispatchOutcome::bad_request(
+                "isAnonymous is only supported for Telegram polls",
+            );
+        }
+        if let Some(duration_seconds) = params.duration_seconds {
+            if duration_seconds == 0 || duration_seconds > 604_800 {
+                return RpcDispatchOutcome::bad_request(
+                    "invalid poll params: durationSeconds must be between 1 and 604800",
+                );
+            }
+        }
+
+        let _silent = params.silent.unwrap_or(false);
+        let account_id = normalize_optional_text(params.account_id, 128);
+        let thread_id = normalize_optional_text(params.thread_id, 128);
+        let _ = self
+            .sessions
+            .record_send(SessionSend {
+                session_key: derive_outbound_session_key(&channel, &to),
+                request_id: Some(run_id.clone()),
+                message: Some(format!("[poll] {question}")),
+                command: None,
+                source: "poll".to_owned(),
+                channel: Some(channel.clone()),
+                to: Some(to),
+                account_id: account_id.clone(),
+            })
+            .await;
+
+        let message_id = next_send_message_id();
+        let poll_id = next_poll_id();
+        let mut payload = json!({
+            "runId": run_id,
+            "messageId": message_id,
+            "channel": channel,
+            "pollId": poll_id
+        });
+        if let Some(account_id) = account_id {
+            payload["accountId"] = json!(account_id);
+        }
+        if let Some(thread_id) = thread_id {
+            payload["threadId"] = json!(thread_id);
+        }
         self.send.set(cache_key, payload.clone()).await;
         RpcDispatchOutcome::Handled(payload)
     }
@@ -4830,8 +5065,9 @@ fn resolve_agent_id_from_session_key_input(session_key: &str) -> Result<String, 
         .unwrap_or_else(|| DEFAULT_AGENT_ID.to_owned()))
 }
 
+#[derive(Clone)]
 struct AgentRunRegistry {
-    state: Mutex<AgentRunState>,
+    state: Arc<Mutex<AgentRunState>>,
 }
 
 #[derive(Debug, Clone)]
@@ -4847,27 +5083,68 @@ struct AgentRunSnapshot {
     error: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AgentRunStartOutcome {
+    Started,
+    InFlight,
+    Completed,
+}
+
 impl AgentRunRegistry {
     fn new() -> Self {
         Self {
-            state: Mutex::new(AgentRunState {
+            state: Arc::new(Mutex::new(AgentRunState {
                 entries: HashMap::new(),
-            }),
+            })),
         }
+    }
+
+    async fn start_run(&self, run_id: &str) -> AgentRunStartOutcome {
+        let run_key = run_id.trim();
+        if run_key.is_empty() {
+            return AgentRunStartOutcome::Completed;
+        }
+        let mut guard = self.state.lock().await;
+        if let Some(snapshot) = guard.entries.get(run_key) {
+            if normalize(&snapshot.status) == "ok" {
+                return AgentRunStartOutcome::Completed;
+            }
+            return AgentRunStartOutcome::InFlight;
+        }
+        let now = now_ms();
+        guard.entries.insert(
+            run_key.to_owned(),
+            AgentRunSnapshot {
+                status: "in_flight".to_owned(),
+                started_at: now,
+                ended_at: 0,
+                error: None,
+            },
+        );
+        AgentRunStartOutcome::Started
     }
 
     async fn complete_ok(&self, run_id: String) {
         let now = now_ms();
         let mut guard = self.state.lock().await;
-        guard.entries.insert(
-            run_id,
-            AgentRunSnapshot {
-                status: "ok".to_owned(),
-                started_at: now,
-                ended_at: now,
-                error: None,
-            },
-        );
+        if let Some(entry) = guard.entries.get_mut(&run_id) {
+            entry.status = "ok".to_owned();
+            if entry.started_at == 0 {
+                entry.started_at = now;
+            }
+            entry.ended_at = now;
+            entry.error = None;
+        } else {
+            guard.entries.insert(
+                run_id,
+                AgentRunSnapshot {
+                    status: "ok".to_owned(),
+                    started_at: now,
+                    ended_at: now,
+                    error: None,
+                },
+            );
+        }
         if guard.entries.len() > 4_096 {
             let mut oldest_key: Option<String> = None;
             let mut oldest = u64::MAX;
@@ -6787,6 +7064,11 @@ fn next_chat_inject_message_id() -> String {
 fn next_send_message_id() -> String {
     let sequence = SEND_MESSAGE_ID_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     format!("send-{}-{sequence}", now_ms())
+}
+
+fn next_poll_id() -> String {
+    let sequence = POLL_ID_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("poll-{}-{sequence}", now_ms())
 }
 
 fn derive_outbound_session_key(channel: &str, to: &str) -> String {
@@ -9834,6 +10116,50 @@ struct AgentsFilesSetParams {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+struct AgentParams {
+    message: String,
+    #[serde(rename = "agentId", alias = "agent_id")]
+    agent_id: Option<String>,
+    to: Option<String>,
+    #[serde(rename = "replyTo", alias = "reply_to")]
+    reply_to: Option<String>,
+    #[serde(rename = "sessionId", alias = "session_id")]
+    session_id: Option<String>,
+    #[serde(rename = "sessionKey", alias = "session_key")]
+    session_key: Option<String>,
+    thinking: Option<String>,
+    deliver: Option<bool>,
+    attachments: Option<Vec<Value>>,
+    channel: Option<String>,
+    #[serde(rename = "replyChannel", alias = "reply_channel")]
+    reply_channel: Option<String>,
+    #[serde(rename = "accountId", alias = "account_id")]
+    account_id: Option<String>,
+    #[serde(rename = "replyAccountId", alias = "reply_account_id")]
+    reply_account_id: Option<String>,
+    #[serde(rename = "threadId", alias = "thread_id")]
+    thread_id: Option<String>,
+    #[serde(rename = "groupId", alias = "group_id")]
+    group_id: Option<String>,
+    #[serde(rename = "groupChannel", alias = "group_channel")]
+    group_channel: Option<String>,
+    #[serde(rename = "groupSpace", alias = "group_space")]
+    group_space: Option<String>,
+    timeout: Option<u64>,
+    lane: Option<String>,
+    #[serde(rename = "extraSystemPrompt", alias = "extra_system_prompt")]
+    extra_system_prompt: Option<String>,
+    #[serde(rename = "inputProvenance", alias = "input_provenance")]
+    input_provenance: Option<Value>,
+    #[serde(rename = "idempotencyKey", alias = "idempotency_key")]
+    idempotency_key: String,
+    label: Option<String>,
+    #[serde(rename = "spawnedBy", alias = "spawned_by")]
+    spawned_by: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 struct AgentIdentityParams {
     #[serde(rename = "agentId", alias = "agent_id")]
     agent_id: Option<String>,
@@ -10508,6 +10834,30 @@ struct GatewaySendParams {
     thread_id: Option<String>,
     #[serde(rename = "sessionKey", alias = "session_key")]
     session_key: Option<String>,
+    #[serde(rename = "idempotencyKey", alias = "idempotency_key")]
+    idempotency_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GatewayPollParams {
+    to: String,
+    question: String,
+    options: Vec<String>,
+    #[serde(rename = "maxSelections", alias = "max_selections")]
+    max_selections: Option<usize>,
+    #[serde(rename = "durationSeconds", alias = "duration_seconds")]
+    duration_seconds: Option<u64>,
+    #[serde(rename = "durationHours", alias = "duration_hours")]
+    duration_hours: Option<u64>,
+    silent: Option<bool>,
+    #[serde(rename = "isAnonymous", alias = "is_anonymous")]
+    is_anonymous: Option<bool>,
+    #[serde(rename = "threadId", alias = "thread_id")]
+    thread_id: Option<String>,
+    channel: Option<String>,
+    #[serde(rename = "accountId", alias = "account_id")]
+    account_id: Option<String>,
     #[serde(rename = "idempotencyKey", alias = "idempotency_key")]
     idempotency_key: String,
 }
@@ -12137,6 +12487,199 @@ mod tests {
                 );
             }
             _ => panic!("expected send with context handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_poll_method_follows_parity_contract() {
+        let dispatcher = RpcDispatcher::new();
+
+        let invalid_options = RpcRequestFrame {
+            id: "req-poll-invalid-options".to_owned(),
+            method: "poll".to_owned(),
+            params: serde_json::json!({
+                "to": "+15550001111",
+                "question": "Lunch?",
+                "options": ["Pizza"],
+                "idempotencyKey": "poll-invalid-options"
+            }),
+        };
+        let out = dispatcher.handle_request(&invalid_options).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let unsupported_channel = RpcRequestFrame {
+            id: "req-poll-unsupported".to_owned(),
+            method: "poll".to_owned(),
+            params: serde_json::json!({
+                "to": "+15550001111",
+                "question": "Lunch?",
+                "options": ["Pizza", "Sushi"],
+                "channel": "unknown-channel",
+                "idempotencyKey": "poll-unsupported"
+            }),
+        };
+        match dispatcher.handle_request(&unsupported_channel).await {
+            RpcDispatchOutcome::Error { code, message, .. } => {
+                assert_eq!(code, 400);
+                assert!(message.contains("unsupported poll channel"));
+            }
+            _ => panic!("expected unsupported channel rejection"),
+        }
+
+        let no_poll_support = RpcRequestFrame {
+            id: "req-poll-no-support".to_owned(),
+            method: "poll".to_owned(),
+            params: serde_json::json!({
+                "to": "channel:C1",
+                "question": "Lunch?",
+                "options": ["Pizza", "Sushi"],
+                "channel": "slack",
+                "idempotencyKey": "poll-no-support"
+            }),
+        };
+        match dispatcher.handle_request(&no_poll_support).await {
+            RpcDispatchOutcome::Error { code, message, .. } => {
+                assert_eq!(code, 400);
+                assert_eq!(message, "unsupported poll channel: slack");
+            }
+            _ => panic!("expected poll capability rejection"),
+        }
+
+        let non_telegram_duration = RpcRequestFrame {
+            id: "req-poll-non-telegram-duration".to_owned(),
+            method: "poll".to_owned(),
+            params: serde_json::json!({
+                "to": "+15550001111",
+                "question": "Lunch?",
+                "options": ["Pizza", "Sushi"],
+                "channel": "whatsapp",
+                "durationSeconds": 3600,
+                "idempotencyKey": "poll-non-telegram-duration"
+            }),
+        };
+        match dispatcher.handle_request(&non_telegram_duration).await {
+            RpcDispatchOutcome::Error { code, message, .. } => {
+                assert_eq!(code, 400);
+                assert!(message.contains("durationSeconds is only supported for Telegram polls"));
+            }
+            _ => panic!("expected telegram duration guard"),
+        }
+
+        let non_telegram_anonymous = RpcRequestFrame {
+            id: "req-poll-non-telegram-anonymous".to_owned(),
+            method: "poll".to_owned(),
+            params: serde_json::json!({
+                "to": "+15550001111",
+                "question": "Lunch?",
+                "options": ["Pizza", "Sushi"],
+                "channel": "whatsapp",
+                "isAnonymous": false,
+                "idempotencyKey": "poll-non-telegram-anonymous"
+            }),
+        };
+        match dispatcher.handle_request(&non_telegram_anonymous).await {
+            RpcDispatchOutcome::Error { code, message, .. } => {
+                assert_eq!(code, 400);
+                assert!(message.contains("isAnonymous is only supported for Telegram polls"));
+            }
+            _ => panic!("expected telegram anonymity guard"),
+        }
+
+        let telegram_poll = RpcRequestFrame {
+            id: "req-poll-telegram".to_owned(),
+            method: "poll".to_owned(),
+            params: serde_json::json!({
+                "to": "@openclaw",
+                "question": "Lunch?",
+                "options": ["Pizza", "Sushi"],
+                "channel": "telegram",
+                "durationSeconds": 3600,
+                "isAnonymous": false,
+                "threadId": "42",
+                "accountId": "team",
+                "idempotencyKey": "poll-1"
+            }),
+        };
+        let (first_message_id, first_poll_id) =
+            match dispatcher.handle_request(&telegram_poll).await {
+                RpcDispatchOutcome::Handled(payload) => {
+                    assert_eq!(
+                        payload
+                            .pointer("/runId")
+                            .and_then(serde_json::Value::as_str),
+                        Some("poll-1")
+                    );
+                    assert_eq!(
+                        payload
+                            .pointer("/channel")
+                            .and_then(serde_json::Value::as_str),
+                        Some("telegram")
+                    );
+                    assert_eq!(
+                        payload
+                            .pointer("/threadId")
+                            .and_then(serde_json::Value::as_str),
+                        Some("42")
+                    );
+                    assert_eq!(
+                        payload
+                            .pointer("/accountId")
+                            .and_then(serde_json::Value::as_str),
+                        Some("team")
+                    );
+                    let message_id = payload
+                        .pointer("/messageId")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_owned)
+                        .expect("message id");
+                    let poll_id = payload
+                        .pointer("/pollId")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_owned)
+                        .expect("poll id");
+                    (message_id, poll_id)
+                }
+                _ => panic!("expected poll handled response"),
+            };
+
+        match dispatcher.handle_request(&telegram_poll).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/messageId")
+                        .and_then(serde_json::Value::as_str),
+                    Some(first_message_id.as_str())
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/pollId")
+                        .and_then(serde_json::Value::as_str),
+                    Some(first_poll_id.as_str())
+                );
+            }
+            _ => panic!("expected poll idempotent replay"),
+        }
+
+        let default_channel_poll = RpcRequestFrame {
+            id: "req-poll-default-channel".to_owned(),
+            method: "poll".to_owned(),
+            params: serde_json::json!({
+                "to": "+15550001111",
+                "question": "Dinner?",
+                "options": ["Burrito", "Pasta"],
+                "idempotencyKey": "poll-2"
+            }),
+        };
+        match dispatcher.handle_request(&default_channel_poll).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/channel")
+                        .and_then(serde_json::Value::as_str),
+                    Some("whatsapp")
+                );
+            }
+            _ => panic!("expected default-channel poll response"),
         }
     }
 
@@ -14511,17 +15054,75 @@ mod tests {
         let out = dispatcher.handle_request(&mismatch).await;
         assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
 
-        let send = RpcRequestFrame {
-            id: "req-agent-wait-send".to_owned(),
-            method: "sessions.send".to_owned(),
+        let invalid_agent = RpcRequestFrame {
+            id: "req-agent-invalid".to_owned(),
+            method: "agent".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g-agent-wait",
+                "message": "hello"
+            }),
+        };
+        let out = dispatcher.handle_request(&invalid_agent).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let agent = RpcRequestFrame {
+            id: "req-agent".to_owned(),
+            method: "agent".to_owned(),
             params: serde_json::json!({
                 "sessionKey": "agent:main:discord:group:g-agent-wait",
                 "message": "hello",
-                "requestId": "run-agent-123"
+                "idempotencyKey": "run-agent-123"
             }),
         };
-        let out = dispatcher.handle_request(&send).await;
-        assert!(matches!(out, RpcDispatchOutcome::Handled(_)));
+        match dispatcher.handle_request(&agent).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/runId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("run-agent-123")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/status")
+                        .and_then(serde_json::Value::as_str),
+                    Some("started")
+                );
+            }
+            _ => panic!("expected agent handled"),
+        }
+
+        match dispatcher.handle_request(&agent).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert!(matches!(
+                    payload
+                        .pointer("/status")
+                        .and_then(serde_json::Value::as_str),
+                    Some("in_flight" | "ok")
+                ));
+            }
+            _ => panic!("expected idempotent agent replay"),
+        }
+
+        let mut completed = false;
+        for _ in 0..10 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            match dispatcher.handle_request(&agent).await {
+                RpcDispatchOutcome::Handled(payload) => {
+                    let status = payload
+                        .pointer("/status")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default();
+                    if status == "ok" {
+                        completed = true;
+                        break;
+                    }
+                    assert_eq!(status, "in_flight");
+                }
+                _ => panic!("expected completed agent replay"),
+            }
+        }
+        assert!(completed, "expected agent replay status to become ok");
 
         let wait_ok = RpcRequestFrame {
             id: "req-agent-wait-ok".to_owned(),
