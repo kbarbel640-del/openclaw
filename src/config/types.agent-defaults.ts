@@ -185,6 +185,8 @@ export type AgentDefaultsConfig = {
   contextPruning?: AgentContextPruningConfig;
   /** Context decay settings (strip thinking, summarize/strip tool results after N turns). */
   contextDecay?: ContextDecayConfig;
+  /** Optional context lifecycle event logging (JSONL). */
+  contextLifecycleLog?: ContextLifecycleLogConfig;
   /** Compaction tuning and pre-compaction memory flush behavior. */
   compaction?: AgentCompactionConfig;
   /** Vector memory search configuration (per-agent overrides supported). */
@@ -307,6 +309,13 @@ export type AgentDefaultsConfig = {
     /** Auto-prune sandbox containers. */
     prune?: SandboxPruneSettings;
   };
+};
+
+export type ContextLifecycleLogConfig = {
+  /** Enable context lifecycle event logging. Default: false. */
+  enabled?: boolean;
+  /** Output file path (JSONL). Supports {sessionKey} placeholder. Default: 'logs/context-lifecycle.jsonl'. */
+  filePath?: string;
 };
 
 export type AgentCompactionMode = "default" | "safeguard";

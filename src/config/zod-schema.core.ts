@@ -114,6 +114,14 @@ export const ContextDecaySchema = z
   .strict()
   .optional();
 
+export const ContextLifecycleLogSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    filePath: z.string().trim().min(1).optional(),
+  })
+  .strict()
+  .optional();
+
 export const DmConfigSchema = z
   .object({
     historyLimit: z.number().int().min(0).optional(),
