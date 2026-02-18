@@ -88,13 +88,21 @@ export function normalizeToolParameters(
   const isAnthropicProvider =
     options?.modelProvider?.toLowerCase().includes("anthropic") ||
     options?.modelProvider?.toLowerCase().includes("google-antigravity");
+  // google-antigravity routes Claude models through Google's Cloud Code Assist
+  // infrastructure, which validates tool schemas before forwarding to Anthropic.
+  // The Google layer rejects unsupported keywords (e.g. patternProperties), so
+  // Gemini schema cleaning must apply even though the downstream model is Claude.
+  const isGoogleAntigravity = options?.modelProvider?.toLowerCase().includes("google-antigravity");
 
   // If schema already has type + properties (no top-level anyOf to merge),
   // clean it for Gemini compatibility (but only if using Gemini, not Anthropic)
   if ("type" in schema && "properties" in schema && !Array.isArray(schema.anyOf)) {
     return {
       ...tool,
-      parameters: isGeminiProvider && !isAnthropicProvider ? cleanSchemaForGemini(schema) : schema,
+      parameters:
+        isGoogleAntigravity || (isGeminiProvider && !isAnthropicProvider)
+          ? cleanSchemaForGemini(schema)
+          : schema,
     };
   }
 
@@ -110,7 +118,7 @@ export function normalizeToolParameters(
     return {
       ...tool,
       parameters:
-        isGeminiProvider && !isAnthropicProvider
+        isGoogleAntigravity || (isGeminiProvider && !isAnthropicProvider)
           ? cleanSchemaForGemini(schemaWithType)
           : schemaWithType,
     };
@@ -187,7 +195,7 @@ export function normalizeToolParameters(
     // - Anthropic accepts proper JSON Schema with constraints.
     // Merging properties preserves useful enums like `action` while keeping schemas portable.
     parameters:
-      isGeminiProvider && !isAnthropicProvider
+      isGoogleAntigravity || (isGeminiProvider && !isAnthropicProvider)
         ? cleanSchemaForGemini(flattenedSchema)
         : flattenedSchema,
   };
