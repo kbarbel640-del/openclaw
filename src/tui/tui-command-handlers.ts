@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, resolve } from "node:path";
 import type { Component, SelectItem, TUI } from "@mariozechner/pi-tui";
 import {
   formatThinkingLevels,
@@ -15,7 +18,7 @@ import {
   createSearchableSelectList,
   createSettingsList,
 } from "./components/selectors.js";
-import type { GatewayChatClient } from "./gateway-chat.js";
+import type { ChatAttachmentPayload, GatewayChatClient } from "./gateway-chat.js";
 import { formatStatusSummary } from "./tui-status-summary.js";
 import type {
   AgentSummary,
@@ -68,6 +71,64 @@ export function createCommandHandlers(context: CommandHandlerContext) {
     forgetLocalRunId,
     requestExit,
   } = context;
+
+  // --- Image attachment state ---
+  const IMAGE_EXTENSIONS = new Set([
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".tiff",
+    ".svg",
+  ]);
+  const MIME_MAP: Record<string, string> = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".tiff": "image/tiff",
+    ".svg": "image/svg+xml",
+  };
+  const MAX_IMAGE_BYTES = 5_000_000; // 5 MB
+
+  let pendingAttachments: ChatAttachmentPayload[] = [];
+
+  const resolvePath = (p: string): string => {
+    if (p.startsWith("~/")) {
+      return resolve(homedir(), p.slice(2));
+    }
+    return resolve(p);
+  };
+
+  const readImageFile = async (filePath: string): Promise<ChatAttachmentPayload> => {
+    const resolved = resolvePath(filePath.trim());
+    const ext = resolved.slice(resolved.lastIndexOf(".")).toLowerCase();
+    if (!IMAGE_EXTENSIONS.has(ext)) {
+      throw new Error(`unsupported image type: ${ext}`);
+    }
+    const info = await stat(resolved);
+    if (info.size > MAX_IMAGE_BYTES) {
+      throw new Error(`file too large: ${(info.size / 1_000_000).toFixed(1)} MB (max 5 MB)`);
+    }
+    const data = await readFile(resolved);
+    return {
+      type: "image",
+      mimeType: MIME_MAP[ext] ?? "application/octet-stream",
+      fileName: basename(resolved),
+      content: data.toString("base64"),
+    };
+  };
+
+  const getPendingAttachmentCount = () => pendingAttachments.length;
+  const clearPendingAttachments = (): ChatAttachmentPayload[] => {
+    const attachments = pendingAttachments;
+    pendingAttachments = [];
+    return attachments;
+  };
 
   const setAgent = async (id: string) => {
     state.currentAgentId = normalizeAgentId(id);
@@ -438,6 +499,43 @@ export function createCommandHandlers(context: CommandHandlerContext) {
           chatLog.addSystem(`reset failed: ${String(err)}`);
         }
         break;
+      case "image":
+      case "img":
+      case "attach": {
+        if (!args) {
+          chatLog.addSystem("usage: /image <path> [message]");
+          break;
+        }
+        // Parse: first token is path, rest is optional message
+        const parts = args.match(/^("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\S+)\s*(.*)?$/);
+        const rawPath = parts?.[1]?.replace(/^['"]|['"]$/g, "") ?? args;
+        const inlineMessage = parts?.[2]?.trim() ?? "";
+        try {
+          const attachment = await readImageFile(rawPath);
+          if (inlineMessage) {
+            // Send immediately with message
+            await sendMessage(inlineMessage, [attachment]);
+            chatLog.addSystem(`📎 sent with ${attachment.fileName}`);
+          } else {
+            pendingAttachments.push(attachment);
+            chatLog.addSystem(
+              `📎 attached ${attachment.fileName} (${pendingAttachments.length} pending — type message and send)`,
+            );
+          }
+        } catch (err) {
+          chatLog.addSystem(`image failed: ${String(err)}`);
+        }
+        break;
+      }
+      case "unattach":
+      case "detach": {
+        const count = pendingAttachments.length;
+        pendingAttachments = [];
+        chatLog.addSystem(
+          count > 0 ? `cleared ${count} pending attachment(s)` : "no pending attachments",
+        );
+        break;
+      }
       case "abort":
         await abortActive();
         break;
@@ -455,9 +553,15 @@ export function createCommandHandlers(context: CommandHandlerContext) {
     tui.requestRender();
   };
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, explicitAttachments?: ChatAttachmentPayload[]) => {
+    // Consume pending attachments (or use explicit ones from /image inline send)
+    const attachments = explicitAttachments ?? clearPendingAttachments();
     try {
-      chatLog.addUser(text);
+      const displayText =
+        attachments.length > 0
+          ? `${text} [📎 ${attachments.length} image${attachments.length > 1 ? "s" : ""}]`
+          : text;
+      chatLog.addUser(displayText);
       tui.requestRender();
       const runId = randomUUID();
       noteLocalRunId(runId);
@@ -471,6 +575,7 @@ export function createCommandHandlers(context: CommandHandlerContext) {
         deliver: deliverDefault,
         timeoutMs: opts.timeoutMs,
         runId,
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
       setActivityStatus("waiting");
       tui.requestRender();
@@ -485,6 +590,20 @@ export function createCommandHandlers(context: CommandHandlerContext) {
     }
   };
 
+  const attachImageFromPath = async (filePath: string): Promise<boolean> => {
+    try {
+      const attachment = await readImageFile(filePath);
+      pendingAttachments.push(attachment);
+      chatLog.addSystem(
+        `📎 attached ${attachment.fileName} (${pendingAttachments.length} pending — type message and send)`,
+      );
+      tui.requestRender();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   return {
     handleCommand,
     sendMessage,
@@ -493,5 +612,7 @@ export function createCommandHandlers(context: CommandHandlerContext) {
     openSessionSelector,
     openSettings,
     setAgent,
+    getPendingAttachmentCount,
+    attachImageFromPath,
   };
 }
