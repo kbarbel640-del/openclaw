@@ -886,7 +886,7 @@ export function createMission(params: {
       retryCount: 0,
       maxRetries: agentConfig?.maxRetries ?? 0,
       loopCount: 0,
-      maxLoops: input.maxLoops ?? 0,
+      maxLoops: input.maxLoops ?? 1,
       loopHistory: [],
     });
   }
