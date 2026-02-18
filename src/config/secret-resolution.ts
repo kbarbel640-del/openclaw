@@ -318,9 +318,9 @@ export function buildSecretProviders(
         }),
       );
     }
-    if (name === "secret-agent") {
+    if (name === "secretagent") {
       providers.set(
-        "secret-agent",
+        "secretagent",
         new SecretAgentProvider({
           bucket: config?.bucket,
           binaryPath: config?.binaryPath,

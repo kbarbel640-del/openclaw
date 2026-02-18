@@ -56,7 +56,8 @@ function run(
 }
 
 export class SecretAgentProvider implements SecretProvider {
-  public readonly name = "secret-agent";
+  // Provider name must be lowercase alpha only to match SECRET_REF_PATTERN ([a-z]+)
+  public readonly name = "secretagent";
   private readonly bucket?: string;
   private readonly bin: string;
   private readonly cacheTtlMs: number;
@@ -75,9 +76,16 @@ export class SecretAgentProvider implements SecretProvider {
     return name;
   }
 
+  /** Extract the env var name (strip bucket prefix if present). */
+  private envVarName(name: string): string {
+    const slash = name.lastIndexOf("/");
+    return slash >= 0 ? name.slice(slash + 1) : name;
+  }
+
   async getSecret(name: string, _version?: string): Promise<string> {
     const fullName = this.fullName(name);
-    const cacheKey = `secret-agent:${fullName}`;
+    const envVar = this.envVarName(fullName);
+    const cacheKey = `secretagent:${fullName}`;
     const cached = localCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value;
@@ -85,7 +93,8 @@ export class SecretAgentProvider implements SecretProvider {
 
     // Use exec + printenv to get the secret value without --unsafe-display.
     // This keeps the value out of CLI argument lists visible in `ps`.
-    const value = (await run(this.bin, ["exec", "--env", fullName, "--quiet", "printenv", name])).trimEnd();
+    // secret-agent strips the bucket prefix for env vars, so we use envVar for printenv.
+    const value = (await run(this.bin, ["exec", "--env", fullName, "--quiet", "printenv", envVar])).trimEnd();
 
     if (!value) {
       throw new Error(`Secret '${fullName}' not found or empty`);

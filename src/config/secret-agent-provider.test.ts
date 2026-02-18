@@ -52,7 +52,7 @@ beforeEach(() => {
 describe("SecretAgentProvider — construction", () => {
   it("sets name to 'secret-agent'", () => {
     const provider = new SecretAgentProvider();
-    expect(provider.name).toBe("secret-agent");
+    expect(provider.name).toBe("secretagent");
   });
 
   it("accepts empty config", () => {
@@ -99,8 +99,9 @@ describe("SecretAgentProvider — getSecret", () => {
     mockExecFile.mockReturnValueOnce("value\n");
     const provider = new SecretAgentProvider({ bucket: "prod" });
     await provider.getSecret("staging/API_KEY");
+    // secret-agent strips bucket prefix for env vars, so printenv gets just "API_KEY"
     expect(mockExecFile).toHaveBeenCalledWith("secret-agent", [
-      "exec", "--env", "staging/API_KEY", "--quiet", "printenv", "staging/API_KEY",
+      "exec", "--env", "staging/API_KEY", "--quiet", "printenv", "API_KEY",
     ]);
   });
 
@@ -217,12 +218,12 @@ describe("SecretAgentProvider — testConnection", () => {
 // ===========================================================================
 
 describe("SecretAgentProvider — integration with resolveConfigSecrets", () => {
-  it("resolves ${secret-agent:NAME} references", async () => {
+  it("resolves ${secretagent:NAME} references", async () => {
     mockExecFile.mockReturnValue("resolved-value\n");
     const { resolveConfigSecrets } = await import("./secret-resolution.js");
     const provider = new SecretAgentProvider();
-    const providers = new Map<string, SecretProvider>([["secret-agent", provider]]);
-    const config = { apiKey: "${secret-agent:ANTHROPIC_KEY}" };
+    const providers = new Map<string, SecretProvider>([["secretagent", provider]]);
+    const config = { apiKey: "${secretagent:ANTHROPIC_KEY}" };
     const result = await resolveConfigSecrets(config, undefined, providers);
     expect(result).toEqual({ apiKey: "resolved-value" });
   });
@@ -233,10 +234,10 @@ describe("SecretAgentProvider — integration with resolveConfigSecrets", () => 
       .mockReturnValueOnce("key-2\n");
     const { resolveConfigSecrets } = await import("./secret-resolution.js");
     const provider = new SecretAgentProvider();
-    const providers = new Map<string, SecretProvider>([["secret-agent", provider]]);
+    const providers = new Map<string, SecretProvider>([["secretagent", provider]]);
     const config = {
-      openai: "${secret-agent:OPENAI_KEY}",
-      anthropic: "${secret-agent:ANTHROPIC_KEY}",
+      openai: "${secretagent:OPENAI_KEY}",
+      anthropic: "${secretagent:ANTHROPIC_KEY}",
     };
     const result = await resolveConfigSecrets(config, undefined, providers);
     expect(result).toEqual({ openai: "key-1", anthropic: "key-2" });
