@@ -7,12 +7,6 @@ let AeonMemoryPlugin: any = null;
 import("aeon-memory")
   .then((m) => {
     AeonMemoryPlugin = m.AeonMemory;
-    const inst = AeonMemoryPlugin?.getInstance?.();
-    if (inst?.isAvailable?.()) {
-      console.log("[aeon] C++ kernel loaded and available (chat.ts)");
-    } else {
-      console.warn("[aeon] module loaded but kernel unavailable (chat.ts)");
-    }
   })
   .catch((e) => console.error("🚨 AEON LOAD ERROR (chat.ts):", e));
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
