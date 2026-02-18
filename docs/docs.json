@@ -1059,10 +1059,10 @@
                   "providers/moonshot",
                   "providers/minimax",
                   "providers/opencode",
+                  "providers/together",
                   "providers/glm",
                   "providers/zai",
                   "providers/synthetic",
-                  "providers/together",
                   "providers/qianfan"
                 ]
               }
