@@ -54,6 +54,12 @@ function shouldShowToolErrorWarning(params: {
     return false;
   }
   if (params.suppressToolErrors) {
+    // Only suppress exec errors specifically, not all mutating tools
+    if (params.lastToolError.toolName === 'exec') return false;
+    // But still show other mutating tool errors for safety
+    const isMutatingToolError =
+      params.lastToolError.mutatingAction ?? isLikelyMutatingToolName(params.lastToolError.toolName);
+    if (isMutatingToolError) return true;
     return false;
   }
   const isMutatingToolError =
@@ -306,3 +312,4 @@ export function buildEmbeddedRunPayloads(params: {
       return true;
     });
 }
+
