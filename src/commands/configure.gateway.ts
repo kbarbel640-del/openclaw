@@ -142,10 +142,6 @@ export async function promptGatewayConfig(
     authMode = "password";
   }
 
-  if (authMode === "trusted-proxy" && bind === "loopback") {
-    note("Trusted proxy auth requires network bind. Adjusting bind to lan.", "Note");
-    bind = "lan";
-  }
   if (authMode === "trusted-proxy" && tailscaleMode !== "off") {
     note(
       "Trusted proxy auth is incompatible with Tailscale serve/funnel. Disabling Tailscale.",
