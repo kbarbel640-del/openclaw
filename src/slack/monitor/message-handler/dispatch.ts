@@ -240,7 +240,10 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
         typeof draftChannelId === "string";
 
       if (canFinalizeViaPreviewEdit) {
-        draftStream?.stop();
+        if (draftStream) {
+          await draftStream.flush();
+          draftStream.stop();
+        }
         try {
           await ctx.app.client.chat.update({
             token: ctx.botToken,
