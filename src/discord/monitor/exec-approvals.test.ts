@@ -1,7 +1,10 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { ButtonInteraction, ComponentData } from "@buape/carbon";
 import { Routes } from "discord-api-types/v10";
-import fs from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearSessionStoreCacheForTest } from "../../config/sessions.js";
 import type { DiscordExecApprovalConfig } from "../../config/types.discord.js";
 import {
   buildExecApprovalCustomId,
@@ -13,10 +16,12 @@ import {
   type ExecApprovalButtonContext,
 } from "./exec-approvals.js";
 
-const STORE_PATH = "/tmp/openclaw-exec-approvals-test.json";
+const STORE_PATH = path.join(os.tmpdir(), "openclaw-exec-approvals-test.json");
 
 const writeStore = (store: Record<string, unknown>) => {
   fs.writeFileSync(STORE_PATH, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  // CI runners can have coarse mtime resolution; avoid returning stale cached stores.
+  clearSessionStoreCacheForTest();
 };
 
 beforeEach(() => {
@@ -29,16 +34,20 @@ const mockRestPost = vi.hoisted(() => vi.fn());
 const mockRestPatch = vi.hoisted(() => vi.fn());
 const mockRestDelete = vi.hoisted(() => vi.fn());
 
-vi.mock("../send.shared.js", () => ({
-  createDiscordClient: () => ({
-    rest: {
-      post: mockRestPost,
-      patch: mockRestPatch,
-      delete: mockRestDelete,
-    },
-    request: (_fn: () => Promise<unknown>, _label: string) => _fn(),
-  }),
-}));
+vi.mock("../send.shared.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../send.shared.js")>();
+  return {
+    ...actual,
+    createDiscordClient: () => ({
+      rest: {
+        post: mockRestPost,
+        patch: mockRestPatch,
+        delete: mockRestDelete,
+      },
+      request: (_fn: () => Promise<unknown>, _label: string) => _fn(),
+    }),
+  };
+});
 
 vi.mock("../../gateway/client.js", () => ({
   GatewayClient: class {
@@ -70,7 +79,7 @@ function createHandler(config: DiscordExecApprovalConfig, accountId = "default")
   });
 }
 
-type ExecApprovalHandlerInternals = DiscordExecApprovalHandler & {
+type ExecApprovalHandlerInternals = {
   pending: Map<
     string,
     { discordMessageId: string; discordChannelId: string; timeoutId: NodeJS.Timeout }
