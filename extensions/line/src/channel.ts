@@ -123,8 +123,8 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
     isConfigured: (account) =>
       Boolean(
         account.channelSecret?.trim() &&
-          (account.channelAccessToken?.trim() ||
-            (account.tokenSource && account.tokenSource !== "none")),
+        (account.channelAccessToken?.trim() ||
+          (account.tokenSource && account.tokenSource !== "none")),
       ),
     describeAccount: (account) => ({
       accountId: account.accountId,
