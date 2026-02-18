@@ -990,6 +990,8 @@ type TelegramPollOpts = {
   messageThreadId?: number;
   /** Send message silently (no notification). Defaults to false. */
   silent?: boolean;
+  /** Disable web page preview for messages with links. Defaults to false. */
+  disableWebPagePreview?: boolean;
   /** Whether votes are anonymous. Defaults to true (Telegram default). */
   isAnonymous?: boolean;
 };
