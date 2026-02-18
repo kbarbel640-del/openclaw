@@ -1,7 +1,7 @@
+import type { GeminiEmbeddingClient } from "./embeddings-gemini.js";
 import { runEmbeddingBatchGroups } from "./batch-runner.js";
 import { buildBatchHeaders, normalizeBatchBaseUrl } from "./batch-utils.js";
 import { debugEmbeddingsLog } from "./embeddings-debug.js";
-import type { GeminiEmbeddingClient } from "./embeddings-gemini.js";
 import { hashText } from "./internal.js";
 
 export type GeminiBatchRequest = {
@@ -36,6 +36,7 @@ export type GeminiBatchOutputLine = {
 };
 
 const GEMINI_BATCH_MAX_REQUESTS = 50000;
+
 /**
  * Normalize Gemini batch state values.
  * The API may return prefixed values like "BATCH_STATE_SUCCEEDED" or "JOB_STATE_RUNNING"
@@ -52,6 +53,7 @@ function normalizeGeminiBatchState(status: GeminiBatchStatus): string {
   }
   return rawState;
 }
+
 function getGeminiUploadUrl(baseUrl: string): string {
   if (baseUrl.includes("/v1beta")) {
     return baseUrl.replace(/\/v1beta\/?$/, "/upload/v1beta");
@@ -292,33 +294,29 @@ export async function runGeminiEmbeddingBatches(params: {
       });
 
       const initialState = normalizeGeminiBatchState(batchInfo);
-      if (
-        !params.wait &&
-        !["SUCCEEDED", "COMPLETED", "DONE"].includes(initialState)
-      ) {
+      if (!params.wait && !["SUCCEEDED", "COMPLETED", "DONE"].includes(initialState)) {
         throw new Error(
           `gemini batch ${batchName} submitted; enable remote.batch.wait to await completion`,
         );
       }
 
-      const completed =
-        ["SUCCEEDED", "COMPLETED", "DONE"].includes(initialState)
-          ? {
-              outputFileId:
-                batchInfo.outputConfig?.file ??
-                batchInfo.outputConfig?.fileId ??
-                batchInfo.metadata?.output?.responsesFile ??
-                "",
-            }
-          : await waitForGeminiBatch({
-              gemini: params.gemini,
-              batchName,
-              wait: params.wait,
-              pollIntervalMs: params.pollIntervalMs,
-              timeoutMs: params.timeoutMs,
-              debug: params.debug,
-              initial: batchInfo,
-            });
+      const completed = ["SUCCEEDED", "COMPLETED", "DONE"].includes(initialState)
+        ? {
+            outputFileId:
+              batchInfo.outputConfig?.file ??
+              batchInfo.outputConfig?.fileId ??
+              batchInfo.metadata?.output?.responsesFile ??
+              "",
+          }
+        : await waitForGeminiBatch({
+            gemini: params.gemini,
+            batchName,
+            wait: params.wait,
+            pollIntervalMs: params.pollIntervalMs,
+            timeoutMs: params.timeoutMs,
+            debug: params.debug,
+            initial: batchInfo,
+          });
       if (!completed.outputFileId) {
         throw new Error(`gemini batch ${batchName} completed without output file`);
       }
