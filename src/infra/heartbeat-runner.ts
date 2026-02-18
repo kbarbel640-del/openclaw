@@ -380,7 +380,8 @@ async function pruneHeartbeatTranscript(params: {
 
     const manager = SessionManager.open(sessionFile);
     const allEntries = manager.getEntries();
-    if (allEntries.length <= originalEntryCount) {
+    // Skip if we couldn't establish a baseline count or nothing to prune
+    if (originalEntryCount === 0 || allEntries.length <= originalEntryCount) {
       return;
     }
 
@@ -388,6 +389,14 @@ async function pruneHeartbeatTranscript(params: {
     const entriesToKeep = allEntries.slice(0, originalEntryCount);
     const header = manager.getHeader();
     if (!header) {
+      return;
+    }
+
+    // Re-check entry count to avoid clobbering concurrent writes
+    const currentManager = SessionManager.open(sessionFile);
+    const currentEntries = currentManager.getEntries();
+    if (currentEntries.length !== allEntries.length) {
+      // Entries were added by another process, skip pruning
       return;
     }
 
