@@ -1055,7 +1055,7 @@ export function startHeartbeatRunner(opts: {
     }
 
     for (const agent of state.agents.values()) {
-      if (isInterval && now < agent.nextDueMs) {
+      if (now < agent.nextDueMs) {
         continue;
       }
 
