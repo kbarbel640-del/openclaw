@@ -192,7 +192,7 @@ async function appendResolvedMediaFromAttachments(params: {
       logVerbose(`${params.errorPrefix} ${id}: ${String(err)}`);
       // Fall back to original URL so MediaPath is populated even when download fails.
       // This ensures the agent knows media was present (matching placeholder in Body).
-      out.push({
+      params.out.push({
         path: attachment.url,
         contentType: attachment.content_type,
         placeholder: inferPlaceholder(attachment),
