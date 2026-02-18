@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { runGeminiEmbeddingBatches, type GeminiBatchRequest } from "./batch-gemini.js";
+import { type MistralBatchRequest, runMistralEmbeddingBatches } from "./batch-mistral.js";
 import {
   OPENAI_BATCH_ENDPOINT,
   type OpenAiBatchRequest,
   runOpenAiEmbeddingBatches,
 } from "./batch-openai.js";
-import { type MistralBatchRequest, runMistralEmbeddingBatches } from "./batch-mistral.js";
 import { type VoyageBatchRequest, runVoyageEmbeddingBatches } from "./batch-voyage.js";
 import { enforceEmbeddingMaxInputTokens } from "./embedding-chunk-limits.js";
 import { estimateUtf8Bytes } from "./embedding-input-limits.js";
@@ -388,7 +388,7 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
     chunks: MemoryChunk[];
     entry: MemoryFileEntry | SessionFileEntry;
     source: MemorySource;
-    provider: "voyage" | "openai" | "gemini";
+    provider: "voyage" | "openai" | "gemini" | "mistral";
     enabled: boolean;
     buildRequest: (chunk: MemoryChunk) => Omit<TRequest, "custom_id">;
     runBatch: (runnerOptions: {
