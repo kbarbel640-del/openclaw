@@ -336,6 +336,19 @@ export function resolveModelSelectionFromDirective(params: {
   const raw = params.directives.rawModelDirective.trim();
   let modelSelection: ModelDirectiveSelection | undefined;
 
+  // Handle reset keywords: `/model default`, `/model reset`, `/model clear`
+  // should clear the session modelOverride and fall back to the configured default.
+  const rawLower = raw.toLowerCase();
+  if (rawLower === "default" || rawLower === "reset" || rawLower === "clear") {
+    return {
+      modelSelection: {
+        provider: params.defaultProvider,
+        model: params.defaultModel,
+        isDefault: true,
+      },
+    };
+  }
+
   if (/^[0-9]+$/.test(raw)) {
     return {
       errorText: [

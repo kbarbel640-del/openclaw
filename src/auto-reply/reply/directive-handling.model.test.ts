@@ -86,6 +86,60 @@ describe("/model chat UX", () => {
     });
     expect(resolved.errorText).toBeUndefined();
   });
+
+  it.each(["default", "reset", "clear"])("resets to default with /model %s", (keyword) => {
+    const directives = parseInlineDirectives(`/model ${keyword}`);
+    const cfg = baseConfig();
+
+    const resolved = resolveModelSelectionFromDirective({
+      directives,
+      cfg,
+      agentDir: "/tmp/agent",
+      defaultProvider: "anthropic",
+      defaultModel: "claude-sonnet-4-5-20250514",
+      aliasIndex: baseAliasIndex(),
+      allowedModelKeys: new Set([
+        "anthropic/claude-sonnet-4-5-20250514",
+        "anthropic/claude-opus-4-5",
+      ]),
+      allowedModelCatalog: [
+        { provider: "anthropic", id: "claude-sonnet-4-5-20250514" },
+        { provider: "anthropic", id: "claude-opus-4-5" },
+      ],
+      provider: "anthropic",
+    });
+
+    expect(resolved.modelSelection).toEqual({
+      provider: "anthropic",
+      model: "claude-sonnet-4-5-20250514",
+      isDefault: true,
+    });
+    expect(resolved.errorText).toBeUndefined();
+  });
+
+  it("resets to default with /model DEFAULT (case insensitive)", () => {
+    const directives = parseInlineDirectives("/model DEFAULT");
+    const cfg = baseConfig();
+
+    const resolved = resolveModelSelectionFromDirective({
+      directives,
+      cfg,
+      agentDir: "/tmp/agent",
+      defaultProvider: "openai",
+      defaultModel: "gpt-4o",
+      aliasIndex: baseAliasIndex(),
+      allowedModelKeys: new Set(["openai/gpt-4o"]),
+      allowedModelCatalog: [{ provider: "openai", id: "gpt-4o" }],
+      provider: "openai",
+    });
+
+    expect(resolved.modelSelection).toEqual({
+      provider: "openai",
+      model: "gpt-4o",
+      isDefault: true,
+    });
+    expect(resolved.errorText).toBeUndefined();
+  });
 });
 
 describe("handleDirectiveOnly model persist behavior (fixes #1435)", () => {
