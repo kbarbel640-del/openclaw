@@ -276,6 +276,69 @@ function resolveAntigravityOpus46ForwardCompatModel(
   });
 }
 
+export function isForwardCompatModelId(provider: string, modelId: string): boolean {
+  const normalizedProvider = normalizeProviderId(provider);
+  const trimmed = modelId.trim();
+  const lower = trimmed.toLowerCase();
+
+  // OpenAI Codex
+  if (normalizedProvider === "openai-codex") {
+    if (lower === OPENAI_CODEX_GPT_53_MODEL_ID) {
+      return true;
+    }
+  }
+
+  // Anthropic Opus 4.6
+  if (normalizedProvider === "anthropic") {
+    if (
+      lower === ANTHROPIC_OPUS_46_MODEL_ID ||
+      lower === ANTHROPIC_OPUS_46_DOT_MODEL_ID ||
+      lower.startsWith(`${ANTHROPIC_OPUS_46_MODEL_ID}-`) ||
+      lower.startsWith(`${ANTHROPIC_OPUS_46_DOT_MODEL_ID}-`)
+    ) {
+      return true;
+    }
+    // Anthropic Sonnet 4.6
+    if (
+      lower === ANTHROPIC_SONNET_46_MODEL_ID ||
+      lower === ANTHROPIC_SONNET_46_DOT_MODEL_ID ||
+      lower.startsWith(`${ANTHROPIC_SONNET_46_MODEL_ID}-`) ||
+      lower.startsWith(`${ANTHROPIC_SONNET_46_DOT_MODEL_ID}-`)
+    ) {
+      return true;
+    }
+  }
+
+  // Z.ai GLM-5
+  if (normalizedProvider === "zai") {
+    if (lower === ZAI_GLM5_MODEL_ID || lower.startsWith(`${ZAI_GLM5_MODEL_ID}-`)) {
+      return true;
+    }
+  }
+
+  // Antigravity Opus 4.6
+  if (normalizedProvider === "google-antigravity") {
+    if (
+      lower === ANTIGRAVITY_OPUS_46_MODEL_ID ||
+      lower === ANTIGRAVITY_OPUS_46_DOT_MODEL_ID ||
+      lower.startsWith(`${ANTIGRAVITY_OPUS_46_MODEL_ID}-`) ||
+      lower.startsWith(`${ANTIGRAVITY_OPUS_46_DOT_MODEL_ID}-`)
+    ) {
+      return true;
+    }
+    if (
+      lower === ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID ||
+      lower === ANTIGRAVITY_OPUS_46_DOT_THINKING_MODEL_ID ||
+      lower.startsWith(`${ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID}-`) ||
+      lower.startsWith(`${ANTIGRAVITY_OPUS_46_DOT_THINKING_MODEL_ID}-`)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function resolveForwardCompatModel(
   provider: string,
   modelId: string,
