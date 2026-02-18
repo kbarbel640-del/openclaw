@@ -698,14 +698,15 @@ export function createExecTool(
 
       if (host === "gateway" && !bypassApprovals) {
         const approvals = resolveExecApprovals(agentId, { security, ask });
+        
          // Fix: Don't enforce "allowlist" / "on-miss" defaults if the user has configured
         // more permissive settings (e.g. "full" / "off") AND the tool call didn't explicitly
         // request stricter security.
         //
         // If params.security was undefined, we want to respect approvals.agent.security (even if 'full')
         // rather than forcing minSecurity("allowlist", 'full') -> 'allowlist'.
-        const effectiveConfiguredSecurity = requestedSecurity
-          ? minSecurity(configuredSecurity, requestedSecurity)
+      const effectiveConfiguredSecurity = requestedSecurity
+          ? minSecurity(approvals.agent.security, requestedSecurity)
           : approvals.agent.security; // Use user config directly if no specific request
 
         // Same for ask: if params.ask was undefined, respect approvals.agent.ask (even if 'off')
