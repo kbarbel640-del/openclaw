@@ -149,7 +149,7 @@ export const AgentsFilesSetParamsSchema = Type.Object(
   {
     agentId: NonEmptyString,
     name: NonEmptyString,
-    content: Type.String(),
+    content: Type.String({ maxLength: 10485760 }),
   },
   { additionalProperties: false },
 );
