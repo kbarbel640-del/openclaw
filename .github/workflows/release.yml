@@ -1,0 +1,79 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.23.0
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Build OpenClaw
+        run: |
+          echo "📦 Installing dependencies..."
+          pnpm install --frozen-lockfile
+
+          echo "🔨 Building OpenClaw..."
+          pnpm build
+
+          echo "📦 Creating package..."
+          pnpm pack
+
+          # Rename to openclaw.tgz for consistent "latest" URL
+          mv openclaw-*.tgz openclaw.tgz
+          
+          ls -lh openclaw.tgz
+          echo "✅ Build complete!"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: OpenClaw v${{ steps.version.outputs.version }}
+          files: openclaw.tgz
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            🚀 OpenClaw v${{ steps.version.outputs.version }}
+            
+            Built from commit: ${{ github.sha }}
+            
+            ## Installation
+            
+            ```bash
+            # As npm dependency
+            pnpm add https://github.com/Alt-AI-Inc/altinc-claw/releases/latest/download/openclaw.tgz
+            
+            # Or direct install
+            curl -L https://github.com/Alt-AI-Inc/altinc-claw/releases/latest/download/openclaw.tgz -o openclaw.tgz
+            npm install -g ./openclaw.tgz
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "✅ Released OpenClaw v${{ steps.version.outputs.version }}"
+          echo "📦 Download: https://github.com/Alt-AI-Inc/altinc-claw/releases/latest/download/openclaw.tgz"
