@@ -220,7 +220,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
   const { dispatcher, replyOptions, markDispatchIdle } = createReplyDispatcherWithTyping({
     ...prefixOptions,
     humanDelay: resolveHumanDelayConfig(cfg, route.agentId),
-    deliver: async (payload) => {
+    deliver: async (payload, { kind } = { kind: "final" }) => {
       if (useStreaming) {
         await deliverWithStreaming(payload);
         return;
@@ -271,6 +271,16 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
         }
       } else if (mediaCount > 0) {
         await draftStream?.clear();
+        hasStreamedMessage = false;
+      }
+
+      // Flush any pending draft stream text before delivering the final reply.
+      // Without this, throttled partial-reply text can appear AFTER the final
+      // message because the draft stream loop is independent of the dispatcher
+      // delivery chain.
+      if (kind === "final" && hasStreamedMessage) {
+        await draftStream.flush();
+        draftStream.stop();
         hasStreamedMessage = false;
       }
 
