@@ -79,18 +79,15 @@ DANGEROUS_TOOL_PATTERNS=(
 )
 
 SENSITIVE_PATH_PATTERNS=(
-  '\.ssh'
-  '\.aws'
-  '\.env'
-  '\.config'
-  '\.gnupg'
-  '\.gitconfig'
-  'credentials'
-  'secret'
-  'token'
-  'password'
-  'private.key'
+  '~/\.ssh'
+  '~/\.aws'
+  '~/\.env'
+  '~/\.gnupg'
+  '~/\.gitconfig'
   'id_rsa'
+  'private\.key'
+  'credentials\.json'
+  'secret\.key'
 )
 
 EXFIL_PATTERNS=(
@@ -113,6 +110,7 @@ total_high=0
 total_medium=0
 total_low=0
 total_clean=0
+total_no_manifest=0
 
 # JSON array
 json_results="["
@@ -178,7 +176,7 @@ scan_skill() {
     fi
   fi
 
-  # Scan all text files for sensitive path access
+  # Scan executable files (not docs) for sensitive path access
   while IFS= read -r -d '' f; do
     for pattern in "${SENSITIVE_PATH_PATTERNS[@]}"; do
       if grep -qiE "$pattern" "$f" 2>/dev/null; then
@@ -186,7 +184,7 @@ scan_skill() {
         break 2
       fi
     done
-  done < <(find "$skill_dir" -type f \( -name "*.md" -o -name "*.sh" -o -name "*.py" -o -name "*.js" -o -name "*.yaml" -o -name "*.json" \) -not -path "*/node_modules/*" -print0 2>/dev/null)
+  done < <(find "$skill_dir" -type f \( -name "*.sh" -o -name "*.py" -o -name "*.js" -o -name "*.rb" -o -name "*.go" \) -not -path "*/node_modules/*" -print0 2>/dev/null)
 
   if [[ $has_sensitive_paths -eq 1 ]]; then
     findings+=("🔑 References sensitive paths (credentials, keys, tokens)")
@@ -210,6 +208,7 @@ scan_skill() {
   # No permission manifest
   if [[ $has_permission_manifest -eq 0 ]]; then
     findings+=("📋 No permission manifest found")
+    total_no_manifest=$((total_no_manifest + 1))
   fi
 
   # Compute hash of SKILL.md for integrity tracking
@@ -242,18 +241,15 @@ scan_skill() {
     fi
 
     [[ "$json_results" != "[" ]] && json_results+=","
-    json_results+=$(cat <<JSONEOF
-{
-  "name": "$skill_name",
-  "risk": "$risk_level",
-  "hash": "$skill_hash",
-  "has_manifest": $( [[ $has_permission_manifest -eq 1 ]] && echo true || echo false ),
-  "tools": $tools_json,
-  "executables": $execs_json,
-  "findings": $findings_json
-}
-JSONEOF
-)
+    json_results+=$(jq -n \
+      --arg name "$skill_name" \
+      --arg risk "$risk_level" \
+      --arg hash "$skill_hash" \
+      --argjson has_manifest "$( [[ $has_permission_manifest -eq 1 ]] && echo true || echo false )" \
+      --argjson tools "$tools_json" \
+      --argjson executables "$execs_json" \
+      --argjson findings "$findings_json" \
+      '{name: $name, risk: $risk, hash: $hash, has_manifest: $has_manifest, tools: $tools, executables: $executables, findings: $findings}')
   else
     # Table row
     local risk_color
@@ -286,7 +282,7 @@ if [[ $JSON_OUTPUT -eq 0 ]]; then
   echo -e "${BOLD}🦞 OpenClaw Skills Audit${NC}"
   echo -e "${DIM}Phase 1 prototype — RFC #10890${NC}"
   echo ""
-  echo -e "  ${BOLD}%-8s %-28s %-14s %s  %s${NC}" "RISK" "SKILL" "HASH" "MANIFEST" "TOOLS"
+  printf "  ${BOLD}%-8s %-28s %-14s %s  %s${NC}\n" "RISK" "SKILL" "HASH" "MANIFEST" "TOOLS"
   echo "  ─────────────────────────────────────────────────────────────────────────────"
 fi
 
@@ -317,8 +313,8 @@ else
   if [[ $total_high -gt 0 ]]; then
     echo -e "  ${RED}${BOLD}⚠️  $total_high high-risk skill(s) detected. Review before use.${NC}"
   fi
-  if [[ $((total_skills - total_clean)) -gt 0 ]]; then
-    echo -e "  ${YELLOW}📋 $((total_skills)) skill(s) have no permission manifest.${NC}"
+  if [[ $total_no_manifest -gt 0 ]]; then
+    echo -e "  ${YELLOW}📋 ${total_no_manifest} skill(s) have no permission manifest.${NC}"
   fi
   echo ""
   echo -e "  ${DIM}Tip: Run with -v for detailed findings, -j for JSON output.${NC}"

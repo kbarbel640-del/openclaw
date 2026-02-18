@@ -17,12 +17,12 @@ A CLI tool that scans installed OpenClaw skills for security risks.
 
 ## Risk Classification
 
-| Level | Criteria |
-|-------|----------|
-| **High** | exec + network tools combo, or exfiltration patterns detected |
-| **Medium** | Uses `exec`, or references sensitive paths |
-| **Low** | Contains executables but no other flags |
-| **Clean** | No executables, no risky tool references, no sensitive path access |
+| Level      | Criteria                                                           |
+| ---------- | ------------------------------------------------------------------ |
+| **High**   | exec + network tools combo, or exfiltration patterns detected      |
+| **Medium** | Uses `exec`, or references sensitive paths                         |
+| **Low**    | Contains executables but no other flags                            |
+| **Clean**  | No executables, no risky tool references, no sensitive path access |
 
 ## Usage
 
@@ -65,6 +65,7 @@ Phase 1 prototype — RFC #10890
 ## Next Steps
 
 This is a Phase 1 prototype. Future work:
+
 - **Permission manifest spec** — JSON Schema for skills to declare required tools, paths, domains
 - **Hash store** — persist hashes on install, detect tampering on audit
 - **Integration** — `openclaw skills audit` as a first-class CLI command
