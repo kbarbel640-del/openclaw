@@ -351,6 +351,10 @@ impl RpcDispatcher {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
         };
+        let label = match parse_optional_label_filter(params.label) {
+            Ok(value) => value,
+            Err(err) => return RpcDispatchOutcome::bad_request(err),
+        };
         let sessions = self
             .sessions
             .list(SessionListQuery {
@@ -360,7 +364,7 @@ impl RpcDispatcher {
                 include_unknown: params.include_unknown.unwrap_or(true),
                 search: normalize_optional_text(params.search, 128),
                 agent_id: normalize_optional_text(params.agent_id, 64),
-                label: normalize_optional_text(params.label, 64),
+                label,
                 spawned_by: normalize_optional_text(params.spawned_by, 128),
                 include_derived_titles: params.include_derived_titles.unwrap_or(false),
                 include_last_message: params.include_last_message.unwrap_or(false),
@@ -607,7 +611,10 @@ impl RpcDispatcher {
             return RpcDispatchOutcome::not_found("session not found");
         }
 
-        let label = normalize_optional_text(params.label, 64);
+        let label = match parse_optional_label_filter(params.label) {
+            Ok(value) => value,
+            Err(err) => return RpcDispatchOutcome::bad_request(err),
+        };
         if label.is_none() {
             return RpcDispatchOutcome::bad_request(
                 "sessionKey|key|sessionId or label is required",
@@ -2918,6 +2925,20 @@ fn normalize_session_key_input(raw: Option<String>) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+fn parse_optional_label_filter(value: Option<String>) -> Result<Option<String>, String> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.chars().count() > 64 {
+        return Err("label too long (max 64)".to_owned());
+    }
+    Ok(Some(trimmed.to_owned()))
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -4602,6 +4623,32 @@ mod tests {
             }
             _ => panic!("expected filtered list handled"),
         }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_rejects_overlong_label_filters() {
+        let dispatcher = RpcDispatcher::new();
+        let too_long_label = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklm";
+
+        let list = RpcRequestFrame {
+            id: "req-list-long-label".to_owned(),
+            method: "sessions.list".to_owned(),
+            params: serde_json::json!({
+                "label": too_long_label
+            }),
+        };
+        let out = dispatcher.handle_request(&list).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let resolve = RpcRequestFrame {
+            id: "req-resolve-long-label".to_owned(),
+            method: "sessions.resolve".to_owned(),
+            params: serde_json::json!({
+                "label": too_long_label
+            }),
+        };
+        let out = dispatcher.handle_request(&resolve).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
     }
 
     #[tokio::test]
