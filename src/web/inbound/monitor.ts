@@ -11,6 +11,7 @@ import { jidToE164, resolveJidToE164 } from "../../utils.js";
 import { createWaSocket, getStatusCode, waitForWaConnection } from "../session.js";
 import { checkInboundAccessControl } from "./access-control.js";
 import { isRecentInboundMessage } from "./dedupe.js";
+import { downloadMediaById } from "./download-media-by-id.js";
 import {
   describeReplyContext,
   extractLocationData,
@@ -19,6 +20,7 @@ import {
   extractText,
 } from "./extract.js";
 import { downloadInboundMedia } from "./media.js";
+import { clearMessageStore, getMessageStore } from "./message-store.js";
 import { createWebSendApi } from "./send-api.js";
 import type { WebInboundMessage, WebListenerCloseReason } from "./types.js";
 
@@ -34,14 +36,37 @@ export async function monitorWebInbox(options: {
   debounceMs?: number;
   /** Optional debounce gating predicate. */
   shouldDebounce?: (msg: WebInboundMessage) => boolean;
+  /** Sync full message history on connection (default: false). */
+  syncFullHistory?: boolean;
 }) {
   const inboundLogger = getChildLogger({ module: "web-inbound" });
   const inboundConsoleLog = createSubsystemLogger("gateway/channels/whatsapp").child("inbound");
   const sock = await createWaSocket(false, options.verbose, {
     authDir: options.authDir,
+    syncFullHistory: options.syncFullHistory,
   });
   await waitForWaConnection(sock);
   const connectedAtMs = Date.now();
+
+  // Log syncFullHistory status and message store state after connection
+  if (options.syncFullHistory) {
+    inboundConsoleLog.info(
+      "WhatsApp connected with syncFullHistory=true - history sync in progress",
+    );
+    // Give Baileys a moment to start syncing, then log store state
+    setTimeout(() => {
+      const store = getMessageStore(options.accountId);
+      const stats = store.getStats();
+      const storedChats = store.getStoredChats();
+      inboundConsoleLog.info(
+        `Message store after sync: ${stats.totalMessages} messages across ${stats.chatCount} chats (${storedChats.length} chat JIDs stored)`,
+      );
+    }, 5000);
+  } else {
+    inboundConsoleLog.info(
+      "WhatsApp connected with syncFullHistory=false - only new messages will be stored",
+    );
+  }
 
   let onCloseResolve: ((reason: WebListenerCloseReason) => void) | null = null;
   const onClose = new Promise<WebListenerCloseReason>((resolve) => {
@@ -152,9 +177,36 @@ export async function monitorWebInbox(options: {
   };
 
   const handleMessagesUpsert = async (upsert: { type?: string; messages?: Array<WAMessage> }) => {
+    const messageCount = upsert.messages?.length ?? 0;
+
+    if (shouldLogVerbose()) {
+      logVerbose(
+        `[messages.upsert] Received event: type=${upsert.type}, messageCount=${messageCount}`,
+      );
+      if (messageCount > 0) {
+        const sample = upsert.messages![0];
+        logVerbose(
+          `[messages.upsert] Sample message: id=${sample.key?.id}, remoteJid=${sample.key?.remoteJid}, fromMe=${sample.key?.fromMe}, hasMessage=${Boolean(sample.message)}`,
+        );
+      }
+    }
+
     if (upsert.type !== "notify" && upsert.type !== "append") {
+      if (shouldLogVerbose()) {
+        logVerbose(
+          `[messages.upsert] FILTERED OUT: type=${upsert.type} (only 'notify' and 'append' are processed)`,
+        );
+      }
       return;
     }
+
+    inboundConsoleLog.info(`Processing ${messageCount} messages from upsert type=${upsert.type}`);
+
+    const messageStore = getMessageStore(options.accountId);
+    let storedCount = 0;
+    let skippedCount = 0;
+    let filteredReasons: Record<string, number> = {};
+
     for (const msg of upsert.messages ?? []) {
       recordChannelActivity({
         channel: "whatsapp",
@@ -164,10 +216,35 @@ export async function monitorWebInbox(options: {
       const id = msg.key?.id ?? undefined;
       const remoteJid = msg.key?.remoteJid;
       if (!remoteJid) {
+        skippedCount++;
+        filteredReasons["no-remoteJid"] = (filteredReasons["no-remoteJid"] || 0) + 1;
+        if (shouldLogVerbose()) {
+          logVerbose(`[messages.upsert] SKIPPED: no remoteJid`);
+        }
         continue;
       }
       if (remoteJid.endsWith("@status") || remoteJid.endsWith("@broadcast")) {
+        skippedCount++;
+        filteredReasons["status-or-broadcast"] = (filteredReasons["status-or-broadcast"] || 0) + 1;
+        if (shouldLogVerbose()) {
+          logVerbose(`[messages.upsert] SKIPPED: status/broadcast message from ${remoteJid}`);
+        }
         continue;
+      }
+
+      // Store the message for later retrieval
+      if (id) {
+        messageStore.store(remoteJid, id, msg as proto.IWebMessageInfo);
+        storedCount++;
+        if (shouldLogVerbose()) {
+          logVerbose(
+            `[messages.upsert] STORED: id=${id} from ${remoteJid} (total stored: ${storedCount})`,
+          );
+        }
+      } else {
+        if (shouldLogVerbose()) {
+          logVerbose(`[messages.upsert] NOT STORED: no message id for ${remoteJid}`);
+        }
       }
 
       const group = isJidGroup(remoteJid) === true;
@@ -342,6 +419,17 @@ export async function monitorWebInbox(options: {
         inboundConsoleLog.error(`Failed handling inbound web message: ${String(err)}`);
       }
     }
+
+    // Log summary of what was processed
+    if (messageCount > 0) {
+      const stats = messageStore.getStats();
+      inboundConsoleLog.info(
+        `Upsert complete: type=${upsert.type}, received=${messageCount}, stored=${storedCount}, skipped=${skippedCount}, total_in_store=${stats.totalMessages}`,
+      );
+      if (Object.keys(filteredReasons).length > 0) {
+        inboundConsoleLog.info(`Filter reasons: ${JSON.stringify(filteredReasons)}`);
+      }
+    }
   };
   sock.ev.on("messages.upsert", handleMessagesUpsert);
 
@@ -393,6 +481,8 @@ export async function monitorWebInbox(options: {
           ev.removeListener("connection.update", connectionUpdateHandler);
         }
         sock.ws?.close();
+        // Clear the message store for this account
+        clearMessageStore(options.accountId);
       } catch (err) {
         logVerbose(`Socket close failed: ${String(err)}`);
       }
@@ -400,6 +490,9 @@ export async function monitorWebInbox(options: {
     onClose,
     signalClose: (reason?: WebListenerCloseReason) => {
       resolveClose(reason ?? { status: undefined, isLoggedOut: false, error: "closed" });
+    },
+    downloadMedia: async (chatJid: string, messageId: string) => {
+      return await downloadMediaById(chatJid, messageId, options.accountId, sock);
     },
     // IPC surface (sendMessage/sendPoll/sendReaction/sendComposingTo)
     ...sendApi,
