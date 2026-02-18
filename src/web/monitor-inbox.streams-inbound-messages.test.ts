@@ -308,7 +308,7 @@ describe("web monitor inbox", () => {
     await listener.close();
   });
 
-  it("falls back to sender/self/remaining participant inference for @Name group replies", async () => {
+  it("resolves mentions from explicit participant aliases in group replies", async () => {
     const onMessage = vi.fn(async (msg) => {
       await msg.reply("😂 @Alice Example @Bob @OpenClaw  \nTeam status update: 2 humans, 1 bot.");
     });
@@ -317,9 +317,24 @@ describe("web monitor inbox", () => {
     sock.groupMetadata.mockResolvedValue({
       subject: "test-group",
       participants: [
-        { id: "14155550111@s.whatsapp.net", phoneNumber: "+14155550111" },
-        { id: "14155550222@s.whatsapp.net", phoneNumber: "+14155550222" },
-        { id: "14155550333@s.whatsapp.net", phoneNumber: "+14155550333" },
+        {
+          id: "14155550111@s.whatsapp.net",
+          name: "Alice Example",
+          notify: "Alice",
+          phoneNumber: "+14155550111",
+        },
+        {
+          id: "14155550222@s.whatsapp.net",
+          name: "Bob Marley",
+          notify: "Bob",
+          phoneNumber: "+14155550222",
+        },
+        {
+          id: "14155550333@s.whatsapp.net",
+          name: "OpenClaw",
+          notify: "OpenClaw",
+          phoneNumber: "+14155550333",
+        },
       ],
     });
     const upsert = buildMessageUpsert({
@@ -365,7 +380,7 @@ describe("web monitor inbox", () => {
     await listener.close();
   });
 
-  it("maps one unresolved @name to the only remaining non-self participant", async () => {
+  it("keeps unresolved @name text when no participant alias matches", async () => {
     const onMessage = vi.fn(async (msg) => {
       await msg.reply('@Alice Example @Underground_Topper\nDev 1: "Code works on my machine."');
     });
@@ -377,9 +392,24 @@ describe("web monitor inbox", () => {
     sock.groupMetadata.mockResolvedValue({
       subject: "test-group",
       participants: [
-        { id: "14155550111@s.whatsapp.net", phoneNumber: "+14155550111" },
-        { id: "14155550222@s.whatsapp.net", phoneNumber: "+14155550222" },
-        { id: "14155550333@s.whatsapp.net", phoneNumber: "+14155550333" },
+        {
+          id: "14155550111@s.whatsapp.net",
+          name: "Alice Example",
+          notify: "Alice",
+          phoneNumber: "+14155550111",
+        },
+        {
+          id: "14155550222@s.whatsapp.net",
+          name: "Ankit School",
+          notify: "Ankit",
+          phoneNumber: "+14155550222",
+        },
+        {
+          id: "14155550333@s.whatsapp.net",
+          name: "OpenClaw",
+          notify: "OpenClaw",
+          phoneNumber: "+14155550333",
+        },
       ],
     });
 
@@ -406,12 +436,10 @@ describe("web monitor inbox", () => {
 
     expect(outboundCall).toBeDefined();
     const payload = outboundCall?.[1] as { text: string; mentions?: string[] };
-    expect(payload.mentions).toEqual(
-      expect.arrayContaining(["14155550111@s.whatsapp.net", "14155550222@s.whatsapp.net"]),
-    );
+    expect(payload.mentions).toEqual(["14155550111@s.whatsapp.net"]);
     expect(payload.text).toContain("@14155550111");
-    expect(payload.text).toContain("@14155550222");
-    expect(payload.text).not.toContain("@Underground_Topper");
+    expect(payload.text).toContain("@Underground_Topper");
+    expect(payload.text).not.toContain("@14155550222");
 
     await listener.close();
     testSock.user.id = prevSelfId;

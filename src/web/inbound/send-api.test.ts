@@ -207,6 +207,37 @@ describe("createWebSendApi", () => {
     });
   });
 
+  it("resolves styled and punctuated @Name mentions", async () => {
+    const mentions = await resolveMentionJids("*@Alice*, _@Bob_/ ready?", {
+      participants: [
+        {
+          jid: "14155550111@s.whatsapp.net",
+          name: "Alice",
+          phoneNumber: "+14155550111",
+        },
+        {
+          jid: "14155550222@s.whatsapp.net",
+          name: "Bob",
+          phoneNumber: "+14155550222",
+        },
+      ],
+    });
+    expect(mentions).toEqual(["14155550111@s.whatsapp.net", "14155550222@s.whatsapp.net"]);
+  });
+
+  it("resolves unicode @Name mentions", async () => {
+    const mentions = await resolveMentionJids("Gracias @María Pérez!", {
+      participants: [
+        {
+          jid: "14155550444@s.whatsapp.net",
+          name: "María Pérez",
+          phoneNumber: "+14155550444",
+        },
+      ],
+    });
+    expect(mentions).toEqual(["14155550444@s.whatsapp.net"]);
+  });
+
   it("resolves self alias mentions without participants", async () => {
     const mentions = await resolveMentionJids("@OpenClaw check this", {
       selfMentionJid: "14155550333:2@s.whatsapp.net",
@@ -267,6 +298,29 @@ describe("createWebSendApi", () => {
       ]),
     });
     expect(outgoing).toBe("@14155550111 @14155550222 done bhai ✅");
+  });
+
+  it("canonicalizes styled and punctuated alias mentions inline", () => {
+    const text = "*@Alice*, _@Bob_/ roll call";
+    const mentionJids = ["14155550111@s.whatsapp.net", "14155550222@s.whatsapp.net"];
+    const outgoing = injectMentionTokens(text, mentionJids, [
+      { jid: "14155550111@s.whatsapp.net", name: "Alice", phoneNumber: "+14155550111" },
+      { jid: "14155550222@s.whatsapp.net", name: "Bob", phoneNumber: "+14155550222" },
+    ]);
+    expect(outgoing).toBe("*@14155550111*, _@14155550222_/ roll call");
+  });
+
+  it("canonicalizes underscore and space name variants inline", () => {
+    const text = "@Underground_Topper check this";
+    const mentionJids = ["14155550555@s.whatsapp.net"];
+    const outgoing = injectMentionTokens(text, mentionJids, [
+      {
+        jid: "14155550555@s.whatsapp.net",
+        name: "Underground Topper",
+        phoneNumber: "+14155550555",
+      },
+    ]);
+    expect(outgoing).toBe("@14155550555 check this");
   });
 
   it("resolves bare lid-like tokens via lid mapping lookup", async () => {

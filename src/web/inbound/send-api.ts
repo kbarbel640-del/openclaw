@@ -16,8 +16,14 @@ export type ParticipantMentionInfo = {
 };
 
 const MENTION_TOKEN_REGEX = /@(\+?\d{6,20})(?:@(s\.whatsapp\.net|lid|hosted\.lid|hosted))?/gi;
-const MENTION_LEFT_BOUNDARY = /[\s([{"'`<]/;
-const MENTION_RIGHT_BOUNDARY = /[\s)\]}"'`>.,!?;:]/;
+const MENTION_LEFT_BOUNDARY_CHARS = "\\s\\(\\[\\{\"'`<*_~/";
+const MENTION_RIGHT_BOUNDARY_CHARS = "\\s\\)\\]\\}\"'`>.,!?;:*_~/";
+const MENTION_LEFT_BOUNDARY_CLASS = `[${MENTION_LEFT_BOUNDARY_CHARS}]`;
+const MENTION_RIGHT_BOUNDARY_CLASS = `[${MENTION_RIGHT_BOUNDARY_CHARS}]`;
+const MENTION_LEFT_BOUNDARY = new RegExp(MENTION_LEFT_BOUNDARY_CLASS);
+const MENTION_RIGHT_BOUNDARY = new RegExp(MENTION_RIGHT_BOUNDARY_CLASS);
+const MENTION_CANONICAL_RIGHT_LOOKAHEAD = `(?=${MENTION_RIGHT_BOUNDARY_CLASS}|$|@(s\\.whatsapp\\.net|lid|hosted\\.lid|hosted))`;
+const MENTION_ALIAS_RIGHT_LOOKAHEAD = `(?=${MENTION_RIGHT_BOUNDARY_CLASS}|$)`;
 
 function hasMentionBoundary(text: string, start: number, end: number): boolean {
   const prev = start > 0 ? text[start - 1] : undefined;
@@ -49,6 +55,12 @@ function normalizeTextForMatch(text: string): string {
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[\u200b-\u200d\ufeff]/g, "")
+    .trim();
+}
+
+function normalizeAliasForMatch(text: string): string {
+  return normalizeTextForMatch(text)
+    .replace(/[_\s]+/g, " ")
     .trim();
 }
 
@@ -92,7 +104,10 @@ export function extractNameMentions(text: string): string[] {
   if (!text) {
     return [];
   }
-  const namePattern = /@([A-Za-z][A-Za-z0-9_\s]{1,30}?)(?=[\s)\]}"'`>.,!?;:]|$)/g;
+  const namePattern = new RegExp(
+    `@([\\p{L}][\\p{L}\\p{N}_\\s]{1,40}?)${MENTION_ALIAS_RIGHT_LOOKAHEAD}`,
+    "gu",
+  );
   const names = new Set<string>();
   for (const match of text.matchAll(namePattern)) {
     const name = match[1]?.trim();
@@ -118,11 +133,11 @@ function escapeRegExp(text: string): string {
 function buildMentionAliasPattern(alias: string): RegExp {
   const tokens = alias
     .trim()
-    .split(/\s+/)
+    .split(/[\s_]+/)
     .filter(Boolean)
     .map((token) => escapeRegExp(token));
-  const aliasPattern = tokens.join("\\s+");
-  return new RegExp(`@${aliasPattern}(?=[\\s)\\]}"'\`>.,!?;:]|$)`, "i");
+  const aliasPattern = tokens.join("[\\s_]+");
+  return new RegExp(`@${aliasPattern}${MENTION_ALIAS_RIGHT_LOOKAHEAD}`, "i");
 }
 
 function toPreferredParticipantMentionJid(participant: ParticipantMentionInfo): string | null {
@@ -141,23 +156,23 @@ function findParticipantByName(
   name: string,
   participants: ParticipantMentionInfo[],
 ): ParticipantMentionInfo | undefined {
-  const normalizedSearch = normalizeTextForMatch(name);
+  const normalizedSearch = normalizeAliasForMatch(name);
   for (const p of participants) {
-    if (p.name && normalizeTextForMatch(p.name) === normalizedSearch) {
+    if (p.name && normalizeAliasForMatch(p.name) === normalizedSearch) {
       return p;
     }
-    if (p.notify && normalizeTextForMatch(p.notify) === normalizedSearch) {
+    if (p.notify && normalizeAliasForMatch(p.notify) === normalizedSearch) {
       return p;
     }
     const nameParts = (p.name ?? p.notify ?? "").split(/\s+/);
     for (const part of nameParts) {
-      if (normalizeTextForMatch(part) === normalizedSearch) {
+      if (normalizeAliasForMatch(part) === normalizedSearch) {
         return p;
       }
     }
   }
   for (const p of participants) {
-    const pName = normalizeTextForMatch(p.name ?? p.notify ?? "");
+    const pName = normalizeAliasForMatch(p.name ?? p.notify ?? "");
     if (pName.startsWith(normalizedSearch) || normalizedSearch.startsWith(pName)) {
       if (pName.length >= 3 && normalizedSearch.length >= 3) {
         return p;
@@ -330,7 +345,7 @@ export function injectMentionTokens(
   for (const user of resolvedUsers) {
     const escapedUser = escapeRegExp(user);
     const plusTokenPattern = new RegExp(
-      `@\\+${escapedUser}(?=[\\s)\\]}"'\`>.,!?;:]|$|@(s\\.whatsapp\\.net|lid|hosted\\.lid|hosted))`,
+      `@\\+${escapedUser}${MENTION_CANONICAL_RIGHT_LOOKAHEAD}`,
       "gi",
     );
     outgoingText = outgoingText.replace(plusTokenPattern, `@${user}`);
@@ -357,7 +372,7 @@ export function injectMentionTokens(
   for (const user of resolvedUsers) {
     const escapedUser = escapeRegExp(user);
     const canonicalTokenPattern = new RegExp(
-      `@${escapedUser}(?=[\\s)\\]}"'\`>.,!?;:]|$|@(s\\.whatsapp\\.net|lid|hosted\\.lid|hosted))`,
+      `@${escapedUser}${MENTION_CANONICAL_RIGHT_LOOKAHEAD}`,
       "i",
     );
     if (canonicalTokenPattern.test(outgoingText)) {

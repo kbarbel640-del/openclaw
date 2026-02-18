@@ -55,7 +55,10 @@ function toParticipantMentionJid(participant: ParticipantMentionInfo): string | 
 function normalizeNameToken(value: string): string {
   return value
     .toLowerCase()
-    .replace(/[^a-z0-9_\s]/g, " ")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u200b-\u200d\ufeff]/g, "")
+    .replace(/[^\p{L}\p{N}_\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -185,7 +188,6 @@ function inferMentionJidsFromNames(params: {
       addAliasHint(jid, alias);
     }
   };
-  const unresolvedMentionTokens: string[] = [];
   const nameTokens = extractNameMentions(params.responseText);
   const normalizedSelfAliases = (params.selfAliases ?? [])
     .map((alias) => normalizeNameToken(alias))
@@ -235,32 +237,7 @@ function inferMentionJidsFromNames(params: {
         continue;
       }
     }
-    unresolvedMentionTokens.push(token);
   }
-
-  if (unresolvedMentionTokens.length > 0) {
-    const remaining = participantJids.filter((jid) => !chosen.has(jid));
-    const remainingWithoutSelfSender = remaining.filter(
-      (jid) => jid !== selfMentionJid && jid !== senderMentionJid,
-    );
-    if (
-      remainingWithoutSelfSender.length === unresolvedMentionTokens.length &&
-      remainingWithoutSelfSender.length <= 3
-    ) {
-      for (const [index, jid] of remainingWithoutSelfSender.entries()) {
-        markMention(jid, unresolvedMentionTokens[index]);
-      }
-    } else if (remaining.length === unresolvedMentionTokens.length && remaining.length <= 3) {
-      for (const [index, jid] of remaining.entries()) {
-        markMention(jid, unresolvedMentionTokens[index]);
-      }
-    } else if (unresolvedMentionTokens.length === 1 && remainingWithoutSelfSender.length === 1) {
-      markMention(remainingWithoutSelfSender[0], unresolvedMentionTokens[0]);
-    } else if (unresolvedMentionTokens.length === 1 && remaining.length === 1) {
-      markMention(remaining[0], unresolvedMentionTokens[0]);
-    }
-  }
-
   const aliasHints = new Map<string, string[]>();
   for (const [user, aliases] of aliasHintsByUser.entries()) {
     aliasHints.set(
@@ -597,12 +574,16 @@ export async function monitorWebInbox(options: {
             selfAliases: selfMentionAliases,
           });
           if (inferred.mentionJids.length > 0) {
-            mentionJids = Array.from(new Set([...mentionJids, ...inferred.mentionJids]));
-            mentionAliasHintsByUser = inferred.aliasHintsByUser;
-            inboundLogger.debug(
-              { chatJid, inferredMentionJids: inferred.mentionJids },
-              "applied fallback mention inference",
-            );
+            const existing = new Set(mentionJids);
+            const inferredOnly = inferred.mentionJids.filter((jid) => !existing.has(jid));
+            if (inferredOnly.length > 0) {
+              mentionJids = [...mentionJids, ...inferredOnly];
+              mentionAliasHintsByUser = inferred.aliasHintsByUser;
+              inboundLogger.debug(
+                { chatJid, inferredMentionJids: inferredOnly },
+                "applied participant-alias mention inference",
+              );
+            }
           }
         }
         const outgoingText = injectMentionTokens(text, mentionJids, participants, {
