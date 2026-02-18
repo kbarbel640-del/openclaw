@@ -580,7 +580,15 @@ const ERROR_PATTERNS = {
     "resource_exhausted",
     "usage limit",
   ],
-  overloaded: [/overloaded_error|"type"\s*:\s*"overloaded_error"/i, "overloaded"],
+  overloaded: [
+    /overloaded_error|"type"\s*:\s*"overloaded_error"/i,
+    "overloaded",
+    // Google/Gemini 503 UNAVAILABLE errors (issue #20096)
+    /"status"\s*:\s*"unavailable"/i,
+    "high demand",
+    "temporarily unavailable",
+    /\b503\b/i,
+  ],
   timeout: [
     "timeout",
     "timed out",

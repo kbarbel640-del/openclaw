@@ -10,6 +10,7 @@ import {
   isFailoverErrorMessage,
   isImageDimensionErrorMessage,
   isLikelyContextOverflowError,
+  isOverloadedErrorMessage,
   isTimeoutErrorMessage,
   isTransientHttpError,
   parseImageDimensionError,
@@ -95,6 +96,84 @@ describe("isBillingErrorMessage", () => {
     for (const sample of realErrors) {
       expect(isBillingErrorMessage(sample)).toBe(true);
     }
+  });
+});
+
+describe("isOverloadedErrorMessage", () => {
+  it("matches classic Anthropic overloaded_error", () => {
+    const samples = [
+      '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}',
+      '{"type":"overloaded_error"}',
+      "overloaded_error",
+      "The server is overloaded",
+    ];
+    for (const sample of samples) {
+      expect(isOverloadedErrorMessage(sample)).toBe(true);
+    }
+  });
+
+  it("matches Google/Gemini 503 UNAVAILABLE errors (issue #20096)", () => {
+    // Real Gemini error: 503 UNAVAILABLE with "high demand" message
+    const geminiError = `{"error":{"code":503,"message":"This model is currently experiencing high demand. Please try again shortly.","status":"UNAVAILABLE"}}`;
+    expect(isOverloadedErrorMessage(geminiError)).toBe(true);
+  });
+
+  it('matches "status": "UNAVAILABLE" patterns', () => {
+    const samples = [
+      '{"status": "UNAVAILABLE"}',
+      '{"status":"UNAVAILABLE"}',
+      '{"status":  "unavailable"}',
+    ];
+    for (const sample of samples) {
+      expect(isOverloadedErrorMessage(sample)).toBe(true);
+    }
+  });
+
+  it('matches "high demand" text', () => {
+    const samples = [
+      "This model is currently experiencing high demand",
+      "Service high demand - please retry",
+      "high demand",
+    ];
+    for (const sample of samples) {
+      expect(isOverloadedErrorMessage(sample)).toBe(true);
+    }
+  });
+
+  it('matches "temporarily unavailable" text', () => {
+    const samples = [
+      "Service temporarily unavailable",
+      "The model is temporarily unavailable",
+      "temporarily unavailable",
+    ];
+    for (const sample of samples) {
+      expect(isOverloadedErrorMessage(sample)).toBe(true);
+    }
+  });
+
+  it("matches HTTP 503 status code patterns", () => {
+    const samples = [
+      "503 Service Unavailable",
+      "HTTP 503",
+      "got a 503 from the API",
+      "returned 503",
+    ];
+    for (const sample of samples) {
+      expect(isOverloadedErrorMessage(sample)).toBe(true);
+    }
+  });
+
+  it("triggers model fallback for Gemini 503 errors", () => {
+    // Ensure the full Gemini error triggers fallback behavior
+    const geminiError = `{"error":{"code":503,"message":"This model is currently experiencing high demand. Please try again shortly.","status":"UNAVAILABLE"}}`;
+    expect(classifyFailoverReason(geminiError)).toBe("rate_limit");
+  });
+
+  it("ignores unrelated errors", () => {
+    expect(isOverloadedErrorMessage("rate limit exceeded")).toBe(false);
+    expect(isOverloadedErrorMessage("invalid api key")).toBe(false);
+    expect(isOverloadedErrorMessage("context length exceeded")).toBe(false);
+    expect(isOverloadedErrorMessage("billing issue detected")).toBe(false);
   });
 });
 
