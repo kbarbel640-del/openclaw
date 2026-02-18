@@ -108,26 +108,34 @@ const loadPromise = (async () => {
   // Keep lookup best-effort.
 });
 
-export function lookupContextTokens(params: {
-  provider?: string;
-  modelId?: string;
-}): number | undefined {
+/**
+ * Pure two-tier lookup for testing — operates on a caller-supplied cache.
+ * Exported only for unit tests; prefer `lookupContextTokens` in production code.
+ */
+export function _lookupFromCache(
+  cache: Map<string, number>,
+  params: { provider?: string; modelId?: string },
+): number | undefined {
   const { provider, modelId } = params;
   if (!modelId) {
     return undefined;
   }
-  // Best-effort: kick off loading, but don't block.
-  void loadPromise;
-
   // Try provider-qualified lookup first
   if (provider) {
-    const qualified = MODEL_CACHE.get(makeModelCacheKey(provider, modelId));
+    const qualified = cache.get(makeModelCacheKey(provider, modelId));
     if (qualified !== undefined) {
       return qualified;
     }
   }
+  // Fallback: model-id-only lookup (discovered models are keyed by bare id).
+  return cache.get(modelId);
+}
 
-  // Fallback: model-id-only lookup for callers without provider context
-  // and for discovered models (which are keyed by bare model id).
-  return MODEL_CACHE.get(modelId);
+export function lookupContextTokens(params: {
+  provider?: string;
+  modelId?: string;
+}): number | undefined {
+  // Best-effort: kick off loading, but don't block.
+  void loadPromise;
+  return _lookupFromCache(MODEL_CACHE, params);
 }
