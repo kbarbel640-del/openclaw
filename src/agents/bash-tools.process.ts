@@ -66,7 +66,6 @@ const processSchema = Type.Object({
   timeout: Type.Optional(
     Type.Number({
       description: "For poll: wait up to this many milliseconds before returning",
-      minimum: 0,
     }),
   ),
 });

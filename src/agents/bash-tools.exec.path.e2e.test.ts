@@ -122,4 +122,36 @@ describe("exec host env validation", () => {
       }),
     ).rejects.toThrow(/Security Violation: Environment variable 'LD_DEBUG' is forbidden/);
   });
+
+  it("blocks LD_/DYLD_ env vars with key/value env entries", async () => {
+    const { createExecTool } = await import("./bash-tools.exec.js");
+    const tool = createExecTool({ host: "gateway", security: "full", ask: "off" });
+
+    await expect(
+      tool.execute("call1", {
+        command: "echo ok",
+        env: [{ key: "LD_DEBUG", value: "1" }],
+      }),
+    ).rejects.toThrow(/Security Violation: Environment variable 'LD_DEBUG' is forbidden/);
+  });
+});
+
+describe("exec schema compatibility", () => {
+  it("does not include patternProperties", async () => {
+    const { execSchema } = await import("./bash-tools.exec-runtime.js");
+    const hasPatternProperties = (value: unknown): boolean => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+      if (Array.isArray(value)) {
+        return value.some((entry) => hasPatternProperties(entry));
+      }
+      const record = value as Record<string, unknown>;
+      if ("patternProperties" in record) {
+        return true;
+      }
+      return Object.values(record).some((entry) => hasPatternProperties(entry));
+    };
+    expect(hasPatternProperties(execSchema)).toBe(false);
+  });
 });

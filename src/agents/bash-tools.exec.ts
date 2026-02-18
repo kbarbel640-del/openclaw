@@ -120,6 +120,42 @@ export type ExecToolDetails =
       nodeId?: string;
     };
 
+function parseExecEnvInput(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  // Backward compatibility: keep accepting object-form env values for direct callers.
+  if (!Array.isArray(value)) {
+    const out: Record<string, string> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (typeof key !== "string" || key.length === 0) {
+        continue;
+      }
+      if (typeof entry === "string") {
+        out[key] = entry;
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+
+  const out: Record<string, string> = {};
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      continue;
+    }
+    const record = entry as { key?: unknown; value?: unknown };
+    if (typeof record.key !== "string" || record.key.length === 0) {
+      continue;
+    }
+    if (typeof record.value !== "string") {
+      continue;
+    }
+    out[record.key] = record.value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function extractScriptTargetFromCommand(
   command: string,
 ): { kind: "python"; relOrAbsPath: string } | { kind: "node"; relOrAbsPath: string } | null {
@@ -248,7 +284,7 @@ export function createExecTool(
       const params = args as {
         command: string;
         workdir?: string;
-        env?: Record<string, string>;
+        env?: unknown;
         yieldMs?: number;
         background?: boolean;
         timeout?: number;
@@ -267,6 +303,7 @@ export function createExecTool(
       const maxOutput = DEFAULT_MAX_OUTPUT;
       const pendingMaxOutput = DEFAULT_PENDING_MAX_OUTPUT;
       const warnings: string[] = [];
+      const requestedEnv = parseExecEnvInput(params.env);
       let execCommandOverride: string | undefined;
       const backgroundRequested = params.background === true;
       const yieldRequested = typeof params.yieldMs === "number";
@@ -389,22 +426,22 @@ export function createExecTool(
 
       // Logic: Sandbox gets raw env. Host (gateway/node) must pass validation.
       // We validate BEFORE merging to prevent any dangerous vars from entering the stream.
-      if (host !== "sandbox" && params.env) {
-        validateHostEnv(params.env);
+      if (host !== "sandbox" && requestedEnv) {
+        validateHostEnv(requestedEnv);
       }
 
-      const mergedEnv = params.env ? { ...baseEnv, ...params.env } : baseEnv;
+      const mergedEnv = requestedEnv ? { ...baseEnv, ...requestedEnv } : baseEnv;
 
       const env = sandbox
         ? buildSandboxEnv({
             defaultPath: DEFAULT_PATH,
-            paramsEnv: params.env,
+            paramsEnv: requestedEnv,
             sandboxEnv: sandbox.env,
             containerWorkdir: containerWorkdir ?? sandbox.containerWorkdir,
           })
         : mergedEnv;
 
-      if (!sandbox && host === "gateway" && !params.env?.PATH) {
+      if (!sandbox && host === "gateway" && !requestedEnv?.PATH) {
         const shellPath = getShellPathFromLoginShell({
           env: process.env,
           timeoutMs: resolveShellEnvFallbackTimeoutMs(process.env),
@@ -465,7 +502,7 @@ export function createExecTool(
         }
         const argv = buildNodeShellCommand(params.command, nodeInfo?.platform);
 
-        const nodeEnv = params.env ? { ...params.env } : undefined;
+        const nodeEnv = requestedEnv ? { ...requestedEnv } : undefined;
         const baseAllowlistEval = evaluateShellAllowlist({
           command: params.command,
           allowlist: [],

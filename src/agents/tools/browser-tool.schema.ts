@@ -42,6 +42,13 @@ const BROWSER_SNAPSHOT_REFS = ["role", "aria"] as const;
 
 const BROWSER_IMAGE_TYPES = ["png", "jpeg"] as const;
 
+const BrowserFormFieldSchema = Type.Object({
+  ref: Type.String(),
+  type: Type.String(),
+  // Keep value scalar-only for tool-call portability across providers.
+  value: Type.Optional(Type.String()),
+});
+
 // NOTE: Using a flattened object schema instead of Type.Union([Type.Object(...), ...])
 // because Claude API on Vertex AI rejects nested anyOf schemas as invalid JSON Schema.
 // The discriminator (kind) determines which properties are relevant; runtime validates.
@@ -65,8 +72,8 @@ const BrowserActSchema = Type.Object({
   endRef: Type.Optional(Type.String()),
   // select
   values: Type.Optional(Type.Array(Type.String())),
-  // fill - use permissive array of objects
-  fields: Type.Optional(Type.Array(Type.Object({}, { additionalProperties: true }))),
+  // fill
+  fields: Type.Optional(Type.Array(BrowserFormFieldSchema)),
   // resize
   width: Type.Optional(Type.Number()),
   height: Type.Optional(Type.Number()),
