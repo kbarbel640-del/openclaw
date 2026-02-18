@@ -1,17 +1,17 @@
+import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { ImageContent } from "@mariozechner/pi-ai";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { ImageContent } from "@mariozechner/pi-ai";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { CliBackendConfig } from "../../config/types.js";
+import type { EmbeddedContextFile } from "../pi-embedded-helpers.js";
 import { buildTtsSystemPromptHint } from "../../tts/tts.js";
 import { isRecord } from "../../utils.js";
 import { buildModelAliasLines } from "../model-alias-lines.js";
 import { resolveDefaultModelForAgent } from "../model-selection.js";
-import type { EmbeddedContextFile } from "../pi-embedded-helpers.js";
 import { detectRuntimeShell } from "../shell-utils.js";
 import { buildSystemPromptParams } from "../system-prompt-params.js";
 import { buildAgentSystemPrompt } from "../system-prompt.js";
@@ -101,6 +101,9 @@ export function buildSystemPrompt(params: {
   });
 }
 
+/** Extracts Claude family name from any model ID variant (e.g. "claude-opus-4-6" → "opus") */
+const CLAUDE_FAMILY_RE = /^(?:claude-)?(opus|sonnet|haiku)(?:[.-]\d+)*/;
+
 export function normalizeCliModel(modelId: string, backend: CliBackendConfig): string {
   const trimmed = modelId.trim();
   if (!trimmed) {
@@ -114,6 +117,11 @@ export function normalizeCliModel(modelId: string, backend: CliBackendConfig): s
   const mapped = backend.modelAliases?.[lower];
   if (mapped) {
     return mapped;
+  }
+  // Dynamic fallback: extract Claude family from any version pattern
+  const claudeMatch = CLAUDE_FAMILY_RE.exec(lower);
+  if (claudeMatch) {
+    return claudeMatch[1];
   }
   return trimmed;
 }

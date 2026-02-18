@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { OpenClawConfig } from "./types.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../agents/defaults.js";
 import { applyModelDefaults } from "./defaults.js";
-import type { OpenClawConfig } from "./types.js";
 
 describe("applyModelDefaults", () => {
   it("adds default aliases when models are present", () => {
@@ -17,7 +17,8 @@ describe("applyModelDefaults", () => {
     } satisfies OpenClawConfig;
     const next = applyModelDefaults(cfg);
 
-    expect(next.agents?.defaults?.models?.["anthropic/claude-opus-4-6"]?.alias).toBe("opus");
+    // Anthropic aliases are resolved from config (not hardcoded defaults)
+    expect(next.agents?.defaults?.models?.["anthropic/claude-opus-4-6"]?.alias).toBeUndefined();
     expect(next.agents?.defaults?.models?.["openai/gpt-5.2"]?.alias).toBe("gpt");
   });
 
