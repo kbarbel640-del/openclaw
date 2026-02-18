@@ -8,9 +8,25 @@ services:
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
+      PLAYWRIGHT_BROWSERS_PATH: /home/node/.cache/ms-playwright
+      XDG_CACHE_HOME: /tmp/.cache
+      COREPACK_HOME: /tmp/.corepack
+      npm_config_cache: /tmp/.npm
+      HOMEBREW_PREFIX: /home/linuxbrew/.linuxbrew
+      PATH: /home/node/.npm-global/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      GOG_KEYRING_BACKEND: file
+      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD}
+      NOTION_API_KEY: ${NOTION_API_KEY}
+      npm_config_prefix: /home/node/.npm-global
+
     volumes:
+      - /Users/philipkoehler/.gcp-creds/client_secret.json:/run/secrets/client_secret.json:ro
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      - openclaw_pw:/home/node/.cache/ms-playwright
+      - openclaw_gog_home:/home/node/.gog
+      - openclaw_linuxbrew:/home/linuxbrew
+
     ports:
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
@@ -37,10 +53,30 @@ services:
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
+      PLAYWRIGHT_BROWSERS_PATH: /home/node/.cache/ms-playwright
+      XDG_CACHE_HOME: /tmp/.cache
+      COREPACK_HOME: /tmp/.corepack
+      npm_config_cache: /tmp/.npm
+      HOMEBREW_PREFIX: /home/linuxbrew/.linuxbrew
+      PATH: /home/node/.npm-global/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      npm_config_prefix: /home/node/.npm-global
+      
     volumes:
+      - /Users/philipkoehler/.gcp-creds/client_secret.json:/run/secrets/client_secret.json:ro
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      - openclaw_pw:/home/node/.cache/ms-playwright
+      - openclaw_gog_home:/home/node/.gog
+      - openclaw_linuxbrew:/home/linuxbrew
+
+
+    network_mode: "service:openclaw-gateway"
     stdin_open: true
     tty: true
     init: true
-    entrypoint: ["node", "dist/index.js"]
+    command: ["node", "dist/index.js"]
+
+volumes:
+  openclaw_pw:
+  openclaw_gog_home:
+  openclaw_linuxbrew:
