@@ -429,14 +429,14 @@ See [Slash commands](/tools/slash-commands) for command catalog and behavior.
     | `stallSoft` | ⏳ | No progress for 10 s |
     | `stallHard` | ⚠️ | No progress for 30 s |
 
-    Omit any key to keep its default. Set `enabled: false` to disable the state machine entirely (only the initial ack reaction will be shown).
+    Omit any key to keep its default. Set an emoji to `""` to suppress that specific state while keeping all others. Set `enabled: false` to suppress all reactions entirely, including the ack.
 
 ```json5
 {
   channels: {
     discord: {
       statusReactions: {
-        enabled: true, // set false to disable (keeps ackReaction only)
+        enabled: true, // set false to suppress all reactions (including ack); set individual emojis to "" to disable only that state
         emojis: {
           thinking: "🧠",
           tool: "🛠️",

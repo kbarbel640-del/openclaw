@@ -143,8 +143,9 @@ export type DiscordStatusReactionEmojisConfig = {
 
 export type DiscordStatusReactionsConfig = {
   /**
-   * If false, skip the animated status reaction state machine entirely and only
-   * show the initial ack reaction (controlled by `ackReaction`). Default: true.
+   * If false, suppress all reactions entirely, including the initial ack.
+   * To disable individual states while keeping the ack, set the corresponding
+   * emoji to `""`. Default: true.
    */
   enabled?: boolean;
   /** Override individual phase emojis. Omit a key to keep the default. */
