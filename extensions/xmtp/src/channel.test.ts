@@ -26,6 +26,10 @@ describe("xmtpPlugin", () => {
     it("does not support media (Phase 1)", () => {
       expect(xmtpPlugin.capabilities.media).toBe(false);
     });
+
+    it("advertises reply capability", () => {
+      expect(xmtpPlugin.capabilities.reply).toBe(true);
+    });
   });
 
   describe("config adapter", () => {
@@ -51,8 +55,10 @@ describe("xmtpPlugin", () => {
       const cfg = {
         channels: {
           xmtp: {
-            walletKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-            dbEncryptionKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            walletKey:
+              "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            dbEncryptionKey:
+              "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           },
         },
       };
@@ -80,7 +86,8 @@ describe("xmtpPlugin", () => {
       const cfg = {
         channels: {
           xmtp: {
-            walletKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            walletKey:
+              "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           },
         },
       };
@@ -95,7 +102,9 @@ describe("xmtpPlugin", () => {
 
   describe("messaging", () => {
     it("has target resolver", () => {
-      expect(xmtpPlugin.messaging?.targetResolver?.looksLikeId).toBeTypeOf("function");
+      expect(xmtpPlugin.messaging?.targetResolver?.looksLikeId).toBeTypeOf(
+        "function",
+      );
     });
 
     it("recognizes Ethereum address as valid target", () => {
@@ -104,7 +113,9 @@ describe("xmtpPlugin", () => {
       if (!looksLikeId) return;
 
       // #then
-      expect(looksLikeId("0x1234567890abcdef1234567890abcdef12345678")).toBe(true);
+      expect(looksLikeId("0x1234567890abcdef1234567890abcdef12345678")).toBe(
+        true,
+      );
     });
 
     it("rejects invalid input", () => {
