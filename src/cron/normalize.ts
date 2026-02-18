@@ -515,17 +515,19 @@ export function normalizeCronJobInput(
     const payload = isRecord(next.payload) ? next.payload : null;
     const payloadKind = payload && typeof payload.kind === "string" ? payload.kind : "";
     const sessionTarget = typeof next.sessionTarget === "string" ? next.sessionTarget : "";
-    const isIsolatedAgentTurn =
+    const isIsolatedAgentLike =
       sessionTarget === "isolated" || (sessionTarget === "" && payloadKind === "agentTurn");
     const hasDelivery = "delivery" in next && next.delivery !== undefined;
     const hasLegacyDelivery = payload ? hasLegacyDeliveryHints(payload) : false;
-    if (!hasDelivery && isIsolatedAgentTurn && payloadKind === "agentTurn") {
+    if (!hasDelivery && isIsolatedAgentLike && payloadKind === "agentTurn") {
       if (payload && hasLegacyDelivery) {
         next.delivery = buildDeliveryFromLegacyPayload(payload);
         stripLegacyDeliveryFields(payload);
       } else {
         next.delivery = { mode: "announce" };
       }
+    } else if (!hasDelivery && sessionTarget === "isolated" && payloadKind === "directCommand") {
+      next.delivery = { mode: "announce" };
     }
   }
 
