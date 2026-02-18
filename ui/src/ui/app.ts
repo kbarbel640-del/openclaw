@@ -336,7 +336,6 @@ export class OpenClawApp extends LitElement {
 
   client: GatewayBrowserClient | null = null;
   private chatScrollFrame: number | null = null;
-  private chatScrollTimeout: number | null = null;
   private chatHasAutoScrolled = false;
   private chatUserNearBottom = true;
   @state() chatNewMessagesBelow = false;
