@@ -71,6 +71,18 @@ export type MatrixMonitorHandlerParams = {
   accountId?: string | null;
 };
 
+/**
+ * Resolves whether a message should be treated as a direct message.
+ * Explicit groups config overrides DM detection (e.g. 2-member rooms
+ * that are listed in groups should be treated as rooms, not DMs).
+ */
+export function resolveIsDirectMessage(
+  isDmDetected: boolean,
+  roomConfigAllowed: boolean | undefined,
+): boolean {
+  return isDmDetected && !roomConfigAllowed;
+}
+
 export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParams) {
   const {
     client,
@@ -189,7 +201,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         aliases: roomAliases,
         name: roomName,
       });
-      const isDirectMessage = isDmDetected && !roomConfigInfo?.allowed;
+      const isDirectMessage = resolveIsDirectMessage(isDmDetected, roomConfigInfo?.allowed);
       const isRoom = !isDirectMessage;
 
       if (isRoom && groupPolicy === "disabled") {
