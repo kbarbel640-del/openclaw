@@ -11,18 +11,18 @@ type OpenAIReasoningSignature = {
   type: string;
 };
 
+// These block types are producer-only artifacts in OpenAI replay streams and do NOT
+// satisfy the "required following item" rule for reasoning items.
 const OPENAI_REPLAY_PRODUCER_TYPES = new Set(["toolCall", "toolUse", "function_call"]);
 
 function parseOpenAIReasoningSignature(value: unknown): OpenAIReasoningSignature | null {
-  if (!value) {
-    return null;
-  }
+  if (!value) return null;
+
   let candidate: { id?: unknown; type?: unknown } | null = null;
+
   if (typeof value === "string") {
     const trimmed = value.trim();
-    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
-      return null;
-    }
+    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
     try {
       candidate = JSON.parse(trimmed) as { id?: unknown; type?: unknown };
     } catch {
@@ -31,39 +31,39 @@ function parseOpenAIReasoningSignature(value: unknown): OpenAIReasoningSignature
   } else if (typeof value === "object") {
     candidate = value as { id?: unknown; type?: unknown };
   }
-  if (!candidate) {
-    return null;
-  }
+
+  if (!candidate) return null;
+
   const id = typeof candidate.id === "string" ? candidate.id : "";
   const type = typeof candidate.type === "string" ? candidate.type : "";
-  if (!id.startsWith("rs_")) {
-    return null;
-  }
-  if (type === "reasoning" || type.startsWith("reasoning.")) {
-    return { id, type };
-  }
+
+  if (!id.startsWith("rs_")) return null;
+  if (type === "reasoning" || type.startsWith("reasoning.")) return { id, type };
+
   return null;
 }
 
-function hasFollowingNonThinkingBlock(
-  content: Extract<AgentMessage, { role: "assistant" }>["content"],
-  index: number,
-): boolean {
-  for (let i = index + 1; i < content.length; i++) {
-    const block = content[i];
-    if (!block || typeof block !== "object") {
-      return true;
-    }
-    const nextType = (block as { type?: unknown }).type;
-    if (nextType === "thinking") {
-      continue;
-    }
-    if (typeof nextType === "string" && OPENAI_REPLAY_PRODUCER_TYPES.has(nextType)) {
-      continue;
-    }
-    if (nextType !== undefined) {
-      return true;
-    }
+// "User-facing" follower = any non-thinking, non-producer-only block.
+// Preserve legacy semantics: missing `type` counts as a follower (historically `undefined !== "thinking"` was true).
+function hasFollowingUserFacingBlock(blocks: Array<{ type?: unknown }>, startIdx: number): boolean {
+  for (let i = startIdx + 1; i < blocks.length; i++) {
+    const block = blocks[i];
+
+    // Preserve prior behavior: non-object blocks were treated as followers.
+    if (!block || typeof block !== "object") return true;
+
+    const t = (block as { type?: unknown }).type;
+
+    // Preserve legacy semantics explicitly:
+    // previously: (undefined !== "thinking") => treated as a valid follower.
+    if (t === undefined) return true;
+
+    // Not user-facing followers (do NOT satisfy "required following item")
+    if (t === "thinking") continue;
+    if (typeof t === "string" && OPENAI_REPLAY_PRODUCER_TYPES.has(t)) continue;
+
+    // Anything else is user-facing
+    return true;
   }
   return false;
 }
@@ -100,26 +100,36 @@ export function downgradeOpenAIReasoningBlocks(messages: AgentMessage[]): AgentM
     type AssistantContentBlock = (typeof assistantMsg.content)[number];
 
     const nextContent: AssistantContentBlock[] = [];
+
     for (let i = 0; i < assistantMsg.content.length; i++) {
       const block = assistantMsg.content[i];
+
       if (!block || typeof block !== "object") {
         nextContent.push(block as AssistantContentBlock);
         continue;
       }
+
       const record = block as OpenAIThinkingBlock;
+
+      // Only thinking blocks can carry OpenAI reasoning signatures.
       if (record.type !== "thinking") {
-        nextContent.push(block);
+        nextContent.push(block as AssistantContentBlock);
         continue;
       }
+
       const signature = parseOpenAIReasoningSignature(record.thinkingSignature);
       if (!signature) {
-        nextContent.push(block);
+        nextContent.push(block as AssistantContentBlock);
         continue;
       }
-      if (hasFollowingNonThinkingBlock(assistantMsg.content, i)) {
-        nextContent.push(block);
+
+      // If there is a valid user-facing follower, keep the thinking block.
+      if (hasFollowingUserFacingBlock(assistantMsg.content as Array<{ type?: unknown }>, i)) {
+        nextContent.push(block as AssistantContentBlock);
         continue;
       }
+
+      // Otherwise drop the block to avoid orphan reasoning item ids in replay.
       changed = true;
     }
 
@@ -137,3 +147,4 @@ export function downgradeOpenAIReasoningBlocks(messages: AgentMessage[]): AgentM
 
   return out;
 }
+
