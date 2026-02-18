@@ -58,3 +58,28 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
 ### Notes
 
 - sidecars/ted-engine/artifacts/ is runtime data and is intentionally ignored by git.
+
+---
+
+## Proof Evidence (Increment 2 — Triage ingest endpoint)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc004.sh
+- Result: PASS
+
+### What was proven
+
+- POST /triage/ingest accepts:
+  - item_id (slug-safe), source_type, source_ref, summary
+  - optional suggested_deal_id / suggested_task_id
+- Fail-closed validation:
+  - 400 on invalid/missing fields
+  - 409 ALREADY_EXISTS when item_id already OPEN
+- Append-only ledger:
+  - triage_item record written to triage.jsonl
+  - audit record written (TRIAGE_INGEST)
+- Proof harness confirms endpoint returns 201 and JC-004 flow still passes end-to-end.
+
+### Notes
+
+- docs/ted-profile/planning/ is local scratch and intentionally not committed in this increment.
