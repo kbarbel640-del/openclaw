@@ -34,6 +34,13 @@ const SessionsMissionToolSchema = Type.Object({
       agentId: Type.String(),
       task: Type.String(),
       after: Type.Optional(Type.Array(Type.String())),
+      maxLoops: Type.Optional(
+        Type.Number({
+          minimum: 0,
+          description:
+            "Max loop iterations (0 = disabled). Loop runs until LOOP_DONE in output or maxLoops reached.",
+        }),
+      ),
     }),
     { minItems: 1 },
   ),
@@ -49,6 +56,13 @@ const ProxyMissionSchema = Type.Object({
       id: Type.String(),
       agentId: Type.String(),
       task: Type.String(),
+      maxLoops: Type.Optional(
+        Type.Number({
+          minimum: 0,
+          description:
+            "Max loop iterations (0 = disabled). Loop runs until LOOP_DONE in output or maxLoops reached.",
+        }),
+      ),
     }),
     { minItems: 1 },
   ),
@@ -78,7 +92,13 @@ function validateMissionSubtasks(
 ):
   | {
       ok: true;
-      subtaskInputs: Array<{ id: string; agentId: string; task: string; after?: string[] }>;
+      subtaskInputs: Array<{
+        id: string;
+        agentId: string;
+        task: string;
+        after?: string[];
+        maxLoops?: number;
+      }>;
       requesterInternalKey: string;
       requesterDisplayKey: string;
       requesterOrigin: ReturnType<typeof normalizeDeliveryContext>;
@@ -108,7 +128,13 @@ function validateMissionSubtasks(
       .map((v) => normalizeAgentId(v).toLowerCase()),
   );
 
-  const subtaskInputs: Array<{ id: string; agentId: string; task: string; after?: string[] }> = [];
+  const subtaskInputs: Array<{
+    id: string;
+    agentId: string;
+    task: string;
+    after?: string[];
+    maxLoops?: number;
+  }> = [];
 
   for (const raw of rawSubtasks) {
     if (!raw || typeof raw !== "object") {
@@ -124,6 +150,10 @@ function validateMissionSubtasks(
           .map((v) => v.trim())
           .filter(Boolean)
       : undefined;
+    const maxLoops =
+      typeof entry.maxLoops === "number" && Number.isFinite(entry.maxLoops) && entry.maxLoops >= 0
+        ? Math.floor(entry.maxLoops)
+        : undefined;
 
     if (!id || !agentId || !task) {
       return {
@@ -160,6 +190,7 @@ function validateMissionSubtasks(
       agentId: normalizedTarget,
       task,
       after: after && after.length > 0 ? after : undefined,
+      maxLoops,
     });
   }
 

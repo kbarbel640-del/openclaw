@@ -33,6 +33,7 @@ export type MissionSubtaskInput = {
   agentId: string;
   task: string;
   after?: string[];
+  maxLoops?: number;
 };
 
 export type SubtaskStatus = "pending" | "running" | "ok" | "error" | "skipped";
@@ -50,6 +51,9 @@ export type SubtaskRecord = {
   outcome?: SubagentRunOutcome;
   retryCount: number;
   maxRetries: number;
+  loopCount: number;
+  maxLoops: number;
+  loopHistory: string[];
   startedAt?: number;
   endedAt?: number;
 };
@@ -299,8 +303,32 @@ async function retrySubtask(mission: MissionRecord, subtask: SubtaskRecord): Pro
     ? await extractTranscriptSummary({ sessionKey: subtask.childSessionKey })
     : { toolCalls: [], toolErrorCount: 0, lastAssistantText: undefined, totalMessages: 0 };
 
+  // If mid-loop, reconstruct the loop-formatted task so the retry preserves loop context.
+  // Otherwise use the bare originalTask.
+  let effectiveOriginalTask = subtask.originalTask;
+  if (subtask.loopCount > 0 && subtask.loopHistory.length > 0) {
+    const lastResult = subtask.loopHistory[subtask.loopHistory.length - 1];
+    effectiveOriginalTask = [
+      `# Loop Iteration ${subtask.loopCount}/${subtask.maxLoops} (retrying after failure)`,
+      "",
+      "## Most Recent Iteration Result:",
+      lastResult,
+      "",
+      "---",
+      "",
+      "# Original Task",
+      subtask.originalTask,
+      "",
+      "---",
+      "",
+      "# Instructions",
+      "You are continuing an iterative task. Use Brain MCP to read/store progress between iterations.",
+      "When the task is fully complete and verified, end your response with: LOOP_DONE",
+    ].join("\n");
+  }
+
   const retryTask = formatTranscriptForRetry({
-    originalTask: subtask.originalTask,
+    originalTask: effectiveOriginalTask,
     summary,
     retryNumber: subtask.retryCount,
     maxRetries: subtask.maxRetries,
@@ -407,6 +435,170 @@ async function retrySubtask(mission: MissionRecord, subtask: SubtaskRecord): Pro
   });
 
   persistMissions();
+}
+
+// ---------------------------------------------------------------------------
+// Ralph Wiggum Loop — loop-until-done for iterative agent tasks
+// ---------------------------------------------------------------------------
+
+function shouldLoopSubtask(mission: MissionRecord, subtask: SubtaskRecord): boolean {
+  if (subtask.maxLoops === 0) return false;
+  if (subtask.loopCount >= subtask.maxLoops) return false;
+  if (mission.totalSpawns >= mission.maxTotalSpawns) return false;
+  // Early-exit sentinel: agent signals completion.
+  // Anchor to last 200 chars to avoid false positives from mid-output mentions
+  // like "I will not output LOOP_DONE yet".
+  const tail = (subtask.result ?? "").slice(-200);
+  if (/LOOP_DONE\s*$/i.test(tail)) return false;
+  return true;
+}
+
+async function loopSubtask(mission: MissionRecord, subtask: SubtaskRecord): Promise<void> {
+  // Accumulate history from current iteration before clearing
+  if (subtask.result) subtask.loopHistory.push(subtask.result);
+  subtask.loopCount++;
+
+  // Build loop context — only inject the LAST iteration's result to prevent context bloat.
+  // Earlier iterations are stored in loopHistory but the agent should use Brain MCP for full history.
+  const lastResult = subtask.loopHistory[subtask.loopHistory.length - 1];
+  const priorCount = subtask.loopHistory.length - 1; // iterations before the last one
+
+  const contextLines: string[] = [`# Loop Iteration ${subtask.loopCount}/${subtask.maxLoops}`, ""];
+
+  if (priorCount > 0) {
+    contextLines.push(
+      `*${priorCount} earlier iteration(s) completed. Use Brain MCP to retrieve full history if needed.*`,
+      "",
+    );
+  }
+
+  if (lastResult) {
+    contextLines.push("## Most Recent Iteration Result:", lastResult, "", "---", "");
+  }
+
+  contextLines.push(
+    "# Original Task",
+    subtask.originalTask,
+    "",
+    "---",
+    "",
+    "# Instructions",
+    "You are continuing an iterative task. Use Brain MCP to read/store progress between iterations.",
+    "Review the most recent iteration result above, then continue where it left off.",
+    "When the task is fully complete and verified, your final message MUST comprehensively summarize ALL accumulated work from all iterations (not just this one), then end with: LOOP_DONE",
+    "If you need another iteration, continue working and the next iteration will start automatically.",
+  );
+
+  const loopTask = contextLines.join("\n");
+
+  // Re-inject dependency results (same pattern as retrySubtask)
+  const deps = subtask.after;
+  let taskWithContext = loopTask;
+  if (deps.length > 0) {
+    const sections: string[] = [];
+    for (const depId of deps) {
+      const dep = mission.subtasks.get(depId);
+      if (!dep || dep.status !== "ok" || !dep.result) continue;
+      sections.push(`## Results from "${depId}" (${dep.agentId})\n${dep.result}`);
+    }
+    if (sections.length > 0) {
+      taskWithContext = [
+        "# Context: Results from prerequisite tasks",
+        "",
+        ...sections,
+        "",
+        "---",
+        "",
+        loopTask,
+      ].join("\n");
+    }
+  }
+
+  // Apply taskDirective if configured
+  const cfg = loadConfig();
+  const targetAgentConfig = resolveAgentConfig(cfg, subtask.agentId);
+  const directive = targetAgentConfig?.taskDirective?.trim();
+  const effectiveTask = directive ? `${taskWithContext}\n\n---\n\n${directive}` : taskWithContext;
+
+  // Spawn fresh session
+  const childSessionKey = `agent:${subtask.agentId}:subagent:${crypto.randomUUID()}`;
+
+  // Unindex old runId before reassigning
+  if (subtask.runId) {
+    runIdToMission.delete(subtask.runId);
+  }
+
+  subtask.childSessionKey = childSessionKey;
+  subtask.outcome = undefined;
+  subtask.result = undefined;
+  subtask.status = "running";
+  subtask.startedAt = Date.now();
+  subtask.endedAt = undefined;
+  mission.totalSpawns++;
+
+  const requesterOrigin = normalizeDeliveryContext(mission.requesterOrigin);
+  const loopLabel = `${mission.label}/${subtask.id} (loop ${subtask.loopCount}/${subtask.maxLoops})`;
+  const childSystemPrompt = buildSubagentSystemPrompt({
+    requesterSessionKey: mission.requesterSessionKey,
+    requesterOrigin,
+    childSessionKey,
+    label: loopLabel,
+    task: taskWithContext,
+  });
+
+  const childIdem = crypto.randomUUID();
+  let childRunId = childIdem;
+  try {
+    const response = await callGateway<{ runId: string }>({
+      method: "agent",
+      params: {
+        message: effectiveTask,
+        sessionKey: childSessionKey,
+        idempotencyKey: childIdem,
+        deliver: false,
+        lane: AGENT_LANE_SUBAGENT,
+        extraSystemPrompt: childSystemPrompt,
+      },
+      timeoutMs: 10_000,
+    });
+    if (typeof response?.runId === "string" && response.runId) {
+      childRunId = response.runId;
+    }
+  } catch {
+    subtask.status = "error";
+    subtask.outcome = { status: "error", error: "loop spawn failed" };
+    subtask.endedAt = Date.now();
+    skipDependentSubtasks(mission, subtask.id);
+    persistMissions();
+    return;
+  }
+
+  subtask.runId = childRunId;
+  persistMissions();
+
+  registerSubagentRun({
+    runId: childRunId,
+    childSessionKey,
+    requesterSessionKey: mission.requesterSessionKey,
+    requesterOrigin: mission.requesterOrigin,
+    requesterDisplayKey: mission.requesterDisplayKey,
+    task: taskWithContext,
+    cleanup: mission.cleanup,
+    label: `${mission.label}/${subtask.id}`,
+    maxRetries: 0,
+    originalTask: subtask.originalTask,
+  });
+
+  runIdToMission.set(childRunId, {
+    missionId: mission.missionId,
+    subtaskId: subtask.id,
+  });
+
+  persistMissions();
+
+  console.log(
+    `[RALPH-WIGGUM-LOOP] 🔁 Loop ${subtask.loopCount}/${subtask.maxLoops} for subtask "${subtask.id}" (agent: ${subtask.agentId}) in mission ${mission.missionId.slice(0, 8)}...`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -636,6 +828,13 @@ async function handleSubtaskCompletion(
     } catch {
       // Proceed without result text
     }
+
+    // Ralph Wiggum loop check: if looping is enabled and not done, spawn next iteration
+    if (shouldLoopSubtask(mission, subtask)) {
+      await loopSubtask(mission, subtask);
+      return; // Not terminal yet — new iteration is running
+    }
+
     subtask.status = "ok";
     persistMissions();
     advanceMission(mission);
@@ -686,6 +885,9 @@ export function createMission(params: {
       status: "pending",
       retryCount: 0,
       maxRetries: agentConfig?.maxRetries ?? 0,
+      loopCount: 0,
+      maxLoops: input.maxLoops ?? 0,
+      loopHistory: [],
     });
   }
 
@@ -700,7 +902,9 @@ export function createMission(params: {
     status: "running",
     createdAt: Date.now(),
     totalSpawns: 0,
-    maxTotalSpawns: params.maxTotalSpawns ?? params.subtasks.length * 3,
+    maxTotalSpawns:
+      params.maxTotalSpawns ??
+      (params.subtasks.length + params.subtasks.reduce((sum, s) => sum + (s.maxLoops ?? 0), 0)) * 3,
     announced: false,
     cleanup: params.cleanup ?? "keep",
   };
@@ -804,10 +1008,12 @@ export function initMissionSystem() {
     // ignore restore failures
   }
 
-  // Register the interceptor
+  // Register the interceptor — delete atomically to prevent double-fire from
+  // dual completion paths (ensureListener + waitForSubagentCompletion).
   setRunCompletionInterceptor((runId, entry) => {
     const match = runIdToMission.get(runId);
     if (!match) return false;
+    runIdToMission.delete(runId);
 
     void handleSubtaskCompletion(match.missionId, match.subtaskId, entry);
     return true;
