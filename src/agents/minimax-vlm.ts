@@ -21,7 +21,9 @@ function coerceApiHost(params: {
   try {
     const url = new URL(raw);
     return url.origin;
-  } catch {}
+  } catch {
+    // Best-effort: try with https prefix
+  }
 
   try {
     const url = new URL(`https://${raw}`);
