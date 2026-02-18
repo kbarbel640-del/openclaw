@@ -18,6 +18,30 @@ import {
 } from "./exec-safe-bin-policy.js";
 import { isTrustedSafeBinPath } from "./exec-safe-bin-trust.js";
 
+function isPathLikeToken(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (trimmed === "-") {
+    return false;
+  }
+  if (trimmed.startsWith("./") || trimmed.startsWith("../") || trimmed.startsWith("~")) {
+    return true;
+  }
+  if (trimmed.startsWith("/")) {
+    return true;
+  }
+  return /^[A-Za-z]:[\\/]/.test(trimmed);
+}
+
+function defaultFileExists(filePath: string): boolean {
+  try {
+    return fs.existsSync(filePath);
+  } catch {
+    return false;
+  }
+}
 export function normalizeSafeBins(entries?: string[]): Set<string> {
   if (!Array.isArray(entries)) {
     return new Set();
