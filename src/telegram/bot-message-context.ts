@@ -20,7 +20,6 @@ import type { MsgContext } from "../auto-reply/templating.js";
 import { shouldAckReaction as shouldAckReactionGate } from "../channels/ack-reactions.js";
 import { resolveControlCommandGate } from "../channels/command-gating.js";
 import { formatLocationText, toLocationContext } from "../channels/location.js";
-import { logInboundDrop } from "../channels/logging.js";
 import { resolveMentionGatingWithBypass } from "../channels/mention-gating.js";
 import { recordInboundSession } from "../channels/session.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -209,16 +208,20 @@ export const buildTelegramMessageContext = async ({
   });
   if (!baseAccess.allowed) {
     if (baseAccess.reason === "group-disabled") {
-      logVerbose(`Blocked telegram group ${chatId} (group disabled)`);
+      logger.info({ chatId, reason: "group-disabled" }, "telegram inbound message dropped");
       return null;
     }
     if (baseAccess.reason === "topic-disabled") {
-      logVerbose(
-        `Blocked telegram topic ${chatId} (${resolvedThreadId ?? "unknown"}) (topic disabled)`,
+      logger.info(
+        { chatId, resolvedThreadId: resolvedThreadId ?? "unknown", reason: "topic-disabled" },
+        "telegram inbound message dropped",
       );
       return null;
     }
-    logVerbose(`Blocked telegram group sender ${senderId || "unknown"} (group allowFrom override)`);
+    logger.info(
+      { chatId, senderId: senderId || "unknown", reason: "group-allowFrom" },
+      "telegram inbound message dropped",
+    );
     return null;
   }
 
@@ -259,6 +262,7 @@ export const buildTelegramMessageContext = async ({
   // DM access control (secure defaults): "pairing" (default) / "allowlist" / "open" / "disabled"
   if (!isGroup) {
     if (dmPolicy === "disabled") {
+      logger.info({ chatId, reason: "dm-disabled" }, "telegram inbound message dropped");
       return null;
     }
 
@@ -271,9 +275,6 @@ export const buildTelegramMessageContext = async ({
         senderId: candidate,
         senderUsername,
       });
-      const allowMatchMeta = `matchKey=${allowMatch.matchKey ?? "none"} matchSource=${
-        allowMatch.matchSource ?? "none"
-      }`;
       const allowed =
         effectiveDmAllow.hasWildcard || (effectiveDmAllow.hasEntries && allowMatch.allowed);
       if (!allowed) {
@@ -328,8 +329,9 @@ export const buildTelegramMessageContext = async ({
             logVerbose(`telegram pairing reply failed for chat ${chatId}: ${String(err)}`);
           }
         } else {
-          logVerbose(
-            `Blocked unauthorized telegram sender ${candidate} (dmPolicy=${dmPolicy}, ${allowMatchMeta})`,
+          logger.info(
+            { chatId: String(chatId), senderId: candidate, dmPolicy, reason: "dm-not-allowed" },
+            "telegram inbound message dropped",
           );
         }
         return null;
@@ -383,6 +385,7 @@ export const buildTelegramMessageContext = async ({
     rawBody = placeholder;
   }
   if (!rawBody && allMedia.length === 0) {
+    logger.info({ chatId, reason: "empty-message" }, "telegram inbound message dropped");
     return null;
   }
 
@@ -447,12 +450,10 @@ export const buildTelegramMessageContext = async ({
   });
   const wasMentioned = options?.forceWasMentioned === true ? true : computedWasMentioned;
   if (isGroup && commandGate.shouldBlock) {
-    logInboundDrop({
-      log: logVerbose,
-      channel: "telegram",
-      reason: "control command (unauthorized)",
-      target: senderId ?? "unknown",
-    });
+    logger.info(
+      { chatId, senderId: senderId || "unknown", reason: "control-command-unauthorized" },
+      "telegram inbound message dropped",
+    );
     return null;
   }
   // Reply-chain detection: replying to a bot message acts like an implicit mention.

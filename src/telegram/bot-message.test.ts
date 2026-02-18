@@ -30,7 +30,7 @@ describe("telegram bot message processor", () => {
     allowFrom: [],
     groupAllowFrom: [],
     ackReactionScope: "none",
-    logger: {},
+    logger: { info: vi.fn() },
     resolveGroupActivation: () => true,
     resolveGroupRequireMention: () => false,
     resolveTelegramGroupConfig: () => ({}),
