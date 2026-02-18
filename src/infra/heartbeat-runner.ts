@@ -672,8 +672,8 @@ export async function runHeartbeatOnce(opts: {
     const heartbeatModelOverride = heartbeat?.model?.trim() || undefined;
     // suppressToolErrorWarnings removed - not available on HeartbeatConfig type
     const replyOpts = heartbeatModelOverride
-      ? { isHeartbeat: true, heartbeatModelOverride }
-      : { isHeartbeat: true };
+      ? { isHeartbeat: true, heartbeatModelOverride, suppressToolErrorWarnings }
+      : { isHeartbeat: true, suppressToolErrorWarnings };
     const replyResult = await getReplyFromConfig(ctx, replyOpts, cfg);
     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
     const includeReasoning = heartbeat?.includeReasoning === true;
