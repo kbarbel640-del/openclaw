@@ -12,6 +12,12 @@ describe("resolveIsDirectMessage", () => {
     expect(resolveIsDirectMessage(true, true)).toBe(false);
   });
 
+  it("returns true when DM detected and room only matches via wildcard (not explicit)", () => {
+    // Wildcard groups config should NOT override DM detection
+    // The caller passes false for wildcardAllowed (matchSource !== "direct")
+    expect(resolveIsDirectMessage(true, false)).toBe(true);
+  });
+
   it("returns false when DM not detected regardless of groups config", () => {
     expect(resolveIsDirectMessage(false, undefined)).toBe(false);
     expect(resolveIsDirectMessage(false, true)).toBe(false);

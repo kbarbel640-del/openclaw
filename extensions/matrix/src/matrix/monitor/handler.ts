@@ -201,7 +201,8 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         aliases: roomAliases,
         name: roomName,
       });
-      const isDirectMessage = resolveIsDirectMessage(isDmDetected, roomConfigInfo?.allowed);
+      const isExplicitGroup = roomConfigInfo?.allowed && roomConfigInfo.matchSource === "direct";
+      const isDirectMessage = resolveIsDirectMessage(isDmDetected, isExplicitGroup);
       const isRoom = !isDirectMessage;
 
       if (isRoom && groupPolicy === "disabled") {
