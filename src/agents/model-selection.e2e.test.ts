@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
 import {
   parseModelRef,
   resolveModelRefFromString,
@@ -359,9 +360,9 @@ describe("model-selection", () => {
           },
         };
 
-        const catalog = [
+        const catalog: ModelCatalogEntry[] = [
           { provider: "google", id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
-        ] as unknown[];
+        ];
 
         const result = buildAllowedModelSet({
           cfg: cfg as OpenClawConfig,
@@ -387,13 +388,13 @@ describe("model-selection", () => {
           },
         };
 
-        const catalog = [
+        const catalog: ModelCatalogEntry[] = [
           {
             provider: "anthropic",
             id: "claude-3-5-sonnet",
             name: "Claude 3.5 Sonnet",
           },
-        ] as unknown[];
+        ];
 
         const result = buildAllowedModelSet({
           cfg: cfg as OpenClawConfig,
@@ -418,14 +419,14 @@ describe("model-selection", () => {
           },
         };
 
-        const catalog = [
+        const catalog: ModelCatalogEntry[] = [
           {
             provider: "anthropic",
             id: "claude-3-5-sonnet",
             name: "Claude 3.5 Sonnet",
           },
           { provider: "google", id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
-        ] as unknown[];
+        ];
 
         const result = buildAllowedModelSet({
           cfg: cfg as OpenClawConfig,
