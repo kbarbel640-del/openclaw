@@ -26,6 +26,8 @@ function clearSupervisorHints() {
   delete process.env.INVOCATION_ID;
   delete process.env.SYSTEMD_EXEC_PID;
   delete process.env.JOURNAL_STREAM;
+  delete process.env.OPENCLAW_LAUNCHD_LABEL;
+  delete process.env.OPENCLAW_SYSTEMD_UNIT;
 }
 
 describe("restartGatewayProcessWithFreshPid", () => {
@@ -38,6 +40,20 @@ describe("restartGatewayProcessWithFreshPid", () => {
 
   it("returns supervised when launchd/systemd hints are present", () => {
     process.env.LAUNCH_JOB_LABEL = "ai.openclaw.gateway";
+    const result = restartGatewayProcessWithFreshPid();
+    expect(result.mode).toBe("supervised");
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("returns supervised when OpenClaw launchd service hint is present", () => {
+    process.env.OPENCLAW_LAUNCHD_LABEL = "ai.openclaw.gateway";
+    const result = restartGatewayProcessWithFreshPid();
+    expect(result.mode).toBe("supervised");
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("returns supervised when OpenClaw systemd service hint is present", () => {
+    process.env.OPENCLAW_SYSTEMD_UNIT = "openclaw-gateway.service";
     const result = restartGatewayProcessWithFreshPid();
     expect(result.mode).toBe("supervised");
     expect(spawnMock).not.toHaveBeenCalled();

@@ -14,6 +14,8 @@ const SUPERVISOR_HINT_ENV_VARS = [
   "INVOCATION_ID",
   "SYSTEMD_EXEC_PID",
   "JOURNAL_STREAM",
+  "OPENCLAW_LAUNCHD_LABEL",
+  "OPENCLAW_SYSTEMD_UNIT",
 ];
 
 function isTruthy(value: string | undefined): boolean {
