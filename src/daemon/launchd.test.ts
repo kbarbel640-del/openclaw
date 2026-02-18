@@ -141,6 +141,7 @@ describe("launchd bootstrap repair", () => {
     const plistPath = resolveLaunchAgentPlistPath(env);
 
     expect(state.launchctlCalls).toContainEqual(["bootstrap", domain, plistPath]);
+    expect(state.launchctlCalls).toContainEqual(["enable", `${domain}/${label}`]);
     expect(state.launchctlCalls).toContainEqual(["kickstart", "-k", `${domain}/${label}`]);
   });
 });
@@ -192,6 +193,7 @@ describe("launchd restart", () => {
     const domain = typeof process.getuid === "function" ? `gui/${process.getuid()}` : "gui/501";
     const label = "ai.openclaw.gateway";
     expect(state.launchctlCalls).toContainEqual(["bootstrap", domain, plistPath]);
+    expect(state.launchctlCalls).toContainEqual(["enable", `${domain}/${label}`]);
     expect(state.launchctlCalls).toContainEqual(["kickstart", "-k", `${domain}/${label}`]);
   });
 

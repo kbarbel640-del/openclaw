@@ -213,6 +213,8 @@ export async function repairLaunchAgentBootstrap(args: {
   if (boot.code !== 0) {
     return { ok: false, detail: (boot.stderr || boot.stdout).trim() || undefined };
   }
+  // Keep parity with restart helper fallback: clear persisted disabled state before kickstart.
+  await execLaunchctl(["enable", `${domain}/${label}`]);
   const kick = await execLaunchctl(["kickstart", "-k", `${domain}/${label}`]);
   if (kick.code !== 0) {
     return { ok: false, detail: (kick.stderr || kick.stdout).trim() || undefined };
