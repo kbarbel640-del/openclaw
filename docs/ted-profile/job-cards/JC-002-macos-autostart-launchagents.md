@@ -38,3 +38,20 @@ Use the existing OpenClaw gateway daemon/launchd framework as the single orchest
    - OpenClaw can execute /ted doctor successfully
 4) Verify logs written to expected paths (`sidecars/ted-engine/logs/`) with no secrets
 5) Verify uninstall removes/disables autostart (`bash scripts/ted-profile/jc002_uninstall_autostart.sh`)
+
+---
+
+## Proof Evidence (Executed)
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc002.sh
+- Result: PASS
+
+### Observations
+- Control UI assets built successfully via `pnpm ui:build` (no build artifacts committed)
+- Sidecar health verified via /status and /doctor
+- Payload schema keys verified
+- Non-allowlisted endpoint remains blocked (fail-closed)
+- Doctor command path reflects Ted sidecar health
+
+### Notes
+- `pnpm ui:build` required Node in shell; used nvm Node to avoid broken corepack shim.
