@@ -1,5 +1,6 @@
 import {
   stripEnvelope,
+  stripMessageIdHints,
   stripUntrustedMetadataBlocks,
 } from "../../../../src/shared/chat-envelope.js";
 import { stripThinkingTags } from "../format.ts";
@@ -7,9 +8,9 @@ import { stripThinkingTags } from "../format.ts";
 const textCache = new WeakMap<object, string | null>();
 const thinkingCache = new WeakMap<object, string | null>();
 
-/** Strips envelope and untrusted metadata blocks from user messages */
+/** Strips envelope, message ID hints, and untrusted metadata blocks from user messages */
 function stripUserMessageContent(text: string): string {
-  return stripUntrustedMetadataBlocks(stripEnvelope(text));
+  return stripMessageIdHints(stripUntrustedMetadataBlocks(stripEnvelope(text)));
 }
 
 export function extractText(message: unknown): string | null {
