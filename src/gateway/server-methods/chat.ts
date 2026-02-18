@@ -574,9 +574,10 @@ export const chatHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const { sessionKey, limit } = params as {
+    const { sessionKey, limit, before } = params as {
       sessionKey: string;
       limit?: number;
+      before?: number;
     };
     const { cfg, storePath, entry } = loadSessionEntry(sessionKey);
     const sessionId = entry?.sessionId;
@@ -586,7 +587,21 @@ export const chatHandlers: GatewayRequestHandlers = {
     const defaultLimit = 200;
     const requested = typeof limit === "number" ? limit : defaultLimit;
     const max = Math.min(hardMax, requested);
-    const sliced = rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
+    let sliced: unknown[];
+    let cursor: number;
+    let hasMore: boolean;
+    if (typeof before === "number") {
+      const end = Math.min(before, rawMessages.length);
+      const start = Math.max(0, end - max);
+      sliced = rawMessages.slice(start, end);
+      cursor = start;
+      hasMore = start > 0;
+    } else {
+      const start = rawMessages.length > max ? rawMessages.length - max : 0;
+      sliced = rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
+      cursor = start;
+      hasMore = start > 0;
+    }
     const sanitized = stripEnvelopeFromMessages(sliced);
     const normalized = sanitizeChatHistoryMessages(sanitized);
     const maxHistoryBytes = getMaxChatHistoryMessagesBytes();
@@ -626,6 +641,8 @@ export const chatHandlers: GatewayRequestHandlers = {
       sessionKey,
       sessionId,
       messages: bounded.messages,
+      cursor,
+      hasMore,
       thinkingLevel,
       verboseLevel,
     });

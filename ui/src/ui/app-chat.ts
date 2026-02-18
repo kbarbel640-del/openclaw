@@ -3,7 +3,12 @@ import { scheduleChatScroll } from "./app-scroll.ts";
 import { setLastActiveSessionKey } from "./app-settings.ts";
 import { resetToolStream } from "./app-tool-stream.ts";
 import type { OpenClawApp } from "./app.ts";
-import { abortChatRun, loadChatHistory, sendChatMessage } from "./controllers/chat.ts";
+import {
+  abortChatRun,
+  loadChatHistory,
+  loadOlderChatHistory,
+  sendChatMessage,
+} from "./controllers/chat.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import type { GatewayHelloOk } from "./gateway.ts";
 import { normalizeBasePath } from "./navigation.ts";
@@ -212,6 +217,20 @@ export async function refreshChat(host: ChatHost, opts?: { scheduleScroll?: bool
   ]);
   if (opts?.scheduleScroll !== false) {
     scheduleChatScroll(host as unknown as Parameters<typeof scheduleChatScroll>[0]);
+  }
+}
+
+export async function handleLoadOlderChat(host: ChatHost) {
+  const app = host as unknown as OpenClawApp;
+  if (app.chatLoadingOlder || !app.chatHasMore) return;
+  const container = app.querySelector?.(".chat-thread") as HTMLElement | undefined;
+  const prevScrollHeight = container?.scrollHeight ?? 0;
+  await loadOlderChatHistory(app);
+  // Wait for Lit to render the prepended messages before measuring.
+  if (container) {
+    await app.updateComplete;
+    const newScrollHeight = container.scrollHeight;
+    container.scrollTop += newScrollHeight - prevScrollHeight;
   }
 }
 

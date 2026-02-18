@@ -57,6 +57,7 @@ export type ChatProps = {
   // Scroll control
   showNewMessages?: boolean;
   onScrollToBottom?: () => void;
+  loadingOlder?: boolean;
   // Event handlers
   onRefresh: () => void;
   onToggleFocusMode: () => void;
@@ -214,6 +215,13 @@ export function renderChat(props: ChatProps) {
       aria-live="polite"
       @scroll=${props.onChatScroll}
     >
+      ${
+        props.loadingOlder
+          ? html`
+              <div class="muted">Loading older messages…</div>
+            `
+          : nothing
+      }
       ${
         props.loading
           ? html`
