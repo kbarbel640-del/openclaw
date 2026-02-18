@@ -1,6 +1,8 @@
 import type { Chat, Message, MessageOrigin, User } from "@grammyjs/types";
 import { formatLocationText, type NormalizedLocation } from "../../channels/location.js";
 import type { TelegramGroupConfig, TelegramTopicConfig } from "../../config/types.js";
+import { logVerbose } from "../../globals.js";
+import { formatErrorMessage } from "../../infra/errors.js";
 import { readChannelAllowFromStore } from "../../pairing/pairing-store.js";
 import {
   firstDefined,
@@ -10,11 +12,67 @@ import {
 import type { TelegramStreamMode } from "./types.js";
 
 const TELEGRAM_GENERAL_TOPIC_ID = 1;
+const THREAD_NOT_FOUND_RE = /400:\s*Bad Request:\s*message thread not found/i;
 
 export type TelegramThreadSpec = {
   id?: number;
   scope: "dm" | "forum" | "none";
 };
+
+export function isTelegramThreadNotFoundError(err: unknown): boolean {
+  return THREAD_NOT_FOUND_RE.test(formatErrorMessage(err));
+}
+
+export function hasMessageThreadIdParam(params?: Record<string, unknown>): boolean {
+  if (!params) {
+    return false;
+  }
+  const value = params.message_thread_id;
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+  return false;
+}
+
+export function removeMessageThreadIdParam(
+  params?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (!params || !hasMessageThreadIdParam(params)) {
+    return params;
+  }
+  const next = { ...params };
+  delete next.message_thread_id;
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+export async function withTelegramThreadFallback<T>(
+  params: Record<string, unknown> | undefined,
+  label: string,
+  attempt: (
+    effectiveParams: Record<string, unknown> | undefined,
+    effectiveLabel: string,
+  ) => Promise<T>,
+  options?: { warn?: (message: string) => void },
+): Promise<T> {
+  try {
+    return await attempt(params, label);
+  } catch (err) {
+    if (!hasMessageThreadIdParam(params) || !isTelegramThreadNotFoundError(err)) {
+      throw err;
+    }
+    const warn = options?.warn ?? logVerbose;
+    warn(
+      `telegram ${label} failed with message_thread_id, retrying without thread: ${formatErrorMessage(
+        err,
+      )}`,
+    );
+    const retriedParams = removeMessageThreadIdParam(params);
+    return await attempt(retriedParams, `${label}-threadless`);
+  }
+}
 
 export async function resolveTelegramGroupAllowFromContext(params: {
   chatId: string | number;
