@@ -4244,9 +4244,29 @@ impl RpcDispatcher {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
         };
-        let session_key = normalize_session_key_input(params.session_key.or(params.key));
-        let Some(session_key) = session_key else {
-            return RpcDispatchOutcome::bad_request("sessionKey|key is required");
+        let session_key = match params
+            .session_key
+            .or(params.key)
+            .map(|value| canonicalize_session_key(&value))
+        {
+            Some(value) if value.is_empty() => {
+                return RpcDispatchOutcome::bad_request("sessionKey|key cannot be empty");
+            }
+            Some(value) => self.sessions.resolve_key(&value).await.unwrap_or(value),
+            None => {
+                if let Some(session_id) = params
+                    .session_id
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty())
+                {
+                    let Some(resolved) = self.sessions.resolve_session_id(&session_id).await else {
+                        return RpcDispatchOutcome::not_found("session not found");
+                    };
+                    resolved
+                } else {
+                    return RpcDispatchOutcome::bad_request("sessionKey|key|sessionId is required");
+                }
+            }
         };
         let max_points = params.max_points.unwrap_or(200).clamp(1, 1_000);
         let Some(points) = self
@@ -4268,9 +4288,29 @@ impl RpcDispatcher {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
         };
-        let session_key = normalize_session_key_input(params.session_key.or(params.key));
-        let Some(session_key) = session_key else {
-            return RpcDispatchOutcome::bad_request("sessionKey|key is required");
+        let session_key = match params
+            .session_key
+            .or(params.key)
+            .map(|value| canonicalize_session_key(&value))
+        {
+            Some(value) if value.is_empty() => {
+                return RpcDispatchOutcome::bad_request("sessionKey|key cannot be empty");
+            }
+            Some(value) => self.sessions.resolve_key(&value).await.unwrap_or(value),
+            None => {
+                if let Some(session_id) = params
+                    .session_id
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty())
+                {
+                    let Some(resolved) = self.sessions.resolve_session_id(&session_id).await else {
+                        return RpcDispatchOutcome::not_found("session not found");
+                    };
+                    resolved
+                } else {
+                    return RpcDispatchOutcome::bad_request("sessionKey|key|sessionId is required");
+                }
+            }
         };
         let limit = params.limit.unwrap_or(200).clamp(1, 1_000);
         let Some(logs) = self.sessions.usage_logs(&session_key, limit).await else {
@@ -11274,6 +11314,8 @@ struct SessionsUsageTimeseriesParams {
     #[serde(rename = "sessionKey", alias = "session_key")]
     session_key: Option<String>,
     key: Option<String>,
+    #[serde(rename = "sessionId", alias = "session_id")]
+    session_id: Option<String>,
     #[serde(rename = "maxPoints", alias = "max_points")]
     max_points: Option<usize>,
 }
@@ -11284,6 +11326,8 @@ struct SessionsUsageLogsParams {
     #[serde(rename = "sessionKey", alias = "session_key")]
     session_key: Option<String>,
     key: Option<String>,
+    #[serde(rename = "sessionId", alias = "session_id")]
+    session_id: Option<String>,
     limit: Option<usize>,
 }
 
@@ -14480,6 +14524,90 @@ mod tests {
                 );
             }
             _ => panic!("expected usage timeseries handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_usage_timeseries_and_logs_support_session_id_and_resolved_keys() {
+        let dispatcher = RpcDispatcher::new();
+        let session_key = "agent:main:discord:group:g-usage-lookup";
+
+        let send = RpcRequestFrame {
+            id: "req-send-usage-lookup".to_owned(),
+            method: "sessions.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key,
+                "message": "hello usage lookup"
+            }),
+        };
+        let _ = dispatcher.handle_request(&send).await;
+
+        let status = RpcRequestFrame {
+            id: "req-status-usage-lookup".to_owned(),
+            method: "session.status".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key
+            }),
+        };
+        let session_id = match dispatcher.handle_request(&status).await {
+            RpcDispatchOutcome::Handled(payload) => payload
+                .pointer("/session/sessionId")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .expect("missing session id"),
+            _ => panic!("expected usage lookup status handled"),
+        };
+
+        let logs = RpcRequestFrame {
+            id: "req-usage-logs-lookup".to_owned(),
+            method: "sessions.usage.logs".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "AGENT:MAIN:DISCORD:GROUP:G-USAGE-LOOKUP",
+                "limit": 5
+            }),
+        };
+        match dispatcher.handle_request(&logs).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/logs/0/sessionKey")
+                        .and_then(serde_json::Value::as_str),
+                    Some(session_key)
+                );
+            }
+            _ => panic!("expected usage logs lookup handled"),
+        }
+
+        let timeseries = RpcRequestFrame {
+            id: "req-usage-timeseries-lookup".to_owned(),
+            method: "sessions.usage.timeseries".to_owned(),
+            params: serde_json::json!({
+                "sessionId": session_id,
+                "maxPoints": 5
+            }),
+        };
+        match dispatcher.handle_request(&timeseries).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/points/0/sendEvents")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+            }
+            _ => panic!("expected usage timeseries lookup handled"),
         }
     }
 
