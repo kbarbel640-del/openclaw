@@ -1,8 +1,8 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { OpenClawConfig } from "../../config/config.js";
+import type { FailoverReason } from "./types.js";
 import { formatSandboxToolPolicyBlockedMessage } from "../sandbox.js";
 import { stableStringify } from "../stable-stringify.js";
-import type { FailoverReason } from "./types.js";
 
 export function formatBillingErrorMessage(provider?: string): string {
   const providerName = provider?.trim();
@@ -115,6 +115,9 @@ const HTTP_STATUS_CODE_PREFIX_RE = /^(?:http\s*)?(\d{3})(?:\s+([\s\S]+))?$/i;
 const HTML_ERROR_PREFIX_RE = /^\s*(?:<!doctype\s+html\b|<html\b)/i;
 const CLOUDFLARE_HTML_ERROR_CODES = new Set([521, 522, 523, 524, 525, 526, 530]);
 const TRANSIENT_HTTP_ERROR_CODES = new Set([500, 502, 503, 521, 522, 523, 524, 529]);
+const TRANSIENT_API_ERROR_TYPES = new Set(["api_error", "server_error", "internal_error"]);
+const TRANSIENT_API_ERROR_MESSAGE =
+  "The AI service encountered a temporary error. Please try again in a moment.";
 const HTTP_ERROR_HINTS = [
   "error",
   "bad request",
@@ -175,6 +178,36 @@ export function isTransientHttpError(raw: string): boolean {
     return false;
   }
   return TRANSIENT_HTTP_ERROR_CODES.has(status.code);
+}
+
+/**
+ * Detect transient server errors from API JSON payloads (e.g., Anthropic's
+ * `{"type":"error","error":{"type":"api_error","message":"Internal server error"}}`).
+ * These should never be forwarded to end users as raw text.
+ */
+export function isTransientApiError(raw: string): boolean {
+  const info = parseApiErrorInfo(raw);
+  if (!info) {
+    return false;
+  }
+  if (info.type && TRANSIENT_API_ERROR_TYPES.has(info.type)) {
+    return true;
+  }
+  const msg = (info.message ?? "").toLowerCase();
+  if (
+    msg.includes("internal server error") ||
+    msg.includes("service temporarily unavailable") ||
+    msg.includes("an error occurred")
+  ) {
+    return true;
+  }
+  if (info.httpCode) {
+    const code = Number(info.httpCode);
+    if (TRANSIENT_HTTP_ERROR_CODES.has(code)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function stripFinalTagsFromText(text: string): string {
@@ -407,6 +440,11 @@ export function formatRawAssistantErrorForUi(raw?: string): string {
     }
   }
 
+  // Suppress transient server errors (500, api_error, etc.) — never expose raw details to users
+  if (isTransientApiError(trimmed)) {
+    return TRANSIENT_API_ERROR_MESSAGE;
+  }
+
   const info = parseApiErrorInfo(trimmed);
   if (info?.message) {
     const prefix = info.httpCode ? `HTTP ${info.httpCode}` : "LLM error";
@@ -480,6 +518,12 @@ export function formatAssistantErrorText(
   const transientCopy = formatRateLimitOrOverloadedErrorCopy(raw);
   if (transientCopy) {
     return transientCopy;
+  }
+
+  // Catch transient server errors (500/api_error/internal_error) early —
+  // these should never leak raw error details to end users.
+  if (isTransientApiError(raw) || isTransientHttpError(raw)) {
+    return TRANSIENT_API_ERROR_MESSAGE;
   }
 
   if (isTimeoutErrorMessage(raw)) {

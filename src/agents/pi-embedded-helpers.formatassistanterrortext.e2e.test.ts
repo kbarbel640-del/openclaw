@@ -71,11 +71,21 @@ describe("formatAssistantErrorText", () => {
     expect(result).toContain("Message ordering conflict");
     expect(result).not.toContain("400");
   });
-  it("suppresses raw error JSON payloads that are not otherwise classified", () => {
+  it("suppresses raw transient server error JSON payloads with a friendly message", () => {
     const msg = makeAssistantError(
       '{"type":"error","error":{"message":"Something exploded","type":"server_error"}}',
     );
-    expect(formatAssistantErrorText(msg)).toBe("LLM error server_error: Something exploded");
+    expect(formatAssistantErrorText(msg)).toBe(
+      "The AI service encountered a temporary error. Please try again in a moment.",
+    );
+  });
+  it("suppresses Anthropic api_error with Internal server error (the original leak bug)", () => {
+    const msg = makeAssistantError(
+      '{"type":"error","error":{"type":"api_error","message":"Internal server error"},"request_id":"req_011CYFmpt8r8CFFmnpgGL5cQ"}',
+    );
+    expect(formatAssistantErrorText(msg)).toBe(
+      "The AI service encountered a temporary error. Please try again in a moment.",
+    );
   });
   it("returns a friendly billing message for credit balance errors", () => {
     const msg = makeAssistantError("Your credit balance is too low to access the Anthropic API.");
