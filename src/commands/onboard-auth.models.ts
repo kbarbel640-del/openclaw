@@ -1,5 +1,5 @@
-import { QIANFAN_BASE_URL, QIANFAN_DEFAULT_MODEL_ID } from "../agents/models-config.providers.js";
 import type { ModelDefinitionConfig } from "../config/types.js";
+import { QIANFAN_BASE_URL, QIANFAN_DEFAULT_MODEL_ID } from "../agents/models-config.providers.js";
 
 export const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1";
 export const MINIMAX_API_BASE_URL = "https://api.minimax.io/anthropic";
@@ -26,6 +26,48 @@ export const ZAI_CODING_CN_BASE_URL = "https://open.bigmodel.cn/api/coding/paas/
 export const ZAI_GLOBAL_BASE_URL = "https://api.z.ai/api/paas/v4";
 export const ZAI_CN_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
 export const ZAI_DEFAULT_MODEL_ID = "glm-5";
+
+export const DIGITALOCEAN_GRADIENT_BASE_URL = "https://api.digitalocean.com/v2/ai";
+export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID = "llama3.3-70b-instruct";
+export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_REF = `digitalocean/${DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID}`;
+
+export function buildDigitalOceanGradientModelDefinition(params: {
+  modelId: string;
+  displayName?: string;
+  contextWindow?: number;
+  maxTokens?: number;
+}): ModelDefinitionConfig {
+  return {
+    id: params.modelId,
+    reference: `digitalocean/${params.modelId}`,
+    displayName: params.displayName || params.modelId,
+    contextWindow: params.contextWindow ?? 128000,
+    maxTokens: params.maxTokens ?? 8192,
+  };
+}
+
+export function buildDigitalOceanGradientModels(): ModelDefinitionConfig[] {
+  return [
+    buildDigitalOceanGradientModelDefinition({
+      modelId: "llama3.3-70b-instruct",
+      displayName: "Llama 3.3 70B Instruct",
+      contextWindow: 128000,
+      maxTokens: 8192,
+    }),
+    buildDigitalOceanGradientModelDefinition({
+      modelId: "llama3.1-70b-instruct",
+      displayName: "Llama 3.1 70B Instruct",
+      contextWindow: 128000,
+      maxTokens: 8192,
+    }),
+    buildDigitalOceanGradientModelDefinition({
+      modelId: "llama3.1-8b-instruct",
+      displayName: "Llama 3.1 8B Instruct",
+      contextWindow: 128000,
+      maxTokens: 8192,
+    }),
+  ];
+}
 
 export function resolveZaiBaseUrl(endpoint?: string): string {
   switch (endpoint) {
