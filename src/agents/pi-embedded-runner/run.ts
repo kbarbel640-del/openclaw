@@ -461,6 +461,8 @@ export async function runEmbeddedPiAgent(
 
       const MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
       let overflowCompactionAttempts = 0;
+      let recoveryAttempt = 0;
+      let recoverySuggestion: { suggestedAction?: "retry" | "switch" | "fail"; newModel?: string; attempt?: number } | undefined = undefined;
       let toolResultTruncationAttempted = false;
       const usageAccumulator = createUsageAccumulator();
       let lastRunPromptUsage: ReturnType<typeof normalizeUsage> | undefined;
@@ -981,6 +983,56 @@ export async function runEmbeddedPiAgent(
             inlineToolResultsAllowed: false,
           });
 
+          // Allow plugins to participate in recovery decisions when a run error occurs.
+          if ((lastAssistant?.stopReason === "error" || promptError || (timedOut && payloads.length === 0)) && hookRunner?.hasHooks("run_error")) {
+            try {
+              const hookEvent = {
+                error:
+                  lastAssistant?.errorMessage?.trim() || (promptError ? describeUnknownError(promptError) : undefined) || (timedOut ? "Timed out" : undefined),
+                errorType: assistantFailoverReason ?? undefined,
+                runId: params.runId,
+                sessionId: sessionIdUsed,
+                sessionKey: params.sessionKey,
+                agentId: workspaceResolution.agentId,
+                provider,
+                model: modelId,
+                attempt: recoveryAttempt,
+                timedOut: !!timedOut,
+                aborted: !!aborted,
+                assistant: lastAssistant,
+              };
+
+              const hookResult = await hookRunner.runRunError(hookEvent, hookCtx);
+              if (hookResult) {
+                recoverySuggestion = {
+                  suggestedAction: hookResult.action,
+                  newModel: hookResult.newModel,
+                  attempt: recoveryAttempt,
+                };
+
+                if (hookResult.action === "retry") {
+                  if (params.autoRecover) {
+                    recoveryAttempt += 1;
+                    log.info(`[hooks] run_error: auto-retry requested (attempt ${recoveryAttempt})`);
+                    continue;
+                  }
+                  // otherwise surface suggestion in meta and do not auto-retry
+                } else if (hookResult.action === "switch" && hookResult.newModel) {
+                  if (params.autoRecover) {
+                    modelId = hookResult.newModel;
+                    recoveryAttempt += 1;
+                    log.info(`[hooks] run_error: auto-switch to ${modelId} requested`);
+                    continue;
+                  }
+                } else if (hookResult.action === "fail") {
+                  // explicit fail: proceed to return error
+                }
+              }
+            } catch (hookErr) {
+              log.warn(`run_error hook failed: ${String(hookErr)}`);
+            }
+          }
+
           // Timeout aborts can leave the run without any assistant payloads.
           // Emit an explicit timeout error instead of silently completing, so
           // callers do not lose the turn as an orphaned user message.
@@ -999,6 +1051,7 @@ export async function runEmbeddedPiAgent(
                 agentMeta,
                 aborted,
                 systemPromptReport: attempt.systemPromptReport,
+                recoverySuggestion: recoverySuggestion,
               },
               didSendViaMessagingTool: attempt.didSendViaMessagingTool,
               messagingToolSentTexts: attempt.messagingToolSentTexts,
@@ -1031,6 +1084,7 @@ export async function runEmbeddedPiAgent(
               agentMeta,
               aborted,
               systemPromptReport: attempt.systemPromptReport,
+              recoverySuggestion: recoverySuggestion,
               // Handle client tool calls (OpenResponses hosted tools)
               stopReason: attempt.clientToolCall ? "tool_calls" : undefined,
               pendingToolCalls: attempt.clientToolCall

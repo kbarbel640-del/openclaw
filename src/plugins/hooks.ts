@@ -42,6 +42,8 @@ import type {
   PluginHookToolResultPersistResult,
   PluginHookBeforeMessageWriteEvent,
   PluginHookBeforeMessageWriteResult,
+  PluginHookRunErrorEvent,
+  PluginHookRunErrorResult,
 } from "./types.js";
 
 // Re-export types for consumers
@@ -329,6 +331,13 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
   // =========================================================================
   // Message Hooks
   // =========================================================================
+  async function runRunError(
+    event: PluginHookRunErrorEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<PluginHookRunErrorResult | undefined> {
+    return runModifyingHook<"run_error", PluginHookRunErrorResult>("run_error", event, ctx);
+  }
+
 
   /**
    * Run message_received hook.
@@ -625,6 +634,7 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     runBeforeCompaction,
     runAfterCompaction,
     runBeforeReset,
+    runRunError,
     // Message hooks
     runMessageReceived,
     runMessageSending,
