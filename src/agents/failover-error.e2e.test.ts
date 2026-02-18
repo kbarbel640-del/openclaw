@@ -28,6 +28,13 @@ describe("failover-error", () => {
     expect(resolveFailoverReasonFromError({ code: "ECONNRESET" })).toBe("timeout");
   });
 
+  it("infers timeout from connection-refused and DNS errors", () => {
+    expect(resolveFailoverReasonFromError({ code: "ECONNREFUSED" })).toBe("timeout");
+    expect(resolveFailoverReasonFromError({ code: "ENOTFOUND" })).toBe("timeout");
+    expect(resolveFailoverReasonFromError({ code: "EHOSTUNREACH" })).toBe("timeout");
+    expect(resolveFailoverReasonFromError({ code: "ENETUNREACH" })).toBe("timeout");
+  });
+
   it("infers timeout from abort stop-reason messages", () => {
     expect(resolveFailoverReasonFromError({ message: "Unhandled stop reason: abort" })).toBe(
       "timeout",

@@ -169,6 +169,9 @@ export function resolveFailoverReasonFromError(err: unknown): FailoverReason | n
   if (["ETIMEDOUT", "ESOCKETTIMEDOUT", "ECONNRESET", "ECONNABORTED"].includes(code)) {
     return "timeout";
   }
+  if (["ECONNREFUSED", "ENOTFOUND", "EHOSTUNREACH", "ENETUNREACH"].includes(code)) {
+    return "timeout";
+  }
   if (isTimeoutError(err)) {
     return "timeout";
   }
