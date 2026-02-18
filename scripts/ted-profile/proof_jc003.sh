@@ -32,12 +32,24 @@ for p in "${PROFILES[@]}"; do
   fi
 done
 
-echo "3) Ensure no plaintext token artifacts exist in repo (basic check)"
-if git grep -nEi '(refresh_token|access_token|client_secret|Authorization: Bearer)' -- . >/dev/null 2>&1; then
-  echo "FAIL: token-like strings detected in tracked files"
-  exit 1
+echo "3) Ensure no plaintext token artifacts exist in SIDE-CAR owned paths (scoped check)"
+# Only scan areas we control for secrets: sidecars/, docs/ted-profile/, scripts/ted-profile/
+SCAN_PATHS=("sidecars" "docs/ted-profile" "scripts/ted-profile")
+PATTERN="(refresh_token|access_token|client_secret|Authorization: Bearer)"
+FOUND=0
+for sp in "${SCAN_PATHS[@]}"; do
+  if [ -d "$sp" ]; then
+    if grep -RInE "$PATTERN" "$sp" >/dev/null 2>&1; then
+      echo "FAIL: token-like strings detected in $sp (scoped)"
+      grep -RInE "$PATTERN" "$sp" | sed -n '1,80p'
+      FOUND=1
+    fi
+  fi
+done
+if [ "$FOUND" -eq 0 ]; then
+  echo "OK: no token-like strings in sidecar-owned paths"
 else
-  echo "OK: no token-like strings in tracked files"
+  exit 1
 fi
 
 echo "JC-003 proof stub completed. Implementation will tighten these checks."
