@@ -87,4 +87,28 @@ import Testing
         #expect(plan[1] == ["install", "--port", "18789", "--runtime", "node"])
         #expect(plan[2] == ["install", "--force", "--port", "18789", "--runtime", "node"])
     }
+
+    @Test func terminalSuccessTreatsStartNotLoadedAsNonTerminal() {
+        let shouldStop = GatewayLaunchAgentManager.isTerminalEnableSuccess(
+            command: ["start"],
+            success: true,
+            daemonResult: "not-loaded")
+        #expect(shouldStop == false)
+    }
+
+    @Test func terminalSuccessTreatsInstallAlreadyInstalledAsNonTerminal() {
+        let shouldStop = GatewayLaunchAgentManager.isTerminalEnableSuccess(
+            command: ["install", "--port", "18789", "--runtime", "node"],
+            success: true,
+            daemonResult: "already-installed")
+        #expect(shouldStop == false)
+    }
+
+    @Test func terminalSuccessTreatsForceInstallAsTerminal() {
+        let shouldStop = GatewayLaunchAgentManager.isTerminalEnableSuccess(
+            command: ["install", "--force", "--port", "18789", "--runtime", "node"],
+            success: true,
+            daemonResult: "already-installed")
+        #expect(shouldStop == true)
+    }
 }

@@ -83,7 +83,11 @@ enum GatewayLaunchAgentManager {
                     return await self.runDaemonCommand(command, timeout: 20)
                 }
                 let result = await self.runDaemonCommandResult(command, timeout: 20, quiet: true)
-                if result.success {
+                if self.isTerminalEnableSuccess(
+                    command: command,
+                    success: result.success,
+                    daemonResult: result.result)
+                {
                     return nil
                 }
                 let message = result.message ?? "unknown error"
@@ -175,6 +179,33 @@ enum GatewayLaunchAgentManager {
         if base == "bun" || base == "bun.exe" { return "bun" }
         return nil
     }
+
+    static func isTerminalEnableSuccess(
+        command: [String],
+        success: Bool,
+        daemonResult: String?) -> Bool
+    {
+        guard success else { return false }
+        guard let action = command.first else { return success }
+        let normalizedResult = daemonResult?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        switch action {
+        case "start":
+            // start: result "not-loaded" means install is still required.
+            return normalizedResult != "not-loaded"
+        case "install":
+            // install (non-force): result "already-installed" means args were not reapplied.
+            // Continue to force-install fallback for stale loaded services.
+            if command.contains("--force") {
+                return true
+            }
+            return normalizedResult != "already-installed"
+        default:
+            return success
+        }
+    }
 }
 
 extension GatewayLaunchAgentManager {
@@ -198,6 +229,7 @@ extension GatewayLaunchAgentManager {
         let success: Bool
         let payload: Data?
         let message: String?
+        let result: String?
     }
 
     private struct ParsedDaemonJson {
@@ -231,15 +263,16 @@ extension GatewayLaunchAgentManager {
         let parsed = self.parseDaemonJson(from: response.stdout) ?? self.parseDaemonJson(from: response.stderr)
         let ok = parsed?.object["ok"] as? Bool
         let message = (parsed?.object["error"] as? String) ?? (parsed?.object["message"] as? String)
+        let result = parsed?.object["result"] as? String
         let payload = parsed?.text.data(using: .utf8)
             ?? (response.stdout.isEmpty ? response.stderr : response.stdout).data(using: .utf8)
         let success = ok ?? response.success
         if success {
-            return CommandResult(success: true, payload: payload, message: nil)
+            return CommandResult(success: true, payload: payload, message: nil, result: result)
         }
 
         if quiet {
-            return CommandResult(success: false, payload: payload, message: message)
+            return CommandResult(success: false, payload: payload, message: message, result: result)
         }
 
         let detail = message ?? self.summarize(response.stderr) ?? self.summarize(response.stdout)
@@ -247,7 +280,7 @@ extension GatewayLaunchAgentManager {
         let fullMessage = detail.map { "Gateway daemon command failed (\(exit)): \($0)" }
             ?? "Gateway daemon command failed (\(exit))"
         self.logger.error("\(fullMessage, privacy: .public)")
-        return CommandResult(success: false, payload: payload, message: detail)
+        return CommandResult(success: false, payload: payload, message: detail, result: result)
     }
 
     private static func withJsonFlag(_ args: [String]) -> [String] {
