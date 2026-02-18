@@ -7,6 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::sync::{oneshot, Mutex};
+use unicode_normalization::UnicodeNormalization;
 use url::Url;
 
 use crate::channels::{ChannelCapabilities, DriverRegistry};
@@ -2823,7 +2824,12 @@ impl RpcDispatcher {
         };
         let _thinking = normalize_optional_text(params.thinking, 128);
         let _deliver = params.deliver.unwrap_or(false);
-        let message = normalize_optional_text(Some(params.message), 12_000);
+        let sanitized_message = match sanitize_chat_send_message_input(&params.message) {
+            Ok(value) => value,
+            Err(err) => return RpcDispatchOutcome::bad_request(err),
+        };
+        let stop_command = is_chat_stop_command_text(&sanitized_message);
+        let message = normalize_optional_text(Some(sanitized_message), 12_000);
         let has_attachments = params
             .attachments
             .as_ref()
@@ -2831,6 +2837,14 @@ impl RpcDispatcher {
             .unwrap_or(false);
         if message.is_none() && !has_attachments {
             return RpcDispatchOutcome::bad_request("message or attachment required");
+        }
+        if stop_command {
+            let run_ids = self.chat.abort_session(&session_key).await;
+            return RpcDispatchOutcome::Handled(json!({
+                "ok": true,
+                "aborted": !run_ids.is_empty(),
+                "runIds": run_ids
+            }));
         }
         let timeout_ms = params.timeout_ms.unwrap_or(30_000);
         match self.chat.start_run(&session_key, &run_id, timeout_ms).await {
@@ -11243,6 +11257,36 @@ fn normalize(method: &str) -> String {
     method.trim().to_ascii_lowercase()
 }
 
+fn strip_disallowed_chat_control_chars(message: &str) -> String {
+    let mut output = String::with_capacity(message.len());
+    for ch in message.chars() {
+        let code = ch as u32;
+        if code == 9 || code == 10 || code == 13 || (code >= 32 && code != 127) {
+            output.push(ch);
+        }
+    }
+    output
+}
+
+fn sanitize_chat_send_message_input(message: &str) -> Result<String, String> {
+    let normalized = message.nfc().collect::<String>();
+    if normalized.contains('\0') {
+        return Err("message must not contain null bytes".to_owned());
+    }
+    Ok(strip_disallowed_chat_control_chars(&normalized))
+}
+
+fn is_chat_stop_command_text(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    matches!(
+        normalize(trimmed).as_str(),
+        "/stop" | "stop" | "abort" | "interrupt" | "interrupts"
+    )
+}
+
 fn canonicalize_session_key(raw: &str) -> String {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -15789,6 +15833,18 @@ mod tests {
         let out = dispatcher.handle_request(&empty_message).await;
         assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
 
+        let null_byte_message = RpcRequestFrame {
+            id: "req-chat-send-null-byte".to_owned(),
+            method: "chat.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "main",
+                "message": "bad\u{0000}message",
+                "idempotencyKey": "chat-null-byte"
+            }),
+        };
+        let out = dispatcher.handle_request(&null_byte_message).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
         let send = RpcRequestFrame {
             id: "req-chat-send".to_owned(),
             method: "chat.send".to_owned(),
@@ -15952,6 +16008,52 @@ mod tests {
                 );
             }
             _ => panic!("expected chat.send aborted replay response"),
+        }
+
+        let send_stop_target = RpcRequestFrame {
+            id: "req-chat-send-stop-target".to_owned(),
+            method: "chat.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "main",
+                "message": "stop target",
+                "idempotencyKey": "chat-run-stop-target"
+            }),
+        };
+        let out = dispatcher.handle_request(&send_stop_target).await;
+        assert!(matches!(out, RpcDispatchOutcome::Handled(_)));
+
+        let send_stop = RpcRequestFrame {
+            id: "req-chat-send-stop".to_owned(),
+            method: "chat.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "main",
+                "message": "/stop",
+                "idempotencyKey": "chat-stop"
+            }),
+        };
+        match dispatcher.handle_request(&send_stop).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload.pointer("/ok").and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/aborted")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                let run_ids = payload
+                    .pointer("/runIds")
+                    .and_then(serde_json::Value::as_array)
+                    .expect("run ids");
+                let ids = run_ids
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .collect::<Vec<_>>();
+                assert!(ids.contains(&"chat-run-stop-target"));
+            }
+            _ => panic!("expected chat.send stop-command abort response"),
         }
 
         let send_batch_a = RpcRequestFrame {
