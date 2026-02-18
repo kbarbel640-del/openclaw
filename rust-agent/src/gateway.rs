@@ -1408,43 +1408,66 @@ impl RpcDispatcher {
             Ok(value) => value,
             Err(err) => return RpcDispatchOutcome::bad_request(err),
         };
-        let message = normalize_optional_text(Some(sanitized_message), 12_000);
         let has_attachments = params
             .attachments
             .as_ref()
             .map(|value| !value.is_empty())
             .unwrap_or(false);
+        let message = normalize_optional_text(Some(sanitized_message.clone()), 12_000);
         if message.is_none() && !has_attachments {
             return RpcDispatchOutcome::bad_request("invalid agent params: message is required");
         }
+        let reset_command = if has_attachments {
+            None
+        } else {
+            parse_agent_reset_command(&sanitized_message)
+        };
         let channel = normalize_optional_text(params.reply_channel.or(params.channel), 128);
         let to = normalize_optional_text(params.reply_to.or(params.to), 256);
         let account_id =
             normalize_optional_text(params.reply_account_id.or(params.account_id), 128);
-        let stored_message = message.or_else(|| has_attachments.then(|| "[attachment]".to_owned()));
-        let _ = self
-            .sessions
-            .record_send(SessionSend {
-                session_key,
-                request_id: Some(run_id.clone()),
-                message: stored_message,
-                command: None,
-                source: "agent".to_owned(),
-                channel,
-                to,
-                account_id,
-            })
-            .await;
+        let mut reset_payload = None;
+        let stored_message = if let Some((reason, followup_message)) = reset_command {
+            let reset = self.sessions.reset(&session_key, reason.to_owned()).await;
+            reset_payload = Some(json!({
+                "key": session_key.clone(),
+                "reason": reason,
+                "sessionId": reset.session.session_id
+            }));
+            followup_message.and_then(|value| normalize_optional_text(Some(value), 12_000))
+        } else {
+            message
+        }
+        .or_else(|| has_attachments.then(|| "[attachment]".to_owned()));
+        if stored_message.is_some() {
+            let _ = self
+                .sessions
+                .record_send(SessionSend {
+                    session_key,
+                    request_id: Some(run_id.clone()),
+                    message: stored_message,
+                    command: None,
+                    source: "agent".to_owned(),
+                    channel,
+                    to,
+                    account_id,
+                })
+                .await;
+        }
         let agent_runs = self.agent_runs.clone();
         let complete_run_id = run_id.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(AGENT_RUN_COMPLETE_DELAY_MS)).await;
             agent_runs.complete_ok(complete_run_id).await;
         });
-        RpcDispatchOutcome::Handled(json!({
+        let mut payload = json!({
             "runId": run_id,
             "status": "started"
-        }))
+        });
+        if let Some(reset) = reset_payload {
+            payload["reset"] = reset;
+        }
+        RpcDispatchOutcome::Handled(payload)
     }
 
     async fn handle_agent_identity_get(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
@@ -11863,6 +11886,31 @@ fn sanitize_chat_send_message_input(message: &str) -> Result<String, String> {
     Ok(strip_disallowed_chat_control_chars(&normalized))
 }
 
+fn parse_agent_reset_command(message: &str) -> Option<(&'static str, Option<String>)> {
+    let trimmed = message.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let (reason, prefix_len) = if lower.starts_with("/new") {
+        ("new", 4usize)
+    } else if lower.starts_with("/reset") {
+        ("reset", 6usize)
+    } else {
+        return None;
+    };
+    if trimmed.len() > prefix_len {
+        let separator = *trimmed.as_bytes().get(prefix_len)?;
+        if !separator.is_ascii_whitespace() {
+            return None;
+        }
+    }
+    let tail = trimmed[prefix_len..].trim();
+    let followup_message = if tail.is_empty() {
+        None
+    } else {
+        Some(tail.to_owned())
+    };
+    Some((reason, followup_message))
+}
+
 fn is_chat_stop_command_text(text: &str) -> bool {
     let trimmed = text.trim();
     if trimmed.is_empty() {
@@ -15196,6 +15244,110 @@ mod tests {
                 );
             }
             _ => panic!("expected agent.wait handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_agent_reset_command_rotates_session_and_keeps_followup() {
+        let dispatcher = RpcDispatcher::new();
+        let session_key = "agent:main:discord:group:g-agent-reset";
+
+        let seed = RpcRequestFrame {
+            id: "req-agent-reset-seed".to_owned(),
+            method: "sessions.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key,
+                "message": "before reset"
+            }),
+        };
+        let _ = dispatcher.handle_request(&seed).await;
+
+        let status_before = RpcRequestFrame {
+            id: "req-agent-reset-status-before".to_owned(),
+            method: "session.status".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key
+            }),
+        };
+        let previous_session_id = match dispatcher.handle_request(&status_before).await {
+            RpcDispatchOutcome::Handled(payload) => payload
+                .pointer("/session/sessionId")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .expect("missing previous session id"),
+            _ => panic!("expected session.status before reset"),
+        };
+
+        let reset = RpcRequestFrame {
+            id: "req-agent-reset".to_owned(),
+            method: "agent".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key,
+                "message": "/new hello after reset",
+                "idempotencyKey": "run-agent-reset-1"
+            }),
+        };
+        let reset_session_id = match dispatcher.handle_request(&reset).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/status")
+                        .and_then(serde_json::Value::as_str),
+                    Some("started")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/reset/reason")
+                        .and_then(serde_json::Value::as_str),
+                    Some("new")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/reset/key")
+                        .and_then(serde_json::Value::as_str),
+                    Some(session_key)
+                );
+                payload
+                    .pointer("/reset/sessionId")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .expect("missing reset session id")
+            }
+            _ => panic!("expected agent reset command handled"),
+        };
+
+        assert_ne!(previous_session_id, reset_session_id);
+
+        let history = RpcRequestFrame {
+            id: "req-agent-reset-history".to_owned(),
+            method: "sessions.history".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key,
+                "limit": 10
+            }),
+        };
+        match dispatcher.handle_request(&history).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/history/0/text")
+                        .and_then(serde_json::Value::as_str),
+                    Some("hello after reset")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/history/0/source")
+                        .and_then(serde_json::Value::as_str),
+                    Some("agent")
+                );
+            }
+            _ => panic!("expected reset history snapshot"),
         }
     }
 
