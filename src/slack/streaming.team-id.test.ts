@@ -19,7 +19,7 @@ const { startSlackStream } = await import("./streaming.js");
 
 describe("startSlackStream multi-workspace support (#19791)", () => {
   it("passes recipient_team_id and recipient_user_id to chatStream", async () => {
-    const client = { chatStream: mockChatStream } as Pick<WebClient, "chatStream">;
+    const client = { chatStream: mockChatStream } as unknown as WebClient;
 
     await startSlackStream({
       client,
@@ -39,7 +39,7 @@ describe("startSlackStream multi-workspace support (#19791)", () => {
 
   it("omits recipient fields when not provided (DM case)", async () => {
     mockChatStream.mockClear();
-    const client = { chatStream: mockChatStream } as Pick<WebClient, "chatStream">;
+    const client = { chatStream: mockChatStream } as unknown as WebClient;
 
     await startSlackStream({
       client,
@@ -55,7 +55,7 @@ describe("startSlackStream multi-workspace support (#19791)", () => {
 
   it("includes recipient_team_id without recipient_user_id", async () => {
     mockChatStream.mockClear();
-    const client = { chatStream: mockChatStream } as Pick<WebClient, "chatStream">;
+    const client = { chatStream: mockChatStream } as unknown as WebClient;
 
     await startSlackStream({
       client,
