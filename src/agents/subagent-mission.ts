@@ -1,11 +1,13 @@
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import { existsSync } from "node:fs";
+import { appendFile, mkdir } from "node:fs/promises";
+import path from "node:path";
 import { loadConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
 import { parseAgentSessionKey } from "../routing/session-key.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
-import { resolveAgentConfig } from "./agent-scope.js";
+import { resolveAgentConfig, resolveAgentWorkspaceDir } from "./agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "./lanes.js";
 import {
   buildSubagentSystemPrompt,
@@ -52,7 +54,7 @@ export type SubtaskRecord = {
   retryCount: number;
   maxRetries: number;
   loopCount: number;
-  maxLoops: number;
+  maxLoops?: number;
   loopHistory: string[];
   startedAt?: number;
   endedAt?: number;
@@ -442,8 +444,9 @@ async function retrySubtask(mission: MissionRecord, subtask: SubtaskRecord): Pro
 // ---------------------------------------------------------------------------
 
 function shouldLoopSubtask(mission: MissionRecord, subtask: SubtaskRecord): boolean {
-  if (subtask.maxLoops === 0) return false;
-  if (subtask.loopCount >= subtask.maxLoops) return false;
+  // maxLoops semantics: undefined = no looping, 0 = unlimited (LOOP_DONE only), >0 = cap
+  if (subtask.maxLoops == null) return false;
+  if (subtask.maxLoops > 0 && subtask.loopCount >= subtask.maxLoops) return false;
   if (mission.totalSpawns >= mission.maxTotalSpawns) return false;
   // Early-exit sentinel: agent signals completion.
   // Anchor to last 200 chars to avoid false positives from mid-output mentions
@@ -463,7 +466,11 @@ async function loopSubtask(mission: MissionRecord, subtask: SubtaskRecord): Prom
   const lastResult = subtask.loopHistory[subtask.loopHistory.length - 1];
   const priorCount = subtask.loopHistory.length - 1; // iterations before the last one
 
-  const contextLines: string[] = [`# Loop Iteration ${subtask.loopCount}/${subtask.maxLoops}`, ""];
+  const loopLabel =
+    subtask.maxLoops != null && subtask.maxLoops > 0
+      ? `${subtask.loopCount}/${subtask.maxLoops}`
+      : `${subtask.loopCount}`;
+  const contextLines: string[] = [`# Loop Iteration ${loopLabel}`, ""];
 
   if (priorCount > 0) {
     contextLines.push(
@@ -487,7 +494,8 @@ async function loopSubtask(mission: MissionRecord, subtask: SubtaskRecord): Prom
     "Review the most recent iteration result above, then continue where it left off.",
   );
 
-  const isFinalIteration = subtask.loopCount >= subtask.maxLoops;
+  const isFinalIteration =
+    subtask.maxLoops != null && subtask.maxLoops > 0 && subtask.loopCount >= subtask.maxLoops;
   if (isFinalIteration) {
     contextLines.push(
       "",
@@ -550,12 +558,12 @@ async function loopSubtask(mission: MissionRecord, subtask: SubtaskRecord): Prom
   mission.totalSpawns++;
 
   const requesterOrigin = normalizeDeliveryContext(mission.requesterOrigin);
-  const loopLabel = `${mission.label}/${subtask.id} (loop ${subtask.loopCount}/${subtask.maxLoops})`;
+  const spawnLabel = `${mission.label}/${subtask.id} (loop ${loopLabel})`;
   const childSystemPrompt = buildSubagentSystemPrompt({
     requesterSessionKey: mission.requesterSessionKey,
     requesterOrigin,
     childSessionKey,
-    label: loopLabel,
+    label: spawnLabel,
     task: taskWithContext,
   });
 
@@ -610,7 +618,7 @@ async function loopSubtask(mission: MissionRecord, subtask: SubtaskRecord): Prom
   persistMissions();
 
   console.log(
-    `[RALPH-WIGGUM-LOOP] 🔁 Loop ${subtask.loopCount}/${subtask.maxLoops} for subtask "${subtask.id}" (agent: ${subtask.agentId}) in mission ${mission.missionId.slice(0, 8)}...`,
+    `[RALPH-WIGGUM-LOOP] 🔁 Loop ${loopLabel} for subtask "${subtask.id}" (agent: ${subtask.agentId}) in mission ${mission.missionId.slice(0, 8)}...`,
   );
 }
 
@@ -719,6 +727,51 @@ function checkMissionCompletion(mission: MissionRecord) {
   persistMissions();
 
   updateMissionStatusInOms(mission.missionId, mission.status);
+
+  // Append mission summary to requester agent's tier 0 daily note
+  void (async () => {
+    try {
+      const cfg = loadConfig();
+      const parsed = parseAgentSessionKey(mission.requesterSessionKey);
+      const requesterId = parsed?.agentId ?? "main";
+      const workspaceDir = resolveAgentWorkspaceDir(cfg, requesterId);
+      const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Singapore" }); // YYYY-MM-DD in SGT
+      const memoryDir = path.join(workspaceDir, "memory");
+      await mkdir(memoryDir, { recursive: true });
+      const memoryPath = path.join(memoryDir, `${today}.md`);
+      const time = new Date().toLocaleTimeString("en-SG", {
+        timeZone: "Asia/Singapore",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const statusIcon =
+        mission.status === "completed"
+          ? "[OK]"
+          : mission.status === "partial"
+            ? "[PARTIAL]"
+            : "[FAIL]";
+      const subtaskLines: string[] = [];
+      for (const id of mission.executionOrder) {
+        const st = mission.subtasks.get(id);
+        if (!st) continue;
+        const stIcon = st.status === "ok" ? "OK" : st.status === "error" ? "FAIL" : "SKIP";
+        const preview = (st.result ?? st.outcome?.error ?? "").slice(0, 150).replace(/\n/g, " ");
+        subtaskLines.push(`- ${stIcon} **${id}** (${st.agentId}): ${preview || "(no output)"}`);
+      }
+      const memEntry = [
+        `\n## ${time} — ${statusIcon} Mission: ${mission.label}`,
+        "",
+        `**Mission:** ${mission.missionId.slice(0, 8)}`,
+        "",
+        ...subtaskLines,
+        "",
+      ].join("\n");
+      await appendFile(memoryPath, memEntry, "utf-8");
+    } catch {
+      // Never block mission completion on memory write
+    }
+  })();
 
   if (!mission.announced) {
     void announceMissionResult(mission);
@@ -842,6 +895,44 @@ async function handleSubtaskCompletion(
       // Proceed without result text
     }
 
+    // Append result to agent's tier 0 daily memory note (real-time, no LLM).
+    // Capture values synchronously before the first await — loopSubtask() clears
+    // subtask.result after pushing it to loopHistory, so reading it after an
+    // await would race and produce "(no result captured)".
+    {
+      const capturedResult = subtask.result ?? "(no result captured)";
+      const capturedAgentId = subtask.agentId;
+      const capturedSubtaskId = subtask.id;
+      const capturedLabel = mission.label;
+      void (async () => {
+        try {
+          const cfg = loadConfig();
+          const workspaceDir = resolveAgentWorkspaceDir(cfg, capturedAgentId);
+          const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Singapore" }); // YYYY-MM-DD in SGT
+          const memoryDir = path.join(workspaceDir, "memory");
+          await mkdir(memoryDir, { recursive: true });
+          const memoryPath = path.join(memoryDir, `${today}.md`);
+          const time = new Date().toLocaleTimeString("en-SG", {
+            timeZone: "Asia/Singapore",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+          const memEntry = [
+            `\n## ${time} — ${capturedLabel}`,
+            "",
+            `**Subtask:** ${capturedSubtaskId}`,
+            "",
+            capturedResult,
+            "",
+          ].join("\n");
+          await appendFile(memoryPath, memEntry, "utf-8");
+        } catch {
+          // Never block mission completion on memory write
+        }
+      })();
+    }
+
     // Ralph Wiggum loop check: if looping is enabled and not done, spawn next iteration
     if (shouldLoopSubtask(mission, subtask)) {
       await loopSubtask(mission, subtask);
@@ -899,7 +990,7 @@ export function createMission(params: {
       retryCount: 0,
       maxRetries: agentConfig?.maxRetries ?? 0,
       loopCount: 0,
-      maxLoops: input.maxLoops ?? 1,
+      maxLoops: input.maxLoops,
       loopHistory: [],
     });
   }
@@ -917,7 +1008,12 @@ export function createMission(params: {
     totalSpawns: 0,
     maxTotalSpawns:
       params.maxTotalSpawns ??
-      (params.subtasks.length + params.subtasks.reduce((sum, s) => sum + (s.maxLoops ?? 0), 0)) * 3,
+      (() => {
+        const hasUnlimited = params.subtasks.some((s) => s.maxLoops === 0);
+        if (hasUnlimited) return 999; // Unlimited loops — generous budget, LOOP_DONE is the real exit
+        const loopSlots = params.subtasks.reduce((sum, s) => sum + (s.maxLoops ?? 0), 0);
+        return (params.subtasks.length + loopSlots) * 3;
+      })(),
     announced: false,
     cleanup: params.cleanup ?? "keep",
   };
@@ -1044,9 +1140,7 @@ export function resetMissionSystemForTests() {
  * Used by the write-tool hook to detect if the current session is a mission
  * subtask, so it can auto-prepend existing file content (append mode).
  */
-export function findSubtaskBySessionKey(
-  childSessionKey: string,
-): SubtaskRecord | undefined {
+export function findSubtaskBySessionKey(childSessionKey: string): SubtaskRecord | undefined {
   for (const mission of missions.values()) {
     for (const subtask of mission.subtasks.values()) {
       if (subtask.childSessionKey === childSessionKey) {

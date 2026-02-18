@@ -37,9 +37,8 @@ const SessionsMissionToolSchema = Type.Object({
       maxLoops: Type.Optional(
         Type.Integer({
           minimum: 0,
-          maximum: 10,
           description:
-            "Max loop iterations (0 = disabled, max 10). Loop runs until LOOP_DONE in output or maxLoops reached.",
+            "Loop iterations: 0 = unlimited (runs until LOOP_DONE), >0 = cap at N iterations. Omit to disable looping.",
         }),
       ),
     }),
@@ -57,16 +56,15 @@ const ProxyMissionSchema = Type.Object({
       id: Type.String(),
       agentId: Type.String(),
       task: Type.String(),
-      maxLoops: Type.Optional(
-        Type.Integer({
-          minimum: 0,
-          maximum: 10,
-          description:
-            "Max loop iterations (0 = disabled, max 10). Loop runs until LOOP_DONE in output or maxLoops reached.",
-        }),
-      ),
     }),
     { minItems: 1 },
+  ),
+  maxLoops: Type.Optional(
+    Type.Integer({
+      minimum: 0,
+      description:
+        "Loop iterations for ALL subtasks: 0 = unlimited (runs until LOOP_DONE), >0 = cap at N iterations. Omit to disable looping.",
+    }),
   ),
 });
 
@@ -154,7 +152,7 @@ function validateMissionSubtasks(
       : undefined;
     const maxLoops =
       typeof entry.maxLoops === "number" && Number.isFinite(entry.maxLoops) && entry.maxLoops >= 0
-        ? Math.min(Math.floor(entry.maxLoops), 10)
+        ? Math.floor(entry.maxLoops)
         : undefined;
 
     if (!id || !agentId || !task) {
@@ -313,10 +311,25 @@ export function createSpawnSequentialMissionTool(opts?: MissionToolOpts): AnyAge
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const label = readStringParam(params, "label", { required: true });
+      const topLevelMaxLoops =
+        typeof params.maxLoops === "number" &&
+        Number.isFinite(params.maxLoops) &&
+        params.maxLoops >= 0
+          ? Math.floor(params.maxLoops)
+          : undefined;
 
       const rawSubtasks = params.subtasks;
       if (!Array.isArray(rawSubtasks) || rawSubtasks.length === 0) {
         return jsonResult({ status: "error", error: "subtasks required" });
+      }
+
+      // Apply top-level maxLoops to each subtask that doesn't already have one
+      if (topLevelMaxLoops !== undefined) {
+        for (const raw of rawSubtasks) {
+          if (raw && typeof raw === "object" && !("maxLoops" in raw)) {
+            (raw as Record<string, unknown>).maxLoops = topLevelMaxLoops;
+          }
+        }
       }
 
       const validated = validateMissionSubtasks(rawSubtasks, opts);
@@ -371,10 +384,25 @@ export function createSpawnParallelMissionTool(opts?: MissionToolOpts): AnyAgent
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const label = readStringParam(params, "label", { required: true });
+      const topLevelMaxLoops =
+        typeof params.maxLoops === "number" &&
+        Number.isFinite(params.maxLoops) &&
+        params.maxLoops >= 0
+          ? Math.floor(params.maxLoops)
+          : undefined;
 
       const rawSubtasks = params.subtasks;
       if (!Array.isArray(rawSubtasks) || rawSubtasks.length === 0) {
         return jsonResult({ status: "error", error: "subtasks required" });
+      }
+
+      // Apply top-level maxLoops to each subtask that doesn't already have one
+      if (topLevelMaxLoops !== undefined) {
+        for (const raw of rawSubtasks) {
+          if (raw && typeof raw === "object" && !("maxLoops" in raw)) {
+            (raw as Record<string, unknown>).maxLoops = topLevelMaxLoops;
+          }
+        }
       }
 
       const validated = validateMissionSubtasks(rawSubtasks, opts);
