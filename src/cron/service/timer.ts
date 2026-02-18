@@ -244,7 +244,8 @@ export async function onTimer(state: CronServiceState) {
       emit(state, { jobId: job.id, action: "started", runAtMs: startedAt });
 
       const configuredTimeoutMs =
-        job.payload.kind === "agentTurn" && typeof job.payload.timeoutSeconds === "number"
+        (job.payload.kind === "agentTurn" || job.payload.kind === "directCommand") &&
+        typeof job.payload.timeoutSeconds === "number"
           ? Math.floor(job.payload.timeoutSeconds * 1_000)
           : undefined;
       const jobTimeoutMs =
