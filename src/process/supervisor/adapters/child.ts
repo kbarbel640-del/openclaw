@@ -62,12 +62,14 @@ export async function createChildAdapter(params: {
   const spawned = await spawnWithFallback({
     argv: resolvedArgv,
     options,
-    fallbacks: [
-      {
-        label: "no-detach",
-        options: { detached: false },
-      },
-    ],
+    fallbacks: options.detached
+      ? [
+          {
+            label: "no-detach",
+            options: { detached: false },
+          },
+        ]
+      : [],
   });
 
   const child = spawned.child as ChildProcessWithoutNullStreams;
