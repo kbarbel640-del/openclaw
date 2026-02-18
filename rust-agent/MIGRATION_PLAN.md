@@ -49,6 +49,7 @@
 - Tightened `sessions.reset`/`sessions.compact` input parity (`reason` limited to `new|reset`, `maxLines >= 1`, compact default window 400).
 - Tightened `sessions.patch.sendPolicy` parity to upstream schema (`allow|deny|null` only).
 - Added `sessions.list` delivery-context parity hints (`lastAccountId`, `deliveryContext`) and `totalTokensFresh` compatibility fields.
+- Added `sessions.history` parity lookups for both `key` aliases and `sessionId`.
 - Rust defender policy engine with bounded worker concurrency.
 - Prompt injection scoring + command risk scoring.
 - Host integrity baseline checks.

@@ -895,12 +895,29 @@ impl RpcDispatcher {
             Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
         };
 
-        let session_key = match params.session_key {
-            Some(v) if canonicalize_session_key(&v).is_empty() => {
-                return RpcDispatchOutcome::bad_request("sessionKey cannot be empty");
+        let session_key = match params
+            .session_key
+            .or(params.key)
+            .map(|value| canonicalize_session_key(&value))
+        {
+            Some(value) if value.is_empty() => {
+                return RpcDispatchOutcome::bad_request("sessionKey|key cannot be empty");
             }
-            Some(v) => Some(canonicalize_session_key(&v)),
-            None => None,
+            Some(value) => Some(value),
+            None => {
+                if let Some(session_id) = params
+                    .session_id
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty())
+                {
+                    let Some(resolved) = self.sessions.resolve_session_id(&session_id).await else {
+                        return RpcDispatchOutcome::not_found("session not found");
+                    };
+                    Some(resolved)
+                } else {
+                    None
+                }
+            }
         };
 
         let history = self
@@ -2312,6 +2329,9 @@ struct SessionsUsageLogsParams {
 struct SessionsHistoryParams {
     #[serde(rename = "sessionKey", alias = "session_key")]
     session_key: Option<String>,
+    key: Option<String>,
+    #[serde(rename = "sessionId", alias = "session_id")]
+    session_id: Option<String>,
     limit: Option<usize>,
 }
 
@@ -3267,6 +3287,90 @@ mod tests {
             }
             _ => panic!("expected handled history"),
         }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_history_supports_key_alias_and_session_id() {
+        let dispatcher = RpcDispatcher::new();
+        let session_key = "agent:main:discord:group:g-history-id";
+        let send = RpcRequestFrame {
+            id: "req-send-history-id".to_owned(),
+            method: "sessions.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key,
+                "message": "hello from history id"
+            }),
+        };
+        let _ = dispatcher.handle_request(&send).await;
+
+        let status = RpcRequestFrame {
+            id: "req-status-history-id".to_owned(),
+            method: "session.status".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key
+            }),
+        };
+        let session_id = match dispatcher.handle_request(&status).await {
+            RpcDispatchOutcome::Handled(payload) => payload
+                .pointer("/session/sessionId")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .expect("missing session id"),
+            _ => panic!("expected status handled"),
+        };
+
+        let history_by_key = RpcRequestFrame {
+            id: "req-history-by-key".to_owned(),
+            method: "sessions.history".to_owned(),
+            params: serde_json::json!({
+                "key": "discord:group:g-history-id",
+                "limit": 5
+            }),
+        };
+        let out = dispatcher.handle_request(&history_by_key).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/history/0/sessionKey")
+                        .and_then(serde_json::Value::as_str),
+                    Some(session_key)
+                );
+            }
+            _ => panic!("expected history by key handled"),
+        }
+
+        let history_by_session_id = RpcRequestFrame {
+            id: "req-history-by-session-id".to_owned(),
+            method: "sessions.history".to_owned(),
+            params: serde_json::json!({
+                "sessionId": session_id,
+                "limit": 5
+            }),
+        };
+        let out = dispatcher.handle_request(&history_by_session_id).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/history/0/sessionKey")
+                        .and_then(serde_json::Value::as_str),
+                    Some(session_key)
+                );
+            }
+            _ => panic!("expected history by session id handled"),
+        }
+
+        let missing = RpcRequestFrame {
+            id: "req-history-missing-session-id".to_owned(),
+            method: "sessions.history".to_owned(),
+            params: serde_json::json!({
+                "sessionId": "sess-missing",
+                "limit": 5
+            }),
+        };
+        let out = dispatcher.handle_request(&missing).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 404, .. }));
     }
 
     #[tokio::test]
