@@ -44,6 +44,10 @@
       "types": "./dist/plugin-sdk/account-id.d.ts",
       "default": "./dist/plugin-sdk/account-id.js"
     },
+    "./security/secret-equal": {
+      "types": "./dist/security/secret-equal.d.ts",
+      "default": "./dist/security/secret-equal.js"
+    },
     "./cli-entry": "./openclaw.mjs"
   },
   "scripts": {

@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import {
@@ -323,18 +323,18 @@ function normalizeAuthToken(raw: string): string {
   return value;
 }
 
+/** Constant-time comparison via double-HMAC (eliminates length-based timing leak). */
 function safeEqualSecret(aRaw: string, bRaw: string): boolean {
   const a = normalizeAuthToken(aRaw);
   const b = normalizeAuthToken(bRaw);
   if (!a || !b) {
     return false;
   }
-  const bufA = Buffer.from(a, "utf8");
-  const bufB = Buffer.from(b, "utf8");
-  if (bufA.length !== bufB.length) {
-    return false;
-  }
-  return timingSafeEqual(bufA, bufB);
+  const key = randomBytes(32);
+  return timingSafeEqual(
+    createHmac("sha256", key).update(a).digest(),
+    createHmac("sha256", key).update(b).digest(),
+  );
 }
 
 function getHostName(hostHeader?: string | string[]): string {
@@ -469,13 +469,15 @@ export async function handleBlueBubblesWebhookRequest(
 
   const strictMatches: WebhookTarget[] = [];
   const passwordlessTargets: WebhookTarget[] = [];
+  // Pre-normalize the loop-invariant guid once outside the loop.
+  const guidNorm = normalizeAuthToken(guid);
   for (const target of targets) {
     const token = target.account.config.password?.trim() ?? "";
     if (!token) {
       passwordlessTargets.push(target);
       continue;
     }
-    if (safeEqualSecret(guid, token)) {
+    if (safeEqualSecret(guidNorm, token)) {
       strictMatches.push(target);
       if (strictMatches.length > 1) {
         break;
