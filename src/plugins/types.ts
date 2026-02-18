@@ -377,8 +377,9 @@ export type PluginHookLlmInputEvent = {
 export type PluginHookLlmInputResult = {
   /** Modified prompt text. If set, replaces the original prompt. */
   prompt?: string;
-  /** Modified system prompt. If set, replaces the original system prompt. */
-  systemPrompt?: string;
+  // Note: systemPrompt modification is not yet supported — the system prompt
+  // is finalised earlier in the pipeline. Will be added when late-stage
+  // system prompt overrides are plumbed through.
 };
 
 // llm_output hook

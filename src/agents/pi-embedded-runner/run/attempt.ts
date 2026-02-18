@@ -1015,7 +1015,7 @@ export async function runEmbeddedAttempt(
             );
           }
 
-          // Run llm_input hook — plugins may modify prompt/systemPrompt
+          // Run llm_input hook — plugins may modify the user prompt
           if (hookRunner?.hasHooks("llm_input")) {
             try {
               const llmInputResult = await hookRunner.runLlmInput(

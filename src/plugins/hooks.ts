@@ -283,7 +283,7 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
   /**
    * Run llm_input hook.
    * Allows plugins to observe or modify the input payload sent to the LLM.
-   * Plugins can return `{ prompt, systemPrompt }` to transform the input,
+   * Plugins can return `{ prompt }` to transform the input,
    * or return void/undefined for observation-only (backward compatible).
    */
   async function runLlmInput(
@@ -296,7 +296,6 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
       ctx,
       (acc, next) => ({
         prompt: next.prompt ?? acc?.prompt,
-        systemPrompt: next.systemPrompt ?? acc?.systemPrompt,
       }),
     );
   }
