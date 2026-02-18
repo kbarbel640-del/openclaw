@@ -261,7 +261,8 @@ export const registerTelegramHandlers = ({
       const storeAllowFrom = await loadStoreAllowFrom();
       await processMessage(primaryEntry.ctx, allMedia, storeAllowFrom);
     } catch (err) {
-      runtime.error?.(danger(`media group handler failed: ${String(err)}`));
+      const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);
+      runtime.error?.(danger(`media group handler failed: ${msg}`));
     }
   };
 
