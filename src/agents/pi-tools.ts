@@ -52,11 +52,7 @@ import {
   resolveToolProfilePolicy,
   stripPluginOnlyAllowlist,
 } from "./tool-policy.js";
-
-function isOpenAIProvider(provider?: string) {
-  const normalized = provider?.trim().toLowerCase();
-  return normalized === "openai" || normalized === "openai-codex";
-}
+import { resolveProviderCapabilities } from "./provider-capabilities.js";
 
 function isApplyPatchAllowedForModel(params: {
   modelProvider?: string;
@@ -238,7 +234,7 @@ export function createOpenClawCodingTools(options?: {
   const applyPatchConfig = options?.config?.tools?.exec?.applyPatch;
   const applyPatchEnabled =
     !!applyPatchConfig?.enabled &&
-    isOpenAIProvider(options?.modelProvider) &&
+    resolveProviderCapabilities({ provider: options?.modelProvider }).supportsApplyPatch &&
     isApplyPatchAllowedForModel({
       modelProvider: options?.modelProvider,
       modelId: options?.modelId,

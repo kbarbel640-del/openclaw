@@ -165,6 +165,15 @@ export interface ProviderCapabilities {
 
   /** Whether the provider accepts synthetic tool-result messages in history. */
   allowSyntheticToolResults: boolean;
+
+  // ── Tool Availability ────────────────────────────────────────────────────────
+
+  /**
+   * Whether the provider supports the apply_patch tool.
+   * true only for OpenAI and OpenAI-Codex providers, which natively understand
+   * the unified-diff patch format used by that tool.
+   */
+  supportsApplyPatch: boolean;
 }
 
 // ── Resolver ─────────────────────────────────────────────────────────────────
@@ -292,6 +301,11 @@ export function resolveProviderCapabilities(params: {
   const sanitizeThoughtSignatures: ProviderCapabilities["sanitizeThoughtSignatures"] =
     !isOpenAi && isOpenRouterGemini ? { allowBase64Only: true, includeCamelCase: true } : null;
 
+  // ── Tool Availability ────────────────────────────────────────────────────
+  // apply_patch is only meaningful for OpenAI/OpenAI-Codex — other providers
+  // do not understand the unified-diff format it produces.
+  const supportsApplyPatch = provider === "openai" || provider === "openai-codex";
+
   return {
     // Prompt engineering
     reasoningFormat,
@@ -316,5 +330,6 @@ export function resolveProviderCapabilities(params: {
     validateGeminiTurns: !isOpenAi && isGoogle,
     validateAnthropicTurns: !isOpenAi && isAnthropic,
     allowSyntheticToolResults: !isOpenAi && (isGoogle || isAnthropic),
+    supportsApplyPatch,
   };
 }
