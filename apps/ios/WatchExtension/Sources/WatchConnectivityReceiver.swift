@@ -61,6 +61,21 @@ extension WatchConnectivityReceiver: WCSessionDelegate {
         }
     }
 
+    func session(
+        _: WCSession,
+        didReceiveMessage message: [String: Any],
+        replyHandler: @escaping ([String: Any]) -> Void)
+    {
+        guard let incoming = Self.parseNotificationPayload(message) else {
+            replyHandler(["ok": false])
+            return
+        }
+        Task { @MainActor in
+            self.store.consume(message: incoming, transport: "sendMessage")
+            replyHandler(["ok": true])
+        }
+    }
+
     func session(_: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
         guard let incoming = Self.parseNotificationPayload(userInfo) else { return }
         Task { @MainActor in

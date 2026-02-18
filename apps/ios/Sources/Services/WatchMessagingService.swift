@@ -92,13 +92,15 @@ final class WatchMessagingService: NSObject, WatchMessagingServicing, @unchecked
         ]
 
         if snapshot.reachable {
-            session.sendMessage(payload, replyHandler: nil) { error in
+            do {
+                try await self.sendReachableMessage(payload, with: session)
+                return WatchNotificationSendResult(
+                    deliveredImmediately: true,
+                    queuedForDelivery: false,
+                    transport: "sendMessage")
+            } catch {
                 Self.logger.error("watch sendMessage failed: \(error.localizedDescription, privacy: .public)")
             }
-            return WatchNotificationSendResult(
-                deliveredImmediately: true,
-                queuedForDelivery: false,
-                transport: "sendMessage")
         }
 
         _ = session.transferUserInfo(payload)
@@ -106,6 +108,16 @@ final class WatchMessagingService: NSObject, WatchMessagingServicing, @unchecked
             deliveredImmediately: false,
             queuedForDelivery: true,
             transport: "transferUserInfo")
+    }
+
+    private func sendReachableMessage(_ payload: [String: Any], with session: WCSession) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            session.sendMessage(payload, replyHandler: { _ in
+                continuation.resume()
+            }, errorHandler: { error in
+                continuation.resume(throwing: error)
+            })
+        }
     }
 
     private func ensureActivated() async {
