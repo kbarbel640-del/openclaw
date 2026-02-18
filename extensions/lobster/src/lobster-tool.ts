@@ -320,9 +320,9 @@ export function createLobsterTool(api: OpenClawPluginApi) {
       }
 
       // Resolve gateway URL and token for local tools like clawd.invoke
-      const gatewayPort = api.config.gateway?.port || 18789;
+      const gatewayPort = api.config.gateway?.port ?? 18789;
       const gatewayUrl = `ws://127.0.0.1:${gatewayPort}`;
-      const gatewayToken = api.config.gateway?.auth?.token || process.env.OPENCLAW_GATEWAY_TOKEN;
+      const gatewayToken = api.config.gateway?.auth?.token ?? process.env.OPENCLAW_GATEWAY_TOKEN;
 
       const { stdout } = await runLobsterSubprocess({
         execPath,
