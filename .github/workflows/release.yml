@@ -1,0 +1,87 @@
+name: Build and Release OpenClaw
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        registry-url: 'https://registry.npmjs.org'
+        
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 10.23.0
+        
+    - name: Install dependencies
+      run: pnpm install
+        
+    - name: Build OpenClaw
+      run: pnpm build
+        
+    - name: Build UI
+      run: pnpm ui:build
+        
+    - name: Create package
+      run: |
+        npm pack
+        ls -la *.tgz
+        
+    - name: Get version from package.json
+      id: get_version
+      run: |
+        VERSION=$(node -p "require('./package.json').version")
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ env.VERSION }}
+        release_name: OpenClaw ${{ env.VERSION }}
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./openclaw-${{ env.VERSION }}.tgz
+        asset_name: openclaw-${{ env.VERSION }}.tgz
+        asset_content_type: application/gzip
+        
+    - name: Update README with new release link
+      run: |
+        # Update README badges and links to point to this repository
+        sed -i "s|https://github.com/openclaw/openclaw/releases|https://github.com/mufengxue6/openclaw/releases|g" README.md
+        sed -i "s|https://img.shields.io/github/v/release/openclaw/openclaw|https://img.shields.io/github/v/release/mufengxue6/openclaw|g" README.md
+        
+    - name: Commit and push README changes
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        git add README.md
+        git commit -m "chore: update README release links for v${{ env.VERSION }}"
+        git push
