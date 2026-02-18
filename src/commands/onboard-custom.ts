@@ -45,7 +45,7 @@ function transformAzureUrl(baseUrl: string, modelId: string): string {
     const url = new URL(baseUrl);
     // Check if the URL already includes the deployment path
     if (url.pathname.includes("/openai/deployments/")) {
-      return baseUrl;
+      return url.toString();
     }
     // Append the deployment path
     const normalizedPath = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
