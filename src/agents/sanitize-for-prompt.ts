@@ -13,6 +13,9 @@
  * - This is intentionally lossy; it trades edge-case path fidelity for prompt integrity.
  * - If you need lossless representation, escape instead of stripping.
  */
-export function sanitizeForPromptLiteral(value: string): string {
+export function sanitizeForPromptLiteral(value: string | undefined | null): string {
+  if (!value) {
+    return "";
+  }
   return value.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, "");
 }
