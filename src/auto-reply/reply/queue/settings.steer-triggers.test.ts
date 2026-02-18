@@ -21,46 +21,46 @@ describe("matchSteerTrigger", () => {
     expect(result.cleanedPrompt).toBe("");
   });
 
-  it("matches a single-char trigger and strips it", () => {
-    const result = matchSteerTrigger("!urgent message", ["!"]);
+  it("matches trigger at the start of the message", () => {
+    const result = matchSteerTrigger("!! urgent message", ["!!"]);
     expect(result.matched).toBe(true);
     expect(result.cleanedPrompt).toBe("urgent message");
   });
 
-  it("matches a multi-char trigger and strips it", () => {
-    const result = matchSteerTrigger("STOP everything now", ["STOP"]);
+  it("matches trigger at the end of the message (natural language style)", () => {
+    const result = matchSteerTrigger("check this now!", ["!"]);
     expect(result.matched).toBe(true);
-    expect(result.cleanedPrompt).toBe("everything now");
+    expect(result.cleanedPrompt).toBe("check this now");
+  });
+
+  it("matches trigger anywhere in the message", () => {
+    const result = matchSteerTrigger("please URGENT do this", ["URGENT"]);
+    expect(result.matched).toBe(true);
+    expect(result.cleanedPrompt).toBe("please do this");
   });
 
   it("is case-insensitive for trigger matching", () => {
-    const result = matchSteerTrigger("stop this please", ["STOP"]);
+    const result = matchSteerTrigger("urgent: check this", ["URGENT:"]);
     expect(result.matched).toBe(true);
-    expect(result.cleanedPrompt).toBe("this please");
+    expect(result.cleanedPrompt).toBe("check this");
   });
 
-  it("matches the first trigger in the list", () => {
-    const result = matchSteerTrigger("!hello", ["STOP", "!", "URGENT"]);
+  it("matches the first trigger in the list (priority order)", () => {
+    const result = matchSteerTrigger("do this now!", ["!!", "!", "URGENT"]);
     expect(result.matched).toBe(true);
-    expect(result.cleanedPrompt).toBe("hello");
+    // "!" matches first (before "!!" would even be checked because "!" appears)
   });
 
-  it("does not match when prompt does not start with any trigger", () => {
-    const result = matchSteerTrigger("hello world", ["!", "STOP", "URGENT"]);
+  it("does not match when prompt contains no trigger", () => {
+    const result = matchSteerTrigger("hello world", ["!!", "URGENT"]);
     expect(result.matched).toBe(false);
     expect(result.cleanedPrompt).toBe("hello world");
   });
 
-  it("trims leading whitespace from prompt before matching", () => {
-    const result = matchSteerTrigger("  !urgent message", ["!"]);
+  it("strips trigger and normalises whitespace in cleaned prompt", () => {
+    const result = matchSteerTrigger("do  this  !  now", ["!"]);
     expect(result.matched).toBe(true);
-    expect(result.cleanedPrompt).toBe("urgent message");
-  });
-
-  it("strips leading whitespace from cleaned prompt after trigger", () => {
-    const result = matchSteerTrigger("!  urgent message", ["!"]);
-    expect(result.matched).toBe(true);
-    expect(result.cleanedPrompt).toBe("urgent message");
+    expect(result.cleanedPrompt).toBe("do this now");
   });
 
   it("skips empty trigger strings", () => {

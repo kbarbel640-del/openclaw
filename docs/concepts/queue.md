@@ -71,26 +71,39 @@ Defaults: `debounceMs: 1000`, `cap: 20`, `drop: summarize`.
 
 ## Per-message steer triggers
 
-You can configure a list of prefix strings that force `steer` mode for a single message,
-without changing the global or session queue mode. This is useful when you want `collect`
-as the default but need a quick way to interrupt an active run in exceptional cases.
+You can configure a list of strings that force `steer` mode for a single message whenever
+any of them appear **anywhere** in the message body. This is useful when you want `collect`
+as the default but need a quick way to interrupt an active run in exceptional cases without
+permanently changing the queue mode.
 
 ```json5
 {
   messages: {
     queue: {
-      mode: "collect",          // default for all messages
-      steerTriggers: ["!", "STOP", "URGENT"],  // prefix → one-shot steer
+      mode: "collect",                     // default for all other messages
+      steerTriggers: ["!", "URGENT"],      // anywhere in message → one-shot steer
     },
   },
 }
 ```
 
-When a message starts with a configured trigger (case-insensitive), OpenClaw:
+**Examples that would trigger steer with the config above:**
+
+- `"check this now!"` — trigger at the end (natural phrasing)
+- `"!! drop everything"` — trigger at the start
+- `"please URGENT: fix the outage"` — trigger in the middle
+
+When a message contains a configured trigger (case-insensitive), OpenClaw:
 
 1. Overrides the queue mode to `steer` **for that message only** — the session and global
    settings are not modified.
-2. Strips the trigger prefix from the message body before passing it to the agent.
+2. Strips the first occurrence of the trigger from the message body before passing it to
+   the agent, normalising any extra whitespace.
+
+> **Important:** Trigger matching runs **after** native command parsing. This avoids
+> collisions with built-in prefixes such as `!` (bash), `/` (slash commands), or the
+> native `stop` abort. If you use `!` as a trigger, prefix it with another character
+> (e.g. `"!!"`) to avoid the bash command interceptor.
 
 Priority (highest first): inline `/queue` directive → steer trigger → session override →
 `byChannel` config → global `mode` → default (`collect`).

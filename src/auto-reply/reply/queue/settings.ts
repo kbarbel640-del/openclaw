@@ -30,8 +30,15 @@ function resolvePluginDebounce(channelKey: string | undefined): number | undefin
 }
 
 /**
- * Check whether the prompt starts with any of the configured steer triggers.
- * The match is case-insensitive and the trigger is stripped from the returned prompt.
+ * Check whether the prompt contains any of the configured steer triggers (anywhere in the
+ * message, not just at the start). The match is case-insensitive and the trigger is stripped
+ * from the returned prompt.
+ *
+ * Designed to run **after** native command parsing so that reserved prefixes like `!` (bash),
+ * `/` (slash commands), or `stop` (abort) are already handled and won't collide.
+ *
+ * This allows natural phrasing such as "check this now!" where the trigger `!` appears at the
+ * end, or "URGENT: do X" where the keyword appears anywhere in the sentence.
  */
 export function matchSteerTrigger(
   prompt: string | undefined,
@@ -40,11 +47,16 @@ export function matchSteerTrigger(
   if (!prompt || !triggers || triggers.length === 0) {
     return { matched: false, cleanedPrompt: prompt ?? "" };
   }
-  const trimmed = prompt.trimStart();
+  const lower = prompt.toLowerCase();
   for (const trigger of triggers) {
     if (!trigger) continue;
-    if (trimmed.toLowerCase().startsWith(trigger.toLowerCase())) {
-      const cleanedPrompt = trimmed.slice(trigger.length).trimStart();
+    const triggerLower = trigger.toLowerCase();
+    const idx = lower.indexOf(triggerLower);
+    if (idx !== -1) {
+      // Strip the trigger (first occurrence) and normalise whitespace.
+      const cleanedPrompt = (prompt.slice(0, idx) + prompt.slice(idx + trigger.length))
+        .replace(/\s+/g, " ")
+        .trim();
       return { matched: true, cleanedPrompt };
     }
   }
