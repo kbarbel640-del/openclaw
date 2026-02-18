@@ -79,3 +79,26 @@ Ted Engine can (a) read limited email/calendar context and (b) create **drafts o
 ### Notes
 
 - Auth is intentionally not implemented yet (next_action: RUN_DEVICE_CODE_AUTH)
+
+---
+
+## Proof Evidence — Increment 2 (Auth + Secure Store)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc003.sh
+- Result: PASS (after ensuring sidecar was running)
+
+### What was proven
+
+- Sidecar health: /status and /doctor respond and are healthy
+- Graph status endpoints exist per profile:
+  - /graph/olumie/status schema checks pass
+  - /graph/everest/status schema checks pass
+- Device-code auth start endpoint exists and returns expected schema:
+  - POST /graph/olumie/auth/device/start includes verification_uri, user_code, device_code, expires_in
+- Sidecar-owned token scan gate passed (no plaintext token storage in sidecar repo surfaces)
+
+### Notes / Follow-ups
+
+- Improvement: update proof_jc003.sh to start/stop the sidecar automatically so proof is fully deterministic.
+- Device polling + real tenant consent is intentionally not required for this proof increment.
