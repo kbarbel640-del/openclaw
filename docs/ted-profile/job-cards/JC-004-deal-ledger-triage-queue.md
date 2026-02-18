@@ -105,3 +105,26 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
 ### Notes
 
 - docs/ted-profile/planning/ remains local scratch and is intentionally not committed.
+
+---
+
+## Proof Evidence (Increment 4 — Apply active patterns as suggestions on ingest)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc004.sh
+- Result: PASS
+
+### What was proven
+
+- POST /triage/ingest now evaluates ACTIVE patterns and applies suggestions (no auto-link):
+  - For SENDER_DOMAIN_TO_DEAL, extracts domain from source_ref (e.g., from:someone@example.com)
+  - Case-insensitive match against pattern.match.domain
+  - Sets suggested_deal_id from pattern.suggest.deal_id when matched
+- Suggested fields are persisted on the triage_item record (append-only JSONL)
+- /triage/list surfaces suggestion fields when present
+- /triage/ingest response may include suggestion fields (useful for operators and proofs)
+- Items remain OPEN until explicitly linked via /triage/:item_id/link (governance preserved)
+
+### Notes
+
+- docs/ted-profile/planning/ remains local scratch and intentionally not committed.
