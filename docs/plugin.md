@@ -51,9 +51,12 @@ See [Voice Call](/plugins/voice-call) for a concrete example plugin.
 
 ## Community plugins
 
+> **Note:** Community plugins are independently maintained and not officially
+> supported by the OpenClaw project. Use them at your own discretion.
+
 Community-contributed plugins that extend Moltbot:
 
-- **[ClawdBoost](https://github.com/NikeGunn/clawdboost)** — `clawdboost` — Smart context injection plugin. Automatically injects relevant context into AI conversations based on pattern matching and time-aware rules. Features include keyword triggers, time-based context (morning/evening, weekdays/weekends), CLI management (`moltbot cb`), and AI tool integration. [npm](https://www.npmjs.com/package/clawdboost) | [Quick Start](#clawdboost-quick-start)
+- **[ClawdBoost][clawdboost-repo]** — `clawdboost` — Smart context injection plugin. Automatically injects relevant context into AI conversations based on pattern matching and time-aware rules. Features include keyword triggers, time-based context (morning/evening, weekdays/weekends), CLI management (`moltbot cb`), and AI tool integration. [npm][clawdboost-npm] | [Quick Start](#clawdboost-quick-start)
 
 <details>
 <summary id="clawdboost-quick-start"><strong>ClawdBoost Quick Start</strong></summary>
@@ -84,6 +87,9 @@ moltbot cb add "Work Context" --content "I work at Acme Corp" --patterns "work,j
 </details>
 
 > Want your plugin listed? Open a PR adding it to this section!
+
+[clawdboost-repo]: https://github.com/NikeGunn/clawdboost
+[clawdboost-npm]: https://www.npmjs.com/package/clawdboost
 
 Moltbot plugins are **TypeScript modules** loaded at runtime via jiti. **Config
 validation does not execute plugin code**; it uses the plugin manifest and JSON
