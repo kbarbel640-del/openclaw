@@ -193,11 +193,12 @@ export function isTransientApiError(raw: string): boolean {
   if (info.type && TRANSIENT_API_ERROR_TYPES.has(info.type)) {
     return true;
   }
-  const msg = (info.message ?? "").toLowerCase();
+  const msg = (info.message ?? "").toLowerCase().trim();
   if (
     msg.includes("internal server error") ||
     msg.includes("service temporarily unavailable") ||
-    msg.includes("an error occurred")
+    msg === "an error occurred" ||
+    msg === "an unexpected error occurred"
   ) {
     return true;
   }
@@ -432,17 +433,18 @@ export function formatRawAssistantErrorForUi(raw?: string): string {
     return `The AI service is temporarily unavailable (HTTP ${leadingStatus.code}). Please try again in a moment.`;
   }
 
+  // Suppress transient server errors (500, api_error, etc.) — never expose raw details to users.
+  // Check before HTTP status formatting to ensure consistent suppression across code paths.
+  if (isTransientHttpError(trimmed) || isTransientApiError(trimmed)) {
+    return TRANSIENT_API_ERROR_MESSAGE;
+  }
+
   const httpMatch = trimmed.match(HTTP_STATUS_PREFIX_RE);
   if (httpMatch) {
     const rest = httpMatch[2].trim();
     if (!rest.startsWith("{")) {
       return `HTTP ${httpMatch[1]}: ${rest}`;
     }
-  }
-
-  // Suppress transient server errors (500, api_error, etc.) — never expose raw details to users
-  if (isTransientApiError(trimmed)) {
-    return TRANSIENT_API_ERROR_MESSAGE;
   }
 
   const info = parseApiErrorInfo(trimmed);

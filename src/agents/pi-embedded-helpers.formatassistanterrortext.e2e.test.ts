@@ -87,6 +87,39 @@ describe("formatAssistantErrorText", () => {
       "The AI service encountered a temporary error. Please try again in a moment.",
     );
   });
+  it("suppresses 'service temporarily unavailable' messages as transient errors", () => {
+    const msg = makeAssistantError(
+      '{"type":"error","error":{"type":"api_error","message":"Service temporarily unavailable"}}',
+    );
+    expect(formatAssistantErrorText(msg)).toBe(
+      "The AI service encountered a temporary error. Please try again in a moment.",
+    );
+  });
+  it("suppresses exact 'an error occurred' messages as transient errors", () => {
+    const msg = makeAssistantError(
+      '{"type":"error","error":{"type":"api_error","message":"An error occurred"}}',
+    );
+    expect(formatAssistantErrorText(msg)).toBe(
+      "The AI service encountered a temporary error. Please try again in a moment.",
+    );
+  });
+  it("does NOT suppress 'an error occurred' when part of a longer actionable message", () => {
+    const msg = makeAssistantError(
+      '{"type":"error","error":{"type":"invalid_request_error","message":"An error occurred while validating: missing field \'model\'"}}',
+    );
+    const result = formatAssistantErrorText(msg);
+    expect(result).not.toBe(
+      "The AI service encountered a temporary error. Please try again in a moment.",
+    );
+  });
+  it("uses httpCode fallback to treat 5xx API errors as transient", () => {
+    const msg = makeAssistantError(
+      '503 {"type":"error","error":{"type":"unknown_type","message":"Upstream failure"}}',
+    );
+    expect(formatAssistantErrorText(msg)).toBe(
+      "The AI service encountered a temporary error. Please try again in a moment.",
+    );
+  });
   it("returns a friendly billing message for credit balance errors", () => {
     const msg = makeAssistantError("Your credit balance is too low to access the Anthropic API.");
     const result = formatAssistantErrorText(msg);
@@ -142,10 +175,13 @@ describe("formatRawAssistantErrorForUi", () => {
     expect(formatRawAssistantErrorForUi("")).toContain("unknown error");
   });
 
-  it("formats plain HTTP status lines", () => {
+  it("suppresses plain transient HTTP 500 status lines", () => {
     expect(formatRawAssistantErrorForUi("500 Internal Server Error")).toBe(
-      "HTTP 500: Internal Server Error",
+      "The AI service encountered a temporary error. Please try again in a moment.",
     );
+  });
+  it("formats plain non-transient HTTP status lines", () => {
+    expect(formatRawAssistantErrorForUi("400 Bad Request")).toBe("HTTP 400: Bad Request");
   });
 
   it("sanitizes HTML error pages into a clean unavailable message", () => {
