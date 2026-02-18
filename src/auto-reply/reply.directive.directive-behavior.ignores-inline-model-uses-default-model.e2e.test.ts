@@ -86,22 +86,18 @@ describe("directive behavior", () => {
           SenderE164: "+1004",
         },
         {},
-        {
-          agents: {
-            defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
-              workspace: path.join(home, "openclaw"),
+        makeWhatsAppDirectiveConfig(
+          home,
+          { model: "anthropic/claude-opus-4-5" },
+          {
+            tools: {
+              elevated: {
+                enabled: true,
+                allowFrom: { whatsapp: ["+1004"] },
+              },
             },
           },
-          tools: {
-            elevated: {
-              enabled: true,
-              allowFrom: { whatsapp: ["+1004"] },
-            },
-          },
-          channels: { whatsapp: { allowFrom: ["*"] } },
-          session: { store: storePath },
-        },
+        ),
       );
 
       expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
@@ -116,14 +112,7 @@ describe("directive behavior", () => {
 
   it("respects explicit elevatedDefault=on when enabled and sender is approved", async () => {
     await withTempHome(async (home) => {
-      const storePath = path.join(home, "sessions.json");
-      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
-        payloads: [{ text: "done" }],
-        meta: {
-          durationMs: 5,
-          agentMeta: { sessionId: "s", provider: "p", model: "m" },
-        },
-      });
+      mockEmbeddedTextResult("done");
 
       await getReplyFromConfig(
         {
@@ -134,24 +123,13 @@ describe("directive behavior", () => {
           SenderE164: "+1004",
         },
         {},
-        {
-          agents: {
-            defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
-              workspace: path.join(home, "openclaw"),
-              elevatedDefault: "on",
-            },
-          },
-          tools: {
-            elevated: {
-              enabled: true,
-              allowFrom: { whatsapp: ["+1004"] },
         makeWhatsAppDirectiveConfig(
           home,
-          { model: { primary: "anthropic/claude-opus-4-5" } },
+          { model: "anthropic/claude-opus-4-5", elevatedDefault: "on" },
           {
             tools: {
               elevated: {
+                enabled: true,
                 allowFrom: { whatsapp: ["+1004"] },
               },
             },
