@@ -383,7 +383,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       })
     : undefined;
   const senderPresenceMetadata = discordConfig?.intents?.presence
-    ? buildDiscordPresenceMetadata(getPresence(accountId, senderId))
+    ? buildDiscordPresenceMetadata({ presence: getPresence(accountId, senderId) })
     : undefined;
   const untrustedContext = [untrustedChannelMetadata, senderPresenceMetadata].filter(
     (entry): entry is string => Boolean(entry),
