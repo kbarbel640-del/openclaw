@@ -423,8 +423,12 @@ describe("command queue", () => {
       });
 
       // Queue up more tasks behind the blocker (catch rejections from clearCommandLane).
-      const _t2Promise = enqueueCommandInLane("clear-test-lane", async () => "second").catch(() => {});
-      const _t3Promise = enqueueCommandInLane("clear-test-lane", async () => "third").catch(() => {});
+      const _t2Promise = enqueueCommandInLane("clear-test-lane", async () => "second").catch(
+        () => {},
+      );
+      const _t3Promise = enqueueCommandInLane("clear-test-lane", async () => "third").catch(
+        () => {},
+      );
 
       // Lane should show 3 total (1 active + 2 queued).
       expect(getQueueSize("clear-test-lane")).toBe(3);

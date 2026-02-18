@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { CommandLane } from "../../process/lanes.js";
 import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
 import { runCliAgent } from "../../agents/cli-runner.js";
 import { getCliSessionId } from "../../agents/cli-session.js";
@@ -23,6 +22,7 @@ import {
 } from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
 import { emitAgentEvent, registerAgentRunContext } from "../../infra/agent-events.js";
+import { CommandLane } from "../../process/lanes.js";
 import { defaultRuntime } from "../../runtime.js";
 import {
   isMarkdownCapableMessageChannel,
