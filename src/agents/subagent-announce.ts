@@ -140,6 +140,7 @@ async function sendAnnounce(item: AnnounceQueueItem) {
       idempotencyKey,
     },
     timeoutMs: 15_000,
+    retries: 3, // Announce delivery is critical; retry aggressively on transient WS failures
   });
 }
 
@@ -624,6 +625,7 @@ export async function runSubagentAnnounceFlow(params: {
       },
       expectFinal: true,
       timeoutMs: 15_000,
+      retries: 3, // Critical path: retry on transient WS 1006 closures
     });
 
     didAnnounce = true;
