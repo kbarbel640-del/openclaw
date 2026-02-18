@@ -229,6 +229,12 @@ const daedalusMemoryPlugin = {
               details: { id: params.id, trust_level: "red", already: true },
             };
           }
+          if (existing.trust_level === "blue") {
+            return {
+              content: [{ type: "text" as const, text: `Fact ${params.id} is [VERIFIED] (human-approved). Only the user can demote verified facts via 'daedalus reject ${params.id}'.` }],
+              details: { id: params.id, trust_level: "blue", protected: true },
+            };
+          }
           db.updateTrustLevel(params.id, "red", "human_reject", "agent");
           return {
             content: [
