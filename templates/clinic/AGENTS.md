@@ -35,7 +35,7 @@ Este workspace e o centro operacional da clinica. Trate com a seriedade que saud
 | Regras de mensagens      | `docs/guides/MESSAGING-RULES.md`     |
 | Protocolo handover       | `docs/guides/HANDOVER.md`            |
 | Guia de heartbeats       | `docs/guides/HEARTBEAT-GUIDE.md`     |
-| Protocolo de agendamento | `docs/guides/AGENDAMENTO-CLINICA.md` |
+| Protocolo de agendamento | See "Protocolo de Agendamento" section below |
 | Tarefas de heartbeat     | `HEARTBEAT.md`                       |
 
 ---
