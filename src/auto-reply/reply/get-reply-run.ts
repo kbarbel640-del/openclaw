@@ -324,6 +324,13 @@ export async function runPreparedReply(
         typing.cleanup();
         const triageText = buildTriagePrompt(heldMessages);
         const triagePayload: ReplyPayload = { text: triageText };
+        // Phase 3 (Issue #90): Discord inline buttons for triage
+        // When surface === "discord" && capabilities includes "inlineButtons":
+        //   send a follow-up Discord component message with "✅ Do All" / "⏭️ Skip All" buttons
+        //   via sendDiscordComponentMessage(). Buttons use buildCompactionTriageCustomId()
+        //   from src/discord/monitor/compaction-triage.ts, and on click they inject
+        //   COMPACTION_TRIAGE_EVENT_TEXT[action] ("do all" / "skip all") as a system event.
+        //   See: src/discord/monitor/compaction-triage.ts for full wiring instructions.
 
         // Route to DM if configured
         const compactionCfg = cfg?.agents?.defaults?.compaction;
