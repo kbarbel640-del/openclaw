@@ -1,9 +1,11 @@
+import type { DatabaseSync } from "node:sqlite";
+import chokidar, { FSWatcher } from "chokidar";
 import { randomUUID } from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { DatabaseSync } from "node:sqlite";
-import chokidar, { FSWatcher } from "chokidar";
+import type { SessionFileEntry } from "./session-files.js";
+import type { MemorySource, MemorySyncProgressUpdate } from "./types.js";
 import { resolveAgentDir } from "../agents/agent-scope.js";
 import { ResolvedMemorySearchConfig } from "../agents/memory-search.js";
 import { type OpenClawConfig } from "../config/config.js";
@@ -30,7 +32,6 @@ import {
 } from "./internal.js";
 import { type MemoryFileEntry } from "./internal.js";
 import { ensureMemoryIndexSchema } from "./memory-schema.js";
-import type { SessionFileEntry } from "./session-files.js";
 import {
   buildSessionEntry,
   listSessionFilesForAgent,
@@ -38,7 +39,6 @@ import {
 } from "./session-files.js";
 import { loadSqliteVecExtension } from "./sqlite-vec.js";
 import { requireNodeSqlite } from "./sqlite.js";
-import type { MemorySource, MemorySyncProgressUpdate } from "./types.js";
 
 type MemoryIndexMeta = {
   model: string;
@@ -297,7 +297,9 @@ export abstract class MemoryManagerSyncOps {
     } catch (err) {
       try {
         this.db.exec("ROLLBACK");
-      } catch {}
+      } catch {
+        // Best-effort: rollback failed, but we're throwing original error anyway
+      }
       throw err;
     }
   }
@@ -683,14 +685,18 @@ export abstract class MemoryManagerSyncOps {
             `DELETE FROM ${VECTOR_TABLE} WHERE id IN (SELECT id FROM chunks WHERE path = ? AND source = ?)`,
           )
           .run(stale.path, "memory");
-      } catch {}
+      } catch {
+        // Best-effort: continue with chunk deletion
+      }
       this.db.prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`).run(stale.path, "memory");
       if (this.fts.enabled && this.fts.available) {
         try {
           this.db
             .prepare(`DELETE FROM ${FTS_TABLE} WHERE path = ? AND source = ? AND model = ?`)
             .run(stale.path, "memory", this.provider.model);
-        } catch {}
+        } catch {
+          // Best-effort: FTS deletion failed, continue
+        }
       }
     }
   }
@@ -788,7 +794,9 @@ export abstract class MemoryManagerSyncOps {
             `DELETE FROM ${VECTOR_TABLE} WHERE id IN (SELECT id FROM chunks WHERE path = ? AND source = ?)`,
           )
           .run(stale.path, "sessions");
-      } catch {}
+      } catch {
+        // Best-effort: continue with chunk deletion
+      }
       this.db
         .prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`)
         .run(stale.path, "sessions");
@@ -797,7 +805,9 @@ export abstract class MemoryManagerSyncOps {
           this.db
             .prepare(`DELETE FROM ${FTS_TABLE} WHERE path = ? AND source = ? AND model = ?`)
             .run(stale.path, "sessions", this.provider.model);
-        } catch {}
+        } catch {
+          // Best-effort: FTS deletion failed, continue
+        }
       }
     }
   }
@@ -1076,7 +1086,9 @@ export abstract class MemoryManagerSyncOps {
     } catch (err) {
       try {
         this.db.close();
-      } catch {}
+      } catch {
+        // Best-effort: db may not be open
+      }
       await this.removeIndexFiles(tempDbPath);
       restoreOriginalState();
       throw err;
@@ -1134,7 +1146,9 @@ export abstract class MemoryManagerSyncOps {
     if (this.fts.enabled && this.fts.available) {
       try {
         this.db.exec(`DELETE FROM ${FTS_TABLE}`);
-      } catch {}
+      } catch {
+        // Best-effort: FTS table may not exist
+      }
     }
     this.dropVectorTable();
     this.vector.dims = undefined;

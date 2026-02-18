@@ -1,5 +1,5 @@
-import fs from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectMime } from "../media/mime.js";
@@ -82,7 +82,9 @@ export function injectCanvasLiveReload(html: string): string {
           return true;
         }
       }
-    } catch {}
+    } catch {
+      // Best-effort: Android postMessage may not be available
+    }
     return false;
   }
   function sendUserAction(userAction) {
@@ -104,7 +106,9 @@ export function injectCanvasLiveReload(html: string): string {
     ws.onmessage = (ev) => {
       if (String(ev.data || "") === "reload") location.reload();
     };
-  } catch {}
+  } catch {
+    // Best-effort: WebSocket for hot reload is optional
+  }
 })();
 </script>
 `.trim();

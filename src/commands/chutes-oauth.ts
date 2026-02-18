@@ -1,6 +1,6 @@
+import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
-import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ChutesOAuthAppConfig } from "../agents/chutes-oauth.js";
 import {
   CHUTES_AUTHORIZE_ENDPOINT,
@@ -147,7 +147,9 @@ async function waitForLocalCallback(params: {
     timeout = setTimeout(() => {
       try {
         server.close();
-      } catch {}
+      } catch {
+        // Best-effort: server may already be closed
+      }
       reject(new Error("OAuth callback timeout"));
     }, params.timeoutMs);
   });

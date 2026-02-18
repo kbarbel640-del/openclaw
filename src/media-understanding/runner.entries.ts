@@ -1,18 +1,25 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  collectProviderApiKeysForExecution,
-  executeWithApiKeyRotation,
-} from "../agents/api-key-rotation.js";
-import { requireApiKey, resolveApiKeyForProvider } from "../agents/model-auth.js";
 import type { MsgContext } from "../auto-reply/templating.js";
-import { applyTemplate } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type {
   MediaUnderstandingConfig,
   MediaUnderstandingModelConfig,
 } from "../config/types.tools.js";
+import type {
+  MediaUnderstandingCapability,
+  MediaUnderstandingDecision,
+  MediaUnderstandingModelDecision,
+  MediaUnderstandingOutput,
+  MediaUnderstandingProvider,
+} from "./types.js";
+import {
+  collectProviderApiKeysForExecution,
+  executeWithApiKeyRotation,
+} from "../agents/api-key-rotation.js";
+import { requireApiKey, resolveApiKeyForProvider } from "../agents/model-auth.js";
+import { applyTemplate } from "../auto-reply/templating.js";
 import { logVerbose, shouldLogVerbose } from "../globals.js";
 import { runExec } from "../process/exec.js";
 import { MediaAttachmentCache } from "./attachments.js";
@@ -27,13 +34,6 @@ import { extractGeminiResponse } from "./output-extract.js";
 import { describeImageWithModel } from "./providers/image.js";
 import { getMediaUnderstandingProvider, normalizeMediaProviderId } from "./providers/index.js";
 import { resolveMaxBytes, resolveMaxChars, resolvePrompt, resolveTimeoutMs } from "./resolve.js";
-import type {
-  MediaUnderstandingCapability,
-  MediaUnderstandingDecision,
-  MediaUnderstandingModelDecision,
-  MediaUnderstandingOutput,
-  MediaUnderstandingProvider,
-} from "./types.js";
 import { estimateBase64Size, resolveVideoMaxBase64Bytes } from "./video.js";
 
 export type ProviderRegistry = Map<string, MediaUnderstandingProvider>;
@@ -67,7 +67,9 @@ function extractSherpaOnnxText(raw: string): string | null {
           return text.trim();
         }
       }
-    } catch {}
+    } catch {
+      // Best-effort: JSON parsing failed, try other formats
+    }
     return null;
   };
 
@@ -153,7 +155,9 @@ async function resolveCliOutput(params: {
       if (content.trim()) {
         return content.trim();
       }
-    } catch {}
+    } catch {
+      // Best-effort: file may not exist or be readable
+    }
   }
 
   if (commandId === "gemini") {

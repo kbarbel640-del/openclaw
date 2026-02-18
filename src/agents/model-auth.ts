@@ -1,8 +1,8 @@
-import path from "node:path";
 import { type Api, getEnvApiKey, type Model } from "@mariozechner/pi-ai";
-import { formatCliCommand } from "../cli/command-format.js";
+import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import type { ModelProviderAuthMode, ModelProviderConfig } from "../config/types.js";
+import { formatCliCommand } from "../cli/command-format.js";
 import { getShellEnvAppliedKeys } from "../infra/shell-env.js";
 import {
   normalizeOptionalSecretInput,
@@ -190,7 +190,9 @@ export async function resolveApiKeyForProvider(params: {
           mode: mode === "oauth" ? "oauth" : mode === "token" ? "token" : "api-key",
         };
       }
-    } catch {}
+    } catch {
+      // Best-effort: continue to next profile
+    }
   }
 
   const envResolved = resolveEnvApiKey(provider);

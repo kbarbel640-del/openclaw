@@ -27,7 +27,9 @@ export function deleteStaleIndexedPaths(params: {
           `DELETE FROM ${params.vectorTable} WHERE id IN (SELECT id FROM chunks WHERE path = ? AND source = ?)`,
         )
         .run(stale.path, params.source);
-    } catch {}
+    } catch {
+      // Best-effort: continue with chunk deletion
+    }
     params.db
       .prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`)
       .run(stale.path, params.source);
@@ -36,7 +38,9 @@ export function deleteStaleIndexedPaths(params: {
         params.db
           .prepare(`DELETE FROM ${params.ftsTable} WHERE path = ? AND source = ? AND model = ?`)
           .run(stale.path, params.source, params.model);
-      } catch {}
+      } catch {
+        // Best-effort: FTS deletion failed, continue
+      }
     }
   }
 }
