@@ -19,7 +19,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: '3.27.4'
           channel: 'stable'
           cache: true
 
@@ -48,6 +48,12 @@ jobs:
           
           # Ensure AndroidX + no Jetifier
           echo "android.enableJetifier=false" >> /tmp/build/android/gradle.properties
+          
+          # Debug: show build.gradle contents
+          echo "=== app/build.gradle ==="
+          cat /tmp/build/android/app/build.gradle
+          echo "=== settings.gradle ==="
+          cat /tmp/build/android/settings.gradle
 
       - name: Install dependencies
         working-directory: /tmp/build
