@@ -351,32 +351,34 @@ export const configHandlers: GatewayRequestHandlers = {
     }
     await writeConfigFile(validated.config, writeOptions);
 
-    const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
-      resolveConfigRestartRequest(params);
-    const payload = buildConfigRestartSentinelPayload({
-      kind: "config-patch",
-      mode: "config.patch",
-      sessionKey,
-      deliveryContext,
-      threadId,
-      note,
-    });
-    const sentinelPath = await tryWriteRestartSentinelPayload(payload);
-    const restart = scheduleGatewaySigusr1Restart({
-      delayMs: restartDelayMs,
-      reason: "config.patch",
-    });
+    const restartAllowed = validated.config.commands?.restart === true;
+    let restart: ReturnType<typeof scheduleGatewaySigusr1Restart> | undefined;
+    let sentinelPath: string | null = null;
+    if (restartAllowed) {
+      const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
+        resolveConfigRestartRequest(params);
+      const payload = buildConfigRestartSentinelPayload({
+        kind: "config-patch",
+        mode: "config.patch",
+        sessionKey,
+        deliveryContext,
+        threadId,
+        note,
+      });
+      sentinelPath = await tryWriteRestartSentinelPayload(payload);
+      restart = scheduleGatewaySigusr1Restart({
+        delayMs: restartDelayMs,
+        reason: "config.patch",
+      });
+    }
     respond(
       true,
       {
         ok: true,
         path: CONFIG_PATH,
         config: redactConfigObject(validated.config, schemaPatch.uiHints),
-        restart,
-        sentinel: {
-          path: sentinelPath,
-          payload,
-        },
+        ...(restart ? { restart } : {}),
+        ...(sentinelPath ? { sentinel: { path: sentinelPath } } : {}),
       },
       undefined,
     );
@@ -395,32 +397,34 @@ export const configHandlers: GatewayRequestHandlers = {
     }
     await writeConfigFile(parsed.config, writeOptions);
 
-    const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
-      resolveConfigRestartRequest(params);
-    const payload = buildConfigRestartSentinelPayload({
-      kind: "config-apply",
-      mode: "config.apply",
-      sessionKey,
-      deliveryContext,
-      threadId,
-      note,
-    });
-    const sentinelPath = await tryWriteRestartSentinelPayload(payload);
-    const restart = scheduleGatewaySigusr1Restart({
-      delayMs: restartDelayMs,
-      reason: "config.apply",
-    });
+    const restartAllowed = parsed.config.commands?.restart === true;
+    let restart: ReturnType<typeof scheduleGatewaySigusr1Restart> | undefined;
+    let sentinelPath: string | null = null;
+    if (restartAllowed) {
+      const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
+        resolveConfigRestartRequest(params);
+      const payload = buildConfigRestartSentinelPayload({
+        kind: "config-apply",
+        mode: "config.apply",
+        sessionKey,
+        deliveryContext,
+        threadId,
+        note,
+      });
+      sentinelPath = await tryWriteRestartSentinelPayload(payload);
+      restart = scheduleGatewaySigusr1Restart({
+        delayMs: restartDelayMs,
+        reason: "config.apply",
+      });
+    }
     respond(
       true,
       {
         ok: true,
         path: CONFIG_PATH,
         config: redactConfigObject(parsed.config, parsed.schema.uiHints),
-        restart,
-        sentinel: {
-          path: sentinelPath,
-          payload,
-        },
+        ...(restart ? { restart } : {}),
+        ...(sentinelPath ? { sentinel: { path: sentinelPath } } : {}),
       },
       undefined,
     );
