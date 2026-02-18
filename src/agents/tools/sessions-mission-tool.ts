@@ -35,10 +35,11 @@ const SessionsMissionToolSchema = Type.Object({
       task: Type.String(),
       after: Type.Optional(Type.Array(Type.String())),
       maxLoops: Type.Optional(
-        Type.Number({
+        Type.Integer({
           minimum: 0,
+          maximum: 10,
           description:
-            "Max loop iterations (0 = disabled). Loop runs until LOOP_DONE in output or maxLoops reached.",
+            "Max loop iterations (0 = disabled, max 10). Loop runs until LOOP_DONE in output or maxLoops reached.",
         }),
       ),
     }),
@@ -57,10 +58,11 @@ const ProxyMissionSchema = Type.Object({
       agentId: Type.String(),
       task: Type.String(),
       maxLoops: Type.Optional(
-        Type.Number({
+        Type.Integer({
           minimum: 0,
+          maximum: 10,
           description:
-            "Max loop iterations (0 = disabled). Loop runs until LOOP_DONE in output or maxLoops reached.",
+            "Max loop iterations (0 = disabled, max 10). Loop runs until LOOP_DONE in output or maxLoops reached.",
         }),
       ),
     }),
@@ -152,7 +154,7 @@ function validateMissionSubtasks(
       : undefined;
     const maxLoops =
       typeof entry.maxLoops === "number" && Number.isFinite(entry.maxLoops) && entry.maxLoops >= 0
-        ? Math.floor(entry.maxLoops)
+        ? Math.min(Math.floor(entry.maxLoops), 10)
         : undefined;
 
     if (!id || !agentId || !task) {

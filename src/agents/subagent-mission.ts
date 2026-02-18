@@ -449,7 +449,7 @@ function shouldLoopSubtask(mission: MissionRecord, subtask: SubtaskRecord): bool
   // Anchor to last 200 chars to avoid false positives from mid-output mentions
   // like "I will not output LOOP_DONE yet".
   const tail = (subtask.result ?? "").slice(-200);
-  if (/LOOP_DONE\s*$/i.test(tail)) return false;
+  if (/LOOP_DONE[^a-zA-Z0-9]*$/i.test(tail)) return false;
   return true;
 }
 
@@ -485,9 +485,22 @@ async function loopSubtask(mission: MissionRecord, subtask: SubtaskRecord): Prom
     "# Instructions",
     "You are continuing an iterative task. Use Brain MCP to read/store progress between iterations.",
     "Review the most recent iteration result above, then continue where it left off.",
-    "When the task is fully complete and verified, your final message MUST comprehensively summarize ALL accumulated work from all iterations (not just this one), then end with: LOOP_DONE",
-    "If you need another iteration, continue working and the next iteration will start automatically.",
   );
+
+  const isFinalIteration = subtask.loopCount >= subtask.maxLoops;
+  if (isFinalIteration) {
+    contextLines.push(
+      "",
+      "⚠️ **THIS IS YOUR FINAL ITERATION — NO MORE LOOPS AFTER THIS.**",
+      "You MUST wrap up all remaining work NOW. Produce a comprehensive summary of ALL accumulated work from every iteration.",
+      "End your response with: LOOP_DONE",
+    );
+  } else {
+    contextLines.push(
+      "When the task is fully complete and verified, your final message MUST comprehensively summarize ALL accumulated work from all iterations (not just this one), then end with: LOOP_DONE",
+      "If you need another iteration, continue working and the next iteration will start automatically.",
+    );
+  }
 
   const loopTask = contextLines.join("\n");
 
