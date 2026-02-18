@@ -1528,7 +1528,7 @@ class DiscordComponentModal extends Modal {
     if (!modalId) {
       logError("discord component modal: missing modal id");
       try {
-        await interaction.reply({
+        await interaction.followUp({
           content: "This form is no longer valid.",
           ephemeral: true,
         });
@@ -1541,7 +1541,7 @@ class DiscordComponentModal extends Modal {
     const modalEntry = resolveDiscordModalEntry({ id: modalId, consume: false });
     if (!modalEntry) {
       try {
-        await interaction.reply({
+        await interaction.followUp({
           content: "This form has expired.",
           ephemeral: true,
         });
@@ -1589,7 +1589,7 @@ class DiscordComponentModal extends Modal {
     });
     if (!consumed) {
       try {
-        await interaction.reply({
+        await interaction.followUp({
           content: "This form has expired.",
           ephemeral: true,
         });
