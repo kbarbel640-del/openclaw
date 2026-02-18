@@ -33,6 +33,19 @@ describe("slack native streaming thread hint", () => {
     ).toBe("1000.2");
   });
 
+  it("uses messageTs as thread target when replyToMode=all and no incoming thread (DM case)", () => {
+    // Regression test for https://github.com/openclaw/openclaw/issues/19930
+    // When replyToMode is "all" and there's no incomingThreadTs (e.g., DM),
+    // the streaming path should use messageTs as the thread target
+    expect(
+      resolveSlackStreamingThreadHint({
+        replyToMode: "all",
+        incomingThreadTs: undefined,
+        messageTs: "1000.3",
+      }),
+    ).toBe("1000.3");
+  });
+
   it("uses the existing incoming thread regardless of replyToMode", () => {
     expect(
       resolveSlackStreamingThreadHint({

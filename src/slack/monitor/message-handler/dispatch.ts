@@ -183,7 +183,9 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     let plannedThreadTs: string | undefined;
     try {
       if (!streamSession) {
-        const streamThreadTs = replyPlan.nextThreadTs();
+        // Use the pre-computed streamThreadHint which correctly handles replyToMode "all"
+        // with hasReplied: false, ensuring DM messages thread correctly
+        const streamThreadTs = streamThreadHint;
         plannedThreadTs = streamThreadTs;
         if (!streamThreadTs) {
           logVerbose(
