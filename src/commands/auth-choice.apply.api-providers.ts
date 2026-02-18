@@ -962,7 +962,7 @@ export async function applyAuthChoiceApiProviders(
   }
 
   if (authChoice === "digitalocean-gradient-api-key") {
-    return applyDigitalOceanGradientAuthChoice(params);
+    return await applyDigitalOceanGradientAuthChoice(params);
   }
 
   return null;

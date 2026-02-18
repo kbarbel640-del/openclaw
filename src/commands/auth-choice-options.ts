@@ -71,12 +71,6 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["xai-api-key"],
   },
   {
-    value: "digitalocean",
-    label: "DigitalOcean Gradient",
-    hint: "API key",
-    choices: ["digitalocean-gradient-api-key"],
-  },
-  {
     value: "openrouter",
     label: "OpenRouter",
     hint: "API key",
@@ -161,6 +155,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["cloudflare-ai-gateway-api-key"],
   },
   {
+    value: "digitalocean",
+    label: "DigitalOcean",
+    hint: "Gradient AI API key",
+    choices: ["digitalocean-gradient-api-key"],
+  },
+  {
     value: "custom",
     label: "Custom Provider",
     hint: "Any OpenAI or Anthropic compatible endpoint",
@@ -189,11 +189,6 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
   {
     value: "qianfan-api-key",
     label: "Qianfan API key",
-  },
-  {
-    value: "digitalocean-gradient-api-key",
-    label: "DigitalOcean Gradient API key",
-    hint: "API key",
   },
   { value: "openrouter-api-key", label: "OpenRouter API key" },
   {
@@ -306,6 +301,11 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     value: "minimax-api-lightning",
     label: "MiniMax M2.5 Lightning",
     hint: "Faster, higher output cost",
+  },
+  {
+    value: "digitalocean-gradient-api-key",
+    label: "DigitalOcean Gradient API key",
+    hint: "Access Llama models via Gradient AI",
   },
   { value: "custom-api-key", label: "Custom Provider" },
 ];

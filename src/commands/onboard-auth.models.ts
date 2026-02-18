@@ -27,6 +27,48 @@ export const ZAI_GLOBAL_BASE_URL = "https://api.z.ai/api/paas/v4";
 export const ZAI_CN_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
 export const ZAI_DEFAULT_MODEL_ID = "glm-5";
 
+export const DIGITALOCEAN_GRADIENT_BASE_URL = "https://api.digitalocean.com/v2/ai";
+export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID = "llama3.3-70b-instruct";
+export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_REF = `digitalocean/${DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID}`;
+
+export function buildDigitalOceanGradientModelDefinition(params: {
+  modelId: string;
+  displayName?: string;
+  contextWindow?: number;
+  maxTokens?: number;
+}): ModelDefinitionConfig {
+  return {
+    id: params.modelId,
+    reference: `digitalocean/${params.modelId}`,
+    displayName: params.displayName || params.modelId,
+    contextWindow: params.contextWindow ?? 128000,
+    maxTokens: params.maxTokens ?? 8192,
+  };
+}
+
+export function buildDigitalOceanGradientModels(): ModelDefinitionConfig[] {
+  return [
+    buildDigitalOceanGradientModelDefinition({
+      modelId: "llama3.3-70b-instruct",
+      displayName: "Llama 3.3 70B Instruct",
+      contextWindow: 128000,
+      maxTokens: 8192,
+    }),
+    buildDigitalOceanGradientModelDefinition({
+      modelId: "llama3.1-70b-instruct",
+      displayName: "Llama 3.1 70B Instruct",
+      contextWindow: 128000,
+      maxTokens: 8192,
+    }),
+    buildDigitalOceanGradientModelDefinition({
+      modelId: "llama3.1-8b-instruct",
+      displayName: "Llama 3.1 8B Instruct",
+      contextWindow: 128000,
+      maxTokens: 8192,
+    }),
+  ];
+}
+
 export function resolveZaiBaseUrl(endpoint?: string): string {
   switch (endpoint) {
     case "coding-cn":
@@ -178,29 +220,5 @@ export function buildXaiModelDefinition(): ModelDefinitionConfig {
     cost: XAI_DEFAULT_COST,
     contextWindow: XAI_DEFAULT_CONTEXT_WINDOW,
     maxTokens: XAI_DEFAULT_MAX_TOKENS,
-  };
-}
-
-export const DIGITALOCEAN_GRADIENT_BASE_URL = "https://api.digitalocean.com/v2/ai";
-export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID = "llama3.3-70b-instruct";
-export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_REF = `digitalocean/${DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID}`;
-export const DIGITALOCEAN_GRADIENT_DEFAULT_CONTEXT_WINDOW = 131072;
-export const DIGITALOCEAN_GRADIENT_DEFAULT_MAX_TOKENS = 32768;
-export const DIGITALOCEAN_GRADIENT_DEFAULT_COST = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-};
-
-export function buildDigitalOceanGradientModelDefinition(): ModelDefinitionConfig {
-  return {
-    id: DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID,
-    name: "Llama 3.3 70B Instruct",
-    reasoning: false,
-    input: ["text"],
-    cost: DIGITALOCEAN_GRADIENT_DEFAULT_COST,
-    contextWindow: DIGITALOCEAN_GRADIENT_DEFAULT_CONTEXT_WINDOW,
-    maxTokens: DIGITALOCEAN_GRADIENT_DEFAULT_MAX_TOKENS,
   };
 }
