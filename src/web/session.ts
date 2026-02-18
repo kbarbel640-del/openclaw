@@ -105,6 +105,12 @@ export async function createWaSocket(
   maybeRestoreCredsFromBackup(authDir);
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
+  
+  const syncFullHistory = opts.syncFullHistory ?? false;
+  if (syncFullHistory) {
+    sessionLogger.info("WhatsApp syncFullHistory enabled - will sync full message history on connection");
+  }
+  
   const sock = makeWASocket({
     auth: {
       creds: state.creds,
@@ -114,7 +120,7 @@ export async function createWaSocket(
     logger,
     printQRInTerminal: false,
     browser: ["openclaw", "cli", VERSION],
-    syncFullHistory: opts.syncFullHistory ?? false,
+    syncFullHistory,
     markOnlineOnConnect: false,
   });
 

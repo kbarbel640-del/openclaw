@@ -29,10 +29,6 @@ export type ActiveWebListener = {
     chatJid: string,
     messageId: string,
   ) => Promise<{ buffer: Buffer; mimetype?: string; fileName?: string } | null>;
-  fetchHistory?: (
-    chatJid: string,
-    limit?: number,
-  ) => Promise<{ stored: number; total: number }>;
   close?: () => Promise<void>;
 };
 

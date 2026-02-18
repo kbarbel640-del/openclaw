@@ -87,10 +87,9 @@ export async function handleWhatsAppAction(
     const chatJid = readStringParam(params, "chatJid", { required: true });
     const accountId = readStringParam(params, "accountId");
     const limit = typeof params.limit === "number" ? params.limit : undefined;
-    const fetchHistory = typeof params.fetchHistory === "boolean" ? params.fetchHistory : true;
 
     log.info(
-      `Reading messages from WhatsApp: chatJid=${chatJid}, limit=${limit ?? "default"}, fetchHistory=${fetchHistory}`,
+      `Reading messages from WhatsApp: chatJid=${chatJid}, limit=${limit ?? "default"}`,
     );
 
     // Check access control for the chat
@@ -117,41 +116,19 @@ export async function handleWhatsAppAction(
       `Message store stats: totalMessages=${stats.totalMessages}, chatCount=${stats.chatCount}, storedChats=${JSON.stringify(storedChats)}`,
     );
 
-    // First, try to get messages from the store
-    let result = await readWhatsAppMessages(chatJid, {
+    // Read messages from the store
+    const result = await readWhatsAppMessages(chatJid, {
       accountId: accountId ?? "",
       limit,
     });
 
-    // If store is empty and fetchHistory is enabled, try to fetch from WhatsApp
-    if (result.messages.length === 0 && fetchHistory) {
-      log.info(`Message store empty for ${chatJid}, attempting to fetch history from WhatsApp`);
-      try {
-        const { requireActiveWebListener } = await import("../../web/active-listener.js");
-        const { listener } = requireActiveWebListener(accountId);
-
-        if (listener.fetchHistory) {
-          log.info(`Calling listener.fetchHistory for ${chatJid} with limit ${limit ?? 50}`);
-          const fetchResult = await listener.fetchHistory(chatJid, limit ?? 50);
-          log.info(`History fetch completed: stored ${fetchResult.stored} messages`);
-
-          // Try reading again after fetch
-          if (fetchResult.stored > 0) {
-            result = await readWhatsAppMessages(chatJid, {
-              accountId: accountId ?? "",
-              limit,
-            });
-          }
-        } else {
-          log.warn("fetchHistory not available on listener");
-        }
-      } catch (err) {
-        log.warn(`History fetch failed: ${String(err)}`);
-        // Continue with empty result rather than failing
-      }
+    log.info(`Retrieved ${result.messages.length} messages from WhatsApp message store`);
+    
+    // If no messages found, provide helpful guidance
+    if (result.messages.length === 0) {
+      log.info(`No messages found in store for ${chatJid}. Enable syncFullHistory in config to sync history on startup.`);
     }
-
-    log.info(`Retrieved ${result.messages.length} messages from WhatsApp`);
+    
     return jsonResult({
       ok: true,
       messages: result.messages,

@@ -13,7 +13,6 @@ Retrieve recent messages from a WhatsApp chat or group.
 - `channel`: `"whatsapp"`
 - `target`: Chat JID (e.g., `"1234567890@s.whatsapp.net"` for DM, `"1234567890-1234567890@g.us"` for group)
 - `limit`: (optional) Number of messages to retrieve (default: 20)
-- `fetchHistory`: (optional) Attempt to fetch history from WhatsApp if store is empty (default: true)
 - `accountId`: (optional) WhatsApp account ID for multi-account setups
 
 **Example:**
@@ -22,8 +21,7 @@ Retrieve recent messages from a WhatsApp chat or group.
   action: "read",
   channel: "whatsapp",
   target: "1234567890@s.whatsapp.net",
-  limit: 50,
-  fetchHistory: true
+  limit: 50
 }
 ```
 
@@ -54,7 +52,7 @@ channels:
   whatsapp:
     actions:
       messages: true  # Enable read action (default: true)
-    # Optional: Sync full message history on connection
+    # Sync full message history on connection (recommended for read action)
     syncFullHistory: true  # Default: false
     # Optional: Restrict bot to specific chats/groups
     allowChats:
@@ -183,7 +181,7 @@ When the agent calls the message tool:
 
 ## Message Store
 
-The `read` action relies on an in-memory message store:
+The `read` action relies on an in-memory message store that retains messages as they arrive.
 
 **Characteristics:**
 - Stores last 1000 messages across all chats
@@ -192,13 +190,9 @@ The `read` action relies on an in-memory message store:
 - Cleared on gateway restart
 - Per-account storage
 
-**History Fetching:**
-
-When `fetchHistory: true` (default) and the message store is empty, the system attempts to fetch history from WhatsApp using Baileys' internal methods. This may not always succeed due to WhatsApp protocol limitations.
-
 **Full History Sync:**
 
-Enable `syncFullHistory: true` in config to sync all message history when the gateway connects:
+Enable `syncFullHistory: true` in config to populate the message store with full history when the gateway connects:
 
 ```yaml
 channels:
@@ -206,7 +200,7 @@ channels:
     syncFullHistory: true
 ```
 
-**Note:** This happens once at connection time and can be slow for accounts with many messages.
+This syncs all message history once at connection time, making it available to the `read` action. Without this, only messages received after the gateway starts will be available.
 
 **Location**: `src/web/inbound/message-store.ts`
 
@@ -236,7 +230,7 @@ OPENCLAW_VERBOSE=1 openclaw gateway run
 
 ## Limitations
 
-1. **Limited Historical Backfill**: On-demand history fetching via `fetchHistory` may not work reliably due to WhatsApp protocol limitations
+1. **History Requires syncFullHistory**: The `read` action only returns messages in the store. Enable `syncFullHistory: true` to populate the store with historical messages at startup.
 2. **Memory-Only Storage**: Message store is cleared on restart
 3. **Limited Capacity**: Maximum 1000 messages across all chats
 4. **24-Hour Retention**: Older messages are automatically purged

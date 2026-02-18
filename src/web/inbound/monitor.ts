@@ -47,6 +47,22 @@ export async function monitorWebInbox(options: {
   });
   await waitForWaConnection(sock);
   const connectedAtMs = Date.now();
+  
+  // Log syncFullHistory status and message store state after connection
+  if (options.syncFullHistory) {
+    inboundConsoleLog.info("WhatsApp connected with syncFullHistory=true - history sync in progress");
+    // Give Baileys a moment to start syncing, then log store state
+    setTimeout(() => {
+      const store = getMessageStore();
+      const totalMessages = store.getAllMessages().length;
+      const chatCount = store.getAllChats().length;
+      inboundConsoleLog.info(
+        `Message store after sync: ${totalMessages} messages across ${chatCount} chats`,
+      );
+    }, 5000);
+  } else {
+    inboundConsoleLog.info("WhatsApp connected with syncFullHistory=false - only new messages will be stored");
+  }
 
   let onCloseResolve: ((reason: WebListenerCloseReason) => void) | null = null;
   const onClose = new Promise<WebListenerCloseReason>((resolve) => {
