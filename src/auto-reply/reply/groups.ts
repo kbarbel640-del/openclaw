@@ -104,18 +104,8 @@ export function buildGroupChatContext(params: { sessionCtx: TemplateContext }): 
   );
   if (providerId === "whatsapp") {
     lines.push(
-      "If someone asks you to tag/mention a person, include an explicit @token in the reply text for that person (for example @Name or @number), and keep the reply short.",
+      "When tagging in WhatsApp, use natural @Name mentions from Participants data, not raw phone numbers or internal IDs.",
     );
-    lines.push(
-      "For WhatsApp native mentions, prefer @<digits> tokens (example: @919953301972) from Participants data; do not rely on @Name-only tokens.",
-    );
-    lines.push(
-      "Mention only the person(s) explicitly requested in the latest user message; do not add extra mentions.",
-    );
-    lines.push(
-      "If the user says tag/mention without naming a target (for example 'tag me' or just 'tag'), mention only the current sender exactly once.",
-    );
-    lines.push('Never say "tagged" without an actual @mention token in the same message.');
   }
   return lines.join(" ");
 }

@@ -133,6 +133,32 @@ function mentionUserPart(jid: string): string {
   return jid.split("@")[0] ?? "";
 }
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildMentionAliasPattern(alias: string): RegExp {
+  const tokens = alias
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => escapeRegExp(token));
+  const aliasPattern = tokens.join("\\s+");
+  return new RegExp(`@${aliasPattern}(?=[\\s)\\]}"'\`>.,!?;:]|$)`, "i");
+}
+
+function toPreferredParticipantMentionJid(participant: ParticipantMentionInfo): string | null {
+  const phoneDigits = extractDigits(participant.phoneNumber ?? "");
+  if (phoneDigits.length >= 6) {
+    return `${phoneDigits}@s.whatsapp.net`;
+  }
+  const normalized = normalizeMentionJid(participant.jid);
+  if (normalized.endsWith("@s.whatsapp.net") || normalized.endsWith("@lid")) {
+    return normalized;
+  }
+  return null;
+}
+
 function findParticipantByName(
   name: string,
   participants: ParticipantMentionInfo[],
@@ -166,11 +192,7 @@ function findParticipantByName(
 function resolveNameToJid(name: string, participants: ParticipantMentionInfo[]): string | null {
   const participant = findParticipantByName(name, participants);
   if (participant) {
-    const phoneDigits = extractDigits(participant.phoneNumber ?? "");
-    if (phoneDigits.length >= 6) {
-      return `${phoneDigits}@s.whatsapp.net`;
-    }
-    return participant.jid;
+    return toPreferredParticipantMentionJid(participant);
   }
   const digits = extractDigits(name);
   if (digits.length >= 6) {
@@ -180,43 +202,247 @@ function resolveNameToJid(name: string, participants: ParticipantMentionInfo[]):
   return null;
 }
 
-export function injectMentionTokens(text: string, mentionJids: string[]): string {
+function collectNameAliases(value: string | undefined): string[] {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) {
+    return [];
+  }
+  const aliases = new Set<string>([trimmed]);
+  for (const part of trimmed.split(/\s+/)) {
+    if (part.length >= 3) {
+      aliases.add(part);
+    }
+  }
+  return [...aliases];
+}
+
+function buildSelfMentionAliasCandidates(params: {
+  selfMentionJid?: string;
+  participants?: ParticipantMentionInfo[];
+  configuredAliases?: string[];
+}): string[] {
+  const aliases = new Set<string>();
+  for (const alias of params.configuredAliases ?? []) {
+    const trimmed = alias.trim();
+    if (trimmed) {
+      aliases.add(trimmed);
+    }
+  }
+  aliases.add("bot");
+  aliases.add("self");
+  aliases.add("yourself");
+
+  const selfJid = params.selfMentionJid ? normalizeMentionJid(params.selfMentionJid) : "";
+  const selfUser = selfJid ? mentionUserPart(selfJid) : "";
+  if (!selfUser || !params.participants?.length) {
+    return [...aliases];
+  }
+
+  for (const participant of params.participants) {
+    const candidateUsers = new Set<string>();
+    const participantJid = normalizeMentionJid(participant.jid);
+    candidateUsers.add(mentionUserPart(participantJid));
+    const preferredJid = toPreferredParticipantMentionJid(participant);
+    if (preferredJid) {
+      candidateUsers.add(mentionUserPart(preferredJid));
+    }
+    const phoneDigits = extractDigits(participant.phoneNumber ?? "");
+    if (phoneDigits.length >= 6) {
+      candidateUsers.add(phoneDigits);
+    }
+    if (!candidateUsers.has(selfUser)) {
+      continue;
+    }
+
+    for (const name of [participant.name, participant.notify]) {
+      const trimmed = (name ?? "").trim();
+      if (!trimmed) {
+        continue;
+      }
+      aliases.add(trimmed);
+      for (const part of trimmed.split(/\s+/)) {
+        if (part.length >= 3) {
+          aliases.add(part);
+        }
+      }
+    }
+  }
+
+  return [...aliases];
+}
+
+function buildResolvedAliasMap(params: {
+  resolvedUsers: string[];
+  participants?: ParticipantMentionInfo[];
+  selfMentionJid?: string;
+  selfMentionAliases?: string[];
+  mentionAliasHintsByUser?: Map<string, string[]>;
+}): Map<string, string[]> {
+  const userSet = new Set(params.resolvedUsers);
+  const aliasMap = new Map<string, Set<string>>();
+  const addAlias = (user: string, alias: string) => {
+    if (!userSet.has(user)) {
+      return;
+    }
+    const trimmed = alias.trim();
+    if (!trimmed) {
+      return;
+    }
+    const bucket = aliasMap.get(user) ?? new Set<string>();
+    bucket.add(trimmed);
+    aliasMap.set(user, bucket);
+  };
+
+  for (const participant of params.participants ?? []) {
+    const preferredJid = toPreferredParticipantMentionJid(participant);
+    if (!preferredJid) {
+      continue;
+    }
+    const user = mentionUserPart(preferredJid);
+    for (const alias of collectNameAliases(participant.name)) {
+      addAlias(user, alias);
+    }
+    for (const alias of collectNameAliases(participant.notify)) {
+      addAlias(user, alias);
+    }
+  }
+
+  const selfMentionUser = params.selfMentionJid
+    ? mentionUserPart(normalizeMentionJid(params.selfMentionJid))
+    : "";
+  if (selfMentionUser) {
+    for (const alias of params.selfMentionAliases ?? []) {
+      addAlias(selfMentionUser, alias);
+    }
+  }
+  for (const [user, aliases] of params.mentionAliasHintsByUser ?? []) {
+    for (const alias of aliases) {
+      addAlias(user, alias);
+    }
+  }
+
+  const result = new Map<string, string[]>();
+  for (const [user, aliases] of aliasMap.entries()) {
+    result.set(
+      user,
+      [...aliases].toSorted((left, right) => right.length - left.length),
+    );
+  }
+  return result;
+}
+
+export function injectMentionTokens(
+  text: string,
+  mentionJids: string[],
+  participants?: ParticipantMentionInfo[],
+  options?: {
+    selfMentionJid?: string;
+    selfMentionAliases?: string[];
+    mentionAliasHintsByUser?: Map<string, string[]>;
+  },
+): string {
   if (!mentionJids.length) {
     return text;
   }
-  const existingUsers = new Set(extractMentionJids(text).map(mentionUserPart));
+  let outgoingText = text;
+  const resolvedUsers = Array.from(
+    new Set(
+      mentionJids
+        .map((jid) => mentionUserPart(jid))
+        .filter((user): user is string => Boolean(user)),
+    ),
+  );
+
+  for (const user of resolvedUsers) {
+    const escapedUser = escapeRegExp(user);
+    const plusTokenPattern = new RegExp(
+      `@\\+${escapedUser}(?=[\\s)\\]}"'\`>.,!?;:]|$|@(s\\.whatsapp\\.net|lid|hosted\\.lid|hosted))`,
+      "gi",
+    );
+    outgoingText = outgoingText.replace(plusTokenPattern, `@${user}`);
+  }
+
   const missingUsers: string[] = [];
-  for (const jid of mentionJids) {
-    const user = mentionUserPart(jid);
-    if (!user || existingUsers.has(user)) {
+  const selfMentionUser = options?.selfMentionJid
+    ? mentionUserPart(normalizeMentionJid(options.selfMentionJid))
+    : "";
+  const selfMentionAliases = buildSelfMentionAliasCandidates({
+    selfMentionJid: options?.selfMentionJid,
+    participants,
+    configuredAliases: options?.selfMentionAliases,
+  })
+    .map((alias) => alias.trim())
+    .filter((alias) => alias.length > 0);
+  const resolvedAliasMap = buildResolvedAliasMap({
+    resolvedUsers,
+    participants,
+    selfMentionJid: options?.selfMentionJid,
+    selfMentionAliases,
+    mentionAliasHintsByUser: options?.mentionAliasHintsByUser,
+  });
+  for (const user of resolvedUsers) {
+    const escapedUser = escapeRegExp(user);
+    const canonicalTokenPattern = new RegExp(
+      `@${escapedUser}(?=[\\s)\\]}"'\`>.,!?;:]|$|@(s\\.whatsapp\\.net|lid|hosted\\.lid|hosted))`,
+      "i",
+    );
+    if (canonicalTokenPattern.test(outgoingText)) {
       continue;
     }
-    existingUsers.add(user);
+
+    for (const alias of resolvedAliasMap.get(user) ?? []) {
+      const aliasPattern = buildMentionAliasPattern(alias);
+      if (!aliasPattern.test(outgoingText)) {
+        continue;
+      }
+      outgoingText = outgoingText.replace(aliasPattern, `@${user}`);
+      break;
+    }
+
+    if (canonicalTokenPattern.test(outgoingText)) {
+      continue;
+    }
+
+    if (selfMentionUser && user === selfMentionUser && selfMentionAliases.length > 0) {
+      const hasSelfAliasMention = selfMentionAliases.some((alias) => {
+        const aliasPattern = buildMentionAliasPattern(alias);
+        return aliasPattern.test(outgoingText);
+      });
+      if (hasSelfAliasMention) {
+        continue;
+      }
+    }
+
     missingUsers.push(user);
   }
   if (!missingUsers.length) {
-    return text;
+    return outgoingText;
   }
   const suffix = missingUsers.map((user) => `@${user}`).join(" ");
-  if (!text.trim()) {
+  if (!outgoingText.trim()) {
     return suffix;
   }
-  return `${text}\n${suffix}`;
+  return `${outgoingText}\n${suffix}`;
 }
 
 export async function resolveMentionJids(
   text: string,
-  options?: { lidLookup?: MentionLidLookup; participants?: ParticipantMentionInfo[] },
+  options?: {
+    lidLookup?: MentionLidLookup;
+    participants?: ParticipantMentionInfo[];
+    selfMentionJid?: string;
+    selfMentionAliases?: string[];
+  },
 ): Promise<string[]> {
   const preferredParticipantJidByUser = new Map<string, string>();
   if (options?.participants) {
     for (const participant of options.participants) {
+      const preferredJid = toPreferredParticipantMentionJid(participant);
+      if (!preferredJid) {
+        continue;
+      }
       const participantUser = mentionUserPart(participant.jid);
       const phoneDigits = extractDigits(participant.phoneNumber ?? "");
-      const preferredJid =
-        phoneDigits.length >= 6
-          ? `${phoneDigits}@s.whatsapp.net`
-          : normalizeMentionJid(participant.jid);
       if (participantUser) {
         preferredParticipantJidByUser.set(participantUser, preferredJid);
       }
@@ -227,31 +453,98 @@ export async function resolveMentionJids(
   }
 
   const resolved = new Set<string>();
+  const selfMentionJid = options?.selfMentionJid
+    ? normalizeMentionJid(options.selfMentionJid)
+    : null;
+  const selfMentionAliases = buildSelfMentionAliasCandidates({
+    selfMentionJid: options?.selfMentionJid,
+    participants: options?.participants,
+    configuredAliases: options?.selfMentionAliases,
+  })
+    .map((alias) => normalizeTextForMatch(alias))
+    .filter(Boolean);
+
   const numericJids = extractMentionJids(text);
   for (const jid of numericJids) {
     let nextJid = normalizeMentionJid(jid);
+    const participantPreferredJid = preferredParticipantJidByUser.get(mentionUserPart(nextJid));
+    if (participantPreferredJid) {
+      nextJid = participantPreferredJid;
+    }
 
-    if (nextJid.endsWith("@lid") && options?.lidLookup?.getPNForLID) {
+    if (!participantPreferredJid && nextJid.endsWith("@lid") && options?.lidLookup?.getPNForLID) {
       try {
         const pnJid = await options.lidLookup.getPNForLID(nextJid);
         if (pnJid) {
-          nextJid = normalizeMentionJid(pnJid);
+          const normalizedPnJid = normalizeMentionJid(pnJid);
+          const mappedParticipantJid = preferredParticipantJidByUser.get(
+            mentionUserPart(normalizedPnJid),
+          );
+          nextJid = mappedParticipantJid ?? normalizedPnJid;
         }
       } catch {
         // Best-effort lookup only.
       }
     }
 
-    const preferredParticipantJid = preferredParticipantJidByUser.get(mentionUserPart(nextJid));
-    if (preferredParticipantJid) {
-      nextJid = preferredParticipantJid;
+    // Bare @<digits> tokens may actually be LIDs (without @lid suffix).
+    // Try a fallback LID lookup for long IDs when no participant mapping matched.
+    if (
+      !participantPreferredJid &&
+      !nextJid.endsWith("@lid") &&
+      options?.lidLookup?.getPNForLID &&
+      mentionUserPart(nextJid).length >= 15
+    ) {
+      const candidateLid = `${mentionUserPart(nextJid)}@lid`;
+      try {
+        const pnJid = await options.lidLookup.getPNForLID(candidateLid);
+        if (pnJid) {
+          const normalizedPnJid = normalizeMentionJid(pnJid);
+          const mappedParticipantJid = preferredParticipantJidByUser.get(
+            mentionUserPart(normalizedPnJid),
+          );
+          nextJid = mappedParticipantJid ?? normalizedPnJid;
+        }
+      } catch {
+        // Best-effort lookup only.
+      }
+    }
+
+    if (nextJid.endsWith("@lid") && options?.lidLookup?.getPNForLID) {
+      try {
+        const pnJid = await options.lidLookup.getPNForLID(nextJid);
+        if (pnJid) {
+          const normalizedPnJid = normalizeMentionJid(pnJid);
+          const mappedParticipantJid = preferredParticipantJidByUser.get(
+            mentionUserPart(normalizedPnJid),
+          );
+          nextJid = mappedParticipantJid ?? normalizedPnJid;
+        }
+      } catch {
+        // Best-effort lookup only.
+      }
     }
 
     resolved.add(nextJid);
   }
 
+  const nameMentions = extractNameMentions(text);
+  if (selfMentionJid && selfMentionAliases.length > 0 && nameMentions.length > 0) {
+    const hasSelfAliasMention = nameMentions.some((token) => {
+      const normalizedToken = normalizeTextForMatch(token);
+      return selfMentionAliases.some(
+        (alias) =>
+          normalizedToken === alias ||
+          normalizedToken.includes(alias) ||
+          alias.includes(normalizedToken),
+      );
+    });
+    if (hasSelfAliasMention) {
+      resolved.add(selfMentionJid);
+    }
+  }
+
   if (options?.participants && options.participants.length > 0) {
-    const nameMentions = extractNameMentions(text);
     for (const name of nameMentions) {
       const jid = resolveNameToJid(name, options.participants);
       if (jid) {
@@ -265,12 +558,10 @@ export async function resolveMentionJids(
       );
       for (const candidateName of candidateNames) {
         if (includesName(text, candidateName)) {
-          const phoneDigits = extractDigits(participant.phoneNumber ?? "");
-          resolved.add(
-            phoneDigits.length >= 6
-              ? `${phoneDigits}@s.whatsapp.net`
-              : normalizeMentionJid(participant.jid),
-          );
+          const preferredJid = toPreferredParticipantMentionJid(participant);
+          if (preferredJid) {
+            resolved.add(preferredJid);
+          }
           break;
         }
       }
@@ -301,11 +592,20 @@ export function createWebSendApi(params: {
   };
   defaultAccountId: string;
   lidLookup?: MentionLidLookup;
-  getParticipants?: () => ParticipantMentionInfo[];
+  getParticipants?: (jid: string) => ParticipantMentionInfo[] | Promise<ParticipantMentionInfo[]>;
+  selfMentionJid?: string;
+  selfMentionAliases?: string[];
 }) {
-  const resolveMentions = async (text: string) => {
-    const participants = params.getParticipants?.() ?? [];
-    return resolveMentionJids(text, { lidLookup: params.lidLookup, participants });
+  const resolveMentions = async (jid: string, text: string) => {
+    const participantSource = params.getParticipants ? params.getParticipants(jid) : [];
+    const participants = (await Promise.resolve(participantSource)) ?? [];
+    const mentionJids = await resolveMentionJids(text, {
+      lidLookup: params.lidLookup,
+      participants,
+      selfMentionJid: params.selfMentionJid,
+      selfMentionAliases: params.selfMentionAliases,
+    });
+    return { mentionJids, participants };
   };
 
   return {
@@ -317,8 +617,11 @@ export function createWebSendApi(params: {
       sendOptions?: ActiveWebSendOptions,
     ): Promise<{ messageId: string }> => {
       const jid = toWhatsappJid(to);
-      const mentionJids = await resolveMentions(text);
-      const outgoingText = injectMentionTokens(text, mentionJids);
+      const { mentionJids, participants } = await resolveMentions(jid, text);
+      const outgoingText = injectMentionTokens(text, mentionJids, participants, {
+        selfMentionJid: params.selfMentionJid,
+        selfMentionAliases: params.selfMentionAliases,
+      });
       const mentionPayload = mentionJids.length > 0 ? { mentions: mentionJids } : undefined;
 
       let payload: AnyMessageContent;

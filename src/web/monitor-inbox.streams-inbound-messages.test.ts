@@ -54,12 +54,22 @@ describe("web monitor inbox", () => {
     };
   }
 
-  async function expectQuotedReplyContext(quotedMessage: unknown) {
+  async function expectQuotedReplyContext(
+    quotedMessage: unknown,
+    options?: {
+      participant?: string;
+      expectedReplyToSender?: string;
+      mappedPnForLid?: string | null;
+    },
+  ) {
     const onMessage = vi.fn(async (msg) => {
       await msg.reply("pong");
     });
 
     const { listener, sock } = await startInboxMonitor(onMessage);
+    if (options && "mappedPnForLid" in options) {
+      sock.signalRepository.lidMapping.getPNForLID.mockResolvedValueOnce(options.mappedPnForLid);
+    }
     const upsert = {
       type: "notify",
       messages: [
@@ -70,7 +80,7 @@ describe("web monitor inbox", () => {
               text: "reply",
               contextInfo: {
                 stanzaId: "q1",
-                participant: "111@s.whatsapp.net",
+                participant: options?.participant ?? "111@s.whatsapp.net",
                 quotedMessage,
               },
             },
@@ -88,7 +98,7 @@ describe("web monitor inbox", () => {
       expect.objectContaining({
         replyToId: "q1",
         replyToBody: "original",
-        replyToSender: "+111",
+        replyToSender: options?.expectedReplyToSender ?? "+111",
       }),
     );
     expect(sock.sendMessage).toHaveBeenCalledWith("999@s.whatsapp.net", {
@@ -249,6 +259,114 @@ describe("web monitor inbox", () => {
     await listener.close();
   });
 
+  it("keeps generated mentions for named targets in 'tag me and <name>' requests", async () => {
+    const onMessage = vi.fn(async (msg) => {
+      await msg.reply("@918076538956 @919953301972 done ✅");
+    });
+
+    const { listener, sock } = await startInboxMonitor(onMessage);
+    const upsert = buildMessageUpsert({
+      id: "g-1",
+      remoteJid: "120363425190157453@g.us",
+      participant: "918076538956@s.whatsapp.net",
+      text: "tag me and ankit",
+      timestamp: 1_700_000_000,
+    });
+
+    sock.ev.emit("messages.upsert", upsert);
+    await tick();
+
+    expect(sock.sendMessage).toHaveBeenCalledWith("120363425190157453@g.us", {
+      text: "@918076538956 @919953301972 done ✅",
+      mentions: ["918076538956@s.whatsapp.net", "919953301972@s.whatsapp.net"],
+    });
+
+    await listener.close();
+  });
+
+  it("does not inject mentions when model output has none", async () => {
+    const onMessage = vi.fn(async (msg) => {
+      await msg.reply("done ✅");
+    });
+
+    const { listener, sock } = await startInboxMonitor(onMessage);
+    const upsert = buildMessageUpsert({
+      id: "g-2",
+      remoteJid: "120363425190157453@g.us",
+      participant: "918076538956@s.whatsapp.net",
+      text: "tag me",
+      timestamp: 1_700_000_001,
+    });
+
+    sock.ev.emit("messages.upsert", upsert);
+    await tick();
+
+    expect(sock.sendMessage).toHaveBeenCalledWith("120363425190157453@g.us", {
+      text: "done ✅",
+    });
+
+    await listener.close();
+  });
+
+  it("falls back to sender/self/remaining participant inference for @Name group replies", async () => {
+    const onMessage = vi.fn(async (msg) => {
+      await msg.reply(
+        "😂 @Dhruv Kejriwal @Ankit @OpenClaw  \nTeam status update: 2 humans, 1 bot.",
+      );
+    });
+
+    const { listener, sock } = await startInboxMonitor(onMessage);
+    sock.groupMetadata.mockResolvedValue({
+      subject: "test-group",
+      participants: [
+        { id: "918076538956@s.whatsapp.net", phoneNumber: "+918076538956" },
+        { id: "919953301972@s.whatsapp.net", phoneNumber: "+919953301972" },
+        { id: "918586020845@s.whatsapp.net", phoneNumber: "+918586020845" },
+      ],
+    });
+    const upsert = buildMessageUpsert({
+      id: "g-3",
+      remoteJid: "120363425190157453@g.us",
+      participant: "918076538956@s.whatsapp.net",
+      text: "me and ankit and yourself and send something funny, tag all of us",
+      timestamp: 1_700_000_002,
+      pushName: "Dhruv Kejriwal",
+    });
+
+    sock.ev.emit("messages.upsert", upsert);
+    await tick();
+
+    const outboundCall = [...sock.sendMessage.mock.calls]
+      .toReversed()
+      .find(
+        ([jid, payload]) =>
+          jid === "120363425190157453@g.us" &&
+          typeof (payload as { text?: unknown }).text === "string" &&
+          ((payload as { text: string }).text.includes("Team status update") ||
+            (payload as { text: string }).text.includes("@Dhruv Kejriwal")),
+      );
+
+    expect(outboundCall).toBeDefined();
+    const payload = outboundCall?.[1] as { text: string; mentions?: string[] };
+    expect(payload.mentions).toEqual(
+      expect.arrayContaining([
+        "918076538956@s.whatsapp.net",
+        "919953301972@s.whatsapp.net",
+        "918586020845@s.whatsapp.net",
+      ]),
+    );
+    expect(payload.text).toContain("@918076538956");
+    expect(payload.text).toContain("@919953301972");
+    expect(payload.text).toContain("@918586020845");
+    expect(payload.text).not.toContain("@918076538956 Kejriwal");
+    expect(payload.text).not.toContain("@Dhruv");
+    expect(payload.text).not.toContain("@Ankit");
+    expect(payload.text).not.toContain("@OpenClaw");
+    expect(payload.text).not.toMatch(/\n@918076538956 @919953301972 @918586020845$/);
+
+    await listener.close();
+  });
+
   it("does not block follow-up messages when handler is pending", async () => {
     let resolveFirst: (() => void) | null = null;
     const onMessage = vi.fn(async () => {
@@ -295,5 +413,18 @@ describe("web monitor inbox", () => {
         message: { conversation: "original" },
       },
     });
+  });
+
+  it("captures reply context from quoted lid participants via mapping", async () => {
+    await expectQuotedReplyContext(
+      {
+        conversation: "original",
+      },
+      {
+        participant: "444@lid",
+        mappedPnForLid: "444:0@s.whatsapp.net",
+        expectedReplyToSender: "+444",
+      },
+    );
   });
 });

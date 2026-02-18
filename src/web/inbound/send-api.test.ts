@@ -5,7 +5,7 @@ vi.mock("../../infra/channel-activity.js", () => ({
   recordChannelActivity: (...args: unknown[]) => recordChannelActivity(...args),
 }));
 
-import { createWebSendApi, resolveMentionJids } from "./send-api.js";
+import { createWebSendApi, injectMentionTokens, resolveMentionJids } from "./send-api.js";
 
 describe("createWebSendApi", () => {
   const sendMessage = vi.fn(async () => ({ key: { id: "msg-1" } }));
@@ -157,28 +157,180 @@ describe("createWebSendApi", () => {
   });
 
   it("keeps phone-number mention payloads even when lid mapping exists", async () => {
-    const mentions = await resolveMentionJids("@918076538956 done", {
+    const mentions = await resolveMentionJids("@14155550111 done", {
       lidLookup: {
-        getLIDForPN: async () => "155933250478325@lid",
-        getPNForLID: async () => "918076538956@s.whatsapp.net",
+        getLIDForPN: async () => "199999999999999@lid",
+        getPNForLID: async () => "14155550111@s.whatsapp.net",
       },
     });
-    expect(mentions).toEqual(["918076538956@s.whatsapp.net"]);
+    expect(mentions).toEqual(["14155550111@s.whatsapp.net"]);
   });
 
-  it("prefers participant phone number over lid user for name mentions", async () => {
-    const mentions = await resolveMentionJids("@Dhruv done", {
+  it("prefers phone-number jid for name mentions when participant phone is known", async () => {
+    const mentions = await resolveMentionJids("@Alice done", {
       participants: [
         {
-          jid: "155933250478325@lid",
-          name: "Dhruv Kejriwal",
-          phoneNumber: "+918076538956",
+          jid: "199999999999999@lid",
+          name: "Alice Doe",
+          phoneNumber: "+14155550111",
         },
       ],
       lidLookup: {
-        getPNForLID: async () => "918076538956@s.whatsapp.net",
+        getPNForLID: async () => "14155550111@s.whatsapp.net",
       },
     });
-    expect(mentions).toEqual(["918076538956@s.whatsapp.net"]);
+    expect(mentions).toEqual(["14155550111@s.whatsapp.net"]);
+  });
+
+  it("resolves @Name mentions via participants provider when sending text", async () => {
+    const sendMessageWithParticipants = vi.fn(async () => ({ key: { id: "msg-2" } }));
+    const apiWithParticipants = createWebSendApi({
+      sock: { sendMessage: sendMessageWithParticipants, sendPresenceUpdate },
+      defaultAccountId: "main",
+      getParticipants: async (jid) =>
+        jid === "1555@s.whatsapp.net"
+          ? [
+              {
+                jid: "199999999999999@lid",
+                name: "Alice Doe",
+                phoneNumber: "+14155550111",
+              },
+            ]
+          : [],
+    });
+
+    await apiWithParticipants.sendMessage("+1555", "@Alice can you check this?");
+
+    expect(sendMessageWithParticipants).toHaveBeenCalledWith("1555@s.whatsapp.net", {
+      text: "@14155550111 can you check this?",
+      mentions: ["14155550111@s.whatsapp.net"],
+    });
+  });
+
+  it("resolves self alias mentions without participants", async () => {
+    const mentions = await resolveMentionJids("@OpenClaw check this", {
+      selfMentionJid: "918586020845:2@s.whatsapp.net",
+      selfMentionAliases: ["openclaw", "bot"],
+    });
+    expect(mentions).toEqual(["918586020845@s.whatsapp.net"]);
+  });
+
+  it("sends self mention payload when text includes self alias", async () => {
+    const sendMessageWithSelf = vi.fn(async () => ({ key: { id: "msg-self" } }));
+    const apiWithSelf = createWebSendApi({
+      sock: { sendMessage: sendMessageWithSelf, sendPresenceUpdate },
+      defaultAccountId: "main",
+      selfMentionJid: "918586020845:2@s.whatsapp.net",
+      selfMentionAliases: ["openclaw", "bot"],
+    });
+
+    await apiWithSelf.sendMessage("+1555", "@OpenClaw check this");
+
+    expect(sendMessageWithSelf).toHaveBeenCalledWith("1555@s.whatsapp.net", {
+      text: "@918586020845 check this",
+      mentions: ["918586020845@s.whatsapp.net"],
+    });
+  });
+
+  it("does not append duplicate self token when self name comes from participants", () => {
+    const text = "@HelperBot check this";
+    const mentionJids = ["918586020845@s.whatsapp.net"];
+    const outgoing = injectMentionTokens(
+      text,
+      mentionJids,
+      [{ jid: "918586020845@s.whatsapp.net", name: "HelperBot" }],
+      {
+        selfMentionJid: "918586020845@s.whatsapp.net",
+        selfMentionAliases: ["bot"],
+      },
+    );
+    expect(outgoing).toBe("@918586020845 check this");
+  });
+
+  it("canonicalizes existing name mentions in-place without adding duplicate line", () => {
+    const text = "@Dhruv Kejriwal @Ankit joke time";
+    const mentionJids = ["918076538956@s.whatsapp.net", "919953301972@s.whatsapp.net"];
+    const outgoing = injectMentionTokens(text, mentionJids, [
+      { jid: "918076538956@s.whatsapp.net", name: "Dhruv Kejriwal" },
+      { jid: "919953301972@s.whatsapp.net", name: "Ankit School" },
+    ]);
+    expect(outgoing).toBe("@918076538956 @919953301972 joke time");
+  });
+
+  it("canonicalizes multi-word alias hints with variable spaces", () => {
+    const text = "@Dhruv   Kejriwal @Ankit done bhai ✅";
+    const mentionJids = ["918076538956@s.whatsapp.net", "919953301972@s.whatsapp.net"];
+    const outgoing = injectMentionTokens(text, mentionJids, undefined, {
+      mentionAliasHintsByUser: new Map<string, string[]>([
+        ["918076538956", ["Dhruv Kejriwal"]],
+        ["919953301972", ["Ankit"]],
+      ]),
+    });
+    expect(outgoing).toBe("@918076538956 @919953301972 done bhai ✅");
+  });
+
+  it("resolves bare lid-like tokens via lid mapping lookup", async () => {
+    const mentions = await resolveMentionJids("@199999999999999 done", {
+      lidLookup: {
+        getPNForLID: async (jid) =>
+          jid === "199999999999999@lid" ? "14155550111@s.whatsapp.net" : null,
+      },
+    });
+    expect(mentions).toEqual(["14155550111@s.whatsapp.net"]);
+  });
+
+  it("appends canonical numeric mention tokens when mentions are missing", () => {
+    const text = "roll call done 😎";
+    const mentionJids = [
+      "918076538956@s.whatsapp.net",
+      "919953301972@s.whatsapp.net",
+      "918586020845@s.whatsapp.net",
+    ];
+    const outgoing = injectMentionTokens(text, mentionJids, [
+      { jid: "918076538956@s.whatsapp.net", name: "Dhruv Kejriwal" },
+      { jid: "919953301972@s.whatsapp.net", name: "Ankit School" },
+      { jid: "918586020845@s.whatsapp.net", name: "OpenClaw Bot" },
+    ]);
+    expect(outgoing).toBe("roll call done 😎\n@918076538956 @919953301972 @918586020845");
+  });
+
+  it("keeps natural text and appends canonical tokens for clickable mentions", () => {
+    const text = "@Dhruv Kejriwal @Ankit School @OpenClaw Bot roll call done 😎";
+    const mentionJids = [
+      "918076538956@s.whatsapp.net",
+      "919953301972@s.whatsapp.net",
+      "918586020845@s.whatsapp.net",
+    ];
+    const outgoing = injectMentionTokens(text, mentionJids, [
+      { jid: "918076538956@s.whatsapp.net", name: "Dhruv Kejriwal" },
+      { jid: "919953301972@s.whatsapp.net", name: "Ankit School" },
+      { jid: "918586020845@s.whatsapp.net", name: "OpenClaw Bot" },
+    ]);
+    expect(outgoing).toBe("@918076538956 @919953301972 @918586020845 roll call done 😎");
+  });
+
+  it("normalizes +prefixed numeric tokens to canonical mention tokens", () => {
+    const text = "@Dhruv Kejriwal @+919953301972 joke time";
+    const mentionJids = ["918076538956@s.whatsapp.net", "919953301972@s.whatsapp.net"];
+    const outgoing = injectMentionTokens(text, mentionJids, [
+      { jid: "918076538956@s.whatsapp.net", name: "Dhruv Kejriwal" },
+      { jid: "919953301972@s.whatsapp.net", name: "Ankit School" },
+    ]);
+    expect(outgoing).toBe("@918076538956 @919953301972 joke time");
+  });
+
+  it("keeps existing numeric mention tokens unchanged", () => {
+    const text = "@918076538956 @919953301972 @918586020845 roll call done 😎";
+    const mentionJids = [
+      "918076538956@s.whatsapp.net",
+      "919953301972@s.whatsapp.net",
+      "918586020845@s.whatsapp.net",
+    ];
+    const outgoing = injectMentionTokens(text, mentionJids, [
+      { jid: "918076538956@s.whatsapp.net", name: "Dhruv Kejriwal" },
+      { jid: "919953301972@s.whatsapp.net", name: "Ankit School" },
+      { jid: "918586020845@s.whatsapp.net", name: "OpenClaw Bot" },
+    ]);
+    expect(outgoing).toBe(text);
   });
 });

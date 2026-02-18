@@ -21,209 +21,356 @@ import {
 import { downloadInboundMedia } from "./media.js";
 import {
   createWebSendApi,
-  extractMentionJids,
+  extractNameMentions,
   injectMentionTokens,
   ParticipantMentionInfo,
   resolveMentionJids,
 } from "./send-api.js";
 import type { WebInboundMessage, WebListenerCloseReason } from "./types.js";
 
-const OUTBOUND_MENTION_TOKEN_REGEX =
-  /@(\+?\d{6,20})(?:@(s\.whatsapp\.net|lid|hosted\.lid|hosted))?/gi;
-const MENTION_LEFT_BOUNDARY = /[\s([{"'`<]/;
-const MENTION_RIGHT_BOUNDARY = /[\s)\]}"'`>.,!?;:]/;
-const TAG_INTENT_REGEX = /\b(?:tag|mention|ping)\b/i;
-const SELF_MENTION_REGEX = /\b(?:me|myself|mujhe|muje|mujhko|mujko|merko|mereko|meko)\b/i;
-
-type MentionPolicy = {
-  allowedUsers: Set<string>;
-  preferredJidByUser: Map<string, string>;
-};
-
-function hasMentionBoundary(text: string, start: number, end: number): boolean {
-  const prev = start > 0 ? text[start - 1] : undefined;
-  const next = end < text.length ? text[end] : undefined;
-  const leftOk = prev === undefined || MENTION_LEFT_BOUNDARY.test(prev);
-  const rightOk = next === undefined || MENTION_RIGHT_BOUNDARY.test(next);
-  return leftOk && rightOk;
+function extractDigits(value: string | null | undefined): string {
+  return (value ?? "").replace(/\D/g, "");
 }
 
-function extractDigits(value: string): string {
-  return value.replace(/\D/g, "");
+function normalizeMentionJid(jid: string): string {
+  return jid.replace(/:\d+(?=@)/, "").replace(/@hosted\.lid$/, "@lid");
 }
 
-function extractMentionUser(value: string): string {
-  return value.split("@")[0] ?? "";
+function mentionUserPart(jid: string): string {
+  return jid.split("@")[0] ?? "";
 }
 
-function normalizeMentionUser(value: string): string {
-  const digits = extractDigits(value);
-  return digits || value;
-}
-
-function preferredParticipantJid(participant: ParticipantMentionInfo): string {
-  const phoneDigits = extractDigits(participant.phoneNumber ?? "");
+function toParticipantMentionJid(participant: ParticipantMentionInfo): string | null {
+  const phoneDigits = extractDigits(participant.phoneNumber);
   if (phoneDigits.length >= 6) {
     return `${phoneDigits}@s.whatsapp.net`;
   }
-  return participant.jid;
+  const normalized = normalizeMentionJid(participant.jid);
+  if (normalized.endsWith("@s.whatsapp.net") || normalized.endsWith("@lid")) {
+    return normalized;
+  }
+  return null;
 }
 
-function buildPreferredMentionMap(
-  participants: ParticipantMentionInfo[] | undefined,
-): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const participant of participants ?? []) {
-    const preferredJid = preferredParticipantJid(participant);
-    const preferredUser = normalizeMentionUser(extractMentionUser(preferredJid));
-    const participantUser = normalizeMentionUser(extractMentionUser(participant.jid));
-    if (preferredUser) {
-      map.set(preferredUser, preferredJid);
-    }
-    if (participantUser) {
-      map.set(participantUser, preferredJid);
+function normalizeNameToken(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9_\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitNameAliases(value: string): string[] {
+  const normalized = normalizeNameToken(value);
+  if (!normalized) {
+    return [];
+  }
+  const aliases = new Set<string>([normalized]);
+  for (const part of normalized.split(/[\s_]+/)) {
+    if (part.length >= 3) {
+      aliases.add(part);
     }
   }
-  return map;
+  return [...aliases];
 }
 
-function isWordChar(ch: string | undefined): boolean {
-  return Boolean(ch && /[a-z0-9_]/i.test(ch));
+function splitWords(value: string): string[] {
+  const normalized = normalizeNameToken(value);
+  if (!normalized) {
+    return [];
+  }
+  return normalized.split(" ").filter(Boolean);
 }
 
-function includesName(text: string, name: string): boolean {
-  const hay = text.toLowerCase();
-  const needle = name.trim().toLowerCase();
-  if (!needle) {
+const INTENT_WORD_STOPLIST = new Set([
+  "tag",
+  "and",
+  "the",
+  "this",
+  "that",
+  "send",
+  "something",
+  "message",
+  "please",
+  "tell",
+  "with",
+  "both",
+  "all",
+  "of",
+  "us",
+  "for",
+  "funny",
+  "joke",
+]);
+
+function tokenMatchesName(token: string, name: string): boolean {
+  const normalizedToken = normalizeNameToken(token);
+  const normalizedName = normalizeNameToken(name);
+  if (!normalizedToken || !normalizedName) {
     return false;
   }
-  let idx = hay.indexOf(needle);
-  while (idx >= 0) {
-    const prev = idx > 0 ? hay[idx - 1] : undefined;
-    const next = idx + needle.length < hay.length ? hay[idx + needle.length] : undefined;
-    if (!isWordChar(prev) && !isWordChar(next)) {
+  if (normalizedName === normalizedToken) {
+    return true;
+  }
+  if (normalizedName.includes(normalizedToken) || normalizedToken.includes(normalizedName)) {
+    return true;
+  }
+  for (const part of normalizedName.split(" ")) {
+    if (!part) {
+      continue;
+    }
+    if (
+      part === normalizedToken ||
+      part.startsWith(normalizedToken) ||
+      normalizedToken.startsWith(part)
+    ) {
       return true;
     }
-    idx = hay.indexOf(needle, idx + 1);
   }
   return false;
 }
 
-function resolveMentionPolicy(params: {
-  inboundBody: string;
-  mentionedJids?: string[];
-  senderJid?: string;
-  senderE164?: string;
-  participants?: ParticipantMentionInfo[];
-}): MentionPolicy | null {
-  if (!TAG_INTENT_REGEX.test(params.inboundBody)) {
-    return null;
+type InferredMentionResolution = {
+  mentionJids: string[];
+  aliasHintsByUser: Map<string, string[]>;
+};
+
+function inferMentionJidsFromNames(params: {
+  responseText: string;
+  intentText?: string;
+  participants: ParticipantMentionInfo[];
+  senderName?: string;
+  senderE164?: string | null;
+  selfE164?: string | null;
+  selfAliases?: string[];
+}): InferredMentionResolution {
+  if (!params.participants.length) {
+    return { mentionJids: [], aliasHintsByUser: new Map() };
   }
 
-  const preferredJidByUser = buildPreferredMentionMap(params.participants);
-  const requestedUsers = new Set<string>();
-
-  for (const mentionJid of extractMentionJids(params.inboundBody)) {
-    const user = normalizeMentionUser(extractMentionUser(mentionJid));
-    if (!user) {
-      continue;
-    }
-    requestedUsers.add(user);
-  }
-  for (const mentionJid of params.mentionedJids ?? []) {
-    const user = normalizeMentionUser(extractMentionUser(mentionJid));
-    if (!user) {
-      continue;
-    }
-    requestedUsers.add(user);
-  }
-
-  for (const participant of params.participants ?? []) {
-    const names = [participant.name, participant.notify].filter((value): value is string =>
-      Boolean(value && value.trim().length >= 3),
-    );
-    for (const candidateName of names) {
-      if (includesName(params.inboundBody, candidateName)) {
-        const user = normalizeMentionUser(extractMentionUser(preferredParticipantJid(participant)));
-        if (user) {
-          requestedUsers.add(user);
-        }
-        break;
+  const participantRecords = params.participants
+    .map((participant) => {
+      const mentionJid = toParticipantMentionJid(participant);
+      if (!mentionJid) {
+        return null;
       }
-    }
+      const aliases = new Set<string>();
+      for (const name of [participant.name, participant.notify]) {
+        if (!name) {
+          continue;
+        }
+        for (const alias of splitNameAliases(name)) {
+          aliases.add(alias);
+        }
+      }
+      const phoneDigits = extractDigits(participant.phoneNumber);
+      if (phoneDigits.length >= 6) {
+        aliases.add(phoneDigits);
+      }
+      return {
+        mentionJid,
+        aliases: [...aliases],
+      };
+    })
+    .filter((record): record is { mentionJid: string; aliases: string[] } => Boolean(record));
+
+  if (!participantRecords.length) {
+    return { mentionJids: [], aliasHintsByUser: new Map() };
   }
 
-  if (requestedUsers.size > 0) {
-    const normalizedUsers = new Set<string>();
-    for (const user of requestedUsers) {
-      const preferredJid = preferredJidByUser.get(user);
-      if (preferredJid) {
-        normalizedUsers.add(normalizeMentionUser(extractMentionUser(preferredJid)));
+  const participantJids = participantRecords.map((record) => record.mentionJid);
+  const participantByUser = new Map<string, string>();
+  for (const jid of participantJids) {
+    participantByUser.set(mentionUserPart(jid), jid);
+  }
+
+  const resolveByE164 = (e164: string | null | undefined): string | null => {
+    const digits = extractDigits(e164);
+    if (digits.length < 6) {
+      return null;
+    }
+    return participantByUser.get(digits) ?? `${digits}@s.whatsapp.net`;
+  };
+
+  const senderMentionJid = resolveByE164(params.senderE164);
+  const selfMentionJid = resolveByE164(params.selfE164);
+  const chosen = new Set<string>();
+  const aliasHintsByUser = new Map<string, Set<string>>();
+  const addAliasHint = (jid: string, alias: string) => {
+    const trimmed = alias.trim();
+    if (!trimmed) {
+      return;
+    }
+    const user = mentionUserPart(jid);
+    if (!user) {
+      return;
+    }
+    const bucket = aliasHintsByUser.get(user) ?? new Set<string>();
+    bucket.add(trimmed);
+    aliasHintsByUser.set(user, bucket);
+  };
+  const markMention = (jid: string, alias?: string) => {
+    chosen.add(jid);
+    if (alias) {
+      addAliasHint(jid, alias);
+    }
+  };
+  const unresolvedMentions: Array<{ normalized: string; raw: string }> = [];
+  const responseNameTokens = extractNameMentions(params.responseText);
+  const requestNameTokens = params.intentText ? extractNameMentions(params.intentText) : [];
+  const nameTokens = [...responseNameTokens, ...requestNameTokens];
+  const normalizedIntentText = normalizeNameToken(params.intentText ?? "");
+  const intentWords = splitWords(normalizedIntentText);
+  const intentWordSet = new Set(intentWords);
+  const normalizedSelfAliases = (params.selfAliases ?? [])
+    .map((alias) => normalizeNameToken(alias))
+    .filter(Boolean);
+  const isTagIntent = intentWordSet.has("tag");
+  const senderNameInIntent = params.senderName
+    ? normalizedIntentText
+        .split(" ")
+        .some((word) => word.length >= 3 && tokenMatchesName(word, params.senderName ?? ""))
+    : false;
+  const wantsSender =
+    intentWordSet.has("me") ||
+    intentWordSet.has("my") ||
+    intentWordSet.has("myself") ||
+    senderNameInIntent;
+  const wantsSelf =
+    intentWordSet.has("yourself") ||
+    intentWordSet.has("self") ||
+    intentWordSet.has("bot") ||
+    normalizedSelfAliases.some(
+      (alias) =>
+        tokenMatchesName(normalizedIntentText, alias) ||
+        intentWords.some((word) => tokenMatchesName(word, alias)),
+    );
+
+  if (wantsSender && senderMentionJid) {
+    markMention(senderMentionJid);
+  }
+  if (wantsSelf && selfMentionJid) {
+    markMention(selfMentionJid);
+  }
+  if (senderMentionJid && params.senderName) {
+    addAliasHint(senderMentionJid, params.senderName);
+  }
+
+  for (const token of nameTokens) {
+    const normalizedToken = normalizeNameToken(token);
+    if (!normalizedToken) {
+      continue;
+    }
+
+    if (
+      selfMentionJid &&
+      ((() => {
+        const tokenWords = new Set(splitWords(normalizedToken));
+        return (
+          tokenWords.has("bot") ||
+          tokenWords.has("myself") ||
+          tokenWords.has("yourself") ||
+          tokenWords.has("self") ||
+          tokenWords.has("you")
+        );
+      })() ||
+        normalizedSelfAliases.some((alias) => tokenMatchesName(normalizedToken, alias)))
+    ) {
+      markMention(selfMentionJid, token);
+      continue;
+    }
+
+    if (
+      senderMentionJid &&
+      params.senderName &&
+      tokenMatchesName(normalizedToken, params.senderName)
+    ) {
+      markMention(senderMentionJid, token);
+      addAliasHint(senderMentionJid, params.senderName);
+      continue;
+    }
+
+    const matches = participantRecords.filter((record) =>
+      record.aliases.some((alias) => tokenMatchesName(normalizedToken, alias)),
+    );
+    if (matches.length === 1) {
+      markMention(matches[0].mentionJid, token);
+      continue;
+    }
+
+    if (matches.length > 1) {
+      const exact = matches.find((record) =>
+        record.aliases.some((alias) => normalizeNameToken(alias) === normalizedToken),
+      );
+      if (exact) {
+        markMention(exact.mentionJid, token);
         continue;
       }
-      normalizedUsers.add(user);
-      if (!preferredJidByUser.has(user)) {
-        preferredJidByUser.set(user, `${user}@s.whatsapp.net`);
+    }
+
+    unresolvedMentions.push({ normalized: normalizedToken, raw: token });
+  }
+
+  if (normalizedIntentText) {
+    const requestWords = normalizedIntentText
+      .split(/\s+/)
+      .filter((word) => word.length >= 3 && !INTENT_WORD_STOPLIST.has(word));
+    for (const word of requestWords) {
+      const matches = participantRecords.filter((record) =>
+        record.aliases.some((alias) => tokenMatchesName(word, alias)),
+      );
+      if (matches.length === 1) {
+        markMention(matches[0].mentionJid, word);
       }
     }
-    return { allowedUsers: normalizedUsers, preferredJidByUser };
   }
 
-  const senderUser = normalizeMentionUser(
-    extractMentionUser(params.senderJid ?? params.senderE164 ?? ""),
-  );
-  if (!senderUser) {
-    return null;
-  }
-
-  if (!preferredJidByUser.has(senderUser)) {
-    preferredJidByUser.set(senderUser, `${senderUser}@s.whatsapp.net`);
-  }
-  const allowSender =
-    SELF_MENTION_REGEX.test(params.inboundBody) || TAG_INTENT_REGEX.test(params.inboundBody);
-  if (!allowSender) {
-    return null;
-  }
-  return { allowedUsers: new Set([senderUser]), preferredJidByUser };
-}
-
-function stripDisallowedMentionTokens(text: string, allowedUsers: Set<string>): string {
-  let changed = false;
-  OUTBOUND_MENTION_TOKEN_REGEX.lastIndex = 0;
-  const stripped = text.replace(
-    OUTBOUND_MENTION_TOKEN_REGEX,
-    (
-      token: string,
-      rawNumber: string,
-      _domain: string | undefined,
-      offset: number,
-      fullText: string,
-    ) => {
-      const start = Number(offset);
-      const end = start + token.length;
-      if (!hasMentionBoundary(fullText, start, end)) {
-        return token;
+  const remaining = participantJids.filter((jid) => !chosen.has(jid));
+  if (unresolvedMentions.length > 0 && remaining.length > 0) {
+    let assignmentPool = remaining;
+    if (!wantsSelf && selfMentionJid) {
+      const withoutSelf = assignmentPool.filter((jid) => jid !== selfMentionJid);
+      if (withoutSelf.length > 0) {
+        assignmentPool = withoutSelf;
       }
-      const user = normalizeMentionUser(rawNumber);
-      if (!user || allowedUsers.has(user)) {
-        return `@${user}`;
+    }
+    if (!wantsSender && senderMentionJid) {
+      const withoutSender = assignmentPool.filter((jid) => jid !== senderMentionJid);
+      if (withoutSender.length > 0) {
+        assignmentPool = withoutSender;
       }
-      changed = true;
-      return "";
-    },
-  );
-  if (!changed) {
-    return stripped;
-  }
-  return stripped
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+    }
 
-function userFromJid(jid: string): string {
-  return normalizeMentionUser(extractMentionUser(jid));
+    if (assignmentPool.length === unresolvedMentions.length && assignmentPool.length <= 3) {
+      for (const [index, jid] of assignmentPool.entries()) {
+        markMention(jid, unresolvedMentions[index]?.raw);
+      }
+    } else if (unresolvedMentions.length === 1 && assignmentPool.length === 1) {
+      markMention(assignmentPool[0], unresolvedMentions[0]?.raw);
+    }
+  }
+
+  // For "tag me and <someone>" in a small group, the model may omit @tokens
+  // or use a nickname we cannot map. In that case, pick the only non-self/non-sender
+  // candidate so mentions remain usable.
+  if (isTagIntent && wantsSender && !wantsSelf && participantJids.length <= 4) {
+    const unresolvedNonSelfSender = participantJids.filter(
+      (jid) => !chosen.has(jid) && jid !== senderMentionJid && jid !== selfMentionJid,
+    );
+    if (unresolvedNonSelfSender.length === 1) {
+      markMention(unresolvedNonSelfSender[0]);
+    }
+  }
+
+  const aliasHints = new Map<string, string[]>();
+  for (const [user, aliases] of aliasHintsByUser.entries()) {
+    aliasHints.set(
+      user,
+      [...aliases].toSorted((left, right) => right.length - left.length),
+    );
+  }
+
+  return { mentionJids: [...chosen], aliasHintsByUser: aliasHints };
 }
 
 export async function monitorWebInbox(options: {
@@ -271,6 +418,23 @@ export async function monitorWebInbox(options: {
 
   const selfJid = sock.user?.id;
   const selfE164 = selfJid ? jidToE164(selfJid) : null;
+  const selfProfileName = (sock.user as { name?: unknown } | undefined)?.name;
+  const selfMentionJid = (() => {
+    const selfDigits = extractDigits(selfE164);
+    if (selfDigits.length >= 6) {
+      return `${selfDigits}@s.whatsapp.net`;
+    }
+    if (selfJid) {
+      return normalizeMentionJid(selfJid);
+    }
+    return undefined;
+  })();
+  const selfMentionAliases = [
+    typeof selfProfileName === "string" ? selfProfileName : undefined,
+    "bot",
+    "self",
+    "yourself",
+  ].filter((alias): alias is string => Boolean(alias && alias.trim().length > 0));
   const debouncer = createInboundDebouncer<WebInboundMessage>({
     debounceMs: options.debounceMs ?? 0,
     buildKey: (msg) => {
@@ -331,9 +495,9 @@ export async function monitorWebInbox(options: {
   const resolveInboundJid = async (jid: string | null | undefined): Promise<string | null> =>
     resolveJidToE164(jid, { authDir: options.authDir, lidLookup });
 
-  const getGroupMeta = async (jid: string) => {
+  const getGroupMeta = async (jid: string, options?: { forceRefresh?: boolean }) => {
     const cached = groupMetaCache.get(jid);
-    if (cached && cached.expires > Date.now()) {
+    if (!options?.forceRefresh && cached && cached.expires > Date.now()) {
       return cached;
     }
     try {
@@ -364,6 +528,9 @@ export async function monitorWebInbox(options: {
       return entry;
     } catch (err) {
       logVerbose(`Failed to fetch group metadata for ${jid}: ${String(err)}`);
+      if (cached) {
+        return cached;
+      }
       return { expires: Date.now() + GROUP_META_TTL_MS };
     }
   };
@@ -468,7 +635,17 @@ export async function monitorWebInbox(options: {
           continue;
         }
       }
-      const replyContext = describeReplyContext(msg.message as proto.IMessage | undefined);
+      let replyContext = describeReplyContext(msg.message as proto.IMessage | undefined);
+      if (replyContext?.senderJid) {
+        const resolvedReplySender = await resolveInboundJid(replyContext.senderJid);
+        if (resolvedReplySender) {
+          replyContext = {
+            ...replyContext,
+            sender: resolvedReplySender,
+            senderE164: resolvedReplySender,
+          };
+        }
+      }
 
       let mediaPath: string | undefined;
       let mediaType: string | undefined;
@@ -497,37 +674,65 @@ export async function monitorWebInbox(options: {
       }
 
       const chatJid = remoteJid;
+      const senderName = msg.pushName ?? undefined;
       const mentionedJids = extractMentionedJids(msg.message as proto.IMessage | undefined);
-      const mentionPolicy = resolveMentionPolicy({
-        inboundBody: body,
-        mentionedJids: mentionedJids ?? undefined,
-        senderJid: participantJid,
-        senderE164: senderE164 ?? undefined,
-        participants: groupParticipantInfo,
-      });
       const resolveOutboundMentions = async (text: string) => {
-        const policyText = mentionPolicy
-          ? stripDisallowedMentionTokens(text, mentionPolicy.allowedUsers)
-          : text;
-        let mentionJids = await resolveMentionJids(policyText, {
-          lidLookup,
-          participants: groupParticipantInfo,
-        });
+        let participants = groupParticipantInfo;
+        let mentionAliasHintsByUser: Map<string, string[]> | undefined;
+        const maybeTagIntent =
+          text.includes("@") ||
+          splitWords(text).includes("tag") ||
+          splitWords(body).includes("tag");
+        if (group && maybeTagIntent && (!participants || participants.length === 0)) {
+          const refreshed = await getGroupMeta(chatJid, { forceRefresh: true });
+          participants = refreshed.participantInfo;
+        }
 
-        if (mentionPolicy) {
-          mentionJids = mentionJids.filter((jid) =>
-            mentionPolicy.allowedUsers.has(userFromJid(jid)),
-          );
-          if (mentionJids.length === 0) {
-            mentionJids = [...mentionPolicy.allowedUsers].map(
-              (user) => mentionPolicy.preferredJidByUser.get(user) ?? `${user}@s.whatsapp.net`,
+        let mentionJids = await resolveMentionJids(text, {
+          lidLookup,
+          participants,
+        });
+        if (group && maybeTagIntent && participants?.length) {
+          const inferred = inferMentionJidsFromNames({
+            responseText: text,
+            intentText: body,
+            participants,
+            senderName,
+            senderE164,
+            selfE164,
+            selfAliases: selfMentionAliases,
+          });
+          if (inferred.mentionJids.length > 0) {
+            mentionJids = Array.from(new Set([...mentionJids, ...inferred.mentionJids]));
+            mentionAliasHintsByUser = inferred.aliasHintsByUser;
+            inboundLogger.debug(
+              { chatJid, inferredMentionJids: inferred.mentionJids },
+              "applied fallback mention inference",
             );
           }
+        }
+        const outgoingText = injectMentionTokens(text, mentionJids, participants, {
+          selfMentionJid,
+          selfMentionAliases,
+          mentionAliasHintsByUser,
+        });
+
+        if (group && (mentionJids.length > 0 || text.includes("@"))) {
+          inboundLogger.debug(
+            {
+              chatJid,
+              participantCount: participants?.length ?? 0,
+              mentionJids,
+              outgoingTextPreview:
+                outgoingText.length > 240 ? `${outgoingText.slice(0, 240)}...` : outgoingText,
+            },
+            "resolved outbound mentions",
+          );
         }
 
         return {
           mentionJids,
-          outgoingText: injectMentionTokens(policyText, mentionJids),
+          outgoingText,
         };
       };
       const sendComposing = async () => {
@@ -540,6 +745,12 @@ export async function monitorWebInbox(options: {
       const reply = async (text: string) => {
         const { mentionJids, outgoingText } = await resolveOutboundMentions(text);
         const mentionPayload = mentionJids.length > 0 ? { mentions: mentionJids } : {};
+        if (group && (mentionJids.length > 0 || text.includes("@"))) {
+          inboundLogger.debug(
+            { chatJid, mentionCount: mentionJids.length, mentionJids },
+            "sending outbound text reply",
+          );
+        }
         await sock.sendMessage(chatJid, { text: outgoingText, ...mentionPayload });
       };
       const sendMedia = async (payload: AnyMessageContent) => {
@@ -556,6 +767,13 @@ export async function monitorWebInbox(options: {
           return;
         }
 
+        if (group && (mentionJids.length > 0 || body.includes("@"))) {
+          inboundLogger.debug(
+            { chatJid, mentionCount: mentionJids.length, mentionJids },
+            "sending outbound media reply",
+          );
+        }
+
         await sock.sendMessage(chatJid, {
           ...payload,
           caption: mentionCaption,
@@ -563,7 +781,6 @@ export async function monitorWebInbox(options: {
         });
       };
       const timestamp = messageTimestampMs;
-      const senderName = msg.pushName ?? undefined;
 
       inboundLogger.info(
         { from, to: selfE164 ?? "me", body, mediaPath, mediaType, mediaFileName, timestamp },
@@ -641,14 +858,14 @@ export async function monitorWebInbox(options: {
     },
     defaultAccountId: options.accountId,
     lidLookup,
-    getParticipants: () => {
-      const allParticipants: ParticipantMentionInfo[] = [];
-      for (const meta of groupMetaCache.values()) {
-        if (meta.participantInfo) {
-          allParticipants.push(...meta.participantInfo);
-        }
+    selfMentionJid,
+    selfMentionAliases,
+    getParticipants: async (jid) => {
+      if (!isJidGroup(jid)) {
+        return [];
       }
-      return allParticipants;
+      const meta = await getGroupMeta(jid);
+      return meta.participantInfo ?? [];
     },
   });
 
