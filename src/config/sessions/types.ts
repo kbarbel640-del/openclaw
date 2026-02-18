@@ -84,6 +84,12 @@ export type SessionEntry = {
   compactionCount?: number;
   /** When true, blocks message processing until user confirms post-compaction context. */
   compactionPendingVerification?: boolean;
+  /** Messages held during post-compaction verification gate, awaiting user triage. */
+  compactionHeldMessages?: Array<{
+    body: string;
+    timestamp: number;
+    senderId?: string;
+  }>;
   memoryFlushAt?: number;
   memoryFlushCompactionCount?: number;
   cliSessionIds?: Record<string, string>;
