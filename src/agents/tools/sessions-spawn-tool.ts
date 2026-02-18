@@ -79,8 +79,61 @@ async function verifySessionModelApplied(opts: {
   spawnedBy: string;
   agentId: string;
   expectedModelRef: string;
+  /**
+   * sessions.patch result entry (if available). Prefer this over sessions.list readback to avoid
+   * races and sessions.list filtering changes.
+   */
+  patchedEntry?: { modelProvider?: unknown; model?: unknown } | null;
 }) {
   const { provider: expectedProvider, model: expectedModel } = splitModelRef(opts.expectedModelRef);
+
+  const resolveActualFromEntry = (entry?: { modelProvider?: unknown; model?: unknown } | null) => {
+    if (!entry) return { provider: undefined, model: undefined };
+    const provider = typeof entry.modelProvider === "string" ? entry.modelProvider : undefined;
+    const model = typeof entry.model === "string" ? entry.model : undefined;
+    return { provider, model };
+  };
+
+  // Fast path: sessions.patch already validated the model catalog and returns the updated entry.
+  // Use it for HARD FAIL verification when it contains provider/model.
+  const patched = resolveActualFromEntry(opts.patchedEntry);
+  // Only use patchedEntry for verification when it contains *both* provider+model. This preserves
+  // the older semantics where we asserted the gateway resolved a provider (needed when the caller
+  // passes a bare model name).
+  if (patched.provider && patched.model) {
+    const actualProvider = patched.provider;
+    const actualModel = patched.model;
+
+    if (expectedProvider) {
+      if (actualProvider !== expectedProvider || actualModel !== expectedModel) {
+        throw new Error(
+          (
+            "model override verification failed: expected " +
+            expectedProvider +
+            "/" +
+            expectedModel +
+            " but read back " +
+            (actualProvider ?? "") +
+            "/" +
+            (actualModel ?? "")
+          ).trim(),
+        );
+      }
+      return;
+    }
+
+    if (actualModel !== expectedModel) {
+      throw new Error(
+        (
+          "model override verification failed: expected model " +
+          expectedModel +
+          " but read back " +
+          (actualModel ?? "")
+        ).trim(),
+      );
+    }
+    return;
+  }
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -124,6 +177,8 @@ async function verifySessionModelApplied(opts: {
       limit: 2048,
       includeGlobal: true,
       includeUnknown: true,
+      // If the store is huge, search narrows cheaply (pure string filter).
+      search: opts.childSessionKey,
     });
   }
 
@@ -295,19 +350,23 @@ export function createSessionsSpawnTool(opts?: {
       }
       if (resolvedModel) {
         try {
-          await callGateway({
+          const patchResult = (await callGateway({
             method: "sessions.patch",
             params: { key: childSessionKey, model: resolvedModel },
             timeoutMs: 10_000,
-          });
+          })) as { entry?: unknown };
           modelApplied = true;
 
-          // HARD FAIL semantics: read back the session row and assert provider/model match.
+          // HARD FAIL semantics: assert provider/model match (prefer sessions.patch result; fallback to sessions.list).
           await verifySessionModelApplied({
             childSessionKey,
             spawnedBy: spawnedByKey,
             agentId: targetAgentId,
             expectedModelRef: resolvedModel,
+            patchedEntry:
+              patchResult && typeof patchResult === "object" && patchResult
+                ? ((patchResult as { entry?: unknown }).entry as any)
+                : undefined,
           });
           modelVerified = true;
 
