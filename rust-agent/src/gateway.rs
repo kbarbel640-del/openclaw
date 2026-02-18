@@ -2857,7 +2857,7 @@ impl RpcDispatcher {
             ChatRunStartOutcome::Completed => {
                 return RpcDispatchOutcome::Handled(json!({
                     "runId": run_id,
-                    "status": "completed"
+                    "status": "ok"
                 }));
             }
             ChatRunStartOutcome::Aborted => {
@@ -15893,7 +15893,7 @@ mod tests {
                         .pointer("/status")
                         .and_then(serde_json::Value::as_str)
                         .unwrap_or_default();
-                    if status == "completed" {
+                    if status == "ok" {
                         completed = true;
                         break;
                     }
@@ -15902,7 +15902,7 @@ mod tests {
                 _ => panic!("expected chat.send replay response"),
             }
         }
-        assert!(completed, "expected completed chat.send replay status");
+        assert!(completed, "expected ok chat.send replay status");
 
         let patch = RpcRequestFrame {
             id: "req-chat-session-patch".to_owned(),
