@@ -82,7 +82,7 @@ export function clusterByEmbeddings<T extends ClusterableItem>(
   }
 
   // DBSCAN algorithm
-  const labels = new Array<number>(withEmbeddings.length).fill(-1); // -1 = unvisited
+  const labels = Array.from({ length: withEmbeddings.length }, () => -1); // -1 = unvisited
   let clusterId = 0;
 
   for (let i = 0; i < withEmbeddings.length; i++) {

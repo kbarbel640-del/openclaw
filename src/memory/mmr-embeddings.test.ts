@@ -100,7 +100,7 @@ describe("MMR with embeddings", () => {
     ];
 
     // With text similarity, "canine" would seem diverse (no token overlap)
-    const textRanked = mmrRerank(items, {
+    const _textRanked = mmrRerank(items, {
       enabled: true,
       lambda: 0.7,
       useEmbeddingSimilarity: false,

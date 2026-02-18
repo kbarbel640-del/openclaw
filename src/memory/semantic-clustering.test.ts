@@ -3,8 +3,6 @@ import {
   clusterByEmbeddings,
   getClusterStats,
   selectClusterRepresentatives,
-  DEFAULT_CLUSTER_CONFIG,
-  type ClusterableItem,
 } from "./semantic-clustering.js";
 
 describe("semantic-clustering", () => {
