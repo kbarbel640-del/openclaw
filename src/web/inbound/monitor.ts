@@ -240,10 +240,22 @@ function inferMentionJidsFromNames(params: {
 
   if (unresolvedMentionTokens.length > 0) {
     const remaining = participantJids.filter((jid) => !chosen.has(jid));
-    if (remaining.length === unresolvedMentionTokens.length && remaining.length <= 3) {
+    const remainingWithoutSelfSender = remaining.filter(
+      (jid) => jid !== selfMentionJid && jid !== senderMentionJid,
+    );
+    if (
+      remainingWithoutSelfSender.length === unresolvedMentionTokens.length &&
+      remainingWithoutSelfSender.length <= 3
+    ) {
+      for (const [index, jid] of remainingWithoutSelfSender.entries()) {
+        markMention(jid, unresolvedMentionTokens[index]);
+      }
+    } else if (remaining.length === unresolvedMentionTokens.length && remaining.length <= 3) {
       for (const [index, jid] of remaining.entries()) {
         markMention(jid, unresolvedMentionTokens[index]);
       }
+    } else if (unresolvedMentionTokens.length === 1 && remainingWithoutSelfSender.length === 1) {
+      markMention(remainingWithoutSelfSender[0], unresolvedMentionTokens[0]);
     } else if (unresolvedMentionTokens.length === 1 && remaining.length === 1) {
       markMention(remaining[0], unresolvedMentionTokens[0]);
     }

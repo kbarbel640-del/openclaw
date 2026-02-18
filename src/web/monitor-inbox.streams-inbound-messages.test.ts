@@ -365,6 +365,58 @@ describe("web monitor inbox", () => {
     await listener.close();
   });
 
+  it("maps one unresolved @name to the only remaining non-self participant", async () => {
+    const onMessage = vi.fn(async (msg) => {
+      await msg.reply('@Alice Example @Underground_Topper\nDev 1: "Code works on my machine."');
+    });
+
+    const testSock = getSock();
+    const prevSelfId = testSock.user.id;
+    testSock.user.id = "14155550333@s.whatsapp.net";
+    const { listener, sock } = await startInboxMonitor(onMessage);
+    sock.groupMetadata.mockResolvedValue({
+      subject: "test-group",
+      participants: [
+        { id: "14155550111@s.whatsapp.net", phoneNumber: "+14155550111" },
+        { id: "14155550222@s.whatsapp.net", phoneNumber: "+14155550222" },
+        { id: "14155550333@s.whatsapp.net", phoneNumber: "+14155550333" },
+      ],
+    });
+
+    const upsert = buildMessageUpsert({
+      id: "g-4",
+      remoteJid: "120363425190157453@g.us",
+      participant: "14155550111@s.whatsapp.net",
+      text: "tag me and ankit tell a joke",
+      timestamp: 1_700_000_003,
+      pushName: "Alice Example",
+    });
+
+    sock.ev.emit("messages.upsert", upsert);
+    await tick();
+
+    const outboundCall = [...sock.sendMessage.mock.calls]
+      .toReversed()
+      .find(
+        ([jid, payload]) =>
+          jid === "120363425190157453@g.us" &&
+          typeof (payload as { text?: unknown }).text === "string" &&
+          (payload as { text: string }).text.includes("Code works on my machine"),
+      );
+
+    expect(outboundCall).toBeDefined();
+    const payload = outboundCall?.[1] as { text: string; mentions?: string[] };
+    expect(payload.mentions).toEqual(
+      expect.arrayContaining(["14155550111@s.whatsapp.net", "14155550222@s.whatsapp.net"]),
+    );
+    expect(payload.text).toContain("@14155550111");
+    expect(payload.text).toContain("@14155550222");
+    expect(payload.text).not.toContain("@Underground_Topper");
+
+    await listener.close();
+    testSock.user.id = prevSelfId;
+  });
+
   it("does not block follow-up messages when handler is pending", async () => {
     let resolveFirst: (() => void) | null = null;
     const onMessage = vi.fn(async () => {
