@@ -107,4 +107,6 @@ export type RunEmbeddedPiAgentParams = {
   streamParams?: AgentStreamParams;
   ownerNumbers?: string[];
   enforceFinalTag?: boolean;
+  /** If true, allow plugins to trigger automatic recovery actions (retry/switch). Default: false */
+  autoRecover?: boolean;
 };

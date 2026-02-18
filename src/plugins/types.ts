@@ -315,6 +315,7 @@ export type PluginHookName =
   | "session_start"
   | "session_end"
   | "gateway_start"
+  | "run_error"
   | "gateway_stop";
 
 // Agent context shared across agent hooks
@@ -562,6 +563,30 @@ export type PluginHookGatewayStopEvent = {
   reason?: string;
 };
 
+
+
+// run_error hook
+export type PluginHookRunErrorEvent = {
+  error?: string; // user-facing error message or serialized error
+  errorType?: string; // optional classification (e.g., "rate_limit", "timeout")
+  runId?: string;
+  sessionId?: string;
+  sessionKey?: string;
+  agentId?: string;
+  provider?: string;
+  model?: string;
+  attempt: number; // recovery attempt count
+  timedOut?: boolean;
+  aborted?: boolean;
+  // Raw assistant object if available (may be partial and should be treated as opaque)
+  assistant?: unknown;
+};
+
+export type PluginHookRunErrorResult = {
+  action?: 'retry' | 'switch' | 'fail';
+  newModel?: string;
+};
+
 // Hook handler types mapped by hook name
 export type PluginHookHandlerMap = {
   before_model_resolve: (
@@ -637,6 +662,10 @@ export type PluginHookHandlerMap = {
     event: PluginHookGatewayStartEvent,
     ctx: PluginHookGatewayContext,
   ) => Promise<void> | void;
+  run_error: (
+    event: PluginHookRunErrorEvent,
+    ctx: PluginHookAgentContext,
+  ) => Promise<PluginHookRunErrorResult | void> | PluginHookRunErrorResult | void;
   gateway_stop: (
     event: PluginHookGatewayStopEvent,
     ctx: PluginHookGatewayContext,
