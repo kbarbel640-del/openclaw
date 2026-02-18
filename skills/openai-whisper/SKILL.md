@@ -17,6 +17,13 @@ metadata:
               "bins": ["whisper"],
               "label": "Install OpenAI Whisper (brew)",
             },
+            {
+              "id": "scoop",
+              "kind": "scoop",
+              "package": "openai-whisper",
+              "bins": ["whisper"],
+              "label": "Install OpenAI Whisper (scoop)",
+            },
           ],
       },
   }

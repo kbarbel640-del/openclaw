@@ -180,3 +180,34 @@ export function buildXaiModelDefinition(): ModelDefinitionConfig {
     maxTokens: XAI_DEFAULT_MAX_TOKENS,
   };
 }
+
+export const SILICONFLOW_GLOBAL_BASE_URL = "https://api.siliconflow.com/v1";
+export const SILICONFLOW_CN_BASE_URL = "https://api.siliconflow.cn/v1";
+export const SILICONFLOW_DEFAULT_MODEL_ID = "deepseek-ai/DeepSeek-V3";
+export const SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF = `siliconflow/${SILICONFLOW_DEFAULT_MODEL_ID}`;
+export const SILICONFLOW_CN_DEFAULT_MODEL_REF = `siliconflow-cn/${SILICONFLOW_DEFAULT_MODEL_ID}`;
+export const SILICONFLOW_DEFAULT_CONTEXT_WINDOW = 64000;
+export const SILICONFLOW_DEFAULT_MAX_TOKENS = 4096;
+
+export function buildSiliconFlowModelDefinition(params: {
+  id: string;
+  name?: string;
+  reasoning?: boolean;
+  contextWindow?: number;
+  maxTokens?: number;
+}): ModelDefinitionConfig {
+  return {
+    id: params.id,
+    name: params.name ?? params.id.split("/").pop() ?? params.id,
+    reasoning: params.reasoning ?? false,
+    input: ["text"],
+    cost: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+    },
+    contextWindow: params.contextWindow ?? SILICONFLOW_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: params.maxTokens ?? SILICONFLOW_DEFAULT_MAX_TOKENS,
+  };
+}

@@ -30,6 +30,8 @@ export type ApplyAuthChoiceParams = {
     cloudflareAiGatewayGatewayId?: string;
     cloudflareAiGatewayApiKey?: string;
     xaiApiKey?: string;
+    siliconflowGlobalApiKey?: string;
+    siliconflowCnApiKey?: string;
   };
 };
 

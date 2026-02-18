@@ -8,7 +8,12 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
-- Commands/Doctor: avoid rewriting invalid configs with new `gateway.auth.token` defaults during repair and only write when real config changes are detected, preventing accidental token duplication and backup churn.
+- SiliconFlow: add first-class support for SiliconFlow (CN and Global) with dynamic model discovery and onboarding integration.
+- Skills: add Scoop support for Windows skill installations, prioritize Scoop over Brew on Windows when available.
+- Skills: fix Go module installation errors on Windows by enforcing `GO111MODULE=on`.
+- Skills: update multiple skills (`obsidian`, `openai-whisper`, `openhue`, `github`, `steipete/*`) with Windows-compatible Go or Scoop installers.
+- CLI/Windows: fix `bash` command recognition and argument normalization issues in the Windows build scripts.
+- Doctor/Doctor: avoid rewriting invalid configs with new `gateway.auth.token` defaults during repair and only write when real config changes are detected, preventing accidental token duplication and backup churn.
 - Sandbox/Registry: serialize container and browser registry writes with shared file locks and atomic replacement to prevent lost updates and delete rollback races from desyncing `sandbox list`, `prune`, and `recreate --all`. Thanks @kexinoh.
 - Security/Exec: require `tools.exec.safeBins` binaries to resolve from trusted bin directories (system defaults plus gateway startup `PATH`) so PATH-hijacked trojan binaries cannot bypass allowlist checks. Thanks @jackhax for reporting.
 - Cron/Webhooks: protect cron webhook POST delivery with SSRF-guarded outbound fetch (`fetchWithSsrFGuard`) to block private/metadata destinations before request dispatch. Thanks @Adam55A-code.

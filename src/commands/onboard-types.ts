@@ -14,6 +14,7 @@ export type AuthChoice =
   | "openai-api-key"
   | "openrouter-api-key"
   | "litellm-api-key"
+  | "xai-api-key"
   | "ai-gateway-api-key"
   | "cloudflare-ai-gateway-api-key"
   | "moonshot-api-key"
@@ -44,8 +45,9 @@ export type AuthChoice =
   | "github-copilot"
   | "copilot-proxy"
   | "qwen-portal"
-  | "xai-api-key"
   | "qianfan-api-key"
+  | "siliconflow-global-api-key"
+  | "siliconflow-cn-api-key"
   | "custom-api-key"
   | "skip";
 export type AuthChoiceGroupId =
@@ -70,7 +72,10 @@ export type AuthChoiceGroupId =
   | "together"
   | "huggingface"
   | "qianfan"
+  | "opencode"
   | "xai"
+  | "siliconflow-global"
+  | "siliconflow-cn"
   | "custom";
 export type GatewayAuthChoice = "token" | "password";
 export type ResetScope = "config" | "config+creds+sessions" | "full";
@@ -120,6 +125,8 @@ export type OnboardOptions = {
   opencodeZenApiKey?: string;
   xaiApiKey?: string;
   qianfanApiKey?: string;
+  siliconflowGlobalApiKey?: string;
+  siliconflowCnApiKey?: string;
   customBaseUrl?: string;
   customApiKey?: string;
   customModelId?: string;

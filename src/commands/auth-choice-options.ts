@@ -160,6 +160,18 @@ const AUTH_CHOICE_GROUP_DEFS: {
     hint: "Any OpenAI or Anthropic compatible endpoint",
     choices: ["custom-api-key"],
   },
+  {
+    value: "siliconflow-global",
+    label: "SiliconFlow (International)",
+    hint: "DeepSeek, Qwen, Llama (API key)",
+    choices: ["siliconflow-global-api-key"],
+  },
+  {
+    value: "siliconflow-cn",
+    label: "SiliconFlow (China)",
+    hint: "DeepSeek, Qwen, Llama (API key)",
+    choices: ["siliconflow-cn-api-key"],
+  },
 ];
 
 const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
@@ -295,6 +307,16 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     value: "minimax-api-lightning",
     label: "MiniMax M2.5 Lightning",
     hint: "Faster, higher output cost",
+  },
+  {
+    value: "siliconflow-global-api-key",
+    label: "SiliconFlow (International)",
+    hint: "deepseek-ai/DeepSeek-V3",
+  },
+  {
+    value: "siliconflow-cn-api-key",
+    label: "SiliconFlow (China)",
+    hint: "deepseek-ai/DeepSeek-V3",
   },
   { value: "custom-api-key", label: "Custom Provider" },
 ];

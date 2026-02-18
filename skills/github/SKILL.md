@@ -23,6 +23,13 @@ metadata:
               "bins": ["gh"],
               "label": "Install GitHub CLI (apt)",
             },
+            {
+              "id": "scoop",
+              "kind": "scoop",
+              "package": "gh",
+              "bins": ["gh"],
+              "label": "Install GitHub CLI (scoop)",
+            },
           ],
       },
   }

@@ -36,11 +36,12 @@ export {
 export function resolveSkillsInstallPreferences(config?: OpenClawConfig): SkillsInstallPreferences {
   const raw = config?.skills?.install;
   const preferBrew = raw?.preferBrew ?? true;
+  const preferScoop = raw?.preferScoop ?? process.platform === "win32";
   const managerRaw = typeof raw?.nodeManager === "string" ? raw.nodeManager.trim() : "";
   const manager = managerRaw.toLowerCase();
   const nodeManager: SkillsInstallPreferences["nodeManager"] =
     manager === "pnpm" || manager === "yarn" || manager === "bun" || manager === "npm"
       ? manager
       : "npm";
-  return { preferBrew, nodeManager };
+  return { preferBrew, preferScoop, nodeManager };
 }

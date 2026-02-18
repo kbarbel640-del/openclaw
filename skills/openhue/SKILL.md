@@ -17,6 +17,13 @@ metadata:
               "bins": ["openhue"],
               "label": "Install OpenHue CLI (brew)",
             },
+            {
+              "id": "go",
+              "kind": "go",
+              "module": "github.com/openhue/openhue-cli/cmd/openhue@latest",
+              "bins": ["openhue"],
+              "label": "Install OpenHue CLI (go)",
+            },
           ],
       },
   }

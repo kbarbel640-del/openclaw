@@ -17,6 +17,13 @@ metadata:
               "bins": ["obsidian-cli"],
               "label": "Install obsidian-cli (brew)",
             },
+            {
+              "id": "go",
+              "kind": "go",
+              "module": "github.com/yakitrak/obsidian-cli@latest",
+              "bins": ["obsidian-cli"],
+              "label": "Install obsidian-cli (go)",
+            },
           ],
       },
   }

@@ -17,6 +17,13 @@ metadata:
               "bins": ["camsnap"],
               "label": "Install camsnap (brew)",
             },
+            {
+              "id": "go",
+              "kind": "go",
+              "module": "github.com/steipete/camsnap@latest",
+              "bins": ["camsnap"],
+              "label": "Install camsnap (go)",
+            },
           ],
       },
   }

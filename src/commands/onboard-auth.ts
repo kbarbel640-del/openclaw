@@ -35,6 +35,10 @@ export {
   applyXiaomiProviderConfig,
   applyZaiConfig,
   applyZaiProviderConfig,
+  applySiliconFlowGlobalConfig,
+  applySiliconFlowGlobalProviderConfig,
+  applySiliconFlowCnConfig,
+  applySiliconFlowCnProviderConfig,
 } from "./onboard-auth.config-core.js";
 export {
   applyMinimaxApiConfig,
@@ -73,6 +77,8 @@ export {
   setXiaomiApiKey,
   setZaiApiKey,
   setXaiApiKey,
+  setSiliconFlowGlobalApiKey,
+  setSiliconFlowCnApiKey,
   writeOAuthCredentials,
   HUGGINGFACE_DEFAULT_MODEL_REF,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
@@ -80,6 +86,8 @@ export {
   ZAI_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
   XAI_DEFAULT_MODEL_REF,
+  SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF,
+  SILICONFLOW_CN_DEFAULT_MODEL_REF,
 } from "./onboard-auth.credentials.js";
 export {
   buildMinimaxApiModelDefinition,
@@ -106,4 +114,8 @@ export {
   ZAI_CODING_GLOBAL_BASE_URL,
   ZAI_CN_BASE_URL,
   ZAI_GLOBAL_BASE_URL,
+  SILICONFLOW_GLOBAL_BASE_URL,
+  SILICONFLOW_CN_BASE_URL,
+  SILICONFLOW_DEFAULT_MODEL_ID,
+  buildSiliconFlowModelDefinition,
 } from "./onboard-auth.models.js";

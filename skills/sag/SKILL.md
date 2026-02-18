@@ -18,6 +18,13 @@ metadata:
               "bins": ["sag"],
               "label": "Install sag (brew)",
             },
+            {
+              "id": "go",
+              "kind": "go",
+              "module": "github.com/steipete/sag@latest",
+              "bins": ["sag"],
+              "label": "Install sag (go)",
+            },
           ],
       },
   }

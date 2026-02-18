@@ -274,3 +274,32 @@ export function setXaiApiKey(key: string, agentDir?: string) {
     agentDir: resolveAuthAgentDir(agentDir),
   });
 }
+
+export {
+  SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF,
+  SILICONFLOW_CN_DEFAULT_MODEL_REF,
+} from "./onboard-auth.models.js";
+
+export async function setSiliconFlowGlobalApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "siliconflow:default",
+    credential: {
+      type: "api_key",
+      provider: "siliconflow",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+
+export async function setSiliconFlowCnApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "siliconflow-cn:default",
+    credential: {
+      type: "api_key",
+      provider: "siliconflow-cn",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}

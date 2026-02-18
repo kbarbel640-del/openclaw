@@ -58,7 +58,7 @@ function resolveSkillKey(entry: SkillEntry): string {
   return entry.metadata?.skillKey ?? entry.skill.name;
 }
 
-function selectPreferredInstallSpec(
+export function selectPreferredInstallSpec(
   install: SkillInstallSpec[],
   prefs: SkillsInstallPreferences,
 ): { spec: SkillInstallSpec; index: number } | undefined {
@@ -74,20 +74,25 @@ function selectPreferredInstallSpec(
   const nodeSpec = findKind("node");
   const goSpec = findKind("go");
   const uvSpec = findKind("uv");
+  const scoopSpec = findKind("scoop");
   const downloadSpec = findKind("download");
   const brewAvailable = hasBinary("brew");
+  const scoopAvailable = hasBinary("scoop");
 
   // Table-driven preference chain; first match wins.
   const pickers: Array<() => { spec: SkillInstallSpec; index: number } | undefined> = [
+    () => (prefs.preferScoop && scoopAvailable ? scoopSpec : undefined),
     () => (prefs.preferBrew && brewAvailable ? brewSpec : undefined),
     () => uvSpec,
     () => nodeSpec,
-    // Only prefer brew when available to avoid guaranteed failure on Linux/Docker.
+    // Only prefer brew/scoop when available to avoid guaranteed failure.
+    () => (scoopAvailable ? scoopSpec : undefined),
     () => (brewAvailable ? brewSpec : undefined),
     () => goSpec,
-    // Prefer download over an unavailable brew spec.
+    // Prefer download over an unavailable brew/scoop spec.
     () => downloadSpec,
-    // Last resort: surface descriptive brew-missing error instead of "no installer found".
+    // Last resort: surface descriptive missing error instead of "no installer found".
+    () => scoopSpec,
     () => brewSpec,
     () => indexed[0],
   ];
@@ -143,6 +148,8 @@ function normalizeInstallOptions(
         label = `Install ${spec.module} (go)`;
       } else if (spec.kind === "uv" && spec.package) {
         label = `Install ${spec.package} (uv)`;
+      } else if (spec.kind === "scoop" && spec.package) {
+        label = `Install ${spec.package} (scoop)`;
       } else if (spec.kind === "download" && spec.url) {
         const url = spec.url.trim();
         const last = url.split("/").pop();
