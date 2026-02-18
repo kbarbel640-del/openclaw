@@ -120,10 +120,6 @@ export function computeJobNextRunAtMs(job: CronJob, nowMs: number): number | und
     return computeNextRunAtMs({ ...job.schedule, anchorMs }, nowMs);
   }
   if (job.schedule.kind === "at") {
-    // One-shot jobs stay due until they successfully finish.
-    if (job.state.lastStatus === "ok" && job.state.lastRunAtMs) {
-      return undefined;
-    }
     // Handle both canonical `at` (string) and legacy `atMs` (number) fields.
     // The store migration should convert atMs→at, but be defensive in case
     // the migration hasn't run yet or was bypassed.
@@ -136,6 +132,14 @@ export function computeJobNextRunAtMs(job: CronJob, nowMs: number): number | und
           : typeof schedule.at === "string"
             ? parseAbsoluteTimeMs(schedule.at)
             : null;
+    // One-shot jobs stay due until they successfully finish.
+    // Only skip if the last successful run was at or after the currently
+    // scheduled time — rescheduling to a later time must re-fire. (#19676)
+    if (job.state.lastStatus === "ok" && job.state.lastRunAtMs) {
+      if (atMs === null || job.state.lastRunAtMs >= atMs) {
+        return undefined;
+      }
+    }
     return atMs !== null ? atMs : undefined;
   }
   const next = computeStaggeredCronNextRunAtMs(job, nowMs);
