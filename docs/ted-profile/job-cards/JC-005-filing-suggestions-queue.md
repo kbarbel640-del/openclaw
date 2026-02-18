@@ -50,3 +50,28 @@ Execution (apply/move) is a later increment and will require:
 
 - explicit Graph/Files permissions
 - new proofs + gates
+
+---
+
+## Proof Evidence (Increment 1 — Propose/List/Approve queue only)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc005.sh
+- Result: PASS
+
+### What was proven
+
+- Append-only filing suggestions ledger (suggestions.jsonl) with events:
+  - filing_suggestion_proposed
+  - filing_suggestion_approved
+- Endpoints function and remain approval-gated (no execution):
+  - POST /filing/suggestions/propose validates inputs and returns suggestion_id (PROPOSED)
+  - GET /filing/suggestions/list replays events and defaults to open PROPOSED items
+  - POST /filing/suggestions/:id/approve appends approval event and returns APPROVED
+  - include_approved=true includes APPROVED items for audit/review
+- Audit entries recorded for propose/approve actions
+- No file moves and no Graph calls occur in this increment.
+
+### Notes
+
+- docs/ted-profile/planning/ remains local scratch and intentionally not committed.
