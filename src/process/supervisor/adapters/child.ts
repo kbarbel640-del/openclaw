@@ -4,6 +4,10 @@ import { killProcessTree } from "../../kill-tree.js";
 import { spawnWithFallback } from "../../spawn-utils.js";
 import { toStringEnv } from "./env.js";
 
+// Global CLI wrappers installed as .cmd batch files on Windows;
+// child_process.spawn() requires the extension to locate them.
+const CMD_BINARIES = new Set(["npm", "pnpm", "yarn", "npx", "openclaw", "claude", "codex"]);
+
 function resolveCommand(command: string): string {
   if (process.platform !== "win32") {
     return command;
@@ -13,8 +17,6 @@ function resolveCommand(command: string): string {
     return command;
   }
   const basename = lower.split(/[\\/]/).pop() ?? lower;
-  // Include global CLI wrappers that ship as .cmd files on Windows
-  const CMD_BINARIES = new Set(["npm", "pnpm", "yarn", "npx", "openclaw", "claude", "codex"]);
   if (CMD_BINARIES.has(basename)) {
     return `${command}.cmd`;
   }
