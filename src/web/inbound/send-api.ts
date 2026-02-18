@@ -1,7 +1,7 @@
 import type { AnyMessageContent, WAPresence } from "@whiskeysockets/baileys";
-import type { ActiveWebSendOptions } from "../active-listener.js";
 import { recordChannelActivity } from "../../infra/channel-activity.js";
 import { toWhatsappJid } from "../../utils.js";
+import type { ActiveWebSendOptions } from "../active-listener.js";
 
 const MENTION_TOKEN_REGEX = /@(\+?\d{6,20})(?:@(s\.whatsapp\.net|lid|hosted\.lid|hosted))?/gi;
 const MENTION_LEFT_BOUNDARY = /[\s([{"'`<]/;
