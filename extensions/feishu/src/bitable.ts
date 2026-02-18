@@ -3,7 +3,6 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { listEnabledFeishuAccounts } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { resolveToolsConfig } from "./tools-config.js";
-import type { FeishuConfig } from "./types.js";
 
 // ============ Helpers ============
 
@@ -557,12 +556,7 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
   }
 
   // Create client using the resolved account config
-  const getClient = () =>
-    createFeishuClient({
-      appId: firstAccount.appId!,
-      appSecret: firstAccount.appSecret!,
-      domain: firstAccount.domain,
-    });
+  const getClient = () => createFeishuClient(firstAccount);
 
   // Tool 0: feishu_bitable_get_meta (helper to parse URLs)
   api.registerTool(
