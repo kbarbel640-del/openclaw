@@ -60,6 +60,4 @@ export const MatrixConfigSchema = z.object({
   groups: z.object({}).catchall(matrixRoomSchema).optional(),
   rooms: z.object({}).catchall(matrixRoomSchema).optional(),
   actions: matrixActionSchema,
-  /** Stream tool execution events in real-time (tool start/update/end) */
-  streamToolEvents: z.boolean().optional(),
 });

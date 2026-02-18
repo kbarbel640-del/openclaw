@@ -668,9 +668,6 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
           onIdle: typingCallbacks.onIdle,
         });
 
-      // Check if real-time tool event streaming is enabled
-      const streamToolEvents = cfg.channels?.matrix?.streamToolEvents === true;
-
       const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
         ctx: ctxPayload,
         cfg,
@@ -679,32 +676,29 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
           ...replyOptions,
           skillFilter: roomConfig?.skills,
           onModelSelected,
-          ...(streamToolEvents
-            ? {
-                onAgentEvent: async (evt) => {
-                  // Real-time tool event streaming: send tool execution events immediately
-                  if (evt.stream === "tool") {
-                    const phase = String(evt.data.phase ?? "");
-                    const toolName = String(evt.data.name ?? "unknown");
-                    let message = "";
-                    if (phase === "start") {
-                      message = `🔧 Running tool: ${toolName}`;
-                    } else if (phase === "update") {
-                      message = `⚡ Tool updating: ${toolName}`;
-                    } else if (phase === "end") {
-                      message = `✅ Tool completed: ${toolName}`;
-                    }
-                    if (message) {
-                      await sendMessageMatrix(roomId, message, {
-                        client,
-                        threadId: threadTarget,
-                        accountId: route.accountId,
-                      });
-                    }
-                  }
-                },
+          onAgentEvent: async (evt) => {
+            // Real-time tool event streaming: send tool execution events immediately
+            if (evt.stream === "tool") {
+              const phase = String(evt.data.phase ?? "");
+              const toolName = String(evt.data.name ?? "unknown");
+              const toolCallId = String(evt.data.toolCallId ?? "");
+              let message = "";
+              if (phase === "start") {
+                message = `🔧 Running tool: ${toolName}`;
+              } else if (phase === "update") {
+                message = `⚡ Tool updating: ${toolName}`;
+              } else if (phase === "end") {
+                message = `✅ Tool completed: ${toolName}`;
               }
-            : {}),
+              if (message) {
+                await sendMessageMatrix(roomId, message, {
+                  client,
+                  threadId: threadTarget,
+                  accountId: route.accountId,
+                });
+              }
+            }
+          },
         },
       });
       markDispatchIdle();
