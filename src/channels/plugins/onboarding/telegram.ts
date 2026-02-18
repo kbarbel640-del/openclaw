@@ -14,12 +14,10 @@ import {
   applySingleTokenPromptResult,
   patchChannelConfigForAccount,
   promptSingleChannelToken,
-  promptResolvedAllowFrom,
   resolveAccountIdForConfigure,
   resolveOnboardingAccountId,
   setChannelDmPolicyWithAllowFrom,
   setOnboardingChannelEnabled,
-  splitOnboardingEntries,
 } from "./helpers.js";
 
 const channel = "telegram" as const;
@@ -38,12 +36,14 @@ async function noteTelegramTokenHelp(prompter: WizardPrompter): Promise<void> {
   );
 }
 
-async function noteTelegramUserIdHelp(prompter: WizardPrompter): Promise<void> {
+async function noteTelegramUserIdHelp(prompter: WizardPrompter, apiRoot: string): Promise<void> {
+  const isCustomApi = apiRoot !== "https://api.telegram.org";
   await prompter.note(
     [
       `1) DM your bot, then read from.id in \`${formatCliCommand("openclaw logs --follow")}\` (safest)`,
-      "2) Or call https://api.telegram.org/bot<bot_token>/getUpdates and read message.from.id",
-      "3) Third-party: DM @userinfobot or @getidsbot",
+      `2) Or call ${apiRoot}/bot<bot_token>/getUpdates and read message.from.id`,
+      "3) Third-party: DM @userinfobot or @getidsbot" +
+        (isCustomApi ? " (only works on official Telegram)" : ""),
       `Docs: ${formatDocsLink("/telegram")}`,
       "Website: https://openclaw.ai",
     ].join("\n"),
@@ -71,48 +71,65 @@ async function promptTelegramAllowFrom(params: {
   const { cfg, prompter, accountId } = params;
   const resolved = resolveTelegramAccount({ cfg, accountId });
   const existingAllowFrom = resolved.config.allowFrom ?? [];
-  await noteTelegramUserIdHelp(prompter);
+  await noteTelegramUserIdHelp(prompter, resolved.apiRoot);
 
   const token = resolved.token;
   if (!token) {
     await prompter.note("Telegram token missing; username lookup is unavailable.", "Telegram");
   }
-  const unique = await promptResolvedAllowFrom({
-    prompter,
-    existing: existingAllowFrom,
-    token,
-    message: "Telegram allowFrom (numeric sender id; @username resolves to id)",
-    placeholder: "@username",
-    label: "Telegram allowlist",
-    parseInputs: splitOnboardingEntries,
-    parseId: parseTelegramAllowFromId,
-    invalidWithoutTokenNote:
-      "Telegram token missing; use numeric sender ids (usernames require a bot token).",
-    resolveEntries: async ({ token: tokenValue, entries }) => {
-      const results = await Promise.all(
-        entries.map(async (entry) => {
-          const numericId = parseTelegramAllowFromId(entry);
-          if (numericId) {
-            return { input: entry, resolved: true, id: numericId };
-          }
-          const stripped = normalizeTelegramAllowFromInput(entry);
-          if (!stripped) {
-            return { input: entry, resolved: false, id: null };
-          }
-          const username = stripped.startsWith("@") ? stripped : `@${stripped}`;
-          const id = await fetchTelegramChatId({ token: tokenValue, chatId: username });
-          return { input: entry, resolved: Boolean(id), id };
-        }),
+
+  const resolveTelegramUserId = async (raw: string): Promise<string | null> => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const stripped = trimmed.replace(/^(telegram|tg):/i, "").trim();
+    if (/^\d+$/.test(stripped)) {
+      return stripped;
+    }
+    if (!token) {
+      return null;
+    }
+    const username = stripped.startsWith("@") ? stripped : `@${stripped}`;
+    return await fetchTelegramChatId({
+      token,
+      chatId: username,
+      apiRoot: resolved.apiRoot,
+    });
+  };
+
+  const parseInput = (value: string) =>
+    value
+      .split(/[\n,;]+/g)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+  let resolvedIds: string[] = [];
+  while (resolvedIds.length === 0) {
+    const entry = await prompter.text({
+      message: "Telegram allowFrom (numeric sender id; @username resolves to id)",
+      placeholder: "@username",
+      initialValue: existingAllowFrom[0] ? String(existingAllowFrom[0]) : undefined,
+      validate: (value) => (String(value ?? "").trim() ? undefined : "Required"),
+    });
+    const parts = parseInput(String(entry));
+    const results = await Promise.all(parts.map((part) => resolveTelegramUserId(part)));
+    const unresolved = parts.filter((_, idx) => !results[idx]);
+    if (unresolved.length > 0) {
+      await prompter.note(
+        `Could not resolve: ${unresolved.join(", ")}. Use @username or numeric id.`,
+        "Telegram allowlist",
       );
-      return results;
-    },
-  });
+      continue;
+    }
+    resolvedIds = results.filter((id): id is string => id !== null);
+  }
 
   return patchChannelConfigForAccount({
     cfg,
     channel: "telegram",
     accountId,
-    patch: { dmPolicy: "allowlist", allowFrom: unique },
+    patch: { dmPolicy: "allowlist", allowFrom: resolvedIds },
   });
 }
 

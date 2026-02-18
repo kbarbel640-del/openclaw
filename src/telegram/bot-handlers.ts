@@ -71,21 +71,23 @@ function isRecoverableMediaGroupError(err: unknown): boolean {
   return err instanceof MediaFetchError || isMediaSizeLimitError(err);
 }
 
-export const registerTelegramHandlers = ({
-  cfg,
-  accountId,
-  bot,
-  opts,
-  runtime,
-  mediaMaxBytes,
-  telegramCfg,
-  groupAllowFrom,
-  resolveGroupPolicy,
-  resolveTelegramGroupConfig,
-  shouldSkipUpdate,
-  processMessage,
-  logger,
-}: RegisterTelegramHandlerParams) => {
+export const registerTelegramHandlers = (deps: RegisterTelegramHandlerParams) => {
+  const {
+    cfg,
+    accountId,
+    bot,
+    opts,
+    runtime,
+    mediaMaxBytes,
+    telegramCfg,
+    groupAllowFrom,
+    resolveGroupPolicy,
+    resolveTelegramGroupConfig,
+    shouldSkipUpdate,
+    processMessage,
+    logger,
+    apiRoot,
+  } = deps;
   const DEFAULT_TEXT_FRAGMENT_MAX_GAP_MS = 1500;
   const TELEGRAM_TEXT_FRAGMENT_START_THRESHOLD_CHARS = 4000;
   const TELEGRAM_TEXT_FRAGMENT_MAX_GAP_MS =
@@ -305,7 +307,7 @@ export const registerTelegramHandlers = ({
       for (const { ctx } of entry.messages) {
         let media;
         try {
-          media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch);
+          media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch, apiRoot);
         } catch (mediaErr) {
           if (!isRecoverableMediaGroupError(mediaErr)) {
             throw mediaErr;
@@ -608,7 +610,7 @@ export const registerTelegramHandlers = ({
     } = params;
 
     // Text fragment handling - Telegram splits long pastes into multiple inbound messages (~4096 chars).
-    // We buffer “near-limit” messages and append immediately-following parts.
+    // We buffer "near-limit" messages and append immediately-following parts.
     const text = typeof msg.text === "string" ? msg.text : undefined;
     const isCommandLike = (text ?? "").trim().startsWith("/");
     if (text && !isCommandLike) {
@@ -705,7 +707,7 @@ export const registerTelegramHandlers = ({
 
     let media: Awaited<ReturnType<typeof resolveMedia>> = null;
     try {
-      media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch);
+      media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch, apiRoot);
     } catch (mediaErr) {
       if (isMediaSizeLimitError(mediaErr)) {
         if (sendOversizeWarning) {
@@ -1218,7 +1220,7 @@ export const registerTelegramHandlers = ({
     });
   });
 
-  // Handle channel posts — enables bot-to-bot communication via Telegram channels.
+  // Handle channel posts - enables bot-to-bot communication via Telegram channels.
   // Telegram bots cannot see other bot messages in groups, but CAN in channels.
   // This handler normalizes channel_post updates into the standard message pipeline.
   bot.on("channel_post", async (ctx) => {

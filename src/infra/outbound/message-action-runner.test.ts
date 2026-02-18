@@ -354,7 +354,7 @@ describe("runMessageAction context isolation", () => {
         cfg: slackConfig,
         actionParams: {
           channel: "telegram",
-          target: "telegram:@ops",
+          target: "telegram:123456789",
           message: "hi",
         },
         toolContext: { currentChannelId: "C12345678", currentChannelProvider: "slack" },
