@@ -257,6 +257,9 @@ importers:
 
   extensions/daedalus-memory:
     dependencies:
+      '@sinclair/typebox':
+        specifier: 0.34.48
+        version: 0.34.48
       uuid:
         specifier: ^9.0.0
         version: 9.0.1
