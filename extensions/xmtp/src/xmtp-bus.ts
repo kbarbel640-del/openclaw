@@ -31,21 +31,14 @@ export interface XmtpBusOptions {
 
 export interface XmtpBusHandle {
   sendText(target: string, text: string): Promise<void>;
-  sendReply(
-    target: string,
-    text: string,
-    referenceMessageId: string,
-  ): Promise<void>;
+  sendReply(target: string, text: string, referenceMessageId: string): Promise<void>;
   getAddress(): string;
   close(): Promise<void>;
 }
 
 type XmtpConversationHandle = {
   sendText: (text: string) => Promise<unknown>;
-  sendReply?: (reply: {
-    content: string;
-    referenceId: string;
-  }) => Promise<unknown>;
+  sendReply?: (reply: { content: string; referenceId: string }) => Promise<unknown>;
 };
 
 type XmtpAgentHandle = Awaited<ReturnType<typeof Agent.create>>;
@@ -79,25 +72,18 @@ async function resolveConversationForTarget(
   if (looksLikeEthAddress(trimmedTarget)) {
     const normalizedAddress = normalizeEthAddress(trimmedTarget);
     const agentWithAddressDm = agent as XmtpAgentHandle & {
-      createDmWithAddress?: (
-        address: string,
-      ) => Promise<XmtpConversationHandle | null>;
+      createDmWithAddress?: (address: string) => Promise<XmtpConversationHandle | null>;
     };
     if (typeof agentWithAddressDm.createDmWithAddress === "function") {
-      const dmConversation =
-        await agentWithAddressDm.createDmWithAddress(normalizedAddress);
+      const dmConversation = await agentWithAddressDm.createDmWithAddress(normalizedAddress);
       if (dmConversation) {
         return dmConversation;
       }
-      throw new Error(
-        `Conversation not found for address: ${normalizedAddress}`,
-      );
+      throw new Error(`Conversation not found for address: ${normalizedAddress}`);
     }
 
     const conversationsWithAddressDm = agent.client.conversations as {
-      createDmWithAddress?: (
-        address: string,
-      ) => Promise<XmtpConversationHandle | null>;
+      createDmWithAddress?: (address: string) => Promise<XmtpConversationHandle | null>;
     };
     if (typeof conversationsWithAddressDm.createDmWithAddress === "function") {
       const dmConversation =
@@ -105,16 +91,13 @@ async function resolveConversationForTarget(
       if (dmConversation) {
         return dmConversation;
       }
-      throw new Error(
-        `Conversation not found for address: ${normalizedAddress}`,
-      );
+      throw new Error(`Conversation not found for address: ${normalizedAddress}`);
     }
 
     throw new Error("XMTP SDK does not support address-based DM creation");
   }
 
-  const conversation =
-    await agent.client.conversations.getConversationById(trimmedTarget);
+  const conversation = await agent.client.conversations.getConversationById(trimmedTarget);
   if (!conversation) {
     throw new Error(`Conversation not found: ${trimmedTarget}`);
   }
@@ -167,9 +150,7 @@ function extractReplyContext(content: unknown): XmtpReplyContext | undefined {
   };
 }
 
-export async function startXmtpBus(
-  options: XmtpBusOptions,
-): Promise<XmtpBusHandle> {
+export async function startXmtpBus(options: XmtpBusOptions): Promise<XmtpBusHandle> {
   const {
     walletKey,
     dbEncryptionKey,
@@ -296,11 +277,7 @@ export async function startXmtpBus(
       await conversation.sendText(text);
     },
 
-    async sendReply(
-      target: string,
-      text: string,
-      referenceMessageId: string,
-    ): Promise<void> {
+    async sendReply(target: string, text: string, referenceMessageId: string): Promise<void> {
       const trimmedReferenceMessageId = referenceMessageId.trim();
       if (!trimmedReferenceMessageId) {
         throw new Error("referenceMessageId is required");
@@ -331,9 +308,7 @@ export async function startXmtpBus(
 export function normalizeEthAddress(input: string): string {
   const trimmed = input.trim().toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(trimmed)) {
-    throw new Error(
-      "Invalid Ethereum address: must be 0x-prefixed 40 hex chars",
-    );
+    throw new Error("Invalid Ethereum address: must be 0x-prefixed 40 hex chars");
   }
   return trimmed;
 }

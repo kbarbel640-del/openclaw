@@ -1,18 +1,12 @@
-import type {
-  OpenClawConfig,
-  PluginRuntime,
-  ReplyPayload,
-} from "openclaw/plugin-sdk";
+import type { OpenClawConfig, PluginRuntime, ReplyPayload } from "openclaw/plugin-sdk";
 import { PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { xmtpPlugin } from "./channel.js";
 import { setXmtpRuntime } from "./runtime.js";
 import type { ResolvedXmtpAccount } from "./types.js";
 
-const TEST_WALLET_KEY =
-  "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-const TEST_DB_KEY =
-  "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
+const TEST_WALLET_KEY = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const TEST_DB_KEY = "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
 const TEST_SENDER = "0x1234567890abcdef1234567890abcdef12345678";
 
 const busState = vi.hoisted(() => {
@@ -37,17 +31,15 @@ const busState = vi.hoisted(() => {
       }) => Promise<void>)
     | undefined;
 
-  const startXmtpBus = vi.fn(
-    async (options: { onMessage: typeof onMessage }) => {
-      onMessage = options.onMessage;
-      return {
-        sendText,
-        sendReply,
-        close,
-        getAddress,
-      };
-    },
-  );
+  const startXmtpBus = vi.fn(async (options: { onMessage: typeof onMessage }) => {
+    onMessage = options.onMessage;
+    return {
+      sendText,
+      sendReply,
+      close,
+      getAddress,
+    };
+  });
 
   return {
     sendText,
@@ -64,24 +56,21 @@ const busState = vi.hoisted(() => {
       getAddress.mockReset();
       getAddress.mockReturnValue("0xaabbccddeeff0011223344556677889900aabbcc");
       startXmtpBus.mockReset();
-      startXmtpBus.mockImplementation(
-        async (options: { onMessage: typeof onMessage }) => {
-          onMessage = options.onMessage;
-          return {
-            sendText,
-            sendReply,
-            close,
-            getAddress,
-          };
-        },
-      );
+      startXmtpBus.mockImplementation(async (options: { onMessage: typeof onMessage }) => {
+        onMessage = options.onMessage;
+        return {
+          sendText,
+          sendReply,
+          close,
+          getAddress,
+        };
+      });
     },
   };
 });
 
 vi.mock("./xmtp-bus.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("./xmtp-bus.js")>("./xmtp-bus.js");
+  const actual = await vi.importActual<typeof import("./xmtp-bus.js")>("./xmtp-bus.js");
   return {
     ...actual,
     startXmtpBus: busState.startXmtpBus,
@@ -122,9 +111,7 @@ function createRuntime(cfg: OpenClawConfig) {
   );
   const activityRecord = vi.fn();
   const shouldHandleTextCommands = vi.fn(() => true);
-  const isControlCommandMessage = vi.fn((body: string) =>
-    body.trim().startsWith("/"),
-  );
+  const isControlCommandMessage = vi.fn((body: string) => body.trim().startsWith("/"));
   const outboundLogger = { debug: vi.fn() };
 
   const runtime = {
@@ -188,10 +175,7 @@ function createRuntime(cfg: OpenClawConfig) {
   };
 }
 
-function createGatewayContext(
-  cfg: OpenClawConfig,
-  account: ResolvedXmtpAccount,
-) {
+function createGatewayContext(cfg: OpenClawConfig, account: ResolvedXmtpAccount) {
   return {
     cfg,
     accountId: account.accountId,
@@ -291,10 +275,7 @@ describe("xmtpPlugin behavior", () => {
       accountId: "default",
     });
 
-    expect(busState.sendText).toHaveBeenCalledWith(
-      TEST_SENDER,
-      "hello outbound",
-    );
+    expect(busState.sendText).toHaveBeenCalledWith(TEST_SENDER, "hello outbound");
     expect(runtimeBundle.activityRecord).toHaveBeenCalledWith({
       channel: "xmtp",
       accountId: "default",
@@ -323,10 +304,7 @@ describe("xmtpPlugin behavior", () => {
       "threaded outbound",
       "parent-msg-1",
     );
-    expect(busState.sendText).not.toHaveBeenCalledWith(
-      TEST_SENDER,
-      "threaded outbound",
-    );
+    expect(busState.sendText).not.toHaveBeenCalledWith(TEST_SENDER, "threaded outbound");
   });
 
   it("uses address target for pairing approval notifications", async () => {
@@ -339,10 +317,7 @@ describe("xmtpPlugin behavior", () => {
       id: TEST_SENDER,
     });
 
-    expect(busState.sendText).toHaveBeenCalledWith(
-      TEST_SENDER,
-      PAIRING_APPROVED_MESSAGE,
-    );
+    expect(busState.sendText).toHaveBeenCalledWith(TEST_SENDER, PAIRING_APPROVED_MESSAGE);
     expect(runtimeBundle.activityRecord).toHaveBeenCalledWith({
       channel: "xmtp",
       accountId: "default",
@@ -423,18 +398,13 @@ describe("xmtpPlugin behavior", () => {
     const { gatewayCtx } = await startGateway({ runtime: runtimeBundle, cfg });
     await emitInboundMessage("hello inbound");
 
-    expect(busState.sendText).toHaveBeenCalledWith(
-      "conversation-123",
-      "reply text",
-    );
+    expect(busState.sendText).toHaveBeenCalledWith("conversation-123", "reply text");
     expect(runtimeBundle.activityRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         direction: "outbound",
       }),
     );
-    expect(gatewayCtx.log.debug).toHaveBeenCalledWith(
-      expect.stringContaining("xmtp outbound:"),
-    );
+    expect(gatewayCtx.log.debug).toHaveBeenCalledWith(expect.stringContaining("xmtp outbound:"));
   });
 
   it("sends threaded replies when dispatcher payload includes replyToId", async () => {
@@ -461,10 +431,7 @@ describe("xmtpPlugin behavior", () => {
       "threaded reply",
       "parent-msg-99",
     );
-    expect(busState.sendText).not.toHaveBeenCalledWith(
-      "conversation-123",
-      "threaded reply",
-    );
+    expect(busState.sendText).not.toHaveBeenCalledWith("conversation-123", "threaded reply");
   });
 
   it("blocks unauthorized DM senders when dmPolicy is allowlist", async () => {
@@ -474,9 +441,7 @@ describe("xmtpPlugin behavior", () => {
 
     await emitInboundMessage("hello inbound");
 
-    expect(
-      runtimeBundle.dispatchReplyWithBufferedBlockDispatcher,
-    ).not.toHaveBeenCalled();
+    expect(runtimeBundle.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
     expect(runtimeBundle.upsertPairingRequest).not.toHaveBeenCalled();
     expect(busState.sendText).not.toHaveBeenCalled();
   });
@@ -505,9 +470,7 @@ describe("xmtpPlugin behavior", () => {
       "conversation-123",
       expect.stringContaining("code=PAIR-123"),
     );
-    expect(
-      runtimeBundle.dispatchReplyWithBufferedBlockDispatcher,
-    ).not.toHaveBeenCalled();
+    expect(runtimeBundle.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
   });
 
   it("allows configured or paired DM senders and sets command authorization", async () => {
@@ -518,18 +481,13 @@ describe("xmtpPlugin behavior", () => {
 
     await emitInboundMessage("/status");
 
-    expect(runtimeBundle.readAllowFromStore).toHaveBeenCalledWith(
-      "xmtp",
-      "default",
-    );
+    expect(runtimeBundle.readAllowFromStore).toHaveBeenCalledWith("xmtp", "default");
     expect(runtimeBundle.finalizeInboundContext).toHaveBeenCalledWith(
       expect.objectContaining({
         CommandAuthorized: true,
       }),
     );
-    expect(
-      runtimeBundle.dispatchReplyWithBufferedBlockDispatcher,
-    ).toHaveBeenCalled();
+    expect(runtimeBundle.dispatchReplyWithBufferedBlockDispatcher).toHaveBeenCalled();
   });
 
   it("blocks control commands in open mode when sender is not command-authorized", async () => {
@@ -539,9 +497,7 @@ describe("xmtpPlugin behavior", () => {
 
     await emitInboundMessage("/status");
 
-    expect(
-      runtimeBundle.dispatchReplyWithBufferedBlockDispatcher,
-    ).not.toHaveBeenCalled();
+    expect(runtimeBundle.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
     expect(runtimeBundle.finalizeInboundContext).not.toHaveBeenCalled();
   });
 
@@ -555,9 +511,7 @@ describe("xmtpPlugin behavior", () => {
 
     await emitInboundMessage("hello inbound");
 
-    expect(
-      runtimeBundle.dispatchReplyWithBufferedBlockDispatcher,
-    ).not.toHaveBeenCalled();
+    expect(runtimeBundle.dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
     expect(runtimeBundle.finalizeInboundContext).not.toHaveBeenCalled();
   });
 
@@ -578,8 +532,6 @@ describe("xmtpPlugin behavior", () => {
     expect(gatewayCtx.log.debug).toHaveBeenCalledWith(
       expect.stringContaining("xmtp pairing reply"),
     );
-    expect(gatewayCtx.log.debug).toHaveBeenCalledWith(
-      expect.stringContaining("xmtp inbound:"),
-    );
+    expect(gatewayCtx.log.debug).toHaveBeenCalledWith(expect.stringContaining("xmtp inbound:"));
   });
 });

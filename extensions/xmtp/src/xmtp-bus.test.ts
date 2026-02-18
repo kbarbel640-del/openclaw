@@ -1,18 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { normalizeEthAddress, startXmtpBus } from "./xmtp-bus.js";
 
-const TEST_WALLET_KEY =
-  "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-const TEST_DB_KEY =
-  "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
+const TEST_WALLET_KEY = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const TEST_DB_KEY = "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
 const TEST_PEER_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
 const TEST_PEER_ADDRESS_UPPER = "0x1234567890ABCDEF1234567890ABCDEF12345678";
 
 const xmtpMock = vi.hoisted(() => {
-  const handlers = new Map<
-    string,
-    Array<(ctx: unknown) => Promise<void> | void>
-  >();
+  const handlers = new Map<string, Array<(ctx: unknown) => Promise<void> | void>>();
   const sendByConversation = vi.fn(async (_text: string) => {});
   const sendReplyByConversation = vi.fn(
     async (_reply: { content: string; referenceId: string }) => {},
@@ -43,12 +38,10 @@ const xmtpMock = vi.hoisted(() => {
       },
     },
     createDmWithAddress,
-    on: vi.fn(
-      (event: string, handler: (ctx: unknown) => Promise<void> | void) => {
-        const existing = handlers.get(event) ?? [];
-        handlers.set(event, [...existing, handler]);
-      },
-    ),
+    on: vi.fn((event: string, handler: (ctx: unknown) => Promise<void> | void) => {
+      const existing = handlers.get(event) ?? [];
+      handlers.set(event, [...existing, handler]);
+    }),
     start: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
   };
@@ -116,9 +109,7 @@ vi.mock("@xmtp/agent-sdk", () => ({
 
 describe("normalizeEthAddress", () => {
   it("normalizes valid address to lowercase", () => {
-    expect(normalizeEthAddress(TEST_PEER_ADDRESS_UPPER)).toBe(
-      TEST_PEER_ADDRESS,
-    );
+    expect(normalizeEthAddress(TEST_PEER_ADDRESS_UPPER)).toBe(TEST_PEER_ADDRESS);
   });
 
   it("throws for invalid address", () => {
@@ -182,13 +173,9 @@ describe("startXmtpBus", () => {
 
     await bus.sendText(TEST_PEER_ADDRESS_UPPER, "hello from address");
 
-    expect(xmtpMock.createDmWithAddress).toHaveBeenCalledWith(
-      TEST_PEER_ADDRESS,
-    );
+    expect(xmtpMock.createDmWithAddress).toHaveBeenCalledWith(TEST_PEER_ADDRESS);
     expect(xmtpMock.sendByAddressDm).toHaveBeenCalledWith("hello from address");
-    expect(xmtpMock.getConversationById).not.toHaveBeenCalledWith(
-      TEST_PEER_ADDRESS,
-    );
+    expect(xmtpMock.getConversationById).not.toHaveBeenCalledWith(TEST_PEER_ADDRESS);
 
     await bus.close();
   });
@@ -204,9 +191,7 @@ describe("startXmtpBus", () => {
 
     await bus.sendReply(TEST_PEER_ADDRESS_UPPER, "hello reply", "msg-parent-2");
 
-    expect(xmtpMock.createDmWithAddress).toHaveBeenCalledWith(
-      TEST_PEER_ADDRESS,
-    );
+    expect(xmtpMock.createDmWithAddress).toHaveBeenCalledWith(TEST_PEER_ADDRESS);
     expect(xmtpMock.sendReplyByAddressDm).toHaveBeenCalledWith({
       content: "hello reply",
       referenceId: "msg-parent-2",

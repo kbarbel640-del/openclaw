@@ -21,11 +21,7 @@ import {
   resolveXmtpAccount,
   type ResolvedXmtpAccount,
 } from "./types.js";
-import {
-  normalizeEthAddress,
-  startXmtpBus,
-  type XmtpBusHandle,
-} from "./xmtp-bus.js";
+import { normalizeEthAddress, startXmtpBus, type XmtpBusHandle } from "./xmtp-bus.js";
 
 const activeBuses = new Map<string, XmtpBusHandle>();
 
@@ -116,9 +112,7 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
       const effectiveAccountId = accountId ?? DEFAULT_ACCOUNT_ID;
       const bus = activeBuses.get(effectiveAccountId);
       if (!bus) {
-        throw new Error(
-          `XMTP bus not running for account ${effectiveAccountId}`,
-        );
+        throw new Error(`XMTP bus not running for account ${effectiveAccountId}`);
       }
       await bus.sendText(id, PAIRING_APPROVED_MESSAGE);
       getXmtpRuntime().channel.activity.record({
@@ -179,10 +173,7 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
         channel: "xmtp",
         accountId: aid,
       });
-      const message = core.channel.text.convertMarkdownTables(
-        text ?? "",
-        tableMode,
-      );
+      const message = core.channel.text.convertMarkdownTables(text ?? "", tableMode);
       const replyTarget = typeof replyToId === "string" ? replyToId.trim() : "";
       if (replyTarget) {
         await bus.sendReply(to, message, replyTarget);
@@ -209,8 +200,7 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
 
   status: {
     defaultRuntime: createDefaultChannelRuntimeState(DEFAULT_ACCOUNT_ID),
-    collectStatusIssues: (accounts) =>
-      collectStatusIssuesFromLastError("xmtp", accounts),
+    collectStatusIssues: (accounts) => collectStatusIssuesFromLastError("xmtp", accounts),
     buildChannelSummary: ({ snapshot }) => ({
       configured: snapshot.configured ?? false,
       address: snapshot.address ?? null,
@@ -270,13 +260,8 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
           if (policy === "disabled") return false;
           if (policy === "open" || policy === "pairing") return true;
           // allowlist: only consent if sender is in the effective allowlist
-          const configuredAllow = normalizeAllowEntries(
-            freshAccount.config.allowFrom ?? [],
-          );
-          return (
-            configuredAllow.includes(senderAddress) ||
-            configuredAllow.includes("*")
-          );
+          const configuredAllow = normalizeAllowEntries(freshAccount.config.allowFrom ?? []);
+          return configuredAllow.includes(senderAddress) || configuredAllow.includes("*");
         },
         onMessage: async ({
           senderAddress,
@@ -304,24 +289,18 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
             accountId: account.accountId,
           });
           const dmPolicy = freshAccount.config.dmPolicy ?? "pairing";
-          const configuredAllowFrom = normalizeAllowEntries(
-            freshAccount.config.allowFrom ?? [],
-          );
+          const configuredAllowFrom = normalizeAllowEntries(freshAccount.config.allowFrom ?? []);
           const storeAllowFrom = normalizeAllowEntries(
             await runtime.channel.pairing
               .readAllowFromStore("xmtp", account.accountId)
               .catch((error) => {
-                ctx.log?.warn?.(
-                  `[${account.accountId}] Failed to read pairing store`,
-                  { error: String(error) },
-                );
+                ctx.log?.warn?.(`[${account.accountId}] Failed to read pairing store`, {
+                  error: String(error),
+                });
                 return [];
               }),
           );
-          const effectiveAllowFrom = [
-            ...configuredAllowFrom,
-            ...storeAllowFrom,
-          ];
+          const effectiveAllowFrom = [...configuredAllowFrom, ...storeAllowFrom];
           const allowMatch = resolveAllowlistMatchSimple({
             allowFrom: effectiveAllowFrom,
             senderId: senderAddress,
@@ -329,24 +308,21 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
           const allowMatchMeta = formatAllowlistMatchMeta(allowMatch);
 
           if (dmPolicy === "disabled") {
-            ctx.log?.debug?.(
-              `[${account.accountId}] blocked xmtp DM ${senderAddress} (disabled)`,
-            );
+            ctx.log?.debug?.(`[${account.accountId}] blocked xmtp DM ${senderAddress} (disabled)`);
             return;
           }
 
           if (dmPolicy !== "open" && !allowMatch.allowed) {
             if (dmPolicy === "pairing") {
               try {
-                const { code, created } =
-                  await runtime.channel.pairing.upsertPairingRequest({
-                    channel: "xmtp",
-                    id: senderAddress,
-                    accountId: account.accountId,
-                    meta: {
-                      inboxId: senderInboxId,
-                    },
-                  });
+                const { code, created } = await runtime.channel.pairing.upsertPairingRequest({
+                  channel: "xmtp",
+                  id: senderAddress,
+                  accountId: account.accountId,
+                  meta: {
+                    inboxId: senderInboxId,
+                  },
+                });
                 if (created) {
                   ctx.log?.info?.(
                     `[${account.accountId}] xmtp pairing request from ${senderAddress} (${allowMatchMeta})`,
@@ -379,13 +355,11 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
             return;
           }
 
-          const allowTextCommands =
-            runtime.channel.commands.shouldHandleTextCommands({
-              cfg,
-              surface: "xmtp",
-            });
-          const hasControlCommand =
-            runtime.channel.commands.isControlCommandMessage(rawBody, cfg);
+          const allowTextCommands = runtime.channel.commands.shouldHandleTextCommands({
+            cfg,
+            surface: "xmtp",
+          });
+          const hasControlCommand = runtime.channel.commands.isControlCommandMessage(rawBody, cfg);
           const commandGate = resolveControlCommandGate({
             useAccessGroups: cfg.commands?.useAccessGroups !== false,
             authorizers: [
@@ -412,8 +386,7 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
             peer: { kind: "direct", id: senderAddress },
           });
 
-          const envelopeOptions =
-            runtime.channel.reply.resolveEnvelopeFormatOptions(cfg);
+          const envelopeOptions = runtime.channel.reply.resolveEnvelopeFormatOptions(cfg);
           const body = runtime.channel.reply.formatAgentEnvelope({
             channel: "XMTP",
             from: senderAddress,
@@ -450,20 +423,15 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
             `[${account.accountId}] xmtp inbound: sender=${senderAddress} sid=${messageId} len=${rawBody.length} ${allowMatchMeta} preview="${previewText(rawBody)}"`,
           );
 
-          const storePath = runtime.channel.session.resolveStorePath(
-            cfg.session?.store,
-            {
-              agentId: route.agentId,
-            },
-          );
+          const storePath = runtime.channel.session.resolveStorePath(cfg.session?.store, {
+            agentId: route.agentId,
+          });
           await runtime.channel.session.recordInboundSession({
             storePath,
             sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
             ctx: ctxPayload,
             onRecordError: (err) => {
-              ctx.log?.error?.(
-                `[${account.accountId}] session record failed: ${String(err)}`,
-              );
+              ctx.log?.error?.(`[${account.accountId}] session record failed: ${String(err)}`);
             },
           });
 
@@ -473,13 +441,12 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
             accountId: account.accountId,
           });
 
-          const { onModelSelected, ...prefixOptions } =
-            createReplyPrefixOptions({
-              cfg,
-              agentId: route.agentId,
-              channel: "xmtp",
-              accountId: account.accountId,
-            });
+          const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+            cfg,
+            agentId: route.agentId,
+            channel: "xmtp",
+            accountId: account.accountId,
+          });
 
           await runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
             ctx: ctxPayload,
@@ -493,9 +460,7 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
                 );
                 if (message) {
                   const replyTarget =
-                    typeof payload.replyToId === "string"
-                      ? payload.replyToId.trim()
-                      : "";
+                    typeof payload.replyToId === "string" ? payload.replyToId.trim() : "";
                   if (replyTarget) {
                     await bus.sendReply(conversationId, message, replyTarget);
                   } else {
@@ -523,22 +488,16 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
           });
         },
         onError: (error, context) => {
-          ctx.log?.error?.(
-            `[${account.accountId}] XMTP error (${context}): ${error.message}`,
-          );
+          ctx.log?.error?.(`[${account.accountId}] XMTP error (${context}): ${error.message}`);
         },
         onConnect: () => {
-          ctx.log?.info?.(
-            `[${account.accountId}] XMTP agent connected (env: ${account.env})`,
-          );
+          ctx.log?.info?.(`[${account.accountId}] XMTP agent connected (env: ${account.env})`);
         },
       });
 
       activeBuses.set(account.accountId, bus);
 
-      ctx.log?.info(
-        `[${account.accountId}] XMTP provider started (address: ${bus.getAddress()})`,
-      );
+      ctx.log?.info(`[${account.accountId}] XMTP provider started (address: ${bus.getAddress()})`);
 
       return {
         stop: async () => {
