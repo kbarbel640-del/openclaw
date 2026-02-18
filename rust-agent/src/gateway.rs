@@ -212,7 +212,7 @@ pub struct RpcDispatcher {
     started_at_ms: u64,
 }
 
-const MAX_SESSION_HISTORY_PER_SESSION: usize = 128;
+const MAX_SESSION_HISTORY_PER_SESSION: usize = 400;
 const RUNTIME_NAME: &str = "openclaw-agent-rs";
 const RUNTIME_VERSION: &str = env!("CARGO_PKG_VERSION");
 const SESSION_STORE_PATH: &str = "memory://session-registry";
@@ -638,10 +638,10 @@ impl RpcDispatcher {
 
         let reset = self
             .sessions
-            .reset(
-                &session_key,
-                normalize_optional_text(params.reason, 64).unwrap_or_else(|| "reset".to_owned()),
-            )
+            .reset(&session_key, match parse_reset_reason(params.reason) {
+                Ok(value) => value,
+                Err(err) => return RpcDispatchOutcome::bad_request(err),
+            })
             .await;
         let entry = reset.session.clone();
         RpcDispatchOutcome::Handled(json!({
@@ -691,7 +691,11 @@ impl RpcDispatcher {
         let Some(session_key) = session_key else {
             return RpcDispatchOutcome::bad_request("sessionKey|key is required");
         };
-        let max_lines = params.max_lines.unwrap_or(64).clamp(1, 1_024);
+        let max_lines = match params.max_lines {
+            Some(0) => return RpcDispatchOutcome::bad_request("maxLines must be >= 1"),
+            Some(value) => value.min(100_000),
+            None => 400,
+        };
         let compacted = self.sessions.compact(&session_key, max_lines).await;
         let archived = if compacted.compacted {
             vec![format!("{SESSION_STORE_PATH}/archives/{session_key}.compact")]
@@ -1453,7 +1457,7 @@ impl SessionRegistry {
                 reason: Some("missing session".to_owned()),
             };
         };
-        let max_lines = max_lines.clamp(1, 1_024);
+        let max_lines = max_lines.clamp(1, 100_000);
         let before = entry.history.len();
         if before <= max_lines {
             return SessionCompactResult {
@@ -2312,6 +2316,15 @@ fn parse_queue_mode(value: &str) -> Option<SessionQueueMode> {
         "steer" => Some(SessionQueueMode::Steer),
         "collect" => Some(SessionQueueMode::Collect),
         _ => None,
+    }
+}
+
+fn parse_reset_reason(value: Option<String>) -> Result<String, String> {
+    let normalized = normalize_optional_text(value, 16).unwrap_or_else(|| "reset".to_owned());
+    match normalize(&normalized).as_str() {
+        "new" => Ok("new".to_owned()),
+        "reset" => Ok("reset".to_owned()),
+        _ => Err("reason must be new|reset".to_owned()),
     }
 }
 
@@ -3579,6 +3592,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dispatcher_reset_rejects_invalid_reason() {
+        let dispatcher = RpcDispatcher::new();
+        let reset = RpcRequestFrame {
+            id: "req-reset-invalid".to_owned(),
+            method: "sessions.reset".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g-reset-invalid",
+                "reason": "banana"
+            }),
+        };
+        let out = dispatcher.handle_request(&reset).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+    }
+
+    #[tokio::test]
     async fn dispatcher_delete_removes_session_and_blocks_main() {
         let dispatcher = RpcDispatcher::new();
         let patch = RpcRequestFrame {
@@ -3795,6 +3823,67 @@ mod tests {
             }
             _ => panic!("expected history handled"),
         }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_compact_defaults_to_400_lines() {
+        let dispatcher = RpcDispatcher::new();
+        for idx in 0..120 {
+            let send = RpcRequestFrame {
+                id: format!("req-send-default-{idx}"),
+                method: "sessions.send".to_owned(),
+                params: serde_json::json!({
+                    "sessionKey": "agent:main:discord:group:g-compact-default",
+                    "message": format!("msg-default-{idx}"),
+                }),
+            };
+            let _ = dispatcher.handle_request(&send).await;
+        }
+
+        let compact = RpcRequestFrame {
+            id: "req-compact-default".to_owned(),
+            method: "sessions.compact".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g-compact-default"
+            }),
+        };
+        let out = dispatcher.handle_request(&compact).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/compacted")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(false)
+                );
+                assert_eq!(
+                    payload.pointer("/kept").and_then(serde_json::Value::as_u64),
+                    Some(120)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/reason")
+                        .and_then(serde_json::Value::as_str),
+                    Some("below limit")
+                );
+            }
+            _ => panic!("expected compact handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_compact_rejects_zero_max_lines() {
+        let dispatcher = RpcDispatcher::new();
+        let compact = RpcRequestFrame {
+            id: "req-compact-zero".to_owned(),
+            method: "sessions.compact".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": "agent:main:discord:group:g-compact-zero",
+                "maxLines": 0
+            }),
+        };
+        let out = dispatcher.handle_request(&compact).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
     }
 
     #[tokio::test]
