@@ -9,6 +9,7 @@
 
 import { isPlainObject } from "../utils.js";
 import { AwsSecretProvider } from "./aws-secret-provider.js";
+import { SecretAgentProvider } from "./secret-agent-provider.js";
 
 // Matches ${provider:name} or ${provider:name#version}
 // Provider: lowercase alpha. Name: alphanum, hyphens, underscores, slashes, dots.
@@ -35,6 +36,9 @@ export type SecretsConfig = {
       profile?: string;
       roleArn?: string;
       externalId?: string;
+      // secret-agent-specific
+      bucket?: string;
+      binaryPath?: string;
     }
   >;
 };
@@ -311,6 +315,16 @@ export function buildSecretProviders(
           credentialsFile: config.credentialsFile,
           roleArn: config.roleArn,
           externalId: config.externalId,
+        }),
+      );
+    }
+    if (name === "secret-agent") {
+      providers.set(
+        "secret-agent",
+        new SecretAgentProvider({
+          bucket: config?.bucket,
+          binaryPath: config?.binaryPath,
+          cacheTtlSeconds: config?.cacheTtlSeconds,
         }),
       );
     }
