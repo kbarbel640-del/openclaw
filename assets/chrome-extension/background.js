@@ -153,44 +153,35 @@ function scheduleReconnect() {
   console.log(`[OpenClaw Relay] Scheduling reconnect attempt ${reconnectAttempt} in ${Math.round(delay)}ms`)
 
   reconnectTimer = setTimeout(async () => {
-    reconnectTimer = null
+    // Keep reconnectTimer set during async work to prevent concurrent reconnects.
+    // Only clear it after all work is done.
     try {
       await ensureRelayConnection()
       console.log('[OpenClaw Relay] Reconnected successfully')
 
-      // Re-announce all still-attached tabs
+      // Re-announce all still-attached tabs (each tab in its own try/catch)
       for (const [tabId, tab] of tabs.entries()) {
         if (tab.state === 'connected' && tab.sessionId && tab.targetId) {
-          // Verify tab still exists
-          const chromeTab = await chrome.tabs.get(tabId).catch(() => null)
-          if (!chromeTab) {
-            // Tab was closed while disconnected — clean up
-            cleanupTab(tabId)
-            continue
-          }
-
-          // Verify debugger still attached by sending a harmless command
           try {
+            // Verify tab still exists
+            const chromeTab = await chrome.tabs.get(tabId).catch(() => null)
+            if (!chromeTab) {
+              cleanupTab(tabId)
+              continue
+            }
+
+            // Verify debugger still attached by sending a harmless command
             await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
               expression: '1',
               returnByValue: true,
             })
-          } catch {
-            // Debugger was detached (e.g., user dismissed the bar)
-            cleanupTab(tabId)
-            continue
-          }
 
-          // Re-announce to the relay server
-          try {
+            // Re-announce to the relay server
             const info = /** @type {any} */ (
               await chrome.debugger.sendCommand({ tabId }, 'Target.getTargetInfo')
             )
             const targetInfo = info?.targetInfo
-            // Update targetId in case it changed (e.g., page navigated)
-            const newTargetId = String(targetInfo?.targetId || '').trim() || tab.targetId
-
-            tab.targetId = newTargetId
+            tab.targetId = String(targetInfo?.targetId || '').trim() || tab.targetId
 
             sendToRelay({
               method: 'forwardCDPEvent',
@@ -218,8 +209,11 @@ function scheduleReconnect() {
       }
     } catch (err) {
       console.log(`[OpenClaw Relay] Reconnect failed: ${err instanceof Error ? err.message : err}`)
+      reconnectTimer = null
       scheduleReconnect()
+      return
     }
+    reconnectTimer = null
   }, delay)
 }
 
@@ -296,20 +290,25 @@ async function restoreState() {
         await ensureRelayConnection()
         for (const [tabId, tab] of tabs.entries()) {
           if (tab.state === 'connected' && tab.sessionId && tab.targetId) {
-            const info = /** @type {any} */ (
-              await chrome.debugger.sendCommand({ tabId }, 'Target.getTargetInfo')
-            )
-            sendToRelay({
-              method: 'forwardCDPEvent',
-              params: {
-                method: 'Target.attachedToTarget',
+            try {
+              const info = /** @type {any} */ (
+                await chrome.debugger.sendCommand({ tabId }, 'Target.getTargetInfo')
+              )
+              sendToRelay({
+                method: 'forwardCDPEvent',
                 params: {
-                  sessionId: tab.sessionId,
-                  targetInfo: { ...(info?.targetInfo || {}), attached: true },
-                  waitingForDebugger: false,
+                  method: 'Target.attachedToTarget',
+                  params: {
+                    sessionId: tab.sessionId,
+                    targetInfo: { ...(info?.targetInfo || {}), attached: true },
+                    waitingForDebugger: false,
+                  },
                 },
-              },
-            })
+              })
+            } catch (err) {
+              console.warn(`[OpenClaw Relay] restoreState: failed to re-announce tab ${tabId}:`, err)
+              cleanupTab(tabId)
+            }
           }
         }
       } catch {
@@ -669,8 +668,7 @@ chrome.action.onClicked.addListener(() => void connectOrToggleForActiveTab())
 chrome.runtime.onInstalled.addListener(() => {
   // Useful: first-time instructions.
   void chrome.runtime.openOptionsPage()
-  // Start keepalive alarm
-  chrome.alarms.create('relay-keepalive', { periodInMinutes: 4 })
+  // Note: keepalive alarm is created at module level (not here) to survive worker restarts
 })
 
 // ===== FIX #5: Keepalive via chrome.alarms =====
@@ -694,9 +692,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
         returnByValue: true,
       })
     } catch {
-      console.warn(`[OpenClaw Relay] Keepalive: tab ${tabId} debugger lost — triggering restore`)
-      void restoreState()
-      break
+      console.warn(`[OpenClaw Relay] Keepalive: tab ${tabId} debugger lost — cleaning up`)
+      cleanupTab(tabId)
     }
   }
 })
