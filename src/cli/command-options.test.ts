@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { inheritOptionFromParent } from "./command-options.js";
 
 describe("inheritOptionFromParent", () => {
-  it("walks ancestor chain iteratively and inherits from root when parent has no value", async () => {
+  it("inherits only from direct parent by default", async () => {
     const program = new Command().option("--token <token>", "Root token");
     const gateway = program.command("gateway");
     let inherited: string | undefined;
@@ -13,6 +13,22 @@ describe("inheritOptionFromParent", () => {
       .option("--token <token>", "Run token")
       .action((_opts, command) => {
         inherited = inheritOptionFromParent<string>(command, "token");
+      });
+
+    await program.parseAsync(["--token", "root-token", "gateway", "run"], { from: "user" });
+    expect(inherited).toBeUndefined();
+  });
+
+  it("walks ancestor chain when explicitly configured", async () => {
+    const program = new Command().option("--token <token>", "Root token");
+    const gateway = program.command("gateway");
+    let inherited: string | undefined;
+
+    gateway
+      .command("run")
+      .option("--token <token>", "Run token")
+      .action((_opts, command) => {
+        inherited = inheritOptionFromParent<string>(command, "token", { maxDepth: 3 });
       });
 
     await program.parseAsync(["--token", "root-token", "gateway", "run"], { from: "user" });
@@ -28,7 +44,7 @@ describe("inheritOptionFromParent", () => {
       .command("run")
       .option("--token <token>", "Run token")
       .action((_opts, command) => {
-        inherited = inheritOptionFromParent<string>(command, "token");
+        inherited = inheritOptionFromParent<string>(command, "token", { maxDepth: 3 });
       });
 
     await program.parseAsync(
