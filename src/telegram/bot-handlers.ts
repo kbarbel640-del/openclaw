@@ -1,4 +1,4 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 
 import type { Message } from "@grammyjs/types";
@@ -608,6 +608,76 @@ export const registerTelegramHandlers = ({
         return;
         
       }
+
+      // openVB3: passive affection triggers (DM-only, Boss-only for tuning)
+      try {
+        const isPrivate = msg.chat.type === "private";
+        if (isPrivate) {
+          const senderId = msg.from?.id != null ? String(msg.from.id) : "";
+          const bossId = String(process.env.OPENCLAW_BOSS_TELEGRAM_USER_ID ?? "8068585788");
+          if (senderId && senderId === bossId) {
+            const text = (msg.text ?? "").trim();
+            if (text) {
+              const ws =
+                cfg?.agents?.defaults?.workspace ??
+                process.env.OPENCLAW_WORKSPACE ??
+                "/home/node/.openclaw/workspace";
+
+              const { detectPresenceCommand, applyPresenceUpdate } = await import("../affection/presence.js");
+              const { detectTriggers } = await import("../affection/triggers.js");
+              const { applyAffectionTrigger } = await import("../affection/v3b-trigger-engine.js");
+              const { loadOrInitState, saveState, appendAudit } = await import("../affection/v3b-engine.js");
+              const { renderTriggerReply } = await import("../affection/replies.js");
+
+              // Milestone 2: BRB/back presence (no scoring). If present command hits, we reply once and stop.
+              const presenceCmd = detectPresenceCommand({ text });
+              if (presenceCmd.kind === "set") {
+                const state = await loadOrInitState(ws);
+                const before = state.presence?.state;
+                state.presence = applyPresenceUpdate(state.presence, presenceCmd);
+                await saveState(ws, state);
+                await appendAudit(ws, {
+                  ts: new Date().toISOString(),
+                  action: "touch",
+                  note: presence:,
+                  meta: { sourceId: 	elegram: },
+                });
+
+                if (state.presence.state === "BRB") {
+                  await ctx.reply("ok. ill be here when youre back.");
+                } else if (state.presence.state === "ACTIVE") {
+                  await ctx.reply("welcome back.");
+                } else {
+                  await ctx.reply("got it. ill keep it low-noise.");
+                }
+                return;
+              }
+
+              const matches = detectTriggers({ text });
+              if (matches.length) {
+                const match = matches[0];
+                await applyAffectionTrigger({
+                  workspace: ws,
+                  match,
+                  sourceId: 	elegram:,
+                });
+
+                const state = await loadOrInitState(ws);
+                const reply = renderTriggerReply({
+                  kind: match.kind,
+                  phrase: match.phrase,
+                  state,
+                  seed: ${msg.date}:,
+                });
+
+                await ctx.reply(reply);
+              }
+            }
+          }
+        }
+      } catch {
+        // ignore trigger system failures
+      }
       if (shouldSkipUpdate(ctx)) {
         return;
       }
@@ -802,6 +872,76 @@ try {
 } catch {
   // ignore
 }
+
+      // openVB3: passive affection triggers (DM-only, Boss-only for tuning)
+      try {
+        const isPrivate = msg.chat.type === "private";
+        if (isPrivate) {
+          const senderId = msg.from?.id != null ? String(msg.from.id) : "";
+          const bossId = String(process.env.OPENCLAW_BOSS_TELEGRAM_USER_ID ?? "8068585788");
+          if (senderId && senderId === bossId) {
+            const text = (msg.text ?? "").trim();
+            if (text) {
+              const ws =
+                cfg?.agents?.defaults?.workspace ??
+                process.env.OPENCLAW_WORKSPACE ??
+                "/home/node/.openclaw/workspace";
+
+              const { detectPresenceCommand, applyPresenceUpdate } = await import("../affection/presence.js");
+              const { detectTriggers } = await import("../affection/triggers.js");
+              const { applyAffectionTrigger } = await import("../affection/v3b-trigger-engine.js");
+              const { loadOrInitState, saveState, appendAudit } = await import("../affection/v3b-engine.js");
+              const { renderTriggerReply } = await import("../affection/replies.js");
+
+              // Milestone 2: BRB/back presence (no scoring). If present command hits, we reply once and stop.
+              const presenceCmd = detectPresenceCommand({ text });
+              if (presenceCmd.kind === "set") {
+                const state = await loadOrInitState(ws);
+                const before = state.presence?.state;
+                state.presence = applyPresenceUpdate(state.presence, presenceCmd);
+                await saveState(ws, state);
+                await appendAudit(ws, {
+                  ts: new Date().toISOString(),
+                  action: "touch",
+                  note: presence:,
+                  meta: { sourceId: 	elegram: },
+                });
+
+                if (state.presence.state === "BRB") {
+                  await ctx.reply("ok. ill be here when youre back.");
+                } else if (state.presence.state === "ACTIVE") {
+                  await ctx.reply("welcome back.");
+                } else {
+                  await ctx.reply("got it. ill keep it low-noise.");
+                }
+                return;
+              }
+
+              const matches = detectTriggers({ text });
+              if (matches.length) {
+                const match = matches[0];
+                await applyAffectionTrigger({
+                  workspace: ws,
+                  match,
+                  sourceId: 	elegram:,
+                });
+
+                const state = await loadOrInitState(ws);
+                const reply = renderTriggerReply({
+                  kind: match.kind,
+                  phrase: match.phrase,
+                  state,
+                  seed: ${msg.date}:,
+                });
+
+                await ctx.reply(reply);
+              }
+            }
+          }
+        }
+      } catch {
+        // ignore trigger system failures
+      }
       if (shouldSkipUpdate(ctx)) {
         return;
       }

@@ -1,10 +1,21 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 
 export type AffectionToday = {
   date: string; // YYYY-MM-DD
   affGain: number;
+  // soft cap for how much negativity can apply in one day
+  negBudgetUsed?: number;
 };
+
+export type PresenceState = "ACTIVE" | "BRB" | "AWAY";
+
+export type Presence = {
+  state: PresenceState;
+  setAt: string;
+  brbExpectedReturnAt?: string | null;
+};
+
 
 export type AffectionStateV3b = {
   version: "v3b";
@@ -19,6 +30,9 @@ export type AffectionStateV3b = {
   aff: number;
   label: string;
 
+  // lightweight state for "BRB/back" without turning into a punishment machine
+  presence: Presence;
+
   cooldownUntil?: string | null;
   today: AffectionToday;
   lastMessageAt: string;
@@ -26,8 +40,9 @@ export type AffectionStateV3b = {
 
 export type AffectionAuditEvent = {
   ts: string;
-  action: "init" | "touch" | "sorry";
+  action: "init" | "touch" | "sorry" | "reward" | "penalty" | "repair";
   note?: string;
+  meta?: Record<string, any>;
   deltas?: Partial<
     Record<keyof Pick<AffectionStateV3b, "closeness" | "trust" | "reliabilityTrust" | "irritation">, number>
   >;
@@ -96,8 +111,12 @@ export async function loadOrInitState(workspace: string): Promise<AffectionState
     const date = todayDate();
     const today: AffectionToday =
       parsed.today?.date === date
-        ? { date, affGain: Number(parsed.today?.affGain ?? 0) }
-        : { date, affGain: 0 };
+        ? {
+            date,
+            affGain: Number(parsed.today?.affGain ?? 0),
+            negBudgetUsed: Number((parsed.today as any)?.negBudgetUsed ?? 0),
+          }
+        : { date, affGain: 0, negBudgetUsed: 0 };
 
     const closeness = clamp11(Number((parsed as any).closeness ?? 0));
     const trust = clamp11(Number((parsed as any).trust ?? 0));
@@ -110,6 +129,14 @@ export async function loadOrInitState(workspace: string): Promise<AffectionState
       irritation: clamp01(Number((parsed as any).irritation ?? 0)),
       aff: 0, // computed below
       label: "NORMAL", // computed below
+      presence: {
+        state: (parsed as any).presence?.state ?? "ACTIVE",
+        setAt: typeof (parsed as any).presence?.setAt === "string" ? (parsed as any).presence.setAt : isoNow(),
+        brbExpectedReturnAt:
+          typeof (parsed as any).presence?.brbExpectedReturnAt === "string"
+            ? (parsed as any).presence.brbExpectedReturnAt
+            : null,
+      },
       cooldownUntil: (parsed as any).cooldownUntil ?? null,
       today,
       lastMessageAt: typeof (parsed as any).lastMessageAt === "string" ? (parsed as any).lastMessageAt : isoNow(),
@@ -130,8 +157,9 @@ export async function loadOrInitState(workspace: string): Promise<AffectionState
       irritation: 0,
       aff: computeAff({ closeness, trust }),
       label: labelForAff(computeAff({ closeness, trust })),
+      presence: { state: "ACTIVE", setAt: isoNow(), brbExpectedReturnAt: null },
       cooldownUntil: null,
-      today: { date: todayDate(), affGain: 0 },
+      today: { date: todayDate(), affGain: 0, negBudgetUsed: 0 },
       lastMessageAt: isoNow(),
     };
 
@@ -142,6 +170,21 @@ export async function loadOrInitState(workspace: string): Promise<AffectionState
 }
 
 export async function saveState(workspace: string, state: AffectionStateV3b) {
+  // ensure forward-compatible defaults
+  (state as any).today = {
+    date: (state as any).today?.date ?? new Date().toISOString().slice(0, 10),
+    affGain: Number((state as any).today?.affGain ?? 0),
+    negBudgetUsed: Number((state as any).today?.negBudgetUsed ?? 0),
+  };
+  (state as any).presence = {
+    state: (state as any).presence?.state ?? "ACTIVE",
+    setAt: (state as any).presence?.setAt ?? new Date().toISOString(),
+    brbExpectedReturnAt:
+      typeof (state as any).presence?.brbExpectedReturnAt === "string"
+        ? (state as any).presence.brbExpectedReturnAt
+        : null,
+  };
+
   const { statePath } = resolveAffectionPaths(workspace);
   // write atomically-ish
   const tmp = `${statePath}.tmp`;
@@ -203,8 +246,9 @@ export async function reset(workspace: string, note?: string) {
     irritation: 0,
     aff: computeAff({ closeness, trust }),
     label: labelForAff(computeAff({ closeness, trust })),
+      presence: { state: "ACTIVE", setAt: isoNow(), brbExpectedReturnAt: null },
     cooldownUntil: null,
-    today: { date: todayDate(), affGain: 0 },
+    today: { date: todayDate(), affGain: 0, negBudgetUsed: 0 },
     lastMessageAt: isoNow(),
   };
   await saveState(workspace, state);

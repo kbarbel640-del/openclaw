@@ -1,0 +1,165 @@
+[1mdiff --git a/src/affection/v3b-engine.ts b/src/affection/v3b-engine.ts[m
+[1mindex e3d1e7722..71b4efd60 100644[m
+[1m--- a/src/affection/v3b-engine.ts[m
+[1m+++ b/src/affection/v3b-engine.ts[m
+[36m@@ -4,6 +4,16 @@[m [mimport path from "node:path";[m
+ export type AffectionToday = {[m
+   date: string; // YYYY-MM-DD[m
+   affGain: number;[m
+[32m+[m[32m  // soft cap for how much negativity can apply in one day[m
+[32m+[m[32m  negBudgetUsed?: number;[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32mexport type PresenceState = "ACTIVE" | "BRB" | "AWAY";[m
+[32m+[m
+[32m+[m[32mexport type Presence = {[m
+[32m+[m[32m  state: PresenceState;[m
+[32m+[m[32m  setAt: string;[m
+[32m+[m[32m  brbExpectedReturnAt?: string | null;[m
+ };[m
+ [m
+ export type AffectionStateV3b = {[m
+[36m@@ -15,10 +25,13 @@[m [mexport type AffectionStateV3b = {[m
+   reliabilityTrust: number; // -1..+1[m
+   irritation: number; // 0..1[m
+ [m
+[31m-  // computed baseline[m
+[32m+[m[32m    // computed baseline[m
+   aff: number;[m
+   label: string;[m
+ [m
+[32m+[m[32m  // lightweight state for "BRB/back" without turning into a punishment machine[m
+[32m+[m[32m  presence: Presence;[m
+[32m+[m
+   cooldownUntil?: string | null;[m
+   today: AffectionToday;[m
+   lastMessageAt: string;[m
+[36m@@ -26,13 +39,15 @@[m [mexport type AffectionStateV3b = {[m
+ [m
+ export type AffectionAuditEvent = {[m
+   ts: string;[m
+[31m-  action: "init" | "touch" | "sorry";[m
+[32m+[m[32m  action: "init" | "touch" | "sorry" | "reward" | "penalty" | "repair";[m
+   note?: string;[m
+[32m+[m[32m  meta?: Record<string, any>;[m
+   deltas?: Partial<[m
+[31m-    Record<keyof Pick<AffectionStateV3b, "closeness" | "trust" | "reliabilityTrust" | "irritation">, number>[m
+[31m-  >;[m
+[32m+[m	[32mRecord<keyof Pick<AffectionStateV3b, "closeness" | "trust" | "reliabilityTrust" | "irritation">, number>[m[41m [m
+[32m+[m	[32m>;[m
+ };[m
+ [m
+[32m+[m[41m [m
+ function clamp01(n: number) {[m
+   if (Number.isNaN(n) || !Number.isFinite(n)) return 0;[m
+   return Math.max(0, Math.min(1, n));[m
+[36m@@ -94,10 +109,14 @@[m [mexport async function loadOrInitState(workspace: string): Promise<AffectionState[m
+     const parsed = JSON.parse(raw) as Partial<AffectionStateV3b>;[m
+ [m
+     const date = todayDate();[m
+[31m-    const today: AffectionToday =[m
+[31m-      parsed.today?.date === date[m
+[31m-        ? { date, affGain: Number(parsed.today?.affGain ?? 0) }[m
+[31m-        : { date, affGain: 0 };[m
+[32m+[m[32mconst today: AffectionToday =[m
+[32m+[m[32m  parsed.today?.date === date[m
+[32m+[m[32m    ? {[m
+[32m+[m[32m        date,[m
+[32m+[m[32m        affGain: Number(parsed.today?.affGain ?? 0),[m
+[32m+[m[32m        negBudgetUsed: Number((parsed.today as any)?.negBudgetUsed ?? 0),[m
+[32m+[m[32m      }[m
+[32m+[m[32m    : { date, affGain: 0, negBudgetUsed: 0 };[m
+ [m
+     const closeness = clamp11(Number((parsed as any).closeness ?? 0));[m
+     const trust = clamp11(Number((parsed as any).trust ?? 0));[m
+[36m@@ -110,6 +129,15 @@[m [mexport async function loadOrInitState(workspace: string): Promise<AffectionState[m
+       irritation: clamp01(Number((parsed as any).irritation ?? 0)),[m
+       aff: 0, // computed below[m
+       label: "NORMAL", // computed below[m
+[32m+[m[41m  [m	[32mpresence: {[m
+[32m+[m[41m    [m		[32mstate: (parsed as any).presence?.state ?? "ACTIVE",[m
+[32m+[m[41m    [m		[32msetAt: typeof (parsed as any).presence?.setAt === "string" ? (parsed as any).presence.setAt : isoNow(),[m
+[32m+[m[41m    [m		[32mbrbExpectedReturnAt:[m
+[32m+[m[41m      [m		[32mtypeof (parsed as any).presence?.brbExpectedReturnAt === "string"[m
+[32m+[m[32m        ? (parsed as any).presence.brbExpectedReturnAt[m
+[32m+[m[32m        : null,[m
+[32m+[m[32m  },[m
+[32m+[m
+       cooldownUntil: (parsed as any).cooldownUntil ?? null,[m
+       today,[m
+       lastMessageAt: typeof (parsed as any).lastMessageAt === "string" ? (parsed as any).lastMessageAt : isoNow(),[m
+[36m@@ -123,17 +151,19 @@[m [mexport async function loadOrInitState(workspace: string): Promise<AffectionState[m
+     const closeness = 0;[m
+     const trust = 0;[m
+     const state: AffectionStateV3b = {[m
+[31m-      version: "v3b",[m
+[31m-      closeness,[m
+[31m-      trust,[m
+[31m-      reliabilityTrust: 0,[m
+[31m-      irritation: 0,[m
+[31m-      aff: computeAff({ closeness, trust }),[m
+[31m-      label: labelForAff(computeAff({ closeness, trust })),[m
+[31m-      cooldownUntil: null,[m
+[31m-      today: { date: todayDate(), affGain: 0 },[m
+[31m-      lastMessageAt: isoNow(),[m
+[31m-    };[m
+[32m+[m[32m  version: "v3b",[m
+[32m+[m[32m  closeness,[m
+[32m+[m[32m  trust,[m
+[32m+[m[32m  reliabilityTrust: 0,[m
+[32m+[m[32m  irritation: 0,[m
+[32m+[m[32m  aff: computeAff({ closeness, trust }),[m
+[32m+[m[32m  label: labelForAff(computeAff({ closeness, trust })),[m
+[32m+[m[32m  presence: { state: "ACTIVE", setAt: isoNow(), brbExpectedReturnAt: null },[m
+[32m+[m[32m  cooldownUntil: null,[m
+[32m+[m[32m  today: { date: todayDate(), affGain: 0, negBudgetUsed: 0 },[m
+[32m+[m[32m  lastMessageAt: isoNow(),[m
+[32m+[m[32m};[m
+[32m+[m
+ [m
+     await saveState(workspace, state);[m
+     await appendAudit(workspace, { ts: isoNow(), action: "init" });[m
+[36m@@ -203,8 +233,9 @@[m [mexport async function reset(workspace: string, note?: string) {[m
+     irritation: 0,[m
+     aff: computeAff({ closeness, trust }),[m
+     label: labelForAff(computeAff({ closeness, trust })),[m
+[32m+[m[32m    presence: { state: "ACTIVE", setAt: isoNow(), brbExpectedReturnAt: null },[m
+     cooldownUntil: null,[m
+[31m-    today: { date: todayDate(), affGain: 0 },[m
+[32m+[m[32m    today: { date: todayDate(), affGain: 0, negBudgetUsed: 0 },[m
+     lastMessageAt: isoNow(),[m
+   };[m
+   await saveState(workspace, state);[m
+[36m@@ -231,11 +262,27 @@[m [mexport async function loadStylePrefs(workspace: string): Promise<AffectionStyleP[m
+   }[m
+ }[m
+ [m
+[31m-export async function saveStylePrefs(workspace: string, prefs: AffectionStylePrefs) {[m
+[31m-  const { dir } = resolveAffectionPaths(workspace);[m
+[31m-  const prefsPath = path.join(dir, "prefs.json");[m
+[31m-  await fs.promises.mkdir(dir, { recursive: true });[m
+[31m-  await fs.promises.writeFile(prefsPath, JSON.stringify(prefs, null, 2), "utf8");[m
+[32m+[m[32mexport async function saveState(workspace: string, state: AffectionStateV3b) {[m
+[32m+[m[32m  // ensure forward-compatible defaults[m
+[32m+[m[32m  (state as any).today = {[m
+[32m+[m[32m    date: (state as any).today?.date ?? new Date().toISOString().slice(0, 10),[m
+[32m+[m[32m    affGain: Number((state as any).today?.affGain ?? 0),[m
+[32m+[m[32m    negBudgetUsed: Number((state as any).today?.negBudgetUsed ?? 0),[m
+[32m+[m[32m  };[m
+[32m+[m[32m  (state as any).presence = {[m
+[32m+[m[32m    state: (state as any).presence?.state ?? "ACTIVE",[m
+[32m+[m[32m    setAt: (state as any).presence?.setAt ?? new Date().toISOString(),[m
+[32m+[m[32m    brbExpectedReturnAt:[m
+[32m+[m[32m      typeof (state as any).presence?.brbExpectedReturnAt === "string"[m
+[32m+[m[32m        ? (state as any).presence.brbExpectedReturnAt[m
+[32m+[m[32m        : null,[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  const { statePath } = resolveAffectionPaths(workspace);[m
+[32m+[m[32m  // write atomically-ish[m
+[32m+[m[32m  const tmp = `${statePath}.tmp`;[m
+[32m+[m[32m  await fs.promises.writeFile(tmp, JSON.stringify(state, null, 2), "utf8");[m
+[32m+[m[32m  await fs.promises.rename(tmp, statePath);[m
+ }[m
+ [m
+ export function resolveAddressName(state: AffectionStateV3b, prefs: AffectionStylePrefs) {[m
