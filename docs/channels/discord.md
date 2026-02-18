@@ -92,18 +92,29 @@ You will need to create a new application with a bot, add the bot to your server
 
   </Step>
 
+  <Step title="Step 0: Set your bot token securely (do not send it in chat)">
+    Your Discord bot token is a secret (like a password). Set it on the machine running OpenClaw before messaging your agent.
+
+```bash
+openclaw config set channels.discord.token '"YOUR_BOT_TOKEN"' --json
+openclaw config set channels.discord.enabled true --json
+openclaw gateway
+```
+
+    If OpenClaw is already running as a background service, use `openclaw gateway restart` instead.
+
+  </Step>
+
   <Step title="Configure OpenClaw and pair">
 
     <Tabs>
       <Tab title="Ask your agent">
         Chat with your OpenClaw agent on any existing channel (e.g. Telegram) and tell it:
 
-        > "I set my Discord bot token in config. Please finish Discord setup with User ID `<user_id>` and Server ID `<server_id>`."
-
-        Keep secrets out of chat history: set the Bot Token in config/CLI, then ask your agent to complete the non-secret setup.
+        > "I already set my Discord bot token in config. Please finish Discord setup with User ID `<user_id>` and Server ID `<server_id>`."
       </Tab>
       <Tab title="CLI / config">
-        Add the token to your config:
+        If you prefer file-based config, set:
 
 ```json5
 {
@@ -122,19 +133,13 @@ You will need to create a new application with a bot, add the bot to your server
 DISCORD_BOT_TOKEN=...
 ```
 
-        Then start the gateway:
-
-```bash
-openclaw gateway
-```
-
       </Tab>
     </Tabs>
 
   </Step>
 
   <Step title="Approve first DM pairing">
-    Wait until the gateway restarts, then DM your bot in Discord. It will respond with a pairing code.
+    Wait until the gateway is running, then DM your bot in Discord. It will respond with a pairing code.
 
     <Tabs>
       <Tab title="Ask your agent">
