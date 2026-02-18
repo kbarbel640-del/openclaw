@@ -525,7 +525,7 @@ public actor GatewayChannelActor {
         }
         guard let data else { return }
         guard let frame = try? self.decoder.decode(GatewayFrame.self, from: data) else {
-            self.logger.error("gateway decode failed: \(String(data: data, encoding: .utf8)?.prefix(200) ?? "nil")")
+            self.logger.error("gateway decode failed")
             return
         }
         switch frame {
