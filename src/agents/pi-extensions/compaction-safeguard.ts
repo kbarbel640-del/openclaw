@@ -14,8 +14,8 @@ import {
   resolveContextWindowTokens,
   summarizeInStages,
 } from "../compaction.js";
-import { getCompactionSafeguardRuntime } from "./compaction-safeguard-runtime.js";
 import { containsThinkingBlocks } from "../thinking-block-guard.js";
+import { getCompactionSafeguardRuntime } from "./compaction-safeguard-runtime.js";
 const FALLBACK_SUMMARY =
   "Summary unavailable due to context limits. Older messages were truncated.";
 const TURN_PREFIX_INSTRUCTIONS =

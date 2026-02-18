@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import { describe, expect, it } from "vitest";
 import {
   containsThinkingBlocks,
   hasThinkingBlocks,
@@ -29,14 +29,14 @@ describe("thinking-block-guard", () => {
         ],
         timestamp: Date.now(),
       };
-      expect(hasThinkingBlocks(withThinking as any)).toBe(true);
+      expect(hasThinkingBlocks(withThinking as unknown)).toBe(true);
 
       const withoutThinking: AgentMessage = {
         role: "assistant",
         content: [{ type: "text", text: "response" }],
         timestamp: Date.now(),
       };
-      expect(hasThinkingBlocks(withoutThinking as any)).toBe(false);
+      expect(hasThinkingBlocks(withoutThinking as unknown)).toBe(false);
     });
   });
 
@@ -46,7 +46,10 @@ describe("thinking-block-guard", () => {
         { role: "user", content: "hello", timestamp: Date.now() },
         {
           role: "assistant",
-          content: [{ type: "thinking", thinking: "hmm..." }, { type: "text", text: "hi" }],
+          content: [
+            { type: "thinking", thinking: "hmm..." },
+            { type: "text", text: "hi" },
+          ],
           timestamp: Date.now(),
         },
       ];
@@ -73,8 +76,8 @@ describe("thinking-block-guard", () => {
       };
 
       // Filter out tool calls
-      const filtered = safeFilterAssistantContent(message as any, (block: any) => {
-        return block.type !== "toolCall";
+      const filtered = safeFilterAssistantContent(message as unknown, (block: unknown) => {
+        return (block as { type?: string }).type !== "toolCall";
       });
 
       expect(filtered).not.toBeNull();
@@ -94,8 +97,8 @@ describe("thinking-block-guard", () => {
       };
 
       // Filter out everything except thinking blocks
-      const filtered = safeFilterAssistantContent(message as any, (block: any) => {
-        return block.type === "thinking";
+      const filtered = safeFilterAssistantContent(message as unknown, (block: unknown) => {
+        return (block as { type?: string }).type === "thinking";
       });
 
       // Should return null because only thinking blocks remain
@@ -112,7 +115,7 @@ describe("thinking-block-guard", () => {
         timestamp: Date.now(),
       };
 
-      const filtered = safeFilterAssistantContent(message as any, () => true);
+      const filtered = safeFilterAssistantContent(message as unknown, () => true);
 
       expect(filtered).toBe(message); // Same reference
     });
@@ -129,7 +132,7 @@ describe("thinking-block-guard", () => {
         timestamp: Date.now(),
       };
 
-      const result = validateThinkingBlocks(message as any);
+      const result = validateThinkingBlocks(message as unknown);
       expect(result.valid).toBe(true);
       expect(result.reason).toBeUndefined();
     });
@@ -144,7 +147,7 @@ describe("thinking-block-guard", () => {
         timestamp: Date.now(),
       };
 
-      const result = validateThinkingBlocks(message as any);
+      const result = validateThinkingBlocks(message as unknown);
       expect(result.valid).toBe(false);
       expect(result.reason).toContain("missing required");
     });
@@ -159,7 +162,7 @@ describe("thinking-block-guard", () => {
         timestamp: Date.now(),
       };
 
-      const result = validateThinkingBlocks(message as any);
+      const result = validateThinkingBlocks(message as unknown);
       expect(result.valid).toBe(true);
     });
   });
