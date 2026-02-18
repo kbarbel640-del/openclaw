@@ -62,3 +62,25 @@ fi
 echo "OK: triage item resolved and no longer listed"
 
 echo "JC-004 proof completed successfully."
+
+echo
+echo "=== JC-004 Increment 2: triage ingest endpoint (proof-first) ==="
+INGEST_CODE="$(curl -sS -o /tmp/jc004_ingest.out -w "%{http_code}" \
+  -X POST "$BASE_URL/triage/ingest" \
+  -H "Content-Type: application/json" \
+  -d '{"item_id":"proof_item","source_type":"manual","source_ref":"proof","summary":"proof ingest"}' || true)"
+
+if [ "$INGEST_CODE" = "404" ]; then
+  echo "EXPECTED_FAIL_UNTIL_JC004_INC2_IMPLEMENTED: missing /triage/ingest"
+  cat /tmp/jc004_ingest.out || true
+  exit 1
+fi
+
+# After implementation we expect 200/201 with JSON response
+if [ "$INGEST_CODE" != "200" ] && [ "$INGEST_CODE" != "201" ]; then
+  echo "FAIL: expected 200/201 from /triage/ingest, got $INGEST_CODE"
+  cat /tmp/jc004_ingest.out || true
+  exit 1
+fi
+
+echo "OK: triage ingest endpoint responded ($INGEST_CODE)"
