@@ -56,28 +56,6 @@ function extractDigits(text: string): string {
   return text.replace(/\D/g, "");
 }
 
-function isWordChar(ch: string | undefined): boolean {
-  return Boolean(ch && /[a-z0-9_]/i.test(ch));
-}
-
-function includesName(text: string, name: string): boolean {
-  const hay = text.toLowerCase();
-  const needle = name.trim().toLowerCase();
-  if (!needle) {
-    return false;
-  }
-  let idx = hay.indexOf(needle);
-  while (idx >= 0) {
-    const prev = idx > 0 ? hay[idx - 1] : undefined;
-    const next = idx + needle.length < hay.length ? hay[idx + needle.length] : undefined;
-    if (!isWordChar(prev) && !isWordChar(next)) {
-      return true;
-    }
-    idx = hay.indexOf(needle, idx + 1);
-  }
-  return false;
-}
-
 export function extractMentionJids(text: string): string[] {
   if (!text) {
     return [];
@@ -228,10 +206,6 @@ function buildSelfMentionAliasCandidates(params: {
       aliases.add(trimmed);
     }
   }
-  aliases.add("bot");
-  aliases.add("self");
-  aliases.add("yourself");
-
   const selfJid = params.selfMentionJid ? normalizeMentionJid(params.selfMentionJid) : "";
   const selfUser = selfJid ? mentionUserPart(selfJid) : "";
   if (!selfUser || !params.participants?.length) {
@@ -549,21 +523,6 @@ export async function resolveMentionJids(
       const jid = resolveNameToJid(name, options.participants);
       if (jid) {
         resolved.add(normalizeMentionJid(jid));
-      }
-    }
-
-    for (const participant of options.participants) {
-      const candidateNames = [participant.name, participant.notify].filter(
-        (value): value is string => Boolean(value && value.trim().length >= 3),
-      );
-      for (const candidateName of candidateNames) {
-        if (includesName(text, candidateName)) {
-          const preferredJid = toPreferredParticipantMentionJid(participant);
-          if (preferredJid) {
-            resolved.add(preferredJid);
-          }
-          break;
-        }
       }
     }
   }
