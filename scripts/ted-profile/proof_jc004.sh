@@ -84,3 +84,77 @@ if [ "$INGEST_CODE" != "200" ] && [ "$INGEST_CODE" != "201" ]; then
 fi
 
 echo "OK: triage ingest endpoint responded ($INGEST_CODE)"
+
+echo
+echo "=== JC-004 Increment 3: Pattern learning scaffold (proof-first) ==="
+
+# Expect these endpoints to exist after implementation:
+# - GET  /triage/patterns
+# - POST /triage/patterns/propose
+# - POST /triage/patterns/:pattern_id/approve
+PATTERN_LIST_CODE="$(curl -sS -o /tmp/jc004_patterns.out -w "%{http_code}" \
+  "$BASE_URL/triage/patterns" || true)"
+
+if [ "$PATTERN_LIST_CODE" = "404" ]; then
+  echo "EXPECTED_FAIL_UNTIL_JC004_INC3_IMPLEMENTED: missing /triage/patterns"
+  cat /tmp/jc004_patterns.out || true
+  exit 1
+fi
+
+if [ "$PATTERN_LIST_CODE" != "200" ]; then
+  echo "FAIL: expected 200 from /triage/patterns, got $PATTERN_LIST_CODE"
+  cat /tmp/jc004_patterns.out || true
+  exit 1
+fi
+
+# Propose a pattern
+PROPOSE_PAYLOAD='{
+  "pattern_type":"SENDER_DOMAIN_TO_DEAL",
+  "match":{"domain":"example.com"},
+  "suggest":{"deal_id":"proof_deal"},
+  "notes":"proof propose"
+}'
+PROPOSE_CODE="$(curl -sS -o /tmp/jc004_propose.out -w "%{http_code}" \
+  -X POST "$BASE_URL/triage/patterns/propose" \
+  -H "Content-Type: application/json" \
+  -d "$PROPOSE_PAYLOAD" || true)"
+
+if [ "$PROPOSE_CODE" = "404" ]; then
+  echo "EXPECTED_FAIL_UNTIL_JC004_INC3_IMPLEMENTED: missing /triage/patterns/propose"
+  cat /tmp/jc004_propose.out || true
+  exit 1
+fi
+
+if [ "$PROPOSE_CODE" != "200" ] && [ "$PROPOSE_CODE" != "201" ]; then
+  echo "FAIL: expected 200/201 from propose, got $PROPOSE_CODE"
+  cat /tmp/jc004_propose.out || true
+  exit 1
+fi
+
+# Extract pattern_id (very lightweight parse)
+PATTERN_ID="$(cat /tmp/jc004_propose.out | python3 -c 'import sys,json; print(json.load(sys.stdin).get("pattern_id",""))' 2>/dev/null || true)"
+if [ -z "$PATTERN_ID" ]; then
+  echo "FAIL: propose did not return pattern_id"
+  cat /tmp/jc004_propose.out || true
+  exit 1
+fi
+
+# Approve pattern
+APPROVE_CODE="$(curl -sS -o /tmp/jc004_approve.out -w "%{http_code}" \
+  -X POST "$BASE_URL/triage/patterns/$PATTERN_ID/approve" \
+  -H "Content-Type: application/json" \
+  -d '{"approved_by":"proof"}' || true)"
+
+if [ "$APPROVE_CODE" = "404" ]; then
+  echo "EXPECTED_FAIL_UNTIL_JC004_INC3_IMPLEMENTED: missing /triage/patterns/:id/approve"
+  cat /tmp/jc004_approve.out || true
+  exit 1
+fi
+
+if [ "$APPROVE_CODE" != "200" ]; then
+  echo "FAIL: expected 200 from approve, got $APPROVE_CODE"
+  cat /tmp/jc004_approve.out || true
+  exit 1
+fi
+
+echo "OK: pattern propose/approve endpoints responded"
