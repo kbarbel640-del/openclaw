@@ -263,6 +263,20 @@ export function setQianfanApiKey(key: string, agentDir?: string) {
   });
 }
 
+export async function setDigitalOceanGradientApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "digitalocean:default",
+    credential: {
+      type: "api_key",
+      provider: "digitalocean",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+
+export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_REF = "digitalocean/llama3.3-70b-instruct";
+
 export function setXaiApiKey(key: string, agentDir?: string) {
   upsertAuthProfile({
     profileId: "xai:default",

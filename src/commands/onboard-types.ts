@@ -71,6 +71,7 @@ export type AuthChoiceGroupId =
   | "huggingface"
   | "qianfan"
   | "xai"
+  | "digitalocean"
   | "custom";
 export type GatewayAuthChoice = "token" | "password";
 export type ResetScope = "config" | "config+creds+sessions" | "full";

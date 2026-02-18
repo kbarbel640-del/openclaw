@@ -3,6 +3,7 @@ export {
   SYNTHETIC_DEFAULT_MODEL_REF,
 } from "../agents/synthetic-models.js";
 export { VENICE_DEFAULT_MODEL_ID, VENICE_DEFAULT_MODEL_REF } from "../agents/venice-models.js";
+export { applyDigitalOceanGradientAuthChoice } from "./digitalocean-gradient-config.js";
 export {
   applyAuthProfileConfig,
   applyCloudflareAiGatewayConfig,
@@ -58,6 +59,7 @@ export {
   setAnthropicApiKey,
   setCloudflareAiGatewayConfig,
   setQianfanApiKey,
+  setDigitalOceanGradientApiKey,
   setGeminiApiKey,
   setLitellmApiKey,
   setKimiCodingApiKey,
@@ -80,6 +82,7 @@ export {
   ZAI_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
   XAI_DEFAULT_MODEL_REF,
+  DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_REF,
 } from "./onboard-auth.credentials.js";
 export {
   buildMinimaxApiModelDefinition,
@@ -106,4 +109,8 @@ export {
   ZAI_CODING_GLOBAL_BASE_URL,
   ZAI_CN_BASE_URL,
   ZAI_GLOBAL_BASE_URL,
+  DIGITALOCEAN_GRADIENT_BASE_URL,
+  DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID,
+  DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_REF,
+  buildDigitalOceanGradientModelDefinition,
 } from "./onboard-auth.models.js";
