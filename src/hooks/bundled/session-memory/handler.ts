@@ -43,8 +43,7 @@ async function findMostRecentResetFile(sessionFilePath: string): Promise<string 
     // Find files matching the pattern: <baseName>.jsonl.reset.*
     const resetFiles = files
       .filter((f) => f.startsWith(`${baseName}.jsonl.reset.`))
-      .toSorted()
-      .toReversed(); // Most recent first (timestamps are in descending order)
+      .toSorted((a, b) => b.localeCompare(a)); // Most recent first (timestamps sort lexicographically)
 
     if (resetFiles.length > 0) {
       return path.join(dir, resetFiles[0]);
@@ -58,17 +57,23 @@ async function findMostRecentResetFile(sessionFilePath: string): Promise<string 
 
 /**
  * Read recent messages from session file for slug generation
- * Includes fallback to reset files when the current session file is empty
+ * Includes fallback to reset files when the current session file is empty or missing
  */
 async function getRecentSessionContentWithResetFallback(
   sessionFilePath: string,
   messageCount: number = 15,
 ): Promise<string | null> {
+  // Try reading from the current session file first
+  let content: string | null = null;
   try {
-    const content = await fs.readFile(sessionFilePath, "utf-8");
-    const lines = content.trim().split("\n");
+    content = await fs.readFile(sessionFilePath, "utf-8");
+  } catch {
+    // File missing — fall through to reset lookup
+  }
 
-    // Check if the file has meaningful content
+  // If we got content, check if it has meaningful messages
+  if (content) {
+    const lines = content.trim().split("\n");
     const hasContent = lines.some((line) => {
       try {
         const entry = JSON.parse(line);
@@ -78,21 +83,57 @@ async function getRecentSessionContentWithResetFallback(
       }
     });
 
-    // If no content found, try the reset file
-    if (!hasContent) {
-      log.debug("Current session file empty, looking for reset file");
-      const resetFile = await findMostRecentResetFile(sessionFilePath);
-      if (resetFile) {
-        log.debug("Found reset file, reading from:", { resetFile });
-        return getRecentSessionContentFromFile(resetFile, messageCount);
-      }
-      return null;
+    // If has content, extract messages without re-reading
+    if (hasContent) {
+      return extractMessagesFromLines(lines, messageCount);
     }
-
-    return getRecentSessionContentFromFile(sessionFilePath, messageCount);
-  } catch {
-    return null;
   }
+
+  // Current file empty or missing — try the reset file
+  log.debug("Current session file empty/missing, looking for reset file");
+  const resetFile = await findMostRecentResetFile(sessionFilePath);
+  if (resetFile) {
+    log.debug("Found reset file, reading from:", { resetFile });
+    return getRecentSessionContentFromFile(resetFile, messageCount);
+  }
+  return null;
+}
+
+/**
+ * Extract messages from parsed JSONL lines
+ */
+function extractMessagesFromLines(lines: string[], messageCount: number): string {
+  // Parse JSONL and extract user/assistant messages first
+  const allMessages: string[] = [];
+  for (const line of lines) {
+    try {
+      const entry = JSON.parse(line);
+      // Session files have entries with type="message" containing a nested message object
+      if (entry.type === "message" && entry.message) {
+        const msg = entry.message;
+        const role = msg.role;
+        if ((role === "user" || role === "assistant") && msg.content) {
+          if (role === "user" && hasInterSessionUserProvenance(msg)) {
+            continue;
+          }
+          // Extract text content
+          const text = Array.isArray(msg.content)
+            ? // oxlint-disable-next-line typescript/no-explicit-any
+              msg.content.find((c: any) => c.type === "text")?.text
+            : msg.content;
+          if (text && !text.startsWith("/")) {
+            allMessages.push(`${role}: ${text}`);
+          }
+        }
+      }
+    } catch {
+      // Skip invalid JSON lines
+    }
+  }
+
+  // Then slice to get exactly messageCount messages
+  const recentMessages = allMessages.slice(-messageCount);
+  return recentMessages.join("\n");
 }
 
 /**
@@ -105,38 +146,7 @@ async function getRecentSessionContentFromFile(
   try {
     const content = await fs.readFile(sessionFilePath, "utf-8");
     const lines = content.trim().split("\n");
-
-    // Parse JSONL and extract user/assistant messages first
-    const allMessages: string[] = [];
-    for (const line of lines) {
-      try {
-        const entry = JSON.parse(line);
-        // Session files have entries with type="message" containing a nested message object
-        if (entry.type === "message" && entry.message) {
-          const msg = entry.message;
-          const role = msg.role;
-          if ((role === "user" || role === "assistant") && msg.content) {
-            if (role === "user" && hasInterSessionUserProvenance(msg)) {
-              continue;
-            }
-            // Extract text content
-            const text = Array.isArray(msg.content)
-              ? // oxlint-disable-next-line typescript/no-explicit-any
-                msg.content.find((c: any) => c.type === "text")?.text
-              : msg.content;
-            if (text && !text.startsWith("/")) {
-              allMessages.push(`${role}: ${text}`);
-            }
-          }
-        }
-      } catch {
-        // Skip invalid JSON lines
-      }
-    }
-
-    // Then slice to get exactly messageCount messages
-    const recentMessages = allMessages.slice(-messageCount);
-    return recentMessages.join("\n");
+    return extractMessagesFromLines(lines, messageCount);
   } catch {
     return null;
   }
