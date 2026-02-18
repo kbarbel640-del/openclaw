@@ -88,7 +88,7 @@ You will need to create a new application with a bot, add the bot to your server
   <Step title="Allow DMs from server members">
     For pairing to work, Discord needs to allow your bot to DM you. Right-click your **server icon** → **Privacy Settings** → toggle on **Direct Messages**.
 
-    This lets server members (including bots) send you DMs. You can turn it off after pairing if you prefer.
+    This lets server members (including bots) send you DMs. Keep this enabled if you want to use Discord DMs with OpenClaw. If you only plan to use guild channels, you can disable DMs after pairing.
 
   </Step>
 
@@ -109,7 +109,7 @@ openclaw gateway
 
     <Tabs>
       <Tab title="Ask your agent">
-        Chat with your OpenClaw agent on any existing channel (e.g. Telegram) and tell it:
+        Chat with your OpenClaw agent on any existing channel (e.g. Telegram) and tell it. If Discord is your first channel, use the CLI / config tab instead.
 
         > "I already set my Discord bot token in config. Please finish Discord setup with User ID `<user_id>` and Server ID `<server_id>`."
       </Tab>
@@ -232,23 +232,15 @@ Once DMs are working, you can set up your Discord server as a full workspace whe
 
   </Step>
 
-  <Step title="Enable memory access for guild channels">
-    By default, long-term memory (MEMORY.md) only loads in DM sessions. If this is a private server, you probably want your agent to have full memory in every channel.
+  <Step title="Plan for memory in guild channels">
+    By default, long-term memory (MEMORY.md) only loads in DM sessions. Guild channels do not auto-load MEMORY.md.
 
     <Tabs>
       <Tab title="Ask your agent">
-        > "Update AGENTS.md to load MEMORY.md for my Discord server in all channels"
+        > "When I ask questions in Discord channels, use memory_search or memory_get if you need long-term context from MEMORY.md."
       </Tab>
       <Tab title="Manual">
-        Add your guild ID to a trusted contexts list in your `AGENTS.md` file. For example:
-
-```markdown
-### Trusted Contexts (treat like main session for memory access)
-
-- Direct chats (DMs) on any channel
-- Discord guild `YOUR_SERVER_ID`
-```
-
+        If you need shared context in every channel, put the stable instructions in `AGENTS.md` or `USER.md` (they are injected for every session). Keep long-term notes in `MEMORY.md` and access them on demand with memory tools.
       </Tab>
     </Tabs>
 
