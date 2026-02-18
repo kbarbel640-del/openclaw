@@ -1,5 +1,5 @@
-import type { ModelDefinitionConfig } from "../config/types.js";
 import { QIANFAN_BASE_URL, QIANFAN_DEFAULT_MODEL_ID } from "../agents/models-config.providers.js";
+import type { ModelDefinitionConfig } from "../config/types.js";
 
 export const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1";
 export const MINIMAX_API_BASE_URL = "https://api.minimax.io/anthropic";
@@ -55,14 +55,8 @@ export function buildDigitalOceanGradientModels(): ModelDefinitionConfig[] {
       maxTokens: 8192,
     }),
     buildDigitalOceanGradientModelDefinition({
-      modelId: "llama3.1-70b-instruct",
-      displayName: "Llama 3.1 70B Instruct",
-      contextWindow: 128000,
-      maxTokens: 8192,
-    }),
-    buildDigitalOceanGradientModelDefinition({
-      modelId: "llama3.1-8b-instruct",
-      displayName: "Llama 3.1 8B Instruct",
+      modelId: "deepseek-r1-distill-llama-70b",
+      displayName: "DeepSeek R1 Distill Llama 70B",
       contextWindow: 128000,
       maxTokens: 8192,
     }),
