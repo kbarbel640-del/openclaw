@@ -122,6 +122,35 @@ export type DiscordUiConfig = {
   components?: DiscordUiComponentsConfig;
 };
 
+export type DiscordStatusReactionEmojisConfig = {
+  /** Reaction while reasoning/thinking. Default: "🧠" */
+  thinking?: string;
+  /** Reaction for a generic tool call. Default: "🛠️" */
+  tool?: string;
+  /** Reaction for coding/file tool calls (exec, read, write, bash, …). Default: "💻" */
+  coding?: string;
+  /** Reaction for web/browser tool calls. Default: "🌐" */
+  web?: string;
+  /** Reaction shown on successful completion. Default: "✅" */
+  done?: string;
+  /** Reaction shown on error. Default: "❌" */
+  error?: string;
+  /** Reaction shown after a soft stall (default threshold: 10 s). Default: "⏳" */
+  stallSoft?: string;
+  /** Reaction shown after a hard stall (default threshold: 30 s). Default: "⚠️" */
+  stallHard?: string;
+};
+
+export type DiscordStatusReactionsConfig = {
+  /**
+   * If false, skip the animated status reaction state machine entirely and only
+   * show the initial ack reaction (controlled by `ackReaction`). Default: true.
+   */
+  enabled?: boolean;
+  /** Override individual phase emojis. Omit a key to keep the default. */
+  emojis?: DiscordStatusReactionEmojisConfig;
+};
+
 export type DiscordAccountConfig = {
   /** Optional display name for this account (used in CLI/UI lists). */
   name?: string;
@@ -205,6 +234,12 @@ export type DiscordAccountConfig = {
    * Discord supports both unicode emoji and custom emoji names.
    */
   ackReaction?: string;
+  /**
+   * Animated status reaction state machine that cycles through phase emojis
+   * (thinking → tool → done/error) while the agent is processing a message.
+   * Requires `ackReaction` (or the global default) to be set.
+   */
+  statusReactions?: DiscordStatusReactionsConfig;
   /** Bot activity status text (e.g. "Watching X"). */
   activity?: string;
   /** Bot status (online|dnd|idle|invisible). Defaults to online when presence is configured. */
