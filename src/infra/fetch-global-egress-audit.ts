@@ -13,5 +13,5 @@ export function patchGlobalFetchForEgressAudit() {
     return;
   }
 
-  g.fetch = wrapFetchWithEgressAudit(g.fetch.bind(globalThis));
+  g.fetch = wrapFetchWithEgressAudit(g.fetch);
 }

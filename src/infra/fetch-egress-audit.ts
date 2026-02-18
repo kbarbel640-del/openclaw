@@ -7,8 +7,9 @@ function isEnabled(): boolean {
   return v === "1" || v === "true" || v === "yes";
 }
 
-function auditDir(): string {
-  return process.env.OPENCLAW_HTTP_EGRESS_AUDIT_DIR ?? "";
+function auditDir(): string | null {
+  const value = process.env.OPENCLAW_HTTP_EGRESS_AUDIT_DIR?.trim();
+  return value && value.length > 0 ? value : null;
 }
 
 function sanitizeHostForPath(host: string): string {
@@ -80,6 +81,25 @@ function nowMs(): number {
   return Date.now();
 }
 
+function resolveAuditPaths(url: string): { reqFile: string; resFile: string } | null {
+  const dir = auditDir();
+  if (!dir) {
+    return null;
+  }
+
+  let host = "unknown-host";
+  try {
+    host = sanitizeHostForPath(new URL(url).host || host);
+  } catch {
+    // ignore
+  }
+
+  return {
+    reqFile: `${dir}/${host}/${today()}-requests.jsonl`,
+    resFile: `${dir}/${host}/${today()}-responses.jsonl`,
+  };
+}
+
 async function ensureDir(p: string) {
   await mkdir(p, { recursive: true });
 }
@@ -136,73 +156,72 @@ export function wrapFetchWithEgressAudit(fetchImpl: typeof fetch): typeof fetch 
     const id = sha256Hex(
       `${startedAt}:${method}:${url}:${safeJson(requestHeaders)}:${bodyText ?? ""}`,
     );
+    const paths = resolveAuditPaths(url);
 
-    const dir = auditDir();
-    let host = "unknown-host";
-    try {
-      host = sanitizeHostForPath(new URL(url).host || host);
-    } catch {
-      // ignore
+    if (paths) {
+      void appendJsonl(
+        paths.reqFile,
+        safeJson({
+          t: "request",
+          id,
+          ts: startedAt,
+          url,
+          method,
+          headers: redactHeaders(requestHeaders),
+          body: bodyText,
+        }),
+      ).catch(() => undefined);
     }
-    const reqFile = `${dir}/${host}/${today()}-requests.jsonl`;
-    const resFile = `${dir}/${host}/${today()}-responses.jsonl`;
-
-    await appendJsonl(
-      reqFile,
-      safeJson({
-        t: "request",
-        id,
-        ts: startedAt,
-        url,
-        method,
-        headers: redactHeaders(requestHeaders),
-        body: bodyText,
-      }),
-    );
 
     try {
       const res = await fetchImpl(input as unknown as RequestInfo, init as unknown as RequestInit);
-      const cloned = res.clone();
-      const status = cloned.status;
-      const statusText = cloned.statusText;
-      const responseHeaders = headersToObject(cloned.headers);
 
-      let responseBody: string | undefined;
-      try {
-        // This will buffer the full response. Good for audit, but can be big.
-        responseBody = await cloned.text();
-      } catch (e) {
-        responseBody = `[unreadable body: ${String(e)}]`;
+      if (paths) {
+        const cloned = res.clone();
+        const status = cloned.status;
+        const statusText = cloned.statusText;
+        const responseHeaders = headersToObject(cloned.headers);
+        void (async () => {
+          let responseBody: string | undefined;
+          try {
+            // This will buffer the full response. Good for audit, but can be big.
+            responseBody = await cloned.text();
+          } catch (e) {
+            responseBody = `[unreadable body: ${String(e)}]`;
+          }
+
+          await appendJsonl(
+            paths.resFile,
+            safeJson({
+              t: "response",
+              id,
+              ts: nowMs(),
+              ms: nowMs() - startedAt,
+              url,
+              status,
+              statusText,
+              headers: redactHeaders(responseHeaders),
+              body: responseBody,
+            }),
+          );
+        })().catch(() => undefined);
       }
-
-      await appendJsonl(
-        resFile,
-        safeJson({
-          t: "response",
-          id,
-          ts: nowMs(),
-          ms: nowMs() - startedAt,
-          url,
-          status,
-          statusText,
-          headers: redactHeaders(responseHeaders),
-          body: responseBody,
-        }),
-      );
 
       return res;
     } catch (e) {
-      await appendJsonl(
-        resFile,
-        safeJson({
-          t: "error",
-          id,
-          ts: nowMs(),
-          ms: nowMs() - startedAt,
-          url,
-          error: String(e),
-        }),
-      );
+      if (paths) {
+        void appendJsonl(
+          paths.resFile,
+          safeJson({
+            t: "error",
+            id,
+            ts: nowMs(),
+            ms: nowMs() - startedAt,
+            url,
+            error: String(e),
+          }),
+        ).catch(() => undefined);
+      }
       throw e;
     }
   }) as typeof fetch;

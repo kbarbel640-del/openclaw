@@ -106,5 +106,5 @@ export function resolveFetch(fetchImpl?: typeof fetch): typeof fetch | undefined
   if (!resolved) {
     return undefined;
   }
-  return wrapFetchWithEgressAudit(wrapFetchWithAbortSignal(resolved));
+  return wrapFetchWithAbortSignal(wrapFetchWithEgressAudit(resolved));
 }

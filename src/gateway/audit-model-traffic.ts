@@ -238,7 +238,12 @@ function applyGranularity(rec: ModelTrafficRecord): ModelTrafficRecord {
   if (!gran.body) {
     delete result.body;
   }
-  // Response is handled by caller (they decide what to log as "out")
+
+  if (!gran.response && rec.direction === "out") {
+    delete result.headers;
+    delete result.body;
+    delete result.status;
+  }
 
   return result;
 }
