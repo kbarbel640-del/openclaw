@@ -249,6 +249,42 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "device.pair.list",
+                    family: MethodFamily::Pairing,
+                    requires_auth: true,
+                    min_role: "owner",
+                },
+                MethodSpec {
+                    name: "device.pair.approve",
+                    family: MethodFamily::Pairing,
+                    requires_auth: true,
+                    min_role: "owner",
+                },
+                MethodSpec {
+                    name: "device.pair.reject",
+                    family: MethodFamily::Pairing,
+                    requires_auth: true,
+                    min_role: "owner",
+                },
+                MethodSpec {
+                    name: "device.pair.remove",
+                    family: MethodFamily::Pairing,
+                    requires_auth: true,
+                    min_role: "owner",
+                },
+                MethodSpec {
+                    name: "device.token.rotate",
+                    family: MethodFamily::Pairing,
+                    requires_auth: true,
+                    min_role: "owner",
+                },
+                MethodSpec {
+                    name: "device.token.revoke",
+                    family: MethodFamily::Pairing,
+                    requires_auth: true,
+                    min_role: "owner",
+                },
+                MethodSpec {
                     name: "config.get",
                     family: MethodFamily::Config,
                     requires_auth: true,
@@ -474,6 +510,7 @@ pub struct RpcDispatcher {
     config: ConfigRegistry,
     web_login: WebLoginRegistry,
     wizard: WizardRegistry,
+    devices: DeviceRegistry,
     channel_capabilities: Vec<ChannelCapabilities>,
     started_at_ms: u64,
 }
@@ -511,6 +548,7 @@ static SESSION_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static CRON_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static WEB_LOGIN_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 static WIZARD_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+static DEVICE_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 const SUPPORTED_RPC_METHODS: &[&str] = &[
     "health",
     "status",
@@ -553,6 +591,12 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "wizard.next",
     "wizard.cancel",
     "wizard.status",
+    "device.pair.list",
+    "device.pair.approve",
+    "device.pair.reject",
+    "device.pair.remove",
+    "device.token.rotate",
+    "device.token.revoke",
     "config.get",
     "config.set",
     "config.patch",
@@ -593,6 +637,7 @@ impl RpcDispatcher {
             config: ConfigRegistry::new(),
             web_login: WebLoginRegistry::new(),
             wizard: WizardRegistry::new(),
+            devices: DeviceRegistry::new(),
             channel_capabilities,
             started_at_ms: now_ms(),
         }
@@ -641,6 +686,12 @@ impl RpcDispatcher {
             "wizard.next" => self.handle_wizard_next(req).await,
             "wizard.cancel" => self.handle_wizard_cancel(req).await,
             "wizard.status" => self.handle_wizard_status(req).await,
+            "device.pair.list" => self.handle_device_pair_list(req).await,
+            "device.pair.approve" => self.handle_device_pair_approve(req).await,
+            "device.pair.reject" => self.handle_device_pair_reject(req).await,
+            "device.pair.remove" => self.handle_device_pair_remove(req).await,
+            "device.token.rotate" => self.handle_device_token_rotate(req).await,
+            "device.token.revoke" => self.handle_device_token_revoke(req).await,
             "config.get" => self.handle_config_get(req).await,
             "config.set" => self.handle_config_set(req).await,
             "config.patch" => self.handle_config_patch(req).await,
@@ -679,6 +730,12 @@ impl RpcDispatcher {
             }
             "presence" => {
                 self.system.replace_presence(payload).await;
+            }
+            "device.pair.requested" => {
+                self.devices.ingest_pair_requested(payload).await;
+            }
+            "device.pair.resolved" => {
+                self.devices.ingest_pair_resolved(payload).await;
             }
             _ => {}
         }
@@ -1760,6 +1817,167 @@ impl RpcDispatcher {
             }
         };
         RpcDispatchOutcome::Handled(result)
+    }
+
+    async fn handle_device_pair_list(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        if let Err(err) = decode_params::<DevicePairListParams>(&req.params) {
+            return RpcDispatchOutcome::bad_request(format!(
+                "invalid device.pair.list params: {err}"
+            ));
+        }
+        let list = self.devices.list().await;
+        RpcDispatchOutcome::Handled(json!(list))
+    }
+
+    async fn handle_device_pair_approve(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<DevicePairApproveParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid device.pair.approve params: {err}"
+                ));
+            }
+        };
+        let Some(request_id) = normalize_optional_text(Some(params.request_id), 128) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid device.pair.approve params: requestId required",
+            );
+        };
+        let Some(approved) = self.devices.approve(&request_id).await else {
+            return RpcDispatchOutcome::bad_request("unknown requestId");
+        };
+        self.system
+            .log_line(format!(
+                "device pairing approved device={} role={}",
+                approved.device.device_id,
+                approved.device.role.as_deref().unwrap_or("unknown")
+            ))
+            .await;
+        RpcDispatchOutcome::Handled(json!(approved))
+    }
+
+    async fn handle_device_pair_reject(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<DevicePairRejectParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid device.pair.reject params: {err}"
+                ));
+            }
+        };
+        let Some(request_id) = normalize_optional_text(Some(params.request_id), 128) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid device.pair.reject params: requestId required",
+            );
+        };
+        let Some(rejected) = self.devices.reject(&request_id).await else {
+            return RpcDispatchOutcome::bad_request("unknown requestId");
+        };
+        RpcDispatchOutcome::Handled(json!(rejected))
+    }
+
+    async fn handle_device_pair_remove(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<DevicePairRemoveParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid device.pair.remove params: {err}"
+                ));
+            }
+        };
+        let Some(device_id) = normalize_optional_text(Some(params.device_id), 128) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid device.pair.remove params: deviceId required",
+            );
+        };
+        let Some(removed) = self.devices.remove(&device_id).await else {
+            return RpcDispatchOutcome::bad_request("unknown deviceId");
+        };
+        self.system
+            .log_line(format!(
+                "device pairing removed device={}",
+                removed.device_id
+            ))
+            .await;
+        RpcDispatchOutcome::Handled(json!(removed))
+    }
+
+    async fn handle_device_token_rotate(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<DeviceTokenRotateParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid device.token.rotate params: {err}"
+                ));
+            }
+        };
+        let Some(device_id) = normalize_optional_text(Some(params.device_id), 128) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid device.token.rotate params: deviceId required",
+            );
+        };
+        let Some(role) = normalize_optional_text(Some(params.role), 64) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid device.token.rotate params: role required",
+            );
+        };
+        let Some(token) = self
+            .devices
+            .rotate_token(&device_id, &role, params.scopes)
+            .await
+        else {
+            return RpcDispatchOutcome::bad_request("unknown deviceId/role");
+        };
+        self.system
+            .log_line(format!(
+                "device token rotated device={} role={} scopes={}",
+                device_id,
+                token.role,
+                token.scopes.join(",")
+            ))
+            .await;
+        RpcDispatchOutcome::Handled(json!({
+            "deviceId": device_id,
+            "role": token.role,
+            "token": token.token,
+            "scopes": token.scopes,
+            "rotatedAtMs": token.rotated_at_ms.unwrap_or(token.created_at_ms),
+        }))
+    }
+
+    async fn handle_device_token_revoke(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<DeviceTokenRevokeParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => {
+                return RpcDispatchOutcome::bad_request(format!(
+                    "invalid device.token.revoke params: {err}"
+                ));
+            }
+        };
+        let Some(device_id) = normalize_optional_text(Some(params.device_id), 128) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid device.token.revoke params: deviceId required",
+            );
+        };
+        let Some(role) = normalize_optional_text(Some(params.role), 64) else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid device.token.revoke params: role required",
+            );
+        };
+        let Some(token) = self.devices.revoke_token(&device_id, &role).await else {
+            return RpcDispatchOutcome::bad_request("unknown deviceId/role");
+        };
+        self.system
+            .log_line(format!(
+                "device token revoked device={} role={}",
+                device_id, role
+            ))
+            .await;
+        RpcDispatchOutcome::Handled(json!({
+            "deviceId": device_id,
+            "role": token.role,
+            "revokedAtMs": token.revoked_at_ms.unwrap_or_else(now_ms)
+        }))
     }
 
     async fn handle_config_get(&self, _req: &RpcRequestFrame) -> RpcDispatchOutcome {
@@ -4332,6 +4550,555 @@ impl SkillsRegistry {
     }
 }
 
+struct DeviceRegistry {
+    state: Mutex<DevicePairState>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct DevicePairState {
+    pending_by_id: HashMap<String, DevicePairPendingRequest>,
+    paired_by_device_id: HashMap<String, PairedDeviceEntry>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct DevicePairListResult {
+    pending: Vec<DevicePairPendingRequest>,
+    paired: Vec<PairedDeviceView>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct DevicePairApproveResult {
+    #[serde(rename = "requestId")]
+    request_id: String,
+    device: PairedDeviceView,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct DevicePairRejectResult {
+    #[serde(rename = "requestId")]
+    request_id: String,
+    #[serde(rename = "deviceId")]
+    device_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct DevicePairRemoveResult {
+    #[serde(rename = "deviceId")]
+    device_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct DevicePairPendingRequest {
+    #[serde(rename = "requestId")]
+    request_id: String,
+    #[serde(rename = "deviceId")]
+    device_id: String,
+    #[serde(rename = "publicKey")]
+    public_key: String,
+    #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<String>,
+    #[serde(rename = "clientId", skip_serializing_if = "Option::is_none")]
+    client_id: Option<String>,
+    #[serde(rename = "clientMode", skip_serializing_if = "Option::is_none")]
+    client_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    roles: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scopes: Option<Vec<String>>,
+    #[serde(rename = "remoteIp", skip_serializing_if = "Option::is_none")]
+    remote_ip: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    silent: Option<bool>,
+    #[serde(rename = "isRepair", skip_serializing_if = "Option::is_none")]
+    is_repair: Option<bool>,
+    ts: u64,
+}
+
+#[derive(Debug, Clone)]
+struct PairedDeviceEntry {
+    device_id: String,
+    public_key: String,
+    display_name: Option<String>,
+    platform: Option<String>,
+    client_id: Option<String>,
+    client_mode: Option<String>,
+    role: Option<String>,
+    roles: Option<Vec<String>>,
+    scopes: Option<Vec<String>>,
+    remote_ip: Option<String>,
+    tokens: HashMap<String, DeviceAuthTokenEntry>,
+    created_at_ms: u64,
+    approved_at_ms: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct PairedDeviceView {
+    #[serde(rename = "deviceId")]
+    device_id: String,
+    #[serde(rename = "publicKey")]
+    public_key: String,
+    #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<String>,
+    #[serde(rename = "clientId", skip_serializing_if = "Option::is_none")]
+    client_id: Option<String>,
+    #[serde(rename = "clientMode", skip_serializing_if = "Option::is_none")]
+    client_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    roles: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scopes: Option<Vec<String>>,
+    #[serde(rename = "remoteIp", skip_serializing_if = "Option::is_none")]
+    remote_ip: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tokens: Option<Vec<DeviceAuthTokenSummary>>,
+    #[serde(rename = "createdAtMs")]
+    created_at_ms: u64,
+    #[serde(rename = "approvedAtMs")]
+    approved_at_ms: u64,
+}
+
+#[derive(Debug, Clone)]
+struct DeviceAuthTokenEntry {
+    token: String,
+    role: String,
+    scopes: Vec<String>,
+    created_at_ms: u64,
+    rotated_at_ms: Option<u64>,
+    revoked_at_ms: Option<u64>,
+    last_used_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct DeviceAuthTokenSummary {
+    role: String,
+    scopes: Vec<String>,
+    #[serde(rename = "createdAtMs")]
+    created_at_ms: u64,
+    #[serde(rename = "rotatedAtMs", skip_serializing_if = "Option::is_none")]
+    rotated_at_ms: Option<u64>,
+    #[serde(rename = "revokedAtMs", skip_serializing_if = "Option::is_none")]
+    revoked_at_ms: Option<u64>,
+    #[serde(rename = "lastUsedAtMs", skip_serializing_if = "Option::is_none")]
+    last_used_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct DevicePairRequestedEventPayload {
+    #[serde(rename = "requestId", alias = "request_id")]
+    request_id: Option<String>,
+    #[serde(rename = "deviceId", alias = "device_id")]
+    device_id: Option<String>,
+    #[serde(rename = "publicKey", alias = "public_key")]
+    public_key: Option<String>,
+    #[serde(rename = "displayName", alias = "display_name")]
+    display_name: Option<String>,
+    platform: Option<String>,
+    #[serde(rename = "clientId", alias = "client_id")]
+    client_id: Option<String>,
+    #[serde(rename = "clientMode", alias = "client_mode")]
+    client_mode: Option<String>,
+    role: Option<String>,
+    roles: Option<Vec<String>>,
+    scopes: Option<Vec<String>>,
+    #[serde(rename = "remoteIp", alias = "remote_ip")]
+    remote_ip: Option<String>,
+    silent: Option<bool>,
+    #[serde(rename = "isRepair", alias = "is_repair")]
+    is_repair: Option<bool>,
+    ts: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct DevicePairResolvedEventPayload {
+    #[serde(rename = "requestId", alias = "request_id")]
+    request_id: Option<String>,
+}
+
+impl DeviceRegistry {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(DevicePairState::default()),
+        }
+    }
+
+    async fn list(&self) -> DevicePairListResult {
+        let guard = self.state.lock().await;
+        let mut pending = guard
+            .pending_by_id
+            .values()
+            .cloned()
+            .collect::<Vec<DevicePairPendingRequest>>();
+        pending.sort_by(|a, b| {
+            b.ts.cmp(&a.ts)
+                .then_with(|| a.request_id.cmp(&b.request_id))
+        });
+
+        let mut paired = guard
+            .paired_by_device_id
+            .values()
+            .map(redact_paired_device)
+            .collect::<Vec<PairedDeviceView>>();
+        paired.sort_by(|a, b| {
+            b.approved_at_ms
+                .cmp(&a.approved_at_ms)
+                .then_with(|| a.device_id.cmp(&b.device_id))
+        });
+        DevicePairListResult { pending, paired }
+    }
+
+    async fn ingest_pair_requested(&self, payload: Value) {
+        let Ok(event) = serde_json::from_value::<DevicePairRequestedEventPayload>(payload) else {
+            return;
+        };
+        let Some(request_id) = normalize_optional_text(event.request_id, 128) else {
+            return;
+        };
+        let Some(device_id) = normalize_optional_text(event.device_id, 128) else {
+            return;
+        };
+        let Some(public_key) = normalize_optional_text(event.public_key, 1024) else {
+            return;
+        };
+        let role = normalize_optional_text(event.role, 64);
+        let mut roles = normalize_string_list(event.roles, 32, 64);
+        if let Some(role_value) = &role {
+            if !roles
+                .iter()
+                .any(|existing| existing.eq_ignore_ascii_case(role_value))
+            {
+                roles.push(role_value.clone());
+            }
+        }
+        let roles = (!roles.is_empty()).then_some(roles);
+        let scopes = normalize_device_auth_scopes(event.scopes);
+        let request = DevicePairPendingRequest {
+            request_id: request_id.clone(),
+            device_id: device_id.clone(),
+            public_key,
+            display_name: normalize_optional_text(event.display_name, 128),
+            platform: normalize_optional_text(event.platform, 128),
+            client_id: normalize_optional_text(event.client_id, 128),
+            client_mode: normalize_optional_text(event.client_mode, 128),
+            role,
+            roles,
+            scopes: (!scopes.is_empty()).then_some(scopes),
+            remote_ip: normalize_optional_text(event.remote_ip, 128),
+            silent: event.silent,
+            is_repair: event.is_repair,
+            ts: event.ts.unwrap_or_else(now_ms),
+        };
+        let mut guard = self.state.lock().await;
+        guard
+            .pending_by_id
+            .retain(|key, pending| key == &request_id || pending.device_id != device_id);
+        guard.pending_by_id.insert(request_id, request);
+        prune_oldest_pending(&mut guard.pending_by_id, 512);
+    }
+
+    async fn ingest_pair_resolved(&self, payload: Value) {
+        let Ok(event) = serde_json::from_value::<DevicePairResolvedEventPayload>(payload) else {
+            return;
+        };
+        let Some(request_id) = normalize_optional_text(event.request_id, 128) else {
+            return;
+        };
+        let mut guard = self.state.lock().await;
+        let _ = guard.pending_by_id.remove(&request_id);
+    }
+
+    async fn approve(&self, request_id: &str) -> Option<DevicePairApproveResult> {
+        let mut guard = self.state.lock().await;
+        let pending = guard.pending_by_id.remove(request_id)?;
+        let now = now_ms();
+        let existing = guard.paired_by_device_id.get(&pending.device_id).cloned();
+        let mut tokens = existing
+            .as_ref()
+            .map(|entry| entry.tokens.clone())
+            .unwrap_or_default();
+
+        if let Some(role) = pending.role.clone() {
+            let scoped = normalize_device_auth_scopes(pending.scopes.clone());
+            let existing_token = tokens.get(&role).cloned();
+            tokens.insert(
+                role.clone(),
+                DeviceAuthTokenEntry {
+                    token: next_device_auth_token(&pending.device_id, &role),
+                    role,
+                    scopes: scoped,
+                    created_at_ms: existing_token
+                        .as_ref()
+                        .map_or(now, |token| token.created_at_ms),
+                    rotated_at_ms: existing_token.as_ref().map(|_| now),
+                    revoked_at_ms: None,
+                    last_used_at_ms: existing_token.and_then(|token| token.last_used_at_ms),
+                },
+            );
+        }
+
+        let device = PairedDeviceEntry {
+            device_id: pending.device_id.clone(),
+            public_key: pending.public_key,
+            display_name: pending.display_name,
+            platform: pending.platform,
+            client_id: pending.client_id,
+            client_mode: pending.client_mode,
+            role: pending.role,
+            roles: merge_device_roles(existing.as_ref(), pending.roles.as_ref()),
+            scopes: merge_device_scopes(existing.as_ref(), pending.scopes.as_ref()),
+            remote_ip: pending.remote_ip,
+            tokens,
+            created_at_ms: existing.as_ref().map_or(now, |entry| entry.created_at_ms),
+            approved_at_ms: now,
+        };
+        guard
+            .paired_by_device_id
+            .insert(device.device_id.clone(), device.clone());
+        prune_oldest_paired_devices(&mut guard.paired_by_device_id, 2_048);
+        Some(DevicePairApproveResult {
+            request_id: request_id.to_owned(),
+            device: redact_paired_device(&device),
+        })
+    }
+
+    async fn reject(&self, request_id: &str) -> Option<DevicePairRejectResult> {
+        let mut guard = self.state.lock().await;
+        let pending = guard.pending_by_id.remove(request_id)?;
+        Some(DevicePairRejectResult {
+            request_id: request_id.to_owned(),
+            device_id: pending.device_id,
+        })
+    }
+
+    async fn remove(&self, device_id: &str) -> Option<DevicePairRemoveResult> {
+        let normalized = device_id.trim();
+        if normalized.is_empty() {
+            return None;
+        }
+        let mut guard = self.state.lock().await;
+        guard.paired_by_device_id.remove(normalized)?;
+        Some(DevicePairRemoveResult {
+            device_id: normalized.to_owned(),
+        })
+    }
+
+    async fn rotate_token(
+        &self,
+        device_id: &str,
+        role: &str,
+        scopes: Option<Vec<String>>,
+    ) -> Option<DeviceAuthTokenEntry> {
+        let normalized_device_id = device_id.trim();
+        if normalized_device_id.is_empty() {
+            return None;
+        }
+        let normalized_role = role.trim();
+        if normalized_role.is_empty() {
+            return None;
+        }
+        let mut guard = self.state.lock().await;
+        let device = guard.paired_by_device_id.get_mut(normalized_device_id)?;
+        let existing = device.tokens.get(normalized_role).cloned();
+        let requested_scopes = normalize_device_auth_scopes(scopes.clone().or_else(|| {
+            existing
+                .as_ref()
+                .map(|token| token.scopes.clone())
+                .or_else(|| device.scopes.clone())
+        }));
+        let now = now_ms();
+        let next = DeviceAuthTokenEntry {
+            token: next_device_auth_token(&device.device_id, normalized_role),
+            role: normalized_role.to_owned(),
+            scopes: requested_scopes.clone(),
+            created_at_ms: existing.as_ref().map_or(now, |token| token.created_at_ms),
+            rotated_at_ms: Some(now),
+            revoked_at_ms: None,
+            last_used_at_ms: existing.and_then(|token| token.last_used_at_ms),
+        };
+        device
+            .tokens
+            .insert(normalized_role.to_owned(), next.clone());
+        if scopes.is_some() {
+            device.scopes = Some(requested_scopes);
+        }
+        Some(next)
+    }
+
+    async fn revoke_token(&self, device_id: &str, role: &str) -> Option<DeviceAuthTokenEntry> {
+        let normalized_device_id = device_id.trim();
+        if normalized_device_id.is_empty() {
+            return None;
+        }
+        let normalized_role = role.trim();
+        if normalized_role.is_empty() {
+            return None;
+        }
+        let mut guard = self.state.lock().await;
+        let device = guard.paired_by_device_id.get_mut(normalized_device_id)?;
+        let token = device.tokens.get(normalized_role).cloned()?;
+        let revoked = DeviceAuthTokenEntry {
+            revoked_at_ms: Some(now_ms()),
+            ..token
+        };
+        device
+            .tokens
+            .insert(normalized_role.to_owned(), revoked.clone());
+        Some(revoked)
+    }
+}
+
+fn redact_paired_device(device: &PairedDeviceEntry) -> PairedDeviceView {
+    PairedDeviceView {
+        device_id: device.device_id.clone(),
+        public_key: device.public_key.clone(),
+        display_name: device.display_name.clone(),
+        platform: device.platform.clone(),
+        client_id: device.client_id.clone(),
+        client_mode: device.client_mode.clone(),
+        role: device.role.clone(),
+        roles: device.roles.clone(),
+        scopes: device.scopes.clone(),
+        remote_ip: device.remote_ip.clone(),
+        tokens: summarize_device_tokens(&device.tokens),
+        created_at_ms: device.created_at_ms,
+        approved_at_ms: device.approved_at_ms,
+    }
+}
+
+fn summarize_device_tokens(
+    tokens: &HashMap<String, DeviceAuthTokenEntry>,
+) -> Option<Vec<DeviceAuthTokenSummary>> {
+    if tokens.is_empty() {
+        return None;
+    }
+    let mut summaries = tokens
+        .values()
+        .map(|token| DeviceAuthTokenSummary {
+            role: token.role.clone(),
+            scopes: token.scopes.clone(),
+            created_at_ms: token.created_at_ms,
+            rotated_at_ms: token.rotated_at_ms,
+            revoked_at_ms: token.revoked_at_ms,
+            last_used_at_ms: token.last_used_at_ms,
+        })
+        .collect::<Vec<_>>();
+    summaries.sort_by(|a, b| a.role.cmp(&b.role));
+    Some(summaries)
+}
+
+fn merge_device_roles(
+    existing: Option<&PairedDeviceEntry>,
+    pending_roles: Option<&Vec<String>>,
+) -> Option<Vec<String>> {
+    let mut merged = Vec::new();
+    if let Some(existing) = existing {
+        if let Some(roles) = &existing.roles {
+            for role in roles {
+                push_unique_string_case_insensitive(&mut merged, role, 64);
+            }
+        }
+        if let Some(role) = &existing.role {
+            push_unique_string_case_insensitive(&mut merged, role, 64);
+        }
+    }
+    if let Some(roles) = pending_roles {
+        for role in roles {
+            push_unique_string_case_insensitive(&mut merged, role, 64);
+        }
+    }
+    (!merged.is_empty()).then_some(merged)
+}
+
+fn merge_device_scopes(
+    existing: Option<&PairedDeviceEntry>,
+    pending_scopes: Option<&Vec<String>>,
+) -> Option<Vec<String>> {
+    let mut merged = Vec::new();
+    if let Some(existing) = existing {
+        if let Some(scopes) = &existing.scopes {
+            for scope in scopes {
+                push_unique_string_case_insensitive(&mut merged, scope, 96);
+            }
+        }
+    }
+    if let Some(scopes) = pending_scopes {
+        for scope in scopes {
+            push_unique_string_case_insensitive(&mut merged, scope, 96);
+        }
+    }
+    (!merged.is_empty()).then_some(merged)
+}
+
+fn normalize_device_auth_scopes(scopes: Option<Vec<String>>) -> Vec<String> {
+    normalize_string_list(scopes, 64, 96)
+}
+
+fn push_unique_string_case_insensitive(target: &mut Vec<String>, raw: &str, max_len: usize) {
+    let Some(value) = normalize_optional_text(Some(raw.to_owned()), max_len) else {
+        return;
+    };
+    if target
+        .iter()
+        .any(|existing| existing.eq_ignore_ascii_case(&value))
+    {
+        return;
+    }
+    target.push(value);
+}
+
+fn prune_oldest_pending(
+    pending_by_id: &mut HashMap<String, DevicePairPendingRequest>,
+    max_pending: usize,
+) {
+    while pending_by_id.len() > max_pending {
+        let Some(oldest_key) = pending_by_id
+            .iter()
+            .min_by_key(|(_, pending)| pending.ts)
+            .map(|(key, _)| key.clone())
+        else {
+            break;
+        };
+        let _ = pending_by_id.remove(&oldest_key);
+    }
+}
+
+fn prune_oldest_paired_devices(
+    paired_by_device_id: &mut HashMap<String, PairedDeviceEntry>,
+    max_devices: usize,
+) {
+    while paired_by_device_id.len() > max_devices {
+        let Some(oldest_key) = paired_by_device_id
+            .iter()
+            .min_by_key(|(_, device)| device.approved_at_ms)
+            .map(|(key, _)| key.clone())
+        else {
+            break;
+        };
+        let _ = paired_by_device_id.remove(&oldest_key);
+    }
+}
+
+fn next_device_auth_token(device_id: &str, role: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let sequence = DEVICE_TOKEN_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let mut hasher = Sha256::new();
+    hasher.update(device_id.as_bytes());
+    hasher.update(role.as_bytes());
+    hasher.update(now_ms().to_le_bytes());
+    hasher.update(sequence.to_le_bytes());
+    let digest = format!("{:x}", hasher.finalize());
+    format!("dtk_{}", &digest[..48])
+}
+
 struct WebLoginRegistry {
     state: Mutex<WebLoginState>,
 }
@@ -6751,6 +7518,48 @@ struct UpdateRunParams {
     restart_delay_ms: Option<u64>,
     #[serde(rename = "timeoutMs", alias = "timeout_ms")]
     timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct DevicePairListParams {}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DevicePairApproveParams {
+    #[serde(rename = "requestId", alias = "request_id")]
+    request_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DevicePairRejectParams {
+    #[serde(rename = "requestId", alias = "request_id")]
+    request_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DevicePairRemoveParams {
+    #[serde(rename = "deviceId", alias = "device_id")]
+    device_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeviceTokenRotateParams {
+    #[serde(rename = "deviceId", alias = "device_id")]
+    device_id: String,
+    role: String,
+    scopes: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeviceTokenRevokeParams {
+    #[serde(rename = "deviceId", alias = "device_id")]
+    device_id: String,
+    role: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -11190,6 +11999,213 @@ mod tests {
         };
         let out = dispatcher.handle_request(&missing_status).await;
         assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+    }
+
+    #[tokio::test]
+    async fn dispatcher_device_pair_and_token_methods_follow_parity_contract() {
+        let dispatcher = RpcDispatcher::new();
+
+        dispatcher
+            .ingest_event_frame(&serde_json::json!({
+                "event": "device.pair.requested",
+                "payload": {
+                    "requestId": "pair-1",
+                    "deviceId": "device-1",
+                    "publicKey": "pubkey-1",
+                    "displayName": "Primary Tablet",
+                    "role": "operator",
+                    "roles": ["operator"],
+                    "scopes": ["exec:read", "exec:write"],
+                    "ts": 123456
+                }
+            }))
+            .await;
+
+        let invalid_list = RpcRequestFrame {
+            id: "req-device-list-invalid".to_owned(),
+            method: "device.pair.list".to_owned(),
+            params: serde_json::json!({
+                "extra": true
+            }),
+        };
+        let out = dispatcher.handle_request(&invalid_list).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let list = RpcRequestFrame {
+            id: "req-device-list".to_owned(),
+            method: "device.pair.list".to_owned(),
+            params: serde_json::json!({}),
+        };
+        match dispatcher.handle_request(&list).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/pending/0/requestId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("pair-1")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/pending/0/deviceId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("device-1")
+                );
+            }
+            _ => panic!("expected device.pair.list handled"),
+        }
+
+        let approve = RpcRequestFrame {
+            id: "req-device-approve".to_owned(),
+            method: "device.pair.approve".to_owned(),
+            params: serde_json::json!({
+                "requestId": "pair-1"
+            }),
+        };
+        match dispatcher.handle_request(&approve).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/requestId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("pair-1")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/device/deviceId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("device-1")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/device/tokens/0/role")
+                        .and_then(serde_json::Value::as_str),
+                    Some("operator")
+                );
+                assert!(payload.pointer("/device/tokens/0/token").is_none());
+            }
+            _ => panic!("expected device.pair.approve handled"),
+        }
+
+        let rotate = RpcRequestFrame {
+            id: "req-device-rotate".to_owned(),
+            method: "device.token.rotate".to_owned(),
+            params: serde_json::json!({
+                "deviceId": "device-1",
+                "role": "operator",
+                "scopes": ["exec:read"]
+            }),
+        };
+        match dispatcher.handle_request(&rotate).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                let token = payload
+                    .pointer("/token")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default();
+                assert!(token.starts_with("dtk_"));
+                assert_eq!(
+                    payload
+                        .pointer("/scopes/0")
+                        .and_then(serde_json::Value::as_str),
+                    Some("exec:read")
+                );
+                assert!(payload
+                    .pointer("/rotatedAtMs")
+                    .and_then(serde_json::Value::as_u64)
+                    .is_some());
+            }
+            _ => panic!("expected device.token.rotate handled"),
+        }
+
+        let revoke = RpcRequestFrame {
+            id: "req-device-revoke".to_owned(),
+            method: "device.token.revoke".to_owned(),
+            params: serde_json::json!({
+                "deviceId": "device-1",
+                "role": "operator"
+            }),
+        };
+        match dispatcher.handle_request(&revoke).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/deviceId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("device-1")
+                );
+                assert!(payload
+                    .pointer("/revokedAtMs")
+                    .and_then(serde_json::Value::as_u64)
+                    .is_some());
+            }
+            _ => panic!("expected device.token.revoke handled"),
+        }
+
+        let remove = RpcRequestFrame {
+            id: "req-device-remove".to_owned(),
+            method: "device.pair.remove".to_owned(),
+            params: serde_json::json!({
+                "deviceId": "device-1"
+            }),
+        };
+        match dispatcher.handle_request(&remove).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/deviceId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("device-1")
+                );
+            }
+            _ => panic!("expected device.pair.remove handled"),
+        }
+
+        let rotate_missing = RpcRequestFrame {
+            id: "req-device-rotate-missing".to_owned(),
+            method: "device.token.rotate".to_owned(),
+            params: serde_json::json!({
+                "deviceId": "device-1",
+                "role": "operator"
+            }),
+        };
+        let out = dispatcher.handle_request(&rotate_missing).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        dispatcher
+            .ingest_event_frame(&serde_json::json!({
+                "event": "device.pair.requested",
+                "payload": {
+                    "requestId": "pair-2",
+                    "deviceId": "device-2",
+                    "publicKey": "pubkey-2",
+                    "ts": 654321
+                }
+            }))
+            .await;
+
+        let reject = RpcRequestFrame {
+            id: "req-device-reject".to_owned(),
+            method: "device.pair.reject".to_owned(),
+            params: serde_json::json!({
+                "requestId": "pair-2"
+            }),
+        };
+        match dispatcher.handle_request(&reject).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/requestId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("pair-2")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/deviceId")
+                        .and_then(serde_json::Value::as_str),
+                    Some("device-2")
+                );
+            }
+            _ => panic!("expected device.pair.reject handled"),
+        }
     }
 
     #[tokio::test]
