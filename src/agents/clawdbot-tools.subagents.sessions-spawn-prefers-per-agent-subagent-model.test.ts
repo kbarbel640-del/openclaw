@@ -47,11 +47,31 @@ describe("moltbot-tools: subagents", () => {
     };
     const calls: Array<{ method?: string; params?: unknown }> = [];
 
+    let patchedKey: string | undefined;
+    let patchedModel: string | undefined;
+
     callGatewayMock.mockImplementation(async (opts: unknown) => {
-      const request = opts as { method?: string; params?: unknown };
+      const request = opts as { method?: string; params?: any };
       calls.push(request);
       if (request.method === "sessions.patch") {
-        return { ok: true };
+        patchedKey = String(request.params?.key ?? "");
+        patchedModel = String(request.params?.model ?? "");
+        return { ok: true, entry: { model: patchedModel } };
+      }
+      if (request.method === "sessions.list") {
+        return {
+          sessions: patchedKey
+            ? [
+                {
+                  key: patchedKey,
+                  modelProvider: patchedModel?.includes("/")
+                    ? patchedModel.split("/", 1)[0]
+                    : "opencode",
+                  model: patchedModel?.includes("/") ? patchedModel.split("/", 2)[1] : patchedModel,
+                },
+              ]
+            : [],
+        };
       }
       if (request.method === "agent") {
         return { runId: "run-agent-model", status: "accepted" };
@@ -71,6 +91,7 @@ describe("moltbot-tools: subagents", () => {
     expect(result.details).toMatchObject({
       status: "accepted",
       modelApplied: true,
+      modelVerified: true,
     });
 
     const patchCall = calls.find((call) => call.method === "sessions.patch");
@@ -78,7 +99,7 @@ describe("moltbot-tools: subagents", () => {
       model: "opencode/claude",
     });
   });
-  it("sessions_spawn skips invalid model overrides and continues", async () => {
+  it("sessions_spawn hard-fails when model override patch fails", async () => {
     resetSubagentRegistryForTests();
     callGatewayMock.mockReset();
     const calls: Array<{ method?: string; params?: unknown }> = [];
@@ -120,13 +141,10 @@ describe("moltbot-tools: subagents", () => {
       model: "bad-model",
     });
     expect(result.details).toMatchObject({
-      status: "accepted",
-      modelApplied: false,
+      status: "error",
     });
-    expect(String((result.details as { warning?: string }).warning ?? "")).toContain(
-      "invalid model",
-    );
-    expect(calls.some((call) => call.method === "agent")).toBe(true);
+    expect(String((result.details as { error?: string }).error ?? "")).toContain("invalid model");
+    expect(calls.some((call) => call.method === "agent")).toBe(false);
   });
   it("sessions_spawn supports legacy timeoutSeconds alias", async () => {
     resetSubagentRegistryForTests();

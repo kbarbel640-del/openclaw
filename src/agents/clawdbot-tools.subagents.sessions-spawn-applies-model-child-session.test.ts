@@ -41,11 +41,31 @@ describe("moltbot-tools: subagents", () => {
     const calls: Array<{ method?: string; params?: unknown }> = [];
     let agentCallCount = 0;
 
+    let patchedKey: string | undefined;
+    let patchedModel: string | undefined;
+
     callGatewayMock.mockImplementation(async (opts: unknown) => {
-      const request = opts as { method?: string; params?: unknown };
+      const request = opts as { method?: string; params?: any };
       calls.push(request);
       if (request.method === "sessions.patch") {
-        return { ok: true };
+        patchedKey = String(request.params?.key ?? "");
+        patchedModel = String(request.params?.model ?? "");
+        return { ok: true, entry: { model: patchedModel } };
+      }
+      if (request.method === "sessions.list") {
+        const provider = patchedModel?.includes("/") ? patchedModel.split("/", 1)[0] : "anthropic";
+        const model = patchedModel?.includes("/") ? patchedModel.split("/", 2)[1] : patchedModel;
+        return {
+          sessions: patchedKey
+            ? [
+                {
+                  key: patchedKey,
+                  modelProvider: provider,
+                  model,
+                },
+              ]
+            : [],
+        };
       }
       if (request.method === "agent") {
         agentCallCount += 1;
@@ -80,6 +100,7 @@ describe("moltbot-tools: subagents", () => {
     expect(result.details).toMatchObject({
       status: "accepted",
       modelApplied: true,
+      modelVerified: true,
     });
 
     const patchIndex = calls.findIndex((call) => call.method === "sessions.patch");
@@ -163,12 +184,31 @@ describe("moltbot-tools: subagents", () => {
       agents: { defaults: { subagents: { model: "minimax/MiniMax-M2.1" } } },
     };
     const calls: Array<{ method?: string; params?: unknown }> = [];
+    let patchedKey: string | undefined;
+    let patchedModel: string | undefined;
 
     callGatewayMock.mockImplementation(async (opts: unknown) => {
-      const request = opts as { method?: string; params?: unknown };
+      const request = opts as { method?: string; params?: any };
       calls.push(request);
       if (request.method === "sessions.patch") {
-        return { ok: true };
+        patchedKey = String(request.params?.key ?? "");
+        patchedModel = String(request.params?.model ?? "");
+        return { ok: true, entry: { model: patchedModel } };
+      }
+      if (request.method === "sessions.list") {
+        const provider = patchedModel?.includes("/") ? patchedModel.split("/", 1)[0] : "minimax";
+        const model = patchedModel?.includes("/") ? patchedModel.split("/", 2)[1] : patchedModel;
+        return {
+          sessions: patchedKey
+            ? [
+                {
+                  key: patchedKey,
+                  modelProvider: provider,
+                  model,
+                },
+              ]
+            : [],
+        };
       }
       if (request.method === "agent") {
         return { runId: "run-default-model", status: "accepted" };
@@ -188,6 +228,7 @@ describe("moltbot-tools: subagents", () => {
     expect(result.details).toMatchObject({
       status: "accepted",
       modelApplied: true,
+      modelVerified: true,
     });
 
     const patchCall = calls.find((call) => call.method === "sessions.patch");

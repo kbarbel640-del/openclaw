@@ -57,6 +57,122 @@ function normalizeModelSelection(value: unknown): string | undefined {
   return undefined;
 }
 
+async function emitSessionsSpawnModelOverrideEvent(text: string) {
+  try {
+    await callGateway({
+      method: "system-event",
+      params: { text },
+      timeoutMs: 5_000,
+    });
+  } catch {
+    // Best-effort only; never fail spawn because observability failed.
+  }
+}
+
+async function verifySessionModelApplied(opts: {
+  childSessionKey: string;
+  /**
+   * Spawn requester key. Historically we attempted to filter sessions.list by this value, but the
+   * session store isn't guaranteed to have spawnedBy populated at the moment we patch model.
+   * Kept for observability/back-compat.
+   */
+  spawnedBy: string;
+  agentId: string;
+  expectedModelRef: string;
+}) {
+  const { provider: expectedProvider, model: expectedModel } = splitModelRef(opts.expectedModelRef);
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  const findRow = async (params: Record<string, unknown>) => {
+    const list = (await callGateway({
+      method: "sessions.list",
+      params,
+      timeoutMs: 10_000,
+    })) as {
+      sessions?: Array<{ key?: string; modelProvider?: string; model?: string }>;
+    };
+    return Array.isArray(list?.sessions)
+      ? list.sessions.find((s) => s?.key === opts.childSessionKey)
+      : undefined;
+  };
+
+  // HARD FAIL semantics must be robust: sessions.patch is synchronous, but in practice we can
+  // observe brief propagation delays depending on store target and concurrent writes.
+  //
+  // Important: DO NOT filter by spawnedBy here. spawnedBy may not be set until the subsequent
+  // agent run is enqueued, and this verification happens immediately after sessions.patch.
+  const maxAttempts = 6;
+  let row: { key?: string; modelProvider?: string; model?: string } | undefined = undefined;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    row = await findRow({
+      // Limit is a safety valve; agentId should narrow sufficiently.
+      limit: 512,
+      agentId: opts.agentId,
+      includeGlobal: true,
+      includeUnknown: true,
+    });
+    if (row) break;
+    // Exponential backoff: 25ms, 50ms, 100ms, 200ms, 400ms...
+    await sleep(25 * Math.pow(2, attempt));
+  }
+
+  // Fallback: broaden the query if agentId filtering doesn't match for some reason.
+  if (!row) {
+    row = await findRow({
+      limit: 2048,
+      includeGlobal: true,
+      includeUnknown: true,
+    });
+  }
+
+  if (!row) {
+    throw new Error(
+      "model override verification failed: session not found in sessions.list readback (key=" +
+        opts.childSessionKey +
+        ")",
+    );
+  }
+
+  const actualProvider = typeof row.modelProvider === "string" ? row.modelProvider : undefined;
+  const actualModel = typeof row.model === "string" ? row.model : undefined;
+
+  if (expectedProvider) {
+    if (actualProvider !== expectedProvider || actualModel !== expectedModel) {
+      throw new Error(
+        (
+          "model override verification failed: expected " +
+          expectedProvider +
+          "/" +
+          expectedModel +
+          " but read back " +
+          (actualProvider ?? "") +
+          "/" +
+          (actualModel ?? "")
+        ).trim(),
+      );
+    }
+    return;
+  }
+
+  // If the caller didn't specify provider, we can still assert the model matches and the
+  // gateway resolved *some* provider.
+  if (actualModel !== expectedModel) {
+    throw new Error(
+      (
+        "model override verification failed: expected model " +
+        expectedModel +
+        " but read back " +
+        (actualModel ?? "")
+      ).trim(),
+    );
+  }
+  if (!actualProvider) {
+    throw new Error("model override verification failed: missing modelProvider in readback");
+  }
+}
+
 export function createSessionsSpawnTool(opts?: {
   agentSessionKey?: string;
   agentChannel?: GatewayMessageChannel;
@@ -105,8 +221,8 @@ export function createSessionsSpawnTool(opts?: {
             : undefined;
         return legacy ?? 0;
       })();
-      let modelWarning: string | undefined;
       let modelApplied = false;
+      let modelVerified = false;
 
       const cfg = loadConfig();
       const { mainKey, alias } = resolveMainSessionAlias(cfg);
@@ -185,19 +301,32 @@ export function createSessionsSpawnTool(opts?: {
             timeoutMs: 10_000,
           });
           modelApplied = true;
+
+          // HARD FAIL semantics: read back the session row and assert provider/model match.
+          await verifySessionModelApplied({
+            childSessionKey,
+            spawnedBy: spawnedByKey,
+            agentId: targetAgentId,
+            expectedModelRef: resolvedModel,
+          });
+          modelVerified = true;
+
+          await emitSessionsSpawnModelOverrideEvent(
+            `sessions_spawn: model override applied and verified (${childSessionKey} -> ${resolvedModel})`,
+          );
         } catch (err) {
           const messageText =
             err instanceof Error ? err.message : typeof err === "string" ? err : "error";
-          const recoverable =
-            messageText.includes("invalid model") || messageText.includes("model not allowed");
-          if (!recoverable) {
-            return jsonResult({
-              status: "error",
-              error: messageText,
-              childSessionKey,
-            });
-          }
-          modelWarning = messageText;
+
+          await emitSessionsSpawnModelOverrideEvent(
+            `sessions_spawn: FAILED to apply/verify model override (${childSessionKey} -> ${resolvedModel}): ${messageText}`,
+          );
+
+          return jsonResult({
+            status: "error",
+            error: messageText,
+            childSessionKey,
+          });
         }
       }
       const childSystemPrompt = buildSubagentSystemPrompt({
@@ -262,7 +391,7 @@ export function createSessionsSpawnTool(opts?: {
         childSessionKey,
         runId: childRunId,
         modelApplied: resolvedModel ? modelApplied : undefined,
-        warning: modelWarning,
+        modelVerified: resolvedModel ? modelVerified : undefined,
       });
     },
   };
