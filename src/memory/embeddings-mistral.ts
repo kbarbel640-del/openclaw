@@ -1,4 +1,4 @@
-import { requireApiKey, resolveApiKeyForProvider } from "../agents/model-auth.js";
+import { resolveRemoteEmbeddingBearerClient } from "./embeddings-remote-client.js";
 import type { EmbeddingProvider, EmbeddingProviderOptions } from "./embeddings.js";
 
 export type MistralEmbeddingClient = {
@@ -12,8 +12,12 @@ const DEFAULT_MISTRAL_BASE_URL = "https://api.mistral.ai/v1";
 
 export function normalizeMistralModel(model: string): string {
   const trimmed = model.trim();
-  if (!trimmed) return DEFAULT_MISTRAL_EMBEDDING_MODEL;
-  if (trimmed.startsWith("mistral/")) return trimmed.slice("mistral/".length);
+  if (!trimmed) {
+    return DEFAULT_MISTRAL_EMBEDDING_MODEL;
+  }
+  if (trimmed.startsWith("mistral/")) {
+    return trimmed.slice("mistral/".length);
+  }
   return trimmed;
 }
 
@@ -24,7 +28,9 @@ export async function createMistralEmbeddingProvider(
   const url = `${client.baseUrl.replace(/\/$/, "")}/embeddings`;
 
   const embed = async (input: string[]): Promise<number[][]> => {
-    if (input.length === 0) return [];
+    if (input.length === 0) {
+      return [];
+    }
     const res = await fetch(url, {
       method: "POST",
       headers: client.headers,
@@ -62,29 +68,11 @@ export async function createMistralEmbeddingProvider(
 export async function resolveMistralEmbeddingClient(
   options: EmbeddingProviderOptions,
 ): Promise<MistralEmbeddingClient> {
-  const remote = options.remote;
-  const remoteApiKey = remote?.apiKey?.trim();
-  const remoteBaseUrl = remote?.baseUrl?.trim();
-
-  const apiKey = remoteApiKey
-    ? remoteApiKey
-    : requireApiKey(
-        await resolveApiKeyForProvider({
-          provider: "mistral",
-          cfg: options.config,
-          agentDir: options.agentDir,
-        }),
-        "mistral",
-      );
-
-  const providerConfig = options.config.models?.providers?.mistral;
-  const baseUrl = remoteBaseUrl || providerConfig?.baseUrl?.trim() || DEFAULT_MISTRAL_BASE_URL;
-  const headerOverrides = Object.assign({}, providerConfig?.headers, remote?.headers);
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-    ...headerOverrides,
-  };
+  const { baseUrl, headers } = await resolveRemoteEmbeddingBearerClient({
+    provider: "mistral",
+    options,
+    defaultBaseUrl: DEFAULT_MISTRAL_BASE_URL,
+  });
   const model = normalizeMistralModel(options.model);
   return { baseUrl, headers, model };
 }

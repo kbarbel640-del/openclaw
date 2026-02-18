@@ -471,7 +471,6 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
       provider: "mistral",
       enabled: Boolean(mistral),
       buildRequest: (chunk) => ({
-        custom_id: hashText(chunk.text),
         text: chunk.text,
       }),
       runBatch: async (runnerOptions) =>

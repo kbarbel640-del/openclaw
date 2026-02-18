@@ -68,7 +68,7 @@ export async function noteMemorySearchHealth(cfg: OpenClawConfig): Promise<void>
   if (hasLocalEmbeddings(resolved.local)) {
     return;
   }
-  for (const provider of ["openai", "gemini", "voyage"] as const) {
+  for (const provider of ["openai", "gemini", "voyage", "mistral"] as const) {
     if (hasRemoteApiKey || (await hasApiKeyForProvider(provider, cfg, agentDir))) {
       return;
     }
