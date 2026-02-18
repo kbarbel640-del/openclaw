@@ -78,16 +78,19 @@ export function normalizeToolParameters(
   // - Gemini rejects several JSON Schema keywords, so we scrub those.
   // - OpenAI rejects function tool schemas unless the *top-level* is `type: "object"`.
   //   (TypeBox root unions compile to `{ anyOf: [...] }` without `type`).
-  // - Anthropic (google-antigravity) expects full JSON Schema draft 2020-12 compliance.
+  // - Anthropic expects full JSON Schema draft 2020-12 compliance.
+  // - google-antigravity proxies Anthropic models (e.g. Claude) through Google's
+  //   Cloud Code Assist API, which enforces the same JSON Schema restrictions as
+  //   Gemini. The schema must be cleaned even though the underlying model is Anthropic.
   //
   // Normalize once here so callers can always pass `tools` through unchanged.
 
+  const providerLower = options?.modelProvider?.toLowerCase() ?? "";
   const isGeminiProvider =
-    options?.modelProvider?.toLowerCase().includes("google") ||
-    options?.modelProvider?.toLowerCase().includes("gemini");
+    providerLower.includes("google") || providerLower.includes("gemini");
   const isAnthropicProvider =
-    options?.modelProvider?.toLowerCase().includes("anthropic") ||
-    options?.modelProvider?.toLowerCase().includes("google-antigravity");
+    providerLower.includes("anthropic") &&
+    !providerLower.startsWith("google-antigravity");
 
   // If schema already has type + properties (no top-level anyOf to merge),
   // clean it for Gemini compatibility (but only if using Gemini, not Anthropic)
@@ -164,8 +167,8 @@ export function normalizeToolParameters(
       ? baseRequired
       : objectVariants > 0
         ? Array.from(requiredCounts.entries())
-            .filter(([, count]) => count === objectVariants)
-            .map(([key]) => key)
+          .filter(([, count]) => count === objectVariants)
+          .map(([key]) => key)
         : undefined;
 
   const nextSchema: Record<string, unknown> = { ...schema };
