@@ -339,6 +339,9 @@ export async function runCronIsolatedAgentTurn(params: {
       normalizeVerboseLevel(cronSession.sessionEntry.verboseLevel) ??
       normalizeVerboseLevel(agentCfg?.verboseDefault) ??
       "off";
+    // IMPORTANT: After registering context, ALL return paths must call
+    // clearAgentRunContext(cronSession.sessionEntry.sessionId) to prevent
+    // memory leaks. See: https://github.com/openclaw/openclaw/issues/17820
     registerAgentRunContext(cronSession.sessionEntry.sessionId, {
       sessionKey: agentSessionKey,
       verboseLevel: resolvedVerboseLevel,
