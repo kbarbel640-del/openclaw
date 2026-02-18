@@ -515,18 +515,6 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
-                    name: "gateway.restart",
-                    family: MethodFamily::Gateway,
-                    requires_auth: true,
-                    min_role: "owner",
-                },
-                MethodSpec {
-                    name: "message.send",
-                    family: MethodFamily::Message,
-                    requires_auth: true,
-                    min_role: "client",
-                },
-                MethodSpec {
                     name: "chat.history",
                     family: MethodFamily::Message,
                     requires_auth: true,
@@ -11383,9 +11371,11 @@ mod tests {
     #[test]
     fn flags_unknown_method() {
         let registry = MethodRegistry::default_registry();
-        let resolved = registry.resolve("foo.bar");
-        assert!(!resolved.known);
-        assert!(resolved.spec.is_none());
+        for method in ["foo.bar", "gateway.restart", "message.send"] {
+            let resolved = registry.resolve(method);
+            assert!(!resolved.known);
+            assert!(resolved.spec.is_none());
+        }
     }
 
     #[tokio::test]
