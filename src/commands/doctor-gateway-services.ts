@@ -37,7 +37,7 @@ function getTedSidecarConfig(cfg: OpenClawConfig): {
     entry?.config &&
     "baseUrl" in entry.config &&
     typeof entry.config.baseUrl === "string"
-      ? (entry.config.baseUrl as string)
+      ? entry.config.baseUrl
       : "";
   const envBaseUrl = process.env.TED_SIDECAR_BASE_URL?.trim() ?? "";
   const baseUrl = (rawBaseUrl.trim() || envBaseUrl || "http://127.0.0.1:48080").replace(/\/+$/, "");
