@@ -52,6 +52,89 @@ function sendJson(res, statusCode, body) {
   res.end(json);
 }
 
+function sendJsonPretty(res, statusCode, body) {
+  const json = JSON.stringify(body, null, 2);
+  res.writeHead(statusCode, {
+    "content-type": "application/json; charset=utf-8",
+    "content-length": Buffer.byteLength(json),
+    "cache-control": "no-store",
+  });
+  res.end(json);
+}
+
+function classifyGraphErrorText(errorText) {
+  const normalized = typeof errorText === "string" ? errorText.toLowerCase() : "";
+  if (normalized.includes("selected user account does not exist in tenant")) {
+    return {
+      category: "USER_NOT_IN_TENANT",
+      confidence: "HIGH",
+      summary: "User account is not present in the target tenant.",
+      next_actions: [
+        "Use a user principal that exists in the target tenant",
+        "Invite the operator as a guest in the tenant if appropriate",
+        "Retry device-code auth after tenant access is confirmed",
+      ],
+    };
+  }
+  if (normalized.includes("does not meet the criteria to access this resource")) {
+    return {
+      category: "CONDITIONAL_ACCESS_BLOCK",
+      confidence: "HIGH",
+      summary: "Conditional Access policy is blocking the sign-in flow.",
+      next_actions: [
+        "Review tenant Conditional Access policies for this app and user",
+        "Satisfy required controls (MFA, compliant device, trusted location)",
+        "Retry device-code auth after policy requirements are met",
+      ],
+    };
+  }
+  if (normalized.includes("authorization_pending")) {
+    return {
+      category: "AUTH_PENDING",
+      confidence: "HIGH",
+      summary: "Device-code authorization is still pending user approval.",
+      next_actions: [
+        "Complete verification at the provided verification URL",
+        "Continue polling at the configured interval",
+      ],
+    };
+  }
+  if (normalized.includes("insufficient privileges")) {
+    return {
+      category: "MISSING_SCOPES",
+      confidence: "HIGH",
+      summary: "The configured delegated scopes are insufficient.",
+      next_actions: [
+        "Add the missing delegated scopes in profile config",
+        "Re-run device-code auth to refresh consent",
+        "Retry the blocked Graph operation",
+      ],
+    };
+  }
+  if (normalized.includes("invalid_grant")) {
+    return {
+      category: "TOKEN_EXPIRED_OR_REVOKED",
+      confidence: "MEDIUM",
+      summary: "Stored auth material is expired, invalid, or revoked.",
+      next_actions: [
+        "Revoke local auth material for the profile",
+        "Run device-code auth again for a fresh token",
+        "Retry the operation after re-authentication",
+      ],
+    };
+  }
+  return {
+    category: "UNKNOWN",
+    confidence: "LOW",
+    summary: "Unable to classify this auth error text.",
+    next_actions: [
+      "Inspect sidecar status last_error for additional context",
+      "Capture full redacted Graph error details",
+      "Retry auth flow and reclassify with updated error text",
+    ],
+  };
+}
+
 function readGraphProfilesConfig() {
   try {
     if (!fs.existsSync(graphProfilesConfigPath)) {
@@ -631,6 +714,20 @@ const server = http.createServer(async (req, res) => {
   if (method === "POST" && graphDraftCreateMatch) {
     const profileId = decodeURIComponent(graphDraftCreateMatch[1] || "").trim();
     await createGraphDraft(profileId, req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/graph/diagnostics/classify") {
+    const body = await readJsonBody(req).catch(() => null);
+    const errorText = typeof body?.error_text === "string" ? body.error_text : "";
+    if (!errorText.trim()) {
+      sendJsonPretty(res, 400, { error: "error_text_required" });
+      logLine(`${method} ${route} -> 400`);
+      return;
+    }
+    const result = classifyGraphErrorText(errorText);
+    sendJsonPretty(res, 200, result);
+    logLine(`${method} ${route} -> 200`);
     return;
   }
 
