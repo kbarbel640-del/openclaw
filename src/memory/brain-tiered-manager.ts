@@ -42,6 +42,10 @@ export class BrainTieredManager implements MemorySearchManager {
   private readonly config: ResolvedBrainTieredConfig;
   private readonly brainClient: BrainMcpClient;
   private brainAvailable: boolean | null = null;
+  private brainLastChecked: number = 0;
+  /** Re-check availability every 60s when unavailable, every 5min when available */
+  private static readonly RECHECK_INTERVAL_UNAVAILABLE_MS = 60_000;
+  private static readonly RECHECK_INTERVAL_AVAILABLE_MS = 300_000;
 
   private constructor(config: ResolvedBrainTieredConfig) {
     this.config = config;
@@ -57,10 +61,12 @@ export class BrainTieredManager implements MemorySearchManager {
   static async create(config: ResolvedBrainTieredConfig): Promise<BrainTieredManager> {
     const manager = new BrainTieredManager(config);
 
-    // Check Brain MCP availability (non-blocking)
-    manager.checkBrainAvailability().catch(() => {
-      log.debug("Brain MCP not available at startup");
-    });
+    // Blocking health check at startup — agents MUST have accurate Brain state
+    try {
+      await manager.checkBrainAvailability();
+    } catch {
+      log.debug("Brain MCP not available at startup — will retry on next search");
+    }
 
     return manager;
   }
@@ -517,18 +523,29 @@ export class BrainTieredManager implements MemorySearchManager {
   }
 
   /**
-   * Check Brain MCP availability.
+   * Check Brain MCP availability and update cache timestamp.
    */
   private async checkBrainAvailability(): Promise<void> {
     this.brainAvailable = await this.brainClient.healthCheck();
+    this.brainLastChecked = Date.now();
     log.debug(`Brain MCP available: ${this.brainAvailable}`);
   }
 
   /**
-   * Check if Brain MCP is available (cached).
+   * Check if Brain MCP is available (TTL-cached).
+   *
+   * Re-checks every 60s when unavailable (recover quickly from transient failures),
+   * every 5min when available (detect if Brain goes down).
+   * Never caches permanently — Brain must always be reachable.
    */
   private async isBrainAvailable(): Promise<boolean> {
-    if (this.brainAvailable === null) {
+    const now = Date.now();
+    const elapsed = now - this.brainLastChecked;
+    const ttl = this.brainAvailable
+      ? BrainTieredManager.RECHECK_INTERVAL_AVAILABLE_MS
+      : BrainTieredManager.RECHECK_INTERVAL_UNAVAILABLE_MS;
+
+    if (this.brainAvailable === null || elapsed >= ttl) {
       await this.checkBrainAvailability();
     }
     return this.brainAvailable ?? false;

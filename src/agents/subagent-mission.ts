@@ -1,4 +1,6 @@
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
 import { loadConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
 import { parseAgentSessionKey } from "../routing/session-key.js";
@@ -70,6 +72,16 @@ export type MissionRecord = {
   announced: boolean;
   cleanup: "delete" | "keep";
 };
+
+/** Resolve psql path once at import time — gateway's PATH may not include ~/bin. */
+const PSQL_PATH =
+  [
+    `${process.env.HOME}/bin/psql`,
+    "/Applications/Postgres.app/Contents/Versions/14/bin/psql",
+    "/opt/homebrew/bin/psql",
+    "/usr/local/bin/psql",
+    "psql",
+  ].find((p) => p === "psql" || existsSync(p)) ?? "psql";
 
 // ---------------------------------------------------------------------------
 // State stores
@@ -461,6 +473,25 @@ function advanceMission(mission: MissionRecord) {
 }
 
 // ---------------------------------------------------------------------------
+// OMS status update
+// ---------------------------------------------------------------------------
+
+/**
+ * Update OMS backlog rows for this mission to reflect final status.
+ * Fire-and-forget — OMS logging is best-effort.
+ */
+function updateMissionStatusInOms(missionId: string, status: string): void {
+  const omsStatus = status === "completed" ? "completed" : "failed";
+  const sql =
+    `UPDATE oms.backlog SET status='${omsStatus}' ` +
+    `WHERE description LIKE '%mission ${missionId}%' ` +
+    `AND status='in_progress';\n`;
+  const proc = spawn(PSQL_PATH, ["-d", "brain"], { stdio: ["pipe", "ignore", "ignore"] });
+  proc.stdin?.write(sql);
+  proc.stdin?.end();
+}
+
+// ---------------------------------------------------------------------------
 // Mission completion check
 // ---------------------------------------------------------------------------
 
@@ -481,6 +512,8 @@ function checkMissionCompletion(mission: MissionRecord) {
   }
   mission.completedAt = Date.now();
   persistMissions();
+
+  updateMissionStatusInOms(mission.missionId, mission.status);
 
   if (!mission.announced) {
     void announceMissionResult(mission);

@@ -849,6 +849,16 @@ export function createExecTool(
         throw new Error("Provide a command to start.");
       }
 
+      // Guard: prevent agents from restarting the gateway via exec (kills their own session).
+      // Agents should use the `gateway` tool with action="restart" instead (graceful SIGUSR1).
+      if (/launchctl\s+kickstart\b.*openclaw/i.test(params.command)) {
+        throw new Error(
+          "Do not restart the gateway via exec — it kills your own session. " +
+            'Use the gateway tool instead: gateway({ action: "restart", reason: "..." }). ' +
+            "This performs a graceful SIGUSR1 restart that preserves active sessions.",
+        );
+      }
+
       const maxOutput = DEFAULT_MAX_OUTPUT;
       const pendingMaxOutput = DEFAULT_PENDING_MAX_OUTPUT;
       const warnings: string[] = [];
