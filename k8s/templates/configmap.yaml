@@ -1,0 +1,32 @@
+# OpenClaw ConfigMap for configuration file
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openclaw.configMapName" . }}
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+data:
+{{- $token := .Values.gateway.auth.token }}
+  config.json: |
+    {
+      "gateway": {
+        "mode": "local",
+        "bind": "{{ .Values.gateway.bind }}",
+        "port": {{ .Values.gateway.port }},
+        "auth": {
+          "mode": "{{ .Values.gateway.auth.mode }}",
+          "token": "{{ $token | default "auto-generated" }}"
+        }
+      },
+      "channels": {
+        "whatsapp": {
+          "dmPolicy": "pairing",
+          "groups": {
+            "*": {
+              "requireMention": true
+            }
+          }
+        }
+      }
+    }

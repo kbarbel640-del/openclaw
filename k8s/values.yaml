@@ -1,0 +1,181 @@
+# Default values for openclaw.
+# This is a YAML-formatted file.
+
+# Gateway configuration
+gateway:
+  # Number of replicas for high availability
+  replicas: 2
+  
+  # Docker image settings
+  image:
+    repository: mzkmnk/openclaw
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Gateway port configuration
+  port: 18789
+  bind: "0.0.0.0"
+  
+  # Authentication
+  auth:
+    mode: "token"
+    # Generate a secure token: openssl rand -hex 32
+    token: ""
+  
+  # Resource requests and limits
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Health check configuration
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  # Node selection
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  
+  # Rolling update strategy
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  
+  # Environment variables
+  env: {}
+  # Example:
+  #   ANTHROPIC_API_KEY: "your-api-key"
+  #   BRAVE_API_KEY: "your-api-key"
+
+# Agent configuration
+agent:
+  enabled: true
+  replicas: 2
+  
+  image:
+    repository: mzkmnk/openclaw
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Health check configuration
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  # Node selection
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 18789
+  targetPort: 18789
+
+# Ingress configuration (optional)
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: openclaw.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - secretName: openclaw-tls
+  #   hosts:
+  #     - openclaw.local
+
+# Persistent volume claim configuration
+pvc:
+  enabled: true
+  accessModes:
+    - ReadWriteOnce
+  storageClass: ""
+  size: 1Gi
+  # Subpath for data directory
+  subPath: ""
+  # annotations: {}
+  # labels: {}
+
+# ConfigMap configuration
+configMap:
+  enabled: true
+  name: openclaw-config
+  # openclaw.json content
+  openclawJson: |
+    {
+      "gateway": {
+        "mode": "local",
+        "bind": "0.0.0.0",
+        "port": 18789,
+        "auth": {
+          "mode": "token",
+          "token": "{{ .Values.gateway.auth.token }}"
+        }
+      },
+      "channels": {
+        "whatsapp": {
+          "dmPolicy": "pairing",
+          "groups": {
+            "*": {
+              "requireMention": true
+            }
+          }
+        }
+      }
+    }
+
+# RBAC configuration
+rbac:
+  enabled: true
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  role:
+    rules: []
+    # Example rules (adjust based on your needs):
+    # - apiGroups: [""]
+    #   resources: ["pods", "services", "configmaps", "secrets"]
+    #   verbs: ["get", "list", "watch"]
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 1000
+
+# Priority class for pod scheduling
+priorityClassName: ""

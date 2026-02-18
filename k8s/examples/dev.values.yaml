@@ -1,0 +1,44 @@
+# Development configuration for OpenClaw Kubernetes deployment
+
+# Increase replicas for development testing
+gateway:
+  replicas: 1
+  resource:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+agent:
+  enabled: false
+  replicas: 1
+
+# Use emptyDir for development (no persistent data)
+pvc:
+  enabled: false
+
+# Enable ingress for local testing
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: openclaw.dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Enable debug logging
+gateway:
+  env:
+    LOG_LEVEL: "debug"
+    DEBUG: "true"
+
+# Local development ports
+gateway:
+  port: 18789
+  bind: "0.0.0.0"
+
+service:
+  type: ClusterIP

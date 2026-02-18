@@ -1,0 +1,26 @@
+# Simple example values file for quick deployment
+
+gateway:
+  replicas: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+agent:
+  enabled: false
+
+pvc:
+  enabled: false  # No persistent storage
+
+service:
+  type: ClusterIP
+
+ingress:
+  enabled: false
+
+rbac:
+  enabled: false

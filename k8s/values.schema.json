@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "OpenClaw Helm Chart Values",
+  "description": "Schema for OpenClaw Helm chart configuration",
+  "type": "object",
+  "properties": {
+    "gateway": {
+      "type": "object",
+      "description": "Gateway configuration",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2,
+          "description": "Number of gateway replicas for HA"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 18789,
+          "description": "Gateway port"
+        },
+        "bind": {
+          "type": "string",
+          "default": "0.0.0.0",
+          "description": "Gateway bind address"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["token", "none"],
+              "default": "token",
+              "description": "Authentication mode"
+            },
+            "token": {
+              "type": "string",
+              "description": "Authentication token (generate with: openssl rand -hex 32)"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "memory": { "type": "string" },
+                "cpu": { "type": "string" }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "memory": { "type": "string" },
+                "cpu": { "type": "string" }
+              }
+            }
+          }
+        },
+        "updateStrategy": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["RollingUpdate", "Recreate"],
+              "default": "RollingUpdate"
+            },
+            "rollingUpdate": {
+              "type": "object",
+              "properties": {
+                "maxSurge": { "type": "integer", "default": 1 },
+                "maxUnavailable": { "type": "integer", "default": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "description": "Agent configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2
+        }
+      }
+    },
+    "pvc": {
+      "type": "object",
+      "description": "Persistent Volume Claim configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "size": {
+          "type": "string",
+          "default": "1Gi"
+        },
+        "storageClass": {
+          "type": "string",
+          "default": ""
+        },
+        "accessModes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["ReadWriteOnce"]
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "className": {
+          "type": "string",
+          "default": "nginx"
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": { "type": "string" },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "description": "RBAC configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "serviceAccount": {
+          "type": "object",
+          "properties": {
+            "create": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

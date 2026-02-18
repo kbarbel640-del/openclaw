@@ -1,0 +1,26 @@
+# OpenClaw PersistentVolumeClaim for data persistence
+
+{{- if .Values.pvc.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "openclaw.fullname" . }}-pvc
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+  {{- if .Values.pvc.annotations }}
+  annotations:
+    {{- toYaml .Values.pvc.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.pvc.accessModes | nindent 4 }}
+  {{- if .Values.pvc.storageClass }}
+  storageClassName: {{ .Values.pvc.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.pvc.size }}
+  {{- if .Values.pvc.subPath }}
+  subPath: {{ .Values.pvc.subPath }}
+  {{- end }}
+{{- end }}

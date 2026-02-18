@@ -1,0 +1,14 @@
+apiVersion: v2
+name: openclaw
+description: A Helm chart for OpenClaw - Autonomous AI Agents
+type: application
+version: 0.1.0
+appVersion: "latest"
+icon: https://avatars.githubusercontent.com/u/171865224
+keywords:
+  - ai
+  - agent
+  - automation
+maintainers:
+  - name: mzkmnk
+    url: https://github.com/mzkmnk

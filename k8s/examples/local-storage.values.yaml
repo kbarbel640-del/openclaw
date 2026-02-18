@@ -1,0 +1,22 @@
+# Example values file using local storage
+
+# Use local storage class
+pvc:
+  enabled: true
+  accessModes:
+    - ReadWriteOnce
+  storageClass: "local-storage"
+  size: 10Gi
+  subPath: ""
+
+gateway:
+  replicas: 1
+  
+agent:
+  enabled: false
+
+service:
+  type: ClusterIP
+
+ingress:
+  enabled: false

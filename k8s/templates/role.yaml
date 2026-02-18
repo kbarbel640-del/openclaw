@@ -1,0 +1,21 @@
+# OpenClaw Role for RBAC
+
+{{- if .Values.rbac.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "openclaw.fullname" . }}-role
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+rules:
+  {{- if .Values.rbac.role.rules }}
+  {{- toYaml .Values.rbac.role.rules | nindent 2 }}
+  {{- else }}
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  {{- end }}
+{{- end }}
