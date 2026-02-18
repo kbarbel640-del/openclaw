@@ -795,6 +795,16 @@ export const FIELD_HELP: Record<string, string> = {
     "Requires at least this many newly appended bytes before session transcript changes trigger reindex (default: 100000). Increase to reduce frequent small reindexes, or lower for faster transcript freshness.",
   "agents.defaults.memorySearch.sync.sessions.deltaMessages":
     "Requires at least this many appended transcript messages before reindex is triggered (default: 50). Lower this for near-real-time transcript recall, or raise it to reduce indexing churn.",
+  "agents.defaults.memorySearch.sync.sessions.postCompactionForce":
+    "Forces a session memory-search reindex after compaction-triggered transcript updates (default: true). Keep enabled when compacted summaries must be immediately searchable, or disable to reduce write-time indexing pressure.",
+  "agents.defaults.compaction.recentTurnsPreserve":
+    "Number of most recent user/assistant turns kept verbatim outside safeguard summarization (default: 3). Raise this to preserve exact recent dialogue context, or lower it to maximize compaction savings.",
+  "agents.defaults.compaction.postIndexSync":
+    'Controls post-compaction session index sync mode: "off", "async", or "await" (default: "async"). Use "await" for strongest consistency, "async" for lower latency, and "off" only when downstream indexing is externally managed.',
+  "agents.defaults.compaction.qualityGuard.enabled":
+    "Enables safeguard summary quality validation and retry logic (default: true). Keep enabled to reduce malformed summaries; disable only when minimizing compaction latency is more important than summary structure checks.",
+  "agents.defaults.compaction.qualityGuard.maxRetries":
+    "Maximum additional safeguard summarization attempts after a failed quality audit (default: 1). Increase cautiously for better summary compliance at the cost of extra token usage and latency.",
   ui: "UI presentation settings for accenting and assistant identity shown in control surfaces. Use this for branding and readability customization without changing runtime behavior.",
   "ui.seamColor":
     "Primary accent/seam color used by UI surfaces for emphasis, badges, and visual identity cues. Use high-contrast values that remain readable across light/dark themes.",
