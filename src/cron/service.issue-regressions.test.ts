@@ -710,7 +710,7 @@ describe("Cron issue regressions", () => {
       nowMs: () => scheduledAt,
       enqueueSystemEvent: vi.fn(),
       requestHeartbeatNow: vi.fn(),
-      runIsolatedAgentJob: vi.fn(async () => ({ status: "ok", summary: "unused" })),
+      runIsolatedAgentJob: vi.fn(async () => ({ status: "ok" as const, summary: "unused" })),
       runDirectCommandJob: vi.fn(async () => deferredRun.promise),
     });
 
