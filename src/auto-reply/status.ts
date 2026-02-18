@@ -12,7 +12,6 @@ import { resolveSandboxRuntimeStatus } from "../agents/sandbox.js";
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../agents/usage.js";
 import {
   resolveMainSessionKey,
-  resolveFreshSessionTotalTokens,
   resolveSessionFilePath,
   resolveSessionFilePathOptions,
   type SessionEntry,
@@ -43,7 +42,10 @@ import {
   type ChatCommandDefinition,
 } from "./commands-registry.js";
 
-type AgentConfig = Partial<NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>>;
+type AgentDefaults = NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>;
+type AgentConfig = Partial<AgentDefaults> & {
+  model?: AgentDefaults["model"] | string;
+};
 
 export const formatTokenCount = formatTokenCountShared;
 
@@ -59,6 +61,7 @@ type QueueStatus = {
 type StatusArgs = {
   config?: OpenClawConfig;
   agent: AgentConfig;
+  agentId?: string;
   sessionEntry?: SessionEntry;
   sessionKey?: string;
   sessionScope?: SessionScope;
@@ -72,7 +75,7 @@ type StatusArgs = {
   usageLine?: string;
   timeLine?: string;
   queue?: QueueStatus;
-  mediaDecisions?: MediaUnderstandingDecision[];
+  mediaDecisions?: ReadonlyArray<MediaUnderstandingDecision>;
   subagentsLine?: string;
   includeTranscriptUsage?: boolean;
   now?: number;
@@ -169,6 +172,7 @@ const formatQueueDetails = (queue?: QueueStatus) => {
 const readUsageFromSessionLog = (
   sessionId?: string,
   sessionEntry?: SessionEntry,
+  agentId?: string,
   sessionKey?: string,
   storePath?: string,
 ):
@@ -186,11 +190,12 @@ const readUsageFromSessionLog = (
   }
   let logPath: string;
   try {
-    const agentId = sessionKey ? resolveAgentIdFromSessionKey(sessionKey) : undefined;
+    const resolvedAgentId =
+      agentId ?? (sessionKey ? resolveAgentIdFromSessionKey(sessionKey) : undefined);
     logPath = resolveSessionFilePath(
       sessionId,
       sessionEntry,
-      resolveSessionFilePathOptions({ agentId, storePath }),
+      resolveSessionFilePathOptions({ agentId: resolvedAgentId, storePath }),
     );
   } catch {
     return undefined;
@@ -256,7 +261,7 @@ const formatUsagePair = (input?: number | null, output?: number | null) => {
   return `🧮 Tokens: ${inputLabel} in / ${outputLabel} out`;
 };
 
-const formatMediaUnderstandingLine = (decisions?: MediaUnderstandingDecision[]) => {
+const formatMediaUnderstandingLine = (decisions?: ReadonlyArray<MediaUnderstandingDecision>) => {
   if (!decisions || decisions.length === 0) {
     return null;
   }
@@ -344,7 +349,7 @@ export function buildStatusMessage(args: StatusArgs): string {
 
   let inputTokens = entry?.inputTokens;
   let outputTokens = entry?.outputTokens;
-  let totalTokens = resolveFreshSessionTotalTokens(entry);
+  let totalTokens = entry?.totalTokens ?? (entry?.inputTokens ?? 0) + (entry?.outputTokens ?? 0);
 
   // Prefer prompt-size tokens from the session transcript when it looks larger
   // (cached prompt tokens are often missing from agent meta/store).
@@ -352,6 +357,7 @@ export function buildStatusMessage(args: StatusArgs): string {
     const logUsage = readUsageFromSessionLog(
       entry?.sessionId,
       entry,
+      args.agentId,
       args.sessionKey,
       args.sessionStorePath,
     );
