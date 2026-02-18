@@ -15,9 +15,17 @@ const DATA_URL_RE = /^data:/i;
  *
  * Paths are resolved at call time so environment overrides are respected.
  */
+let _sensitivePaths: string[] | null = null;
+
+/** @internal Reset the cached sensitive paths (for testing only). */
+export function _resetSensitivePathsCache(): void {
+  _sensitivePaths = null;
+}
+
 function resolveSensitivePaths(): string[] {
+  if (_sensitivePaths) return _sensitivePaths;
   const home = os.homedir();
-  return [
+  _sensitivePaths = [
     // OpenClaw state dir (contains openclaw.json with API keys, credentials/, sessions/)
     resolveStateDir(),
     // Legacy state dirs (.clawdbot, .moldbot, .moltbot)
@@ -31,6 +39,7 @@ function resolveSensitivePaths(): string[] {
     // Google Cloud credentials
     path.join(home, ".config", "gcloud"),
   ].map((p) => path.resolve(p));
+  return _sensitivePaths;
 }
 
 /**

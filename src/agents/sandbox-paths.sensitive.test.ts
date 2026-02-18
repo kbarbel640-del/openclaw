@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { isSensitivePath, resolveSandboxPath } from "./sandbox-paths.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { isSensitivePath, resolveSandboxPath, _resetSensitivePathsCache } from "./sandbox-paths.js";
 
 // Dynamic import for assertSandboxPath (async version)
 const { assertSandboxPath } = await import("./sandbox-paths.js");
@@ -119,22 +119,26 @@ describe("resolveSandboxPath sensitive path blocking", () => {
 });
 
 describe("assertSandboxPath symlink-aware sensitive path blocking", () => {
-  const tmpDir = path.join(os.tmpdir(), `sandbox-sensitive-test-${process.pid}`);
-  const symlinkPath = path.join(tmpDir, "sneaky-link");
-  const openclawDir = path.join(home, ".openclaw");
+  const rawTmpDir = path.join(os.tmpdir(), `sandbox-sensitive-test-${process.pid}`);
+  let tmpDir: string; // realpath-resolved version
 
-  beforeAll(async () => {
-    await fs.mkdir(tmpDir, { recursive: true });
-    // Only create symlink if .openclaw exists (it should on most dev machines)
-    try {
-      await fs.stat(openclawDir);
-      await fs.symlink(openclawDir, symlinkPath);
-    } catch {
-      // .openclaw doesn't exist — skip symlink creation, test will be skipped
-    }
+  let originalHome: string | undefined;
+
+  beforeEach(async () => {
+    await fs.mkdir(rawTmpDir, { recursive: true });
+    // Resolve platform symlinks (e.g. macOS /tmp -> /private/tmp) so paths
+    // match what realpath returns inside the sandbox assertions.
+    tmpDir = await fs.realpath(rawTmpDir);
+    // Override HOME so resolveStateDir and isSensitivePath resolve against our
+    // controlled dir. This ensures the test runs in CI without ~/.openclaw.
+    originalHome = process.env.HOME;
+    process.env.HOME = tmpDir;
+    _resetSensitivePathsCache();
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
+    process.env.HOME = originalHome;
+    _resetSensitivePathsCache();
     try {
       await fs.rm(tmpDir, { recursive: true, force: true });
     } catch {
@@ -143,11 +147,13 @@ describe("assertSandboxPath symlink-aware sensitive path blocking", () => {
   });
 
   it("blocks symlinks that resolve to sensitive directories", async () => {
-    try {
-      await fs.lstat(symlinkPath);
-    } catch {
-      return; // skip if symlink wasn't created
-    }
+    // Create a fake .openclaw dir and a symlink pointing to it
+    const fakeSensitiveDir = path.join(tmpDir, ".openclaw");
+    await fs.mkdir(fakeSensitiveDir, { recursive: true });
+    // Create target file so realpath can fully resolve through the symlink
+    await fs.writeFile(path.join(fakeSensitiveDir, "openclaw.json"), "{}");
+    const symlinkPath = path.join(tmpDir, "sneaky-link");
+    await fs.symlink(fakeSensitiveDir, symlinkPath);
 
     await expect(
       assertSandboxPath({
@@ -159,13 +165,10 @@ describe("assertSandboxPath symlink-aware sensitive path blocking", () => {
   });
 
   it("allows symlinks to non-sensitive targets", async () => {
-    const safeLinkTarget = tmpDir; // points to itself, not sensitive
+    const safeDir = path.join(tmpDir, "safe-target");
+    await fs.mkdir(safeDir, { recursive: true });
     const safeLinkPath = path.join(tmpDir, "safe-link");
-    try {
-      await fs.symlink(safeLinkTarget, safeLinkPath);
-    } catch {
-      return;
-    }
+    await fs.symlink(safeDir, safeLinkPath);
 
     // Should not throw — target is not sensitive
     await assertSandboxPath({
