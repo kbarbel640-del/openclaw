@@ -87,7 +87,7 @@ function splitToolExecuteArgs(args: ToolExecuteArgsAny): {
 }
 
 export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
-  return tools.map((tool) => {
+  return tools.map((tool): ToolDefinition => {
     const name = tool.name || "tool";
     const normalizedName = normalizeToolName(name);
     const beforeHookWrapped = isToolWrappedWithBeforeToolCallHook(tool);
@@ -184,7 +184,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
           return errorResult;
         }
       },
-    } satisfies ToolDefinition;
+    };
   });
 }
 
@@ -195,7 +195,7 @@ export function toClientToolDefinitions(
   onClientToolCall?: (toolName: string, params: Record<string, unknown>) => void,
   hookContext?: HookContext,
 ): ToolDefinition[] {
-  return tools.map((tool) => {
+  return tools.map((tool): ToolDefinition => {
     const func = tool.function;
     return {
       name: func.name,
@@ -226,6 +226,6 @@ export function toClientToolDefinitions(
           message: "Tool execution delegated to client",
         });
       },
-    } satisfies ToolDefinition;
+    };
   });
 }
