@@ -44,6 +44,7 @@
   - Added canonical normalization/validation for tuning knobs (thinking/reasoning/verbose/elevated/exec).
 - Extended `sessions.delete` + `sessions.compact` response parity with upstream-style `path` and `archived` envelope fields.
 - Added `sessions.delete` handling for `deleteTranscript` to suppress transcript-archive hints when requested.
+- Added explicit `sessionId` tracking on session entries, `sessions.resolve` lookup by `sessionId`, and `sessions.reset` session-id rotation.
 - Rust defender policy engine with bounded worker concurrency.
 - Prompt injection scoring + command risk scoring.
 - Host integrity baseline checks.

@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
@@ -215,6 +216,7 @@ const MAX_SESSION_HISTORY_PER_SESSION: usize = 128;
 const RUNTIME_NAME: &str = "openclaw-agent-rs";
 const RUNTIME_VERSION: &str = env!("CARGO_PKG_VERSION");
 const SESSION_STORE_PATH: &str = "memory://session-registry";
+static SESSION_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 const SUPPORTED_RPC_METHODS: &[&str] = &[
     "health",
     "status",
@@ -581,11 +583,23 @@ impl RpcDispatcher {
         let candidate = params
             .session_key
             .or(params.key)
-            .or(params.session_id)
             .map(|v| v.trim().to_owned())
             .filter(|v| !v.is_empty());
         if let Some(candidate) = candidate {
             if let Some(key) = self.sessions.resolve_key(&candidate).await {
+                return RpcDispatchOutcome::Handled(json!({
+                    "ok": true,
+                    "key": key
+                }));
+            }
+            return RpcDispatchOutcome::not_found("session not found");
+        }
+        if let Some(session_id) = params
+            .session_id
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
+        {
+            if let Some(key) = self.sessions.resolve_session_id(&session_id).await {
                 return RpcDispatchOutcome::Handled(json!({
                     "ok": true,
                     "key": key
@@ -1215,6 +1229,14 @@ impl SessionRegistry {
             .cloned()
     }
 
+    async fn resolve_session_id(&self, session_id: &str) -> Option<String> {
+        let guard = self.entries.lock().await;
+        guard
+            .values()
+            .find(|entry| entry.session_id.eq_ignore_ascii_case(session_id))
+            .map(|entry| entry.key.clone())
+    }
+
     async fn resolve_query(&self, query: SessionResolveQuery) -> Option<String> {
         let guard = self.entries.lock().await;
         let mut entries = guard.values().cloned().collect::<Vec<_>>();
@@ -1438,6 +1460,7 @@ impl SessionRegistry {
         entry.blocked_count = 0;
         entry.last_action = None;
         entry.last_risk_score = 0;
+        entry.session_id = next_session_id();
         entry.history.clear();
         SessionReset {
             session: entry.to_view(false, false),
@@ -1675,6 +1698,7 @@ impl SessionRegistry {
 #[derive(Debug, Clone)]
 struct SessionEntry {
     key: String,
+    session_id: String,
     kind: SessionKind,
     agent_id: Option<String>,
     channel: Option<String>,
@@ -1710,6 +1734,7 @@ impl SessionEntry {
         let parsed = parse_session_key(session_key);
         Self {
             key: session_key.to_owned(),
+            session_id: next_session_id(),
             kind: parsed.kind,
             agent_id: parsed.agent_id,
             channel: parsed.channel,
@@ -1759,6 +1784,7 @@ impl SessionEntry {
         };
         SessionView {
             key: self.key.clone(),
+            session_id: self.session_id.clone(),
             kind: self.kind,
             agent_id: self.agent_id.clone(),
             display_name,
@@ -2038,6 +2064,8 @@ struct ModelOverridePatch {
 #[derive(Debug, Clone, serde::Serialize)]
 struct SessionView {
     key: String,
+    #[serde(rename = "sessionId")]
+    session_id: String,
     kind: SessionKind,
     #[serde(rename = "agentId", skip_serializing_if = "Option::is_none")]
     agent_id: Option<String>,
@@ -2785,6 +2813,11 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
+fn next_session_id() -> String {
+    let sequence = SESSION_ID_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("sess-{}-{sequence}", now_ms())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::protocol::MethodFamily;
@@ -3240,13 +3273,21 @@ mod tests {
                 "queueMode": "followup"
             }),
         };
-        let _ = dispatcher.handle_request(&patch).await;
+        let patch_out = dispatcher.handle_request(&patch).await;
+        let session_id = match patch_out {
+            RpcDispatchOutcome::Handled(payload) => payload
+                .pointer("/session/sessionId")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .expect("missing session id"),
+            _ => panic!("expected patch handled"),
+        };
 
         let resolve = RpcRequestFrame {
             id: "req-resolve".to_owned(),
             method: "sessions.resolve".to_owned(),
             params: serde_json::json!({
-                "sessionId": "agent:main:discord:group:g-resolve"
+                "sessionId": session_id
             }),
         };
         let out = dispatcher.handle_request(&resolve).await;
@@ -3324,10 +3365,11 @@ mod tests {
     #[tokio::test]
     async fn dispatcher_reset_clears_session_counters() {
         let dispatcher = RpcDispatcher::new();
+        let session_key = "agent:main:discord:group:g-reset";
         let request = ActionRequest {
             id: "req-reset".to_owned(),
             source: "agent".to_owned(),
-            session_id: Some("agent:main:discord:group:g-reset".to_owned()),
+            session_id: Some(session_key.to_owned()),
             prompt: Some("hello".to_owned()),
             command: None,
             tool_name: None,
@@ -3345,11 +3387,28 @@ mod tests {
         };
         dispatcher.record_decision(&request, &decision).await;
 
+        let status = RpcRequestFrame {
+            id: "req-status-before-reset".to_owned(),
+            method: "session.status".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": session_key
+            }),
+        };
+        let before_reset = dispatcher.handle_request(&status).await;
+        let before_session_id = match before_reset {
+            RpcDispatchOutcome::Handled(payload) => payload
+                .pointer("/session/sessionId")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .expect("missing pre-reset session id"),
+            _ => panic!("expected status handled"),
+        };
+
         let reset = RpcRequestFrame {
             id: "req-reset".to_owned(),
             method: "sessions.reset".to_owned(),
             params: serde_json::json!({
-                "sessionKey": "agent:main:discord:group:g-reset",
+                "sessionKey": session_key,
                 "reason": "new"
             }),
         };
@@ -3372,6 +3431,11 @@ mod tests {
                         .and_then(serde_json::Value::as_str),
                     Some("new")
                 );
+                let after_session_id = payload
+                    .pointer("/session/sessionId")
+                    .and_then(serde_json::Value::as_str)
+                    .expect("missing post-reset session id");
+                assert_ne!(after_session_id, before_session_id);
             }
             _ => panic!("expected reset handled"),
         }
