@@ -46,6 +46,11 @@ import { readPostCompactionContext } from "./post-compaction-context.js";
 import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
 import { createReplyToModeFilterForChannel, resolveReplyToMode } from "./reply-threading.js";
 import { incrementRunCompactionCount, persistRunSessionUsage } from "./session-run-accounting.js";
+import {
+  formatCompactionNotice,
+  formatCompactionVerboseSummary,
+  shouldEmitCompactionNotice,
+} from "./session-updates.js";
 import { createTypingSignaler } from "./typing-mode.js";
 import type { TypingController } from "./typing.js";
 
@@ -374,7 +379,7 @@ export async function runReplyAgent(params: {
     }
 
     const { runResult, fallbackProvider, fallbackModel, directlySentBlockKeys } = runOutcome;
-    let { didLogHeartbeatStrip, autoCompactionCompleted } = runOutcome;
+    let { didLogHeartbeatStrip, autoCompactionCompleted, compactionStats } = runOutcome;
 
     if (
       shouldInjectGroupIntro &&
@@ -555,11 +560,10 @@ export async function runReplyAgent(params: {
         sessionStore: activeSessionStore,
         sessionKey,
         storePath,
-        lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,
-        contextTokensUsed,
+        tokensAfter: compactionStats?.tokensAfter,
+        lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,        contextTokensUsed,
       });
-
-      // Inject post-compaction workspace context for the next agent turn
+// Inject post-compaction workspace context for the next agent turn
       if (sessionKey) {
         const workspaceDir = process.cwd();
         readPostCompactionContext(workspaceDir)
@@ -576,9 +580,23 @@ export async function runReplyAgent(params: {
         pendingPostCompactionAudits.set(sessionKey, true);
       }
 
-      if (verboseEnabled) {
-        const suffix = typeof count === "number" ? ` (count ${count})` : "";
-        finalPayloads = [{ text: `🧹 Auto-compaction complete${suffix}.` }, ...finalPayloads];
+      const compactionNoticeStats = {
+        tokensBefore: compactionStats?.tokensBefore,
+        tokensAfter: compactionStats?.tokensAfter,
+        contextTokens: contextTokensUsed,
+      };
+      const prependPayloads: { text: string }[] = [];
+      if (shouldEmitCompactionNotice({ cfg: followupRun.run.config, verboseEnabled })) {
+        prependPayloads.push({ text: formatCompactionNotice(count, compactionNoticeStats) });
+      }
+      if (resolvedVerboseLevel === "full") {
+        const verboseSummary = formatCompactionVerboseSummary(compactionNoticeStats);
+        if (verboseSummary) {
+          prependPayloads.push({ text: verboseSummary });
+        }
+      }
+      if (prependPayloads.length > 0) {
+        finalPayloads = [...prependPayloads, ...finalPayloads];
       }
     }
     if (verboseEnabled && activeIsNewSession) {
