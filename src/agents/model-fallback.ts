@@ -20,8 +20,12 @@ import {
   resolveConfiguredModelRef,
   resolveModelRefFromString,
 } from "./model-selection.js";
-import type { FailoverReason } from "./pi-embedded-helpers.js";
-import { isLikelyContextOverflowError } from "./pi-embedded-helpers.js";
+import {
+  classifyFailoverReason,
+  isLikelyContextOverflowError,
+  isRawApiErrorPayload,
+  type FailoverReason,
+} from "./pi-embedded-helpers.js";
 
 type ModelCandidate = {
   provider: string;
@@ -35,6 +39,15 @@ type FallbackAttempt = {
   reason?: FailoverReason;
   status?: number;
   code?: string;
+};
+
+type PrimaryCooldownProbeMode = "auto" | "always";
+
+type ModelFallbackRunContext = {
+  attempt: number;
+  total: number;
+  isPrimary: boolean;
+  hasFallbackCandidates: boolean;
 };
 
 /**
@@ -54,6 +67,70 @@ function isFallbackAbortError(err: unknown): boolean {
 
 function shouldRethrowAbort(err: unknown): boolean {
   return isFallbackAbortError(err) && !isTimeoutError(err);
+}
+
+type EmbeddedRunPayloadLike = {
+  text?: unknown;
+  isError?: unknown;
+};
+
+type EmbeddedRunResultLike = {
+  payloads?: unknown;
+  meta?: { stopReason?: unknown };
+};
+
+const RAW_FAILOVER_PAYLOAD_HEAD_RE =
+  /^(?:\s*(?:http\s*)?\d{3}\b|\s*(?:error|api\s*error|openai\s*error|anthropic\s*error|gateway\s*error|request failed|failed|exception)\b)/i;
+
+/**
+ * Some providers can return transport/billing failures as "successful" runs
+ * containing only error text payloads. Detect those so fallback still advances.
+ */
+function resolveFailoverPayloadMessage(result: unknown): string | null {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+  const payloads = (result as EmbeddedRunResultLike).payloads;
+  if (!Array.isArray(payloads) || payloads.length === 0) {
+    return null;
+  }
+
+  const stopReasonRaw = (result as EmbeddedRunResultLike).meta?.stopReason;
+  const runStoppedWithError =
+    typeof stopReasonRaw === "string" && stopReasonRaw.trim().toLowerCase() === "error";
+
+  let hasText = false;
+  let hasNonFailoverText = false;
+  let firstFailoverMessage: string | null = null;
+
+  for (const payload of payloads) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      continue;
+    }
+    const record = payload as EmbeddedRunPayloadLike;
+    const text = typeof record.text === "string" ? record.text.trim() : "";
+    if (!text) {
+      continue;
+    }
+    hasText = true;
+
+    const reason = classifyFailoverReason(text);
+    const looksLikeRawFailoverText =
+      RAW_FAILOVER_PAYLOAD_HEAD_RE.test(text) || isRawApiErrorPayload(text);
+    const isFailoverText = Boolean(
+      reason && (record.isError === true || runStoppedWithError || looksLikeRawFailoverText),
+    );
+    if (isFailoverText) {
+      firstFailoverMessage ??= text;
+      continue;
+    }
+    hasNonFailoverText = true;
+  }
+
+  if (!hasText || !firstFailoverMessage || hasNonFailoverText) {
+    return null;
+  }
+  return firstFailoverMessage;
 }
 
 function createModelCandidateCollector(allowlist: Set<string> | null | undefined): {
@@ -231,6 +308,7 @@ function resolveProbeThrottleKey(provider: string, agentDir?: string): string {
 function shouldProbePrimaryDuringCooldown(params: {
   isPrimary: boolean;
   hasFallbackCandidates: boolean;
+  probeMode: PrimaryCooldownProbeMode;
   now: number;
   throttleKey: string;
   authStore: ReturnType<typeof ensureAuthProfileStore>;
@@ -238,6 +316,9 @@ function shouldProbePrimaryDuringCooldown(params: {
 }): boolean {
   if (!params.isPrimary || !params.hasFallbackCandidates) {
     return false;
+  }
+  if (params.probeMode === "always") {
+    return true;
   }
 
   const lastProbe = lastProbeAttempt.get(params.throttleKey) ?? 0;
@@ -269,7 +350,13 @@ export async function runWithModelFallback<T>(params: {
   agentDir?: string;
   /** Optional explicit fallbacks list; when provided (even empty), replaces agents.defaults.model.fallbacks. */
   fallbacksOverride?: string[];
-  run: (provider: string, model: string) => Promise<T>;
+  /**
+   * Control probing behavior when the primary provider is in auth-profile cooldown.
+   * - "auto" (default): probe periodically near cooldown expiry.
+   * - "always": always attempt the primary first, then continue down fallbacks.
+   */
+  probePrimaryDuringCooldown?: PrimaryCooldownProbeMode;
+  run: (provider: string, model: string, context: ModelFallbackRunContext) => Promise<T>;
   onError?: ModelFallbackErrorHandler;
 }): Promise<ModelFallbackRunResult<T>> {
   const candidates = resolveFallbackCandidates({
@@ -306,6 +393,7 @@ export async function runWithModelFallback<T>(params: {
         const shouldProbe = shouldProbePrimaryDuringCooldown({
           isPrimary: i === 0,
           hasFallbackCandidates,
+          probeMode: params.probePrimaryDuringCooldown ?? "auto",
           now,
           throttleKey: probeThrottleKey,
           authStore,
@@ -328,7 +416,16 @@ export async function runWithModelFallback<T>(params: {
       }
     }
     try {
-      const result = await params.run(candidate.provider, candidate.model);
+      const result = await params.run(candidate.provider, candidate.model, {
+        attempt: i + 1,
+        total: candidates.length,
+        isPrimary: i === 0,
+        hasFallbackCandidates,
+      });
+      const payloadFailoverMessage = resolveFailoverPayloadMessage(result);
+      if (payloadFailoverMessage) {
+        throw new Error(payloadFailoverMessage);
+      }
       return {
         result,
         provider: candidate.provider,
