@@ -145,6 +145,16 @@ function buildInstallCommand(
       }
       return { argv: ["uv", "tool", "install", spec.package] };
     }
+    case "scoop": {
+      if (!spec.package) {
+        return { argv: null, error: "missing scoop package" };
+      }
+      const argv = ["scoop", "install", spec.package];
+      if (spec.bucket) {
+        argv.push("--bucket", spec.bucket);
+      }
+      return { argv };
+    }
     case "download": {
       return { argv: null, error: "download install handled separately" };
     }
@@ -251,6 +261,12 @@ function resolveBrewMissingFailure(spec: SkillInstallSpec): SkillInstallResult {
       ? `Homebrew is not installed. Install it from https://brew.sh or install "${formula}" manually using your system package manager (e.g. apt, dnf, pacman).`
       : "Homebrew is not installed. Install it from https://brew.sh";
   return createInstallFailure({ message: `brew not installed — ${hint}` });
+}
+
+function resolveScoopMissingFailure(spec: SkillInstallSpec): SkillInstallResult {
+  const pkg = spec.package ?? "this package";
+  const hint = `Scoop is not installed. Install it from https://scoop.sh or install "${pkg}" manually.`;
+  return createInstallFailure({ message: `scoop not installed — ${hint}` });
 }
 
 async function ensureUvInstalled(params: {
@@ -438,9 +454,18 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
     );
   }
 
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  if (spec.kind === "go") {
+    env.GO111MODULE = "on";
+  }
+
   const brewExe = hasBinary("brew") ? "brew" : resolveBrewExecutable();
   if (spec.kind === "brew" && !brewExe) {
     return withWarnings(resolveBrewMissingFailure(spec), warnings);
+  }
+
+  if (spec.kind === "scoop" && !hasBinary("scoop")) {
+    return withWarnings(resolveScoopMissingFailure(spec), warnings);
   }
 
   const uvInstallFailure = await ensureUvInstalled({ spec, brewExe, timeoutMs });
@@ -458,11 +483,10 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
     argv[0] = brewExe;
   }
 
-  let env: NodeJS.ProcessEnv | undefined;
   if (spec.kind === "go" && brewExe) {
     const brewBin = await resolveBrewBinDir(timeoutMs, brewExe);
     if (brewBin) {
-      env = { GOBIN: brewBin };
+      env.GOBIN = brewBin;
     }
   }
 

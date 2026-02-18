@@ -70,6 +70,12 @@ import {
   resolveZaiBaseUrl,
   XAI_BASE_URL,
   XAI_DEFAULT_MODEL_ID,
+  SILICONFLOW_GLOBAL_BASE_URL,
+  SILICONFLOW_CN_BASE_URL,
+  SILICONFLOW_DEFAULT_MODEL_ID,
+  SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF,
+  SILICONFLOW_CN_DEFAULT_MODEL_REF,
+  buildSiliconFlowModelDefinition,
 } from "./onboard-auth.models.js";
 
 export function applyZaiProviderConfig(
@@ -483,4 +489,56 @@ export function applyQianfanProviderConfig(cfg: OpenClawConfig): OpenClawConfig 
 export function applyQianfanConfig(cfg: OpenClawConfig): OpenClawConfig {
   const next = applyQianfanProviderConfig(cfg);
   return applyAgentDefaultModelPrimary(next, QIANFAN_DEFAULT_MODEL_REF);
+}
+
+export function applySiliconFlowGlobalProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const models = { ...cfg.agents?.defaults?.models };
+  models[SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF] = {
+    ...models[SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF],
+    alias: models[SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF]?.alias ?? "DeepSeek V3 (Intl)",
+  };
+
+  const defaultModel = buildSiliconFlowModelDefinition({
+    id: SILICONFLOW_DEFAULT_MODEL_ID,
+  });
+
+  return applyProviderConfigWithDefaultModel(cfg, {
+    agentModels: models,
+    providerId: "siliconflow",
+    api: "openai-completions",
+    baseUrl: SILICONFLOW_GLOBAL_BASE_URL,
+    defaultModel,
+    defaultModelId: SILICONFLOW_DEFAULT_MODEL_ID,
+  });
+}
+
+export function applySiliconFlowCnProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const models = { ...cfg.agents?.defaults?.models };
+  models[SILICONFLOW_CN_DEFAULT_MODEL_REF] = {
+    ...models[SILICONFLOW_CN_DEFAULT_MODEL_REF],
+    alias: models[SILICONFLOW_CN_DEFAULT_MODEL_REF]?.alias ?? "DeepSeek V3 (CN)",
+  };
+
+  const defaultModel = buildSiliconFlowModelDefinition({
+    id: SILICONFLOW_DEFAULT_MODEL_ID,
+  });
+
+  return applyProviderConfigWithDefaultModel(cfg, {
+    agentModels: models,
+    providerId: "siliconflow-cn",
+    api: "openai-completions",
+    baseUrl: SILICONFLOW_CN_BASE_URL,
+    defaultModel,
+    defaultModelId: SILICONFLOW_DEFAULT_MODEL_ID,
+  });
+}
+
+export function applySiliconFlowGlobalConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const next = applySiliconFlowGlobalProviderConfig(cfg);
+  return applyAgentDefaultModelPrimary(next, SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF);
+}
+
+export function applySiliconFlowCnConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const next = applySiliconFlowCnProviderConfig(cfg);
+  return applyAgentDefaultModelPrimary(next, SILICONFLOW_CN_DEFAULT_MODEL_REF);
 }

@@ -21,6 +21,8 @@ type OnboardProviderAuthOptionKey = keyof Pick<
   | "xaiApiKey"
   | "litellmApiKey"
   | "qianfanApiKey"
+  | "siliconflowGlobalApiKey"
+  | "siliconflowCnApiKey"
 >;
 
 export type OnboardProviderAuthFlag = {
@@ -165,5 +167,19 @@ export const ONBOARD_PROVIDER_AUTH_FLAGS: ReadonlyArray<OnboardProviderAuthFlag>
     cliFlag: "--qianfan-api-key",
     cliOption: "--qianfan-api-key <key>",
     description: "QIANFAN API key",
+  },
+  {
+    optionKey: "siliconflowGlobalApiKey",
+    authChoice: "siliconflow-global-api-key",
+    cliFlag: "--siliconflow-api-key",
+    cliOption: "--siliconflow-api-key <key>",
+    description: "SiliconFlow Global API key (Intl)",
+  },
+  {
+    optionKey: "siliconflowCnApiKey",
+    authChoice: "siliconflow-cn-api-key",
+    cliFlag: "--siliconflow-cn-api-key",
+    cliOption: "--siliconflow-cn-api-key <key>",
+    description: "SiliconFlow China API key (CN)",
   },
 ];

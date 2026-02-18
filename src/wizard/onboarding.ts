@@ -370,8 +370,9 @@ export async function runOnboardingWizard(
       runtime,
       setDefaultModel: true,
       opts: {
-        tokenProvider: opts.tokenProvider,
         token: opts.authChoice === "apiKey" && opts.token ? opts.token : undefined,
+        siliconflowGlobalApiKey: opts.siliconflowGlobalApiKey,
+        siliconflowCnApiKey: opts.siliconflowCnApiKey,
       },
     });
     nextConfig = authResult.config;

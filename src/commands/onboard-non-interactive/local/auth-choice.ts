@@ -29,6 +29,8 @@ import {
   applyXaiConfig,
   applyXiaomiConfig,
   applyZaiConfig,
+  applySiliconFlowGlobalConfig,
+  applySiliconFlowCnConfig,
   setAnthropicApiKey,
   setCloudflareAiGatewayConfig,
   setQianfanApiKey,
@@ -47,6 +49,8 @@ import {
   setVercelAiGatewayApiKey,
   setXiaomiApiKey,
   setZaiApiKey,
+  setSiliconFlowGlobalApiKey,
+  setSiliconFlowCnApiKey,
 } from "../../onboard-auth.js";
 import {
   applyCustomApiConfig,
@@ -324,6 +328,52 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applyQianfanConfig(nextConfig);
+  }
+
+  if (authChoice === "siliconflow-global-api-key") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "siliconflow",
+      cfg: baseConfig,
+      flagValue: opts.siliconflowGlobalApiKey,
+      flagName: "--siliconflow-api-key",
+      envVar: "SILICONFLOW_API_KEY",
+      runtime,
+    });
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setSiliconFlowGlobalApiKey(resolved.key);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "siliconflow:default",
+      provider: "siliconflow",
+      mode: "api_key",
+    });
+    return applySiliconFlowGlobalConfig(nextConfig);
+  }
+
+  if (authChoice === "siliconflow-cn-api-key") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "siliconflow-cn",
+      cfg: baseConfig,
+      flagValue: opts.siliconflowCnApiKey,
+      flagName: "--siliconflow-cn-api-key",
+      envVar: "SILICONFLOW_API_KEY",
+      runtime,
+    });
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setSiliconFlowCnApiKey(resolved.key);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "siliconflow-cn:default",
+      provider: "siliconflow-cn",
+      mode: "api_key",
+    });
+    return applySiliconFlowCnConfig(nextConfig);
   }
 
   if (authChoice === "openai-api-key") {

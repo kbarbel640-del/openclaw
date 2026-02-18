@@ -19,6 +19,7 @@ export type SkillsLoadConfig = {
 
 export type SkillsInstallConfig = {
   preferBrew?: boolean;
+  preferScoop?: boolean;
   nodeManager?: "npm" | "pnpm" | "yarn" | "bun";
 };
 

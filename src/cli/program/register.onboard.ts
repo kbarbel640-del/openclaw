@@ -150,6 +150,8 @@ export function registerOnboardCommand(program: Command) {
           opencodeZenApiKey: opts.opencodeZenApiKey as string | undefined,
           xaiApiKey: opts.xaiApiKey as string | undefined,
           litellmApiKey: opts.litellmApiKey as string | undefined,
+          siliconflowGlobalApiKey: opts.siliconflowApiKey as string | undefined,
+          siliconflowCnApiKey: opts.siliconflowCnApiKey as string | undefined,
           customBaseUrl: opts.customBaseUrl as string | undefined,
           customApiKey: opts.customApiKey as string | undefined,
           customModelId: opts.customModelId as string | undefined,

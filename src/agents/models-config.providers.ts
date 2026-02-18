@@ -19,6 +19,11 @@ import {
 import { resolveAwsSdkEnvVarName, resolveEnvApiKey } from "./model-auth.js";
 import { OLLAMA_NATIVE_BASE_URL } from "./ollama-stream.js";
 import {
+  discoverSiliconFlowModels,
+  SILICONFLOW_GLOBAL_BASE_URL,
+  SILICONFLOW_CN_BASE_URL,
+} from "./siliconflow-models.js";
+import {
   buildSyntheticModelDefinition,
   SYNTHETIC_BASE_URL,
   SYNTHETIC_MODEL_CATALOG,
@@ -805,6 +810,50 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "nvidia", store: authStore });
   if (nvidiaKey) {
     providers.nvidia = { ...buildNvidiaProvider(), apiKey: nvidiaKey };
+  }
+
+  const siliconFlowGlobalVar = resolveEnvApiKeyVarName("siliconflow");
+  const siliconFlowGlobalProfileKey = resolveApiKeyFromProfiles({
+    provider: "siliconflow",
+    store: authStore,
+  });
+  const siliconFlowGlobalKey = siliconFlowGlobalVar ?? siliconFlowGlobalProfileKey;
+  if (siliconFlowGlobalKey) {
+    const discoveryApiKey = siliconFlowGlobalVar
+      ? (process.env[siliconFlowGlobalVar]?.trim() ?? "")
+      : (siliconFlowGlobalProfileKey ?? "");
+
+    providers.siliconflow = {
+      baseUrl: SILICONFLOW_GLOBAL_BASE_URL,
+      api: "openai-completions",
+      apiKey: siliconFlowGlobalKey,
+      models: await discoverSiliconFlowModels({
+        baseUrl: SILICONFLOW_GLOBAL_BASE_URL,
+        apiKey: discoveryApiKey,
+      }),
+    };
+  }
+
+  const siliconFlowCnVar = resolveEnvApiKeyVarName("siliconflow-cn");
+  const siliconFlowCnProfileKey = resolveApiKeyFromProfiles({
+    provider: "siliconflow-cn",
+    store: authStore,
+  });
+  const siliconFlowCnKey = siliconFlowCnVar ?? siliconFlowCnProfileKey;
+  if (siliconFlowCnKey) {
+    const discoveryApiKey = siliconFlowCnVar
+      ? (process.env[siliconFlowCnVar]?.trim() ?? "")
+      : (siliconFlowCnProfileKey ?? "");
+
+    providers["siliconflow-cn"] = {
+      baseUrl: SILICONFLOW_CN_BASE_URL,
+      api: "openai-completions",
+      apiKey: siliconFlowCnKey,
+      models: await discoverSiliconFlowModels({
+        baseUrl: SILICONFLOW_CN_BASE_URL,
+        apiKey: discoveryApiKey,
+      }),
+    };
   }
 
   return providers;

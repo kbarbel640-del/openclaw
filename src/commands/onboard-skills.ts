@@ -135,6 +135,36 @@ export async function setupSkills(
         );
       }
     }
+    const needsScoopPrompt =
+      process.platform === "win32" &&
+      selectedSkills.some((skill) =>
+        skill.install.some((option) => option.kind === "scoop" || option.kind === "brew"),
+      ) &&
+      !(await detectBinary("scoop"));
+
+    if (needsScoopPrompt) {
+      await prompter.note(
+        [
+          "Scoop is a great package manager for Windows that can install many skill dependencies.",
+          "Without scoop, you may need to download releases manually.",
+        ].join("\n"),
+        "Scoop recommended",
+      );
+      const showScoopInstall = await prompter.confirm({
+        message: "Show Scoop install command?",
+        initialValue: true,
+      });
+      if (showScoopInstall) {
+        await prompter.note(
+          [
+            "Run in PowerShell:",
+            "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser",
+            "Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression",
+          ].join("\n"),
+          "Scoop install",
+        );
+      }
+    }
 
     const needsNodeManagerPrompt = selectedSkills.some((skill) =>
       skill.install.some((option) => option.kind === "node"),

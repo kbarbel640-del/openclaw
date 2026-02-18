@@ -41,6 +41,10 @@ import {
   applyXiaomiProviderConfig,
   applyZaiConfig,
   applyZaiProviderConfig,
+  applySiliconFlowGlobalConfig,
+  applySiliconFlowGlobalProviderConfig,
+  applySiliconFlowCnConfig,
+  applySiliconFlowCnProviderConfig,
   CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF,
   LITELLM_DEFAULT_MODEL_REF,
   QIANFAN_DEFAULT_MODEL_REF,
@@ -64,7 +68,11 @@ import {
   setVercelAiGatewayApiKey,
   setXiaomiApiKey,
   setZaiApiKey,
+  setSiliconFlowGlobalApiKey,
+  setSiliconFlowCnApiKey,
   ZAI_DEFAULT_MODEL_REF,
+  SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF,
+  SILICONFLOW_CN_DEFAULT_MODEL_REF,
 } from "./onboard-auth.js";
 import { OPENCODE_ZEN_DEFAULT_MODEL } from "./opencode-zen-model-default.js";
 import { detectZaiEndpoint } from "./zai-endpoint-detect.js";
@@ -124,6 +132,10 @@ export async function applyAuthChoiceApiProviders(
       authChoice = "opencode-zen";
     } else if (params.opts.tokenProvider === "qianfan") {
       authChoice = "qianfan-api-key";
+    } else if (params.opts.tokenProvider === "siliconflow") {
+      authChoice = "siliconflow-global-api-key";
+    } else if (params.opts.tokenProvider === "siliconflow-cn") {
+      authChoice = "siliconflow-cn-api-key";
     }
   }
 
@@ -951,6 +963,110 @@ export async function applyAuthChoiceApiProviders(
         applyDefaultConfig: applyQianfanConfig,
         applyProviderConfig: applyQianfanProviderConfig,
         noteDefault: QIANFAN_DEFAULT_MODEL_REF,
+        noteAgentModel,
+        prompter: params.prompter,
+      });
+      nextConfig = applied.config;
+      agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
+    }
+    return { config: nextConfig, agentModelOverride };
+  }
+
+  if (authChoice === "siliconflow-global-api-key") {
+    let hasCredential = false;
+    const optsKey = params.opts?.siliconflowGlobalApiKey?.trim();
+    if (optsKey) {
+      await setSiliconFlowGlobalApiKey(normalizeApiKeyInput(optsKey), params.agentDir);
+      hasCredential = true;
+    }
+
+    if (!hasCredential) {
+      const envKey = resolveEnvApiKey("siliconflow");
+      if (envKey) {
+        const useExisting = await params.prompter.confirm({
+          message: `Use existing SILICONFLOW_API_KEY (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+          initialValue: true,
+        });
+        if (useExisting) {
+          await setSiliconFlowGlobalApiKey(envKey.apiKey, params.agentDir);
+          hasCredential = true;
+        }
+      }
+    }
+
+    if (!hasCredential) {
+      const key = await params.prompter.text({
+        message: "Enter SiliconFlow (International) API key",
+        validate: validateApiKeyInput,
+      });
+      await setSiliconFlowGlobalApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
+    }
+
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "siliconflow:default",
+      provider: "siliconflow",
+      mode: "api_key",
+    });
+    {
+      const applied = await applyDefaultModelChoice({
+        config: nextConfig,
+        setDefaultModel: params.setDefaultModel,
+        defaultModel: SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF,
+        applyDefaultConfig: applySiliconFlowGlobalConfig,
+        applyProviderConfig: applySiliconFlowGlobalProviderConfig,
+        noteDefault: SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF,
+        noteAgentModel,
+        prompter: params.prompter,
+      });
+      nextConfig = applied.config;
+      agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
+    }
+    return { config: nextConfig, agentModelOverride };
+  }
+
+  if (authChoice === "siliconflow-cn-api-key") {
+    let hasCredential = false;
+    const optsKey = params.opts?.siliconflowCnApiKey?.trim();
+    if (optsKey) {
+      await setSiliconFlowCnApiKey(normalizeApiKeyInput(optsKey), params.agentDir);
+      hasCredential = true;
+    }
+
+    if (!hasCredential) {
+      const envKey = resolveEnvApiKey("siliconflow-cn");
+      if (envKey) {
+        const useExisting = await params.prompter.confirm({
+          message: `Use existing SILICONFLOW_API_KEY (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+          initialValue: true,
+        });
+        if (useExisting) {
+          await setSiliconFlowCnApiKey(envKey.apiKey, params.agentDir);
+          hasCredential = true;
+        }
+      }
+    }
+
+    if (!hasCredential) {
+      const key = await params.prompter.text({
+        message: "Enter SiliconFlow (China) API key",
+        validate: validateApiKeyInput,
+      });
+      await setSiliconFlowCnApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
+    }
+
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "siliconflow-cn:default",
+      provider: "siliconflow-cn",
+      mode: "api_key",
+    });
+    {
+      const applied = await applyDefaultModelChoice({
+        config: nextConfig,
+        setDefaultModel: params.setDefaultModel,
+        defaultModel: SILICONFLOW_CN_DEFAULT_MODEL_REF,
+        applyDefaultConfig: applySiliconFlowCnConfig,
+        applyProviderConfig: applySiliconFlowCnProviderConfig,
+        noteDefault: SILICONFLOW_CN_DEFAULT_MODEL_REF,
         noteAgentModel,
         prompter: params.prompter,
       });

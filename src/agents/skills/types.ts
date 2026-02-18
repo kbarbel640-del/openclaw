@@ -2,7 +2,7 @@ import type { Skill } from "@mariozechner/pi-coding-agent";
 
 export type SkillInstallSpec = {
   id?: string;
-  kind: "brew" | "node" | "go" | "uv" | "download";
+  kind: "brew" | "node" | "go" | "uv" | "download" | "scoop";
   label?: string;
   bins?: string[];
   os?: string[];
@@ -14,6 +14,7 @@ export type SkillInstallSpec = {
   extract?: boolean;
   stripComponents?: number;
   targetDir?: string;
+  bucket?: string;
 };
 
 export type OpenClawSkillMetadata = {
@@ -58,6 +59,7 @@ export type SkillCommandSpec = {
 
 export type SkillsInstallPreferences = {
   preferBrew: boolean;
+  preferScoop: boolean;
   nodeManager: "npm" | "pnpm" | "yarn" | "bun";
 };
 

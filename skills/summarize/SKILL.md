@@ -17,6 +17,13 @@ metadata:
               "bins": ["summarize"],
               "label": "Install summarize (brew)",
             },
+            {
+              "id": "go",
+              "kind": "go",
+              "module": "github.com/steipete/summarize@latest",
+              "bins": ["summarize"],
+              "label": "Install summarize (go)",
+            },
           ],
       },
   }
