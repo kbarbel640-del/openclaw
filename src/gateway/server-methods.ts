@@ -108,6 +108,9 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
     }
     return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);
   }
+  if (role === "node" && method === "health") {
+    return null;
+  }
   if (role === "node") {
     return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);
   }
