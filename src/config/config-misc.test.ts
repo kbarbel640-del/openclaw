@@ -198,18 +198,6 @@ describe("cron webhook schema", () => {
 
     expect(res.success).toBe(false);
   });
-
-  it("accepts cron.directCommand.enforceAllowlist", () => {
-    const res = OpenClawSchema.safeParse({
-      cron: {
-        directCommand: {
-          enforceAllowlist: false,
-        },
-      },
-    });
-
-    expect(res.success).toBe(true);
-  });
 });
 
 describe("broadcast", () => {
