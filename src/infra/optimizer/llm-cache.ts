@@ -1,6 +1,10 @@
 /**
- * LLM Response Cache
- * Caches LLM responses for similar queries to reduce API calls and latency
+ * LLM Response Cache - High Performance Implementation
+ * Features:
+ * - O(1) LRU with doubly-linked list + HashMap
+ * - Request coalescing (singleflight) to prevent cache stampede
+ * - Lazy expiration on access
+ * - Memory-efficient key generation
  */
 
 import { createHash } from "node:crypto";
@@ -10,16 +14,14 @@ export interface LLMCacheOptions {
   enabled?: boolean;
   ttl?: number;
   maxSize?: number;
-  similarityThreshold?: number;
+  maxByteSize?: number;
 }
 
 export interface CacheEntry {
   key: string;
-  messages: Array<{ role: string; content: string }>;
-  model: string;
   response: unknown;
   timestamp: number;
-  options?: Record<string, unknown>;
+  byteSize: number;
   accessCount: number;
 }
 
@@ -27,21 +29,38 @@ export interface CacheStats {
   hits: number;
   misses: number;
   evictions: number;
-  totalSaved: number;
+  stampedePrevented: number;
   hitRate: string;
   size: number;
   maxSize: number;
+  byteSize: number;
+  maxByteSize: number;
+}
+
+interface LRUNode {
+  key: string;
+  entry: CacheEntry;
+  prev: LRUNode | null;
+  next: LRUNode | null;
+}
+
+interface PendingRequest {
+  promise: Promise<unknown>;
+  timestamp: number;
 }
 
 export class LLMResponseCache extends EventEmitter {
   private config: Required<LLMCacheOptions>;
-  private cache: Map<string, CacheEntry> = new Map();
-  private accessOrder: string[] = [];
+  private cache: Map<string, LRUNode> = new Map();
+  private head: LRUNode | null = null;
+  private tail: LRUNode | null = null;
+  private currentByteSize = 0;
+  private pendingRequests: Map<string, PendingRequest> = new Map();
   private stats = {
     hits: 0,
     misses: 0,
     evictions: 0,
-    totalSaved: 0,
+    stampedePrevented: 0,
   };
 
   constructor(options: LLMCacheOptions = {}) {
@@ -50,121 +69,175 @@ export class LLMResponseCache extends EventEmitter {
       enabled: options.enabled ?? true,
       ttl: options.ttl ?? 3600000,
       maxSize: options.maxSize ?? 1000,
-      similarityThreshold: options.similarityThreshold ?? 0.95,
+      maxByteSize: options.maxByteSize ?? 100 * 1024 * 1024,
     };
   }
 
-  generateKey(
-    messages: Array<{ role: string; content: string }>,
-    model: string,
-    options: Record<string, unknown> = {},
-  ): string {
-    const content = messages.map((m) => `${m.role}:${m.content}`).join("|");
-    const keyData = {
-      content,
-      model,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      system: options.system,
-    };
-    return createHash("sha256").update(JSON.stringify(keyData)).digest("hex").slice(0, 32);
+  private estimateByteSize(response: unknown): number {
+    try {
+      return JSON.stringify(response).length * 2;
+    } catch {
+      return 1024;
+    }
   }
 
-  async get(
-    messages: Array<{ role: string; content: string }>,
-    model: string,
-    options: Record<string, unknown> = {},
-  ): Promise<{ response: unknown; cached: boolean; cachedAt: number } | null> {
+  private addToHead(node: LRUNode): void {
+    node.prev = null;
+    node.next = this.head;
+    if (this.head) {
+      this.head.prev = node;
+    }
+    this.head = node;
+    if (!this.tail) {
+      this.tail = node;
+    }
+  }
+
+  private removeNode(node: LRUNode): void {
+    if (node.prev) {
+      node.prev.next = node.next;
+    } else {
+      this.head = node.next;
+    }
+    if (node.next) {
+      node.next.prev = node.prev;
+    } else {
+      this.tail = node.prev;
+    }
+    node.prev = null;
+    node.next = null;
+  }
+
+  private moveToHead(node: LRUNode): void {
+    this.removeNode(node);
+    this.addToHead(node);
+  }
+
+  private evictLRU(): void {
+    if (!this.tail) {
+      return;
+    }
+    const lru = this.tail;
+    this.removeNode(lru);
+    this.cache.delete(lru.key);
+    this.currentByteSize -= lru.entry.byteSize;
+    this.stats.evictions++;
+    this.emit("evict", { key: lru.key });
+  }
+
+  private evictToFit(newByteSize: number): void {
+    while (
+      (this.cache.size >= this.config.maxSize ||
+        this.currentByteSize + newByteSize > this.config.maxByteSize) &&
+      this.cache.size > 0
+    ) {
+      this.evictLRU();
+    }
+  }
+
+  private isExpired(entry: CacheEntry): boolean {
+    return Date.now() - entry.timestamp > this.config.ttl;
+  }
+
+  getCachedEntry(key: string): CacheEntry | null {
     if (!this.config.enabled) {
-      this.stats.misses++;
       return null;
     }
 
-    const key = this.generateKey(messages, model, options);
-
-    if (this.cache.has(key)) {
-      const entry = this.cache.get(key)!;
-
-      if (Date.now() - entry.timestamp > this.config.ttl) {
-        this.cache.delete(key);
-        this.stats.misses++;
-        return null;
-      }
-
-      this.updateAccessOrder(key);
-      this.stats.hits++;
-      this.stats.totalSaved++;
-      this.emit("hit", { key, entry });
-
-      return {
-        response: entry.response,
-        cached: true,
-        cachedAt: entry.timestamp,
-      };
+    const node = this.cache.get(key);
+    if (!node) {
+      return null;
     }
 
-    this.stats.misses++;
-    return null;
+    if (this.isExpired(node.entry)) {
+      this.removeNode(node);
+      this.cache.delete(key);
+      this.currentByteSize -= node.entry.byteSize;
+      return null;
+    }
+
+    this.moveToHead(node);
+    node.entry.accessCount++;
+    this.stats.hits++;
+    this.emit("hit", { key, entry: node.entry });
+    return node.entry;
   }
 
-  async set(
-    messages: Array<{ role: string; content: string }>,
-    model: string,
-    response: unknown,
-    options: Record<string, unknown> = {},
-  ): Promise<void> {
+  setCachedEntry(key: string, response: unknown): void {
     if (!this.config.enabled) {
       return;
     }
 
-    const key = this.generateKey(messages, model, options);
+    const byteSize = this.estimateByteSize(response);
+    this.evictToFit(byteSize);
 
-    if (this.cache.size >= this.config.maxSize) {
-      this.evictLRU();
+    const existing = this.cache.get(key);
+    if (existing) {
+      this.currentByteSize -= existing.entry.byteSize;
+      existing.entry.response = response;
+      existing.entry.timestamp = Date.now();
+      existing.entry.byteSize = byteSize;
+      existing.entry.accessCount++;
+      this.currentByteSize += byteSize;
+      this.moveToHead(existing);
+      return;
     }
 
     const entry: CacheEntry = {
       key,
-      messages,
-      model,
       response,
       timestamp: Date.now(),
-      options,
+      byteSize,
       accessCount: 0,
     };
 
-    this.cache.set(key, entry);
-    this.accessOrder.push(key);
+    const node: LRUNode = { key, entry, prev: null, next: null };
+    this.cache.set(key, node);
+    this.addToHead(node);
+    this.currentByteSize += byteSize;
     this.emit("set", { key, entry });
   }
 
-  private updateAccessOrder(key: string): void {
-    const idx = this.accessOrder.indexOf(key);
-    if (idx > -1) {
-      this.accessOrder.splice(idx, 1);
-      this.accessOrder.push(key);
+  async getOrFetch<T>(
+    key: string,
+    fetcher: () => Promise<T>,
+    shouldCache: (result: T) => boolean = () => true,
+  ): Promise<T> {
+    if (!this.config.enabled) {
+      return fetcher();
     }
-    const entry = this.cache.get(key);
-    if (entry) {
-      entry.accessCount++;
-    }
-  }
 
-  private evictLRU(): void {
-    while (this.accessOrder.length > 0 && this.cache.size >= this.config.maxSize) {
-      const lruKey = this.accessOrder.shift();
-      if (lruKey && this.cache.has(lruKey)) {
-        this.cache.delete(lruKey);
-        this.stats.evictions++;
-        this.emit("evict", { key: lruKey });
-        break;
+    const cached = this.getCachedEntry(key);
+    if (cached) {
+      return cached.response as T;
+    }
+
+    const pending = this.pendingRequests.get(key);
+    if (pending && Date.now() - pending.timestamp < 30000) {
+      this.stats.stampedePrevented++;
+      return pending.promise as Promise<T>;
+    }
+
+    const fetchPromise = fetcher();
+    this.pendingRequests.set(key, { promise: fetchPromise, timestamp: Date.now() });
+
+    try {
+      const result = await fetchPromise;
+      if (shouldCache(result)) {
+        this.setCachedEntry(key, result);
       }
+      return result;
+    } finally {
+      this.pendingRequests.delete(key);
     }
   }
 
   clear(): void {
     this.cache.clear();
-    this.accessOrder = [];
+    this.head = null;
+    this.tail = null;
+    this.currentByteSize = 0;
+    this.pendingRequests.clear();
     this.emit("clear");
   }
 
@@ -176,53 +249,13 @@ export class LLMResponseCache extends EventEmitter {
       hitRate: hitRate.toFixed(4),
       size: this.cache.size,
       maxSize: this.config.maxSize,
+      byteSize: this.currentByteSize,
+      maxByteSize: this.config.maxByteSize,
     };
   }
 
-  getCachedEntry(key: string): CacheEntry | null {
-    if (!this.config.enabled) {
-      return null;
-    }
-
-    const entry = this.cache.get(key);
-    if (!entry) {
-      return null;
-    }
-
-    if (Date.now() - entry.timestamp > this.config.ttl) {
-      this.cache.delete(key);
-      return null;
-    }
-
-    this.updateAccessOrder(key);
-    this.stats.hits++;
-    this.stats.totalSaved++;
-    this.emit("hit", { key, entry });
-
-    return entry;
-  }
-
-  setCachedEntry(key: string, response: unknown): void {
-    if (!this.config.enabled) {
-      return;
-    }
-
-    if (this.cache.size >= this.config.maxSize) {
-      this.evictLRU();
-    }
-
-    const entry: CacheEntry = {
-      key,
-      messages: [],
-      model: "",
-      response,
-      timestamp: Date.now(),
-      accessCount: 0,
-    };
-
-    this.cache.set(key, entry);
-    this.accessOrder.push(key);
-    this.emit("set", { key, entry });
+  recordMiss(): void {
+    this.stats.misses++;
   }
 }
 
@@ -237,4 +270,20 @@ export function getLLMCache(options?: LLMCacheOptions): LLMResponseCache {
 
 export function clearLLMCache(): void {
   globalCache?.clear();
+}
+
+export function generateCacheKey(
+  provider: string,
+  modelId: string,
+  systemPrompt: string | undefined,
+  messagesHash: string,
+  temperature?: number,
+  maxTokens?: number,
+): string {
+  const data = `${provider}|${modelId}|${systemPrompt?.slice(0, 200) ?? ""}|${messagesHash}|${temperature ?? ""}|${maxTokens ?? ""}`;
+  return createHash("sha256").update(data).digest("hex").slice(0, 32);
+}
+
+export function hashMessages(messages: unknown[]): string {
+  return createHash("sha256").update(JSON.stringify(messages)).digest("hex").slice(0, 16);
 }

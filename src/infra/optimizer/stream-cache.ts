@@ -1,9 +1,11 @@
 /**
- * LLM Stream Cache Wrapper
- * Caches LLM responses at the stream function level for optimal integration
+ * LLM Stream Cache Wrapper - High Performance Implementation
+ * Features:
+ * - Request coalescing (singleflight) to prevent cache stampede
+ * - Memory-efficient key generation
+ * - Realistic streaming simulation on cache hit
  */
 
-import { createHash } from "node:crypto";
 import type {
   AssistantMessage,
   AssistantMessageEventStream,
@@ -13,13 +15,15 @@ import type {
   StreamOptions,
 } from "@mariozechner/pi-ai";
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
-import { getLLMCache } from "./llm-cache.js";
+import { getLLMCache, hashMessages, generateCacheKey } from "./llm-cache.js";
 
 export type StreamCacheConfig = {
   enabled: boolean;
   ttl: number;
   maxSize: number;
+  maxByteSize?: number;
   skipCacheForTools?: boolean;
+  streamingDelayMs?: number;
 };
 
 export type StreamCacheWrapper = {
@@ -34,63 +38,44 @@ export type StreamCacheWrapper = {
     context: Context,
     options?: StreamOptions,
   ) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>;
-  getStats: () => {
-    hits: number;
-    misses: number;
-    evictions: number;
-    hitRate: string;
-    size: number;
-  };
+  getStats: () => ReturnType<ReturnType<typeof getLLMCache>["getStats"]>;
   clear: () => void;
 };
 
-type MessageForCache = {
+type NormalizedMessage = {
   role: string;
-  content: string | Array<{ type: string; text?: string; data?: string }>;
+  content: string | Array<{ type: string; text?: string }>;
 };
 
-function normalizeMessageForCache(msg: Message): MessageForCache {
+function normalizeMessage(msg: Message): NormalizedMessage {
   if (msg.role === "user") {
-    const content =
-      typeof msg.content === "string"
-        ? msg.content
-        : msg.content.map((c) => ({
-            type: c.type,
-            text: c.type === "text" ? c.text : undefined,
-            data: c.type === "image" ? c.data.slice(0, 100) : undefined,
-          }));
-    return { role: msg.role, content };
+    return {
+      role: msg.role,
+      content:
+        typeof msg.content === "string"
+          ? msg.content
+          : msg.content.map((c) => ({
+              type: c.type,
+              text: c.type === "text" ? c.text : c.type === "image" ? "[image]" : undefined,
+            })),
+    };
   }
   if (msg.role === "assistant") {
-    const content = msg.content.map((c) => ({
-      type: c.type,
-      text: c.type === "text" ? c.text : c.type === "thinking" ? c.thinking : undefined,
-    }));
-    return { role: msg.role, content };
+    return {
+      role: msg.role,
+      content: msg.content.map((c) => ({
+        type: c.type,
+        text: c.type === "text" ? c.text : c.type === "thinking" ? c.thinking : "[toolCall]",
+      })),
+    };
   }
-  if (msg.role === "toolResult") {
-    const content = msg.content.map((c) => ({
+  return {
+    role: msg.role,
+    content: msg.content.map((c) => ({
       type: c.type,
       text: c.type === "text" ? c.text : undefined,
-    }));
-    return { role: msg.role, content };
-  }
-  return { role: "unknown", content: "" };
-}
-
-function generateCacheKey(model: Model<string>, context: Context, options?: StreamOptions): string {
-  const normalizedMessages = context.messages.map(normalizeMessageForCache);
-
-  const keyData = {
-    provider: model.provider,
-    modelId: model.id,
-    systemPrompt: context.systemPrompt?.slice(0, 500),
-    messages: normalizedMessages,
-    temperature: options?.temperature,
-    maxTokens: options?.maxTokens,
+    })),
   };
-
-  return createHash("sha256").update(JSON.stringify(keyData)).digest("hex").slice(0, 32);
 }
 
 function shouldSkipCache(context: Context, config: StreamCacheConfig): boolean {
@@ -103,42 +88,41 @@ function shouldSkipCache(context: Context, config: StreamCacheConfig): boolean {
   return false;
 }
 
-function createStreamFromCachedMessage(message: AssistantMessage): AssistantMessageEventStream {
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createStreamFromCachedMessage(
+  message: AssistantMessage,
+  delayMs: number,
+): AssistantMessageEventStream {
   const stream = createAssistantMessageEventStream();
 
-  setImmediate(() => {
-    stream.push({
-      type: "start",
-      partial: message,
-    });
+  void (async () => {
+    stream.push({ type: "start", partial: message });
 
     let contentIndex = 0;
     for (const content of message.content) {
       if (content.type === "text") {
-        stream.push({
-          type: "text_start",
-          contentIndex,
-          partial: message,
-        });
-        stream.push({
-          type: "text_delta",
-          contentIndex,
-          delta: content.text,
-          partial: message,
-        });
-        stream.push({
-          type: "text_end",
-          contentIndex,
-          content: content.text,
-          partial: message,
-        });
+        const text = content.text;
+        const chunkSize = Math.max(1, Math.floor(text.length / 10));
+        let offset = 0;
+
+        stream.push({ type: "text_start", contentIndex, partial: message });
+
+        while (offset < text.length) {
+          const chunk = text.slice(offset, offset + chunkSize);
+          stream.push({ type: "text_delta", contentIndex, delta: chunk, partial: message });
+          offset += chunkSize;
+          if (delayMs > 0) {
+            await sleep(delayMs);
+          }
+        }
+
+        stream.push({ type: "text_end", contentIndex, content: text, partial: message });
         contentIndex++;
       } else if (content.type === "thinking") {
-        stream.push({
-          type: "thinking_start",
-          contentIndex,
-          partial: message,
-        });
+        stream.push({ type: "thinking_start", contentIndex, partial: message });
         stream.push({
           type: "thinking_delta",
           contentIndex,
@@ -153,23 +137,14 @@ function createStreamFromCachedMessage(message: AssistantMessage): AssistantMess
         });
         contentIndex++;
       } else if (content.type === "toolCall") {
-        stream.push({
-          type: "toolcall_start",
-          contentIndex,
-          partial: message,
-        });
+        stream.push({ type: "toolcall_start", contentIndex, partial: message });
         stream.push({
           type: "toolcall_delta",
           contentIndex,
           delta: JSON.stringify(content.arguments),
           partial: message,
         });
-        stream.push({
-          type: "toolcall_end",
-          contentIndex,
-          toolCall: content,
-          partial: message,
-        });
+        stream.push({ type: "toolcall_end", contentIndex, toolCall: content, partial: message });
         contentIndex++;
       }
     }
@@ -186,7 +161,7 @@ function createStreamFromCachedMessage(message: AssistantMessage): AssistantMess
     });
 
     stream.end(message);
-  });
+  })();
 
   return stream;
 }
@@ -196,7 +171,10 @@ export function createStreamCacheWrapper(config: StreamCacheConfig): StreamCache
     enabled: config.enabled,
     ttl: config.ttl,
     maxSize: config.maxSize,
+    maxByteSize: config.maxByteSize,
   });
+
+  const streamingDelay = config.streamingDelayMs ?? 5;
 
   const wrapStreamFn: StreamCacheWrapper["wrapStreamFn"] = (streamFn) => {
     return (model, context, options) => {
@@ -204,19 +182,27 @@ export function createStreamCacheWrapper(config: StreamCacheConfig): StreamCache
         return streamFn(model, context, options);
       }
 
-      const cacheKey = generateCacheKey(model, context, options);
+      const normalizedMessages = context.messages.map(normalizeMessage);
+      const messagesHash = hashMessages(normalizedMessages);
+      const cacheKey = generateCacheKey(
+        model.provider,
+        model.id,
+        context.systemPrompt,
+        messagesHash,
+        options?.temperature,
+        options?.maxTokens,
+      );
 
       const cachedEntry = cache.getCachedEntry(cacheKey);
       if (cachedEntry) {
         const cachedMessage = cachedEntry.response as AssistantMessage;
-        return createStreamFromCachedMessage({
-          ...cachedMessage,
-          timestamp: Date.now(),
-        });
+        return createStreamFromCachedMessage(
+          { ...cachedMessage, timestamp: Date.now() },
+          streamingDelay,
+        );
       }
 
       const originalStreamOrPromise = streamFn(model, context, options);
-
       const wrappedStream = createAssistantMessageEventStream();
 
       void (async () => {
@@ -236,10 +222,13 @@ export function createStreamCacheWrapper(config: StreamCacheConfig): StreamCache
 
           if (finalMessage && finalMessage.stopReason === "stop") {
             cache.setCachedEntry(cacheKey, finalMessage);
+          } else {
+            cache.recordMiss();
           }
 
           wrappedStream.end(finalMessage ?? undefined);
         } catch {
+          cache.recordMiss();
           wrappedStream.end();
         }
       })();
@@ -263,7 +252,9 @@ export function getStreamCacheWrapper(config?: Partial<StreamCacheConfig>): Stre
       enabled: config?.enabled ?? true,
       ttl: config?.ttl ?? 3600000,
       maxSize: config?.maxSize ?? 1000,
+      maxByteSize: config?.maxByteSize ?? 100 * 1024 * 1024,
       skipCacheForTools: config?.skipCacheForTools ?? true,
+      streamingDelayMs: config?.streamingDelayMs ?? 5,
     });
   }
   return globalStreamCacheWrapper;

@@ -36,10 +36,12 @@ export type OptimizerStats = {
     hits: number;
     misses: number;
     evictions: number;
-    totalSaved: number;
+    stampedePrevented: number;
     hitRate: string;
     size: number;
     maxSize: number;
+    byteSize: number;
+    maxByteSize: number;
   };
   pool: {
     httpRequestsServed: number;
