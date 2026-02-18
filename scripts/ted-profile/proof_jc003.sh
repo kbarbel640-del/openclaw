@@ -22,14 +22,38 @@ curl_json "$BASE_URL/status" >/dev/null
 curl_json "$BASE_URL/doctor" >/dev/null
 echo "OK: sidecar healthy"
 
-echo "2) Graph status endpoints (should exist eventually). For now, fail-closed is acceptable."
+echo "2) Graph status endpoints should exist and return fail-closed auth state."
 for p in "${PROFILES[@]}"; do
   url="$BASE_URL/graph/$p/status"
-  if curl -fsS "$url" >/dev/null 2>&1; then
-    echo "OK: $url exists"
-  else
-    echo "EXPECTED (for now): $url not implemented yet (fail-closed)"
-  fi
+  payload="$(curl_json "$url")"
+  python3 - "$p" "$payload" <<'PY'
+import json
+import sys
+expected_profile = sys.argv[1]
+obj = json.loads(sys.argv[2])
+required = [
+    "profile_id",
+    "configured",
+    "tenant_id_present",
+    "client_id_present",
+    "delegated_scopes",
+    "auth_state",
+    "next_action",
+    "last_error",
+]
+for key in required:
+    if key not in obj:
+        raise SystemExit(f"missing key in graph status response: {key}")
+if obj["profile_id"] != expected_profile:
+    raise SystemExit(f"profile_id mismatch: expected {expected_profile}, got {obj['profile_id']}")
+if obj["auth_state"] != "DISCONNECTED":
+    raise SystemExit(f"unexpected auth_state: {obj['auth_state']}")
+if obj["next_action"] != "RUN_DEVICE_CODE_AUTH":
+    raise SystemExit(f"unexpected next_action: {obj['next_action']}")
+if not isinstance(obj["delegated_scopes"], list):
+    raise SystemExit("delegated_scopes must be a list")
+print(f"OK: /graph/{expected_profile}/status returns fail-closed auth state")
+PY
 done
 
 echo "3) Ensure no plaintext token artifacts exist in SIDE-CAR owned paths (scoped check)"

@@ -98,3 +98,4 @@ apps/ios/LocalSigning.xcconfig
 
 # sidecar runtime logs
 sidecars/ted-engine/logs/
+sidecars/ted-engine/config/graph.profiles.json
