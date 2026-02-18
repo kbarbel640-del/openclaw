@@ -1,8 +1,8 @@
 import fs from "fs";
-import { parseBuffer, type IFileInfo } from "music-metadata";
 import os from "os";
 import path from "path";
 import { Readable } from "stream";
+import { parseBuffer, type IFileInfo } from "music-metadata";
 import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
@@ -423,22 +423,24 @@ export async function sendAudioFeishu(params: {
   };
 }
 
+/** Audio extensions that Feishu can handle as playable audio messages. */
+const AUDIO_EXTENSIONS = new Set([".opus", ".ogg", ".mp3", ".wav", ".m4a", ".aac", ".flac"]);
+
 /**
- * Helper to detect file type from extension
+ * Helper to detect file type from extension.
+ *
+ * NOTE: All audio formats map to "opus" because the Feishu file-upload API
+ * accepts only a fixed set of `file_type` values and "opus" is the designated
+ * type for any audio upload (regardless of the actual codec).
  */
 export function detectFileType(
   fileName: string,
 ): "opus" | "mp4" | "pdf" | "doc" | "xls" | "ppt" | "stream" {
   const ext = path.extname(fileName).toLowerCase();
+  if (AUDIO_EXTENSIONS.has(ext)) {
+    return "opus";
+  }
   switch (ext) {
-    case ".opus":
-    case ".ogg":
-    case ".mp3":
-    case ".wav":
-    case ".m4a":
-    case ".aac":
-    case ".flac":
-      return "opus";
     case ".mp4":
     case ".mov":
     case ".avi":
@@ -459,14 +461,8 @@ export function detectFileType(
   }
 }
 
-/**
- * Check if a file extension is an audio format supported by Feishu audio messages.
- * Feishu requires opus format for upload, but we detect common audio extensions
- * so the caller can convert if needed.
- */
 function isAudioFile(fileName: string): boolean {
-  const ext = path.extname(fileName).toLowerCase();
-  return [".opus", ".ogg", ".mp3", ".wav", ".m4a", ".aac", ".flac"].includes(ext);
+  return AUDIO_EXTENSIONS.has(path.extname(fileName).toLowerCase());
 }
 
 /**
