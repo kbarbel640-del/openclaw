@@ -2,9 +2,9 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { type AuthStorage, estimateTokens, generateSummary } from "@mariozechner/pi-coding-agent";
 import type { ContextDecayConfig } from "../../config/types.agent-defaults.js";
-import type { SummaryEntry } from "./summary-store.js";
 import { log } from "../pi-embedded-runner/logger.js";
 import { extractContentText, extractToolInfo } from "./message-utils.js";
+import type { SummaryEntry } from "./summary-store.js";
 import { loadSummaryStore, saveSummaryStore } from "./summary-store.js";
 import { computeTurnAges } from "./turn-ages.js";
 

@@ -1,6 +1,8 @@
 const FILE_PATH_RE = /(?:\/[\w./-]+|[A-Za-z]:\\[\w.\\/-]+)/g;
-const ERROR_RE = /(?:error|Error|ERROR|exception|Exception|EXCEPTION|fail(?:ed|ure)?|FAIL)[:. ].{0,100}/g;
-const EXPORT_RE = /export\s+(?:default\s+)?(?:function|class|const|let|type|interface|enum)\s+(\w+)/g;
+const ERROR_RE =
+  /(?:error|Error|ERROR|exception|Exception|EXCEPTION|fail(?:ed|ure)?|FAIL)[:. ].{0,100}/g;
+const EXPORT_RE =
+  /export\s+(?:default\s+)?(?:function|class|const|let|type|interface|enum)\s+(\w+)/g;
 
 const EXT_TO_LANG: Record<string, string> = {
   ".ts": "TypeScript",
@@ -36,10 +38,14 @@ function detectLanguage(args: string): string | undefined {
 }
 
 function countLines(text: string): number {
-  if (text.length === 0) return 0;
+  if (text.length === 0) {
+    return 0;
+  }
   let count = 1;
   for (let i = 0; i < text.length; i++) {
-    if (text.charCodeAt(i) === 10) count++;
+    if (text.charCodeAt(i) === 10) {
+      count++;
+    }
   }
   return count;
 }

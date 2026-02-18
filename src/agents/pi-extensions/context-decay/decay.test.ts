@@ -55,7 +55,9 @@ describe("applyContextDecay — file swap step", () => {
 
     // Index 2 should have swapped content
     const swapped = result[2] as unknown as { content: Array<{ text: string }> };
-    expect(swapped.content[0].text).toContain("[Tool result saved to /tmp/results/1700000000-Read.txt]");
+    expect(swapped.content[0].text).toContain(
+      "[Tool result saved to /tmp/results/1700000000-Read.txt]",
+    );
     expect(swapped.content[0].text).toContain("[50 lines, TypeScript] function foo()");
   });
 

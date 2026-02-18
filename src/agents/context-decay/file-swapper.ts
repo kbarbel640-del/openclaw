@@ -1,6 +1,6 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ContextDecayConfig } from "../../config/types.agent-defaults.js";
 import { log } from "../pi-embedded-runner/logger.js";
 import { loadSwappedFileStore, resultsDir, saveSwappedFileStore } from "./file-store.js";
@@ -115,9 +115,7 @@ export async function swapAgedToolResults(params: {
   if (didUpdate) {
     try {
       await saveSwappedFileStore(sessionFilePath, updatedStore);
-      log.info(
-        `context-decay: swapped ${toSwap.length} tool result(s) to files in ${resDir}`,
-      );
+      log.info(`context-decay: swapped ${toSwap.length} tool result(s) to files in ${resDir}`);
     } catch (err) {
       log.warn(`context-decay: failed to save swapped file store: ${String(err)}`);
     }

@@ -52,10 +52,7 @@ function mergeDecayConfig(
     base?.swapToolResultsAfterTurns,
     override?.swapToolResultsAfterTurns,
   );
-  merged.swapMinChars = pickPositiveInt(
-    base?.swapMinChars,
-    override?.swapMinChars,
-  );
+  merged.swapMinChars = pickPositiveInt(base?.swapMinChars, override?.swapMinChars);
   merged.stripToolResultsAfterTurns = pickPositiveInt(
     base?.stripToolResultsAfterTurns,
     override?.stripToolResultsAfterTurns,
