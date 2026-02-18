@@ -121,6 +121,42 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "config.get",
+                    family: MethodFamily::Config,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "config.set",
+                    family: MethodFamily::Config,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "config.patch",
+                    family: MethodFamily::Config,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "config.apply",
+                    family: MethodFamily::Config,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "config.schema",
+                    family: MethodFamily::Config,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "logs.tail",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "agent.exec",
                     family: MethodFamily::Agent,
                     requires_auth: true,
@@ -266,14 +302,17 @@ pub struct RpcDispatcher {
     sessions: SessionRegistry,
     system: SystemRegistry,
     talk: TalkRegistry,
+    config: ConfigRegistry,
     channel_capabilities: Vec<ChannelCapabilities>,
     started_at_ms: u64,
 }
 
 const MAX_SESSION_HISTORY_PER_SESSION: usize = 400;
+const MAX_SYSTEM_LOG_LINES: usize = 20_000;
 const RUNTIME_NAME: &str = "openclaw-agent-rs";
 const RUNTIME_VERSION: &str = env!("CARGO_PKG_VERSION");
 const SESSION_STORE_PATH: &str = "memory://session-registry";
+const SYSTEM_LOG_PATH: &str = "memory://gateway.log";
 static SESSION_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 const SUPPORTED_RPC_METHODS: &[&str] = &[
     "health",
@@ -289,6 +328,12 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "talk.mode",
     "channels.status",
     "channels.logout",
+    "config.get",
+    "config.set",
+    "config.patch",
+    "config.apply",
+    "config.schema",
+    "logs.tail",
     "sessions.list",
     "sessions.preview",
     "sessions.patch",
@@ -315,6 +360,7 @@ impl RpcDispatcher {
             sessions: SessionRegistry::new(),
             system: SystemRegistry::new(),
             talk: TalkRegistry::new(),
+            config: ConfigRegistry::new(),
             channel_capabilities,
             started_at_ms: now_ms(),
         }
@@ -335,6 +381,12 @@ impl RpcDispatcher {
             "talk.mode" => self.handle_talk_mode(req).await,
             "channels.status" => self.handle_channels_status(req).await,
             "channels.logout" => self.handle_channels_logout(req).await,
+            "config.get" => self.handle_config_get(req).await,
+            "config.set" => self.handle_config_set(req).await,
+            "config.patch" => self.handle_config_patch(req).await,
+            "config.apply" => self.handle_config_apply(req).await,
+            "config.schema" => self.handle_config_schema(req).await,
+            "logs.tail" => self.handle_logs_tail(req).await,
             "sessions.list" => self.handle_sessions_list(req).await,
             "sessions.preview" => self.handle_sessions_preview(req).await,
             "sessions.patch" => self.handle_sessions_patch(req).await,
@@ -581,6 +633,13 @@ impl RpcDispatcher {
         };
         let phase = normalize_optional_text(params.phase, 64);
         let state = self.talk.set_mode(enabled, phase).await;
+        self.system
+            .log_line(format!(
+                "talk.mode enabled={} phase={}",
+                state.enabled,
+                state.phase.clone().unwrap_or_else(|| "null".to_owned())
+            ))
+            .await;
         RpcDispatchOutcome::Handled(json!({
             "enabled": state.enabled,
             "phase": state.phase,
@@ -685,12 +744,131 @@ impl RpcDispatcher {
         }
         let account_id =
             normalize_optional_text(params.account_id, 64).unwrap_or_else(|| "default".to_owned());
+        self.system
+            .log_line(format!(
+                "channels.logout channel={channel} account={account_id}"
+            ))
+            .await;
         RpcDispatchOutcome::Handled(json!({
             "channel": channel,
             "accountId": account_id,
             "cleared": false,
             "loggedOut": false,
             "supported": false
+        }))
+    }
+
+    async fn handle_config_get(&self, _req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let snapshot = self.config.get_snapshot().await;
+        RpcDispatchOutcome::Handled(json!({
+            "exists": true,
+            "valid": true,
+            "path": snapshot.path,
+            "raw": snapshot.raw,
+            "config": snapshot.config,
+            "hash": snapshot.hash,
+            "updatedAtMs": snapshot.updated_at_ms
+        }))
+    }
+
+    async fn handle_config_schema(&self, _req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        RpcDispatchOutcome::Handled(self.config.schema())
+    }
+
+    async fn handle_config_set(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<ConfigWriteParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let Some(raw) = params.raw else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid config.set params: raw (string) required",
+            );
+        };
+        let updated = match self.config.set(raw, params.base_hash).await {
+            Ok(value) => value,
+            Err(err) => return RpcDispatchOutcome::bad_request(err),
+        };
+        self.system.log_line("config.set applied".to_owned()).await;
+        RpcDispatchOutcome::Handled(json!({
+            "ok": true,
+            "path": updated.path,
+            "config": updated.config,
+            "hash": updated.hash
+        }))
+    }
+
+    async fn handle_config_patch(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<ConfigWriteParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let Some(raw) = params.raw else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid config.patch params: raw (string) required",
+            );
+        };
+        let updated = match self.config.patch(raw, params.base_hash).await {
+            Ok(value) => value,
+            Err(err) => return RpcDispatchOutcome::bad_request(err),
+        };
+        self.system
+            .log_line("config.patch applied".to_owned())
+            .await;
+        RpcDispatchOutcome::Handled(json!({
+            "ok": true,
+            "path": updated.path,
+            "config": updated.config,
+            "hash": updated.hash
+        }))
+    }
+
+    async fn handle_config_apply(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<ConfigWriteParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let Some(raw) = params.raw else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid config.apply params: raw (string) required",
+            );
+        };
+        let updated = match self.config.patch(raw, params.base_hash.clone()).await {
+            Ok(value) => value,
+            Err(err) => return RpcDispatchOutcome::bad_request(err),
+        };
+        self.system
+            .log_line("config.apply requested".to_owned())
+            .await;
+        RpcDispatchOutcome::Handled(json!({
+            "ok": true,
+            "path": updated.path,
+            "config": updated.config,
+            "hash": updated.hash,
+            "restart": {
+                "requested": true,
+                "sessionKey": normalize_optional_text(params.session_key, 256),
+                "note": normalize_optional_text(params.note, 512),
+                "restartDelayMs": params.restart_delay_ms.unwrap_or(0)
+            }
+        }))
+    }
+
+    async fn handle_logs_tail(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<LogsTailParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let limit = params.limit.unwrap_or(500).clamp(1, 5_000);
+        let max_bytes = params.max_bytes.unwrap_or(250_000).clamp(1, 1_000_000);
+        let tail = self.system.tail_logs(params.cursor, limit, max_bytes).await;
+        RpcDispatchOutcome::Handled(json!({
+            "file": tail.file,
+            "cursor": tail.cursor,
+            "size": tail.size,
+            "lines": tail.lines,
+            "truncated": tail.truncated,
+            "reset": tail.reset
         }))
     }
 
@@ -1403,6 +1581,9 @@ struct SystemState {
     heartbeats_enabled: bool,
     last_heartbeat: Option<Value>,
     presence: HashMap<String, Value>,
+    logs: VecDeque<String>,
+    log_base_cursor: u64,
+    log_next_cursor: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -1424,6 +1605,16 @@ struct SystemPresenceUpdate {
     tags: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+struct LogTailSnapshot {
+    file: String,
+    cursor: u64,
+    size: u64,
+    lines: Vec<String>,
+    truncated: bool,
+    reset: bool,
+}
+
 impl SystemRegistry {
     fn new() -> Self {
         Self {
@@ -1431,6 +1622,9 @@ impl SystemRegistry {
                 heartbeats_enabled: true,
                 last_heartbeat: None,
                 presence: HashMap::new(),
+                logs: VecDeque::new(),
+                log_base_cursor: 0,
+                log_next_cursor: 0,
             }),
         }
     }
@@ -1438,6 +1632,12 @@ impl SystemRegistry {
     async fn set_heartbeats_enabled(&self, enabled: bool) {
         let mut guard = self.state.lock().await;
         guard.heartbeats_enabled = enabled;
+        append_system_log(&mut guard, format!("heartbeats enabled={enabled}"));
+    }
+
+    async fn log_line(&self, line: String) {
+        let mut guard = self.state.lock().await;
+        append_system_log(&mut guard, line);
     }
 
     async fn last_heartbeat(&self) -> Option<Value> {
@@ -1483,7 +1683,13 @@ impl SystemRegistry {
             }
         }
         let mut guard = self.state.lock().await;
+        let status = heartbeat
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_owned();
         guard.last_heartbeat = Some(heartbeat);
+        append_system_log(&mut guard, format!("heartbeat status={status}"));
     }
 
     async fn replace_presence(&self, payload: Value) {
@@ -1496,6 +1702,8 @@ impl SystemRegistry {
             let key = presence_key_from_value(&entry, index);
             guard.presence.insert(key, entry);
         }
+        let count = guard.presence.len();
+        append_system_log(&mut guard, format!("presence replaced count={count}"));
     }
 
     async fn upsert_presence(&self, update: SystemPresenceUpdate) {
@@ -1548,7 +1756,78 @@ impl SystemRegistry {
         let key = build_presence_key(&entry, &format!("ts:{now}"));
         let mut guard = self.state.lock().await;
         guard.presence.insert(key, Value::Object(entry));
+        let count = guard.presence.len();
+        append_system_log(&mut guard, format!("system-event ingested count={count}"));
     }
+
+    async fn tail_logs(
+        &self,
+        cursor: Option<u64>,
+        limit: usize,
+        max_bytes: usize,
+    ) -> LogTailSnapshot {
+        let guard = self.state.lock().await;
+        let limit = limit.clamp(1, 5_000);
+        let max_bytes = max_bytes.clamp(1, 1_000_000);
+        let base = guard.log_base_cursor;
+        let next = guard.log_next_cursor;
+        let mut reset = false;
+        let mut start_cursor = cursor.unwrap_or(base);
+        if cursor.is_none() {
+            start_cursor = next.saturating_sub(limit as u64);
+        } else if start_cursor < base || start_cursor > next {
+            reset = true;
+            start_cursor = next.saturating_sub(limit as u64);
+        }
+
+        let start_index = start_cursor.saturating_sub(base) as usize;
+        let mut lines = guard
+            .logs
+            .iter()
+            .skip(start_index)
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut truncated = false;
+        if lines.len() > limit {
+            lines = lines.split_off(lines.len() - limit);
+            truncated = true;
+            reset = reset || cursor.is_some();
+        }
+        let mut bytes = lines
+            .iter()
+            .map(|line| line.len().saturating_add(1))
+            .sum::<usize>();
+        if bytes > max_bytes {
+            truncated = true;
+            while bytes > max_bytes && !lines.is_empty() {
+                let removed = lines.remove(0);
+                bytes = bytes.saturating_sub(removed.len().saturating_add(1));
+            }
+            reset = reset || cursor.is_some();
+        }
+
+        LogTailSnapshot {
+            file: SYSTEM_LOG_PATH.to_owned(),
+            cursor: next,
+            size: guard
+                .logs
+                .iter()
+                .map(|line| line.len().saturating_add(1) as u64)
+                .sum(),
+            lines,
+            truncated,
+            reset,
+        }
+    }
+}
+
+fn append_system_log(state: &mut SystemState, line: String) {
+    if state.logs.len() >= MAX_SYSTEM_LOG_LINES {
+        let _ = state.logs.pop_front();
+        state.log_base_cursor = state.log_base_cursor.saturating_add(1);
+    }
+    state.logs.push_back(line);
+    state.log_next_cursor = state.log_next_cursor.saturating_add(1);
 }
 
 fn extract_presence_entries(payload: Value) -> Vec<Value> {
@@ -1609,6 +1888,172 @@ impl TalkRegistry {
         guard.updated_at_ms = now_ms();
         guard.clone()
     }
+}
+
+struct ConfigRegistry {
+    state: Mutex<ConfigState>,
+}
+
+#[derive(Debug, Clone)]
+struct ConfigState {
+    path: String,
+    config: Value,
+    hash: String,
+    updated_at_ms: u64,
+}
+
+#[derive(Debug, Clone)]
+struct ConfigSnapshot {
+    path: String,
+    raw: String,
+    config: Value,
+    hash: String,
+    updated_at_ms: u64,
+}
+
+#[derive(Debug, Clone)]
+struct ConfigUpdateResult {
+    path: String,
+    config: Value,
+    hash: String,
+}
+
+impl ConfigRegistry {
+    fn new() -> Self {
+        let config = json!({
+            "session": { "mainKey": "main" },
+            "talk": {
+                "outputFormat": "pcm16",
+                "interruptOnSpeech": true
+            },
+            "ui": { "seamColor": "#4b5563" }
+        });
+        let hash = hash_json_value(&config);
+        Self {
+            state: Mutex::new(ConfigState {
+                path: "memory://config.json".to_owned(),
+                config,
+                hash,
+                updated_at_ms: now_ms(),
+            }),
+        }
+    }
+
+    fn schema(&self) -> Value {
+        json!({
+            "schema": {
+                "type": "object"
+            },
+            "uiHints": {},
+            "version": "rust-parity-1",
+            "generatedAt": now_ms().to_string()
+        })
+    }
+
+    async fn get_snapshot(&self) -> ConfigSnapshot {
+        let guard = self.state.lock().await;
+        ConfigSnapshot {
+            path: guard.path.clone(),
+            raw: serde_json::to_string_pretty(&guard.config).unwrap_or_else(|_| "{}".to_owned()),
+            config: guard.config.clone(),
+            hash: guard.hash.clone(),
+            updated_at_ms: guard.updated_at_ms,
+        }
+    }
+
+    async fn set(
+        &self,
+        raw: String,
+        base_hash: Option<String>,
+    ) -> Result<ConfigUpdateResult, String> {
+        let parsed = parse_config_raw(raw, "config.set")?;
+        let mut guard = self.state.lock().await;
+        require_base_hash(base_hash, &guard)?;
+        guard.config = parsed;
+        guard.hash = hash_json_value(&guard.config);
+        guard.updated_at_ms = now_ms();
+        Ok(ConfigUpdateResult {
+            path: guard.path.clone(),
+            config: guard.config.clone(),
+            hash: guard.hash.clone(),
+        })
+    }
+
+    async fn patch(
+        &self,
+        raw: String,
+        base_hash: Option<String>,
+    ) -> Result<ConfigUpdateResult, String> {
+        let patch = parse_config_patch_raw(raw)?;
+        let mut guard = self.state.lock().await;
+        require_base_hash(base_hash, &guard)?;
+        guard.config = apply_merge_patch(guard.config.clone(), patch);
+        guard.hash = hash_json_value(&guard.config);
+        guard.updated_at_ms = now_ms();
+        Ok(ConfigUpdateResult {
+            path: guard.path.clone(),
+            config: guard.config.clone(),
+            hash: guard.hash.clone(),
+        })
+    }
+}
+
+fn parse_config_raw(raw: String, method: &str) -> Result<Value, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(format!("invalid {method} params: raw (string) required"));
+    }
+    let parsed: Value =
+        serde_json::from_str(trimmed).map_err(|err| format!("invalid config: {err}"))?;
+    if !parsed.is_object() {
+        return Err("invalid config: root must be object".to_owned());
+    }
+    Ok(parsed)
+}
+
+fn parse_config_patch_raw(raw: String) -> Result<Value, String> {
+    let patch = parse_config_raw(raw, "config.patch")?;
+    if !patch.is_object() {
+        return Err("config.patch raw must be an object".to_owned());
+    }
+    Ok(patch)
+}
+
+fn require_base_hash(base_hash: Option<String>, state: &ConfigState) -> Result<(), String> {
+    let Some(base_hash) = normalize_optional_text(base_hash, 128) else {
+        return Err("config base hash required; re-run config.get and retry".to_owned());
+    };
+    if !base_hash.eq_ignore_ascii_case(&state.hash) {
+        return Err("config changed since last load; re-run config.get and retry".to_owned());
+    }
+    Ok(())
+}
+
+fn hash_json_value(value: &Value) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    let payload = serde_json::to_vec(value).unwrap_or_default();
+    hasher.update(payload);
+    format!("{:x}", hasher.finalize())
+}
+
+fn apply_merge_patch(target: Value, patch: Value) -> Value {
+    let Some(patch_obj) = patch.as_object() else {
+        return patch;
+    };
+    let mut target_obj = target.as_object().cloned().unwrap_or_default();
+    for (key, patch_value) in patch_obj {
+        if patch_value.is_null() {
+            target_obj.remove(key);
+            continue;
+        }
+        let existing = target_obj.get(key).cloned().unwrap_or(Value::Null);
+        target_obj.insert(
+            key.clone(),
+            apply_merge_patch(existing, patch_value.clone()),
+        );
+    }
+    Value::Object(target_obj)
 }
 
 struct SessionRegistry {
@@ -2882,6 +3327,28 @@ struct ChannelsLogoutParams {
     channel: Option<String>,
     #[serde(rename = "accountId", alias = "account_id")]
     account_id: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct ConfigWriteParams {
+    raw: Option<String>,
+    #[serde(rename = "baseHash", alias = "base_hash")]
+    base_hash: Option<String>,
+    #[serde(rename = "sessionKey", alias = "session_key")]
+    session_key: Option<String>,
+    note: Option<String>,
+    #[serde(rename = "restartDelayMs", alias = "restart_delay_ms")]
+    restart_delay_ms: Option<u64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct LogsTailParams {
+    cursor: Option<u64>,
+    limit: Option<usize>,
+    #[serde(rename = "maxBytes", alias = "max_bytes")]
+    max_bytes: Option<usize>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -5860,6 +6327,212 @@ mod tests {
                 );
             }
             _ => panic!("expected channels.logout handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_config_methods_enforce_base_hash_and_apply_updates() {
+        let dispatcher = RpcDispatcher::new();
+
+        let get = RpcRequestFrame {
+            id: "req-config-get".to_owned(),
+            method: "config.get".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let initial_hash = match dispatcher.handle_request(&get).await {
+            RpcDispatchOutcome::Handled(payload) => payload
+                .pointer("/hash")
+                .and_then(serde_json::Value::as_str)
+                .map(ToOwned::to_owned)
+                .expect("hash"),
+            _ => panic!("expected config.get handled"),
+        };
+
+        let set_missing_hash = RpcRequestFrame {
+            id: "req-config-set-missing-hash".to_owned(),
+            method: "config.set".to_owned(),
+            params: serde_json::json!({
+                "raw": "{\"session\":{\"mainKey\":\"main2\"}}"
+            }),
+        };
+        let out = dispatcher.handle_request(&set_missing_hash).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let set = RpcRequestFrame {
+            id: "req-config-set".to_owned(),
+            method: "config.set".to_owned(),
+            params: serde_json::json!({
+                "baseHash": initial_hash,
+                "raw": "{\"session\":{\"mainKey\":\"primary\"},\"talk\":{\"outputFormat\":\"pcm16\"}}"
+            }),
+        };
+        let set_hash = match dispatcher.handle_request(&set).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/config/session/mainKey")
+                        .and_then(serde_json::Value::as_str),
+                    Some("primary")
+                );
+                payload
+                    .pointer("/hash")
+                    .and_then(serde_json::Value::as_str)
+                    .map(ToOwned::to_owned)
+                    .expect("set hash")
+            }
+            _ => panic!("expected config.set handled"),
+        };
+
+        let patch = RpcRequestFrame {
+            id: "req-config-patch".to_owned(),
+            method: "config.patch".to_owned(),
+            params: serde_json::json!({
+                "baseHash": set_hash,
+                "raw": "{\"talk\":{\"interruptOnSpeech\":false}}"
+            }),
+        };
+        let patch_hash = match dispatcher.handle_request(&patch).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/config/talk/interruptOnSpeech")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(false)
+                );
+                payload
+                    .pointer("/hash")
+                    .and_then(serde_json::Value::as_str)
+                    .map(ToOwned::to_owned)
+                    .expect("patch hash")
+            }
+            _ => panic!("expected config.patch handled"),
+        };
+
+        let apply = RpcRequestFrame {
+            id: "req-config-apply".to_owned(),
+            method: "config.apply".to_owned(),
+            params: serde_json::json!({
+                "baseHash": patch_hash,
+                "raw": "{\"ui\":{\"seamColor\":\"#111111\"}}",
+                "sessionKey": "agent:main:main",
+                "note": "apply-now",
+                "restartDelayMs": 0
+            }),
+        };
+        match dispatcher.handle_request(&apply).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/config/ui/seamColor")
+                        .and_then(serde_json::Value::as_str),
+                    Some("#111111")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/restart/requested")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/restart/sessionKey")
+                        .and_then(serde_json::Value::as_str),
+                    Some("agent:main:main")
+                );
+            }
+            _ => panic!("expected config.apply handled"),
+        }
+
+        let schema = RpcRequestFrame {
+            id: "req-config-schema".to_owned(),
+            method: "config.schema".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&schema).await;
+        assert!(matches!(out, RpcDispatchOutcome::Handled(_)));
+    }
+
+    #[tokio::test]
+    async fn dispatcher_logs_tail_returns_bounded_lines_and_cursor() {
+        let dispatcher = RpcDispatcher::new();
+        let first = RpcRequestFrame {
+            id: "req-system-event-log-1".to_owned(),
+            method: "system-event".to_owned(),
+            params: serde_json::json!({
+                "text": "first event"
+            }),
+        };
+        let second = RpcRequestFrame {
+            id: "req-system-event-log-2".to_owned(),
+            method: "system-event".to_owned(),
+            params: serde_json::json!({
+                "text": "second event"
+            }),
+        };
+        let _ = dispatcher.handle_request(&first).await;
+        let _ = dispatcher.handle_request(&second).await;
+
+        let tail = RpcRequestFrame {
+            id: "req-logs-tail".to_owned(),
+            method: "logs.tail".to_owned(),
+            params: serde_json::json!({
+                "limit": 2,
+                "maxBytes": 2048
+            }),
+        };
+        let cursor = match dispatcher.handle_request(&tail).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload.pointer("/file").and_then(serde_json::Value::as_str),
+                    Some(super::SYSTEM_LOG_PATH)
+                );
+                let lines = payload
+                    .pointer("/lines")
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                assert!(!lines.is_empty());
+                payload
+                    .pointer("/cursor")
+                    .and_then(serde_json::Value::as_u64)
+                    .expect("cursor")
+            }
+            _ => panic!("expected logs.tail handled"),
+        };
+
+        let next_event = RpcRequestFrame {
+            id: "req-talk-mode-log".to_owned(),
+            method: "talk.mode".to_owned(),
+            params: serde_json::json!({
+                "enabled": true,
+                "phase": "listen"
+            }),
+        };
+        let _ = dispatcher.handle_request(&next_event).await;
+
+        let tail_from_cursor = RpcRequestFrame {
+            id: "req-logs-tail-cursor".to_owned(),
+            method: "logs.tail".to_owned(),
+            params: serde_json::json!({
+                "cursor": cursor,
+                "limit": 5
+            }),
+        };
+        match dispatcher.handle_request(&tail_from_cursor).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                let lines = payload
+                    .pointer("/lines")
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                assert!(!lines.is_empty());
+                assert!(lines.iter().any(|line| {
+                    line.as_str()
+                        .map(|text| text.contains("talk.mode enabled=true"))
+                        .unwrap_or(false)
+                }));
+            }
+            _ => panic!("expected logs.tail cursor handled"),
         }
     }
 }
