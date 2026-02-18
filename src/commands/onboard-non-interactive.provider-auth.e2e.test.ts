@@ -317,6 +317,37 @@ describe("onboard (non-interactive): provider auth", () => {
 
   it.each([
     {
+      name: "stores Kilo Gateway API key and sets default model",
+      prefix: "openclaw-onboard-kilo-",
+      options: {
+        authChoice: "kilocode-api-key",
+      },
+    },
+    {
+      name: "infers Kilo Gateway auth choice from API key flags",
+      prefix: "openclaw-onboard-kilo-infer-",
+      options: {},
+    },
+  ])("$name", async ({ prefix, options }) => {
+    await withOnboardEnv(prefix, async (env) => {
+      const cfg = await runOnboardingAndReadConfig(env, {
+        kilocodeApiKey: "kilo-test-key",
+        ...options,
+      });
+
+      expect(cfg.auth?.profiles?.["kilocode:default"]?.provider).toBe("kilocode");
+      expect(cfg.auth?.profiles?.["kilocode:default"]?.mode).toBe("api_key");
+      expect(cfg.agents?.defaults?.model?.primary).toBe("kilocode/anthropic/claude-opus-4.6");
+      await expectApiKeyProfile({
+        profileId: "kilocode:default",
+        provider: "kilocode",
+        key: "kilo-test-key",
+      });
+    });
+  }, 60_000);
+
+  it.each([
+    {
       name: "stores Cloudflare AI Gateway API key and metadata",
       prefix: "openclaw-onboard-cf-gateway-",
       options: {

@@ -49,6 +49,7 @@ describe("applyAuthChoice", () => {
     "PI_CODING_AGENT_DIR",
     "ANTHROPIC_API_KEY",
     "OPENROUTER_API_KEY",
+    "KILOCODE_API_KEY",
     "HF_TOKEN",
     "HUGGINGFACE_HUB_TOKEN",
     "LITELLM_API_KEY",
@@ -480,6 +481,103 @@ describe("applyAuthChoice", () => {
     expect((await readAuthProfile("openrouter:default"))?.key).toBe("sk-openrouter-test");
 
     delete process.env.OPENROUTER_API_KEY;
+  });
+
+  it("uses existing KILOCODE_API_KEY when selecting kilocode-api-key", async () => {
+    await setupTempState();
+    process.env.KILOCODE_API_KEY = "kilo-test-key";
+
+    const text = vi.fn();
+    const confirm = vi.fn(async () => true);
+    const { prompter, runtime } = createApiKeyPromptHarness({ text, confirm });
+
+    const result = await applyAuthChoice({
+      authChoice: "kilocode-api-key",
+      config: {},
+      prompter,
+      runtime,
+      setDefaultModel: true,
+    });
+
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("KILOCODE_API_KEY"),
+      }),
+    );
+    expect(text).not.toHaveBeenCalled();
+    expect(result.config.auth?.profiles?.["kilocode:default"]).toMatchObject({
+      provider: "kilocode",
+      mode: "api_key",
+    });
+    expect(result.config.agents?.defaults?.model?.primary).toBe("kilocode/anthropic/claude-opus-4.6");
+
+    expect((await readAuthProfile("kilocode:default"))?.key).toBe("kilo-test-key");
+
+    delete process.env.KILOCODE_API_KEY;
+  });
+
+  it("ignores legacy Kilo oauth profiles when selecting kilocode-api-key", async () => {
+    await setupTempState();
+    process.env.KILOCODE_API_KEY = "kilo-test-key";
+
+    const authProfilePath = authProfilePathForAgent(requireOpenClawAgentDir());
+    await fs.writeFile(
+      authProfilePath,
+      JSON.stringify(
+        {
+          version: 1,
+          profiles: {
+            "kilocode:legacy": {
+              type: "oauth",
+              provider: "kilocode",
+              access: "access-token",
+              refresh: "refresh-token",
+              expires: Date.now() + 60_000,
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const text = vi.fn();
+    const confirm = vi.fn(async () => true);
+    const { prompter, runtime } = createApiKeyPromptHarness({ text, confirm });
+
+    const result = await applyAuthChoice({
+      authChoice: "kilocode-api-key",
+      config: {
+        auth: {
+          profiles: {
+            "kilocode:legacy": { provider: "kilocode", mode: "oauth" },
+          },
+          order: { kilocode: ["kilocode:legacy"] },
+        },
+      },
+      prompter,
+      runtime,
+      setDefaultModel: true,
+    });
+
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("KILOCODE_API_KEY"),
+      }),
+    );
+    expect(text).not.toHaveBeenCalled();
+    expect(result.config.auth?.profiles?.["kilocode:default"]).toMatchObject({
+      provider: "kilocode",
+      mode: "api_key",
+    });
+
+    expect(await readAuthProfile("kilocode:default")).toMatchObject({
+      type: "api_key",
+      key: "kilo-test-key",
+    });
+
+    delete process.env.KILOCODE_API_KEY;
   });
 
   it("ignores legacy LiteLLM oauth profiles when selecting litellm-api-key", async () => {

@@ -241,17 +241,13 @@ export async function applyAuthChoiceApiProviders(
     const existingProfileId = profileOrder.find((profileId) => Boolean(store.profiles[profileId]));
     const existingCred = existingProfileId ? store.profiles[existingProfileId] : undefined;
     let profileId = "kilocode:default";
-    let mode: "api_key" | "oauth" | "token" = "api_key";
+    const mode: "api_key" = "api_key";
     let hasCredential = false;
 
-    if (existingProfileId && existingCred?.type) {
+    // Kilo Gateway currently supports API-key auth only.
+    // Ignore legacy oauth/token profiles so we still prompt for a valid key.
+    if (existingProfileId && existingCred?.type === "api_key") {
       profileId = existingProfileId;
-      mode =
-        existingCred.type === "oauth"
-          ? "oauth"
-          : existingCred.type === "token"
-            ? "token"
-            : "api_key";
       hasCredential = true;
     }
 
