@@ -67,4 +67,26 @@ describe("CronService.getJob", () => {
       cron.stop();
     }
   });
+
+  it("rejects invalid webhook delivery target on create", async () => {
+    const { storePath } = await makeStorePath();
+    const cron = createCronService(storePath);
+    await cron.start();
+
+    try {
+      await expect(
+        cron.add({
+          name: "webhook-job-invalid",
+          enabled: true,
+          schedule: { kind: "every", everyMs: 60_000 },
+          sessionTarget: "main",
+          wakeMode: "next-heartbeat",
+          payload: { kind: "systemEvent", text: "ping" },
+          delivery: { mode: "webhook", to: "not-a-url" },
+        }),
+      ).rejects.toThrow("cron webhook delivery requires delivery.to to be a valid http(s) URL");
+    } finally {
+      cron.stop();
+    }
+  });
 });
