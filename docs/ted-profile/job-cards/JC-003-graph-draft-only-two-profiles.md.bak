@@ -88,7 +88,7 @@ Ted Engine can (a) read limited email/calendar context and (b) create **drafts o
 - Proof Script: scripts/ted-profile/proof_jc003.sh
 - Result: PASS (after ensuring sidecar was running)
 
-### What was proven (2)
+### What was proven
 
 - Sidecar health: /status and /doctor respond and are healthy
 - Graph status endpoints exist per profile:
@@ -111,7 +111,7 @@ Ted Engine can (a) read limited email/calendar context and (b) create **drafts o
 - Proof Script: scripts/ted-profile/proof_jc003.sh
 - Result: PASS
 
-### What was proven (3)
+### What was proven
 
 - Sidecar exposes POST /graph/:profile_id/mail/draft/create
 - Validates payload (subject + at least one recipient)
@@ -121,7 +121,7 @@ Ted Engine can (a) read limited email/calendar context and (b) create **drafts o
 - Status reflects CONNECTED/DISCONNECTED without leaking tokens
 - Sidecar-only token scan gate passes (no plaintext secret material in sidecars)
 
-### Notes (2)
+### Notes
 
 - Proof intentionally verifies fail-closed behavior without requiring live tenant auth.
 
@@ -157,7 +157,7 @@ This is not a defect in sidecar auth flow. It is a tenant onboarding prerequisit
 - Proof Script: scripts/ted-profile/proof_jc003.sh
 - Result: PASS
 
-### What was proven (4)
+### What was proven
 
 - Sidecar exposes GET /graph/:profile_id/calendar/list?days=7
 - When DISCONNECTED, endpoint fails closed with:
@@ -166,7 +166,7 @@ This is not a defect in sidecar auth flow. It is a tenant onboarding prerequisit
   - id, subject, start, end, location
 - No calendar writes/invites/sends were introduced.
 
-### Notes (3)
+### Notes
 
 - Proof currently validates the fail-closed behavior without requiring tenant auth.
 
@@ -178,7 +178,7 @@ This is not a defect in sidecar auth flow. It is a tenant onboarding prerequisit
 - Proof Script: scripts/ted-profile/proof_jc003.sh
 - Result: PASS
 
-### What was proven (5)
+### What was proven
 
 - Sidecar exposes POST /graph/diagnostics/classify
 - Classifier returns stable categories and next-actions for common blockers:
@@ -191,6 +191,6 @@ This is not a defect in sidecar auth flow. It is a tenant onboarding prerequisit
 - No secrets are processed or logged; this is pure text classification.
 - Proof harness validates classifier behavior end-to-end.
 
-### Notes (4)
+### Notes
 
 This endpoint converts real-world tenant/auth failures into admin-ready guidance while keeping the system fail-closed.

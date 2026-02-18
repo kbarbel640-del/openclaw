@@ -72,6 +72,6 @@ Execution (apply/move) is a later increment and will require:
 - Audit entries recorded for propose/approve actions
 - No file moves and no Graph calls occur in this increment.
 
-### Notes (2)
+### Notes
 
 - docs/ted-profile/planning/ remains local scratch and intentionally not committed.

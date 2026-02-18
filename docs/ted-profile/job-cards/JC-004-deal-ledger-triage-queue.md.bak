@@ -67,7 +67,7 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
 - Proof Script: scripts/ted-profile/proof_jc004.sh
 - Result: PASS
 
-### What was proven (2)
+### What was proven
 
 - POST /triage/ingest accepts:
   - item_id (slug-safe), source_type, source_ref, summary
@@ -80,7 +80,7 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
   - audit record written (TRIAGE_INGEST)
 - Proof harness confirms endpoint returns 201 and JC-004 flow still passes end-to-end.
 
-### Notes (2)
+### Notes
 
 - docs/ted-profile/planning/ is local scratch and intentionally not committed in this increment.
 
@@ -92,7 +92,7 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
 - Proof Script: scripts/ted-profile/proof_jc004.sh
 - Result: PASS
 
-### What was proven (3)
+### What was proven
 
 - Append-only patterns event ledger created (patterns.jsonl) with:
   - pattern_proposed and pattern_approved events
@@ -102,7 +102,7 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
   - POST /triage/patterns/:pattern_id/approve requires approved_by and proposed existence
 - No auto-linking behavior was introduced in this increment.
 
-### Notes (3)
+### Notes
 
 - docs/ted-profile/planning/ remains local scratch and is intentionally not committed.
 
@@ -114,7 +114,7 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
 - Proof Script: scripts/ted-profile/proof_jc004.sh
 - Result: PASS
 
-### What was proven (4)
+### What was proven
 
 - POST /triage/ingest now evaluates ACTIVE patterns and applies suggestions (no auto-link):
   - For SENDER_DOMAIN_TO_DEAL, extracts domain from source_ref (e.g., from:someone@example.com)
@@ -125,6 +125,6 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
 - /triage/ingest response may include suggestion fields (useful for operators and proofs)
 - Items remain OPEN until explicitly linked via /triage/:item_id/link (governance preserved)
 
-### Notes (4)
+### Notes
 
 - docs/ted-profile/planning/ remains local scratch and intentionally not committed.
