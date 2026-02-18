@@ -53,6 +53,7 @@ const PAIRING_METHODS = new Set([
   "node.rename",
 ]);
 const ADMIN_METHOD_PREFIXES = ["exec.approvals."];
+const ADMIN_METHODS = new Set(["ws.clients"]);
 const READ_METHODS = new Set([
   "health",
   "logs.tail",
@@ -142,6 +143,9 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
   }
   if (WRITE_METHODS.has(method)) {
     return null;
+  }
+  if (ADMIN_METHODS.has(method)) {
+    return errorShape(ErrorCodes.INVALID_REQUEST, "missing scope: operator.admin");
   }
   if (ADMIN_METHOD_PREFIXES.some((prefix) => method.startsWith(prefix))) {
     return errorShape(ErrorCodes.INVALID_REQUEST, "missing scope: operator.admin");
