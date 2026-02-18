@@ -50,8 +50,11 @@ export function normalizeWindowsArgv(argv: string[]): string[] {
   };
 
   const next = [...argv];
+  // Remove known Node.js/Bun executables from the start of the argument list.
+  // We keep the first element (argv[0]) as it's the nominal executable.
   for (let i = 1; i <= 3 && i < next.length; ) {
-    if (isExecPath(next[i])) {
+    const arg = next[i];
+    if (isExecPath(arg) || arg === "--disable-warning=ExperimentalWarning" || arg === "--no-warnings") {
       next.splice(i, 1);
       continue;
     }
@@ -65,6 +68,11 @@ export function normalizeWindowsArgv(argv: string[]): string[] {
   for (let i = 2; i < cleaned.length; ) {
     const arg = cleaned[i];
     if (!arg || arg.startsWith("-")) {
+      // If it's a known node flag that somehow ended up here, skip it.
+      if (arg === "--disable-warning=ExperimentalWarning" || arg === "--no-warnings") {
+        cleaned.splice(i, 1);
+        continue;
+      }
       i += 1;
       continue;
     }
