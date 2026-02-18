@@ -367,19 +367,27 @@ function resolveConfiguredModels(
 
 export function buildModelOptions(
   configForm: Record<string, unknown> | null,
-  current?: string | null,
+  selected: string,
 ) {
   const options = resolveConfiguredModels(configForm);
-  const hasCurrent = current ? options.some((option) => option.value === current) : false;
-  if (current && !hasCurrent) {
-    options.unshift({ value: current, label: `Current (${current})` });
+  const selectedModel = selected.trim();
+  const hasCurrent = selectedModel
+    ? options.some((option) => option.value === selectedModel)
+    : false;
+  if (selectedModel && !hasCurrent) {
+    options.unshift({ value: selectedModel, label: `Current (${selectedModel})` });
   }
   if (options.length === 0) {
     return html`
-      <option value="" disabled>No configured models</option>
+      <option value="" disabled ?selected=${selectedModel === ""}>No configured models</option>
     `;
   }
-  return options.map((option) => html`<option value=${option.value}>${option.label}</option>`);
+  return options.map(
+    (option) =>
+      html`<option value=${option.value} ?selected=${option.value === selectedModel}
+        >${option.label}</option
+      >`,
+  );
 }
 
 type CompiledPattern =

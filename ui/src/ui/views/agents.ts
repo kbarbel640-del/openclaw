@@ -383,6 +383,7 @@ function renderAgentOverview(params: {
     resolveModelPrimary(config.defaults?.model) ||
     (defaultModel !== "-" ? normalizeModelValue(defaultModel) : null);
   const effectivePrimary = modelPrimary ?? defaultPrimary ?? null;
+  const selectedPrimaryValue = effectivePrimary ?? "";
   const modelFallbacks = resolveModelFallbacks(config.entry?.model);
   const fallbackText = modelFallbacks ? modelFallbacks.join(", ") : "";
   const identityName =
@@ -440,7 +441,6 @@ function renderAgentOverview(params: {
           <label class="field" style="min-width: 260px; flex: 1;">
             <span>Primary model${isDefault ? " (default)" : ""}</span>
             <select
-              .value=${effectivePrimary ?? ""}
               ?disabled=${!configForm || configLoading || configSaving}
               @change=${(e: Event) =>
                 onModelChange(agent.id, (e.target as HTMLSelectElement).value || null)}
@@ -449,12 +449,14 @@ function renderAgentOverview(params: {
                 isDefault
                   ? nothing
                   : html`
-                      <option value="">
-                        ${defaultPrimary ? `Inherit default (${defaultPrimary})` : "Inherit default"}
+                      <option value="" ?selected=${selectedPrimaryValue === ""}>
+                        ${
+                          defaultPrimary ? `Inherit default (${defaultPrimary})` : "Inherit default"
+                        }
                       </option>
                     `
               }
-              ${buildModelOptions(configForm, effectivePrimary ?? undefined)}
+              ${buildModelOptions(configForm, selectedPrimaryValue)}
             </select>
           </label>
           <label class="field" style="min-width: 260px; flex: 1;">
