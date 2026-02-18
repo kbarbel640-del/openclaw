@@ -1,15 +1,22 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { resolveSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
 import type { ExecToolDefaults } from "../../agents/bash-tools.js";
+import type { OpenClawConfig } from "../../config/config.js";
+import type { MsgContext, TemplateContext } from "../templating.js";
+import type { GetReplyOptions, ReplyPayload } from "../types.js";
+import type { buildCommandContext } from "./commands.js";
+import type { InlineDirectives } from "./directive-handling.js";
+import type { createModelSelectionState } from "./model-selection.js";
+import type { TypingController } from "./typing.js";
+import { resolveSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
 import {
   abortEmbeddedPiRun,
   isEmbeddedPiRunActive,
   isEmbeddedPiRunStreaming,
   resolveEmbeddedSessionLane,
 } from "../../agents/pi-embedded.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import { resolveChannelCapabilities } from "../../config/channel-capabilities.js";
 import {
   resolveGroupSessionKey,
   resolveSessionFilePath,
@@ -17,13 +24,14 @@ import {
   type SessionEntry,
   updateSessionStore,
 } from "../../config/sessions.js";
+import { sendCompactionTriageButtons } from "../../discord/monitor/compaction-triage.js";
+import { extractDiscordChannelId } from "../../discord/monitor/exec-approvals.js";
 import { logVerbose } from "../../globals.js";
 import { clearCommandLane, getQueueSize } from "../../process/command-queue.js";
 import { normalizeMainKey } from "../../routing/session-key.js";
 import { isReasoningTagProvider } from "../../utils/provider-utils.js";
 import { hasControlCommand } from "../command-detection.js";
 import { buildInboundMediaNote } from "../media-note.js";
-import type { MsgContext, TemplateContext } from "../templating.js";
 import {
   type ElevatedLevel,
   formatXHighModelHint,
@@ -34,10 +42,8 @@ import {
   type VerboseLevel,
 } from "../thinking.js";
 import { SILENT_REPLY_TOKEN } from "../tokens.js";
-import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { runReplyAgent } from "./agent-runner.js";
 import { applySessionHints } from "./body.js";
-import type { buildCommandContext } from "./commands.js";
 import { isCompactionAck } from "./compaction-ack.js";
 import {
   buildAgentFreezeContext,
@@ -45,16 +51,13 @@ import {
   buildUserVerificationText,
   parseTriageResponse,
 } from "./compaction-held-messages.js";
-import type { InlineDirectives } from "./directive-handling.js";
 import { buildGroupChatContext, buildGroupIntro } from "./groups.js";
 import { buildInboundMetaSystemPrompt, buildInboundUserContextPrefix } from "./inbound-meta.js";
-import type { createModelSelectionState } from "./model-selection.js";
 import { resolveQueueSettings } from "./queue.js";
 import { routeReply } from "./route-reply.js";
 import { BARE_SESSION_RESET_PROMPT } from "./session-reset-prompt.js";
 import { ensureSkillSnapshot, prependSystemEvents } from "./session-updates.js";
 import { resolveTypingMode } from "./typing-mode.js";
-import type { TypingController } from "./typing.js";
 import { appendUntrustedContext } from "./untrusted-context.js";
 
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
@@ -325,12 +328,35 @@ export async function runPreparedReply(
         const triageText = buildTriagePrompt(heldMessages);
         const triagePayload: ReplyPayload = { text: triageText };
         // Phase 3 (Issue #90): Discord inline buttons for triage
-        // When surface === "discord" && capabilities includes "inlineButtons":
-        //   send a follow-up Discord component message with "✅ Do All" / "⏭️ Skip All" buttons
-        //   via sendDiscordComponentMessage(). Buttons use buildCompactionTriageCustomId()
-        //   from src/discord/monitor/compaction-triage.ts, and on click they inject
-        //   COMPACTION_TRIAGE_EVENT_TEXT[action] ("do all" / "skip all") as a system event.
-        //   See: src/discord/monitor/compaction-triage.ts for full wiring instructions.
+        // When the session is on Discord and the channel has `inlineButtons` capability,
+        // send a follow-up component message with "✅ Do All" / "⏭️ Skip All" buttons.
+        // On click, CompactionTriageHandlerButton (registered in provider.ts) injects
+        // COMPACTION_TRIAGE_EVENT_TEXT[action] ("do all" / "skip all") as a system event.
+        {
+          const surface = sessionCtx.Provider?.trim().toLowerCase();
+          const isDiscord = surface === "discord";
+          const discordCaps = isDiscord
+            ? (resolveChannelCapabilities({
+                cfg,
+                channel: "discord",
+                accountId: sessionCtx.AccountId,
+              }) ?? [])
+            : [];
+          const hasInlineButtons = discordCaps
+            .map((c) => c.toLowerCase())
+            .includes("inlinebuttons");
+
+          if (isDiscord && hasInlineButtons) {
+            const channelId = extractDiscordChannelId(sessionKey);
+            if (channelId) {
+              void sendCompactionTriageButtons({
+                channelId,
+                cfg,
+                accountId: sessionCtx.AccountId,
+              });
+            }
+          }
+        }
 
         // Route to DM if configured
         const compactionCfg = cfg?.agents?.defaults?.compaction;

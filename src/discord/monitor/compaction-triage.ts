@@ -12,28 +12,22 @@
  *  - `buildCompactionTriageCustomId()` — encode action into a custom ID
  *  - `parseCompactionTriageCustomId()` — decode custom ID back to action
  *  - `COMPACTION_TRIAGE_ACTIONS` — the two supported actions
+ *  - `CompactionTriageButton` — Carbon Button subclass for building UI rows
+ *  - `sendCompactionTriageButtons()` — POST a Do All / Skip All button row to Discord
  *
- * # Wiring (TODO for integration):
+ * # Wiring:
  *
- * ## Step 1 — Register handler in provider.ts
- * ```ts
- * import { CompactionTriageButton } from "./compaction-triage.js";
- * // In createComponents():
- * components.push(new CompactionTriageButton(ctx));
- * ```
+ * ## Step 1 — Register handler in agent-components.ts + provider.ts
+ * See `createCompactionTriageHandlerButton()` in agent-components.ts.
+ * In provider.ts createComponents(): `components.push(createCompactionTriageHandlerButton(ctx))`
  *
  * ## Step 2 — Send triage buttons from get-reply-run.ts
  * When building the triage payload for a Discord channel with inlineButtons capability:
  * ```ts
- * // Detect Discord + inlineButtons capability
- * const isDiscordWithButtons = surface === "discord" &&
- *   resolveChannelCapabilities(cfg, "discord").has("inlinebuttons");
- *
- * if (isDiscordWithButtons && sessionKey) {
+ * if (isDiscord && hasInlineButtons) {
  *   const channelId = extractDiscordChannelId(sessionKey);
  *   if (channelId) {
- *     // Send a follow-up component message with Do All / Skip All buttons
- *     // (uses sendDiscordComponentMessage — see send.components.ts)
+ *     void sendCompactionTriageButtons({ channelId, cfg, accountId });
  *   }
  * }
  * ```
@@ -46,6 +40,17 @@
  *       - inlineButtons
  * ```
  */
+
+import {
+  Button,
+  Row,
+  serializePayload,
+  type MessagePayloadObject,
+  type TopLevelComponents,
+} from "@buape/carbon";
+import { ButtonStyle, Routes } from "discord-api-types/v10";
+import type { OpenClawConfig } from "../../config/config.js";
+import { createDiscordClient } from "../send.shared.js";
 
 export const COMPACTION_TRIAGE_KEY = "compactiontriage";
 
@@ -84,7 +89,7 @@ export function parseCompactionTriageCustomId(
   if (!match) {
     return null;
   }
-  const action = match[1] as string;
+  const action = match[1];
   if (action !== "do_all" && action !== "skip_all") {
     return null;
   }
@@ -96,4 +101,50 @@ export function parseCompactionTriageCustomId(
  */
 export function buildCompactionTriageButtonLabel(action: CompactionTriageAction): string {
   return action === "do_all" ? "✅ Do All" : "⏭️ Skip All";
+}
+
+/**
+ * Carbon Button subclass used to build the UI row for `sendCompactionTriageButtons`.
+ * Interaction handling is done by `CompactionTriageHandlerButton` in agent-components.ts.
+ */
+export class CompactionTriageButton extends Button {
+  style: ButtonStyle;
+  label: string;
+  customId: string;
+  defer = false;
+
+  constructor(action: CompactionTriageAction) {
+    super();
+    this.label = buildCompactionTriageButtonLabel(action);
+    this.customId = buildCompactionTriageCustomId(action);
+    this.style = action === "skip_all" ? ButtonStyle.Secondary : ButtonStyle.Success;
+  }
+
+  async run(): Promise<void> {
+    // Interaction handling is delegated to CompactionTriageHandlerButton (registered in provider.ts).
+    // This class is only used to build serialized button payloads.
+  }
+}
+
+/**
+ * POST a two-button row (✅ Do All, ⏭️ Skip All) to a Discord channel.
+ * Called from get-reply-run.ts when entering stage-2 triage on a Discord surface
+ * with the `inlineButtons` capability enabled.
+ */
+export async function sendCompactionTriageButtons(params: {
+  channelId: string;
+  cfg: OpenClawConfig;
+  accountId?: string;
+}): Promise<void> {
+  const doAllBtn = new CompactionTriageButton("do_all");
+  const skipAllBtn = new CompactionTriageButton("skip_all");
+  const row = new Row([doAllBtn, skipAllBtn]);
+  const components: TopLevelComponents[] = [row];
+  const messagePayload: MessagePayloadObject = { components };
+  const body = serializePayload(messagePayload);
+
+  const { rest } = createDiscordClient({ accountId: params.accountId }, params.cfg);
+  await rest.post(Routes.channelMessages(params.channelId), {
+    body,
+  });
 }

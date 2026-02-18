@@ -1,3 +1,4 @@
+import type { APIStringSelectComponent } from "discord-api-types/v10";
 import {
   Button,
   ChannelSelectMenu,
@@ -15,8 +16,9 @@ import {
   type StringSelectMenuInteraction,
   type UserSelectMenuInteraction,
 } from "@buape/carbon";
-import type { APIStringSelectComponent } from "discord-api-types/v10";
 import { ButtonStyle, ChannelType } from "discord-api-types/v10";
+import type { OpenClawConfig } from "../../config/config.js";
+import type { DiscordAccountConfig } from "../../config/types.discord.js";
 import { resolveHumanDelayConfig } from "../../agents/identity.js";
 import { resolveChunkMode, resolveTextChunkLimit } from "../../auto-reply/chunk.js";
 import { formatInboundEnvelope, resolveEnvelopeFormatOptions } from "../../auto-reply/envelope.js";
@@ -25,10 +27,8 @@ import { dispatchReplyWithBufferedBlockDispatcher } from "../../auto-reply/reply
 import { createReplyReferencePlanner } from "../../auto-reply/reply/reply-reference.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { recordInboundSession } from "../../channels/session.js";
-import type { OpenClawConfig } from "../../config/config.js";
 import { resolveMarkdownTableMode } from "../../config/markdown-tables.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../../config/sessions.js";
-import type { DiscordAccountConfig } from "../../config/types.discord.js";
 import { logVerbose } from "../../globals.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import { logDebug, logError } from "../../logger.js";
@@ -60,6 +60,11 @@ import {
   resolveDiscordMemberAccessState,
   resolveDiscordOwnerAllowFrom,
 } from "./allow-list.js";
+import {
+  COMPACTION_TRIAGE_EVENT_TEXT,
+  COMPACTION_TRIAGE_KEY,
+  parseCompactionTriageCustomId,
+} from "./compaction-triage.js";
 import { formatDiscordUserTag } from "./format.js";
 import { buildDirectLabel, buildGuildLabel } from "./reply-context.js";
 import { deliverDiscordReply } from "./reply-delivery.js";
@@ -1265,6 +1270,109 @@ export class AgentComponentButton extends Button {
 
     await ackComponentInteraction({ interaction, replyOpts, label: "agent button" });
   }
+}
+
+/**
+ * Carbon Button handler for compaction triage inline buttons (Issue #90, Phase 3).
+ *
+ * Registered in provider.ts alongside AgentComponentButton. Matches all interactions
+ * with customId prefix "compactiontriage:" and injects "do all" or "skip all" as a
+ * system event into the originating session.
+ */
+export class CompactionTriageHandlerButton extends Button {
+  label = COMPACTION_TRIAGE_KEY;
+  customId = `${COMPACTION_TRIAGE_KEY}:seed=1`;
+  style = ButtonStyle.Success;
+  private ctx: AgentComponentContext;
+
+  constructor(ctx: AgentComponentContext) {
+    super();
+    this.ctx = ctx;
+  }
+
+  async run(interaction: ButtonInteraction, _data: ComponentData): Promise<void> {
+    const customId = resolveInteractionCustomId(interaction);
+    if (!customId) {
+      logError("compaction triage button: missing customId on interaction");
+      return;
+    }
+
+    const parsed = parseCompactionTriageCustomId(customId);
+    if (!parsed) {
+      logError(`compaction triage button: unrecognised customId: ${customId}`);
+      return;
+    }
+
+    const interactionCtx = await resolveInteractionContextWithDmAuth({
+      ctx: this.ctx,
+      interaction,
+      label: "compaction triage button",
+      componentLabel: "button",
+    });
+    if (!interactionCtx) {
+      return;
+    }
+    const {
+      channelId,
+      user,
+      username,
+      userId,
+      replyOpts,
+      rawGuildId,
+      isDirectMessage,
+      memberRoleIds,
+    } = interactionCtx;
+
+    const allowed = await ensureAgentComponentInteractionAllowed({
+      ctx: this.ctx,
+      interaction,
+      channelId,
+      rawGuildId,
+      memberRoleIds,
+      user,
+      replyOpts,
+      componentLabel: "button",
+      unauthorizedReply: "You are not authorized to use this button.",
+    });
+    if (!allowed) {
+      return;
+    }
+    const { parentId } = allowed;
+
+    const route = resolveAgentComponentRoute({
+      ctx: this.ctx,
+      rawGuildId,
+      memberRoleIds,
+      isDirectMessage,
+      userId,
+      channelId,
+      parentId,
+    });
+
+    const eventText = COMPACTION_TRIAGE_EVENT_TEXT[parsed.action];
+
+    logDebug(
+      `compaction triage button: enqueuing "${eventText}" for session ${route.sessionKey} (channel ${channelId}, user ${username} / ${userId})`,
+    );
+
+    enqueueSystemEvent(eventText, {
+      sessionKey: route.sessionKey,
+      contextKey: `discord:compaction-triage:${channelId}:${parsed.action}:${userId}`,
+    });
+
+    try {
+      await interaction.reply({
+        content: `Got it — **${eventText}**`,
+        ephemeral: true,
+      });
+    } catch (err) {
+      logError(`compaction triage button: failed to acknowledge interaction: ${String(err)}`);
+    }
+  }
+}
+
+export function createCompactionTriageHandlerButton(ctx: AgentComponentContext): Button {
+  return new CompactionTriageHandlerButton(ctx);
 }
 
 export class AgentSelectMenu extends StringSelectMenu {
