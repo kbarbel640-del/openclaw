@@ -66,6 +66,30 @@ impl MethodRegistry {
                     min_role: "client",
                 },
                 MethodSpec {
+                    name: "last-heartbeat",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "set-heartbeats",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "system-presence",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
+                    name: "system-event",
+                    family: MethodFamily::Gateway,
+                    requires_auth: true,
+                    min_role: "client",
+                },
+                MethodSpec {
                     name: "agent.exec",
                     family: MethodFamily::Agent,
                     requires_auth: true,
@@ -209,6 +233,7 @@ impl MethodRegistry {
 
 pub struct RpcDispatcher {
     sessions: SessionRegistry,
+    system: SystemRegistry,
     started_at_ms: u64,
 }
 
@@ -222,6 +247,10 @@ const SUPPORTED_RPC_METHODS: &[&str] = &[
     "status",
     "usage.status",
     "usage.cost",
+    "last-heartbeat",
+    "set-heartbeats",
+    "system-presence",
+    "system-event",
     "sessions.list",
     "sessions.preview",
     "sessions.patch",
@@ -241,6 +270,7 @@ impl RpcDispatcher {
     pub fn new() -> Self {
         Self {
             sessions: SessionRegistry::new(),
+            system: SystemRegistry::new(),
             started_at_ms: now_ms(),
         }
     }
@@ -251,6 +281,10 @@ impl RpcDispatcher {
             "status" => self.handle_status().await,
             "usage.status" => self.handle_usage_status().await,
             "usage.cost" => self.handle_usage_cost(req).await,
+            "last-heartbeat" | "heartbeat" => self.handle_last_heartbeat().await,
+            "set-heartbeats" => self.handle_set_heartbeats(req).await,
+            "system-presence" | "presence" => self.handle_system_presence().await,
+            "system-event" => self.handle_system_event(req).await,
             "sessions.list" => self.handle_sessions_list(req).await,
             "sessions.preview" => self.handle_sessions_preview(req).await,
             "sessions.patch" => self.handle_sessions_patch(req).await,
@@ -270,6 +304,22 @@ impl RpcDispatcher {
 
     pub async fn record_decision(&self, request: &ActionRequest, decision: &Decision) {
         self.sessions.record_decision(request, decision).await;
+    }
+
+    pub async fn ingest_event_frame(&self, frame: &Value) {
+        let Some(event) = frame.get("event").and_then(Value::as_str) else {
+            return;
+        };
+        let payload = frame.get("payload").cloned().unwrap_or(Value::Null);
+        match normalize(event).as_str() {
+            "heartbeat" => {
+                self.system.update_last_heartbeat(payload).await;
+            }
+            "presence" => {
+                self.system.replace_presence(payload).await;
+            }
+            _ => {}
+        }
     }
 
     async fn handle_health(&self) -> RpcDispatchOutcome {
@@ -344,6 +394,63 @@ impl RpcDispatcher {
                 "block": totals.blocked_count
             }
         }))
+    }
+
+    async fn handle_last_heartbeat(&self) -> RpcDispatchOutcome {
+        let heartbeat = self.system.last_heartbeat().await;
+        RpcDispatchOutcome::Handled(json!(heartbeat))
+    }
+
+    async fn handle_set_heartbeats(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<SetHeartbeatsParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let Some(enabled) = params.enabled else {
+            return RpcDispatchOutcome::bad_request(
+                "invalid set-heartbeats params: enabled (boolean) required",
+            );
+        };
+        self.system.set_heartbeats_enabled(enabled).await;
+        RpcDispatchOutcome::Handled(json!({
+            "ok": true,
+            "enabled": enabled
+        }))
+    }
+
+    async fn handle_system_presence(&self) -> RpcDispatchOutcome {
+        let presence = self.system.presence().await;
+        RpcDispatchOutcome::Handled(json!(presence))
+    }
+
+    async fn handle_system_event(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
+        let params = match decode_params::<SystemEventParams>(&req.params) {
+            Ok(v) => v,
+            Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
+        };
+        let Some(text) = normalize_optional_text(params.text, 2_048) else {
+            return RpcDispatchOutcome::bad_request("text required");
+        };
+        self.system
+            .upsert_presence(SystemPresenceUpdate {
+                text,
+                device_id: normalize_optional_text(params.device_id, 128),
+                instance_id: normalize_optional_text(params.instance_id, 128),
+                host: normalize_optional_text(params.host, 256),
+                ip: normalize_optional_text(params.ip, 64),
+                mode: normalize_optional_text(params.mode, 64),
+                version: normalize_optional_text(params.version, 64),
+                platform: normalize_optional_text(params.platform, 64),
+                device_family: normalize_optional_text(params.device_family, 64),
+                model_identifier: normalize_optional_text(params.model_identifier, 64),
+                last_input_seconds: normalize_optional_seconds(params.last_input_seconds),
+                reason: normalize_optional_text(params.reason, 128),
+                roles: normalize_string_list(params.roles, 64, 32),
+                scopes: normalize_string_list(params.scopes, 64, 64),
+                tags: normalize_string_list(params.tags, 64, 64),
+            })
+            .await;
+        RpcDispatchOutcome::Handled(json!({ "ok": true }))
     }
 
     async fn handle_sessions_list(&self, req: &RpcRequestFrame) -> RpcDispatchOutcome {
@@ -475,21 +582,24 @@ impl RpcDispatcher {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(err),
         };
-        let thinking_level = match parse_patch_thinking_level(
-            param_patch_value(&req.params, &["thinkingLevel", "thinking_level"]),
-        ) {
+        let thinking_level = match parse_patch_thinking_level(param_patch_value(
+            &req.params,
+            &["thinkingLevel", "thinking_level"],
+        )) {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(err),
         };
-        let verbose_level = match parse_patch_verbose_level(
-            param_patch_value(&req.params, &["verboseLevel", "verbose_level"]),
-        ) {
+        let verbose_level = match parse_patch_verbose_level(param_patch_value(
+            &req.params,
+            &["verboseLevel", "verbose_level"],
+        )) {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(err),
         };
-        let reasoning_level = match parse_patch_reasoning_level(
-            param_patch_value(&req.params, &["reasoningLevel", "reasoning_level"]),
-        ) {
+        let reasoning_level = match parse_patch_reasoning_level(param_patch_value(
+            &req.params,
+            &["reasoningLevel", "reasoning_level"],
+        )) {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(err),
         };
@@ -500,19 +610,19 @@ impl RpcDispatcher {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(err),
         };
-        let elevated_level = match parse_patch_elevated_level(
-            param_patch_value(&req.params, &["elevatedLevel", "elevated_level"]),
-        ) {
-            Ok(v) => v,
-            Err(err) => return RpcDispatchOutcome::bad_request(err),
-        };
-        let exec_host = match parse_patch_exec_host(param_patch_value(
+        let elevated_level = match parse_patch_elevated_level(param_patch_value(
             &req.params,
-            &["execHost", "exec_host"],
+            &["elevatedLevel", "elevated_level"],
         )) {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(err),
         };
+        let exec_host =
+            match parse_patch_exec_host(param_patch_value(&req.params, &["execHost", "exec_host"]))
+            {
+                Ok(v) => v,
+                Err(err) => return RpcDispatchOutcome::bad_request(err),
+            };
         let exec_security = match parse_patch_exec_security(param_patch_value(
             &req.params,
             &["execSecurity", "exec_security"],
@@ -520,13 +630,11 @@ impl RpcDispatcher {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(err),
         };
-        let exec_ask = match parse_patch_exec_ask(param_patch_value(
-            &req.params,
-            &["execAsk", "exec_ask"],
-        )) {
-            Ok(v) => v,
-            Err(err) => return RpcDispatchOutcome::bad_request(err),
-        };
+        let exec_ask =
+            match parse_patch_exec_ask(param_patch_value(&req.params, &["execAsk", "exec_ask"])) {
+                Ok(v) => v,
+                Err(err) => return RpcDispatchOutcome::bad_request(err),
+            };
         let exec_node = match parse_patch_text(
             param_patch_value(&req.params, &["execNode", "exec_node"]),
             "execNode",
@@ -652,10 +760,13 @@ impl RpcDispatcher {
 
         let reset = self
             .sessions
-            .reset(&session_key, match parse_reset_reason(params.reason) {
-                Ok(value) => value,
-                Err(err) => return RpcDispatchOutcome::bad_request(err),
-            })
+            .reset(
+                &session_key,
+                match parse_reset_reason(params.reason) {
+                    Ok(value) => value,
+                    Err(err) => return RpcDispatchOutcome::bad_request(err),
+                },
+            )
             .await;
         let entry = reset.session.clone();
         RpcDispatchOutcome::Handled(json!({
@@ -683,7 +794,9 @@ impl RpcDispatcher {
 
         let deleted = self.sessions.delete(&session_key).await;
         let archived = if deleted && params.delete_transcript.unwrap_or(true) {
-            vec![format!("{SESSION_STORE_PATH}/archives/{session_key}.deleted")]
+            vec![format!(
+                "{SESSION_STORE_PATH}/archives/{session_key}.deleted"
+            )]
         } else {
             Vec::new()
         };
@@ -712,7 +825,9 @@ impl RpcDispatcher {
         };
         let compacted = self.sessions.compact(&session_key, max_lines).await;
         let archived = if compacted.compacted {
-            vec![format!("{SESSION_STORE_PATH}/archives/{session_key}.compact")]
+            vec![format!(
+                "{SESSION_STORE_PATH}/archives/{session_key}.compact"
+            )]
         } else {
             Vec::new()
         };
@@ -1036,6 +1151,192 @@ impl RpcDispatchOutcome {
             details: None,
         }
     }
+}
+
+struct SystemRegistry {
+    state: Mutex<SystemState>,
+}
+
+#[derive(Debug, Clone)]
+struct SystemState {
+    heartbeats_enabled: bool,
+    last_heartbeat: Option<Value>,
+    presence: HashMap<String, Value>,
+}
+
+#[derive(Debug, Clone)]
+struct SystemPresenceUpdate {
+    text: String,
+    device_id: Option<String>,
+    instance_id: Option<String>,
+    host: Option<String>,
+    ip: Option<String>,
+    mode: Option<String>,
+    version: Option<String>,
+    platform: Option<String>,
+    device_family: Option<String>,
+    model_identifier: Option<String>,
+    last_input_seconds: Option<u64>,
+    reason: Option<String>,
+    roles: Vec<String>,
+    scopes: Vec<String>,
+    tags: Vec<String>,
+}
+
+impl SystemRegistry {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(SystemState {
+                heartbeats_enabled: true,
+                last_heartbeat: None,
+                presence: HashMap::new(),
+            }),
+        }
+    }
+
+    async fn set_heartbeats_enabled(&self, enabled: bool) {
+        let mut guard = self.state.lock().await;
+        guard.heartbeats_enabled = enabled;
+    }
+
+    async fn last_heartbeat(&self) -> Option<Value> {
+        let guard = self.state.lock().await;
+        guard.last_heartbeat.clone()
+    }
+
+    async fn presence(&self) -> Vec<Value> {
+        let guard = self.state.lock().await;
+        let mut entries = guard
+            .presence
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect::<Vec<_>>();
+        entries.sort_by(|a, b| a.0.cmp(&b.0));
+        entries.into_iter().map(|(_, value)| value).collect()
+    }
+
+    async fn update_last_heartbeat(&self, payload: Value) {
+        let mut heartbeat = match payload {
+            Value::Object(mut raw) => {
+                raw.entry("ts".to_owned())
+                    .or_insert_with(|| json!(now_ms()));
+                Value::Object(raw)
+            }
+            Value::Null => json!({
+                "ts": now_ms(),
+                "status": "unknown"
+            }),
+            raw => json!({
+                "ts": now_ms(),
+                "status": "unknown",
+                "payload": raw
+            }),
+        };
+        if let Some(status) = heartbeat
+            .get("status")
+            .and_then(Value::as_str)
+            .and_then(|value| normalize_optional_text(Some(value.to_owned()), 64))
+        {
+            if let Some(map) = heartbeat.as_object_mut() {
+                map.insert("status".to_owned(), Value::String(status));
+            }
+        }
+        let mut guard = self.state.lock().await;
+        guard.last_heartbeat = Some(heartbeat);
+    }
+
+    async fn replace_presence(&self, payload: Value) {
+        let mut guard = self.state.lock().await;
+        guard.presence.clear();
+        for (index, entry) in extract_presence_entries(payload).into_iter().enumerate() {
+            if !entry.is_object() {
+                continue;
+            }
+            let key = presence_key_from_value(&entry, index);
+            guard.presence.insert(key, entry);
+        }
+    }
+
+    async fn upsert_presence(&self, update: SystemPresenceUpdate) {
+        let now = now_ms();
+        let mut entry = serde_json::Map::new();
+        entry.insert("ts".to_owned(), json!(now));
+        entry.insert("text".to_owned(), Value::String(update.text));
+        if let Some(value) = update.device_id {
+            entry.insert("deviceId".to_owned(), Value::String(value));
+        }
+        if let Some(value) = update.instance_id {
+            entry.insert("instanceId".to_owned(), Value::String(value));
+        }
+        if let Some(value) = update.host {
+            entry.insert("host".to_owned(), Value::String(value));
+        }
+        if let Some(value) = update.ip {
+            entry.insert("ip".to_owned(), Value::String(value));
+        }
+        if let Some(value) = update.mode {
+            entry.insert("mode".to_owned(), Value::String(value));
+        }
+        if let Some(value) = update.version {
+            entry.insert("version".to_owned(), Value::String(value));
+        }
+        if let Some(value) = update.platform {
+            entry.insert("platform".to_owned(), Value::String(value));
+        }
+        if let Some(value) = update.device_family {
+            entry.insert("deviceFamily".to_owned(), Value::String(value));
+        }
+        if let Some(value) = update.model_identifier {
+            entry.insert("modelIdentifier".to_owned(), Value::String(value));
+        }
+        if let Some(value) = update.last_input_seconds {
+            entry.insert("lastInputSeconds".to_owned(), json!(value));
+        }
+        if let Some(value) = update.reason {
+            entry.insert("reason".to_owned(), Value::String(value));
+        }
+        if !update.roles.is_empty() {
+            entry.insert("roles".to_owned(), json!(update.roles));
+        }
+        if !update.scopes.is_empty() {
+            entry.insert("scopes".to_owned(), json!(update.scopes));
+        }
+        if !update.tags.is_empty() {
+            entry.insert("tags".to_owned(), json!(update.tags));
+        }
+        let key = build_presence_key(&entry, &format!("ts:{now}"));
+        let mut guard = self.state.lock().await;
+        guard.presence.insert(key, Value::Object(entry));
+    }
+}
+
+fn extract_presence_entries(payload: Value) -> Vec<Value> {
+    if let Some(entries) = payload.get("presence").and_then(Value::as_array).cloned() {
+        return entries;
+    }
+    payload.as_array().cloned().unwrap_or_default()
+}
+
+fn build_presence_key(entry: &serde_json::Map<String, Value>, fallback: &str) -> String {
+    let candidates = ["instanceId", "deviceId", "host", "ip", "text"];
+    for field in candidates {
+        if let Some(key) = entry
+            .get(field)
+            .and_then(Value::as_str)
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+        {
+            return format!("presence:{}", normalize(key));
+        }
+    }
+    format!("presence:{}", normalize(fallback))
+}
+
+fn presence_key_from_value(value: &Value, index: usize) -> String {
+    let Some(map) = value.as_object() else {
+        return format!("presence:idx:{index}");
+    };
+    build_presence_key(map, &format!("idx:{index}"))
 }
 
 struct SessionRegistry {
@@ -1859,7 +2160,11 @@ impl SessionEntry {
                 .then(|| event_preview_text(event, 120))
                 .flatten()
         });
-        from_send.or_else(|| self.history.iter().find_map(|event| event_preview_text(event, 120)))
+        from_send.or_else(|| {
+            self.history
+                .iter()
+                .find_map(|event| event_preview_text(event, 120))
+        })
     }
 
     fn last_message_preview(&self) -> Option<String> {
@@ -2241,6 +2546,37 @@ struct UsageCostParams {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
+struct SetHeartbeatsParams {
+    enabled: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct SystemEventParams {
+    text: Option<String>,
+    #[serde(rename = "deviceId", alias = "device_id")]
+    device_id: Option<String>,
+    #[serde(rename = "instanceId", alias = "instance_id")]
+    instance_id: Option<String>,
+    host: Option<String>,
+    ip: Option<String>,
+    mode: Option<String>,
+    version: Option<String>,
+    platform: Option<String>,
+    #[serde(rename = "deviceFamily", alias = "device_family")]
+    device_family: Option<String>,
+    #[serde(rename = "modelIdentifier", alias = "model_identifier")]
+    model_identifier: Option<String>,
+    #[serde(rename = "lastInputSeconds", alias = "last_input_seconds")]
+    last_input_seconds: Option<f64>,
+    reason: Option<String>,
+    roles: Option<Vec<String>>,
+    scopes: Option<Vec<String>>,
+    tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
 struct SessionsPreviewParams {
     keys: Option<Vec<String>>,
     limit: Option<usize>,
@@ -2526,7 +2862,9 @@ fn parse_patch_thinking_level(value: Option<Option<Value>>) -> Result<PatchValue
         Some(None) | Some(Some(Value::Null)) => Ok(PatchValue::Clear),
         Some(Some(Value::String(raw))) => normalize_thinking_level(&raw)
             .map(|v| PatchValue::Set(v.to_owned()))
-            .ok_or_else(|| "thinkingLevel must be off|minimal|low|medium|high|xhigh|null".to_owned()),
+            .ok_or_else(|| {
+                "thinkingLevel must be off|minimal|low|medium|high|xhigh|null".to_owned()
+            }),
         Some(_) => Err("thinkingLevel must be string or null".to_owned()),
     }
 }
@@ -2560,9 +2898,7 @@ fn normalize_reasoning_level(value: &str) -> Option<&'static str> {
     }
 }
 
-fn parse_patch_reasoning_level(
-    value: Option<Option<Value>>,
-) -> Result<PatchValue<String>, String> {
+fn parse_patch_reasoning_level(value: Option<Option<Value>>) -> Result<PatchValue<String>, String> {
     match value {
         None => Ok(PatchValue::Keep),
         Some(None) | Some(Some(Value::Null)) => Ok(PatchValue::Clear),
@@ -2582,8 +2918,8 @@ fn parse_patch_reasoning_level(
 fn parse_response_usage_mode(value: &str) -> Option<ResponseUsageMode> {
     match normalize(value).as_str() {
         "off" => Some(ResponseUsageMode::Off),
-        "tokens" | "token" | "tok" | "minimal" | "min" | "on" | "true" | "yes" | "1"
-        | "enable" | "enabled" => Some(ResponseUsageMode::Tokens),
+        "tokens" | "token" | "tok" | "minimal" | "min" | "on" | "true" | "yes" | "1" | "enable"
+        | "enabled" => Some(ResponseUsageMode::Tokens),
         "full" | "session" => Some(ResponseUsageMode::Full),
         _ => None,
     }
@@ -2725,6 +3061,38 @@ fn normalize_optional_text(value: Option<String>, max_len: usize) -> Option<Stri
     let mut out = trimmed[..end].to_owned();
     out.push_str("...");
     Some(out)
+}
+
+fn normalize_optional_seconds(value: Option<f64>) -> Option<u64> {
+    let raw = value?;
+    if !raw.is_finite() || raw < 0.0 {
+        return None;
+    }
+    Some(raw.floor() as u64)
+}
+
+fn normalize_string_list(
+    value: Option<Vec<String>>,
+    max_items: usize,
+    max_len: usize,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    for item in value.unwrap_or_default() {
+        let Some(normalized) = normalize_optional_text(Some(item), max_len) else {
+            continue;
+        };
+        if out
+            .iter()
+            .any(|existing: &String| existing.eq_ignore_ascii_case(&normalized))
+        {
+            continue;
+        }
+        out.push(normalized);
+        if out.len() >= max_items {
+            break;
+        }
+    }
+    out
 }
 
 fn apply_patch_value<T>(target: &mut Option<T>, patch: PatchValue<T>) {
@@ -4769,6 +5137,184 @@ mod tests {
                 );
             }
             _ => panic!("expected usage.cost handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_system_methods_toggle_heartbeats_and_read_last_event() {
+        let dispatcher = RpcDispatcher::new();
+
+        let missing_enabled = RpcRequestFrame {
+            id: "req-set-heartbeats-missing".to_owned(),
+            method: "set-heartbeats".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&missing_enabled).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let toggle_off = RpcRequestFrame {
+            id: "req-set-heartbeats-off".to_owned(),
+            method: "set-heartbeats".to_owned(),
+            params: serde_json::json!({ "enabled": false }),
+        };
+        let out = dispatcher.handle_request(&toggle_off).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/enabled")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(false)
+                );
+            }
+            _ => panic!("expected set-heartbeats handled"),
+        }
+
+        let last_heartbeat = RpcRequestFrame {
+            id: "req-last-heartbeat-empty".to_owned(),
+            method: "last-heartbeat".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&last_heartbeat).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => assert!(payload.is_null()),
+            _ => panic!("expected null last-heartbeat before events"),
+        }
+
+        dispatcher
+            .ingest_event_frame(&serde_json::json!({
+                "type": "event",
+                "event": "heartbeat",
+                "payload": {
+                    "status": "sent",
+                    "to": "+123"
+                }
+            }))
+            .await;
+
+        let out = dispatcher.handle_request(&last_heartbeat).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/status")
+                        .and_then(serde_json::Value::as_str),
+                    Some("sent")
+                );
+                assert!(payload
+                    .pointer("/ts")
+                    .and_then(serde_json::Value::as_u64)
+                    .is_some());
+            }
+            _ => panic!("expected populated last-heartbeat"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_system_event_requires_text_and_updates_presence() {
+        let dispatcher = RpcDispatcher::new();
+
+        let invalid = RpcRequestFrame {
+            id: "req-system-event-invalid".to_owned(),
+            method: "system-event".to_owned(),
+            params: serde_json::json!({
+                "text": "   "
+            }),
+        };
+        let out = dispatcher.handle_request(&invalid).await;
+        assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+
+        let valid = RpcRequestFrame {
+            id: "req-system-event-valid".to_owned(),
+            method: "system-event".to_owned(),
+            params: serde_json::json!({
+                "text": "Node: node-a online",
+                "host": "node-a",
+                "mode": "daemon",
+                "version": "1.2.3",
+                "roles": ["operator", "operator"],
+                "scopes": ["operator.read", "operator.write"],
+                "tags": ["prod"],
+                "lastInputSeconds": 12.7
+            }),
+        };
+        let out = dispatcher.handle_request(&valid).await;
+        assert!(matches!(out, RpcDispatchOutcome::Handled(_)));
+
+        let presence = RpcRequestFrame {
+            id: "req-system-presence".to_owned(),
+            method: "system-presence".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&presence).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                let entries = payload.as_array().expect("presence array");
+                assert_eq!(entries.len(), 1);
+                assert_eq!(
+                    entries[0].get("host").and_then(serde_json::Value::as_str),
+                    Some("node-a")
+                );
+                assert_eq!(
+                    entries[0]
+                        .get("lastInputSeconds")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(12)
+                );
+                let roles = entries[0]
+                    .get("roles")
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                assert_eq!(roles.len(), 1);
+            }
+            _ => panic!("expected system-presence handled"),
+        }
+
+        let alias_presence = RpcRequestFrame {
+            id: "req-presence-alias".to_owned(),
+            method: "presence".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&alias_presence).await;
+        assert!(matches!(out, RpcDispatchOutcome::Handled(_)));
+    }
+
+    #[tokio::test]
+    async fn dispatcher_ingests_presence_events_from_gateway() {
+        let dispatcher = RpcDispatcher::new();
+        dispatcher
+            .ingest_event_frame(&serde_json::json!({
+                "type": "event",
+                "event": "presence",
+                "payload": {
+                    "presence": [
+                        { "host": "node-a", "ts": 1 },
+                        { "instanceId": "abc", "ts": 2 }
+                    ]
+                }
+            }))
+            .await;
+
+        let system_presence = RpcRequestFrame {
+            id: "req-system-presence-ingested".to_owned(),
+            method: "system-presence".to_owned(),
+            params: serde_json::json!({}),
+        };
+        let out = dispatcher.handle_request(&system_presence).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                let entries = payload.as_array().expect("presence array");
+                assert_eq!(entries.len(), 2);
+                assert!(entries.iter().any(|entry| entry
+                    .get("host")
+                    .and_then(serde_json::Value::as_str)
+                    == Some("node-a")));
+                assert!(entries.iter().any(|entry| {
+                    entry.get("instanceId").and_then(serde_json::Value::as_str) == Some("abc")
+                }));
+            }
+            _ => panic!("expected system-presence handled"),
         }
     }
 }

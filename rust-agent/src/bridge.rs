@@ -174,7 +174,10 @@ impl GatewayBridge {
                                     warn!("received rpc error frame");
                                     continue;
                                 }
-                                FrameKind::Event | FrameKind::Unknown => {}
+                                FrameKind::Event => {
+                                    self.rpc.ingest_event_frame(&frame).await;
+                                }
+                                FrameKind::Unknown => {}
                             }
 
                             if let Some(request) = self.drivers.extract(&frame) {
@@ -715,15 +718,11 @@ mod tests {
             );
             assert_eq!(response_json.get("ok").and_then(Value::as_bool), Some(true));
             assert_eq!(
-                response_json
-                    .pointer("/result/ok")
-                    .and_then(Value::as_bool),
+                response_json.pointer("/result/ok").and_then(Value::as_bool),
                 Some(true)
             );
             assert_eq!(
-                response_json
-                    .pointer("/result/key")
-                    .and_then(Value::as_str),
+                response_json.pointer("/result/key").and_then(Value::as_str),
                 Some("agent:main:discord:group:g1")
             );
             assert_eq!(
@@ -825,7 +824,9 @@ mod tests {
             assert!(clear_json.pointer("/result/entry/sendPolicy").is_none());
             assert!(clear_json.pointer("/result/entry/verboseLevel").is_none());
             assert!(clear_json.pointer("/result/entry/modelOverride").is_none());
-            assert!(clear_json.pointer("/result/entry/providerOverride").is_none());
+            assert!(clear_json
+                .pointer("/result/entry/providerOverride")
+                .is_none());
 
             write.send(Message::Close(None)).await?;
             Ok::<(), anyhow::Error>(())
@@ -1165,9 +1166,7 @@ mod tests {
                 Some(true)
             );
             assert_eq!(
-                delete_json
-                    .pointer("/result/path")
-                    .and_then(Value::as_str),
+                delete_json.pointer("/result/path").and_then(Value::as_str),
                 Some("memory://session-registry")
             );
             assert_eq!(
@@ -1372,9 +1371,7 @@ mod tests {
                 Some(1)
             );
             assert_eq!(
-                compact_json
-                    .pointer("/result/path")
-                    .and_then(Value::as_str),
+                compact_json.pointer("/result/path").and_then(Value::as_str),
                 Some("memory://session-registry")
             );
             assert_eq!(
