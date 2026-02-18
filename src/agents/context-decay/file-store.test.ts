@@ -161,7 +161,7 @@ describe("file-store", () => {
   describe("resultsDir", () => {
     it("returns path alongside session file", () => {
       const result = resultsDir("/data/sessions/abc.jsonl");
-      expect(result).toBe("/data/sessions/abc.results");
+      expect(result).toBe(path.join("/data/sessions", "abc.results"));
     });
   });
 });
