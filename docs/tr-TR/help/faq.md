@@ -14,11 +14,11 @@ Gerçek dünyadaki kurulumlar için hızlı cevaplar + derin troubleshooting (lo
 
 ## İçindekiler
 
-- [İlk 60 saniyede kontrol listesi](#ilk-60-saniyede-kontrol-listesi)
-- [Hızlı kurulum ve ilk çalıştırma](#hizli-kurulum-ve-ilk-calistirma)
-- [Gateway ve bağlantı](#gateway-ve-baglanti)
-- [Model, auth ve failover](#model-auth-ve-failover)
-- [Daha fazla yardım](#daha-fazla-yardim)
+- İlk 60 saniyede kontrol listesi
+- Hızlı kurulum ve ilk çalıştırma
+- Gateway ve bağlantı
+- Model, auth ve failover
+- Daha fazla yardım
 
 ## İlk 60 saniyede kontrol listesi
 
