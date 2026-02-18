@@ -11,6 +11,8 @@ type OpenAIReasoningSignature = {
   type: string;
 };
 
+const OPENAI_REPLAY_PRODUCER_TYPES = new Set(["toolCall", "toolUse", "function_call"]);
+
 function parseOpenAIReasoningSignature(value: unknown): OpenAIReasoningSignature | null {
   if (!value) {
     return null;
@@ -52,7 +54,14 @@ function hasFollowingNonThinkingBlock(
     if (!block || typeof block !== "object") {
       return true;
     }
-    if ((block as { type?: unknown }).type !== "thinking") {
+    const nextType = (block as { type?: unknown }).type;
+    if (nextType === "thinking") {
+      continue;
+    }
+    if (typeof nextType === "string" && OPENAI_REPLAY_PRODUCER_TYPES.has(nextType)) {
+      continue;
+    }
+    if (nextType !== undefined) {
       return true;
     }
   }

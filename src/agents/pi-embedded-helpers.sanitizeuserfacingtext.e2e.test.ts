@@ -288,6 +288,30 @@ describe("downgradeOpenAIReasoningBlocks", () => {
     expect(downgradeOpenAIReasoningBlocks(input as any)).toEqual([]);
   });
 
+  it("drops reasoning signatures followed only by toolCall blocks", () => {
+    const input = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: "internal",
+            thinkingSignature: JSON.stringify({ id: "rs_tool_only", type: "reasoning" }),
+          },
+          { type: "toolCall", id: "call_1", name: "read", arguments: {} },
+        ],
+      },
+    ];
+
+    // oxlint-disable-next-line typescript/no-explicit-any
+    expect(downgradeOpenAIReasoningBlocks(input as any)).toEqual([
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call_1", name: "read", arguments: {} }],
+      },
+    ]);
+  });
+
   it("keeps non-reasoning thinking signatures", () => {
     const input = [
       {
