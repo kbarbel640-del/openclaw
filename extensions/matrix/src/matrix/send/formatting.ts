@@ -48,7 +48,7 @@ function extractMath(markdown: string): { text: string; blocks: string[]; inline
     return `OC_MATH_BLOCK_${id}`;
   });
 
-  text = text.replace(/\$([^\n$]+?)\$/g, (_m, latex) => {
+  text = text.replace(/(?<!\w)\$([^\n$]+?)\$(?!\w)/g, (_m, latex) => {
     const id = inlines.length;
     inlines.push(String(latex));
     return `OC_MATH_INLINE_${id}`;
