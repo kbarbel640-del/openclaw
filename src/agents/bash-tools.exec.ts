@@ -2,17 +2,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { routeReply } from "../auto-reply/reply/route-reply.js";
-import type { OpenClawConfig } from "../config/types.js";
 import { loadCombinedSessionStoreForGateway } from "../gateway/session-utils.js";
 import { type ExecHost, maxAsk, minSecurity, resolveSafeBins } from "../infra/exec-approvals.js";
 import { getTrustedSafeBinDirs } from "../infra/exec-safe-bin-trust.js";
-import { runRubberBandCheck } from "../security/rubberband.js";
 import {
   getShellPathFromLoginShell,
   resolveShellEnvFallbackTimeoutMs,
 } from "../infra/shell-env.js";
 import { logWarn, logInfo } from "../logger.js";
 import { parseAgentSessionKey, resolveAgentIdFromSessionKey } from "../routing/session-key.js";
+import { runRubberBandCheck } from "../security/rubberband.js";
 import { markBackgrounded } from "./bash-process-registry.js";
 import { processGatewayAllowlist } from "./bash-tools.exec-host-gateway.js";
 import { executeNodeHostCommand } from "./bash-tools.exec-host-node.js";

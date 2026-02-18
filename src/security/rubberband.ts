@@ -113,9 +113,9 @@ function stripContextSafeContent(command: string): [stripped: string, wasStrippe
       // Don't strip - let normal detection handle the piped execution
       return [command, false];
     }
-    // Safe heredoc write - strip the entire command
-    // The redirect target and heredoc body are data operations
-    stripped = "[HEREDOC_WRITE]";
+    // Keep the first line so redirect targets (e.g. > SOUL.md) are still analyzed.
+    // Only strip the heredoc body (lines between the delimiter).
+    stripped = firstLine;
     wasStripped = true;
     return [stripped, wasStripped];
   }
@@ -383,8 +383,10 @@ const PATTERNS: Record<string, PatternRule> = {
     patterns: [
       /\bpip\s+install\s+git\+/i,
       /\bpip\s+install\s+https?:/i,
-      /\bnpm\s+install\s+\S+/i,
-      /\byarn\s+add\s+\S+/i,
+      /\bnpm\s+install\s+git\+/i,
+      /\bnpm\s+install\s+https?:/i,
+      /\byarn\s+add\s+git\+/i,
+      /\byarn\s+add\s+https?:/i,
     ],
     score: 40,
     category: "code_execution",
@@ -787,11 +789,6 @@ export function analyzeCommand(
       `rubberband:${modeTag} ALERT (score=${risk.score}, ${analyzeMs.toFixed(1)}ms) ` +
         `command="${command.slice(0, 100)}" rules=[${risk.matches.map((m) => m.rule_id).join(",")}]`,
     );
-  }
-
-  // In shadow mode, never actually block
-  if (config.mode === "shadow" && disposition === "BLOCK") {
-    disposition = "ALERT";
   }
 
   return {
