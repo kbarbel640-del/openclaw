@@ -5,17 +5,20 @@
 OpenClaw's memory search now supports **semantic clustering** to improve search result quality by grouping similar memories before diversity re-ranking.
 
 This feature combines two powerful techniques:
+
 1. **DBSCAN Clustering** - Groups semantically similar results using embedding vectors
 2. **Enhanced MMR** - Uses cosine similarity on embeddings for better semantic diversity
 
 ## Why This Matters
 
 ### Before
+
 - MMR used Jaccard similarity (bag-of-words matching)
 - Couldn't detect semantic duplicates with different wording
 - Example: "dog" and "canine" were treated as completely different
 
 ### After
+
 - MMR can use cosine similarity on embeddings
 - Detects semantic similarity regardless of wording
 - Clustering pre-groups near-duplicates
@@ -72,13 +75,14 @@ Add to your `openclaw.json`:
 
 ### Clustering
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `enabled` | `false` | Enable semantic clustering |
-| `epsilon` | `0.15` | Maximum distance for same cluster (0-2 range) |
-| `minPoints` | `2` | Minimum points to form a cluster |
+| Option      | Default | Description                                   |
+| ----------- | ------- | --------------------------------------------- |
+| `enabled`   | `false` | Enable semantic clustering                    |
+| `epsilon`   | `0.15`  | Maximum distance for same cluster (0-2 range) |
+| `minPoints` | `2`     | Minimum points to form a cluster              |
 
 **Epsilon Guidelines:**
+
 - `0.05-0.10`: Very strict, only near-duplicates cluster
 - `0.15-0.20`: Moderate, groups closely related content
 - `0.25-0.30`: Loose, groups broader topics
@@ -87,13 +91,14 @@ Add to your `openclaw.json`:
 
 ### MMR (Maximal Marginal Relevance)
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `enabled` | `false` | Enable MMR re-ranking |
-| `lambda` | `0.7` | Balance relevance vs diversity (0-1) |
-| `useEmbeddingSimilarity` | `true` | Use embeddings if available |
+| Option                   | Default | Description                          |
+| ------------------------ | ------- | ------------------------------------ |
+| `enabled`                | `false` | Enable MMR re-ranking                |
+| `lambda`                 | `0.7`   | Balance relevance vs diversity (0-1) |
+| `useEmbeddingSimilarity` | `true`  | Use embeddings if available          |
 
 **Lambda Guidelines:**
+
 - `0.0`: Maximum diversity (ignores relevance)
 - `0.5`: Equal balance
 - `0.7`: Favor relevance, some diversity (recommended)
@@ -130,12 +135,14 @@ Final Results (diverse & relevant)
 **Algorithm**: Density-Based Spatial Clustering of Applications with Noise
 
 **Benefits:**
+
 - No need to pre-specify number of clusters
 - Handles outliers/noise naturally (cluster ID = -1)
 - Works well with high-dimensional embeddings
 - Efficient for memory search result sets (typically <100 items)
 
 **How it works:**
+
 1. For each result, find neighbors within `epsilon` distance
 2. If a result has ≥ `minPoints` neighbors, start a cluster
 3. Recursively add neighbors to cluster
@@ -148,6 +155,7 @@ Final Results (diverse & relevant)
 **Enhanced**: MMR = λ × relevance - (1-λ) × max_embedding_similarity
 
 **Improvement:**
+
 - **Text**: "The dog barked" vs "The canine howled" → Low similarity (no token overlap)
 - **Embeddings**: Same texts → High similarity (semantic match)
 
@@ -209,12 +217,14 @@ Final Results (diverse & relevant)
 ### When to Enable
 
 **Enable Clustering If:**
+
 - You have many similar documents in memory
 - Search often returns near-duplicate results
 - You want to reduce redundancy in results
 - Memory size: 100+ documents
 
 **Enable Enhanced MMR If:**
+
 - Embeddings are available
 - You want semantically diverse results
 - Search results cluster around few topics
@@ -222,11 +232,11 @@ Final Results (diverse & relevant)
 
 ### Performance Impact
 
-| Feature | Time Complexity | Memory | Notes |
-|---------|----------------|--------|-------|
-| Clustering | O(n²) worst case | O(n) | Fast for n<100 |
-| Enhanced MMR | O(n²) | O(n) | Same as original MMR |
-| Combined | O(n²) | O(n) | Clustering reduces n for MMR |
+| Feature      | Time Complexity  | Memory | Notes                        |
+| ------------ | ---------------- | ------ | ---------------------------- |
+| Clustering   | O(n²) worst case | O(n)   | Fast for n<100               |
+| Enhanced MMR | O(n²)            | O(n)   | Same as original MMR         |
+| Combined     | O(n²)            | O(n)   | Clustering reduces n for MMR |
 
 **Typical Impact:** <50ms added latency for 50 search results.
 
@@ -256,6 +266,7 @@ Or:
 ### Tuning Epsilon
 
 If you see:
+
 - **Too many small clusters**: Increase epsilon
 - **Everything in noise cluster**: Decrease minPoints or increase epsilon
 - **Clusters too broad**: Decrease epsilon
@@ -276,16 +287,17 @@ If you see:
 ## Implementation Details
 
 **Files:**
+
 - `src/memory/semantic-clustering.ts` - DBSCAN implementation
 - `src/memory/mmr.ts` - Enhanced MMR with embeddings
 - `src/memory/hybrid.ts` - Pipeline integration
 
 **Tests:**
+
 - `src/memory/semantic-clustering.test.ts`
 - `src/memory/mmr-embeddings.test.ts`
 
 ## Contributors
 
-- Feature implemented by: *[@YourGitHubUsername](https://github.com/YourGitHubUsername)*
+- Feature implemented by: _[@YourGitHubUsername](https://github.com/YourGitHubUsername)_
 - Based on research: Ester et al. (DBSCAN), Carbonell & Goldstein (MMR)
-

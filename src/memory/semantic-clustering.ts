@@ -61,7 +61,11 @@ export function clusterByEmbeddings<T extends ClusterableItem>(
   items: T[],
   config: Partial<ClusterConfig> = {},
 ): ClusterResult<T>[] {
-  const { enabled = DEFAULT_CLUSTER_CONFIG.enabled, epsilon = DEFAULT_CLUSTER_CONFIG.epsilon, minPoints = DEFAULT_CLUSTER_CONFIG.minPoints } = config;
+  const {
+    enabled = DEFAULT_CLUSTER_CONFIG.enabled,
+    epsilon = DEFAULT_CLUSTER_CONFIG.epsilon,
+    minPoints = DEFAULT_CLUSTER_CONFIG.minPoints,
+  } = config;
 
   // Early exits
   if (!enabled || items.length === 0) {
@@ -251,4 +255,3 @@ export function selectClusterRepresentatives<T extends ClusterableItem & { score
 
   return representatives;
 }
-

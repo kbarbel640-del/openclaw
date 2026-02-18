@@ -79,23 +79,23 @@ describe("MMR with embeddings", () => {
 
   it("semantic similarity outperforms text similarity for synonyms", () => {
     const items: MMRItem[] = [
-      { 
-        id: "1", 
-        score: 1.0, 
-        content: "dog", 
-        embedding: [0.8, 0.5, 0.3] 
+      {
+        id: "1",
+        score: 1.0,
+        content: "dog",
+        embedding: [0.8, 0.5, 0.3],
       },
-      { 
-        id: "2", 
-        score: 0.9, 
+      {
+        id: "2",
+        score: 0.9,
         content: "canine", // Synonym of dog, no text overlap
-        embedding: [0.82, 0.48, 0.31] // Very similar embedding
+        embedding: [0.82, 0.48, 0.31], // Very similar embedding
       },
-      { 
-        id: "3", 
-        score: 0.8, 
-        content: "automobile", 
-        embedding: [0.2, 0.9, 0.1] // Different topic
+      {
+        id: "3",
+        score: 0.8,
+        content: "automobile",
+        embedding: [0.2, 0.9, 0.1], // Different topic
       },
     ];
 
@@ -135,7 +135,9 @@ describe("MMR with embeddings", () => {
     expect(reranked[0].id).toBe("1"); // Best score
     expect(reranked[1].id).toBe("4"); // Different topic despite lower score
     // Duplicates should rank lower
-    const duplicateIndices = reranked.map((r, i) => (r.id === "2" || r.id === "3" ? i : -1)).filter((i) => i >= 0);
+    const duplicateIndices = reranked
+      .map((r, i) => (r.id === "2" || r.id === "3" ? i : -1))
+      .filter((i) => i >= 0);
     expect(duplicateIndices.every((i) => i >= 2)).toBe(true);
   });
 
@@ -167,4 +169,3 @@ describe("MMR with embeddings", () => {
     expect(lowLambda[1].id).toBe("3");
   });
 });
-
