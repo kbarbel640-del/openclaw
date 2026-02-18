@@ -4,8 +4,8 @@
 
 class ZekeConfig {
   // ── Gateway ──────────────────────────────────────────────
-  // Connects via Tailscale to ZEKE's OpenClaw gateway
-  static const String gatewayHost = 'zeke.tail5b81a2.ts.net';
+  // Connects via Tailscale internal IP (phone must have Tailscale)
+  static const String gatewayHost = '100.112.227.117';
   static const int gatewayPort = 18789;
   static const String gatewayToken = '493fb5919a16b885fe34bcded2b5e5df4f5c3f2166c361d9';
   // Public URLs for fallback
