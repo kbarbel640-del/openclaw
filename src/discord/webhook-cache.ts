@@ -8,6 +8,14 @@ export type DiscordWebhookAuth = {
 
 const channelWebhookCache = new Map<string, DiscordWebhookAuth>();
 
+/** Set of webhook IDs created by this gateway — used to detect self-webhook messages. */
+const ownWebhookIds = new Set<string>();
+
+/** Check if a webhook ID belongs to this gateway. */
+export function isOwnWebhookId(webhookId: string): boolean {
+  return ownWebhookIds.has(webhookId);
+}
+
 function normalizeWebhookAuth(raw: {
   id?: string;
   token?: string | null;
@@ -40,6 +48,7 @@ export async function getOrCreateWebhook(
       return null;
     }
     channelWebhookCache.set(channelId, normalized);
+    ownWebhookIds.add(normalized.id);
     return normalized;
   } catch {
     return null;

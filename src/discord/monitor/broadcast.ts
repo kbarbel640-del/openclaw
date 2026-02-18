@@ -50,8 +50,39 @@ export async function maybeBroadcastDiscordMessage(params: {
   const hasKnownAgents = (agentIds?.length ?? 0) > 0;
   const guildHistorySnapshot = params.ctx.guildHistories.get(params.ctx.messageChannelId) ?? [];
 
+  // If this message came from one of our own broadcast webhooks, identify the
+  // sending agent so we can exclude it from the fan-out (prevent self-loop).
+  let excludeAgentId: string | undefined;
+  if (params.ctx.ownWebhookUsername) {
+    const webhookName = params.ctx.ownWebhookUsername.trim().toLowerCase();
+    for (const [id, agent] of agentConfigById) {
+      const displayName = [agent.identity?.name?.trim(), agent.identity?.emoji?.trim()]
+        .filter(Boolean)
+        .join(" ")
+        .trim()
+        .toLowerCase();
+      if (displayName && webhookName === displayName) {
+        excludeAgentId = id;
+        break;
+      }
+      // Also match name-only (without emoji)
+      const nameOnly = (agent.identity?.name ?? agent.name ?? "").trim().toLowerCase();
+      if (nameOnly && webhookName.startsWith(nameOnly)) {
+        excludeAgentId = id;
+        break;
+      }
+    }
+    if (excludeAgentId) {
+      discordBroadcastLog.info(`Excluding source agent "${excludeAgentId}" from broadcast`);
+    }
+  }
+
   const processForAgent = async (agentId: string): Promise<void> => {
     const normalizedAgentId = normalizeAgentId(agentId);
+    if (excludeAgentId && normalizedAgentId === excludeAgentId) {
+      discordBroadcastLog.info(`Skipping broadcast to "${agentId}" (source agent)`);
+      return;
+    }
     if (hasKnownAgents && !agentIds?.includes(normalizedAgentId)) {
       discordBroadcastLog.warn(`Broadcast agent ${agentId} not found in agents.list; skipping`);
       return;
