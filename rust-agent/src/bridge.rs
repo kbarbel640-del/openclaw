@@ -689,7 +689,7 @@ mod tests {
                         "id": "req-patch",
                         "method": "sessions.patch",
                         "params": {
-                            "sessionKey": "agent:main:discord:group:g1",
+                            "key": "agent:main:discord:group:g1",
                             "sendPolicy": "deny",
                             "groupActivation": "mention",
                             "queueMode": "steer"
@@ -716,13 +716,19 @@ mod tests {
             assert_eq!(response_json.get("ok").and_then(Value::as_bool), Some(true));
             assert_eq!(
                 response_json
-                    .pointer("/result/session/key")
+                    .pointer("/result/ok")
+                    .and_then(Value::as_bool),
+                Some(true)
+            );
+            assert_eq!(
+                response_json
+                    .pointer("/result/key")
                     .and_then(Value::as_str),
                 Some("agent:main:discord:group:g1")
             );
             assert_eq!(
                 response_json
-                    .pointer("/result/session/sendPolicy")
+                    .pointer("/result/entry/sendPolicy")
                     .and_then(Value::as_str),
                 Some("deny")
             );

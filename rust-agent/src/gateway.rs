@@ -214,6 +214,7 @@ pub struct RpcDispatcher {
 const MAX_SESSION_HISTORY_PER_SESSION: usize = 128;
 const RUNTIME_NAME: &str = "openclaw-agent-rs";
 const RUNTIME_VERSION: &str = env!("CARGO_PKG_VERSION");
+const SESSION_STORE_PATH: &str = "memory://session-registry";
 const SUPPORTED_RPC_METHODS: &[&str] = &[
     "health",
     "status",
@@ -357,9 +358,20 @@ impl RpcDispatcher {
                 include_unknown: params.include_unknown.unwrap_or(true),
                 search: normalize_optional_text(params.search, 128),
                 agent_id: normalize_optional_text(params.agent_id, 64),
+                label: normalize_optional_text(params.label, 128),
+                spawned_by: normalize_optional_text(params.spawned_by, 128),
+                include_derived_titles: params.include_derived_titles.unwrap_or(false),
+                include_last_message: params.include_last_message.unwrap_or(false),
             })
             .await;
         RpcDispatchOutcome::Handled(json!({
+            "ts": now_ms(),
+            "path": SESSION_STORE_PATH,
+            "defaults": {
+                "modelProvider": Value::Null,
+                "model": Value::Null,
+                "contextTokens": Value::Null
+            },
             "sessions": sessions,
             "count": sessions.len()
         }))
@@ -404,10 +416,14 @@ impl RpcDispatcher {
             Ok(v) => v,
             Err(err) => return RpcDispatchOutcome::bad_request(format!("invalid params: {err}")),
         };
-        let session_key = params.session_key.trim().to_owned();
-        if session_key.is_empty() {
-            return RpcDispatchOutcome::bad_request("sessionKey is required");
-        }
+        let session_key = params
+            .key
+            .or(params.session_key)
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty());
+        let Some(session_key) = session_key else {
+            return RpcDispatchOutcome::bad_request("sessionKey|key is required");
+        };
 
         let send_policy = match params.send_policy {
             Some(v) => match parse_send_policy(&v) {
@@ -444,7 +460,7 @@ impl RpcDispatcher {
         let patched = self
             .sessions
             .patch(SessionPatch {
-                session_key: params.session_key,
+                session_key: session_key.clone(),
                 send_policy,
                 group_activation,
                 queue_mode,
@@ -452,7 +468,16 @@ impl RpcDispatcher {
                 spawned_by: normalize_optional_text(params.spawned_by, 128),
             })
             .await;
+        let entry = patched.clone();
         RpcDispatchOutcome::Handled(json!({
+            "ok": true,
+            "path": SESSION_STORE_PATH,
+            "key": session_key,
+            "entry": entry,
+            "resolved": {
+                "modelProvider": Value::Null,
+                "model": Value::Null
+            },
             "session": patched
         }))
     }
@@ -525,10 +550,12 @@ impl RpcDispatcher {
                 normalize_optional_text(params.reason, 64).unwrap_or_else(|| "reset".to_owned()),
             )
             .await;
+        let entry = reset.session.clone();
         RpcDispatchOutcome::Handled(json!({
             "ok": true,
             "key": session_key,
             "reset": true,
+            "entry": entry,
             "session": reset.session,
             "reason": reset.reason
         }))
@@ -797,6 +824,10 @@ struct SessionListQuery {
     include_unknown: bool,
     search: Option<String>,
     agent_id: Option<String>,
+    label: Option<String>,
+    spawned_by: Option<String>,
+    include_derived_titles: bool,
+    include_last_message: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -877,7 +908,7 @@ impl SessionRegistry {
         entry.push_history(event.clone());
 
         let record = SessionHistoryRecord::from_event(&entry.key, event);
-        (entry.to_view(), record)
+        (entry.to_view(false, false), record)
     }
 
     async fn patch(&self, patch: SessionPatch) -> SessionView {
@@ -902,12 +933,14 @@ impl SessionRegistry {
         if let Some(spawned_by) = patch.spawned_by {
             entry.spawned_by = Some(spawned_by);
         }
-        entry.to_view()
+        entry.to_view(false, false)
     }
 
     async fn get(&self, session_key: &str) -> Option<SessionView> {
         let guard = self.entries.lock().await;
-        guard.get(session_key).map(SessionEntry::to_view)
+        guard
+            .get(session_key)
+            .map(|entry| entry.to_view(false, false))
     }
 
     async fn resolve_key(&self, candidate: &str) -> Option<String> {
@@ -983,6 +1016,24 @@ impl SessionRegistry {
                     .unwrap_or(false)
             });
         }
+        if let Some(label) = query.label {
+            items.retain(|entry| {
+                entry
+                    .label
+                    .as_deref()
+                    .map(|v| v.eq_ignore_ascii_case(&label))
+                    .unwrap_or(false)
+            });
+        }
+        if let Some(spawned_by) = query.spawned_by {
+            items.retain(|entry| {
+                entry
+                    .spawned_by
+                    .as_deref()
+                    .map(|v| v.eq_ignore_ascii_case(&spawned_by))
+                    .unwrap_or(false)
+            });
+        }
         if let Some(search) = query.search {
             let needle = search.to_ascii_lowercase();
             items.retain(|entry| {
@@ -1013,7 +1064,7 @@ impl SessionRegistry {
         items
             .into_iter()
             .take(query.limit)
-            .map(|entry| entry.to_view())
+            .map(|entry| entry.to_view(query.include_derived_titles, query.include_last_message))
             .collect()
     }
 
@@ -1128,7 +1179,7 @@ impl SessionRegistry {
         entry.last_risk_score = 0;
         entry.history.clear();
         SessionReset {
-            session: entry.to_view(),
+            session: entry.to_view(false, false),
             reason,
         }
     }
@@ -1405,11 +1456,29 @@ impl SessionEntry {
         }
     }
 
-    fn to_view(&self) -> SessionView {
+    fn to_view(&self, include_derived_title: bool, include_last_message: bool) -> SessionView {
+        let derived_title = if include_derived_title {
+            self.derived_title()
+        } else {
+            None
+        };
+        let display_name = self
+            .label
+            .clone()
+            .or_else(|| derived_title.clone())
+            .map(|v| truncate_text(&v, 120));
+        let last_message_preview = if include_last_message {
+            self.last_message_preview()
+        } else {
+            None
+        };
         SessionView {
             key: self.key.clone(),
             kind: self.kind,
             agent_id: self.agent_id.clone(),
+            display_name,
+            derived_title,
+            last_message_preview,
             channel: self.channel.clone(),
             label: self.label.clone(),
             spawned_by: self.spawned_by.clone(),
@@ -1424,6 +1493,22 @@ impl SessionEntry {
             group_activation: self.group_activation,
             queue_mode: self.queue_mode,
         }
+    }
+
+    fn derived_title(&self) -> Option<String> {
+        let from_send = self.history.iter().find_map(|event| {
+            (event.kind == SessionHistoryKind::Send)
+                .then(|| event_preview_text(event, 120))
+                .flatten()
+        });
+        from_send.or_else(|| self.history.iter().find_map(|event| event_preview_text(event, 120)))
+    }
+
+    fn last_message_preview(&self) -> Option<String> {
+        self.history
+            .iter()
+            .rev()
+            .find_map(|event| event_preview_text(event, 160))
     }
 
     fn push_history(&mut self, event: SessionHistoryEvent) {
@@ -1627,6 +1712,12 @@ struct SessionView {
     kind: SessionKind,
     #[serde(rename = "agentId", skip_serializing_if = "Option::is_none")]
     agent_id: Option<String>,
+    #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(rename = "derivedTitle", skip_serializing_if = "Option::is_none")]
+    derived_title: Option<String>,
+    #[serde(rename = "lastMessagePreview", skip_serializing_if = "Option::is_none")]
+    last_message_preview: Option<String>,
     channel: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     label: Option<String>,
@@ -1674,6 +1765,13 @@ struct SessionsListParams {
     include_global: Option<bool>,
     #[serde(rename = "includeUnknown", alias = "include_unknown")]
     include_unknown: Option<bool>,
+    #[serde(rename = "includeDerivedTitles", alias = "include_derived_titles")]
+    include_derived_titles: Option<bool>,
+    #[serde(rename = "includeLastMessage", alias = "include_last_message")]
+    include_last_message: Option<bool>,
+    label: Option<String>,
+    #[serde(rename = "spawnedBy", alias = "spawned_by")]
+    spawned_by: Option<String>,
     #[serde(rename = "agentId", alias = "agent_id")]
     agent_id: Option<String>,
     search: Option<String>,
@@ -1698,10 +1796,12 @@ struct SessionsPreviewParams {
     max_chars: Option<usize>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
 struct SessionsPatchParams {
     #[serde(rename = "sessionKey", alias = "session_key")]
-    session_key: String,
+    session_key: Option<String>,
+    key: Option<String>,
     #[serde(rename = "sendPolicy", alias = "send_policy")]
     send_policy: Option<String>,
     #[serde(rename = "groupActivation", alias = "group_activation")]
@@ -1893,6 +1993,16 @@ fn truncate_text(value: &str, max_len: usize) -> String {
     out
 }
 
+fn event_preview_text(event: &SessionHistoryEvent, max_len: usize) -> Option<String> {
+    let value = event
+        .text
+        .as_deref()
+        .or(event.command.as_deref())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())?;
+    Some(truncate_text(value, max_len))
+}
+
 fn format_utc_date(ms: u64) -> String {
     let days = (ms / 86_400_000) as i64;
     let (year, month, day) = civil_from_days(days);
@@ -2069,7 +2179,7 @@ mod tests {
             id: "req-1".to_owned(),
             method: "sessions.patch".to_owned(),
             params: serde_json::json!({
-                "sessionKey": "agent:main:discord:group:g1",
+                "key": "agent:main:discord:group:g1",
                 "sendPolicy": "deny",
                 "groupActivation": "mention",
                 "queueMode": "steer"
@@ -2079,14 +2189,22 @@ mod tests {
         match out {
             RpcDispatchOutcome::Handled(payload) => {
                 assert_eq!(
+                    payload.pointer("/ok").and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    payload.pointer("/key").and_then(serde_json::Value::as_str),
+                    Some("agent:main:discord:group:g1")
+                );
+                assert_eq!(
                     payload
-                        .pointer("/session/key")
+                        .pointer("/entry/key")
                         .and_then(serde_json::Value::as_str),
                     Some("agent:main:discord:group:g1")
                 );
                 assert_eq!(
                     payload
-                        .pointer("/session/sendPolicy")
+                        .pointer("/entry/sendPolicy")
                         .and_then(serde_json::Value::as_str),
                     Some("deny")
                 );
@@ -2102,6 +2220,10 @@ mod tests {
         let out = dispatcher.handle_request(&list).await;
         match out {
             RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload.pointer("/path").and_then(serde_json::Value::as_str),
+                    Some(super::SESSION_STORE_PATH)
+                );
                 assert_eq!(
                     payload
                         .pointer("/sessions/0/key")
@@ -2860,6 +2982,91 @@ mod tests {
                         .pointer("/sessions/0/agentId")
                         .and_then(serde_json::Value::as_str),
                     Some("ops")
+                );
+            }
+            _ => panic!("expected filtered list handled"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_list_supports_label_spawn_filters_and_message_hints() {
+        let dispatcher = RpcDispatcher::new();
+        let key = "agent:main:discord:group:g-label";
+        let patch = RpcRequestFrame {
+            id: "req-list-label-patch".to_owned(),
+            method: "sessions.patch".to_owned(),
+            params: serde_json::json!({
+                "key": key,
+                "label": "Briefing",
+                "spawnedBy": "agent:main:main"
+            }),
+        };
+        let _ = dispatcher.handle_request(&patch).await;
+
+        let send = RpcRequestFrame {
+            id: "req-list-label-send".to_owned(),
+            method: "sessions.send".to_owned(),
+            params: serde_json::json!({
+                "sessionKey": key,
+                "message": "first operator update",
+                "requestId": "req-list-label-send-1"
+            }),
+        };
+        let _ = dispatcher.handle_request(&send).await;
+
+        let list = RpcRequestFrame {
+            id: "req-list-label".to_owned(),
+            method: "sessions.list".to_owned(),
+            params: serde_json::json!({
+                "label": "Briefing",
+                "spawnedBy": "agent:main:main",
+                "includeDerivedTitles": true,
+                "includeLastMessage": true,
+                "limit": 5
+            }),
+        };
+        let out = dispatcher.handle_request(&list).await;
+        match out {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload.pointer("/path").and_then(serde_json::Value::as_str),
+                    Some(super::SESSION_STORE_PATH)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/defaults/modelProvider")
+                        .and_then(|v| if v.is_null() { Some(()) } else { None }),
+                    Some(())
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/count")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/sessions/0/key")
+                        .and_then(serde_json::Value::as_str),
+                    Some(key)
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/sessions/0/displayName")
+                        .and_then(serde_json::Value::as_str),
+                    Some("Briefing")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/sessions/0/derivedTitle")
+                        .and_then(serde_json::Value::as_str),
+                    Some("first operator update")
+                );
+                assert_eq!(
+                    payload
+                        .pointer("/sessions/0/lastMessagePreview")
+                        .and_then(serde_json::Value::as_str),
+                    Some("first operator update")
                 );
             }
             _ => panic!("expected filtered list handled"),

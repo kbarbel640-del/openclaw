@@ -33,6 +33,9 @@
 - Extended `sessions.list` with filter parity for `includeGlobal`, `includeUnknown`, `agentId`, and `search`.
 - Extended `sessions.patch` + `sessions.resolve` with metadata parity for `label` and `spawnedBy` filtered resolution.
 - Extended `sessions.usage` with date-range handling (`startDate`/`endDate`) and optional context-weight output placeholder.
+- Extended `sessions.list` + `sessions.patch` parity with upstream-style fields:
+  - `sessions.list` now supports `label`/`spawnedBy` filters and optional `includeDerivedTitles`/`includeLastMessage` hint fields.
+  - `sessions.patch` now accepts `key` in addition to `sessionKey` and returns a parity-style envelope (`ok`, `path`, `key`, `entry`).
 - Rust defender policy engine with bounded worker concurrency.
 - Prompt injection scoring + command risk scoring.
 - Host integrity baseline checks.
