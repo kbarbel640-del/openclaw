@@ -8,6 +8,22 @@ import {
   validateThinkingBlocks,
 } from "./thinking-block-guard.js";
 
+type AssistantMessage = Extract<AgentMessage, { role: "assistant" }>;
+
+// Helper to create mock assistant messages for testing
+function createMockAssistant(content: AssistantMessage["content"]): AssistantMessage {
+  return {
+    role: "assistant",
+    content,
+    timestamp: Date.now(),
+    api: "anthropic-messages",
+    provider: "anthropic",
+    model: "claude-3-5-sonnet-20241022",
+    usage: { inputTokens: 0, outputTokens: 0 },
+    stopReason: "end_turn",
+  } as AssistantMessage;
+}
+
 describe("thinking-block-guard", () => {
   describe("isThinkingBlock", () => {
     it("identifies thinking blocks", () => {
@@ -21,22 +37,14 @@ describe("thinking-block-guard", () => {
 
   describe("hasThinkingBlocks", () => {
     it("detects thinking blocks in assistant messages", () => {
-      const withThinking: AgentMessage = {
-        role: "assistant",
-        content: [
-          { type: "thinking", thinking: "analyzing..." },
-          { type: "text", text: "response" },
-        ],
-        timestamp: Date.now(),
-      };
-      expect(hasThinkingBlocks(withThinking as unknown)).toBe(true);
+      const withThinking = createMockAssistant([
+        { type: "thinking", thinking: "analyzing..." },
+        { type: "text", text: "response" },
+      ]);
+      expect(hasThinkingBlocks(withThinking)).toBe(true);
 
-      const withoutThinking: AgentMessage = {
-        role: "assistant",
-        content: [{ type: "text", text: "response" }],
-        timestamp: Date.now(),
-      };
-      expect(hasThinkingBlocks(withoutThinking as unknown)).toBe(false);
+      const withoutThinking = createMockAssistant([{ type: "text", text: "response" }]);
+      expect(hasThinkingBlocks(withoutThinking)).toBe(false);
     });
   });
 
@@ -44,20 +52,16 @@ describe("thinking-block-guard", () => {
     it("detects thinking blocks across multiple messages", () => {
       const messages: AgentMessage[] = [
         { role: "user", content: "hello", timestamp: Date.now() },
-        {
-          role: "assistant",
-          content: [
-            { type: "thinking", thinking: "hmm..." },
-            { type: "text", text: "hi" },
-          ],
-          timestamp: Date.now(),
-        },
+        createMockAssistant([
+          { type: "thinking", thinking: "hmm..." },
+          { type: "text", text: "hi" },
+        ]),
       ];
       expect(containsThinkingBlocks(messages)).toBe(true);
 
       const messagesNoThinking: AgentMessage[] = [
         { role: "user", content: "hello", timestamp: Date.now() },
-        { role: "assistant", content: [{ type: "text", text: "hi" }], timestamp: Date.now() },
+        createMockAssistant([{ type: "text", text: "hi" }]),
       ];
       expect(containsThinkingBlocks(messagesNoThinking)).toBe(false);
     });
@@ -65,19 +69,15 @@ describe("thinking-block-guard", () => {
 
   describe("safeFilterAssistantContent", () => {
     it("preserves thinking blocks when filtering", () => {
-      const message: AgentMessage = {
-        role: "assistant",
-        content: [
-          { type: "thinking", thinking: "test" },
-          { type: "toolCall", id: "1", name: "test", arguments: {} },
-          { type: "text", text: "result" },
-        ],
-        timestamp: Date.now(),
-      };
+      const message = createMockAssistant([
+        { type: "thinking", thinking: "test" },
+        { type: "toolCall", id: "1", name: "test", arguments: {} },
+        { type: "text", text: "result" },
+      ]);
 
       // Filter out tool calls
-      const filtered = safeFilterAssistantContent(message as unknown, (block: unknown) => {
-        return (block as { type?: string }).type !== "toolCall";
+      const filtered = safeFilterAssistantContent(message, (block) => {
+        return block.type !== "toolCall";
       });
 
       expect(filtered).not.toBeNull();
@@ -87,18 +87,14 @@ describe("thinking-block-guard", () => {
     });
 
     it("returns null when only thinking blocks remain after filtering", () => {
-      const message: AgentMessage = {
-        role: "assistant",
-        content: [
-          { type: "thinking", thinking: "test" },
-          { type: "toolCall", id: "1", name: "test", arguments: {} },
-        ],
-        timestamp: Date.now(),
-      };
+      const message = createMockAssistant([
+        { type: "thinking", thinking: "test" },
+        { type: "toolCall", id: "1", name: "test", arguments: {} },
+      ]);
 
       // Filter out everything except thinking blocks
-      const filtered = safeFilterAssistantContent(message as unknown, (block: unknown) => {
-        return (block as { type?: string }).type === "thinking";
+      const filtered = safeFilterAssistantContent(message, (block) => {
+        return block.type === "thinking";
       });
 
       // Should return null because only thinking blocks remain
@@ -106,16 +102,12 @@ describe("thinking-block-guard", () => {
     });
 
     it("returns original message when nothing is filtered", () => {
-      const message: AgentMessage = {
-        role: "assistant",
-        content: [
-          { type: "thinking", thinking: "test" },
-          { type: "text", text: "result" },
-        ],
-        timestamp: Date.now(),
-      };
+      const message = createMockAssistant([
+        { type: "thinking", thinking: "test" },
+        { type: "text", text: "result" },
+      ]);
 
-      const filtered = safeFilterAssistantContent(message as unknown, () => true);
+      const filtered = safeFilterAssistantContent(message, () => true);
 
       expect(filtered).toBe(message); // Same reference
     });
@@ -123,46 +115,42 @@ describe("thinking-block-guard", () => {
 
   describe("validateThinkingBlocks", () => {
     it("validates well-formed thinking blocks", () => {
-      const message: AgentMessage = {
-        role: "assistant",
-        content: [
-          { type: "thinking", thinking: "valid" },
-          { type: "text", text: "response" },
-        ],
-        timestamp: Date.now(),
-      };
+      const message = createMockAssistant([
+        { type: "thinking", thinking: "valid" },
+        { type: "text", text: "response" },
+      ]);
 
-      const result = validateThinkingBlocks(message as unknown);
+      const result = validateThinkingBlocks(message);
       expect(result.valid).toBe(true);
       expect(result.reason).toBeUndefined();
     });
 
     it("detects invalid thinking blocks missing required fields", () => {
-      const message: AgentMessage = {
-        role: "assistant",
+      // Create a message with an invalid thinking block (missing 'thinking' field)
+      const message = {
+        ...createMockAssistant([{ type: "text", text: "response" }]),
         content: [
-          { type: "thinking" }, // Missing 'thinking' field
+          { type: "thinking" } as { type: "thinking"; thinking: string },
           { type: "text", text: "response" },
         ],
-        timestamp: Date.now(),
       };
 
-      const result = validateThinkingBlocks(message as unknown);
+      const result = validateThinkingBlocks(message);
       expect(result.valid).toBe(false);
       expect(result.reason).toContain("missing required");
     });
 
     it("validates redacted_thinking blocks", () => {
-      const message: AgentMessage = {
-        role: "assistant",
+      // Use unknown cast since redacted_thinking isn't in the strict type
+      const message = {
+        ...createMockAssistant([{ type: "text", text: "response" }]),
         content: [
-          { type: "redacted_thinking", redacted_thinking: "..." },
+          { type: "redacted_thinking", redacted_thinking: "..." } as unknown,
           { type: "text", text: "response" },
         ],
-        timestamp: Date.now(),
-      };
+      } as AssistantMessage;
 
-      const result = validateThinkingBlocks(message as unknown);
+      const result = validateThinkingBlocks(message);
       expect(result.valid).toBe(true);
     });
   });
