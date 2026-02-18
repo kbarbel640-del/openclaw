@@ -7,7 +7,8 @@ describe("generateHeuristicHint", () => {
       const hint = generateHeuristicHint({
         toolName: "Read",
         args: '"/src/utils.ts"',
-        content: 'export function resolveUserPath(input: string): string {\n  return input.trim();\n}\n\nexport function formatDuration(ms: number): string {\n  return `${ms}ms`;\n}',
+        content:
+          "export function resolveUserPath(input: string): string {\n  return input.trim();\n}\n\nexport function formatDuration(ms: number): string {\n  return `${ms}ms`;\n}",
       });
       expect(hint).toContain("TypeScript");
       expect(hint).toContain("lines");
@@ -39,7 +40,8 @@ describe("generateHeuristicHint", () => {
       const hint = generateHeuristicHint({
         toolName: "Grep",
         args: '"resolveUserPath"',
-        content: "/src/utils.ts:236:export function resolveUserPath\n/src/compact.ts:42:  resolveUserPath(input)\n/tests/utils.test.ts:10:  resolveUserPath\n",
+        content:
+          "/src/utils.ts:236:export function resolveUserPath\n/src/compact.ts:42:  resolveUserPath(input)\n/tests/utils.test.ts:10:  resolveUserPath\n",
       });
       expect(hint).toContain("result lines");
       expect(hint).toContain("/src/utils.ts");
@@ -82,7 +84,7 @@ describe("generateHeuristicHint", () => {
     it("generates hint for unknown tool", () => {
       const hint = generateHeuristicHint({
         toolName: "CustomTool",
-        args: '{}',
+        args: "{}",
         content: "Some result content\nwith multiple lines\nand more data\n",
       });
       expect(hint).toContain("lines");
@@ -92,7 +94,7 @@ describe("generateHeuristicHint", () => {
     it("includes error messages when present", () => {
       const hint = generateHeuristicHint({
         toolName: "CustomTool",
-        args: '{}',
+        args: "{}",
         content: "Error: file not found\nfailed to read config\n",
       });
       expect(hint).toContain("Errors:");

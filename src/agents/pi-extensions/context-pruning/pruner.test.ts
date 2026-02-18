@@ -1,7 +1,7 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { describe, expect, it } from "vitest";
-import type { EffectiveContextPruningSettings } from "./settings.js";
 import { createEmptyPruneStats, pruneContextMessages } from "./pruner.js";
+import type { EffectiveContextPruningSettings } from "./settings.js";
 
 function makeToolResult(params: {
   toolCallId: string;

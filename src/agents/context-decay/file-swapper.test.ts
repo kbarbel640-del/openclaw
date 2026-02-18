@@ -1,7 +1,7 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ContextDecayConfig } from "../../config/types.agent-defaults.js";
 import { loadSwappedFileStore, resultsDir } from "./file-store.js";
@@ -18,7 +18,10 @@ function sessionPath(): string {
  * Pattern: user → assistant (with tool_use) → toolResult → user → assistant → ...
  * Each user message marks a new turn boundary.
  */
-function buildMessages(turnCount: number, toolResultContent: string = "x".repeat(500)): AgentMessage[] {
+function buildMessages(
+  turnCount: number,
+  toolResultContent: string = "x".repeat(500),
+): AgentMessage[] {
   const messages: AgentMessage[] = [];
   for (let turn = 0; turn < turnCount; turn++) {
     // User message
@@ -33,7 +36,12 @@ function buildMessages(turnCount: number, toolResultContent: string = "x".repeat
       role: "assistant",
       content: [
         { type: "text", text: "Let me check that." },
-        { type: "tool_use", id: `tool-${turn}`, name: "Read", input: { path: `/src/file${turn}.ts` } },
+        {
+          type: "tool_use",
+          id: `tool-${turn}`,
+          name: "Read",
+          input: { path: `/src/file${turn}.ts` },
+        },
       ],
       timestamp: Date.now(),
     } as unknown as AgentMessage);

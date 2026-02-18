@@ -1,6 +1,6 @@
 import type { ContextLifecycleEmitter } from "../../context-lifecycle/emitter.js";
-import type { EffectiveContextPruningSettings } from "./settings.js";
 import { createSessionManagerRuntimeRegistry } from "../session-manager-runtime-registry.js";
+import type { EffectiveContextPruningSettings } from "./settings.js";
 
 export type ContextPruningRuntimeValue = {
   settings: EffectiveContextPruningSettings;

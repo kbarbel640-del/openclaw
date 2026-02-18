@@ -2,9 +2,9 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { type AuthStorage, estimateTokens, generateSummary } from "@mariozechner/pi-coding-agent";
 import type { ContextDecayConfig } from "../../config/types.agent-defaults.js";
-import type { GroupSummaryEntry, GroupSummaryStore, SummaryStore } from "./summary-store.js";
 import { log } from "../pi-embedded-runner/logger.js";
 import { extractContentText, extractToolInfo } from "./message-utils.js";
+import type { GroupSummaryEntry, GroupSummaryStore, SummaryStore } from "./summary-store.js";
 import { loadGroupSummaryStore, loadSummaryStore, saveGroupSummaryStore } from "./summary-store.js";
 import { computeTurnAges, groupIndicesByTurn } from "./turn-ages.js";
 
