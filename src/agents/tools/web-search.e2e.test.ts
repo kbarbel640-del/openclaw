@@ -9,10 +9,13 @@ const {
   resolvePerplexityRequestModel,
   normalizeFreshness,
   freshnessToPerplexityRecency,
+  freshnessToSerpApiTbs,
   resolveGrokApiKey,
   resolveGrokModel,
   resolveGrokInlineCitations,
   extractGrokContent,
+  resolveSerpApiApiKey,
+  resolveSerpApiEngine,
 } = __testing;
 
 describe("web_search perplexity baseUrl defaults", () => {
@@ -240,5 +243,67 @@ describe("web_search grok response parsing", () => {
     } as Parameters<typeof extractGrokContent>[0]);
     expect(result.text).toBe("direct output text");
     expect(result.annotationCitations).toEqual(["https://example.com/direct"]);
+  });
+});
+
+describe("web_search serpapi config", () => {
+  it("reads API key from config", () => {
+    expect(resolveSerpApiApiKey({ apiKey: "test-serpapi-key" })).toBe("test-serpapi-key");
+  });
+
+  it("reads API key from SERPAPI_API_KEY env var", () => {
+    withEnv({ SERPAPI_API_KEY: "env-serpapi-key" }, () => {
+      expect(resolveSerpApiApiKey({})).toBe("env-serpapi-key");
+    });
+  });
+
+  it("prefers config key over env var", () => {
+    withEnv({ SERPAPI_API_KEY: "env-key" }, () => {
+      expect(resolveSerpApiApiKey({ apiKey: "config-key" })).toBe("config-key");
+    });
+  });
+
+  it("returns undefined when no key is available", () => {
+    withEnv({ SERPAPI_API_KEY: "" }, () => {
+      expect(resolveSerpApiApiKey({})).toBeUndefined();
+    });
+  });
+
+  it("returns default engine when not configured", () => {
+    expect(resolveSerpApiEngine({})).toBe("google");
+  });
+
+  it("returns custom engine from config", () => {
+    expect(resolveSerpApiEngine({ engine: "bing" })).toBe("bing");
+  });
+
+  it("returns default engine for empty string", () => {
+    expect(resolveSerpApiEngine({ engine: "  " })).toBe("google");
+  });
+});
+
+describe("web_search freshnessToSerpApiTbs", () => {
+  it("maps pd to qdr:d", () => {
+    expect(freshnessToSerpApiTbs("pd")).toBe("qdr:d");
+  });
+
+  it("maps pw to qdr:w", () => {
+    expect(freshnessToSerpApiTbs("pw")).toBe("qdr:w");
+  });
+
+  it("maps pm to qdr:m", () => {
+    expect(freshnessToSerpApiTbs("pm")).toBe("qdr:m");
+  });
+
+  it("maps py to qdr:y", () => {
+    expect(freshnessToSerpApiTbs("py")).toBe("qdr:y");
+  });
+
+  it("returns undefined for date ranges", () => {
+    expect(freshnessToSerpApiTbs("2024-01-01to2024-06-01")).toBeUndefined();
+  });
+
+  it("returns undefined for undefined input", () => {
+    expect(freshnessToSerpApiTbs(undefined)).toBeUndefined();
   });
 });

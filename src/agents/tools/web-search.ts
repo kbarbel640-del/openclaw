@@ -18,7 +18,7 @@ import {
   writeCache,
 } from "./web-shared.js";
 
-const SEARCH_PROVIDERS = ["brave", "perplexity", "grok"] as const;
+const SEARCH_PROVIDERS = ["brave", "perplexity", "grok", "serpapi"] as const;
 const DEFAULT_SEARCH_COUNT = 5;
 const MAX_SEARCH_COUNT = 10;
 
@@ -31,6 +31,9 @@ const OPENROUTER_KEY_PREFIXES = ["sk-or-"];
 
 const XAI_API_ENDPOINT = "https://api.x.ai/v1/responses";
 const DEFAULT_GROK_MODEL = "grok-4-1-fast";
+
+const SERPAPI_ENDPOINT = "https://serpapi.com/search";
+const DEFAULT_SERPAPI_ENGINE = "google";
 
 const SEARCH_CACHE = new Map<string, CacheEntry<Record<string, unknown>>>();
 const BRAVE_FRESHNESS_SHORTCUTS = new Set(["pd", "pw", "pm", "py"]);
@@ -64,7 +67,7 @@ const WebSearchSchema = Type.Object({
   freshness: Type.Optional(
     Type.String({
       description:
-        "Filter results by discovery time. Brave supports 'pd', 'pw', 'pm', 'py', and date range 'YYYY-MM-DDtoYYYY-MM-DD'. Perplexity supports 'pd', 'pw', 'pm', and 'py'.",
+        "Filter results by discovery time. Brave supports 'pd', 'pw', 'pm', 'py', and date range 'YYYY-MM-DDtoYYYY-MM-DD'. Perplexity and SerpAPI support 'pd', 'pw', 'pm', and 'py'.",
     }),
   ),
 });
@@ -143,6 +146,28 @@ type PerplexitySearchResponse = {
 };
 
 type PerplexityBaseUrlHint = "direct" | "openrouter";
+
+type SerpApiConfig = {
+  apiKey?: string;
+  engine?: string;
+};
+
+type SerpApiSearchResult = {
+  position?: number;
+  title?: string;
+  link?: string;
+  snippet?: string;
+  date?: string;
+  displayed_link?: string;
+};
+
+type SerpApiSearchResponse = {
+  organic_results?: SerpApiSearchResult[];
+  search_information?: {
+    total_results?: number;
+    query_displayed?: string;
+  };
+};
 
 function extractGrokContent(data: GrokSearchResponse): {
   text: string | undefined;
@@ -227,6 +252,14 @@ function missingSearchKeyPayload(provider: (typeof SEARCH_PROVIDERS)[number]) {
       docs: "https://docs.openclaw.ai/tools/web",
     };
   }
+  if (provider === "serpapi") {
+    return {
+      error: "missing_serpapi_api_key",
+      message:
+        "web_search (serpapi) needs a SerpAPI key. Set SERPAPI_API_KEY in the Gateway environment, or configure tools.web.search.serpapi.apiKey.",
+      docs: "https://docs.openclaw.ai/tools/web",
+    };
+  }
   return {
     error: "missing_brave_api_key",
     message: `web_search needs a Brave Search API key. Run \`${formatCliCommand("openclaw configure --section web")}\` to store it, or set BRAVE_API_KEY in the Gateway environment.`,
@@ -244,6 +277,9 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
   }
   if (raw === "grok") {
     return "grok";
+  }
+  if (raw === "serpapi") {
+    return "serpapi";
   }
   if (raw === "brave") {
     return "brave";
@@ -389,6 +425,34 @@ function resolveGrokInlineCitations(grok?: GrokConfig): boolean {
   return grok?.inlineCitations === true;
 }
 
+function resolveSerpApiConfig(search?: WebSearchConfig): SerpApiConfig {
+  if (!search || typeof search !== "object") {
+    return {};
+  }
+  const serpapi = "serpapi" in search ? search.serpapi : undefined;
+  if (!serpapi || typeof serpapi !== "object") {
+    return {};
+  }
+  return serpapi as SerpApiConfig;
+}
+
+function resolveSerpApiApiKey(serpapi?: SerpApiConfig): string | undefined {
+  const fromConfig = normalizeApiKey(serpapi?.apiKey);
+  if (fromConfig) {
+    return fromConfig;
+  }
+  const fromEnv = normalizeApiKey(process.env.SERPAPI_API_KEY);
+  return fromEnv || undefined;
+}
+
+function resolveSerpApiEngine(serpapi?: SerpApiConfig): string {
+  const fromConfig =
+    serpapi && "engine" in serpapi && typeof serpapi.engine === "string"
+      ? serpapi.engine.trim()
+      : "";
+  return fromConfig || DEFAULT_SERPAPI_ENGINE;
+}
+
 function resolveSearchCount(value: unknown, fallback: number): number {
   const parsed = typeof value === "number" && Number.isFinite(value) ? value : fallback;
   const clamped = Math.max(1, Math.min(MAX_SEARCH_COUNT, Math.floor(parsed)));
@@ -438,6 +502,23 @@ function freshnessToPerplexityRecency(freshness: string | undefined): string | u
     pw: "week",
     pm: "month",
     py: "year",
+  };
+  return map[freshness] ?? undefined;
+}
+
+/**
+ * Map normalized freshness values (pd/pw/pm/py) to SerpAPI's
+ * tbs parameter values (qdr:d/qdr:w/qdr:m/qdr:y).
+ */
+function freshnessToSerpApiTbs(freshness: string | undefined): string | undefined {
+  if (!freshness) {
+    return undefined;
+  }
+  const map: Record<string, string> = {
+    pd: "qdr:d",
+    pw: "qdr:w",
+    pm: "qdr:m",
+    py: "qdr:y",
   };
   return map[freshness] ?? undefined;
 }
@@ -573,6 +654,68 @@ async function runGrokSearch(params: {
   return { content, citations, inlineCitations };
 }
 
+async function runSerpApiSearch(params: {
+  query: string;
+  count: number;
+  apiKey: string;
+  engine: string;
+  timeoutSeconds: number;
+  country?: string;
+  search_lang?: string;
+  freshness?: string;
+}): Promise<
+  Array<{
+    title: string;
+    url: string;
+    description: string;
+    siteName?: string;
+  }>
+> {
+  const url = new URL(SERPAPI_ENDPOINT);
+  url.searchParams.set("engine", params.engine);
+  url.searchParams.set("q", params.query);
+  url.searchParams.set("api_key", params.apiKey);
+  url.searchParams.set("num", String(params.count));
+  if (params.country) {
+    url.searchParams.set("gl", params.country.toLowerCase());
+  }
+  if (params.search_lang) {
+    url.searchParams.set("hl", params.search_lang);
+  }
+  const tbs = freshnessToSerpApiTbs(params.freshness);
+  if (tbs) {
+    url.searchParams.set("tbs", tbs);
+  }
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    signal: withTimeout(undefined, params.timeoutSeconds * 1000),
+  });
+
+  if (!res.ok) {
+    const detailResult = await readResponseText(res, { maxBytes: 64_000 });
+    const detail = detailResult.text;
+    throw new Error(`SerpAPI error (${res.status}): ${detail || res.statusText}`);
+  }
+
+  const data = (await res.json()) as SerpApiSearchResponse;
+  const results = Array.isArray(data.organic_results) ? data.organic_results : [];
+  return results.map((entry) => {
+    const title = entry.title ?? "";
+    const link = entry.link ?? "";
+    const snippet = entry.snippet ?? "";
+    const rawSiteName = resolveSiteName(link);
+    return {
+      title: title ? wrapWebContent(title, "web_search") : "",
+      url: link,
+      description: snippet ? wrapWebContent(snippet, "web_search") : "",
+      published: entry.date || undefined,
+      siteName: rawSiteName || undefined,
+    };
+  });
+}
+
 async function runWebSearch(params: {
   query: string;
   count: number;
@@ -588,13 +731,16 @@ async function runWebSearch(params: {
   perplexityModel?: string;
   grokModel?: string;
   grokInlineCitations?: boolean;
+  serpApiEngine?: string;
 }): Promise<Record<string, unknown>> {
   const cacheKey = normalizeCacheKey(
     params.provider === "brave"
       ? `${params.provider}:${params.query}:${params.count}:${params.country || "default"}:${params.search_lang || "default"}:${params.ui_lang || "default"}:${params.freshness || "default"}`
       : params.provider === "perplexity"
         ? `${params.provider}:${params.query}:${params.perplexityBaseUrl ?? DEFAULT_PERPLEXITY_BASE_URL}:${params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL}:${params.freshness || "default"}`
-        : `${params.provider}:${params.query}:${params.grokModel ?? DEFAULT_GROK_MODEL}:${String(params.grokInlineCitations ?? false)}`,
+        : params.provider === "serpapi"
+          ? `${params.provider}:${params.query}:${params.count}:${params.country || "default"}:${params.search_lang || "default"}:${params.serpApiEngine ?? DEFAULT_SERPAPI_ENGINE}:${params.freshness || "default"}`
+          : `${params.provider}:${params.query}:${params.grokModel ?? DEFAULT_GROK_MODEL}:${String(params.grokInlineCitations ?? false)}`,
   );
   const cached = readCache(SEARCH_CACHE, cacheKey);
   if (cached) {
@@ -654,6 +800,36 @@ async function runWebSearch(params: {
       content: wrapWebContent(content),
       citations,
       inlineCitations,
+    };
+    writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
+    return payload;
+  }
+
+  if (params.provider === "serpapi") {
+    const mapped = await runSerpApiSearch({
+      query: params.query,
+      count: params.count,
+      apiKey: params.apiKey,
+      engine: params.serpApiEngine ?? DEFAULT_SERPAPI_ENGINE,
+      timeoutSeconds: params.timeoutSeconds,
+      country: params.country,
+      search_lang: params.search_lang,
+      freshness: params.freshness,
+    });
+
+    const payload = {
+      query: params.query,
+      provider: params.provider,
+      engine: params.serpApiEngine ?? DEFAULT_SERPAPI_ENGINE,
+      count: mapped.length,
+      tookMs: Date.now() - start,
+      externalContent: {
+        untrusted: true,
+        source: "web_search",
+        provider: params.provider,
+        wrapped: true,
+      },
+      results: mapped,
     };
     writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
     return payload;
@@ -739,13 +915,16 @@ export function createWebSearchTool(options?: {
   const provider = resolveSearchProvider(search);
   const perplexityConfig = resolvePerplexityConfig(search);
   const grokConfig = resolveGrokConfig(search);
+  const serpApiConfig = resolveSerpApiConfig(search);
 
   const description =
     provider === "perplexity"
       ? "Search the web using Perplexity Sonar (direct or via OpenRouter). Returns AI-synthesized answers with citations from real-time web search."
       : provider === "grok"
         ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search."
-        : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
+        : provider === "serpapi"
+          ? "Search the web using SerpAPI. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research."
+          : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
 
   return {
     label: "Web Search",
@@ -760,7 +939,9 @@ export function createWebSearchTool(options?: {
           ? perplexityAuth?.apiKey
           : provider === "grok"
             ? resolveGrokApiKey(grokConfig)
-            : resolveSearchApiKey(search);
+            : provider === "serpapi"
+              ? resolveSerpApiApiKey(serpApiConfig)
+              : resolveSearchApiKey(search);
 
       if (!apiKey) {
         return jsonResult(missingSearchKeyPayload(provider));
@@ -773,10 +954,16 @@ export function createWebSearchTool(options?: {
       const search_lang = readStringParam(params, "search_lang");
       const ui_lang = readStringParam(params, "ui_lang");
       const rawFreshness = readStringParam(params, "freshness");
-      if (rawFreshness && provider !== "brave" && provider !== "perplexity") {
+      if (
+        rawFreshness &&
+        provider !== "brave" &&
+        provider !== "perplexity" &&
+        provider !== "serpapi"
+      ) {
         return jsonResult({
           error: "unsupported_freshness",
-          message: "freshness is only supported by the Brave and Perplexity web_search providers.",
+          message:
+            "freshness is only supported by the Brave, Perplexity, and SerpAPI web_search providers.",
           docs: "https://docs.openclaw.ai/tools/web",
         });
       }
@@ -808,6 +995,7 @@ export function createWebSearchTool(options?: {
         perplexityModel: resolvePerplexityModel(perplexityConfig),
         grokModel: resolveGrokModel(grokConfig),
         grokInlineCitations: resolveGrokInlineCitations(grokConfig),
+        serpApiEngine: resolveSerpApiEngine(serpApiConfig),
       });
       return jsonResult(result);
     },
@@ -821,8 +1009,11 @@ export const __testing = {
   resolvePerplexityRequestModel,
   normalizeFreshness,
   freshnessToPerplexityRecency,
+  freshnessToSerpApiTbs,
   resolveGrokApiKey,
   resolveGrokModel,
   resolveGrokInlineCitations,
   extractGrokContent,
+  resolveSerpApiApiKey,
+  resolveSerpApiEngine,
 } as const;
