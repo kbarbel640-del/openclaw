@@ -124,3 +124,27 @@ Ted Engine can (a) read limited email/calendar context and (b) create **drafts o
 ### Notes
 
 - Proof intentionally verifies fail-closed behavior without requiring live tenant auth.
+
+---
+
+## Real-World Proof Attempt (Device-code) — BLOCKED by Tenant Identity Prerequisite
+
+- Date: 2026-02-18
+- Step attempted: Complete device-code auth for Olumie profile
+- Result: BLOCKED (expected non-code dependency)
+
+### Observed error (summary)
+
+Selected user account does not exist in tenant and cannot access the application in that tenant.
+Account must be added as an external user (guest) or a tenant user must be used.
+
+### Interpretation (SDD)
+
+This is not a defect in sidecar auth flow. It is a tenant onboarding prerequisite:
+
+- A user principal completing device-code auth must exist in the target Entra tenant and be authorized to access the app.
+
+### Next action
+
+- Use an Olumie tenant user to complete auth (preferred), OR
+- Invite the operator as a B2B guest and ensure mailbox/calendar access is valid for the intended workflows.
