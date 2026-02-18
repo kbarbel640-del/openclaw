@@ -1,5 +1,3 @@
-import type { OpenClawConfig } from "../../config/config.js";
-import type { MonitorIMessageOpts, IMessagePayload } from "./types.js";
 import { hasControlCommand } from "../../auto-reply/command-detection.js";
 import {
   formatInboundEnvelope,
@@ -16,6 +14,7 @@ import { finalizeInboundContext } from "../../auto-reply/reply/inbound-context.j
 import { buildMentionRegexes, matchesMentionPatterns } from "../../auto-reply/reply/mentions.js";
 import { resolveControlCommandGate } from "../../channels/command-gating.js";
 import { logInboundDrop } from "../../channels/logging.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import {
   resolveChannelGroupPolicy,
   resolveChannelGroupRequireMention,
@@ -28,6 +27,7 @@ import {
   normalizeIMessageHandle,
 } from "../targets.js";
 import { buildIMessageEchoScope } from "./echo-scope.js";
+import type { MonitorIMessageOpts, IMessagePayload } from "./types.js";
 
 type IMessageReplyContext = {
   id?: string;
@@ -105,6 +105,11 @@ export function resolveIMessageInboundDecision(params: {
     return { kind: "drop", reason: "missing sender" };
   }
   const senderNormalized = normalizeIMessageHandle(sender);
+
+  // Drop bridge-reported "from me"; avoids duplicate when bridge sends same user message twice with is_from_me=true.
+  if (params.message.is_from_me) {
+    return { kind: "drop", reason: "from me" };
+  }
 
   const chatId = params.message.chat_id ?? undefined;
   const chatGuid = params.message.chat_guid ?? undefined;
