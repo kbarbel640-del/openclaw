@@ -147,7 +147,8 @@ const FALSE_POSITIVE_SUPPRESSIONS: Array<{
   // nvm, rustup, and other common installer scripts
   {
     suppresses: ["curl-pipe-shell"],
-    regex: /curl\s+.*https?:\/\/(?:raw\.githubusercontent\.com\/nvm-sh\/nvm|sh\.rustup\.rs|get\.docker\.com|install\.python-poetry\.org)\b/i,
+    regex:
+      /curl\s+.*https?:\/\/(?:raw\.githubusercontent\.com\/nvm-sh\/nvm|sh\.rustup\.rs|get\.docker\.com|install\.python-poetry\.org)\b/i,
   },
   // Node.js package manager install scripts
   {
