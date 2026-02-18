@@ -26,11 +26,21 @@ function hasMedia(message: proto.IMessage | undefined): boolean {
 
 function getMediaType(message: proto.IMessage | undefined): string | undefined {
   if (!message) return undefined;
-  if (message.imageMessage) return "image";
-  if (message.videoMessage) return "video";
-  if (message.documentMessage) return "document";
-  if (message.audioMessage) return "audio";
-  if (message.stickerMessage) return "sticker";
+  if (message.imageMessage) {
+    return "image";
+  }
+  if (message.videoMessage) {
+    return "video";
+  }
+  if (message.documentMessage) {
+    return "document";
+  }
+  if (message.audioMessage) {
+    return "audio";
+  }
+  if (message.stickerMessage) {
+    return "sticker";
+  }
   return undefined;
 }
 

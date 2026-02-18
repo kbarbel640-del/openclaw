@@ -67,7 +67,9 @@ class MessageStore {
 
     for (const key of keys) {
       const stored = this.messages.get(key);
-      if (!stored) continue;
+      if (!stored) {
+        continue;
+      }
 
       // Skip expired messages
       if (now - stored.timestamp > this.maxAgeMs) {
@@ -110,7 +112,9 @@ class MessageStore {
       const toRemove = this.messages.size - this.maxMessages;
       let removed = 0;
       for (const [key, stored] of entries) {
-        if (removed >= toRemove) break;
+        if (removed >= toRemove) {
+          break;
+        }
         if (this.messages.has(key)) {
           this.messages.delete(key);
           this.messagesByChat.get(stored.chatJid)?.delete(key);

@@ -81,8 +81,12 @@ export function patchHistorySyncHandling(sock: WASocket): void {
             const responseCodeName = getResponseCodeName(historyResponse.responseCode);
             process.stdout.write(`     Response: ${responseCodeName}\n\n`);
 
-            if (historyResponse.responseCode === 0) {
-              // REQUEST_SUCCESS
+            // REQUEST_SUCCESS = 0
+            if (
+              historyResponse.responseCode !== null &&
+              historyResponse.responseCode !== undefined &&
+              historyResponse.responseCode === 0
+            ) {
               process.stdout.write(`  ✅ History sync request successful!\n`);
               process.stdout.write(`     Now waiting for HistorySyncNotification message...\n\n`);
             } else {

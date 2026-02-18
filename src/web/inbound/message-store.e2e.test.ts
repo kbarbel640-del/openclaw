@@ -33,7 +33,7 @@ describe("MessageStore E2E - Direct History Read", () => {
       {
         authDir: credentialsPath,
         syncFullHistory: true,
-        onQr: (qr) => {
+        onQr: (_qr) => {
           process.stdout.write("\n" + "=".repeat(80) + "\n");
           process.stdout.write("⚠️  AUTHENTICATION REQUIRED - SCAN QR CODE ⚠️\n");
           process.stdout.write("=".repeat(80) + "\n");
