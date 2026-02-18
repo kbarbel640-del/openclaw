@@ -291,6 +291,7 @@ export async function deliverReplies(params: {
             textMode: "html",
             plainText: chunk.text,
             linkPreview,
+            silent: params.silent,
             replyMarkup: i === 0 ? replyMarkup : undefined,
           });
           markDelivered();
