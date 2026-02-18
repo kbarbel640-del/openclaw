@@ -13,7 +13,12 @@ type OpenAIReasoningSignature = {
 
 // These block types are producer-only artifacts in OpenAI replay streams and do NOT
 // satisfy the "required following item" rule for reasoning items.
-const OPENAI_REPLAY_PRODUCER_TYPES = new Set(["toolCall", "toolUse", "function_call"]);
+const OPENAI_REPLAY_PRODUCER_TYPES = new Set([
+  "toolCall",
+  "toolUse",
+  "function_call",
+  "functionCall",
+]);
 
 function parseOpenAIReasoningSignature(value: unknown): OpenAIReasoningSignature | null {
   if (!value) {
