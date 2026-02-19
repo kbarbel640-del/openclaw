@@ -130,7 +130,7 @@ export const handleConfigCommand: CommandHandler = async (params, allowTextComma
       return {
         shouldContinue: false,
         reply: {
-          text: `⚠️ Config invalid after unset (${issue.path}: ${issue.message}).`,
+          text: `⚠️ Config invalid after unset (${issue?.path ?? "<root>"}: ${issue?.message ?? "invalid"}).`,
         },
       };
     }
