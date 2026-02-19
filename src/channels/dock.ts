@@ -236,7 +236,7 @@ const DOCKS: Record<ChatChannelId, ChannelDock> = {
     },
     mentions: {
       stripPatterns: ({ ctx }) => {
-        const selfE164 = (ctx.To ?? "").replace(/^whatsapp:/, "");
+        const selfE164 = (ctx.To ?? "").replace(/^whatsapp:/, "").replace(/^\+/, "");
         if (!selfE164) {
           return [];
         }
