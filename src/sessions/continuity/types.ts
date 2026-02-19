@@ -14,9 +14,9 @@ export const SessionContinuityConfigSchema = Type.Object({
 });
 
 export interface SessionContinuityConfig {
-  enabled: boolean;
-  inheritMode: "full" | "summary" | "key_points";
-  maxHistoricalSessions: number;
+  enabled?: boolean;
+  inheritMode?: "full" | "summary" | "key_points";
+  maxHistoricalSessions?: number;
   summaryPrompt?: string;
 }
 

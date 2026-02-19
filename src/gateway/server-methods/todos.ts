@@ -17,7 +17,7 @@ export const todosHandlers: GatewayRequestHandlers = {
       });
       respond(true, result);
     } catch (error) {
-      respond(false, undefined, errorShape(ErrorCodes.INTERNAL_ERROR, String(error)));
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(error)));
     }
   },
 
@@ -39,7 +39,7 @@ export const todosHandlers: GatewayRequestHandlers = {
       });
       respond(true, result);
     } catch (error) {
-      respond(false, undefined, errorShape(ErrorCodes.INTERNAL_ERROR, String(error)));
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(error)));
     }
   },
 
@@ -56,12 +56,12 @@ export const todosHandlers: GatewayRequestHandlers = {
         priority: params.priority as "high" | "medium" | "low" | undefined,
       });
       if (!result) {
-        respond(false, undefined, errorShape(ErrorCodes.NOT_FOUND, "todo not found"));
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "todo not found"));
         return;
       }
       respond(true, result);
     } catch (error) {
-      respond(false, undefined, errorShape(ErrorCodes.INTERNAL_ERROR, String(error)));
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(error)));
     }
   },
 
@@ -76,7 +76,7 @@ export const todosHandlers: GatewayRequestHandlers = {
       });
       respond(true, { deleted: result });
     } catch (error) {
-      respond(false, undefined, errorShape(ErrorCodes.INTERNAL_ERROR, String(error)));
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(error)));
     }
   },
 };

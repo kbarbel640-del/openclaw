@@ -23,7 +23,7 @@ export class SessionContinuityManager {
   }
 
   isEnabled(): boolean {
-    return this.config.enabled;
+    return this.config.enabled ?? false;
   }
 
   async getHistoricalSessions(

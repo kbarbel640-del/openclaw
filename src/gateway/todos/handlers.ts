@@ -21,7 +21,7 @@ export async function handleTodosList(params: {
     todos = todos.filter((t) => t.status === params.status);
   }
 
-  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
   todos = todos.toSorted((a, b) => {
     const priDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
     if (priDiff !== 0) {

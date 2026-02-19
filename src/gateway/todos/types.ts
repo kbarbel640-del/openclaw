@@ -47,6 +47,18 @@ export const TodoListParamsSchema = Type.Object({
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
 });
 
-export type Todo = Type.TypeOf<typeof TodoSchema>;
-export type TodoPriority = Type.TypeOf<typeof TodoPrioritySchema>;
-export type TodoStatus = Type.TypeOf<typeof TodoStatusSchema>;
+export type TodoPriority = "high" | "medium" | "low";
+export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
+
+export interface Todo {
+  id: string;
+  content: string;
+  status: TodoStatus;
+  priority: TodoPriority;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  sessionKey: string;
+  subtasks?: string[];
+  parentId?: string;
+}

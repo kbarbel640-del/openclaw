@@ -1,9 +1,8 @@
-import { handleTodosCreate } from "../../gateway/todos/handlers.js";
-import { parseTodosFromPrompt } from "../../gateway/todos/handlers.js";
-import { EvidenceGateManager } from "../../gateway/evidence/manager.js";
-import { SessionContinuityManager } from "../../sessions/continuity/manager.js";
-import type { EvidenceConfig } from "../../gateway/evidence/types.js";
-import type { SessionContinuityConfig } from "../../sessions/continuity/types.js";
+import { handleTodosCreate, parseTodosFromPrompt } from "../gateway/todos/handlers.js";
+import { EvidenceGateManager } from "../gateway/evidence/manager.js";
+import { SessionContinuityManager } from "../sessions/continuity/manager.js";
+import type { EvidenceConfig } from "../gateway/evidence/types.js";
+import type { SessionContinuityConfig } from "../sessions/continuity/types.js";
 
 export interface AgentExecutionContext {
   message: string;
@@ -13,8 +12,8 @@ export interface AgentExecutionContext {
 
 export interface AgentExecutionConfig {
   todos?: {
-    enabled: boolean;
-    autoTrack: boolean;
+    enabled?: boolean;
+    autoTrack?: boolean;
   };
   evidence?: EvidenceConfig;
   continuity?: SessionContinuityConfig;

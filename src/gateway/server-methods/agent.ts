@@ -40,7 +40,7 @@ import { resolveAssistantAvatarUrl } from "../control-ui-shared.js";
 import { waitForAgentJob } from "./agent-job.js";
 import type { GatewayRequestHandlers } from "./types.js";
 import { AgentIntegrationHooks } from "../../agents/integration-hooks.js";
-import { ParallelTaskRunner } from "../../agents/parallel-runner.js";
+import { ParallelTaskRunner, type ParallelTask } from "../../agents/parallel-runner.js";
 
 export const agentHandlers: GatewayRequestHandlers = {
   agent: async ({ params, respond, context }) => {
@@ -346,18 +346,31 @@ export const agentHandlers: GatewayRequestHandlers = {
 
     const resolvedThreadId = explicitThreadId ?? deliveryPlan.resolvedThreadId;
 
-    const agentCfg = cfg.agents?.defaults;
-    const todosConfig = agentCfg?.todos as { enabled?: boolean; autoTrack?: boolean } | undefined;
-    const evidenceConfig = agentCfg?.evidence as
-      | { enabled?: boolean; gates?: unknown[] }
+    // Get Sisyphus config from agents.defaults
+    const rawConfig = cfg.agents?.defaults as Record<string, unknown> | undefined;
+    const todosConfig = rawConfig?.todos as { enabled?: boolean; autoTrack?: boolean } | undefined;
+    const evidenceConfig = rawConfig?.evidence as
+      | {
+          enabled?: boolean;
+          gates?: { type: "lsp" | "build" | "test" | "custom"; enabled?: boolean }[];
+        }
       | undefined;
-    const continuityConfig = agentCfg?.continuity as
-      | { enabled?: boolean; inheritMode?: string; maxHistoricalSessions?: number }
+    const continuityConfig = rawConfig?.continuity as
+      | {
+          enabled?: boolean;
+          inheritMode?: "full" | "summary" | "key_points";
+          maxHistoricalSessions?: number;
+        }
       | undefined;
 
     const hooks = new AgentIntegrationHooks({
       todos: todosConfig,
-      evidence: evidenceConfig,
+      evidence: evidenceConfig as
+        | {
+            enabled?: boolean;
+            gates: { type: "lsp" | "build" | "test" | "custom"; enabled?: boolean }[];
+          }
+        | undefined,
       continuity: continuityConfig,
     });
 
@@ -381,7 +394,7 @@ export const agentHandlers: GatewayRequestHandlers = {
         id: `parallel-${idx}`,
         message: taskMsg,
         sessionKey: requestedSessionKey!,
-        agentId,
+        agentId: agentId || "",
       }));
 
       const taskExecutor = async (task: (typeof tasks)[0]) => {

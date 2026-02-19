@@ -22,8 +22,20 @@ export const EvidenceConfigSchema = Type.Object({
 });
 
 export type EvidenceGateType = "lsp" | "build" | "test" | "custom";
-export type EvidenceConfig = Type.TypeOf<typeof EvidenceConfigSchema>;
-export type EvidenceGate = Type.TypeOf<typeof EvidenceGateSchema>;
+
+export interface EvidenceConfig {
+  enabled?: boolean;
+  gates: EvidenceGate[];
+  failOnError?: boolean;
+}
+
+export interface EvidenceGate {
+  type: EvidenceGateType;
+  enabled?: boolean;
+  command?: string;
+  required?: boolean;
+  timeoutMs?: number;
+}
 
 export interface VerificationResult {
   type: EvidenceGateType;

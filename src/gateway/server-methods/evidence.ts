@@ -10,9 +10,9 @@ const DEFAULT_EVIDENCE_CONFIG: EvidenceConfig = {
 };
 
 export const evidenceHandlers: GatewayRequestHandlers = {
-  "evidence.run": async ({ respond, context }) => {
+  "evidence.run": async ({ respond }) => {
     try {
-      const workspace = context.deps.runtime?.runtime?.cwd || process.cwd();
+      const workspace = process.cwd();
       const config: EvidenceConfig = DEFAULT_EVIDENCE_CONFIG;
 
       const manager = new EvidenceGateManager(config, workspace);
@@ -26,13 +26,13 @@ export const evidenceHandlers: GatewayRequestHandlers = {
         optional: validation.optional,
       });
     } catch (error) {
-      respond(false, undefined, errorShape(ErrorCodes.INTERNAL_ERROR, String(error)));
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(error)));
     }
   },
 
-  "evidence.status": async ({ respond, context }) => {
+  "evidence.status": async ({ respond }) => {
     try {
-      const workspace = context.deps.runtime?.runtime?.cwd || process.cwd();
+      const workspace = process.cwd();
       const config: EvidenceConfig = DEFAULT_EVIDENCE_CONFIG;
 
       const manager = new EvidenceGateManager(config, workspace);
@@ -42,7 +42,7 @@ export const evidenceHandlers: GatewayRequestHandlers = {
         workspace,
       });
     } catch (error) {
-      respond(false, undefined, errorShape(ErrorCodes.INTERNAL_ERROR, String(error)));
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(error)));
     }
   },
 };

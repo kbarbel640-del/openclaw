@@ -24,7 +24,7 @@ export class EvidenceGateManager {
   }
 
   isEnabled(): boolean {
-    return this.config.enabled;
+    return this.config.enabled ?? false;
   }
 
   async runAllGates(): Promise<VerificationResult[]> {
@@ -33,9 +33,9 @@ export class EvidenceGateManager {
     }
 
     const results: VerificationResult[] = [];
-    const enabledGates = this.config.gates.filter((g) => g.enabled);
+    const enabledGates = this.config.gates.filter((g: EvidenceGate) => g.enabled);
 
-    const promises = enabledGates.map((gate) => this.runGate(gate));
+    const promises = enabledGates.map((gate: EvidenceGate) => this.runGate(gate));
     results.push(...(await Promise.all(promises)));
 
     return results;
@@ -51,8 +51,10 @@ export class EvidenceGateManager {
     failed: VerificationResult[];
     optional: VerificationResult[];
   } {
-    const failed = results.filter((r) => !r.success);
-    const optional = results.filter((r) => r.success || !this.isRequired(r.type));
+    const failed = results.filter((r: VerificationResult) => !r.success);
+    const optional = results.filter(
+      (r: VerificationResult) => r.success || !this.isRequired(r.type),
+    );
 
     return {
       passed: failed.length === 0,
@@ -80,7 +82,7 @@ export class EvidenceGateManager {
   }
 
   private isRequired(type: EvidenceGateType): boolean {
-    const gate = this.config.gates.find((g) => g.type === type);
+    const gate = this.config.gates.find((g: EvidenceGate) => g.type === type);
     return gate?.required ?? false;
   }
 }

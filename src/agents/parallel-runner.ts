@@ -2,7 +2,7 @@ export interface ParallelTask {
   id: string;
   message: string;
   sessionKey: string;
-  agentId?: string;
+  agentId: string;
   priority?: "high" | "medium" | "low";
 }
 
