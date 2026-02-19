@@ -1,0 +1,65 @@
+{
+  // The Lab — OpenClaw Configuration
+  // Local-only photo editing agent. No cloud model calls.
+
+  identity: {
+    name: "The Lab",
+    emoji: "🔬",
+  },
+
+  agent: {
+    workspace: "~/.thelab/workspace",
+    skipBootstrap: true,
+  },
+
+  // Lock to local models only — no cloud API calls for image processing
+  agents: {
+    defaults: {
+      model: "ollama/llama3.2:11b",
+      imageModel: "ollama/llava:13b",
+      timeoutSeconds: 1800, // 30 min per agent run (long editing sessions)
+    },
+  },
+
+  // Tool policy: only what The Lab needs
+  tools: {
+    profile: "coding",
+    allow: [
+      "group:fs",
+      "group:runtime",
+      "group:sessions",
+      "message",
+    ],
+    deny: [
+      "browser",
+      "canvas",
+      "cron",
+      "gateway",
+      "web_search",
+      "web_fetch",
+    ],
+  },
+
+  // iMessage only — for progress notifications to the photographer
+  channels: {
+    imessage: {
+      enabled: true,
+    },
+  },
+
+  // Skills: load The Lab's film stock presets
+  skills: {
+    load: {
+      watch: true,
+      watchDebounceMs: 500,
+    },
+    entries: {
+      "thelab-super8-wedding-pastel": { enabled: true },
+    },
+  },
+
+  // Logging
+  logging: {
+    level: "info",
+  },
+}

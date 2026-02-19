@@ -1,0 +1,41 @@
+{
+  "name": "Cinestill 800T — Night/Dusk",
+  "description": "Department of Vibe Cinestill 800T. Tungsten-balanced cinema film with halation, warm amber highlights, distinctive blue-green shadows, and moderate grain. For night and dusk photography.",
+  "target_ranges": {
+    "exposure": { "min": -0.5, "max": 0.5, "typical": 0.0 },
+    "contrast": { "min": 5, "max": 30, "typical": 15 },
+    "highlights": { "min": -50, "max": -10, "typical": -25 },
+    "shadows": { "min": 5, "max": 30, "typical": 15 },
+    "whites": { "min": -30, "max": 10, "typical": -10 },
+    "blacks": { "min": -10, "max": 15, "typical": 5 },
+    "temp": { "min": 3600, "max": 4800, "typical": 4200 },
+    "tint": { "min": 0, "max": 15, "typical": 8 },
+    "vibrance": { "min": -5, "max": 15, "typical": 5 },
+    "saturation": { "min": -10, "max": 5, "typical": -3 },
+    "clarity": { "min": 0, "max": 15, "typical": 5 },
+    "dehaze": { "min": -5, "max": 10, "typical": 0 },
+    "texture": { "min": -5, "max": 10, "typical": 0 },
+    "grain_amount": { "min": 25, "max": 50, "typical": 35 },
+    "grain_size": { "min": 25, "max": 55, "typical": 40 },
+    "grain_roughness": { "min": 45, "max": 75, "typical": 60 },
+    "vignette_amount": { "min": -35, "max": -5, "typical": -20 },
+    "hsl_sat_blue": { "min": 5, "max": 25, "typical": 15 },
+    "hsl_sat_aqua": { "min": 5, "max": 20, "typical": 10 },
+    "hsl_hue_orange": { "min": -8, "max": 5, "typical": -3 },
+    "hsl_hue_red": { "min": -5, "max": 8, "typical": 3 },
+    "hsl_sat_orange": { "min": 5, "max": 20, "typical": 10 }
+  },
+  "color_temperature_bias": -800,
+  "grain_profile": {
+    "amount": 35,
+    "size": 40,
+    "roughness": 60
+  },
+  "tone_curve_anchors": [
+    { "input": 0, "output": 8 },
+    { "input": 64, "output": 55 },
+    { "input": 128, "output": 130 },
+    { "input": 192, "output": 200 },
+    { "input": 255, "output": 250 }
+  ]
+}
