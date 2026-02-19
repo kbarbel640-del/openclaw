@@ -311,6 +311,16 @@ export async function monitorLineProvider(
 
   abortSignal?.addEventListener("abort", stopHandler);
 
+  // Stay pending until the abort signal fires. Without this the channel framework
+  // sees an immediately-resolved promise and triggers an auto-restart loop. (#20573)
+  await new Promise<void>((resolve) => {
+    if (abortSignal?.aborted) {
+      resolve();
+      return;
+    }
+    abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+  });
+
   return {
     account: bot.account,
     handleWebhook: bot.handleWebhook,
