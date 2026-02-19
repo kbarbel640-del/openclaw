@@ -12,6 +12,7 @@ services:
     volumes:
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      - /home/mira/Documents/Testing/Mira-Platform:/home/node/Mira-Platform
     ports:
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
@@ -44,6 +45,7 @@ services:
     volumes:
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      - /home/mira/Documents/Testing/Mira-Platform:/home/node/Mira-Platform
     extra_hosts:
       - "host.docker.internal:host-gateway"
     stdin_open: true
