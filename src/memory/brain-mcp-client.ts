@@ -140,6 +140,57 @@ export class BrainMcpClient {
   }
 
   /**
+   * Smart search - fast vector + graph + rerank (~150-200ms Brain-side, ~1s via mcporter).
+   * No LLM query rewriting overhead. Returns full content.
+   */
+  async smartSearch(params: {
+    query: string;
+    workspaceId: string;
+    limit?: number;
+  }): Promise<BrainSearchResult> {
+    const startTime = Date.now();
+
+    try {
+      const args = [
+        `query="${this.escapeArg(params.query)}"`,
+        `workspace_id="${params.workspaceId}"`,
+        `limit:${params.limit ?? 5}`,
+      ];
+
+      const result = await this.callTool("brain.smart_search", args);
+      const duration = Date.now() - startTime;
+      log.debug(`smart_search completed in ${duration}ms`);
+
+      return this.parseUnifiedSearchResult(result);
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      log.warn(`smart_search failed after ${duration}ms: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Write a single memory to a Brain workspace.
+   * Used by the mission system for triumph knowledge extraction.
+   */
+  async createMemory(params: {
+    content: string;
+    workspaceId: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    const memories = JSON.stringify([
+      {
+        content: params.content,
+        workspace_id: params.workspaceId,
+        metadata: params.metadata ?? {},
+      },
+    ]);
+    // Escape any single quotes in the JSON for shell-safe embedding
+    const escaped = memories.replace(/'/g, "'\\''");
+    await this.callTool("brain.create_memories", [`memories='${escaped}'`]);
+  }
+
+  /**
    * Health check - verify Brain MCP is available.
    */
   async healthCheck(): Promise<boolean> {

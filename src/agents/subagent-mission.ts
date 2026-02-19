@@ -5,6 +5,8 @@ import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
+import { createBrainMcpClient, type BrainMcpClient } from "../memory/brain-mcp-client.js";
 import { parseAgentSessionKey } from "../routing/session-key.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { resolveAgentConfig, resolveAgentWorkspaceDir } from "./agent-scope.js";
@@ -25,6 +27,8 @@ import {
   formatTranscriptForRetry,
 } from "./subagent-transcript-summary.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
+
+const log = createSubsystemLogger("mission");
 
 // ---------------------------------------------------------------------------
 // Types
@@ -88,6 +92,24 @@ const PSQL_PATH =
     "/usr/local/bin/psql",
     "psql",
   ].find((p) => p === "psql" || existsSync(p)) ?? "psql";
+
+// ---------------------------------------------------------------------------
+// Triumph Learning Loop
+// ---------------------------------------------------------------------------
+
+/** Shared cross-agent knowledge store workspace ID */
+const TRIUMPH_WORKSPACE_ID = "abe073d0-642f-4911-999d-18a5b8b24a5e";
+
+/** Lazily-created Brain MCP client for triumph reads/writes */
+let _missionBrainClient: BrainMcpClient | null = null;
+function getMissionBrainClient(): BrainMcpClient {
+  if (!_missionBrainClient) {
+    const cfg = loadConfig();
+    const mcporterPath = cfg.memory?.brainTiered?.mcporterPath ?? "mcporter";
+    _missionBrainClient = createBrainMcpClient({ mcporterPath, timeoutMs: 5000 });
+  }
+  return _missionBrainClient;
+}
 
 // ---------------------------------------------------------------------------
 // State stores
@@ -218,7 +240,35 @@ async function spawnSubtask(mission: MissionRecord, subtask: SubtaskRecord): Pro
   const taskWithResults = buildTaskWithInjectedResults(mission, subtask);
   subtask.effectiveTask = taskWithResults;
 
-  const effectiveTask = directive ? `${taskWithResults}\n\n---\n\n${directive}` : taskWithResults;
+  // Search triumph shared workspace for cross-agent knowledge (5s budget)
+  // Uses smart_search (~200ms Brain-side, ~1s via mcporter) — vector + graph + rerank, no LLM rewrite.
+  // Agent's own workspace is already covered by the existing Recalled Memory system.
+  let memorySection = "";
+  try {
+    const brainClient = getMissionBrainClient();
+    const queryText = subtask.originalTask.slice(0, 200);
+
+    const triumphResults = await Promise.race([
+      brainClient
+        .smartSearch({ query: queryText, workspaceId: TRIUMPH_WORKSPACE_ID, limit: 3 })
+        .then((r) => r.results.map((x) => `- ${x.content.slice(0, 200)}`))
+        .catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+    ]);
+
+    if (triumphResults && triumphResults.length > 0) {
+      memorySection = `## Team Knowledge\n\n${triumphResults.join("\n")}\n\n---\n\n`;
+    }
+    log.info(
+      `[triumph-inject] agent=${subtask.agentId} results=${triumphResults?.length ?? 0} memoryLen=${memorySection.length}`,
+    );
+  } catch (err) {
+    log.warn(`[triumph-inject] failed for agent=${subtask.agentId}: ${err}`);
+  }
+
+  const effectiveTask = directive
+    ? `${memorySection}${taskWithResults}\n\n---\n\n${directive}`
+    : `${memorySection}${taskWithResults}`;
 
   const childSessionKey = `agent:${subtask.agentId}:subagent:${crypto.randomUUID()}`;
   subtask.childSessionKey = childSessionKey;
@@ -929,6 +979,30 @@ async function handleSubtaskCompletion(
           await appendFile(memoryPath, memEntry, "utf-8");
         } catch {
           // Never block mission completion on memory write
+        }
+      })();
+    }
+
+    // Write result to triumph workspace for cross-agent learning (fire-and-forget)
+    {
+      const triumphResult = subtask.result;
+      const triumphLabel = mission.label;
+      const triumphAgentId = subtask.agentId;
+      void (async () => {
+        try {
+          const content = `[${triumphAgentId}] ${triumphLabel} — ${(triumphResult ?? "").slice(0, 400)}`;
+          await getMissionBrainClient().createMemory({
+            content,
+            workspaceId: TRIUMPH_WORKSPACE_ID,
+            metadata: {
+              type: "agent_result",
+              agentId: triumphAgentId,
+              missionLabel: triumphLabel,
+              date: new Date().toISOString().slice(0, 10),
+            },
+          });
+        } catch {
+          // Never block mission completion on triumph write
         }
       })();
     }

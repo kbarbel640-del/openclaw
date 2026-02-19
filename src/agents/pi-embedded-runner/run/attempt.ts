@@ -738,10 +738,12 @@ export async function runEmbeddedAttempt(
           }
         }
 
-        // Auto-inject 4-tier memory context (T0→T1→T2→T3) so agents always start
-        // with relevant recalled knowledge, without relying on the model to call
-        // memory_search. Uses the first user message as the search query.
-        if (params.config?.memory?.backend === "brain-tiered") {
+        // Auto-inject 4-tier memory context (T0→T1→T2→T3) on the FIRST user message only.
+        // Subsequent messages already have recalled context in conversation history.
+        const hasUserHistory = activeSession.messages.some(
+          (m: { role: string }) => m.role === "user",
+        );
+        if (params.config?.memory?.backend === "brain-tiered" && !hasUserHistory) {
           try {
             const { manager } = await getMemorySearchManager({
               cfg: params.config,

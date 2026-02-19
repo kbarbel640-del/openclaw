@@ -87,51 +87,15 @@ export function createMemorySearchTool(options: {
   };
 }
 
-export function createMemoryGetTool(options: {
+/**
+ * Deprecated: memory_get is redundant — memory_search provides 4-tier retrieval
+ * and the `read` tool handles targeted file reads.
+ */
+export function createMemoryGetTool(_options: {
   config?: OpenClawConfig;
   agentSessionKey?: string;
 }): AnyAgentTool | null {
-  const cfg = options.config;
-  if (!cfg) {
-    return null;
-  }
-  const agentId = resolveSessionAgentId({
-    sessionKey: options.agentSessionKey,
-    config: cfg,
-  });
-  if (!resolveMemorySearchConfig(cfg, agentId)) {
-    return null;
-  }
-  return {
-    label: "Memory Get",
-    name: "memory_get",
-    description:
-      "Safe snippet read from MEMORY.md or memory/*.md with optional from/lines; use after memory_search to pull only the needed lines and keep context small.",
-    parameters: MemoryGetSchema,
-    execute: async (_toolCallId, params) => {
-      const relPath = readStringParam(params, "path", { required: true });
-      const from = readNumberParam(params, "from", { integer: true });
-      const lines = readNumberParam(params, "lines", { integer: true });
-      const { manager, error } = await getMemorySearchManager({
-        cfg,
-        agentId,
-      });
-      if (!manager) {
-        return jsonResult({ path: relPath, text: "", disabled: true, error });
-      }
-      try {
-        const result = await manager.readFile({
-          relPath,
-          from: from ?? undefined,
-          lines: lines ?? undefined,
-        });
-        return jsonResult(result);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return jsonResult({ path: relPath, text: "", disabled: true, error: message });
-      }
-    },
-  };
+  return null;
 }
 
 function resolveMemoryCitationsMode(cfg: OpenClawConfig): MemoryCitationsMode {
