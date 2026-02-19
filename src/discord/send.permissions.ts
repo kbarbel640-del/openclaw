@@ -34,6 +34,10 @@ function hasAdministrator(bitfield: bigint) {
   return (bitfield & ADMINISTRATOR_BIT) === ADMINISTRATOR_BIT;
 }
 
+function hasPermissionBit(bitfield: bigint, permission: bigint) {
+  return (bitfield & permission) === permission;
+}
+
 export function isThreadChannelType(channelType?: number) {
   return (
     channelType === ChannelType.GuildNewsThread ||
@@ -48,6 +52,74 @@ async function fetchBotUserId(rest: RequestClient) {
     throw new Error("Failed to resolve bot user id");
   }
   return me.id;
+}
+
+/**
+ * Fetch guild-level permissions for a user. Does not include channel-specific overwrites.
+ * @param guildId - Guild ID
+ * @param userId - User ID to check permissions for
+ * @param opts - Discord API options
+ * @returns Bitfield of guild permissions or null if user is not a guild member
+ */
+export async function fetchMemberGuildPermissionsDiscord(
+  guildId: string,
+  userId: string,
+  opts: DiscordReactOpts = {},
+): Promise<bigint | null> {
+  const rest = resolveDiscordRest(opts);
+
+  try {
+    const [guild, member] = await Promise.all([
+      rest.get(Routes.guild(guildId)) as Promise<APIGuild>,
+      rest.get(Routes.guildMember(guildId, userId)) as Promise<APIGuildMember>,
+    ]);
+
+    const rolesById = new Map<string, APIRole>((guild.roles ?? []).map((role) => [role.id, role]));
+    const everyoneRole = rolesById.get(guildId);
+    let permissions = 0n;
+    if (everyoneRole?.permissions) {
+      permissions = addPermissionBits(permissions, everyoneRole.permissions);
+    }
+    for (const roleId of member.roles ?? []) {
+      const role = rolesById.get(roleId);
+      if (role?.permissions) {
+        permissions = addPermissionBits(permissions, role.permissions);
+      }
+    }
+
+    return permissions;
+  } catch {
+    // User is not a guild member or guild doesn't exist
+    return null;
+  }
+}
+
+/**
+ * Check if a user has at least one of the required permissions in a guild
+ * @param guildId - Guild ID
+ * @param userId - User ID to check
+ * @param requiredPermissions - Array of permission bits (any one permission satisfies the check)
+ * @param opts - Discord API options
+ * @returns true if user has at least one required permission or is admin, false otherwise
+ */
+export async function hasGuildPermissionDiscord(
+  guildId: string,
+  userId: string,
+  requiredPermissions: bigint[],
+  opts: DiscordReactOpts = {},
+): Promise<boolean> {
+  const permissions = await fetchMemberGuildPermissionsDiscord(guildId, userId, opts);
+  if (permissions === null) {
+    return false;
+  }
+
+  // Admin has all permissions
+  if (hasAdministrator(permissions)) {
+    return true;
+  }
+
+  // Check if user has any of the required permissions
+  return requiredPermissions.some((perm) => hasPermissionBit(permissions, perm));
 }
 
 export async function fetchChannelPermissionsDiscord(

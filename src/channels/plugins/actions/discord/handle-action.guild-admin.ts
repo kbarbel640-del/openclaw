@@ -355,6 +355,7 @@ export async function tryHandleDiscordMessageActionGuildAdmin(params: {
     const deleteMessageDays = readNumberParam(actionParams, "deleteDays", {
       integer: true,
     });
+    const senderUserId = readStringParam(actionParams, "senderUserId");
     const discordAction = action;
     return await handleDiscordAction(
       {
@@ -366,6 +367,7 @@ export async function tryHandleDiscordMessageActionGuildAdmin(params: {
         until,
         reason,
         deleteMessageDays,
+        senderUserId,
       },
       cfg,
     );
