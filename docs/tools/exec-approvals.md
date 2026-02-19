@@ -125,7 +125,10 @@ are treated as allowlisted on nodes (macOS node or headless node host). This use
 that can run in allowlist mode **without** explicit allowlist entries. Safe bins reject
 positional file args and path-like tokens, so they can only operate on the incoming stream.
 Safe bins also force argv tokens to be treated as **literal text** at execution time (no globbing
-and no `$VARS` expansion), so patterns like `*` or `$HOME/...` cannot be used to smuggle file reads.
+and no `$VARS` expansion) for stdin-only segments, so patterns like `*` or `$HOME/...` cannot be
+used to smuggle file reads.
+Safe bins must also resolve from trusted binary directories (system defaults plus the gateway
+process `PATH` at startup). This blocks request-scoped PATH hijacking attempts.
 Shell chaining and redirections are not auto-allowed in allowlist mode.
 
 Shell chaining (`&&`, `||`, `;`) is allowed when every top-level segment satisfies the allowlist
