@@ -84,6 +84,7 @@ import {
   refreshGatewayHealthSnapshot,
 } from "./server/health-state.js";
 import { loadGatewayTlsRuntime } from "./server/tls.js";
+import { ensureGatewayStartupAuth } from "./startup-auth.js";
 
 export { __resetModelCatalogCacheForTest } from "./server-model-catalog.js";
 
@@ -227,7 +228,20 @@ export async function startGatewayServer(
     }
   }
 
-  const cfgAtStart = loadConfig();
+  let cfgAtStart = loadConfig();
+  const authBootstrap = await ensureGatewayStartupAuth({
+    cfg: cfgAtStart,
+    env: process.env,
+    authOverride: opts.auth,
+    tailscaleOverride: opts.tailscale,
+    persist: true,
+  });
+  cfgAtStart = authBootstrap.cfg;
+  if (authBootstrap.generatedToken) {
+    log.info(
+      "Gateway auth token was missing. Generated a new token and saved it to config (gateway.auth.token).",
+    );
+  }
   const diagnosticsEnabled = isDiagnosticsEnabled(cfgAtStart);
   if (diagnosticsEnabled) {
     startDiagnosticHeartbeat();

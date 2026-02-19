@@ -19,7 +19,7 @@ import {
   resolveGatewayClientIp,
 } from "./net.js";
 
-export type ResolvedGatewayAuthMode = "none" | "token" | "password" | "trusted-proxy";
+export type ResolvedGatewayAuthMode = "token" | "password" | "trusted-proxy";
 
 export type ResolvedGatewayAuth = {
   mode: ResolvedGatewayAuthMode;
@@ -31,7 +31,7 @@ export type ResolvedGatewayAuth = {
 
 export type GatewayAuthResult = {
   ok: boolean;
-  method?: "none" | "token" | "password" | "tailscale" | "device-token" | "trusted-proxy";
+  method?: "token" | "password" | "tailscale" | "device-token" | "trusted-proxy";
   user?: string;
   reason?: string;
   /** Present when the request was blocked by the rate limiter. */
@@ -195,7 +195,7 @@ export function resolveGatewayAuth(params: {
   } else if (token) {
     mode = "token";
   } else {
-    mode = "none";
+    mode = "token";
   }
 
   const allowTailscale =
