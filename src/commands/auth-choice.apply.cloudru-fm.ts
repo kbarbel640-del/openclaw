@@ -17,6 +17,7 @@
  * 10. Pre-flight proxy health check (non-blocking warning)
  */
 
+import path from "node:path";
 import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import { checkProxyHealth } from "../agents/cloudru-proxy-health.js";
 import {
@@ -180,7 +181,12 @@ export async function applyAuthChoiceCloudruFm(
 
   const workspaceDir = params.agentDir ?? process.cwd();
 
-  await writeCloudruEnvFile({ apiKey, workspaceDir });
+  // Resolve project-level .env for symlink (so Docker Compose picks up keys
+  // from the user's project root, not a duplicate in the workspace directory).
+  const projectEnvCandidate = path.join(process.cwd(), ".env");
+  const projectEnvFile = workspaceDir !== process.cwd() ? projectEnvCandidate : undefined;
+
+  await writeCloudruEnvFile({ apiKey, workspaceDir, projectEnvFile });
   await writeDockerComposeFile({
     workspaceDir,
     port: CLOUDRU_PROXY_PORT_DEFAULT,

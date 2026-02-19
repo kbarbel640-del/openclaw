@@ -54,19 +54,33 @@ export async function writeDockerComposeFile(params: {
 
 /**
  * Write or merge .env file with the Cloud.ru API key.
- * If .env already exists, preserves all other variables and updates
- * CLOUDRU_API_KEY in-place (or appends it if missing).
+ *
+ * If `projectEnvFile` is provided and exists, creates a symlink from
+ * `<workspaceDir>/.env` → `projectEnvFile` and writes the key into the
+ * project file instead. This ensures Docker Compose (which reads `.env`
+ * relative to the compose file) picks up the same key the user manages
+ * in their project root.
+ *
+ * Otherwise falls back to writing a standalone `.env` in the workspace.
  * Uses restrictive permissions (0o600) to prevent credential leakage.
  */
 export async function writeCloudruEnvFile(params: {
   apiKey: string;
   workspaceDir: string;
+  /** Path to the project-level .env file (e.g. `/workspaces/openclaw/.env`). */
+  projectEnvFile?: string;
 }): Promise<string> {
   const envPath = path.join(params.workspaceDir, ".env");
 
+  // If a project-level .env is provided, write the key there and symlink.
+  const targetEnvPath = params.projectEnvFile ?? envPath;
+  if (params.projectEnvFile) {
+    await ensureEnvSymlink(envPath, params.projectEnvFile);
+  }
+
   let lines: string[] = [];
   try {
-    const existing = await fs.readFile(envPath, "utf-8");
+    const existing = await fs.readFile(targetEnvPath, "utf-8");
     lines = existing.split("\n");
   } catch {
     // File doesn't exist — will be created
@@ -96,8 +110,29 @@ export async function writeCloudruEnvFile(params: {
 
   // Ensure trailing newline
   const content = lines.join("\n").replace(/\n*$/, "\n");
-  await fs.writeFile(envPath, content, { encoding: "utf-8", mode: 0o600 });
-  return envPath;
+  await fs.writeFile(targetEnvPath, content, { encoding: "utf-8", mode: 0o600 });
+  return targetEnvPath;
+}
+
+/**
+ * Ensure `linkPath` is a symlink pointing to `targetPath`.
+ * Replaces any existing file/symlink at `linkPath`.
+ */
+async function ensureEnvSymlink(linkPath: string, targetPath: string): Promise<void> {
+  try {
+    const current = await fs.readlink(linkPath);
+    if (current === targetPath) {
+      return;
+    } // already correct
+  } catch {
+    // Not a symlink or doesn't exist
+  }
+  try {
+    await fs.unlink(linkPath);
+  } catch {
+    // File doesn't exist — fine
+  }
+  await fs.symlink(targetPath, linkPath);
 }
 
 /**
