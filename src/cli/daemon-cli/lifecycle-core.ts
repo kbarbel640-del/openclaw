@@ -173,7 +173,7 @@ export async function runServiceStart(params: {
     return;
   }
 
-  let started = true;
+  let started = false;
   try {
     started = await params.service.isLoaded({ env: process.env });
   } catch {
