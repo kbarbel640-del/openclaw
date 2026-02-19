@@ -348,4 +348,12 @@ describe("classifyFailoverReason", () => {
       "rate_limit",
     );
   });
+  it("classifies provider high-demand / service-unavailable messages as rate_limit", () => {
+    expect(
+      classifyFailoverReason(
+        "This model is currently experiencing high demand. Please try again later.",
+      ),
+    ).toBe("rate_limit");
+    expect(classifyFailoverReason("LLM error: service unavailable")).toBe("rate_limit");
+  });
 });
