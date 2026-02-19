@@ -156,7 +156,7 @@ export const handleConfigCommand: CommandHandler = async (params, allowTextComma
       return {
         shouldContinue: false,
         reply: {
-          text: `⚠️ Config invalid after set (${issue.path}: ${issue.message}).`,
+          text: `⚠️ Config invalid after set (${issue?.path ?? "<root>"}: ${issue?.message ?? "invalid"}).`,
         },
       };
     }
