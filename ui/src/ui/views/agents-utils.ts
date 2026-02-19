@@ -1,6 +1,7 @@
 import { html } from "lit";
 import {
   expandToolGroups,
+  normalizeToolName,
   resolveToolProfilePolicy,
 } from "../../../../src/agents/tool-policy-shared.js";
 import type { AgentIdentityResult, AgentsFilesListResult, AgentsListResult } from "../types.ts";
