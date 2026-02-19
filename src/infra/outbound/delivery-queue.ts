@@ -254,7 +254,7 @@ export async function recoverPendingDeliveries(opts: {
       } catch (err) {
         opts.log.error(`Failed to move entry ${entry.id} to failed/: ${String(err)}`);
       }
-      skipped += 1;
+      failed += 1;
       continue;
     }
 
