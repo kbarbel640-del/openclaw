@@ -548,7 +548,9 @@ export async function runConfigureWizard(
     outro("Configure complete.");
   } catch (err) {
     if (err instanceof WizardCancelledError) {
-      runtime.exit(1);
+      // WizardCancelledError may have been handled by inner catch blocks (e.g., in the
+      // interactive while loop). In that case, we've already continued or returned.
+      // Just return without exiting to avoid double-handling.
       return;
     }
     throw err;

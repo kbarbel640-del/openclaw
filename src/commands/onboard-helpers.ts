@@ -31,7 +31,6 @@ import type { NodeManagerChoice, OnboardMode, ResetScope } from "./onboard-types
 export function guardCancel<T>(value: T | symbol, _runtime: RuntimeEnv): T {
   if (isCancel(value)) {
     cancel(stylePromptTitle("Setup cancelled.") ?? "Setup cancelled.");
-    _runtime.exit(0);
     throw new WizardCancelledError();
   }
   return value;
