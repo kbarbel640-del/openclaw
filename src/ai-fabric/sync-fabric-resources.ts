@@ -222,9 +222,9 @@ export async function disconnectFabricResources(params: {
 
   // Step 3: Re-sync commands (stale fabric commands get removed)
   try {
-    const before = await countSyncedCommands(workspaceDir);
+    const before = await countFabricCommands(workspaceDir);
     await syncSkillsToClaudeCommands({ workspaceDir, config });
-    const after = await countSyncedCommands(workspaceDir);
+    const after = await countFabricCommands(workspaceDir);
     commandsCleaned = Math.max(0, before - after);
     log.debug(`cleaned ${commandsCleaned} synced commands`);
   } catch (err) {
@@ -259,7 +259,7 @@ export async function getFabricConnectionStatus(params: {
   const [mcpServers, skills, commands] = await Promise.all([
     countMcpInSettings(workspaceDir),
     countFabricSkills(workspaceDir),
-    countSyncedCommands(workspaceDir),
+    countFabricCommands(workspaceDir),
   ]);
 
   return {
@@ -278,25 +278,14 @@ function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && "code" in err;
 }
 
-async function countSyncedCommands(workspaceDir: string): Promise<number> {
-  const { SYNC_MARKER } = await import("../agents/skills/claude-commands-sync.js");
+async function countFabricCommands(workspaceDir: string): Promise<number> {
   const commandsDir = path.join(workspaceDir, ".claude", "commands");
-  let count = 0;
   try {
     const files = await fsp.readdir(commandsDir);
-    for (const file of files) {
-      if (!file.endsWith(".md")) {
-        continue;
-      }
-      const content = await fsp.readFile(path.join(commandsDir, file), "utf-8");
-      if (content.startsWith(SYNC_MARKER)) {
-        count++;
-      }
-    }
+    return files.filter((f) => f.startsWith("fabric-") && f.endsWith(".md")).length;
   } catch {
-    // Directory doesn't exist
+    return 0;
   }
-  return count;
 }
 
 async function countMcpInSettings(workspaceDir: string): Promise<number> {
