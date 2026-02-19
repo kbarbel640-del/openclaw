@@ -508,6 +508,17 @@ describe("update-cli", () => {
     expect(runDaemonRestart).toHaveBeenCalled();
   });
 
+  it("updateCommand does not refresh service env when --no-restart is set", async () => {
+    vi.mocked(runGatewayUpdate).mockResolvedValue(makeOkUpdateResult());
+    serviceLoaded.mockResolvedValue(true);
+
+    await updateCommand({ restart: false });
+
+    expect(runDaemonInstall).not.toHaveBeenCalled();
+    expect(runRestartScript).not.toHaveBeenCalled();
+    expect(runDaemonRestart).not.toHaveBeenCalled();
+  });
+
   it("updateCommand continues after doctor sub-step and clears update flag", async () => {
     const envSnapshot = captureEnv(["OPENCLAW_UPDATE_IN_PROGRESS"]);
     const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
