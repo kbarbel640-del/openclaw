@@ -6,17 +6,36 @@
 
 ## Требования
 
-| Компонент | Версия / Требование                  |
-| --------- | ------------------------------------ |
-| Node.js   | >= 22.12.0                           |
-| pnpm      | >= 10.x                              |
-| Docker    | Для Cloud.ru FM прокси               |
-| Telegram  | Бот-токен от @BotFather              |
-| Cloud.ru  | API-ключ FM + IAM-ключ для AI Fabric |
+| Компонент  | Версия / Требование                  |
+| ---------- | ------------------------------------ |
+| Node.js    | >= 22.12.0                           |
+| pnpm       | >= 10.x                              |
+| Claude CLI | Последняя версия (`claude`)          |
+| Docker     | Для Cloud.ru FM прокси               |
+| Telegram   | Бот-токен от @BotFather              |
+| Cloud.ru   | API-ключ FM + IAM-ключ для AI Fabric |
 
 ---
 
-## Шаг 1: Клонирование и сборка
+## Шаг 1: Установка Claude CLI
+
+Claude CLI — ядро OpenClaw. Gateway запускает `claude` как backend для обработки сообщений.
+
+```bash
+# npm (глобально)
+npm install -g @anthropic-ai/claude-code
+
+# Проверка
+claude --version
+```
+
+> **Важно:** Claude CLI должен быть доступен в `PATH`. Gateway вызывает его как `claude` (настраивается в `cliBackends.claude-cli.command`).
+>
+> При использовании Cloud.ru FM прокси Claude CLI не требует собственного API-ключа Anthropic — все запросы маршрутизируются через прокси на `http://127.0.0.1:8082`.
+
+---
+
+## Шаг 2: Клонирование и сборка OpenClaw
 
 ```bash
 git clone https://github.com/dzhechko/openclaw.git
@@ -33,7 +52,7 @@ pnpm check   # format + types + lint
 
 ---
 
-## Шаг 2: Онбординг (интерактивный мастер)
+## Шаг 3: Онбординг (интерактивный мастер)
 
 ```bash
 pnpm openclaw onboard
@@ -48,11 +67,11 @@ pnpm openclaw onboard
 | `docker-compose.cloudru-proxy.yml` | Docker Compose для Cloud.ru FM прокси  |
 | `.gitignore` (дополнение)          | Исключает `.env` и compose из коммитов |
 
-Если мастер не подходит, конфиг можно создать вручную (см. [Шаг 2а](#шаг-2а-ручная-настройка-конфига)).
+Если мастер не подходит, конфиг можно создать вручную (см. [Шаг 3а](#шаг-3а-ручная-настройка-конфига)).
 
 ---
 
-## Шаг 2а: Ручная настройка конфига
+## Шаг 3а: Ручная настройка конфига
 
 <details>
 <summary>Развернуть — пример полного <code>~/.openclaw/openclaw.json</code></summary>
@@ -155,7 +174,7 @@ pnpm openclaw onboard
 
 ---
 
-## Шаг 3: Переменные окружения
+## Шаг 4: Переменные окружения
 
 Экспортируйте секреты (или добавьте в `~/.bashrc` / `.env`):
 
@@ -180,7 +199,7 @@ export TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
 
 ---
 
-## Шаг 4: Создание Telegram-бота
+## Шаг 5: Создание Telegram-бота
 
 1. Откройте Telegram, найдите `@BotFather`
 2. Отправьте `/newbot`, следуйте инструкциям
@@ -194,7 +213,7 @@ export TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
 
 ---
 
-## Шаг 5: Запуск Cloud.ru FM прокси
+## Шаг 6: Запуск Cloud.ru FM прокси
 
 ```bash
 # Перейти в workspace (где лежит docker-compose)
@@ -222,7 +241,7 @@ curl -sf http://127.0.0.1:8082/health && echo " OK" || echo " FAIL"
 
 ---
 
-## Шаг 6: Запуск gateway
+## Шаг 7: Запуск gateway
 
 ```bash
 pnpm openclaw gateway --force
@@ -249,7 +268,7 @@ Agents: main (default)
 
 ---
 
-## Шаг 7: Подключение AI Fabric агентов
+## Шаг 8: Подключение AI Fabric агентов
 
 Из Telegram отправьте боту команды:
 
