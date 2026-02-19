@@ -178,8 +178,11 @@ type TetrateModelsResponse = {
     max_output_tokens?: number;
     supports_vision?: boolean;
     supports_caching?: boolean;
-    input_price_per_million?: number;
-    output_price_per_million?: number;
+    supports_reasoning?: boolean;
+    input_price?: string;
+    output_price?: string;
+    caching_price?: string;
+    cached_price?: string;
   }>;
 };
 
@@ -325,19 +328,20 @@ async function discoverTetrateModels(
       .filter((m) => (m.max_output_tokens ?? 0) > 0)
       .map((m) => {
         const modelId = m.id!.trim();
-        const lower = modelId.toLowerCase();
-        const isReasoning =
-          lower.includes("opus") || lower.includes("sonnet") || lower.includes("r1");
+        const toPerMillion = (v?: string) => {
+          const n = Number(v);
+          return Number.isFinite(n) && n > 0 ? n * 1_000_000 : 0;
+        };
         return {
           id: modelId,
           name: modelId,
-          reasoning: isReasoning,
+          reasoning: m.supports_reasoning ?? false,
           input: m.supports_vision ? ["text", "image"] : ["text"],
           cost: {
-            input: m.input_price_per_million ?? 0,
-            output: m.output_price_per_million ?? 0,
-            cacheRead: 0,
-            cacheWrite: 0,
+            input: toPerMillion(m.input_price),
+            output: toPerMillion(m.output_price),
+            cacheRead: toPerMillion(m.cached_price),
+            cacheWrite: toPerMillion(m.caching_price),
           },
           contextWindow: m.context_window ?? 200000,
           maxTokens: m.max_output_tokens || 64000,
