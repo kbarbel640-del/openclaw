@@ -29,7 +29,7 @@ function checkFormattedBodyMention(formattedBody: string | undefined, userId: st
     return true;
   }
   // Also check URL-encoded version (@ -> %40, : -> %3A)
-  const encodedUserId = encodeURIComponent(userId);
+  const encodedUserId = encodeURIComponent(userId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const encodedPattern = new RegExp(`href=["']https://matrix\\.to/#/${encodedUserId}["']`, "i");
   return encodedPattern.test(formattedBody);
 }
