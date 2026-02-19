@@ -182,11 +182,10 @@ export async function sendMessageSignal(
   }
   Object.assign(params, targetParams);
 
-  if (opts.quoteTimestamp && opts.quoteTimestamp > 0) {
+  const quoteAuthor = opts.quoteAuthor?.trim();
+  if (opts.quoteTimestamp && opts.quoteTimestamp > 0 && quoteAuthor) {
     params.quoteTimestamp = opts.quoteTimestamp;
-    if (opts.quoteAuthor?.trim()) {
-      params.quoteAuthor = opts.quoteAuthor.trim();
-    }
+    params.quoteAuthor = quoteAuthor;
   }
 
   const result = await signalRpcRequest<{ timestamp?: number }>("send", params, {

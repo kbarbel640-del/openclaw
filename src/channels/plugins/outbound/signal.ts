@@ -1,7 +1,7 @@
-import type { ChannelOutboundAdapter } from "../types.js";
 import { chunkText } from "../../../auto-reply/chunk.js";
 import { sendMessageSignal } from "../../../signal/send.js";
 import { resolveChannelMediaMaxBytes } from "../media-limits.js";
+import type { ChannelOutboundAdapter } from "../types.js";
 
 function resolveSignalMaxBytes(params: {
   cfg: Parameters<typeof resolveChannelMediaMaxBytes>[0]["cfg"];
@@ -31,11 +31,13 @@ export const signalOutbound: ChannelOutboundAdapter = {
   sendText: async ({ cfg, to, text, accountId, replyToId, replyToAuthor, deps }) => {
     const send = deps?.sendSignal ?? sendMessageSignal;
     const maxBytes = resolveSignalMaxBytes({ cfg, accountId });
+    const quoteAuthor = replyToAuthor?.trim();
+    const quoteTimestamp = quoteAuthor ? parseQuoteTimestamp(replyToId) : undefined;
     const result = await send(to, text, {
       maxBytes,
       accountId: accountId ?? undefined,
-      quoteTimestamp: parseQuoteTimestamp(replyToId),
-      quoteAuthor: replyToAuthor?.trim() || undefined,
+      quoteTimestamp,
+      quoteAuthor: quoteAuthor || undefined,
     });
     return { channel: "signal", ...result };
   },
@@ -52,13 +54,15 @@ export const signalOutbound: ChannelOutboundAdapter = {
   }) => {
     const send = deps?.sendSignal ?? sendMessageSignal;
     const maxBytes = resolveSignalMaxBytes({ cfg, accountId });
+    const quoteAuthor = replyToAuthor?.trim();
+    const quoteTimestamp = quoteAuthor ? parseQuoteTimestamp(replyToId) : undefined;
     const result = await send(to, text, {
       mediaUrl,
       maxBytes,
       accountId: accountId ?? undefined,
       mediaLocalRoots,
-      quoteTimestamp: parseQuoteTimestamp(replyToId),
-      quoteAuthor: replyToAuthor?.trim() || undefined,
+      quoteTimestamp,
+      quoteAuthor: quoteAuthor || undefined,
     });
     return { channel: "signal", ...result };
   },
