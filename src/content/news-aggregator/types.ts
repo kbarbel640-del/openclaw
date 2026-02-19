@@ -22,6 +22,16 @@ export type NewsArticle = {
   imageUrl?: string;
 };
 
+/**
+ * Security-focused article with additional metadata for threat tracking.
+ */
+export type SecurityArticle = NewsArticle & {
+  severity?: "critical" | "high" | "medium" | "low" | "info";
+  cveIds?: string[];
+  affectedProducts?: string[];
+  threatType?: string;
+};
+
 export type AggregationStatus = {
   running: boolean;
   lastRun?: Date;
