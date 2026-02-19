@@ -10,7 +10,6 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { AuthChoice } from "./onboard-types.js";
 import { generateProxyDockerCompose } from "../agents/cloudru-proxy-template.js";
 import {
   CLOUDRU_FM_PRESETS,
@@ -24,7 +23,7 @@ export type { CloudruModelPreset };
  * Resolve an AuthChoice to a CloudruModelPreset.
  * Throws if the choice is not a valid cloudru-fm choice.
  */
-export function resolveCloudruModelPreset(choice: AuthChoice | string): CloudruModelPreset {
+export function resolveCloudruModelPreset(choice: string): CloudruModelPreset {
   const preset = CLOUDRU_FM_PRESETS[choice];
   if (!preset) {
     throw new Error(
