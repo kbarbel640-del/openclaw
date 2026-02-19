@@ -208,6 +208,35 @@ describe("normalizePubkey fuzz", () => {
 // ============================================================================
 
 describe("SeenTracker fuzz", () => {
+  describe("has() side-effect isolation", () => {
+    it("has() does not add unseen IDs to the tracker", () => {
+      const tracker = createSeenTracker({ maxEntries: 100 });
+      // Calling has() on an ID that was never add()ed must not silently insert it.
+      expect(tracker.has("never-added")).toBe(false);
+      expect(tracker.size()).toBe(0);
+      // A subsequent has() or peek() should still return false.
+      expect(tracker.has("never-added")).toBe(false);
+      expect(tracker.peek("never-added")).toBe(false);
+      tracker.stop();
+    });
+
+    it("has() does not re-add expired IDs to the tracker", () => {
+      const tracker = createSeenTracker({ maxEntries: 100, ttlMs: 1 });
+      tracker.add("expiring-id");
+      expect(tracker.size()).toBe(1);
+      // Wait for expiry then check.
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          expect(tracker.has("expiring-id")).toBe(false);
+          // The expired entry must be removed, not re-added.
+          expect(tracker.size()).toBe(0);
+          tracker.stop();
+          resolve();
+        }, 10);
+      });
+    });
+  });
+
   describe("malformed IDs", () => {
     it("handles empty string IDs", () => {
       const tracker = createSeenTracker({ maxEntries: 100 });
