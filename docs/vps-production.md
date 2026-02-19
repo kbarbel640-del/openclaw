@@ -1,3 +1,12 @@
+---
+summary: "Production VPS deployment guide with systemd, monitoring, and security hardening"
+read_when:
+  - Running OpenClaw 24/7 on a VPS
+  - Setting up systemd for OpenClaw
+  - Hardening a production OpenClaw deployment
+title: "Production VPS Deployment"
+---
+
 # Production VPS Deployment Guide
 
 A practical guide for running OpenClaw 24/7 on a VPS (Hetzner, DigitalOcean, Linode, etc.) with hardened configuration, systemd management, and monitoring.
@@ -9,19 +18,18 @@ A practical guide for running OpenClaw 24/7 on a VPS (Hetzner, DigitalOcean, Lin
 - A domain name (optional but recommended for remote access)
 - An Anthropic or OpenRouter API key
 
-## Installation
-
-```bash
-# Install OpenClaw globally
-npm install -g openclaw
-
-# Run the setup wizard
-openclaw setup
-```
+For detailed installation steps, see the [Install guide](/install).
 
 ## Running as a systemd Service
 
 Don't run OpenClaw in a tmux/screen session — use systemd for automatic restarts and boot persistence.
+
+Create a dedicated user:
+
+```bash
+sudo useradd -r -m -s /bin/bash openclaw
+sudo -u openclaw openclaw setup
+```
 
 Create `/etc/systemd/system/openclaw.service`:
 
@@ -33,9 +41,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=/root
-ExecStart=/usr/local/bin/openclaw gateway start --foreground
+User=openclaw
+WorkingDirectory=/home/openclaw
+ExecStart=/usr/local/bin/openclaw gateway run
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
@@ -72,7 +80,7 @@ tailscale up
 tailscale serve https / http://localhost:18789
 ```
 
-Access the Control UI at `https://<your-machine>.tail<id>.ts.net`.
+Access the Control UI at the machine's Tailscale hostname (visible in your Tailscale admin console or via `tailscale status`).
 
 ## Cron Watchdog
 
@@ -126,12 +134,12 @@ tar czf ~/backups/workspace-$(date +%Y%m%d).tar.gz \
 
 ## Security Checklist
 
+- [ ] Create a dedicated `openclaw` user — don't run as root
 - [ ] Change the default SSH port and disable password authentication
 - [ ] Enable UFW firewall: `ufw allow ssh && ufw allow 443/tcp && ufw enable`
 - [ ] Keep API keys in environment variables or a credentials directory with `chmod 600`
 - [ ] Use Tailscale or Cloudflare Tunnel instead of exposing ports directly
 - [ ] Set up unattended security updates: `apt install unattended-upgrades`
-- [ ] Don't run OpenClaw as root in production (create a dedicated user)
 
 ## Updating OpenClaw
 
