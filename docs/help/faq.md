@@ -1970,7 +1970,7 @@ Model "provider/model" is not allowed. Use /model to list available models.
 ```
 
 That error is returned **instead of** a normal reply. Fix: add the model to
-`agents.defaults.models`, remove the allowlist, or pick a model from `/model list`.
+`agents.defaults.models`, remove the allowlist, or pick a model from `/models`.
 
 ### Why do I see Unknown model minimaxMiniMaxM21
 
@@ -1988,7 +1988,7 @@ Fix checklist:
    ```bash
    moltbot models list
    ```
-   and pick from the list (or `/model list` in chat).
+   and pick from the list (or `/models` in chat).
 
 See [MiniMax](/providers/minimax) and [Models](/concepts/models).
 
