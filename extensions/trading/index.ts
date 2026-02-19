@@ -1,7 +1,12 @@
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { registerTradingCli } from "./src/cli.js";
-import { handlePortfolioCommand, handlePriceCommand } from "./src/commands.js";
+import {
+  handleBuyCommand,
+  handlePortfolioCommand,
+  handlePriceCommand,
+  handleSellCommand,
+} from "./src/commands.js";
 import {
   TradingConfigSchema,
   resolveTradingConfig,
@@ -52,6 +57,20 @@ const PortfolioToolSchema = Type.Object({});
 
 const PriceToolSchema = Type.Object({
   symbol: Type.String({ description: "Ticker symbol (e.g. AAPL, MSFT, BTC/USD)" }),
+});
+
+const OrderToolSchema = Type.Object({
+  symbol: Type.String({ description: "Ticker symbol (e.g. AAPL, BTC/USD)" }),
+  qty: Type.Number({ description: "Number of shares/units to trade" }),
+  side: Type.Union([Type.Literal("buy"), Type.Literal("sell")], {
+    description: "Order direction",
+  }),
+  type: Type.Union([Type.Literal("market"), Type.Literal("limit")], {
+    description: "Order type",
+  }),
+  limitPrice: Type.Optional(
+    Type.Number({ description: "Limit price (required for limit orders)" }),
+  ),
 });
 
 // =============================================================================
@@ -158,6 +177,48 @@ const tradingPlugin = {
       },
     });
 
+    api.registerTool({
+      name: "trading_order",
+      label: "Trading Order",
+      description:
+        "Place a buy or sell order for a stock or crypto symbol. " +
+        "Use this when the user asks to buy or sell shares, place an order, or execute a trade. " +
+        "Supports market and limit orders. " +
+        "WARNING: sell orders in live mode are irreversible.",
+      parameters: OrderToolSchema,
+      async execute(_toolCallId, params) {
+        try {
+          const symbol = typeof params?.symbol === "string" ? params.symbol.trim() : "";
+          const qty = typeof params?.qty === "number" ? params.qty : NaN;
+          const side = params?.side as "buy" | "sell" | undefined;
+          const type = params?.type as "market" | "limit" | undefined;
+          const limitPrice = typeof params?.limitPrice === "number" ? params.limitPrice : undefined;
+
+          if (!symbol) throw new Error("symbol is required");
+          if (!qty || qty <= 0) throw new Error("qty must be a positive number");
+          if (side !== "buy" && side !== "sell") throw new Error("side must be buy or sell");
+          if (type !== "market" && type !== "limit")
+            throw new Error("type must be market or limit");
+          if (type === "limit" && limitPrice === undefined) {
+            throw new Error("limitPrice is required for limit orders");
+          }
+
+          const p = await ensureProvider();
+          const result = await p.placeOrder({ symbol, qty, side, type, limitPrice });
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+            details: result,
+          };
+        } catch (err) {
+          const payload = { error: err instanceof Error ? err.message : String(err) };
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+            details: payload,
+          };
+        }
+      },
+    });
+
     // -------------------------------------------------------------------------
     // Auto-reply Commands (bypass LLM)
     // -------------------------------------------------------------------------
@@ -188,6 +249,49 @@ const tradingPlugin = {
           const symbol = ctx.args?.trim() ?? "";
           const p = await ensureProvider();
           const text = await handlePriceCommand(p, symbol);
+          return { text };
+        } catch (err) {
+          return {
+            text: `Error: ${err instanceof Error ? err.message : String(err)}`,
+            isError: true,
+          };
+        }
+      },
+    });
+
+    api.registerCommand({
+      name: "buy",
+      description:
+        "Place a buy order. Usage: /buy <SYMBOL> <QTY> [limit <PRICE>]\n" +
+        "  /buy AAPL 10           — market buy\n" +
+        "  /buy AAPL 10 limit 150 — limit buy @ $150",
+      acceptsArgs: true,
+      handler: async (ctx) => {
+        try {
+          const p = await ensureProvider();
+          const text = await handleBuyCommand(p, ctx.args?.trim() ?? "");
+          return { text };
+        } catch (err) {
+          return {
+            text: `Error: ${err instanceof Error ? err.message : String(err)}`,
+            isError: true,
+          };
+        }
+      },
+    });
+
+    api.registerCommand({
+      name: "sell",
+      description:
+        "Place a sell order. Usage: /sell <SYMBOL> <QTY> [limit <PRICE>]\n" +
+        "  /sell AAPL 5           — market sell\n" +
+        "  /sell AAPL 5 limit 180 — limit sell @ $180\n" +
+        "⚠️  Warning: sell orders in live mode are irreversible.",
+      acceptsArgs: true,
+      handler: async (ctx) => {
+        try {
+          const p = await ensureProvider();
+          const text = await handleSellCommand(p, ctx.args?.trim() ?? "");
           return { text };
         } catch (err) {
           return {

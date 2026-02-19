@@ -53,4 +53,46 @@ export function registerTradingCli(params: {
       // eslint-disable-next-line no-console
       console.log(JSON.stringify(quote, null, 2));
     });
+
+  root
+    .command("buy")
+    .description("Place a market or limit buy order")
+    .argument("<symbol>", "Ticker symbol (e.g., AAPL)")
+    .argument("<qty>", "Number of shares to buy")
+    .option("--limit <price>", "Place a limit order at this price")
+    .action(async (symbol: string, qtyStr: string, options: { limit?: string }) => {
+      const provider = await ensureProvider();
+      const qty = Number(qtyStr);
+      const limitPrice = options.limit !== undefined ? Number(options.limit) : undefined;
+      const result = await provider.placeOrder({
+        symbol,
+        qty,
+        side: "buy",
+        type: options.limit !== undefined ? "limit" : "market",
+        limitPrice,
+      });
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify(result, null, 2));
+    });
+
+  root
+    .command("sell")
+    .description("Place a market or limit sell order")
+    .argument("<symbol>", "Ticker symbol (e.g., AAPL)")
+    .argument("<qty>", "Number of shares to sell")
+    .option("--limit <price>", "Place a limit order at this price")
+    .action(async (symbol: string, qtyStr: string, options: { limit?: string }) => {
+      const provider = await ensureProvider();
+      const qty = Number(qtyStr);
+      const limitPrice = options.limit !== undefined ? Number(options.limit) : undefined;
+      const result = await provider.placeOrder({
+        symbol,
+        qty,
+        side: "sell",
+        type: options.limit !== undefined ? "limit" : "market",
+        limitPrice,
+      });
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify(result, null, 2));
+    });
 }

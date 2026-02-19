@@ -1,4 +1,11 @@
-import type { AccountInfo, BrokerProvider, Position, Quote } from "../types.js";
+import type {
+  AccountInfo,
+  BrokerProvider,
+  OrderRequest,
+  OrderResult,
+  Position,
+  Quote,
+} from "../types.js";
 
 // =============================================================================
 // Mock Broker Provider — returns fictional data for development/testing
@@ -76,6 +83,20 @@ export class MockProvider implements BrokerProvider {
 
   async getPositions(): Promise<Position[]> {
     return MOCK_POSITIONS;
+  }
+
+  async placeOrder(req: OrderRequest): Promise<OrderResult> {
+    const id = `mock-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+    return {
+      id,
+      symbol: req.symbol.toUpperCase(),
+      qty: req.qty,
+      side: req.side,
+      type: req.type,
+      status: "accepted",
+      submittedAt: new Date().toISOString(),
+      limitPrice: req.limitPrice,
+    };
   }
 
   async getQuote(symbol: string): Promise<Quote> {

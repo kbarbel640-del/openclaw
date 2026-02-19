@@ -30,6 +30,32 @@ export type Quote = {
 };
 
 // =============================================================================
+// Order Types
+// =============================================================================
+
+export type OrderSide = "buy" | "sell";
+export type OrderType = "market" | "limit";
+
+export type OrderRequest = {
+  symbol: string;
+  qty: number;
+  side: OrderSide;
+  type: OrderType;
+  limitPrice?: number;
+};
+
+export type OrderResult = {
+  id: string;
+  symbol: string;
+  qty: number;
+  side: OrderSide;
+  type: OrderType;
+  status: string;
+  submittedAt: string;
+  limitPrice?: number;
+};
+
+// =============================================================================
 // Broker Provider Interface
 // =============================================================================
 
@@ -38,4 +64,5 @@ export interface BrokerProvider {
   getAccount(): Promise<AccountInfo>;
   getPositions(): Promise<Position[]>;
   getQuote(symbol: string): Promise<Quote>;
+  placeOrder(req: OrderRequest): Promise<OrderResult>;
 }

@@ -1,5 +1,12 @@
 import type { TradingConfig } from "../config.js";
-import type { AccountInfo, BrokerProvider, Position, Quote } from "../types.js";
+import type {
+  AccountInfo,
+  BrokerProvider,
+  OrderRequest,
+  OrderResult,
+  Position,
+  Quote,
+} from "../types.js";
 
 // =============================================================================
 // Alpaca Markets REST API Provider
@@ -64,6 +71,40 @@ export class AlpacaProvider implements BrokerProvider {
       unrealizedPL: Number(p.unrealized_pl),
       unrealizedPLPercent: Number(p.unrealized_plpc) * 100,
     }));
+  }
+
+  async placeOrder(req: OrderRequest): Promise<OrderResult> {
+    const body: Record<string, string> = {
+      symbol: req.symbol.toUpperCase(),
+      qty: String(req.qty),
+      side: req.side,
+      type: req.type,
+      time_in_force: "gtc",
+    };
+    if (req.type === "limit" && req.limitPrice !== undefined) {
+      body.limit_price = req.limitPrice.toFixed(2);
+    }
+
+    const res = await fetch(`${this.baseUrl}/v2/orders`, {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Alpaca API error ${res.status}: ${text}`);
+    }
+    const order = (await res.json()) as AlpacaOrder;
+    return {
+      id: order.id,
+      symbol: order.symbol,
+      qty: Number(order.qty),
+      side: order.side as OrderResult["side"],
+      type: order.type as OrderResult["type"],
+      status: order.status,
+      submittedAt: order.submitted_at,
+      limitPrice: order.limit_price !== undefined ? Number(order.limit_price) : undefined,
+    };
   }
 
   async getQuote(symbol: string): Promise<Quote> {
@@ -163,4 +204,15 @@ type AlpacaCryptoQuote = {
 type AlpacaStockSnapshot = {
   prevDailyBar?: { c: number };
   dailyBar?: { v: number };
+};
+
+type AlpacaOrder = {
+  id: string;
+  symbol: string;
+  qty: string;
+  side: string;
+  type: string;
+  status: string;
+  submitted_at: string;
+  limit_price?: string;
 };
