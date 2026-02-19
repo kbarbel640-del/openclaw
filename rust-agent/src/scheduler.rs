@@ -80,7 +80,8 @@ impl SessionScheduler {
         group_activation_override: Option<GroupActivationMode>,
     ) -> SubmitOutcome {
         let session_id = Self::session_key(&request);
-        let group_activation_mode = group_activation_override.unwrap_or(self.config.group_activation_mode);
+        let group_activation_mode =
+            group_activation_override.unwrap_or(self.config.group_activation_mode);
         if self.should_ignore_for_activation(&request, &session_id, group_activation_mode) {
             return SubmitOutcome::IgnoredActivation {
                 request_id: request.id,
@@ -110,6 +111,25 @@ impl SessionScheduler {
                 guard.total_pending += 1;
             }
             SessionQueueMode::Steer => {
+                let dropped = guard
+                    .queues
+                    .get(&session_id)
+                    .map(VecDeque::len)
+                    .unwrap_or(0);
+                if dropped > 0 {
+                    guard.total_pending = guard.total_pending.saturating_sub(dropped);
+                }
+                let queue = guard.queues.entry(session_id).or_insert_with(VecDeque::new);
+                queue.clear();
+                queue.push_back(request);
+                guard.total_pending += 1;
+            }
+            SessionQueueMode::SteerBacklog => {
+                let queue = guard.queues.entry(session_id).or_insert_with(VecDeque::new);
+                queue.push_back(request);
+                guard.total_pending += 1;
+            }
+            SessionQueueMode::Interrupt => {
                 let dropped = guard
                     .queues
                     .get(&session_id)
@@ -449,11 +469,7 @@ mod tests {
 
         assert!(matches!(
             scheduler
-                .submit_with_overrides(
-                    request,
-                    None,
-                    Some(GroupActivationMode::Always)
-                )
+                .submit_with_overrides(request, None, Some(GroupActivationMode::Always))
                 .await,
             SubmitOutcome::Dispatch(_)
         ));
@@ -480,6 +496,62 @@ mod tests {
             scheduler
                 .submit_with_overrides(r3.clone(), Some(SessionQueueMode::Steer), None)
                 .await,
+            SubmitOutcome::Queued
+        ));
+
+        let next = scheduler.complete(&r1).await.expect("next latest");
+        assert_eq!(next.id, "r3");
+        assert!(scheduler.complete(&next).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn steer_backlog_mode_keeps_all_pending_items() {
+        let scheduler = scheduler(
+            8,
+            SessionQueueMode::SteerBacklog,
+            GroupActivationMode::Always,
+        );
+        let r1 = req("r1", Some("s1"), Some("a"));
+        let r2 = req("r2", Some("s1"), Some("b"));
+        let r3 = req("r3", Some("s1"), Some("c"));
+
+        assert!(matches!(
+            scheduler.submit(r1.clone()).await,
+            SubmitOutcome::Dispatch(_)
+        ));
+        assert!(matches!(
+            scheduler.submit(r2.clone()).await,
+            SubmitOutcome::Queued
+        ));
+        assert!(matches!(
+            scheduler.submit(r3.clone()).await,
+            SubmitOutcome::Queued
+        ));
+
+        let next = scheduler.complete(&r1).await.expect("next r2");
+        assert_eq!(next.id, "r2");
+        let next = scheduler.complete(&next).await.expect("next r3");
+        assert_eq!(next.id, "r3");
+        assert!(scheduler.complete(&next).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn interrupt_mode_replaces_pending_followups() {
+        let scheduler = scheduler(8, SessionQueueMode::Interrupt, GroupActivationMode::Always);
+        let r1 = req("r1", Some("s1"), Some("a"));
+        let r2 = req("r2", Some("s1"), Some("b"));
+        let r3 = req("r3", Some("s1"), Some("c"));
+
+        assert!(matches!(
+            scheduler.submit(r1.clone()).await,
+            SubmitOutcome::Dispatch(_)
+        ));
+        assert!(matches!(
+            scheduler.submit(r2.clone()).await,
+            SubmitOutcome::Queued
+        ));
+        assert!(matches!(
+            scheduler.submit(r3.clone()).await,
             SubmitOutcome::Queued
         ));
 

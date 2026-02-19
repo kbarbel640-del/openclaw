@@ -9490,10 +9490,7 @@ impl SessionRegistry {
         (None, None)
     }
 
-    async fn resolve_send_target(
-        &self,
-        session_key: &str,
-    ) -> (String, Option<SendPolicyOverride>) {
+    async fn resolve_send_target(&self, session_key: &str) -> (String, Option<SendPolicyOverride>) {
         let guard = self.entries.lock().await;
         if let Some(entry) = guard.get(session_key) {
             return (entry.key.clone(), entry.send_policy);
@@ -11477,8 +11474,11 @@ fn parse_group_activation_mode(value: &str) -> Option<GroupActivationMode> {
 fn parse_queue_mode(value: &str) -> Option<SessionQueueMode> {
     match normalize(value).as_str() {
         "followup" => Some(SessionQueueMode::Followup),
+        "queue" | "queued" => Some(SessionQueueMode::Steer),
         "steer" => Some(SessionQueueMode::Steer),
         "collect" => Some(SessionQueueMode::Collect),
+        "steer-backlog" | "steer_backlog" | "steer+backlog" => Some(SessionQueueMode::SteerBacklog),
+        "interrupt" | "interrupts" | "abort" => Some(SessionQueueMode::Interrupt),
         _ => None,
     }
 }
@@ -11964,9 +11964,11 @@ fn parse_patch_queue_mode(
         None => Ok(PatchValue::Keep),
         Some(None) => Ok(PatchValue::Clear),
         Some(Some(Value::Null)) => Ok(PatchValue::Clear),
-        Some(Some(Value::String(v))) => parse_queue_mode(&v)
-            .map(PatchValue::Set)
-            .ok_or_else(|| "queueMode must be followup|steer|collect|null".to_owned()),
+        Some(Some(Value::String(v))) => {
+            parse_queue_mode(&v).map(PatchValue::Set).ok_or_else(|| {
+                "queueMode must be followup|steer|collect|steer-backlog|interrupt|null".to_owned()
+            })
+        }
         Some(_) => Err("queueMode must be string or null".to_owned()),
     }
 }
@@ -12679,6 +12681,72 @@ mod tests {
             };
             let out = dispatcher.handle_request(&patch).await;
             assert!(matches!(out, RpcDispatchOutcome::Error { code: 400, .. }));
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_patch_accepts_queue_mode_aliases() {
+        let dispatcher = RpcDispatcher::new();
+        let key = "agent:main:discord:group:g-queue-alias";
+
+        let patch_queue_alias = RpcRequestFrame {
+            id: "req-patch-queue-alias".to_owned(),
+            method: "sessions.patch".to_owned(),
+            params: serde_json::json!({
+                "key": key,
+                "queueMode": "queue"
+            }),
+        };
+        match dispatcher.handle_request(&patch_queue_alias).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/entry/queueMode")
+                        .and_then(serde_json::Value::as_str),
+                    Some("steer")
+                );
+            }
+            _ => panic!("expected handled queue alias patch"),
+        }
+
+        let patch_steer_backlog = RpcRequestFrame {
+            id: "req-patch-steer-backlog".to_owned(),
+            method: "sessions.patch".to_owned(),
+            params: serde_json::json!({
+                "key": key,
+                "queueMode": "steer+backlog"
+            }),
+        };
+        match dispatcher.handle_request(&patch_steer_backlog).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/entry/queueMode")
+                        .and_then(serde_json::Value::as_str),
+                    Some("steer-backlog")
+                );
+            }
+            _ => panic!("expected handled steer-backlog patch"),
+        }
+
+        let patch_interrupt = RpcRequestFrame {
+            id: "req-patch-interrupt".to_owned(),
+            method: "sessions.patch".to_owned(),
+            params: serde_json::json!({
+                "key": key,
+                "queueMode": "interrupt"
+            }),
+        };
+        match dispatcher.handle_request(&patch_interrupt).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload
+                        .pointer("/entry/queueMode")
+                        .and_then(serde_json::Value::as_str),
+                    Some("interrupt")
+                );
+            }
+            _ => panic!("expected handled interrupt patch"),
         }
     }
 

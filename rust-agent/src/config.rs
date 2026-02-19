@@ -92,6 +92,13 @@ pub enum SessionQueueMode {
     Followup,
     Steer,
     Collect,
+    #[serde(
+        rename = "steer-backlog",
+        alias = "steer_backlog",
+        alias = "steer+backlog"
+    )]
+    SteerBacklog,
+    Interrupt,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -273,23 +280,27 @@ impl Config {
         let Some(bundle_ref) = self.security.signed_policy_bundle.as_ref() else {
             return Ok(());
         };
-        let signature_ref = self
-            .security
-            .signed_policy_signature
-            .as_ref()
-            .context("security.signed_policy_signature is required when signed_policy_bundle is set")?;
+        let signature_ref = self.security.signed_policy_signature.as_ref().context(
+            "security.signed_policy_signature is required when signed_policy_bundle is set",
+        )?;
         let public_key = self
             .security
             .signed_policy_public_key
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .context("security.signed_policy_public_key is required when signed_policy_bundle is set")?;
+            .context(
+                "security.signed_policy_public_key is required when signed_policy_bundle is set",
+            )?;
 
         let bundle_path = resolve_config_relative_path(config_path, bundle_ref);
         let signature_path = resolve_config_relative_path(config_path, signature_ref);
-        let bundle_bytes = std::fs::read(&bundle_path)
-            .with_context(|| format!("failed reading signed policy bundle {}", bundle_path.display()))?;
+        let bundle_bytes = std::fs::read(&bundle_path).with_context(|| {
+            format!(
+                "failed reading signed policy bundle {}",
+                bundle_path.display()
+            )
+        })?;
         let signature_text = std::fs::read_to_string(&signature_path).with_context(|| {
             format!(
                 "failed reading signed policy signature {}",
@@ -383,23 +394,21 @@ fn verify_bundle_signature(
     signature_text: &str,
     public_key_text: &str,
 ) -> Result<()> {
-    let signature_bytes = decode_compact_text_bytes(
-        signature_text,
-        64,
-        "security.signed_policy_signature",
-    )?;
-    let public_key_bytes = decode_compact_text_bytes(
-        public_key_text,
-        32,
-        "security.signed_policy_public_key",
-    )?;
+    let signature_bytes =
+        decode_compact_text_bytes(signature_text, 64, "security.signed_policy_signature")?;
+    let public_key_bytes =
+        decode_compact_text_bytes(public_key_text, 32, "security.signed_policy_public_key")?;
     let key = signature::UnparsedPublicKey::new(&signature::ED25519, &public_key_bytes);
     key.verify(bundle_bytes, &signature_bytes)
         .map_err(|_| anyhow::anyhow!("signature verification failed"))?;
     Ok(())
 }
 
-fn decode_compact_text_bytes(input: &str, expected_len: usize, field_name: &str) -> Result<Vec<u8>> {
+fn decode_compact_text_bytes(
+    input: &str,
+    expected_len: usize,
+    field_name: &str,
+) -> Result<Vec<u8>> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
         anyhow::bail!("{field_name} cannot be empty");
@@ -491,8 +500,11 @@ fn default_group_activation_mode() -> GroupActivationMode {
 fn parse_session_queue_mode(s: &str) -> Option<SessionQueueMode> {
     match s.trim().to_ascii_lowercase().as_str() {
         "followup" => Some(SessionQueueMode::Followup),
+        "queue" | "queued" => Some(SessionQueueMode::Steer),
         "steer" => Some(SessionQueueMode::Steer),
         "collect" => Some(SessionQueueMode::Collect),
+        "steer-backlog" | "steer_backlog" | "steer+backlog" => Some(SessionQueueMode::SteerBacklog),
+        "interrupt" | "interrupts" | "abort" => Some(SessionQueueMode::Interrupt),
         _ => None,
     }
 }
@@ -620,8 +632,11 @@ channel_risk_bonus = { discord = 12 }
         let bundle_path = dir.join("policy-bundle.toml");
         let sig_path = dir.join("policy-bundle.sig");
         let cfg_path = dir.join("openclaw-rs.toml");
-        std::fs::write(&bundle_path, "review_threshold = 15\nblock_threshold = 45\n")
-            .expect("write bundle");
+        std::fs::write(
+            &bundle_path,
+            "review_threshold = 15\nblock_threshold = 45\n",
+        )
+        .expect("write bundle");
         let bundle_bytes = std::fs::read(&bundle_path).expect("read bundle");
         let rng = SystemRandom::new();
         let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("pkcs8");
@@ -652,5 +667,21 @@ channel_risk_bonus = { discord = 12 }
         let err = Config::load(&cfg_path).expect_err("expected signed policy verify failure");
         let message = format!("{err:#}");
         assert!(message.contains("signed policy verification failed"));
+    }
+
+    #[test]
+    fn parse_session_queue_mode_supports_upstream_aliases() {
+        assert_eq!(
+            super::parse_session_queue_mode("queue"),
+            Some(super::SessionQueueMode::Steer)
+        );
+        assert_eq!(
+            super::parse_session_queue_mode("steer+backlog"),
+            Some(super::SessionQueueMode::SteerBacklog)
+        );
+        assert_eq!(
+            super::parse_session_queue_mode("interrupt"),
+            Some(super::SessionQueueMode::Interrupt)
+        );
     }
 }

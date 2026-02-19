@@ -81,7 +81,7 @@ systemctl --user status openclaw-agent-rs.service
 - Extends `sessions.usage` response parity with `updatedAt`, `startDate`/`endDate`, totals, action rollups, and aggregate placeholder sections (`messages`, `tools`, `byAgent`, `byChannel`).
 - Inspects incoming Gateway frames for actionable payloads (prompt/command/url/file).
 - Applies group activation policy (`mention` or `always`) before evaluation for group contexts.
-- Schedules one active request per session with configurable queue behavior (`followup`, `steer`, `collect`).
+- Schedules one active request per session with configurable queue behavior (`followup`, `steer`, `collect`, `steer-backlog`, `interrupt`) and alias support (`queue`/`queued` -> `steer`).
 - Evaluates each action with:
   - prompt injection detector,
   - command risk detector,
@@ -95,7 +95,7 @@ systemctl --user status openclaw-agent-rs.service
 
 - `runtime.worker_concurrency`: upper bound for simultaneous evaluations.
 - `runtime.max_queue`: bounded work queue.
-- `runtime.session_queue_mode`: session queue behavior (`followup`, `steer`, `collect`).
+- `runtime.session_queue_mode`: session queue behavior (`followup`, `steer`, `collect`, `steer-backlog`, `interrupt`), with aliases `queue`/`queued` -> `steer`.
 - `runtime.group_activation_mode`: group activation gating (`mention`, `always`).
 - `runtime.eval_timeout_ms`: fail-safe timeout per decision.
 - `runtime.memory_sample_secs`: periodic RSS logging cadence on Linux.
