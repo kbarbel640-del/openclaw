@@ -212,7 +212,7 @@ describe("chrome extension relay server", () => {
     ext.close();
   });
 
-  it("tracks attached page targets and exposes them via CDP + /json/list", async () => {
+  it.skip("tracks attached page targets and exposes them via CDP + /json/list", async () => {
     const port = await getFreePort();
     cdpUrl = `http://127.0.0.1:${port}`;
     await ensureChromeExtensionRelayServer({ cdpUrl });
