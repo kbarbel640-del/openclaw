@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type {
   GatewayAuthConfig,
+  GatewayAuthMode,
   GatewayTailscaleConfig,
   OpenClawConfig,
 } from "../config/config.js";
@@ -71,6 +72,28 @@ function resolveGatewayAuthFromConfig(params: {
   });
 }
 
+function shouldPersistGeneratedToken(params: {
+  persistRequested: boolean;
+  baseMode?: GatewayAuthMode;
+  overrideMode?: GatewayAuthMode;
+}): boolean {
+  if (!params.persistRequested) {
+    return false;
+  }
+
+  // Keep CLI/runtime auth mode overrides ephemeral when they switch from an
+  // explicit non-token config mode to token mode.
+  if (
+    params.overrideMode === "token" &&
+    params.baseMode !== undefined &&
+    params.baseMode !== "token"
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function ensureGatewayStartupAuth(params: {
   cfg: OpenClawConfig;
   env?: NodeJS.ProcessEnv;
@@ -81,9 +104,10 @@ export async function ensureGatewayStartupAuth(params: {
   cfg: OpenClawConfig;
   auth: ReturnType<typeof resolveGatewayAuth>;
   generatedToken?: string;
+  persistedGeneratedToken: boolean;
 }> {
   const env = params.env ?? process.env;
-  const persist = params.persist === true;
+  const persistRequested = params.persist === true;
   const resolved = resolveGatewayAuthFromConfig({
     cfg: params.cfg,
     env,
@@ -91,7 +115,7 @@ export async function ensureGatewayStartupAuth(params: {
     tailscaleOverride: params.tailscaleOverride,
   });
   if (resolved.mode !== "token" || (resolved.token?.trim().length ?? 0) > 0) {
-    return { cfg: params.cfg, auth: resolved };
+    return { cfg: params.cfg, auth: resolved, persistedGeneratedToken: false };
   }
 
   const generatedToken = crypto.randomBytes(24).toString("hex");
@@ -106,6 +130,11 @@ export async function ensureGatewayStartupAuth(params: {
       },
     },
   };
+  const persist = shouldPersistGeneratedToken({
+    persistRequested,
+    baseMode: params.cfg.gateway?.auth?.mode,
+    overrideMode: params.authOverride?.mode,
+  });
   if (persist) {
     await writeConfigFile(nextCfg);
   }
@@ -120,5 +149,6 @@ export async function ensureGatewayStartupAuth(params: {
     cfg: nextCfg,
     auth: nextAuth,
     generatedToken,
+    persistedGeneratedToken: persist,
   };
 }

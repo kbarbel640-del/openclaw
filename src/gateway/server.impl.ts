@@ -238,9 +238,15 @@ export async function startGatewayServer(
   });
   cfgAtStart = authBootstrap.cfg;
   if (authBootstrap.generatedToken) {
-    log.info(
-      "Gateway auth token was missing. Generated a new token and saved it to config (gateway.auth.token).",
-    );
+    if (authBootstrap.persistedGeneratedToken) {
+      log.info(
+        "Gateway auth token was missing. Generated a new token and saved it to config (gateway.auth.token).",
+      );
+    } else {
+      log.info(
+        "Gateway auth token was missing. Generated a runtime token for this startup without changing config.",
+      );
+    }
   }
   const diagnosticsEnabled = isDiagnosticsEnabled(cfgAtStart);
   if (diagnosticsEnabled) {
