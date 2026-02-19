@@ -23,7 +23,7 @@ import type { sendMessageIMessage } from "../../imessage/send.js";
 import { getAgentScopedMediaLocalRoots } from "../../media/local-roots.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { markdownToSignalTextChunks, type SignalTextStyleRange } from "../../signal/format.js";
-import { sendMessageSignal } from "../../signal/send.js";
+import { parseQuoteTimestamp, sendMessageSignal } from "../../signal/send.js";
 import type { sendMessageSlack } from "../../slack/send.js";
 import type { sendMessageTelegram } from "../../telegram/send.js";
 import type { sendMessageWhatsApp } from "../../web/outbound.js";
@@ -241,6 +241,7 @@ export async function deliverOutboundPayloads(
         payloads,
         threadId: params.threadId,
         replyToId: params.replyToId,
+        replyToAuthor: params.replyToAuthor,
         bestEffort: params.bestEffort,
         gifPlayback: params.gifPlayback,
         silent: params.silent,
@@ -545,22 +546,15 @@ async function deliverOutboundPayloadsCore(
         if (!isSignalChannel) {
           return undefined;
         }
-        const replyId = sendOverrides.replyToId;
-        if (!replyId) {
-          return undefined;
-        }
-        const ts = Number.parseInt(replyId, 10);
-        if (!Number.isFinite(ts) || ts <= 0) {
-          return undefined;
-        }
         const quoteAuthor = params.replyToAuthor?.trim();
         if (!quoteAuthor) {
           return undefined;
         }
-        return {
-          quoteTimestamp: ts,
-          quoteAuthor,
-        };
+        const quoteTimestamp = parseQuoteTimestamp(sendOverrides.replyToId);
+        if (!quoteTimestamp) {
+          return undefined;
+        }
+        return { quoteTimestamp, quoteAuthor };
       })();
       if (handler.sendPayload && effectivePayload.channelData) {
         const delivery = await handler.sendPayload(effectivePayload, sendOverrides);

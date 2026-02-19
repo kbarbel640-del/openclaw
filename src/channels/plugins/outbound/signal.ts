@@ -1,5 +1,5 @@
 import { chunkText } from "../../../auto-reply/chunk.js";
-import { sendMessageSignal } from "../../../signal/send.js";
+import { parseQuoteTimestamp, sendMessageSignal } from "../../../signal/send.js";
 import { resolveChannelMediaMaxBytes } from "../media-limits.js";
 import type { ChannelOutboundAdapter } from "../types.js";
 
@@ -13,14 +13,6 @@ function resolveSignalMaxBytes(params: {
       cfg.channels?.signal?.accounts?.[accountId]?.mediaMaxMb ?? cfg.channels?.signal?.mediaMaxMb,
     accountId: params.accountId,
   });
-}
-
-function parseQuoteTimestamp(replyToId?: string | null): number | undefined {
-  if (!replyToId) {
-    return undefined;
-  }
-  const ts = Number.parseInt(replyToId, 10);
-  return Number.isFinite(ts) && ts > 0 ? ts : undefined;
 }
 
 export const signalOutbound: ChannelOutboundAdapter = {

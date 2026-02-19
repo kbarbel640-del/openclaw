@@ -28,6 +28,14 @@ export type SignalSendResult = {
 
 export type SignalRpcOpts = Pick<SignalSendOpts, "baseUrl" | "account" | "accountId" | "timeoutMs">;
 
+export function parseQuoteTimestamp(replyToId?: string | null): number | undefined {
+  if (!replyToId) {
+    return undefined;
+  }
+  const ts = Number.parseInt(replyToId, 10);
+  return Number.isFinite(ts) && ts > 0 ? ts : undefined;
+}
+
 export type SignalReceiptType = "read" | "viewed";
 
 type SignalTarget =
