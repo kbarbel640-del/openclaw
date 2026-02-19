@@ -69,6 +69,7 @@ function normalizeWsUrl(raw: string | undefined, cdpBaseUrl: string): string | u
 function createProfileContext(
   opts: ContextOptions,
   profile: ResolvedBrowserProfile,
+  relayName?: string,
 ): ProfileContext {
   const state = () => {
     const current = opts.getState();
@@ -118,7 +119,7 @@ function createProfileContext(
         type?: string;
       }>
     >(appendCdpPath(profile.cdpUrl, "/json/list"));
-    return raw
+    const allTabs = raw
       .map((t) => ({
         targetId: t.id ?? "",
         title: t.title ?? "",
@@ -127,6 +128,13 @@ function createProfileContext(
         type: t.type,
       }))
       .filter((t) => Boolean(t.targetId));
+
+    if (relayName && profile.driver === "extension") {
+      const prefix = `[${relayName}] `;
+      return allTabs.filter((t) => t.title.startsWith(prefix));
+    }
+
+    return allTabs;
   };
 
   const openTab = async (url: string): Promise<BrowserTab> => {
@@ -554,7 +562,7 @@ export function createBrowserRouteContext(opts: ContextOptions): BrowserRouteCon
     return current;
   };
 
-  const forProfile = (profileName?: string): ProfileContext => {
+  const forProfile = (profileName?: string, relayName?: string): ProfileContext => {
     const current = state();
     const name = profileName ?? current.resolved.defaultProfile;
     const profile = resolveBrowserProfileWithHotReload({
@@ -567,7 +575,7 @@ export function createBrowserRouteContext(opts: ContextOptions): BrowserRouteCon
       const available = Object.keys(current.resolved.profiles).join(", ");
       throw new Error(`Profile "${name}" not found. Available profiles: ${available || "(none)"}`);
     }
-    return createProfileContext(opts, profile);
+    return createProfileContext(opts, profile, relayName);
   };
 
   const listProfiles = async (): Promise<ProfileStatus[]> => {
@@ -649,6 +657,8 @@ export function createBrowserRouteContext(opts: ContextOptions): BrowserRouteCon
     state,
     forProfile,
     listProfiles,
+    profile: getDefaultContext().profile,
+    relayName: getDefaultContext().relayName,
     // Legacy methods delegate to default profile
     ensureBrowserAvailable: () => getDefaultContext().ensureBrowserAvailable(),
     ensureTabAvailable: (targetId) => getDefaultContext().ensureTabAvailable(targetId),
