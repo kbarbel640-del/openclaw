@@ -27,7 +27,7 @@ import { splitTelegramCaption } from "./caption.js";
 import { resolveTelegramFetch } from "./fetch.js";
 import { renderTelegramHtmlText } from "./format.js";
 import { isRecoverableTelegramNetworkError } from "./network-errors.js";
-import { makeProxyFetch } from "./proxy.js";
+import { makeProxyFetch, resolveProxyUrlFromEnv } from "./proxy.js";
 import { recordSentMessage } from "./sent-message-cache.js";
 import { maybePersistResolvedTelegramTarget } from "./target-writeback.js";
 import {
@@ -111,7 +111,7 @@ function createTelegramHttpLogger(cfg: ReturnType<typeof loadConfig>) {
 function resolveTelegramClientOptions(
   account: ResolvedTelegramAccount,
 ): ApiClientOptions | undefined {
-  const proxyUrl = account.config.proxy?.trim();
+  const proxyUrl = account.config.proxy?.trim() || resolveProxyUrlFromEnv();
   const proxyFetch = proxyUrl ? makeProxyFetch(proxyUrl) : undefined;
   const fetchImpl = resolveTelegramFetch(proxyFetch, {
     network: account.config.network,

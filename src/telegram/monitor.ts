@@ -12,7 +12,7 @@ import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
 import { createTelegramBot } from "./bot.js";
 import { isRecoverableTelegramNetworkError } from "./network-errors.js";
-import { makeProxyFetch } from "./proxy.js";
+import { makeProxyFetch, resolveProxyUrlFromEnv } from "./proxy.js";
 import { readTelegramUpdateOffset, writeTelegramUpdateOffset } from "./update-offset-store.js";
 import { startTelegramWebhook } from "./webhook.js";
 
@@ -130,8 +130,9 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
       );
     }
 
+    const resolvedProxyUrl = account.config.proxy?.trim() || resolveProxyUrlFromEnv();
     const proxyFetch =
-      opts.proxyFetch ?? (account.config.proxy ? makeProxyFetch(account.config.proxy) : undefined);
+      opts.proxyFetch ?? (resolvedProxyUrl ? makeProxyFetch(resolvedProxyUrl) : undefined);
 
     let lastUpdateId = await readTelegramUpdateOffset({
       accountId: account.accountId,
