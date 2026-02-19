@@ -54,7 +54,12 @@ import {
 } from "./controllers/skills.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, getTabGroups, subtitleForTab, titleForTab } from "./navigation.ts";
-import { getOnboardingNextStep, getOnboardingNextTab, getOnboardingSteps } from "./onboarding-flow.ts";
+import {
+  getOnboardingNextStep,
+  getOnboardingNextTab,
+  getOnboardingProgress,
+  getOnboardingSteps,
+} from "./onboarding-flow.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
@@ -116,6 +121,7 @@ export function renderApp(state: AppViewState) {
     channelsLastSuccess: state.channelsLastSuccess,
     sessionsCount,
   });
+  const onboardingProgress = getOnboardingProgress(onboardingSteps);
   const nextOnboardingStep = getOnboardingNextStep(onboardingSteps);
   const onboardingNextTab = getOnboardingNextTab(onboardingSteps);
   const onboardingNextLabel = nextOnboardingStep
@@ -233,6 +239,12 @@ export function renderApp(state: AppViewState) {
             ? html`
                 <div class="onboarding-banner" role="status">
                   <span class="onboarding-banner__text">${t("chat.onboardingBanner")}</span>
+                  <span class="muted" data-testid="onboarding-banner-progress">
+                    ${t("overview.setupFlow.progress", {
+                      done: onboardingProgress.done.toString(),
+                      total: onboardingProgress.total.toString(),
+                    })}
+                  </span>
                   <div class="onboarding-banner__steps">
                     ${onboardingSteps.map(
                       (step) => html`

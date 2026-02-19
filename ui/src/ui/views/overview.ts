@@ -169,7 +169,7 @@ export function renderOverview(props: OverviewProps) {
             <section class="card" data-testid="onboarding-setup-flow">
               <div class="card-title">${t("overview.setupFlow.title")}</div>
               <div class="card-sub">${t("overview.setupFlow.subtitle")}</div>
-              <div class="muted" style="margin-top: 8px;">
+              <div class="muted" style="margin-top: 8px;" data-testid="onboarding-setup-flow-progress">
                 ${t("overview.setupFlow.progress", {
                   done: onboardingProgress.done.toString(),
                   total: onboardingProgress.total.toString(),

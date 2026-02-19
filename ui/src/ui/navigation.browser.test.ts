@@ -235,6 +235,28 @@ describe("control UI routing", () => {
     expect(setupFlow).not.toBeNull();
   });
 
+  it("updates onboarding progress labels as setup state changes", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    const setupProgress = app.querySelector('[data-testid="onboarding-setup-flow-progress"]');
+    const bannerProgress = app.querySelector('[data-testid="onboarding-banner-progress"]');
+    expect(setupProgress?.textContent).toContain("Progress 0/3");
+    expect(bannerProgress?.textContent).toContain("Progress 0/3");
+
+    app.connected = true;
+    app.channelsLastSuccess = Date.now();
+    app.sessionsResult = {
+      count: 1,
+      sessions: [],
+      cursor: null,
+    } as never;
+    await app.updateComplete;
+
+    expect(setupProgress?.textContent).toContain("Progress 3/3");
+    expect(bannerProgress?.textContent).toContain("Progress 3/3");
+  });
+
   it("navigates to integrations from onboarding setup flow", async () => {
     const app = mountApp("/?onboarding=1");
     await app.updateComplete;
