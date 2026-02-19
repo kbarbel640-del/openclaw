@@ -124,9 +124,10 @@ describe("runDaemonInstall", () => {
       token: "cli-token",
     });
 
+    const expectedKillMode = process.platform === "linux" ? "mixed" : undefined;
     expect(serviceInstall).toHaveBeenCalledWith(
       expect.objectContaining({
-        systemdKillMode: "mixed",
+        systemdKillMode: expectedKillMode,
       }),
     );
   });
