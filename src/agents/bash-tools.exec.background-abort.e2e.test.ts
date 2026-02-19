@@ -39,7 +39,7 @@ function cleanupRunningSession(sessionId: string) {
 
 async function expectBackgroundSessionSurvivesAbort(params: {
   tool: ReturnType<typeof createExecTool>;
-  executeParams: Record<string, unknown>;
+  executeParams: Parameters<ReturnType<typeof createExecTool>["execute"]>[1];
 }) {
   const abortController = new AbortController();
   const result = await params.tool.execute(
@@ -75,7 +75,7 @@ async function expectBackgroundSessionSurvivesAbort(params: {
 
 async function expectBackgroundSessionTimesOut(params: {
   tool: ReturnType<typeof createExecTool>;
-  executeParams: Record<string, unknown>;
+  executeParams: Parameters<ReturnType<typeof createExecTool>["execute"]>[1];
   signal?: AbortSignal;
   abortAfterStart?: boolean;
 }) {
