@@ -81,7 +81,9 @@ export function buildMSTeamsAttachmentPlaceholder(
   }
   const imageCount = list.filter(isLikelyImageAttachment).length;
   const inlineCount = extractInlineImageCandidates(list).length;
-  const totalImages = imageCount + inlineCount;
+  // When explicit image attachments exist, inline <img> tags in HTML
+  // typically reference the same images — avoid double-counting.
+  const totalImages = imageCount > 0 ? imageCount : inlineCount;
   if (totalImages > 0) {
     return `<media:image>${totalImages > 1 ? ` (${totalImages} images)` : ""}`;
   }

@@ -99,6 +99,23 @@ describe("msteams attachments", () => {
         ]),
       ).toBe("<media:image> (2 images)");
     });
+
+    it("does not double-count when image attachment and HTML img tag refer to the same image", async () => {
+      const { buildMSTeamsAttachmentPlaceholder } = await load();
+      expect(
+        buildMSTeamsAttachmentPlaceholder([
+          {
+            contentType: "image/jpeg",
+            contentUrl: "https://smba.trafficmanager.net/au/v3/attachments/abc/views/original",
+          },
+          {
+            contentType: "text/html",
+            content:
+              '<img src="https://au-prod.asyncgw.teams.microsoft.com/v1/objects/abc/views/imgo" />',
+          },
+        ]),
+      ).toBe("<media:image>");
+    });
   });
 
   describe("downloadMSTeamsAttachments", () => {
