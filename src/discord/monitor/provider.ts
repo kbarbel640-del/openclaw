@@ -76,6 +76,7 @@ export type MonitorDiscordOpts = {
   mediaMaxMb?: number;
   historyLimit?: number;
   replyToMode?: ReplyToMode;
+  setStatus?: (patch: { accountId: string; connected: boolean }) => void;
 };
 
 function summarizeAllowList(list?: string[]) {
@@ -587,6 +588,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   }
 
   runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
+  opts.setStatus?.({ accountId: account.accountId, connected: true });
 
   // Start exec approvals handler after client is ready
   if (execApprovalsHandler) {
@@ -663,6 +665,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       },
     });
   } finally {
+    opts.setStatus?.({ accountId: account.accountId, connected: false });
     unregisterGateway(account.accountId);
     stopGatewayLogging();
     if (helloTimeoutId) {
