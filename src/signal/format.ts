@@ -365,7 +365,7 @@ function findBreakIndex(window: string): number {
   }
 
   // Prefer newline break, fall back to whitespace
-  return lastNewline > 0 ? lastNewline : lastWhitespace;
+  return lastNewline >= 0 ? lastNewline : lastWhitespace;
 }
 
 export function markdownToSignalTextChunks(
