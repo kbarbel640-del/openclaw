@@ -32,6 +32,7 @@ Telegram bot in polling mode successfully fetches messages via `getUpdates` but 
 **File:** `src/telegram/monitor.ts`
 
 The Grammy runner successfully fetches updates:
+
 - `@grammyjs/runner` library handles polling
 - Updates are fetched from Telegram API
 - Update offset is correctly incremented
@@ -44,6 +45,7 @@ The Grammy runner successfully fetches updates:
 **File:** `src/telegram/bot-updates.ts`
 
 Updates are deduplicated via:
+
 - TTL-based cache (5 minutes)
 - Max 2000 updates cached
 - Keys based on `update_id`, `callback_id`, or message coordinates
@@ -57,6 +59,7 @@ Updates are deduplicated via:
 **File:** `src/telegram/bot-handlers.ts`
 
 Handlers are registered for:
+
 - `bot.on("message", handler)` - Direct messages
 - `bot.on("callback_query", handler)` - Button clicks
 - `bot.on("message_reaction", handler)` - Reactions
@@ -67,6 +70,7 @@ Handlers are registered for:
 ### 4. Traced Message Processing Flow
 
 **Expected flow:**
+
 ```
 Polling Update
   → bot.ts: createTelegramBot()
@@ -91,15 +95,18 @@ Polling Update
 **Theory:** The sequentialize, dedupe, or recordUpdateId middleware is silently blocking messages without logging.
 
 **Evidence:**
+
 - Only affects polling mode (webhook might bypass some middleware)
 - Offset is advanced (updates consumed) but not processed
 - No error logs (middleware fails silently)
 
 **File to Check:**
+
 - `src/telegram/bot.ts` lines 1-200 (middleware setup)
 - `src/telegram/bot-updates.ts` (deduplication logic)
 
 **Suggested Fix:**
+
 ```typescript
 // In bot.ts, add logging to each middleware
 bot.use(async (ctx, next) => {
@@ -123,10 +130,12 @@ bot.use(async (ctx, next) => {
 **Theory:** Message handler is registered too late, after bot polling starts. Early messages get consumed but no handler exists yet.
 
 **Evidence:**
+
 - Workaround (delete offset + restart) sometimes works
 - Suggests timing/race condition
 
 **File to Check:**
+
 - `src/telegram/monitor.ts` - When polling starts
 - `src/telegram/bot-handlers.ts` - When handlers register
 
@@ -150,10 +159,12 @@ async function startTelegramPolling(bot, options) {
 **Theory:** `buildTelegramMessageContext()` throws an exception that's caught and logged elsewhere, preventing dispatch.
 
 **Evidence:**
+
 - Complex context building with history, media, etc.
 - Silent failures possible if try/catch swallows errors
 
 **File to Check:**
+
 - `src/telegram/bot-message-context.ts`
 - `src/telegram/bot-message.ts`
 
@@ -185,10 +196,12 @@ async function processMessage(ctx, ...) {
 **Theory:** `allowFrom` or `dmPolicy` is blocking messages, but not logging the rejection.
 
 **Evidence:**
+
 - User had to set `dmPolicy: "open"` and `allowFrom: ["*"]` to fix
 - Suggests access control was silently dropping messages
 
 **File to Check:**
+
 - Access control checks in bot-message.ts or bot-message-dispatch.ts
 
 **Suggested Fix:**
@@ -242,13 +255,14 @@ echo "allowFrom:" $(openclaw config get channels.telegram.allowFrom)
 **Where:** Throughout the message processing pipeline
 
 **What:**
+
 ```typescript
 // At each stage:
-logger.info('[Telegram] Update received', { updateId, updateType });
-logger.info('[Telegram] Handler called', { chatId, messageId });
-logger.info('[Telegram] Context built', { contextId });
-logger.info('[Telegram] Dispatching to agent', { agentId });
-logger.info('[Telegram] Agent invoked', { runId });
+logger.info("[Telegram] Update received", { updateId, updateType });
+logger.info("[Telegram] Handler called", { chatId, messageId });
+logger.info("[Telegram] Context built", { contextId });
+logger.info("[Telegram] Dispatching to agent", { agentId });
+logger.info("[Telegram] Agent invoked", { runId });
 ```
 
 **Benefit:** Pinpoints exactly where messages are being dropped.
@@ -275,9 +289,9 @@ Log when messages are rejected by `allowFrom`, `dmPolicy`, or pairing requiremen
 Add a debug flag that logs every middleware execution:
 
 ```typescript
-if (process.env.TELEGRAM_DEBUG_MIDDLEWARE === 'true') {
+if (process.env.TELEGRAM_DEBUG_MIDDLEWARE === "true") {
   bot.use(async (ctx, next) => {
-    console.log('[Telegram Middleware]', {
+    console.log("[Telegram Middleware]", {
       updateId: ctx.update?.update_id,
       updateType: ctx.updateType,
       stack: new Error().stack,
@@ -292,6 +306,7 @@ if (process.env.TELEGRAM_DEBUG_MIDDLEWARE === 'true') {
 **Where:** `src/telegram/bot-updates.ts`
 
 **What:**
+
 - Verify deduplication keys are correct
 - Check for false positives
 - Add logging when updates are deduplicated
@@ -303,6 +318,7 @@ if (process.env.TELEGRAM_DEBUG_MIDDLEWARE === 'true') {
 
 **What:**
 Create end-to-end test that:
+
 1. Starts bot in polling mode
 2. Sends test message via Telegram API
 3. Verifies agent invocation
@@ -317,12 +333,14 @@ Create end-to-end test that:
 To test the fix:
 
 1. **Enable debug logging:**
+
    ```bash
    export TELEGRAM_DEBUG_MIDDLEWARE=true
    export DEBUG=telegram:*
    ```
 
 2. **Start gateway with verbose logging:**
+
    ```bash
    systemctl --user stop openclaw-gateway.service
    openclaw gateway start --verbose
@@ -332,6 +350,7 @@ To test the fix:
    Send "test" to the Telegram bot
 
 4. **Check logs:**
+
    ```bash
    # Should see:
    [Telegram] Update received updateId=123
@@ -351,11 +370,13 @@ To test the fix:
 Until the core fix is implemented:
 
 **Option 1: Use the fix script (recommended)**
+
 ```bash
 ./scripts/troubleshooting/fix-telegram-polling.sh
 ```
 
 **Option 2: Manual steps**
+
 ```bash
 systemctl --user stop openclaw-gateway.service
 rm ~/.openclaw/telegram/update-offset-default.json
@@ -363,6 +384,7 @@ systemctl --user start openclaw-gateway.service
 ```
 
 **Option 3: Switch to webhook mode** (if you have a public URL)
+
 ```bash
 openclaw config set channels.telegram.webhookUrl "https://your-domain.com/telegram"
 openclaw config set channels.telegram.webhookSecret "$(openssl rand -hex 32)"

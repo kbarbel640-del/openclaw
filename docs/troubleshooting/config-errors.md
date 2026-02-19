@@ -2,7 +2,7 @@
 
 Common OpenClaw configuration errors and how to fix them.
 
-## dmPolicy="open" requires allowFrom to include "*"
+## dmPolicy="open" requires allowFrom to include "\*"
 
 ### Error Message
 
@@ -23,7 +23,7 @@ When you set `dmPolicy: "open"`, you're telling OpenClaw to accept messages from
   "channels": {
     "telegram": {
       "dmPolicy": "open",
-      "allowFrom": []  // or ["123456789"]
+      "allowFrom": [] // or ["123456789"]
     }
   }
 }
@@ -36,12 +36,13 @@ openclaw config set channels.telegram.allowFrom '["*"]'
 ```
 
 **Result:**
+
 ```json
 {
   "channels": {
     "telegram": {
       "dmPolicy": "open",
-      "allowFrom": ["*"]  // ✅ Allows everyone
+      "allowFrom": ["*"] // ✅ Allows everyone
     }
   }
 }
@@ -54,11 +55,12 @@ openclaw config set channels.telegram.dmPolicy "pairing"
 ```
 
 **Result:**
+
 ```json
 {
   "channels": {
     "telegram": {
-      "dmPolicy": "pairing",  // ✅ Requires user pairing first
+      "dmPolicy": "pairing", // ✅ Requires user pairing first
       "allowFrom": []
     }
   }
@@ -67,11 +69,11 @@ openclaw config set channels.telegram.dmPolicy "pairing"
 
 ### Understanding dmPolicy
 
-| Policy | Behavior | When to Use |
-|--------|----------|-------------|
-| `open` | Accept messages from anyone | Public bots, community servers |
-| `pairing` | Require explicit user pairing | Private bots, personal use |
-| `closed` | Reject all new conversations | Testing, maintenance mode |
+| Policy    | Behavior                      | When to Use                    |
+| --------- | ----------------------------- | ------------------------------ |
+| `open`    | Accept messages from anyone   | Public bots, community servers |
+| `pairing` | Require explicit user pairing | Private bots, personal use     |
+| `closed`  | Reject all new conversations  | Testing, maintenance mode      |
 
 ---
 
@@ -106,6 +108,7 @@ openclaw models list
 #### 1. Typo in Model ID
 
 **Wrong:**
+
 ```json
 "model": {
   "primary": "amazon-bedrock/us.anthropic.claude-opus-4-6-v1:0"
@@ -113,6 +116,7 @@ openclaw models list
 ```
 
 **Correct:**
+
 ```json
 "model": {
   "primary": "amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0"
@@ -126,6 +130,7 @@ Note: Opus 4.6 doesn't exist yet. Current latest is Opus 4.5.
 When using AWS Bedrock in `us-east-1`, most models require a region prefix.
 
 **Wrong:**
+
 ```json
 "model": {
   "primary": "amazon-bedrock/anthropic.claude-opus-4-5-20251101-v1:0"
@@ -133,6 +138,7 @@ When using AWS Bedrock in `us-east-1`, most models require a region prefix.
 ```
 
 **Correct:**
+
 ```json
 "model": {
   "primary": "amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0"
@@ -140,6 +146,7 @@ When using AWS Bedrock in `us-east-1`, most models require a region prefix.
 ```
 
 Region prefixes:
+
 - `us.` - US West (Oregon)
 - `eu.` - Europe (Frankfurt)
 - `ap.` - Asia Pacific (Tokyo)
@@ -147,6 +154,7 @@ Region prefixes:
 #### 3. Missing Provider Prefix
 
 **Wrong:**
+
 ```json
 "model": {
   "primary": "claude-opus-4-5"
@@ -154,6 +162,7 @@ Region prefixes:
 ```
 
 **Correct:**
+
 ```json
 "model": {
   "primary": "amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0"
@@ -163,16 +172,19 @@ Region prefixes:
 ### Solution
 
 1. **List available models:**
+
    ```bash
    openclaw models list | grep -i claude
    ```
 
 2. **Copy exact model ID from list:**
+
    ```bash
    openclaw config set agents.defaults.model.primary "amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0"
    ```
 
 3. **Test the model:**
+
    ```bash
    # For Bedrock
    ./scripts/troubleshooting/test-bedrock-models.sh
@@ -217,7 +229,7 @@ Using a reverse proxy (Cloudflare Tunnel, nginx, Caddy, etc.) that terminates TL
   "gateway": {
     "bind": "lan",
     "controlUi": {
-      "allowInsecureAuth": false  // or not set
+      "allowInsecureAuth": false // or not set
     }
   }
 }
@@ -231,12 +243,13 @@ systemctl --user restart openclaw-gateway.service
 ```
 
 **Result:**
+
 ```json
 {
   "gateway": {
     "bind": "lan",
     "controlUi": {
-      "allowInsecureAuth": true  // ✅ Allows auth from reverse proxy
+      "allowInsecureAuth": true // ✅ Allows auth from reverse proxy
     }
   }
 }
@@ -251,6 +264,7 @@ systemctl --user restart openclaw-gateway.service
 ### Security Note
 
 Only use `allowInsecureAuth: true` when:
+
 - Behind a reverse proxy that handles TLS
 - On a trusted local network
 - With proper firewall rules
@@ -283,11 +297,13 @@ journalctl --user -u openclaw-gateway -f | grep "messageChannel=telegram"
 ### Solution
 
 **Quick Fix:**
+
 ```bash
 ./scripts/troubleshooting/fix-telegram-polling.sh
 ```
 
 **Manual Fix:**
+
 ```bash
 # Stop gateway
 systemctl --user stop openclaw-gateway.service
@@ -344,6 +360,7 @@ systemctl --user restart openclaw-gateway.service
 ### Prevention
 
 When switching Telegram modes:
+
 1. Delete webhook first (if going to polling)
 2. Delete offset file
 3. Update configuration
@@ -368,6 +385,7 @@ Checks for common configuration issues:
 ```
 
 Provides:
+
 - User-friendly error messages
 - Exact commands to fix issues
 - Alternative solutions
@@ -381,6 +399,7 @@ Comprehensive system check:
 ```
 
 Checks:
+
 - OpenClaw installation
 - Gateway status
 - Channel configuration

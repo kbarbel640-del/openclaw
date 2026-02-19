@@ -268,6 +268,7 @@ Since the Pi is just the Gateway (models run in the cloud), use API-based models
 AWS Bedrock works excellently on Raspberry Pi 5. Tested configuration:
 
 **Install AWS CLI (ARM64):**
+
 ```bash
 curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"
 unzip awscliv2.zip
@@ -276,6 +277,7 @@ aws --version
 ```
 
 **Configure credentials:**
+
 ```bash
 aws configure
 # Enter your AWS Access Key ID
@@ -285,12 +287,14 @@ aws configure
 ```
 
 **Enable Bedrock discovery:**
+
 ```bash
 openclaw config set models.bedrockDiscovery.enabled true
 openclaw config set models.bedrockDiscovery.region us-east-1
 ```
 
 **Set primary model:**
+
 ```bash
 openclaw config set agents.defaults.model.primary \
   "amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0"
@@ -299,11 +303,13 @@ openclaw config set agents.defaults.model.primary \
 **Note:** Use the `us.` prefix for cross-region inference. See the [Bedrock provider docs](/providers/bedrock) for details.
 
 **Tested models on Pi 5 (all working):**
+
 - Claude Opus 4.5: `us.anthropic.claude-opus-4-5-20251101-v1:0`
 - Claude Sonnet 4.6: `us.anthropic.claude-sonnet-4-6`
 - Claude Haiku 4.5: `us.anthropic.claude-haiku-4-5-20251001-v1:0`
 
 **Performance benchmarks (Pi 5, 8GB):**
+
 - Gateway startup: 3-5 seconds
 - First response: 5-8 seconds (Claude Opus 4.5)
 - Subsequent responses: 3-5 seconds

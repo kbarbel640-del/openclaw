@@ -1,9 +1,9 @@
 ---
 name: Telegram Polling Bug - Messages Silently Dropped
 about: Telegram bot in polling mode doesn't process incoming messages
-title: '[BUG] Telegram polling silently drops messages'
-labels: 'bug, telegram, high-priority'
-assignees: ''
+title: "[BUG] Telegram polling silently drops messages"
+labels: "bug, telegram, high-priority"
+assignees: ""
 ---
 
 ## Bug Description
@@ -20,6 +20,7 @@ When Telegram channel is configured in polling mode, incoming messages are succe
 ## Reproduction Steps
 
 1. Configure Telegram bot with polling mode (default):
+
    ```bash
    openclaw config set channels.telegram.botToken "YOUR_TOKEN"
    openclaw config set channels.telegram.dmPolicy "open"
@@ -27,6 +28,7 @@ When Telegram channel is configured in polling mode, incoming messages are succe
    ```
 
 2. Start gateway:
+
    ```bash
    systemctl --user restart openclaw-gateway.service
    ```
@@ -54,23 +56,27 @@ When Telegram channel is configured in polling mode, incoming messages are succe
 ## Evidence
 
 ### Gateway Log (Telegram starts successfully)
+
 ```
 {"subsystem":"gateway/channels/telegram"},"[default] starting provider (@bot_name)"
 ```
 
 ### Agent Logs (Only webchat, no telegram)
+
 ```
 embedded run start: ... messageChannel=webchat
 // Never shows: messageChannel=telegram
 ```
 
 ### Telegram Status
+
 ```bash
 $ openclaw channels status
 - Telegram default: enabled, configured, running, mode:polling, token:config
 ```
 
 ### API Check
+
 ```bash
 $ curl "https://api.telegram.org/bot<TOKEN>/getUpdates?offset=-1"
 {"ok":true,"result":[]}  # Empty - messages already consumed
@@ -109,6 +115,7 @@ systemctl --user start openclaw-gateway.service
 ## Related Files
 
 Likely affected files:
+
 - `src/gateway/channels/telegram/*.ts`
 - Message handler event binding code
 - Polling loop implementation
@@ -116,6 +123,7 @@ Likely affected files:
 ## Testing
 
 To verify fix:
+
 1. Configure Telegram bot in polling mode
 2. Send test message via Telegram client
 3. Verify log entry: `messageChannel=telegram`

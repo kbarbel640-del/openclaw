@@ -1,6 +1,7 @@
 # OpenClaw v2026.2.17 - Bugs Identified
 
 **Testing Environment:**
+
 - Platform: Raspberry Pi 5 (ARM64)
 - OS: Linux 6.12.47+rpt-rpi-2712
 - Node: v22.22.0
@@ -16,9 +17,11 @@
 **Affects:** Telegram channel in polling mode
 
 ### Description
+
 When Telegram channel is configured in polling mode, `getUpdates` successfully fetches incoming messages but they are never passed to the AI agent for processing. Messages are silently consumed and dropped without any error logs.
 
 ### Reproduction Steps
+
 1. Configure Telegram bot with polling mode (default)
 2. Set `dmPolicy: "open"` and `allowFrom: ["*"]`
 3. Send a message to the bot via Telegram
@@ -26,17 +29,20 @@ When Telegram channel is configured in polling mode, `getUpdates` successfully f
 5. Verify: `getUpdates?offset=-1` returns 0 messages (consumed but not processed)
 
 ### Expected Behavior
+
 - Incoming Telegram messages should trigger agent runs
 - Logs should show `messageChannel=telegram` entries
 - Bot should respond to user messages
 
 ### Actual Behavior
+
 - Agent never invoked for Telegram messages
 - All agent runs show `messageChannel=webchat` only
 - No error logs generated
 - Messages marked as consumed by Telegram API
 
 ### Evidence
+
 ```json
 // Gateway logs show polling is active
 {"subsystem":"gateway/channels/telegram"},"[default] starting provider (@bot)"
@@ -47,10 +53,13 @@ When Telegram channel is configured in polling mode, `getUpdates` successfully f
 ```
 
 ### Root Cause Analysis
+
 The message handler for Telegram polling mode fails to dispatch messages to the agent subsystem. The `getUpdates` polling loop is functional but the callback/handler that processes incoming updates is not triggering agent invocations.
 
 ### Workaround
+
 Delete the offset file and restart gateway:
+
 ```bash
 systemctl --user stop openclaw-gateway.service
 rm ~/.openclaw/telegram/update-offset-default.json
@@ -60,6 +69,7 @@ systemctl --user start openclaw-gateway.service
 **Note:** This workaround worked in our testing but may be environment-specific or timing-dependent.
 
 ### Additional Context
+
 - Outbound messages work correctly (bot can send messages)
 - Status checks show "running" with no errors
 - Plugin is enabled: `plugins.entries.telegram.enabled: true`
@@ -74,9 +84,11 @@ systemctl --user start openclaw-gateway.service
 **Affects:** Telegram channel switching between webhook and polling modes
 
 ### Description
+
 When a Telegram bot has a webhook configured and the user switches to polling mode, OpenClaw repeatedly fails with 409 Conflict errors. Even after deleting the webhook via Telegram API, the conflict persists until the offset file is manually deleted.
 
 ### Reproduction Steps
+
 1. Configure Telegram bot with webhook URL
 2. Change configuration to polling mode
 3. Delete webhook via API: `deleteWebhook`
@@ -84,10 +96,12 @@ When a Telegram bot has a webhook configured and the user switches to polling mo
 5. Observe continuous 409 errors in logs
 
 ### Expected Behavior
+
 - Deleting webhook should allow polling to start
 - Gateway should handle mode transitions gracefully
 
 ### Actual Behavior
+
 ```
 Telegram getUpdates conflict: Call to 'getUpdates' failed!
 (409: Conflict: can't use getUpdates method while webhook is active;
@@ -97,16 +111,20 @@ use deleteWebhook to delete the webhook first); retrying in 30s.
 Errors repeat indefinitely even after webhook is deleted.
 
 ### Root Cause Analysis
+
 The offset file (`~/.openclaw/telegram/update-offset-default.json`) retains state from webhook mode. When switching to polling, OpenClaw doesn't detect the stale offset and continues using it, causing conflicts.
 
 ### Solution
+
 Gateway should:
+
 1. Detect webhook → polling mode changes
 2. Automatically reset offset file when mode changes
 3. Validate webhook status before starting polling
 4. Provide clear error messages with recovery steps
 
 ### Workaround
+
 ```bash
 # Delete webhook via Telegram API
 curl -X POST "https://api.telegram.org/bot<TOKEN>/deleteWebhook"
@@ -127,9 +145,11 @@ systemctl --user restart openclaw-gateway.service
 **Affects:** Channel configuration validation
 
 ### Description
+
 When `dmPolicy: "open"` is set without `allowFrom: ["*"]`, the error message is cryptic and doesn't suggest the fix.
 
 ### Error Message
+
 ```
 Error: Config validation failed: channels.telegram.allowFrom:
 channels.telegram.dmPolicy="open" requires channels.telegram.allowFrom
@@ -137,6 +157,7 @@ to include "*"
 ```
 
 ### Suggested Improvement
+
 ```
 Error: Telegram configuration mismatch
 
@@ -162,26 +183,32 @@ Or change policy:
 **Affects:** Model configuration validation
 
 ### Description
+
 OpenClaw allows setting non-existent model IDs without validation, causing runtime failures.
 
 ### Reproduction Steps
+
 1. Set model: `openclaw config set agents.defaults.model.primary "amazon-bedrock/us.anthropic.claude-opus-4-6-v1:0"`
 2. Model doesn't exist in AWS Bedrock
 3. Gateway starts without errors
 4. Agent invocations fail silently or with cryptic errors
 
 ### Expected Behavior
+
 - Validate model IDs against available models during config set
 - Show clear error: "Model 'X' not found in provider 'Y'"
 - Suggest: `openclaw models list` to see available models
 
 ### Actual Behavior
+
 - Invalid model ID accepted
 - Failures occur only at runtime during agent invocation
 - Error messages don't clearly indicate model unavailability
 
 ### Solution
+
 Add model validation in `config set` command:
+
 ```javascript
 // Pseudo-code
 async function setModel(modelId) {
@@ -190,8 +217,7 @@ async function setModel(modelId) {
 
   if (!availableModels.includes(modelId)) {
     throw new Error(
-      `Model '${modelId}' not found.\n` +
-      `Run 'openclaw models list' to see available models.`
+      `Model '${modelId}' not found.\n` + `Run 'openclaw models list' to see available models.`,
     );
   }
 
@@ -208,10 +234,13 @@ async function setModel(modelId) {
 **Affects:** AWS Bedrock model configuration
 
 ### Description
+
 OpenClaw doesn't document that AWS Bedrock requires `us.`, `eu.`, or `ap.` prefixes for cross-region inference when using models in `us-east-1` (standard config).
 
 ### Issue
+
 Documentation shows:
+
 ```json
 "model": "amazon-bedrock/anthropic.claude-opus-4-5-20251101-v1:0"
 ```
@@ -219,17 +248,20 @@ Documentation shows:
 This works in the model's native region but fails in `us-east-1` without the prefix.
 
 ### Correct Configuration
+
 ```json
 "model": "amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0"
 ```
 
 ### Missing Documentation
+
 - Prefix requirements for cross-region inference
 - Region-specific model availability
 - How to test model access before configuring
 
 ### Suggested Addition to Docs
-```markdown
+
+````markdown
 ### AWS Bedrock Cross-Region Models
 
 When using AWS Bedrock in `us-east-1`, most Claude models require a region prefix:
@@ -238,17 +270,21 @@ When using AWS Bedrock in `us-east-1`, most Claude models require a region prefi
 - `anthropic.claude-opus-4-5-20251101-v1:0` (fails)
 
 Region prefixes:
+
 - `us.` - US West (Oregon)
 - `eu.` - Europe (Frankfurt)
 - `ap.` - Asia Pacific (Tokyo)
 
 Test model access:
+
 ```bash
 openclaw models list | grep bedrock
 ```
+````
 
 See: https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
-```
+
+````
 
 ---
 
@@ -276,7 +312,7 @@ Cloudflare tunnel terminates TLS, making gateway think requests are insecure. Wi
 ```bash
 openclaw config set gateway.controlUi.allowInsecureAuth true
 systemctl --user restart openclaw-gateway.service
-```
+````
 
 ---
 
@@ -288,6 +324,7 @@ systemctl --user restart openclaw-gateway.service
 On Raspberry Pi 5 (8GB RAM), model discovery causes temporary memory pressure.
 
 **Evidence:**
+
 ```
 [huggingface-models] Discovery failed: TimeoutError:
 The operation was aborted due to timeout, using static catalog
@@ -297,7 +334,9 @@ The operation was aborted due to timeout, using static catalog
 **Status:** Non-blocking warning
 
 ### Recommendation
+
 Document Raspberry Pi resource considerations:
+
 - Minimum 4GB RAM recommended
 - 8GB RAM optimal for multiple concurrent agents
 - Consider disabling unused model providers to reduce overhead
@@ -309,11 +348,13 @@ Document Raspberry Pi resource considerations:
 ### 1. Better Error Recovery for Channel Conflicts
 
 Add automatic recovery for webhook/polling conflicts:
+
 ```bash
 openclaw channels recover telegram
 ```
 
 Should:
+
 - Check and delete active webhooks
 - Reset offset files
 - Clear polling state
@@ -322,11 +363,13 @@ Should:
 ### 2. Model Testing Command
 
 Add model validation:
+
 ```bash
 openclaw models test amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0
 ```
 
 Output:
+
 ```
 Testing model: amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0
 ✓ Provider: amazon-bedrock (authenticated)
@@ -341,11 +384,13 @@ Model is ready for use.
 ### 3. Interactive Troubleshooting
 
 Add troubleshooting wizard:
+
 ```bash
 openclaw doctor --interactive
 ```
 
 Should guide users through:
+
 - Channel connectivity tests
 - Model availability checks
 - Configuration validation
@@ -354,11 +399,13 @@ Should guide users through:
 ### 4. Raspberry Pi Optimization Mode
 
 Add performance preset:
+
 ```bash
 openclaw config preset raspberry-pi
 ```
 
 Should configure:
+
 - Reduced model discovery timeout
 - Lower concurrent agent limit
 - Memory-efficient compaction mode
@@ -399,18 +446,21 @@ Should configure:
 ## Files Requiring Changes
 
 ### Core Files
+
 - `src/gateway/channels/telegram/*.ts` - Telegram message handler
 - `src/gateway/channels/channel-manager.ts` - Mode transition logic
 - `src/config/validation.ts` - Model validation
 - `src/models/model-registry.ts` - Model availability checking
 
 ### Documentation
+
 - `docs/channels/telegram.md` - Add troubleshooting section
 - `docs/providers/aws-bedrock.md` - Cross-region model docs
 - `docs/platforms/raspberry-pi.md` - New file for Pi-specific docs
 - `README.md` - Add Raspberry Pi support badge
 
 ### Tests
+
 - `tests/channels/telegram-polling.test.ts` - New test file
 - `tests/models/validation.test.ts` - Model config validation
 - `tests/integration/raspberry-pi.test.ts` - Pi-specific tests
@@ -425,11 +475,13 @@ Should configure:
 **Low Priority:** 1 (Error message clarity)
 
 **Platform Support:**
+
 - ✅ AWS Bedrock fully functional (with correct config)
 - ✅ Raspberry Pi 5 works well (minor optimization opportunities)
 - ⚠️ Telegram requires manual intervention to start working
 
 **Next Steps:**
+
 1. Fix Telegram polling message handler
 2. Add model configuration validation
 3. Improve error messages and documentation

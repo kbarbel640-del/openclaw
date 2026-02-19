@@ -5,6 +5,7 @@ Diagnostic and validation tools for troubleshooting OpenClaw issues.
 ## Purpose
 
 These scripts help:
+
 - **Validate** configuration before problems occur
 - **Diagnose** issues quickly when things go wrong
 - **Fix** common problems automatically
@@ -37,20 +38,24 @@ These scripts help:
 ### Configuration Validation
 
 #### `validate-config.sh`
+
 Comprehensive configuration validator with user-friendly error messages.
 
 **Checks:**
+
 - dmPolicy + allowFrom consistency for all channels
 - Model ID validity
 - Gateway auth configuration for reverse proxies
 - Provides exact commands to fix issues
 
 **When to Use:**
+
 - Before starting gateway
 - After config changes
 - When troubleshooting
 
 **Example:**
+
 ```bash
 ./scripts/doctor/validate-config.sh
 
@@ -67,9 +72,11 @@ Comprehensive configuration validator with user-friendly error messages.
 ### Model Validation
 
 #### `test-model-access.sh <model-id>`
+
 Tests if a model ID is valid and accessible.
 
 **Features:**
+
 - Checks model exists in catalog
 - Suggests similar models if typo detected
 - Provider-specific auth testing (Bedrock, OpenAI)
@@ -77,11 +84,13 @@ Tests if a model ID is valid and accessible.
 - Detailed troubleshooting guidance
 
 **When to Use:**
+
 - Before configuring a model
 - When getting "model not found" errors
 - To verify provider access
 
 **Example:**
+
 ```bash
 ./scripts/doctor/test-model-access.sh amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0
 
@@ -94,9 +103,11 @@ Tests if a model ID is valid and accessible.
 **Related:** GitHub Issue #20522
 
 #### `safe-set-model.sh <model-id>`
+
 Validates model before setting it in config.
 
 **Features:**
+
 - Runs full model validation first
 - Prevents invalid models from being saved
 - Shows current vs. new model
@@ -104,6 +115,7 @@ Validates model before setting it in config.
 - Fail-fast approach
 
 **Example:**
+
 ```bash
 ./scripts/doctor/safe-set-model.sh amazon-bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0
 
@@ -121,9 +133,11 @@ Validates model before setting it in config.
 ### Reverse Proxy
 
 #### `check-reverse-proxy.sh`
+
 Validates OpenClaw configuration for reverse proxy use.
 
 **Checks:**
+
 - Gateway bind address
 - allowInsecureAuth setting (required for proxies)
 - trustedProxies configuration
@@ -132,11 +146,13 @@ Validates OpenClaw configuration for reverse proxy use.
 - Detects running reverse proxies
 
 **When to Use:**
+
 - Setting up Cloudflare Tunnel, nginx, Caddy, etc.
 - Getting Error 1008 (device token mismatch)
 - Dashboard auth issues
 
 **Example:**
+
 ```bash
 ./scripts/doctor/check-reverse-proxy.sh
 
@@ -158,9 +174,11 @@ Validates OpenClaw configuration for reverse proxy use.
 ### Telegram Troubleshooting
 
 #### `debug-telegram-polling.sh`
+
 Comprehensive diagnostic tool for Telegram polling issues.
 
 **Checks:**
+
 - Gateway and channel status
 - Bot API connectivity
 - Pending updates (shows if messages consumed but not processed)
@@ -171,11 +189,13 @@ Comprehensive diagnostic tool for Telegram polling issues.
 - Offset file status
 
 **When to Use:**
+
 - Bot receives messages but doesn't respond
 - After mode transitions
 - Investigating Bug #20518
 
 **Example:**
+
 ```bash
 ./scripts/doctor/debug-telegram-polling.sh
 
@@ -192,9 +212,11 @@ Comprehensive diagnostic tool for Telegram polling issues.
 **Related:** GitHub Issue #20518, [TELEGRAM_POLLING_BUG_ANALYSIS.md](../../TELEGRAM_POLLING_BUG_ANALYSIS.md)
 
 #### `telegram-mode-transition.sh`
+
 Safely transitions Telegram between webhook and polling modes.
 
 **Features:**
+
 - Detects current webhook status via Telegram API
 - Determines target mode from config
 - Automates webhook → polling transition:
@@ -206,11 +228,13 @@ Safely transitions Telegram between webhook and polling modes.
 - Provides guidance for polling → webhook
 
 **When to Use:**
+
 - Switching from webhook to polling mode
 - Getting 409 conflicts
 - After deleting webhook but still seeing errors
 
 **Example:**
+
 ```bash
 ./scripts/doctor/telegram-mode-transition.sh
 

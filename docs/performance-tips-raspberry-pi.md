@@ -64,11 +64,13 @@ sudo sysctl -p
 ### 1. Use USB SSD
 
 SD cards are slow and wear out. USB SSD provides:
+
 - 5-10x faster read/write
 - Better reliability
 - Longer lifespan
 
 **Enable USB boot:**
+
 1. Flash OS to USB SSD
 2. Update bootloader: `sudo rpi-eeprom-update -a`
 3. Reboot
@@ -148,20 +150,20 @@ curl -6 https://api.telegram.org
 
 ### By Use Case
 
-| Use Case | Recommended Model | Why |
-|----------|------------------|-----|
-| Simple Q&A | Haiku 4.5 | Fast, cheap |
-| Code generation | Sonnet 4.6 | Balanced |
-| Complex reasoning | Opus 4.5 | Best quality |
-| High volume | Haiku 4.5 | Cost efficient |
+| Use Case          | Recommended Model | Why            |
+| ----------------- | ----------------- | -------------- |
+| Simple Q&A        | Haiku 4.5         | Fast, cheap    |
+| Code generation   | Sonnet 4.6        | Balanced       |
+| Complex reasoning | Opus 4.5          | Best quality   |
+| High volume       | Haiku 4.5         | Cost efficient |
 
 ### By Memory
 
-| Pi RAM | Model | Concurrent Agents |
-|--------|-------|------------------|
-| 2GB | Haiku | 1 |
-| 4GB | Sonnet | 2 |
-| 8GB | Opus/Sonnet | 2-3 |
+| Pi RAM | Model       | Concurrent Agents |
+| ------ | ----------- | ----------------- |
+| 2GB    | Haiku       | 1                 |
+| 4GB    | Sonnet      | 2                 |
+| 8GB    | Opus/Sonnet | 2-3               |
 
 ## Bedrock Optimization
 
@@ -215,11 +217,11 @@ journalctl --user -u openclaw-gateway -p err -n 50
 
 Tested on Raspberry Pi 5 (8GB):
 
-| Configuration | First Response | Memory (Idle) | Memory (Active) |
-|--------------|---------------|---------------|-----------------|
-| Opus, 2 agents | 5-8s | 600MB | 1200MB |
-| Sonnet, 2 agents | 3-5s | 500MB | 900MB |
-| Haiku, 1 agent | 2-3s | 400MB | 600MB |
+| Configuration    | First Response | Memory (Idle) | Memory (Active) |
+| ---------------- | -------------- | ------------- | --------------- |
+| Opus, 2 agents   | 5-8s           | 600MB         | 1200MB          |
+| Sonnet, 2 agents | 3-5s           | 500MB         | 900MB           |
+| Haiku, 1 agent   | 2-3s           | 400MB         | 600MB           |
 
 ## Troubleshooting
 

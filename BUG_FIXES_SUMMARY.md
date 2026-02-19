@@ -20,6 +20,7 @@ All 6 bugs identified during Raspberry Pi 5 + AWS Bedrock testing have been addr
 **Status:** ✅ FIXED
 
 **Problem:** Cryptic error messages like:
+
 ```
 Error: Config validation failed: channels.telegram.allowFrom:
 channels.telegram.dmPolicy="open" requires channels.telegram.allowFrom
@@ -27,6 +28,7 @@ to include "*"
 ```
 
 **Solution:**
+
 1. **`scripts/doctor/validate-config.sh`** - Interactive validator with user-friendly messages
    - Explains conflicts clearly
    - Shows current configuration
@@ -40,11 +42,13 @@ to include "*"
    - Examples for all common errors
 
 **Before:**
+
 ```
 Error: channels.telegram.allowFrom: dmPolicy="open" requires allowFrom to include "*"
 ```
 
 **After:**
+
 ```
 ❌ Telegram Configuration Mismatch
 
@@ -71,6 +75,7 @@ Error: channels.telegram.allowFrom: dmPolicy="open" requires allowFrom to includ
 **Problem:** OpenClaw accepts invalid model IDs during configuration, causing silent failures at runtime.
 
 **Solution:**
+
 1. **`scripts/doctor/test-model-access.sh`** - Model validator
    - Checks if model exists in catalog
    - Suggests similar models if typo detected
@@ -85,6 +90,7 @@ Error: channels.telegram.allowFrom: dmPolicy="open" requires allowFrom to includ
    - Fail-fast approach
 
 **Usage:**
+
 ```bash
 # Test model access
 ./scripts/doctor/test-model-access.sh amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0
@@ -94,6 +100,7 @@ Error: channels.telegram.allowFrom: dmPolicy="open" requires allowFrom to includ
 ```
 
 **Benefits:**
+
 - Catch errors at config time, not runtime
 - Reduce debugging time
 - Clear guidance for common mistakes
@@ -108,6 +115,7 @@ Error: channels.telegram.allowFrom: dmPolicy="open" requires allowFrom to includ
 **Problem:** Dashboard returns Error 1008 (device token mismatch) when using reverse proxies like Cloudflare Tunnel.
 
 **Solution:**
+
 1. **`docs/gateway/reverse-proxy.md`** - Complete reverse proxy guide
    - Explains why `allowInsecureAuth: true` is required
    - Security considerations
@@ -127,6 +135,7 @@ Error: channels.telegram.allowFrom: dmPolicy="open" requires allowFrom to includ
 Reverse proxies terminate TLS, making requests appear "insecure" to OpenClaw. Setting `allowInsecureAuth: true` is required and safe when behind a trusted proxy.
 
 **Usage:**
+
 ```bash
 ./scripts/doctor/check-reverse-proxy.sh
 ```
@@ -142,6 +151,7 @@ Reverse proxies terminate TLS, making requests appear "insecure" to OpenClaw. Se
 
 **Solution:**
 **`scripts/doctor/telegram-mode-transition.sh`** - Automated mode transition
+
 - Detects current webhook status
 - Determines target mode from config
 - Automates full transition:
@@ -155,6 +165,7 @@ Reverse proxies terminate TLS, making requests appear "insecure" to OpenClaw. Se
 Offset file retains state from webhook mode. OpenClaw continues using stale offset even after webhook deletion, causing 409 conflicts.
 
 **Usage:**
+
 ```bash
 ./scripts/doctor/telegram-mode-transition.sh
 ```
@@ -169,13 +180,14 @@ Offset file retains state from webhook mode. OpenClaw continues using stale offs
 **Problem:** Telegram polling fetches messages but silently drops them. No agent invocations, no errors.
 
 **Solution:**
+
 1. **`TELEGRAM_POLLING_BUG_ANALYSIS.md`** - Root cause analysis
    - Investigation process documented
    - 4 detailed hypotheses with evidence:
-     * Middleware blocking (most likely)
-     * Handler registration timing issue
-     * Message context building failure
-     * Access control silent blocking
+     - Middleware blocking (most likely)
+     - Handler registration timing issue
+     - Message context building failure
+     - Access control silent blocking
    - Suggested fixes with TypeScript code examples
    - Testing procedure
    - Code files requiring changes
@@ -192,11 +204,13 @@ Offset file retains state from webhook mode. OpenClaw continues using stale offs
 This requires modifying core TypeScript source files with proper testing infrastructure. The analysis provides maintainers with everything needed to implement the fix.
 
 **Workaround:**
+
 ```bash
 ./scripts/troubleshooting/fix-telegram-polling.sh
 ```
 
 **Diagnostic:**
+
 ```bash
 ./scripts/doctor/debug-telegram-polling.sh
 ```
@@ -211,6 +225,7 @@ This requires modifying core TypeScript source files with proper testing infrast
 
 **Solution:**
 Enhanced `docs/providers/bedrock.md` with:
+
 - Region prefix requirements
 - Complete table of Claude models
 - Cross-region inference documentation
@@ -340,6 +355,7 @@ BUG_FIXES_SUMMARY.md                   (this file)
 ## Testing
 
 All scripts tested on:
+
 - **Platform:** Raspberry Pi 5 (8GB RAM)
 - **OS:** Raspberry Pi OS 64-bit (Debian 12)
 - **OpenClaw:** v2026.2.17

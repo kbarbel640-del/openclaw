@@ -13,18 +13,19 @@ When using any reverse proxy that terminates TLS:
   "gateway": {
     "bind": "lan",
     "controlUi": {
-      "allowInsecureAuth": true  // ⚠️ Required for reverse proxies
+      "allowInsecureAuth": true // ⚠️ Required for reverse proxies
     },
     "auth": {
       "mode": "token",
       "token": "your-secure-token-here"
     },
-    "trustedProxies": ["127.0.0.1"]  // Add your proxy's IP
+    "trustedProxies": ["127.0.0.1"] // Add your proxy's IP
   }
 }
 ```
 
 **Set via CLI:**
+
 ```bash
 openclaw config set gateway.bind "lan"
 openclaw config set gateway.controlUi.allowInsecureAuth true
@@ -45,6 +46,7 @@ OpenClaw sees the connection from the reverse proxy as "insecure" (HTTP, not HTT
 ### The Solution
 
 Setting `allowInsecureAuth: true` tells OpenClaw to accept authentication over HTTP when:
+
 - Behind a trusted reverse proxy
 - The reverse proxy handles TLS termination
 - The connection between proxy and OpenClaw is local/trusted
@@ -52,12 +54,14 @@ Setting `allowInsecureAuth: true` tells OpenClaw to accept authentication over H
 ### Security Considerations
 
 **This is safe when:**
+
 - ✅ Reverse proxy terminates TLS (client connections are encrypted)
 - ✅ OpenClaw binds to localhost or LAN only
 - ✅ Firewall blocks direct access to OpenClaw port
 - ✅ Reverse proxy is on the same machine or trusted network
 
 **Don't use this when:**
+
 - ❌ Exposing OpenClaw directly to the internet without a reverse proxy
 - ❌ Reverse proxy is on an untrusted network
 - ❌ No firewall protection
@@ -71,6 +75,7 @@ Setting `allowInsecureAuth: true` tells OpenClaw to accept authentication over H
 #### Setup
 
 1. **Install cloudflared:**
+
    ```bash
    # Raspberry Pi (ARM64)
    wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64
@@ -79,17 +84,20 @@ Setting `allowInsecureAuth: true` tells OpenClaw to accept authentication over H
    ```
 
 2. **Authenticate:**
+
    ```bash
    cloudflared tunnel login
    ```
 
 3. **Create tunnel:**
+
    ```bash
    cloudflared tunnel create openclaw
    # Note the tunnel ID from output
    ```
 
 4. **Configure tunnel** (`~/.cloudflared/config.yml`):
+
    ```yaml
    tunnel: <your-tunnel-id>
    credentials-file: /home/admin/.cloudflared/<your-tunnel-id>.json
@@ -101,6 +109,7 @@ Setting `allowInsecureAuth: true` tells OpenClaw to accept authentication over H
    ```
 
 5. **Configure OpenClaw:**
+
    ```bash
    openclaw config set gateway.bind "lan"
    openclaw config set gateway.controlUi.allowInsecureAuth true
@@ -108,6 +117,7 @@ Setting `allowInsecureAuth: true` tells OpenClaw to accept authentication over H
    ```
 
 6. **Start tunnel:**
+
    ```bash
    cloudflared tunnel run openclaw
    ```
@@ -126,6 +136,7 @@ Setting `allowInsecureAuth: true` tells OpenClaw to accept authentication over H
 #### Configuration
 
 **`/etc/nginx/sites-available/openclaw`:**
+
 ```nginx
 server {
     listen 80;
@@ -155,6 +166,7 @@ server {
 ```
 
 **OpenClaw config:**
+
 ```bash
 openclaw config set gateway.bind "127.0.0.1"
 openclaw config set gateway.controlUi.allowInsecureAuth true
@@ -162,6 +174,7 @@ openclaw config set gateway.trustedProxies '["127.0.0.1"]'
 ```
 
 **Enable and restart:**
+
 ```bash
 sudo ln -s /etc/nginx/sites-available/openclaw /etc/nginx/sites-enabled/
 sudo nginx -t
@@ -177,6 +190,7 @@ sudo systemctl restart nginx
 #### Configuration
 
 **`/etc/caddy/Caddyfile`:**
+
 ```caddy
 openclaw.yourdomain.com {
     reverse_proxy localhost:3030 {
@@ -189,6 +203,7 @@ openclaw.yourdomain.com {
 ```
 
 **OpenClaw config:**
+
 ```bash
 openclaw config set gateway.bind "127.0.0.1"
 openclaw config set gateway.controlUi.allowInsecureAuth true
@@ -196,6 +211,7 @@ openclaw config set gateway.trustedProxies '["127.0.0.1"]'
 ```
 
 **Reload Caddy:**
+
 ```bash
 sudo systemctl reload caddy
 ```
@@ -209,8 +225,9 @@ Caddy automatically obtains and renews SSL certificates from Let's Encrypt.
 #### Docker Compose Example
 
 **`docker-compose.yml`:**
+
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   openclaw:
@@ -252,6 +269,7 @@ services:
 ### Dashboard Returns Error 1008
 
 **Symptoms:**
+
 - Can't access dashboard
 - Error: "Device token mismatch" (1008)
 - Worked before config change
@@ -259,6 +277,7 @@ services:
 **Cause:** `allowInsecureAuth` not set while using reverse proxy
 
 **Fix:**
+
 ```bash
 openclaw config set gateway.controlUi.allowInsecureAuth true
 systemctl --user restart openclaw-gateway.service
@@ -267,17 +286,20 @@ systemctl --user restart openclaw-gateway.service
 ### Connection Refused
 
 **Check OpenClaw is running:**
+
 ```bash
 systemctl --user status openclaw-gateway.service
 ```
 
 **Check bind address:**
+
 ```bash
 openclaw config get gateway.bind
 # Should be "lan" or "0.0.0.0" for reverse proxy access
 ```
 
 **Test local access:**
+
 ```bash
 curl http://localhost:3030
 # Should return OpenClaw dashboard HTML
@@ -292,6 +314,7 @@ curl http://localhost:3030
 **Cloudflare Tunnel:** Works by default
 
 **Check logs:**
+
 ```bash
 journalctl --user -u openclaw-gateway -f | grep -i websocket
 ```
@@ -299,6 +322,7 @@ journalctl --user -u openclaw-gateway -f | grep -i websocket
 ### IP Address Shows as Proxy IP
 
 **Set trustedProxies:**
+
 ```bash
 openclaw config set gateway.trustedProxies '["127.0.0.1", "::1"]'
 ```
@@ -337,6 +361,7 @@ echo "Your token: $TOKEN"  # Save this securely
 ### 3. Rate Limiting
 
 **nginx:**
+
 ```nginx
 limit_req_zone $binary_remote_addr zone=openclaw:10m rate=10r/s;
 
@@ -349,6 +374,7 @@ server {
 ```
 
 **Caddy:**
+
 ```caddy
 openclaw.yourdomain.com {
     rate_limit {
@@ -367,6 +393,7 @@ openclaw.yourdomain.com {
 **Cloudflare:** Use Access policies
 
 **nginx:**
+
 ```nginx
 location / {
     allow 1.2.3.4;      # Your IP
@@ -384,6 +411,7 @@ Run the reverse proxy validator:
 ```
 
 Checks:
+
 - `allowInsecureAuth` configuration
 - `trustedProxies` settings
 - Firewall rules

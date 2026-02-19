@@ -166,11 +166,11 @@ openclaw models list
 
 When using `us-east-1` as your base region, Claude models require a region prefix for cross-region inference:
 
-| Prefix | Region | Example |
-|--------|--------|---------|
-| `us.` | US West (Oregon) | `us.anthropic.claude-opus-4-5-20251101-v1:0` |
-| `eu.` | Europe (Frankfurt) | `eu.anthropic.claude-sonnet-4-6` |
-| `ap.` | Asia Pacific (Tokyo) | `ap.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| Prefix | Region               | Example                                       |
+| ------ | -------------------- | --------------------------------------------- |
+| `us.`  | US West (Oregon)     | `us.anthropic.claude-opus-4-5-20251101-v1:0`  |
+| `eu.`  | Europe (Frankfurt)   | `eu.anthropic.claude-sonnet-4-6`              |
+| `ap.`  | Asia Pacific (Tokyo) | `ap.anthropic.claude-haiku-4-5-20251001-v1:0` |
 
 **Without prefix** (e.g., `anthropic.claude-opus-4-5-20251101-v1:0`) the model must be in your configured region.
 
