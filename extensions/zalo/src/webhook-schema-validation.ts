@@ -19,7 +19,7 @@ const ZaloMessageSchema = Type.Object(
     }),
     chat: Type.Object({
       id: Type.String(),
-      chat_type: Type.Union([Type.Literal("INDIVIDUAL"), Type.Literal("GROUP")]),
+      chat_type: Type.Union([Type.Literal("PRIVATE"), Type.Literal("GROUP")]),
     }),
     message_id: Type.String(),
     date: Type.Optional(Type.Number()),

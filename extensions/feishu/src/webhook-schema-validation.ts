@@ -83,6 +83,15 @@ export type FeishuMessageEvent = Static<typeof FeishuMessageEventSchema>;
 const FeishuBotAddedEventSchema = Type.Object(
   {
     chat_id: Type.String(),
+    operator_id: Type.Optional(
+      Type.Object({
+        open_id: Type.Optional(Type.String()),
+        user_id: Type.Optional(Type.String()),
+        union_id: Type.Optional(Type.String()),
+      }),
+    ),
+    external: Type.Optional(Type.Boolean()),
+    operator_tenant_key: Type.Optional(Type.String()),
   },
   { additionalProperties: true },
 );
