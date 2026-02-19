@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ensureDir } from "./internal.js";
 
 export const DEFAULT_MEMORY_WARN_CHARS = 15_000;
 export const DEFAULT_MEMORY_PRUNE_KEEP_CHARS = 10_000;
@@ -126,7 +125,7 @@ export async function pruneMemoryFile(opts: MemoryPruneOptions): Promise<MemoryP
     };
   }
 
-  ensureDir(archiveDir);
+  await fs.mkdir(archiveDir, { recursive: true }).catch(() => {});
 
   const archiveHeader = `\n## Archived from MEMORY.md on ${dateStr}\n\n`;
   await fs.appendFile(archiveFilePath, archiveHeader + archived, "utf-8");
