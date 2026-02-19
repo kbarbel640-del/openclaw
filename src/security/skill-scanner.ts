@@ -105,7 +105,7 @@ const LINE_RULES: LineRule[] = [
   },
 ];
 
-const STANDARD_PORTS = new Set([80, 443, 8080, 8443, 3000]);
+const STANDARD_PORTS = new Set([80, 443, 8080, 8443]);
 
 const SOURCE_RULES: SourceRule[] = [
   {
