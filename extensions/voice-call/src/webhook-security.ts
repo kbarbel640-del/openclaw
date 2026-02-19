@@ -45,16 +45,15 @@ export function validateTwilioSignature(
  * Timing-safe string comparison to prevent timing attacks.
  */
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Still do comparison to maintain constant time
-    const dummy = Buffer.from(a);
-    crypto.timingSafeEqual(dummy, dummy);
-    return false;
-  }
-
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
-  return crypto.timingSafeEqual(bufA, bufB);
+  const maxLen = Math.max(bufA.length, bufB.length);
+  const paddedA = Buffer.alloc(maxLen);
+  const paddedB = Buffer.alloc(maxLen);
+  bufA.copy(paddedA);
+  bufB.copy(paddedB);
+  const equal = crypto.timingSafeEqual(paddedA, paddedB);
+  return equal && bufA.length === bufB.length;
 }
 
 /**
