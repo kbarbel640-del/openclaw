@@ -107,7 +107,9 @@ export async function resolveMSTeamsInboundMedia(params: {
           }
         }
         if (mediaList.length === 0) {
-          log.debug?.("graph media fetch empty", { attempts });
+          log.debug?.(
+            `graph media fetch empty: ${JSON.stringify(attempts.map((a) => ({ url: a.url.slice(0, 80), hosted: a.hostedStatus, att: a.attachmentStatus, hc: a.hostedCount, ac: a.attachmentCount, te: a.tokenError })))}`,
+          );
         }
       }
     }

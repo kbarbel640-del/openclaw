@@ -161,11 +161,16 @@ async function downloadGraphHostedContent(params: {
   fetchFn?: typeof fetch;
   preserveFilenames?: boolean;
 }): Promise<{ media: MSTeamsInboundMedia[]; status: number; count: number }> {
+  const hostedUrl = `${params.messageUrl}/hostedContents`;
   const hosted = await fetchGraphCollection<GraphHostedContent>({
-    url: `${params.messageUrl}/hostedContents`,
+    url: hostedUrl,
     accessToken: params.accessToken,
     fetchFn: params.fetchFn,
   });
+  // eslint-disable-next-line no-console
+  console.error(
+    `[graph-media] hostedContents ${hostedUrl.slice(0, 120)} => status=${hosted.status} items=${hosted.items.length}`,
+  );
   if (hosted.items.length === 0) {
     return { media: [], status: hosted.status, count: 0 };
   }
@@ -240,6 +245,8 @@ export async function downloadMSTeamsGraphMedia(params: {
     const msgRes = await fetchFn(messageUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+    // eslint-disable-next-line no-console
+    console.error(`[graph-media] msgFetch ${messageUrl.slice(0, 100)} => ${msgRes.status}`);
     if (msgRes.ok) {
       const msgData = (await msgRes.json()) as {
         body?: { content?: string; contentType?: string };
