@@ -24,6 +24,7 @@ import {
   stripMSTeamsMentionTags,
   wasMSTeamsBotMentioned,
 } from "../inbound.js";
+import { buildConversationReference } from "../messenger.js";
 import type { MSTeamsMessageHandlerDeps } from "../monitor-handler.js";
 import {
   isMSTeamsGroupAllowed,
@@ -397,7 +398,12 @@ export function createMSTeamsMessageHandler(deps: MSTeamsMessageHandlerDeps) {
       }
     }
     if (attachments.length > 0) {
-      context.sendActivity({ type: "typing" }).catch(() => {});
+      const ref = buildConversationReference(conversationRef);
+      adapter
+        .continueConversation(appId, { ...ref, activityId: undefined }, async (ctx) => {
+          await ctx.sendActivity({ type: "typing" });
+        })
+        .catch(() => {});
     }
     const mediaList = await resolveMSTeamsInboundMedia({
       attachments,
