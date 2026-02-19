@@ -5,14 +5,18 @@ import { describe, expect, it } from "vitest";
 // For unit testing, we extract the logic into a testable helper.
 
 // For now, test the merge logic directly by recreating it:
-function resolveMcpConfigForRun(
-  config: { agents?: { defaults?: { mcp?: any }; list?: any[] } } | undefined,
-  sessionKey: string | undefined,
-) {
+type McpServers = Record<string, Record<string, unknown>>;
+type McpSection = { servers?: McpServers };
+type AgentEntry = { id?: string; mcp?: McpSection };
+type TestConfig = {
+  agents?: { defaults?: { mcp?: McpSection }; list?: AgentEntry[] };
+};
+
+function resolveMcpConfigForRun(config: TestConfig | undefined, sessionKey: string | undefined) {
   const defaultsMcp = config?.agents?.defaults?.mcp;
   // Simplified agent resolution for testing
   const agentId = sessionKey?.split(":")[1]; // e.g. "agent:nori:session" -> "nori"
-  const agentEntry = config?.agents?.list?.find((a: any) => a.id === agentId);
+  const agentEntry = config?.agents?.list?.find((a) => a.id === agentId);
   const agentMcp = agentEntry?.mcp;
 
   if (!defaultsMcp && !agentMcp) {
