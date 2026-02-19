@@ -150,7 +150,7 @@ x-i18n:
   - [如何在运行中切换模型（无需重启）？](#how-do-i-switch-models-on-the-fly-without-restarting)
   - [能否日常任务用 GPT 5.2，编程用 Codex 5.2？](#can-i-use-gpt-52-for-daily-tasks-and-codex-52-for-coding)
   - [为什么我看到"Model … is not allowed"然后没有回复？](#why-do-i-see-model-is-not-allowed-and-then-no-reply)
-  - [为什么我看到"Unknown model: minimax/MiniMax-M2.1"？](#why-do-i-see-unknown-model-minimaxminimaxm21)
+  - [为什么我看到"Unknown model: minimax/MiniMax-M2.5"？](#why-do-i-see-unknown-model-minimaxminimaxm21)
   - [能否将 MiniMax 设为默认，复杂任务用 OpenAI？](#can-i-use-minimax-as-my-default-and-openai-for-complex-tasks)
   - [opus / sonnet / gpt 是内置快捷方式吗？](#are-opus-sonnet-gpt-builtin-shortcuts)
   - [如何定义/覆盖模型快捷方式（别名）？](#how-do-i-defineoverride-model-shortcuts-aliases)
@@ -694,7 +694,7 @@ Gemini CLI 使用**插件认证流程**，而不是 `openclaw.json` 中的 clien
 
 ### 本地模型适合日常聊天吗
 
-通常不适合。OpenClaw 需要大上下文 + 强安全性；小显卡会截断且泄漏。如果必须使用，请在本地运行你能运行的**最大** MiniMax M2.1 版本（LM Studio），参阅 [/gateway/local-models](/gateway/local-models)。较小/量化的模型会增加提示注入风险——参阅[安全](/gateway/security)。
+通常不适合。OpenClaw 需要大上下文 + 强安全性；小显卡会截断且泄漏。如果必须使用，请在本地运行你能运行的**最大** MiniMax M2.5 版本（LM Studio），参阅 [/gateway/local-models](/gateway/local-models)。较小/量化的模型会增加提示注入风险——参阅[安全](/gateway/security)。
 
 ### 如何将托管模型流量限制在特定区域
 
@@ -1786,7 +1786,7 @@ agents.defaults.model.primary
 **可靠（个性较少）：** `openai/gpt-5.2`——几乎和 Opus 一样好，只是个性较少。
 **经济：** `zai/glm-4.7`。
 
-MiniMax M2.1 有自己的文档：[MiniMax](/providers/minimax) 和
+MiniMax M2.5 有自己的文档：[MiniMax](/providers/minimax) 和
 [本地模型](/gateway/local-models)。
 
 经验法则：高风险工作使用你能负担的**最好的模型**，日常聊天或摘要使用更便宜的模型。你可以按智能体路由模型并使用子智能体并行处理长任务（每个子智能体消耗令牌）。参阅[模型](/concepts/models)和[子智能体](/tools/subagents)。
@@ -1823,7 +1823,7 @@ MiniMax M2.1 有自己的文档：[MiniMax](/providers/minimax) 和
 ### OpenClaw、Flawd 和 Krill 使用什么模型
 
 - **OpenClaw + Flawd：** Anthropic Opus（`anthropic/claude-opus-4-5`）——参阅 [Anthropic](/providers/anthropic)。
-- **Krill：** MiniMax M2.1（`minimax/MiniMax-M2.1`）——参阅 [MiniMax](/providers/minimax)。
+- **Krill：** MiniMax M2.5（`minimax/MiniMax-M2.5`）——参阅 [MiniMax](/providers/minimax)。
 
 ### 如何在运行中切换模型（无需重启）
 
@@ -1888,7 +1888,7 @@ Model "provider/model" is not allowed. Use /model to list available models.
 
 该错误**代替**正常回复返回。修复：将模型添加到 `agents.defaults.models`，移除允许列表，或从 `/model list` 中选择一个模型。
 
-### 为什么我看到"Unknown model: minimax/MiniMax-M2.1"
+### 为什么我看到"Unknown model: minimax/MiniMax-M2.5"
 
 这意味着**提供商未配置**（未找到 MiniMax 提供商配置或认证配置文件），因此模型无法解析。此检测的修复在 **2026.1.12**（撰写本文时尚未发布）中。
 
@@ -1896,7 +1896,7 @@ Model "provider/model" is not allowed. Use /model to list available models.
 
 1. 升级到 **2026.1.12**（或从源码 `main` 运行），然后重启 Gateway 网关。
 2. 确保 MiniMax 已配置（向导或 JSON），或者 MiniMax API 密钥存在于环境/认证配置文件中以便提供商可以被注入。
-3. 使用精确的模型 ID（区分大小写）：`minimax/MiniMax-M2.1` 或 `minimax/MiniMax-M2.1-lightning`。
+3. 使用精确的模型 ID（区分大小写）：`minimax/MiniMax-M2.5` 或 `minimax/MiniMax-M2.5-highspeed`。
 4. 运行：
    ```bash
    openclaw models list
@@ -1916,9 +1916,9 @@ Model "provider/model" is not allowed. Use /model to list available models.
   env: { MINIMAX_API_KEY: "sk-...", OPENAI_API_KEY: "sk-..." },
   agents: {
     defaults: {
-      model: { primary: "minimax/MiniMax-M2.1" },
+      model: { primary: "minimax/MiniMax-M2.5" },
       models: {
-        "minimax/MiniMax-M2.1": { alias: "minimax" },
+        "minimax/MiniMax-M2.5": { alias: "minimax" },
         "openai/gpt-5.2": { alias: "gpt" },
       },
     },
