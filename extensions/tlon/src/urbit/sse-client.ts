@@ -317,7 +317,17 @@ export class UrbitSSEClient {
     );
   }
 
-  async attemptReconnect() {
+  private static readonly MAX_RECONNECT_DEPTH = 50;
+
+  async attemptReconnect(depth = 0) {
+    if (depth >= UrbitSSEClient.MAX_RECONNECT_DEPTH) {
+      this.logger.error?.(
+        `[SSE] Recursive reconnect depth limit (${UrbitSSEClient.MAX_RECONNECT_DEPTH}) exceeded. Closing.`,
+      );
+      await this.close();
+      return;
+    }
+
     if (this.aborted || !this.autoReconnect) {
       this.logger.log?.("[SSE] Reconnection aborted or disabled");
       return;
@@ -354,7 +364,7 @@ export class UrbitSSEClient {
       this.logger.log?.("[SSE] Reconnection successful!");
     } catch (error) {
       this.logger.error?.(`[SSE] Reconnection failed: ${String(error)}`);
-      await this.attemptReconnect();
+      await this.attemptReconnect(depth + 1);
     }
   }
 
