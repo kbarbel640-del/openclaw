@@ -1,5 +1,4 @@
 import type { ModelDefinitionConfig } from "../config/types.js";
-import { discoverCopilotModelsViaSdk } from "./github-copilot-sdk.js";
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
 const DEFAULT_MAX_TOKENS = 8192;
@@ -83,18 +82,6 @@ const VISION_MODEL_IDS = new Set([
 
 export function getDefaultCopilotModelIds(): string[] {
   return [...DEFAULT_MODEL_IDS];
-}
-
-/**
- * Discover Copilot models via the SDK, falling back to hardcoded defaults
- * if the SDK is unavailable or returns nothing.
- */
-export async function discoverCopilotModels(): Promise<ModelDefinitionConfig[]> {
-  const sdkModels = await discoverCopilotModelsViaSdk();
-  if (sdkModels && sdkModels.length > 0) {
-    return sdkModels;
-  }
-  return getDefaultCopilotModelIds().map(buildCopilotModelDefinition);
 }
 
 export function buildCopilotModelDefinition(modelId: string): ModelDefinitionConfig {
