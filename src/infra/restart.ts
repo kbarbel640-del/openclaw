@@ -23,6 +23,7 @@ let preRestartCheck: (() => number) | null = null;
 let restartCycleToken = 0;
 let emittedRestartToken = 0;
 let consumedRestartToken = 0;
+let scheduledRestartTimer: ReturnType<typeof setTimeout> | null = null;
 
 function hasUnconsumedRestartSignal(): boolean {
   return emittedRestartToken > consumedRestartToken;
@@ -295,6 +296,20 @@ export type ScheduledRestart = {
   mode: "emit" | "signal";
 };
 
+/**
+ * Cancel a previously scheduled SIGUSR1 restart (if any).
+ * Used by the config watcher when it handles a change via hot-reload,
+ * preventing the scheduled restart from firing a redundant SIGUSR1.
+ */
+export function cancelScheduledGatewaySigusr1Restart(): boolean {
+  if (scheduledRestartTimer) {
+    clearTimeout(scheduledRestartTimer);
+    scheduledRestartTimer = null;
+    return true;
+  }
+  return false;
+}
+
 export function scheduleGatewaySigusr1Restart(opts?: {
   delayMs?: number;
   reason?: string;
@@ -309,7 +324,22 @@ export function scheduleGatewaySigusr1Restart(opts?: {
       ? opts.reason.trim().slice(0, 200)
       : undefined;
 
-  setTimeout(() => {
+  // Cancel any previously scheduled restart to avoid stacking.
+  if (scheduledRestartTimer) {
+    clearTimeout(scheduledRestartTimer);
+  }
+
+  // Snapshot the cycle token at schedule time. If a restart already fired
+  // (e.g. via the config watcher) before this timer runs, skip the emit
+  // to avoid a redundant second restart.
+  const tokenAtSchedule = restartCycleToken;
+
+  scheduledRestartTimer = setTimeout(() => {
+    scheduledRestartTimer = null;
+    // A restart was already consumed since we were scheduled — skip.
+    if (consumedRestartToken > tokenAtSchedule) {
+      return;
+    }
     const pendingCheck = preRestartCheck;
     if (!pendingCheck) {
       emitGatewayRestart();
@@ -336,5 +366,9 @@ export const __testing = {
     restartCycleToken = 0;
     emittedRestartToken = 0;
     consumedRestartToken = 0;
+    if (scheduledRestartTimer) {
+      clearTimeout(scheduledRestartTimer);
+      scheduledRestartTimer = null;
+    }
   },
 };

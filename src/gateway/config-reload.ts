@@ -1,6 +1,7 @@
 import chokidar from "chokidar";
 import type { OpenClawConfig, ConfigFileSnapshot, GatewayReloadMode } from "../config/config.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
+import { cancelScheduledGatewaySigusr1Restart } from "../infra/restart.js";
 import { getActivePluginRegistry } from "../plugins/runtime.js";
 import { isPlainObject } from "../utils.js";
 
@@ -337,6 +338,12 @@ export function startGatewayConfigReloader(opts: {
       }
 
       await opts.onHotReload(plan, nextConfig);
+
+      // If the config watcher handled the change entirely via hot-reload,
+      // cancel any scheduled SIGUSR1 restart (e.g. from config.patch/config.apply).
+      // Without this, the scheduled restart fires ~2s later and triggers a
+      // full gateway restart, causing channels (like Telegram) to start twice.
+      cancelScheduledGatewaySigusr1Restart();
     } catch (err) {
       opts.log.error(`config reload failed: ${String(err)}`);
     } finally {
