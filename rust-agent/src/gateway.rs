@@ -1062,6 +1062,9 @@ impl RpcDispatcher {
             "exec.approval.resolved" => {
                 self.exec_approval.ingest_resolved(payload).await;
             }
+            "voicewake.changed" => {
+                self.voicewake.ingest_changed(payload).await;
+            }
             _ => {}
         }
     }
@@ -4890,6 +4893,30 @@ impl VoiceWakeRegistry {
         guard.triggers = triggers;
         guard.updated_at_ms = now_ms();
         guard.clone()
+    }
+
+    async fn ingest_changed(&self, payload: Value) {
+        let triggers = match payload {
+            Value::Array(values) => values,
+            Value::Object(map) => {
+                let Some(raw) = map
+                    .get("triggers")
+                    .or_else(|| map.get("wakeWords"))
+                    .or_else(|| map.get("wake_words"))
+                else {
+                    return;
+                };
+                let Some(values) = raw.as_array() else {
+                    return;
+                };
+                values.clone()
+            }
+            _ => return,
+        };
+        let normalized = normalize_voicewake_triggers(&triggers);
+        let mut guard = self.state.lock().await;
+        guard.triggers = normalized;
+        guard.updated_at_ms = now_ms();
     }
 }
 
@@ -15694,6 +15721,34 @@ mod tests {
                 );
             }
             _ => panic!("expected voicewake.get after set"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_ingests_voicewake_changed_events() {
+        let dispatcher = RpcDispatcher::new();
+        dispatcher
+            .ingest_event_frame(&serde_json::json!({
+                "event": "voicewake.changed",
+                "payload": {
+                    "triggers": ["  Wake  ", "UP", "", 7]
+                }
+            }))
+            .await;
+
+        let get = RpcRequestFrame {
+            id: "req-voicewake-get-ingested".to_owned(),
+            method: "voicewake.get".to_owned(),
+            params: serde_json::json!({}),
+        };
+        match dispatcher.handle_request(&get).await {
+            RpcDispatchOutcome::Handled(payload) => {
+                assert_eq!(
+                    payload.pointer("/triggers").cloned(),
+                    Some(serde_json::json!(["Wake", "UP"]))
+                );
+            }
+            _ => panic!("expected voicewake.get to reflect ingested event"),
         }
     }
 
