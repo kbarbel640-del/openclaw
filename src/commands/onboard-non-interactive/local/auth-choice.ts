@@ -559,7 +559,7 @@ export async function applyNonInteractiveAuthChoice(params: {
     authChoice === "minimax-cloud" ||
     authChoice === "minimax-api" ||
     authChoice === "minimax-api-key-cn" ||
-    authChoice === "minimax-api-lightning"
+    authChoice === "minimax-api-highspeed"
   ) {
     const isCn = authChoice === "minimax-api-key-cn";
     const providerId = isCn ? "minimax-cn" : "minimax";
@@ -584,7 +584,7 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     const modelId =
-      authChoice === "minimax-api-lightning" ? "MiniMax-M2.5-Lightning" : "MiniMax-M2.5";
+      authChoice === "minimax-api-highspeed" ? "MiniMax-M2.5-highspeed" : "MiniMax-M2.5";
     return isCn
       ? applyMinimaxApiConfigCn(nextConfig, modelId)
       : applyMinimaxApiConfig(nextConfig, modelId);

@@ -31,7 +31,7 @@ describe("buildAuthChoiceOptions", () => {
   it.each([
     ["Z.AI (GLM) auth choice", ["zai-api-key"]],
     ["Xiaomi auth choice", ["xiaomi-api-key"]],
-    ["MiniMax auth choice", ["minimax-api", "minimax-api-key-cn", "minimax-api-lightning"]],
+    ["MiniMax auth choice", ["minimax-api", "minimax-api-key-cn", "minimax-api-highspeed"]],
     [
       "Moonshot auth choice",
       ["moonshot-api-key", "moonshot-api-key-cn", "kimi-code-api-key", "together-api-key"],

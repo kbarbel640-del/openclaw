@@ -50,7 +50,7 @@ const AUTH_CHOICE_GROUP_DEFS: {
     value: "minimax",
     label: "MiniMax",
     hint: "M2.5 (recommended)",
-    choices: ["minimax-portal", "minimax-api", "minimax-api-key-cn", "minimax-api-lightning"],
+    choices: ["minimax-portal", "minimax-api", "minimax-api-key-cn", "minimax-api-highspeed"],
   },
   {
     value: "moonshot",
@@ -292,8 +292,8 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     hint: "China endpoint (api.minimaxi.com)",
   },
   {
-    value: "minimax-api-lightning",
-    label: "MiniMax M2.5 Lightning",
+    value: "minimax-api-highspeed",
+    label: "MiniMax M2.5 Highspeed",
     hint: "Faster, higher output cost",
   },
   { value: "custom-api-key", label: "Custom Provider" },
