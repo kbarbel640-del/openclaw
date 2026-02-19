@@ -590,10 +590,13 @@ export function createGatewayHttpServer(opts: {
         }
       }
       if (controlUiEnabled) {
+        const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
         if (
           handleControlUiAvatarRequest(req, res, {
             basePath: controlUiBasePath,
             resolveAvatar: (agentId) => resolveAgentAvatar(configSnapshot, agentId),
+            config: configSnapshot,
+            trustedProxies,
           })
         ) {
           return;
@@ -603,6 +606,7 @@ export function createGatewayHttpServer(opts: {
             basePath: controlUiBasePath,
             config: configSnapshot,
             root: controlUiRoot,
+            trustedProxies,
           })
         ) {
           return;
