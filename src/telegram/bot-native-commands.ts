@@ -73,7 +73,8 @@ function sanitizeTelegramMenuCommands(params: {
 
   for (const cmd of params.commands) {
     const commandRaw = typeof cmd.command === "string" ? cmd.command.trim() : "";
-    const descriptionRaw = typeof cmd.description === "string" ? cmd.description.trim() : "";
+    const descriptionRaw = typeof cmd.description === "string" ? cmd.description : "";
+    const descriptionNormalized = descriptionRaw.replace(/\s+/g, " ").trim();
 
     // Telegram Bot API constraints:
     // - command: 1-32 chars, [a-z0-9_]+ (no leading slash)
@@ -93,7 +94,7 @@ function sanitizeTelegramMenuCommands(params: {
       continue;
     }
 
-    if (descriptionRaw.length < 3) {
+    if (descriptionNormalized.length < 3) {
       dropped += 1;
       params.runtime.error?.(
         danger(`Telegram menu command "/${command}" has missing/short description; skipping.`),
@@ -102,7 +103,9 @@ function sanitizeTelegramMenuCommands(params: {
     }
 
     const description =
-      descriptionRaw.length > 256 ? descriptionRaw.substring(0, 253) + "..." : descriptionRaw;
+      descriptionNormalized.length > 256
+        ? descriptionNormalized.substring(0, 253) + "..."
+        : descriptionNormalized;
 
     out.push({ command, description });
     seen.add(command);
