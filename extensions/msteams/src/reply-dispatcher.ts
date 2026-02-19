@@ -15,6 +15,7 @@ import {
   formatUnknownError,
 } from "./errors.js";
 import {
+  buildConversationReference,
   type MSTeamsAdapter,
   renderReplyPayloadsToMessages,
   sendMSTeamsMessages,
@@ -43,7 +44,16 @@ export function createMSTeamsReplyDispatcher(params: {
 }) {
   const core = getMSTeamsRuntime();
   const sendTypingIndicator = async () => {
-    await params.context.sendActivity({ type: "typing" });
+    // Use proactive messaging so the typing indicator works even after
+    // the inbound TurnContext has been revoked (fire-and-forget handler).
+    const ref = buildConversationReference(params.conversationRef);
+    await params.adapter.continueConversation(
+      params.appId,
+      { ...ref, activityId: undefined },
+      async (ctx) => {
+        await ctx.sendActivity({ type: "typing" });
+      },
+    );
   };
   const typingCallbacks = createTypingCallbacks({
     start: sendTypingIndicator,

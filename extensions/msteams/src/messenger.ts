@@ -441,32 +441,11 @@ export async function sendMSTeamsMessages(params: {
     }
   };
 
-  if (params.replyStyle === "thread") {
-    const ctx = params.context;
-    if (!ctx) {
-      throw new Error("Missing context for replyStyle=thread");
-    }
-    const messageIds: string[] = [];
-    for (const [idx, message] of messages.entries()) {
-      const response = await sendWithRetry(
-        async () =>
-          await ctx.sendActivity(
-            await buildActivity(
-              message,
-              params.conversationRef,
-              params.tokenProvider,
-              params.sharePointSiteId,
-              params.mediaMaxBytes,
-            ),
-          ),
-        { messageIndex: idx, messageCount: messages.length },
-      );
-      messageIds.push(extractMessageId(response) ?? "unknown");
-    }
-    return messageIds;
-  }
-
   const baseRef = buildConversationReference(params.conversationRef);
+  // Always use proactive messaging via continueConversation so replies
+  // are not tied to the inbound TurnContext (which may be revoked if
+  // the Bot Framework Service HTTP request times out before the agent
+  // finishes processing).
   const proactiveRef: MSTeamsConversationReference = {
     ...baseRef,
     activityId: undefined,
@@ -475,19 +454,22 @@ export async function sendMSTeamsMessages(params: {
   const messageIds: string[] = [];
   await params.adapter.continueConversation(params.appId, proactiveRef, async (ctx) => {
     for (const [idx, message] of messages.entries()) {
-      const response = await sendWithRetry(
-        async () =>
-          await ctx.sendActivity(
-            await buildActivity(
-              message,
-              params.conversationRef,
-              params.tokenProvider,
-              params.sharePointSiteId,
-              params.mediaMaxBytes,
-            ),
-          ),
-        { messageIndex: idx, messageCount: messages.length },
+      const activity = await buildActivity(
+        message,
+        params.conversationRef,
+        params.tokenProvider,
+        params.sharePointSiteId,
+        params.mediaMaxBytes,
       );
+      // Preserve threading: set replyToId so Bot Framework threads the
+      // reply under the original message (important for channels/groups).
+      if (params.replyStyle === "thread" && params.conversationRef.activityId) {
+        (activity as Record<string, unknown>).replyToId = params.conversationRef.activityId;
+      }
+      const response = await sendWithRetry(async () => await ctx.sendActivity(activity), {
+        messageIndex: idx,
+        messageCount: messages.length,
+      });
       messageIds.push(extractMessageId(response) ?? "unknown");
     }
   });

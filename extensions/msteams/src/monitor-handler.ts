@@ -139,11 +139,12 @@ export function registerMSTeamsHandlers<T extends MSTeamsActivityHandler>(
   }
 
   handler.onMessage(async (context, next) => {
-    try {
-      await handleTeamsMessage(context as MSTeamsTurnContext);
-    } catch (err) {
+    // Fire-and-forget: don't await agent processing so the adapter
+    // can send HTTP 200 immediately.  Replies use proactive messaging
+    // via continueConversation, so they don't need the TurnContext.
+    handleTeamsMessage(context as MSTeamsTurnContext).catch((err) => {
       deps.runtime.error?.(`msteams handler failed: ${String(err)}`);
-    }
+    });
     await next();
   });
 
