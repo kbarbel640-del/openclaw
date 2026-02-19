@@ -39,6 +39,8 @@ const APPROVAL_METHODS = new Set([
   "exec.approval.resolve",
 ]);
 const NODE_ROLE_METHODS = new Set(["node.invoke.result", "node.event", "skills.bins"]);
+// Methods allowed for any authenticated connection regardless of role (keepalive, status).
+const ANY_ROLE_METHODS = new Set(["health"]);
 const PAIRING_METHODS = new Set([
   "node.pair.request",
   "node.pair.list",
@@ -105,6 +107,9 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
   }
   const role = client.connect.role ?? "operator";
   const scopes = client.connect.scopes ?? [];
+  if (ANY_ROLE_METHODS.has(method)) {
+    return null;
+  }
   if (NODE_ROLE_METHODS.has(method)) {
     if (role === "node") {
       return null;

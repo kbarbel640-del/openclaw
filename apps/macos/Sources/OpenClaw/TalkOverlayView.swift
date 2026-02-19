@@ -145,13 +145,14 @@ private struct TalkOrbView: View {
     let isPaused: Bool
 
     var body: some View {
-        if self.isPaused {
+        if self.isPaused || self.phase == .idle {
+            // Static orb — no 60fps TimelineView needed when idle or paused.
             Circle()
                 .fill(self.orbGradient)
-                .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
-                .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 5)
+                .overlay(Circle().stroke(self.isPaused ? Color.white.opacity(0.35) : Color.white.opacity(0.45), lineWidth: 1))
+                .shadow(color: Color.black.opacity(self.isPaused ? 0.18 : 0.22), radius: 10, x: 0, y: 5)
         } else {
-            TimelineView(.animation) { context in
+            TimelineView(.animation(minimumInterval: 1.0 / 15.0)) { context in
                 let t = context.date.timeIntervalSinceReferenceDate
                 let listenScale = self.phase == .listening ? (1 + CGFloat(self.level) * 0.12) : 1
                 let pulse = self.phase == .speaking ? (1 + 0.06 * sin(t * 6)) : 1

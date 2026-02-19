@@ -284,9 +284,13 @@ public actor GatewayChannelActor {
     }
 
     private func keepaliveLoop() async {
-        while self.shouldReconnect {
-            try? await Task.sleep(nanoseconds: UInt64(self.keepaliveIntervalSeconds * 1_000_000_000))
-            guard self.shouldReconnect else { return }
+        while self.shouldReconnect, !Task.isCancelled {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(self.keepaliveIntervalSeconds * 1_000_000_000))
+            } catch {
+                return // Task cancelled — exit cleanly instead of busy-spinning.
+            }
+            guard self.shouldReconnect, !Task.isCancelled else { return }
             guard self.connected else { continue }
             // Best-effort outbound message to keep intermediate NAT/proxy state alive.
             // We intentionally ignore the response.
@@ -498,6 +502,32 @@ public actor GatewayChannelActor {
         await self.scheduleReconnect()
     }
 
+    /// Wraps a JSONSerialization value into AnyCodable, preserving JSON type distinctions
+    /// (notably bool vs int) that NSNumber bridging would otherwise conflate.
+    private static func wrapJSONValue(_ value: Any) -> AnyCodable {
+        switch value {
+        case let number as NSNumber:
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return AnyCodable(number.boolValue)
+            }
+            let d = number.doubleValue
+            if d == Double(Int(d)), d <= Double(Int.max), d >= Double(Int.min) {
+                return AnyCodable(Int(d))
+            }
+            return AnyCodable(d)
+        case is NSNull:
+            return AnyCodable(NSNull())
+        case let string as String:
+            return AnyCodable(string)
+        case let dict as [String: Any]:
+            return AnyCodable(dict.mapValues { wrapJSONValue($0) })
+        case let array as [Any]:
+            return AnyCodable(array.map { wrapJSONValue($0) })
+        default:
+            return AnyCodable(value)
+        }
+    }
+
     private func handle(_ msg: URLSessionWebSocketTask.Message) async {
         let data: Data? = switch msg {
         case let .data(d): d
@@ -505,26 +535,41 @@ public actor GatewayChannelActor {
         @unknown default: nil
         }
         guard let data else { return }
-        guard let frame = try? self.decoder.decode(GatewayFrame.self, from: data) else {
-            self.logger.error("gateway decode failed")
+
+        // Use JSONSerialization (native C parser) instead of JSONDecoder + AnyCodable
+        // to avoid the expensive recursive try/catch decode cascade that was burning 120%+ CPU.
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = json["type"] as? String else {
+            self.logger.error("gateway decode failed size=\(data.count)")
             return
         }
-        switch frame {
-        case let .res(res):
-            let id = res.id
-            if let waiter = pending.removeValue(forKey: id) {
-                waiter.resume(returning: .res(res))
-            }
-        case let .event(evt):
-            if evt.event == "connect.challenge" { return }
-            if let seq = evt.seq {
+
+        switch type {
+        case "res":
+            guard let id = json["id"] as? String else { return }
+            guard let waiter = pending.removeValue(forKey: id) else { return }
+            let ok = json["ok"] as? Bool ?? false
+            let payload: AnyCodable? = json["payload"].map { Self.wrapJSONValue($0) }
+            let error: [String: AnyCodable]? = (json["error"] as? [String: Any])?.mapValues { Self.wrapJSONValue($0) }
+            let res = ResponseFrame(type: type, id: id, ok: ok, payload: payload, error: error)
+            waiter.resume(returning: .res(res))
+
+        case "event":
+            guard let event = json["event"] as? String else { return }
+            if event == "connect.challenge" { return }
+            let seq = json["seq"] as? Int
+            let payload: AnyCodable? = json["payload"].map { Self.wrapJSONValue($0) }
+            let stateversion: [String: AnyCodable]? = (json["stateVersion"] as? [String: Any])?.mapValues { Self.wrapJSONValue($0) }
+            let evt = EventFrame(type: type, event: event, payload: payload, seq: seq, stateversion: stateversion)
+            if let seq {
                 if let last = lastSeq, seq > last + 1 {
                     await self.pushHandler?(.seqGap(expected: last + 1, received: seq))
                 }
                 self.lastSeq = seq
             }
-            if evt.event == "tick" { self.lastTick = Date() }
+            if event == "tick" { self.lastTick = Date() }
             await self.pushHandler?(.event(evt))
+
         default:
             break
         }
