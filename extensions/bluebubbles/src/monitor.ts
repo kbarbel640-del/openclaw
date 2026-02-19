@@ -477,9 +477,6 @@ export async function handleBlueBubblesWebhookRequest(
     }
     if (safeEqualSecret(guid, token)) {
       strictMatches.push(target);
-      if (strictMatches.length > 1) {
-        break;
-      }
     }
   }
 
