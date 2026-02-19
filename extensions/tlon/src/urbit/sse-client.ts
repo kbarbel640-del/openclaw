@@ -317,6 +317,13 @@ export class UrbitSSEClient {
     );
   }
 
+  // Two separate reconnection limits are maintained intentionally:
+  // - MAX_RECONNECT_DEPTH (50): a safety guard against unbounded call-stack growth during
+  //   rapid synchronous failures (e.g. connect() throws immediately every time). Without
+  //   this limit a tight retry loop would overflow the stack before maxReconnectAttempts
+  //   is ever reached.
+  // - maxReconnectAttempts (default 10): the user-facing policy limit on how many total
+  //   reconnection attempts are made under normal backoff conditions.
   private static readonly MAX_RECONNECT_DEPTH = 50;
 
   async attemptReconnect(depth = 0) {
