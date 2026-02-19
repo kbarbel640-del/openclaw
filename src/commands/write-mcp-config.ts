@@ -52,6 +52,24 @@ export async function writeMcpConfigFile(params: {
 }
 
 /**
+ * Write the MCP config file from manually entered {name, url} entries.
+ * Produces the same JSON format as `writeMcpConfigFile()`.
+ */
+export async function writeMcpConfigFromEntries(params: {
+  workspaceDir: string;
+  entries: Array<{ name: string; url: string }>;
+}): Promise<string> {
+  const mcpServers: Record<string, McpConfigEntry> = {};
+  for (const entry of params.entries) {
+    mcpServers[entry.name] = { url: entry.url, transport: "sse" };
+  }
+  const config: ClaudeMcpConfig = { mcpServers };
+  const filePath = path.join(params.workspaceDir, CLOUDRU_MCP_CONFIG_FILENAME);
+  await fs.writeFile(filePath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+  return filePath;
+}
+
+/**
  * Append `--mcp-config` and `--strict-mcp-config` to CLI backend args.
  * Idempotent: skips if args already contain the flags.
  */

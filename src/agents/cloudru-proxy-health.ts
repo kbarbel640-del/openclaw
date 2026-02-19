@@ -26,10 +26,7 @@ let cachedResult: {
 
 let inflightPromise: Promise<ProxyHealthResult> | null = null;
 
-async function doCheck(
-  proxyUrl: string,
-  timeoutMs: number,
-): Promise<ProxyHealthResult> {
+async function doCheck(proxyUrl: string, timeoutMs: number): Promise<ProxyHealthResult> {
   const healthUrl = proxyUrl.replace(/\/+$/, "") + "/health";
   const start = Date.now();
 
@@ -61,8 +58,7 @@ async function doCheck(
     return result;
   } catch (error: unknown) {
     const latencyMs = Date.now() - start;
-    const message =
-      error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : String(error);
     return { ok: false, latencyMs, error: message };
   }
 }
@@ -76,11 +72,7 @@ export async function checkProxyHealth(
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<ProxyHealthResult> {
   // Return cached result if valid
-  if (
-    cachedResult &&
-    cachedResult.url === proxyUrl &&
-    Date.now() < cachedResult.expiresAt
-  ) {
+  if (cachedResult && cachedResult.url === proxyUrl && Date.now() < cachedResult.expiresAt) {
     return cachedResult.result;
   }
 

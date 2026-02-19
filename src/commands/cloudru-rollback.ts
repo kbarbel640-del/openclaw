@@ -39,9 +39,7 @@ export async function rollbackCloudruFmConfig(
   // Remove cloudru-fm provider
   const models = config["models"] as Record<string, unknown> | undefined;
   if (models) {
-    const providers = models["providers"] as
-      | Record<string, unknown>
-      | undefined;
+    const providers = models["providers"] as Record<string, unknown> | undefined;
     if (providers && "cloudru-fm" in providers) {
       delete providers["cloudru-fm"];
       changed = true;
@@ -54,15 +52,9 @@ export async function rollbackCloudruFmConfig(
 
   // Remove proxy env from claude-cli backend
   const agents = config["agents"] as Record<string, unknown> | undefined;
-  const defaults = agents?.["defaults"] as
-    | Record<string, unknown>
-    | undefined;
-  const cliBackends = defaults?.["cliBackends"] as
-    | Record<string, unknown>
-    | undefined;
-  const claudeCli = cliBackends?.["claude-cli"] as
-    | Record<string, unknown>
-    | undefined;
+  const defaults = agents?.["defaults"] as Record<string, unknown> | undefined;
+  const cliBackends = defaults?.["cliBackends"] as Record<string, unknown> | undefined;
+  const claudeCli = cliBackends?.["claude-cli"] as Record<string, unknown> | undefined;
 
   if (claudeCli) {
     const env = claudeCli["env"] as Record<string, string> | undefined;

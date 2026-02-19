@@ -259,21 +259,32 @@ export async function applyAuthChoiceCloudruFm(
   });
 
   if (wantsAiFabric) {
-    const iamKeyId = await params.prompter.text({
-      message: "Cloud.ru IAM key ID (for AI Fabric API)",
-      placeholder: "key-xxxx",
-      validate: (v) => (v.trim() ? undefined : "IAM key ID is required"),
+    const hasIamCredentials = await params.prompter.confirm({
+      message: "Do you have Cloud.ru IAM credentials?",
+      initialValue: true,
     });
 
-    const iamSecret = await params.prompter.text({
-      message: "Cloud.ru IAM secret",
-      validate: (v) => (v.trim() ? undefined : "IAM secret is required"),
-    });
+    let fabricAuth: { keyId: string; secret: string } | undefined;
+
+    if (hasIamCredentials) {
+      const iamKeyId = await params.prompter.text({
+        message: "Cloud.ru IAM key ID (for AI Fabric API)",
+        placeholder: "key-xxxx",
+        validate: (v) => (v.trim() ? undefined : "IAM key ID is required"),
+      });
+
+      const iamSecret = await params.prompter.text({
+        message: "Cloud.ru IAM secret",
+        validate: (v) => (v.trim() ? undefined : "IAM secret is required"),
+      });
+
+      fabricAuth = { keyId: String(iamKeyId).trim(), secret: String(iamSecret).trim() };
+    }
 
     const fabricResult = await setupAiFabric({
       config: nextConfig,
       prompter: params.prompter,
-      auth: { keyId: String(iamKeyId).trim(), secret: String(iamSecret).trim() },
+      auth: fabricAuth,
       workspaceDir,
     });
     nextConfig = fabricResult.config;

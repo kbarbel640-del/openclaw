@@ -4,6 +4,7 @@ import type { WizardPrompter } from "../wizard/prompts.js";
 import type { AuthChoice } from "./onboard-types.js";
 import { applyAuthChoiceAnthropic } from "./auth-choice.apply.anthropic.js";
 import { applyAuthChoiceApiProviders } from "./auth-choice.apply.api-providers.js";
+import { applyAuthChoiceCloudruFm } from "./auth-choice.apply.cloudru-fm.js";
 import { applyAuthChoiceCopilotProxy } from "./auth-choice.apply.copilot-proxy.js";
 import { applyAuthChoiceGitHubCopilot } from "./auth-choice.apply.github-copilot.js";
 import { applyAuthChoiceGoogleAntigravity } from "./auth-choice.apply.google-antigravity.js";
@@ -13,7 +14,6 @@ import { applyAuthChoiceOAuth } from "./auth-choice.apply.oauth.js";
 import { applyAuthChoiceOpenAI } from "./auth-choice.apply.openai.js";
 import { applyAuthChoiceQwenPortal } from "./auth-choice.apply.qwen-portal.js";
 import { applyAuthChoiceXAI } from "./auth-choice.apply.xai.js";
-import { applyAuthChoiceCloudruFm } from "./auth-choice.apply.cloudru-fm.js";
 
 export type ApplyAuthChoiceParams = {
   authChoice: AuthChoice;

@@ -19,6 +19,7 @@ import { describeNetworkError } from "../infra/errors.js";
 import { ensureGitignoreEntries } from "./onboard-cloudru-fm.js";
 import {
   writeMcpConfigFile,
+  writeMcpConfigFromEntries,
   appendMcpConfigArgs,
   CLOUDRU_MCP_CONFIG_FILENAME,
 } from "./write-mcp-config.js";
@@ -26,8 +27,8 @@ import {
 export type SetupAiFabricParams = {
   config: OpenClawConfig;
   prompter: WizardPrompter;
-  /** IAM credentials for Cloud.ru AI Fabric API. */
-  auth: CloudruAuthConfig;
+  /** IAM credentials for Cloud.ru AI Fabric API. Omit to skip API discovery (manual-only mode). */
+  auth?: CloudruAuthConfig;
   workspaceDir: string;
 };
 
@@ -69,63 +70,92 @@ export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupA
   });
 
   const trimmedProjectId = projectId.trim();
-  const client = new CloudruSimpleClient({ projectId: trimmedProjectId, auth });
+  const client = auth ? new CloudruSimpleClient({ projectId: trimmedProjectId, auth }) : undefined;
 
-  // --- MCP Server Discovery ---
-  const servers = await discoverMcpServers({ client, prompter });
+  // --- MCP Server Discovery (API) or Manual Entry ---
   let mcpConfigPath: string | undefined;
 
-  if (servers && servers.length > 0) {
-    const options = servers.map((s) => ({
-      value: s,
-      label: s.name,
-      hint: `${s.tools.length} tool${s.tools.length === 1 ? "" : "s"} — ${s.status}`,
-    }));
+  if (client) {
+    const servers = await discoverMcpServers({ client, prompter });
 
-    const selected = await prompter.multiselect<McpServer>({
-      message: `Select MCP servers to connect (${servers.length} available)`,
-      options,
-      initialValues: servers.filter((s) => s.status === "RUNNING" || s.status === "AVAILABLE"),
-    });
+    if (servers && servers.length > 0) {
+      const options = servers.map((s) => ({
+        value: s,
+        label: s.name,
+        hint: `${s.tools.length} tool${s.tools.length === 1 ? "" : "s"} — ${s.status}`,
+      }));
 
-    if (selected.length > 0) {
-      mcpConfigPath = await writeMcpConfigFile({ workspaceDir, servers: selected });
+      const selected = await prompter.multiselect<McpServer>({
+        message: `Select MCP servers to connect (${servers.length} available)`,
+        options,
+        initialValues: servers.filter((s) => s.status === "RUNNING" || s.status === "AVAILABLE"),
+      });
+
+      if (selected.length > 0) {
+        mcpConfigPath = await writeMcpConfigFile({ workspaceDir, servers: selected });
+        await ensureGitignoreEntries({ workspaceDir, entries: [CLOUDRU_MCP_CONFIG_FILENAME] });
+
+        const toolCount = selected.reduce((sum, s) => sum + s.tools.length, 0);
+        await prompter.note(
+          `Connected ${selected.length} MCP server${selected.length === 1 ? "" : "s"} (${toolCount} tools).\n` +
+            `Config: ${CLOUDRU_MCP_CONFIG_FILENAME}`,
+          "AI Fabric — MCP",
+        );
+      }
+    } else if (servers) {
+      await prompter.note(
+        "No MCP servers found in this project. You can add them later in Cloud.ru console.",
+        "AI Fabric",
+      );
+    }
+  } else {
+    // No IAM credentials — offer manual MCP entry
+    const manualEntries = await promptManualMcpServers(prompter);
+    if (manualEntries.length > 0) {
+      mcpConfigPath = await writeMcpConfigFromEntries({ workspaceDir, entries: manualEntries });
       await ensureGitignoreEntries({ workspaceDir, entries: [CLOUDRU_MCP_CONFIG_FILENAME] });
 
-      const toolCount = selected.reduce((sum, s) => sum + s.tools.length, 0);
       await prompter.note(
-        `Connected ${selected.length} MCP server${selected.length === 1 ? "" : "s"} (${toolCount} tools).\n` +
+        `Configured ${manualEntries.length} MCP server${manualEntries.length === 1 ? "" : "s"} (manual).\n` +
           `Config: ${CLOUDRU_MCP_CONFIG_FILENAME}`,
         "AI Fabric — MCP",
       );
     }
-  } else {
-    await prompter.note(
-      "No MCP servers found in this project. You can add them later in Cloud.ru console.",
-      "AI Fabric",
-    );
   }
 
-  // --- Agent Discovery ---
-  const agents = await discoverAgents({ client, prompter });
+  // --- Agent Discovery (API) or Manual Entry ---
   let selectedAgents: AiFabricAgentEntry[] | undefined;
 
-  if (agents.length > 0) {
-    const agentOptions = agents.map((a) => ({
-      value: a,
-      label: a.name,
-      hint: a.endpoint,
-    }));
+  if (client) {
+    const agents = await discoverAgents({ client, prompter });
 
-    selectedAgents = await prompter.multiselect<AiFabricAgentEntry>({
-      message: `Select AI Agents for A2A communication (${agents.length} available)`,
-      options: agentOptions,
-      initialValues: agents,
-    });
+    if (agents.length > 0) {
+      const agentOptions = agents.map((a) => ({
+        value: a,
+        label: a.name,
+        hint: a.endpoint,
+      }));
 
-    if (selectedAgents.length > 0) {
+      selectedAgents = await prompter.multiselect<AiFabricAgentEntry>({
+        message: `Select AI Agents for A2A communication (${agents.length} available)`,
+        options: agentOptions,
+        initialValues: agents,
+      });
+
+      if (selectedAgents.length > 0) {
+        await prompter.note(
+          `Selected ${selectedAgents.length} agent${selectedAgents.length === 1 ? "" : "s"} for A2A.`,
+          "AI Fabric — Agents",
+        );
+      }
+    }
+  } else {
+    // No IAM credentials — offer manual agent entry
+    const manualAgents = await promptManualAgents(prompter);
+    if (manualAgents.length > 0) {
+      selectedAgents = manualAgents;
       await prompter.note(
-        `Selected ${selectedAgents.length} agent${selectedAgents.length === 1 ? "" : "s"} for A2A.`,
+        `Configured ${manualAgents.length} agent${manualAgents.length === 1 ? "" : "s"} (manual).`,
         "AI Fabric — Agents",
       );
     }
@@ -134,7 +164,7 @@ export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupA
   // --- Apply Config ---
   config = applyAiFabricConfig(config, {
     projectId: trimmedProjectId,
-    keyId: auth.keyId,
+    keyId: auth?.keyId,
     mcpConfigPath,
     agents: selectedAgents,
   });
@@ -203,7 +233,110 @@ export async function setupAiFabricNonInteractive(
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Manual Entry Helpers
+// ---------------------------------------------------------------------------
+
+function validateUrl(value: string): string | undefined {
+  const v = value.trim();
+  if (!v) {
+    return "URL is required";
+  }
+  try {
+    const parsed = new URL(v);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return "URL must start with http:// or https://";
+    }
+  } catch {
+    return "Invalid URL format";
+  }
+  return undefined;
+}
+
+export async function promptManualMcpServers(
+  prompter: WizardPrompter,
+): Promise<Array<{ name: string; url: string }>> {
+  const wantsManual = await prompter.confirm({
+    message: "Enter MCP server URLs manually?",
+    initialValue: false,
+  });
+  if (!wantsManual) {
+    return [];
+  }
+
+  const entries: Array<{ name: string; url: string }> = [];
+  let addMore = true;
+
+  while (addMore) {
+    const name = await prompter.text({
+      message: "MCP server name",
+      placeholder: "web-search",
+      validate: (v) => (v.trim() ? undefined : "Name is required"),
+    });
+
+    const url = await prompter.text({
+      message: "MCP server URL",
+      placeholder: "https://ai-agents.api.cloud.ru/mcp/mcp-xxx",
+      validate: validateUrl,
+    });
+
+    entries.push({ name: name.trim(), url: url.trim() });
+
+    addMore = await prompter.confirm({
+      message: "Add another MCP server?",
+      initialValue: false,
+    });
+  }
+
+  return entries;
+}
+
+export async function promptManualAgents(prompter: WizardPrompter): Promise<AiFabricAgentEntry[]> {
+  const wantsManual = await prompter.confirm({
+    message: "Enter AI Agent endpoints manually?",
+    initialValue: false,
+  });
+  if (!wantsManual) {
+    return [];
+  }
+
+  const agents: AiFabricAgentEntry[] = [];
+  let addMore = true;
+
+  while (addMore) {
+    const name = await prompter.text({
+      message: "Agent name",
+      placeholder: "code-assistant",
+      validate: (v) => (v.trim() ? undefined : "Name is required"),
+    });
+
+    const endpoint = await prompter.text({
+      message: "Agent A2A endpoint URL",
+      placeholder: "https://ai-agents.api.cloud.ru/a2a/agent-xxx",
+      validate: validateUrl,
+    });
+
+    const trimmedName = name.trim();
+    const slug = trimmedName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    agents.push({
+      id: `manual-${slug}`,
+      name: trimmedName,
+      endpoint: endpoint.trim(),
+    });
+
+    addMore = await prompter.confirm({
+      message: "Add another agent?",
+      initialValue: false,
+    });
+  }
+
+  return agents;
+}
+
+// ---------------------------------------------------------------------------
+// API Discovery Helpers
 // ---------------------------------------------------------------------------
 
 async function discoverMcpServers(params: {
