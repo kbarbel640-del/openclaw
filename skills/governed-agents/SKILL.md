@@ -1,6 +1,6 @@
 ---
 name: governed-agents
-description: Accountable sub-agent orchestration with task contracts, verification gates, and reputation tracking. Use when spawning Codex or other sub-agents via sessions_spawn — ensures agents cannot fake success. Triggers on: sessions_spawn delegation, sub-agent task tracking, verifiable outcomes, agent reliability scoring.
+description: "Accountable sub-agent orchestration with task contracts, verification gates, and reputation tracking. Prevents hallucinated success in sessions_spawn delegation."
 homepage: https://github.com/Nefas11/openclaw-superpowers-workflow
 metadata:
   {

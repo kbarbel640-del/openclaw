@@ -4,7 +4,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from governed_agents.verifier import Verifier, VerificationResult
 from governed_agents.orchestrator import GovernedOrchestrator

@@ -21,7 +21,7 @@ fi
 
 echo ""
 echo "  Running verification suite..."
-python3 "$TARGET/test_verification.py"
+python3 "$TARGET/tests/test_verification.py"
 echo ""
 echo "✅ governed-agents installed at $TARGET"
 echo "   Usage: from governed_agents.orchestrator import GovernedOrchestrator"

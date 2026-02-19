@@ -81,7 +81,7 @@ python3 ~/.openclaw/workspace/governed_agents/test_verification.py
 
 ## No External Dependencies
 
-Pure Python stdlib: `sqlite3`, `subprocess`, `ast`, `glob`, `shlex`, `pathlib`.
+Pure Python stdlib: `sqlite3`, `subprocess`, `ast`, `glob`, `shlex`, `pathlib`. Requires `git` for install.
 Works on Python 3.10+.
 
 ## Why This Matters
