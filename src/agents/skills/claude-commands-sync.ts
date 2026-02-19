@@ -147,6 +147,61 @@ export async function syncMcpToClaudeSettings(params: {
 }
 
 // ---------------------------------------------------------------------------
+// MCP removal from .claude/settings.json
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove specified MCP server keys from `<workspaceDir>/.claude/settings.json`.
+ *
+ * Returns the number of keys actually removed. Safe to call when the file
+ * does not exist or contains no `mcpServers` — returns 0.
+ */
+export async function removeFabricMcpFromClaudeSettings(params: {
+  workspaceDir: string;
+  serverNames: string[];
+}): Promise<number> {
+  const settingsPath = path.join(params.workspaceDir, ".claude", "settings.json");
+
+  return serializeByKey(`claudeSync:mcp:${params.workspaceDir}`, async () => {
+    let settings: Record<string, unknown> = {};
+    try {
+      const raw = await fsp.readFile(settingsPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        settings = parsed as Record<string, unknown>;
+      }
+    } catch (err) {
+      if (isNodeError(err) && err.code === "ENOENT") {
+        return 0;
+      }
+      log.warn(`failed to parse ${settingsPath}: ${String(err)}`);
+      return 0;
+    }
+
+    const existingMcp =
+      settings.mcpServers && typeof settings.mcpServers === "object"
+        ? (settings.mcpServers as Record<string, unknown>)
+        : {};
+
+    let removed = 0;
+    for (const name of params.serverNames) {
+      if (name in existingMcp) {
+        delete existingMcp[name];
+        removed++;
+      }
+    }
+
+    if (removed > 0) {
+      settings.mcpServers = existingMcp;
+      await fsp.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+      log.debug(`removed ${removed} MCP servers from ${settingsPath}`);
+    }
+
+    return removed;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Combined entry point
 // ---------------------------------------------------------------------------
 

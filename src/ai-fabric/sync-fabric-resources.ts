@@ -16,6 +16,7 @@
  * Reusable across: plugins, CLI, gateway.
  */
 
+import { promises as fsp } from "node:fs";
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AgentStatusEntry } from "./agent-status.js";
@@ -23,10 +24,11 @@ import type { AgentSystemStatusEntry } from "./agent-system-status.js";
 import type { FabricSkillTarget } from "./generate-fabric-skills.js";
 import type { McpStatusEntry } from "./mcp-status.js";
 import {
+  removeFabricMcpFromClaudeSettings,
   syncMcpToClaudeSettings,
   syncSkillsToClaudeCommands,
 } from "../agents/skills/claude-commands-sync.js";
-import { writeMcpConfigFile } from "../commands/write-mcp-config.js";
+import { CLOUDRU_MCP_CONFIG_FILENAME, writeMcpConfigFile } from "../commands/write-mcp-config.js";
 import { buildMcpConfig } from "../commands/write-mcp-config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getAgentStatus } from "./agent-status.js";
@@ -56,6 +58,12 @@ export type SyncFabricParams = {
 export type SyncFabricResult =
   | { ok: true; mcpServers: number; skills: number }
   | { ok: false; error: string };
+
+export type DisconnectFabricResult = {
+  mcpRemoved: number;
+  skillsCleaned: number;
+  commandsCleaned: number;
+};
 
 // ---------------------------------------------------------------------------
 // Main entry
@@ -161,8 +169,99 @@ export async function syncFabricResources(params: SyncFabricParams): Promise<Syn
 }
 
 // ---------------------------------------------------------------------------
+// Disconnect
+// ---------------------------------------------------------------------------
+
+/**
+ * Disconnect AI Fabric resources from the Claude CLI workspace.
+ *
+ * Inverse of {@link syncFabricResources}: removes MCP servers from
+ * `.claude/settings.json`, cleans generated `fabric-*` skills, and
+ * re-syncs commands so stale `.claude/commands/` entries are removed.
+ *
+ * Reusable across: plugins, CLI, gateway.
+ */
+export async function disconnectFabricResources(params: {
+  workspaceDir: string;
+  config: OpenClawConfig;
+}): Promise<DisconnectFabricResult> {
+  const { workspaceDir, config } = params;
+  let mcpRemoved = 0;
+  let skillsCleaned = 0;
+  let commandsCleaned = 0;
+
+  // Step 1: Remove MCP servers from .claude/settings.json
+  try {
+    const mcpConfigPath = path.join(workspaceDir, CLOUDRU_MCP_CONFIG_FILENAME);
+    const raw = await fsp.readFile(mcpConfigPath, "utf-8");
+    const parsed = JSON.parse(raw) as { mcpServers?: Record<string, unknown> };
+    const serverNames = Object.keys(parsed.mcpServers ?? {});
+
+    if (serverNames.length > 0) {
+      mcpRemoved = await removeFabricMcpFromClaudeSettings({ workspaceDir, serverNames });
+    }
+
+    // Remove the MCP config file itself
+    await fsp.unlink(mcpConfigPath);
+    log.debug(`removed MCP config file: ${mcpConfigPath}`);
+  } catch (err) {
+    if (!isNodeError(err) || err.code !== "ENOENT") {
+      log.warn(`MCP cleanup failed: ${String(err)}`);
+    }
+  }
+
+  // Step 2: Clean all fabric-* skills (empty targets = remove all synced)
+  try {
+    const skillsDir = path.join(workspaceDir, "skills");
+    const result = await generateFabricSkills({ targets: [], skillsDir });
+    skillsCleaned = result.cleaned;
+    log.debug(`cleaned ${result.cleaned} fabric skills`);
+  } catch (err) {
+    log.warn(`skills cleanup failed: ${String(err)}`);
+  }
+
+  // Step 3: Re-sync commands (stale fabric commands get removed)
+  try {
+    const before = await countSyncedCommands(workspaceDir);
+    await syncSkillsToClaudeCommands({ workspaceDir, config });
+    const after = await countSyncedCommands(workspaceDir);
+    commandsCleaned = Math.max(0, before - after);
+    log.debug(`cleaned ${commandsCleaned} synced commands`);
+  } catch (err) {
+    log.warn(`commands cleanup failed: ${String(err)}`);
+  }
+
+  return { mcpRemoved, skillsCleaned, commandsCleaned };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function isNodeError(err: unknown): err is NodeJS.ErrnoException {
+  return err instanceof Error && "code" in err;
+}
+
+async function countSyncedCommands(workspaceDir: string): Promise<number> {
+  const { SYNC_MARKER } = await import("../agents/skills/claude-commands-sync.js");
+  const commandsDir = path.join(workspaceDir, ".claude", "commands");
+  let count = 0;
+  try {
+    const files = await fsp.readdir(commandsDir);
+    for (const file of files) {
+      if (!file.endsWith(".md")) {
+        continue;
+      }
+      const content = await fsp.readFile(path.join(commandsDir, file), "utf-8");
+      if (content.startsWith(SYNC_MARKER)) {
+        count++;
+      }
+    }
+  } catch {
+    // Directory doesn't exist
+  }
+  return count;
+}
 
 async function buildSkillTargets(
   params: SyncFabricParams,

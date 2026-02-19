@@ -17,6 +17,7 @@ import type {
   McpStatusError,
   McpStatusSummary,
 } from "../../src/ai-fabric/mcp-status.js";
+import type { OpenClawConfig } from "../../src/config/config.js";
 import { getAgentStatus } from "../../src/ai-fabric/agent-status.js";
 import { getAgentSystemStatus } from "../../src/ai-fabric/agent-system-status.js";
 import { getMcpServerStatus } from "../../src/ai-fabric/mcp-status.js";
@@ -209,34 +210,60 @@ export function formatStatusOutput(
 }
 
 // ---------------------------------------------------------------------------
+// Shared credential validation
+// ---------------------------------------------------------------------------
+
+type FabricCredentials = {
+  projectId: string;
+  keyId: string;
+  secret: string;
+};
+
+function validateFabricCredentials(config: {
+  aiFabric?: { enabled?: boolean; projectId?: string; keyId?: string };
+}): { ok: true; creds: FabricCredentials } | { ok: false; text: string } {
+  const aiFabric = config.aiFabric;
+
+  if (!aiFabric?.enabled) {
+    return { ok: false, text: "AI Fabric is not enabled. Run `openclaw onboard` to configure." };
+  }
+
+  const projectId = aiFabric.projectId ?? "";
+  const keyId = aiFabric.keyId ?? "";
+  const secret = resolveIamSecret();
+
+  if (!projectId || !keyId || !secret) {
+    return {
+      ok: false,
+      text: "AI Fabric credentials incomplete. Ensure aiFabric.projectId, aiFabric.keyId, and CLOUDRU_IAM_SECRET are set.",
+    };
+  }
+
+  return { ok: true, creds: { projectId, keyId, secret } };
+}
+
+async function resolveWorkspaceDir(config: OpenClawConfig): Promise<string> {
+  const { resolveAgentWorkspaceDir, resolveDefaultAgentId } =
+    await import("../../src/agents/agent-scope.js");
+  return resolveAgentWorkspaceDir(config, resolveDefaultAgentId(config));
+}
+
+// ---------------------------------------------------------------------------
 // Plugin registration
 // ---------------------------------------------------------------------------
 
 export default function register(api: OpenClawPluginApi) {
+  // /status_agents — read-only status display
   api.registerCommand({
     name: "status_agents",
     description:
       "Check the live status of Cloud.ru AI Fabric agents, MCP servers, and agent systems.",
     acceptsArgs: true,
     handler: async (ctx) => {
-      const aiFabric = ctx.config.aiFabric;
+      const validation = validateFabricCredentials(ctx.config);
+      if (!validation.ok) return { text: validation.text };
 
-      if (!aiFabric?.enabled) {
-        return {
-          text: "AI Fabric is not enabled. Run `openclaw onboard` to configure.",
-        };
-      }
-
-      const projectId = aiFabric.projectId ?? "";
-      const keyId = aiFabric.keyId ?? "";
-      const secret = resolveIamSecret();
-
-      if (!projectId || !keyId || !secret) {
-        return {
-          text: "AI Fabric credentials incomplete. Ensure aiFabric.projectId, aiFabric.keyId, and CLOUDRU_IAM_SECRET are set.",
-        };
-      }
-
+      const { projectId, keyId, secret } = validation.creds;
       const nameFilter = ctx.args?.trim() || undefined;
       const authParams = { keyId, secret };
 
@@ -244,49 +271,82 @@ export default function register(api: OpenClawPluginApi) {
         getAgentStatus({
           projectId,
           auth: authParams,
-          configuredAgents: aiFabric.agents ?? [],
+          configuredAgents: ctx.config.aiFabric?.agents ?? [],
           nameFilter,
         }),
-        getMcpServerStatus({
-          projectId,
-          auth: authParams,
-          nameFilter,
-        }),
-        getAgentSystemStatus({
-          projectId,
-          auth: authParams,
-          nameFilter,
-        }),
+        getMcpServerStatus({ projectId, auth: authParams, nameFilter }),
+        getAgentSystemStatus({ projectId, auth: authParams, nameFilter }),
       ]);
 
-      const text = formatStatusOutput(agentResult, mcpResult, systemResult);
-
-      // Fire-and-forget sync of fabric resources to Claude CLI
-      void (async () => {
-        try {
-          const { resolveAgentWorkspaceDir, resolveDefaultAgentId } =
-            await import("../../src/agents/agent-scope.js");
-          const workspaceDir = resolveAgentWorkspaceDir(
-            ctx.config,
-            resolveDefaultAgentId(ctx.config),
-          );
-          const { syncFabricResources } =
-            await import("../../src/ai-fabric/sync-fabric-resources.js");
-          await syncFabricResources({
-            config: ctx.config,
-            workspaceDir,
-            projectId,
-            auth: authParams,
-            agentEntries: agentResult.ok ? agentResult.entries : undefined,
-            mcpEntries: mcpResult.ok ? mcpResult.entries : undefined,
-            agentSystemEntries: systemResult.ok ? systemResult.entries : undefined,
-          });
-        } catch {
-          // Best-effort — errors silently ignored
-        }
-      })();
+      const text =
+        formatStatusOutput(agentResult, mcpResult, systemResult) +
+        "\n\nRun /agents_on to connect, /agents_off to disconnect.";
 
       return { text };
+    },
+  });
+
+  // /agents_on — connect: sync MCP + skills + commands
+  api.registerCommand({
+    name: "agents_on",
+    description: "Connect AI Fabric: sync MCP servers, skills, and commands to Claude CLI.",
+    handler: async (ctx) => {
+      const validation = validateFabricCredentials(ctx.config);
+      if (!validation.ok) return { text: validation.text };
+
+      const { projectId, keyId, secret } = validation.creds;
+      const authParams = { keyId, secret };
+      const workspaceDir = await resolveWorkspaceDir(ctx.config);
+
+      const { syncFabricResources } = await import("../../src/ai-fabric/sync-fabric-resources.js");
+
+      const result = await syncFabricResources({
+        config: ctx.config,
+        workspaceDir,
+        projectId,
+        auth: authParams,
+      });
+
+      if (!result.ok) {
+        return { text: `AI Fabric connect failed: ${result.error}` };
+      }
+
+      const lines = ["AI Fabric connected:"];
+      lines.push(`  \u2713 ${result.mcpServers} MCP servers synced to Claude CLI`);
+      lines.push(`  \u2713 ${result.skills} skills generated`);
+      lines.push("");
+      lines.push("Run /status_agents to check status.");
+
+      return { text: lines.join("\n") };
+    },
+  });
+
+  // /agents_off — disconnect: remove MCP + skills + commands
+  api.registerCommand({
+    name: "agents_off",
+    description: "Disconnect AI Fabric: remove MCP servers, skills, and commands from Claude CLI.",
+    handler: async (ctx) => {
+      const validation = validateFabricCredentials(ctx.config);
+      if (!validation.ok) return { text: validation.text };
+
+      const workspaceDir = await resolveWorkspaceDir(ctx.config);
+
+      const { disconnectFabricResources } =
+        await import("../../src/ai-fabric/sync-fabric-resources.js");
+
+      const result = await disconnectFabricResources({
+        workspaceDir,
+        config: ctx.config,
+      });
+
+      const lines = ["AI Fabric disconnected:"];
+      lines.push(`  \u2717 ${result.mcpRemoved} MCP servers removed`);
+      lines.push(`  \u2717 ${result.skillsCleaned} skills cleaned`);
+      lines.push(`  \u2717 ${result.commandsCleaned} commands removed`);
+      lines.push("");
+      lines.push("Run /agents_on to reconnect.");
+
+      return { text: lines.join("\n") };
     },
   });
 }
