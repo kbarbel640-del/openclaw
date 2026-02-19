@@ -97,7 +97,7 @@ function substituteString(value: string, env: NodeJS.ProcessEnv, configPath: str
     }
     if (token?.kind === "substitution") {
       const envValue = env[token.name];
-      if (envValue === undefined) {
+      if (envValue === undefined || envValue === "") {
         throw new MissingEnvVarError(token.name, configPath);
       }
       chunks.push(envValue);
@@ -164,7 +164,7 @@ function substituteAny(value: unknown, env: NodeJS.ProcessEnv, path: string): un
  * @param obj - The parsed config object (after JSON5 parse and $include resolution)
  * @param env - Environment variables to use for substitution (defaults to process.env)
  * @returns The config object with env vars substituted
- * @throws {MissingEnvVarError} If a referenced env var is not set or empty
+ * @throws {MissingEnvVarError} If a referenced env var is not set
  */
 export function resolveConfigEnvVars(obj: unknown, env: NodeJS.ProcessEnv = process.env): unknown {
   return substituteAny(obj, env, "");
