@@ -92,8 +92,18 @@ const TRUST_TIERS = {
     color: "var(--warn)",
     allowed: ["message"] as OperationId[],
   },
-  email_inbox: { label: "Email inbox", tier: 3, color: "var(--danger)", allowed: [] as OperationId[] },
-  web_scraped: { label: "Web scraped", tier: 3, color: "var(--danger)", allowed: [] as OperationId[] },
+  email_inbox: {
+    label: "Email inbox",
+    tier: 3,
+    color: "var(--danger)",
+    allowed: [] as OperationId[],
+  },
+  web_scraped: {
+    label: "Web scraped",
+    tier: 3,
+    color: "var(--danger)",
+    allowed: [] as OperationId[],
+  },
   skill_output: {
     label: "Skill output",
     tier: 2,
@@ -404,7 +414,10 @@ function stableValue(value: unknown): unknown {
   return output;
 }
 
-function computeContextHash(intent: ConsentToken["intent"], context: ConsentToken["context"]): string {
+function computeContextHash(
+  intent: ConsentToken["intent"],
+  context: ConsentToken["context"],
+): string {
   return hash64(JSON.stringify(stableValue({ intent, context })));
 }
 
@@ -449,7 +462,9 @@ function noticeClass(tone: NoticeTone): string {
 }
 
 export function renderConsentDemo() {
-  return html`<openclaw-consent-demo></openclaw-consent-demo>`;
+  return html`
+    <openclaw-consent-demo></openclaw-consent-demo>
+  `;
 }
 
 @customElement("openclaw-consent-demo")
@@ -827,7 +842,11 @@ class OpenClawConsentDemoElement extends LitElement {
     }
 
     if (this.hasExpired(token)) {
-      this.updateToken(token.jti, (entry) => ({ ...entry, status: "expired", expiredAt: this.clock }));
+      this.updateToken(token.jti, (entry) => ({
+        ...entry,
+        status: "expired",
+        expiredAt: this.clock,
+      }));
       this.appendWal({
         type: "CONSENT_DENIED",
         jti: token.jti,
@@ -974,7 +993,11 @@ class OpenClawConsentDemoElement extends LitElement {
       this.setNotice("info", `Token ${token.jti} is already ${token.status}.`);
       return;
     }
-    this.updateToken(token.jti, (entry) => ({ ...entry, status: "revoked", revokedAt: this.clock }));
+    this.updateToken(token.jti, (entry) => ({
+      ...entry,
+      status: "revoked",
+      revokedAt: this.clock,
+    }));
     this.appendWal({
       type: "CONSENT_REVOKED",
       jti: token.jti,
@@ -1037,29 +1060,37 @@ class OpenClawConsentDemoElement extends LitElement {
             ${this.liveLoading ? "Loading..." : "Refresh"}
           </button>
         </div>
-        ${this.liveError
-          ? html`<div class="callout danger" style="margin-top: 12px;">${this.liveError}</div>`
-          : nothing}
+        ${
+          this.liveError
+            ? html`<div class="callout danger" style="margin-top: 12px;">${this.liveError}</div>`
+            : nothing
+        }
         <div class="row" style="margin-top: 12px; gap: 16px; flex-wrap: wrap; align-items: flex-start;">
           <div style="min-width: 280px; flex: 1;">
             <div class="card-sub" style="margin-top: 12px;">Tokens (${this.liveTokens.length})</div>
             <div class="list" style="margin-top: 8px; max-height: 360px; overflow: auto;">
-              ${this.liveTokens.length === 0
-                ? html`<div class="muted">No tokens.</div>`
-                : this.liveTokens.map(
-                    (t) => html`
+              ${
+                this.liveTokens.length === 0
+                  ? html`
+                      <div class="muted">No tokens.</div>
+                    `
+                  : this.liveTokens.map(
+                      (t) => html`
                       <div class="list-item" style="grid-template-columns: minmax(0, 1fr);">
                         <div class="mono">
                           <strong>${t.jti}</strong> ${t.tool}
                           <span class=${`chip ${statusChipClass(t.status)}`} style="margin-left: 8px;">${t.status}</span>
                           <div class="muted">${t.sessionKey} - issued ${new Date(t.issuedAt).toISOString()}</div>
-                          ${t.status === "issued"
-                            ? html`<button class="btn danger" style="margin-top: 6px;" @click=${() => this.revokeLive(t.jti)}>Revoke</button>`
-                            : nothing}
+                          ${
+                            t.status === "issued"
+                              ? html`<button class="btn danger" style="margin-top: 6px;" @click=${() => this.revokeLive(t.jti)}>Revoke</button>`
+                              : nothing
+                          }
                         </div>
                       </div>
                     `,
-                  )}
+                    )
+              }
             </div>
           </div>
           <div style="min-width: 280px; flex: 1;">
@@ -1067,10 +1098,13 @@ class OpenClawConsentDemoElement extends LitElement {
               Quarantined session keys (${this.liveQuarantinedSessionKeys.length})
             </div>
             <div class="list" style="margin-top: 8px; max-height: 360px; overflow: auto;">
-              ${this.liveQuarantinedSessionKeys.length === 0
-                ? html`<div class="muted">No quarantined sessions.</div>`
-                : this.liveQuarantinedSessionKeys.map(
-                    (sessionKey) => html`
+              ${
+                this.liveQuarantinedSessionKeys.length === 0
+                  ? html`
+                      <div class="muted">No quarantined sessions.</div>
+                    `
+                  : this.liveQuarantinedSessionKeys.map(
+                      (sessionKey) => html`
                       <div class="list-item" style="grid-template-columns: minmax(0, 1fr);">
                         <div class="mono">
                           <strong>${sessionKey}</strong>
@@ -1082,16 +1116,20 @@ class OpenClawConsentDemoElement extends LitElement {
                         </div>
                       </div>
                     `,
-                  )}
+                    )
+              }
             </div>
           </div>
           <div style="min-width: 280px; flex: 1;">
             <div class="card-sub" style="margin-top: 12px;">Recent events (${this.liveEvents.length})</div>
             <div class="list" style="margin-top: 8px; max-height: 360px; overflow: auto;">
-              ${this.liveEvents.length === 0
-                ? html`<div class="muted">No events.</div>`
-                : [...this.liveEvents].reverse().map(
-                    (e) => html`
+              ${
+                this.liveEvents.length === 0
+                  ? html`
+                      <div class="muted">No events.</div>
+                    `
+                  : [...this.liveEvents].reverse().map(
+                      (e) => html`
                       <div class="list-item" style="grid-template-columns: minmax(0, 1fr);">
                         <div class="mono" style="line-height: 1.5;">
                           <strong>${e.type}</strong> ${new Date(e.ts).toISOString()}
@@ -1101,7 +1139,8 @@ class OpenClawConsentDemoElement extends LitElement {
                         </div>
                       </div>
                     `,
-                  )}
+                    )
+              }
             </div>
           </div>
         </div>
@@ -1133,42 +1172,60 @@ class OpenClawConsentDemoElement extends LitElement {
           <div class="muted mono">${attack.channel}</div>
         </div>
 
-        ${token
-          ? html`
+        ${
+          token
+            ? html`
               <div class="muted mono" style="margin-top: 8px;">
-                jti=${token.jti} context=${token.contextHash.slice(0, 18)}... ${token.status === "issued"
-                  ? `ttl=${Math.max(0, token.issuedAt + token.ttl - this.clock)}s`
-                  : ""}
+                jti=${token.jti} context=${token.contextHash.slice(0, 18)}... ${
+                  token.status === "issued"
+                    ? `ttl=${Math.max(0, token.issuedAt + token.ttl - this.clock)}s`
+                    : ""
+                }
               </div>
             `
-          : nothing}
+            : nothing
+        }
 
         <div class="row" style="margin-top: 12px; flex-wrap: wrap;">
-          ${attack.requiresConsent && !active && tierAllowed && !this.isQuarantined()
-            ? html`<button class="btn primary" @click=${() => this.issueToken(attack)}>Issue Token</button>`
-            : nothing}
-          ${attack.requiresConsent && !active && !tierAllowed && !this.isQuarantined()
-            ? html`<button class="btn danger" @click=${() => this.runTierViolation(attack)}>
+          ${
+            attack.requiresConsent && !active && tierAllowed && !this.isQuarantined()
+              ? html`<button class="btn primary" @click=${() => this.issueToken(attack)}>Issue Token</button>`
+              : nothing
+          }
+          ${
+            attack.requiresConsent && !active && !tierAllowed && !this.isQuarantined()
+              ? html`<button class="btn danger" @click=${() => this.runTierViolation(attack)}>
                 Tier Violation
               </button>`
-            : nothing}
-          ${active && token && !this.isQuarantined()
-            ? html`
+              : nothing
+          }
+          ${
+            active && token && !this.isQuarantined()
+              ? html`
                 <button class="btn primary" @click=${() => this.authorize(attack, token)}>Authorize Tool Call</button>
                 <button class="btn" @click=${() => this.launderContext(token)}>Launder Context</button>
                 <button class="btn" @click=${() => this.doubleSpend(token)}>Double-Spend</button>
                 <button class="btn danger" @click=${() => this.revokeToken(token)}>Revoke</button>
               `
-            : nothing}
-          ${token && token.status !== "issued" && !this.isQuarantined()
-            ? html`<button class="btn" @click=${() => this.doubleSpend(token)}>Replay Token</button>`
-            : nothing}
-          ${!attack.requiresConsent
-            ? html`<button class="btn danger" @click=${() => this.runWithoutToken(attack)}>Inject Attack</button>`
-            : nothing}
-          ${this.isQuarantined()
-            ? html`<span class="chip chip-danger">Session quarantined: all operations blocked</span>`
-            : nothing}
+              : nothing
+          }
+          ${
+            token && token.status !== "issued" && !this.isQuarantined()
+              ? html`<button class="btn" @click=${() => this.doubleSpend(token)}>Replay Token</button>`
+              : nothing
+          }
+          ${
+            !attack.requiresConsent
+              ? html`<button class="btn danger" @click=${() => this.runWithoutToken(attack)}>Inject Attack</button>`
+              : nothing
+          }
+          ${
+            this.isQuarantined()
+              ? html`
+                  <span class="chip chip-danger">Session quarantined: all operations blocked</span>
+                `
+              : nothing
+          }
         </div>
 
         <details style="margin-top: 12px;">
@@ -1182,7 +1239,9 @@ class OpenClawConsentDemoElement extends LitElement {
 
   private renderTrustMatrix() {
     const operations = ALL_OPERATIONS;
-    const tiers = Object.entries(TRUST_TIERS) as Array<[TrustTierId, (typeof TRUST_TIERS)[TrustTierId]]>;
+    const tiers = Object.entries(TRUST_TIERS) as Array<
+      [TrustTierId, (typeof TRUST_TIERS)[TrustTierId]]
+    >;
     return html`
       <section class="card">
         <div class="card-title">Trust Tier x Operation Matrix</div>
@@ -1236,10 +1295,13 @@ class OpenClawConsentDemoElement extends LitElement {
           <span class="chip">${this.wal.length} events</span>
         </div>
         <div class="list" style="margin-top: 12px; max-height: 520px; overflow: auto;">
-          ${this.wal.length === 0
-            ? html`<div class="muted">No events yet.</div>`
-            : this.wal.map(
-                (event) => html`
+          ${
+            this.wal.length === 0
+              ? html`
+                  <div class="muted">No events yet.</div>
+                `
+              : this.wal.map(
+                  (event) => html`
                   <div class="list-item" style="grid-template-columns: minmax(0, 1fr);">
                     <div class="mono" style="line-height: 1.5;">
                       <strong>${event.type}</strong> @ T${event.ts}
@@ -1250,7 +1312,8 @@ class OpenClawConsentDemoElement extends LitElement {
                     </div>
                   </div>
                 `,
-              )}
+                )
+          }
         </div>
       </section>
     `;
@@ -1262,10 +1325,13 @@ class OpenClawConsentDemoElement extends LitElement {
         <div class="card-title">Token Registry</div>
         <div class="card-sub">${this.tokens.length} token(s) observed in this simulation.</div>
         <div class="list" style="margin-top: 12px; max-height: 360px; overflow: auto;">
-          ${this.tokens.length === 0
-            ? html`<div class="muted">No tokens issued.</div>`
-            : [...this.tokens].reverse().map(
-                (token) => html`
+          ${
+            this.tokens.length === 0
+              ? html`
+                  <div class="muted">No tokens issued.</div>
+                `
+              : [...this.tokens].reverse().map(
+                  (token) => html`
                   <div class="list-item" style="grid-template-columns: minmax(0, 1fr);">
                     <div class="mono">
                       <strong>${token.jti}</strong> ${token.operation}
@@ -1278,7 +1344,8 @@ class OpenClawConsentDemoElement extends LitElement {
                     </div>
                   </div>
                 `,
-              )}
+                )
+          }
         </div>
       </section>
     `;
@@ -1334,28 +1401,33 @@ class OpenClawConsentDemoElement extends LitElement {
             >
               Live
             </button>
-            ${!this.liveMode
-              ? html`
+            ${
+              !this.liveMode
+                ? html`
                   <span class="chip mono">T${this.clock}</span>
                   <button class="btn" @click=${() => this.advanceClock()}>+1s</button>
                   <button class="btn" @click=${() => (this.autoTick = !this.autoTick)}>
                     ${this.autoTick ? "Pause Auto" : "Auto Tick"}
                   </button>
                   <button class="btn danger" @click=${() => this.revokeAll()}>Revoke All</button>
-                  ${this.isQuarantined()
-                    ? html`<button class="btn" @click=${() => this.liftQuarantine()}>Lift Quarantine</button>`
-                    : nothing}
+                  ${
+                    this.isQuarantined()
+                      ? html`<button class="btn" @click=${() => this.liftQuarantine()}>Lift Quarantine</button>`
+                      : nothing
+                  }
                   <button class="btn" @click=${() => this.reset()}>Reset</button>
                 `
-              : nothing}
+                : nothing
+            }
           </div>
         </div>
 
         ${this.notice ? html`<div class=${noticeClass(this.notice.tone)} style="margin-top: 12px;">${this.notice.text}</div>` : nothing}
 
-        ${this.liveMode
-          ? nothing
-          : html`
+        ${
+          this.liveMode
+            ? nothing
+            : html`
               <section
                 class="grid"
                 style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin-top: 14px;"
@@ -1390,9 +1462,11 @@ class OpenClawConsentDemoElement extends LitElement {
                 <div class="row" style="justify-content: space-between;">
                   <div class="muted">Containment score ${this.anomalyScore.toFixed(3)} / ${THRESHOLD}</div>
                   <div class="muted">
-                    ${this.isQuarantined()
-                      ? `Quarantine active (${left}s left, reason: ${this.quarantineReason})`
-                      : `Window ops ${this.windowOps}/${MAX_OPS}`}
+                    ${
+                      this.isQuarantined()
+                        ? `Quarantine active (${left}s left, reason: ${this.quarantineReason})`
+                        : `Window ops ${this.windowOps}/${MAX_OPS}`
+                    }
                   </div>
                 </div>
                 <div style="height: 8px; border-radius: 999px; background: var(--secondary); margin-top: 6px; overflow: hidden;">
@@ -1401,12 +1475,14 @@ class OpenClawConsentDemoElement extends LitElement {
                   ></div>
                 </div>
               </div>
-            `}
+            `
+        }
       </section>
 
-      ${this.liveMode
-        ? this.renderLiveView()
-        : html`
+      ${
+        this.liveMode
+          ? this.renderLiveView()
+          : html`
             <section
               style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 16px;"
             >
@@ -1439,8 +1515,8 @@ class OpenClawConsentDemoElement extends LitElement {
                 ${this.renderWal()} ${this.renderTokenRegistry()}
               </div>
             </section>
-          `}
+          `
+      }
     `;
   }
 }
-
