@@ -309,7 +309,10 @@ export function resolveHeartbeatDeliveryTarget(params: {
     to: resolved.to,
     reason,
     accountId: effectiveAccountId,
-    threadId: resolvedTarget.threadId,
+    // Only use threadId when explicitly configured (e.g. Telegram :topic: syntax).
+    // Session-inherited lastThreadId should NOT leak into proactive heartbeat sends —
+    // otherwise heartbeat messages thread into whatever conversation was last active.
+    threadId: resolvedTarget.threadIdExplicit ? resolvedTarget.threadId : undefined,
     lastChannel: resolvedTarget.lastChannel,
     lastAccountId: resolvedTarget.lastAccountId,
   };
