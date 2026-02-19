@@ -5,6 +5,8 @@ import {
   resolveConsentGateApi,
   resolveConsentGatedTools,
 } from "../../consent/resolve.js";
+import { CONSENT_REASON } from "../../consent/reason-codes.js";
+import { buildConsentDenyPayload } from "../../consent/deny-payload.js";
 import { listDevicePairing } from "../../infra/device-pairing.js";
 import {
   approveNodePairing,
@@ -514,18 +516,26 @@ export const nodeHandlers: GatewayRequestHandlers = {
       const gatedTools = resolveConsentGatedTools(cfg);
       let consentEnvelope: { jti: string; consumedAtMs: number; expiresAtMs: number; sessionKey: string } | null = null;
       if (gatedTools.has(command)) {
-        const rawParams = (p.params && typeof p.params === "object" ? p.params : {}) as Record<string, unknown>;
-        const sessionKey = typeof rawParams.sessionKey === "string" && rawParams.sessionKey.trim()
-          ? rawParams.sessionKey.trim()
-          : "node";
-        const consentTokenJti = typeof rawParams.consentToken === "string" && rawParams.consentToken.trim()
-          ? rawParams.consentToken.trim()
-          : undefined;
+        const rawParams =
+          p.params && typeof p.params === "object" ? (p.params as Record<string, unknown>) : {};
+        const sessionKey =
+          typeof rawParams.sessionKey === "string" && rawParams.sessionKey.trim()
+            ? rawParams.sessionKey.trim()
+            : "node";
+        const trustTier =
+          typeof rawParams.consentTrustTier === "string" && rawParams.consentTrustTier.trim()
+            ? rawParams.consentTrustTier.trim()
+            : "T0";
+        const consentTokenJti =
+          typeof rawParams.consentToken === "string" && rawParams.consentToken.trim()
+            ? rawParams.consentToken.trim()
+            : undefined;
         const contextHash = createHash("sha256")
           .update(
             JSON.stringify({
               tool: command,
               sessionKey,
+              nodeId,
               params: Object.keys(rawParams)
                 .filter((k) => k !== "consentToken")
                 .sort()
@@ -542,7 +552,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
           const consumeInput = {
             jti: consentTokenJti ?? "",
             tool: command,
-            trustTier: "T0",
+            trustTier,
             sessionKey,
             contextHash,
             correlationId,
@@ -554,11 +564,19 @@ export const nodeHandlers: GatewayRequestHandlers = {
           } else {
             const result = await consentApi.consume(consumeInput);
             if (!result.allowed) {
+              const deny = buildConsentDenyPayload({
+                reasonCode: result.reasonCode,
+                correlationId: result.correlationId ?? correlationId,
+                tool: command,
+                sessionKey,
+                trustTier,
+                jti: consentTokenJti ?? null,
+              });
               respond(
                 false,
                 undefined,
                 errorShape(ErrorCodes.INVALID_REQUEST, "Consent required for this node command", {
-                  details: { reasonCode: result.reasonCode, command },
+                  details: { ...deny, command },
                 }),
               );
               return;
@@ -572,11 +590,19 @@ export const nodeHandlers: GatewayRequestHandlers = {
             };
           }
         } catch (err) {
+          const deny = buildConsentDenyPayload({
+            reasonCode: CONSENT_REASON.UNAVAILABLE,
+            correlationId,
+            tool: command,
+            sessionKey,
+            trustTier,
+            jti: consentTokenJti ?? null,
+          });
           respond(
             false,
             undefined,
             errorShape(ErrorCodes.UNAVAILABLE, "Consent check unavailable", {
-              details: { reasonCode: "CONSENT_UNAVAILABLE", command },
+              details: { ...deny, command },
             }),
           );
           return;

@@ -39,6 +39,8 @@ import {
   resolveConsentGateApi,
   resolveConsentGatedTools,
 } from "../consent/resolve.js";
+import { CONSENT_REASON } from "../consent/reason-codes.js";
+import { buildConsentDenyPayload } from "../consent/deny-payload.js";
 
 const DEFAULT_BODY_BYTES = 2 * 1024 * 1024;
 const MEMORY_TOOL_NAMES = new Set(["memory_search", "memory_get"]);
@@ -315,6 +317,8 @@ export async function handleToolsInvokeHttpRequest(
         JSON.stringify({
           tool: toolName,
           sessionKey,
+          messageChannel: messageChannel ?? null,
+          accountId: accountId ?? null,
           args: Object.keys(args)
             .sort()
             .reduce<Record<string, unknown>>((acc, k) => {
@@ -340,31 +344,45 @@ export async function handleToolsInvokeHttpRequest(
       if (observeOnly) {
         await consentApi.evaluate(consumeInput);
       } else {
-        const result = await consentApi.consume(consumeInput);
-        if (!result.allowed) {
-          sendJson(res, 403, {
-            ok: false,
-            error: {
-              type: "consent_denied",
+          const result = await consentApi.consume(consumeInput);
+          if (!result.allowed) {
+            const deny = buildConsentDenyPayload({
               reasonCode: result.reasonCode,
-              message: "Consent required for this tool; token missing, invalid, or already used.",
-            },
-          });
-          return true;
+              correlationId: result.correlationId ?? correlationId,
+              tool: toolName,
+              sessionKey,
+              trustTier: consumeInput.trustTier,
+              jti: consentTokenJti ?? null,
+            });
+            sendJson(res, 403, {
+              ok: false,
+              error: {
+                type: "consent_denied",
+                ...deny,
+              },
+            });
+            return true;
+          }
         }
+      } catch (err) {
+        logWarn(`ConsentGate error for ${toolName}: ${String(err)}`);
+        const deny = buildConsentDenyPayload({
+          reasonCode: CONSENT_REASON.UNAVAILABLE,
+          correlationId,
+          tool: toolName,
+          sessionKey,
+          trustTier: "T0",
+          jti: consentTokenJti ?? null,
+        });
+        sendJson(res, 503, {
+          ok: false,
+          error: {
+            type: "consent_denied",
+            ...deny,
+          },
+        });
+        return true;
       }
-    } catch (err) {
-      logWarn(`ConsentGate error for ${toolName}: ${String(err)}`);
-      sendJson(res, 503, {
-        ok: false,
-        error: {
-          type: "consent_denied",
-          reasonCode: "CONSENT_UNAVAILABLE",
-          message: "Consent check unavailable; request denied (fail closed).",
-        },
-      });
-      return true;
-    }
   }
 
   try {

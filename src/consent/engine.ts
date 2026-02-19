@@ -14,7 +14,7 @@ import type {
 import type { ConsentGateApi } from "./api.js";
 import type { TokenStore } from "./store.js";
 import type { WalWriter } from "./wal.js";
-import { CONSENT_REASON } from "./reason-codes.js";
+import { CONSENT_REASON, getConsentReasonMessage } from "./reason-codes.js";
 import { buildToken } from "./store.js";
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -26,6 +26,15 @@ export type ConsentEngineDeps = {
   /** Optional: sessionKeys or tenantIds in this set are quarantined (no issue/consume). */
   quarantine?: Set<string>;
 };
+
+function deny(reasonCode: string, correlationId: string): ConsentConsumeResult {
+  return {
+    allowed: false,
+    reasonCode,
+    message: getConsentReasonMessage(reasonCode),
+    correlationId,
+  };
+}
 
 export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
   const { store, wal, policyVersion, quarantine } = deps;
@@ -86,6 +95,7 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
     },
 
     async consume(input: ConsentConsumeInput): Promise<ConsentConsumeResult> {
+      const correlationId = input.correlationId ?? "";
       if (isQuarantined(input.sessionKey, input.tenantId)) {
         wal.append({
           type: "CONTAINMENT_QUARANTINE",
@@ -95,11 +105,26 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: CONSENT_REASON.CONTAINMENT_QUARANTINE,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: CONSENT_REASON.CONTAINMENT_QUARANTINE };
+        return deny(CONSENT_REASON.CONTAINMENT_QUARANTINE, correlationId);
+      }
+      if (!input.jti) {
+        wal.append({
+          type: "CONSENT_DENIED",
+          jti: null,
+          tool: input.tool,
+          sessionKey: input.sessionKey,
+          trustTier: input.trustTier,
+          decision: "deny",
+          reasonCode: CONSENT_REASON.NO_TOKEN,
+          correlationId,
+          actor: input.actor ?? {},
+          tenantId: input.tenantId ?? "",
+        });
+        return deny(CONSENT_REASON.NO_TOKEN, correlationId);
       }
       const token = store.get(input.jti);
       if (!token) {
@@ -111,11 +136,11 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: CONSENT_REASON.TOKEN_NOT_FOUND,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: CONSENT_REASON.TOKEN_NOT_FOUND };
+        return deny(CONSENT_REASON.TOKEN_NOT_FOUND, correlationId);
       }
       if (token.status !== "issued") {
         const reason =
@@ -132,11 +157,11 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: reason,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: reason };
+        return deny(reason, correlationId);
       }
       const now = Date.now();
       if (token.expiresAt < now) {
@@ -149,11 +174,11 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: CONSENT_REASON.TOKEN_EXPIRED,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: CONSENT_REASON.TOKEN_EXPIRED };
+        return deny(CONSENT_REASON.TOKEN_EXPIRED, correlationId);
       }
       if (token.tool !== input.tool) {
         wal.append({
@@ -164,11 +189,11 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: CONSENT_REASON.TOOL_MISMATCH,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: CONSENT_REASON.TOOL_MISMATCH };
+        return deny(CONSENT_REASON.TOOL_MISMATCH, correlationId);
       }
       if (token.sessionKey !== input.sessionKey) {
         wal.append({
@@ -179,11 +204,11 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: CONSENT_REASON.SESSION_MISMATCH,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: CONSENT_REASON.SESSION_MISMATCH };
+        return deny(CONSENT_REASON.SESSION_MISMATCH, correlationId);
       }
       if (token.contextHash !== input.contextHash) {
         wal.append({
@@ -194,11 +219,11 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: CONSENT_REASON.CONTEXT_MISMATCH,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: CONSENT_REASON.CONTEXT_MISMATCH };
+        return deny(CONSENT_REASON.CONTEXT_MISMATCH, correlationId);
       }
       if (token.trustTier !== input.trustTier) {
         wal.append({
@@ -209,11 +234,11 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: CONSENT_REASON.TIER_VIOLATION,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: CONSENT_REASON.TIER_VIOLATION };
+        return deny(CONSENT_REASON.TIER_VIOLATION, correlationId);
       }
       if (token.policyVersion !== policyVersion) {
         wal.append({
@@ -224,11 +249,11 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: CONSENT_REASON.POLICY_VERSION_MISMATCH,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: CONSENT_REASON.POLICY_VERSION_MISMATCH };
+        return deny(CONSENT_REASON.POLICY_VERSION_MISMATCH, correlationId);
       }
       const consumed = store.transition(input.jti, "consumed");
       if (!consumed) {
@@ -240,11 +265,11 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
           trustTier: input.trustTier,
           decision: "deny",
           reasonCode: CONSENT_REASON.TOKEN_ALREADY_CONSUMED,
-          correlationId: input.correlationId ?? "",
+          correlationId,
           actor: input.actor ?? {},
           tenantId: input.tenantId ?? "",
         });
-        return { allowed: false, reasonCode: CONSENT_REASON.TOKEN_ALREADY_CONSUMED };
+        return deny(CONSENT_REASON.TOKEN_ALREADY_CONSUMED, correlationId);
       }
       wal.append({
         type: "CONSENT_CONSUMED",
@@ -254,7 +279,7 @@ export function createConsentEngine(deps: ConsentEngineDeps): ConsentGateApi {
         trustTier: input.trustTier,
         decision: "allow",
         reasonCode: CONSENT_REASON.ALLOWED,
-        correlationId: input.correlationId ?? "",
+        correlationId,
         actor: input.actor ?? {},
         tenantId: input.tenantId ?? "",
       });
@@ -311,6 +336,7 @@ async function evaluateOnly(
   quarantine: Set<string> | undefined,
   input: ConsentConsumeInput,
 ): Promise<ConsentConsumeResult> {
+  const correlationId = input.correlationId ?? "";
   const isQuarantined = (sessionKey: string, tenantId?: string): boolean => {
     if (!quarantine?.size) return false;
     return quarantine.has(sessionKey) || (tenantId != null && tenantId !== "" && quarantine.has(tenantId));
@@ -324,11 +350,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: CONSENT_REASON.CONTAINMENT_QUARANTINE,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: CONSENT_REASON.CONTAINMENT_QUARANTINE };
+    return deny(CONSENT_REASON.CONTAINMENT_QUARANTINE, correlationId);
   }
   if (!input.jti) {
     wal.append({
@@ -339,11 +365,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: CONSENT_REASON.NO_TOKEN,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: CONSENT_REASON.NO_TOKEN };
+    return deny(CONSENT_REASON.NO_TOKEN, correlationId);
   }
   const token = store.get(input.jti);
   if (!token) {
@@ -355,11 +381,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: CONSENT_REASON.TOKEN_NOT_FOUND,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: CONSENT_REASON.TOKEN_NOT_FOUND };
+    return deny(CONSENT_REASON.TOKEN_NOT_FOUND, correlationId);
   }
   if (token.status !== "issued") {
     const reason =
@@ -376,11 +402,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: reason,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: reason };
+    return deny(reason, correlationId);
   }
   const now = Date.now();
   if (token.expiresAt < now) {
@@ -392,11 +418,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: CONSENT_REASON.TOKEN_EXPIRED,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: CONSENT_REASON.TOKEN_EXPIRED };
+    return deny(CONSENT_REASON.TOKEN_EXPIRED, correlationId);
   }
   if (token.tool !== input.tool) {
     wal.append({
@@ -407,11 +433,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: CONSENT_REASON.TOOL_MISMATCH,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: CONSENT_REASON.TOOL_MISMATCH };
+    return deny(CONSENT_REASON.TOOL_MISMATCH, correlationId);
   }
   if (token.sessionKey !== input.sessionKey) {
     wal.append({
@@ -422,11 +448,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: CONSENT_REASON.SESSION_MISMATCH,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: CONSENT_REASON.SESSION_MISMATCH };
+    return deny(CONSENT_REASON.SESSION_MISMATCH, correlationId);
   }
   if (token.contextHash !== input.contextHash) {
     wal.append({
@@ -437,11 +463,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: CONSENT_REASON.CONTEXT_MISMATCH,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: CONSENT_REASON.CONTEXT_MISMATCH };
+    return deny(CONSENT_REASON.CONTEXT_MISMATCH, correlationId);
   }
   if (token.trustTier !== input.trustTier) {
     wal.append({
@@ -452,11 +478,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: CONSENT_REASON.TIER_VIOLATION,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: CONSENT_REASON.TIER_VIOLATION };
+    return deny(CONSENT_REASON.TIER_VIOLATION, correlationId);
   }
   if (token.policyVersion !== policyVersion) {
     wal.append({
@@ -467,11 +493,11 @@ async function evaluateOnly(
       trustTier: input.trustTier,
       decision: "deny",
       reasonCode: CONSENT_REASON.POLICY_VERSION_MISMATCH,
-      correlationId: input.correlationId ?? "",
+      correlationId,
       actor: input.actor ?? {},
       tenantId: input.tenantId ?? "",
     });
-    return { allowed: false, reasonCode: CONSENT_REASON.POLICY_VERSION_MISMATCH };
+    return deny(CONSENT_REASON.POLICY_VERSION_MISMATCH, correlationId);
   }
   wal.append({
     type: "CONSENT_CONSUMED",
@@ -481,7 +507,7 @@ async function evaluateOnly(
     trustTier: input.trustTier,
     decision: "allow",
     reasonCode: CONSENT_REASON.ALLOWED,
-    correlationId: input.correlationId ?? "",
+    correlationId,
     actor: input.actor ?? {},
     tenantId: input.tenantId ?? "",
   });
@@ -505,7 +531,7 @@ function bulkRevokeInternal(
         sessionKey: token.sessionKey,
         trustTier: token.trustTier,
         decision: "deny",
-        reasonCode: "CONSENT_REVOKED",
+        reasonCode: CONSENT_REASON.TOKEN_REVOKED,
         correlationId: input.correlationId ?? "",
         actor: {},
         tenantId: token.tenantId ?? "",
@@ -523,7 +549,7 @@ function bulkRevokeInternal(
           sessionKey: t.sessionKey,
           trustTier: t.trustTier,
           decision: "deny",
-          reasonCode: "CASCADE_REVOKE",
+          reasonCode: CONSENT_REASON.TOKEN_REVOKED,
           correlationId: input.correlationId ?? "",
           actor: {},
           tenantId: t.tenantId ?? "",

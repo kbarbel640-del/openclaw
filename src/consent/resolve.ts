@@ -8,7 +8,7 @@ import type { ConsentGateApi } from "./api.js";
 import { createNoOpConsentGateApi } from "./api.js";
 import { createConsentEngine } from "./engine.js";
 import { createInMemoryTokenStore } from "./store.js";
-import { createInMemoryWal, createNoOpWal } from "./wal.js";
+import { createInMemoryWal } from "./wal.js";
 
 /** Default tool/command names that require consent when ConsentGate is enabled. */
 export const DEFAULT_CONSENT_GATED_TOOLS = [
