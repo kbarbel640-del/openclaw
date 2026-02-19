@@ -60,8 +60,8 @@ function extractTextContent(content: unknown): string {
         if (type === "text" && typeof text === "string") {
           return text;
         }
-        if (type === "input_text" && typeof text === "string") {
-          return text;
+        if (type === "input_text" && typeof inputText === "string") {
+          return inputText;
         }
         if (typeof inputText === "string") {
           return inputText;
