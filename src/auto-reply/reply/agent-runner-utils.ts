@@ -89,7 +89,7 @@ export const formatResponseUsageLine = (params: {
   }
   const input = usage.input;
   const output = usage.output;
-  if (typeof input !== "number" && typeof output !== "number") {
+  if (typeof input !== "number" || typeof output !== "number") {
     return null;
   }
   const inputLabel = typeof input === "number" ? formatTokenCount(input) : "?";
