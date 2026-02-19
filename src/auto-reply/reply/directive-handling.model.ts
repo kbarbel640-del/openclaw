@@ -198,6 +198,10 @@ export async function maybeHandleModelDirectiveInfo(params: {
   allowedModelCatalog: Array<{ provider: string; id?: string; name?: string }>;
   resetModelOverride: boolean;
   surface?: string;
+  agentModels?: Record<
+    string,
+    import("../../config/types.agent-defaults.js").AgentModelEntryConfig
+  >;
 }): Promise<ReplyPayload | undefined> {
   if (!params.directives.hasModelDirective) {
     return undefined;
@@ -228,6 +232,7 @@ export async function maybeHandleModelDirectiveInfo(params: {
     const reply = await resolveModelsCommandReply({
       cfg: params.cfg,
       commandBodyNormalized: "/models",
+      agentModels: params.agentModels,
     });
     return reply ?? { text: "No models available." };
   }

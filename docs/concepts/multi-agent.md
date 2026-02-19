@@ -534,3 +534,31 @@ If you need per-agent boundaries, use `agents.list[].tools` to deny `exec`.
 For group targeting, use `agents.list[].groupChat.mentionPatterns` so @mentions map cleanly to the intended agent.
 
 See [Multi-Agent Sandbox & Tools](/tools/multi-agent-sandbox-tools) for detailed examples.
+
+## Per-Agent Model Allowlist
+
+Each agent can restrict which models are available via `/model` and the Telegram
+model picker. Set `models` on the agent entry to override the global
+`agents.defaults.models` allowlist:
+
+```json
+{
+  "agents": {
+    "list": [
+      {
+        "id": "karl-jacob",
+        "model": { "primary": "anthropic/claude-opus-4-6" },
+        "models": {
+          "anthropic/claude-opus-4-6": { "alias": "Opus 4.6" },
+          "anthropic/claude-sonnet-4-6": { "alias": "Sonnet 4.6" }
+        }
+      }
+    ]
+  }
+}
+```
+
+When `models` is present, it **replaces** (not merges) the global allowlist for
+that agent. Agents without a `models` field continue to use the global catalog.
+
+See [Models CLI - Per-agent model allowlist](/concepts/models#per-agent-model-allowlist) for details.

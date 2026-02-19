@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
+import type { AgentModelEntryConfig } from "../config/types.agent-defaults.js";
 import { resolveAgentConfig, resolveAgentModelPrimary } from "./agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
 import type { ModelCatalogEntry } from "./model-catalog.js";
@@ -173,8 +174,13 @@ export function resolveAllowlistModelKey(raw: string, defaultProvider: string): 
 export function buildConfiguredAllowlistKeys(params: {
   cfg: OpenClawConfig | undefined;
   defaultProvider: string;
+  agentModels?: Record<string, AgentModelEntryConfig>;
 }): Set<string> | null {
-  const rawAllowlist = Object.keys(params.cfg?.agents?.defaults?.models ?? {});
+  const modelsSource =
+    params.agentModels && Object.keys(params.agentModels).length > 0
+      ? params.agentModels
+      : (params.cfg?.agents?.defaults?.models ?? {});
+  const rawAllowlist = Object.keys(modelsSource);
   if (rawAllowlist.length === 0) {
     return null;
   }
@@ -192,11 +198,15 @@ export function buildConfiguredAllowlistKeys(params: {
 export function buildModelAliasIndex(params: {
   cfg: OpenClawConfig;
   defaultProvider: string;
+  agentModels?: Record<string, AgentModelEntryConfig>;
 }): ModelAliasIndex {
   const byAlias = new Map<string, { alias: string; ref: ModelRef }>();
   const byKey = new Map<string, string[]>();
 
-  const rawModels = params.cfg.agents?.defaults?.models ?? {};
+  const rawModels =
+    params.agentModels && Object.keys(params.agentModels).length > 0
+      ? params.agentModels
+      : (params.cfg.agents?.defaults?.models ?? {});
   for (const [keyRaw, entryRaw] of Object.entries(rawModels)) {
     const parsed = parseModelRef(String(keyRaw ?? ""), params.defaultProvider);
     if (!parsed) {
@@ -353,13 +363,17 @@ export function buildAllowedModelSet(params: {
   catalog: ModelCatalogEntry[];
   defaultProvider: string;
   defaultModel?: string;
+  agentModels?: Record<string, AgentModelEntryConfig>;
 }): {
   allowAny: boolean;
   allowedCatalog: ModelCatalogEntry[];
   allowedKeys: Set<string>;
 } {
   const rawAllowlist = (() => {
-    const modelMap = params.cfg.agents?.defaults?.models ?? {};
+    const modelMap =
+      params.agentModels && Object.keys(params.agentModels).length > 0
+        ? params.agentModels
+        : (params.cfg.agents?.defaults?.models ?? {});
     return Object.keys(modelMap);
   })();
   const allowAny = rawAllowlist.length === 0;
@@ -437,12 +451,14 @@ export function getModelRefStatus(params: {
   ref: ModelRef;
   defaultProvider: string;
   defaultModel?: string;
+  agentModels?: Record<string, AgentModelEntryConfig>;
 }): ModelRefStatus {
   const allowed = buildAllowedModelSet({
     cfg: params.cfg,
     catalog: params.catalog,
     defaultProvider: params.defaultProvider,
     defaultModel: params.defaultModel,
+    agentModels: params.agentModels,
   });
   const key = modelKey(params.ref.provider, params.ref.model);
   return {
@@ -459,6 +475,7 @@ export function resolveAllowedModelRef(params: {
   raw: string;
   defaultProvider: string;
   defaultModel?: string;
+  agentModels?: Record<string, AgentModelEntryConfig>;
 }):
   | { ref: ModelRef; key: string }
   | {
@@ -472,6 +489,7 @@ export function resolveAllowedModelRef(params: {
   const aliasIndex = buildModelAliasIndex({
     cfg: params.cfg,
     defaultProvider: params.defaultProvider,
+    agentModels: params.agentModels,
   });
   const resolved = resolveModelRefFromString({
     raw: trimmed,
@@ -488,6 +506,7 @@ export function resolveAllowedModelRef(params: {
     ref: resolved.ref,
     defaultProvider: params.defaultProvider,
     defaultModel: params.defaultModel,
+    agentModels: params.agentModels,
   });
   if (!status.allowed) {
     return { error: `model not allowed: ${status.key}` };

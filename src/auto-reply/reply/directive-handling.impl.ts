@@ -93,6 +93,7 @@ export async function handleDirectiveOnly(
   }).sandboxed;
   const shouldHintDirectRuntime = directives.hasElevatedDirective && !runtimeIsSandboxed;
 
+  const agentModels = resolveAgentConfig(params.cfg, activeAgentId)?.models;
   const modelInfo = await maybeHandleModelDirectiveInfo({
     directives,
     cfg: params.cfg,
@@ -106,6 +107,7 @@ export async function handleDirectiveOnly(
     allowedModelCatalog,
     resetModelOverride,
     surface: params.surface,
+    agentModels,
   });
   if (modelInfo) {
     return modelInfo;

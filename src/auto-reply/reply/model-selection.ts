@@ -12,6 +12,7 @@ import {
 } from "../../agents/model-selection.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry, updateSessionStore } from "../../config/sessions.js";
+import type { AgentModelEntryConfig } from "../../config/types.agent-defaults.js";
 import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
 import { resolveThreadParentSessionKey } from "../../sessions/session-key-utils.js";
 import type { ThinkLevel } from "./directives.js";
@@ -274,6 +275,8 @@ export async function createModelSelectionState(params: {
   /** True when heartbeat.model was explicitly resolved for this run.
    *  In that case, skip session-stored overrides so the heartbeat selection wins. */
   hasResolvedHeartbeatModelOverride?: boolean;
+  /** Per-agent model allowlist (replaces global when present). */
+  agentModels?: Record<string, AgentModelEntryConfig>;
 }): Promise<ModelSelectionState> {
   const {
     cfg,
@@ -290,7 +293,10 @@ export async function createModelSelectionState(params: {
   let provider = params.provider;
   let model = params.model;
 
-  const hasAllowlist = agentCfg?.models && Object.keys(agentCfg.models).length > 0;
+  const agentModels = params.agentModels;
+  const hasAgentModels = agentModels && Object.keys(agentModels).length > 0;
+  const hasAllowlist =
+    hasAgentModels || (agentCfg?.models && Object.keys(agentCfg.models).length > 0);
   const initialStoredOverride = resolveStoredModelOverride({
     sessionEntry,
     sessionStore,
@@ -312,6 +318,7 @@ export async function createModelSelectionState(params: {
       catalog: modelCatalog,
       defaultProvider,
       defaultModel,
+      agentModels,
     });
     allowedModelCatalog = allowed.allowedCatalog;
     allowedModelKeys = allowed.allowedKeys;

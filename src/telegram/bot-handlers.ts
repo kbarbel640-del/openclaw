@@ -1,5 +1,5 @@
 import type { Message, ReactionTypeEmoji } from "@grammyjs/types";
-import { resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { resolveAgentConfig, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { hasControlCommand } from "../auto-reply/command-detection.js";
 import {
   createInboundDebouncer,
@@ -874,7 +874,24 @@ export const registerTelegramHandlers = ({
       // Model selection callback handler (mdl_prov, mdl_list_*, mdl_sel_*, mdl_back)
       const modelCallback = parseModelCallbackData(data);
       if (modelCallback) {
-        const modelData = await buildModelsProviderData(cfg);
+        // Resolve per-agent model allowlist for the current chat's routed agent.
+        const callbackPeerId = isGroup
+          ? buildTelegramGroupPeerId(chatId, resolvedThreadId)
+          : String(chatId);
+        const callbackParentPeer = buildTelegramParentPeer({
+          isGroup,
+          resolvedThreadId,
+          chatId,
+        });
+        const callbackRoute = resolveAgentRoute({
+          cfg,
+          channel: "telegram",
+          accountId,
+          peer: { kind: isGroup ? "group" : "direct", id: callbackPeerId },
+          parentPeer: callbackParentPeer,
+        });
+        const callbackAgentModels = resolveAgentConfig(cfg, callbackRoute.agentId)?.models;
+        const modelData = await buildModelsProviderData(cfg, callbackAgentModels);
         const { byProvider, providers } = modelData;
 
         const editMessageWithButtons = async (
