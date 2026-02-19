@@ -36,14 +36,16 @@ export function resolveSkillConfig(
 }
 
 function normalizeAllowlist(input: unknown): string[] | undefined {
-  if (!input) {
+  if (input === undefined || input === null) {
     return undefined;
   }
   if (!Array.isArray(input)) {
     return undefined;
   }
   const normalized = input.map((entry) => String(entry).trim()).filter(Boolean);
-  return normalized.length > 0 ? normalized : undefined;
+  // 关键：如果用户明确配置了数组（包括空数组），就返回它
+  // 这样 allowedAgents: [] 会被正确地解释为"不允许任何 agent"
+  return normalized;
 }
 
 const BUNDLED_SOURCES = new Set(["openclaw-bundled"]);
@@ -84,7 +86,7 @@ export function shouldIncludeSkill(params: {
   }
   // Check agent-level allowlist
   const allowedAgents = normalizeAllowlist(skillConfig?.allowedAgents);
-  if (allowedAgents && allowedAgents.length > 0) {
+  if (allowedAgents !== undefined) {
     const agentId = eligibility?.agentId;
     if (!agentId || !allowedAgents.includes(agentId)) {
       return false;

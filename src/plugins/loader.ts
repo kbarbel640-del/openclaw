@@ -284,7 +284,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
     const entry = normalized.entries[pluginId];
     // Check agent-level allowlist for plugins
     const allowedAgents = entry?.allowedAgents;
-    if (allowedAgents && allowedAgents.length > 0) {
+    if (allowedAgents !== undefined) {
       const agentId = options.agentId;
       if (!agentId || !allowedAgents.includes(agentId)) {
         enableState.enabled = false;
