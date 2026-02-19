@@ -398,8 +398,8 @@ export type ToolsConfig = {
     search?: {
       /** Enable web search tool (default: true when API key is present). */
       enabled?: boolean;
-      /** Search provider ("brave", "perplexity", or "grok"). */
-      provider?: "brave" | "perplexity" | "grok";
+      /** Search provider ("brave", "perplexity", "grok", or "linkup"). */
+      provider?: "brave" | "perplexity" | "grok" | "linkup";
       /** Brave Search API key (optional; defaults to BRAVE_API_KEY env var). */
       apiKey?: string;
       /** Default search results count (1-10). */
@@ -425,6 +425,17 @@ export type ToolsConfig = {
         model?: string;
         /** Include inline citations in response text as markdown links (default: false). */
         inlineCitations?: boolean;
+      };
+      /** Linkup-specific configuration (used when provider="linkup"). */
+      linkup?: {
+        /** API key for Linkup (defaults to LINKUP_API_KEY env var). */
+        apiKey?: string;
+        /** Search depth: "standard" (fast, 1 credit) or "deep" (thorough, 10 credits). Default: "standard". */
+        depth?: "standard" | "deep";
+        /** Output type: "sourcedAnswer" returns an AI-synthesized answer with citations; "searchResults" returns raw results like Brave. Default: "sourcedAnswer". */
+        outputType?: "sourcedAnswer" | "searchResults";
+        /** Base URL for Linkup API (defaults to "https://api.linkup.so/v1"). */
+        baseUrl?: string;
       };
     };
     fetch?: {
