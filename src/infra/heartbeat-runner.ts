@@ -49,6 +49,7 @@ import {
   isExecCompletionEvent,
 } from "./heartbeat-events-filter.js";
 import { emitHeartbeatEvent, resolveIndicatorType } from "./heartbeat-events.js";
+import { resolveHeartbeatReasonKind } from "./heartbeat-reason.js";
 import { resolveHeartbeatVisibility } from "./heartbeat-visibility.js";
 import {
   type HeartbeatRunResult,
@@ -491,10 +492,11 @@ type HeartbeatPreflight = HeartbeatReasonFlags & {
 };
 
 function resolveHeartbeatReasonFlags(reason?: string): HeartbeatReasonFlags {
+  const reasonKind = resolveHeartbeatReasonKind(reason);
   return {
-    isExecEventReason: reason === "exec-event",
-    isCronEventReason: Boolean(reason?.startsWith("cron:")),
-    isWakeReason: reason === "wake" || Boolean(reason?.startsWith("hook:")),
+    isExecEventReason: reasonKind === "exec-event",
+    isCronEventReason: reasonKind === "cron",
+    isWakeReason: reasonKind === "wake" || reasonKind === "hook",
   };
 }
 
