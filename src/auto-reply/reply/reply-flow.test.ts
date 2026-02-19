@@ -604,6 +604,7 @@ function createRun(params: {
   originatingTo?: string;
   originatingAccountId?: string;
   originatingThreadId?: string | number;
+  messageProvider?: string;
 }): FollowupRun {
   return {
     prompt: params.prompt,
@@ -620,6 +621,7 @@ function createRun(params: {
       sessionFile: "/tmp/session.json",
       workspaceDir: "/tmp",
       config: {} as OpenClawConfig,
+      messageProvider: params.messageProvider,
       provider: "openai",
       model: "gpt-test",
       timeoutMs: 10_000,
@@ -806,6 +808,47 @@ describe("followup queue deduplication", () => {
 });
 
 describe("followup queue collect routing", () => {
+  it("does not collect when routing metadata is missing for routable providers", async () => {
+    const key = `test-collect-missing-routing-meta-${Date.now()}`;
+    const calls: FollowupRun[] = [];
+    const done = createDeferred<void>();
+    const expectedCalls = 2;
+    const runFollowup = async (run: FollowupRun) => {
+      calls.push(run);
+      if (calls.length >= expectedCalls) {
+        done.resolve();
+      }
+    };
+    const settings: QueueSettings = {
+      mode: "collect",
+      debounceMs: 0,
+      cap: 50,
+      dropPolicy: "summarize",
+    };
+
+    enqueueFollowupRun(
+      key,
+      createRun({
+        prompt: "one",
+        messageProvider: "whatsapp",
+      }),
+      settings,
+    );
+    enqueueFollowupRun(
+      key,
+      createRun({
+        prompt: "two",
+        messageProvider: "whatsapp",
+      }),
+      settings,
+    );
+
+    scheduleFollowupDrain(key, runFollowup);
+    await done.promise;
+    expect(calls[0]?.prompt).toBe("one");
+    expect(calls[1]?.prompt).toBe("two");
+  });
+
   it("does not collect when destinations differ", async () => {
     const key = `test-collect-diff-to-${Date.now()}`;
     const calls: FollowupRun[] = [];
