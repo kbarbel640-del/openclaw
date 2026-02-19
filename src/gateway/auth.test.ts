@@ -130,6 +130,25 @@ describe("gateway auth", () => {
     expect(res.method).toBe("none");
   });
 
+  it("keeps none mode authoritative even when token is present", async () => {
+    const auth = resolveGatewayAuth({
+      authConfig: { mode: "none", token: "configured-token" },
+      env: {} as NodeJS.ProcessEnv,
+    });
+    expect(auth).toMatchObject({
+      mode: "none",
+      modeSource: "config",
+      token: "configured-token",
+    });
+
+    const res = await authorizeGatewayConnect({
+      auth,
+      connectAuth: null,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.method).toBe("none");
+  });
+
   it("reports missing and mismatched password reasons", async () => {
     const missing = await authorizeGatewayConnect({
       auth: { mode: "password", password: "secret", allowTailscale: false },
