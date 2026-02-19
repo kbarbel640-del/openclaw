@@ -8,7 +8,7 @@ export type ModelCatalogEntry = {
   provider: string;
   contextWindow?: number;
   reasoning?: boolean;
-  input?: Array<"text" | "image">;
+  input?: Array<"text" | "image" | "video" | "audio">;
 };
 
 type DiscoveredModel = {
@@ -17,7 +17,7 @@ type DiscoveredModel = {
   provider: string;
   contextWindow?: number;
   reasoning?: boolean;
-  input?: Array<"text" | "image">;
+  input?: Array<"text" | "image" | "video" | "audio">;
 };
 
 type PiSdkModule = typeof import("./pi-model-discovery.js");
@@ -169,6 +169,20 @@ export async function loadModelCatalog(params?: {
  */
 export function modelSupportsVision(entry: ModelCatalogEntry | undefined): boolean {
   return entry?.input?.includes("image") ?? false;
+}
+
+/**
+ * Check if a model supports video input based on its catalog entry.
+ */
+export function modelSupportsVideo(entry: ModelCatalogEntry | undefined): boolean {
+  return entry?.input?.includes("video") ?? false;
+}
+
+/**
+ * Check if a model supports audio input based on its catalog entry.
+ */
+export function modelSupportsAudio(entry: ModelCatalogEntry | undefined): boolean {
+  return entry?.input?.includes("audio") ?? false;
 }
 
 /**

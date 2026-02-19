@@ -98,14 +98,27 @@ function normalizeCreatedAtMs(value: unknown): number | null {
   return Math.round(value * 1000);
 }
 
-function parseModality(modality: string | null): Array<"text" | "image"> {
+function parseModality(modality: string | null): Array<"text" | "image" | "video" | "audio"> {
   if (!modality) {
     return ["text"];
   }
-  const normalized = modality.toLowerCase();
-  const parts = normalized.split(/[^a-z]+/).filter(Boolean);
-  const hasImage = parts.includes("image");
-  return hasImage ? ["text", "image"] : ["text"];
+  const parts = new Set(
+    modality
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .filter(Boolean),
+  );
+  const result: Array<"text" | "image" | "video" | "audio"> = ["text"];
+  if (parts.has("image")) {
+    result.push("image");
+  }
+  if (parts.has("video")) {
+    result.push("video");
+  }
+  if (parts.has("audio")) {
+    result.push("audio");
+  }
+  return result;
 }
 
 function parseNumberString(value: unknown): number | null {
@@ -467,7 +480,7 @@ export async function scanOpenRouterModels(
         name: entry.name || entry.id,
         contextWindow: entry.contextLength ?? baseModel.contextWindow,
         maxTokens: entry.maxCompletionTokens ?? baseModel.maxTokens,
-        input: parseModality(entry.modality),
+        input: parseModality(entry.modality) as ("text" | "image")[],
         reasoning: baseModel.reasoning,
       };
 

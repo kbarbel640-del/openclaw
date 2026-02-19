@@ -6,6 +6,8 @@ import { resolveApiKeyForProvider } from "../agents/model-auth.js";
 import {
   findModelInCatalog,
   loadModelCatalog,
+  modelSupportsAudio,
+  modelSupportsVideo,
   modelSupportsVision,
 } from "../agents/model-catalog.js";
 import type { MsgContext } from "../auto-reply/templating.js";
@@ -695,6 +697,74 @@ export async function runCapability(params: {
       }
       const model = params.activeModel?.model?.trim();
       const reason = "primary model supports vision natively";
+      return {
+        outputs: [],
+        decision: {
+          capability,
+          outcome: "skipped",
+          attachments: selected.map((item) => {
+            const attempt = {
+              type: "provider" as const,
+              provider: activeProvider,
+              model: model || undefined,
+              outcome: "skipped" as const,
+              reason,
+            };
+            return {
+              attachmentIndex: item.index,
+              attempts: [attempt],
+              chosen: attempt,
+            };
+          }),
+        },
+      };
+    }
+  }
+
+  // Skip video understanding when the primary model supports video natively.
+  if (capability === "video" && activeProvider) {
+    const catalog = await loadModelCatalog({ config: cfg });
+    const entry = findModelInCatalog(catalog, activeProvider, params.activeModel?.model ?? "");
+    if (modelSupportsVideo(entry)) {
+      if (shouldLogVerbose()) {
+        logVerbose("Skipping video understanding: primary model supports video natively");
+      }
+      const model = params.activeModel?.model?.trim();
+      const reason = "primary model supports video natively";
+      return {
+        outputs: [],
+        decision: {
+          capability,
+          outcome: "skipped",
+          attachments: selected.map((item) => {
+            const attempt = {
+              type: "provider" as const,
+              provider: activeProvider,
+              model: model || undefined,
+              outcome: "skipped" as const,
+              reason,
+            };
+            return {
+              attachmentIndex: item.index,
+              attempts: [attempt],
+              chosen: attempt,
+            };
+          }),
+        },
+      };
+    }
+  }
+
+  // Skip audio understanding when the primary model supports audio natively.
+  if (capability === "audio" && activeProvider) {
+    const catalog = await loadModelCatalog({ config: cfg });
+    const entry = findModelInCatalog(catalog, activeProvider, params.activeModel?.model ?? "");
+    if (modelSupportsAudio(entry)) {
+      if (shouldLogVerbose()) {
+        logVerbose("Skipping audio understanding: primary model supports audio natively");
+      }
+      const model = params.activeModel?.model?.trim();
+      const reason = "primary model supports audio natively";
       return {
         outputs: [],
         decision: {
