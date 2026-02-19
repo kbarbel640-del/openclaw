@@ -397,6 +397,7 @@ describe("sessions tools", () => {
         scope: "per-sender",
         agentToAgent: { maxPingPongTurns: 2 },
       },
+      tools: { sessions: { visibility: "all" } },
     });
     callGatewayMock.mockImplementation(async (opts: unknown) => {
       const request = opts as { method?: string };
