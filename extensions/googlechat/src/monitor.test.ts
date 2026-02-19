@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { GoogleChatAnnotation } from "./types.js";
 import { isSenderAllowed, extractMentionInfo } from "./monitor.js";
+import type { GoogleChatAnnotation } from "./types.js";
 
 describe("isSenderAllowed", () => {
   it("matches allowlist entries with raw email", () => {
