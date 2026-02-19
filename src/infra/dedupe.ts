@@ -25,7 +25,7 @@ export function createDedupeCache(options: DedupeCacheOptions): DedupeCache {
     const cutoff = ttlMs > 0 ? now - ttlMs : undefined;
     if (cutoff !== undefined) {
       for (const [entryKey, entryTs] of cache) {
-        if (entryTs < cutoff) {
+        if (entryTs <= cutoff) {
           cache.delete(entryKey);
         }
       }
