@@ -8,6 +8,7 @@ import { configHandlers } from "./server-methods/config.js";
 import { connectHandlers } from "./server-methods/connect.js";
 import { cronHandlers } from "./server-methods/cron.js";
 import { deviceHandlers } from "./server-methods/devices.js";
+import { evidenceHandlers } from "./server-methods/evidence.js";
 import { execApprovalsHandlers } from "./server-methods/exec-approvals.js";
 import { healthHandlers } from "./server-methods/health.js";
 import { logsHandlers } from "./server-methods/logs.js";
@@ -18,6 +19,7 @@ import { sessionsHandlers } from "./server-methods/sessions.js";
 import { skillsHandlers } from "./server-methods/skills.js";
 import { systemHandlers } from "./server-methods/system.js";
 import { talkHandlers } from "./server-methods/talk.js";
+import { todosHandlers } from "./server-methods/todos.js";
 import { ttsHandlers } from "./server-methods/tts.js";
 import type { GatewayRequestHandlers, GatewayRequestOptions } from "./server-methods/types.js";
 import { updateHandlers } from "./server-methods/update.js";
@@ -72,6 +74,8 @@ const READ_METHODS = new Set([
   "node.list",
   "node.describe",
   "chat.history",
+  "todos.list",
+  "evidence.status",
 ]);
 const WRITE_METHODS = new Set([
   "send",
@@ -88,6 +92,10 @@ const WRITE_METHODS = new Set([
   "chat.send",
   "chat.abort",
   "browser.request",
+  "todos.create",
+  "todos.update",
+  "todos.delete",
+  "evidence.run",
 ]);
 
 function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["client"]) {
@@ -168,6 +176,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...chatHandlers,
   ...cronHandlers,
   ...deviceHandlers,
+  ...evidenceHandlers,
   ...execApprovalsHandlers,
   ...webHandlers,
   ...modelsHandlers,
@@ -185,6 +194,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...agentHandlers,
   ...agentsHandlers,
   ...browserHandlers,
+  ...todosHandlers,
 };
 
 export async function handleGatewayRequest(
