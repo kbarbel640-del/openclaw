@@ -43,7 +43,10 @@ export function loadConstitution(config?: SecurityAlignmentConfig): Constitution
   if (config?.constitutionPath) {
     try {
       const customData = JSON.parse(fs.readFileSync(config.constitutionPath, "utf-8"));
-      basePrinciples = (customData.principles as ConstitutionPrinciple[]).map((p) => ({ ...p }));
+      basePrinciples = [
+        ...basePrinciples.filter((p) => p.immutable),
+        ...(customData.principles as ConstitutionPrinciple[]).map((p) => ({ ...p })),
+      ];
     } catch (error) {
       // Fall back to defaults if custom constitution cannot be loaded
     }
