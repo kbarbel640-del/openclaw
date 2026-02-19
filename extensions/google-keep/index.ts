@@ -3,12 +3,7 @@ import path from "node:path";
 import type { AnyAgentTool, OpenClawPluginApi, OpenClawPluginService } from "openclaw/plugin-sdk";
 import { KeepSession } from "./src/session.js";
 import { createKeepTool } from "./src/tool.js";
-
-type KeepPluginConfig = {
-  listUrl?: string;
-  profileDir?: string;
-  timeoutMs?: number;
-};
+import type { KeepPluginConfig } from "./src/types.js";
 
 export default function register(api: OpenClawPluginApi): void {
   const cfg = (api.pluginConfig ?? {}) as KeepPluginConfig;

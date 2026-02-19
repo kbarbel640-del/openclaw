@@ -3,11 +3,7 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { jsonResult } from "openclaw/plugin-sdk";
 import { extractUncheckedItems } from "./dom.js";
 import { isAuthUrl, KeepAuthError, type KeepSession } from "./session.js";
-
-type KeepPluginConfig = {
-  listUrl?: string;
-  timeoutMs?: number;
-};
+import type { KeepPluginConfig } from "./types.js";
 
 export function createKeepTool(api: OpenClawPluginApi, session: KeepSession) {
   return {
