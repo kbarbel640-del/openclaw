@@ -479,17 +479,21 @@ class OpenClawConsentDemoElement extends LitElement {
   @state() private quarantinedUntil = 0;
   @state() private quarantineReason: string | null = null;
   @state() private notice: Notice | null = null;
-  /** Live mode: show real gateway consent status from GET /api/consent/status (query param ?live=1). */
-  @state() private liveMode = false;
+  /** Live mode: show real gateway consent status from GET /api/consent/status. Defaults to true. */
+  @state() private liveMode = true;
   @state() private liveTokens: LiveTokenRow[] = [];
   @state() private liveEvents: LiveWalEventRow[] = [];
   @state() private liveQuarantinedSessionKeys: string[] = [];
   @state() private liveLoading = false;
   @state() private liveError: string | null = null;
+  @state() private liveMetrics: ConsentMetricsSnapshot | null = null;
+  @state() private autoRefresh = true;
+  @state() private refreshInterval = 5000; // 5 seconds
 
   private jtiCounter = 0;
   private idempotency = new Map<string, string>();
   private tickTimer: number | null = null;
+  private liveRefreshTimer: number | null = null;
 
   createRenderRoot() {
     return this;
@@ -498,21 +502,31 @@ class OpenClawConsentDemoElement extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-    this.liveMode = params.get("live") === "1";
+    // Default to live mode, allow ?demo=1 to force demo mode
+    this.liveMode = params.get("demo") !== "1";
     if (this.liveMode) {
       this.fetchLiveStatus();
+      this.startLiveRefresh();
     }
     this.syncTickTimer();
   }
 
   disconnectedCallback() {
     this.stopTickTimer();
+    this.stopLiveRefresh();
     super.disconnectedCallback();
   }
 
   protected updated(changed: Map<PropertyKey, unknown>) {
     if (changed.has("autoTick")) {
       this.syncTickTimer();
+    }
+    if (changed.has("liveMode") || changed.has("autoRefresh")) {
+      if (this.liveMode && this.autoRefresh) {
+        this.startLiveRefresh();
+      } else {
+        this.stopLiveRefresh();
+      }
     }
   }
 
@@ -536,23 +550,55 @@ class OpenClawConsentDemoElement extends LitElement {
     this.notice = { tone, text };
   }
 
+  private startLiveRefresh(): void {
+    this.stopLiveRefresh();
+    if (!this.liveMode || !this.autoRefresh) {
+      return;
+    }
+    this.liveRefreshTimer = window.setInterval(() => {
+      if (!this.liveLoading) {
+        this.fetchLiveStatus();
+      }
+    }, this.refreshInterval);
+  }
+
+  private stopLiveRefresh(): void {
+    if (this.liveRefreshTimer != null) {
+      window.clearInterval(this.liveRefreshTimer);
+      this.liveRefreshTimer = null;
+    }
+  }
+
   private async fetchLiveStatus(): Promise<void> {
     this.liveLoading = true;
     this.liveError = null;
     try {
-      const res = await fetch("/api/consent/status?limit=100", { credentials: "same-origin" });
-      if (!res.ok) {
-        const t = await res.text();
-        this.liveError = `Status ${res.status}: ${t.slice(0, 200)}`;
+      const [statusRes, metricsRes] = await Promise.all([
+        fetch("/api/consent/status?limit=100", { credentials: "same-origin" }),
+        fetch("/api/consent/metrics", { credentials: "same-origin" }).catch(() => null),
+      ]);
+      
+      if (!statusRes.ok) {
+        const t = await statusRes.text();
+        this.liveError = `Status ${statusRes.status}: ${t.slice(0, 200)}`;
         this.liveTokens = [];
         this.liveEvents = [];
         this.liveQuarantinedSessionKeys = [];
         return;
       }
-      const data = (await res.json()) as LiveStatusResponse;
+      
+      const data = (await statusRes.json()) as LiveStatusResponse;
       this.liveTokens = data.tokens ?? [];
       this.liveEvents = data.recentEvents ?? [];
       this.liveQuarantinedSessionKeys = data.quarantinedSessionKeys ?? [];
+      
+      if (metricsRes?.ok) {
+        try {
+          this.liveMetrics = (await metricsRes.json()) as ConsentMetricsSnapshot;
+        } catch {
+          // Ignore metrics errors
+        }
+      }
     } catch (e) {
       this.liveError = e instanceof Error ? e.message : String(e);
       this.liveTokens = [];
@@ -1053,13 +1099,32 @@ class OpenClawConsentDemoElement extends LitElement {
       <section class="card">
         <div class="card-title">ConsentGate (Live)</div>
         <div class="card-sub">
-          Real tokens and events from the gateway. Use ?live=1 in the URL to open in live mode.
+          Real-time consent tokens and events from the gateway. Use ?demo=1 to switch to demo mode.
         </div>
-        <div class="row" style="margin-top: 12px;">
+        <div class="row" style="margin-top: 12px; gap: 8px; flex-wrap: wrap;">
           <button class="btn primary" ?disabled=${this.liveLoading} @click=${() => this.fetchLiveStatus()}>
             ${this.liveLoading ? "Loading..." : "Refresh"}
           </button>
+          <label style="display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" .checked=${this.autoRefresh} @change=${(e: Event) => {
+              this.autoRefresh = (e.target as HTMLInputElement).checked;
+            }} />
+            Auto-refresh (${this.refreshInterval / 1000}s)
+          </label>
         </div>
+        ${
+          this.liveMetrics
+            ? html`
+                <div class="row" style="margin-top: 12px; gap: 16px; flex-wrap: wrap;">
+                  <div class="chip">Issued: ${this.liveMetrics.issues}</div>
+                  <div class="chip">Consumed: ${this.liveMetrics.consumes}</div>
+                  <div class="chip">Revoked: ${this.liveMetrics.revokes}</div>
+                  <div class="chip">Quarantined: ${this.liveMetrics.quarantine}</div>
+                  <div class="chip">Fail-closed: ${this.liveMetrics.failClosed}</div>
+                </div>
+              `
+            : nothing
+        }
         ${
           this.liveError
             ? html`<div class="callout danger" style="margin-top: 12px;">${this.liveError}</div>`

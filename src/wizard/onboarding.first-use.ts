@@ -28,6 +28,12 @@ export function generateFirstUseHelp(config: OpenClawConfig): FirstUseHelp {
       "  • Some models are enthusiastic explorers (like Claude) - great for finding possibilities",
       "  • Others are calm analysts (like Gemini) - great for providing context and caution",
       "  • You are the expert who synthesizes their inputs and makes decisions",
+      "",
+      "⚠️  Security First:",
+      "  • Configure pairing/allowlists for channels",
+      "  • Use gateway authentication (token or password)",
+      "  • Run security audits regularly",
+      "  • Keep secrets out of agent-accessible files",
     ],
   });
 

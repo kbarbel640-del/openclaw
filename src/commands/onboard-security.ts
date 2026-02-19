@@ -201,17 +201,35 @@ export async function setupSecurityInteractive(
       "• Swarm Agents: Multi-agent collaboration for attacks and defenses",
       "",
       "These features help protect against adversarial attacks and validate defenses.",
+      "",
+      "⚠️  IMPORTANT: Security features are strongly recommended for production use.",
+      "   They help protect your agent from prompt injection, jailbreaks, and other attacks.",
     ].join("\n"),
     "Security Features",
   );
 
   const enableSecurity = await prompter.confirm({
-    message: "Enable security features? (Recommended)",
+    message: "Enable security features? (Strongly Recommended)",
     initialValue: true,
   });
 
   if (!enableSecurity) {
-    await prompter.note("Security features disabled. You can enable them later via configuration.", "Security");
+    await prompter.note(
+      [
+        "⚠️  Security features disabled.",
+        "",
+        "This is not recommended for production use. Your agent will be more vulnerable to:",
+        "  • Prompt injection attacks",
+        "  • Jailbreak attempts",
+        "  • RAG poisoning",
+        "  • Adversarial manipulation",
+        "",
+        "You can enable security features later via:",
+        "  openclaw configure --section security",
+        "  openclaw security audit --deep",
+      ].join("\n"),
+      "Security Warning",
+    );
     return baseConfig;
   }
 
@@ -249,13 +267,48 @@ export async function setupSecurityInteractive(
       })
     : false;
 
-  return await setupSecurityConfig(baseConfig, runtime, prompter, {
+  const config = await setupSecurityConfig(baseConfig, runtime, prompter, {
     enableLLMSecurity: enableLLM,
     enableCognitiveSecurity: enableCognitive,
     enableARR: enableARR,
     enableSwarmAgents: enableSwarm,
     securityLevel: securityLevel as "basic" | "standard" | "advanced",
   });
+
+  // Ensure workspace directories are created
+  try {
+    const { ensureSecurityWorkspaces } = await import("../security/workspace.js");
+    await ensureSecurityWorkspaces(config);
+  } catch (error) {
+    await prompter.note(
+      `Warning: Failed to create security workspace directories: ${error instanceof Error ? error.message : String(error)}`,
+      "Workspace Setup",
+    );
+  }
+
+  // Security best practices reminder
+  await prompter.note(
+    [
+      "Security features configured!",
+      "",
+      "Security best practices:",
+      "  ✓ Pairing/allowlists: Configure channel access controls",
+      "  ✓ Gateway auth: Use token or password authentication",
+      "  ✓ Regular audits: Run 'openclaw security audit --deep' regularly",
+      "  ✓ Keep secrets secure: Don't store API keys in agent-accessible files",
+      "  ✓ Use sandbox: Enable sandbox for tool execution when possible",
+      "",
+      "Next steps:",
+      "  • Review channel pairing/allowlist settings",
+      "  • Verify gateway authentication is configured",
+      "  • Run security audit after setup completes",
+      "",
+      "Docs: https://docs.openclaw.ai/gateway/security",
+    ].join("\n"),
+    "Security Configuration Complete",
+  );
+
+  return config;
 }
 
 /**

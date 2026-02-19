@@ -435,6 +435,51 @@ export async function runOnboardingWizard(
       prompter,
       runtime,
     );
+
+    // Security: Ensure pairing/allowlist is configured for channels
+    if (!opts.skipSecurity && !(opts.skipChannels ?? opts.skipProviders)) {
+      const channels = nextConfig.channels ?? {};
+      const configuredChannels = Object.keys(channels).filter(
+        (id) => channels[id] && typeof channels[id] === "object",
+      );
+      if (configuredChannels.length > 0) {
+        await prompter.note(
+          [
+            "Channel security: Pairing and allowlists",
+            "",
+            "For secure channel access, configure:",
+            "  • Pairing: Unknown DMs require a pairing code (recommended)",
+            "  • Allowlist: Only specific users can DM your agent",
+            "  • Open: Anyone can DM (not recommended for production)",
+            "",
+            "Default: Pairing mode (unknown DMs get a pairing code).",
+            `Approve pairings: ${formatCliCommand("openclaw pairing approve <channel> <code>")}`,
+            "",
+            "You can configure this now or later via:",
+            `  ${formatCliCommand("openclaw configure --section channels")}`,
+            "",
+            "Docs: https://docs.openclaw.ai/channels/pairing",
+          ].join("\n"),
+          "Channel Security",
+        );
+
+        if (flow === "advanced") {
+          const configurePairing = await prompter.confirm({
+            message: "Configure channel pairing/allowlist settings now?",
+            initialValue: true,
+          });
+          if (configurePairing) {
+            const { setupChannels } = await import("../commands/onboard-channels.js");
+            nextConfig = await setupChannels(nextConfig, runtime, prompter, {
+              allowSignalInstall: false,
+              skipDmPolicyPrompt: false,
+              skipConfirm: false,
+              allowDisable: true,
+            });
+          }
+        }
+      }
+    }
   }
 
   await writeConfigFile(nextConfig);
