@@ -457,11 +457,13 @@ describe("update-cli", () => {
 
   it("updateCommand restarts daemon by default", async () => {
     vi.mocked(runGatewayUpdate).mockResolvedValue(makeOkUpdateResult());
-    vi.mocked(runDaemonRestart).mockResolvedValue(true);
 
     await updateCommand({});
 
-    expect(runDaemonRestart).toHaveBeenCalled();
+    expect(runDaemonInstall).toHaveBeenCalledWith({
+      force: true,
+      json: undefined,
+    });
   });
 
   it("updateCommand refreshes gateway service env when service is already installed", async () => {
@@ -475,6 +477,27 @@ describe("update-cli", () => {
     vi.mocked(runGatewayUpdate).mockResolvedValue(mockResult);
     vi.mocked(runDaemonInstall).mockResolvedValue(undefined);
     serviceLoaded.mockResolvedValue(true);
+
+    await updateCommand({});
+
+    expect(runDaemonInstall).toHaveBeenCalledWith({
+      force: true,
+      json: undefined,
+    });
+    expect(runDaemonRestart).not.toHaveBeenCalled();
+  });
+
+  it("updateCommand refreshes gateway service env even when service load check is false", async () => {
+    const mockResult: UpdateRunResult = {
+      status: "ok",
+      mode: "git",
+      steps: [],
+      durationMs: 100,
+    };
+
+    vi.mocked(runGatewayUpdate).mockResolvedValue(mockResult);
+    vi.mocked(runDaemonInstall).mockResolvedValue(undefined);
+    serviceLoaded.mockResolvedValue(false);
 
     await updateCommand({});
 
@@ -557,6 +580,7 @@ describe("update-cli", () => {
 
   it("updateCommand skips success message when restart does not run", async () => {
     vi.mocked(runGatewayUpdate).mockResolvedValue(makeOkUpdateResult());
+    vi.mocked(runDaemonInstall).mockRejectedValueOnce(new Error("install failed"));
     vi.mocked(runDaemonRestart).mockResolvedValue(false);
     vi.mocked(defaultRuntime.log).mockClear();
 
