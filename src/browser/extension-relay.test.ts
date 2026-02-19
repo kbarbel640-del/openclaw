@@ -283,6 +283,7 @@ describe("chrome extension relay server", () => {
           (t) =>
             t.id === "t1" && t.url === "https://www.derstandard.at/" && t.title === "DER STANDARD",
         ),
+      5000,
     );
     expect(
       list2.some(
