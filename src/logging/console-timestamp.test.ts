@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { formatConsoleTimestamp } from "./console.js";
+import { formatConsoleTimestamp } from "./timestamps.js";
 
 describe("formatConsoleTimestamp", () => {
   afterEach(() => {
