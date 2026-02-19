@@ -36,6 +36,9 @@ export function isLikelyInterimCronMessage(value: string): boolean {
     "auto-announce when done",
     "both subagents are running",
     "wait for them to report back",
+    "i'll report back",
+    "i will report back",
+    "will report back",
   ];
   return words <= 45 && interimHints.some((hint) => normalized.includes(hint));
 }
@@ -51,6 +54,9 @@ export function expectsSubagentFollowup(value: string): boolean {
     "auto-announce when done",
     "both subagents are running",
     "wait for them to report back",
+    "i'll report back",
+    "i will report back",
+    "will report back",
   ];
   return hints.some((hint) => normalized.includes(hint));
 }
