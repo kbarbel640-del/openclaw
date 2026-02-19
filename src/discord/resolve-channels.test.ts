@@ -41,7 +41,8 @@ describe("resolveDiscordChannelAllowlist", () => {
   });
 
   it("resolves guildId/channelId when both are numeric", async () => {
-    const fetcher = async (url: string) => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = urlToString(input);
       if (url.endsWith("/users/@me/guilds")) {
         return jsonResponse([{ id: "111222333", name: "Test Server" }]);
       }
@@ -68,7 +69,8 @@ describe("resolveDiscordChannelAllowlist", () => {
   });
 
   it("rejects guildId/channelId when channel belongs to a different guild", async () => {
-    const fetcher = async (url: string) => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = urlToString(input);
       if (url.endsWith("/users/@me/guilds")) {
         return jsonResponse([
           { id: "111222333", name: "Guild A" },
@@ -97,7 +99,8 @@ describe("resolveDiscordChannelAllowlist", () => {
   });
 
   it("marks invalid numeric channelId as unresolved without aborting batch", async () => {
-    const fetcher = async (url: string) => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = urlToString(input);
       if (url.endsWith("/users/@me/guilds")) {
         return jsonResponse([{ id: "111222333", name: "Test Server" }]);
       }
@@ -133,7 +136,8 @@ describe("resolveDiscordChannelAllowlist", () => {
   });
 
   it("treats 403 channel lookup as unresolved without aborting batch", async () => {
-    const fetcher = async (url: string) => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = urlToString(input);
       if (url.endsWith("/users/@me/guilds")) {
         return jsonResponse([{ id: "111222333", name: "Test Server" }]);
       }
@@ -169,7 +173,8 @@ describe("resolveDiscordChannelAllowlist", () => {
   });
 
   it("falls back to name matching when numeric channel name is not a valid ID", async () => {
-    const fetcher = async (url: string) => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = urlToString(input);
       if (url.endsWith("/users/@me/guilds")) {
         return jsonResponse([{ id: "111222333", name: "Test Server" }]);
       }
@@ -198,7 +203,8 @@ describe("resolveDiscordChannelAllowlist", () => {
   });
 
   it("does not fall back to name matching when channel lookup returns 403", async () => {
-    const fetcher = async (url: string) => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = urlToString(input);
       if (url.endsWith("/users/@me/guilds")) {
         return jsonResponse([{ id: "111222333", name: "Test Server" }]);
       }
@@ -226,7 +232,8 @@ describe("resolveDiscordChannelAllowlist", () => {
   });
 
   it("does not fall back to name matching when channel payload is malformed", async () => {
-    const fetcher = async (url: string) => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = urlToString(input);
       if (url.endsWith("/users/@me/guilds")) {
         return jsonResponse([{ id: "111222333", name: "Test Server" }]);
       }
