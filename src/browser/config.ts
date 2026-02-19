@@ -40,6 +40,7 @@ export type ResolvedBrowserProfile = {
   cdpUrl: string;
   cdpHost: string;
   cdpIsLoopback: boolean;
+  attachOnly: boolean;
   color: string;
   driver: "openclaw" | "extension";
 };
@@ -257,6 +258,7 @@ export function resolveProfile(
     cdpUrl,
     cdpHost,
     cdpIsLoopback: isLoopbackHost(cdpHost),
+    attachOnly: resolved.attachOnly,
     color: profile.color,
     driver,
   };
