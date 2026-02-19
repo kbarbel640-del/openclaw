@@ -370,7 +370,9 @@ describe("runOnboardingWizard", () => {
       intro: vi.fn(async () => {}),
       outro: vi.fn(async () => {}),
       note: vi.fn(async () => {}),
-      select: vi.fn(async () => "quickstart"),
+      select: vi.fn(
+        async (_params: WizardSelectParams<unknown>) => "quickstart",
+      ) as unknown as WizardPrompter["select"],
       multiselect: vi.fn(async () => []),
       text: vi.fn(async () => ""),
       confirm: vi.fn(async () => false),
@@ -418,7 +420,9 @@ describe("runOnboardingWizard", () => {
       intro: vi.fn(async () => {}),
       outro: vi.fn(async () => {}),
       note: vi.fn(async () => {}),
-      select: vi.fn(async () => "quickstart"),
+      select: vi.fn(
+        async (_params: WizardSelectParams<unknown>) => "quickstart",
+      ) as unknown as WizardPrompter["select"],
       multiselect: vi.fn(async () => []),
       text: vi.fn(async () => ""),
       confirm: vi.fn(async () => false),
@@ -466,7 +470,9 @@ describe("runOnboardingWizard", () => {
       intro: vi.fn(async () => {}),
       outro: vi.fn(async () => {}),
       note: vi.fn(async () => {}),
-      select: vi.fn(async () => "quickstart"),
+      select: vi.fn(
+        async (_params: WizardSelectParams<unknown>) => "quickstart",
+      ) as unknown as WizardPrompter["select"],
       multiselect: vi.fn(async () => []),
       text: vi.fn(async () => ""),
       confirm: vi.fn(async () => false),
