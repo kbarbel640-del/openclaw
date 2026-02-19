@@ -7,7 +7,10 @@ import type { OpenClawConfig } from "../config/types.js";
 import type { ConsentGateApi } from "./api.js";
 import { createNoOpConsentGateApi } from "./api.js";
 import { createConsentEngine } from "./engine.js";
+import { createConsentMetrics } from "./metrics.js";
+import { createFileBackedTokenStore } from "./store-file.js";
 import { createInMemoryTokenStore } from "./store.js";
+import { createFileBackedWal } from "./wal-file.js";
 import { createInMemoryWal } from "./wal.js";
 
 /** Default tool/command names that require consent when ConsentGate is enabled. */
@@ -54,12 +57,34 @@ export function resolveConsentGateApi(cfg: OpenClawConfig): ConsentGateApi {
     cachedConfigKey = key;
     return cachedApi;
   }
-  const store = createInMemoryTokenStore();
-  const wal = createInMemoryWal();
-  cachedApi = createConsentEngine({
+  const storagePath = cg.storagePath?.trim();
+  const store = storagePath
+    ? createFileBackedTokenStore(storagePath)
+    : createInMemoryTokenStore();
+  const wal = storagePath ? createFileBackedWal(storagePath) : createInMemoryWal();
+  const metrics = createConsentMetrics();
+  const quarantine = new Set<string>();
+  const tierToolMatrix = cg.tierToolMatrix && typeof cg.tierToolMatrix === "object" ? cg.tierToolMatrix : undefined;
+  const rateLimit =
+    cg.rateLimit &&
+    typeof cg.rateLimit.maxOpsPerWindow === "number" &&
+    typeof cg.rateLimit.windowMs === "number" &&
+    cg.rateLimit.maxOpsPerWindow > 0 &&
+    cg.rateLimit.windowMs > 0
+      ? { maxOpsPerWindow: cg.rateLimit.maxOpsPerWindow, windowMs: cg.rateLimit.windowMs }
+      : undefined;
+  const engine = createConsentEngine({
     store,
     wal,
     policyVersion: POLICY_VERSION,
+    metrics,
+    quarantine,
+    tierToolMatrix,
+    rateLimit,
+  });
+  cachedApi = Object.assign(engine, {
+    getMetrics: () => metrics.getSnapshot(),
+    liftQuarantine: (sessionKey: string) => quarantine.delete(sessionKey),
   });
   cachedConfigKey = key;
   return cachedApi;
@@ -83,4 +108,32 @@ export function isConsentGateObserveOnly(cfg: OpenClawConfig): boolean {
   const cg = cfg.gateway?.consentGate;
   if (!cg?.enabled) return true;
   return cg.observeOnly ?? true;
+}
+
+/**
+ * Resolve trust tier from config for a given session key.
+ * Uses longest matching prefix from trustTierMapping, else trustTierDefault (default "T0").
+ */
+export function resolveTrustTier(cfg: OpenClawConfig, sessionKey: string): string {
+  const cg = cfg.gateway?.consentGate;
+  const mapping = cg?.trustTierMapping;
+  const defaultTier = (cg?.trustTierDefault?.trim() || "T0").toUpperCase();
+  if (!mapping || typeof mapping !== "object") {
+    return defaultTier;
+  }
+  let bestPrefix = "";
+  let bestTier = defaultTier;
+  for (const [prefix, tier] of Object.entries(mapping)) {
+    if (typeof prefix !== "string" || typeof tier !== "string") continue;
+    const p = prefix.trim();
+    const t = tier.trim();
+    if (!p) continue;
+    if (sessionKey === p || sessionKey.startsWith(p + ":") || sessionKey.startsWith(p)) {
+      if (p.length > bestPrefix.length) {
+        bestPrefix = p;
+        bestTier = t;
+      }
+    }
+  }
+  return bestTier || defaultTier;
 }

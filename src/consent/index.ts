@@ -12,6 +12,7 @@ export { CONSENT_REASON, CONSENT_REASON_CODES } from "./reason-codes.js";
 export type { ConsentReasonCode } from "./reason-codes.js";
 export type { TokenStore } from "./store.js";
 export { buildToken, createInMemoryTokenStore } from "./store.js";
+export { createFileBackedTokenStore } from "./store-file.js";
 export type {
   ConsentConsumeInput,
   ConsentConsumeResult,
@@ -27,3 +28,4 @@ export type {
 } from "./types.js";
 export type { WalWriter } from "./wal.js";
 export { createInMemoryWal, createNoOpWal } from "./wal.js";
+export { createFileBackedWal } from "./wal-file.js";
