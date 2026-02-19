@@ -472,6 +472,29 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       continue;
     }
 
+    // SECURITY: Block non-bundled plugins when plugins.allow is empty.
+    // Without an explicit allowlist, any plugin discovered in load paths (including
+    // workspace node_modules) would auto-load with full main-process access.
+    // Bundled plugins are always trusted; non-bundled require explicit allowlisting.
+    if (candidate.origin !== "bundled" && normalized.allow.length === 0) {
+      record.enabled = false;
+      record.status = "disabled";
+      record.error =
+        "blocked: non-bundled plugin requires explicit allowlisting (set plugins.allow)";
+      registry.plugins.push(record);
+      seenIds.set(pluginId, candidate.origin);
+      registry.diagnostics.push({
+        level: "warn",
+        pluginId: record.id,
+        source: record.source,
+        message: `non-bundled plugin blocked: plugins.allow is empty. Add "${pluginId}" to plugins.allow to enable.`,
+      });
+      logger.warn(
+        `[plugins] ${pluginId}: blocked (non-bundled, plugins.allow is empty). Add to plugins.allow to enable. (${candidate.source})`,
+      );
+      continue;
+    }
+
     if (!manifestRecord.configSchema) {
       record.status = "error";
       record.error = "missing config schema";
