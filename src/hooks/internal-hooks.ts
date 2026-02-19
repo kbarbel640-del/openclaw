@@ -109,8 +109,22 @@ export interface InternalHookEvent {
 
 export type InternalHookHandler = (event: InternalHookEvent) => Promise<void> | void;
 
-/** Registry of hook handlers by event key */
-const handlers = new Map<string, InternalHookHandler[]>();
+/**
+ * Registry of hook handlers by event key.
+ *
+ * Stored on globalThis so that all bundler chunks share the same Map instance.
+ * Without this, tsdown may split this module across multiple output chunks
+ * (e.g. gateway-cli vs pi-embedded), each with its own Map, causing hooks
+ * registered in one chunk to be invisible to triggers in another (see #20984).
+ */
+const GLOBAL_KEY = "__openclaw_internal_hook_handlers__";
+const handlers: Map<string, InternalHookHandler[]> =
+  ((globalThis as Record<string, unknown>)[GLOBAL_KEY] as Map<string, InternalHookHandler[]>) ??
+  (() => {
+    const m = new Map<string, InternalHookHandler[]>();
+    (globalThis as Record<string, unknown>)[GLOBAL_KEY] = m;
+    return m;
+  })();
 
 /**
  * Register a hook handler for a specific event type or event:action combination

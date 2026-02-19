@@ -416,4 +416,24 @@ describe("hooks", () => {
       expect(keys).toEqual([]);
     });
   });
+
+  describe("globalThis singleton", () => {
+    it("should store handlers map on globalThis so bundler chunks share state", () => {
+      const key = "__openclaw_internal_hook_handlers__";
+      const globalMap = (globalThis as Record<string, unknown>)[key];
+      expect(globalMap).toBeInstanceOf(Map);
+    });
+
+    it("should reuse the same map across multiple imports", () => {
+      const key = "__openclaw_internal_hook_handlers__";
+      const globalMap = (globalThis as Record<string, unknown>)[key] as Map<string, unknown>;
+
+      // Register via the module API
+      const handler = vi.fn();
+      registerInternalHook("singleton:test", handler);
+
+      // The global map should reflect the registration
+      expect(globalMap.has("singleton:test")).toBe(true);
+    });
+  });
 });
