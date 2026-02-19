@@ -162,7 +162,7 @@ export function resolveFailoverReasonFromError(err: unknown): FailoverReason | n
     return "timeout";
   }
   if (status === 503) {
-    return "rate_limit";
+    return "timeout";
   }
   if (status === 400) {
     return "format";
