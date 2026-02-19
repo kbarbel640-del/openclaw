@@ -278,6 +278,34 @@ function resolveAntigravityOpus46ForwardCompatModel(
   });
 }
 
+const GEMINI_31_PRO_MODEL_IDS = ["gemini-3.1-pro-low-preview", "gemini-3.1-pro-high-preview"];
+const GEMINI_31_TEMPLATE_MODEL_IDS = ["gemini-3-pro-preview"] as const;
+
+function resolveGemini31ForwardCompatModel(
+  provider: string,
+  modelId: string,
+  modelRegistry: ModelRegistry,
+): Model<Api> | undefined {
+  const normalizedProvider = normalizeProviderId(provider);
+  if (normalizedProvider !== "google" && normalizedProvider !== "google-antigravity") {
+    return undefined;
+  }
+
+  const trimmedModelId = modelId.trim();
+  const lower = trimmedModelId.toLowerCase();
+  if (!GEMINI_31_PRO_MODEL_IDS.includes(lower)) {
+    return undefined;
+  }
+
+  return cloneFirstTemplateModel({
+    normalizedProvider,
+    trimmedModelId,
+    templateIds: [...GEMINI_31_TEMPLATE_MODEL_IDS],
+    modelRegistry,
+    patch: { reasoning: true },
+  });
+}
+
 export function resolveForwardCompatModel(
   provider: string,
   modelId: string,
@@ -288,6 +316,7 @@ export function resolveForwardCompatModel(
     resolveAnthropicOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveAnthropicSonnet46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry) ??
-    resolveAntigravityOpus46ForwardCompatModel(provider, modelId, modelRegistry)
+    resolveAntigravityOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
+    resolveGemini31ForwardCompatModel(provider, modelId, modelRegistry)
   );
 }
