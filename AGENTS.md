@@ -250,6 +250,47 @@
 - Preserve default model fallbacks for cron agent runs when only `model.primary` is overridden.
 - Protect cron webhook POST delivery with SSRF-guarded outbound fetch.
 
+## Agent Enhancements
+
+The following enhancement modules are integrated into the agent runtime:
+
+### Task Decomposition Tool (`src/agents/tools/task-decompose-tool.ts`)
+- **Purpose:** Breaks down complex tasks into manageable steps with dependency analysis
+- **Integration:** Registered as `task_decompose` tool in `src/agents/openclaw-tools.ts`
+- **Features:**
+  - Analyzes task complexity (simple/moderate/complex)
+  - Suggests decomposition strategy (sequential/parallel/mixed)
+  - Estimates token usage per step
+  - Identifies critical path dependencies
+
+### Error Healing System (`src/agents/error-healing.ts`)
+- **Purpose:** Automatic error recovery and self-healing for agent operations
+- **Integration:** Used by `src/agents/bash-tools.exec.ts` for exec tool error recovery
+- **Features:**
+  - Error categorization (network, authentication, rate_limit, timeout, context_overflow, billing, permission, validation, unknown)
+  - Automatic healing strategies (retry, fallback, reduce_context, refresh_auth, check_billing, request_permission, fix_validation, manual_intervention)
+  - Confidence-based action selection
+  - Retry delay calculation with exponential backoff
+
+### Memory Usability Enhancer (`src/agents/memory-usability.ts`)
+- **Purpose:** Improves memory system usability with statistics, compression, and cleanup
+- **Integration:** Exposed via `openclaw memory` CLI commands in `src/cli/memory-command.ts`
+- **Features:**
+  - Usage statistics tracking (files, chunks, sizes)
+  - Memory compression and archival
+  - Import/export functionality
+  - Session memory management
+  - CLI commands: `openclaw memory stats`, `openclaw memory compress`, `openclaw memory export`, `openclaw memory import`, `openclaw memory clean`
+
+### MCP Auto-Discovery (`src/agents/mcp-auto-discovery.ts`)
+- **Purpose:** Automatic discovery and registration of MCP (Model Context Protocol) servers and tools
+- **Integration:** Used by `src/agents/pi-tools.ts` and `src/agents/openclaw-tools.ts` for dynamic tool registration
+- **Features:**
+  - Discovers MCP servers via `mcporter list --json` command
+  - Validates server and tool names to prevent command injection
+  - Converts MCP tool definitions to OpenClaw tool format
+  - Background registration with error handling
+
 ## Agent-Specific: Security
 
 - Confine `$include` resolution to the top-level config directory with cross-platform-safe path containment.

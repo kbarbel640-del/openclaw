@@ -6,7 +6,11 @@ import {
   readTool,
 } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../config/config.js";
-import type { AnyAgentTool } from "../tools/common.js";
+import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
+import { logWarn } from "../logger.js";
+import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
+import { resolveAgentConfig } from "./agent-scope.js";
+import { createApplyPatchTool } from "./apply-patch.js";
 import {
   type ExecToolDefaults,
   type ProcessToolDefaults,
@@ -38,6 +42,8 @@ import {
   wrapToolParamNormalization,
 } from "./pi-tools.read.js";
 import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.schema.js";
+import type { AnyAgentTool } from "./pi-tools.types.js";
+import { getPluginToolMeta } from "./plugins/tools.js";
 import type { SandboxContext } from "./sandbox.js";
 import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
 import {
@@ -50,6 +56,7 @@ import {
   mergeAlsoAllowPolicy,
   resolveToolProfilePolicy,
 } from "./tool-policy.js";
+import { isSubagentSessionKey } from "../sessions/session-key-utils.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
 
 function isOpenAIProvider(provider?: string) {
