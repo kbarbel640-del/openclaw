@@ -115,10 +115,10 @@ export async function monitorWebInbox(options: {
         ...last,
         body: combinedBody,
         mentionedJids: mentioned.size > 0 ? Array.from(mentioned) : undefined,
-        // Include batched media arrays when multiple media messages were combined
-        mediaPaths: allMediaPaths.length > 1 ? allMediaPaths : undefined,
-        mediaTypes: allMediaTypes.length > 1 ? allMediaTypes : undefined,
-        mediaFileNames: allMediaFileNames.length > 1 ? allMediaFileNames : undefined,
+        // Include batched media arrays when media messages were combined
+        mediaPaths: allMediaPaths.length > 0 ? allMediaPaths : undefined,
+        mediaTypes: allMediaTypes.length > 0 ? allMediaTypes : undefined,
+        mediaFileNames: allMediaFileNames.length > 0 ? allMediaFileNames : undefined,
       };
       await options.onMessage(combinedMessage);
     },
