@@ -21,6 +21,16 @@ type DiscordWebhookMessageLike = {
   webhook_id?: string | null;
 };
 
+/**
+ * Minimal guild member type for sender identity resolution.
+ * Supports both `nick` (raw Discord API) and `nickname` (Carbon library) fields.
+ * Only includes the nickname field which is used for display name resolution.
+ */
+type DiscordGuildMemberLike = {
+  nick?: string | null;
+  nickname?: string | null;
+};
+
 export function resolveDiscordWebhookId(message: DiscordWebhookMessageLike): string | null {
   const candidate = message.webhookId ?? message.webhook_id;
   return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
@@ -28,8 +38,7 @@ export function resolveDiscordWebhookId(message: DiscordWebhookMessageLike): str
 
 export function resolveDiscordSenderIdentity(params: {
   author: User;
-  // oxlint-disable-next-line typescript/no-explicit-any
-  member?: any;
+  member?: DiscordGuildMemberLike | null;
   pluralkitInfo?: PluralKitMessageInfo | null;
 }): DiscordSenderIdentity {
   const pkInfo = params.pluralkitInfo ?? null;
@@ -74,8 +83,7 @@ export function resolveDiscordSenderIdentity(params: {
 
 export function resolveDiscordSenderLabel(params: {
   author: User;
-  // oxlint-disable-next-line typescript/no-explicit-any
-  member?: any;
+  member?: DiscordGuildMemberLike | null;
   pluralkitInfo?: PluralKitMessageInfo | null;
 }): string {
   return resolveDiscordSenderIdentity(params).label;
