@@ -484,6 +484,33 @@ export async function runOnboardingWizard(
     await prompter.note("Skipping security setup.", "Security");
   }
 
+  // Optional configuration step - allow users to configure additional settings
+  if (!opts.skipConfigure) {
+    await withErrorRecovery(
+      "Configuration",
+      async () => {
+        const configureMore = await prompter.confirm({
+          message: "Configure additional settings? (workspace, model, web tools, etc.)",
+          initialValue: flow === "advanced",
+        });
+        if (configureMore) {
+          const { runOnboardingConfiguration } = await import("./onboarding.config.js");
+          nextConfig = await runOnboardingConfiguration({
+            config: nextConfig,
+            workspaceDir,
+            prompter,
+            runtime,
+            flow,
+          });
+        }
+      },
+      prompter,
+      runtime,
+    );
+  } else {
+    await prompter.note("Skipping configuration step.", "Configuration");
+  }
+
   nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, { command: "onboard", mode });
   await writeConfigFile(nextConfig);
 

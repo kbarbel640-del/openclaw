@@ -139,6 +139,7 @@ export type OnboardOptions = {
   skipProviders?: boolean;
   skipSkills?: boolean;
   skipSecurity?: boolean;
+  skipConfigure?: boolean;
   skipHealth?: boolean;
   skipUi?: boolean;
   skipVerify?: boolean;
