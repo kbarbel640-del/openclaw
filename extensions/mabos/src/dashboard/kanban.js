@@ -23,30 +23,20 @@
     var columns = {
       proposed: { title: "Proposed", tasks: [] },
       active: { title: "Active", tasks: [] },
-      "in progress": { title: "In Progress", tasks: [] },
       in_progress: { title: "In Progress", tasks: [] },
       completed: { title: "Completed", tasks: [] },
     };
 
     tasks.forEach(function (t) {
-      var status = (t.status || "proposed").toLowerCase().replace(/_/g, " ");
-      if (columns[status]) {
-        columns[status].tasks.push(t);
-      } else if (status === "in progress" || status === "in_progress") {
-        columns["in progress"].tasks.push(t);
+      var statusKey = (t.status || "proposed").toLowerCase().replace(/\s+/g, "_");
+      if (columns[statusKey]) {
+        columns[statusKey].tasks.push(t);
       } else {
         columns.proposed.tasks.push(t);
       }
     });
 
-    // Merge in_progress into "in progress"
-    if (columns["in_progress"]) {
-      columns["in progress"].tasks = columns["in progress"].tasks.concat(
-        columns["in_progress"].tasks,
-      );
-    }
-
-    var displayColumns = ["proposed", "active", "in progress", "completed"];
+    var displayColumns = ["proposed", "active", "in_progress", "completed"];
     var html = '<div class="kanban-board">';
 
     displayColumns.forEach(function (key) {
@@ -100,18 +90,17 @@
             '<div style="margin-top:8px"><label class="form-label" style="font-size:0.8em">Update Status:</label>';
           html +=
             '<select class="form-select" style="font-size:0.8em" data-update-task="' + t.id + '">';
-          ["proposed", "active", "in progress", "completed"].forEach(function (s) {
+          [
+            { value: "proposed", label: "Proposed" },
+            { value: "active", label: "Active" },
+            { value: "in_progress", label: "In Progress" },
+            { value: "completed", label: "Completed" },
+          ].forEach(function (opt) {
             var sel =
-              (t.status || "proposed").toLowerCase().replace(/_/g, " ") === s ? " selected" : "";
-            html +=
-              '<option value="' +
-              s +
-              '"' +
-              sel +
-              ">" +
-              s.charAt(0).toUpperCase() +
-              s.slice(1) +
-              "</option>";
+              (t.status || "proposed").toLowerCase().replace(/\s+/g, "_") === opt.value
+                ? " selected"
+                : "";
+            html += '<option value="' + opt.value + '"' + sel + ">" + opt.label + "</option>";
           });
           html += "</select></div>";
           html += "</div>";

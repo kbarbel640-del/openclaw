@@ -270,12 +270,23 @@
           "</tr>";
       });
       html += "</table></div>";
+    } else if (businessCount === 0) {
+      html +=
+        '<div class="empty-state"><h3>No businesses yet</h3><p>Get started by onboarding your first business.</p>' +
+        '<button class="btn btn-primary" style="margin-top:12px" id="overview-onboard-cta">Onboard Business</button></div>';
     } else {
       html +=
         '<div class="empty-state"><h3>No agents found</h3><p>Use <a href="#" onclick="navigate(\'onboard\');return false" style="color:var(--accent)">Onboard Business</a> to get started.</p></div>';
     }
 
     container.innerHTML = html;
+
+    var onboardCta = document.getElementById("overview-onboard-cta");
+    if (onboardCta) {
+      onboardCta.addEventListener("click", function () {
+        MABOS.navigate("onboard");
+      });
+    }
   }
 
   // ── Decisions View ──
@@ -347,28 +358,40 @@
 
       html +=
         '<div class="btn-group">' +
-        '<button class="btn btn-primary btn-sm" onclick="resolveDecision(\'' +
-        d.business_id +
-        "','" +
-        d.id +
-        "','approved')\">Approve</button>" +
-        '<button class="btn btn-secondary btn-sm" onclick="resolveDecision(\'' +
-        d.business_id +
-        "','" +
-        d.id +
-        "','deferred')\">Defer</button>" +
-        '<button class="btn btn-danger btn-sm" onclick="resolveDecision(\'' +
-        d.business_id +
-        "','" +
-        d.id +
-        "','rejected')\">Reject</button>" +
+        '<button class="btn btn-primary btn-sm resolve-btn" data-biz="' +
+        MABOS.escapeHtml(d.business_id) +
+        '" data-id="' +
+        MABOS.escapeHtml(d.id) +
+        '" data-action="approved">Approve</button>' +
+        '<button class="btn btn-secondary btn-sm resolve-btn" data-biz="' +
+        MABOS.escapeHtml(d.business_id) +
+        '" data-id="' +
+        MABOS.escapeHtml(d.id) +
+        '" data-action="deferred">Defer</button>' +
+        '<button class="btn btn-danger btn-sm resolve-btn" data-biz="' +
+        MABOS.escapeHtml(d.business_id) +
+        '" data-id="' +
+        MABOS.escapeHtml(d.id) +
+        '" data-action="rejected">Reject</button>' +
         "</div></div>";
     });
 
     container.innerHTML = html;
+
+    // Delegated click handler for resolve buttons
+    container.addEventListener("click", function (e) {
+      var btn = e.target.closest(".resolve-btn");
+      if (!btn) return;
+      var bizId = btn.dataset.biz;
+      var decId = btn.dataset.id;
+      var action = btn.dataset.action;
+      if (bizId && decId && action) {
+        resolveDecision(bizId, decId, action);
+      }
+    });
   }
 
-  window.resolveDecision = async function (businessId, decisionId, resolution) {
+  async function resolveDecision(businessId, decisionId, resolution) {
     var feedback = resolution === "rejected" ? prompt("Reason for rejection (optional):") : null;
     try {
       var res = await fetch(API + "/decisions/" + decisionId + "/resolve", {
@@ -389,7 +412,7 @@
     } catch (err) {
       alert("Error: " + err.message);
     }
-  };
+  }
 
   // ── Agent Detail View ──
   async function renderAgentDetail(container, params) {

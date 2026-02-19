@@ -326,6 +326,14 @@ export default function register(api: OpenClawPluginApi) {
 
   // ── 4. Dashboard HTTP Routes & API Endpoints ─────────────────────
 
+  // Helper: sanitize path-based IDs to prevent traversal attacks
+  function sanitizeId(id: string): string | null {
+    if (!id || id.includes("..") || id.includes("/") || id.includes("\\") || id.includes("\0"))
+      return null;
+    if (id.length > 128) return null;
+    return id;
+  }
+
   // Helper: read JSON file safely
   const readJsonSafe = async (p: string) => {
     try {
@@ -433,20 +441,37 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/decisions/:id/resolve",
     handler: async (req, res) => {
+      if (req.method !== "POST") {
+        res.statusCode = 405;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Method not allowed" }));
+        return;
+      }
       try {
         const { readFile, writeFile, mkdir } = await import("node:fs/promises");
         const { join, dirname } = await import("node:path");
 
         let body = "";
         for await (const chunk of req as any) body += chunk;
-        const params = JSON.parse(body);
+        let params: any;
+        try {
+          params = JSON.parse(body);
+        } catch {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+          return;
+        }
 
-        const queuePath = join(
-          workspaceDir,
-          "businesses",
-          params.business_id,
-          "decision-queue.json",
-        );
+        const bizId = sanitizeId(params.business_id);
+        if (!bizId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid business_id" }));
+          return;
+        }
+
+        const queuePath = join(workspaceDir, "businesses", bizId, "decision-queue.json");
         const queue = await readJsonSafe(queuePath);
         if (!Array.isArray(queue)) {
           res.statusCode = 404;
@@ -474,7 +499,7 @@ export default function register(api: OpenClawPluginApi) {
           const inboxPath = join(
             workspaceDir,
             "businesses",
-            params.business_id,
+            bizId,
             "agents",
             decision.agent,
             "inbox.json",
@@ -516,7 +541,14 @@ export default function register(api: OpenClawPluginApi) {
       try {
         const { join } = await import("node:path");
         const url = new URL(req.url || "", "http://localhost");
-        const agentId = url.pathname.split("/").pop() || "";
+        const rawId = url.pathname.split("/").pop() || "";
+        const agentId = sanitizeId(rawId);
+        if (!agentId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid agent ID" }));
+          return;
+        }
         const agentDir = join(workspaceDir, "agents", agentId);
 
         const beliefs = await readMdLines(join(agentDir, "Beliefs.md"));
@@ -589,7 +621,14 @@ export default function register(api: OpenClawPluginApi) {
       try {
         const { join } = await import("node:path");
         const url = new URL(req.url || "", "http://localhost");
-        const businessId = url.pathname.split("/").pop() || "";
+        const rawId = url.pathname.split("/").pop() || "";
+        const businessId = sanitizeId(rawId);
+        if (!businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid business ID" }));
+          return;
+        }
         const metricsPath = join(workspaceDir, "businesses", businessId, "metrics.json");
         const metrics = await readJsonSafe(metricsPath);
 
@@ -640,12 +679,37 @@ export default function register(api: OpenClawPluginApi) {
 
         let body = "";
         for await (const chunk of req as any) body += chunk;
-        const params = JSON.parse(body);
+        let params: any;
+        try {
+          params = JSON.parse(body);
+        } catch {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+          return;
+        }
 
         if (!params.business_id || !params.name || !params.type) {
           res.statusCode = 400;
           res.setHeader("Content-Type", "application/json");
           res.end(JSON.stringify({ error: "Missing required fields: business_id, name, type" }));
+          return;
+        }
+
+        // Validate business_id format
+        if (
+          typeof params.business_id !== "string" ||
+          params.business_id.length > 64 ||
+          !/^[a-zA-Z0-9_-]+$/.test(params.business_id)
+        ) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({
+              error:
+                "Invalid business_id: must be alphanumeric with hyphens/underscores, max 64 chars",
+            }),
+          );
           return;
         }
 
@@ -1042,14 +1106,29 @@ export default function register(api: OpenClawPluginApi) {
         const url = new URL(req.url || "", "http://localhost");
         const segments = url.pathname.split("/");
         const bizIdx = segments.indexOf("businesses");
-        const businessId = segments[bizIdx + 1] || "";
+        const rawBizId = segments[bizIdx + 1] || "";
+        const businessId = sanitizeId(rawBizId);
+        if (!businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid business ID" }));
+          return;
+        }
         const bizDir = join(workspaceDir, "businesses", businessId);
 
         if (req.method === "PUT") {
           // Update goal model
           let body = "";
           for await (const chunk of req as any) body += chunk;
-          const goalModel = JSON.parse(body);
+          let goalModel: any;
+          try {
+            goalModel = JSON.parse(body);
+          } catch {
+            res.statusCode = 400;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: "Invalid JSON" }));
+            return;
+          }
           const { writeFile, mkdir } = await import("node:fs/promises");
           await mkdir(bizDir, { recursive: true });
           await writeFile(
@@ -1137,7 +1216,14 @@ export default function register(api: OpenClawPluginApi) {
         const url = new URL(req.url || "", "http://localhost");
         const segments = url.pathname.split("/");
         const bizIdx = segments.indexOf("businesses");
-        const businessId = segments[bizIdx + 1] || "";
+        const rawBizId = segments[bizIdx + 1] || "";
+        const businessId = sanitizeId(rawBizId);
+        if (!businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid business ID" }));
+          return;
+        }
         const bizDir = join(workspaceDir, "businesses", businessId);
         const agentsDir = join(bizDir, "agents");
 
@@ -1229,18 +1315,39 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/businesses/:id/tasks/:taskId",
     handler: async (req, res) => {
+      if (req.method !== "POST" && req.method !== "PUT") {
+        res.statusCode = 405;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Method not allowed" }));
+        return;
+      }
       try {
         const { readFile, writeFile } = await import("node:fs/promises");
         const { join } = await import("node:path");
 
         let body = "";
         for await (const chunk of req as any) body += chunk;
-        const params = JSON.parse(body);
+        let params: any;
+        try {
+          params = JSON.parse(body);
+        } catch {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+          return;
+        }
 
         const url = new URL(req.url || "", "http://localhost");
         const segments = url.pathname.split("/");
         const bizIdx = segments.indexOf("businesses");
-        const businessId = segments[bizIdx + 1] || "";
+        const rawBizId = segments[bizIdx + 1] || "";
+        const businessId = sanitizeId(rawBizId);
+        if (!businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid business ID" }));
+          return;
+        }
         const agentsDir = join(workspaceDir, "businesses", businessId, "agents");
 
         // Find the task in agent Plans.md files and update status
@@ -1296,7 +1403,14 @@ export default function register(api: OpenClawPluginApi) {
         const url = new URL(req.url || "", "http://localhost");
         const segments = url.pathname.split("/");
         const bizIdx = segments.indexOf("businesses");
-        const businessId = segments[bizIdx + 1] || "";
+        const rawBizId = segments[bizIdx + 1] || "";
+        const businessId = sanitizeId(rawBizId);
+        if (!businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid business ID" }));
+          return;
+        }
         const bizDir = join(workspaceDir, "businesses", businessId);
         const agentsDir = join(bizDir, "agents");
 
@@ -1355,19 +1469,41 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/businesses/:id/agents/:agentId",
     handler: async (req, res) => {
+      if (req.method !== "PUT" && req.method !== "POST") {
+        res.statusCode = 405;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Method not allowed" }));
+        return;
+      }
       try {
         const { readFile, writeFile, mkdir } = await import("node:fs/promises");
         const { join, dirname } = await import("node:path");
 
         let body = "";
         for await (const chunk of req as any) body += chunk;
-        const params = JSON.parse(body);
+        let params: any;
+        try {
+          params = JSON.parse(body);
+        } catch {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+          return;
+        }
 
         const url = new URL(req.url || "", "http://localhost");
         const segments = url.pathname.split("/");
         const bizIdx = segments.indexOf("businesses");
-        const businessId = segments[bizIdx + 1] || "";
-        const agentId = segments[segments.length - 1] || "";
+        const rawBizId = segments[bizIdx + 1] || "";
+        const businessId = sanitizeId(rawBizId);
+        const rawAgentId = segments[segments.length - 1] || "";
+        const agentId = sanitizeId(rawAgentId);
+        if (!businessId || !agentId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid business or agent ID" }));
+          return;
+        }
         const agentDir = join(workspaceDir, "businesses", businessId, "agents", agentId);
         const configPath = join(agentDir, "config.json");
 
@@ -1401,7 +1537,14 @@ export default function register(api: OpenClawPluginApi) {
         const url = new URL(req.url || "", "http://localhost");
         const segments = url.pathname.split("/");
         const bizIdx = segments.indexOf("businesses");
-        const businessId = segments[bizIdx + 1] || "";
+        const rawBizId = segments[bizIdx + 1] || "";
+        const businessId = sanitizeId(rawBizId);
+        if (!businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid business ID" }));
+          return;
+        }
         const marketingPath = join(workspaceDir, "businesses", businessId, "marketing.json");
         const marketing = await readJsonSafe(marketingPath);
 
@@ -1443,21 +1586,30 @@ export default function register(api: OpenClawPluginApi) {
     handler: async (req, res) => {
       try {
         const { readFile } = await import("node:fs/promises");
-        const { join, extname } = await import("node:path");
+        const path = await import("node:path");
+        const { join, extname } = path;
         const { fileURLToPath } = await import("node:url");
         const thisDir = join(fileURLToPath(import.meta.url), "..");
 
         const url = new URL(req.url || "", "http://localhost");
         const filePath = url.pathname.replace("/mabos/dashboard/", "");
 
-        // Block directory traversal
-        if (filePath.includes("..") || filePath.includes("~") || !filePath) {
+        if (!filePath) {
           res.statusCode = 403;
           res.end("Forbidden");
           return;
         }
 
         const fullPath = join(thisDir, "src", "dashboard", filePath);
+        const baseDir = path.resolve(join(thisDir, "src", "dashboard"));
+        const resolved = path.resolve(fullPath);
+
+        // Block directory traversal via resolved path comparison
+        if (!resolved.startsWith(baseDir + path.sep) && resolved !== baseDir) {
+          res.statusCode = 403;
+          res.end("Forbidden");
+          return;
+        }
         const contentTypes: Record<string, string> = {
           ".html": "text/html",
           ".css": "text/css",

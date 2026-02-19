@@ -14,16 +14,19 @@
 
     container.innerHTML = '<div class="loading">Loading performance data...</div>';
 
-    // Fetch metrics, campaigns, and decisions in parallel
-    var results = await Promise.all([
+    // Fetch metrics, campaigns, and decisions in parallel (use allSettled so one failure doesn't break all)
+    var results = await Promise.allSettled([
       MABOS.fetchJSON("/mabos/api/metrics/" + businessId),
       MABOS.fetchJSON("/mabos/api/businesses/" + businessId + "/campaigns"),
       MABOS.fetchJSON("/mabos/api/decisions"),
     ]);
 
-    var metricsData = results[0];
-    var campaignsData = results[1];
-    var decisionsData = results[2];
+    var metricsData = results[0].status === "fulfilled" ? results[0].value : null;
+    var campaignsData = results[1].status === "fulfilled" ? results[1].value : null;
+    var decisionsData = results[2].status === "fulfilled" ? results[2].value : null;
+    var failedSections = results.filter(function (r) {
+      return r.status === "rejected";
+    }).length;
 
     var metrics = (metricsData && metricsData.metrics) || {};
     var campaigns = (campaignsData && campaignsData.campaigns) || [];
@@ -33,6 +36,12 @@
     });
 
     var html = '<div class="view-header"><h2>Performance Dashboard</h2></div>';
+
+    if (failedSections > 0) {
+      html +=
+        '<div class="card" style="border-left:3px solid var(--warning);margin-bottom:16px;padding:12px">' +
+        '<strong style="color:var(--warning)">Warning:</strong> Some data failed to load. Showing partial results.</div>';
+    }
 
     // ── KPI Cards Row ──
     var revenue = metrics.revenue || metrics.total_revenue || 0;

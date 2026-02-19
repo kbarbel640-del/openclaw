@@ -166,26 +166,33 @@
     });
 
     document.getElementById("agent-config-save").addEventListener("click", async function () {
-      var status = document.getElementById("agent-status-toggle").checked ? "active" : "disabled";
-      var autonomy = document.getElementById("agent-autonomy").value;
-      var threshold = parseInt(document.getElementById("agent-threshold").value, 10) || 100;
+      try {
+        var status = document.getElementById("agent-status-toggle").checked ? "active" : "disabled";
+        var autonomy = document.getElementById("agent-autonomy").value;
+        var threshold = parseInt(document.getElementById("agent-threshold").value, 10) || 100;
 
-      var result = await MABOS.putJSON(
-        "/mabos/api/businesses/" + businessId + "/agents/" + agent.id,
-        {
-          status: status,
-          autonomy_level: autonomy,
-          approval_threshold_usd: threshold,
-        },
-      );
+        var result = await MABOS.putJSON(
+          "/mabos/api/businesses/" + businessId + "/agents/" + agent.id,
+          {
+            status: status,
+            autonomy_level: autonomy,
+            approval_threshold_usd: threshold,
+          },
+        );
 
-      if (result && result.ok) {
-        agent.status = status;
-        agent.autonomy_level = autonomy;
-        agent.approval_threshold_usd = threshold;
-        alert("Configuration saved.");
-      } else {
-        alert("Failed to save configuration.");
+        if (result && result.ok) {
+          agent.status = status;
+          agent.autonomy_level = autonomy;
+          agent.approval_threshold_usd = threshold;
+          alert("Configuration saved.");
+        } else {
+          alert(
+            "Failed to save configuration: " +
+              (result ? result.error || "Unknown error" : "No response"),
+          );
+        }
+      } catch (err) {
+        alert("Error saving configuration: " + (err.message || String(err)));
       }
     });
   }

@@ -76,6 +76,13 @@
   }
 
   MABOS.renderWizard = function (container) {
+    if (!MABOS.BUSINESS_TYPES || !MABOS.BUSINESS_STAGES || !MABOS.LEGAL_STRUCTURES) {
+      container.innerHTML =
+        '<div class="empty-state"><h3>Dashboard data failed to load</h3>' +
+        "<p>Required configuration (data.js) is missing. Please reload the page.</p></div>";
+      return;
+    }
+
     wizardData.goals = [];
     wizardData.customer_segments = [];
     wizardData.value_propositions = [];
@@ -433,15 +440,31 @@
 
   async function submitWizard() {
     saveCurrentStep();
+
+    if (!wizardData.name || !wizardData.name.trim()) {
+      alert("Business name is required.");
+      return;
+    }
+
     var btn = document.getElementById("wizard-submit");
     if (btn) {
       btn.disabled = true;
       btn.textContent = "Creating...";
     }
 
+    var bizSlug = slugify(wizardData.name);
+    if (!bizSlug) {
+      alert("Business name must contain at least one alphanumeric character.");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Launch Business";
+      }
+      return;
+    }
+
     var orchestrate = document.getElementById("wiz-orchestrate");
     var payload = {
-      business_id: slugify(wizardData.name),
+      business_id: bizSlug,
       name: wizardData.name,
       legal_name: wizardData.legal_name || wizardData.name,
       type: wizardData.type,

@@ -37,6 +37,7 @@
     html += '<div class="goal-panel" id="goal-panel" style="display:none"></div>';
     container.innerHTML = html;
 
+    MABOS._goalData = data;
     renderSVG(data, businessId);
     bindEvents(data, businessId);
   };
@@ -322,8 +323,6 @@
   }
 
   function bindEvents(data, businessId) {
-    MABOS._goalData = data;
-
     // Click on goal nodes
     document.getElementById("goal-canvas").addEventListener("click", function (e) {
       var target = e.target;

@@ -173,8 +173,10 @@
         var tooltip = document.createElement("div");
         tooltip.className = "gantt-tooltip";
         tooltip.textContent = bar.getAttribute("title");
-        tooltip.style.left = e.pageX + 10 + "px";
-        tooltip.style.top = e.pageY + 10 + "px";
+        var x = Math.min(e.pageX + 10, window.innerWidth - 220);
+        var y = Math.min(e.pageY + 10, window.innerHeight - 100);
+        tooltip.style.left = x + "px";
+        tooltip.style.top = y + "px";
         document.body.appendChild(tooltip);
         bar._tooltip = tooltip;
       });
