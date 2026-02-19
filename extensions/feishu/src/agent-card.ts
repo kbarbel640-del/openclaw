@@ -13,7 +13,8 @@ type ToolEntry = {
 
 type TimelineEntry =
   | { kind: "tool"; tool: ToolEntry }
-  | { kind: "block"; text: string };
+  | { kind: "block"; text: string }
+  | { kind: "reasoning"; text: string };
 
 type CreateFeishuAgentCardRendererParams = {
   cfg: ClawdbotConfig;
@@ -111,8 +112,69 @@ function formatToolLine(entry: ToolEntry): string {
   return `${header}${entry.detail}`;
 }
 
-function formatBlockLine(text: string): string {
-  return text;
+function formatTimelineLine(entry: TimelineEntry): string {
+  if (entry.kind === "tool") {
+    return formatToolLine(entry.tool);
+  }
+  if (entry.kind === "reasoning") {
+    return `思考: ${entry.text}`;
+  }
+  return entry.text;
+}
+
+function appendTimelineFromText(params: {
+  text: string;
+  timeline: TimelineEntry[];
+  previousText: string;
+}) {
+  const { text, timeline, previousText } = params;
+  const nextText = text ?? "";
+  if (!nextText) {
+    return { timeline, previousText };
+  }
+
+  let delta = nextText;
+  if (previousText && nextText.startsWith(previousText)) {
+    delta = nextText.slice(previousText.length);
+  } else if (previousText && previousText.startsWith(nextText)) {
+    delta = "";
+  }
+
+  if (!delta) {
+    return { timeline, previousText: nextText };
+  }
+
+  const out = [...timeline];
+  const lines = delta.split(/\r?\n/);
+  let inReasoning = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    if (/^Reasoning:\s*$/i.test(trimmed)) {
+      inReasoning = true;
+      continue;
+    }
+
+    if (inReasoning) {
+      const reasoningLine = /^_+[\s\S]*_+$/.test(trimmed);
+      if (reasoningLine) {
+        const cleaned = trimmed.replace(/^_+|_+$/g, "").trim();
+        if (cleaned) {
+          out.push({ kind: "reasoning", text: cleaned });
+        }
+        continue;
+      }
+      inReasoning = false;
+    }
+
+    out.push({ kind: "block", text: trimmed });
+  }
+
+  return { timeline: out, previousText: nextText };
 }
 
 function buildCard(params: {
@@ -125,11 +187,9 @@ function buildCard(params: {
 }): Record<string, unknown> {
   const timelineMarkdown = params.timeline.length
     ? params.timeline
-        .map((entry) =>
-          entry.kind === "tool" ? formatToolLine(entry.tool) : formatBlockLine(entry.text),
-        )
+        .map((entry) => formatTimelineLine(entry))
         .filter(Boolean)
-        .join("\n\n")
+        .join("\n")
     : "暂无过程记录";
 
   const answer = params.answer.trim();
@@ -268,12 +328,13 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
   const { cfg, chatId, replyToMessageId, mentionTargets, accountId } = params;
   let status: "thinking" | "tool" | "completed" | "error" = "thinking";
   let timeline: TimelineEntry[] = [];
-  let lastBlockNormalized = "";
   let answer = "";
   let messageId: string | null = null;
   let updater: ReturnType<typeof createCardUpdateQueue> | null = null;
   let createMessagePromise: Promise<void> | null = null;
   let opQueue: Promise<void> = Promise.resolve();
+  let previousTimelineText = "";
+  let finalStreamStarted = false;
 
   const render = (collapseTimeline: boolean) =>
     buildCard({
@@ -331,19 +392,27 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
           return;
         }
 
-        const text = stripReasoningSection(textRaw);
-        if (info.kind === "block" && text) {
-          const normalized = text.replace(/\s+/g, " ").trim();
-          if (normalized && normalized !== lastBlockNormalized) {
-            timeline = [...timeline, { kind: "block", text: text.trim() }];
-            lastBlockNormalized = normalized;
-          }
+        if (info.kind === "block" || info.kind === "final") {
+          const appended = appendTimelineFromText({
+            text: textRaw,
+            timeline,
+            previousText: previousTimelineText,
+          });
+          timeline = appended.timeline;
+          previousTimelineText = appended.previousText;
         }
+
+        const text = stripReasoningSection(textRaw);
+
+        if (!finalStreamStarted && (info.kind === "final" || (info.kind === "block" && text))) {
+          finalStreamStarted = true;
+        }
+
         if (text) {
           answer = mergeStreamText(answer, text);
         }
         status = info.kind === "final" ? "completed" : status === "error" ? "error" : "thinking";
-        await sendOrUpdate(info.kind === "final");
+        await sendOrUpdate(info.kind === "final" || finalStreamStarted);
       });
     },
     async onPartialReply(payload: ReplyPayload) {
@@ -352,11 +421,17 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
         if (!text) {
           return;
         }
+        if (
+          !finalStreamStarted &&
+          timeline.some((entry) => entry.kind === "tool")
+        ) {
+          finalStreamStarted = true;
+        }
         answer = mergeStreamText(answer, text);
         if (status !== "error" && status !== "tool") {
           status = "thinking";
         }
-        await sendOrUpdate(false);
+        await sendOrUpdate(finalStreamStarted);
       });
     },
     async finalize() {
