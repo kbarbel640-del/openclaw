@@ -87,8 +87,12 @@ export async function auditTelegramGroupMembership(params: {
 
   // Lazy import to avoid pulling `undici` (ProxyAgent) into cold-path callers that only need
   // `collectTelegramUnmentionedGroupIds` (e.g. config audits).
-  const fetcher = params.proxyUrl
-    ? (await import("./proxy.js")).makeProxyFetch(params.proxyUrl)
+  // Resolve proxy: explicit config takes precedence, then env vars.
+  // Keep the import lazy so undici (ProxyAgent) is only loaded when a proxy is actually used.
+  const resolvedProxyUrl =
+    params.proxyUrl?.trim() || (await import("./proxy.js")).resolveProxyUrlFromEnv();
+  const fetcher = resolvedProxyUrl
+    ? (await import("./proxy.js")).makeProxyFetch(resolvedProxyUrl)
     : fetch;
   const { fetchWithTimeout } = await import("../utils/fetch-timeout.js");
   const base = `${TELEGRAM_API_BASE}/bot${token}`;
