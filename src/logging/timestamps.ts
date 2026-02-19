@@ -62,9 +62,9 @@ export function formatLocalIsoWithOffset(now: Date, timezone?: string): string {
     }
 
     return `${year}-${month}-${day}T${h}:${m}:${s}.${ms}${offset}`;
-  } catch (err) {
-    console.error(err);
-    // Fallback to system local time if timezone is invalid
+  } catch {
+    // Fallback to system local time if timezone is invalid.
+    // NOTE: Do NOT use console.error here! formatting logic is used by console.log/error patches, call stack overflow will occur.
     return formatSystemLocal(now);
   }
 }
