@@ -6,6 +6,26 @@ export type GatewayAttachment = {
   content: string;
 };
 
+// Max length for resource link titles to prevent excessively long prompt content
+const RESOURCE_TITLE_MAX_LENGTH = 200;
+
+/**
+ * Sanitizes a resource link title before it is interpolated into an agent prompt.
+ * Prevents prompt injection via crafted title fields (CWE-74, CWE-20, GHSA-74xj-763f-264w).
+ *
+ * - Replaces newline and carriage return characters with a space to block multi-line injection
+ * - Truncates the title to RESOURCE_TITLE_MAX_LENGTH characters
+ */
+export function sanitizeResourceTitle(title: string): string {
+  // Strip control characters that allow injecting new prompt lines,
+  // including vertical tab, form feed, null byte, and Unicode line/paragraph separators
+  const stripped = title.replace(/[\r\n\v\f\0\u2028\u2029]/g, " ");
+  // Truncate to prevent excessively long injections
+  return stripped.length > RESOURCE_TITLE_MAX_LENGTH
+    ? stripped.slice(0, RESOURCE_TITLE_MAX_LENGTH)
+    : stripped;
+}
+
 export function extractTextFromPrompt(prompt: ContentBlock[]): string {
   const parts: string[] = [];
   for (const block of prompt) {
@@ -21,8 +41,9 @@ export function extractTextFromPrompt(prompt: ContentBlock[]): string {
       continue;
     }
     if (block.type === "resource_link") {
-      const title = block.title ? ` (${block.title})` : "";
-      const uri = block.uri ?? "";
+      const rawTitle = block.title ? sanitizeResourceTitle(block.title) : "";
+      const title = rawTitle ? ` (${rawTitle})` : "";
+      const uri = block.uri ? sanitizeResourceTitle(block.uri) : "";
       const line = uri ? `[Resource link${title}] ${uri}` : `[Resource link${title}]`;
       parts.push(line);
     }
