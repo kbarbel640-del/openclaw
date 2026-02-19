@@ -68,4 +68,20 @@ describe("buildSandboxCreateArgs - user flag", () => {
       getgidSpy.mockRestore();
     }
   });
+
+  it("does NOT add --user flag on non-POSIX platforms (process.getuid undefined)", () => {
+    // Simulate Windows / non-POSIX environment where process.getuid is undefined
+    const origGetuid = process.getuid;
+    // @ts-expect-error: intentionally setting to undefined to simulate non-POSIX
+    process.getuid = undefined;
+    try {
+      const args = buildSandboxCreateArgs({
+        cfg: makeDockerCfg(), // no user field
+        scopeKey: "agent:main:session-1",
+      });
+      expect(args.indexOf("--user")).toBe(-1);
+    } finally {
+      process.getuid = origGetuid;
+    }
+  });
 });
