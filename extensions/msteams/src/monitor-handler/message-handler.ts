@@ -396,6 +396,9 @@ export function createMSTeamsMessageHandler(deps: MSTeamsMessageHandlerDeps) {
         return;
       }
     }
+    if (attachments.length > 0) {
+      context.sendActivity({ type: "typing" }).catch(() => {});
+    }
     const mediaList = await resolveMSTeamsInboundMedia({
       attachments,
       htmlSummary: htmlSummary ?? undefined,
