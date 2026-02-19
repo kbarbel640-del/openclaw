@@ -9,8 +9,15 @@ export type GatewayRespawnResult = {
 };
 
 const SUPERVISOR_HINT_ENV_VARS = [
+  // macOS launchd (legacy, not reliably set by modern macOS)
   "LAUNCH_JOB_LABEL",
   "LAUNCH_JOB_NAME",
+  // macOS launchd (set by launchd on modern macOS)
+  "XPC_SERVICE_NAME",
+  // OpenClaw's own service env vars (set by generated plist/unit files)
+  "OPENCLAW_LAUNCHD_LABEL",
+  "OPENCLAW_SYSTEMD_UNIT",
+  // Linux systemd
   "INVOCATION_ID",
   "SYSTEMD_EXEC_PID",
   "JOURNAL_STREAM",
