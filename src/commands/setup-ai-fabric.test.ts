@@ -10,7 +10,7 @@ import { CLOUDRU_MCP_CONFIG_FILENAME } from "./write-mcp-config.js";
 
 // Mock the simple client
 const mockListMcpServers = vi.fn();
-const mockListAgents = vi.fn().mockResolvedValue({ items: [], total: 0 });
+const mockListAgents = vi.fn().mockResolvedValue({ data: [], total: 0 });
 vi.mock("../ai-fabric/cloudru-client-simple.js", () => ({
   CloudruSimpleClient: class {
     listMcpServers = mockListMcpServers;
@@ -123,7 +123,7 @@ describe("setupAiFabric (interactive)", () => {
   });
 
   it("configures with selected MCP servers", async () => {
-    mockListMcpServers.mockResolvedValue({ items: SAMPLE_SERVERS, total: 2 });
+    mockListMcpServers.mockResolvedValue({ data: SAMPLE_SERVERS, total: 2 });
 
     const prompter = createMockPrompter({
       confirm: vi.fn().mockResolvedValue(true),
@@ -154,7 +154,7 @@ describe("setupAiFabric (interactive)", () => {
   });
 
   it("handles 0 MCP servers gracefully", async () => {
-    mockListMcpServers.mockResolvedValue({ items: [], total: 0 });
+    mockListMcpServers.mockResolvedValue({ data: [], total: 0 });
 
     const prompter = createMockPrompter({
       confirm: vi.fn().mockResolvedValue(true),
@@ -227,7 +227,7 @@ describe("setupAiFabric (interactive)", () => {
   });
 
   it("handles user selecting no servers", async () => {
-    mockListMcpServers.mockResolvedValue({ items: SAMPLE_SERVERS, total: 2 });
+    mockListMcpServers.mockResolvedValue({ data: SAMPLE_SERVERS, total: 2 });
 
     const prompter = createMockPrompter({
       confirm: vi.fn().mockResolvedValue(true),
@@ -247,8 +247,8 @@ describe("setupAiFabric (interactive)", () => {
   });
 
   it("discovers and selects AI agents", async () => {
-    mockListMcpServers.mockResolvedValue({ items: [], total: 0 });
-    mockListAgents.mockResolvedValue({ items: SAMPLE_AGENTS, total: 2 });
+    mockListMcpServers.mockResolvedValue({ data: [], total: 0 });
+    mockListAgents.mockResolvedValue({ data: SAMPLE_AGENTS, total: 2 });
 
     const multiselectMock = vi.fn().mockResolvedValue(EXPECTED_AGENT_ENTRIES);
     const prompter = createMockPrompter({
@@ -284,8 +284,8 @@ describe("setupAiFabric (interactive)", () => {
         updatedAt: "2026-01-03T00:00:00Z",
       },
     ];
-    mockListMcpServers.mockResolvedValue({ items: [], total: 0 });
-    mockListAgents.mockResolvedValue({ items: agentsWithMissingEndpoint, total: 3 });
+    mockListMcpServers.mockResolvedValue({ data: [], total: 0 });
+    mockListAgents.mockResolvedValue({ data: agentsWithMissingEndpoint, total: 3 });
 
     const multiselectMock = vi.fn().mockResolvedValue(EXPECTED_AGENT_ENTRIES);
     const prompter = createMockPrompter({
@@ -308,7 +308,7 @@ describe("setupAiFabric (interactive)", () => {
   });
 
   it("handles agent discovery API error gracefully", async () => {
-    mockListMcpServers.mockResolvedValue({ items: [], total: 0 });
+    mockListMcpServers.mockResolvedValue({ data: [], total: 0 });
     mockListAgents.mockRejectedValue(new Error("IAM auth failed"));
 
     const prompter = createMockPrompter({
@@ -330,8 +330,8 @@ describe("setupAiFabric (interactive)", () => {
   });
 
   it("user selects no agents — agents not written to config", async () => {
-    mockListMcpServers.mockResolvedValue({ items: [], total: 0 });
-    mockListAgents.mockResolvedValue({ items: SAMPLE_AGENTS, total: 2 });
+    mockListMcpServers.mockResolvedValue({ data: [], total: 0 });
+    mockListAgents.mockResolvedValue({ data: SAMPLE_AGENTS, total: 2 });
 
     const multiselectMock = vi.fn().mockResolvedValue([]);
     const prompter = createMockPrompter({
@@ -378,7 +378,7 @@ describe("setupAiFabricNonInteractive", () => {
       },
     ];
     mockListMcpServers.mockResolvedValue({
-      items: servers,
+      data: servers,
       total: 3,
     } satisfies PaginatedResult<McpServer>);
 
@@ -415,8 +415,8 @@ describe("setupAiFabricNonInteractive", () => {
   });
 
   it("returns configured=false when no servers available", async () => {
-    mockListMcpServers.mockResolvedValue({ items: [], total: 0 });
-    mockListAgents.mockResolvedValue({ items: [], total: 0 });
+    mockListMcpServers.mockResolvedValue({ data: [], total: 0 });
+    mockListAgents.mockResolvedValue({ data: [], total: 0 });
 
     const result = await setupAiFabricNonInteractive({
       config: BASE_CONFIG,
@@ -430,8 +430,8 @@ describe("setupAiFabricNonInteractive", () => {
   });
 
   it("auto-discovers running agents with endpoints", async () => {
-    mockListMcpServers.mockResolvedValue({ items: [], total: 0 });
-    mockListAgents.mockResolvedValue({ items: SAMPLE_AGENTS, total: 2 });
+    mockListMcpServers.mockResolvedValue({ data: [], total: 0 });
+    mockListAgents.mockResolvedValue({ data: SAMPLE_AGENTS, total: 2 });
 
     const result = await setupAiFabricNonInteractive({
       config: BASE_CONFIG,
@@ -456,8 +456,8 @@ describe("setupAiFabricNonInteractive", () => {
         updatedAt: "2026-01-03T00:00:00Z",
       },
     ];
-    mockListMcpServers.mockResolvedValue({ items: [], total: 0 });
-    mockListAgents.mockResolvedValue({ items: mixedAgents, total: 2 });
+    mockListMcpServers.mockResolvedValue({ data: [], total: 0 });
+    mockListAgents.mockResolvedValue({ data: mixedAgents, total: 2 });
 
     const result = await setupAiFabricNonInteractive({
       config: BASE_CONFIG,
@@ -472,7 +472,7 @@ describe("setupAiFabricNonInteractive", () => {
   });
 
   it("continues when agent discovery fails", async () => {
-    mockListMcpServers.mockResolvedValue({ items: SAMPLE_SERVERS, total: 2 });
+    mockListMcpServers.mockResolvedValue({ data: SAMPLE_SERVERS, total: 2 });
     mockListAgents.mockRejectedValue(new Error("Connection refused"));
 
     const result = await setupAiFabricNonInteractive({
@@ -488,8 +488,8 @@ describe("setupAiFabricNonInteractive", () => {
   });
 
   it("configured=true when only agents found (no MCP servers)", async () => {
-    mockListMcpServers.mockResolvedValue({ items: [], total: 0 });
-    mockListAgents.mockResolvedValue({ items: SAMPLE_AGENTS, total: 2 });
+    mockListMcpServers.mockResolvedValue({ data: [], total: 0 });
+    mockListAgents.mockResolvedValue({ data: SAMPLE_AGENTS, total: 2 });
 
     const result = await setupAiFabricNonInteractive({
       config: BASE_CONFIG,

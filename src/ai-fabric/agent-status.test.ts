@@ -114,7 +114,7 @@ describe("getAgentStatus", () => {
 
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: liveAgents, total: 2 } },
+      { status: 200, body: { data: liveAgents, total: 2 } },
     ]);
 
     const result = await getAgentStatus({
@@ -146,7 +146,7 @@ describe("getAgentStatus", () => {
 
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: liveAgents, total: 1 } },
+      { status: 200, body: { data: liveAgents, total: 1 } },
     ]);
 
     const result = await getAgentStatus({
@@ -184,7 +184,7 @@ describe("getAgentStatus", () => {
 
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: liveAgents, total: 2 } },
+      { status: 200, body: { data: liveAgents, total: 2 } },
     ]);
 
     const result = await getAgentStatus({
@@ -311,7 +311,7 @@ describe("getAgentStatus", () => {
 
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: liveAgents, total: 2 } },
+      { status: 200, body: { data: liveAgents, total: 2 } },
     ]);
 
     const result = await getAgentStatus({
@@ -340,7 +340,7 @@ describe("getAgentStatus", () => {
 
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: liveAgents, total: 1 } },
+      { status: 200, body: { data: liveAgents, total: 1 } },
     ]);
 
     const result = await getAgentStatus({
@@ -381,7 +381,7 @@ describe("getAgentStatus", () => {
 
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: liveAgents, total: 3 } },
+      { status: 200, body: { data: liveAgents, total: 3 } },
     ]);
 
     const result = await getAgentStatus({
@@ -413,7 +413,7 @@ describe("getAgentStatus", () => {
 
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: liveAgents, total: 1 } },
+      { status: 200, body: { data: liveAgents, total: 1 } },
     ]);
 
     const result = await getAgentStatus({
@@ -450,7 +450,7 @@ describe("getAgentStatus", () => {
 
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: liveAgents, total: 4 } },
+      { status: 200, body: { data: liveAgents, total: 4 } },
     ]);
 
     const result = await getAgentStatus({

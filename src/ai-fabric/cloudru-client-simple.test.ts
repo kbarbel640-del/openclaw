@@ -38,16 +38,16 @@ describe("CloudruSimpleClient", () => {
   it("exchanges IAM credentials and makes GET requests with Bearer token", async () => {
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: [], total: 0 } },
+      { status: 200, body: { data: [], total: 0 } },
     ]);
 
     const client = new CloudruSimpleClient({
       ...BASE_CONFIG,
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
-    const result = await client.get<{ items: unknown[]; total: number }>("/mcpServers");
+    const result = await client.get<{ data: unknown[]; total: number }>("/mcpServers");
 
-    expect(result).toEqual({ items: [], total: 0 });
+    expect(result).toEqual({ data: [], total: 0 });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
 
     // First call: IAM token exchange
@@ -69,8 +69,8 @@ describe("CloudruSimpleClient", () => {
   it("caches IAM token across requests", async () => {
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: [], total: 0 } },
-      { status: 200, body: { items: [], total: 0 } },
+      { status: 200, body: { data: [], total: 0 } },
+      { status: 200, body: { data: [], total: 0 } },
     ]);
 
     const client = new CloudruSimpleClient({
@@ -91,7 +91,7 @@ describe("CloudruSimpleClient", () => {
   it("appends query parameters", async () => {
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: [], total: 0 } },
+      { status: 200, body: { data: [], total: 0 } },
     ]);
 
     const client = new CloudruSimpleClient({
@@ -130,16 +130,16 @@ describe("CloudruSimpleClient", () => {
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
       { status: 503, body: { message: "service unavailable" } },
-      { status: 200, body: { items: [], total: 0 } },
+      { status: 200, body: { data: [], total: 0 } },
     ]);
 
     const client = new CloudruSimpleClient({
       ...BASE_CONFIG,
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
-    const result = await client.get<{ items: unknown[]; total: number }>("/mcpServers");
+    const result = await client.get<{ data: unknown[]; total: number }>("/mcpServers");
 
-    expect(result).toEqual({ items: [], total: 0 });
+    expect(result).toEqual({ data: [], total: 0 });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 
@@ -171,7 +171,7 @@ describe("CloudruSimpleClient", () => {
     ];
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: mcpServers, total: 2 } },
+      { status: 200, body: { data: mcpServers, total: 2 } },
     ]);
 
     const client = new CloudruSimpleClient({
@@ -180,8 +180,8 @@ describe("CloudruSimpleClient", () => {
     });
     const result = await client.listMcpServers();
 
-    expect(result.items).toHaveLength(2);
-    expect(result.items[0].name).toBe("web-search");
+    expect(result.data).toHaveLength(2);
+    expect(result.data[0].name).toBe("web-search");
     expect(result.total).toBe(2);
   });
 
@@ -206,7 +206,7 @@ describe("CloudruSimpleClient", () => {
     ];
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: agents, total: 2 } },
+      { status: 200, body: { data: agents, total: 2 } },
     ]);
 
     const client = new CloudruSimpleClient({
@@ -215,9 +215,9 @@ describe("CloudruSimpleClient", () => {
     });
     const result = await client.listAgents({ status: "RUNNING" });
 
-    expect(result.items).toHaveLength(2);
-    expect(result.items[0].name).toBe("code-assistant");
-    expect(result.items[0].endpoint).toBe("https://agent-1.example.com");
+    expect(result.data).toHaveLength(2);
+    expect(result.data[0].name).toBe("code-assistant");
+    expect(result.data[0].endpoint).toBe("https://agent-1.example.com");
     expect(result.total).toBe(2);
 
     const [url] = fetchImpl.mock.calls[1] as [string];
@@ -228,7 +228,7 @@ describe("CloudruSimpleClient", () => {
   it("omits undefined query values", async () => {
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: [], total: 0 } },
+      { status: 200, body: { data: [], total: 0 } },
     ]);
 
     const client = new CloudruSimpleClient({
@@ -261,7 +261,7 @@ describe("CloudruSimpleClient", () => {
     fetchImpl.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ items: [], total: 0 }),
+      json: () => Promise.resolve({ data: [], total: 0 }),
       text: () => Promise.resolve("{}"),
       headers: new Headers(),
     });
@@ -270,9 +270,9 @@ describe("CloudruSimpleClient", () => {
       ...BASE_CONFIG,
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
-    const result = await client.get<{ items: unknown[]; total: number }>("/mcpServers");
+    const result = await client.get<{ data: unknown[]; total: number }>("/mcpServers");
 
-    expect(result).toEqual({ items: [], total: 0 });
+    expect(result).toEqual({ data: [], total: 0 });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 
@@ -304,9 +304,9 @@ describe("CloudruSimpleClient", () => {
   it("clearAuthCache forces fresh IAM exchange", async () => {
     const fetchImpl = createMockFetch([
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: [], total: 0 } },
+      { status: 200, body: { data: [], total: 0 } },
       { status: 200, body: IAM_TOKEN_RESPONSE },
-      { status: 200, body: { items: [], total: 0 } },
+      { status: 200, body: { data: [], total: 0 } },
     ]);
 
     const client = new CloudruSimpleClient({

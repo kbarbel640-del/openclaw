@@ -50,12 +50,12 @@ describe("CloudruClient", () => {
   });
 
   it("makes GET requests with auth header", async () => {
-    const fetchImpl = createMockFetch([{ status: 200, body: { items: [], total: 0 } }]);
+    const fetchImpl = createMockFetch([{ status: 200, body: { data: [], total: 0 } }]);
 
     const client = new CloudruClient({ ...BASE_CONFIG, fetchImpl });
-    const result = await client.get<{ items: unknown[]; total: number }>("/agents");
+    const result = await client.get<{ data: unknown[]; total: number }>("/agents");
 
-    expect(result).toEqual({ items: [], total: 0 });
+    expect(result).toEqual({ data: [], total: 0 });
     expect(fetchImpl).toHaveBeenCalledOnce();
 
     const [url, init] = (fetchImpl as ReturnType<typeof vi.fn>).mock.calls[0] as [
@@ -67,7 +67,7 @@ describe("CloudruClient", () => {
   });
 
   it("appends query parameters", async () => {
-    const fetchImpl = createMockFetch([{ status: 200, body: { items: [], total: 0 } }]);
+    const fetchImpl = createMockFetch([{ status: 200, body: { data: [], total: 0 } }]);
 
     const client = new CloudruClient({ ...BASE_CONFIG, fetchImpl });
     await client.get("/agents", { search: "test", limit: 10, offset: 0 });

@@ -47,12 +47,12 @@ describe("CloudruA2AClient", () => {
       body: {
         result: {
           id: "task-1",
-          sessionId: "sess-1",
+          contextId: "sess-1",
           status: {
             state: "completed",
             message: {
               role: "agent",
-              parts: [{ type: "text", text: "Hello from the agent!" }],
+              parts: [{ kind: "text", text: "Hello from the agent!" }],
             },
           },
         },
@@ -82,17 +82,17 @@ describe("CloudruA2AClient", () => {
 
     const body = JSON.parse(init.body as string);
     expect(body.jsonrpc).toBe("2.0");
-    expect(body.method).toBe("tasks/send");
+    expect(body.method).toBe("message/send");
     expect(body.params.message.parts[0].text).toBe("Hello agent");
   });
 
-  it("includes sessionId for multi-turn conversations", async () => {
+  it("includes contextId for multi-turn conversations", async () => {
     const fetchImpl = mockFetch({
       status: 200,
       body: {
         result: {
           id: "task-2",
-          sessionId: "existing-session",
+          contextId: "existing-session",
           status: {
             state: "completed",
             message: { role: "agent", parts: [{ text: "Follow-up" }] },
@@ -113,7 +113,7 @@ describe("CloudruA2AClient", () => {
     });
 
     const body = JSON.parse((fetchImpl.mock.calls[0] as [string, RequestInit])[1].body as string);
-    expect(body.params.sessionId).toBe("existing-session");
+    expect(body.params.contextId).toBe("existing-session");
   });
 
   it("extracts text from artifacts when status message is empty", async () => {
