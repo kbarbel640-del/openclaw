@@ -518,6 +518,9 @@ async function runWebFetch(params: WebFetchRuntimeParams): Promise<Record<string
     throw new Error("Invalid URL: must be http or https");
   }
 
+  // SECURITY: Audit-log every outbound fetch URL for exfiltration detection.
+  logDebug(`[web-fetch] outbound request: ${parsedUrl.origin}${parsedUrl.pathname}`);
+
   const start = Date.now();
   let res: Response;
   let release: (() => Promise<void>) | null = null;
