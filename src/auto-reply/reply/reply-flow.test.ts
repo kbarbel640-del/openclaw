@@ -882,6 +882,47 @@ describe("followup queue collect routing", () => {
     expect(calls[1]?.prompt).toBe("two");
   });
 
+  it("does not collect when keyed and fully unkeyed metadata are mixed", async () => {
+    const key = `test-collect-mixed-unkeyed-${Date.now()}`;
+    const calls: FollowupRun[] = [];
+    const done = createDeferred<void>();
+    const expectedCalls = 2;
+    const runFollowup = async (run: FollowupRun) => {
+      calls.push(run);
+      if (calls.length >= expectedCalls) {
+        done.resolve();
+      }
+    };
+    const settings: QueueSettings = {
+      mode: "collect",
+      debounceMs: 0,
+      cap: 50,
+      dropPolicy: "summarize",
+    };
+
+    enqueueFollowupRun(
+      key,
+      createRun({
+        prompt: "one",
+        originatingChannel: "slack",
+        originatingTo: "channel:A",
+      }),
+      settings,
+    );
+    enqueueFollowupRun(
+      key,
+      createRun({
+        prompt: "two",
+      }),
+      settings,
+    );
+
+    scheduleFollowupDrain(key, runFollowup);
+    await done.promise;
+    expect(calls[0]?.prompt).toBe("one");
+    expect(calls[1]?.prompt).toBe("two");
+  });
+
   it("does not collect when destinations differ", async () => {
     const key = `test-collect-diff-to-${Date.now()}`;
     const calls: FollowupRun[] = [];
