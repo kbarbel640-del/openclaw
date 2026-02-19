@@ -22,6 +22,9 @@ import { createTaskDecomposeTool } from "./tools/task-decompose-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
+import { createEnhancedRAGTools } from "./rag-enhanced.js";
+import { createDynamicReasoningTool } from "./dynamic-reasoning.js";
+import { createAgenticWorkflowTool } from "./agentic-workflow.js";
 
 /**
  * Asynchronously discover and register MCP tools
@@ -192,6 +195,10 @@ export function createOpenClawTools(options?: {
     ...(webSearchTool ? [webSearchTool] : []),
     ...(webFetchTool ? [webFetchTool] : []),
     ...(imageTool ? [imageTool] : []),
+    // P0 Core Features
+    createDynamicReasoningTool(),
+    createAgenticWorkflowTool(),
+    ...createEnhancedRAGTools(),
   ];
 
   const pluginTools = resolvePluginTools({
