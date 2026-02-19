@@ -64,12 +64,12 @@ result = g.record_success()
 
 Gates run sequentially — first failure stops the chain and sets score to −1.0.
 
-| Gate    | Config key                      | Skip when          |
-| ------- | ------------------------------- | ------------------ |
-| Files   | `required_files=[...]`          | list empty         |
-| Tests   | `run_tests="pytest ..."`        | not set            |
-| Lint    | `run_lint=True, lint_paths=[.]` | no linter in PATH  |
-| AST     | `check_syntax=True` (default)   | `check_syntax=False` |
+| Gate  | Config key                      | Skip when            |
+| ----- | ------------------------------- | -------------------- |
+| Files | `required_files=[...]`          | list empty           |
+| Tests | `run_tests="pytest ..."`        | not set              |
+| Lint  | `run_lint=True, lint_paths=[.]` | no linter in PATH    |
+| AST   | `check_syntax=True` (default)   | `check_syntax=False` |
 
 ## Outcome Reporting
 
@@ -93,12 +93,12 @@ for agent in get_agent_stats():
     print(agent["agent_id"], agent["reputation"], agent["supervision"]["level"])
 ```
 
-| Reputation | Supervision  |
-| ---------- | ------------ |
-| > 0.8      | Autonomous   |
-| 0.6–0.8    | Standard     |
-| 0.4–0.6    | Supervised   |
-| < 0.4      | Strict       |
+| Reputation | Supervision |
+| ---------- | ----------- |
+| > 0.8      | Autonomous  |
+| 0.6–0.8    | Standard    |
+| 0.4–0.6    | Supervised  |
+| < 0.4      | Strict      |
 
 ## Verify Installation
 
