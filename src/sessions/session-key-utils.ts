@@ -91,7 +91,7 @@ export function resolveThreadParentSessionKey(
       idx = candidate;
     }
   }
-  if (idx <= 0) {
+  if (idx < 0) {
     return null;
   }
   const parent = raw.slice(0, idx).trim();
