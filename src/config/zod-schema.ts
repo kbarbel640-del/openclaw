@@ -605,6 +605,7 @@ export const OpenClawSchema = z
                 apiKey: z.string().optional().register(sensitive),
                 env: z.record(z.string(), z.string()).optional(),
                 config: z.record(z.string(), z.unknown()).optional(),
+                allowedAgents: z.array(z.string()).optional(),
               })
               .strict(),
           )
@@ -636,6 +637,7 @@ export const OpenClawSchema = z
               .object({
                 enabled: z.boolean().optional(),
                 config: z.record(z.string(), z.unknown()).optional(),
+                allowedAgents: z.array(z.string()).optional(),
               })
               .strict(),
           )
