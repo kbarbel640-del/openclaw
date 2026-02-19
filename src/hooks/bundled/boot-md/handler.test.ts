@@ -4,11 +4,19 @@ import type { InternalHookEvent } from "../../internal-hooks.js";
 const runBootOnce = vi.fn();
 const listAgentIds = vi.fn();
 const resolveAgentWorkspaceDir = vi.fn();
+const logWarn = vi.fn();
+const logDebug = vi.fn();
 
 vi.mock("../../../gateway/boot.js", () => ({ runBootOnce }));
 vi.mock("../../../agents/agent-scope.js", () => ({
   listAgentIds,
   resolveAgentWorkspaceDir,
+}));
+vi.mock("../../../logging/subsystem.js", () => ({
+  createSubsystemLogger: () => ({
+    warn: logWarn,
+    debug: logDebug,
+  }),
 }));
 
 const { default: runBootChecklist } = await import("./handler.js");
@@ -28,6 +36,8 @@ function makeEvent(overrides?: Partial<InternalHookEvent>): InternalHookEvent {
 describe("boot-md handler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    logWarn.mockReset();
+    logDebug.mockReset();
   });
 
   it("skips non-gateway events", async () => {
@@ -75,5 +85,38 @@ describe("boot-md handler", () => {
     expect(runBootOnce).toHaveBeenCalledWith(
       expect.objectContaining({ cfg, workspaceDir: "/ws/main", agentId: "main" }),
     );
+  });
+
+  it("logs warning details when a per-agent boot run fails", async () => {
+    const cfg = { agents: { list: [{ id: "main" }, { id: "ops" }] } };
+    listAgentIds.mockReturnValue(["main", "ops"]);
+    resolveAgentWorkspaceDir.mockImplementation((_cfg: unknown, id: string) => `/ws/${id}`);
+    runBootOnce
+      .mockResolvedValueOnce({ status: "ran" })
+      .mockResolvedValueOnce({ status: "failed", reason: "agent failed" });
+
+    await runBootChecklist(makeEvent({ context: { cfg } }));
+
+    expect(logWarn).toHaveBeenCalledTimes(1);
+    expect(logWarn).toHaveBeenCalledWith("boot-md failed for agent startup run", {
+      agentId: "ops",
+      workspaceDir: "/ws/ops",
+      reason: "agent failed",
+    });
+  });
+
+  it("logs debug details when a per-agent boot run is skipped", async () => {
+    const cfg = { agents: { list: [{ id: "main" }] } };
+    listAgentIds.mockReturnValue(["main"]);
+    resolveAgentWorkspaceDir.mockReturnValue("/ws/main");
+    runBootOnce.mockResolvedValue({ status: "skipped", reason: "missing" });
+
+    await runBootChecklist(makeEvent({ context: { cfg } }));
+
+    expect(logDebug).toHaveBeenCalledWith("boot-md skipped for agent startup run", {
+      agentId: "main",
+      workspaceDir: "/ws/main",
+      reason: "missing",
+    });
   });
 });
