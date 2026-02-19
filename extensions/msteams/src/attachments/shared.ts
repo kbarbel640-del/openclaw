@@ -55,6 +55,10 @@ export const DEFAULT_MEDIA_AUTH_HOST_ALLOWLIST = [
   "graph.microsoft.us",
   "graph.microsoft.de",
   "graph.microsoft.cn",
+  // Skype CDN hosts used for clipboard-pasted inline images in Teams
+  "asm.skype.com",
+  "ams.skype.com",
+  "media.ams.skype.com",
 ] as const;
 
 export const GRAPH_ROOT = "https://graph.microsoft.com/v1.0";
