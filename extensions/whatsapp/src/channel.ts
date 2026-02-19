@@ -391,6 +391,9 @@ export const whatsappPlugin: ChannelPlugin<ResolvedWhatsAppAccount> = {
       };
     },
     buildAccountSnapshot: async ({ account, runtime }) => {
+      // `linked` reflects whether WhatsApp Web auth credentials exist on disk.
+      // `configured` mirrors `linked` so the UI accurately shows the account as
+      // unconfigured when no auth dir is present (previously it was hardcoded true).
       const linked = await getWhatsAppRuntime().channel.whatsapp.webAuthExists(account.authDir);
       return {
         accountId: account.accountId,
