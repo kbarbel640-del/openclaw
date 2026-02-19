@@ -156,7 +156,11 @@ export function createAuthRateLimiter(config?: RateLimitConfig): AuthRateLimiter
 
     slideWindow(entry, now);
     const remaining = Math.max(0, maxAttempts - entry.attempts.length);
-    return { allowed: remaining > 0, remaining, retryAfterMs: 0 };
+    const retryAfterMs =
+      remaining === 0 && entry.attempts.length > 0
+        ? Math.max(0, entry.attempts[0] + windowMs - now)
+        : 0;
+    return { allowed: remaining > 0, remaining, retryAfterMs };
   }
 
   function recordFailure(rawIp: string | undefined, rawScope?: string): void {
