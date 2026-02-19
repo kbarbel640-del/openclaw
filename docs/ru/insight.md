@@ -148,3 +148,81 @@ docker compose -f docker-compose.cloudru-proxy.yml logs -f
 
 - [Полная настройка OpenClaw](setup-cloudru-fm-full.md)
 - [Установка Cloud.ru FM](foundation-models/installation.md)
+
+---
+
+# Инсайт: Telegram бот не отвечает на сообщения
+
+> **Дата:** Февраль 2026
+
+## Симптомы
+
+| Симптом                                                           | Контекст                                 |
+| ----------------------------------------------------------------- | ---------------------------------------- |
+| Бот молчит в Telegram                                             | Сообщения доходят до бота, но ответа нет |
+| Gateway не запущен                                                | Команда `pnpm gateway` не существует     |
+| `pnpm gateway:dev` запускает gateway, но Telegram не подключается | Каналы отключены переменной окружения    |
+
+## Суть проблемы
+
+Три независимые причины, каждая из которых блокирует ответ бота:
+
+### 1. `gateway:dev` отключает все каналы
+
+Скрипт `gateway:dev` в `package.json` устанавливает `OPENCLAW_SKIP_CHANNELS=1`:
+
+```
+"gateway:dev": "OPENCLAW_SKIP_CHANNELS=1 CLAWDBOT_SKIP_CHANNELS=1 node scripts/run-node.mjs --dev gateway"
+```
+
+В `src/gateway/server-startup.ts:117-118` эта переменная проверяется и **все channel adapters** (Telegram, Slack и т.д.) не запускаются. В логах видно: `skipping channel start (OPENCLAW_SKIP_CHANNELS=1)`.
+
+### 2. `dmPolicy: "pairing"` без `allowFrom`
+
+В `~/.openclaw/openclaw.json` для Telegram стоит `dmPolicy: "pairing"` без списка `allowFrom`. При такой конфигурации бот отправляет код сопряжения при первом DM и не отвечает, пока пользователь не будет одобрен через `openclaw pair approve`.
+
+### 3. Nested Claude Code session
+
+При запуске gateway из сессии Claude Code переменная `CLAUDECODE` установлена. Agent backend (`claude-cli`) при старте проверяет её и отказывается запускаться:
+
+```
+FailoverError: Error: Claude Code cannot be launched inside another Claude Code session.
+```
+
+## Решение
+
+### Новый скрипт `gateway:dev:tg`
+
+Добавлен в `package.json` скрипт без `OPENCLAW_SKIP_CHANNELS`:
+
+```json
+"gateway:dev:tg": "node scripts/run-node.mjs --dev gateway"
+```
+
+### Переключение dmPolicy
+
+В `~/.openclaw/openclaw.json` секция `channels.telegram`:
+
+| Параметр    | Было        | Стало    |
+| ----------- | ----------- | -------- |
+| `dmPolicy`  | `"pairing"` | `"open"` |
+| `allowFrom` | отсутствует | `["*"]`  |
+
+### Обход nested session
+
+Запуск gateway с `unset CLAUDECODE`:
+
+```bash
+unset CLAUDECODE && node openclaw.mjs gateway run
+```
+
+### Верификация
+
+В логах gateway должно быть:
+
+```
+[telegram] [default] starting provider (@clawstackcl3_bot)
+listening on ws://127.0.0.1:18789
+```
+
+Если видно `skipping channel start` — каналы по-прежнему отключены.
