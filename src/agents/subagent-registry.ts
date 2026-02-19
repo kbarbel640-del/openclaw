@@ -112,6 +112,7 @@ function triggerCleanupAndAnnounce(runId: string) {
     requesterOrigin,
     requesterDisplayKey: entry.requesterDisplayKey,
     task: entry.task,
+    expectsCompletionMessage: entry.expectsCompletionMessage,
     timeoutMs: SUBAGENT_ANNOUNCE_TIMEOUT_MS,
     cleanup: entry.cleanup,
     waitForCompletion: false,
@@ -597,6 +598,11 @@ function retryDeferredCompletedAnnounces(excludeRunId?: string) {
       continue;
     }
     if (entry.cleanupCompletedAt || entry.cleanupHandled) {
+      continue;
+    }
+    // Skip entries with a pending debounce timer — they are awaiting retry
+    // and should not be announced until the timer fires (#13011).
+    if (pendingCleanupTimers.has(runId)) {
       continue;
     }
     if (suppressAnnounceForSteerRestart(entry)) {
