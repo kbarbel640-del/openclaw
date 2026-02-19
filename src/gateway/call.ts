@@ -125,9 +125,7 @@ export function buildGatewayConnectionDetails(
   const localUrl =
     preferTailnet && tailnetIPv4
       ? `${scheme}://${tailnetIPv4}:${localPort}`
-      : preferLan && lanIPv4
-        ? `${scheme}://${lanIPv4}:${localPort}`
-        : `${scheme}://127.0.0.1:${localPort}`;
+      : `${scheme}://127.0.0.1:${localPort}`;
   const urlOverride =
     typeof options.url === "string" && options.url.trim().length > 0
       ? options.url.trim()
@@ -144,8 +142,10 @@ export function buildGatewayConnectionDetails(
         ? "missing gateway.remote.url (fallback local)"
         : preferTailnet && tailnetIPv4
           ? `local tailnet ${tailnetIPv4}`
-          : preferLan && lanIPv4
-            ? `local lan ${lanIPv4}`
+          : preferLan
+            ? lanIPv4
+              ? `local loopback (bind=lan, lan=${lanIPv4})`
+              : "local loopback (bind=lan)"
             : "local loopback";
   const remoteFallbackNote = remoteMisconfigured
     ? "Warn: gateway.mode=remote but gateway.remote.url is missing; set gateway.remote.url or switch gateway.mode=local."

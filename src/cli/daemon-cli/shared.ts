@@ -73,7 +73,7 @@ export function pickProbeHostForBind(
     return tailnetIPv4 ?? "127.0.0.1";
   }
   if (bindMode === "lan") {
-    return pickPrimaryLanIPv4() ?? "127.0.0.1";
+    return "127.0.0.1";
   }
   return "127.0.0.1";
 }
