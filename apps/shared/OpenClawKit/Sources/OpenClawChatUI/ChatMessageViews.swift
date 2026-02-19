@@ -231,8 +231,13 @@ private struct ChatMessageBody: View {
         }
         let text = parts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // If content is empty and this is an error, show formatted error message
-        if text.isEmpty, self.message.stopReason == "error", let errorMessage = self.message.errorMessage {
+        // If there is truly no renderable content (no text, no attachments, no tool content)
+        // and this is an error, show formatted error message
+        let hasNonTextContent = self.message.content.contains { content in
+            let kind = (content.type ?? "text").lowercased()
+            return kind != "text" && !kind.isEmpty
+        }
+        if text.isEmpty, !hasNonTextContent, self.message.stopReason == "error", let errorMessage = self.message.errorMessage {
             return Self.formatErrorMessage(errorMessage)
         }
 
