@@ -1,13 +1,13 @@
 import type { Client } from "@buape/carbon";
+import type { DiscordMessageEvent, DiscordMessageHandler } from "./listeners.js";
+import type { DiscordMessagePreflightParams } from "./message-handler.preflight.types.js";
 import { hasControlCommand } from "../../auto-reply/command-detection.js";
 import {
   createInboundDebouncer,
   resolveInboundDebounceMs,
 } from "../../auto-reply/inbound-debounce.js";
 import { danger } from "../../globals.js";
-import type { DiscordMessageEvent, DiscordMessageHandler } from "./listeners.js";
 import { preflightDiscordMessage } from "./message-handler.preflight.js";
-import type { DiscordMessagePreflightParams } from "./message-handler.preflight.types.js";
 import { processDiscordMessage } from "./message-handler.process.js";
 import { resolveDiscordMessageChannelId, resolveDiscordMessageText } from "./message-utils.js";
 
@@ -70,7 +70,10 @@ export function createDiscordMessageHandler(
         if (!ctx) {
           return;
         }
-        await processDiscordMessage(ctx);
+        // Fire-and-forget: don't block the event listener (WebSocket heartbeat)
+        void processDiscordMessage(ctx).catch((err) => {
+          params.runtime.error?.(danger(`discord process failed: ${String(err)}`));
+        });
         return;
       }
       const combinedBaseText = entries
@@ -114,7 +117,10 @@ export function createDiscordMessageHandler(
           ctxBatch.MessageSidLast = ids[ids.length - 1];
         }
       }
-      await processDiscordMessage(ctx);
+      // Fire-and-forget: don't block the event listener (WebSocket heartbeat)
+      void processDiscordMessage(ctx).catch((err) => {
+        params.runtime.error?.(danger(`discord process failed: ${String(err)}`));
+      });
     },
     onError: (err) => {
       params.runtime.error?.(danger(`discord debounce flush failed: ${String(err)}`));
