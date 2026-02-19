@@ -121,7 +121,7 @@ function normalizeSessionStore(store: Record<string, SessionEntry>): void {
     // built-in skills are present.  The field is only needed at runtime; the
     // lightweight `skills` array (name + primaryEnv) is sufficient on disk.
     if (store[key]?.skillsSnapshot?.resolvedSkills) {
-      const { resolvedSkills: _, ...rest } = store[key].skillsSnapshot!;
+      const { resolvedSkills: _, ...rest } = store[key].skillsSnapshot;
       store[key] = { ...store[key], skillsSnapshot: rest };
     }
   }
