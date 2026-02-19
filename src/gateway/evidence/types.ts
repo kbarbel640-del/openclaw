@@ -1,0 +1,35 @@
+import { Type } from "@sinclair/typebox";
+
+export const EvidenceGateTypeSchema = Type.Union([
+  Type.Literal("lsp"),
+  Type.Literal("build"),
+  Type.Literal("test"),
+  Type.Literal("custom"),
+]);
+
+export const EvidenceGateSchema = Type.Object({
+  type: EvidenceGateTypeSchema,
+  enabled: Type.Boolean(),
+  command: Type.Optional(Type.String()),
+  required: Type.Optional(Type.Boolean()),
+  timeoutMs: Type.Optional(Type.Integer({ minimum: 1000 })),
+});
+
+export const EvidenceConfigSchema = Type.Object({
+  enabled: Type.Boolean(),
+  gates: Type.Array(EvidenceGateSchema),
+  failOnError: Type.Optional(Type.Boolean()),
+});
+
+export type EvidenceGateType = "lsp" | "build" | "test" | "custom";
+export type EvidenceConfig = Type.TypeOf<typeof EvidenceConfigSchema>;
+export type EvidenceGate = Type.TypeOf<typeof EvidenceGateSchema>;
+
+export interface VerificationResult {
+  type: EvidenceGateType;
+  success: boolean;
+  output: string;
+  error?: string;
+  durationMs: number;
+  timestamp: number;
+}
