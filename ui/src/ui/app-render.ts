@@ -179,7 +179,8 @@ export function renderApp(state: AppViewState) {
             <button
               type="button"
               class="nav-item nav-item--action ${state.settings.enterpriseNav ? "nav-item--active" : ""}"
-              title="${state.settings.enterpriseNav ? t("nav.collapse") : t("nav.expand")} ${t("common.enterpriseNav")}"
+              title="${state.onboarding ? t("chat.onboardingDisabled") : `${state.settings.enterpriseNav ? t("nav.collapse") : t("nav.expand")} ${t("common.enterpriseNav")}`}"
+              ?disabled=${state.onboarding}
               @click=${() =>
                 state.applySettings({
                   ...state.settings,
@@ -234,6 +235,7 @@ export function renderApp(state: AppViewState) {
         ${
           state.tab === "overview"
             ? renderOverview({
+                onboarding: state.onboarding,
                 connected: state.connected,
                 hello: state.hello,
                 settings: state.settings,
@@ -259,6 +261,9 @@ export function renderApp(state: AppViewState) {
                 },
                 onConnect: () => state.connect(),
                 onRefresh: () => state.loadOverview(),
+                onOpenChannels: () => state.setTab("channels"),
+                onOpenChat: () => state.setTab("chat"),
+                onOpenConsent: () => state.setTab("consent"),
               })
             : nothing
         }

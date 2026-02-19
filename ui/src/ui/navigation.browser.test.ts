@@ -185,4 +185,79 @@ describe("control UI routing", () => {
     expect(window.location.pathname).toBe("/ui/overview");
     expect(window.location.hash).toBe("");
   });
+
+  it("routes onboarding launches on the root path to overview", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    expect(app.onboarding).toBe(true);
+    expect(app.tab).toBe("overview");
+    expect(window.location.pathname).toBe("/overview");
+    expect(window.location.search).toContain("onboarding=1");
+  });
+
+  it("routes onboarding launches on /ui root to /ui/overview", async () => {
+    const app = mountApp("/ui?onboarding=1");
+    await app.updateComplete;
+
+    expect(app.onboarding).toBe(true);
+    expect(app.basePath).toBe("/ui");
+    expect(app.tab).toBe("overview");
+    expect(window.location.pathname).toBe("/ui/overview");
+    expect(window.location.search).toContain("onboarding=1");
+  });
+
+  it("routes unknown onboarding paths to overview", async () => {
+    const app = mountApp("/not-a-real-tab?onboarding=1");
+    await app.updateComplete;
+
+    expect(app.onboarding).toBe(true);
+    expect(app.basePath).toBe("/not-a-real-tab");
+    expect(app.tab).toBe("overview");
+    expect(window.location.pathname).toBe("/not-a-real-tab/overview");
+    expect(window.location.search).toContain("onboarding=1");
+  });
+
+  it("disables enterprise nav toggle during onboarding", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    const toggle = app.querySelector<HTMLButtonElement>(".nav-item--action");
+    expect(toggle).not.toBeNull();
+    expect(toggle?.disabled).toBe(true);
+  });
+
+  it("shows onboarding setup flow on overview", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    const setupFlow = app.querySelector('[data-testid="onboarding-setup-flow"]');
+    expect(setupFlow).not.toBeNull();
+  });
+
+  it("navigates to integrations from onboarding setup flow", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    const button = Array.from(app.querySelectorAll<HTMLButtonElement>('[data-testid="onboarding-setup-flow"] button')).find((btn) =>
+      btn.textContent?.includes("Open Integrations"),
+    );
+    expect(button).not.toBeNull();
+    button?.click();
+    await app.updateComplete;
+
+    expect(app.tab).toBe("channels");
+    expect(window.location.pathname).toBe("/channels");
+  });
+
+  it("keeps open chat disabled in onboarding setup flow until connected", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    const button = Array.from(app.querySelectorAll<HTMLButtonElement>('[data-testid="onboarding-setup-flow"] button')).find((btn) =>
+      btn.textContent?.includes("Open Chat"),
+    );
+    expect(button).not.toBeNull();
+    expect(button?.disabled).toBe(true);
+  });
 });

@@ -100,6 +100,19 @@ export const pt_BR: TranslationMap = {
       cronTitle: "Lembretes de Cron",
       cronText: "Use sessões isoladas para execuções recorrentes.",
     },
+    setupFlow: {
+      title: "Fluxo Inicial",
+      subtitle: "Use esta lista para concluir a configuraÃ§Ã£o inicial.",
+      gateway: "Conectar Gateway",
+      gatewayHint: "Confirme URL e autenticaÃ§Ã£o, depois conecte.",
+      integrations: "Configurar IntegraÃ§Ãµes",
+      integrationsHint: "Configure canais e valide pelo menos uma conexÃ£o.",
+      firstRun: "Primeira InteraÃ§Ã£o",
+      firstRunHint: "Envie a primeira mensagem para validar sessÃ£o e ferramentas.",
+      openIntegrations: "Abrir IntegraÃ§Ãµes",
+      openChat: "Abrir Chat",
+      openConsent: "Abrir ConsentGuard",
+    },
     auth: {
       required:
         "Este gateway requer autenticação. Adicione um token ou senha e clique em Conectar.",

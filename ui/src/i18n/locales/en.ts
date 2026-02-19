@@ -99,6 +99,19 @@ export const en: TranslationMap = {
       cronTitle: "Cron reminders",
       cronText: "Use isolated sessions for recurring runs.",
     },
+    setupFlow: {
+      title: "Initial Setup Flow",
+      subtitle: "Use this checklist to finish first-run setup quickly.",
+      gateway: "Connect Gateway",
+      gatewayHint: "Confirm URL and auth, then connect.",
+      integrations: "Configure Integrations",
+      integrationsHint: "Set up channels and verify at least one connection.",
+      firstRun: "Run First Interaction",
+      firstRunHint: "Send a first message to validate session and tools.",
+      openIntegrations: "Open Integrations",
+      openChat: "Open Chat",
+      openConsent: "Open ConsentGuard",
+    },
     auth: {
       required: "This gateway requires auth. Add a token or password, then click Connect.",
       failed:

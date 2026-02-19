@@ -6,6 +6,7 @@ import { formatNextRun } from "../presenter.ts";
 import type { UiSettings } from "../storage.ts";
 
 export type OverviewProps = {
+  onboarding?: boolean;
   connected: boolean;
   hello: GatewayHelloOk | null;
   settings: UiSettings;
@@ -21,6 +22,9 @@ export type OverviewProps = {
   onSessionKeyChange: (next: string) => void;
   onConnect: () => void;
   onRefresh: () => void;
+  onOpenChannels?: () => void;
+  onOpenChat?: () => void;
+  onOpenConsent?: () => void;
 };
 
 export function renderOverview(props: OverviewProps) {
@@ -129,8 +133,57 @@ export function renderOverview(props: OverviewProps) {
   })();
 
   const currentLocale = i18n.getLocale();
+  const showSetupFlow = Boolean(props.onboarding);
+  const channelsConnected = props.lastChannelsRefresh != null;
+  const hasSessions = (props.sessionsCount ?? 0) > 0;
 
   return html`
+    ${
+      showSetupFlow
+        ? html`
+            <section class="card" data-testid="onboarding-setup-flow">
+              <div class="card-title">${t("overview.setupFlow.title")}</div>
+              <div class="card-sub">${t("overview.setupFlow.subtitle")}</div>
+              <div class="note-grid" style="margin-top: 12px;">
+                <div>
+                  <div class="note-title">
+                    1. ${t("overview.setupFlow.gateway")}
+                    <span class="muted">(${props.connected ? t("common.ok") : t("common.offline")})</span>
+                  </div>
+                  <div class="muted">${t("overview.setupFlow.gatewayHint")}</div>
+                </div>
+                <div>
+                  <div class="note-title">
+                    2. ${t("overview.setupFlow.integrations")}
+                    <span class="muted">(${channelsConnected ? t("common.ok") : t("common.na")})</span>
+                  </div>
+                  <div class="muted">${t("overview.setupFlow.integrationsHint")}</div>
+                </div>
+                <div>
+                  <div class="note-title">
+                    3. ${t("overview.setupFlow.firstRun")}
+                    <span class="muted">(${hasSessions ? t("common.ok") : t("common.na")})</span>
+                  </div>
+                  <div class="muted">${t("overview.setupFlow.firstRunHint")}</div>
+                </div>
+              </div>
+              <div class="row" style="margin-top: 12px;">
+                <button class="btn" @click=${() => props.onConnect()}>${t("common.connect")}</button>
+                <button class="btn" @click=${() => props.onOpenChannels?.()}>
+                  ${t("overview.setupFlow.openIntegrations")}
+                </button>
+                <button class="btn" ?disabled=${!props.connected} @click=${() => props.onOpenChat?.()}>
+                  ${t("overview.setupFlow.openChat")}
+                </button>
+                <button class="btn" @click=${() => props.onOpenConsent?.()}>
+                  ${t("overview.setupFlow.openConsent")}
+                </button>
+              </div>
+            </section>
+          `
+        : ""
+    }
+
     <section class="grid grid-cols-2">
       <div class="card">
         <div class="card-title">${t("overview.access.title")}</div>
