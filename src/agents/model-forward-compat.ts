@@ -41,6 +41,20 @@ export const ANTIGRAVITY_OPUS_46_FORWARD_COMPAT_CANDIDATES = [
   },
 ] as const;
 
+// Copilot "-1m" forward-compat candidates.
+// The templatePrefixes point to the base model (without "-1m") so we can
+// inherit auth status from it in the `models list` command.
+export const COPILOT_1M_FORWARD_COMPAT_CANDIDATES = [
+  {
+    key: "github-copilot/claude-opus-4-6-1m",
+    templatePrefixes: ["github-copilot/claude-opus-4-6", "github-copilot/claude-opus-4.6"],
+  },
+  {
+    key: "github-copilot/claude-opus-4.6-1m",
+    templatePrefixes: ["github-copilot/claude-opus-4.6", "github-copilot/claude-opus-4-6"],
+  },
+] as const;
+
 function cloneFirstTemplateModel(params: {
   normalizedProvider: string;
   trimmedModelId: string;
@@ -278,6 +292,85 @@ function resolveAntigravityOpus46ForwardCompatModel(
   });
 }
 
+// GitHub Copilot proxies Claude models through its own backend and registers
+// them in pi-ai's ModelRegistry with the correct api/baseUrl/headers.
+// Standard models like "claude-opus-4.6" are already in the registry, but
+// Copilot's "-1m" extended-context variants (e.g. "claude-opus-4.6-1m") are
+// NOT registered.  We synthesize them by cloning the base model from the
+// registry and overriding only id/name/contextWindow.  This preserves the
+// real transport config (api: "anthropic-messages", Copilot baseUrl, auth
+// headers) that buildCopilotModelDefinition() doesn't know about.
+const COPILOT_CLAUDE_PREFIXES = ["claude-opus-", "claude-sonnet-", "claude-haiku-"];
+
+// Context windows for Copilot's "-1m" variants.
+// Only Opus 4.6 is verified; Copilot enforces ~936K empirically.
+const COPILOT_1M_CONTEXT_WINDOW = 936_000;
+
+// Strip the "-1m" suffix to find the base model id that's in the registry,
+// trying both dot and dash notation.
+function deriveCopilotBaseModelIds(modelId: string): string[] {
+  const lower = modelId.toLowerCase();
+  if (!lower.endsWith("-1m")) {
+    return [];
+  }
+  const base = lower.slice(0, -3); // strip "-1m"
+  const candidates = [base];
+  // "claude-opus-4.6" ↔ "claude-opus-4-6"
+  if (base.includes(".")) {
+    candidates.push(base.replace(/\./g, "-"));
+  } else {
+    candidates.push(base.replace(/-(\d+)$/, ".$1"));
+  }
+  return candidates;
+}
+
+function resolveGitHubCopilotForwardCompatModel(
+  provider: string,
+  modelId: string,
+  modelRegistry: ModelRegistry,
+): Model<Api> | undefined {
+  const normalizedProvider = normalizeProviderId(provider);
+  if (normalizedProvider !== "github-copilot" && normalizedProvider !== "copilot-proxy") {
+    return undefined;
+  }
+
+  const trimmedModelId = modelId.trim();
+  const lower = trimmedModelId.toLowerCase();
+  const isClaude = COPILOT_CLAUDE_PREFIXES.some((prefix) => lower.startsWith(prefix));
+  if (!isClaude) {
+    return undefined;
+  }
+
+  // For "-1m" variants, clone from the base model in the registry so we
+  // inherit api, baseUrl, headers, and auth — then override contextWindow.
+  const baseCandidates = deriveCopilotBaseModelIds(trimmedModelId);
+  if (baseCandidates.length > 0) {
+    return cloneFirstTemplateModel({
+      normalizedProvider,
+      trimmedModelId,
+      templateIds: baseCandidates,
+      modelRegistry,
+      patch: { contextWindow: COPILOT_1M_CONTEXT_WINDOW },
+    });
+  }
+
+  // For non-"-1m" Claude models that aren't in the registry yet (e.g. a
+  // future "claude-sonnet-4-7" on Copilot), try dot/dash variants.
+  const templateIds: string[] = [];
+  if (lower.includes(".")) {
+    templateIds.push(lower.replace(/\./g, "-"));
+  } else {
+    templateIds.push(lower.replace(/-(\d+)$/, ".$1"));
+  }
+
+  return cloneFirstTemplateModel({
+    normalizedProvider,
+    trimmedModelId,
+    templateIds,
+    modelRegistry,
+  });
+}
+
 export function resolveForwardCompatModel(
   provider: string,
   modelId: string,
@@ -288,6 +381,7 @@ export function resolveForwardCompatModel(
     resolveAnthropicOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveAnthropicSonnet46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry) ??
-    resolveAntigravityOpus46ForwardCompatModel(provider, modelId, modelRegistry)
+    resolveAntigravityOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
+    resolveGitHubCopilotForwardCompatModel(provider, modelId, modelRegistry)
   );
 }
