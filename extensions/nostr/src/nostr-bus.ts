@@ -22,6 +22,8 @@ import {
   computeSinceTimestamp,
   readNostrProfileState,
   writeNostrProfileState,
+  storeEncryptedPrivateKey,
+  retrieveDecryptedPrivateKey,
 } from "./nostr-state-store.js";
 import { createSeenTracker, type SeenTracker } from "./seen-tracker.js";
 
@@ -73,6 +75,8 @@ export interface NostrBusOptions {
   maxSeenEntries?: number;
   /** Seen tracker TTL in ms (default: 1 hour) */
   seenTtlMs?: number;
+  /** Encryption passphrase for storing private key securely (optional) */
+  encryptionPassphrase?: string;
 }
 
 export interface NostrBusHandle {
@@ -328,6 +332,7 @@ export async function startNostrBus(options: NostrBusOptions): Promise<NostrBusH
     onMetric,
     maxSeenEntries = 100_000,
     seenTtlMs = 60 * 60 * 1000,
+    encryptionPassphrase,
   } = options;
 
   const sk = validatePrivateKey(privateKey);
@@ -335,6 +340,24 @@ export async function startNostrBus(options: NostrBusOptions): Promise<NostrBusH
   const pool = new SimplePool();
   const accountId = options.accountId ?? pk.slice(0, 16);
   const gatewayStartedAt = Math.floor(Date.now() / 1000);
+
+  // Store encrypted private key if passphrase is provided
+  if (encryptionPassphrase) {
+    try {
+      await storeEncryptedPrivateKey({
+        accountId,
+        privateKey:
+          typeof sk === "string"
+            ? sk
+            : Array.from(sk)
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join(""),
+        passphrase: encryptionPassphrase,
+      });
+    } catch (err) {
+      onError?.(err as Error, "store encrypted private key");
+    }
+  }
 
   // Initialize metrics
   const metrics = onMetric ? createMetrics(onMetric) : createNoopMetrics();
