@@ -737,11 +737,34 @@ export async function runHeartbeatOnce(opts: {
     });
 
     const heartbeatModelOverride = heartbeat?.model?.trim() || undefined;
-    // suppressToolErrorWarnings removed - not available on HeartbeatConfig type
     const replyOpts = heartbeatModelOverride
-      ? { isHeartbeat: true, heartbeatModelOverride, suppressToolErrorWarnings }
-      : { isHeartbeat: true, suppressToolErrorWarnings };
+      ? { isHeartbeat: true, heartbeatModelOverride }
+      : { isHeartbeat: true };
     const replyResult = await getReplyFromConfig(ctx, replyOpts, cfg);
+
+    // Explicitly map auth failures and other model provider errors to status: "failed"
+    // so the circuit breaker can detect silent failures (e.g. expired tokens).
+    if (replyResult && typeof replyResult === "object") {
+      const res = replyResult as any;
+      if (
+        res.status === "failed" ||
+        res.error ||
+        (typeof res.text === "string" &&
+          res.text.length < 500 &&
+          (res.text.includes("401") ||
+            res.text.toLowerCase().includes("unauthorized") ||
+            res.text.toLowerCase().includes("auth failure") ||
+            res.text.toLowerCase().includes("invalid api key") ||
+            res.text.toLowerCase().includes("token expired")))
+      ) {
+        const errorMsg =
+          res.error ||
+          res.message ||
+          (typeof res.text === "string" ? res.text : "Model provider error");
+        throw new Error(`Heartbeat reply failed: ${errorMsg}`);
+      }
+    }
+
     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
     const includeReasoning = heartbeat?.includeReasoning === true;
     const reasoningPayloads = includeReasoning
@@ -978,9 +1001,45 @@ function calculateCircuitBreakerDelay(consecutiveFailures: number, baseIntervalM
   return Math.min(baseIntervalMs * multiplier, CIRCUIT_BREAKER_BACKOFF_MAX_MS);
 }
 
-function shouldAttemptReset(circuitOpen: boolean, lastFailureMs: number | undefined, now: number): boolean {
+function shouldAttemptReset(
+  circuitOpen: boolean,
+  lastFailureMs: number | undefined,
+  now: number,
+): boolean {
   if (!circuitOpen || !lastFailureMs) return true;
   return now - lastFailureMs >= CIRCUIT_BREAKER_RESET_MS;
+}
+
+function updateCircuitBreakerState(
+  agent: HeartbeatAgentState,
+  status: "success" | "failure",
+  now: number,
+) {
+  if (status === "failure") {
+    agent.consecutiveFailures++;
+    agent.lastFailureMs = now;
+    if (agent.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+      const wasOpen = agent.circuitOpen;
+      agent.circuitOpen = true;
+      if (!wasOpen) {
+        const backoffMs = calculateCircuitBreakerDelay(agent.consecutiveFailures, agent.intervalMs);
+        log.error(
+          `heartbeat: circuit breaker opened for ${agent.agentId} after ${
+            agent.consecutiveFailures
+          } failures, next retry in ${Math.round(backoffMs / 1000)}s`,
+        );
+      }
+    }
+  } else {
+    if (agent.consecutiveFailures > 0 || agent.circuitOpen) {
+      if (agent.circuitOpen) {
+        log.info(`heartbeat: circuit breaker closed for ${agent.agentId} after successful run`);
+      }
+      agent.consecutiveFailures = 0;
+      agent.circuitOpen = false;
+      agent.lastFailureMs = undefined;
+    }
+  }
 }
 
 export function startHeartbeatRunner(opts: {
@@ -1007,18 +1066,10 @@ export function startHeartbeatRunner(opts: {
       if (timeSinceFailure < CIRCUIT_BREAKER_RESET_MS) {
         // Circuit still open - schedule next check for when it might close
         // Use exponential backoff based on failure count
-        const failureMultiplier = Math.min(
-          Math.max(0, prevState.consecutiveFailures - CIRCUIT_BREAKER_THRESHOLD + 1),
-          5 // Cap exponent at 5 → max multiplier 32x
-        );
-        const backoffMs = Math.min(
-          intervalMs * Math.pow(2, failureMultiplier),
-          CIRCUIT_BREAKER_BACKOFF_MAX_MS
-        );
+        const backoffMs = calculateCircuitBreakerDelay(prevState.consecutiveFailures, intervalMs);
         return now + backoffMs;
       }
       // Circuit breaker reset period elapsed - allow retry
-      // Don't reset state here, let the run handle that on success
     }
 
     if (typeof prevState?.lastRunMs === "number") {
@@ -1115,8 +1166,12 @@ export function startHeartbeatRunner(opts: {
     scheduleNext();
   };
 
-  // Internal run function with extended params type
-  const run = async (params?: ExtendedHeartbeatWakeParams): Promise<HeartbeatRunResult> => {
+  // Internal run function
+  const run = async (opts?: {
+    reason?: string;
+    agentId?: string;
+    sessionKey?: string;
+  }): Promise<HeartbeatRunResult> => {
     if (state.stopped) {
       return {
         status: "skipped",
@@ -1136,9 +1191,9 @@ export function startHeartbeatRunner(opts: {
       } satisfies HeartbeatRunResult;
     }
 
-    const reason = params?.reason;
-    const requestedAgentId = params?.agentId ? normalizeAgentId(params.agentId) : undefined;
-    const requestedSessionKey = params?.sessionKey?.trim() || undefined;
+    const reason = opts?.reason;
+    const requestedAgentId = opts?.agentId ? normalizeAgentId(opts.agentId) : undefined;
+    const requestedSessionKey = opts?.sessionKey?.trim() || undefined;
     const isInterval = reason === "interval";
     const startedAt = Date.now();
     const now = startedAt;
@@ -1153,7 +1208,10 @@ export function startHeartbeatRunner(opts: {
       }
 
       // Check circuit breaker
-      if (targetAgent.circuitOpen && !shouldAttemptReset(targetAgent.circuitOpen, targetAgent.lastFailureMs, now)) {
+      if (
+        targetAgent.circuitOpen &&
+        !shouldAttemptReset(targetAgent.circuitOpen, targetAgent.lastFailureMs, now)
+      ) {
         log.warn(`heartbeat: circuit breaker open for ${targetAgentId}, skipping`);
         scheduleNext();
         return { status: "skipped", reason: "circuit-open" };
@@ -1171,23 +1229,9 @@ export function startHeartbeatRunner(opts: {
 
         // Update circuit breaker state based on result
         if (res.status === "failed") {
-          targetAgent.consecutiveFailures++;
-          targetAgent.lastFailureMs = now;
-          if (targetAgent.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
-            targetAgent.circuitOpen = true;
-            const backoffMs = calculateCircuitBreakerDelay(targetAgent.consecutiveFailures, targetAgent.intervalMs);
-            log.error(`heartbeat: circuit breaker opened for ${targetAgent.agentId} after ${targetAgent.consecutiveFailures} failures, next retry in ${Math.round(backoffMs / 1000)}s`);
-          }
+          updateCircuitBreakerState(targetAgent, "failure", now);
         } else if (res.status === "ran") {
-          // Reset circuit breaker on success
-          if (targetAgent.consecutiveFailures > 0 || targetAgent.circuitOpen) {
-            if (targetAgent.circuitOpen) {
-              log.info(`heartbeat: circuit breaker closed for ${targetAgent.agentId} after successful run`);
-            }
-            targetAgent.consecutiveFailures = 0;
-            targetAgent.circuitOpen = false;
-            targetAgent.lastFailureMs = undefined;
-          }
+          updateCircuitBreakerState(targetAgent, "success", now);
         }
 
         if (res.status !== "skipped" || res.reason !== "disabled") {
@@ -1200,12 +1244,7 @@ export function startHeartbeatRunner(opts: {
         log.error(`heartbeat runner: targeted runOnce threw unexpectedly: ${errMsg}`, {
           error: errMsg,
         });
-        // Count throws as failures too
-        targetAgent.consecutiveFailures++;
-        targetAgent.lastFailureMs = now;
-        if (targetAgent.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
-          targetAgent.circuitOpen = true;
-        }
+        updateCircuitBreakerState(targetAgent, "failure", now);
         advanceAgentSchedule(targetAgent, now);
         scheduleNext();
         return { status: "failed", reason: errMsg };
@@ -1240,39 +1279,16 @@ export function startHeartbeatRunner(opts: {
         // advance the timer and call scheduleNext so heartbeats keep firing.
         const errMsg = formatErrorMessage(err);
         log.error(`heartbeat runner: runOnce threw unexpectedly: ${errMsg}`, { error: errMsg });
-        
-        // Count throws as failures for circuit breaker
-        agent.consecutiveFailures++;
-        agent.lastFailureMs = now;
-        if (agent.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
-          agent.circuitOpen = true;
-          const backoffMs = calculateCircuitBreakerDelay(agent.consecutiveFailures, agent.intervalMs);
-          log.error(`heartbeat: circuit breaker opened for ${agent.agentId} after ${agent.consecutiveFailures} failures (exception), next retry in ${Math.round(backoffMs / 1000)}s`);
-        }
-        
+        updateCircuitBreakerState(agent, "failure", now);
         advanceAgentSchedule(agent, now);
         continue;
       }
 
       // Update circuit breaker state based on result
       if (res.status === "failed") {
-        agent.consecutiveFailures++;
-        agent.lastFailureMs = now;
-        if (agent.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
-          agent.circuitOpen = true;
-          const backoffMs = calculateCircuitBreakerDelay(agent.consecutiveFailures, agent.intervalMs);
-          log.error(`heartbeat: circuit breaker opened for ${agent.agentId} after ${agent.consecutiveFailures} failures, next retry in ${Math.round(backoffMs / 1000)}s`);
-        }
+        updateCircuitBreakerState(agent, "failure", now);
       } else if (res.status === "ran") {
-        // Reset circuit breaker on success
-        if (agent.consecutiveFailures > 0 || agent.circuitOpen) {
-          if (agent.circuitOpen) {
-            log.info(`heartbeat: circuit breaker closed for ${agent.agentId} after successful run`);
-          }
-          agent.consecutiveFailures = 0;
-          agent.circuitOpen = false;
-          agent.lastFailureMs = undefined;
-        }
+        updateCircuitBreakerState(agent, "success", now);
       }
 
       if (res.status === "skipped" && res.reason === "requests-in-flight") {
@@ -1295,13 +1311,7 @@ export function startHeartbeatRunner(opts: {
     return { status: "skipped", reason: isInterval ? "not-due" : "disabled" };
   };
 
-  // Wrapper that conforms to HeartbeatWakeHandler type
-  const wakeHandler: HeartbeatWakeHandler = async (params) => {
-    // Cast to extended type to access agentId and sessionKey
-    const extendedParams = params as ExtendedHeartbeatWakeParams;
-    return run(extendedParams);
-  };
-  
+  const wakeHandler: HeartbeatWakeHandler = (params) => run(params);
   const disposeWakeHandler = setHeartbeatWakeHandler(wakeHandler);
   updateConfig(state.cfg);
 
