@@ -112,7 +112,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
             .trim()
             .replace(/^<@!?/, "")
             .replace(/>$/, "")
-            .replace(/^(discord|user):/i, "")
+            .replace(/^(discord|user|pk):/i, "")
             .trim()
             .toLowerCase(),
         )
