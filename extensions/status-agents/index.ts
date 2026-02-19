@@ -349,6 +349,7 @@ export default function register(api: OpenClawPluginApi) {
       lines.push(`  \u2713 ${result.mcpServers} MCP servers synced to Claude CLI`);
       lines.push(`  \u2713 ${result.skills} skills generated`);
       lines.push("");
+      lines.push("Send /new to start a fresh session with the new agents.");
       lines.push("Run /status_agents to check status.");
 
       return { text: lines.join("\n") };
@@ -378,6 +379,7 @@ export default function register(api: OpenClawPluginApi) {
       lines.push(`  \u2717 ${result.skillsCleaned} skills cleaned`);
       lines.push(`  \u2717 ${result.commandsCleaned} commands removed`);
       lines.push("");
+      lines.push("Send /new to reset the active session (clears cached agent context).");
       lines.push("Run /agents_on to reconnect.");
 
       return { text: lines.join("\n") };
