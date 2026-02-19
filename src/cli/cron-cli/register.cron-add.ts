@@ -93,8 +93,8 @@ export function registerCronAddCommand(cron: Command) {
       )
       .option("--best-effort-deliver", "Do not fail the job if delivery fails", false)
       .option("--json", "Output JSON", false)
-      .option("--tools-allowed <list>", "Comma-sperated allowed tools/groups (isolated only)")
-      .option("--tools-denied <list>", "Comma-sperated denied tools/groups (isolated only)")
+      .option("--tools-allowed <list>", "Comma-separated allowed tools/groups (isolated only)")
+      .option("--tools-denied <list>", "Comma-separated denied tools/groups (isolated only)")
       .action(async (opts: GatewayRpcOpts & Record<string, unknown>, cmd?: Command) => {
         try {
           const staggerRaw = typeof opts.stagger === "string" ? opts.stagger.trim() : "";
