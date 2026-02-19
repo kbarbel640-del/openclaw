@@ -26,6 +26,23 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
+# GOR-189: Self-maintenance — targeted sudo + common system packages
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      sudo \
+      libreoffice-impress \
+      poppler-utils \
+      imagemagick \
+      ghostscript \
+      openssh-client \
+    && \
+    echo 'node ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/dpkg, /usr/bin/apt' \
+      > /etc/sudoers.d/vesper-maintenance && \
+    chmod 0440 /etc/sudoers.d/vesper-maintenance && \
+    groupadd -g 988 docker 2>/dev/null; usermod -aG docker node && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ui/package.json ./ui/package.json
 COPY patches ./patches
