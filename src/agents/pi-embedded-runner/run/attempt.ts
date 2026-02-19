@@ -78,6 +78,7 @@ import {
 import { buildSystemPromptParams } from "../../system-prompt-params.js";
 import { buildSystemPromptReport } from "../../system-prompt-report.js";
 import { sanitizeToolCallIdsForCloudCodeAssist } from "../../tool-call-id.js";
+import { coerceImageModelConfig } from "../../tools/image-tool.helpers.js";
 import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
 import { isRunnerAbortError } from "../abort.js";
@@ -116,6 +117,11 @@ import {
   selectCompactionTimeoutSnapshot,
   shouldFlagCompactionTimeout,
 } from "./compaction-timeout.js";
+import {
+  analyzeImagesWithImageModel,
+  formatImageDescriptionsForPrompt,
+  shouldUseImagePreAnalysis,
+} from "./image-pre-analysis.js";
 import { detectAndLoadPromptImages } from "./images.js";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 
@@ -1078,6 +1084,11 @@ export async function runEmbeddedAttempt(
           // This eliminates the need for an explicit "view" tool call by injecting
           // images directly into the prompt when the model supports it.
           // Also scans conversation history to enable follow-up questions about earlier images.
+          // Resolve imageModel config once for both detection and pre-analysis decisions.
+          const imageModelConfig = coerceImageModelConfig(params.config);
+          // Force-detect images when an imageModel is configured (even if primary lacks vision).
+          const forceDetect = Boolean(imageModelConfig.primary?.trim());
+
           const imageResult = await detectAndLoadPromptImages({
             prompt: effectivePrompt,
             workspaceDir: effectiveWorkspace,
@@ -1086,6 +1097,7 @@ export async function runEmbeddedAttempt(
             historyMessages: activeSession.messages,
             maxBytes: MAX_IMAGE_BYTES,
             maxDimensionPx: resolveImageSanitizationLimits(params.config).maxDimensionPx,
+            forceDetect,
             // Enforce sandbox path restrictions when sandbox is enabled
             sandbox:
               sandbox?.enabled && sandbox?.fsBridge
@@ -1155,9 +1167,44 @@ export async function runEmbeddedAttempt(
               });
           }
 
-          // Only pass images option if there are actually images to pass
-          // This avoids potential issues with models that don't expect the images parameter
-          if (imageResult.images.length > 0) {
+          // Determine whether to use imageModel pre-analysis or native vision injection.
+          const usePreAnalysis =
+            imageResult.images.length > 0 &&
+            shouldUseImagePreAnalysis({
+              imageModelConfig,
+              primaryModel: params.model,
+            });
+
+          if (usePreAnalysis) {
+            // Route images through imageModel for text descriptions (force mode or non-vision primary).
+            try {
+              const analysis = await analyzeImagesWithImageModel({
+                images: imageResult.images,
+                cfg: params.config,
+                agentDir: params.agentDir ?? resolveOpenClawAgentDir(),
+                imageModelConfig,
+              });
+              if (analysis.descriptions.length > 0) {
+                const imageText = formatImageDescriptionsForPrompt(analysis.descriptions);
+                effectivePrompt = `${imageText}\n\n${effectivePrompt}`;
+              }
+              // Prompt without native images — text descriptions replace them.
+              await abortable(activeSession.prompt(effectivePrompt));
+            } catch (preAnalysisErr) {
+              // Fallback: if imageModel fails and primary model has native vision, use native injection.
+              log.warn(
+                `Image pre-analysis failed, falling back to native vision: ${String(preAnalysisErr)}`,
+              );
+              if (imageResult.images.length > 0) {
+                await abortable(
+                  activeSession.prompt(effectivePrompt, { images: imageResult.images }),
+                );
+              } else {
+                await abortable(activeSession.prompt(effectivePrompt));
+              }
+            }
+          } else if (imageResult.images.length > 0) {
+            // Native vision injection (current default behavior).
             await abortable(activeSession.prompt(effectivePrompt, { images: imageResult.images }));
           } else {
             await abortable(activeSession.prompt(effectivePrompt));
