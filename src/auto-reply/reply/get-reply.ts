@@ -1,4 +1,5 @@
 import {
+  resolveAgentConfig,
   resolveAgentDir,
   resolveAgentWorkspaceDir,
   resolveSessionAgentId,
@@ -72,9 +73,11 @@ export async function getReplyFromConfig(
     mergedSkillFilter !== undefined ? { ...opts, skillFilter: mergedSkillFilter } : opts;
   const agentCfg = cfg.agents?.defaults;
   const sessionCfg = cfg.session;
+  const agentModels = resolveAgentConfig(cfg, agentId)?.models;
   const { defaultProvider, defaultModel, aliasIndex } = resolveDefaultModel({
     cfg,
     agentId,
+    agentModels,
   });
   let provider = defaultProvider;
   let model = defaultModel;
@@ -177,6 +180,7 @@ export async function getReplyFromConfig(
     defaultProvider,
     defaultModel,
     aliasIndex,
+    agentModels,
   });
 
   const directiveResult = await resolveReplyDirectives({
@@ -205,6 +209,7 @@ export async function getReplyFromConfig(
     typing,
     opts: resolvedOpts,
     skillFilter: mergedSkillFilter,
+    agentModels,
   });
   if (directiveResult.kind === "reply") {
     return directiveResult.reply;

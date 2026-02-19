@@ -553,6 +553,19 @@ export async function processMessage(
   // surfacing dropped content (allowlist/mention/command gating).
   cacheInboundMessage();
 
+  // Surface inbound message ID to the agent so it can react/reply/unsend by short ID.
+  // Outbound messages already emit "[message_id:X]" via enqueueSystemEvent; this mirrors
+  // that for inbound messages so the agent has symmetrical access.
+  if (messageShortId) {
+    const senderHint = message.senderName || message.senderId || "user";
+    const snippet = (text || "").slice(0, 12);
+    const preview = snippet ? ` "${snippet}${(text || "").length > 12 ? "…" : ""}"` : "";
+    core.system.enqueueSystemEvent(`${senderHint} sent${preview} [message_id:${messageShortId}]`, {
+      sessionKey: route.sessionKey,
+      contextKey: `bluebubbles:inbound:${peerId}:${message.messageId}`,
+    });
+  }
+
   const baseUrl = account.config.serverUrl?.trim();
   const password = account.config.password?.trim();
   const maxBytes =

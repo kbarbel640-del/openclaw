@@ -986,6 +986,11 @@ scripts/sandbox-browser-setup.sh   # optional browser image
         workspace: "~/.openclaw/workspace",
         agentDir: "~/.openclaw/agents/main/agent",
         model: "anthropic/claude-opus-4-6", // or { primary, fallbacks }
+        models: {
+          // optional; replaces agents.defaults.models for this agent
+          "anthropic/claude-opus-4-6": { alias: "Opus" },
+          "anthropic/claude-sonnet-4-6": { alias: "Sonnet" },
+        },
         identity: {
           name: "Samantha",
           theme: "helpful sloth",
@@ -1010,6 +1015,7 @@ scripts/sandbox-browser-setup.sh   # optional browser image
 - `id`: stable agent id (required).
 - `default`: when multiple are set, first wins (warning logged). If none set, first list entry is default.
 - `model`: string form overrides `primary` only; object form `{ primary, fallbacks }` overrides both (`[]` disables global fallbacks). Cron jobs that only override `primary` still inherit default fallbacks unless you set `fallbacks: []`.
+- `models`: per-agent model allowlist. Same shape as `agents.defaults.models`. When present, **replaces** (not merges) the global allowlist for this agent. Omit to use global. See [Models CLI](/concepts/models#per-agent-model-allowlist).
 - `identity.avatar`: workspace-relative path, `http(s)` URL, or `data:` URI.
 - `identity` derives defaults: `ackReaction` from `emoji`, `mentionPatterns` from `name`/`emoji`.
 - `subagents.allowAgents`: allowlist of agent ids for `sessions_spawn` (`["*"]` = any; default: same agent only).

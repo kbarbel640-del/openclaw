@@ -9,6 +9,7 @@ import {
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import { updateSessionStore } from "../../config/sessions.js";
+import type { AgentModelEntryConfig } from "../../config/types.agent-defaults.js";
 import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
 import { resolveModelDirectiveSelection, type ModelDirectiveSelection } from "./model-selection.js";
@@ -98,6 +99,7 @@ export async function applyResetModelOverride(params: {
   defaultProvider: string;
   defaultModel: string;
   aliasIndex: ModelAliasIndex;
+  agentModels?: Record<string, AgentModelEntryConfig>;
 }): Promise<ResetModelResult> {
   if (!params.resetTriggered) {
     return {};
@@ -118,6 +120,7 @@ export async function applyResetModelOverride(params: {
     catalog,
     defaultProvider: params.defaultProvider,
     defaultModel: params.defaultModel,
+    agentModels: params.agentModels,
   });
   const allowedModelKeys = allowed.allowedKeys;
   if (allowedModelKeys.size === 0) {

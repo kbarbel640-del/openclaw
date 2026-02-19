@@ -4,6 +4,7 @@ import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
 import type { SkillCommandSpec } from "../../agents/skills.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
+import type { AgentModelEntryConfig } from "../../config/types.agent-defaults.js";
 import { listChatCommands, shouldHandleTextCommands } from "../commands-registry.js";
 import { listSkillCommandsForWorkspace } from "../skill-commands.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
@@ -110,6 +111,7 @@ export async function resolveReplyDirectives(params: {
   typing: TypingController;
   opts?: GetReplyOptions;
   skillFilter?: string[];
+  agentModels?: Record<string, AgentModelEntryConfig>;
 }): Promise<ReplyDirectiveResult> {
   const {
     ctx,
@@ -175,7 +177,11 @@ export async function resolveReplyDirectives(params: {
     ),
   );
 
-  const rawAliases = Object.values(cfg.agents?.defaults?.models ?? {})
+  const modelsSource =
+    params.agentModels && Object.keys(params.agentModels).length > 0
+      ? params.agentModels
+      : (cfg.agents?.defaults?.models ?? {});
+  const rawAliases = Object.values(modelsSource)
     .map((entry) => entry.alias?.trim())
     .filter((alias): alias is string => Boolean(alias))
     .filter((alias) => !reservedCommands.has(alias.toLowerCase()));
@@ -385,6 +391,7 @@ export async function resolveReplyDirectives(params: {
     model,
     hasModelDirective: directives.hasModelDirective,
     hasResolvedHeartbeatModelOverride,
+    agentModels: params.agentModels,
   });
   provider = modelState.provider;
   model = modelState.model;

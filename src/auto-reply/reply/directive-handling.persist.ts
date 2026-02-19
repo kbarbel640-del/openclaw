@@ -14,6 +14,7 @@ import {
 } from "../../agents/model-selection.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry, updateSessionStore } from "../../config/sessions.js";
+import type { AgentModelEntryConfig } from "../../config/types.agent-defaults.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import { applyVerboseOverride } from "../../sessions/level-overrides.js";
 import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
@@ -216,7 +217,11 @@ export async function persistInlineDirectives(params: {
   };
 }
 
-export function resolveDefaultModel(params: { cfg: OpenClawConfig; agentId?: string }): {
+export function resolveDefaultModel(params: {
+  cfg: OpenClawConfig;
+  agentId?: string;
+  agentModels?: Record<string, AgentModelEntryConfig>;
+}): {
   defaultProvider: string;
   defaultModel: string;
   aliasIndex: ModelAliasIndex;
@@ -230,6 +235,7 @@ export function resolveDefaultModel(params: { cfg: OpenClawConfig; agentId?: str
   const aliasIndex = buildModelAliasIndex({
     cfg: params.cfg,
     defaultProvider,
+    agentModels: params.agentModels,
   });
   return { defaultProvider, defaultModel, aliasIndex };
 }

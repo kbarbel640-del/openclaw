@@ -1,3 +1,4 @@
+import { resolveAgentConfig } from "../../agents/agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../../agents/defaults.js";
 import { loadModelCatalog } from "../../agents/model-catalog.js";
 import {
@@ -8,6 +9,7 @@ import {
   resolveModelRefFromString,
 } from "../../agents/model-selection.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import type { AgentModelEntryConfig } from "../../config/types.agent-defaults.js";
 import {
   buildModelsKeyboard,
   buildProviderKeyboard,
@@ -31,7 +33,10 @@ export type ModelsProviderData = {
  * Build provider/model data from config and catalog.
  * Exported for reuse by callback handlers.
  */
-export async function buildModelsProviderData(cfg: OpenClawConfig): Promise<ModelsProviderData> {
+export async function buildModelsProviderData(
+  cfg: OpenClawConfig,
+  agentModels?: Record<string, AgentModelEntryConfig>,
+): Promise<ModelsProviderData> {
   const resolvedDefault = resolveConfiguredModelRef({
     cfg,
     defaultProvider: DEFAULT_PROVIDER,
@@ -44,11 +49,13 @@ export async function buildModelsProviderData(cfg: OpenClawConfig): Promise<Mode
     catalog,
     defaultProvider: resolvedDefault.provider,
     defaultModel: resolvedDefault.model,
+    agentModels,
   });
 
   const aliasIndex = buildModelAliasIndex({
     cfg,
     defaultProvider: resolvedDefault.provider,
+    agentModels,
   });
 
   const byProvider = new Map<string, Set<string>>();
@@ -102,14 +109,21 @@ export async function buildModelsProviderData(cfg: OpenClawConfig): Promise<Mode
   }
 
   // Include config-only allowlist keys that aren't in the curated catalog.
-  for (const raw of Object.keys(cfg.agents?.defaults?.models ?? {})) {
+  const modelsSource =
+    agentModels && Object.keys(agentModels).length > 0
+      ? agentModels
+      : (cfg.agents?.defaults?.models ?? {});
+  for (const raw of Object.keys(modelsSource)) {
     addRawModelRef(raw);
   }
 
   // Ensure configured defaults/fallbacks/image models show up even when the
   // curated catalog doesn't know about them (custom providers, dev builds, etc.).
-  add(resolvedDefault.provider, resolvedDefault.model);
-  addModelConfigEntries();
+  // Skip when a per-agent allowlist is active — only the agent's models matter.
+  if (!agentModels || Object.keys(agentModels).length === 0) {
+    add(resolvedDefault.provider, resolvedDefault.model);
+    addModelConfigEntries();
+  }
 
   const providers = [...byProvider.keys()].toSorted();
 
@@ -182,6 +196,7 @@ export async function resolveModelsCommandReply(params: {
   commandBodyNormalized: string;
   surface?: string;
   currentModel?: string;
+  agentModels?: Record<string, AgentModelEntryConfig>;
 }): Promise<ReplyPayload | null> {
   const body = params.commandBodyNormalized.trim();
   if (!body.startsWith("/models")) {
@@ -191,7 +206,7 @@ export async function resolveModelsCommandReply(params: {
   const argText = body.replace(/^\/models\b/i, "").trim();
   const { provider, page, pageSize, all } = parseModelsArgs(argText);
 
-  const { byProvider, providers } = await buildModelsProviderData(params.cfg);
+  const { byProvider, providers } = await buildModelsProviderData(params.cfg, params.agentModels);
   const isTelegram = params.surface === "telegram";
 
   // Provider list (no provider specified)
@@ -313,11 +328,16 @@ export const handleModelsCommand: CommandHandler = async (params, allowTextComma
     return null;
   }
 
+  const agentModels = params.agentId
+    ? resolveAgentConfig(params.cfg, params.agentId)?.models
+    : undefined;
+
   const reply = await resolveModelsCommandReply({
     cfg: params.cfg,
     commandBodyNormalized: params.command.commandBodyNormalized,
     surface: params.ctx.Surface,
     currentModel: params.model ? `${params.provider}/${params.model}` : undefined,
+    agentModels,
   });
   if (!reply) {
     return null;

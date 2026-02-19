@@ -89,6 +89,52 @@ Example allowlist config:
 }
 ```
 
+### Per-agent model allowlist
+
+Individual agents in `agents.list[]` can define their own `models` map. When
+present, it **replaces** the global `agents.defaults.models` for that agent (no
+merge). When absent, the agent uses the global allowlist as before.
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "models": {
+        "anthropic/claude-opus-4-6": { "alias": "Opus 4.6" },
+        "anthropic/claude-sonnet-4-6": { "alias": "Sonnet 4.6" },
+        "google/gemini-2.5-pro": { "alias": "Gemini Pro" },
+        "openai/gpt-4o": { "alias": "GPT-4o" }
+      }
+    },
+    "list": [
+      {
+        "id": "karl-jacob",
+        "model": { "primary": "anthropic/claude-opus-4-6" },
+        "models": {
+          "anthropic/claude-opus-4-6": { "alias": "Opus 4.6" },
+          "anthropic/claude-sonnet-4-6": { "alias": "Sonnet 4.6" }
+        }
+      }
+    ]
+  }
+}
+```
+
+In this example, `karl-jacob` can only use Opus 4.6 and Sonnet 4.6. All other
+agents without a per-agent `models` see the full global catalog (including
+Gemini Pro and GPT-4o).
+
+This affects:
+
+- `/model` switching (only allowlisted models are selectable)
+- `/models` listing (shows only the agent's allowlist)
+- Telegram model picker buttons (scoped to the agent's allowlist)
+- Session model override validation (resets disallowed overrides)
+
+The per-agent `models` map uses the same shape as the global
+`agents.defaults.models`: keys are `provider/model`, values have optional
+`alias`, `params`, and `streaming` fields.
+
 ## Switching models in chat (`/model`)
 
 You can switch models for the current session without restarting:
