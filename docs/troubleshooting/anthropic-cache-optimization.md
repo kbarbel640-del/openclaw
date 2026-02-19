@@ -9,6 +9,8 @@ Anthropic models support prompt caching to reduce costs on repeated content. How
 
 ## Understanding the Issue (#20894)
 
+**Verified**: Confirmed in OpenClaw 2026.2.15+ with real user measurements. See [issue #20894](https://github.com/openclaw/openclaw/issues/20894) for detailed analysis. Code verified in `src/auto-reply/reply/inbound-meta.ts:buildInboundMetaSystemPrompt()`.
+
 **Symptom:**
 
 - Using Claude Opus as fallback model
@@ -18,7 +20,7 @@ Anthropic models support prompt caching to reduce costs on repeated content. How
 
 **Root cause:**
 
-Per-message volatile data (`message_id`, `reply_to_id`, `sender_id`) gets injected into the **system prompt** via `buildInboundMetaSystemPrompt()`. Since these values change every turn, Anthropic's prefix-based caching can't reuse the system prompt.
+Per-message volatile data (`message_id`, `reply_to_id`, `sender_id`) gets injected into the **system prompt** via `buildInboundMetaSystemPrompt()` in `src/auto-reply/reply/inbound-meta.ts`. Since these values change every turn, Anthropic's prefix-based caching can't reuse the system prompt.
 
 **Evidence:**
 
