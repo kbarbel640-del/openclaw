@@ -472,11 +472,16 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       continue;
     }
 
-    // SECURITY: Block non-bundled plugins when plugins.allow is empty.
-    // Without an explicit allowlist, any plugin discovered in load paths (including
-    // workspace node_modules) would auto-load with full main-process access.
-    // Bundled plugins are always trusted; non-bundled require explicit allowlisting.
-    if (candidate.origin !== "bundled" && normalized.allow.length === 0) {
+    // SECURITY: Block auto-discovered plugins when plugins.allow is empty.
+    // Without an explicit allowlist, any plugin discovered from global/workspace
+    // directories (including node_modules) would auto-load with full main-process access.
+    // Bundled plugins are always trusted; "config" origin plugins (explicitly listed in
+    // plugins.load.paths) are operator-configured and also trusted.
+    if (
+      candidate.origin !== "bundled" &&
+      candidate.origin !== "config" &&
+      normalized.allow.length === 0
+    ) {
       record.enabled = false;
       record.status = "disabled";
       record.error =
