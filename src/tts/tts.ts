@@ -121,7 +121,7 @@ export type ResolvedTtsConfig = {
   fishaudio: {
     apiKey?: string;
     baseUrl: string;
-    voiceId: string;
+    referenceId: string;
     format: "mp3" | "wav" | "pcm" | "opus";
     latency: "normal" | "balanced";
   };
@@ -185,7 +185,7 @@ export type TtsDirectiveOverrides = {
     voiceSettings?: Partial<ResolvedTtsConfig["elevenlabs"]["voiceSettings"]>;
   };
   fishaudio?: {
-    voiceId?: string;
+    referenceId?: string;
   };
 };
 
@@ -305,7 +305,7 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
     fishaudio: {
       apiKey: raw.fishaudio?.apiKey,
       baseUrl: raw.fishaudio?.baseUrl?.trim() || DEFAULT_FISHAUDIO_BASE_URL,
-      voiceId: raw.fishaudio?.voiceId ?? DEFAULT_FISHAUDIO_VOICE_ID,
+      referenceId: raw.fishaudio?.voiceId ?? DEFAULT_FISHAUDIO_VOICE_ID,
       format: raw.fishaudio?.format ?? "mp3",
       latency: raw.fishaudio?.latency ?? DEFAULT_FISHAUDIO_LATENCY,
     },
@@ -689,17 +689,19 @@ export async function textToSpeech(params: {
         });
         providerOutputFormat = output.elevenlabs;
       } else if (provider === "fishaudio") {
-        const voiceIdOverride = params.overrides?.fishaudio?.voiceId;
+        const referenceIdOverride = params.overrides?.fishaudio?.referenceId;
+        const fishaudioFormat =
+          channelId === "telegram" ? output.fishaudio : config.fishaudio.format;
         audioBuffer = await fishAudioTTS({
           text: params.text,
           apiKey,
           baseUrl: config.fishaudio.baseUrl,
-          voiceId: voiceIdOverride ?? config.fishaudio.voiceId,
-          format: output.fishaudio,
+          referenceId: referenceIdOverride ?? config.fishaudio.referenceId,
+          format: fishaudioFormat,
           latency: config.fishaudio.latency,
           timeoutMs: config.timeoutMs,
         });
-        providerOutputFormat = output.fishaudio;
+        providerOutputFormat = fishaudioFormat;
       } else {
         const openaiModelOverride = params.overrides?.openai?.model;
         const openaiVoiceOverride = params.overrides?.openai?.voice;
@@ -806,7 +808,7 @@ export async function textToSpeechTelephony(params: {
           text: params.text,
           apiKey,
           baseUrl: config.fishaudio.baseUrl,
-          voiceId: config.fishaudio.voiceId,
+          referenceId: config.fishaudio.referenceId,
           format: output.format,
           latency: config.fishaudio.latency,
           sampleRate: output.sampleRate,

@@ -487,12 +487,30 @@ describe("tts", () => {
       expect(result.overrides.provider).toBe("fishaudio");
     });
 
-    it("parseTtsDirectives accepts voiceid directive for Fish Audio", () => {
+    it("parseTtsDirectives accepts voiceId directive for Fish Audio", () => {
       const policy = resolveModelOverridePolicy({ enabled: true });
-      const input = "Hello [[tts:referenceid=abc123]] world";
+      const input = "Hello [[tts:voiceId=abc123]] world";
       const result = parseTtsDirectives(input, policy);
 
-      expect(result.overrides.fishaudio?.voiceId).toBe("abc123");
+      expect(result.overrides.fishaudio?.referenceId).toBe("abc123");
+    });
+
+    it("parseTtsDirectives maps generic voiceId to both ElevenLabs and Fish Audio", () => {
+      const policy = resolveModelOverridePolicy({ enabled: true });
+      const input = "Hello [[tts:voiceId=abc12345678901]] world";
+      const result = parseTtsDirectives(input, policy);
+
+      expect(result.overrides.elevenlabs?.voiceId).toBe("abc12345678901");
+      expect(result.overrides.fishaudio?.referenceId).toBe("abc12345678901");
+    });
+
+    it("parseTtsDirectives accepts referenceId directive for Fish Audio", () => {
+      const policy = resolveModelOverridePolicy({ enabled: true });
+      const input = "Hello [[tts:referenceId=abc123]] world";
+      const result = parseTtsDirectives(input, policy);
+
+      expect(result.overrides.fishaudio?.referenceId).toBe("abc123");
+      expect(result.overrides.elevenlabs?.voiceId).toBeUndefined();
     });
 
     it("resolveTtsConfig resolves fishaudio defaults", () => {
@@ -500,7 +518,7 @@ describe("tts", () => {
       expect(config.fishaudio.baseUrl).toBe("https://api.fish.audio");
       expect(config.fishaudio.format).toBe("mp3");
       expect(config.fishaudio.latency).toBe("balanced");
-      expect(config.fishaudio.voiceId).toBe(DEFAULT_FISHAUDIO_VOICE_ID);
+      expect(config.fishaudio.referenceId).toBe(DEFAULT_FISHAUDIO_VOICE_ID);
     });
 
     it("resolveTtsConfig preserves fishaudio config values", () => {
@@ -521,7 +539,7 @@ describe("tts", () => {
       const config = resolveTtsConfig(cfg);
       expect(config.fishaudio.apiKey).toBe("my-key");
       expect(config.fishaudio.baseUrl).toBe("https://custom.fish.audio");
-      expect(config.fishaudio.voiceId).toBe("ref-123");
+      expect(config.fishaudio.referenceId).toBe("ref-123");
       expect(config.fishaudio.format).toBe("opus");
       expect(config.fishaudio.latency).toBe("normal");
     });

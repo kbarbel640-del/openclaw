@@ -32,6 +32,10 @@ function normalizeElevenLabsBaseUrl(baseUrl: string): string {
   return trimmed.replace(/\/+$/, "");
 }
 
+function normalizeFishAudioBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, "");
+}
+
 function requireInRange(value: number, min: number, max: number, label: string): void {
   if (!Number.isFinite(value) || value < min || value > max) {
     throw new Error(`${label} must be between ${min} and ${max}`);
@@ -164,6 +168,22 @@ export function parseTtsDirectives(
             break;
           case "voiceid":
           case "voice_id":
+            if (!policy.allowVoice) {
+              break;
+            }
+            // Generic voiceId sets both providers; the active one uses it
+            if (isValidVoiceId(rawValue)) {
+              overrides.elevenlabs = { ...overrides.elevenlabs, voiceId: rawValue };
+            }
+            overrides.fishaudio = { ...overrides.fishaudio, referenceId: rawValue };
+            break;
+          case "referenceid":
+          case "reference_id":
+            if (!policy.allowVoice) {
+              break;
+            }
+            overrides.fishaudio = { ...overrides.fishaudio, referenceId: rawValue };
+            break;
           case "elevenlabs_voice":
           case "elevenlabsvoice":
             if (!policy.allowVoice) {
@@ -310,16 +330,6 @@ export function parseTtsDirectives(
               ...overrides.elevenlabs,
               seed: normalizeSeed(Number.parseInt(rawValue, 10)),
             };
-            break;
-          case "referenceid":
-          case "reference_id":
-          case "fishaudio_reference":
-          case "fishaudio_voice":
-          case "fishaudiovoice":
-            if (!policy.allowVoice) {
-              break;
-            }
-            overrides.fishaudio = { ...overrides.fishaudio, voiceId: rawValue };
             break;
           default:
             break;
@@ -653,13 +663,13 @@ export async function fishAudioTTS(params: {
   text: string;
   apiKey: string;
   baseUrl: string;
-  voiceId?: string;
+  referenceId?: string;
   format: "mp3" | "wav" | "pcm" | "opus";
   latency: "normal" | "balanced";
   sampleRate?: number;
   timeoutMs: number;
 }): Promise<Buffer> {
-  const { text, apiKey, baseUrl, voiceId, format, latency, sampleRate, timeoutMs } = params;
+  const { text, apiKey, baseUrl, referenceId, format, latency, sampleRate, timeoutMs } = params;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -670,14 +680,14 @@ export async function fishAudioTTS(params: {
       format,
       latency,
     };
-    if (voiceId) {
-      body.reference_id = voiceId;
+    if (referenceId) {
+      body.reference_id = referenceId;
     }
     if (sampleRate) {
       body.sample_rate = sampleRate;
     }
 
-    const response = await fetch(`${baseUrl}/v1/tts`, {
+    const response = await fetch(`${normalizeFishAudioBaseUrl(baseUrl)}/v1/tts`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
