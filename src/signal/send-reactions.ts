@@ -106,14 +106,14 @@ async function sendReactionSignalCore(params: {
   const requestParams: Record<string, unknown> = {
     emoji: normalizedEmoji,
     targetTimestamp: params.targetTimestamp,
-    ...(params.remove ? { remove: true } : {}),
+    ...(params.remove ? { isRemove: true } : {}),
     ...targetAuthorParams,
   };
   if (normalizedRecipient) {
-    requestParams.recipients = [normalizedRecipient];
+    requestParams.recipient = normalizedRecipient;
   }
   if (groupId) {
-    requestParams.groupIds = [groupId];
+    requestParams.groupId = groupId;
   }
   if (account) {
     requestParams.account = account;
