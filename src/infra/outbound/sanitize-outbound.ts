@@ -23,9 +23,6 @@ import {
 
 // ── Patterns that indicate leaked internal content ──────────────────
 
-/** Raw JSON error payloads (e.g. `{"type":"error","error":{...}}`) */
-const RAW_JSON_ERROR_RE = /^\s*\{[\s\S]*"(?:error|type|message|status)"[\s\S]*\}\s*$/;
-
 /** Internal [openclaw] prefixed system messages that should never reach users */
 const INTERNAL_PREFIX_RE = /^\[openclaw\]\s*⚠️?\s*🛠️?\s*(?:Exec|Tool|Command)/i;
 
