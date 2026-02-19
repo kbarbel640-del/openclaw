@@ -452,13 +452,12 @@ export function buildIMessageInboundContext(params: {
     Timestamp: decision.createdAt,
     MediaPath: params.media?.path,
     MediaType: params.media?.type,
-    MediaUrl: params.media?.path,
+    MediaUrl: params.media?.url,
     MediaPaths:
       params.media?.paths && params.media.paths.length > 0 ? params.media.paths : undefined,
     MediaTypes:
       params.media?.types && params.media.types.length > 0 ? params.media.types : undefined,
-    MediaUrls:
-      params.media?.paths && params.media.paths.length > 0 ? params.media.paths : undefined,
+    MediaUrls: params.media?.urls && params.media.urls.length > 0 ? params.media.urls : undefined,
     MediaRemoteHost: params.remoteHost,
     WasMentioned: decision.effectiveWasMentioned,
     CommandAuthorized: decision.commandAuthorized,
