@@ -34,8 +34,18 @@ const HEALTH_MAP: Record<McpServerStatus, McpServerHealth> = {
   ON_DELETION: "unknown",
 };
 
-export function mapMcpServerHealth(status: McpServerStatus): McpServerHealth {
-  return HEALTH_MAP[status] ?? "unknown";
+/**
+ * Strip the `MCP_SERVER_STATUS_` prefix that the Cloud.ru API sometimes returns.
+ * e.g. `MCP_SERVER_STATUS_RUNNING` → `RUNNING`
+ */
+export function normalizeMcpServerStatus(raw: string): McpServerStatus {
+  const stripped = raw.replace(/^MCP_SERVER_STATUS_/, "");
+  return (stripped in HEALTH_MAP ? stripped : raw) as McpServerStatus;
+}
+
+export function mapMcpServerHealth(status: string): McpServerHealth {
+  const normalized = normalizeMcpServerStatus(status);
+  return HEALTH_MAP[normalized] ?? "unknown";
 }
 
 // ---------------------------------------------------------------------------
@@ -136,17 +146,23 @@ export async function getMcpServerStatus(
     return { ok: false, errorType: "network", error: describeNetworkError(err) };
   }
 
-  // Filter out deleted servers
-  const active = liveServers.filter((s) => s.status !== "DELETED" && s.status !== "ON_DELETION");
+  // Filter out deleted servers (handle both prefixed and bare status names)
+  const active = liveServers.filter((s) => {
+    const normalized = normalizeMcpServerStatus(s.status);
+    return normalized !== "DELETED" && normalized !== "ON_DELETION";
+  });
 
-  // Map to entries
-  const entries: McpStatusEntry[] = active.map((s) => ({
-    id: s.id,
-    name: s.name,
-    status: s.status,
-    health: mapMcpServerHealth(s.status),
-    tools: s.tools ?? [],
-  }));
+  // Map to entries with normalized statuses
+  const entries: McpStatusEntry[] = active.map((s) => {
+    const normalized = normalizeMcpServerStatus(s.status);
+    return {
+      id: s.id,
+      name: s.name,
+      status: normalized,
+      health: mapMcpServerHealth(normalized),
+      tools: s.tools ?? [],
+    };
+  });
 
   // Apply name filter
   const filtered = params.nameFilter

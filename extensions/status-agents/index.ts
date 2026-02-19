@@ -103,20 +103,42 @@ export function formatTips(agentEntries: AgentStatusEntry[], mcpEntries: McpStat
   return tips.join("\n");
 }
 
+/**
+ * Filter out deleted/deleting agents for display purposes.
+ * agent-status.ts deliberately keeps them for drift detection,
+ * but the user-facing output should only show active resources.
+ */
+function filterActiveAgents(entries: AgentStatusEntry[]): AgentStatusEntry[] {
+  return entries.filter((e) => e.status !== "DELETED" && e.status !== "ON_DELETION");
+}
+
+function buildAgentSummary(entries: AgentStatusEntry[]): AgentStatusSummary {
+  const summary: AgentStatusSummary = { total: 0, healthy: 0, degraded: 0, failed: 0, unknown: 0 };
+  for (const entry of entries) {
+    summary.total++;
+    summary[entry.health]++;
+  }
+  return summary;
+}
+
 export function formatStatusOutput(
   agentResult: AgentStatusResult | AgentStatusError,
   mcpResult: McpStatusResult | McpStatusError,
 ): string {
   const sections: string[] = [];
 
-  // Agent section
+  // Agent section (filter out deleted)
+  let activeAgents: AgentStatusEntry[] = [];
+  let agentSummary: AgentStatusSummary | undefined;
   if (!agentResult.ok) {
     sections.push(`Agents: error \u2014 ${agentResult.error}`);
   } else {
-    sections.push(formatAgentsSection(agentResult.entries));
+    activeAgents = filterActiveAgents(agentResult.entries);
+    agentSummary = buildAgentSummary(activeAgents);
+    sections.push(formatAgentsSection(activeAgents));
   }
 
-  // MCP section
+  // MCP section (already filtered by service)
   if (!mcpResult.ok) {
     sections.push(`MCP Servers: error \u2014 ${mcpResult.error}`);
   } else {
@@ -124,10 +146,10 @@ export function formatStatusOutput(
   }
 
   // Summary (only if both succeeded)
-  if (agentResult.ok && mcpResult.ok) {
-    sections.push(formatSummaryLine(agentResult.summary, mcpResult.summary));
+  if (agentResult.ok && mcpResult.ok && agentSummary) {
+    sections.push(formatSummaryLine(agentSummary, mcpResult.summary));
 
-    const tips = formatTips(agentResult.entries, mcpResult.entries);
+    const tips = formatTips(activeAgents, mcpResult.entries);
     if (tips) {
       sections.push(tips);
     }

@@ -36,8 +36,18 @@ const HEALTH_MAP: Record<AgentStatus, AgentHealth> = {
   ON_DELETION: "unknown",
 };
 
-export function mapAgentHealth(status: AgentStatus): AgentHealth {
-  return HEALTH_MAP[status] ?? "unknown";
+/**
+ * Strip the `AGENT_STATUS_` prefix that the Cloud.ru API sometimes returns.
+ * e.g. `AGENT_STATUS_RUNNING` → `RUNNING`
+ */
+export function normalizeAgentStatus(raw: string): AgentStatus {
+  const stripped = raw.replace(/^AGENT_STATUS_/, "");
+  return (stripped in HEALTH_MAP ? stripped : raw) as AgentStatus;
+}
+
+export function mapAgentHealth(status: string): AgentHealth {
+  const normalized = normalizeAgentStatus(status);
+  return HEALTH_MAP[normalized] ?? "unknown";
 }
 
 // ---------------------------------------------------------------------------
@@ -185,11 +195,12 @@ export async function getAgentStatus(
       driftReason = `Endpoint changed: config has "${configured.endpoint}", Cloud.ru has "${live.endpoint}"`;
     }
 
+    const normalizedStatus = normalizeAgentStatus(live.status);
     entries.push({
       id: live.id,
       name: live.name,
-      status: live.status,
-      health: mapAgentHealth(live.status),
+      status: normalizedStatus,
+      health: mapAgentHealth(normalizedStatus),
       endpoint: live.endpoint,
       configured: true,
       drift,
@@ -202,11 +213,12 @@ export async function getAgentStatus(
     if (seenIds.has(live.id)) {
       continue;
     }
+    const normalizedStatus = normalizeAgentStatus(live.status);
     entries.push({
       id: live.id,
       name: live.name,
-      status: live.status,
-      health: mapAgentHealth(live.status),
+      status: normalizedStatus,
+      health: mapAgentHealth(normalizedStatus),
       endpoint: live.endpoint,
       configured: false,
       drift: false,

@@ -64,7 +64,7 @@ export { CloudruAgentSystemsClient } from "./cloudru-agent-systems-client.js";
 export { CloudruMcpClient } from "./cloudru-mcp-client.js";
 
 // Agent status monitoring
-export { getAgentStatus, mapAgentHealth } from "./agent-status.js";
+export { getAgentStatus, mapAgentHealth, normalizeAgentStatus } from "./agent-status.js";
 export type {
   AgentHealth,
   AgentStatusParams,
@@ -76,7 +76,7 @@ export type {
 } from "./agent-status.js";
 
 // MCP server status monitoring
-export { getMcpServerStatus, mapMcpServerHealth } from "./mcp-status.js";
+export { getMcpServerStatus, mapMcpServerHealth, normalizeMcpServerStatus } from "./mcp-status.js";
 export type {
   McpServerHealth,
   McpStatusParams,
