@@ -15,7 +15,7 @@ const resolveGlobalManager = vi.fn();
 const serviceLoaded = vi.fn();
 const prepareRestartScript = vi.fn();
 const runRestartScript = vi.fn();
-const runDaemonInstall = vi.fn();
+const mockedRunDaemonInstall = vi.fn();
 
 vi.mock("@clack/prompts", () => ({
   confirm,
@@ -94,7 +94,7 @@ vi.mock("../commands/doctor.js", () => ({
 }));
 // Mock the daemon-cli module
 vi.mock("./daemon-cli.js", () => ({
-  runDaemonInstall: (...args: unknown[]) => runDaemonInstall(...args),
+  runDaemonInstall: mockedRunDaemonInstall,
   runDaemonRestart: vi.fn(),
 }));
 
@@ -221,7 +221,7 @@ describe("update-cli", () => {
     vi.mocked(resolveNpmChannelTag).mockReset();
     vi.mocked(runCommandWithTimeout).mockReset();
     vi.mocked(runDaemonRestart).mockReset();
-    vi.mocked(runDaemonInstall).mockReset();
+    vi.mocked(mockedRunDaemonInstall).mockReset();
     vi.mocked(doctorCommand).mockReset();
     vi.mocked(defaultRuntime.log).mockReset();
     vi.mocked(defaultRuntime.error).mockReset();
@@ -480,7 +480,7 @@ describe("update-cli", () => {
 
     expect(runDaemonInstall).toHaveBeenCalledWith({
       force: true,
-      json: false,
+      json: undefined,
     });
     expect(runDaemonRestart).not.toHaveBeenCalled();
   });
@@ -503,7 +503,7 @@ describe("update-cli", () => {
 
     expect(runDaemonInstall).toHaveBeenCalledWith({
       force: true,
-      json: false,
+      json: undefined,
     });
     expect(runDaemonRestart).toHaveBeenCalled();
   });
