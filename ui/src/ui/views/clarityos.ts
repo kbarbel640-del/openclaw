@@ -35,7 +35,7 @@ export function renderClarityOS(props: ClarityViewProps) {
         <div class="muted">Last step: ${(props.status?.status as { step?: string } | undefined)?.step ?? "n/a"}</div>
         <div class="muted">Scheduler: ${(() => {
           const sched = (props.status as unknown as { scheduler?: { state?: string; next_runs_utc?: string[] } })?.scheduler;
-          if (!sched) return "n/a";
+          if (!sched) {return "n/a";}
           const next = Array.isArray(sched.next_runs_utc) ? sched.next_runs_utc.join(', ') : '';
           const base = sched.state === 'idle' ? 'active (scheduled)' : (sched.state ?? 'n/a');
           return next ? `${base} · next: ${next} UTC` : base;

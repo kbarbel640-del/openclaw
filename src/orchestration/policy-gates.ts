@@ -42,7 +42,7 @@ export function assertPolicyGate(params: {
     return;
   }
 
-  const message = `Action \"${params.action}\" is blocked by policy (requires ${requiredRole}, got ${actorRole}).`;
+  const message = `Action "${params.action}" is blocked by policy (requires ${requiredRole}, got ${actorRole}).`;
   if (params.auditFilePath) {
     appendAuditEvent(params.auditFilePath, {
       type: "policy.blocked",

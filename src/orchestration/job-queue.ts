@@ -86,7 +86,7 @@ export class OrchestrationQueue {
   }
 
   listStatus(): OrchestrationJob[] {
-    return [...this.jobs.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+    return [...this.jobs.values()].toSorted((a, b) => b.updatedAt - a.updatedAt);
   }
 
   private findByKey(key: string): OrchestrationJob | undefined {

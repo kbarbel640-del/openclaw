@@ -78,7 +78,7 @@ export function buildUiAssetManifest(controlUiRoot: string): UiAssetManifest {
 
 export function canonicalManifestJson(manifest: UiAssetManifest): string {
   const sortedFiles = Object.fromEntries(
-    Object.entries(manifest.files).sort(([a], [b]) => a.localeCompare(b)),
+    Object.entries(manifest.files).toSorted(([a], [b]) => a.localeCompare(b)),
   );
   return JSON.stringify(
     {

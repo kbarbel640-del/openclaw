@@ -82,7 +82,7 @@ export async function setClarityProposalState(
 
 
 export async function loadClarityTimelineQuery(state: ClarityState) {
-  if (!state.client || !state.connected) return;
+  if (!state.client || !state.connected) {return;}
   state.clarityError = null;
   try {
     const f = state.clarityTimelineFilters;

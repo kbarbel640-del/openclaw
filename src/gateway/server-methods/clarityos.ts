@@ -218,34 +218,34 @@ export const clarityosHandlers: GatewayRequestHandlers = {
   "clarityos.tasks.claimLease": async ({ respond, params }) => {
     const root = resolveWorkspaceRoot();
     const key = typeof params?.key === "string" ? params.key.trim() : "";
-    if (!key) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key"));
+    if (!key) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key"));}
     const agent = typeof params?.agent === "string" && params.agent.trim() ? params.agent.trim() : "executor";
     const ttl = Number.isFinite(Number(params?.ttlMin)) ? Math.max(1, Math.floor(Number(params?.ttlMin))) : 20;
     const reason = typeof params?.reason === "string" ? params.reason : "lease-claim";
     const py = runOps(root, ["task-claim-lease", "--key", key, "--agent", agent, "--ttl-min", String(ttl), "--reason", reason]);
-    if (py.status !== 0) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "claim lease failed").trim()));
+    if (py.status !== 0) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "claim lease failed").trim()));}
     respond(true, readJsonSafe(path.join(root, "reports", "clarityos", "tasks.json")) ?? { ok: true, out: py.stdout.trim() });
   },
 
   "clarityos.tasks.heartbeat": async ({ respond, params }) => {
     const root = resolveWorkspaceRoot();
     const key = typeof params?.key === "string" ? params.key.trim() : "";
-    if (!key) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key"));
+    if (!key) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key"));}
     const agent = typeof params?.agent === "string" && params.agent.trim() ? params.agent.trim() : "executor";
     const ttl = Number.isFinite(Number(params?.ttlMin)) ? Math.max(1, Math.floor(Number(params?.ttlMin))) : 20;
     const py = runOps(root, ["task-lease-heartbeat", "--key", key, "--agent", agent, "--ttl-min", String(ttl)]);
-    if (py.status !== 0) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "lease heartbeat failed").trim()));
+    if (py.status !== 0) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "lease heartbeat failed").trim()));}
     respond(true, { ok: true, output: py.stdout.trim() });
   },
 
   "clarityos.tasks.releaseLease": async ({ respond, params }) => {
     const root = resolveWorkspaceRoot();
     const key = typeof params?.key === "string" ? params.key.trim() : "";
-    if (!key) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key"));
+    if (!key) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key"));}
     const agent = typeof params?.agent === "string" && params.agent.trim() ? params.agent.trim() : "executor";
     const reason = typeof params?.reason === "string" ? params.reason : "lease-release";
     const py = runOps(root, ["task-release-lease", "--key", key, "--agent", agent, "--reason", reason]);
-    if (py.status !== 0) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "release lease failed").trim()));
+    if (py.status !== 0) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "release lease failed").trim()));}
     respond(true, { ok: true, output: py.stdout.trim() });
   },
 
@@ -253,22 +253,22 @@ export const clarityosHandlers: GatewayRequestHandlers = {
     const root = resolveWorkspaceRoot();
     const key = typeof params?.key === "string" ? params.key.trim() : "";
     const toState = typeof params?.toState === "string" ? params.toState.trim() : "";
-    if (!key || !toState) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key/toState"));
+    if (!key || !toState) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key/toState"));}
     const actor = typeof params?.actor === "string" && params.actor.trim() ? params.actor.trim() : "chief";
     const reason = typeof params?.reason === "string" ? params.reason : "manual-transition";
     const py = runOps(root, ["task-transition", "--key", key, "--to-state", toState, "--actor", actor, "--reason", reason]);
-    if (py.status !== 0) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "transition failed").trim()));
+    if (py.status !== 0) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "transition failed").trim()));}
     respond(true, { ok: true, output: py.stdout.trim() });
   },
 
   "clarityos.tasks.validate": async ({ respond, params }) => {
     const root = resolveWorkspaceRoot();
     const key = typeof params?.key === "string" ? params.key.trim() : "";
-    if (!key) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key"));
+    if (!key) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing key"));}
     const by = typeof params?.by === "string" && params.by.trim() ? params.by.trim() : "validator";
     const reason = typeof params?.reason === "string" ? params.reason : "validation gate";
     const py = runOps(root, ["task-validate", "--key", key, "--by", by, "--reason", reason]);
-    if (py.status !== 0) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "validate failed").trim()));
+    if (py.status !== 0) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "validate failed").trim()));}
     respond(true, { ok: true, output: py.stdout.trim() });
   },
 
@@ -276,7 +276,7 @@ export const clarityosHandlers: GatewayRequestHandlers = {
     const root = resolveWorkspaceRoot();
     const wh = Number.isFinite(Number(params?.windowHours)) ? Math.max(1, Math.floor(Number(params?.windowHours))) : 24;
     const py = runOps(root, ["metrics-slo", "--window-hours", String(wh)]);
-    if (py.status !== 0) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "metrics failed").trim()));
+    if (py.status !== 0) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "metrics failed").trim()));}
     const payload = readJsonSafe(path.join(root, "reports", "clarityos", "metrics-slo.json"));
     respond(true, payload ?? { ok: true, output: py.stdout.trim() });
   },
@@ -285,20 +285,20 @@ export const clarityosHandlers: GatewayRequestHandlers = {
     const root = resolveWorkspaceRoot();
     const provider = typeof params?.provider === "string" ? params.provider.trim() : "";
     const costUsd = Number(params?.costUsd);
-    if (!provider || !Number.isFinite(costUsd)) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing provider/costUsd"));
+    if (!provider || !Number.isFinite(costUsd)) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "missing provider/costUsd"));}
     const args = ["cost-ingest-exact", "--provider", provider, "--cost-usd", String(costUsd)];
     const map: Array<[string, string]> = [["model","model"],["sessionId","session-id"],["runKey","run-key"],["confidence","confidence"]];
     for (const [k, a] of map) {
-      const v = (params as Record<string, unknown>)?.[k];
-      if (typeof v === "string" && v.trim()) args.push(`--${a}`, v.trim());
+      const v = (params)?.[k];
+      if (typeof v === "string" && v.trim()) {args.push(`--${a}`, v.trim());}
     }
     const nums: Array<[string, string]> = [["inputTokens","input-tokens"],["outputTokens","output-tokens"],["cacheReadTokens","cache-read-tokens"],["cacheWriteTokens","cache-write-tokens"]];
     for (const [k, a] of nums) {
-      const n = Number((params as Record<string, unknown>)?.[k]);
-      if (Number.isFinite(n) && n > 0) args.push(`--${a}`, String(Math.floor(n)));
+      const n = Number((params)?.[k]);
+      if (Number.isFinite(n) && n > 0) {args.push(`--${a}`, String(Math.floor(n)));}
     }
     const py = runOps(root, args);
-    if (py.status !== 0) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "cost ingest failed").trim()));
+    if (py.status !== 0) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "cost ingest failed").trim()));}
     respond(true, { ok: true, output: py.stdout.trim() });
   },
 
@@ -306,7 +306,7 @@ export const clarityosHandlers: GatewayRequestHandlers = {
     const root = resolveWorkspaceRoot();
     const wh = Number.isFinite(Number(params?.windowHours)) ? Math.max(1, Math.floor(Number(params?.windowHours))) : 24;
     const py = runOps(root, ["cost-variance", "--window-hours", String(wh)]);
-    if (py.status !== 0) return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "cost variance failed").trim()));
+    if (py.status !== 0) {return respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, (py.stderr || py.stdout || "cost variance failed").trim()));}
     const payload = readJsonSafe(path.join(root, "reports", "clarityos", "cost-variance.json"));
     respond(true, payload ?? { ok: true, output: py.stdout.trim() });
   },
@@ -318,7 +318,7 @@ export const clarityosHandlers: GatewayRequestHandlers = {
       ? fs
           .readdirSync(base)
           .filter((f) => f.startsWith("nightly-self-improvement-") && f.endsWith(".json"))
-          .sort()
+          .toSorted()
       : [];
     const latest = files.length ? readJsonSafe(path.join(base, files[files.length - 1])) : null;
     respond(true, {
