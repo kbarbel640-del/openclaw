@@ -1,5 +1,10 @@
 import type { GatewayBrowserClient } from "../gateway.ts";
-import type { SessionsUsageResult, CostUsageSummary, SessionUsageTimeSeries } from "../types.ts";
+import type {
+  SessionsUsageResult,
+  CostUsageSummary,
+  SessionUsageTimeSeries,
+  ProviderUsageSummary,
+} from "../types.ts";
 import type { SessionLogEntry } from "../views/usage.ts";
 
 export type UsageState = {
@@ -8,6 +13,7 @@ export type UsageState = {
   usageLoading: boolean;
   usageResult: SessionsUsageResult | null;
   usageCostSummary: CostUsageSummary | null;
+  usageProviderSummary: ProviderUsageSummary | null;
   usageError: string | null;
   usageStartDate: string;
   usageEndDate: string;
@@ -220,29 +226,33 @@ export async function loadUsage(
           endDate,
           ...dateInterpretation,
         }),
+        client.request("usage.status", {}),
       ]);
     };
 
-    const applyUsageResults = (sessionsRes: unknown, costRes: unknown) => {
+    const applyUsageResults = (sessionsRes: unknown, costRes: unknown, providerRes: unknown) => {
       if (sessionsRes) {
         state.usageResult = sessionsRes as SessionsUsageResult;
       }
       if (costRes) {
         state.usageCostSummary = costRes as CostUsageSummary;
       }
+      if (providerRes) {
+        state.usageProviderSummary = providerRes as ProviderUsageSummary;
+      }
     };
 
     const includeDateInterpretation = shouldSendLegacyDateInterpretation(state);
     try {
-      const [sessionsRes, costRes] = await runUsageRequests(includeDateInterpretation);
-      applyUsageResults(sessionsRes, costRes);
+      const [sessionsRes, costRes, providerRes] = await runUsageRequests(includeDateInterpretation);
+      applyUsageResults(sessionsRes, costRes, providerRes);
     } catch (err) {
       if (includeDateInterpretation && isLegacyDateInterpretationUnsupportedError(err)) {
         // Older gateways reject `mode`/`utcOffset` in `sessions.usage`.
         // Remember this per gateway and retry once without those fields.
         rememberLegacyDateInterpretation(state);
-        const [sessionsRes, costRes] = await runUsageRequests(false);
-        applyUsageResults(sessionsRes, costRes);
+        const [sessionsRes, costRes, providerRes] = await runUsageRequests(false);
+        applyUsageResults(sessionsRes, costRes, providerRes);
       } else {
         throw err;
       }
