@@ -400,6 +400,7 @@ describe("resolveModel", () => {
     expect(result.model?.reasoning).toBe(true);
     expect(result.model?.contextWindow).toBe(128000);
     expect(result.model?.maxTokens).toBe(64000);
+  });
 
   it("fallback uses correct model when provider has multiple models", () => {
     const cfg = {
