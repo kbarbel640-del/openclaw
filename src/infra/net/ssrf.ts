@@ -471,6 +471,14 @@ export type PinnedHostname = {
   lookup: typeof dnsLookupCb;
 };
 
+/**
+ * Resolve a hostname to IP addresses with SSRF policy enforcement.
+ *
+ * DNS rebinding protection: resolved addresses are pinned via createPinnedLookup()
+ * so the actual HTTP connection uses the same IPs that were validated here.
+ * This prevents TOCTOU attacks where a DNS response changes between validation
+ * and connection (L-AUTO-3).
+ */
 export async function resolvePinnedHostnameWithPolicy(
   hostname: string,
   params: { lookupFn?: LookupFn; policy?: SsrFPolicy } = {},
