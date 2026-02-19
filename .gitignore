@@ -78,7 +78,7 @@ USER.md
 # local tooling
 .serena/
 .claude/skills/
-.claude/commands/
+.claude/commands/feature.md
 
 # Agent credentials and memory (NEVER COMMIT)
 /memory/
