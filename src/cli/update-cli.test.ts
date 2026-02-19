@@ -531,6 +531,27 @@ describe("update-cli", () => {
     expect(runDaemonRestart).toHaveBeenCalled();
   });
 
+  it("updateCommand refreshes gateway session version source in restart path", async () => {
+    const mockResult: UpdateRunResult = {
+      status: "ok",
+      mode: "git",
+      steps: [],
+      durationMs: 100,
+    };
+
+    vi.mocked(runGatewayUpdate).mockResolvedValue(mockResult);
+    vi.mocked(runDaemonInstall).mockResolvedValue(undefined);
+    vi.mocked(runDaemonRestart).mockResolvedValue(true);
+
+    await updateCommand({});
+
+    expect(runDaemonInstall).toHaveBeenCalledWith({
+      force: true,
+      json: undefined,
+    });
+    expect(runDaemonRestart).not.toHaveBeenCalled();
+  });
+
   it("updateCommand does not refresh service env when --no-restart is set", async () => {
     vi.mocked(runGatewayUpdate).mockResolvedValue(makeOkUpdateResult());
     serviceLoaded.mockResolvedValue(true);
