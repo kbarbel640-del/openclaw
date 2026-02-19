@@ -97,7 +97,9 @@ describe("resolveCommandsSystemPromptBundle - channel-aware runtime", () => {
       provider: "anthropic",
       model: "claude-3-sonnet",
       elevated: {
+        enabled: false,
         allowed: false,
+        failures: [],
       },
       resolvedElevatedLevel: "off",
       resolvedThinkLevel: "low",
@@ -111,14 +113,21 @@ describe("resolveCommandsSystemPromptBundle - channel-aware runtime", () => {
         hasModelDirective: false,
         hasStatusDirective: false,
         hasExecDirective: false,
+        hasExecOptions: false,
+        invalidExecHost: false,
+        invalidExecSecurity: false,
+        invalidExecAsk: false,
+        invalidExecNode: false,
         hasQueueDirective: false,
+        hasQueueOptions: false,
+        queueReset: false,
       },
       defaultGroupActivation: () => "mention",
       resolvedVerboseLevel: "off",
       resolveDefaultThinkingLevel: () => Promise.resolve("low"),
       contextTokens: 128000,
       isGroup: false,
-    } as HandleCommandsParams;
+    } as unknown as HandleCommandsParams;
   });
 
   it("includes channel=telegram when OriginatingChannel is telegram", async () => {

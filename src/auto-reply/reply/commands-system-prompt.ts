@@ -95,13 +95,13 @@ export async function resolveCommandsSystemPromptBundle(
     ? (resolveChannelCapabilities({
         cfg: params.cfg,
         channel: runtimeChannel,
-        accountId: undefined,
+        accountId: params.ctx.AccountId ?? undefined,
       }) ?? [])
     : undefined;
   if (runtimeChannel === "telegram" && params.cfg) {
     const inlineButtonsScope = resolveTelegramInlineButtonsScope({
       cfg: params.cfg,
-      accountId: undefined,
+      accountId: params.ctx.AccountId ?? undefined,
     });
     if (inlineButtonsScope !== "off") {
       if (!runtimeCapabilities) {
