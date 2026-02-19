@@ -3,7 +3,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import { startHeartbeatRunner } from "./heartbeat-runner.js";
 
 describe("heartbeat runner - circuit breaker", () => {
-  function startDefaultRunner(runOnce: (opts: any) => Promise<any>) {
+  function startDefaultRunner(runOnce: (opts: unknown) => Promise<unknown>) {
     return startHeartbeatRunner({
       cfg: {
         agents: { defaults: { heartbeat: { every: "30m" } } },

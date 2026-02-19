@@ -998,7 +998,9 @@ function shouldAttemptReset(
   lastFailureMs: number | undefined,
   now: number,
 ): boolean {
-  if (!circuitOpen || !lastFailureMs) return true;
+  if (!circuitOpen || !lastFailureMs) {
+    return true;
+  }
   return now - lastFailureMs >= CIRCUIT_BREAKER_RESET_MS;
 }
 
