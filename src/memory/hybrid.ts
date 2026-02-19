@@ -139,11 +139,22 @@ export async function mergeHybridResults(params: {
   });
   const sorted = decayed.toSorted((a, b) => b.score - a.score);
 
+  // Deduplicate by id before returning
+  const seen = new Set<string>();
+  const deduped = sorted.filter((r) => {
+    const id = `${r.path}:${r.startLine}:${r.endLine}`;
+    if (seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+    return true;
+  });
+
   // Apply MMR re-ranking if enabled
   const mmrConfig = { ...DEFAULT_MMR_CONFIG, ...params.mmr };
   if (mmrConfig.enabled) {
-    return applyMMRToHybridResults(sorted, mmrConfig);
+    return applyMMRToHybridResults(deduped, mmrConfig);
   }
 
-  return sorted;
+  return deduped;
 }
