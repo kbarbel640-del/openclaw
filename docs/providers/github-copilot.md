@@ -65,6 +65,7 @@ openclaw models set github-copilot/gpt-4o
 
 ## Notes
 
+- Codex models like `github-copilot/gpt-5.3-codex` support `/thinking xhigh`.
 - Requires an interactive TTY; run it directly in a terminal.
 - Copilot model availability depends on your plan; if a model is rejected, try
   another ID (for example `github-copilot/gpt-4.1`).
