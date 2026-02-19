@@ -154,9 +154,9 @@ echo "✅ Audio extracted: $AUDIO_FILE"
 echo ""
 echo "🗣️ Step 4: Speech recognition..."
 
-# Check for whisper (try PATH first, then fallback to known location)
-WHISPER_PATH="$(command -v whisper 2>/dev/null || echo "/Library/Frameworks/Python.framework/Versions/3.13/bin/whisper")"
-if [ ! -x "$WHISPER_PATH" ]; then
+# Check for whisper in PATH
+WHISPER_PATH="$(command -v whisper 2>/dev/null)"
+if [ -z "$WHISPER_PATH" ] || [ ! -x "$WHISPER_PATH" ]; then
     echo "⚠️  Whisper not installed"
     echo ""
     echo "Install: pip3 install openai-whisper"
