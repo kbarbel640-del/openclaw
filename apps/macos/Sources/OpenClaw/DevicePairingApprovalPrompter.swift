@@ -72,11 +72,16 @@ final class DevicePairingApprovalPrompter {
         self.isStopping = false
         self.task = Task { [weak self] in
             guard let self else { return }
-            _ = try? await GatewayConnection.shared.refresh()
-            await self.loadPendingRequestsFromGateway()
+            // Subscribe without calling refresh() — piggyback on the connection
+            // already established by ControlChannel to avoid a duplicate WebSocket.
             let stream = await GatewayConnection.shared.subscribe(bufferingNewest: 200)
+            var didInitialLoad = false
             for await push in stream {
                 if Task.isCancelled { return }
+                if !didInitialLoad, case .snapshot = push {
+                    didInitialLoad = true
+                    await self.loadPendingRequestsFromGateway()
+                }
                 await MainActor.run { [weak self] in self?.handle(push: push) }
             }
         }

@@ -18,17 +18,17 @@ final class VoiceWakeGlobalSettingsSync {
         self.task = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
-                do {
-                    try await GatewayConnection.shared.refresh()
-                } catch {
-                    // Not configured / not reachable yet.
-                }
-
-                await self.refreshFromGateway()
-
+                // Subscribe without calling refresh() — piggyback on the connection
+                // already established by ControlChannel to avoid creating a duplicate
+                // WebSocket with stale/nil credentials.
                 let stream = await GatewayConnection.shared.subscribe(bufferingNewest: 200)
+                var didInitialFetch = false
                 for await push in stream {
                     if Task.isCancelled { return }
+                    if !didInitialFetch, case .snapshot = push {
+                        didInitialFetch = true
+                        await self.refreshFromGateway()
+                    }
                     await self.handle(push: push)
                 }
 

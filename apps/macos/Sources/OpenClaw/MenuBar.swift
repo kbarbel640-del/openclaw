@@ -273,15 +273,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.state = AppStateStore.shared
         AppActivationPolicy.apply(showDockIcon: self.state?.showDockIcon ?? false)
         if let state {
-            Task { await ConnectionModeCoordinator.shared.apply(mode: state.connectionMode, paused: state.isPaused) }
+            Task {
+                await ConnectionModeCoordinator.shared.apply(mode: state.connectionMode, paused: state.isPaused)
+                // Start VoiceWake AFTER gateway connection is established to prevent
+                // a premature WebSocket with nil token (which creates a duplicate connection
+                // when ControlChannel later connects with the real token).
+                VoiceWakeGlobalSettingsSync.shared.start()
+            }
         }
         TerminationSignalWatcher.shared.start()
         NodePairingApprovalPrompter.shared.start()
         DevicePairingApprovalPrompter.shared.start()
         ExecApprovalsPromptServer.shared.start()
         ExecApprovalsGatewayPrompter.shared.start()
-        MacNodeModeCoordinator.shared.start()
-        VoiceWakeGlobalSettingsSync.shared.start()
+        if UserDefaults.standard.object(forKey: "openclaw.nodeModeEnabled") as? Bool ?? true {
+            MacNodeModeCoordinator.shared.start()
+        }
         Task { PresenceReporter.shared.start() }
         Task { await HealthStore.shared.refresh(onDemand: true) }
         Task { await PortGuardian.shared.sweep(mode: AppStateStore.shared.connectionMode) }

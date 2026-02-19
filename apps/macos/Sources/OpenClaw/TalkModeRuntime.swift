@@ -441,8 +441,12 @@ actor TalkModeRuntime {
         do {
             if let apiKey = input.apiKey, !apiKey.isEmpty, let voiceId = input.voiceId {
                 try await self.playElevenLabs(input: input, apiKey: apiKey, voiceId: voiceId)
-            } else {
+            } else if let sv = self.systemVoice?.lowercased(), !sv.isEmpty, sv != "edge" {
+                // Explicit non-edge system voice (e.g. "Samantha")
                 try await self.playSystemVoice(input: input)
+            } else {
+                // Default: Edge TTS via gateway (free, no API key required)
+                try await self.playEdgeTTS(input: input)
             }
         } catch {
             self.ttsLogger
@@ -657,6 +661,19 @@ actor TalkModeRuntime {
         self.ttsLogger.info("talk system voice done")
     }
 
+    private func playEdgeTTS(input: TalkPlaybackInput) async throws {
+        self.ttsLogger.info(
+            "talk edge TTS start chars=\(input.cleanedText.count, privacy: .public)")
+        if self.interruptOnSpeech {
+            guard await self.prepareForPlayback(generation: input.generation) else { return }
+        }
+        await MainActor.run { TalkModeController.shared.updatePhase(.speaking) }
+        self.phase = .speaking
+        await TalkGatewayTTSSynthesizer.shared.stop()
+        try await TalkGatewayTTSSynthesizer.shared.speak(text: input.cleanedText)
+        self.ttsLogger.info("talk edge TTS done")
+    }
+
     private func prepareForPlayback(generation: Int) async -> Bool {
         await self.startRecognition()
         return self.isCurrent(generation)
@@ -714,6 +731,8 @@ actor TalkModeRuntime {
         let interruptedAt = usePCM ? await self.stopPCM() : await self.stopMP3()
         _ = usePCM ? await self.stopMP3() : await self.stopPCM()
         await TalkSystemSpeechSynthesizer.shared.stop()
+        await TalkSayCommandSynthesizer.shared.stop()
+        await TalkGatewayTTSSynthesizer.shared.stop()
         guard self.phase == .speaking else { return }
         if reason == .speech, let interruptedAt {
             self.lastInterruptedAtSeconds = interruptedAt
@@ -838,6 +857,7 @@ extension TalkModeRuntime {
                 interruptOnSpeech: interrupt ?? true,
                 apiKey: resolvedApiKey)
         } catch {
+            self.logger.error("talk config fetch failed: \(error.localizedDescription, privacy: .public)")
             let resolvedVoice =
                 (envVoice?.isEmpty == false ? envVoice : nil) ??
                 (sagVoice?.isEmpty == false ? sagVoice : nil)

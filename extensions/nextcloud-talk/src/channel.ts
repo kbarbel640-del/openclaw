@@ -325,6 +325,17 @@ export const nextcloudTalkPlugin: ChannelPlugin<ResolvedNextcloudTalkAccount> = 
         statusSink: (patch) => ctx.setStatus({ accountId: ctx.accountId, ...patch }),
       });
 
+      // Keep the task alive until abort signal fires — prevents the channel
+      // framework from interpreting a resolved promise as "channel exited"
+      // and triggering an auto-restart that collides with the running webhook server.
+      await new Promise<void>((resolve) => {
+        if (ctx.abortSignal.aborted) {
+          resolve();
+          return;
+        }
+        ctx.abortSignal.addEventListener("abort", () => resolve(), { once: true });
+      });
+
       return { stop };
     },
     logoutAccount: async ({ accountId, cfg }) => {
