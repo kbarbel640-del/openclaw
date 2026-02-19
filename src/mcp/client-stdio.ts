@@ -1,8 +1,61 @@
 /**
  * Stdio MCP client — manages a child process MCP server.
  *
- * Implementation in Phase 5.
+ * Spawns a child process, communicates via stdin/stdout JSON-RPC,
+ * handles crash detection and auto-restart with exponential backoff.
  */
 
-// Placeholder export to satisfy no-empty-file lint rule
-export const STDIO_CLIENT_VERSION = "0.0.0";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { McpServerConfig } from "./config.js";
+import { McpClientBase } from "./client-base.js";
+
+export class StdioMcpClient extends McpClientBase {
+  private transport: StdioClientTransport | null = null;
+
+  async connect(): Promise<void> {
+    this.status = "connecting";
+    this.cancelRestart();
+
+    try {
+      // Build env: merge process.env with configured env
+      const env: Record<string, string> = {};
+      for (const [k, v] of Object.entries(process.env)) {
+        if (v !== undefined) {
+          env[k] = v;
+        }
+      }
+      for (const [k, v] of Object.entries(this.config.env ?? {})) {
+        env[k] = v;
+      }
+
+      this.transport = new StdioClientTransport({
+        command: this.config.command!,
+        args: this.config.args,
+        env,
+        cwd: this.config.cwd,
+      });
+
+      // Monitor for crashes
+      this.transport.onclose = () => this.handleDisconnect();
+      this.transport.onerror = () => this.handleDisconnect();
+
+      await this.initializeClient(this.transport);
+    } catch (err) {
+      this.status = "error";
+      this.handleDisconnect();
+      throw err;
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    this.status = "closed";
+    this.cancelRestart();
+    try {
+      await this.client?.close();
+    } catch {
+      /* ignore close errors */
+    }
+    this.transport = null;
+    this.client = null;
+  }
+}
