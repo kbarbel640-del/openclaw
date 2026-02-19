@@ -183,6 +183,28 @@ export async function handleInlineActions(params: {
       return { kind: "reply", reply: undefined };
     }
 
+    // Handle bypass-model: execute command directly without AI
+    const { bypassModel, execCommand } = skillInvocation.command as {
+      bypassModel?: boolean;
+      execCommand?: string;
+    };
+    if (bypassModel && execCommand) {
+      try {
+        const { execSync } = await import("node:child_process");
+        const output = execSync(execCommand, {
+          encoding: "utf-8",
+          timeout: 30000,
+          maxBuffer: 1024 * 1024,
+        });
+        typing.cleanup();
+        return { kind: "reply", reply: { text: output.trim() || "✅ Done" } };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        typing.cleanup();
+        return { kind: "reply", reply: { text: `❌ ${message}` } };
+      }
+    }
+
     const dispatch = skillInvocation.command.dispatch;
     if (dispatch?.kind === "tool") {
       const rawArgs = (skillInvocation.args ?? "").trim();
