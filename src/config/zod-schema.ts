@@ -601,7 +601,7 @@ export const OpenClawSchema = z
                 env: z.record(z.string(), z.string()).optional(),
                 config: z.record(z.string(), z.unknown()).optional(),
               })
-              .strict(),
+              .passthrough(),
           )
           .optional(),
       })
