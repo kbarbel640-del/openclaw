@@ -84,7 +84,9 @@ describe("openclaw-tools: subagents", () => {
       modelApplied: true,
     });
 
-    const patchIndex = calls.findIndex((call) => call.method === "sessions.patch");
+    const patchIndex = calls.findIndex(
+      (call) => call.method === "sessions.patch" && (call.params as Record<string, unknown>)?.model,
+    );
     const agentIndex = calls.findIndex((call) => call.method === "agent");
     expect(patchIndex).toBeGreaterThan(-1);
     expect(agentIndex).toBeGreaterThan(-1);
@@ -198,7 +200,9 @@ describe("openclaw-tools: subagents", () => {
       modelApplied: true,
     });
 
-    const patchCall = calls.find((call) => call.method === "sessions.patch");
+    const patchCall = calls.find(
+      (call) => call.method === "sessions.patch" && (call.params as Record<string, unknown>)?.model,
+    );
     expect(patchCall?.params).toMatchObject({
       model: "minimax/MiniMax-M2.1",
     });

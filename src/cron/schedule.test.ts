@@ -39,22 +39,20 @@ describe("cron schedule", () => {
     const dailyNoon = { kind: "cron" as const, expr: "0 0 12 * * *", tz: "UTC" };
     const noonMs = Date.parse("2026-02-08T12:00:00.000Z");
 
-    it("returns current occurrence when nowMs is exactly at the match", () => {
+    it("advances past current second to prevent spin loop (at match)", () => {
+      // askFromNextSecond pushes past the matching second → next day
       const next = computeNextRunAtMs(dailyNoon, noonMs);
-      expect(next).toBe(noonMs);
+      expect(next).toBe(noonMs + 86_400_000);
     });
 
-    it("returns current occurrence when nowMs is mid-second (.500) within the match", () => {
-      // This is the core regression: without the second-floor fix, a 1ms
-      // lookback from 12:00:00.499 still lands inside the matching second,
-      // causing croner to skip to the *next day*.
+    it("advances past current second to prevent spin loop (mid-second)", () => {
       const next = computeNextRunAtMs(dailyNoon, noonMs + 500);
-      expect(next).toBe(noonMs);
+      expect(next).toBe(noonMs + 86_400_000);
     });
 
-    it("returns current occurrence when nowMs is late in the matching second (.999)", () => {
+    it("advances past current second to prevent spin loop (end of second)", () => {
       const next = computeNextRunAtMs(dailyNoon, noonMs + 999);
-      expect(next).toBe(noonMs);
+      expect(next).toBe(noonMs + 86_400_000);
     });
 
     it("advances to next day once the matching second is fully past", () => {
@@ -62,9 +60,11 @@ describe("cron schedule", () => {
       expect(next).toBe(noonMs + 86_400_000); // next day
     });
 
-    it("returns today when nowMs is before the match", () => {
+    it("advances past match when nowMs is just before the match second", () => {
+      // nowMs at 11:59:59.500 → askFromNextSecond = 12:00:00.000
+      // croner uses strictly-after semantics → returns next day
       const next = computeNextRunAtMs(dailyNoon, noonMs - 500);
-      expect(next).toBe(noonMs);
+      expect(next).toBe(noonMs + 86_400_000);
     });
   });
 });

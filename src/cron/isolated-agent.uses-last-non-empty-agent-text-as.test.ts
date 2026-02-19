@@ -573,7 +573,7 @@ describe("runCronIsolatedAgentTurn", () => {
     });
   });
 
-  it("starts a fresh session id for each cron run", async () => {
+  it("reuses the same session id when the session is still fresh", async () => {
     await withTempHome(async (home) => {
       const storePath = await writeSessionStore(home);
       const deps: CliDeps = {
@@ -616,7 +616,10 @@ describe("runCronIsolatedAgentTurn", () => {
 
       expect(first?.sessionId).toBeDefined();
       expect(second?.sessionId).toBeDefined();
-      expect(second?.sessionId).not.toBe(first?.sessionId);
+      // resolveCronSession reuses the existing session when it is still fresh
+      // (no forceNew flag), so consecutive runs within the freshness window
+      // share the same sessionId.
+      expect(second?.sessionId).toBe(first?.sessionId);
       expect(first?.label).toBe("Cron: job-1");
       expect(second?.label).toBe("Cron: job-1");
     });

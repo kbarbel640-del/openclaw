@@ -75,7 +75,9 @@ describe("openclaw-tools: subagents", () => {
       modelApplied: true,
     });
 
-    const patchCall = calls.find((call) => call.method === "sessions.patch");
+    const patchCall = calls.find(
+      (call) => call.method === "sessions.patch" && (call.params as Record<string, unknown>)?.model,
+    );
     expect(patchCall?.params).toMatchObject({
       model: "opencode/claude",
     });
@@ -90,7 +92,10 @@ describe("openclaw-tools: subagents", () => {
       const request = opts as { method?: string; params?: unknown };
       calls.push(request);
       if (request.method === "sessions.patch") {
-        throw new Error("invalid model: bad-model");
+        if ((request.params as Record<string, unknown>)?.model) {
+          throw new Error("invalid model: bad-model");
+        }
+        return { ok: true };
       }
       if (request.method === "agent") {
         agentCallCount += 1;

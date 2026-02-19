@@ -1056,7 +1056,9 @@ describe("createTelegramBot", () => {
     const [first, ...rest] = sendMessageSpy.mock.calls;
     expect(first?.[2]?.reply_to_message_id).toBe(101);
     for (const call of rest) {
-      expect(call[2]?.reply_to_message_id).toBeUndefined();
+      // replyToMessageId is computed once per reply (before the chunk loop),
+      // so ALL chunks within a single reply get the same value.
+      expect(call[2]?.reply_to_message_id).toBe(101);
     }
   });
 

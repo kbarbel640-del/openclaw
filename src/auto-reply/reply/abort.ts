@@ -16,7 +16,7 @@ import {
 import { logVerbose } from "../../globals.js";
 import { parseAgentSessionKey } from "../../routing/session-key.js";
 import { resolveCommandAuthorization } from "../command-auth.js";
-import { normalizeCommandBody } from "../commands-registry.js";
+import { normalizeCommandBody, type CommandNormalizeOptions } from "../commands-registry.js";
 import { stripMentions, stripStructuralPrefixes } from "./mentions.js";
 import { clearSessionQueues } from "./queue.js";
 
@@ -31,12 +31,31 @@ export function isAbortTrigger(text?: string): boolean {
   return ABORT_TRIGGERS.has(normalized);
 }
 
+export function isAbortRequestText(text?: string, options?: CommandNormalizeOptions): boolean {
+  if (!text) {
+    return false;
+  }
+  const normalized = normalizeCommandBody(text, options).trim();
+  if (!normalized) {
+    return false;
+  }
+  return normalized.toLowerCase() === "/stop" || isAbortTrigger(normalized);
+}
+
 export function getAbortMemory(key: string): boolean | undefined {
   return ABORT_MEMORY.get(key);
 }
 
 export function setAbortMemory(key: string, value: boolean): void {
   ABORT_MEMORY.set(key, value);
+}
+
+export function getAbortMemorySizeForTest(): number {
+  return ABORT_MEMORY.size;
+}
+
+export function resetAbortMemoryForTest(): void {
+  ABORT_MEMORY.clear();
 }
 
 export function formatAbortReplyText(stoppedSubagents?: number): string {
@@ -146,8 +165,7 @@ export async function tryFastAbortFromMessage(params: {
   const raw = stripStructuralPrefixes(ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "");
   const isGroup = ctx.ChatType?.trim().toLowerCase() === "group";
   const stripped = isGroup ? stripMentions(raw, ctx, cfg, agentId) : raw;
-  const normalized = normalizeCommandBody(stripped);
-  const abortRequested = normalized === "/stop" || isAbortTrigger(stripped);
+  const abortRequested = isAbortRequestText(stripped);
   if (!abortRequested) {
     return { handled: false, aborted: false };
   }

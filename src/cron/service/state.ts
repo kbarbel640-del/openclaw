@@ -13,6 +13,17 @@ export type CronEvent = {
   sessionId?: string;
   sessionKey?: string;
   nextRunAtMs?: number;
+
+  // Telemetry (best-effort)
+  model?: string;
+  provider?: string;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    cache_read_tokens?: number;
+    cache_write_tokens?: number;
+  };
 };
 
 export type Logger = {
@@ -35,12 +46,24 @@ export type CronServiceDeps = {
   resolveSessionStorePath?: (agentId?: string) => string;
   /** Path to the session store (sessions.json) for reaper use. */
   sessionStorePath?: string;
-  enqueueSystemEvent: (text: string, opts?: { agentId?: string; sessionKey?: string }) => void;
+  enqueueSystemEvent: (
+    text: string,
+    opts?: { agentId?: string; contextKey?: string; sessionKey?: string },
+  ) => void;
   requestHeartbeatNow: (opts?: { reason?: string }) => void;
   runHeartbeatOnce?: (opts?: {
     reason?: string;
+    agentId?: string;
     sessionKey?: string;
   }) => Promise<HeartbeatRunResult>;
+  /**
+   * WakeMode=now: max time to wait for runHeartbeatOnce to stop returning
+   * { status:"skipped", reason:"requests-in-flight" } before falling back to
+   * requestHeartbeatNow.
+   */
+  wakeNowHeartbeatBusyMaxWaitMs?: number;
+  /** WakeMode=now: delay between runHeartbeatOnce retries while busy. */
+  wakeNowHeartbeatBusyRetryDelayMs?: number;
   runIsolatedAgentJob: (params: { job: CronJob; message: string }) => Promise<{
     status: "ok" | "error" | "skipped";
     summary?: string;
@@ -49,6 +72,23 @@ export type CronServiceDeps = {
     error?: string;
     sessionId?: string;
     sessionKey?: string;
+    /**
+     * `true` when the isolated run already delivered its output to the target
+     * channel (including matching messaging-tool sends). See:
+     * https://github.com/openclaw/openclaw/issues/15692
+     */
+    delivered?: boolean;
+
+    // Telemetry (best-effort)
+    model?: string;
+    provider?: string;
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+      cache_read_tokens?: number;
+      cache_write_tokens?: number;
+    };
   }>;
   onEvent?: (evt: CronEvent) => void;
 };
