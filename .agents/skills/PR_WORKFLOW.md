@@ -16,7 +16,10 @@ These three skills must be used in order:
 
 1. `review-pr` — review only, produce findings
 2. `prepare-pr` — rebase, fix, gate, push to PR head branch
-3. `merge-pr` — squash-merge, verify MERGED state, clean up
+3. `validate-pr` — CI check gating + independent smoke test pass
+4. `merge-pr` — squash-merge, verify MERGED state, clean up
+
+For fully automated, agent-driven workflows, use `run-pr` which chains all four stages with automatic handoff and auto-stop on non-READY reviews.
 
 They are necessary, but not sufficient. Maintainers must steer between steps and understand the code before moving forward.
 
@@ -41,6 +44,10 @@ Skill runs should invoke these wrappers automatically. You only need to run them
 - `scripts/pr-merge <PR>` (verify-only; short form remains backward compatible)
 - `scripts/pr-merge verify <PR>` (verify-only)
 - Optional one-shot merge: `scripts/pr-merge run <PR>`
+- `scripts/pr-validate <PR>` (full validation: CI + smoke)
+- `scripts/pr-validate ci <PR>` (CI checks only)
+- `scripts/pr-validate smoke <PR>` (local smoke re-test only)
+- `scripts/pr-run <PR>` (full pipeline: auto-detects state and resumes)
 
 These wrappers run shared preflight checks and generate deterministic artifacts. They are designed to work from repo root or PR worktree cwd.
 
@@ -50,6 +57,11 @@ These wrappers run shared preflight checks and generate deterministic artifacts.
 - `.local/review.md` and `.local/review.json` from review output.
 - `.local/prep-context.env` and `.local/prep.md` from prepare.
 - `.local/prep.env` from prepare completion.
+- `.local/validate-ci.env`, `.local/validate-smoke.env`, and `.local/validate.env` from validation.
+
+## Recommendation enforcement
+
+`prepare-pr` and `run-pr` enforce the review recommendation gate. If `.local/review.json` contains a recommendation other than `"READY FOR /prepare-pr"`, the pipeline stops with an actionable error. This prevents advancing on non-ready reviews.
 
 ## Structured review handoff
 
@@ -221,7 +233,21 @@ Stop and escalate instead of continuing if:
 - Fixing findings requires broad architecture changes outside safe PR scope.
 - Security hardening requirements remain unresolved.
 
-### 3) `merge-pr`
+### 3) `validate-pr`
+
+Purpose:
+
+- Independently validate the prepared PR before merge.
+- Wait for CI checks to pass, then run a fresh local build + check + test pass.
+- Run PR-specific smoke tests if the review identified test targets.
+- Confirm the PR head SHA hasn't drifted since prepare.
+
+Expected output:
+
+- `.local/validate.env` with combined CI and smoke test results.
+- Final status: `Validation passed, ready for /merge-pr`.
+
+### 4) `merge-pr`
 
 Purpose:
 
@@ -247,3 +273,48 @@ Maintainer checkpoint after merge:
 - Were any refactors intentionally deferred and now need follow-up issue(s)?
 - Did this reveal broader architecture or test gaps we should address?
 - Run `bun scripts/update-clawtributors.ts` if the contributor is new.
+
+## Fully automated mode (agent-driven)
+
+For 100% agent-driven workflows where no human judgment is needed between stages, use the `run-pr` skill:
+
+```sh
+# First call: bootstraps review worktree
+scripts/pr-run <PR>
+
+# Agent performs review (fills .local/review.md + .local/review.json)
+
+# Same command again: auto-detects state, continues through prepare → validate → merge
+scripts/pr-run <PR>
+```
+
+The command is idempotent and resumable — if a stage fails, fix the issue and re-run the same command. Already-completed stages are skipped.
+
+### Pipeline stages
+
+| Stage           | What happens                                        | Auto-stop conditions                   |
+| --------------- | --------------------------------------------------- | -------------------------------------- |
+| **1. Review**   | Agent reads code, fills structured review artifacts | N/A (agent-driven)                     |
+| **2. Prepare**  | Rebase, fix findings, run gates, push               | Gate failure, non-READY recommendation |
+| **3. Validate** | CI check gating + independent smoke test pass       | CI failure, head SHA drift             |
+| **4. Merge**    | Deterministic squash merge, verify MERGED, cleanup  | Merge failure, state mismatch          |
+
+### Auto-stop behavior
+
+The pipeline automatically stops with actionable diagnostics when:
+
+- Review recommendation is not `READY FOR /prepare-pr`
+- Any gate fails (build, check, test)
+- CI checks fail or remain pending
+- PR head SHA drifts between stages
+- Merge fails
+
+After fixing the issue, re-run `scripts/pr-run <PR>` to resume. Already-completed stages are skipped.
+
+### When to use individual skills instead
+
+Use the individual `review-pr` → `prepare-pr` → `validate-pr` → `merge-pr` skills when:
+
+- The PR needs careful human judgment between stages.
+- The problem is complex and requires iterative review/prepare cycles.
+- You want to run just one stage (e.g., validate only after a manual prepare).

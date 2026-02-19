@@ -29,8 +29,12 @@ Usage:
   scripts/pr prepare-gates <PR>
   scripts/pr prepare-push <PR>
   scripts/pr prepare-run <PR>
+  scripts/pr validate-ci <PR>
+  scripts/pr validate-smoke <PR>
+  scripts/pr validate-run <PR>
   scripts/pr merge-verify <PR>
   scripts/pr merge-run <PR>
+  scripts/pr run <PR>
 USAGE
 }
 
@@ -549,6 +553,15 @@ prepare_init() {
 
   if [ ! -s .local/review.json ]; then
     echo "WARNING: .local/review.json is missing; structured findings are expected."
+  else
+    # Enforce recommendation gate: only proceed if review says READY.
+    local recommendation
+    recommendation=$(jq -r '.recommendation // ""' .local/review.json)
+    if [ -n "$recommendation" ] && [ "$recommendation" != "READY FOR /prepare-pr" ]; then
+      echo "Review recommendation is '$recommendation', not 'READY FOR /prepare-pr'."
+      echo "Resolve review findings before running prepare."
+      exit 1
+    fi
   fi
 
   # shellcheck disable=SC1091
@@ -612,15 +625,13 @@ prepare_validate_commit() {
   local subject
   subject=$(git log -1 --pretty=%s)
 
-  echo "$subject" | rg -q "openclaw#$pr_number" || {
-    echo "ERROR: commit subject missing openclaw#$pr_number"
+  # V2 convention: prepare commits use concise subjects without PR numbers
+  # or thanks. Those are reserved for the final merge/squash commit only.
+  # Just validate the subject is non-empty and action-oriented.
+  if [ -z "$subject" ]; then
+    echo "ERROR: commit subject is empty"
     exit 1
-  }
-
-  echo "$subject" | rg -q "thanks @$contrib" || {
-    echo "ERROR: commit subject missing thanks @$contrib"
-    exit 1
-  }
+  fi
 
   echo "commit subject validated: $subject"
 }
@@ -799,6 +810,254 @@ prepare_run() {
   prepare_gates "$pr"
   prepare_push "$pr"
   echo "prepare-run complete for PR #$pr"
+}
+
+# --- Validate stage ---
+
+validate_ci() {
+  local pr="$1"
+  enter_worktree "$pr" false
+
+  require_artifact .local/prep.env
+  # shellcheck disable=SC1091
+  source .local/prep.env
+
+  echo "Waiting for CI checks on PR #$pr (head: $PREP_HEAD_SHA)..."
+
+  # Wait for required checks with a timeout (gh pr checks --watch blocks until done).
+  local checks_watch_log=".local/validate-ci-watch.log"
+  gh pr checks "$pr" --required --watch --fail-fast >"$checks_watch_log" 2>&1 || true
+
+  local checks_json
+  local checks_err_file
+  checks_err_file=$(mktemp)
+  checks_json=$(gh pr checks "$pr" --required --json name,bucket,state 2>"$checks_err_file" || true)
+  rm -f "$checks_err_file"
+  if [ -z "$checks_json" ]; then
+    checks_json='[]'
+  fi
+
+  local required_count
+  required_count=$(printf '%s\n' "$checks_json" | jq 'length')
+  if [ "$required_count" -eq 0 ]; then
+    echo "No required checks configured for this PR; treating as acceptable."
+  else
+    printf '%s\n' "$checks_json" | jq -r '.[] | "\(.bucket)\t\(.name)\t\(.state)"'
+  fi
+
+  local failed_required
+  failed_required=$(printf '%s\n' "$checks_json" | jq '[.[] | select(.bucket=="fail")] | length')
+  local pending_required
+  pending_required=$(printf '%s\n' "$checks_json" | jq '[.[] | select(.bucket=="pending")] | length')
+
+  if [ "$failed_required" -gt 0 ]; then
+    echo "CI validation failed: required checks are failing."
+    exit 1
+  fi
+
+  if [ "$pending_required" -gt 0 ]; then
+    echo "CI validation failed: required checks are still pending."
+    exit 1
+  fi
+
+  # Verify PR head hasn't drifted since prepare.
+  local pr_head_sha
+  pr_head_sha=$(gh pr view "$pr" --json headRefOid --jq .headRefOid)
+  if [ "$pr_head_sha" != "$PREP_HEAD_SHA" ]; then
+    echo "PR head changed since prepare (expected $PREP_HEAD_SHA, got $pr_head_sha)."
+    exit 1
+  fi
+
+  cat > .local/validate-ci.env <<EOF_ENV
+PR_NUMBER=$pr
+CI_PASSED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+CI_REQUIRED_COUNT=$required_count
+CI_FAILED_COUNT=$failed_required
+CI_PENDING_COUNT=$pending_required
+EOF_ENV
+
+  echo "CI validation passed"
+  echo "wrote=.local/validate-ci.env"
+}
+
+validate_smoke() {
+  local pr="$1"
+  enter_worktree "$pr" false
+
+  require_artifact .local/prep.env
+  # shellcheck disable=SC1091
+  source .local/prep.env
+
+  checkout_prep_branch "$pr"
+  bootstrap_deps_if_needed
+
+  # Independent re-test pass (not reusing gate logs).
+  run_quiet_logged "pnpm build (validate)" ".local/validate-build.log" pnpm build
+  run_quiet_logged "pnpm check (validate)" ".local/validate-check.log" pnpm check
+
+  local changed_files
+  changed_files=$(git diff --name-only origin/main...HEAD)
+  local non_docs
+  non_docs=$(printf '%s\n' "$changed_files" | grep -Ev '^(docs/|README.*\.md$|CHANGELOG\.md$|.*\.md$|.*\.mdx$|mintlify\.json$|docs\.json$)' || true)
+
+  local docs_only=false
+  if [ -n "$changed_files" ] && [ -z "$non_docs" ]; then
+    docs_only=true
+  fi
+
+  if [ "$docs_only" = "true" ]; then
+    echo "Docs-only change detected; skipping test in validation."
+  else
+    run_quiet_logged "pnpm test (validate)" ".local/validate-test.log" pnpm test
+  fi
+
+  # Run PR-specific smoke tests if review identified test files.
+  local smoke_targets=()
+  if [ -s .local/review.json ]; then
+    local ran_tests
+    ran_tests=$(jq -r '.tests.ran[]? // empty' .local/review.json 2>/dev/null || true)
+    local gap_tests
+    gap_tests=$(jq -r '.tests.gaps[]? // empty' .local/review.json 2>/dev/null || true)
+
+    # Extract test file paths from ran/gaps arrays.
+    local test_item
+    while IFS= read -r test_item; do
+      [ -n "$test_item" ] || continue
+      # Extract file paths that look like test files.
+      local extracted
+      extracted=$(printf '%s\n' "$test_item" | rg -o '[^ ]*\.test\.[tj]s[x]?' || true)
+      if [ -n "$extracted" ] && [ -f "$extracted" ]; then
+        smoke_targets+=("$extracted")
+      fi
+    done <<< "$ran_tests"
+    while IFS= read -r test_item; do
+      [ -n "$test_item" ] || continue
+      local extracted
+      extracted=$(printf '%s\n' "$test_item" | rg -o '[^ ]*\.test\.[tj]s[x]?' || true)
+      if [ -n "$extracted" ] && [ -f "$extracted" ]; then
+        smoke_targets+=("$extracted")
+      fi
+    done <<< "$gap_tests"
+  fi
+
+  if [ "${#smoke_targets[@]}" -gt 0 ]; then
+    echo "Running ${#smoke_targets[@]} PR-specific smoke test(s)..."
+    run_quiet_logged "pnpm vitest (smoke)" ".local/validate-smoke-tests.log" pnpm vitest run "${smoke_targets[@]}"
+  fi
+
+  cat > .local/validate-smoke.env <<EOF_ENV
+PR_NUMBER=$pr
+SMOKE_PASSED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+DOCS_ONLY=$docs_only
+SMOKE_TARGET_COUNT=${#smoke_targets[@]}
+EOF_ENV
+
+  echo "Smoke validation passed (docs_only=$docs_only, smoke_targets=${#smoke_targets[@]})"
+  echo "wrote=.local/validate-smoke.env"
+}
+
+validate_run() {
+  local pr="$1"
+  validate_ci "$pr"
+  validate_smoke "$pr"
+
+  enter_worktree "$pr" false
+  # shellcheck disable=SC1091
+  source .local/validate-ci.env
+  # shellcheck disable=SC1091
+  source .local/validate-smoke.env
+
+  cat > .local/validate.env <<EOF_ENV
+PR_NUMBER=$pr
+VALIDATE_PASSED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+CI_PASSED_AT=$CI_PASSED_AT
+SMOKE_PASSED_AT=$SMOKE_PASSED_AT
+DOCS_ONLY=${DOCS_ONLY:-false}
+SMOKE_TARGET_COUNT=${SMOKE_TARGET_COUNT:-0}
+EOF_ENV
+
+  echo "validate-run complete for PR #$pr"
+  echo "wrote=.local/validate.env"
+  echo "Validation passed, ready for /merge-pr"
+}
+
+# --- Run (orchestrator) stage ---
+
+# Single smart run command. Detects pipeline state and resumes from where it
+# left off. The agent calls this once to bootstrap, does agent work (review),
+# then calls the same command again — it picks up automatically.
+
+pipeline_run() {
+  local pr="$1"
+  enter_worktree "$pr" false 2>/dev/null || true
+
+  local wt_dir=".worktrees/pr-$pr"
+  local root
+  root=$(repo_root)
+
+  # Stage 1: If worktree doesn't exist or review context is missing, bootstrap.
+  if [ ! -d "$root/$wt_dir/.local" ] || [ ! -s "$root/$wt_dir/.local/review-context.env" ]; then
+    echo "== Stage 1/4: review-init =="
+    review_init "$pr"
+    echo ""
+    echo "== Review initialized. Agent: fill .local/review.md and .local/review.json, then run this command again. =="
+    echo "  scripts/pr run $pr"
+    return 0
+  fi
+
+  cd "$root/$wt_dir"
+
+  # If review artifacts are not filled yet, prompt the agent.
+  if [ ! -s .local/review.json ] || [ ! -s .local/review.md ]; then
+    echo "Review artifacts (.local/review.md, .local/review.json) are not complete."
+    echo "Agent: fill the review artifacts, then run this command again."
+    echo "  scripts/pr run $pr"
+    return 0
+  fi
+
+  # Gate: recommendation must be READY to proceed.
+  local rec
+  rec=$(jq -r '.recommendation // ""' .local/review.json)
+  if [ "$rec" != "READY FOR /prepare-pr" ]; then
+    echo "Pipeline stopped: review recommendation is '$rec'."
+    echo ""
+    echo "Findings summary:"
+    jq -r '.findings[]? | "  [\(.severity)] \(.id): \(.title)"' .local/review.json || true
+    echo ""
+    echo "Resolve findings, update .local/review.json recommendation to 'READY FOR /prepare-pr', then:"
+    echo "  scripts/pr run $pr"
+    exit 1
+  fi
+
+  echo "== Recommendation gate passed: $rec =="
+  echo ""
+
+  # Stage 2: Prepare (skip if already done).
+  if [ -s .local/prep.env ]; then
+    echo "== Stage 2/4: prepare-pr (already complete, skipping) =="
+  else
+    echo "== Stage 2/4: prepare-pr =="
+    prepare_run "$pr"
+  fi
+  echo ""
+
+  # Stage 3: Validate (skip if already done).
+  if [ -s .local/validate.env ]; then
+    echo "== Stage 3/4: validate-pr (already complete, skipping) =="
+  else
+    echo "== Stage 3/4: validate-pr =="
+    validate_run "$pr"
+  fi
+  echo ""
+
+  # Stage 4: Merge.
+  echo "== Stage 4/4: merge-pr =="
+  merge_run "$pr"
+  echo ""
+
+  echo "== Pipeline complete for PR #$pr =="
+  echo "Stages: review → prepare → validate → merge"
+  echo "All stages passed."
 }
 
 merge_verify() {
@@ -1109,6 +1368,18 @@ main() {
       ;;
     merge-run)
       merge_run "$pr"
+      ;;
+    validate-ci)
+      validate_ci "$pr"
+      ;;
+    validate-smoke)
+      validate_smoke "$pr"
+      ;;
+    validate-run)
+      validate_run "$pr"
+      ;;
+    run)
+      pipeline_run "$pr"
       ;;
     *)
       usage

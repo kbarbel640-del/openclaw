@@ -240,24 +240,45 @@ export const TtsConfigSchema = z
   .strict()
   .optional();
 
+/**
+ * Schema for executable command values (e.g. `node`, `/usr/bin/python3`).
+ * Uses `isSafeExecutableValue()` to block shell injection, null bytes, and
+ * leading-dash flag injection. Applied to: `cliBackends.command`,
+ * `memory.qmd.command`, `browser.executablePath`.
+ */
 export const ExecutableTokenSchema = z
   .string()
   .refine(isSafeExecutableValue, "expected safe executable name or path");
 
+/**
+ * Schema for filesystem path values (e.g. `/home/user/project`, `./config`).
+ * More permissive than `ExecutableTokenSchema` — allows leading dashes and
+ * doesn't require bare-name patterns. Blocks shell metacharacters, null bytes,
+ * control characters, and quotes. Applied to: `workspace`, `repoRoot`,
+ * `docker.workdir`, `hooks.path`, `gateway.tls.cert/key`, `skills.load`.
+ */
 export const SafePathSchema = z
   .string()
-  .refine(isSafePathValue, "expected safe filesystem path (no shell metacharacters or control characters)");
+  .refine(
+    isSafePathValue,
+    "expected safe filesystem path (no shell metacharacters or control characters)",
+  );
 
 /**
  * Validates Docker image names.
- * Allows: alphanumeric, dashes, dots, underscores, slashes (registry/repo),
- * optional tag (:tag) or digest (@sha256:...). Max 256 chars.
+ * Regex breakdown:
+ * - `^[a-z0-9]` — must start with lowercase alphanumeric
+ * - `([a-z0-9._\/-]*[a-z0-9])?` — middle allows `./_-` for registry paths
+ * - `(:[a-zA-Z0-9][a-zA-Z0-9._-]*)?` — optional tag (e.g. `:bookworm-slim`)
+ * - `(@sha256:[a-f0-9]{64})?$` — optional content-addressed digest
+ * Max 256 chars to prevent ReDoS and buffer issues.
+ * Applied to: `sandbox.docker.image`.
  */
 export const DockerImageSchema = z
   .string()
   .max(256, "Docker image name too long")
   .regex(
-    /^[a-z0-9]([a-z0-9._\/-]*[a-z0-9])?(:[a-zA-Z0-9][a-zA-Z0-9._-]*)?(@sha256:[a-f0-9]{64})?$/,
+    /^[a-z0-9]([a-z0-9._/-]*[a-z0-9])?(:[a-zA-Z0-9][a-zA-Z0-9._-]*)?(@sha256:[a-f0-9]{64})?$/,
     "expected valid Docker image name (e.g. debian:bookworm-slim, myregistry.io/myimage:latest)",
   );
 

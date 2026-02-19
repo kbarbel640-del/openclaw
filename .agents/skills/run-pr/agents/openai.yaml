@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run PR"
+  short_description: "Full agent-driven PR pipeline: review → prepare → validate → merge"
+  default_prompt: "Use $run-pr to run the full agent-driven PR pipeline end-to-end."

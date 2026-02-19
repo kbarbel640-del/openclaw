@@ -114,9 +114,16 @@ ls -la .local/prep.md .local/prep.env
 8. Output
 
 - Summarize resolved findings and gate results.
-- Print exactly: `PR is ready for /merge-pr`.
+- Print exactly: `PR is ready for /validate-pr`.
 
 ## Guardrails
 
 - Do not run `gh pr merge` in this skill.
 - Do not delete worktree.
+
+## Next Step
+
+After prepare is complete, hand off to the next stage:
+
+- **Individual skill mode**: invoke `/validate-pr` (`scripts/pr-validate <PR>`), then `/merge-pr` (`scripts/pr-merge run <PR>`)
+- **Full pipeline mode**: `scripts/pr-run <PR>` handles validate → merge automatically

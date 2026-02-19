@@ -140,3 +140,12 @@ scripts/pr review-validate-artifacts <PR>
 - Keep review read-only.
 - Do not delete worktree.
 - Use merge-base scoped diff for local context to avoid stale branch drift.
+
+## Next Step
+
+After review is complete, hand off to the next stage:
+
+- **Individual skill mode**: invoke `/prepare-pr` (`scripts/pr-prepare init <PR>`)
+- **Full pipeline mode**: invoke `scripts/pr-run continue <PR>` which handles prepare → validate → merge automatically
+
+The recommendation in `.local/review.json` determines whether the pipeline continues (`READY FOR /prepare-pr`) or stops.

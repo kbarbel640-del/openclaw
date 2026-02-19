@@ -1,0 +1,74 @@
+# Gateway Auth Enforcement — Sprint Tracker
+
+> Machine-readable status tracker for the [Gateway Auth Enforcement Roadmap](./GATEWAY_AUTH_ENFORCEMENT_ROADMAP.md).
+> Updated by the `sprint-planner` agent and developers after each phase transition.
+
+**Project Start**: 2026-02-18
+
+---
+
+## Status Legend
+
+| Status        | Meaning                             |
+| ------------- | ----------------------------------- |
+| `not-started` | Work has not begun                  |
+| `in-progress` | Agent is working / PR being created |
+| `pr-open`     | PR submitted, awaiting review       |
+| `review`      | In review-pr / prepare-pr pipeline  |
+| `done`        | Merged to main                      |
+| `blocked`     | Waiting on dependency (see Notes)   |
+
+---
+
+## Sprint Status
+
+| Phase | Task | Description                                                 | Status      | PR  | Agent             | Updated | Notes                |
+| ----- | ---- | ----------------------------------------------------------- | ----------- | --- | ----------------- | ------- | -------------------- |
+| 1     | 1.1  | Create `security-requirements.ts`                           | not-started | —   | security-schema   | —       | Foundation           |
+| 1     | 1.2  | Add `securityConfigured` to config schema                   | not-started | —   | security-schema   | —       | Foundation           |
+| 3     | 3.1  | Gateway CLI security validation                             | not-started | —   | auth-hardening    | —       | Depends: Phase 1     |
+| 3     | 3.2  | Server-side security validation (defense-in-depth)          | not-started | —   | auth-hardening    | —       | Depends: Phase 1     |
+| 2     | 2.1  | Mandatory security step in onboarding                       | not-started | —   | onboarding-wizard | —       | Depends: Phase 1     |
+| 2     | 2.2  | Gateway config wizard mandatory auth                        | not-started | —   | onboarding-wizard | —       | Depends: Phase 1     |
+| 2     | 2.3  | Token generation helper                                     | not-started | —   | onboarding-wizard | —       | Depends: Phase 1     |
+| 4     | 4.1  | Control UI HTTP auth                                        | not-started | —   | auth-hardening    | —       | Depends: Phase 3     |
+| 4     | 4.2  | Remove `allowInsecureAuth` / `dangerouslyDisableDeviceAuth` | not-started | —   | auth-hardening    | —       | Depends: Phase 3     |
+| 5     | 5.1  | Remove IP-based canvas auth fallback                        | not-started | —   | auth-hardening    | —       | Depends: Phase 3     |
+| 5     | 5.2  | Remove local direct request canvas bypass                   | not-started | —   | auth-hardening    | —       | Depends: Phase 3     |
+| 6     | 6.1  | Add auth to all plugin routes                               | not-started | —   | auth-hardening    | —       | Depends: Phase 3     |
+| 6     | 6.2  | Update plugin documentation                                 | not-started | —   | docs-writer       | —       | Depends: 6.1         |
+| 7     | 7.1  | Change `exemptLoopback` default to `false`                  | not-started | —   | auth-hardening    | —       | Depends: Phase 3     |
+| 7     | 7.2  | Remove explicit `exemptLoopback: true` overrides            | not-started | —   | auth-hardening    | —       | Depends: 7.1         |
+| 8     | 8.1  | Remove `isLocalDirectRequest` auth bypass usage             | not-started | —   | auth-hardening    | —       | Depends: Phase 5     |
+| 8     | 8.2  | Update `authorizeGatewayConnect` local bypass               | not-started | —   | auth-hardening    | —       | Depends: 8.1         |
+| 9     | 9.1  | Hooks token startup validation                              | not-started | —   | onboarding-wizard | —       | Depends: Phase 1     |
+| 9     | 9.2  | Hooks token security requirement                            | not-started | —   | onboarding-wizard | —       | Depends: 9.1         |
+| 10    | 10.1 | Critical severity audit checks                              | not-started | —   | security-audit    | —       | Depends: Phases 1-9  |
+| 10    | 10.2 | `--strict` flag for security audit                          | not-started | —   | security-audit    | —       | Depends: 10.1        |
+| 11    | 11.1 | Mandatory auth E2E tests                                    | not-started | —   | test-engineer     | —       | Depends: Phases 3-8  |
+| 11    | 11.2 | Update existing auth tests                                  | not-started | —   | test-engineer     | —       | Depends: 11.1        |
+| 12    | 12.1 | Rewrite gateway security docs                               | not-started | —   | docs-writer       | —       | Depends: Phases 1-11 |
+| 12    | 12.2 | Update configuration reference                              | not-started | —   | docs-writer       | —       | Depends: 12.1        |
+| 12    | 12.3 | Create migration guide                                      | not-started | —   | docs-writer       | —       | Depends: 12.1        |
+| 12    | 12.4 | Update CHANGELOG                                            | not-started | —   | docs-writer       | —       | Depends: 12.1        |
+| 13    | 13.1 | Full test suite pass                                        | not-started | —   | test-engineer     | —       | Depends: All         |
+| 13    | 13.2 | Manual verification checklist                               | not-started | —   | human             | —       | Depends: 13.1        |
+| 13    | 13.3 | Security audit `--strict` verification                      | not-started | —   | security-audit    | —       | Depends: 13.1        |
+
+---
+
+## Summary
+
+- **Total Tasks**: 30
+- **Done**: 0
+- **In Progress**: 0
+- **Blocked**: 0
+- **Remaining**: 30
+
+---
+
+## Sprint Log
+
+| Date       | Sprint | Action      | Details                |
+| ---------- | ------ | ----------- | ---------------------- |
+| 2026-02-18 | —      | Initialized | Sprint tracker created |

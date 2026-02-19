@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validate PR"
+  short_description: "Validate prepared PRs via CI + smoke tests"
+  default_prompt: "Use $validate-pr to validate a prepared GitHub PR before merge."

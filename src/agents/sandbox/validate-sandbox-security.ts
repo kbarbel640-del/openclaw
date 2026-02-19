@@ -9,6 +9,13 @@ import { existsSync, realpathSync } from "node:fs";
 import { posix } from "node:path";
 
 // Targeted denylist: host paths that should never be exposed inside sandbox containers.
+// Categories:
+//   - System config:    /etc, /private/etc (credentials, shadow, sudoers)
+//   - Kernel interfaces: /proc, /sys (exposes host PID namespace, kernel tunables)
+//   - Devices:          /dev (raw device access, can bypass filesystem permissions)
+//   - Root home:        /root (SSH keys, bash history, credentials)
+//   - Boot:             /boot (kernel image tampering)
+//   - Docker socket:    /run, /var/run (container escape via Docker API)
 // Exported for reuse in security audit collectors.
 export const BLOCKED_HOST_PATHS = [
   "/etc",
@@ -88,6 +95,14 @@ export function getBlockedReasonForSourcePath(sourceNormalized: string): Blocked
   return null;
 }
 
+/**
+ * Resolve symlinks to detect path aliasing attacks.
+ * Without this check, an attacker could create a symlink like:
+ *   /home/user/innocent -> /etc
+ * and then mount `/home/user/innocent:/inside-container` to bypass
+ * the blocked-path denylist. This function resolves the real path
+ * so the denylist check applies to the actual filesystem location.
+ */
 function tryRealpathAbsolute(path: string): string {
   if (!path.startsWith("/")) {
     return path;

@@ -90,12 +90,21 @@ export const HeartbeatSchema = z
   })
   .optional();
 
+/**
+ * Schema for Docker sandbox container configuration.
+ * Defense-in-depth: validates config at parse time. A second validation pass
+ * runs at container creation time via `validateSandboxSecurity()` in
+ * `validate-sandbox-security.ts` (covers bind mounts, network mode, profiles).
+ */
 export const SandboxDockerSchema = z
   .object({
     image: DockerImageSchema.optional(),
     containerPrefix: z.string().optional(),
     workdir: SafePathSchema.optional(),
     readOnlyRoot: z.boolean().optional(),
+    /** tmpfs mounts — allowlisted options only.
+     *  `exec` and `suid` are BLOCKED because they allow code execution and
+     *  setuid escalation inside read-only containers, defeating isolation. */
     tmpfs: z
       .array(
         z
@@ -107,17 +116,21 @@ export const SandboxDockerSchema = z
       )
       .optional(),
     network: z.string().optional(),
+    /** Container user — blocks root (UID 0) because running as root inside the
+     *  container weakens namespace isolation. Case-insensitive check; also
+     *  catches `0:1000` format (UID:GID where UID=0). */
     user: z
       .string()
-      .refine(
-        (v) => {
-          const trimmed = v.trim().toLowerCase();
-          if (trimmed === "root" || trimmed === "0") return false;
-          if (/^0:/.test(trimmed)) return false;
-          return true;
-        },
-        "sandbox user must not be root (0) — running as root inside the container weakens isolation",
-      )
+      .refine((v) => {
+        const trimmed = v.trim().toLowerCase();
+        if (trimmed === "root" || trimmed === "0") {
+          return false;
+        }
+        if (trimmed.startsWith("0:")) {
+          return false;
+        }
+        return true;
+      }, "sandbox user must not be root (0) — running as root inside the container weakens isolation")
       .optional(),
     capDrop: z.array(z.string()).optional(),
     env: z.record(z.string(), z.string()).optional(),
@@ -148,7 +161,17 @@ export const SandboxDockerSchema = z
       .optional(),
     seccompProfile: z.string().optional(),
     apparmorProfile: z.string().optional(),
-    dns: z.array(z.string()).optional(),
+    /** DNS servers — IP addresses only (regex: `[0-9a-fA-F.:]`).
+     *  Hostnames are BLOCKED to prevent DNS hijacking: a malicious config
+     *  entry like `evil.dns.server` could redirect all container DNS queries
+     *  to an attacker-controlled resolver for exfiltration or MITM. */
+    dns: z
+      .array(z.string().regex(/^[0-9a-fA-F.:]+$/, "expected IP address for DNS server"))
+      .optional(),
+    /** Extra /etc/hosts entries — strict format `hostname:ip`.
+     *  Cloud metadata IPs (169.254.169.254, fd00:ec2::*) are BLOCKED to
+     *  prevent SSRF attacks that steal cloud credentials via the instance
+     *  metadata service (AWS IMDSv1, GCP, Azure). */
     extraHosts: z
       .array(
         z
@@ -157,14 +180,11 @@ export const SandboxDockerSchema = z
             /^[a-zA-Z0-9._-]+:[0-9a-fA-F:.]+$/,
             "expected extraHosts entry in format hostname:ip",
           )
-          .refine(
-            (v) => {
-              const ip = v.split(":").slice(1).join(":");
-              // Block cloud metadata endpoints (AWS, GCP, Azure)
-              return ip !== "169.254.169.254" && !ip.startsWith("fd00:ec2:");
-            },
-            "cloud metadata IPs (169.254.169.254, fd00:ec2::*) are blocked — SSRF risk",
-          ),
+          .refine((v) => {
+            const ip = v.split(":").slice(1).join(":");
+            // Block cloud metadata endpoints (AWS, GCP, Azure)
+            return ip !== "169.254.169.254" && !ip.startsWith("fd00:ec2:");
+          }, "cloud metadata IPs (169.254.169.254, fd00:ec2::*) are blocked — SSRF risk"),
       )
       .optional(),
     binds: z.array(z.string()).optional(),

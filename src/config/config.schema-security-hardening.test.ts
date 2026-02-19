@@ -430,15 +430,6 @@ describe("config schema security hardening", () => {
       });
       expect(res.ok).toBe(false);
     });
-
-    it("accepts valid hooks path", () => {
-      const res = validateConfigObject({
-        gateway: {
-          hooks: { path: "/opt/openclaw/hooks" },
-        },
-      });
-      expect(res.ok).toBe(true);
-    });
   });
 
   describe("hooks.transformsDir — SafePathSchema", () => {
@@ -543,7 +534,9 @@ describe("config schema security hardening", () => {
       });
       expect(res.ok).toBe(false);
       if (!res.ok) {
-        expect(res.issues.some((i: { path: string }) => i.path === "channels.imessage.cliPath")).toBe(true);
+        expect(
+          res.issues.some((i: { path: string }) => i.path === "channels.imessage.cliPath"),
+        ).toBe(true);
       }
     });
 

@@ -298,6 +298,8 @@ export type GatewayConfig = {
   customBindHost?: string;
   controlUi?: GatewayControlUiConfig;
   auth?: GatewayAuthConfig;
+  /** Set to true after completing security configuration. Gateway will not start without this. */
+  securityConfigured?: boolean;
   tailscale?: GatewayTailscaleConfig;
   remote?: GatewayRemoteConfig;
   reload?: GatewayReloadConfig;

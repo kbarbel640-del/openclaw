@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+base="$script_dir/pr"
+if common_git_dir=$(git -C "$script_dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+  canonical_base="$(dirname "$common_git_dir")/scripts/pr"
+  if [ -x "$canonical_base" ]; then
+    base="$canonical_base"
+  fi
+fi
+
+usage() {
+  cat <<USAGE
+Usage:
+  scripts/pr-validate <PR>          # full validation (CI + smoke)
+  scripts/pr-validate ci <PR>       # CI checks only
+  scripts/pr-validate smoke <PR>    # independent local smoke re-test only
+USAGE
+}
+
+if [ "$#" -eq 1 ]; then
+  exec "$base" validate-run "$1"
+fi
+
+if [ "$#" -eq 2 ]; then
+  mode="$1"
+  pr="$2"
+  case "$mode" in
+    ci)
+      exec "$base" validate-ci "$pr"
+      ;;
+    smoke)
+      exec "$base" validate-smoke "$pr"
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+fi
+
+usage
+exit 2
