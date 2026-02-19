@@ -52,6 +52,8 @@ export type SkillCommandSpec = {
   name: string;
   skillName: string;
   description: string;
+  /** Absolute path to the SKILL.md file for content inlining. */
+  filePath?: string;
   /** Optional deterministic dispatch behavior for this command. */
   dispatch?: SkillCommandDispatchSpec;
 };

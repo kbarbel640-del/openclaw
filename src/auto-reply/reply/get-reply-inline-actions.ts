@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import type { SkillCommandSpec } from "../../agents/skills.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
@@ -8,6 +9,7 @@ import type { InlineDirectives } from "./directive-handling.js";
 import type { createModelSelectionState } from "./model-selection.js";
 import type { TypingController } from "./typing.js";
 import { createOpenClawTools } from "../../agents/openclaw-tools.js";
+import { stripFrontmatter } from "../../agents/skills/claude-commands-sync.js";
 import { getChannelDock } from "../../channels/dock.js";
 import { logVerbose } from "../../globals.js";
 import { resolveGatewayMessageChannel } from "../../utils/message-channel.js";
@@ -206,8 +208,22 @@ export async function handleInlineActions(params: {
       }
     }
 
+    // Inline the full SKILL.md content so the model gets the actual instructions,
+    // not just a skill name reference (critical for CLI providers that lack skillsPrompt).
+    let skillBody: string | null = null;
+    if (skillInvocation.command.filePath) {
+      try {
+        const raw = fs.readFileSync(skillInvocation.command.filePath, "utf-8");
+        skillBody = stripFrontmatter(raw).trim() || null;
+      } catch {
+        // File unreadable — fall back to name-only reference.
+      }
+    }
+
     const promptParts = [
-      `Use the "${skillInvocation.command.skillName}" skill for this request.`,
+      skillBody
+        ? `Follow these instructions for the "${skillInvocation.command.skillName}" skill:\n\n${skillBody}`
+        : `Use the "${skillInvocation.command.skillName}" skill for this request.`,
       skillInvocation.args ? `User input:\n${skillInvocation.args}` : null,
     ].filter((entry): entry is string => Boolean(entry));
     const rewrittenBody = promptParts.join("\n\n");

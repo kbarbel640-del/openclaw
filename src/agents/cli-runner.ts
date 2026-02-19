@@ -29,6 +29,7 @@ import { ensureProxyHealthy } from "./cloudru-proxy-health.js";
 import { resolveOpenClawDocsPath } from "./docs-path.js";
 import { FailoverError, resolveFailoverStatus } from "./failover-error.js";
 import { classifyFailoverReason, isFailoverErrorMessage } from "./pi-embedded-helpers.js";
+import { resolveSkillsPromptForRun } from "./skills/workspace.js";
 import { redactRunIdentifier, resolveRunWorkspaceDir } from "./workspace-run.js";
 
 const log = createSubsystemLogger("agent/claude-cli");
@@ -112,6 +113,10 @@ export async function runCliAgent(params: {
     cwd: process.cwd(),
     moduleUrl: import.meta.url,
   });
+  const skillsPrompt = resolveSkillsPromptForRun({
+    config: params.config,
+    workspaceDir,
+  });
   const systemPrompt = buildSystemPrompt({
     workspaceDir,
     config: params.config,
@@ -124,6 +129,7 @@ export async function runCliAgent(params: {
     contextFiles,
     modelDisplay,
     agentId: sessionAgentId,
+    skillsPrompt: skillsPrompt || undefined,
   });
 
   const { sessionId: cliSessionIdToSend, isNew } = resolveSessionIdToSend({

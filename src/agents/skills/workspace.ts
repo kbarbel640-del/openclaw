@@ -510,6 +510,7 @@ export function buildWorkspaceSkillCommandSpecs(
       name: unique,
       skillName: rawName,
       description,
+      filePath: entry.skill.filePath || undefined,
       ...(dispatch ? { dispatch } : {}),
     });
   }

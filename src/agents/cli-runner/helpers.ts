@@ -206,6 +206,7 @@ export function buildSystemPrompt(params: {
   contextFiles?: EmbeddedContextFile[];
   modelDisplay: string;
   agentId?: string;
+  skillsPrompt?: string;
 }) {
   const defaultModelRef = resolveDefaultModelForAgent({
     cfg: params.config ?? {},
@@ -239,6 +240,7 @@ export function buildSystemPrompt(params: {
     runtimeInfo,
     toolNames: params.tools.map((tool) => tool.name),
     modelAliasLines: buildModelAliasLines(params.config),
+    skillsPrompt: params.skillsPrompt,
     userTimezone,
     userTime,
     userTimeFormat,
