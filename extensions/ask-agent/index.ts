@@ -4,6 +4,7 @@ import { normalizeAgentStatus } from "../../src/ai-fabric/agent-status.js";
 import { CloudruA2AClient, A2AError } from "../../src/ai-fabric/cloudru-a2a-client.js";
 import { CloudruAuthError } from "../../src/ai-fabric/cloudru-auth.js";
 import { CloudruSimpleClient } from "../../src/ai-fabric/cloudru-client-simple.js";
+import { resolveIamSecret } from "../../src/ai-fabric/resolve-iam-secret.js";
 
 // ---------------------------------------------------------------------------
 // Agent resolution — modular, reusable
@@ -124,7 +125,7 @@ export default function register(api: OpenClawPluginApi) {
 
       const projectId = aiFabric.projectId ?? "";
       const keyId = aiFabric.keyId ?? "";
-      const secret = process.env.CLOUDRU_IAM_SECRET ?? "";
+      const secret = resolveIamSecret();
 
       if (!projectId || !keyId || !secret) {
         return {

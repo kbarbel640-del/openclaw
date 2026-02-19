@@ -87,6 +87,9 @@ export type {
   McpStatusErrorType,
 } from "./mcp-status.js";
 
+// IAM secret resolution
+export { resolveIamSecret } from "./resolve-iam-secret.js";
+
 // A2A client
 export { CloudruA2AClient, A2AError } from "./cloudru-a2a-client.js";
 export type {

@@ -13,6 +13,7 @@ import type {
 } from "../../src/ai-fabric/mcp-status.js";
 import { getAgentStatus } from "../../src/ai-fabric/agent-status.js";
 import { getMcpServerStatus } from "../../src/ai-fabric/mcp-status.js";
+import { resolveIamSecret } from "../../src/ai-fabric/resolve-iam-secret.js";
 
 // ---------------------------------------------------------------------------
 // Health icons — reusable mapping
@@ -178,7 +179,7 @@ export default function register(api: OpenClawPluginApi) {
 
       const projectId = aiFabric.projectId ?? "";
       const keyId = aiFabric.keyId ?? "";
-      const secret = process.env.CLOUDRU_IAM_SECRET ?? "";
+      const secret = resolveIamSecret();
 
       if (!projectId || !keyId || !secret) {
         return {
