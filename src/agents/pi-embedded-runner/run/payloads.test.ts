@@ -39,6 +39,33 @@ describe("buildEmbeddedRunPayloads tool-error warnings", () => {
     expect(payloads[0]?.text).toContain("command failed");
   });
 
+  it("suppresses exec error when agent produced a successful fallback reply (#17837)", () => {
+    // Scenario: exec fails (command not found), agent falls back to web_fetch,
+    // produces correct answer. The exec error should NOT surface to the user.
+    const payloads = buildPayloads({
+      assistantTexts: ["Here is the information you requested."],
+      lastToolError: { toolName: "exec", error: "command not found: xjson", mutatingAction: true },
+      verboseLevel: "off",
+    });
+
+    // Only the assistant reply should be present, no error payload
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]?.text).toBe("Here is the information you requested.");
+    expect(payloads[0]?.isError).toBeUndefined();
+  });
+
+  it("suppresses bash error after successful fallback reply (#17837)", () => {
+    const payloads = buildPayloads({
+      assistantTexts: ["The result is 42."],
+      lastToolError: { toolName: "bash", error: "exit code 1" },
+      verboseLevel: "off",
+    });
+
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]?.text).toBe("The result is 42.");
+    expect(payloads[0]?.isError).toBeUndefined();
+  });
+
   it("keeps non-exec mutating tool failures visible", () => {
     const payloads = buildPayloads({
       lastToolError: { toolName: "write", error: "permission denied" },
