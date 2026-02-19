@@ -1,12 +1,12 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import { dispatchChannelMessageAction } from "../../channels/plugins/message-actions.js";
 import type { ChannelId, ChannelThreadingToolContext } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
-import { appendAssistantMessageToSessionTranscript } from "../../config/sessions.js";
 import type { GatewayClientMode, GatewayClientName } from "../../utils/message-channel.js";
-import { throwIfAborted } from "./abort.js";
 import type { OutboundSendDeps } from "./deliver.js";
 import type { MessagePollResult, MessageSendResult } from "./message.js";
+import { dispatchChannelMessageAction } from "../../channels/plugins/message-actions.js";
+import { appendAssistantMessageToSessionTranscript } from "../../config/sessions.js";
+import { throwIfAborted } from "./abort.js";
 import { sendMessage, sendPoll } from "./message.js";
 import { extractToolPayload } from "./tool-payload.js";
 
@@ -84,6 +84,7 @@ export async function executeSendAction(params: {
   gifPlayback?: boolean;
   bestEffort?: boolean;
   replyToId?: string;
+  replyToAuthor?: string;
   threadId?: string | number;
 }): Promise<{
   handledBy: "plugin" | "core";
@@ -127,6 +128,7 @@ export async function executeSendAction(params: {
     channel: params.ctx.channel || undefined,
     accountId: params.ctx.accountId ?? undefined,
     replyToId: params.replyToId,
+    replyToAuthor: params.replyToAuthor,
     threadId: params.threadId,
     gifPlayback: params.gifPlayback,
     dryRun: params.ctx.dryRun,
