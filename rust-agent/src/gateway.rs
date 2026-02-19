@@ -1025,6 +1025,13 @@ impl RpcDispatcher {
         self.sessions.record_decision(request, decision).await;
     }
 
+    pub async fn session_scheduler_overrides(
+        &self,
+        session_key: Option<&str>,
+    ) -> (Option<SessionQueueMode>, Option<GroupActivationMode>) {
+        self.sessions.scheduler_overrides(session_key).await
+    }
+
     pub async fn ingest_event_frame(&self, frame: &Value) {
         let Some(event) = frame.get("event").and_then(Value::as_str) else {
             return;
@@ -9457,6 +9464,30 @@ impl SessionRegistry {
         guard
             .get(session_key)
             .map(|entry| entry.to_view(false, false))
+    }
+
+    async fn scheduler_overrides(
+        &self,
+        session_key: Option<&str>,
+    ) -> (Option<SessionQueueMode>, Option<GroupActivationMode>) {
+        let Some(key) = session_key
+            .map(canonicalize_session_key)
+            .filter(|value| !value.is_empty())
+        else {
+            return (None, None);
+        };
+
+        let guard = self.entries.lock().await;
+        if let Some(entry) = guard.get(&key) {
+            return (entry.queue_mode, entry.group_activation);
+        }
+        if let Some((_, entry)) = guard
+            .iter()
+            .find(|(existing_key, _)| existing_key.eq_ignore_ascii_case(&key))
+        {
+            return (entry.queue_mode, entry.group_activation);
+        }
+        (None, None)
     }
 
     async fn resolve_send_target(

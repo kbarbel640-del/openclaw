@@ -181,7 +181,23 @@ impl GatewayBridge {
                             }
 
                             if let Some(request) = self.drivers.extract(&frame) {
-                                match scheduler.submit(request).await {
+                                let (queue_mode_override, group_activation_override) = self
+                                    .rpc
+                                    .session_scheduler_overrides(request.session_id.as_deref())
+                                    .await;
+                                let submit_outcome =
+                                    if queue_mode_override.is_none() && group_activation_override.is_none() {
+                                        scheduler.submit(request).await
+                                    } else {
+                                        scheduler
+                                            .submit_with_overrides(
+                                                request,
+                                                queue_mode_override,
+                                                group_activation_override,
+                                            )
+                                            .await
+                                    };
+                                match submit_outcome {
                                     SubmitOutcome::Dispatch(dispatch_request) => {
                                         let Ok(slot) = inflight.clone().try_acquire_owned() else {
                                             warn!(
@@ -584,6 +600,90 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn session_patch_group_activation_overrides_bridge_default() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            let ws = accept_async(stream).await?;
+            let (mut write, mut read) = ws.split();
+
+            let _connect = read
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("missing connect frame"))??;
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-patch-ga-override",
+                        "method": "sessions.patch",
+                        "params": {
+                            "key": "agent:main:discord:group:g-override",
+                            "groupActivation": "always"
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+            let patch_response = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for patch response"))?
+                .ok_or_else(|| anyhow::anyhow!("patch response stream ended"))??;
+            let patch_json: Value = serde_json::from_str(patch_response.to_text()?)?;
+            assert_eq!(patch_json.get("ok").and_then(Value::as_bool), Some(true));
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "event",
+                        "event": "agent",
+                        "payload": {
+                            "id": "req-override-accepted",
+                            "sessionKey": "agent:main:discord:group:g-override",
+                            "chatType": "group",
+                            "wasMentioned": false,
+                            "command": "git status"
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+
+            let decision = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for decision"))?
+                .ok_or_else(|| anyhow::anyhow!("decision stream ended"))??;
+            let decision_json: Value = serde_json::from_str(decision.to_text()?)?;
+            assert_eq!(
+                decision_json
+                    .pointer("/payload/requestId")
+                    .and_then(Value::as_str),
+                Some("req-override-accepted")
+            );
+            write.send(Message::Close(None)).await?;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let bridge = GatewayBridge::new(
+            GatewayConfig {
+                url: format!("ws://{addr}"),
+                token: None,
+            },
+            "security.decision".to_owned(),
+            16,
+            SessionQueueMode::Followup,
+            GroupActivationMode::Mention,
+        );
+        let evaluator: Arc<dyn ActionEvaluator> = Arc::new(StubEvaluator);
+        bridge.run_once(evaluator).await?;
+        server.await??;
+        Ok(())
+    }
+
     struct SlowEvaluator;
 
     #[async_trait]
@@ -662,6 +762,95 @@ mod tests {
             "security.decision".to_owned(),
             16,
             SessionQueueMode::Steer,
+            GroupActivationMode::Always,
+        );
+        let evaluator: Arc<dyn ActionEvaluator> = Arc::new(SlowEvaluator);
+        bridge.run_once(evaluator).await?;
+        server.await??;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn session_patch_queue_mode_overrides_bridge_default() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await?;
+            let ws = accept_async(stream).await?;
+            let (mut write, mut read) = ws.split();
+
+            let _connect = read
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("missing connect frame"))??;
+
+            write
+                .send(Message::Text(
+                    json!({
+                        "type": "req",
+                        "id": "req-patch-qm-override",
+                        "method": "sessions.patch",
+                        "params": {
+                            "key": "agent:main:discord:group:g-qm-override",
+                            "queueMode": "steer"
+                        }
+                    })
+                    .to_string(),
+                ))
+                .await?;
+            let _patch_response = timeout(Duration::from_secs(2), read.next())
+                .await
+                .map_err(|_| anyhow::anyhow!("timed out waiting for patch response"))?
+                .ok_or_else(|| anyhow::anyhow!("patch response stream ended"))??;
+
+            for req_id in ["req-qm-1", "req-qm-2", "req-qm-3"] {
+                write
+                    .send(Message::Text(
+                        json!({
+                            "type": "event",
+                            "event": "agent",
+                            "payload": {
+                                "id": req_id,
+                                "sessionKey": "agent:main:discord:group:g-qm-override",
+                                "chatType": "group",
+                                "wasMentioned": true,
+                                "prompt": format!("hello-{req_id}")
+                            }
+                        })
+                        .to_string(),
+                    ))
+                    .await?;
+            }
+
+            let mut seen = Vec::new();
+            while seen.len() < 2 {
+                let decision = timeout(Duration::from_secs(3), read.next())
+                    .await
+                    .map_err(|_| anyhow::anyhow!("timed out waiting for decision"))?
+                    .ok_or_else(|| anyhow::anyhow!("decision stream ended"))??;
+                let decision_json: Value = serde_json::from_str(decision.to_text()?)?;
+                if let Some(req_id) = decision_json
+                    .pointer("/payload/requestId")
+                    .and_then(Value::as_str)
+                {
+                    seen.push(req_id.to_owned());
+                }
+            }
+
+            assert_eq!(seen, vec!["req-qm-1".to_owned(), "req-qm-3".to_owned()]);
+            write.send(Message::Close(None)).await?;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        let bridge = GatewayBridge::new(
+            GatewayConfig {
+                url: format!("ws://{addr}"),
+                token: None,
+            },
+            "security.decision".to_owned(),
+            16,
+            SessionQueueMode::Followup,
             GroupActivationMode::Always,
         );
         let evaluator: Arc<dyn ActionEvaluator> = Arc::new(SlowEvaluator);

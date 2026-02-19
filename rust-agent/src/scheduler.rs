@@ -70,8 +70,18 @@ impl SessionScheduler {
     }
 
     pub async fn submit(&self, request: ActionRequest) -> SubmitOutcome {
+        self.submit_with_overrides(request, None, None).await
+    }
+
+    pub async fn submit_with_overrides(
+        &self,
+        request: ActionRequest,
+        queue_mode_override: Option<SessionQueueMode>,
+        group_activation_override: Option<GroupActivationMode>,
+    ) -> SubmitOutcome {
         let session_id = Self::session_key(&request);
-        if self.should_ignore_for_activation(&request, &session_id) {
+        let group_activation_mode = group_activation_override.unwrap_or(self.config.group_activation_mode);
+        if self.should_ignore_for_activation(&request, &session_id, group_activation_mode) {
             return SubmitOutcome::IgnoredActivation {
                 request_id: request.id,
                 session_id,
@@ -92,7 +102,8 @@ impl SessionScheduler {
             };
         }
 
-        match self.config.queue_mode {
+        let queue_mode = queue_mode_override.unwrap_or(self.config.queue_mode);
+        match queue_mode {
             SessionQueueMode::Followup => {
                 let queue = guard.queues.entry(session_id).or_insert_with(VecDeque::new);
                 queue.push_back(request);
@@ -154,8 +165,13 @@ impl SessionScheduler {
         None
     }
 
-    fn should_ignore_for_activation(&self, request: &ActionRequest, session_id: &str) -> bool {
-        if self.config.group_activation_mode == GroupActivationMode::Always {
+    fn should_ignore_for_activation(
+        &self,
+        request: &ActionRequest,
+        session_id: &str,
+        group_activation_mode: GroupActivationMode,
+    ) -> bool {
+        if group_activation_mode == GroupActivationMode::Always {
             return false;
         }
         is_group_context(request, session_id) && !was_mentioned(request)
@@ -423,6 +439,53 @@ mod tests {
             scheduler.submit(request).await,
             SubmitOutcome::Dispatch(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn submit_with_overrides_allows_activation_override() {
+        let scheduler = scheduler(8, SessionQueueMode::Followup, GroupActivationMode::Mention);
+        let mut request = req("r1", Some("agent:main:discord:group:g1"), Some("hello"));
+        request.raw = json!({"chatType":"group","wasMentioned": false});
+
+        assert!(matches!(
+            scheduler
+                .submit_with_overrides(
+                    request,
+                    None,
+                    Some(GroupActivationMode::Always)
+                )
+                .await,
+            SubmitOutcome::Dispatch(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn submit_with_overrides_uses_queue_mode_override() {
+        let scheduler = scheduler(8, SessionQueueMode::Followup, GroupActivationMode::Always);
+        let r1 = req("r1", Some("s1"), Some("a"));
+        let r2 = req("r2", Some("s1"), Some("b"));
+        let r3 = req("r3", Some("s1"), Some("c"));
+
+        assert!(matches!(
+            scheduler.submit(r1.clone()).await,
+            SubmitOutcome::Dispatch(_)
+        ));
+        assert!(matches!(
+            scheduler
+                .submit_with_overrides(r2.clone(), Some(SessionQueueMode::Steer), None)
+                .await,
+            SubmitOutcome::Queued
+        ));
+        assert!(matches!(
+            scheduler
+                .submit_with_overrides(r3.clone(), Some(SessionQueueMode::Steer), None)
+                .await,
+            SubmitOutcome::Queued
+        ));
+
+        let next = scheduler.complete(&r1).await.expect("next latest");
+        assert_eq!(next.id, "r3");
+        assert!(scheduler.complete(&next).await.is_none());
     }
 
     #[test]
