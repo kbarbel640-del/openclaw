@@ -524,6 +524,21 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     [createDiscordGatewayPlugin({ discordConfig: discordCfg, runtime })],
   );
 
+  // Attach an early error listener on the gateway emitter before any awaits.
+  // Carbon's GatewayPlugin can emit a fatal error (e.g. close code 4014 –
+  // missing Privileged Gateway Intents) during the connect handshake, which
+  // happens concurrently with the awaits below. Without a listener already
+  // attached, Node.js treats the unhandled EventEmitter "error" event as an
+  // uncaught exception and kills the entire gateway process. The proper
+  // handler is attached inside waitForDiscordGatewayStop; this early listener
+  // just prevents the crash — it will be superseded once that handler runs.
+  // (#20714)
+  const earlyGatewayEmitter = getDiscordGatewayEmitter(client.getPlugin<GatewayPlugin>("gateway"));
+  const earlyErrorHandler = (err: unknown) => {
+    runtime.error?.(danger(`discord gateway error (early): ${String(err)}`));
+  };
+  earlyGatewayEmitter?.on("error", earlyErrorHandler);
+
   await deployDiscordCommands({ client, runtime, enabled: nativeEnabled });
 
   const logger = createSubsystemLogger("discord/monitor");
@@ -608,6 +623,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     registerGateway(account.accountId, gateway);
   }
   const gatewayEmitter = getDiscordGatewayEmitter(gateway);
+  // Remove the early error handler now that the proper one will be attached.
+  if (earlyGatewayEmitter && earlyErrorHandler) {
+    earlyGatewayEmitter.off("error", earlyErrorHandler);
+  }
   const stopGatewayLogging = attachDiscordGatewayLogging({
     emitter: gatewayEmitter,
     runtime,
