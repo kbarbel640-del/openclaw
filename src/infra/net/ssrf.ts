@@ -27,7 +27,12 @@ export type SsrFPolicy = {
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
   "localhost.localdomain",
+  // Cloud provider metadata endpoints (SSRF targets for credential theft)
   "metadata.google.internal",
+  "metadata.google",
+  "169.254.169.254", // AWS, Azure, GCP fallback
+  "169.254.170.2", // AWS ECS task metadata
+  "fd00:ec2::254", // AWS IPv6 metadata
 ]);
 
 function normalizeHostnameSet(values?: string[]): Set<string> {
