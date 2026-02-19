@@ -17,15 +17,6 @@ export { resetBaileysMocks, resetLoadConfigMock, setLoadConfigMock } from "./tes
 // Avoid exporting inferred vitest mock types (TS2742 under pnpm + d.ts emit).
 // oxlint-disable-next-line typescript/no-explicit-any
 type AnyExport = any;
-type MockWebListener = {
-  close: () => Promise<void>;
-  onClose: Promise<WebListenerCloseReason>;
-  signalClose: () => void;
-  sendMessage: () => Promise<{ messageId: string }>;
-  sendPoll: () => Promise<{ messageId: string }>;
-  sendReaction: () => Promise<void>;
-  sendComposingTo: () => Promise<void>;
-};
 
 export const TEST_NET_IP = "203.0.113.10";
 
@@ -171,7 +162,7 @@ export function createWebListenerFactoryCapture(): AnyExport {
   };
 }
 
-export function createMockWebListener(): MockWebListener {
+export function createMockWebListener(): AnyExport {
   return {
     close: vi.fn(async () => undefined),
     onClose: new Promise<WebListenerCloseReason>(() => {}),
