@@ -154,7 +154,9 @@ echo "✅ Audio extracted: $AUDIO_FILE"
 echo ""
 echo "🗣️ Step 4: Speech recognition..."
 
-if ! command -v whisper &>/dev/null; then
+# Check for whisper (try PATH first, then fallback to known location)
+WHISPER_PATH="$(command -v whisper 2>/dev/null || echo "/Library/Frameworks/Python.framework/Versions/3.13/bin/whisper")"
+if [ ! -x "$WHISPER_PATH" ]; then
     echo "⚠️  Whisper not installed"
     echo ""
     echo "Install: pip3 install openai-whisper"
@@ -173,7 +175,7 @@ echo "(First run will auto-download model, may take a few minutes)"
 echo ""
 
 # Run whisper
-if ! whisper "$AUDIO_FILE" --model small --language Chinese --output_format txt --output_dir "$DOWNLOAD_DIR" 2>/dev/null; then
+if ! "$WHISPER_PATH" "$AUDIO_FILE" --model small --output_format txt --output_dir "$DOWNLOAD_DIR" 2>/dev/null; then
     echo "⚠️  Transcription failed"
     echo "📄 Tweet text: $TWEET_TEXT"
     exit 0
