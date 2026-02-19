@@ -222,8 +222,22 @@ async function handleOpenAiModelsRequest(
   });
   const activeProvider = configuredRef.provider || DEFAULT_PROVIDER;
 
+  const defaultModel = configuredRef.model || "claude-opus-4-6";
+
   const catalog = await loadModelCatalog({ config: cfg }).catch(() => []);
   const filtered = catalog.filter((entry) => entry.provider === activeProvider);
+
+  // Sort: configured default model first so clients select it automatically.
+  filtered.sort((a, b) => {
+    if (a.id === defaultModel) {
+      return -1;
+    }
+    if (b.id === defaultModel) {
+      return 1;
+    }
+    return 0;
+  });
+
   const models =
     filtered.length > 0
       ? filtered.map((entry) => ({
@@ -234,7 +248,7 @@ async function handleOpenAiModelsRequest(
         }))
       : [
           {
-            id: "claude-opus-4-6",
+            id: defaultModel,
             object: "model",
             created,
             owned_by: activeProvider,
