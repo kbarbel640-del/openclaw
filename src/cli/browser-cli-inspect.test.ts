@@ -81,12 +81,12 @@ describe("browser cli snapshot defaults", () => {
   it.each([
     {
       label: "uses config snapshot defaults when mode is not provided",
-      args: [],
+      args: [] as string[],
       expectMode: "efficient",
     },
     {
       label: "does not apply config snapshot defaults to aria snapshots",
-      args: ["--format", "aria"],
+      args: ["--format", "aria"] as string[],
       expectMode: undefined,
     },
   ])("$label", async ({ args, expectMode }) => {
