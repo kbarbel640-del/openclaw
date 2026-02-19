@@ -389,12 +389,15 @@ export async function handleOpenAiHttpRequest(
 
     if (evt.stream === "lifecycle") {
       const phase = evt.data?.phase;
-      if (phase === "end" || phase === "error") {
+      if (phase === "end") {
         closed = true;
         unsubscribe();
         writeDone(res);
         res.end();
       }
+      // phase=error: do NOT close here — let the async IIFE write the
+      // error content from agentCommand's result before the finally block
+      // closes the stream. Silencing errors produces blank responses.
     }
   });
 
@@ -418,10 +421,6 @@ export async function handleOpenAiHttpRequest(
         defaultRuntime,
         deps,
       );
-
-      if (closed) {
-        return;
-      }
 
       if (!sawAssistantDelta) {
         if (!wroteRole) {

@@ -493,6 +493,7 @@ export const OpenClawSchema = z
                 chatCompletions: z
                   .object({
                     enabled: z.boolean().optional(),
+                    allowedOrigins: z.array(z.string()).optional(),
                   })
                   .strict()
                   .optional(),
