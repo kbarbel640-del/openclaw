@@ -14,6 +14,16 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function requestInfoUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.toString();
+  }
+  return input.url;
+}
+
 describe("signal client backend compatibility", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -240,7 +250,7 @@ describe("signal client backend compatibility", () => {
     let receiveCalls = 0;
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+      const url = requestInfoUrl(input);
       if (url === "http://signal-rest-receive-async-handler:8080/api/v1/check") {
         return new Response("missing", { status: 404 });
       }
@@ -336,7 +346,7 @@ describe("signal client backend compatibility", () => {
     let receiveAbortCount = 0;
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
+      const url = requestInfoUrl(input);
 
       if (url === "http://signal-rest-priority:8080/api/v1/check") {
         return new Response("missing", { status: 404 });
