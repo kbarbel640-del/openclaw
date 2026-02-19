@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
@@ -163,13 +164,25 @@ function serveFile(res: ServerResponse, filePath: string) {
   // Static UI should never be cached aggressively while iterating; allow the
   // browser to revalidate.
   res.setHeader("Cache-Control", "no-cache");
-  res.end(fs.readFileSync(filePath));
+  const stream = fs.createReadStream(filePath);
+  stream.on("error", () => {
+    if (!res.headersSent) {
+      respondNotFound(res);
+    }
+  });
+  stream.pipe(res);
 }
 
 function serveIndexHtml(res: ServerResponse, indexPath: string) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
-  res.end(fs.readFileSync(indexPath, "utf8"));
+  const stream = fs.createReadStream(indexPath, "utf8");
+  stream.on("error", () => {
+    if (!res.headersSent) {
+      respondNotFound(res);
+    }
+  });
+  stream.pipe(res);
 }
 
 function isSafeRelativePath(relPath: string) {
@@ -186,11 +199,11 @@ function isSafeRelativePath(relPath: string) {
   return true;
 }
 
-export function handleControlUiHttpRequest(
+export async function handleControlUiHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
   opts?: ControlUiRequestOptions,
-): boolean {
+): Promise<boolean> {
   const urlRaw = req.url;
   if (!urlRaw) {
     return false;
@@ -318,20 +331,28 @@ export function handleControlUiHttpRequest(
     return true;
   }
 
-  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-    if (path.basename(filePath) === "index.html") {
-      serveIndexHtml(res, filePath);
+  try {
+    const stat = await fsp.stat(filePath);
+    if (stat.isFile()) {
+      if (path.basename(filePath) === "index.html") {
+        serveIndexHtml(res, filePath);
+        return true;
+      }
+      serveFile(res, filePath);
       return true;
     }
-    serveFile(res, filePath);
-    return true;
+  } catch {
+    // file not found, fall through to SPA fallback
   }
 
   // SPA fallback (client-side router): serve index.html for unknown paths.
   const indexPath = path.join(root, "index.html");
-  if (fs.existsSync(indexPath)) {
+  try {
+    await fsp.access(indexPath);
     serveIndexHtml(res, indexPath);
     return true;
+  } catch {
+    // no index.html either
   }
 
   respondNotFound(res);
