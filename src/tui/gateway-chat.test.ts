@@ -103,13 +103,13 @@ describe("resolveGatewayConnection", () => {
     expect(result.url).toBe("ws://100.64.0.1:18800");
   });
 
-  it("uses lan host when local bind is lan", () => {
+  it("uses loopback when local bind is lan", () => {
     loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "lan" } });
     resolveGatewayPort.mockReturnValue(18800);
     pickPrimaryLanIPv4.mockReturnValue("192.168.1.42");
 
     const result = resolveGatewayConnection({});
 
-    expect(result.url).toBe("ws://192.168.1.42:18800");
+    expect(result.url).toBe("ws://127.0.0.1:18800");
   });
 });
