@@ -267,7 +267,17 @@ export async function ensureChromeExtensionRelayServer(opts: {
   >();
   let nextExtensionId = 1;
 
-  const getExtensionBySessionId = (sessionId?: string): ExtensionConnection | null => {
+  const getExtensionBySessionId = (
+    sessionId?: string,
+    requestedRelayName?: string,
+  ): ExtensionConnection | null => {
+    if (requestedRelayName) {
+      for (const conn of extensionConnections.values()) {
+        if (conn.name === requestedRelayName) {
+          return conn;
+        }
+      }
+    }
     if (!sessionId) {
       return Array.from(extensionConnections.values())[0] ?? null;
     }
@@ -340,7 +350,10 @@ export async function ensureChromeExtensionRelayServer(opts: {
     }
   };
 
-  const routeCdpCommand = async (cmd: CdpCommand): Promise<unknown> => {
+  const routeCdpCommand = async (
+    cmd: CdpCommand,
+    requestedRelayName?: string,
+  ): Promise<unknown> => {
     switch (cmd.method) {
       case "Browser.getVersion":
         return {
@@ -396,9 +409,13 @@ export async function ensureChromeExtensionRelayServer(opts: {
       }
       default: {
         const id = nextExtensionId++;
-        const conn = getExtensionBySessionId(cmd.sessionId);
+        const conn = getExtensionBySessionId(cmd.sessionId, requestedRelayName);
         if (!conn) {
-          throw new Error("No attached extension for session");
+          throw new Error(
+            requestedRelayName
+              ? `No relay found with name "${requestedRelayName}"`
+              : "No attached extension for session",
+          );
         }
         return await sendToExtension(
           {
@@ -582,7 +599,10 @@ export async function ensureChromeExtensionRelayServer(opts: {
         return;
       }
       const requestedName = url.searchParams.get("name")?.trim() || "";
-      if (requestedName && extensionConnections.has(requestedName)) {
+      if (
+        requestedName &&
+        Array.from(extensionConnections.values()).some((c) => c.name === requestedName)
+      ) {
         rejectUpgrade(socket, 409, `Relay name "${requestedName}" already connected`);
         return;
       }
@@ -757,8 +777,11 @@ export async function ensureChromeExtensionRelayServer(opts: {
     });
   });
 
-  wssCdp.on("connection", (ws) => {
+  wssCdp.on("connection", (ws, req) => {
     cdpClients.add(ws);
+
+    const cdpUrl = new URL(req.url ?? "/", info.baseUrl);
+    const requestedRelayName = cdpUrl.searchParams.get("relay")?.trim() || undefined;
 
     ws.on("message", async (data) => {
       let cmd: CdpCommand | null = null;
@@ -784,7 +807,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
       }
 
       try {
-        const result = await routeCdpCommand(cmd);
+        const result = await routeCdpCommand(cmd, requestedRelayName);
 
         if (cmd.method === "Target.setAutoAttach" && !cmd.sessionId) {
           ensureTargetEventsForClient(ws, "autoAttach");
