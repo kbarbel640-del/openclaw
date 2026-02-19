@@ -5,6 +5,10 @@ import type { RuntimeEnv } from "../runtime.js";
 import type { ControlUiRootState } from "./control-ui.js";
 import type { startBrowserControlServerIfEnabled } from "./server-browser.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import {
+  syncClaudeWorkspaceIntegrations,
+  syncSkillsToClaudeCommands,
+} from "../agents/skills/claude-commands-sync.js";
 import { registerSkillsChangeListener } from "../agents/skills/refresh.js";
 import { initSubagentRegistry } from "../agents/subagent-registry.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
@@ -421,6 +425,11 @@ export async function startGatewayServer(
       skillsRefreshTimer = null;
       const latest = loadConfig();
       void refreshRemoteBinsForConnectedNodes(latest);
+      // Re-sync skills to Claude CLI workspace
+      void syncSkillsToClaudeCommands({
+        workspaceDir: defaultWorkspaceDir,
+        config: latest,
+      }).catch((err) => log.warn(`claude commands re-sync failed: ${String(err)}`));
     }, skillsRefreshDelayMs);
   });
 
@@ -568,6 +577,12 @@ export async function startGatewayServer(
       });
     }
   }
+
+  // Sync skills & MCP servers to Claude CLI workspace (fire-and-forget)
+  void syncClaudeWorkspaceIntegrations({
+    workspaceDir: defaultWorkspaceDir,
+    config: cfgAtStart,
+  }).catch((err) => log.warn(`claude workspace sync failed: ${String(err)}`));
 
   const { applyHotReload, requestGatewayRestart } = createGatewayReloadHandlers({
     deps,

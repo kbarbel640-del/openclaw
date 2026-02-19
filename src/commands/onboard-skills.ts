@@ -3,6 +3,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import { installSkill } from "../agents/skills-install.js";
 import { buildWorkspaceSkillStatus } from "../agents/skills-status.js";
+import { syncSkillsToClaudeCommands } from "../agents/skills/claude-commands-sync.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
 import { detectBinary, resolveNodeManagerOptions } from "./onboard-helpers.js";
@@ -217,6 +218,11 @@ export async function setupSkills(
     );
     next = upsertSkillEntry(next, skill.skillKey, { apiKey: normalizeSecretInput(apiKey) });
   }
+
+  // Re-sync skills to Claude CLI workspace after installation
+  await syncSkillsToClaudeCommands({ workspaceDir, config: next }).catch(() => {
+    // Best-effort — don't fail the wizard
+  });
 
   return next;
 }

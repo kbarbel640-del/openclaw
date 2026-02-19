@@ -32,6 +32,11 @@ export {
   resolveSkillsPromptForRun,
   syncSkillsToWorkspace,
 } from "./skills/workspace.js";
+export {
+  syncClaudeWorkspaceIntegrations,
+  syncMcpToClaudeSettings,
+  syncSkillsToClaudeCommands,
+} from "./skills/claude-commands-sync.js";
 
 export function resolveSkillsInstallPreferences(config?: OpenClawConfig): SkillsInstallPreferences {
   const raw = config?.skills?.install;

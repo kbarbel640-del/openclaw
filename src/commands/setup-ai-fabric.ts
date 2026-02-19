@@ -12,6 +12,7 @@ import type { CloudruAuthConfig, McpServer, Agent } from "../ai-fabric/types.js"
 import type { OpenClawConfig } from "../config/config.js";
 import type { AiFabricAgentEntry } from "../config/types.ai-fabric.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
+import { syncMcpToClaudeSettings } from "../agents/skills/claude-commands-sync.js";
 import { CloudruAuthError } from "../ai-fabric/cloudru-auth.js";
 import { CloudruSimpleClient } from "../ai-fabric/cloudru-client-simple.js";
 import { CloudruApiError } from "../ai-fabric/cloudru-client.js";
@@ -95,6 +96,15 @@ export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupA
         mcpConfigPath = await writeMcpConfigFile({ workspaceDir, servers: selected });
         await ensureGitignoreEntries({ workspaceDir, entries: [CLOUDRU_MCP_CONFIG_FILENAME] });
 
+        // Sync MCP servers to Claude CLI workspace
+        if (mcpConfigPath) {
+          const { promises: fs } = await import("node:fs");
+          const mcpRaw = JSON.parse(await fs.readFile(mcpConfigPath, "utf-8"));
+          if (mcpRaw.mcpServers) {
+            await syncMcpToClaudeSettings({ workspaceDir, mcpServers: mcpRaw.mcpServers });
+          }
+        }
+
         const toolCount = selected.reduce((sum, s) => sum + s.tools.length, 0);
         await prompter.note(
           `Connected ${selected.length} MCP server${selected.length === 1 ? "" : "s"} (${toolCount} tools).\n` +
@@ -114,6 +124,15 @@ export async function setupAiFabric(params: SetupAiFabricParams): Promise<SetupA
     if (manualEntries.length > 0) {
       mcpConfigPath = await writeMcpConfigFromEntries({ workspaceDir, entries: manualEntries });
       await ensureGitignoreEntries({ workspaceDir, entries: [CLOUDRU_MCP_CONFIG_FILENAME] });
+
+      // Sync MCP servers to Claude CLI workspace
+      if (mcpConfigPath) {
+        const { promises: fs } = await import("node:fs");
+        const mcpRaw = JSON.parse(await fs.readFile(mcpConfigPath, "utf-8"));
+        if (mcpRaw.mcpServers) {
+          await syncMcpToClaudeSettings({ workspaceDir, mcpServers: mcpRaw.mcpServers });
+        }
+      }
 
       await prompter.note(
         `Configured ${manualEntries.length} MCP server${manualEntries.length === 1 ? "" : "s"} (manual).\n` +
@@ -204,6 +223,15 @@ export async function setupAiFabricNonInteractive(
     if (servers.length > 0) {
       mcpConfigPath = await writeMcpConfigFile({ workspaceDir, servers });
       await ensureGitignoreEntries({ workspaceDir, entries: [CLOUDRU_MCP_CONFIG_FILENAME] });
+
+      // Sync MCP servers to Claude CLI workspace
+      if (mcpConfigPath) {
+        const { promises: fs } = await import("node:fs");
+        const mcpRaw = JSON.parse(await fs.readFile(mcpConfigPath, "utf-8"));
+        if (mcpRaw.mcpServers) {
+          await syncMcpToClaudeSettings({ workspaceDir, mcpServers: mcpRaw.mcpServers });
+        }
+      }
     }
   } catch {
     // MCP discovery failed — continue with agent discovery
