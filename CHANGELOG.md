@@ -15,6 +15,8 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Agents/Config: accept `thinkingDefault` in per-agent runtime schema so `agents.list` entries can define it without validation errors. (#21097)
+
 - Gateway/WebChat: block `sessions.patch` and `sessions.delete` for WebChat clients so session-store mutations stay restricted to non-WebChat operator flows. Thanks @allsmog for reporting.
 - Security/Skills: for the next npm release, reject symlinks during skill packaging to prevent external file inclusion in distributed `.skill` archives. Thanks @aether-ai-agent for reporting.
 - Security/Config: block prototype-polluting keys (`__proto__`, `prototype`, `constructor`) in `deepMerge`, preventing prototype pollution via merged configuration objects. (#20853) Thanks @davidrudduck.
