@@ -17,6 +17,7 @@ const CLOUDRU_MCP_BASE_URL = "https://ai-agents.api.cloud.ru/mcp";
 export type McpConfigEntry = {
   url: string;
   transport: "sse";
+  headers?: Record<string, string>;
 };
 
 export type ClaudeMcpConfig = {
@@ -25,13 +26,22 @@ export type ClaudeMcpConfig = {
 
 /**
  * Build the claude MCP config object from selected MCP servers.
+ * When a `bearerToken` is provided, each entry includes an Authorization header
+ * so Claude CLI can authenticate to Cloud.ru MCP endpoints.
  */
-export function buildMcpConfig(servers: McpServer[]): ClaudeMcpConfig {
+export function buildMcpConfig(
+  servers: McpServer[],
+  options?: { bearerToken?: string },
+): ClaudeMcpConfig {
   const mcpServers: Record<string, McpConfigEntry> = {};
+  const headers = options?.bearerToken
+    ? { Authorization: `Bearer ${options.bearerToken}` }
+    : undefined;
   for (const server of servers) {
     mcpServers[server.name] = {
       url: `${CLOUDRU_MCP_BASE_URL}/${server.id}`,
       transport: "sse",
+      ...(headers ? { headers } : {}),
     };
   }
   return { mcpServers };

@@ -31,6 +31,7 @@ import { buildMcpConfig } from "../commands/write-mcp-config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getAgentStatus } from "./agent-status.js";
 import { getAgentSystemStatus } from "./agent-system-status.js";
+import { CloudruTokenProvider } from "./cloudru-auth.js";
 import { CloudruSimpleClient } from "./cloudru-client-simple.js";
 import { generateFabricSkills } from "./generate-fabric-skills.js";
 import { getMcpServerStatus } from "./mcp-status.js";
@@ -100,10 +101,20 @@ export async function syncFabricResources(params: SyncFabricParams): Promise<Syn
   let mcpServerCount = 0;
   let skillCount = 0;
 
-  // Step 1: Sync healthy MCP servers to claude settings
+  // Step 1: Sync healthy MCP servers to claude settings (with Bearer auth)
   try {
     const healthyMcp = mcpEntries.filter((e) => e.health === "healthy" || e.health === "degraded");
     if (healthyMcp.length > 0) {
+      // Obtain IAM Bearer token for MCP server authentication
+      let bearerToken: string | undefined;
+      try {
+        const tokenProvider = new CloudruTokenProvider(auth);
+        const resolved = await tokenProvider.getToken();
+        bearerToken = resolved.token;
+      } catch (tokenErr) {
+        log.warn(`IAM token exchange failed, MCP servers will lack auth: ${String(tokenErr)}`);
+      }
+
       // Write MCP config file
       const mcpServers = healthyMcp.map((e) => ({
         id: e.id,
@@ -115,11 +126,13 @@ export async function syncFabricResources(params: SyncFabricParams): Promise<Syn
       const mcpConfigPath = await writeMcpConfigFile({ workspaceDir, servers: mcpServers });
       log.debug(`wrote MCP config: ${mcpConfigPath}`);
 
-      // Merge into .claude/settings.json
-      const mcpConfig = buildMcpConfig(mcpServers);
+      // Merge into .claude/settings.json (with Bearer token for auth)
+      const mcpConfig = buildMcpConfig(mcpServers, { bearerToken });
       await syncMcpToClaudeSettings({ workspaceDir, mcpServers: mcpConfig.mcpServers });
       mcpServerCount = healthyMcp.length;
-      log.debug(`synced ${mcpServerCount} MCP servers to claude settings`);
+      log.debug(
+        `synced ${mcpServerCount} MCP servers to claude settings (auth: ${bearerToken ? "yes" : "no"})`,
+      );
     }
   } catch (err) {
     log.warn(`MCP sync failed: ${String(err)}`);
