@@ -4,9 +4,9 @@
   "private": true,
   "description": "Mem0-powered memory adapter for OpenClaw",
   "type": "module",
-  "dependencies": {
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "fs-extra": "^11.2.0"
   },
   "devDependencies": {
     "openclaw": "workspace:*"
