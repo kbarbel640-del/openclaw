@@ -41,7 +41,8 @@ describe("resolveDiscordChannelAllowlist", () => {
   });
 
   it("resolves numeric guild/channel input via channel id lookup", async () => {
-    const fetcher = async (url: string) => {
+    const fetcher = withFetchPreconnect(async (input: RequestInfo | URL) => {
+      const url = urlToString(input);
       if (url.endsWith("/users/@me/guilds")) {
         return jsonResponse([{ id: "111", name: "Guild One" }]);
       }
@@ -52,7 +53,7 @@ describe("resolveDiscordChannelAllowlist", () => {
         throw new Error("numeric guild/channel should resolve through /channels/<id>");
       }
       return new Response("not found", { status: 404 });
-    };
+    });
 
     const res = await resolveDiscordChannelAllowlist({
       token: "test",
