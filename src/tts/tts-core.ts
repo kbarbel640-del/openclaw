@@ -170,11 +170,16 @@ export function parseTtsDirectives(
               warnings.push(`invalid ElevenLabs voiceId "${rawValue}"`);
             }
             break;
+          case "elevenlabs_model":
+          case "elevenlabsmodel":
+            if (!policy.allowModelId) {
+              break;
+            }
+            overrides.elevenlabs = { ...overrides.elevenlabs, modelId: rawValue };
+            break;
           case "model":
           case "modelid":
           case "model_id":
-          case "elevenlabs_model":
-          case "elevenlabsmodel":
           case "openai_model":
           case "openaimodel":
             if (!policy.allowModelId) {
