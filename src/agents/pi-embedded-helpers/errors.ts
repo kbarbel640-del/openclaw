@@ -604,6 +604,20 @@ export function formatAssistantErrorText(
     return `LLM request rejected: ${invalidMsg}`;
   }
 
+  // Suppress JSON parse / SSE stream errors — these are internal transport issues (#14321)
+  if (
+    /(?:bad control character|unexpected token|JSON at position|string literal in JSON)\b/i.test(
+      raw,
+    )
+  ) {
+    return TRANSIENT_API_ERROR_MESSAGE;
+  }
+
+  // Suppress orphaned tool call errors after compaction — internal framework issue (#16948)
+  if (/no tool call found.*call_id|tool_use_id.*not found/i.test(raw)) {
+    return "⚠️ Message format error — please try again. If this persists, use /new to start a fresh session.";
+  }
+
   // Suppress failover wrapper messages FIRST — these contain provider/model names
   // and can also match rate-limit/auth patterns in the inner details.
   if (isFailoverWrapperMessage(raw)) {

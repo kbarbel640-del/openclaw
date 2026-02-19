@@ -131,6 +131,31 @@ describe("formatAssistantErrorText — leak vector sanitization", () => {
     expect(result).toBe(AUTH_CONFIG_ERROR_MESSAGE);
   });
 
+  it("suppresses SSE/JSON parse errors from streaming (#14321)", () => {
+    const result = formatAssistantErrorText({
+      role: "assistant",
+      content: [],
+      stopReason: "error",
+      errorMessage:
+        "Bad control character in string literal in JSON at position 4567 (line 1 column 4568)",
+    });
+    expect(result).not.toContain("position 4567");
+    expect(result).toContain("temporary error");
+  });
+
+  it("suppresses orphaned tool call errors after compaction (#16948)", () => {
+    const result = formatAssistantErrorText({
+      role: "assistant",
+      content: [],
+      stopReason: "error",
+      errorMessage:
+        "No tool call found for function call output with call_id toolu01QevQjBAp63b1ujgzW6SqjR.",
+    });
+    expect(result).not.toContain("toolu01");
+    expect(result).not.toContain("call_id");
+    expect(result).toContain("format error");
+  });
+
   it("suppresses failover wrapper messages that leak provider/model names", () => {
     const result = formatAssistantErrorText({
       role: "assistant",
