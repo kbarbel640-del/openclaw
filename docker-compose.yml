@@ -11,16 +11,17 @@ services:
     volumes:
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      # Mount the auto-update entrypoint script
+      - ./openclaw-entrypoint.sh:/usr/local/bin/openclaw-entrypoint.sh:ro
     ports:
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
     init: true
     restart: unless-stopped
+    # Use the entrypoint script which updates before starting
+    entrypoint: ["/usr/local/bin/openclaw-entrypoint.sh"]
     command:
       [
-        "node",
-        "dist/index.js",
-        "gateway",
         "--bind",
         "${OPENCLAW_GATEWAY_BIND:-lan}",
         "--port",
