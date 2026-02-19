@@ -46,7 +46,7 @@ function getTokenForOperation(
   if (!allowUserWrites) {
     return botToken;
   }
-  return userToken ?? botToken;
+  return botToken ?? userToken;
 }
 
 export const slackPlugin: ChannelPlugin<ResolvedSlackAccount> = {
