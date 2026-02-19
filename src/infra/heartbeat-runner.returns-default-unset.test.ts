@@ -35,9 +35,12 @@ let testRegistry: ReturnType<typeof getActivePluginRegistry> | null = null;
 let fixtureRoot = "";
 let fixtureCount = 0;
 
-const createCaseDir = async (prefix: string) => {
+const createCaseDir = async (prefix: string, { skipHeartbeatFile = false } = {}) => {
   const dir = path.join(fixtureRoot, `${prefix}-${fixtureCount++}`);
   await fs.mkdir(dir, { recursive: true });
+  if (!skipHeartbeatFile) {
+    await fs.writeFile(path.join(dir, "HEARTBEAT.md"), "- Check status\n", "utf-8");
+  }
   return dir;
 };
 
@@ -542,6 +545,7 @@ describe("runHeartbeatOnce", () => {
             { id: "main", default: true },
             {
               id: "ops",
+              workspace: tmpDir,
               heartbeat: { every: "5m", target: "whatsapp", prompt: "Ops check" },
             },
           ],
@@ -611,6 +615,7 @@ describe("runHeartbeatOnce", () => {
             { id: "main", default: true },
             {
               id: agentId,
+              workspace: tmpDir,
               heartbeat: { every: "5m", target: "whatsapp", prompt: "Ops check" },
             },
           ],
