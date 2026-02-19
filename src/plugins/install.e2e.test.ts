@@ -6,10 +6,7 @@ import JSZip from "jszip";
 import * as tar from "tar";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as skillScanner from "../security/skill-scanner.js";
-import {
-  expectSingleNpmInstallIgnoreScriptsCall,
-  expectSingleNpmPackIgnoreScriptsCall,
-} from "../test-utils/exec-assertions.js";
+import { expectSingleNpmInstallIgnoreScriptsCall } from "../test-utils/exec-assertions.js";
 
 vi.mock("../process/exec.js", () => ({
   runCommandWithTimeout: vi.fn(),
@@ -390,6 +387,31 @@ describe("installPluginFromArchive", () => {
     expect(warnings.some((w) => w.includes("dangerous code pattern"))).toBe(true);
   });
 
+  it("rejects extensions that escape plugin directory", async () => {
+    const { pluginDir, extensionsDir } = setupPluginInstallDirs();
+    fs.mkdirSync(path.join(pluginDir, "dist"), { recursive: true });
+
+    fs.writeFileSync(
+      path.join(pluginDir, "package.json"),
+      JSON.stringify({
+        name: "escape-plugin",
+        version: "1.0.0",
+        openclaw: { extensions: ["../outside.js"] },
+      }),
+      "utf-8",
+    );
+    fs.writeFileSync(path.join(pluginDir, "dist", "index.js"), "export {};", "utf-8");
+    fs.writeFileSync(path.join(pluginDir, "..", "outside.js"), "export {};", "utf-8");
+
+    const { result } = await installFromDirWithWarnings({ pluginDir, extensionsDir });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error).toContain("openclaw.extensions entry escapes plugin directory");
+  });
+
   it("continues install when scanner throws", async () => {
     const scanSpy = vi
       .spyOn(skillScanner, "scanDirectoryWithSummary")
@@ -523,10 +545,18 @@ describe("installPluginFromNpmSpec", () => {
     expect(result.npmResolution?.resolvedSpec).toBe("@openclaw/voice-call@0.0.1");
     expect(result.npmResolution?.integrity).toBe("sha512-plugin-test");
 
-    expectSingleNpmPackIgnoreScriptsCall({
-      calls: run.mock.calls,
-      expectedSpec: "@openclaw/voice-call@0.0.1",
-    });
+    const packCalls = run.mock.calls.filter(
+      (c) => Array.isArray(c[0]) && c[0][0] === "npm" && c[0][1] === "pack",
+    );
+    expect(packCalls.length).toBe(1);
+    const packCall = packCalls[0];
+    if (!packCall) {
+      throw new Error("expected npm pack call");
+    }
+    const [argv, options] = packCall;
+    expect(argv).toEqual(["npm", "pack", "@openclaw/voice-call@0.0.1", "--ignore-scripts"]);
+    const commandOptions = typeof options === "number" ? undefined : options;
+    expect(commandOptions?.env).toMatchObject({ NPM_CONFIG_IGNORE_SCRIPTS: "true" });
 
     expect(packTmpDir).not.toBe("");
     expect(fs.existsSync(packTmpDir)).toBe(false);
