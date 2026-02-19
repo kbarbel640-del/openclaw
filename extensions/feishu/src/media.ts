@@ -1,11 +1,12 @@
-import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { Readable } from "stream";
+import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { getFeishuRuntime } from "./runtime.js";
+import { assertFeishuMessageApiSuccess, toFeishuSendResult } from "./send-result.js";
 import { resolveReceiveIdType, normalizeFeishuTarget } from "./targets.js";
 
 export type DownloadImageResult = {
@@ -19,9 +20,22 @@ export type DownloadMessageResourceResult = {
   fileName?: string;
 };
 
+async function withTempDownloadPath<T>(
+  prefix: string,
+  fn: (tmpPath: string) => Promise<T>,
+): Promise<T> {
+  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), prefix));
+  const tmpPath = path.join(dir, "download.bin");
+  try {
+    return await fn(tmpPath);
+  } finally {
+    await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function readFeishuResponseBuffer(params: {
   response: unknown;
-  tmpPath: string;
+  tmpDirPrefix: string;
   errorPrefix: string;
 }): Promise<Buffer> {
   const { response } = params;
@@ -52,10 +66,10 @@ async function readFeishuResponseBuffer(params: {
     return Buffer.concat(chunks);
   }
   if (typeof responseAny.writeFile === "function") {
-    await responseAny.writeFile(params.tmpPath);
-    const buffer = await fs.promises.readFile(params.tmpPath);
-    await fs.promises.unlink(params.tmpPath).catch(() => {});
-    return buffer;
+    return await withTempDownloadPath(params.tmpDirPrefix, async (tmpPath) => {
+      await responseAny.writeFile(tmpPath);
+      return await fs.promises.readFile(tmpPath);
+    });
   }
   if (typeof responseAny[Symbol.asyncIterator] === "function") {
     const chunks: Buffer[] = [];
@@ -98,10 +112,9 @@ export async function downloadImageFeishu(params: {
     path: { image_key: imageKey },
   });
 
-  const tmpPath = path.join(os.tmpdir(), `feishu_img_${Date.now()}_${imageKey}`);
   const buffer = await readFeishuResponseBuffer({
     response,
-    tmpPath,
+    tmpDirPrefix: "openclaw-feishu-img-",
     errorPrefix: "Feishu image download failed",
   });
   return { buffer };
@@ -131,10 +144,9 @@ export async function downloadMessageResourceFeishu(params: {
     params: { type },
   });
 
-  const tmpPath = path.join(os.tmpdir(), `feishu_${Date.now()}_${fileKey}`);
   const buffer = await readFeishuResponseBuffer({
     response,
-    tmpPath,
+    tmpDirPrefix: "openclaw-feishu-resource-",
     errorPrefix: "Feishu message resource download failed",
   });
   return { buffer };
@@ -283,15 +295,8 @@ export async function sendImageFeishu(params: {
         msg_type: "image",
       },
     });
-
-    if (response.code !== 0) {
-      throw new Error(`Feishu image reply failed: ${response.msg || `code ${response.code}`}`);
-    }
-
-    return {
-      messageId: response.data?.message_id ?? "unknown",
-      chatId: receiveId,
-    };
+    assertFeishuMessageApiSuccess(response, "Feishu image reply failed");
+    return toFeishuSendResult(response, receiveId);
   }
 
   const response = await client.im.message.create({
@@ -302,15 +307,8 @@ export async function sendImageFeishu(params: {
       msg_type: "image",
     },
   });
-
-  if (response.code !== 0) {
-    throw new Error(`Feishu image send failed: ${response.msg || `code ${response.code}`}`);
-  }
-
-  return {
-    messageId: response.data?.message_id ?? "unknown",
-    chatId: receiveId,
-  };
+  assertFeishuMessageApiSuccess(response, "Feishu image send failed");
+  return toFeishuSendResult(response, receiveId);
 }
 
 /**
@@ -349,15 +347,8 @@ export async function sendFileFeishu(params: {
         msg_type: msgType,
       },
     });
-
-    if (response.code !== 0) {
-      throw new Error(`Feishu file reply failed: ${response.msg || `code ${response.code}`}`);
-    }
-
-    return {
-      messageId: response.data?.message_id ?? "unknown",
-      chatId: receiveId,
-    };
+    assertFeishuMessageApiSuccess(response, "Feishu file reply failed");
+    return toFeishuSendResult(response, receiveId);
   }
 
   const response = await client.im.message.create({
@@ -368,15 +359,8 @@ export async function sendFileFeishu(params: {
       msg_type: msgType,
     },
   });
-
-  if (response.code !== 0) {
-    throw new Error(`Feishu file send failed: ${response.msg || `code ${response.code}`}`);
-  }
-
-  return {
-    messageId: response.data?.message_id ?? "unknown",
-    chatId: receiveId,
-  };
+  assertFeishuMessageApiSuccess(response, "Feishu file send failed");
+  return toFeishuSendResult(response, receiveId);
 }
 
 /**

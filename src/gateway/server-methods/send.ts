@@ -1,4 +1,3 @@
-import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { getChannelPlugin, normalizeChannelId } from "../../channels/plugins/index.js";
 import { DEFAULT_CHAT_CHANNEL } from "../../channels/registry.js";
@@ -20,6 +19,7 @@ import {
   validateSendParams,
 } from "../protocol/index.js";
 import { formatForLog } from "../ws-log.js";
+import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 
 type InflightResult = {
   ok: boolean;
@@ -64,6 +64,7 @@ export const sendHandlers: GatewayRequestHandlers = {
       gifPlayback?: boolean;
       channel?: string;
       accountId?: string;
+      threadId?: string;
       sessionKey?: string;
       idempotencyKey: string;
     };
@@ -130,6 +131,10 @@ export const sendHandlers: GatewayRequestHandlers = {
       typeof request.accountId === "string" && request.accountId.trim().length
         ? request.accountId.trim()
         : undefined;
+    const threadId =
+      typeof request.threadId === "string" && request.threadId.trim().length
+        ? request.threadId.trim()
+        : undefined;
     const outboundChannel = channel;
     const plugin = getChannelPlugin(channel);
     if (!plugin) {
@@ -182,6 +187,7 @@ export const sendHandlers: GatewayRequestHandlers = {
               agentId: derivedAgentId,
               accountId,
               target: resolved.to,
+              threadId,
             })
           : null;
         if (derivedRoute) {
@@ -199,7 +205,11 @@ export const sendHandlers: GatewayRequestHandlers = {
           to: resolved.to,
           accountId,
           payloads: [{ text: message, mediaUrl, mediaUrls }],
+          agentId: providedSessionKey
+            ? resolveSessionAgentId({ sessionKey: providedSessionKey, config: cfg })
+            : derivedAgentId,
           gifPlayback: request.gifPlayback,
+          threadId: threadId ?? null,
           deps: outboundDeps,
           mirror: providedSessionKey
             ? {
