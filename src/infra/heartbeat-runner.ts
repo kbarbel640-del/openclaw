@@ -730,9 +730,11 @@ export async function runHeartbeatOnce(opts: {
     });
 
     const heartbeatModelOverride = heartbeat?.model?.trim() || undefined;
-    const replyOpts = heartbeatModelOverride
-      ? { isHeartbeat: true, heartbeatModelOverride }
-      : { isHeartbeat: true };
+    const replyOpts = {
+      isHeartbeat: true,
+      ...(heartbeatModelOverride ? { heartbeatModelOverride } : {}),
+      suppressToolErrorWarnings: heartbeat?.suppressToolErrorWarnings ?? false,
+    };
     const replyResult = await getReplyFromConfig(ctx, replyOpts, cfg);
 
     // Explicitly map auth failures and other model provider errors to status: "failed"
