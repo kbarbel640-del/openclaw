@@ -212,9 +212,11 @@ export function buildServiceEnvironment(params: {
   const systemdUnit = `${resolveGatewaySystemdServiceName(profile)}.service`;
   const stateDir = env.OPENCLAW_STATE_DIR;
   const configPath = env.OPENCLAW_CONFIG_PATH;
+  // launchd on macOS does not inherit shell TMPDIR by default; forward it explicitly there.
+  const tmpDir = process.platform === "darwin" ? env.TMPDIR : undefined;
   return {
     HOME: env.HOME,
-    TMPDIR: env.TMPDIR,
+    TMPDIR: tmpDir,
     PATH: buildMinimalServicePath({ env }),
     OPENCLAW_PROFILE: profile,
     OPENCLAW_STATE_DIR: stateDir,
@@ -235,9 +237,11 @@ export function buildNodeServiceEnvironment(params: {
   const { env } = params;
   const stateDir = env.OPENCLAW_STATE_DIR;
   const configPath = env.OPENCLAW_CONFIG_PATH;
+  // Keep TMPDIR propagation scoped to macOS launchd installs.
+  const tmpDir = process.platform === "darwin" ? env.TMPDIR : undefined;
   return {
     HOME: env.HOME,
-    TMPDIR: env.TMPDIR,
+    TMPDIR: tmpDir,
     PATH: buildMinimalServicePath({ env }),
     OPENCLAW_STATE_DIR: stateDir,
     OPENCLAW_CONFIG_PATH: configPath,

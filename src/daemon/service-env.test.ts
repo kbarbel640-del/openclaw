@@ -1,5 +1,5 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { resolveGatewayStateDir } from "./paths.js";
 import {
   buildMinimalServicePath,
@@ -8,6 +8,16 @@ import {
   getMinimalServicePathParts,
   getMinimalServicePathPartsFromEnv,
 } from "./service-env.js";
+
+const originalPlatform = process.platform;
+
+function setPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, "platform", { value: platform, configurable: true });
+}
+
+afterEach(() => {
+  Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
+});
 
 describe("getMinimalServicePathParts - Linux user directories", () => {
   it("includes user bin directories when HOME is set on Linux", () => {
@@ -282,12 +292,22 @@ describe("buildServiceEnvironment", () => {
     }
   });
 
-  it("forwards TMPDIR from the host environment", () => {
+  it("forwards TMPDIR from the host environment on macOS", () => {
+    setPlatform("darwin");
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user", TMPDIR: "/var/folders/xw/abc123/T/" },
       port: 18789,
     });
     expect(env.TMPDIR).toBe("/var/folders/xw/abc123/T/");
+  });
+
+  it("does not forward TMPDIR on non-macOS services", () => {
+    setPlatform("linux");
+    const env = buildServiceEnvironment({
+      env: { HOME: "/home/user", TMPDIR: "/tmp/custom" },
+      port: 18789,
+    });
+    expect(env.TMPDIR).toBeUndefined();
   });
 
   it("omits TMPDIR when not set in host environment", () => {
@@ -318,11 +338,20 @@ describe("buildNodeServiceEnvironment", () => {
     expect(env.HOME).toBe("/home/user");
   });
 
-  it("forwards TMPDIR for node services", () => {
+  it("forwards TMPDIR for node services on macOS", () => {
+    setPlatform("darwin");
     const env = buildNodeServiceEnvironment({
       env: { HOME: "/home/user", TMPDIR: "/tmp/custom" },
     });
     expect(env.TMPDIR).toBe("/tmp/custom");
+  });
+
+  it("does not forward TMPDIR for node services on non-macOS platforms", () => {
+    setPlatform("linux");
+    const env = buildNodeServiceEnvironment({
+      env: { HOME: "/home/user", TMPDIR: "/tmp/custom" },
+    });
+    expect(env.TMPDIR).toBeUndefined();
   });
 });
 
