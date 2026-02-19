@@ -51,9 +51,6 @@ export function toAgentStoreSessionKey(params: {
   if (lowered.startsWith("agent:")) {
     return lowered;
   }
-  if (lowered.startsWith("subagent:")) {
-    return `agent:${normalizeAgentId(params.agentId)}:${lowered}`;
-  }
   return `agent:${normalizeAgentId(params.agentId)}:${lowered}`;
 }
 
