@@ -79,7 +79,6 @@ export type MessageSentHookEvent = InternalHookEvent & {
   context: MessageSentHookContext;
 };
 
-
 // ============================================================================
 // Session Pre-Spawn Hook Events
 // ============================================================================
@@ -97,6 +96,10 @@ export type SessionPreSpawnHookContext = {
   task?: string;
   /** Session key of the requester/parent agent */
   requesterSessionKey?: string;
+  /** Set to true to block the spawn (defaults to false) */
+  blocked?: boolean;
+  /** Reason for blocking (used in error response if blocked) */
+  blockReason?: string;
 };
 
 export type SessionPreSpawnHookEvent = InternalHookEvent & {
@@ -118,6 +121,10 @@ export type AgentPreRunHookContext = {
   model?: string;
   /** Thinking level (can be mutated by hooks) */
   thinking?: string;
+  /** Set to true to block the agent run (defaults to false) */
+  blocked?: boolean;
+  /** Reason for blocking (used in error response if blocked) */
+  blockReason?: string;
 };
 
 export type AgentPreRunHookEvent = InternalHookEvent & {
@@ -308,7 +315,6 @@ export function isMessageSentEvent(event: InternalHookEvent): event is MessageSe
     typeof context.success === "boolean"
   );
 }
-
 
 export function isSessionPreSpawnEvent(
   event: InternalHookEvent,
