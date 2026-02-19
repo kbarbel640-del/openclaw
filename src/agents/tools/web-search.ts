@@ -908,4 +908,5 @@ export const __testing = {
   resolveGrokModel,
   resolveGrokInlineCitations,
   extractGrokContent,
+  resolveSerpApiKey,
 } as const;
