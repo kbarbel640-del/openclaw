@@ -80,7 +80,7 @@ function classifyPrincipal(
 function rightsFromTokens(tokens: string[]): { canRead: boolean; canWrite: boolean } {
   const upper = tokens.join("").toUpperCase();
   const canWrite =
-    upper.includes("F") || upper.includes("M") || upper.includes("W") || upper.includes("D");
+    upper.includes("F") || upper.includes("M") || upper.includes("W");
   const canRead = upper.includes("F") || upper.includes("M") || upper.includes("R");
   return { canRead, canWrite };
 }
