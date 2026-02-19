@@ -26,6 +26,7 @@ import {
 } from "../infra/shell-env.js";
 import { logInfo } from "../logger.js";
 import { parseAgentSessionKey, resolveAgentIdFromSessionKey } from "../routing/session-key.js";
+import { createErrorHealer, type ErrorContext } from "./error-healing.js";
 import { markBackgrounded, tail } from "./bash-process-registry.js";
 import {
   DEFAULT_APPROVAL_REQUEST_TIMEOUT_MS,
@@ -972,24 +973,68 @@ export function createExecTool(
       // before we execute and burn tokens in cron loops.
       await validateScriptFileForShellBleed({ command: params.command, workdir });
 
-      const run = await runExecProcess({
-        command: params.command,
-        execCommand: execCommandOverride,
-        workdir,
-        env,
-        sandbox,
-        containerWorkdir,
-        usePty,
-        warnings,
-        maxOutput,
-        pendingMaxOutput,
-        notifyOnExit,
-        notifyOnExitEmptySuccess,
-        scopeKey: defaults?.scopeKey,
-        sessionKey: notifySessionKey,
-        timeoutSec: effectiveTimeout,
-        onUpdate,
-      });
+      // Execute with error healing
+      const healer = createErrorHealer();
+      let retryCount = 0;
+      const maxRetries = 3;
+      let lastError: Error | null = null;
+
+      let run: Awaited<ReturnType<typeof runExecProcess>>;
+
+      while (retryCount <= maxRetries) {
+        try {
+          run = await runExecProcess({
+            command: params.command,
+            execCommand: execCommandOverride,
+            workdir,
+            env,
+            sandbox,
+            containerWorkdir,
+            usePty,
+            warnings,
+            maxOutput,
+            pendingMaxOutput,
+            notifyOnExit,
+            notifyOnExitEmptySuccess,
+            scopeKey: defaults?.scopeKey,
+            sessionKey: notifySessionKey,
+            timeoutSec: effectiveTimeout,
+            onUpdate,
+          });
+          break; // Success
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          
+          // Analyze error and determine healing strategy
+          const errorContext: ErrorContext = {
+            errorMessage: lastError.message,
+            errorCode: (error as Record<string, unknown>)?.code as string,
+            retryCount,
+            operationType: "exec",
+          };
+          
+          const healing = await healer.heal(errorContext);
+          
+          if (!healing.shouldRetry || retryCount >= maxRetries) {
+            throw lastError;
+          }
+          
+          // Apply healing strategy
+          if (healing.action === "retry") {
+            if (healing.retryDelayMs && healing.retryDelayMs > 0) {
+              await new Promise(resolve => setTimeout(resolve, healing.retryDelayMs));
+            }
+            retryCount++;
+            warnings.push(`Retry ${retryCount}/${maxRetries} after error: ${lastError.message}`);
+          } else if (healing.action === "reduce_context") {
+            // For exec, this means simplifying the command
+            warnings.push(`Error healing suggested context reduction: ${lastError.message}`);
+            throw lastError;
+          } else {
+            throw lastError;
+          }
+        }
+      }
 
       let yielded = false;
       let yieldTimer: NodeJS.Timeout | null = null;

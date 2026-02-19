@@ -18,9 +18,38 @@ import { createSessionsListTool } from "./tools/sessions-list-tool.js";
 import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 import { createSubagentsTool } from "./tools/subagents-tool.js";
+import { createTaskDecomposeTool } from "./tools/task-decompose-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
+
+/**
+ * Asynchronously discover and register MCP tools
+ * This runs in background to avoid blocking agent initialization
+ */
+export async function discoverAndRegisterMcpToolsBackground(
+  registerTool: (tool: AnyAgentTool) => Promise<void>,
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const { discoverAndRegisterMcpTools } = await import("./mcp-auto-discovery.js");
+    
+    const result = await discoverAndRegisterMcpTools(registerTool);
+    
+    return {
+      success: result.success,
+      count: result.count,
+      error: result.error,
+    };
+  } catch (error) {
+    // Silently fail - MCP is optional
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      count: 0,
+      error: message,
+    };
+  }
+}
 
 export function createOpenClawTools(options?: {
   sandboxBrowserBridgeUrl?: string;
@@ -82,6 +111,10 @@ export function createOpenClawTools(options?: {
   const webFetchTool = createWebFetchTool({
     config: options?.config,
     sandboxed: options?.sandboxed,
+  });
+  const taskDecomposeTool = createTaskDecomposeTool({
+    config: options?.config,
+    agentSessionKey: options?.agentSessionKey,
   });
   const messageTool = options?.disableMessageTool
     ? null
@@ -155,6 +188,7 @@ export function createOpenClawTools(options?: {
       agentSessionKey: options?.agentSessionKey,
       config: options?.config,
     }),
+    ...(taskDecomposeTool ? [taskDecomposeTool] : []),
     ...(webSearchTool ? [webSearchTool] : []),
     ...(webFetchTool ? [webFetchTool] : []),
     ...(imageTool ? [imageTool] : []),

@@ -6,19 +6,14 @@ import {
   readTool,
 } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../config/config.js";
-import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
-import { logWarn } from "../logger.js";
-import { getPluginToolMeta } from "../plugins/tools.js";
-import { isSubagentSessionKey } from "../routing/session-key.js";
-import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
-import { resolveAgentConfig } from "./agent-scope.js";
-import { createApplyPatchTool } from "./apply-patch.js";
+import type { AnyAgentTool } from "../tools/common.js";
 import {
-  createExecTool,
-  createProcessTool,
   type ExecToolDefaults,
   type ProcessToolDefaults,
+  createExecTool,
+  createProcessTool,
 } from "./bash-tools.js";
+import { discoverAndRegisterMcpTools } from "./mcp-auto-discovery.js";
 import { listChannelAgentTools } from "./channel-tools.js";
 import { resolveImageSanitizationLimits } from "./image-sanitization.js";
 import type { ModelAuthMode } from "./model-auth.js";
