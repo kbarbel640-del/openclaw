@@ -53,6 +53,7 @@ export class UrbitSSEClient {
   lookupFn?: LookupFn;
   fetchImpl?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   streamRelease: (() => Promise<void>) | null = null;
+  private nextSubId = 1;
 
   constructor(url: string, cookie: string, options: UrbitSseOptions = {}) {
     const ctx = getUrbitContext(url, options.ship);
@@ -79,7 +80,7 @@ export class UrbitSSEClient {
     err?: (error: unknown) => void;
     quit?: () => void;
   }) {
-    const subId = this.subscriptions.length + 1;
+    const subId = this.nextSubId++;
     const subscription = {
       id: subId,
       action: "subscribe",
