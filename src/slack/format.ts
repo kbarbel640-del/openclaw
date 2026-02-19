@@ -101,7 +101,7 @@ function buildSlackRenderOptions() {
       italic: { open: "_", close: "_" },
       strikethrough: { open: "~", close: "~" },
       code: { open: "`", close: "`" },
-      code_block: { open: "```\n", close: "```" },
+      code_block: { open: "```\n", close: "\n```" },
     },
     escapeText: escapeSlackMrkdwnText,
     buildLink: buildSlackLink,
