@@ -322,19 +322,19 @@ export class DynamicReasoningEngine {
   /**
    * 优化计算预算
    */
-  optimizeComputeBudget(
+  async optimizeComputeBudget(
     task: string,
     budget: {
       maxTokens: number;
       maxTime: number; // ms
       maxCost: number; // USD
     },
-  ): {
+  ): Promise<{
     feasible: boolean;
     recommendedLevel: ReasoningLevel;
     tradeoffs: string[];
-  } {
-    const difficulty = this.assessTaskDifficulty(task);
+  }> {
+    const difficulty = await this.assessTaskDifficulty(task);
     const estimatedTokens = this.estimateTokens(difficulty.score, task.length);
 
     const tradeoffs: string[] = [];
