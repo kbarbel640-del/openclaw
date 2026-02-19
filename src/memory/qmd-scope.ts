@@ -69,9 +69,9 @@ function parseQmdSessionScope(key?: string): ParsedQmdSessionScope {
     parts.length >= 2 &&
     (parts[1] === "group" || parts[1] === "channel" || parts[1] === "direct" || parts[1] === "dm")
   ) {
-    if (parts.includes("group")) {
+    if (parts[1] === "group") {
       chatType = "group";
-    } else if (parts.includes("channel")) {
+    } else if (parts[1] === "channel") {
       chatType = "channel";
     }
     return {
