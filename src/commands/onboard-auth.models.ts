@@ -66,6 +66,13 @@ export function buildDigitalOceanGradientModels(): ModelDefinitionConfig[] {
       maxTokens: 8192,
     }),
     buildDigitalOceanGradientModelDefinition({
+      modelId: "openai-gpt-oss-120b",
+      name: "GPT OSS 120B",
+      reasoning: false,
+      contextWindow: 131072,
+      maxTokens: 8192,
+    }),
+    buildDigitalOceanGradientModelDefinition({
       modelId: "deepseek-r1-distill-llama-70b",
       name: "DeepSeek R1 Distill Llama 70B",
       reasoning: true,
