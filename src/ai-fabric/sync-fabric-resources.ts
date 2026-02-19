@@ -128,7 +128,7 @@ export async function syncFabricResources(params: SyncFabricParams): Promise<Syn
   // Step 2: Generate skills for agents + agent systems
   try {
     const targets = await buildSkillTargets(params, agentEntries, systemEntries);
-    const skillsDir = path.join(workspaceDir, "skills", "ai-fabric");
+    const skillsDir = path.join(workspaceDir, "skills");
     const result = await generateFabricSkills({ targets, skillsDir });
     skillCount = result.generated;
     log.debug(`generated ${result.generated} skills, cleaned ${result.cleaned} stale`);
