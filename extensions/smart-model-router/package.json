@@ -1,0 +1,15 @@
+{
+  "name": "@moltbot/smart-model-router",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Multi-model router and usage manager for Moltbot",
+  "moltbot": {
+    "extensions": ["./index.ts"]
+  },
+  "dependencies": {
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "moltbot": "workspace:*"
+  }
+}
