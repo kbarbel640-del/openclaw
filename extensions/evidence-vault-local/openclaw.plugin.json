@@ -1,0 +1,16 @@
+{
+  "id": "evidence-vault-local",
+  "name": "Evidence Vault (Local)",
+  "description": "Local-first, append-only evidence vault with SQLite audit/catalog.",
+  "kind": "tool",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "vaultPath": {
+        "type": "string",
+        "description": "Custom path for the evidence vault files."
+      }
+    }
+  }
+}

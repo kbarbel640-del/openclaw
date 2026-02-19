@@ -1,0 +1,22 @@
+{
+  "name": "@openclaw/memory-mem0",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mem0-powered memory adapter for OpenClaw",
+  "type": "module",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
+    "fs-extra": "^11.2.0"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

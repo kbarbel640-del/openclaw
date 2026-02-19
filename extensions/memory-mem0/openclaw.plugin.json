@@ -1,0 +1,16 @@
+{
+  "id": "memory-mem0",
+  "name": "Memory (Mem0)",
+  "description": "Mem0-powered long-term memory with SQLite backend.",
+  "kind": "memory",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "databasePath": {
+        "type": "string",
+        "description": "Path to the SQLite database for Mem0."
+      }
+    }
+  }
+}

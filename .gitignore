@@ -83,11 +83,14 @@ USER.md
 # local tooling
 .serena/
 
-# Agent credentials and memory (NEVER COMMIT)
+# Antigravity Kit & Development Orchestration (NEVER COMMIT)
+.agent/
+.agent2/
+.pi/
 /memory/
-.agent/*.json
-!.agent/workflows/
 /local/
+
+# Lockfiles
 package-lock.json
 .claude/settings.local.json
 
