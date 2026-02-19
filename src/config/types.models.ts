@@ -23,12 +23,14 @@ export type ModelCompatConfig = {
 
 export type ModelProviderAuthMode = "api-key" | "aws-sdk" | "oauth" | "token";
 
+export type ModelInputModality = "text" | "image" | "audio" | "video";
+
 export type ModelDefinitionConfig = {
   id: string;
   name: string;
   api?: ModelApi;
   reasoning: boolean;
-  input: Array<"text" | "image">;
+  input: ModelInputModality[];
   cost: {
     input: number;
     output: number;

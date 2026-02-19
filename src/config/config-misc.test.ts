@@ -261,6 +261,31 @@ describe("model compat config schema", () => {
   });
 });
 
+describe("model input modalities", () => {
+  it("accepts audio and video in model input overrides", () => {
+    const res = validateConfigObject({
+      models: {
+        providers: {
+          google: {
+            baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+            api: "google-generative-ai",
+            apiKey: "test-key",
+            models: [
+              {
+                id: "gemini-2.5-flash",
+                name: "Gemini 2.5 Flash",
+                input: ["text", "image", "audio", "video"],
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
+});
+
 describe("config paths", () => {
   it("rejects empty and blocked paths", () => {
     expect(parseConfigPath("")).toEqual({
