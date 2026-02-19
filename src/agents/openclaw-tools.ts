@@ -24,6 +24,7 @@ import {
 } from "./tools/sessions-mission-tool.js";
 import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
+import { createTasksTool } from "./tools/tasks-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 
@@ -190,6 +191,7 @@ export function createOpenClawTools(options?: {
       config: options?.config,
     }),
     createRlmTool(),
+    ...createTasksTool({ agentSessionKey: options?.agentSessionKey }),
     ...(webSearchTool ? [webSearchTool] : []),
     ...(webFetchTool ? [webFetchTool] : []),
     ...(imageTool ? [imageTool] : []),

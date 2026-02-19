@@ -153,7 +153,7 @@ function validateMissionSubtasks(
     const maxLoops =
       typeof entry.maxLoops === "number" && Number.isFinite(entry.maxLoops) && entry.maxLoops >= 0
         ? Math.floor(entry.maxLoops)
-        : undefined;
+        : 0; // Default: unlimited loops (agent loops until LOOP_DONE sentinel)
 
     if (!id || !agentId || !task) {
       return {
@@ -316,7 +316,7 @@ export function createSpawnSequentialMissionTool(opts?: MissionToolOpts): AnyAge
         Number.isFinite(params.maxLoops) &&
         params.maxLoops >= 0
           ? Math.floor(params.maxLoops)
-          : undefined;
+          : 0; // Default: unlimited loops (agent loops until LOOP_DONE sentinel)
 
       const rawSubtasks = params.subtasks;
       if (!Array.isArray(rawSubtasks) || rawSubtasks.length === 0) {
@@ -324,11 +324,9 @@ export function createSpawnSequentialMissionTool(opts?: MissionToolOpts): AnyAge
       }
 
       // Apply top-level maxLoops to each subtask that doesn't already have one
-      if (topLevelMaxLoops !== undefined) {
-        for (const raw of rawSubtasks) {
-          if (raw && typeof raw === "object" && !("maxLoops" in raw)) {
-            (raw as Record<string, unknown>).maxLoops = topLevelMaxLoops;
-          }
+      for (const raw of rawSubtasks) {
+        if (raw && typeof raw === "object" && !("maxLoops" in raw)) {
+          (raw as Record<string, unknown>).maxLoops = topLevelMaxLoops;
         }
       }
 
@@ -389,7 +387,7 @@ export function createSpawnParallelMissionTool(opts?: MissionToolOpts): AnyAgent
         Number.isFinite(params.maxLoops) &&
         params.maxLoops >= 0
           ? Math.floor(params.maxLoops)
-          : undefined;
+          : 0; // Default: unlimited loops (agent loops until LOOP_DONE sentinel)
 
       const rawSubtasks = params.subtasks;
       if (!Array.isArray(rawSubtasks) || rawSubtasks.length === 0) {
@@ -397,11 +395,9 @@ export function createSpawnParallelMissionTool(opts?: MissionToolOpts): AnyAgent
       }
 
       // Apply top-level maxLoops to each subtask that doesn't already have one
-      if (topLevelMaxLoops !== undefined) {
-        for (const raw of rawSubtasks) {
-          if (raw && typeof raw === "object" && !("maxLoops" in raw)) {
-            (raw as Record<string, unknown>).maxLoops = topLevelMaxLoops;
-          }
+      for (const raw of rawSubtasks) {
+        if (raw && typeof raw === "object" && !("maxLoops" in raw)) {
+          (raw as Record<string, unknown>).maxLoops = topLevelMaxLoops;
         }
       }
 

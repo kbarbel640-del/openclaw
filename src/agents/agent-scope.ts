@@ -30,6 +30,7 @@ type ResolvedAgentConfig = {
   tools?: AgentEntry["tools"];
   taskDirective?: string;
   maxRetries?: number;
+  brainWorkspaceId?: string;
 };
 
 let defaultAgentWarned = false;
@@ -126,6 +127,8 @@ export function resolveAgentConfig(
     tools: entry.tools,
     taskDirective: typeof entry.taskDirective === "string" ? entry.taskDirective : undefined,
     maxRetries: typeof entry.maxRetries === "number" ? entry.maxRetries : undefined,
+    brainWorkspaceId:
+      typeof entry.brainWorkspaceId === "string" ? entry.brainWorkspaceId : undefined,
   };
 }
 

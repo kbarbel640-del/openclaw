@@ -320,8 +320,8 @@ export class BrainTieredManager implements MemorySearchManager {
   }
 
   /**
-   * Search Brain MCP tiers (1, 2, 3).
-   * Searches agent's private workspace first, then triumph (shared) workspace if insufficient.
+   * Search Brain MCP tiers (1, 2, 3) on agent's private workspace only.
+   * Triumph (shared) workspace is handled by the mission system's triumph inject.
    */
   private async searchBrainTiers(query: string): Promise<InternalSearchResult[]> {
     const results: InternalSearchResult[] = [];
@@ -341,19 +341,9 @@ export class BrainTieredManager implements MemorySearchManager {
         log.debug(`Tier 1 search failed: ${error}`);
       }
 
-      // Search triumph workspace (Tier 1) if configured and private workspace insufficient
-      if (this.config.triumphWorkspaceId) {
-        try {
-          const triumphResults = await this.searchTriumphTier1(query);
-          results.push(...triumphResults);
-
-          if (this.isBrainTierSufficient([...results])) {
-            return results;
-          }
-        } catch (error) {
-          log.debug(`Triumph Tier 1 search failed: ${error}`);
-        }
-      }
+      // Triumph workspace search removed — now handled by the mission system's
+      // triumph inject (subagent-mission.ts) which uses unifiedSearch for better
+      // semantic ranking. Recalled Memory focuses on agent's private workspace only.
     }
 
     // Tier 2: unified_search (semantic) on private workspace
@@ -370,19 +360,9 @@ export class BrainTieredManager implements MemorySearchManager {
         log.debug(`Tier 2 search failed: ${error}`);
       }
 
-      // Search triumph workspace (Tier 2) if configured
-      if (this.config.triumphWorkspaceId) {
-        try {
-          const triumphResults = await this.searchTriumphTier2(query);
-          results.push(...triumphResults);
-
-          if (this.isBrainTierSufficient([...results])) {
-            return results;
-          }
-        } catch (error) {
-          log.debug(`Triumph Tier 2 search failed: ${error}`);
-        }
-      }
+      // Triumph workspace search removed — now handled by the mission system's
+      // triumph inject (subagent-mission.ts) which uses unifiedSearch for better
+      // semantic ranking. Recalled Memory focuses on agent's private workspace only.
     }
 
     // Tier 3: unified_search (full with relationships)

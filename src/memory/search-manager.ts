@@ -119,7 +119,11 @@ export async function getMemorySearchManager(params: {
 class FallbackMemoryManager implements MemorySearchManager {
   private fallback: MemorySearchManager | null = null;
   private primaryFailed = false;
+  private primaryFailedAt = 0;
   private lastError?: string;
+
+  /** Retry primary after 60s instead of permanently falling back. */
+  private static readonly PRIMARY_RETRY_MS = 60_000;
 
   constructor(
     private readonly deps: {
@@ -129,18 +133,30 @@ class FallbackMemoryManager implements MemorySearchManager {
     private readonly onClose?: () => void,
   ) {}
 
+  private shouldRetryPrimary(): boolean {
+    return (
+      this.primaryFailed &&
+      Date.now() - this.primaryFailedAt >= FallbackMemoryManager.PRIMARY_RETRY_MS
+    );
+  }
+
   async search(
     query: string,
     opts?: { maxResults?: number; minScore?: number; sessionKey?: string },
   ) {
-    if (!this.primaryFailed) {
+    if (!this.primaryFailed || this.shouldRetryPrimary()) {
       try {
-        return await this.deps.primary.search(query, opts);
+        const results = await this.deps.primary.search(query, opts);
+        if (this.primaryFailed) {
+          log.info("primary memory recovered after transient failure");
+          this.primaryFailed = false;
+        }
+        return results;
       } catch (err) {
         this.primaryFailed = true;
+        this.primaryFailedAt = Date.now();
         this.lastError = err instanceof Error ? err.message : String(err);
-        log.warn(`qmd memory failed; switching to builtin index: ${this.lastError}`);
-        await this.deps.primary.close?.().catch(() => {});
+        log.warn(`primary memory failed; using fallback: ${this.lastError}`);
       }
     }
     const fallback = await this.ensureFallback();
@@ -151,8 +167,18 @@ class FallbackMemoryManager implements MemorySearchManager {
   }
 
   async readFile(params: { relPath: string; from?: number; lines?: number }) {
-    if (!this.primaryFailed) {
-      return await this.deps.primary.readFile(params);
+    if (!this.primaryFailed || this.shouldRetryPrimary()) {
+      try {
+        const result = await this.deps.primary.readFile(params);
+        if (this.primaryFailed) {
+          this.primaryFailed = false;
+        }
+        return result;
+      } catch (err) {
+        this.primaryFailed = true;
+        this.primaryFailedAt = Date.now();
+        this.lastError = err instanceof Error ? err.message : String(err);
+      }
     }
     const fallback = await this.ensureFallback();
     if (fallback) {
@@ -162,7 +188,7 @@ class FallbackMemoryManager implements MemorySearchManager {
   }
 
   status() {
-    if (!this.primaryFailed) {
+    if (!this.primaryFailed || this.shouldRetryPrimary()) {
       return this.deps.primary.status();
     }
     const fallbackStatus = this.fallback?.status();

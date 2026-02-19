@@ -8,6 +8,7 @@ import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent
 import { registerSkillsChangeListener } from "../agents/skills/refresh.js";
 import { initMissionSystem } from "../agents/subagent-mission.js";
 import { initSubagentRegistry } from "../agents/subagent-registry.js";
+import { initTaskSystem } from "../agents/task-list.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { createDefaultDeps } from "../cli/deps.js";
@@ -226,6 +227,7 @@ export async function startGatewayServer(
   setGatewaySigusr1RestartPolicy({ allowExternal: cfgAtStart.commands?.restart === true });
   initSubagentRegistry();
   initMissionSystem();
+  initTaskSystem();
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);
   const defaultWorkspaceDir = resolveAgentWorkspaceDir(cfgAtStart, defaultAgentId);
   const baseMethods = listGatewayMethods();

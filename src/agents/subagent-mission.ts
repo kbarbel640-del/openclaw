@@ -26,6 +26,7 @@ import {
   extractTranscriptSummary,
   formatTranscriptForRetry,
 } from "./subagent-transcript-summary.js";
+import { markTaskByMission, parseMissionLabelForListId, startTaskByMission } from "./task-list.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
 
 const log = createSubsystemLogger("mission");
@@ -257,7 +258,7 @@ async function spawnSubtask(mission: MissionRecord, subtask: SubtaskRecord): Pro
     ]);
 
     if (triumphResults && triumphResults.length > 0) {
-      memorySection = `## Team Knowledge\n\n${triumphResults.join("\n")}\n\n---\n\n`;
+      memorySection = `## Team Knowledge\n\nThe following lessons were learned from previous missions. Apply any relevant insights to your current task — when making decisions, reference which lesson informed your choice.\n\n${triumphResults.join("\n")}\n\n---\n\n`;
     }
     log.info(
       `[triumph-inject] agent=${subtask.agentId} results=${triumphResults?.length ?? 0} memoryLen=${memorySection.length}`,
@@ -315,6 +316,9 @@ async function spawnSubtask(mission: MissionRecord, subtask: SubtaskRecord): Pro
   subtask.status = "running";
   subtask.startedAt = Date.now();
   mission.totalSpawns++;
+
+  // Auto-track: mark linked task list task as in_progress
+  startTaskByMission(mission.missionId, subtask.id);
 
   // Register in the subagent registry with maxRetries=0 — mission handles retries
   registerSubagentRun({
@@ -374,8 +378,12 @@ async function retrySubtask(mission: MissionRecord, subtask: SubtaskRecord): Pro
       "---",
       "",
       "# Instructions",
-      "You are continuing an iterative task. Use Brain MCP to read/store progress between iterations.",
-      "When the task is fully complete and verified, end your response with: LOOP_DONE",
+      "You are retrying an iterative task after a failure. The previous result is shown above.",
+      "CRITICAL: Do NOT assume the previous failure reason is correct. The previous iteration may have used wrong tool parameters or given up prematurely.",
+      "ALWAYS verify by trying the action yourself — open the browser, navigate to the page, and attempt the task directly.",
+      "Try a DIFFERENT approach — do not repeat steps that already failed.",
+      "Focus on DOING the task (using tools, browser, etc.), not on reading files or searching memory.",
+      "When the task is fully complete, end your response with: LOOP_DONE",
     ].join("\n");
   }
 
@@ -523,10 +531,7 @@ async function loopSubtask(mission: MissionRecord, subtask: SubtaskRecord): Prom
   const contextLines: string[] = [`# Loop Iteration ${loopLabel}`, ""];
 
   if (priorCount > 0) {
-    contextLines.push(
-      `*${priorCount} earlier iteration(s) completed. Use Brain MCP to retrieve full history if needed.*`,
-      "",
-    );
+    contextLines.push(`*${priorCount} earlier iteration(s) completed.*`, "");
   }
 
   if (lastResult) {
@@ -540,8 +545,14 @@ async function loopSubtask(mission: MissionRecord, subtask: SubtaskRecord): Prom
     "---",
     "",
     "# Instructions",
-    "You are continuing an iterative task. Use Brain MCP to read/store progress between iterations.",
-    "Review the most recent iteration result above, then continue where it left off.",
+    "You are continuing an iterative task. The previous iteration result is shown above.",
+    "CRITICAL: Do NOT blindly trust the previous iteration's conclusions about what is 'blocked' or 'impossible'.",
+    "Previous iterations may have used wrong tool parameters or given up too early.",
+    "ALWAYS verify by trying the action yourself — open the browser, navigate to the page, and attempt the task directly.",
+    "If the previous iteration did NOT complete the task, try a DIFFERENT approach — do not repeat the same steps.",
+    "Focus on DOING the task (using tools, browser, etc.), not on reading files or searching memory.",
+    "IMPORTANT: Once you have completed the main objective, say LOOP_DONE immediately. Do NOT start a verification step or re-check — just report what you did and end with LOOP_DONE.",
+    "When the task is fully complete, end your response with: LOOP_DONE",
   );
 
   const isFinalIteration =
@@ -555,7 +566,7 @@ async function loopSubtask(mission: MissionRecord, subtask: SubtaskRecord): Prom
     );
   } else {
     contextLines.push(
-      "When the task is fully complete and verified, your final message MUST comprehensively summarize ALL accumulated work from all iterations (not just this one), then end with: LOOP_DONE",
+      "Once you accomplish the main objective, summarize what you did and end with LOOP_DONE. Do NOT loop again just to verify — report your results and stop.",
       "If you need another iteration, continue working and the next iteration will start automatically.",
     );
   }
@@ -775,6 +786,9 @@ function checkMissionCompletion(mission: MissionRecord) {
   }
   mission.completedAt = Date.now();
   persistMissions();
+
+  // Auto-track: mark linked task list tasks based on mission outcome
+  markTaskByMission(mission.missionId, mission.status);
 
   updateMissionStatusInOms(mission.missionId, mission.status);
 
@@ -1094,6 +1108,9 @@ export function createMission(params: {
 
   missions.set(missionId, mission);
   persistMissions();
+
+  // Auto-link to task list if mission label contains listId:<uuid>: prefix
+  parseMissionLabelForListId(params.label, missionId);
 
   // Spawn root subtasks (no dependencies)
   advanceMission(mission);
