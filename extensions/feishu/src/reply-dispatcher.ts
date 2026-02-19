@@ -93,6 +93,7 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   let streaming: FeishuStreamingSession | null = null;
   let streamText = "";
   let lastPartial = "";
+  let fallbackStreamText = "";
   let partialUpdateQueue: Promise<void> = Promise.resolve();
   let streamingStartPromise: Promise<void> | null = null;
 
@@ -137,6 +138,7 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
     streamingStartPromise = null;
     streamText = "";
     lastPartial = "";
+    fallbackStreamText = "";
   };
 
   const { dispatcher, replyOptions, markDispatchIdle } =
@@ -176,6 +178,32 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
             await closeStreaming();
           }
           return;
+        }
+
+        // If card streaming is expected but unavailable (for example CardKit permission/config
+        // issue), avoid emitting one card per block. Buffer block text and only send a single
+        // final card once we reach `final`.
+        if (streamingEnabled && useCard) {
+          if (info?.kind === "block") {
+            fallbackStreamText = text;
+            return;
+          }
+          if (info?.kind === "final") {
+            const finalText = text || fallbackStreamText;
+            if (!finalText.trim()) {
+              return;
+            }
+            await sendMarkdownCardFeishu({
+              cfg,
+              to: chatId,
+              text: finalText,
+              replyToMessageId,
+              mentions: mentionTargets,
+              accountId,
+            });
+            fallbackStreamText = "";
+            return;
+          }
         }
 
         let first = true;
@@ -244,6 +272,7 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
             }
             lastPartial = payload.text;
             streamText = payload.text;
+            fallbackStreamText = payload.text;
             partialUpdateQueue = partialUpdateQueue.then(async () => {
               if (streamingStartPromise) {
                 await streamingStartPromise;

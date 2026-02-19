@@ -98,15 +98,15 @@ function parseToolSummary(rawText: string): ToolEntry | null {
 }
 
 function formatToolLine(entry: ToolEntry): string {
-  const prefix = entry.isError ? "x" : "-";
+  const header = `调用\`${entry.name}\`工具`;
   if (!entry.detail) {
-    return `${prefix} \`${entry.name}\``;
+    return entry.isError ? `${header}: 执行失败` : header;
   }
-  return `${prefix} \`${entry.name}\`: ${entry.detail}`;
+  return `${header}: ${entry.detail}`;
 }
 
 function formatBlockLine(text: string): string {
-  return `- ${text}`;
+  return text;
 }
 
 function buildCard(params: {
@@ -122,36 +122,44 @@ function buildCard(params: {
         .map((entry) =>
           entry.kind === "tool" ? formatToolLine(entry.tool) : formatBlockLine(entry.text),
         )
-        .join("\n")
-    : "No tool activity yet.";
-  const answer = params.answer.trim() || "Generating...";
+        .filter(Boolean)
+        .join("\n\n")
+    : "暂无过程记录";
 
+  const answer = params.answer.trim() || "思考中...";
   const bodyElements: Array<Record<string, unknown>> = [];
+
   if (params.timeline.length > 0) {
-    bodyElements.push({
-      tag: "collapsible_panel",
-      expanded: !params.collapseTimeline,
-      header: {
-        title: { tag: "plain_text", content: "Tool Activity" },
-      },
-      elements: [{ tag: "markdown", content: timelineMarkdown }],
-    });
+    if (params.collapseTimeline) {
+      bodyElements.push({
+        tag: "collapsible_panel",
+        expanded: false,
+        header: {
+          title: { tag: "plain_text", content: "执行过程" },
+        },
+        elements: [{ tag: "markdown", content: timelineMarkdown, margin: "2px 0px 4px 0px" }],
+      });
+    } else {
+      // During running states, show timeline directly without the collapsible title.
+      bodyElements.push({ tag: "markdown", content: timelineMarkdown, margin: "2px 0px 6px 0px" });
+    }
   }
 
   let answerContent = answer;
   if (params.includeMentions && params.mentionTargets?.length) {
     answerContent = buildMentionedCardContent(params.mentionTargets, answerContent);
   }
-  bodyElements.push({ tag: "markdown", content: answerContent });
+  bodyElements.push({ tag: "markdown", content: answerContent, margin: "2px 0px 0px 0px" });
 
   const title =
     params.status === "completed"
-      ? "Completed"
+      ? "全部完成"
       : params.status === "error"
-        ? "Error"
+        ? "执行异常"
         : params.status === "tool"
-          ? "Running Tools"
-          : "Thinking";
+          ? "调用工具中"
+          : "思考中";
+
   const template =
     params.status === "completed"
       ? "green"
@@ -161,6 +169,15 @@ function buildCard(params: {
           ? "wathet"
           : "blue";
 
+  const iconToken =
+    params.status === "completed"
+      ? "succeed_filled"
+      : params.status === "error"
+        ? "error_filled"
+        : params.status === "tool"
+          ? "setting-inter_filled"
+          : "premium-gleam_filled";
+
   return {
     schema: "2.0",
     config: { update_multi: true, wide_screen_mode: true },
@@ -168,9 +185,13 @@ function buildCard(params: {
       template,
       title: { tag: "plain_text", content: title, text_size: "normal" },
       padding: "5px 12px 5px 12px",
+      icon: { tag: "standard_icon", token: iconToken, color: template },
     },
     body: {
       direction: "vertical",
+      padding: "8px 12px 12px 12px",
+      vertical_spacing: "8px",
+      horizontal_spacing: "0px",
       elements: bodyElements,
     },
   };
@@ -243,6 +264,8 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
   let answer = "";
   let messageId: string | null = null;
   let updater: ReturnType<typeof createCardUpdateQueue> | null = null;
+  let createMessagePromise: Promise<void> | null = null;
+  let opQueue: Promise<void> = Promise.resolve();
 
   const render = (collapseTimeline: boolean) =>
     buildCard({
@@ -257,75 +280,95 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
   const sendOrUpdate = async (collapseTimeline: boolean) => {
     const card = render(collapseTimeline);
     if (!messageId) {
-      const sent = await sendCardFeishu({
-        cfg,
-        to: chatId,
-        card,
-        replyToMessageId,
-        accountId,
-      });
-      messageId = sent.messageId;
-      updater = createCardUpdateQueue({ cfg, messageId, accountId });
+      if (!createMessagePromise) {
+        createMessagePromise = (async () => {
+          const sent = await sendCardFeishu({
+            cfg,
+            to: chatId,
+            card,
+            replyToMessageId,
+            accountId,
+          });
+          messageId = sent.messageId;
+          updater = createCardUpdateQueue({ cfg, messageId, accountId });
+        })().finally(() => {
+          createMessagePromise = null;
+        });
+      }
+      await createMessagePromise;
       return;
     }
     updater?.schedule(card);
   };
 
+  const enqueueOp = (op: () => Promise<void>) => {
+    opQueue = opQueue.then(op).catch(() => {});
+    return opQueue;
+  };
+
   return {
     async deliver(payload: ReplyPayload, info: ReplyDeliverInfo) {
-      const textRaw = payload.text ?? "";
+      await enqueueOp(async () => {
+        const textRaw = payload.text ?? "";
 
-      if (info.kind === "tool") {
-        const parsed = parseToolSummary(textRaw);
-        if (parsed) {
-          timeline = [...timeline, { kind: "tool", tool: parsed }];
-          status = parsed.isError ? "error" : "tool";
-        } else if (textRaw.trim()) {
-          timeline = [...timeline, { kind: "block", text: textRaw.trim() }];
+        if (info.kind === "tool") {
+          const parsed = parseToolSummary(textRaw);
+          if (parsed) {
+            timeline = [...timeline, { kind: "tool", tool: parsed }];
+            status = parsed.isError ? "error" : "tool";
+          } else if (textRaw.trim()) {
+            timeline = [...timeline, { kind: "block", text: textRaw.trim() }];
+          }
+          await sendOrUpdate(false);
+          return;
         }
-        await sendOrUpdate(false);
-        return;
-      }
 
-      const text = stripReasoningSection(textRaw);
-      if (info.kind === "block" && text) {
-        const normalized = text.replace(/\s+/g, " ").trim();
-        if (normalized && normalized !== lastBlockNormalized) {
-          timeline = [...timeline, { kind: "block", text: text.trim() }];
-          lastBlockNormalized = normalized;
+        const text = stripReasoningSection(textRaw);
+        if (info.kind === "block" && text) {
+          const normalized = text.replace(/\s+/g, " ").trim();
+          if (normalized && normalized !== lastBlockNormalized) {
+            timeline = [...timeline, { kind: "block", text: text.trim() }];
+            lastBlockNormalized = normalized;
+          }
         }
-      }
-      if (text) {
-        answer = mergeStreamText(answer, text);
-      }
-      status = info.kind === "final" ? "completed" : status === "error" ? "error" : "thinking";
-      await sendOrUpdate(info.kind === "final");
+        if (text) {
+          answer = mergeStreamText(answer, text);
+        }
+        status = info.kind === "final" ? "completed" : status === "error" ? "error" : "thinking";
+        await sendOrUpdate(info.kind === "final");
+      });
     },
     async onPartialReply(payload: ReplyPayload) {
-      const text = stripReasoningSection(payload.text ?? "");
-      if (!text) {
-        return;
-      }
-      answer = mergeStreamText(answer, text);
-      if (status !== "error" && status !== "tool") {
-        status = "thinking";
-      }
-      await sendOrUpdate(false);
+      await enqueueOp(async () => {
+        const text = stripReasoningSection(payload.text ?? "");
+        if (!text) {
+          return;
+        }
+        answer = mergeStreamText(answer, text);
+        if (status !== "error" && status !== "tool") {
+          status = "thinking";
+        }
+        await sendOrUpdate(false);
+      });
     },
     async finalize() {
-      if (!messageId && !answer.trim() && timeline.length === 0) {
-        return;
-      }
-      if (status !== "error") {
-        status = "completed";
-      }
-      await sendOrUpdate(true);
-      await updater?.flush();
+      await enqueueOp(async () => {
+        if (!messageId && !answer.trim() && timeline.length === 0) {
+          return;
+        }
+        if (status !== "error") {
+          status = "completed";
+        }
+        await sendOrUpdate(true);
+        await updater?.flush();
+      });
     },
     async onError() {
-      status = "error";
-      await sendOrUpdate(true);
-      await updater?.flush();
+      await enqueueOp(async () => {
+        status = "error";
+        await sendOrUpdate(true);
+        await updater?.flush();
+      });
     },
   };
 }
