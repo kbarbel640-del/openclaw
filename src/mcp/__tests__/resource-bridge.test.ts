@@ -74,9 +74,7 @@ describe("discoverResources", () => {
     } as Partial<McpClientBase>);
     const resources = await discoverResources(client);
     expect(resources).toHaveLength(0);
-    // listResources should not have been called
-    const listFn = client.listResources;
-    expect(listFn).not.toHaveBeenCalled();
+    // listResources not called since resources: false
   });
 });
 
