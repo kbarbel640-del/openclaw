@@ -183,6 +183,18 @@ function coerceDelivery(delivery: UnknownRecord) {
       delete next.to;
     }
   }
+  if ("threadId" in delivery) {
+    if (typeof delivery.threadId === "string") {
+      const trimmed = delivery.threadId.trim();
+      if (trimmed) {
+        next.threadId = trimmed;
+      } else {
+        delete next.threadId;
+      }
+    } else if (typeof delivery.threadId === "number") {
+      next.threadId = delivery.threadId;
+    }
+  }
   return next;
 }
 

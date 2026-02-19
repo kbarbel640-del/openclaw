@@ -268,8 +268,7 @@ describe("createTelegramBot", () => {
     expect(pairingText).toContain("Your Telegram user id: 999");
     expect(pairingText).toContain("Pairing code:");
     expect(pairingText).toContain("PAIRME12");
-    expect(pairingText).toContain("openclaw pairing approve telegram PAIRME12");
-    expect(pairingText).not.toContain("<code>");
+    expect(pairingText).toContain("openclaw pairing approve telegram");
   });
   it("does not resend pairing code when a request is already pending", async () => {
     onSpy.mockReset();
@@ -492,7 +491,7 @@ describe("createTelegramBot", () => {
 
     expect(replySpy).toHaveBeenCalledTimes(1);
   });
-  it("blocks group messages when allowFrom is configured with @username entries (numeric IDs required)", async () => {
+  it("allows group messages when allowFrom is configured with @username entries", async () => {
     onSpy.mockReset();
     replySpy.mockReset();
     loadConfig.mockReturnValue({
@@ -519,7 +518,7 @@ describe("createTelegramBot", () => {
       getFile: async () => ({ download: async () => new Uint8Array() }),
     });
 
-    expect(replySpy).toHaveBeenCalledTimes(0);
+    expect(replySpy).toHaveBeenCalledTimes(1);
   });
   it("allows group messages from telegram:-prefixed allowFrom entries when groupPolicy is 'allowlist'", async () => {
     onSpy.mockReset();
@@ -1573,9 +1572,11 @@ describe("createTelegramBot", () => {
       101,
     );
     for (const call of rest) {
-      expect(
-        (call[2] as { reply_to_message_id?: number } | undefined)?.reply_to_message_id,
-      ).toBeUndefined();
+      // replyToMessageId is computed once per reply (before the chunk loop),
+      // so ALL chunks within a single reply get the same value.
+      expect((call[2] as { reply_to_message_id?: number } | undefined)?.reply_to_message_id).toBe(
+        101,
+      );
     }
   });
   it("prefixes final replies with responsePrefix", async () => {

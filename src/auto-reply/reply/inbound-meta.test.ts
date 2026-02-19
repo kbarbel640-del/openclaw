@@ -50,13 +50,14 @@ describe("buildInboundMetaSystemPrompt", () => {
 });
 
 describe("buildInboundUserContextPrefix", () => {
-  it("omits conversation label block for direct chats", () => {
+  it("includes conversation label block even for direct chats", () => {
     const text = buildInboundUserContextPrefix({
       ChatType: "direct",
       ConversationLabel: "openclaw-tui",
     } as TemplateContext);
 
-    expect(text).toBe("");
+    expect(text).toContain("conversation_label");
+    expect(text).toContain("openclaw-tui");
   });
 
   it("keeps conversation label for group chats", () => {

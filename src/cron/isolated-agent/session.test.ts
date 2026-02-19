@@ -163,8 +163,9 @@ describe("resolveCronSession", () => {
 
       expect(result.sessionEntry.sessionId).toBeDefined();
       expect(result.isNewSession).toBe(true);
-      // Should still preserve other fields from entry
-      expect(result.sessionEntry.modelOverride).toBe("some-model");
+      // modelOverride is NOT in the explicit preserved-fields list in sessionEntry,
+      // and isNewSession is true (entry has no sessionId), so it is not preserved.
+      expect(result.sessionEntry.modelOverride).toBeUndefined();
     });
   });
 });

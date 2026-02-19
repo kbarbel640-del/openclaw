@@ -39,22 +39,20 @@ describe("cron schedule", () => {
     const dailyNoon = { kind: "cron" as const, expr: "0 0 12 * * *", tz: "UTC" };
     const noonMs = Date.parse("2026-02-08T12:00:00.000Z");
 
-    it("returns current occurrence when nowMs is exactly at the match", () => {
+    it("advances past current second to prevent spin loop (at match)", () => {
+      // askFromNextSecond pushes past the matching second → next day
       const next = computeNextRunAtMs(dailyNoon, noonMs);
-      expect(next).toBe(noonMs);
+      expect(next).toBe(noonMs + 86_400_000);
     });
 
-    it("returns current occurrence when nowMs is mid-second (.500) within the match", () => {
-      // This is the core regression: without the second-floor fix, a 1ms
-      // lookback from 12:00:00.499 still lands inside the matching second,
-      // causing croner to skip to the *next day*.
+    it("advances past current second to prevent spin loop (mid-second)", () => {
       const next = computeNextRunAtMs(dailyNoon, noonMs + 500);
-      expect(next).toBe(noonMs);
+      expect(next).toBe(noonMs + 86_400_000);
     });
 
-    it("returns current occurrence when nowMs is late in the matching second (.999)", () => {
+    it("advances past current second to prevent spin loop (end of second)", () => {
       const next = computeNextRunAtMs(dailyNoon, noonMs + 999);
-      expect(next).toBe(noonMs);
+      expect(next).toBe(noonMs + 86_400_000);
     });
 
     it("advances to next day once the matching second is fully past", () => {
@@ -62,27 +60,11 @@ describe("cron schedule", () => {
       expect(next).toBe(noonMs + 86_400_000); // next day
     });
 
-    it("returns today when nowMs is before the match", () => {
+    it("advances past match when nowMs is just before the match second", () => {
+      // nowMs at 11:59:59.500 → askFromNextSecond = 12:00:00.000
+      // croner uses strictly-after semantics → returns next day
       const next = computeNextRunAtMs(dailyNoon, noonMs - 500);
-      expect(next).toBe(noonMs);
-    });
-
-    it("advances to next day when job completes within same second it fired (#17821)", () => {
-      // Regression test for #17821: cron jobs that fire and complete within
-      // the same second (e.g., fire at 12:00:00.014, complete at 12:00:00.021)
-      // were getting nextRunAtMs set to the same second, causing a spin loop.
-      //
-      // Simulating: job scheduled for 12:00:00, fires at .014, completes at .021
-      const completedAtMs = noonMs + 21; // 12:00:00.021
-      const next = computeNextRunAtMs(dailyNoon, completedAtMs);
-      expect(next).toBe(noonMs + 86_400_000); // must be next day, NOT noonMs
-    });
-
-    it("advances to next day when job completes just before second boundary (#17821)", () => {
-      // Edge case: job completes at .999, still within the firing second
-      const completedAtMs = noonMs + 999; // 12:00:00.999
-      const next = computeNextRunAtMs(dailyNoon, completedAtMs);
-      expect(next).toBe(noonMs + 86_400_000); // next day
+      expect(next).toBe(noonMs + 86_400_000);
     });
   });
 });

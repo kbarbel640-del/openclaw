@@ -40,7 +40,7 @@ export function parseDurationMs(input: string): number | null {
   if (!raw) {
     return null;
   }
-  const match = raw.match(/^(\d+(?:\.\d+)?)(ms|s|m|h|d)$/i);
+  const match = raw.match(/^\+?(\d+(?:\.\d+)?)(ms|s|m|h|d)$/i);
   if (!match) {
     return null;
   }

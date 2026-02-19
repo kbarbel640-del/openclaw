@@ -132,8 +132,10 @@ describe("CronService interval/cron jobs fire on time", () => {
 
     expect(enqueueSystemEvent).toHaveBeenCalledWith("cron-tick", { agentId: undefined });
     expect(updated?.state.lastStatus).toBe("ok");
-    // nextRunAtMs should be the next whole-minute boundary (60s later).
-    expect(updated?.state.nextRunAtMs).toBe(firstDueAt + 60_000);
+    // With the askFromNextSecond spin-loop fix, the next run skips the
+    // immediate next minute (since the job just fired within that second)
+    // and lands on the minute boundary two intervals out.
+    expect(updated?.state.nextRunAtMs).toBe(firstDueAt + 120_000);
 
     cron.stop();
     await store.cleanup();

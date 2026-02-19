@@ -1,6 +1,7 @@
 # Planfit OpenClaw Fork
 
-Planfit 내부용 OpenClaw 포크입니다. Claude Agent SDK 통합을 통해 타임아웃 문제를 해결합니다.
+Planfit 내부용 OpenClaw 포크입니다. Claude Agent SDK 통합을 통해 타임아웃 문제를
+해결합니다.
 
 ## 변경 사항
 

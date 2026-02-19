@@ -50,6 +50,14 @@ export function setAbortMemory(key: string, value: boolean): void {
   ABORT_MEMORY.set(key, value);
 }
 
+export function getAbortMemorySizeForTest(): number {
+  return ABORT_MEMORY.size;
+}
+
+export function resetAbortMemoryForTest(): void {
+  ABORT_MEMORY.clear();
+}
+
 export function formatAbortReplyText(stoppedSubagents?: number): string {
   if (typeof stoppedSubagents !== "number" || stoppedSubagents <= 0) {
     return "⚙️ Agent was aborted.";
