@@ -2,10 +2,10 @@ import type { ClawdbotConfig, RuntimeEnv } from "openclaw/plugin-sdk";
 import {
   buildAgentMediaPayload,
   buildPendingHistoryContextFromMap,
-  recordPendingHistoryEntryIfEnabled,
   clearHistoryEntriesIfEnabled,
   DEFAULT_GROUP_HISTORY_LIMIT,
   type HistoryEntry,
+  recordPendingHistoryEntryIfEnabled,
 } from "openclaw/plugin-sdk";
 import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
@@ -20,10 +20,10 @@ import {
   isMentionForwardRequest,
 } from "./mention.js";
 import {
+  isFeishuGroupAllowed,
+  resolveFeishuAllowlistMatch,
   resolveFeishuGroupConfig,
   resolveFeishuReplyPolicy,
-  resolveFeishuAllowlistMatch,
-  isFeishuGroupAllowed,
 } from "./policy.js";
 import { createFeishuReplyDispatcher } from "./reply-dispatcher.js";
 import { getFeishuRuntime } from "./runtime.js";

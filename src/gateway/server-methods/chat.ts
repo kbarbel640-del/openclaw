@@ -1,6 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { CURRENT_SESSION_VERSION, SessionManager } from "@mariozechner/pi-coding-agent";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let AeonMemoryPlugin: any = null;
+// @ts-ignore: Optional dependency for ultra-low-latency memory
+import("aeon-memory")
+  .then((m) => {
+    AeonMemoryPlugin = m.AeonMemory;
+  })
+  .catch((e: unknown) => {
+    const code = e instanceof Error ? (e as NodeJS.ErrnoException).code : undefined;
+    if (code !== "ERR_MODULE_NOT_FOUND" && code !== "MODULE_NOT_FOUND") {
+      console.error("🚨 [AeonMemory] Load failed:", e);
+    }
+  });
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { resolveThinkingDefault } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
@@ -413,7 +426,19 @@ function appendAssistantTranscriptMessage(params: {
     // IMPORTANT: Use SessionManager so the entry is attached to the current leaf via parentId.
     // Raw jsonl appends break the parent chain and can hide compaction summaries from context.
     const sessionManager = SessionManager.open(transcriptPath);
-    const messageId = sessionManager.appendMessage(messageBody);
+
+    let messageId: string;
+    if (AeonMemoryPlugin) {
+      const aeon = AeonMemoryPlugin.getInstance();
+      if (aeon && aeon.isAvailable()) {
+        aeon.saveTurn(params.sessionId, messageBody);
+        messageId = `aeon-${params.sessionId}-${Date.now()}`;
+      } else {
+        messageId = sessionManager.appendMessage(messageBody);
+      }
+    } else {
+      messageId = sessionManager.appendMessage(messageBody);
+    }
     return { ok: true, messageId, message: messageBody };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
