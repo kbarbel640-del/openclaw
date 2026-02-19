@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import type { AnyAgentTool, OpenClawPluginApi, OpenClawPluginService } from "openclaw/plugin-sdk";
 import { KeepSession } from "./src/session.js";
@@ -44,6 +45,7 @@ export default function register(api: OpenClawPluginApi): void {
       if (action === "login") {
         let loginResult: Awaited<ReturnType<typeof session.openLoginBrowser>>;
         try {
+          // Bug #5 fix: openLoginBrowser now owns the done promise internally
           loginResult = await session.openLoginBrowser();
         } catch (err) {
           return {
@@ -51,19 +53,10 @@ export default function register(api: OpenClawPluginApi): void {
           };
         }
 
-        // Watch for successful login in the background, then close the browser
-        void (async () => {
-          const { context, page } = loginResult;
-          try {
-            await page.waitForURL((url) => !url.href.includes("accounts.google.com"), {
-              timeout: 5 * 60_000,
-            });
-            await context.close();
-            api.logger.info("google-keep: login completed, browser closed");
-          } catch {
-            // Timed out or browser was closed manually — that is fine
-          }
-        })();
+        // Log completion in the background; the session cleans itself up via done
+        void loginResult.done.then(() => {
+          api.logger.info("google-keep: login browser closed, session saved");
+        });
 
         return {
           text: [
@@ -75,9 +68,12 @@ export default function register(api: OpenClawPluginApi): void {
       }
 
       if (action === "status") {
-        return {
-          text: "Google Keep: use /keep login to authenticate if tool calls fail with auth errors.",
-        };
+        // Bug #6 fix: report actual profile state instead of a static hint
+        const hasProfile = fs.existsSync(profileDir);
+        const status = hasProfile
+          ? `Authenticated — session profile found at ${profileDir}`
+          : `Not authenticated — run /keep login to sign in`;
+        return { text: `Google Keep: ${status}` };
       }
 
       return {

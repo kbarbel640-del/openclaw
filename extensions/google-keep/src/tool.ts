@@ -46,14 +46,17 @@ export function createKeepTool(api: OpenClawPluginApi, session: KeepSession) {
       const timeoutMs = cfg.timeoutMs ?? 15_000;
 
       const page = await session.getPage();
-      await page.goto(url, { timeout: timeoutMs, waitUntil: "domcontentloaded" });
+      // Bug #3 fix: use "load" so Keep's JS has time to bootstrap before we
+      // check the URL and start waiting for note content.
+      await page.goto(url, { timeout: timeoutMs, waitUntil: "load" });
 
       const currentUrl = page.url();
       if (isAuthUrl(currentUrl)) {
         throw new KeepAuthError();
       }
 
-      const allItems = await extractUncheckedItems(page);
+      // Bug #4 fix: forward timeoutMs so extractUncheckedItems respects config.
+      const allItems = await extractUncheckedItems(page, timeoutMs);
       const items = limit !== undefined ? allItems.slice(0, limit) : allItems;
 
       return jsonResult({ items, count: items.length, url });
