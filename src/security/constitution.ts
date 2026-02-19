@@ -39,26 +39,9 @@ export function loadConstitution(config?: SecurityAlignmentConfig): Constitution
   ).map((p) => ({ ...p }));
 
   // Load custom constitution file if specified
+  if (config?.constitutionPath) {
+    try {
       const customData = JSON.parse(fs.readFileSync(config.constitutionPath, "utf-8"));
-      if (Array.isArray(customData?.principles)) {
-        // Preserve default immutable principles, merge with custom ones
-        const defaultImmutable = basePrinciples.filter((p) => p.immutable);
-        const customPrinciples = customData.principles.map((p: ConstitutionPrinciple) => ({
-          ...p,
-          immutable: p.immutable ?? false,
-        }));
-        const defaultImmutableIds = new Set(defaultImmutable.map((p) => p.id));
-        basePrinciples = [
-          ...defaultImmutable,
-          ...customPrinciples.filter((p: ConstitutionPrinciple) => !defaultImmutableIds.has(p.id)),
-        ];
-      }
-    } catch (err) {
-      console.warn(
-        `[constitution] Failed to load custom constitution from ${config.constitutionPath}: ${err instanceof Error ? err.message : String(err)}. Falling back to defaults.`,
-      );
-    }
-  }
 
   // Add custom principles from config
   if (config?.customPrinciples) {
