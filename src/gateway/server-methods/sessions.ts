@@ -233,7 +233,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     }
     respond(true, { ok: true, key: resolved.key }, undefined);
   },
-  "sessions.patch": async ({ params, respond, context }) => {
+  "sessions.patch": async ({ params, respond, context, client, isWebchatConnect }) => {
     if (!validateSessionsPatchParams(params)) {
       respond(
         false,
@@ -249,6 +249,17 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     const key = String(p.key ?? "").trim();
     if (!key) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "key required"));
+      return;
+    }
+    if (client?.connect && isWebchatConnect(client.connect)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "webchat clients cannot patch sessions; use chat.send for session-scoped updates",
+        ),
+      );
       return;
     }
 
@@ -357,7 +368,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     });
     respond(true, { ok: true, key: target.canonicalKey, entry: next }, undefined);
   },
-  "sessions.delete": async ({ params, respond }) => {
+  "sessions.delete": async ({ params, respond, client, isWebchatConnect }) => {
     if (!validateSessionsDeleteParams(params)) {
       respond(
         false,
@@ -373,6 +384,17 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     const key = String(p.key ?? "").trim();
     if (!key) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "key required"));
+      return;
+    }
+    if (client?.connect && isWebchatConnect(client.connect)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "webchat clients cannot delete sessions; use chat.send for session-scoped updates",
+        ),
+      );
       return;
     }
 
