@@ -1,16 +1,17 @@
 import { html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import type { AssistantIdentity } from "../assistant-identity";
-import type { MessageGroup } from "../types/chat-types";
-import { toSanitizedMarkdownHtml } from "../markdown";
-import { renderCopyAsMarkdownButton } from "./copy-as-markdown";
+import type { AssistantIdentity } from "../assistant-identity.ts";
+import { toSanitizedMarkdownHtml } from "../markdown.ts";
+import { detectTextDirection } from "../text-direction.ts";
+import type { MessageGroup } from "../types/chat-types.ts";
+import { renderCopyAsMarkdownButton } from "./copy-as-markdown.ts";
 import {
   extractTextCached,
   extractThinkingCached,
   formatReasoningMarkdown,
-} from "./message-extract";
-import { isToolResultMessage, normalizeRoleForGrouping } from "./message-normalizer";
-import { extractToolCards, renderToolCardSidebar } from "./tool-cards";
+} from "./message-extract.ts";
+import { isToolResultMessage, normalizeRoleForGrouping } from "./message-normalizer.ts";
+import { extractToolCards, renderToolCardSidebar } from "./tool-cards.ts";
 
 type ImageBlock = {
   url: string;
@@ -24,20 +25,31 @@ function extractImages(message: unknown): ImageBlock[] {
 
   if (Array.isArray(content)) {
     for (const block of content) {
-      if (typeof block !== "object" || block === null) continue;
+      if (typeof block !== "object" || block === null) {
+        continue;
+      }
       const b = block as Record<string, unknown>;
 
       if (b.type === "image") {
-        // Handle source object format (from sendChatMessage)
-        const source = b.source as Record<string, unknown> | undefined;
-        if (source?.type === "base64" && typeof source.data === "string") {
-          const data = source.data as string;
-          const mediaType = (source.media_type as string) || "image/png";
-          // If data is already a data URL, use it directly
-          const url = data.startsWith("data:") ? data : `data:${mediaType};base64,${data}`;
+        // Handle inline data fields (preserved by normalizeMessage)
+        if (typeof b.data === "string") {
+          const mimeType = (b.mimeType as string) || "image/png";
+          const data = b.data as string;
+          const url = data.startsWith("data:") ? data : `data:${mimeType};base64,${data}`;
           images.push({ url });
-        } else if (typeof b.url === "string") {
-          images.push({ url: b.url });
+        }
+        // Handle source object format (from sendChatMessage)
+        else {
+          const source = b.source as Record<string, unknown> | undefined;
+          if (source?.type === "base64" && typeof source.data === "string") {
+            const data = source.data;
+            const mediaType = (source.media_type as string) || "image/png";
+            // If data is already a data URL, use it directly
+            const url = data.startsWith("data:") ? data : `data:${mediaType};base64,${data}`;
+            images.push({ url });
+          } else if (typeof b.url === "string") {
+            images.push({ url: b.url });
+          }
         }
       } else if (b.type === "image_url") {
         // OpenAI format
@@ -188,12 +200,14 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
 
 function isAvatarUrl(value: string): boolean {
   return (
-    /^https?:\/\//i.test(value) || /^data:image\//i.test(value) || /^\//.test(value) // Relative paths from avatar endpoint
+    /^https?:\/\//i.test(value) || /^data:image\//i.test(value) || value.startsWith("/") // Relative paths from avatar endpoint
   );
 }
 
 function renderMessageImages(images: ImageBlock[]) {
-  if (images.length === 0) return nothing;
+  if (images.length === 0) {
+    return nothing;
+  }
 
   return html`
     <div class="chat-message-images">
@@ -247,11 +261,22 @@ function renderGroupedMessage(
     .filter(Boolean)
     .join(" ");
 
+  // Tool-result-only messages: render tool cards AND any images from the result.
   if (!markdown && hasToolCards && isToolResult) {
+    if (hasImages) {
+      return html`
+        <div class="${bubbleClasses}">
+          ${renderMessageImages(images)}
+          ${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}
+        </div>
+      `;
+    }
     return html`${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}`;
   }
 
-  if (!markdown && !hasToolCards && !hasImages) return nothing;
+  if (!markdown && !hasToolCards && !hasImages) {
+    return nothing;
+  }
 
   return html`
     <div class="${bubbleClasses}">
@@ -266,7 +291,7 @@ function renderGroupedMessage(
       }
       ${
         markdown
-          ? html`<div class="chat-text">${unsafeHTML(toSanitizedMarkdownHtml(markdown))}</div>`
+          ? html`<div class="chat-text" dir="${detectTextDirection(markdown)}">${unsafeHTML(toSanitizedMarkdownHtml(markdown))}</div>`
           : nothing
       }
       ${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}

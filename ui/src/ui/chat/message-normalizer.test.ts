@@ -3,7 +3,7 @@ import {
   normalizeMessage,
   normalizeRoleForGrouping,
   isToolResultMessage,
-} from "./message-normalizer";
+} from "./message-normalizer.ts";
 
 describe("message-normalizer", () => {
   describe("normalizeMessage", () => {
@@ -44,15 +44,12 @@ describe("message-normalizer", () => {
 
       expect(result.role).toBe("assistant");
       expect(result.content).toHaveLength(2);
-      expect(result.content[0]).toEqual({
+      expect(result.content[0]).toMatchObject({
         type: "text",
         text: "Here is the result",
-        name: undefined,
-        args: undefined,
       });
-      expect(result.content[1]).toEqual({
+      expect(result.content[1]).toMatchObject({
         type: "tool_use",
-        text: undefined,
         name: "bash",
         args: { command: "ls" },
       });
@@ -109,6 +106,56 @@ describe("message-normalizer", () => {
       });
 
       expect(result.content[0].args).toEqual({ foo: "bar" });
+    });
+
+    it("preserves image data and mimeType fields", () => {
+      const result = normalizeMessage({
+        role: "tool_result",
+        toolCallId: "call-read-1",
+        content: [
+          { type: "text", text: "Read image file [image/png]" },
+          { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" },
+        ],
+        timestamp: 3000,
+      });
+
+      expect(result.role).toBe("toolResult");
+      expect(result.content).toHaveLength(2);
+      expect(result.content[1]).toMatchObject({
+        type: "image",
+        data: "iVBORw0KGgo=",
+        mimeType: "image/png",
+      });
+    });
+
+    it("preserves source object for Anthropic-style image blocks", () => {
+      const result = normalizeMessage({
+        role: "assistant",
+        content: [
+          {
+            type: "image",
+            source: { type: "base64", data: "iVBORw0KGgo=", media_type: "image/png" },
+          },
+        ],
+        timestamp: 4000,
+      });
+
+      expect(result.content[0]).toMatchObject({
+        type: "image",
+        source: { type: "base64", data: "iVBORw0KGgo=", media_type: "image/png" },
+      });
+    });
+
+    it("preserves data field as undefined when not present", () => {
+      const result = normalizeMessage({
+        role: "assistant",
+        content: [{ type: "text", text: "No image here" }],
+        timestamp: 5000,
+      });
+
+      expect(result.content[0].data).toBeUndefined();
+      expect(result.content[0].mimeType).toBeUndefined();
+      expect(result.content[0].source).toBeUndefined();
     });
   });
 

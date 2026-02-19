@@ -5,6 +5,7 @@
 /** Union type for items in the chat thread */
 export type ChatItem =
   | { kind: "message"; key: string; message: unknown }
+  | { kind: "divider"; key: string; label: string; timestamp: number }
   | { kind: "stream"; key: string; text: string; startedAt: number }
   | { kind: "reading-indicator"; key: string };
 
@@ -20,10 +21,16 @@ export type MessageGroup = {
 
 /** Content item types in a normalized message */
 export type MessageContentItem = {
-  type: "text" | "tool_call" | "tool_result";
+  type: "text" | "tool_call" | "tool_result" | "image" | "image_url";
   text?: string;
   name?: string;
   args?: unknown;
+  /** Base64-encoded image data (for image content blocks from tool results) */
+  data?: string;
+  /** MIME type for image content blocks (e.g. "image/png") */
+  mimeType?: string;
+  /** Source object for image blocks (Anthropic format) */
+  source?: { type?: string; data?: string; media_type?: string };
 };
 
 /** Normalized message structure for rendering */
