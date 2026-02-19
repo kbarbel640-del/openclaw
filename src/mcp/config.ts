@@ -5,12 +5,17 @@
  * - agents.defaults.mcp.servers
  * - agents.list[].mcp.servers
  */
+import { z } from "zod";
+
+// ── Types ──────────────────────────────────────────────────────
 
 export type McpTransport = "stdio" | "sse" | "http";
 
 export type McpServerConfig = {
   /** Enable/disable this server (default: true) */
   enabled?: boolean;
+  /** Lazy startup — don't connect until first tool call (default: false) */
+  lazy?: boolean;
 
   /** Transport type (default: "stdio") */
   transport?: McpTransport;
@@ -54,3 +59,79 @@ export type McpConfig = {
   /** Named MCP server configurations */
   servers?: Record<string, McpServerConfig>;
 };
+
+// ── Zod Schemas ────────────────────────────────────────────────
+
+export const McpServerConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    lazy: z.boolean().optional(),
+    transport: z.enum(["stdio", "sse", "http"]).optional(),
+    command: z.string().optional(),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    cwd: z.string().optional(),
+    url: z.string().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    timeout: z.number().positive().optional(),
+    toolTimeout: z.number().positive().optional(),
+    restartOnCrash: z.boolean().optional(),
+    maxRestarts: z.number().nonnegative().optional(),
+    toolPrefix: z.string().optional(),
+    resources: z.boolean().optional(),
+    resourceFilter: z.array(z.string()).optional(),
+    resourceRefreshMs: z.number().positive().optional(),
+  })
+  .strict();
+
+export const McpConfigSchema = z
+  .object({
+    servers: z.record(z.string(), McpServerConfigSchema).optional(),
+  })
+  .strict();
+
+// ── Validation ─────────────────────────────────────────────────
+
+export type McpValidationResult =
+  | { success: true; data: McpConfig }
+  | { success: false; error: string };
+
+/**
+ * Validate an MCP config object. Returns parsed config or actionable error.
+ * Performs transport-specific checks (stdio needs command, sse/http needs url).
+ */
+export function validateMcpConfig(input: unknown): McpValidationResult {
+  const parseResult = McpConfigSchema.safeParse(input);
+  if (!parseResult.success) {
+    const formatted = parseResult.error.issues
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
+    return { success: false, error: formatted };
+  }
+
+  const config = parseResult.data;
+
+  // Transport-specific validation
+  for (const [name, server] of Object.entries(config.servers ?? {})) {
+    // Skip disabled servers
+    if (server.enabled === false) {
+      continue;
+    }
+
+    const transport = server.transport ?? "stdio";
+    if (transport === "stdio" && !server.command) {
+      return {
+        success: false,
+        error: `servers.${name}: stdio transport requires 'command'`,
+      };
+    }
+    if ((transport === "sse" || transport === "http") && !server.url) {
+      return {
+        success: false,
+        error: `servers.${name}: ${transport} transport requires 'url'`,
+      };
+    }
+  }
+
+  return { success: true, data: config };
+}

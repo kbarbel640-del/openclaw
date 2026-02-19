@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseDurationMs } from "../cli/parse-duration.js";
+import { McpConfigSchema } from "../mcp/config.js";
 import {
   GroupChatSchema,
   HumanDelaySchema,
@@ -481,6 +482,7 @@ export const AgentEntrySchema = z
       .optional(),
     sandbox: AgentSandboxSchema,
     tools: AgentToolsSchema,
+    mcp: McpConfigSchema.optional(),
   })
   .strict();
 

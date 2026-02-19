@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { McpConfigSchema } from "../mcp/config.js";
 import {
   HeartbeatSchema,
   MemorySearchSchema,
@@ -171,6 +172,7 @@ export const AgentDefaultsSchema = z
       })
       .strict()
       .optional(),
+    mcp: McpConfigSchema.optional(),
   })
   .strict()
   .optional();
