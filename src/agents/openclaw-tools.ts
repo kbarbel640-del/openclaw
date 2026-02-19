@@ -59,6 +59,8 @@ export function createOpenClawTools(options?: {
   requireExplicitMessageTarget?: boolean;
   /** If true, omit the message tool from the tool list. */
   disableMessageTool?: boolean;
+  /** Pre-bridged MCP tools to append after plugin tools. */
+  mcpTools?: AnyAgentTool[];
 }): AnyAgentTool[] {
   const imageTool = options?.agentDir?.trim()
     ? createImageTool({
@@ -171,5 +173,7 @@ export function createOpenClawTools(options?: {
     toolAllowlist: options?.pluginToolAllowlist,
   });
 
-  return [...tools, ...pluginTools];
+  const mcpTools = options?.mcpTools ?? [];
+
+  return [...tools, ...pluginTools, ...mcpTools];
 }

@@ -4,10 +4,12 @@ import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs/promises";
 import os from "node:os";
+import type { OpenClawConfig } from "../../../config/config.js";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
+import { McpManager, type McpConfig } from "../../../mcp/index.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
 import { isSubagentSessionKey, normalizeAgentId } from "../../../routing/session-key.js";
@@ -19,7 +21,7 @@ import { resolveUserPath } from "../../../utils.js";
 import { normalizeMessageChannel } from "../../../utils/message-channel.js";
 import { isReasoningTagProvider } from "../../../utils/provider-utils.js";
 import { resolveOpenClawAgentDir } from "../../agent-paths.js";
-import { resolveSessionAgentIds } from "../../agent-scope.js";
+import { resolveAgentConfig, resolveSessionAgentIds } from "../../agent-scope.js";
 import { createAnthropicPayloadLogger } from "../../anthropic-payload-log.js";
 import { makeBootstrapWarn, resolveBootstrapContextForRun } from "../../bootstrap-files.js";
 import { createCacheTrace } from "../../cache-trace.js";
@@ -275,6 +277,24 @@ export async function runEmbeddedAttempt(
 
     const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
 
+    // --- MCP integration: merge config, start manager, collect tools + resources ---
+    let mcpManager: McpManager | undefined;
+    let mcpTools: import("../../pi-tools.types.js").AnyAgentTool[] = [];
+    const mcpConfig = resolveMcpConfigForRun(params.config, params.sessionKey);
+    if (mcpConfig && Object.keys(mcpConfig.servers ?? {}).length > 0) {
+      mcpManager = new McpManager(mcpConfig);
+      await mcpManager.start();
+      mcpTools = mcpManager.getTools();
+      // Inject MCP resources as context files
+      const mcpResourceContext = await mcpManager.getResourceContext();
+      if (mcpResourceContext) {
+        contextFiles.push({
+          path: "MCP Resources",
+          content: mcpResourceContext,
+        });
+      }
+    }
+
     // Check if the model supports native image input
     const modelHasVision = params.model.input?.includes("image") ?? false;
     const toolsRaw = params.disableTools
@@ -314,6 +334,7 @@ export async function runEmbeddedAttempt(
           requireExplicitMessageTarget:
             params.requireExplicitMessageTarget ?? isSubagentSessionKey(params.sessionKey),
           disableMessageTool: params.disableMessageTool,
+          mcpTools,
         });
     const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
     logToolSchemasForGoogle({ tools, provider: params.provider });
@@ -1134,9 +1155,42 @@ export async function runEmbeddedAttempt(
       });
       session?.dispose();
       await sessionLock.release();
+      // Shut down MCP servers after session disposal
+      if (mcpManager) {
+        await mcpManager.shutdown().catch((err) => {
+          log.warn(`MCP shutdown error: ${err instanceof Error ? err.message : String(err)}`);
+        });
+      }
     }
   } finally {
     restoreSkillEnv?.();
     process.chdir(prevCwd);
   }
+}
+
+/**
+ * Merge MCP config from agents.defaults.mcp + agents.list[].mcp for the current session.
+ * Agent-level config overrides defaults (servers are merged, agent wins on conflict).
+ */
+function resolveMcpConfigForRun(
+  config: OpenClawConfig | undefined,
+  sessionKey: string | undefined,
+): McpConfig | undefined {
+  const defaultsMcp = config?.agents?.defaults?.mcp;
+  const agentId = sessionKey
+    ? resolveSessionAgentIds({ sessionKey, config })?.sessionAgentId
+    : undefined;
+  const agentMcp = agentId && config ? resolveAgentConfig(config, agentId)?.mcp : undefined;
+
+  if (!defaultsMcp && !agentMcp) {
+    return undefined;
+  }
+
+  // Merge servers: agent-level entries override defaults with the same name
+  const mergedServers = {
+    ...defaultsMcp?.servers,
+    ...agentMcp?.servers,
+  };
+
+  return { servers: mergedServers };
 }

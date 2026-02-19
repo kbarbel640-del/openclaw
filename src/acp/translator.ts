@@ -122,7 +122,9 @@ export class AcpGatewayAgent implements Agent {
 
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
     if (params.mcpServers.length > 0) {
-      this.log(`ignoring ${params.mcpServers.length} MCP servers`);
+      this.log(
+        `received ${params.mcpServers.length} ACP MCP server(s) — agent-configured MCP servers will be used instead`,
+      );
     }
 
     const sessionId = randomUUID();
@@ -152,7 +154,9 @@ export class AcpGatewayAgent implements Agent {
 
   async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
     if (params.mcpServers.length > 0) {
-      this.log(`ignoring ${params.mcpServers.length} MCP servers`);
+      this.log(
+        `received ${params.mcpServers.length} ACP MCP server(s) — agent-configured MCP servers will be used instead`,
+      );
     }
 
     const meta = parseSessionMeta(params._meta);
