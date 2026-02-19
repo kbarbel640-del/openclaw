@@ -191,7 +191,9 @@ export async function handleInlineActions(params: {
     if (bypassModel && execCommand) {
       try {
         const { execSync } = await import("node:child_process");
-        const output = execSync(execCommand, {
+        const args = skillInvocation.args?.trim() || "";
+        const fullCommand = args ? `${execCommand} ${args}` : execCommand;
+        const output = execSync(fullCommand, {
           encoding: "utf-8",
           timeout: 30000,
           maxBuffer: 1024 * 1024,
