@@ -1,11 +1,23 @@
 import type { DatabaseSync } from "node:sqlite";
 
+const SAFE_SQL_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+function assertSafeIdentifier(name: string, label: string): void {
+  if (!SAFE_SQL_IDENTIFIER.test(name)) {
+    throw new Error(
+      `Unsafe SQL identifier for ${label}: ${JSON.stringify(name)}. Only alphanumeric and underscore characters are allowed.`,
+    );
+  }
+}
+
 export function ensureMemoryIndexSchema(params: {
   db: DatabaseSync;
   embeddingCacheTable: string;
   ftsTable: string;
   ftsEnabled: boolean;
 }): { ftsAvailable: boolean; ftsError?: string } {
+  assertSafeIdentifier(params.embeddingCacheTable, "embeddingCacheTable");
+  assertSafeIdentifier(params.ftsTable, "ftsTable");
   params.db.exec(`
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
@@ -88,6 +100,8 @@ function ensureColumn(
   column: string,
   definition: string,
 ): void {
+  assertSafeIdentifier(column, "column");
+  assertSafeIdentifier(definition.split(/\s/)[0] ?? "", "column type");
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   if (rows.some((row) => row.name === column)) {
     return;
