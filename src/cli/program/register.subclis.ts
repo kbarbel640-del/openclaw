@@ -239,6 +239,14 @@ const entries: SubCliEntry[] = [
       mod.registerCompletionCli(program);
     },
   },
+  {
+    name: "fabric",
+    description: "Cloud.ru AI Fabric tools",
+    register: async (program) => {
+      const mod = await import("../fabric-cli.js");
+      mod.registerFabricCli(program);
+    },
+  },
 ];
 
 export function getSubCliEntries(): SubCliEntry[] {

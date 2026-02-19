@@ -584,6 +584,32 @@ export async function startGatewayServer(
     config: cfgAtStart,
   }).catch((err) => log.warn(`claude workspace sync failed: ${String(err)}`));
 
+  // Sync AI Fabric resources (agents, MCP servers, skills) if enabled (fire-and-forget)
+  if (
+    cfgAtStart.aiFabric?.enabled &&
+    cfgAtStart.aiFabric?.projectId &&
+    cfgAtStart.aiFabric?.keyId
+  ) {
+    void (async () => {
+      try {
+        const { resolveIamSecret } = await import("../ai-fabric/resolve-iam-secret.js");
+        const secret = resolveIamSecret();
+        if (!secret) {
+          return;
+        }
+        const { syncFabricResources } = await import("../ai-fabric/sync-fabric-resources.js");
+        await syncFabricResources({
+          config: cfgAtStart,
+          workspaceDir: defaultWorkspaceDir,
+          projectId: cfgAtStart.aiFabric!.projectId!,
+          auth: { keyId: cfgAtStart.aiFabric!.keyId!, secret },
+        });
+      } catch (err) {
+        log.warn(`AI Fabric sync failed: ${String(err)}`);
+      }
+    })();
+  }
+
   const { applyHotReload, requestGatewayRestart } = createGatewayReloadHandlers({
     deps,
     broadcast,

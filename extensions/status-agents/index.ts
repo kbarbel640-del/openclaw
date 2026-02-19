@@ -6,12 +6,19 @@ import type {
   AgentStatusSummary,
 } from "../../src/ai-fabric/agent-status.js";
 import type {
+  AgentSystemStatusEntry,
+  AgentSystemStatusResult,
+  AgentSystemStatusError,
+  AgentSystemStatusSummary,
+} from "../../src/ai-fabric/agent-system-status.js";
+import type {
   McpStatusEntry,
   McpStatusResult,
   McpStatusError,
   McpStatusSummary,
 } from "../../src/ai-fabric/mcp-status.js";
 import { getAgentStatus } from "../../src/ai-fabric/agent-status.js";
+import { getAgentSystemStatus } from "../../src/ai-fabric/agent-system-status.js";
 import { getMcpServerStatus } from "../../src/ai-fabric/mcp-status.js";
 import { resolveIamSecret } from "../../src/ai-fabric/resolve-iam-secret.js";
 
@@ -54,6 +61,14 @@ export function formatMcpEntry(entry: McpStatusEntry): string {
   return `  ${icon} ${name} ${status} ${toolsDisplay || "(no tools)"}`;
 }
 
+export function formatAgentSystemEntry(entry: AgentSystemStatusEntry): string {
+  const icon = healthIcon(entry.health);
+  const name = entry.name.padEnd(24);
+  const status = entry.status.padEnd(12);
+  const members = entry.memberCount === 1 ? "1 agent" : `${entry.memberCount} agents`;
+  return `  ${icon} ${name} ${status} ${members}`;
+}
+
 export function formatAgentsSection(entries: AgentStatusEntry[]): string {
   if (entries.length === 0) return "Agents (0)\n  No agents found.";
   const lines = [`Agents (${entries.length})`];
@@ -72,9 +87,19 @@ export function formatMcpSection(entries: McpStatusEntry[]): string {
   return lines.join("\n");
 }
 
+export function formatAgentSystemsSection(entries: AgentSystemStatusEntry[]): string {
+  if (entries.length === 0) return "Agent Systems (0)\n  No agent systems found.";
+  const lines = [`Agent Systems (${entries.length})`];
+  for (const entry of entries) {
+    lines.push(formatAgentSystemEntry(entry));
+  }
+  return lines.join("\n");
+}
+
 export function formatSummaryLine(
   agentSummary: AgentStatusSummary,
   mcpSummary: McpStatusSummary,
+  systemSummary?: AgentSystemStatusSummary,
 ): string {
   const agentParts: string[] = [];
   if (agentSummary.healthy > 0) agentParts.push(`${agentSummary.healthy} healthy`);
@@ -83,17 +108,27 @@ export function formatSummaryLine(
   if (agentSummary.unknown > 0) agentParts.push(`${agentSummary.unknown} unknown`);
 
   const agentDetail = agentParts.length > 0 ? ` (${agentParts.join(", ")})` : "";
-  return `Summary: ${agentSummary.total} agents${agentDetail} | ${mcpSummary.total} MCP servers`;
+  let line = `Summary: ${agentSummary.total} agents${agentDetail} | ${mcpSummary.total} MCP servers`;
+  if (systemSummary && systemSummary.total > 0) {
+    line += ` | ${systemSummary.total} agent systems`;
+  }
+  return line;
 }
 
-export function formatTips(agentEntries: AgentStatusEntry[], mcpEntries: McpStatusEntry[]): string {
+export function formatTips(
+  agentEntries: AgentStatusEntry[],
+  mcpEntries: McpStatusEntry[],
+  systemEntries?: AgentSystemStatusEntry[],
+): string {
   const tips: string[] = [];
   const hasCooled =
     agentEntries.some((e) => e.status === "COOLED") ||
-    mcpEntries.some((e) => e.status === "COOLED");
+    mcpEntries.some((e) => e.status === "COOLED") ||
+    (systemEntries?.some((e) => e.status === "COOLED") ?? false);
   const hasFailed =
     agentEntries.some((e) => e.health === "failed") ||
-    mcpEntries.some((e) => e.health === "failed");
+    mcpEntries.some((e) => e.health === "failed") ||
+    (systemEntries?.some((e) => e.health === "failed") ?? false);
 
   if (hasCooled) {
     tips.push("\u23F8 Cooled resources wake up automatically on the first request.");
@@ -125,6 +160,7 @@ function buildAgentSummary(entries: AgentStatusEntry[]): AgentStatusSummary {
 export function formatStatusOutput(
   agentResult: AgentStatusResult | AgentStatusError,
   mcpResult: McpStatusResult | McpStatusError,
+  systemResult?: AgentSystemStatusResult | AgentSystemStatusError,
 ): string {
   const sections: string[] = [];
 
@@ -146,11 +182,24 @@ export function formatStatusOutput(
     sections.push(formatMcpSection(mcpResult.entries));
   }
 
-  // Summary (only if both succeeded)
-  if (agentResult.ok && mcpResult.ok && agentSummary) {
-    sections.push(formatSummaryLine(agentSummary, mcpResult.summary));
+  // Agent Systems section
+  let systemEntries: AgentSystemStatusEntry[] = [];
+  let systemSummary: AgentSystemStatusSummary | undefined;
+  if (systemResult) {
+    if (!systemResult.ok) {
+      sections.push(`Agent Systems: error \u2014 ${systemResult.error}`);
+    } else {
+      systemEntries = systemResult.entries;
+      systemSummary = systemResult.summary;
+      sections.push(formatAgentSystemsSection(systemEntries));
+    }
+  }
 
-    const tips = formatTips(activeAgents, mcpResult.entries);
+  // Summary (only if agents + MCP succeeded)
+  if (agentResult.ok && mcpResult.ok && agentSummary) {
+    sections.push(formatSummaryLine(agentSummary, mcpResult.summary, systemSummary));
+
+    const tips = formatTips(activeAgents, mcpResult.entries, systemEntries);
     if (tips) {
       sections.push(tips);
     }
@@ -166,7 +215,8 @@ export function formatStatusOutput(
 export default function register(api: OpenClawPluginApi) {
   api.registerCommand({
     name: "status_agents",
-    description: "Check the live status of Cloud.ru AI Fabric agents and MCP servers.",
+    description:
+      "Check the live status of Cloud.ru AI Fabric agents, MCP servers, and agent systems.",
     acceptsArgs: true,
     handler: async (ctx) => {
       const aiFabric = ctx.config.aiFabric;
@@ -190,7 +240,7 @@ export default function register(api: OpenClawPluginApi) {
       const nameFilter = ctx.args?.trim() || undefined;
       const authParams = { keyId, secret };
 
-      const [agentResult, mcpResult] = await Promise.all([
+      const [agentResult, mcpResult, systemResult] = await Promise.all([
         getAgentStatus({
           projectId,
           auth: authParams,
@@ -202,9 +252,41 @@ export default function register(api: OpenClawPluginApi) {
           auth: authParams,
           nameFilter,
         }),
+        getAgentSystemStatus({
+          projectId,
+          auth: authParams,
+          nameFilter,
+        }),
       ]);
 
-      return { text: formatStatusOutput(agentResult, mcpResult) };
+      const text = formatStatusOutput(agentResult, mcpResult, systemResult);
+
+      // Fire-and-forget sync of fabric resources to Claude CLI
+      void (async () => {
+        try {
+          const { resolveAgentWorkspaceDir, resolveDefaultAgentId } =
+            await import("../../src/agents/agent-scope.js");
+          const workspaceDir = resolveAgentWorkspaceDir(
+            ctx.config,
+            resolveDefaultAgentId(ctx.config),
+          );
+          const { syncFabricResources } =
+            await import("../../src/ai-fabric/sync-fabric-resources.js");
+          await syncFabricResources({
+            config: ctx.config,
+            workspaceDir,
+            projectId,
+            auth: authParams,
+            agentEntries: agentResult.ok ? agentResult.entries : undefined,
+            mcpEntries: mcpResult.ok ? mcpResult.entries : undefined,
+            agentSystemEntries: systemResult.ok ? systemResult.entries : undefined,
+          });
+        } catch {
+          // Best-effort — errors silently ignored
+        }
+      })();
+
+      return { text };
     },
   });
 }

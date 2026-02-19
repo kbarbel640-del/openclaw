@@ -113,6 +113,14 @@ export {
 } from "./resolve-agent.js";
 export type { Addressable, AddressableKind, ResolvedAddressable } from "./resolve-agent.js";
 
+// Fabric skill generator
+export { generateFabricSkills } from "./generate-fabric-skills.js";
+export type { FabricSkillTarget, GenerateFabricSkillsResult } from "./generate-fabric-skills.js";
+
+// Fabric resource sync orchestrator
+export { syncFabricResources } from "./sync-fabric-resources.js";
+export type { SyncFabricParams, SyncFabricResult } from "./sync-fabric-resources.js";
+
 // IAM secret resolution
 export { resolveIamSecret } from "./resolve-iam-secret.js";
 
