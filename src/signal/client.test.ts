@@ -223,8 +223,174 @@ describe("signal client backend compatibility", () => {
     const payload = JSON.parse(received[0]?.data ?? "{}") as Record<string, unknown>;
     expect(payload["envelope"]).toBeTruthy();
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain(
-      "http://signal-rest-receive:8080/v1/receive/%2B15559990000?timeout=10",
+      "http://signal-rest-receive:8080/v1/receive/%2B15559990000?timeout=1",
     );
+  });
+
+  it("waits for async REST event handlers before polling again", async () => {
+    const abortController = new AbortController();
+    let releaseHandler: (() => void) | null = null;
+    const handlerBlocked = new Promise<void>((resolve) => {
+      releaseHandler = resolve;
+    });
+    let handlerStarted: (() => void) | null = null;
+    const onHandlerStarted = new Promise<void>((resolve) => {
+      handlerStarted = resolve;
+    });
+    let receiveCalls = 0;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "http://signal-rest-receive-async-handler:8080/api/v1/check") {
+        return new Response("missing", { status: 404 });
+      }
+      if (url === "http://signal-rest-receive-async-handler:8080/v1/about") {
+        return jsonResponse({ versions: ["v1", "v2"] });
+      }
+      if (
+        url === "http://signal-rest-receive-async-handler:8080/v1/receive/%2B15559990000?timeout=1"
+      ) {
+        receiveCalls += 1;
+        return jsonResponse([
+          {
+            envelope: {
+              sourceNumber: "+15550001111",
+              dataMessage: { message: "hello" },
+            },
+          },
+        ]);
+      }
+      throw new Error(`unexpected fetch url: ${url}`);
+    });
+    resolveFetchMock.mockReturnValue(fetchMock);
+
+    const streamPromise = streamSignalEvents({
+      baseUrl: "http://signal-rest-receive-async-handler:8080",
+      account: "+15559990000",
+      abortSignal: abortController.signal,
+      onEvent: async () => {
+        handlerStarted?.();
+        handlerStarted = null;
+        await handlerBlocked;
+        abortController.abort();
+      },
+    });
+
+    await onHandlerStarted;
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(receiveCalls).toBe(1);
+
+    releaseHandler?.();
+    await streamPromise;
+  });
+
+  it("respects REST receive poll timeout overrides", async () => {
+    const abortController = new AbortController();
+    const received: Array<{ event?: string; data?: string }> = [];
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("missing", { status: 404 }))
+      .mockResolvedValueOnce(jsonResponse({ versions: ["v1", "v2"] }))
+      .mockResolvedValueOnce(
+        jsonResponse([
+          {
+            envelope: {
+              sourceNumber: "+15550001111",
+              dataMessage: { message: "hello" },
+            },
+          },
+        ]),
+      );
+    resolveFetchMock.mockReturnValue(fetchMock);
+
+    await streamSignalEvents({
+      baseUrl: "http://signal-rest-receive-override:8080",
+      account: "+15559990000",
+      receivePollTimeoutSeconds: 2,
+      abortSignal: abortController.signal,
+      onEvent: (event) => {
+        received.push(event);
+        abortController.abort();
+      },
+    });
+
+    expect(received).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain(
+      "http://signal-rest-receive-override:8080/v1/receive/%2B15559990000?timeout=2",
+    );
+  });
+
+  it("prioritizes REST send by preempting an in-flight receive poll", async () => {
+    const streamAbortController = new AbortController();
+    const sendAbortError = Object.assign(new Error("This operation was aborted"), {
+      name: "AbortError",
+      code: "ABORT_ERR",
+    });
+
+    let receiveStartedResolve: (() => void) | null = null;
+    const receiveStarted = new Promise<void>((resolve) => {
+      receiveStartedResolve = resolve;
+    });
+    let receiveAbortReason: unknown;
+    let receiveAbortCount = 0;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === "http://signal-rest-priority:8080/api/v1/check") {
+        return new Response("missing", { status: 404 });
+      }
+      if (url === "http://signal-rest-priority:8080/v1/about") {
+        return jsonResponse({ versions: ["v1", "v2"] });
+      }
+      if (url === "http://signal-rest-priority:8080/v1/receive/%2B15559990000?timeout=1") {
+        receiveStartedResolve?.();
+        receiveStartedResolve = null;
+        return await new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          const onAbort = () => {
+            receiveAbortCount += 1;
+            receiveAbortReason = signal?.reason;
+            reject(sendAbortError);
+          };
+          signal?.addEventListener("abort", onAbort, { once: true });
+        });
+      }
+      if (url === "http://signal-rest-priority:8080/v2/send") {
+        return jsonResponse({ timestamp: 1730000000001 });
+      }
+      throw new Error(`unexpected fetch url: ${url}`);
+    });
+    resolveFetchMock.mockReturnValue(fetchMock);
+
+    const streamPromise = streamSignalEvents({
+      baseUrl: "http://signal-rest-priority:8080",
+      account: "+15559990000",
+      abortSignal: streamAbortController.signal,
+      onEvent: () => {},
+    });
+
+    await receiveStarted;
+
+    const sendResult = await signalRpcRequest<{ timestamp?: number }>(
+      "send",
+      {
+        account: "+15559990000",
+        message: "hello",
+        recipient: ["+15552220000"],
+      },
+      {
+        baseUrl: "http://signal-rest-priority:8080",
+      },
+    );
+
+    expect(sendResult.timestamp).toBe(1730000000001);
+    expect(receiveAbortCount).toBeGreaterThan(0);
+    expect(receiveAbortReason).toBe("signal-rest-send-priority");
+
+    streamAbortController.abort();
+    await streamPromise;
   });
 
   it("uses a longer default timeout for REST sends and returns a timeout-specific error", async () => {

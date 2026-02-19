@@ -31,11 +31,15 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 // Keep send timeout comfortably above receive poll/lock windows on signal-cli-rest-api.
 const SIGNAL_REST_SEND_TIMEOUT_MS = 90_000;
 const SIGNAL_BACKEND_DETECT_TIMEOUT_MS = 2_000;
-// Balance CPU usage and reply latency; long polls can delay outbound sends on signal-cli locks.
-const SIGNAL_REST_POLL_TIMEOUT_SECONDS = 10;
+// Balance CPU usage and reply latency; longer polls increase lock contention with sends.
+const DEFAULT_SIGNAL_REST_POLL_TIMEOUT_SECONDS = 1;
+const MIN_SIGNAL_REST_POLL_TIMEOUT_SECONDS = 1;
+const MAX_SIGNAL_REST_POLL_TIMEOUT_SECONDS = 30;
 const SIGNAL_REST_ACCOUNT_RETRY_DELAY_MS = 5_000;
 const SIGNAL_REST_ACCOUNT_HEALTH_CACHE_OK_MS = 300_000;
 const SIGNAL_REST_ACCOUNT_HEALTH_CACHE_ERROR_MS = 5_000;
+const SIGNAL_REST_SEND_PRIORITY_ABORT_REASON = "signal-rest-send-priority";
+const SIGNAL_REST_SEND_PRIORITY_WAIT_MS = 50;
 
 type SignalRestAbout = {
   versions?: unknown;
@@ -62,6 +66,76 @@ const signalRestAccountHealthCache = new Map<
   { checkedAt: number; health: SignalRestAccountHealth }
 >();
 const signalRestAccountHealthInFlight = new Map<string, Promise<SignalRestAccountHealth>>();
+const signalRestReceiveControllers = new Map<string, Set<AbortController>>();
+const signalRestSendInFlightCounts = new Map<string, number>();
+
+function getSignalRestCoordinationKey(baseUrl: string, account: string): string {
+  return `${baseUrl}\n${account}`;
+}
+
+function isSignalRestSendInFlight(baseUrl: string, account: string): boolean {
+  const key = getSignalRestCoordinationKey(baseUrl, account);
+  return (signalRestSendInFlightCounts.get(key) ?? 0) > 0;
+}
+
+function registerSignalRestReceiveController(
+  baseUrl: string,
+  account: string,
+  controller: AbortController,
+): void {
+  const key = getSignalRestCoordinationKey(baseUrl, account);
+  const existing = signalRestReceiveControllers.get(key);
+  if (existing) {
+    existing.add(controller);
+    return;
+  }
+  signalRestReceiveControllers.set(key, new Set([controller]));
+}
+
+function unregisterSignalRestReceiveController(
+  baseUrl: string,
+  account: string,
+  controller: AbortController,
+): void {
+  const key = getSignalRestCoordinationKey(baseUrl, account);
+  const existing = signalRestReceiveControllers.get(key);
+  if (!existing) {
+    return;
+  }
+  existing.delete(controller);
+  if (existing.size === 0) {
+    signalRestReceiveControllers.delete(key);
+  }
+}
+
+async function waitForSignalRestSendWindow(baseUrl: string, account: string, signal?: AbortSignal) {
+  while (!signal?.aborted && isSignalRestSendInFlight(baseUrl, account)) {
+    await sleepAbortable(SIGNAL_REST_SEND_PRIORITY_WAIT_MS, signal);
+  }
+}
+
+function beginSignalRestSendPriorityWindow(baseUrl: string, account: string): () => void {
+  const key = getSignalRestCoordinationKey(baseUrl, account);
+  signalRestSendInFlightCounts.set(key, (signalRestSendInFlightCounts.get(key) ?? 0) + 1);
+
+  const receiveControllers = signalRestReceiveControllers.get(key);
+  if (receiveControllers) {
+    for (const controller of receiveControllers) {
+      if (!controller.signal.aborted) {
+        controller.abort(SIGNAL_REST_SEND_PRIORITY_ABORT_REASON);
+      }
+    }
+  }
+
+  return () => {
+    const current = signalRestSendInFlightCounts.get(key) ?? 0;
+    if (current <= 1) {
+      signalRestSendInFlightCounts.delete(key);
+      return;
+    }
+    signalRestSendInFlightCounts.set(key, current - 1);
+  };
+}
 
 function trimString(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -149,6 +223,20 @@ function getRequiredFetch(): typeof fetch {
     throw new Error("fetch is not available");
   }
   return fetchImpl;
+}
+
+function resolveSignalRestPollTimeoutSeconds(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_SIGNAL_REST_POLL_TIMEOUT_SECONDS;
+  }
+  const normalized = Math.trunc(value);
+  if (
+    normalized < MIN_SIGNAL_REST_POLL_TIMEOUT_SECONDS ||
+    normalized > MAX_SIGNAL_REST_POLL_TIMEOUT_SECONDS
+  ) {
+    return DEFAULT_SIGNAL_REST_POLL_TIMEOUT_SECONDS;
+  }
+  return normalized;
 }
 
 function isAbortError(error: unknown): boolean {
@@ -449,54 +537,59 @@ async function signalRestSendRequest(params: {
     payload["base64_attachments"] = attachmentBodies;
   }
 
-  const sendPaths = ["/v2/send", "/v1/send"];
-  for (const path of sendPaths) {
-    let res: Response;
-    try {
-      res = await fetchWithTimeout(
-        `${params.baseUrl}${path}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-        params.timeoutMs,
-        getRequiredFetch(),
-      );
-    } catch (err) {
-      if (isAbortError(err)) {
+  const endSendPriorityWindow = beginSignalRestSendPriorityWindow(params.baseUrl, params.account);
+  try {
+    const sendPaths = ["/v2/send", "/v1/send"];
+    for (const path of sendPaths) {
+      let res: Response;
+      try {
+        res = await fetchWithTimeout(
+          `${params.baseUrl}${path}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+          params.timeoutMs,
+          getRequiredFetch(),
+        );
+      } catch (err) {
+        if (isAbortError(err)) {
+          throw new Error(
+            `Signal REST send timed out after ${params.timeoutMs}ms (${path}). Consider increasing timeoutMs.`,
+            { cause: err },
+          );
+        }
+        throw err;
+      }
+      if (res.status === 404) {
+        continue;
+      }
+      if (!res.ok) {
+        const details = await readResponseSnippet(res);
         throw new Error(
-          `Signal REST send timed out after ${params.timeoutMs}ms (${path}). Consider increasing timeoutMs.`,
-          { cause: err },
+          details
+            ? `Signal REST send failed (${res.status}): ${details}`
+            : `Signal REST send failed (${res.status})`,
         );
       }
-      throw err;
+      const text = await res.text();
+      if (!text.trim()) {
+        return {};
+      }
+      try {
+        const parsed = JSON.parse(text) as unknown;
+        const timestamp = extractTimestamp(parsed);
+        return typeof timestamp === "number" ? { timestamp } : {};
+      } catch {
+        return {};
+      }
     }
-    if (res.status === 404) {
-      continue;
-    }
-    if (!res.ok) {
-      const details = await readResponseSnippet(res);
-      throw new Error(
-        details
-          ? `Signal REST send failed (${res.status}): ${details}`
-          : `Signal REST send failed (${res.status})`,
-      );
-    }
-    const text = await res.text();
-    if (!text.trim()) {
-      return {};
-    }
-    try {
-      const parsed = JSON.parse(text) as unknown;
-      const timestamp = extractTimestamp(parsed);
-      return typeof timestamp === "number" ? { timestamp } : {};
-    } catch {
-      return {};
-    }
-  }
 
-  throw new Error("Signal REST send endpoint not found (/v2/send or /v1/send)");
+    throw new Error("Signal REST send endpoint not found (/v2/send or /v1/send)");
+  } finally {
+    endSendPriorityWindow();
+  }
 }
 
 async function signalRestGetAttachment(params: {
@@ -586,7 +679,7 @@ async function streamSignalEventsSse(params: {
   baseUrl: string;
   account?: string;
   abortSignal?: AbortSignal;
-  onEvent: (event: SignalSseEvent) => void;
+  onEvent: (event: SignalSseEvent) => void | Promise<void>;
 }): Promise<void> {
   const fetchImpl = resolveFetch();
   if (!fetchImpl) {
@@ -611,11 +704,11 @@ async function streamSignalEventsSse(params: {
   let buffer = "";
   let currentEvent: SignalSseEvent = {};
 
-  const flushEvent = () => {
+  const flushEvent = async () => {
     if (!currentEvent.data && !currentEvent.event && !currentEvent.id) {
       return;
     }
-    params.onEvent({
+    await params.onEvent({
       event: currentEvent.event,
       data: currentEvent.data,
       id: currentEvent.id,
@@ -638,7 +731,7 @@ async function streamSignalEventsSse(params: {
       }
 
       if (line === "") {
-        flushEvent();
+        await flushEvent();
         lineEnd = buffer.indexOf("\n");
         continue;
       }
@@ -661,7 +754,7 @@ async function streamSignalEventsSse(params: {
     }
   }
 
-  flushEvent();
+  await flushEvent();
 }
 
 export async function signalRpcRequest<T = unknown>(
@@ -744,8 +837,9 @@ export async function signalCheck(
 export async function streamSignalEvents(params: {
   baseUrl: string;
   account?: string;
+  receivePollTimeoutSeconds?: number;
   abortSignal?: AbortSignal;
-  onEvent: (event: SignalSseEvent) => void;
+  onEvent: (event: SignalSseEvent) => void | Promise<void>;
 }): Promise<void> {
   const baseUrl = normalizeBaseUrl(params.baseUrl);
   const backend = await detectSignalBackend(baseUrl);
@@ -760,6 +854,9 @@ export async function streamSignalEvents(params: {
   }
 
   let account = trimString(params.account);
+  const receivePollTimeoutSeconds = resolveSignalRestPollTimeoutSeconds(
+    params.receivePollTimeoutSeconds,
+  );
   const fetchImpl = getRequiredFetch();
   while (!params.abortSignal?.aborted) {
     if (!account) {
@@ -775,13 +872,47 @@ export async function streamSignalEvents(params: {
         continue;
       }
     }
+    await waitForSignalRestSendWindow(baseUrl, account, params.abortSignal);
+    if (params.abortSignal?.aborted) {
+      return;
+    }
+
+    const receiveAbortController = new AbortController();
+    const onAbort = () => {
+      receiveAbortController.abort();
+    };
+    if (params.abortSignal?.aborted) {
+      return;
+    }
+    params.abortSignal?.addEventListener("abort", onAbort, { once: true });
+    registerSignalRestReceiveController(baseUrl, account, receiveAbortController);
+
     const url = new URL(`${baseUrl}/v1/receive/${encodeURIComponent(account)}`);
-    url.searchParams.set("timeout", String(SIGNAL_REST_POLL_TIMEOUT_SECONDS));
-    const res = await fetchImpl(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      signal: params.abortSignal,
-    });
+    url.searchParams.set("timeout", String(receivePollTimeoutSeconds));
+    let res: Response;
+    try {
+      res = await fetchImpl(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: receiveAbortController.signal,
+      });
+    } catch (err) {
+      if (params.abortSignal?.aborted) {
+        return;
+      }
+      if (
+        isAbortError(err) &&
+        (receiveAbortController.signal.reason === SIGNAL_REST_SEND_PRIORITY_ABORT_REASON ||
+          isSignalRestSendInFlight(baseUrl, account))
+      ) {
+        continue;
+      }
+      throw err;
+    } finally {
+      unregisterSignalRestReceiveController(baseUrl, account, receiveAbortController);
+      params.abortSignal?.removeEventListener("abort", onAbort);
+    }
+
     if (params.abortSignal?.aborted) {
       return;
     }
@@ -811,7 +942,7 @@ export async function streamSignalEvents(params: {
       if (eventPayload === null || typeof eventPayload === "undefined") {
         continue;
       }
-      params.onEvent({
+      await params.onEvent({
         event: "receive",
         data: JSON.stringify(eventPayload),
       });
