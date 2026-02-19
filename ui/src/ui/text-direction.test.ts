@@ -31,4 +31,12 @@ describe("detectTextDirection", () => {
     expect(detectTextDirection("[[reply_to_current]] שלום עם Web UI")).toBe("rtl");
     expect(detectTextDirection("[[reply_to: 123]] hello עם קצת עברית")).toBe("ltr");
   });
+
+  it("ignores fenced and inline code for direction inference", () => {
+    const mixed = "סגור — עשיתי.\n\n```bash\ngh auth login\ngit push\n```\n\nעוד טקסט בעברית";
+    expect(detectTextDirection(mixed)).toBe("rtl");
+
+    const mixedInline = "שלום זה `npm run build` ואז ממשיכים בעברית";
+    expect(detectTextDirection(mixedInline)).toBe("rtl");
+  });
 });

@@ -9,6 +9,8 @@ const RTL_CHAR_REGEX =
 
 const LETTER_CHAR_REGEX = /\p{L}/u;
 const LEADING_REPLY_TAG_REGEX = /^\s*\[\[\s*reply_to(?:_current|\s*:\s*[^\]]+)?\s*\]\]\s*/iu;
+const FENCED_CODE_BLOCK_REGEX = /```[\s\S]*?```/g;
+const INLINE_CODE_REGEX = /`[^`\n]+`/g;
 
 /**
  * Detect text direction from significant letters in the message.
@@ -26,8 +28,12 @@ export function detectTextDirection(
     return "ltr";
   }
 
-  // Ignore OpenClaw reply tags when inferring direction, e.g. [[reply_to_current]].
-  const normalized = text.replace(LEADING_REPLY_TAG_REGEX, "");
+  // Ignore OpenClaw reply tags and code snippets when inferring direction.
+  // Code blocks are often English-heavy and can skew base direction.
+  const normalized = text
+    .replace(LEADING_REPLY_TAG_REGEX, "")
+    .replace(FENCED_CODE_BLOCK_REGEX, " ")
+    .replace(INLINE_CODE_REGEX, " ");
 
   let rtlCount = 0;
   let ltrCount = 0;
