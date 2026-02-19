@@ -51,6 +51,16 @@ export type {
   SessionUsageTimeSeries,
 } from "./session-cost-usage.types.js";
 
+/**
+ * Returns true if the filename is a session transcript file — active, deleted, or reset.
+ * Matches: `*.jsonl`, `*.jsonl.deleted.<ts>`, `*.jsonl.reset.<ts>`.
+ */
+function isSessionTranscriptFile(name: string): boolean {
+  return (
+    name.endsWith(".jsonl") || name.includes(".jsonl.deleted.") || name.includes(".jsonl.reset.")
+  );
+}
+
 const emptyTotals = (): CostUsageTotals => ({
   input: 0,
   output: 0,
@@ -316,7 +326,7 @@ export async function loadCostUsageSummary(params?: {
   const files = (
     await Promise.all(
       entries
-        .filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl"))
+        .filter((entry) => entry.isFile() && isSessionTranscriptFile(entry.name))
         .map(async (entry) => {
           const filePath = path.join(sessionsDir, entry.name);
           const stats = await fs.promises.stat(filePath).catch(() => null);
