@@ -145,7 +145,7 @@ function looksLikeLeakedContent(text: string): boolean {
     lower.includes("[openclaw]") ||
     lower.includes("untrusted metadata") ||
     lower.includes("inbound_meta") ||
-    text.startsWith("{") ||
+    lower.startsWith("{") ||
     text.includes("at ") ||
     lower.includes("<!doctype") ||
     lower.includes("<html")
