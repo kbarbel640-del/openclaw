@@ -117,7 +117,7 @@ export async function handleSlackAction(
     if (!allowUserWrites) {
       return botToken;
     }
-    return botToken ?? userToken;
+    return userToken ?? botToken;
   };
 
   const buildActionOpts = (operation: "read" | "write") => {
