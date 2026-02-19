@@ -66,7 +66,14 @@ function tryFlattenLiteralAnyOf(variants: unknown[]): { type: string; enum: unkn
       return null;
     }
 
-    const variantType = typeof v.type === "string" ? v.type : null;
+    // Accept both `type: "string"` and `type: ["string"]` — both are valid JSON Schema. (#20898)
+    const rawType = v.type;
+    const variantType =
+      typeof rawType === "string"
+        ? rawType
+        : Array.isArray(rawType) && rawType.length === 1 && typeof rawType[0] === "string"
+          ? rawType[0]
+          : null;
     if (!variantType) {
       return null;
     }
