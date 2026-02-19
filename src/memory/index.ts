@@ -1,4 +1,4 @@
-export { MemoryIndexManager } from "./manager.js";
+export { evictMemoryIndexManager, MemoryIndexManager } from "./manager.js";
 export type {
   MemoryEmbeddingProbeResult,
   MemorySearchManager,
