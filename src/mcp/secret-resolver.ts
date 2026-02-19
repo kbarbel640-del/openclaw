@@ -120,8 +120,8 @@ async function resolveFile(uri: SecretUri): Promise<string> {
   let content: string;
   try {
     content = await fs.readFile(filePath, "utf-8");
-  } catch (err: any) {
-    if (err.code === "ENOENT") {
+  } catch (err: unknown) {
+    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(`File not found: ${filePath}`, { cause: err });
     }
     throw err;

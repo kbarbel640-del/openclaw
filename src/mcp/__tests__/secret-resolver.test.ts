@@ -7,13 +7,8 @@
 
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  parseSecretUri,
-  resolveSecret,
-  resolveSecrets,
-  type SecretUri,
-} from "../secret-resolver.js";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { parseSecretUri, resolveSecret, resolveSecrets } from "../secret-resolver.js";
 
 // ─── URI Parsing Tests ───
 
