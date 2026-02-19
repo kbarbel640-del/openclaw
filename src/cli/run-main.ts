@@ -120,7 +120,22 @@ export async function runCli(argv: string[] = process.argv) {
     registerPluginCliCommands(program, loadConfig());
   }
 
-  await program.parseAsync(parseArgv);
+  // Drain keep-alive TLS connections so the event loop exits cleanly.
+  try {
+    await program.parseAsync(parseArgv);
+  } finally {
+    await closeGlobalFetchDispatcher();
+  }
+}
+
+export async function closeGlobalFetchDispatcher(): Promise<void> {
+  try {
+    const { getGlobalDispatcher } = await import("undici");
+    await getGlobalDispatcher().close();
+  } catch {
+    // Ignore: undici may not be present in all environments, and dispatcher
+    // errors during cleanup should never surface as CLI failures.
+  }
 }
 
 export function isCliMainModule(): boolean {
