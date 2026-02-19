@@ -96,7 +96,6 @@ const STOP_WORDS_EN = new Set([
   "earlier",
   "later",
   "recently",
-  "before",
   "ago",
   "just",
   "now",
