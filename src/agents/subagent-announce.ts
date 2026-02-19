@@ -70,23 +70,26 @@ function buildCompletionDeliveryMessage(params: {
   subagentName: string;
   spawnMode?: SpawnSubagentMode;
   outcome?: SubagentRunOutcome;
+  model?: string;
 }): string {
   const findingsText = params.findings.trim();
   const hasFindings = findingsText.length > 0 && findingsText !== "(no output)";
+  const modelShort = params.model ? params.model.split("/").pop() : undefined;
+  const modelSuffix = modelShort ? ` (${modelShort})` : "";
   const header = (() => {
     if (params.outcome?.status === "error") {
       return params.spawnMode === "session"
-        ? `❌ Subagent ${params.subagentName} failed this task (session remains active)`
-        : `❌ Subagent ${params.subagentName} failed`;
+        ? `❌ Subagent ${params.subagentName}${modelSuffix} failed this task (session remains active)`
+        : `❌ Subagent ${params.subagentName}${modelSuffix} failed`;
     }
     if (params.outcome?.status === "timeout") {
       return params.spawnMode === "session"
-        ? `⏱️ Subagent ${params.subagentName} timed out on this task (session remains active)`
-        : `⏱️ Subagent ${params.subagentName} timed out`;
+        ? `⏱️ Subagent ${params.subagentName}${modelSuffix} timed out on this task (session remains active)`
+        : `⏱️ Subagent ${params.subagentName}${modelSuffix} timed out`;
     }
     return params.spawnMode === "session"
-      ? `✅ Subagent ${params.subagentName} completed this task (session remains active)`
-      : `✅ Subagent ${params.subagentName} finished`;
+      ? `✅ Subagent ${params.subagentName}${modelSuffix} completed this task (session remains active)`
+      : `✅ Subagent ${params.subagentName}${modelSuffix} finished`;
   })();
   if (!hasFindings) {
     return header;
@@ -989,6 +992,7 @@ export async function runSubagentAnnounceFlow(params: {
   startedAt?: number;
   endedAt?: number;
   label?: string;
+  model?: string;
   outcome?: SubagentRunOutcome;
   announceType?: SubagentAnnounceType;
   expectsCompletionMessage?: boolean;
@@ -1125,7 +1129,7 @@ export async function runSubagentAnnounceFlow(params: {
     // Build instructional message for main agent
     const announceType = params.announceType ?? "subagent task";
     const taskLabel = params.label || params.task || "task";
-    const subagentName = resolveAgentIdFromSessionKey(params.childSessionKey);
+    const subagentName = params.label || resolveAgentIdFromSessionKey(params.childSessionKey);
     const announceSessionId = childSessionId || "unknown";
     const findings = reply || "(no output)";
     let completionMessage = "";
@@ -1196,6 +1200,7 @@ export async function runSubagentAnnounceFlow(params: {
       subagentName,
       spawnMode: params.spawnMode,
       outcome,
+      model: params.model,
     });
     const internalSummaryMessage = [
       `[System Message] [sessionId: ${announceSessionId}] A ${announceType} "${taskLabel}" just ${statusLabel}.`,
