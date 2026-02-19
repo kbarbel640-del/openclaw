@@ -255,13 +255,64 @@ const readUsageFromSessionLog = (
   }
 };
 
-const formatUsagePair = (input?: number | null, output?: number | null) => {
+const formatUsagePair = (
+  input?: number | null,
+  output?: number | null,
+  cacheRead?: number | null,
+  cacheWrite?: number | null,
+) => {
   if (input == null && output == null) {
     return null;
   }
   const inputLabel = typeof input === "number" ? formatTokenCount(input) : "?";
   const outputLabel = typeof output === "number" ? formatTokenCount(output) : "?";
-  return `🧮 Tokens: ${inputLabel} in / ${outputLabel} out`;
+  let result = `🧮 Tokens: ${inputLabel} in / ${outputLabel} out`;
+
+  // Append cache info if available
+  if (
+    (typeof cacheRead === "number" && cacheRead > 0) ||
+    (typeof cacheWrite === "number" && cacheWrite > 0)
+  ) {
+    const cacheReadLabel = typeof cacheRead === "number" ? formatTokenCount(cacheRead) : "0";
+    const cacheWriteLabel = typeof cacheWrite === "number" ? formatTokenCount(cacheWrite) : "0";
+    result += ` · 🗄️ Cache: ${cacheReadLabel} read / ${cacheWriteLabel} write`;
+  }
+
+  return result;
+};
+
+const formatCacheLine = (
+  input?: number | null,
+  cacheRead?: number | null,
+  cacheWrite?: number | null,
+) => {
+  if (!cacheRead && !cacheWrite) {
+    return null;
+  }
+  if (
+    (typeof cacheRead !== "number" || cacheRead <= 0) &&
+    (typeof cacheWrite !== "number" || cacheWrite <= 0)
+  ) {
+    return null;
+  }
+
+  const cacheReadLabel = typeof cacheRead === "number" ? formatTokenCount(cacheRead) : "0";
+  const cacheWriteLabel = typeof cacheWrite === "number" ? formatTokenCount(cacheWrite) : "0";
+
+  // Calculate hit rate: cacheRead / (cacheRead + cacheWrite + input) * 100
+  let hitRateText = "";
+  if (typeof cacheRead === "number" && cacheRead > 0) {
+    const totalInput =
+      (typeof cacheRead === "number" ? cacheRead : 0) +
+      (typeof cacheWrite === "number" ? cacheWrite : 0) +
+      (typeof input === "number" ? input : 0);
+    if (totalInput > 0) {
+      const hitRate = (cacheRead / totalInput) * 100;
+      hitRateText = ` (${Math.round(hitRate)}% hit)`;
+    }
+  }
+
+  return `🗄️ Cache: ${cacheReadLabel} read / ${cacheWriteLabel} write${hitRateText}`;
 };
 
 const formatMediaUnderstandingLine = (decisions?: ReadonlyArray<MediaUnderstandingDecision>) => {
@@ -359,6 +410,8 @@ export function buildStatusMessage(args: StatusArgs): string {
 
   let inputTokens = entry?.inputTokens;
   let outputTokens = entry?.outputTokens;
+  let cacheRead = entry?.cacheRead;
+  let cacheWrite = entry?.cacheWrite;
   let totalTokens = entry?.totalTokens ?? (entry?.inputTokens ?? 0) + (entry?.outputTokens ?? 0);
 
   // Prefer prompt-size tokens from the session transcript when it looks larger
@@ -508,7 +561,8 @@ export function buildStatusMessage(args: StatusArgs): string {
     : null;
   const commit = resolveCommitHash();
   const versionLine = `🦞 OpenClaw ${VERSION}${commit ? ` (${commit})` : ""}`;
-  const usagePair = formatUsagePair(inputTokens, outputTokens);
+  const usagePair = formatUsagePair(inputTokens, outputTokens, cacheRead, cacheWrite);
+  const cacheLine = formatCacheLine(inputTokens, cacheRead, cacheWrite);
   const costLine = costLabel ? `💵 Cost: ${costLabel}` : null;
   const usageCostLine =
     usagePair && costLine ? `${usagePair} · ${costLine}` : (usagePair ?? costLine);
@@ -521,6 +575,7 @@ export function buildStatusMessage(args: StatusArgs): string {
     modelLine,
     fallbackLine,
     usageCostLine,
+    cacheLine,
     `📚 ${contextLine}`,
     mediaLine,
     args.usageLine,
