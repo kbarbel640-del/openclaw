@@ -23,6 +23,11 @@ const DEFAULT_MODEL_ALIASES: Readonly<Record<string, string>> = {
   // Google Gemini (3.x are preview ids in the catalog)
   gemini: "google/gemini-3-pro-preview",
   "gemini-flash": "google/gemini-3-flash-preview",
+
+  // Google Gemini 3.1
+  "gemini-3.1": "google/gemini-3.1-pro-low-preview",
+  "gemini-3.1-low": "google/gemini-3.1-pro-low-preview",
+  "gemini-3.1-high": "google/gemini-3.1-pro-high-preview",
 };
 
 const DEFAULT_MODEL_COST: ModelDefinitionConfig["cost"] = {
