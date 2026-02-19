@@ -1,6 +1,4 @@
 import crypto from "node:crypto";
-import { parseAbsoluteTimeMs } from "../parse.js";
-import { computeNextRunAtMs } from "../schedule.js";
 import type {
   CronDelivery,
   CronDeliveryPatch,
@@ -10,6 +8,9 @@ import type {
   CronPayload,
   CronPayloadPatch,
 } from "../types.js";
+import type { CronServiceState } from "./state.js";
+import { parseAbsoluteTimeMs } from "../parse.js";
+import { computeNextRunAtMs } from "../schedule.js";
 import { normalizeHttpWebhookUrl } from "../webhook-url.js";
 import {
   normalizeOptionalAgentId,
@@ -18,7 +19,6 @@ import {
   normalizePayloadToSystemText,
   normalizeRequiredName,
 } from "./normalize.js";
-import type { CronServiceState } from "./state.js";
 
 const STUCK_RUN_MS = 2 * 60 * 60 * 1000;
 
@@ -49,23 +49,25 @@ export function assertSupportedJobSpec(job: Pick<CronJob, "sessionTarget" | "pay
 }
 
 function assertDeliverySupport(job: Pick<CronJob, "sessionTarget" | "delivery">) {
-  const isIsolatedLike =
-    job.sessionTarget === "isolated" ||
-    job.sessionTarget === "current" ||
-    job.sessionTarget.startsWith("session:");
-  if (job.delivery?.mode === "webhook") {
+  if (!job.delivery) {
+    return;
+  }
+  // Webhook delivery is allowed for any session target
+  if (job.delivery.mode === "webhook") {
     const target = normalizeHttpWebhookUrl(job.delivery.to);
     if (!target) {
       throw new Error("cron webhook delivery requires delivery.to to be a valid http(s) URL");
     }
     job.delivery.to = target;
+    return;
   }
-  if (job.delivery && !isIsolatedLike) {
-    throw new Error(
-      "cron delivery config is only supported for isolated/current/session:xxx sessionTargets",
-    );
-  }
-}
+  // Non-webhook delivery (announce, etc.) requires isolated-like session target
+  const isIsolatedLike =
+    job.sessionTarget === "isolated" ||
+    job.sessionTarget === "current" ||
+    job.sessionTarget.startsWith("session:");
+  if (!isIsolatedLike) {
+    throw new Error('cron channel delivery config is only supported for sessionTarget="isolated"');
   }
 }
 
@@ -371,9 +373,7 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
     job.delivery = mergeCronDelivery(job.delivery, patch.delivery);
   }
   const isMainSession = job.sessionTarget === "main";
-  if (isMainSession && job.delivery) {
-    job.delivery = undefined;
-  }
+  if (isMainSession && job.delivery?.mode !== "webhook") {
     job.delivery = undefined;
   }
   if (patch.state) {

@@ -88,19 +88,13 @@ openclaw cron add \
    - `sessionTarget: "current"` → 绑定到当前会话（创建时解析为 `session:<sessionKey>`）。
    - `sessionTarget: "session:custom-id"` → 在持久化的命名会话中运行，跨运行保持上下文。
 
-3. **选择运行位置**
-   - `sessionTarget: "main"` → 在下一次心跳时使用主会话上下文运行。
-   - `sessionTarget: "isolated"` → 在 `cron:<jobId>` 中运行专用智能体轮次。
-   - `sessionTarget: "current"` → 绑定到当前会话（创建时解析为 `session:<sessionKey>`）。
-   - `sessionTarget: "session:custom-id"` → 在持久化的命名会话中运行，跨运行保持上下文。
-
    默认行为（保持不变）：
    - `systemEvent` 负载默认使用 `main`
    - `agentTurn` 负载默认使用 `isolated`
 
    要使用当前会话绑定，需显式设置 `sessionTarget: "current"`。
 
-4. **选择负载**
+3. **选择负载**
    - 主会话 → `payload.kind = "systemEvent"`
    - 隔离会话 → `payload.kind = "agentTurn"`
 
