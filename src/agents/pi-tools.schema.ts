@@ -78,23 +78,29 @@ export function normalizeToolParameters(
   // - Gemini rejects several JSON Schema keywords, so we scrub those.
   // - OpenAI rejects function tool schemas unless the *top-level* is `type: "object"`.
   //   (TypeBox root unions compile to `{ anyOf: [...] }` without `type`).
-  // - Anthropic (google-antigravity) expects full JSON Schema draft 2020-12 compliance.
+  // - google-antigravity uses the Google Cloud Code Assist API which has the same
+  //   schema restrictions as Gemini (no patternProperties, additionalProperties, etc.),
+  //   even when proxying Anthropic models like Claude.
   //
   // Normalize once here so callers can always pass `tools` through unchanged.
 
+  const providerLower = options?.modelProvider?.toLowerCase() ?? "";
+  const isGoogleAntigravity = providerLower.includes("google-antigravity");
   const isGeminiProvider =
-    options?.modelProvider?.toLowerCase().includes("google") ||
-    options?.modelProvider?.toLowerCase().includes("gemini");
+    providerLower.includes("google") ||
+    providerLower.includes("gemini");
   const isAnthropicProvider =
-    options?.modelProvider?.toLowerCase().includes("anthropic") ||
-    options?.modelProvider?.toLowerCase().includes("google-antigravity");
+    providerLower.includes("anthropic") && !isGoogleAntigravity;
+  // google-antigravity uses Google's API endpoint, so it needs Gemini schema cleaning
+  // regardless of which model it proxies (Claude, Gemini, etc.)
+  const needsSchemaCleaning = isGeminiProvider || isGoogleAntigravity;
 
   // If schema already has type + properties (no top-level anyOf to merge),
   // clean it for Gemini compatibility (but only if using Gemini, not Anthropic)
   if ("type" in schema && "properties" in schema && !Array.isArray(schema.anyOf)) {
     return {
       ...tool,
-      parameters: isGeminiProvider && !isAnthropicProvider ? cleanSchemaForGemini(schema) : schema,
+      parameters: needsSchemaCleaning && !isAnthropicProvider ? cleanSchemaForGemini(schema) : schema,
     };
   }
 
@@ -110,7 +116,7 @@ export function normalizeToolParameters(
     return {
       ...tool,
       parameters:
-        isGeminiProvider && !isAnthropicProvider
+        needsSchemaCleaning && !isAnthropicProvider
           ? cleanSchemaForGemini(schemaWithType)
           : schemaWithType,
     };
@@ -187,7 +193,7 @@ export function normalizeToolParameters(
     // - Anthropic accepts proper JSON Schema with constraints.
     // Merging properties preserves useful enums like `action` while keeping schemas portable.
     parameters:
-      isGeminiProvider && !isAnthropicProvider
+      needsSchemaCleaning && !isAnthropicProvider
         ? cleanSchemaForGemini(flattenedSchema)
         : flattenedSchema,
   };
