@@ -406,7 +406,7 @@ export const whatsappPlugin: ChannelPlugin<ResolvedWhatsAppAccount> = {
         linked,
         running: runtime?.running ?? false,
         connected: runtime?.connected ?? false,
-        reconnectAttempts: runtime?.reconnectAttempts,
+        reconnectAttempts: runtime?.reconnectAttempts ?? 0,
         lastConnectedAt: runtime?.lastConnectedAt ?? null,
         lastDisconnect: runtime?.lastDisconnect ?? null,
         lastMessageAt: runtime?.lastMessageAt ?? null,
