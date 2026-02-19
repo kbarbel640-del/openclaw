@@ -44,6 +44,15 @@ type FinalizeOnboardingOptions = {
   runtime: RuntimeEnv;
 };
 
+/** Appends ?onboarding=1 (or &onboarding=1) before the hash so the Control UI shows Mission Control. */
+function appendOnboardingParam(url: string): string {
+  const hashIndex = url.indexOf("#");
+  const base = hashIndex >= 0 ? url.slice(0, hashIndex) : url;
+  const hash = hashIndex >= 0 ? url.slice(hashIndex) : "";
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}onboarding=1${hash}`;
+}
+
 export async function finalizeOnboardingWizard(
   options: FinalizeOnboardingOptions,
 ): Promise<{ launchedTui: boolean }> {
@@ -342,7 +351,7 @@ export async function finalizeOnboardingWizard(
     } else if (hatchChoice === "web") {
       const browserSupport = await detectBrowserOpenSupport();
       if (browserSupport.ok) {
-        controlUiOpened = await openUrl(authedUrl);
+        controlUiOpened = await openUrl(appendOnboardingParam(authedUrl));
         if (!controlUiOpened) {
           controlUiOpenHint = formatControlUiSshHint({
             port: settings.port,
@@ -392,6 +401,15 @@ export async function finalizeOnboardingWizard(
     "Security",
   );
 
+  await prompter.note(
+    [
+      "In the dashboard sidebar, use Mission Control for Governance, Observability, and ConsentGuard.",
+      "ConsentGuard: approve or deny exec/tool requests, manage allowlists, and view the gate audit.",
+      "Docs: https://docs.openclaw.ai/web/control-ui",
+    ].join("\n"),
+    "Dashboard: Mission Control",
+  );
+
   await setupOnboardingShellCompletion({ flow, prompter });
 
   const shouldOpenControlUi =
@@ -402,7 +420,7 @@ export async function finalizeOnboardingWizard(
   if (shouldOpenControlUi) {
     const browserSupport = await detectBrowserOpenSupport();
     if (browserSupport.ok) {
-      controlUiOpened = await openUrl(authedUrl);
+      controlUiOpened = await openUrl(appendOnboardingParam(authedUrl));
       if (!controlUiOpened) {
         controlUiOpenHint = formatControlUiSshHint({
           port: settings.port,

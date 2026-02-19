@@ -12,6 +12,7 @@ export const en: TranslationMap = {
     na: "n/a",
     docs: "Docs",
     resources: "Resources",
+    enterpriseNav: "Mission Control",
   },
   nav: {
     chat: "Chat",
@@ -20,6 +21,12 @@ export const en: TranslationMap = {
     settings: "Settings",
     expand: "Expand sidebar",
     collapse: "Collapse sidebar",
+    dashboard: "Dashboard",
+    consentguard: "ConsentGuard",
+    fleet: "Agents & Fleet",
+    integrations: "Integrations",
+    observability: "Observability",
+    billing: "Usage & Billing",
   },
   tabs: {
     agents: "Agents",
@@ -108,6 +115,9 @@ export const en: TranslationMap = {
     thinkingToggle: "Toggle assistant thinking/working output",
     focusToggle: "Toggle focus mode (hide sidebar + page header)",
     onboardingDisabled: "Disabled during onboarding",
+    onboardingBanner:
+      "You're in Mission Control. Use ConsentGuard to manage approvals, allowlists, and the gate audit.",
+    onboardingBannerDismiss: "Dismiss",
   },
   languages: {
     en: "English",

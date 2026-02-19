@@ -11,6 +11,17 @@ export const TAB_GROUPS = [
   { label: "settings", tabs: ["config", "debug", "logs"] },
 ] as const;
 
+/** Enterprise "Mission Control" sidebar: Governance, Observability, Security (ConsentGuard). */
+export const ENTERPRISE_TAB_GROUPS = [
+  { label: "dashboard", tabs: ["overview"] as const },
+  { label: "consentguard", tabs: ["consent"] as const },
+  { label: "fleet", tabs: ["agents", "nodes"] as const },
+  { label: "integrations", tabs: ["channels"] as const },
+  { label: "observability", tabs: ["logs"] as const },
+  { label: "billing", tabs: ["usage"] as const },
+  { label: "settings", tabs: ["config", "debug"] as const },
+] as const;
+
 export type Tab =
   | "agents"
   | "overview"
@@ -125,6 +136,11 @@ export function inferBasePathFromPathname(pathname: string): string {
   return `/${segments.join("/")}`;
 }
 
+/** Returns tab groups for the sidebar. Use enterpriseNav for Mission Control layout. */
+export function getTabGroups(enterpriseNav: boolean) {
+  return enterpriseNav ? ENTERPRISE_TAB_GROUPS : TAB_GROUPS;
+}
+
 export function iconForTab(tab: Tab): IconName {
   switch (tab) {
     case "agents":
@@ -144,7 +160,7 @@ export function iconForTab(tab: Tab): IconName {
     case "cron":
       return "loader";
     case "consent":
-      return "puzzle";
+      return "shield";
     case "skills":
       return "zap";
     case "nodes":

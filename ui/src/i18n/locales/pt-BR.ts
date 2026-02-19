@@ -12,6 +12,7 @@ export const pt_BR: TranslationMap = {
     na: "n/a",
     docs: "Docs",
     resources: "Recursos",
+    enterpriseNav: "Mission Control",
   },
   nav: {
     chat: "Chat",
@@ -20,6 +21,12 @@ export const pt_BR: TranslationMap = {
     settings: "Configurações",
     expand: "Expandir barra lateral",
     collapse: "Recolher barra lateral",
+    dashboard: "Dashboard",
+    consentguard: "ConsentGuard",
+    fleet: "Agents & Fleet",
+    integrations: "Integrations",
+    observability: "Observability",
+    billing: "Usage & Billing",
   },
   tabs: {
     agents: "Agentes",
@@ -110,6 +117,9 @@ export const pt_BR: TranslationMap = {
     thinkingToggle: "Alternar saída de pensamento/trabalho do assistente",
     focusToggle: "Alternar modo de foco (ocultar barra lateral + cabeçalho da página)",
     onboardingDisabled: "Desativado durante a integração",
+    onboardingBanner:
+      "Você está no Mission Control. Use o ConsentGuard para aprovações, listas de permissão e auditoria.",
+    onboardingBannerDismiss: "Dispensar",
   },
   languages: {
     en: "English",

@@ -32,7 +32,7 @@ describe("iconForTab", () => {
     expect(iconForTab("instances")).toBe("radio");
     expect(iconForTab("sessions")).toBe("fileText");
     expect(iconForTab("cron")).toBe("loader");
-    expect(iconForTab("consent")).toBe("puzzle");
+    expect(iconForTab("consent")).toBe("shield");
     expect(iconForTab("skills")).toBe("zap");
     expect(iconForTab("nodes")).toBe("monitor");
     expect(iconForTab("config")).toBe("settings");

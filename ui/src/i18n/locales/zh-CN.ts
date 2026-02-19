@@ -12,6 +12,7 @@ export const zh_CN: TranslationMap = {
     na: "不适用",
     docs: "文档",
     resources: "资源",
+    enterpriseNav: "Mission Control",
   },
   nav: {
     chat: "聊天",
@@ -20,6 +21,12 @@ export const zh_CN: TranslationMap = {
     settings: "设置",
     expand: "展开侧边栏",
     collapse: "折叠侧边栏",
+    dashboard: "Dashboard",
+    consentguard: "ConsentGuard",
+    fleet: "Agents & Fleet",
+    integrations: "Integrations",
+    observability: "Observability",
+    billing: "Usage & Billing",
   },
   tabs: {
     agents: "代理",
@@ -107,6 +114,8 @@ export const zh_CN: TranslationMap = {
     thinkingToggle: "切换助手思考/工作输出",
     focusToggle: "切换专注模式 (隐藏侧边栏 + 页面页眉)",
     onboardingDisabled: "引导期间禁用",
+    onboardingBanner: "您正在使用任务控制。使用 ConsentGuard 管理审批、白名单和门控审计。",
+    onboardingBannerDismiss: "关闭",
   },
   languages: {
     en: "English",
