@@ -65,6 +65,5 @@ export function normalizeConfigPaths(cfg: OpenClawConfig): OpenClawConfig {
   if (!cfg || typeof cfg !== "object") {
     return cfg;
   }
-  normalizeAny(undefined, cfg);
-  return cfg;
+  return normalizeAny(undefined, cfg) as OpenClawConfig;
 }
