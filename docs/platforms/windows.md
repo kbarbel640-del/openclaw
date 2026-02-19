@@ -65,7 +65,7 @@ so you may need to refresh the forwarding rule.
 Example (PowerShell **as Administrator**):
 
 ```powershell
-$Distro = "Ubuntu-24.04"
+$Distro = "Ubuntu-24.04" ## Run wsl -l -v to verify your distro name.
 $ListenPort = 2222
 $TargetPort = 22
 
