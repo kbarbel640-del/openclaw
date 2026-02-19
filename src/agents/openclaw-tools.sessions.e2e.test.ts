@@ -327,12 +327,13 @@ describe("sessions tools", () => {
         scope: "per-sender",
         agentToAgent: { maxPingPongTurns: 2 },
       },
+      tools: { sessions: { visibility: "all" } },
       agents: {
         defaults: {
           userTimezone: "Asia/Shanghai",
         },
       },
-    });
+    } as never);
     callGatewayMock.mockImplementation(async (opts: unknown) => {
       const request = opts as { method?: string };
       if (request.method === "chat.history") {
@@ -383,6 +384,7 @@ describe("sessions tools", () => {
         scope: "per-sender",
         agentToAgent: { maxPingPongTurns: 2 },
       },
+      tools: { sessions: { visibility: "all" } },
     });
   });
 
@@ -441,12 +443,13 @@ describe("sessions tools", () => {
         scope: "per-sender",
         agentToAgent: { maxPingPongTurns: 2 },
       },
+      tools: { sessions: { visibility: "all" } },
       agents: {
         defaults: {
           userTimezone: "America/New_York",
         },
       },
-    });
+    } as never);
     callGatewayMock.mockImplementation(async (opts: unknown) => {
       const request = opts as { method?: string };
       if (request.method === "chat.history") {
@@ -484,6 +487,7 @@ describe("sessions tools", () => {
         scope: "per-sender",
         agentToAgent: { maxPingPongTurns: 2 },
       },
+      tools: { sessions: { visibility: "all" } },
     });
   });
 
@@ -497,12 +501,13 @@ describe("sessions tools", () => {
         scope: "per-sender",
         agentToAgent: { maxPingPongTurns: 2 },
       },
+      tools: { sessions: { visibility: "all" } },
       agents: {
         defaults: {
           userTimezone: "UTC",
         },
       },
-    });
+    } as never);
     callGatewayMock.mockImplementation(async (opts: unknown) => {
       const request = opts as { method?: string };
       if (request.method === "chat.history") {
@@ -544,6 +549,7 @@ describe("sessions tools", () => {
         scope: "per-sender",
         agentToAgent: { maxPingPongTurns: 2 },
       },
+      tools: { sessions: { visibility: "all" } },
     });
   });
 
