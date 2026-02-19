@@ -45,6 +45,7 @@ export async function sendMessageMatrix(
   const { client, stopOnDone } = await resolveMatrixClient({
     client: opts.client,
     timeoutMs: opts.timeoutMs,
+    accountId: opts.accountId,
   });
   try {
     const roomId = await resolveMatrixRoomId(client, to);
@@ -166,6 +167,7 @@ export async function sendPollMatrix(
   const { client, stopOnDone } = await resolveMatrixClient({
     client: opts.client,
     timeoutMs: opts.timeoutMs,
+    accountId: opts.accountId,
   });
 
   try {
@@ -194,10 +196,12 @@ export async function sendTypingMatrix(
   typing: boolean,
   timeoutMs?: number,
   client?: MatrixClient,
+  accountId?: string | null,
 ): Promise<void> {
   const { client: resolved, stopOnDone } = await resolveMatrixClient({
     client,
     timeoutMs,
+    accountId,
   });
   try {
     const resolvedTimeoutMs = typeof timeoutMs === "number" ? timeoutMs : 30_000;
@@ -213,12 +217,14 @@ export async function sendReadReceiptMatrix(
   roomId: string,
   eventId: string,
   client?: MatrixClient,
+  accountId?: string | null,
 ): Promise<void> {
   if (!eventId?.trim()) {
     return;
   }
   const { client: resolved, stopOnDone } = await resolveMatrixClient({
     client,
+    accountId,
   });
   try {
     const resolvedRoom = await resolveMatrixRoomId(resolved, roomId);
@@ -235,12 +241,14 @@ export async function reactMatrixMessage(
   messageId: string,
   emoji: string,
   client?: MatrixClient,
+  accountId?: string | null,
 ): Promise<void> {
   if (!emoji.trim()) {
     throw new Error("Matrix reaction requires an emoji");
   }
   const { client: resolved, stopOnDone } = await resolveMatrixClient({
     client,
+    accountId,
   });
   try {
     const resolvedRoom = await resolveMatrixRoomId(resolved, roomId);

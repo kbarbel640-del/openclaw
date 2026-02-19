@@ -74,6 +74,7 @@ export type MatrixMonitorHandlerParams = {
   mediaMaxBytes: number;
   startupMs: number;
   startupGraceMs: number;
+  accountId?: string | null;
   directTracker: {
     isDirectMessage: (params: {
       roomId: string;
@@ -107,6 +108,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
     mediaMaxBytes,
     startupMs,
     startupGraceMs,
+    accountId,
     directTracker,
     getRoomInfo,
     getMemberDisplayName,
@@ -456,6 +458,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
           kind: isDirectMessage ? "dm" : "channel",
           id: isDirectMessage ? senderId : roomId,
         },
+        accountId,
       });
       const envelopeFrom = isDirectMessage ? senderName : (roomName ?? roomId);
       const textWithId = `${bodyText}\n[matrix event id: ${messageId} room: ${roomId}]`;

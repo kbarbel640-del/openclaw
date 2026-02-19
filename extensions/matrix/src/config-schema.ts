@@ -34,10 +34,9 @@ const matrixRoomSchema = z
   })
   .optional();
 
-export const MatrixConfigSchema = z.object({
+const MatrixAccountConfigSchema = z.object({
   name: z.string().optional(),
   enabled: z.boolean().optional(),
-  markdown: MarkdownConfigSchema,
   homeserver: z.string().optional(),
   userId: z.string().optional(),
   accessToken: z.string().optional(),
@@ -60,4 +59,14 @@ export const MatrixConfigSchema = z.object({
   groups: z.object({}).catchall(matrixRoomSchema).optional(),
   rooms: z.object({}).catchall(matrixRoomSchema).optional(),
   actions: matrixActionSchema,
+});
+
+export const MatrixConfigSchema = z.object({
+  markdown: MarkdownConfigSchema,
+
+  // Backward-compatible top-level account fields
+  ...MatrixAccountConfigSchema.shape,
+
+  // Multi-account configuration; each key is an account id.
+  accounts: z.record(z.string(), MatrixAccountConfigSchema).optional(),
 });

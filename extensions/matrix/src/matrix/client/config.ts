@@ -1,5 +1,6 @@
 import { MatrixClient } from "@vector-im/matrix-bot-sdk";
-import type { CoreConfig } from "../types.js";
+import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk";
+import type { CoreConfig, MatrixConfig } from "../types.js";
 import type { MatrixAuth, MatrixResolvedConfig } from "./types.js";
 import { getMatrixRuntime } from "../../runtime.js";
 import { ensureMatrixSdkLoggingConfigured } from "./logging.js";
@@ -8,11 +9,50 @@ function clean(value?: string): string {
   return value?.trim() ?? "";
 }
 
+function topLevelLegacyMatrixConfig(cfg: CoreConfig): MatrixConfig {
+  const matrix = (cfg.channels?.matrix ?? {}) as MatrixConfig & { accounts?: Record<string, MatrixConfig> };
+  // Strip multi-account container when projecting to a single account config shape.
+  const { accounts: _accounts, ...legacy } = matrix;
+  return legacy;
+}
+
+export function listMatrixAccountIds(cfg: CoreConfig): string[] {
+  const matrix = (cfg.channels?.matrix ?? {}) as MatrixConfig & { accounts?: Record<string, MatrixConfig> };
+  const ids = Object.keys(matrix.accounts ?? {})
+    .map((id) => normalizeAccountId(id))
+    .filter((id, idx, arr) => Boolean(id) && arr.indexOf(id) === idx);
+
+  if (ids.length > 0) {
+    return ids;
+  }
+
+  // Backward compatibility: legacy top-level single-account config is treated as `default`.
+  return [DEFAULT_ACCOUNT_ID];
+}
+
+export function resolveMatrixAccount(params: {
+  cfg: CoreConfig;
+  accountId?: string | null;
+}): MatrixConfig {
+  const matrix = (params.cfg.channels?.matrix ?? {}) as MatrixConfig & {
+    accounts?: Record<string, MatrixConfig>;
+  };
+  const accountId = normalizeAccountId(params.accountId);
+
+  if (matrix.accounts && typeof matrix.accounts === "object") {
+    return matrix.accounts[accountId] ?? {};
+  }
+
+  // Legacy single-account schema fallback
+  return topLevelLegacyMatrixConfig(params.cfg);
+}
+
 export function resolveMatrixConfig(
   cfg: CoreConfig = getMatrixRuntime().config.loadConfig() as CoreConfig,
   env: NodeJS.ProcessEnv = process.env,
+  accountId?: string | null,
 ): MatrixResolvedConfig {
-  const matrix = cfg.channels?.matrix ?? {};
+  const matrix = resolveMatrixAccount({ cfg, accountId });
   const homeserver = clean(matrix.homeserver) || clean(env.MATRIX_HOMESERVER);
   const userId = clean(matrix.userId) || clean(env.MATRIX_USER_ID);
   const accessToken = clean(matrix.accessToken) || clean(env.MATRIX_ACCESS_TOKEN) || undefined;
@@ -37,10 +77,11 @@ export function resolveMatrixConfig(
 export async function resolveMatrixAuth(params?: {
   cfg?: CoreConfig;
   env?: NodeJS.ProcessEnv;
+  accountId?: string | null;
 }): Promise<MatrixAuth> {
   const cfg = params?.cfg ?? (getMatrixRuntime().config.loadConfig() as CoreConfig);
   const env = params?.env ?? process.env;
-  const resolved = resolveMatrixConfig(cfg, env);
+  const resolved = resolveMatrixConfig(cfg, env, params?.accountId);
   if (!resolved.homeserver) {
     throw new Error("Matrix homeserver is required (matrix.homeserver)");
   }

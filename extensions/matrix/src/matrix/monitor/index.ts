@@ -10,6 +10,8 @@ import {
   resolveSharedMatrixClient,
   stopSharedClient,
 } from "../client.js";
+import { resolveMatrixAccount } from "../client/config.js";
+import { DEFAULT_ACCOUNT_KEY } from "../client/storage.js";
 import { normalizeMatrixUserId } from "./allowlist.js";
 import { registerMatrixAutoJoin } from "./auto-join.js";
 import { createDirectRoomTracker } from "./direct.js";
@@ -33,12 +35,29 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     throw new Error("Matrix provider requires Node (bun runtime not supported)");
   }
   const core = getMatrixRuntime();
-  let cfg = core.config.loadConfig() as CoreConfig;
-  if (cfg.channels?.matrix?.enabled === false) {
+  const cfgBase = core.config.loadConfig() as CoreConfig;
+  if (cfgBase.channels?.matrix?.enabled === false) {
     return;
   }
 
-  const logger = core.logging.getChildLogger({ module: "matrix-auto-reply" });
+  // Resolve account-specific matrix settings and merge them into a virtual cfg for this handler.
+  // This ensures allowlists, prefixes, and all other per-account settings are used consistently.
+  const matrixAccount = resolveMatrixAccount({ cfg: cfgBase, accountId: opts.accountId });
+  let cfg: CoreConfig = {
+    ...cfgBase,
+    channels: {
+      ...cfgBase.channels,
+      matrix: {
+        ...cfgBase.channels?.matrix,
+        ...matrixAccount,
+      } as CoreConfig["channels"] extends { matrix?: infer M } ? M : never,
+    },
+  };
+
+  const logger = core.logging.getChildLogger({
+    module: "matrix-auto-reply",
+    ...(opts.accountId ? { accountId: opts.accountId } : {}),
+  });
   const formatRuntimeMessage = (...args: Parameters<RuntimeEnv["log"]>) => format(...args);
   const runtime: RuntimeEnv = opts.runtime ?? {
     log: (...args) => {
@@ -203,6 +222,7 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     roomsConfig = nextRooms;
   }
 
+  // Re-merge resolved allowlists and room configs back into cfg so the handler sees them.
   cfg = {
     ...cfg,
     channels: {
@@ -219,7 +239,8 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     },
   };
 
-  const auth = await resolveMatrixAuth({ cfg });
+  // Resolve auth for this specific account.
+  const auth = await resolveMatrixAuth({ cfg: cfgBase, accountId: opts.accountId });
   const resolvedInitialSyncLimit =
     typeof opts.initialSyncLimit === "number"
       ? Math.max(0, Math.floor(opts.initialSyncLimit))
@@ -229,12 +250,13 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
       ? auth
       : { ...auth, initialSyncLimit: resolvedInitialSyncLimit };
   const client = await resolveSharedMatrixClient({
-    cfg,
+    cfg: cfgBase,
     auth: authWithLimit,
     startClient: false,
     accountId: opts.accountId,
   });
-  setActiveMatrixClient(client);
+  const activeAccountId = opts.accountId ?? DEFAULT_ACCOUNT_KEY;
+  setActiveMatrixClient(activeAccountId, client);
 
   const mentionRegexes = core.channel.mentions.buildMentionRegexes(cfg);
   const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
@@ -276,6 +298,7 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     mediaMaxBytes,
     startupMs,
     startupGraceMs,
+    accountId: opts.accountId,
     directTracker,
     getRoomInfo,
     getMemberDisplayName,
@@ -294,7 +317,7 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
 
   logVerboseMessage("matrix: starting client");
   await resolveSharedMatrixClient({
-    cfg,
+    cfg: cfgBase,
     auth: authWithLimit,
     accountId: opts.accountId,
   });
@@ -323,9 +346,9 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     const onAbort = () => {
       try {
         logVerboseMessage("matrix: stopping client");
-        stopSharedClient();
+        stopSharedClient(opts.accountId);
       } finally {
-        setActiveMatrixClient(null);
+        setActiveMatrixClient(activeAccountId, null);
         resolve();
       }
     };

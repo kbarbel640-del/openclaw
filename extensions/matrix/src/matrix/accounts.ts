@@ -1,6 +1,10 @@
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk";
 import type { CoreConfig, MatrixConfig } from "../types.js";
-import { resolveMatrixConfig } from "./client.js";
+import {
+  listMatrixAccountIds as listAccountIdsFromConfig,
+  resolveMatrixAccount as resolveAccountConfig,
+  resolveMatrixConfig,
+} from "./client.js";
 import { credentialsMatchConfig, loadMatrixCredentials } from "./credentials.js";
 
 export type ResolvedMatrixAccount = {
@@ -13,8 +17,8 @@ export type ResolvedMatrixAccount = {
   config: MatrixConfig;
 };
 
-export function listMatrixAccountIds(_cfg: CoreConfig): string[] {
-  return [DEFAULT_ACCOUNT_ID];
+export function listMatrixAccountIds(cfg: CoreConfig): string[] {
+  return listAccountIdsFromConfig(cfg);
 }
 
 export function resolveDefaultMatrixAccountId(cfg: CoreConfig): string {
@@ -30,9 +34,9 @@ export function resolveMatrixAccount(params: {
   accountId?: string | null;
 }): ResolvedMatrixAccount {
   const accountId = normalizeAccountId(params.accountId);
-  const base = params.cfg.channels?.matrix ?? {};
+  const base = resolveAccountConfig({ cfg: params.cfg, accountId });
   const enabled = base.enabled !== false;
-  const resolved = resolveMatrixConfig(params.cfg, process.env);
+  const resolved = resolveMatrixConfig(params.cfg, process.env, accountId);
   const hasHomeserver = Boolean(resolved.homeserver);
   const hasUserId = Boolean(resolved.userId);
   const hasAccessToken = Boolean(resolved.accessToken);
