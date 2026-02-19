@@ -17,6 +17,11 @@ import { SYNC_MARKER } from "../agents/skills/claude-commands-sync.js";
 // Types
 // ---------------------------------------------------------------------------
 
+export type FabricMcpToolInfo = {
+  serverName: string;
+  tools: Array<{ name: string; description?: string }>;
+};
+
 export type FabricSkillTarget = {
   id: string;
   name: string;
@@ -25,6 +30,8 @@ export type FabricSkillTarget = {
   tools?: Array<{ name: string; description?: string }>;
   kind: "agent" | "agent-system";
   memberCount?: number;
+  /** MCP servers available alongside this agent/system. */
+  mcpServers?: FabricMcpToolInfo[];
 };
 
 export type GenerateFabricSkillsResult = {
@@ -101,6 +108,29 @@ function buildSkillContent(target: FabricSkillTarget): string {
       const desc = tool.description ? `: ${tool.description}` : "";
       lines.push(`- ${tool.name}${desc}`);
     }
+    lines.push("");
+  }
+
+  // MCP servers with tools
+  if (target.mcpServers && target.mcpServers.length > 0) {
+    lines.push("## Available MCP servers");
+    lines.push("");
+    lines.push(
+      "The following MCP servers are connected to Claude CLI. Use their tools directly when answering user questions.",
+    );
+    lines.push("");
+    for (const mcp of target.mcpServers) {
+      lines.push(`### ${mcp.serverName}`);
+      lines.push("");
+      for (const tool of mcp.tools) {
+        const desc = tool.description ? `: ${tool.description}` : "";
+        lines.push(`- \`${tool.name}\`${desc}`);
+      }
+      lines.push("");
+    }
+    lines.push(
+      "**IMPORTANT**: Always prefer calling MCP tools over generating answers from general knowledge.",
+    );
     lines.push("");
   }
 

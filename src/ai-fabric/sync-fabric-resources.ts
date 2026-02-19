@@ -21,7 +21,7 @@ import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AgentStatusEntry } from "./agent-status.js";
 import type { AgentSystemStatusEntry } from "./agent-system-status.js";
-import type { FabricSkillTarget } from "./generate-fabric-skills.js";
+import type { FabricMcpToolInfo, FabricSkillTarget } from "./generate-fabric-skills.js";
 import type { McpStatusEntry } from "./mcp-status.js";
 import {
   removeFabricMcpFromClaudeSettings,
@@ -148,7 +148,7 @@ export async function syncFabricResources(params: SyncFabricParams): Promise<Syn
 
   // Step 2: Generate skills for agents + agent systems
   try {
-    const targets = await buildSkillTargets(params, agentEntries, systemEntries);
+    const targets = await buildSkillTargets(params, agentEntries, mcpEntries, systemEntries);
     const skillsDir = path.join(workspaceDir, "skills");
     const result = await generateFabricSkills({ targets, skillsDir });
     skillCount = result.generated;
@@ -312,6 +312,7 @@ async function countFabricSkills(workspaceDir: string): Promise<number> {
 async function buildSkillTargets(
   params: SyncFabricParams,
   agentEntries: AgentStatusEntry[],
+  mcpEntries: McpStatusEntry[],
   systemEntries: AgentSystemStatusEntry[],
 ): Promise<FabricSkillTarget[]> {
   const targets: FabricSkillTarget[] = [];
@@ -321,6 +322,12 @@ async function buildSkillTargets(
   const activeSystems = systemEntries.filter(
     (e) => e.health === "healthy" || e.health === "degraded",
   );
+
+  // Build MCP tool info from healthy servers
+  const mcpToolInfo: FabricMcpToolInfo[] = mcpEntries
+    .filter((e) => e.health === "healthy" || e.health === "degraded")
+    .filter((e) => e.tools.length > 0)
+    .map((e) => ({ serverName: e.name, tools: e.tools }));
 
   // Try to enrich with detailed info (system prompts, tools)
   let client: CloudruSimpleClient | null = null;
@@ -337,6 +344,7 @@ async function buildSkillTargets(
       id: entry.id,
       name: entry.name,
       kind: "agent",
+      mcpServers: mcpToolInfo,
     };
 
     // Try to fetch full agent details for systemPrompt + tools
@@ -362,6 +370,7 @@ async function buildSkillTargets(
       description: entry.description,
       kind: "agent-system",
       memberCount: entry.memberCount,
+      mcpServers: mcpToolInfo,
     };
 
     if (client) {
