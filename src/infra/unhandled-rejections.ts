@@ -27,12 +27,20 @@ const TRANSIENT_NETWORK_CODES = new Set([
   "EHOSTUNREACH",
   "ENETUNREACH",
   "EAI_AGAIN",
+  // TLS / certificate errors — network-layer failures, not code bugs
+  "CERT_HAS_EXPIRED",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  // Undici-specific codes
   "UND_ERR_CONNECT_TIMEOUT",
   "UND_ERR_DNS_RESOLVE_FAILED",
   "UND_ERR_CONNECT",
   "UND_ERR_SOCKET",
   "UND_ERR_HEADERS_TIMEOUT",
   "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_INFO",
+  "UND_ERR_REQ_CONTENT_LENGTH_MISMATCH",
 ]);
 
 function getErrorCause(err: unknown): unknown {
@@ -94,12 +102,10 @@ export function isTransientNetworkError(err: unknown): boolean {
     return true;
   }
 
-  // "fetch failed" TypeError from undici (Node's native fetch)
+  // "fetch failed" TypeError from undici (Node's native fetch).
+  // Any "fetch failed" is a network-layer failure (DNS, TLS, TCP) — always treat as
+  // transient so a single unreachable upstream host cannot crash the gateway. (#20601)
   if (err instanceof TypeError && err.message === "fetch failed") {
-    const cause = getErrorCause(err);
-    if (cause) {
-      return isTransientNetworkError(cause);
-    }
     return true;
   }
 

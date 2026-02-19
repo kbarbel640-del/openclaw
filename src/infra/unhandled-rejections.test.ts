@@ -79,6 +79,21 @@ describe("isTransientNetworkError", () => {
     expect(isTransientNetworkError(error)).toBe(true);
   });
 
+  it("returns true for fetch failed with TLS cause (previously crashed gateway, #20601)", () => {
+    const cause = Object.assign(new Error("certificate has expired"), {
+      code: "CERT_HAS_EXPIRED",
+    });
+    const error = Object.assign(new TypeError("fetch failed"), { cause });
+    expect(isTransientNetworkError(error)).toBe(true);
+  });
+
+  it("returns true for fetch failed with unknown non-network cause (belt-and-suspenders)", () => {
+    // Any "fetch failed" TypeError is a network-layer failure and should never crash
+    const cause = Object.assign(new Error("some weird undici error"), { code: "UND_ERR_INFO" });
+    const error = Object.assign(new TypeError("fetch failed"), { cause });
+    expect(isTransientNetworkError(error)).toBe(true);
+  });
+
   it("returns true for nested cause chain with network error", () => {
     const innerCause = Object.assign(new Error("connection reset"), { code: "ECONNRESET" });
     const outerCause = Object.assign(new Error("wrapper"), { cause: innerCause });
