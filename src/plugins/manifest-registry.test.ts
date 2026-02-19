@@ -69,11 +69,13 @@ describe("loadPluginManifestRegistry", () => {
     writeManifest(dirA, manifest);
     writeManifest(dirB, manifest);
 
+    // Both at the same origin rank — neither supersedes the other.
+    // This is a genuine conflict (two independent plugins sharing an id).
     const candidates: PluginCandidate[] = [
       createPluginCandidate({
         idHint: "test-plugin",
         rootDir: dirA,
-        origin: "bundled",
+        origin: "global",
       }),
       createPluginCandidate({
         idHint: "test-plugin",
@@ -83,6 +85,24 @@ describe("loadPluginManifestRegistry", () => {
     ];
 
     expect(countDuplicateWarnings(loadRegistry(candidates))).toBe(1);
+  });
+
+  it("suppresses duplicate warning when config origin supersedes bundled (channels config pattern)", () => {
+    const dirBundled = makeTempDir();
+    const dirConfig = makeTempDir();
+    const manifest = { id: "bluebubbles", configSchema: { type: "object" } };
+    writeManifest(dirBundled, manifest);
+    writeManifest(dirConfig, manifest);
+
+    // channels.bluebubbles config creates a "config"-origin candidate pointing to
+    // a different directory than the auto-discovered "bundled" extension.
+    // This should be treated as an intentional override, not a conflict. (#20478)
+    const candidates: PluginCandidate[] = [
+      createPluginCandidate({ idHint: "bluebubbles", rootDir: dirBundled, origin: "bundled" }),
+      createPluginCandidate({ idHint: "bluebubbles", rootDir: dirConfig, origin: "config" }),
+    ];
+
+    expect(countDuplicateWarnings(loadRegistry(candidates))).toBe(0);
   });
 
   it("suppresses duplicate warning when candidates share the same physical directory via symlink", () => {

@@ -214,10 +214,15 @@ export function loadPluginManifestRegistry(params: {
       const existingReal = safeRealpathSync(existing.candidate.rootDir, realpathCache);
       const candidateReal = safeRealpathSync(candidate.rootDir, realpathCache);
       const samePlugin = Boolean(existingReal && candidateReal && existingReal === candidateReal);
-      if (samePlugin) {
-        // Prefer higher-precedence origins even if candidates are passed in
-        // an unexpected order (config > workspace > global > bundled).
-        if (PLUGIN_ORIGIN_RANK[candidate.origin] < PLUGIN_ORIGIN_RANK[existing.candidate.origin]) {
+      const candidateRank = PLUGIN_ORIGIN_RANK[candidate.origin];
+      const existingRank = PLUGIN_ORIGIN_RANK[existing.candidate.origin];
+      // When the incoming candidate has a strictly higher origin precedence
+      // (e.g. channels config enabling the same bundled extension), treat it as an
+      // intentional override rather than a conflicting duplicate — suppress the
+      // warning and promote the higher-precedence registration. (#20478)
+      const isIntentionalOverride = !samePlugin && candidateRank < existingRank;
+      if (samePlugin || isIntentionalOverride) {
+        if (samePlugin ? candidateRank < existingRank : isIntentionalOverride) {
           records[existing.recordIndex] = buildRecord({
             manifest,
             candidate,
