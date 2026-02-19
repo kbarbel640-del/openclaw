@@ -10,7 +10,7 @@ import time
 import uuid
 from pathlib import Path
 from .contract import TaskContract, TaskResult, TaskStatus
-from .verification import run_full_verification
+from .verifier import Verifier as _Verifier
 from .reputation import (
     init_db, get_reputation, update_reputation, get_supervision_level,
     SCORE_FIRST_PASS, SCORE_RETRY_PASS, SCORE_HONEST_BLOCK,
@@ -139,7 +139,10 @@ def execute_governed(contract: TaskContract, agent_id: str,
         # 6. If agent claims success, VERIFY
         if result.status == TaskStatus.SUCCESS:
             print(f"  ✅ Agent claims SUCCESS — verifying...")
-            verification = run_full_verification(contract, work_dir)
+            verifier = _Verifier(required_files=getattr(contract, "required_files", []), run_tests=getattr(contract, "run_tests", None), work_dir=work_dir)
+            verification = verifier.run()
+            # compatibility shim
+            verification.summary = verification.details
             result.verification_passed = verification.passed
             
             if verification.passed:
