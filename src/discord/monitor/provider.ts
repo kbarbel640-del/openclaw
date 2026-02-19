@@ -67,6 +67,19 @@ import {
 import { resolveDiscordPresenceUpdate } from "./presence.js";
 import { resolveDiscordRestFetch } from "./rest-fetch.js";
 
+const DISCORD_DISALLOWED_INTENTS_CLOSE_CODE = 4014;
+
+function isDiscordDisallowedIntentsError(err: unknown): boolean {
+  return String(err).includes(`Fatal Gateway error: ${DISCORD_DISALLOWED_INTENTS_CLOSE_CODE}`);
+}
+
+function formatDiscordDisallowedIntentsMessage(): string {
+  return [
+    "Discord connection failed: missing Privileged Gateway Intents (close code 4014).",
+    "Enable Message Content Intent (and Server Members Intent if used) in Discord Dev Portal → Bot → Privileged Gateway Intents.",
+  ].join(" ");
+}
+
 export type MonitorDiscordOpts = {
   token?: string;
   accountId?: string;
@@ -514,6 +527,31 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     [createDiscordGatewayPlugin({ discordConfig: discordCfg, runtime })],
   );
 
+  const gateway = client.getPlugin<GatewayPlugin>("gateway");
+  const gatewayEmitter = getDiscordGatewayEmitter(gateway);
+  let startupGatewayError: unknown;
+  let loggedDisallowedIntents = false;
+  const onStartupGatewayError = (err: unknown) => {
+    startupGatewayError = err;
+    if (isDiscordDisallowedIntentsError(err)) {
+      if (!loggedDisallowedIntents) {
+        runtime.error?.(danger(formatDiscordDisallowedIntentsMessage()));
+        loggedDisallowedIntents = true;
+      }
+      if (gateway) {
+        gateway.options.reconnect = { maxAttempts: 0 };
+        try {
+          gateway.disconnect();
+        } catch {
+          // already shutting down
+        }
+      }
+      return;
+    }
+    runtime.error?.(danger(`discord gateway error: ${String(err)}`));
+  };
+  gatewayEmitter?.on("error", onStartupGatewayError);
+
   await deployDiscordCommands({ client, runtime, enabled: nativeEnabled });
 
   const logger = createSubsystemLogger("discord/monitor");
@@ -593,11 +631,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     await execApprovalsHandler.start();
   }
 
-  const gateway = client.getPlugin<GatewayPlugin>("gateway");
   if (gateway) {
     registerGateway(account.accountId, gateway);
   }
-  const gatewayEmitter = getDiscordGatewayEmitter(gateway);
   const stopGatewayLogging = attachDiscordGatewayLogging({
     emitter: gatewayEmitter,
     runtime,
@@ -644,6 +680,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   };
   gatewayEmitter?.on("debug", onGatewayDebug);
   try {
+    if (startupGatewayError) {
+      throw startupGatewayError;
+    }
     await waitForDiscordGatewayStop({
       gateway: gateway
         ? {
@@ -653,15 +692,25 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         : undefined,
       abortSignal,
       onGatewayError: (err) => {
-        runtime.error?.(danger(`discord gateway error: ${String(err)}`));
+        startupGatewayError = err;
       },
       shouldStopOnError: (err) => {
         const message = String(err);
         return (
-          message.includes("Max reconnect attempts") || message.includes("Fatal Gateway error")
+          isDiscordDisallowedIntentsError(err) ||
+          message.includes("Max reconnect attempts") ||
+          message.includes("Fatal Gateway error")
         );
       },
     });
+  } catch (err) {
+    if (isDiscordDisallowedIntentsError(err)) {
+      if (!loggedDisallowedIntents) {
+        runtime.error?.(danger(formatDiscordDisallowedIntentsMessage()));
+      }
+      return;
+    }
+    throw err;
   } finally {
     unregisterGateway(account.accountId);
     stopGatewayLogging();
@@ -669,6 +718,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       clearTimeout(helloTimeoutId);
     }
     gatewayEmitter?.removeListener("debug", onGatewayDebug);
+    gatewayEmitter?.removeListener("error", onStartupGatewayError);
     abortSignal?.removeEventListener("abort", onAbort);
     if (execApprovalsHandler) {
       await execApprovalsHandler.stop();
@@ -695,4 +745,6 @@ export const __testing = {
   createDiscordGatewayPlugin,
   dedupeSkillCommandsForDiscord,
   resolveDiscordRestFetch,
+  isDiscordDisallowedIntentsError,
+  formatDiscordDisallowedIntentsMessage,
 };
