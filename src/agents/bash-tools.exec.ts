@@ -3,6 +3,7 @@ import path from "node:path";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { type ExecHost, maxAsk, minSecurity, resolveSafeBins } from "../infra/exec-approvals.js";
 import { getTrustedSafeBinDirs } from "../infra/exec-safe-bin-trust.js";
+import { createFixedWindowRateLimiter } from "../infra/fixed-window-rate-limit.js";
 import {
   getShellPathFromLoginShell,
   resolveShellEnvFallbackTimeoutMs,
@@ -54,24 +55,19 @@ export type {
 /**
  * SECURITY: Rate guard for elevated=full exec commands.
  * Prevents unbounded elevated command execution within a short window.
- * Limit: 30 commands per 60-second window per gateway process.
+ * Uses the shared FixedWindowRateLimiter for thread-safe accounting.
  */
-const ELEVATED_FULL_RATE_WINDOW_MS = 60_000;
-const ELEVATED_FULL_RATE_MAX = 30;
-let elevatedFullRateWindowStart = 0;
-let elevatedFullRateCount = 0;
+const elevatedFullRateLimiter = createFixedWindowRateLimiter({
+  maxRequests: 30,
+  windowMs: 60_000,
+});
 
 function checkElevatedFullRateGuard(): void {
-  const now = Date.now();
-  if (now - elevatedFullRateWindowStart > ELEVATED_FULL_RATE_WINDOW_MS) {
-    elevatedFullRateWindowStart = now;
-    elevatedFullRateCount = 0;
-  }
-  elevatedFullRateCount += 1;
-  if (elevatedFullRateCount > ELEVATED_FULL_RATE_MAX) {
+  const budget = elevatedFullRateLimiter.consume();
+  if (!budget.allowed) {
     throw new Error(
-      `elevated=full rate limit exceeded (${ELEVATED_FULL_RATE_MAX} commands per ${ELEVATED_FULL_RATE_WINDOW_MS / 1000}s). ` +
-        "Wait before issuing more elevated commands.",
+      `elevated=full rate limit exceeded (30 commands per 60s). ` +
+        `Retry after ${Math.ceil(budget.retryAfterMs / 1_000)}s.`,
     );
   }
 }
