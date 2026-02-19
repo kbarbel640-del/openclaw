@@ -49,6 +49,12 @@ describe("formatRawAssistantErrorForUi — leak vector sanitization", () => {
     expect(result).not.toContain("/usr/lib");
   });
 
+  it("does not suppress short safe errors containing common words like and/or", () => {
+    const raw = "read/write permission denied";
+    const result = formatRawAssistantErrorForUi(raw);
+    expect(result).toBe("read/write permission denied");
+  });
+
   it("passes through short, safe error text", () => {
     const raw = "Model not available";
     const result = formatRawAssistantErrorForUi(raw);

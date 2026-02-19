@@ -530,7 +530,7 @@ export function formatRawAssistantErrorForUi(raw?: string): string {
   if (
     trimmed.startsWith("{") ||
     trimmed.startsWith("<") ||
-    /stack|trace|at\s+\S+\(|\/[a-z].*\.[a-z]/i.test(trimmed) ||
+    /stack|trace|at\s+\S+\(|\/(?:usr|home|opt|var|tmp|etc|proc|mnt|srv|root)\//i.test(trimmed) ||
     trimmed.length > 300
   ) {
     return TRANSIENT_API_ERROR_MESSAGE;
@@ -658,7 +658,9 @@ export function formatAssistantErrorText(
     raw.length > 300 ||
     raw.startsWith("{") ||
     raw.startsWith("<") ||
-    /stack|trace|at\s+\S+\(|\/[a-z].*\.[a-z]|request_id|req_\w+/i.test(raw)
+    /stack|trace|at\s+\S+\(|\/(?:usr|home|opt|var|tmp|etc|proc|mnt|srv|root)\/|request_id|req_\w+/i.test(
+      raw,
+    )
   ) {
     console.warn("[formatAssistantErrorText] Suppressed raw error:", raw.slice(0, 200));
     return TRANSIENT_API_ERROR_MESSAGE;

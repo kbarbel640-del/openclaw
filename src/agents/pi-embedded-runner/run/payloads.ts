@@ -267,7 +267,10 @@ export function buildEmbeddedRunPayloads(params: {
       // Only show a short, safe summary; the full error is already in the agent's context.
       const rawToolError = params.lastToolError.error ?? "";
       const safeToolError =
-        rawToolError.length > 120 || /\n|stack|trace|at\s+\S+\(|\/[a-z]/i.test(rawToolError)
+        rawToolError.length > 120 ||
+        /\n|stack|trace|at\s+\S+\(|(?:^|[\s(])\/(?:usr|home|opt|var|tmp|etc|proc|mnt|srv|root)\//i.test(
+          rawToolError,
+        )
           ? ""
           : rawToolError;
       const errorSuffix = safeToolError ? `: ${safeToolError}` : "";
