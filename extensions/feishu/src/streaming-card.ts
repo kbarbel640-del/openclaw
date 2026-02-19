@@ -140,6 +140,11 @@ export class FeishuStreamingSession {
     const now = Date.now();
     if (now - this.lastUpdateTime < this.updateThrottleMs) {
       this.pendingText = text;
+      setTimeout(() => {
+        if (this.pendingText !== null && !this.closed) {
+          void this.update(this.pendingText);
+        }
+      }, this.updateThrottleMs);
       return;
     }
     this.pendingText = null;
