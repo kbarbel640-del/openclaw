@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { PluginDiagnostic, PluginOrigin } from "./types.js";
 import { isPathInsideWithRealpath } from "../security/scan-paths.js";
 import { resolveConfigDir, resolveUserPath } from "../utils.js";
 import { resolveBundledPluginsDir } from "./bundled-dir.js";
@@ -9,7 +10,6 @@ import {
   type PackageManifest,
 } from "./manifest.js";
 import { formatPosixMode, isPathInside, safeRealpathSync, safeStatSync } from "./path-safety.js";
-import type { PluginDiagnostic, PluginOrigin } from "./types.js";
 
 const EXTENSION_EXTS = new Set([".ts", ".js", ".mts", ".cts", ".mjs", ".cjs"]);
 
@@ -295,7 +295,10 @@ function addCandidate(params: {
   });
 }
 
-function resolveDirentKind(entry: fs.Dirent, fullPath: string): {
+function resolveDirentKind(
+  entry: fs.Dirent,
+  fullPath: string,
+): {
   isFile: boolean;
   isDirectory: boolean;
 } {
@@ -369,13 +372,14 @@ function discoverInDirectory(params: {
       if (!isExtensionFile(fullPath)) {
         continue;
       }
+      const candidateRootDir = entry.isSymbolicLink() ? fullPath : path.dirname(fullPath);
       addCandidate({
         candidates: params.candidates,
         diagnostics: params.diagnostics,
         seen: params.seen,
         idHint: path.basename(entry.name, path.extname(entry.name)),
         source: fullPath,
-        rootDir: path.dirname(fullPath),
+        rootDir: candidateRootDir,
         origin: params.origin,
         ownershipUid: params.ownershipUid,
         workspaceDir: params.workspaceDir,
