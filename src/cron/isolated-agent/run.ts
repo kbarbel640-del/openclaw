@@ -195,7 +195,20 @@ export async function runCronIsolatedAgentTurn(params: {
   };
 
   const cfgWithJobTools: OpenClawConfig = params.job.tools
-    ? { ...cfgWithAgentDefaults, tools: { ...cfgWithAgentDefaults.tools, ...params.job.tools } }
+    ? {
+        ...cfgWithAgentDefaults,
+        tools: {
+          ...cfgWithAgentDefaults.tools,
+          allow: [
+            ...(cfgWithAgentDefaults.tools?.allow ?? []),
+            ...(params.job.tools.allow ?? []),
+          ],
+          deny: [
+            ...(cfgWithAgentDefaults.tools?.deny ?? []),
+            ...(params.job.tools.deny ?? []),
+          ],
+        },
+      }
     : cfgWithAgentDefaults;
 
   const baseSessionKey = (params.sessionKey?.trim() || `cron:${params.job.id}`).trim();
