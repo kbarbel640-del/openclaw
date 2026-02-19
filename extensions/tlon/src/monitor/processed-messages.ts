@@ -11,7 +11,7 @@ export function createProcessedMessageTracker(limit = 2000): ProcessedMessageTra
   const mark = (id?: string | null) => {
     const trimmed = id?.trim();
     if (!trimmed) {
-      return true;
+      return false;
     }
     if (seen.has(trimmed)) {
       return false;
