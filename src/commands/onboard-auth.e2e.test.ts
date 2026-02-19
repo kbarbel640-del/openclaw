@@ -1,6 +1,6 @@
+import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import {
@@ -479,16 +479,23 @@ describe("allowlist provider helpers", () => {
 });
 
 describe("applyLitellmProviderConfig", () => {
-  it("preserves existing baseUrl and api key while adding the default model", () => {
+  it("applies baseUrl, modelId, and preserves existing api key while adding the model", () => {
     const cfg = applyLitellmProviderConfig(
       createLegacyProviderConfig({
         providerId: "litellm",
         api: "anthropic-messages",
         modelId: "custom-model",
         modelName: "Custom",
-        baseUrl: "https://litellm.example/v1",
+        baseUrl: "https://old-url.example/v1",
         apiKey: "  old-key  ",
       }),
+      {
+        baseUrl: "https://litellm.example/v1",
+        modelId: "claude-opus-4-6",
+        modelName: "Claude Opus 4.6",
+        contextWindow: 128000,
+        maxTokens: 8192,
+      },
     );
 
     expect(cfg.models?.providers?.litellm?.baseUrl).toBe("https://litellm.example/v1");
@@ -498,6 +505,9 @@ describe("applyLitellmProviderConfig", () => {
       "custom-model",
       "claude-opus-4-6",
     ]);
+    expect(cfg.agents?.defaults?.models?.["litellm/claude-opus-4-6"]?.alias).toBe(
+      "Claude Opus 4.6",
+    );
   });
 });
 
