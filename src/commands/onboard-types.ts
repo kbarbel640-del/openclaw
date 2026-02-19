@@ -122,6 +122,7 @@ export type OnboardOptions = {
   opencodeZenApiKey?: string;
   xaiApiKey?: string;
   qianfanApiKey?: string;
+  digitaloceanApiKey?: string;
   customBaseUrl?: string;
   customApiKey?: string;
   customModelId?: string;

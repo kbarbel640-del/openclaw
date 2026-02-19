@@ -101,9 +101,9 @@ export async function applyDigitalOceanGradientAuthChoice(
   if (!hasCredential) {
     const store = ensureAuthProfileStore();
     const profiles = resolveAuthProfileOrder({
+      cfg: params.config,
       provider: "digitalocean",
       store,
-      preferredProfileId: params.config.agents?.defaults?.authProfile?.profileId,
     });
     if (profiles.length > 0) {
       const profileId = profiles[0];

@@ -29,7 +29,7 @@ import {
   applyXaiConfig,
   applyXiaomiConfig,
   applyZaiConfig,
-  applyDigitalOceanGradientAuthChoice,
+  applyDigitalOceanGradientConfig,
   setAnthropicApiKey,
   setCloudflareAiGatewayConfig,
   setQianfanApiKey,
@@ -680,10 +680,12 @@ export async function applyNonInteractiveAuthChoice(params: {
     if (resolved.source !== "profile") {
       setDigitalOceanGradientApiKey(resolved.key);
     }
-    return applyDigitalOceanGradientAuthChoice({
-      ...params,
-      nextConfig,
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "digitalocean:default",
+      provider: "digitalocean",
+      mode: "api_key",
     });
+    return applyDigitalOceanGradientConfig(nextConfig);
   }
 
   if (authChoice === "custom-api-key") {
