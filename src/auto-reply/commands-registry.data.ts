@@ -166,6 +166,40 @@ function buildChatCommands(): ChatCommandDefinition[] {
       ],
     }),
     defineChatCommand({
+      key: "expanso",
+      nativeName: "expanso",
+      description: "Build or validate Expanso data pipelines using natural language.",
+      textAlias: "/expanso",
+      category: "tools",
+      args: [
+        {
+          name: "action",
+          description:
+            "Action: build (generate pipeline), validate (check YAML), or fix (generate + validate + auto-fix)",
+          type: "string",
+          choices: [
+            { value: "build", label: "Build — generate pipeline from description" },
+            { value: "validate", label: "Validate — check existing pipeline YAML" },
+            { value: "fix", label: "Fix — generate, validate, and auto-fix errors" },
+          ],
+        },
+        {
+          name: "input",
+          description: "Pipeline description (for build/fix) or YAML string (for validate)",
+          type: "string",
+          captureRemaining: true,
+        },
+      ],
+      argsMenu: {
+        arg: "action",
+        title:
+          "Expanso Pipeline Actions:\n" +
+          "• Build — Generate a pipeline YAML from a plain English description\n" +
+          "• Validate — Check an existing pipeline YAML using the expanso binary\n" +
+          "• Fix — Generate a pipeline, validate it, and automatically fix any errors",
+      },
+    }),
+    defineChatCommand({
       key: "status",
       nativeName: "status",
       description: "Show current status.",
