@@ -7,7 +7,6 @@
 
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { McpServerConfig } from "./config.js";
 import { McpClientBase } from "./client-base.js";
 
 export class SseMcpClient extends McpClientBase {
@@ -31,7 +30,9 @@ export class SseMcpClient extends McpClientBase {
         });
       }
 
+      // eslint-disable-next-line unicorn/prefer-add-event-listener
       this.transport.onclose = () => this.handleDisconnect();
+      // eslint-disable-next-line unicorn/prefer-add-event-listener
       this.transport.onerror = () => this.handleDisconnect();
 
       await this.initializeClient(this.transport);

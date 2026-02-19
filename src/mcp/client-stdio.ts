@@ -6,7 +6,6 @@
  */
 
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import type { McpServerConfig } from "./config.js";
 import { McpClientBase } from "./client-base.js";
 
 export class StdioMcpClient extends McpClientBase {
@@ -35,8 +34,10 @@ export class StdioMcpClient extends McpClientBase {
         cwd: this.config.cwd,
       });
 
-      // Monitor for crashes
+      // Monitor for crashes (SDK transports use property assignment, not EventTarget)
+      // eslint-disable-next-line unicorn/prefer-add-event-listener
       this.transport.onclose = () => this.handleDisconnect();
+      // eslint-disable-next-line unicorn/prefer-add-event-listener
       this.transport.onerror = () => this.handleDisconnect();
 
       await this.initializeClient(this.transport);

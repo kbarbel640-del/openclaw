@@ -7,7 +7,7 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { McpServerConfig } from "../config.js";
 import { StdioMcpClient } from "../client-stdio.js";
 

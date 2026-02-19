@@ -7,8 +7,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import http from "node:http";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { z } from "zod";
+import { afterEach, describe, expect, it } from "vitest";
 import type { McpServerConfig } from "../config.js";
 import { SseMcpClient } from "../client-sse.js";
 
