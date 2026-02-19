@@ -67,21 +67,21 @@ export type BufferedFinalAnswer = {
 };
 
 export function createTelegramReasoningStepState() {
-  let reasoningHint = false;
-  let reasoningDelivered = false;
+  let reasoningStatus: "none" | "hinted" | "delivered" = "none";
   let bufferedFinalAnswer: BufferedFinalAnswer | undefined;
 
   const noteReasoningHint = () => {
-    reasoningHint = true;
+    if (reasoningStatus === "none") {
+      reasoningStatus = "hinted";
+    }
   };
 
   const noteReasoningDelivered = () => {
-    reasoningHint = true;
-    reasoningDelivered = true;
+    reasoningStatus = "delivered";
   };
 
   const shouldBufferFinalAnswer = () => {
-    return reasoningHint && !reasoningDelivered && !bufferedFinalAnswer;
+    return reasoningStatus === "hinted" && !bufferedFinalAnswer;
   };
 
   const bufferFinalAnswer = (value: BufferedFinalAnswer) => {
@@ -95,8 +95,7 @@ export function createTelegramReasoningStepState() {
   };
 
   const resetForNextStep = () => {
-    reasoningHint = false;
-    reasoningDelivered = false;
+    reasoningStatus = "none";
     bufferedFinalAnswer = undefined;
   };
 
