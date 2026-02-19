@@ -437,19 +437,24 @@ describe("subagent registry steer restarts", () => {
       cleanup: "keep",
     });
 
-    lifecycleHandler?.({
-      stream: "lifecycle",
-      runId: "run-parent",
-      data: { phase: "end" },
-    });
-    await flushAnnounce();
+    vi.useFakeTimers();
+    try {
+      lifecycleHandler?.({
+        stream: "lifecycle",
+        runId: "run-parent",
+        data: { phase: "end" },
+      });
+      await vi.advanceTimersByTimeAsync(3_001);
 
-    lifecycleHandler?.({
-      stream: "lifecycle",
-      runId: "run-child",
-      data: { phase: "end" },
-    });
-    await flushAnnounce();
+      lifecycleHandler?.({
+        stream: "lifecycle",
+        runId: "run-child",
+        data: { phase: "end" },
+      });
+      await vi.advanceTimersByTimeAsync(3_001);
+    } finally {
+      vi.useRealTimers();
+    }
 
     const childRunIds = announceSpy.mock.calls.map(
       (call) => ((call[0] ?? {}) as { childRunId?: string }).childRunId,
