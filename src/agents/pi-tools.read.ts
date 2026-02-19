@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { createEditTool, createReadTool, createWriteTool } from "@mariozechner/pi-coding-agent";
 import { detectMime } from "../media/mime.js";
@@ -547,7 +548,48 @@ export function wrapToolParamNormalization(
   };
 }
 
-export function wrapToolWorkspaceRootGuard(tool: AnyAgentTool, root: string): AnyAgentTool {
+function remapContainerWorkspacePath(params: {
+  filePath: string;
+  root: string;
+  containerWorkdir?: string;
+}): string {
+  const { filePath, root, containerWorkdir } = params;
+  if (!containerWorkdir || !containerWorkdir.trim()) {
+    return filePath;
+  }
+
+  const normalizedInput = path.posix.normalize(filePath.replace(/\\/g, "/").trim());
+  if (!path.posix.isAbsolute(normalizedInput)) {
+    return filePath;
+  }
+
+  const normalizedWorkdir = path.posix.normalize(containerWorkdir.replace(/\\/g, "/").trim());
+  if (!path.posix.isAbsolute(normalizedWorkdir)) {
+    return filePath;
+  }
+
+  if (normalizedInput === normalizedWorkdir) {
+    return root;
+  }
+
+  const prefix = normalizedWorkdir.endsWith("/") ? normalizedWorkdir : `${normalizedWorkdir}/`;
+  if (!normalizedInput.startsWith(prefix)) {
+    return filePath;
+  }
+
+  const relativePosix = normalizedInput.slice(prefix.length);
+  if (!relativePosix) {
+    return root;
+  }
+
+  return path.resolve(root, ...relativePosix.split("/").filter(Boolean));
+}
+
+export function wrapToolWorkspaceRootGuard(
+  tool: AnyAgentTool,
+  root: string,
+  options?: { containerWorkdir?: string },
+): AnyAgentTool {
   return {
     ...tool,
     execute: async (toolCallId, args, signal, onUpdate) => {
@@ -557,7 +599,12 @@ export function wrapToolWorkspaceRootGuard(tool: AnyAgentTool, root: string): An
         (args && typeof args === "object" ? (args as Record<string, unknown>) : undefined);
       const filePath = record?.path;
       if (typeof filePath === "string" && filePath.trim()) {
-        await assertSandboxPath({ filePath, cwd: root, root });
+        const validatedPath = remapContainerWorkspacePath({
+          filePath,
+          root,
+          containerWorkdir: options?.containerWorkdir,
+        });
+        await assertSandboxPath({ filePath: validatedPath, cwd: root, root });
       }
       return tool.execute(toolCallId, normalized ?? args, signal, onUpdate);
     },

@@ -31,14 +31,25 @@ function createUnsafeMountedBridge(params: {
     // Intentionally unsafe: simulate a sandbox FS bridge that maps /agent/* into a host path
     // outside the workspace root (e.g. an operator-configured bind mount).
     const hostPath =
-      filePath === "/agent" || filePath === "/agent/" || filePath.startsWith("/agent/")
+      filePath === workspaceContainerRoot ||
+      filePath === `${workspaceContainerRoot}/` ||
+      filePath.startsWith(`${workspaceContainerRoot}/`)
         ? path.join(
-            agentHostRoot,
-            filePath === "/agent" || filePath === "/agent/" ? "" : filePath.slice("/agent/".length),
+            root,
+            filePath === workspaceContainerRoot || filePath === `${workspaceContainerRoot}/`
+              ? ""
+              : filePath.slice(`${workspaceContainerRoot}/`.length),
           )
-        : path.isAbsolute(filePath)
-          ? filePath
-          : path.resolve(cwd ?? root, filePath);
+        : filePath === "/agent" || filePath === "/agent/" || filePath.startsWith("/agent/")
+          ? path.join(
+              agentHostRoot,
+              filePath === "/agent" || filePath === "/agent/"
+                ? ""
+                : filePath.slice("/agent/".length),
+            )
+          : path.isAbsolute(filePath)
+            ? filePath
+            : path.resolve(cwd ?? root, filePath);
 
     const relFromRoot = path.relative(root, hostPath);
     const relativePath =
@@ -152,6 +163,22 @@ describe("tools.fs.workspaceOnly", () => {
         editTool?.execute("t3", { path: "/agent/secret.txt", oldText: "shh", newText: "nope" }),
       ).rejects.toThrow(/Path escapes sandbox root/i);
       expect(await fs.readFile(path.join(agentRoot, "secret.txt"), "utf8")).toBe("shh");
+    });
+  });
+
+  it("allows /workspace absolute paths when workspaceOnly is enabled", async () => {
+    await withUnsafeMountedSandboxHarness(async ({ sandboxRoot, sandbox }) => {
+      const cfg = { tools: { fs: { workspaceOnly: true } } } as unknown as OpenClawConfig;
+      const tools = createOpenClawCodingTools({ sandbox, workspaceDir: sandboxRoot, config: cfg });
+      const writeTool = tools.find((tool) => tool.name === "write");
+      expect(writeTool).toBeDefined();
+
+      await writeTool?.execute("t4", {
+        path: "/workspace/inside.txt",
+        content: "ok",
+      });
+
+      expect(await fs.readFile(path.join(sandboxRoot, "inside.txt"), "utf8")).toBe("ok");
     });
   });
 });
