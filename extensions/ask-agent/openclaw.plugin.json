@@ -1,0 +1,10 @@
+{
+  "id": "ask-agent",
+  "name": "Ask AI Agent",
+  "description": "Send a message to a Cloud.ru AI Fabric agent via A2A protocol.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
