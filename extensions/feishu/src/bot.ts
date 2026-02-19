@@ -620,7 +620,6 @@ export async function handleFeishuMessage(params: {
       }
       return;
     }
-  } else {
   }
 
   try {
