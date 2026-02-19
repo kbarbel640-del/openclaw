@@ -15,18 +15,7 @@ import {
   updateSessionStoreEntry,
 } from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
-import { emitAgentEvent } from "../../infra/agent-events.js";
-import { emitDiagnosticEvent, isDiagnosticsEnabled } from "../../infra/diagnostic-events.js";
-import { generateSecureUuid } from "../../infra/secure-random.js";
-import { enqueueSystemEvent } from "../../infra/system-events.js";
-import { defaultRuntime } from "../../runtime.js";
-import { estimateUsageCost, resolveModelCostConfig } from "../../utils/usage-format.js";
-import {
-  buildFallbackClearedNotice,
-  buildFallbackNotice,
-  resolveFallbackTransition,
-} from "../fallback-state.js";
-import type { OriginatingChannelType, TemplateContext } from "../templating.js";
+import { emitAgentEvent } from "../../infra/agent-events.js";import type { OriginatingChannelType, TemplateContext } from "../templating.js";
 import { resolveResponseUsageMode, type VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { runAgentTurnWithFallback } from "./agent-runner-execution.js";
@@ -42,7 +31,6 @@ import { buildReplyPayloads } from "./agent-runner-payloads.js";
 import { appendUsageLine, formatResponseUsageLine } from "./agent-runner-utils.js";
 import { createAudioAsVoiceBuffer, createBlockReplyPipeline } from "./block-reply-pipeline.js";
 import { resolveBlockStreamingCoalescing } from "./block-streaming.js";
-import { cancelIdleCompaction, scheduleIdleCompaction } from "./idle-compaction.js";
 import { createFollowupRunner } from "./followup-runner.js";
 import {
   auditPostCompactionReads,
@@ -50,8 +38,7 @@ import {
   formatAuditWarning,
   readSessionMessages,
 } from "./post-compaction-audit.js";
-import { readPostCompactionContext } from "./post-compaction-context.js";
-import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
+import { readPostCompactionContext } from "./post-compaction-context.js";import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
 import { createReplyToModeFilterForChannel, resolveReplyToMode } from "./reply-threading.js";
 import { incrementRunCompactionCount, persistRunSessionUsage } from "./session-run-accounting.js";
 import { createTypingSignaler } from "./typing-mode.js";
@@ -515,9 +502,7 @@ export async function runReplyAgent(params: {
     if (sessionKey && followupRun.run.sessionFile && followupRun.run.workspaceDir) {
       const actualTokensUsed =
         promptTokens ??
-        (usage
-          ? (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0)
-          : 0);
+        (usage ? (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0) : 0);
       scheduleIdleCompaction({
         sessionKey,
         sessionId: followupRun.run.sessionId,
