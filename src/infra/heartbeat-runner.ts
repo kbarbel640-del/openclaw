@@ -68,7 +68,7 @@ import { peekSystemEventEntries } from "./system-events.js";
 // Circuit breaker configuration
 const CIRCUIT_BREAKER_THRESHOLD = 5;
 const CIRCUIT_BREAKER_RESET_MS = 5 * 60 * 1000; // 5 minutes
-const CIRCUIT_BREAKER_BACKOFF_MAX_MS = 30 * 60 * 1000; // 30 minutes max backoff
+const CIRCUIT_BREAKER_BACKOFF_MAX_MS = 120 * 60 * 1000; // 2 hours max backoff
 
 export type HeartbeatDeps = OutboundSendDeps &
   ChannelHeartbeatDeps & {
@@ -1224,12 +1224,21 @@ export function startHeartbeatRunner(opts: {
         // Update circuit breaker state based on result
         if (res.status === "failed") {
           updateCircuitBreakerState(targetAgent, "failure", now);
-        } else if (res.status === "ran") {
-          updateCircuitBreakerState(targetAgent, "success", now);
-        }
-
-        if (res.status !== "skipped" || res.reason !== "disabled") {
-          advanceAgentSchedule(targetAgent, now);
+          if (targetAgent.circuitOpen) {
+            targetAgent.nextDueMs =
+              now +
+              calculateCircuitBreakerDelay(targetAgent.consecutiveFailures, targetAgent.intervalMs);
+            targetAgent.lastRunMs = now;
+          } else {
+            advanceAgentSchedule(targetAgent, now);
+          }
+        } else {
+          if (res.status === "ran") {
+            updateCircuitBreakerState(targetAgent, "success", now);
+          }
+          if (res.status !== "skipped" || res.reason !== "disabled") {
+            advanceAgentSchedule(targetAgent, now);
+          }
         }
         scheduleNext();
         return res.status === "ran" ? { status: "ran", durationMs: Date.now() - startedAt } : res;
@@ -1239,7 +1248,14 @@ export function startHeartbeatRunner(opts: {
           error: errMsg,
         });
         updateCircuitBreakerState(targetAgent, "failure", now);
-        advanceAgentSchedule(targetAgent, now);
+        if (targetAgent.circuitOpen) {
+          targetAgent.nextDueMs =
+            now +
+            calculateCircuitBreakerDelay(targetAgent.consecutiveFailures, targetAgent.intervalMs);
+          targetAgent.lastRunMs = now;
+        } else {
+          advanceAgentSchedule(targetAgent, now);
+        }
         scheduleNext();
         return { status: "failed", reason: errMsg };
       }
@@ -1274,24 +1290,39 @@ export function startHeartbeatRunner(opts: {
         const errMsg = formatErrorMessage(err);
         log.error(`heartbeat runner: runOnce threw unexpectedly: ${errMsg}`, { error: errMsg });
         updateCircuitBreakerState(agent, "failure", now);
-        advanceAgentSchedule(agent, now);
+        if (agent.circuitOpen) {
+          agent.nextDueMs =
+            now + calculateCircuitBreakerDelay(agent.consecutiveFailures, agent.intervalMs);
+          agent.lastRunMs = now;
+        } else {
+          advanceAgentSchedule(agent, now);
+        }
         continue;
       }
 
       // Update circuit breaker state based on result
       if (res.status === "failed") {
         updateCircuitBreakerState(agent, "failure", now);
-      } else if (res.status === "ran") {
-        updateCircuitBreakerState(agent, "success", now);
-      }
+        if (agent.circuitOpen) {
+          agent.nextDueMs =
+            now + calculateCircuitBreakerDelay(agent.consecutiveFailures, agent.intervalMs);
+          agent.lastRunMs = now;
+        } else {
+          advanceAgentSchedule(agent, now);
+        }
+      } else {
+        if (res.status === "ran") {
+          updateCircuitBreakerState(agent, "success", now);
+        }
 
-      if (res.status === "skipped" && res.reason === "requests-in-flight") {
-        advanceAgentSchedule(agent, now);
-        scheduleNext();
-        return res;
-      }
-      if (res.status !== "skipped" || res.reason !== "disabled") {
-        advanceAgentSchedule(agent, now);
+        if (res.status === "skipped" && res.reason === "requests-in-flight") {
+          advanceAgentSchedule(agent, now);
+          scheduleNext();
+          return res;
+        }
+        if (res.status !== "skipped" || res.reason !== "disabled") {
+          advanceAgentSchedule(agent, now);
+        }
       }
       if (res.status === "ran") {
         ran = true;

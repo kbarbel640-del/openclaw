@@ -94,7 +94,7 @@ describe("heartbeat runner - circuit breaker", () => {
 
     // Make next run succeed
     fail = false;
-    await vi.advanceTimersByTimeAsync(60 * 60_000 + 1000); // Wait for another backoff or interval
+    await vi.advanceTimersByTimeAsync(120 * 60_000 + 1000); // Wait for tier 2 backoff (30m * 4 = 120m)
     expect(runSpy).toHaveBeenCalledTimes(7);
 
     // Now it succeeded, consecutiveFailures should be 0.
