@@ -42,6 +42,9 @@ export function normalizeMessage(message: unknown): NormalizedMessage {
       text: item.text as string | undefined,
       name: item.name as string | undefined,
       args: item.args || item.arguments,
+      data: item.data as string | undefined,
+      mimeType: item.mimeType as string | undefined,
+      source: item.source as MessageContentItem["source"],
     }));
   } else if (typeof m.text === "string") {
     content = [{ type: "text", text: m.text }];
@@ -53,9 +56,6 @@ export function normalizeMessage(message: unknown): NormalizedMessage {
   return { role, content, timestamp, id };
 }
 
-/**
- * Normalize role for grouping purposes.
- */
 export function normalizeRoleForGrouping(role: string): string {
   const lower = role.toLowerCase();
   // Preserve original casing when it's already a core role.
