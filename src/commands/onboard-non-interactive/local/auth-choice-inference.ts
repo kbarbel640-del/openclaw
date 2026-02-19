@@ -28,6 +28,7 @@ type AuthChoiceFlagOptions = Pick<
   | "xaiApiKey"
   | "litellmApiKey"
   | "qianfanApiKey"
+  | "tetrateApiKey"
   | "customBaseUrl"
   | "customModelId"
   | "customApiKey"
