@@ -110,10 +110,9 @@ describe("resolveConfigEnvVars", () => {
       }
     });
 
-    it("treats empty string env var as missing", () => {
-      expect(() => resolveConfigEnvVars({ key: "${EMPTY}" }, { EMPTY: "" })).toThrow(
-        MissingEnvVarError,
-      );
+    it("treats empty string env var as a valid value (passes through)", () => {
+      const result = resolveConfigEnvVars({ key: "${EMPTY}" }, { EMPTY: "" });
+      expect(result).toEqual({ key: "" });
     });
   });
 
