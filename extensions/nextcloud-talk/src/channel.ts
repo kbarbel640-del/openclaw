@@ -325,6 +325,21 @@ export const nextcloudTalkPlugin: ChannelPlugin<ResolvedNextcloudTalkAccount> = 
         statusSink: (patch) => ctx.setStatus({ accountId: ctx.accountId, ...patch }),
       });
 
+      // Stay pending until the abort signal fires so the channel framework
+      // does not interpret the early return as a crash and schedule a restart.
+      // If no signal is provided, resolve immediately (framework handles lifecycle).
+      await new Promise<void>((resolve) => {
+        if (!ctx.abortSignal) {
+          resolve();
+          return;
+        }
+        if (ctx.abortSignal.aborted) {
+          resolve();
+          return;
+        }
+        ctx.abortSignal.addEventListener("abort", () => resolve(), { once: true });
+      });
+
       return { stop };
     },
     logoutAccount: async ({ accountId, cfg }) => {

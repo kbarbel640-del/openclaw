@@ -15,7 +15,11 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+<<<<<<< HEAD
 - Gateway/WebChat: block `sessions.patch` and `sessions.delete` for WebChat clients so session-store mutations stay restricted to non-WebChat operator flows. Thanks @allsmog for reporting.
+=======
+- Nextcloud Talk: fix EADDRINUSE crash loop on startup — `startAccount` now stays pending until the abort signal fires instead of resolving immediately after `server.listen`, preventing the channel framework from scheduling a spurious auto-restart. (#20472) Thanks @arosstale.
+>>>>>>> 83b03602e0 (fix(nextcloud-talk): stay pending until abort to prevent spurious auto-restart)
 - Security/Feishu: prevent path traversal in Feishu inbound media temp-file writes by replacing key-derived temp filenames with UUID-based names. Thanks @allsmog for reporting.
 - LINE/Security: harden inbound media temp-file naming by using UUID-based temp paths for downloaded media instead of external message IDs. (#20792) Thanks @mbelinky.
 - Security/Media: harden local media ingestion against TOCTOU/symlink swap attacks by pinning reads to a single file descriptor with symlink rejection and inode/device verification in `saveMediaSource`. Thanks @dorjoos for reporting.
