@@ -468,8 +468,6 @@ export type ToolsConfig = {
     apiKey?: string;
     /** Apify API base URL (default: https://api.apify.com). */
     baseUrl?: string;
-    /** Timeout in seconds for actor runs (default: 60). */
-    timeoutSeconds?: number;
     /** Cache TTL in minutes (default: 15). */
     cacheTtlMinutes?: number;
     /** Max results default (default: 20). */

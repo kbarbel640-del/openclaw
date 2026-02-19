@@ -35,6 +35,7 @@ const INSTAGRAM_SEARCH_TYPES = ["hashtags", "places", "users"] as const;
 const TIKTOK_TYPES = ["search", "hashtags", "videos", "profiles"] as const;
 
 const DEFAULT_APIFY_BASE_URL = "https://api.apify.com";
+const ALLOWED_APIFY_BASE_URL_PREFIX = "https://api.apify.com";
 const DEFAULT_MAX_RESULTS = 20;
 const MAX_RESULT_CHARS = 50_000;
 const HTTP_TIMEOUT_MS = 30_000;
@@ -93,6 +94,14 @@ const RequestSchema = Type.Object({
     Type.Boolean({
       description:
         "LinkedIn company action: also scrape company posts alongside details (default: true).",
+    }),
+  ),
+  companyPostLimit: Type.Optional(
+    Type.Number({
+      description:
+        "LinkedIn company action: max posts to scrape per company when includePosts is true (1-100, default: uses maxResults).",
+      minimum: 1,
+      maximum: 100,
     }),
   ),
   urls: Type.Optional(
@@ -187,7 +196,13 @@ function resolveSocialEnabled(params: { config?: SocialConfig; apiKey?: string }
 
 function resolveSocialBaseUrl(config?: SocialConfig): string {
   const raw = config && typeof config.baseUrl === "string" ? config.baseUrl.trim() : "";
-  return raw || DEFAULT_APIFY_BASE_URL;
+  const url = raw || DEFAULT_APIFY_BASE_URL;
+  if (!url.startsWith(ALLOWED_APIFY_BASE_URL_PREFIX)) {
+    throw new Error(
+      `Invalid Apify base URL: "${url}". Must start with "${ALLOWED_APIFY_BASE_URL_PREFIX}".`,
+    );
+  }
+  return url;
 }
 
 function resolveAllowedPlatforms(config?: SocialConfig): Set<SocialPlatform> {
@@ -252,18 +267,17 @@ const HANDLERS: Record<SocialPlatform, PlatformHandler> = {
       if (!common.queries?.length) {
         throw new ToolInputError("Instagram search mode requires 'queries' parameter.");
       }
-      return [
-        {
-          actorId: ACTOR_IDS.instagram,
-          input: {
-            search: common.queries[0],
-            searchType: type,
-            searchLimit: common.maxResults,
-            resultsType: "posts",
-            resultsLimit: common.maxResults,
-          },
+      // The Actor's `search` field accepts a single string, so fire one run per query.
+      return common.queries.map((query) => ({
+        actorId: ACTOR_IDS.instagram,
+        input: {
+          search: query,
+          searchType: type,
+          searchLimit: common.maxResults,
+          resultsType: type,
+          resultsLimit: common.maxResults,
         },
-      ];
+      }));
     },
     format: formatInstagramItem,
   },
@@ -362,6 +376,7 @@ const HANDLERS: Record<SocialPlatform, PlatformHandler> = {
               "LinkedIn company action requires 'urls' (LinkedIn company profile URLs).",
             );
           }
+          const companyPostLimit = readNumberParam(req, "companyPostLimit");
           const runs: PreparedRun[] = [
             {
               actorId: ACTOR_IDS.linkedin_company_details,
@@ -372,7 +387,10 @@ const HANDLERS: Record<SocialPlatform, PlatformHandler> = {
           if (includePosts) {
             runs.push({
               actorId: ACTOR_IDS.linkedin_company_posts,
-              input: { company_names: common.urls, limit: Math.min(common.maxResults, 100) },
+              input: {
+                company_names: common.urls,
+                limit: companyPostLimit ?? Math.min(common.maxResults, 100),
+              },
               runType: "company_posts",
             });
           }
@@ -747,7 +765,7 @@ function buildToolDescription(allowed: Set<SocialPlatform>): string {
       "    Requires: urls (array of Instagram post/profile/reel URLs)",
       '  Mode "search" — search Instagram by keyword:',
       "    instagramType: hashtags | places | users",
-      "    Requires: queries (array of search terms)",
+      "    Requires: queries (array of search terms — fires one run per query)",
       "  actorInput options for Instagram:",
       "    resultsType: string — what to scrape: posts | comments | details | mentions | reels (default: posts)",
       "    resultsLimit: number — max results per URL (default: 200)",
@@ -834,7 +852,9 @@ function buildToolDescription(allowed: Set<SocialPlatform>): string {
       '  linkedinAction="company" — scrape LinkedIn company details (+ optionally posts):',
       "    Requires: urls (LinkedIn company profile URLs, e.g. https://www.linkedin.com/company/tesla-motors).",
       "    includePosts: boolean (default true) — also scrape company posts using the same URLs.",
+      "    companyPostLimit: number (1-100) — max posts per company (default: maxResults). Only applies to the posts run.",
       "    When includePosts=true, fires TWO concurrent runs (details + posts) returning two run references.",
+      "    Note: actorInput is only applied to the company-details run, not the posts run. Use companyPostLimit to control post limits.",
       "    Returns: company name, industry, website, employee count, description, specialities.",
       "",
       '  linkedinAction="jobs" — scrape LinkedIn job listings:',
@@ -915,10 +935,16 @@ async function handleStart(params: {
     const handler = HANDLERS[platform];
     const runs = handler.prepare(req, common);
     for (const run of runs) {
+      // Only merge actorInput into runs that don't have a separate runType
+      // (e.g. LinkedIn company fires two runs with different schemas —
+      // actorInput should only apply to company_details, not company_posts
+      // which has its own companyPostLimit param).
+      const mergedInput =
+        run.runType === "company_posts" ? run.input : { ...run.input, ...actorInput };
       prepared.push({
         platform,
         actorId: run.actorId,
-        input: { ...run.input, ...actorInput },
+        input: mergedInput,
         linkedinRunType: run.runType as LinkedinRunType | undefined,
       });
     }
