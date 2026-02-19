@@ -293,7 +293,7 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
   },
   {
     value: "minimax-api-lightning",
-    label: "MiniMax M2.5 Lightning",
+    label: "MiniMax M2.5 highspeed",
     hint: "Faster, higher output cost",
   },
   { value: "custom-api-key", label: "Custom Provider" },
