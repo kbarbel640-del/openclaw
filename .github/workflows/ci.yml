@@ -259,6 +259,22 @@ jobs:
       - name: Check types and lint and oxfmt
         run: pnpm check
 
+      # TEMP: Linux-only formatter diff capture (remove after PR is green)
+      - name: Debug oxfmt diff (only if pnpm check fails)
+        if: failure()
+        run: |
+          set -euo pipefail
+          pnpm -s exec -- oxfmt \
+            src/channels/plugins/message-actions.security.test.ts \
+            src/channels/plugins/message-actions.ts \
+            src/daemon/schtasks.ts || true
+          echo "=== BEGIN oxfmt linux diff ==="
+          git diff -- \
+            src/channels/plugins/message-actions.security.test.ts \
+            src/channels/plugins/message-actions.ts \
+            src/daemon/schtasks.ts || true
+          echo "=== END oxfmt linux diff ==="
+
   # Validate docs (format, lint, broken links) only when docs files changed.
   check-docs:
     needs: [docs-scope]
