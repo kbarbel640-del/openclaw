@@ -248,7 +248,8 @@ describe("msteams attachments", () => {
 
       expect(fetchMock).toHaveBeenCalled();
       expect(media).toHaveLength(1);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // Auth-first: token sent on first request for hosts in authAllowHosts
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it("skips auth retries when the host is not in auth allowlist", async () => {

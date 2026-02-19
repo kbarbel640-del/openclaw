@@ -90,56 +90,66 @@ async function fetchWithAuthFallback(params: {
   authAllowHosts: string[];
 }): Promise<Response> {
   const fetchFn = params.fetchFn ?? fetch;
-  const firstAttempt = await fetchFn(params.url);
-  if (firstAttempt.ok) {
-    return firstAttempt;
-  }
-  if (!params.tokenProvider) {
-    return firstAttempt;
-  }
-  if (firstAttempt.status !== 401 && firstAttempt.status !== 403) {
-    return firstAttempt;
-  }
-  if (!isUrlAllowed(params.url, params.authAllowHosts)) {
-    return firstAttempt;
-  }
+  const useAuthUpfront = params.tokenProvider && isUrlAllowed(params.url, params.authAllowHosts);
 
-  const scopes = scopeCandidatesForUrl(params.url);
-  for (const scope of scopes) {
-    try {
-      const token = await params.tokenProvider.getAccessToken(scope);
-      const res = await fetchFn(params.url, {
-        headers: { Authorization: `Bearer ${token}` },
-        redirect: "manual",
-      });
-      if (res.ok) {
-        return res;
-      }
-      const redirectUrl = readRedirectUrl(params.url, res);
-      if (redirectUrl && isUrlAllowed(redirectUrl, params.allowHosts)) {
-        const redirectRes = await fetchFn(redirectUrl);
-        if (redirectRes.ok) {
-          return redirectRes;
+  if (useAuthUpfront) {
+    const scopes = scopeCandidatesForUrl(params.url);
+    for (const scope of scopes) {
+      try {
+        const token = await params.tokenProvider!.getAccessToken(scope);
+        const res = await fetchFn(params.url, {
+          headers: { Authorization: `Bearer ${token}` },
+          redirect: "manual",
+        });
+        if (res.ok) {
+          return res;
         }
-        if (
-          (redirectRes.status === 401 || redirectRes.status === 403) &&
-          isUrlAllowed(redirectUrl, params.authAllowHosts)
-        ) {
-          const redirectAuthRes = await fetchFn(redirectUrl, {
+        const redirectUrl = readRedirectUrl(params.url, res);
+        if (redirectUrl && isUrlAllowed(redirectUrl, params.allowHosts)) {
+          const redirectRes = await fetchFn(redirectUrl, {
             headers: { Authorization: `Bearer ${token}` },
-            redirect: "manual",
           });
-          if (redirectAuthRes.ok) {
-            return redirectAuthRes;
+          if (redirectRes.ok) {
+            return redirectRes;
           }
         }
+      } catch {
+        // Try the next scope.
       }
-    } catch {
-      // Try the next scope.
     }
   }
 
-  return firstAttempt;
+  // For non-auth hosts, or if all auth attempts failed, try unauthenticated.
+  const unauthRes = await fetchFn(params.url);
+  if (unauthRes.ok) {
+    return unauthRes;
+  }
+
+  // If unauthenticated also failed with 401/403 and we haven't tried auth yet, try now.
+  if (
+    !useAuthUpfront &&
+    params.tokenProvider &&
+    (unauthRes.status === 401 || unauthRes.status === 403) &&
+    isUrlAllowed(params.url, params.authAllowHosts)
+  ) {
+    const scopes = scopeCandidatesForUrl(params.url);
+    for (const scope of scopes) {
+      try {
+        const token = await params.tokenProvider.getAccessToken(scope);
+        const res = await fetchFn(params.url, {
+          headers: { Authorization: `Bearer ${token}` },
+          redirect: "manual",
+        });
+        if (res.ok) {
+          return res;
+        }
+      } catch {
+        // Try the next scope.
+      }
+    }
+  }
+
+  return unauthRes;
 }
 
 function readRedirectUrl(baseUrl: string, res: Response): string | null {
