@@ -261,6 +261,41 @@ describe("control UI routing", () => {
     expect(button?.disabled).toBe(true);
   });
 
+  it("keeps open chat disabled in onboarding setup flow until integrations are configured", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    app.connected = true;
+    app.channelsLastSuccess = null;
+    await app.updateComplete;
+
+    const button = Array.from(app.querySelectorAll<HTMLButtonElement>('[data-testid="onboarding-setup-flow"] button')).find((btn) =>
+      btn.textContent?.includes("Open Chat"),
+    );
+    expect(button).not.toBeNull();
+    expect(button?.disabled).toBe(true);
+  });
+
+  it("keeps open consent disabled in onboarding setup flow until first run exists", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    app.connected = true;
+    app.channelsLastSuccess = Date.now();
+    app.sessionsResult = {
+      count: 0,
+      sessions: [],
+      cursor: null,
+    } as never;
+    await app.updateComplete;
+
+    const button = Array.from(app.querySelectorAll<HTMLButtonElement>('[data-testid="onboarding-setup-flow"] button')).find((btn) =>
+      btn.textContent?.includes("Open ConsentGuard"),
+    );
+    expect(button).not.toBeNull();
+    expect(button?.disabled).toBe(true);
+  });
+
   it("routes onboarding setup-flow next step to channels after gateway connect", async () => {
     const app = mountApp("/overview?onboarding=1");
     await app.updateComplete;
@@ -296,8 +331,18 @@ describe("control UI routing", () => {
     const app = mountApp("/?onboarding=1");
     await app.updateComplete;
 
+    app.connected = true;
+    app.channelsLastSuccess = Date.now();
+    app.sessionsResult = {
+      count: 1,
+      sessions: [],
+      cursor: null,
+    } as never;
+    await app.updateComplete;
+
     const button = app.querySelector<HTMLButtonElement>('[data-testid="onboarding-banner-consent"]');
     expect(button).not.toBeNull();
+    expect(button?.disabled).toBe(false);
     button?.click();
     await app.updateComplete;
 
@@ -319,6 +364,7 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     app.connected = true;
+    app.channelsLastSuccess = Date.now();
     await app.updateComplete;
 
     const button = app.querySelector<HTMLButtonElement>('[data-testid="onboarding-banner-chat"]');
@@ -329,6 +375,37 @@ describe("control UI routing", () => {
 
     expect(app.tab).toBe("chat");
     expect(window.location.pathname).toBe("/chat");
+  });
+
+  it("keeps onboarding banner chat action disabled until integrations are configured", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    app.connected = true;
+    app.channelsLastSuccess = null;
+    await app.updateComplete;
+
+    const button = app.querySelector<HTMLButtonElement>('[data-testid="onboarding-banner-chat"]');
+    expect(button).not.toBeNull();
+    expect(button?.disabled).toBe(true);
+  });
+
+  it("keeps onboarding banner consent action disabled until first run exists", async () => {
+    const app = mountApp("/?onboarding=1");
+    await app.updateComplete;
+
+    app.connected = true;
+    app.channelsLastSuccess = Date.now();
+    app.sessionsResult = {
+      count: 0,
+      sessions: [],
+      cursor: null,
+    } as never;
+    await app.updateComplete;
+
+    const button = app.querySelector<HTMLButtonElement>('[data-testid="onboarding-banner-consent"]');
+    expect(button).not.toBeNull();
+    expect(button?.disabled).toBe(true);
   });
 
   it("routes onboarding next step to overview when gateway is offline", async () => {

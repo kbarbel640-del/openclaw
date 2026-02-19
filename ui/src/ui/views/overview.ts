@@ -206,10 +206,14 @@ export function renderOverview(props: OverviewProps) {
                 <button class="btn" @click=${() => props.onOpenChannels?.()}>
                   ${t("overview.setupFlow.openIntegrations")}
                 </button>
-                <button class="btn" ?disabled=${!props.connected} @click=${() => props.onOpenChat?.()}>
+                <button
+                  class="btn"
+                  ?disabled=${!props.connected || !onboardingSteps[1].done}
+                  @click=${() => props.onOpenChat?.()}
+                >
                   ${t("overview.setupFlow.openChat")}
                 </button>
-                <button class="btn" @click=${() => props.onOpenConsent?.()}>
+                <button class="btn" ?disabled=${!onboardingSteps[2].done} @click=${() => props.onOpenConsent?.()}>
                   ${t("overview.setupFlow.openConsent")}
                 </button>
               </div>

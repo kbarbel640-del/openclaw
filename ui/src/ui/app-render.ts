@@ -94,6 +94,8 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
 export function renderApp(state: AppViewState) {
   const presenceCount = state.presenceEntries.length;
   const sessionsCount = state.sessionsResult?.count ?? null;
+  const hasSessionActivity = (sessionsCount ?? 0) > 0;
+  const hasChannelRefresh = state.channelsLastSuccess != null;
   const cronNext = state.cronStatus?.nextWakeAtMs ?? null;
   const chatDisabledReason = state.connected ? null : t("chat.disconnected");
   const isChat = state.tab === "chat";
@@ -271,7 +273,7 @@ export function renderApp(state: AppViewState) {
                       type="button"
                       class="btn btn--sm"
                       data-testid="onboarding-banner-chat"
-                      ?disabled=${!state.connected}
+                      ?disabled=${!state.connected || !hasChannelRefresh}
                       @click=${() => state.setTab("chat")}
                     >
                       ${t("overview.setupFlow.openChat")}
@@ -280,6 +282,7 @@ export function renderApp(state: AppViewState) {
                       type="button"
                       class="btn btn--sm"
                       data-testid="onboarding-banner-consent"
+                      ?disabled=${!hasSessionActivity}
                       @click=${() => state.setTab("consent")}
                     >
                       ${t("overview.setupFlow.openConsent")}
