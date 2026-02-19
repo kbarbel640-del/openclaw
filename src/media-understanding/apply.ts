@@ -283,11 +283,11 @@ function guessDelimitedMime(text: string): string | undefined {
   const line = text.split(/\r?\n/)[0] ?? "";
   const tabs = (line.match(/\t/g) ?? []).length;
   const commas = (line.match(/,/g) ?? []).length;
-  if (commas > 0) {
-    return "text/csv";
-  }
   if (tabs > 0) {
     return "text/tab-separated-values";
+  }
+  if (commas > 0) {
+    return "text/csv";
   }
   return undefined;
 }
