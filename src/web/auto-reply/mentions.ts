@@ -57,12 +57,14 @@ export function isBotMentionedFromTargets(
     // If the message explicitly mentions someone else, do not fall back to regex matches.
     return false;
   } else if (hasMentions && isSelfChat) {
-    // Self-chat mode: suppress mentions only when the sender IS the owner (WhatsApp auto-includes
-    // the owner's JID in mentionedJids). When someone else mentions the bot via JID or LID,
-    // normalizedMentions correctly resolves to E164 — honour that.
-    const senderIsOwner =
-      msg.senderE164 && targets.selfE164 && normalizeE164(msg.senderE164) === targets.selfE164;
-    if (!senderIsOwner) {
+    // Self-chat mode: only trigger when we can positively confirm the sender is external
+    // (someone other than the owner). When senderE164 is unknown, treat conservatively and
+    // suppress — WhatsApp auto-includes the owner's JID in mentionedJids and we cannot
+    // distinguish that from a real external mention without knowing the sender.
+    const senderE164Normalized = msg.senderE164 ? normalizeE164(msg.senderE164) : null;
+    const senderIsExternal =
+      senderE164Normalized !== null && senderE164Normalized !== targets.selfE164;
+    if (senderIsExternal) {
       if (targets.selfE164 && targets.normalizedMentions.includes(targets.selfE164)) {
         return true;
       }
