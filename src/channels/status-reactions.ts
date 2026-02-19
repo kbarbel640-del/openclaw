@@ -62,8 +62,8 @@ export const DEFAULT_EMOJIS: Required<StatusReactionEmojis> = {
 
 export const DEFAULT_TIMING: Required<StatusReactionTiming> = {
   debounceMs: 700,
-  stallSoftMs: 25_000,
-  stallHardMs: 60_000,
+  stallSoftMs: 10_000,
+  stallHardMs: 30_000,
   doneHoldMs: 1500,
   errorHoldMs: 2500,
 };
