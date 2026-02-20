@@ -1,3 +1,4 @@
+import { writeFileSync, unlinkSync } from "node:fs";
 import { completeSimple, type AssistantMessage } from "@mariozechner/pi-ai";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { getApiKeyForModel } from "../agents/model-auth.js";
@@ -55,6 +56,25 @@ const {
   resolveEdgeOutputFormat,
 } = _test;
 
+const withMockedAutoTtsFetch = async (
+  run: (fetchMock: ReturnType<typeof vi.fn>) => Promise<void>,
+) => {
+  const prevPrefs = process.env.OPENCLAW_TTS_PREFS;
+  process.env.OPENCLAW_TTS_PREFS = `/tmp/tts-test-${Date.now()}.json`;
+  const originalFetch = globalThis.fetch;
+  const fetchMock = vi.fn(async () => ({
+    ok: true,
+    arrayBuffer: async () => new ArrayBuffer(1),
+  }));
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  try {
+    await run(fetchMock);
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.OPENCLAW_TTS_PREFS = prevPrefs;
+  }
+};
+
 const mockAssistantMessage = (content: AssistantMessage["content"]): AssistantMessage => ({
   role: "assistant",
   content,
@@ -85,6 +105,64 @@ describe("tts", () => {
     vi.mocked(completeSimple).mockResolvedValue(
       mockAssistantMessage([{ type: "text", text: "Summary" }]),
     );
+  });
+
+  describe("getTtsProvider", () => {
+    it("prefers explicit config provider over saved prefs provider", () => {
+      const prefsPath = `/tmp/tts-provider-preference-${Date.now()}.json`;
+      writeFileSync(prefsPath, JSON.stringify({ tts: { provider: "edge" } }));
+
+      try {
+        const config = resolveTtsConfig({
+          agents: { defaults: { model: { primary: "openai/gpt-4o-mini" } } },
+          messages: {
+            tts: {
+              provider: "openai",
+              openai: { apiKey: "test-openai-key", model: "tts-1", voice: "nova" },
+            },
+          },
+        });
+        const provider = getTtsProvider(config, prefsPath);
+
+        expect(provider).toBe("openai");
+      } finally {
+        unlinkSync(prefsPath);
+      }
+    });
+  });
+
+  describe("textToSpeech", () => {
+    it("uses configured OpenAI model and voice", async () => {
+      await withEnv(
+        {
+          OPENAI_API_KEY: undefined,
+        },
+        async () => {
+          await withMockedAutoTtsFetch(async (fetchMock) => {
+            const result = await tts.textToSpeech({
+              text: "Hello, world!",
+              cfg: {
+                agents: { defaults: { model: { primary: "openai/gpt-4o-mini" } } },
+                messages: {
+                  tts: {
+                    provider: "openai",
+                    openai: { apiKey: "test-openai-key", model: "tts-1", voice: "nova" },
+                  },
+                },
+              },
+            });
+            expect(result.success).toBe(true);
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+            const requestOptions = fetchMock.mock.calls[0]?.[1];
+            const requestBody =
+              typeof requestOptions?.body === "string" ? JSON.parse(requestOptions.body) : null;
+
+            expect(requestBody?.model).toBe("tts-1");
+            expect(requestBody?.voice).toBe("nova");
+          });
+        },
+      );
+    });
   });
 
   describe("isValidVoiceId", () => {
@@ -447,25 +525,6 @@ describe("tts", () => {
           openai: { apiKey: "test-key", model: "gpt-4o-mini-tts", voice: "alloy" },
         },
       },
-    };
-
-    const withMockedAutoTtsFetch = async (
-      run: (fetchMock: ReturnType<typeof vi.fn>) => Promise<void>,
-    ) => {
-      const prevPrefs = process.env.OPENCLAW_TTS_PREFS;
-      process.env.OPENCLAW_TTS_PREFS = `/tmp/tts-test-${Date.now()}.json`;
-      const originalFetch = globalThis.fetch;
-      const fetchMock = vi.fn(async () => ({
-        ok: true,
-        arrayBuffer: async () => new ArrayBuffer(1),
-      }));
-      globalThis.fetch = fetchMock as unknown as typeof fetch;
-      try {
-        await run(fetchMock);
-      } finally {
-        globalThis.fetch = originalFetch;
-        process.env.OPENCLAW_TTS_PREFS = prevPrefs;
-      }
     };
 
     const taggedCfg: OpenClawConfig = {
