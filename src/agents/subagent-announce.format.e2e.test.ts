@@ -856,6 +856,29 @@ describe("subagent announce formatting", () => {
     expect(call?.params?.to).toBeUndefined();
   });
 
+  it("preserves threadId when delivering announce to a requester subagent", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(false);
+    embeddedRunMock.isEmbeddedPiRunStreaming.mockReturnValue(false);
+
+    const didAnnounce = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:worker",
+      childRunId: "run-worker-thread-preserve",
+      requesterSessionKey: "agent:main:subagent:orchestrator",
+      requesterDisplayKey: "agent:main:subagent:orchestrator",
+      requesterOrigin: { channel: "whatsapp", to: "+1555", accountId: "acct-123", threadId: 77 },
+      ...defaultOutcomeAnnounce,
+    });
+
+    expect(didAnnounce).toBe(true);
+    const call = agentSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
+    expect(call?.params?.sessionKey).toBe("agent:main:subagent:orchestrator");
+    expect(call?.params?.deliver).toBe(false);
+    expect(call?.params?.threadId).toBe("77");
+    expect(call?.params?.channel).toBeUndefined();
+    expect(call?.params?.to).toBeUndefined();
+  });
+
   it("retries reading subagent output when early lifecycle completion had no text", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
     embeddedRunMock.isEmbeddedPiRunActive.mockReturnValueOnce(true).mockReturnValue(false);
