@@ -338,10 +338,11 @@ export function attachGatewayWsMessageHandler(params: {
         const hasSharedAuth = hasTokenAuth || hasPasswordAuth;
         const allowInsecureControlUi =
           isControlUi && configSnapshot.gateway?.controlUi?.allowInsecureAuth === true;
-        const disableControlUiDeviceAuth =
-          isControlUi && configSnapshot.gateway?.controlUi?.dangerouslyDisableDeviceAuth === true;
-        const allowControlUiBypass = allowInsecureControlUi || disableControlUiDeviceAuth;
-        const device = disableControlUiDeviceAuth ? null : deviceRaw;
+        const disableBrowserDeviceAuth =
+          (isControlUi || isWebchat) &&
+          configSnapshot.gateway?.controlUi?.dangerouslyDisableDeviceAuth === true;
+        const allowBrowserBypass = allowInsecureControlUi || disableBrowserDeviceAuth;
+        const device = disableBrowserDeviceAuth ? null : deviceRaw;
 
         const hasDeviceTokenCandidate = Boolean(connectParams.auth?.token && device);
         let authResult: GatewayAuthResult = await authorizeGatewayConnect({
@@ -419,13 +420,14 @@ export function attachGatewayWsMessageHandler(params: {
           close(1008, truncateCloseReason(authMessage));
         };
         if (!device) {
-          if (scopes.length > 0 && !allowControlUiBypass) {
+          if (scopes.length > 0 && !allowBrowserBypass) {
             scopes = [];
             connectParams.scopes = scopes;
           }
-          const canSkipDevice = sharedAuthOk;
+          const isTailscaleAuth = authResult.ok && authResult.method === "tailscale";
+          const canSkipDevice = sharedAuthOk || isTailscaleAuth;
 
-          if (isControlUi && !allowControlUiBypass) {
+          if (isControlUi && !allowBrowserBypass) {
             const errorMessage = "control ui requires HTTPS or localhost (secure context)";
             markHandshakeFailure("control-ui-insecure-auth");
             sendHandshakeErrorResponse(ErrorCodes.INVALID_REQUEST, errorMessage);
@@ -619,7 +621,7 @@ export function attachGatewayWsMessageHandler(params: {
           return;
         }
 
-        const skipPairing = allowControlUiBypass && sharedAuthOk;
+        const skipPairing = allowBrowserBypass && sharedAuthOk;
         if (device && devicePublicKey && !skipPairing) {
           const formatAuditList = (items: string[] | undefined): string => {
             if (!items || items.length === 0) {

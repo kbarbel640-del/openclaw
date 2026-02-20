@@ -668,11 +668,10 @@ describe("gateway server auth/connect", () => {
       testTailscaleWhois.value = null;
     });
 
-    test("requires device identity when only tailscale auth is available", async () => {
+    test("allows tailscale auth to skip device identity", async () => {
       const ws = await openTailscaleWs(port);
       const res = await connectReq(ws, { token: "dummy", device: null });
-      expect(res.ok).toBe(false);
-      expect(res.error?.message ?? "").toContain("device identity required");
+      expect(res.ok).toBe(true);
       ws.close();
     });
 
