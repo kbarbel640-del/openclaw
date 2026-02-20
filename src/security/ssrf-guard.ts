@@ -15,17 +15,17 @@
 
 import { isIP } from "node:net";
 import {
+  fetchWithSsrFGuard,
+  type GuardedFetchOptions,
+  type GuardedFetchResult,
+} from "../infra/net/fetch-guard.js";
+import {
   isPrivateIpAddress,
   isBlockedHostname,
   SsrFBlockedError,
   type LookupFn,
   resolvePinnedHostnameWithPolicy,
 } from "../infra/net/ssrf.js";
-import {
-  fetchWithSsrFGuard,
-  type GuardedFetchOptions,
-  type GuardedFetchResult,
-} from "../infra/net/fetch-guard.js";
 
 // Re-export canonical implementations so consumers can use a single import.
 export { isPrivateIpAddress, isBlockedHostname, SsrFBlockedError };
@@ -101,7 +101,9 @@ export async function validateUrl(rawUrl: string, lookupFn?: LookupFn): Promise<
 export async function safeFetch(
   url: string,
   init?: RequestInit,
-  options?: Partial<Pick<GuardedFetchOptions, "maxRedirects" | "timeoutMs" | "signal" | "lookupFn" | "auditContext">>,
+  options?: Partial<
+    Pick<GuardedFetchOptions, "maxRedirects" | "timeoutMs" | "signal" | "lookupFn" | "auditContext">
+  >,
 ): Promise<GuardedFetchResult> {
   return fetchWithSsrFGuard({
     url,

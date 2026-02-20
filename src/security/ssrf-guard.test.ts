@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { LookupAddress } from "node:dns";
+import { describe, expect, it, vi } from "vitest";
 import {
   validateUrl,
   isPrivateIpAddress,
@@ -124,14 +124,22 @@ describe("validateUrl", () => {
 
   it("rejects blocked hostnames (localhost, .local, .internal)", async () => {
     const mockLookup = fakeLookup("127.0.0.1");
-    await expect(validateUrl("http://localhost/admin", mockLookup)).rejects.toThrow(SsrFBlockedError);
-    await expect(validateUrl("http://metadata.google.internal/", mockLookup)).rejects.toThrow(SsrFBlockedError);
-    await expect(validateUrl("http://service.local/", mockLookup)).rejects.toThrow(SsrFBlockedError);
+    await expect(validateUrl("http://localhost/admin", mockLookup)).rejects.toThrow(
+      SsrFBlockedError,
+    );
+    await expect(validateUrl("http://metadata.google.internal/", mockLookup)).rejects.toThrow(
+      SsrFBlockedError,
+    );
+    await expect(validateUrl("http://service.local/", mockLookup)).rejects.toThrow(
+      SsrFBlockedError,
+    );
   });
 
   it("rejects hostnames that resolve to private IPs", async () => {
     const mockLookup = fakeLookup("10.0.0.1");
-    await expect(validateUrl("https://evil.example.com", mockLookup)).rejects.toThrow(SsrFBlockedError);
+    await expect(validateUrl("https://evil.example.com", mockLookup)).rejects.toThrow(
+      SsrFBlockedError,
+    );
   });
 
   it("allows legitimate public URLs (mocked DNS)", async () => {
