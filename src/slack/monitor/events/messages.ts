@@ -145,7 +145,7 @@ export function registerSlackMessageEvents(params: {
               );
               const deletedTsValues = await deleteSlackThreadRepliesFromBot(
                 channelId,
-                deleted.deleted_ts!,
+                deleted.deleted_ts,
                 ctx.botUserId,
               );
               if (deletedTsValues.length > 0) {
