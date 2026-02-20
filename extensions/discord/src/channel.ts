@@ -402,7 +402,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
   gateway: {
     startAccount: async (ctx) => {
       const account = ctx.account;
-      const token = account.token.trim();
+      const token = account.token?.trim();
       let discordBotLabel = "";
       try {
         const probe = await getDiscordRuntime().channel.discord.probeDiscord(token, 2500, {
