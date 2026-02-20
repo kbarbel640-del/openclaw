@@ -2590,6 +2590,19 @@ public struct ToolInterruptEmitParams: Codable, Sendable {
     }
 }
 
+public struct ToolInterruptListParams: Codable, Sendable {
+    public let state: String?
+
+    public init(
+        state: String?
+    ) {
+        self.state = state
+    }
+    private enum CodingKeys: String, CodingKey {
+        case state
+    }
+}
+
 public struct ToolInterruptResumeParams: Codable, Sendable {
     public let approvalrequestid: String
     public let runid: String
