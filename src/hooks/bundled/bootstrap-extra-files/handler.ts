@@ -51,7 +51,7 @@ const bootstrapExtraFilesHook: HookHandler = async (event) => {
     }
     context.bootstrapFiles = filterBootstrapFilesForSession(
       [...context.bootstrapFiles, ...extras],
-      context.sessionKey,
+      { sessionKey: context.sessionKey },
     );
   } catch (err) {
     log.warn(`failed: ${String(err)}`);
