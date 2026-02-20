@@ -47,7 +47,7 @@ Minimal config (single account):
   channels: {
     tlon: {
       enabled: true,
-      ship: "~sampel-palnet",
+      ship: "~sample-palnet",
       url: "https://your-ship-host",
       code: "lidlut-tabwed-pillex-ridrup",
     },
@@ -138,7 +138,7 @@ Group authorization (restricted by default):
 
 Use these with `openclaw message send` or cron delivery:
 
-- DM: `~sampel-palnet` or `dm/~sampel-palnet`
+- DM: `~sample-palnet` or `dm/~sample-palnet`
 - Group: `chat/~host-ship/channel` or `group:~host-ship/channel`
 
 ## Notes

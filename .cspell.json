@@ -1,0 +1,12 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "dictionaries": ["openclaw"],
+  "dictionaryDefinitions": [
+    {
+      "name": "openclaw",
+      "path": "docs/.cspell-words.txt"
+    }
+  ],
+  "ignorePaths": ["**/node_modules/**", "**/dist/**", "docs/zh-CN/**", "docs/ja-JP/**"]
+}

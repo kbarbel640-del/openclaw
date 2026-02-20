@@ -14,7 +14,7 @@ The CI runs on every push to `main` and every pull request. It uses smart scopin
 | `docs-scope`      | Detect docs-only changes                        | Always                    |
 | `changed-scope`   | Detect which areas changed (node/macos/android) | Non-docs PRs              |
 | `check`           | TypeScript types, lint, format                  | Non-docs changes          |
-| `check-docs`      | Markdown lint + broken link check               | Docs changed              |
+| `check-docs`      | Markdown lint + broken link check + spellcheck  | Docs changed              |
 | `code-analysis`   | LOC threshold check (1000 lines)                | PRs only                  |
 | `secrets`         | Detect leaked secrets                           | Always                    |
 | `build-artifacts` | Build dist once, share with other jobs          | Non-docs, node changes    |
@@ -45,6 +45,6 @@ Jobs are ordered so cheap checks fail before expensive ones run:
 ```bash
 pnpm check          # types + lint + format
 pnpm test           # vitest tests
-pnpm check:docs     # docs format + lint + broken links
+pnpm check:docs     # docs format + lint + broken links + spellcheck
 pnpm release:check  # validate npm pack
 ```

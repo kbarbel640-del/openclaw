@@ -581,7 +581,7 @@ Two common Windows issues:
 If you want the smoothest Windows setup, use **WSL2** instead of native Windows.
 Docs: [Windows](/platforms/windows).
 
-### The docs didnt answer my question how do I get a better answer
+### The docs didn't answer my question how do I get a better answer
 
 Use the **hackable (git) install** so you have the full source and docs locally, then ask
 your bot (or Claude/Codex) _from that folder_ so it can read the repo and answer precisely.
@@ -1906,7 +1906,7 @@ openclaw directory groups list --channel whatsapp
 
 Docs: [WhatsApp](/channels/whatsapp), [Directory](/cli/directory), [Logs](/cli/logs).
 
-### Why doesnt OpenClaw reply in a group
+### Why doesn't OpenClaw reply in a group
 
 Two common causes:
 
@@ -2732,7 +2732,7 @@ more susceptible to instruction hijacking, so avoid them for tool-enabled agents
 or when reading untrusted content. If you must use a smaller model, lock down
 tools and run inside a sandbox. See [Security](/gateway/security).
 
-### I ran start in Telegram but didnt get a pairing code
+### I ran start in Telegram but didn't get a pairing code
 
 Pairing codes are sent **only** when an unknown sender messages the bot and
 `dmPolicy: "pairing"` is enabled. `/start` by itself doesn't generate a code.
