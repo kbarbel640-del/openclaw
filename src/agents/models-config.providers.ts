@@ -786,16 +786,15 @@ export async function resolveImplicitProviders(params: {
     provider: "nebius-token-factory",
     store: authStore,
   });
-  const nebiusTokenFactoryKey = nebiusTokenFactoryEnv?.apiKey ?? nebiusTokenFactoryProfileKey;
-  if (nebiusTokenFactoryKey) {
-    const apiKeyForConfig =
-      nebiusTokenFactoryEnv?.source.match(/(?:env: |shell env: )([A-Z0-9_]+)/)?.[1] ??
-      (nebiusTokenFactoryProfileKey ? "auth-profile:nebius-token-factory" : undefined);
+  const nebiusTokenFactoryDiscoveryKey =
+    nebiusTokenFactoryEnv?.apiKey ?? nebiusTokenFactoryProfileKey;
+  const nebiusTokenFactoryApiKeyRef =
+    nebiusTokenFactoryEnv?.source.match(/(?:env: |shell env: )([A-Z0-9_]+)/)?.[1] ??
+    nebiusTokenFactoryProfileKey;
+  if (nebiusTokenFactoryDiscoveryKey && nebiusTokenFactoryApiKeyRef) {
     providers["nebius-token-factory"] = {
-      ...(await buildNebiusTokenFactoryProvider(nebiusTokenFactoryKey)),
-      // apiKey here is intentionally a reference (env var name or profile marker) to avoid
-      // writing secrets into config; callers must resolve real credentials via env/auth store.
-      apiKey: apiKeyForConfig,
+      ...(await buildNebiusTokenFactoryProvider(nebiusTokenFactoryDiscoveryKey)),
+      apiKey: nebiusTokenFactoryApiKeyRef,
     };
   }
 
