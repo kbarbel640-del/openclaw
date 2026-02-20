@@ -32,10 +32,15 @@ describe("markdownToMatrixHtml", () => {
   });
 
   describe("LaTeX/Math rendering (data-mx-maths)", () => {
-    it("converts display math $$...$$", () => {
-      const html = markdownToMatrixHtml("Here is math: $$x^2 + y^2 = z^2$$");
+    it("converts display math $$...$$ to block form when standalone", () => {
+      const html = markdownToMatrixHtml("$$x^2 + y^2 = z^2$$");
       expect(html).toContain('<div data-mx-maths="x^2 + y^2 = z^2">');
       expect(html).toContain("<code>x^2 + y^2 = z^2</code>");
+    });
+
+    it("falls back to inline maths when display delimiters are embedded in a sentence", () => {
+      const html = markdownToMatrixHtml("Here is math: $$x^2 + y^2 = z^2$$");
+      expect(html).toContain('<span data-mx-maths="x^2 + y^2 = z^2">');
     });
 
     it("converts inline math $...$", () => {
@@ -52,7 +57,7 @@ describe("markdownToMatrixHtml", () => {
     });
 
     it("converts LaTeX display environment \\[...\\]", () => {
-      const html = markdownToMatrixHtml("Math: \\[x^2 + 1\\]");
+      const html = markdownToMatrixHtml("\\[x^2 + 1\\]");
       expect(html).toContain('<div data-mx-maths="x^2 + 1">');
     });
 
@@ -63,11 +68,14 @@ describe("markdownToMatrixHtml", () => {
 
     it("preserves LaTeX in code blocks (does not convert)", () => {
       const html = markdownToMatrixHtml("Code: `$$x^2$$`");
-      // LaTeX inside backticks should NOT be converted to data-mx-maths
-      // The backticks create a code element which preserves literal content
-      expect(html).toContain("<code>");
-      expect(html).toContain("x^2");
+      // Math-like syntax inside code spans should stay literal code, never converted to data-mx-maths.
+      expect(html).toContain("<code>$$x^2$$</code>");
       expect(html).not.toContain('data-mx-maths=');
+    });
+
+    it("renders pure display math as a block div", () => {
+      const html = markdownToMatrixHtml("$$x^2$$");
+      expect(html).toBe('<div data-mx-maths="x^2"><code>x^2</code></div>');
     });
 
     it("strips whitespace from LaTeX content", () => {

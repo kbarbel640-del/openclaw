@@ -34,12 +34,20 @@ function extractAndProtectLatex(markdown: string): {
 
   let result = markdown;
 
-  // First, protect backtick-quoted regions to avoid extracting LaTeX from code
-  const backtickPlaceholders = new Map<string, string>();
-  let backtickIndex = 0;
+  // First, protect backtick-quoted regions to avoid extracting LaTeX from code.
+  // Handle fenced code blocks first, then inline code.
+  const codePlaceholders = new Map<string, string>();
+  let codeIndex = 0;
+  
+  result = result.replace(/```[\s\S]*?```/g, (match) => {
+    const key = `{CODE-BLOCK-${codeIndex++}}`;
+    codePlaceholders.set(key, match);
+    return key;
+  });
+  
   result = result.replace(/`[^`]+`/g, (match) => {
-    const key = `{BACKTICK-${backtickIndex++}}`;
-    backtickPlaceholders.set(key, match);
+    const key = `{CODE-BLOCK-${codeIndex++}}`;
+    codePlaceholders.set(key, match);
     return key;
   });
 
@@ -71,9 +79,9 @@ function extractAndProtectLatex(markdown: string): {
     return key;
   });
 
-  // Restore backtick regions
-  for (const [key, html] of backtickPlaceholders.entries()) {
-    result = result.replace(key, html);
+  // Restore code regions using split/join to avoid '$' special character handling in replace()
+  for (const [key, html] of codePlaceholders.entries()) {
+    result = result.split(key).join(html);
   }
 
   return { markdown: result, latexBlocks };
@@ -83,6 +91,10 @@ function extractAndProtectLatex(markdown: string): {
  * Restore LaTeX blocks as `data-mx-maths` HTML.
  * Skip restoration inside <code> tags to preserve literal LaTeX in code blocks.
  */
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function restoreLatexAsMatrixMaths(
   html: string,
   latexBlocks: Map<string, { type: "display" | "inline"; content: string; raw: string }>,
@@ -92,30 +104,38 @@ function restoreLatexAsMatrixMaths(
   const codePlaceholders = new Map<string, string>();
   let codeIndex = 0;
 
-  let result = html.replace(/<code[^>]*>.*?<\/code>/gs, (match) => {
+  let result = html.replace(/<code[^>]*>[\s\S]*?<\/code>/gs, (match) => {
     const key = `{CODE-PROTECT-${codeIndex++}}`;
     let literalCode = match;
     for (const [mathKey, block] of latexBlocks.entries()) {
-      literalCode = literalCode.replace(mathKey, escapeHtml(block.raw));
+      // Use split/join to avoid '$' special character handling in replace()
+      literalCode = literalCode.split(mathKey).join(escapeHtml(block.raw));
     }
     codePlaceholders.set(key, literalCode);
     return key;
   });
 
-  // Restore LaTeX blocks
+  // Restore LaTeX blocks.
+  // Display math uses block form when it is the entire paragraph; otherwise fall back to inline span.
   for (const [key, block] of latexBlocks.entries()) {
     const escaped = escapeHtml(block.content);
-    const mathsHtml =
-      block.type === "display"
-        ? `<div data-mx-maths="${escaped}"><code>${escaped}</code></div>`
-        : `<span data-mx-maths="${escaped}"><code>${escaped}</code></span>`;
+    const inlineMathsHtml = `<span data-mx-maths="${escaped}"><code>${escaped}</code></span>`;
 
-    result = result.replace(key, mathsHtml);
+    if (block.type === "display") {
+      const displayMathsHtml = `<div data-mx-maths="${escaped}"><code>${escaped}</code></div>`;
+      const paragraphOnly = new RegExp(`<p>\\s*${escapeRegex(key)}\\s*<\\/p>`, "g");
+      result = result.replace(paragraphOnly, displayMathsHtml);
+      // Use split/join for the remaining occurrences
+      result = result.split(key).join(inlineMathsHtml);
+      continue;
+    }
+
+    result = result.split(key).join(inlineMathsHtml);
   }
 
   // Restore code blocks
-  for (const [key, html] of codePlaceholders.entries()) {
-    result = result.replace(key, html);
+  for (const [key, restoredHtml] of codePlaceholders.entries()) {
+    result = result.split(key).join(restoredHtml);
   }
 
   return result;
