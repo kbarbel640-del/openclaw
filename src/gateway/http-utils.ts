@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
+import { randomUUID } from "node:crypto";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../routing/session-key.js";
 
 export function getHeader(req: IncomingMessage, name: string): string | undefined {
@@ -70,7 +70,11 @@ export function resolveSessionKey(params: {
 }): string {
   const explicit = getHeader(params.req, "x-openclaw-session-key")?.trim();
   if (explicit) {
-    return explicit;
+    const agentPrefix = `agent:${normalizeAgentId(params.agentId)}:`;
+    if (explicit.startsWith(agentPrefix)) {
+      return explicit;
+    }
+    // Explicit key does not belong to this agent's scope; fall through to default.
   }
 
   const user = params.user?.trim();
