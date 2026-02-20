@@ -114,6 +114,138 @@ describe("subagent registry steer restarts", () => {
     expect(announce.childRunId).toBe("run-new");
   });
 
+  it("defers subagent_ended hook for completion-mode runs until announce delivery resolves", async () => {
+    const callGateway = vi.mocked((await import("../gateway/call.js")).callGateway);
+    const originalCallGateway = callGateway.getMockImplementation();
+    callGateway.mockImplementation(async (request: unknown) => {
+      const typed = request as { method?: string };
+      if (typed.method === "agent.wait") {
+        return new Promise<unknown>(() => undefined);
+      }
+      if (originalCallGateway) {
+        return originalCallGateway(request as Parameters<typeof callGateway>[0]);
+      }
+      return {};
+    });
+
+    try {
+      let resolveAnnounce!: (value: boolean) => void;
+      announceSpy.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveAnnounce = resolve;
+          }),
+      );
+
+      mod.registerSubagentRun({
+        runId: "run-completion-delayed",
+        childSessionKey: "agent:main:subagent:completion-delayed",
+        requesterSessionKey: "agent:main:main",
+        requesterDisplayKey: "main",
+        requesterOrigin: {
+          channel: "discord",
+          to: "channel:123",
+          accountId: "work",
+        },
+        task: "completion-mode task",
+        cleanup: "keep",
+        expectsCompletionMessage: true,
+      });
+
+      lifecycleHandler?.({
+        stream: "lifecycle",
+        runId: "run-completion-delayed",
+        data: { phase: "end" },
+      });
+
+      await flushAnnounce();
+      expect(runSubagentEndedHookMock).not.toHaveBeenCalled();
+
+      resolveAnnounce(true);
+      await flushAnnounce();
+
+      expect(runSubagentEndedHookMock).toHaveBeenCalledTimes(1);
+      expect(runSubagentEndedHookMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targetSessionKey: "agent:main:subagent:completion-delayed",
+          reason: "subagent-complete",
+          sendFarewell: true,
+        }),
+        expect.objectContaining({
+          runId: "run-completion-delayed",
+          requesterSessionKey: "agent:main:main",
+        }),
+      );
+    } finally {
+      if (originalCallGateway) {
+        callGateway.mockImplementation(originalCallGateway);
+      }
+    }
+  });
+
+  it("does not emit subagent_ended on completion for persistent session-mode runs", async () => {
+    const callGateway = vi.mocked((await import("../gateway/call.js")).callGateway);
+    const originalCallGateway = callGateway.getMockImplementation();
+    callGateway.mockImplementation(async (request: unknown) => {
+      const typed = request as { method?: string };
+      if (typed.method === "agent.wait") {
+        return new Promise<unknown>(() => undefined);
+      }
+      if (originalCallGateway) {
+        return originalCallGateway(request as Parameters<typeof callGateway>[0]);
+      }
+      return {};
+    });
+
+    try {
+      let resolveAnnounce!: (value: boolean) => void;
+      announceSpy.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveAnnounce = resolve;
+          }),
+      );
+
+      mod.registerSubagentRun({
+        runId: "run-persistent-session",
+        childSessionKey: "agent:main:subagent:persistent-session",
+        requesterSessionKey: "agent:main:main",
+        requesterDisplayKey: "main",
+        requesterOrigin: {
+          channel: "discord",
+          to: "channel:123",
+          accountId: "work",
+        },
+        task: "persistent session task",
+        cleanup: "keep",
+        expectsCompletionMessage: true,
+        spawnMode: "session",
+      });
+
+      lifecycleHandler?.({
+        stream: "lifecycle",
+        runId: "run-persistent-session",
+        data: { phase: "end" },
+      });
+
+      await flushAnnounce();
+      expect(runSubagentEndedHookMock).not.toHaveBeenCalled();
+
+      resolveAnnounce(true);
+      await flushAnnounce();
+
+      expect(runSubagentEndedHookMock).not.toHaveBeenCalled();
+      const run = mod.listSubagentRunsForRequester("agent:main:main")[0];
+      expect(run?.runId).toBe("run-persistent-session");
+      expect(run?.cleanupCompletedAt).toBeTypeOf("number");
+      expect(run?.endedHookEmittedAt).toBeUndefined();
+    } finally {
+      if (originalCallGateway) {
+        callGateway.mockImplementation(originalCallGateway);
+      }
+    }
+  });
+
   it("clears announce retry state when replacing after steer restart", () => {
     mod.registerSubagentRun({
       runId: "run-retry-reset-old",
@@ -212,7 +344,7 @@ describe("subagent registry steer restarts", () => {
       },
       {
         runId: "run-killed",
-        targetSessionKey: childSessionKey,
+        childSessionKey,
         requesterSessionKey: "agent:main:main",
       },
     );

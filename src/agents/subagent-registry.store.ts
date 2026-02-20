@@ -101,6 +101,7 @@ export function loadSubagentRegistryFromDisk(): Map<string, SubagentRunRecord> {
       requesterOrigin,
       cleanupCompletedAt,
       cleanupHandled,
+      spawnMode: typed.spawnMode === "session" ? "session" : "run",
     });
     if (isLegacy) {
       migrated = true;

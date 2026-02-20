@@ -42,6 +42,7 @@ describe("discord subagent hook handlers", () => {
         childSessionKey: "agent:main:subagent:child",
         agentId: "main",
         label: "research",
+        mode: "session",
         requester: {
           channel: "discord",
           accountId: "work",
@@ -78,6 +79,7 @@ describe("discord subagent hook handlers", () => {
         runId: "run-2",
         childSessionKey: "agent:main:subagent:child-2",
         agentId: "main",
+        mode: "run",
         requester: {
           channel: "discord",
           to: "channel:123",

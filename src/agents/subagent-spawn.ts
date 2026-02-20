@@ -18,6 +18,9 @@ import {
   resolveMainSessionAlias,
 } from "./tools/sessions-helpers.js";
 
+export const SUBAGENT_SPAWN_MODES = ["run", "session"] as const;
+export type SpawnSubagentMode = (typeof SUBAGENT_SPAWN_MODES)[number];
+
 export type SpawnSubagentParams = {
   task: string;
   label?: string;
@@ -26,6 +29,7 @@ export type SpawnSubagentParams = {
   thinking?: string;
   runTimeoutSeconds?: number;
   thread?: boolean;
+  mode?: SpawnSubagentMode;
   cleanup?: "delete" | "keep";
   expectsCompletionMessage?: boolean;
 };
@@ -44,11 +48,14 @@ export type SpawnSubagentContext = {
 
 export const SUBAGENT_SPAWN_ACCEPTED_NOTE =
   "auto-announces on completion, do not poll/sleep. The response will be sent back as an user message.";
+export const SUBAGENT_SPAWN_SESSION_ACCEPTED_NOTE =
+  "thread-bound session stays active after this task; continue in-thread for follow-ups.";
 
 export type SpawnSubagentResult = {
   status: "accepted" | "forbidden" | "error";
   childSessionKey?: string;
   runId?: string;
+  mode?: SpawnSubagentMode;
   note?: string;
   modelApplied?: boolean;
   error?: string;
@@ -69,6 +76,17 @@ export function splitModelRef(ref?: string) {
   return { provider: undefined, model: trimmed };
 }
 
+function resolveSpawnMode(params: {
+  requestedMode?: SpawnSubagentMode;
+  threadRequested: boolean;
+}): SpawnSubagentMode {
+  if (params.requestedMode === "run" || params.requestedMode === "session") {
+    return params.requestedMode;
+  }
+  // Thread-bound spawns should default to persistent sessions.
+  return params.threadRequested ? "session" : "run";
+}
+
 export async function spawnSubagentDirect(
   params: SpawnSubagentParams,
   ctx: SpawnSubagentContext,
@@ -78,8 +96,18 @@ export async function spawnSubagentDirect(
   const requestedAgentId = params.agentId;
   const modelOverride = params.model;
   const thinkingOverrideRaw = params.thinking;
+  const requestThreadBinding = params.thread === true;
+  const spawnMode = resolveSpawnMode({
+    requestedMode: params.mode,
+    threadRequested: requestThreadBinding,
+  });
   const cleanup =
-    params.cleanup === "keep" || params.cleanup === "delete" ? params.cleanup : "keep";
+    spawnMode === "session"
+      ? "keep"
+      : params.cleanup === "keep" || params.cleanup === "delete"
+        ? params.cleanup
+        : "keep";
+  const expectsCompletionMessage = params.expectsCompletionMessage !== false;
   const requesterOrigin = normalizeDeliveryContext({
     channel: ctx.agentChannel,
     accountId: ctx.agentAccountId,
@@ -90,7 +118,6 @@ export async function spawnSubagentDirect(
     typeof params.runTimeoutSeconds === "number" && Number.isFinite(params.runTimeoutSeconds)
       ? Math.max(0, Math.floor(params.runTimeoutSeconds))
       : 0;
-  const requestThreadBinding = params.thread === true;
   let modelApplied = false;
 
   const cfg = loadConfig();
@@ -241,8 +268,13 @@ export async function spawnSubagentDirect(
   });
   const childTaskMessage = [
     `[Subagent Context] You are running as a subagent (depth ${childDepth}/${maxSpawnDepth}). Results auto-announce to your requester; do not busy-poll for status.`,
+    spawnMode === "session"
+      ? "[Subagent Context] This subagent session is persistent and remains available for thread follow-up messages."
+      : undefined,
     `[Subagent Task]: ${task}`,
-  ].join("\n\n");
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n\n");
 
   const childIdem = crypto.randomUUID();
   let childRunId: string = childIdem;
@@ -295,7 +327,8 @@ export async function spawnSubagentDirect(
     label: label || undefined,
     model: resolvedModel,
     runTimeoutSeconds,
-    expectsCompletionMessage: params.expectsCompletionMessage === true,
+    expectsCompletionMessage,
+    spawnMode,
   });
 
   const hookRunner = getGlobalHookRunner();
@@ -314,6 +347,7 @@ export async function spawnSubagentDirect(
             threadId: requesterOrigin?.threadId,
           },
           threadRequested: requestThreadBinding,
+          mode: spawnMode,
         },
         {
           runId: childRunId,
@@ -330,7 +364,9 @@ export async function spawnSubagentDirect(
     status: "accepted",
     childSessionKey,
     runId: childRunId,
-    note: SUBAGENT_SPAWN_ACCEPTED_NOTE,
+    mode: spawnMode,
+    note:
+      spawnMode === "session" ? SUBAGENT_SPAWN_SESSION_ACCEPTED_NOTE : SUBAGENT_SPAWN_ACCEPTED_NOTE,
     modelApplied: resolvedModel ? modelApplied : undefined,
   };
 }

@@ -85,6 +85,44 @@ function suppressAnnounceForSteerRestart(entry?: SubagentRunRecord) {
   return entry?.suppressAnnounceReason === "steer-restart";
 }
 
+function shouldKeepThreadBindingAfterRun(params: {
+  entry: SubagentRunRecord;
+  reason: SubagentLifecycleEndedReason;
+}) {
+  if (params.reason === SUBAGENT_ENDED_REASON_KILLED) {
+    return false;
+  }
+  return params.entry.spawnMode === "session";
+}
+
+function shouldEmitEndedHookForRun(params: {
+  entry: SubagentRunRecord;
+  reason: SubagentLifecycleEndedReason;
+}) {
+  return !shouldKeepThreadBindingAfterRun(params);
+}
+
+async function emitSubagentEndedHookForRun(params: {
+  entry: SubagentRunRecord;
+  reason?: SubagentLifecycleEndedReason;
+  sendFarewell?: boolean;
+  accountId?: string;
+}) {
+  const reason = params.reason ?? params.entry.endedReason ?? SUBAGENT_ENDED_REASON_COMPLETE;
+  const outcome = resolveLifecycleOutcomeFromRunOutcome(params.entry.outcome);
+  const error = params.entry.outcome?.status === "error" ? params.entry.outcome.error : undefined;
+  await emitSubagentEndedHookOnce({
+    entry: params.entry,
+    reason,
+    sendFarewell: params.sendFarewell,
+    accountId: params.accountId ?? params.entry.requesterOrigin?.accountId,
+    outcome,
+    error,
+    inFlightRunIds: endedHookInFlightRunIds,
+    persist: persistSubagentRuns,
+  });
+}
+
 async function completeSubagentRun(params: {
   runId: string;
   endedAt?: number;
@@ -118,16 +156,23 @@ async function completeSubagentRun(params: {
     persistSubagentRuns();
   }
 
-  await emitSubagentEndedHookOnce({
+  const shouldEmitEndedHook = shouldEmitEndedHookForRun({
     entry,
     reason: params.reason,
-    sendFarewell: params.sendFarewell,
-    accountId: params.accountId,
-    outcome: resolveLifecycleOutcomeFromRunOutcome(params.outcome),
-    error: params.outcome.status === "error" ? params.outcome.error : undefined,
-    inFlightRunIds: endedHookInFlightRunIds,
-    persist: persistSubagentRuns,
   });
+  const shouldDeferEndedHook =
+    shouldEmitEndedHook &&
+    params.triggerCleanup &&
+    entry.expectsCompletionMessage === true &&
+    !suppressAnnounceForSteerRestart(entry);
+  if (!shouldDeferEndedHook && shouldEmitEndedHook) {
+    await emitSubagentEndedHookForRun({
+      entry,
+      reason: params.reason,
+      sendFarewell: params.sendFarewell,
+      accountId: params.accountId,
+    });
+  }
 
   if (!params.triggerCleanup) {
     return;
@@ -159,7 +204,7 @@ function startSubagentAnnounceCleanupFlow(runId: string, entry: SubagentRunRecor
     label: entry.label,
     outcome: entry.outcome,
   }).then((didAnnounce) => {
-    finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
+    void finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
   });
   return true;
 }
@@ -358,7 +403,11 @@ function ensureListener() {
   });
 }
 
-function finalizeSubagentCleanup(runId: string, cleanup: "delete" | "keep", didAnnounce: boolean) {
+async function finalizeSubagentCleanup(
+  runId: string,
+  cleanup: "delete" | "keep",
+  didAnnounce: boolean,
+) {
   const entry = subagentRuns.get(runId);
   if (!entry) {
     return;
@@ -372,6 +421,20 @@ function finalizeSubagentCleanup(runId: string, cleanup: "delete" | "keep", didA
     // Check if the announce has exceeded retry limits or expired (#18264).
     const endedAgo = typeof entry.endedAt === "number" ? now - entry.endedAt : 0;
     if (retryCount >= MAX_ANNOUNCE_RETRY_COUNT || endedAgo > ANNOUNCE_EXPIRY_MS) {
+      const completionReason = entry.endedReason ?? SUBAGENT_ENDED_REASON_COMPLETE;
+      if (
+        entry.expectsCompletionMessage === true &&
+        shouldEmitEndedHookForRun({
+          entry,
+          reason: completionReason,
+        })
+      ) {
+        await emitSubagentEndedHookForRun({
+          entry,
+          reason: completionReason,
+          sendFarewell: true,
+        });
+      }
       // Give up: mark as completed to break the infinite retry loop.
       logAnnounceGiveUp(entry, retryCount >= MAX_ANNOUNCE_RETRY_COUNT ? "retry-limit" : "expiry");
       entry.cleanupCompletedAt = now;
@@ -394,6 +457,20 @@ function finalizeSubagentCleanup(runId: string, cleanup: "delete" | "keep", didA
       resolveAnnounceRetryDelayMs(entry.announceRetryCount ?? 0),
     ).unref?.();
     return;
+  }
+  const completionReason = entry.endedReason ?? SUBAGENT_ENDED_REASON_COMPLETE;
+  if (
+    entry.expectsCompletionMessage === true &&
+    shouldEmitEndedHookForRun({
+      entry,
+      reason: completionReason,
+    })
+  ) {
+    await emitSubagentEndedHookForRun({
+      entry,
+      reason: completionReason,
+      sendFarewell: true,
+    });
   }
   if (cleanup === "delete") {
     subagentRuns.delete(runId);
@@ -557,6 +634,7 @@ export function registerSubagentRun(params: {
   model?: string;
   runTimeoutSeconds?: number;
   expectsCompletionMessage?: boolean;
+  spawnMode?: "run" | "session";
 }) {
   const now = Date.now();
   const cfg = loadConfig();
@@ -574,6 +652,7 @@ export function registerSubagentRun(params: {
     task: params.task,
     cleanup: params.cleanup,
     expectsCompletionMessage: params.expectsCompletionMessage,
+    spawnMode: params.spawnMode === "session" ? "session" : "run",
     label: params.label,
     model: params.model,
     runTimeoutSeconds,

@@ -14,9 +14,10 @@ describe("subagent hook runner methods", () => {
     await runner.runSubagentSpawned(
       {
         runId: "run-1",
-        targetSessionKey: "agent:main:subagent:child",
+        childSessionKey: "agent:main:subagent:child",
         agentId: "main",
         label: "research",
+        mode: "run",
         requester: {
           channel: "discord",
           accountId: "work",
@@ -27,7 +28,7 @@ describe("subagent hook runner methods", () => {
       },
       {
         runId: "run-1",
-        targetSessionKey: "agent:main:subagent:child",
+        childSessionKey: "agent:main:subagent:child",
         requesterSessionKey: "agent:main:main",
       },
     );
@@ -35,9 +36,10 @@ describe("subagent hook runner methods", () => {
     expect(handler).toHaveBeenCalledWith(
       {
         runId: "run-1",
-        targetSessionKey: "agent:main:subagent:child",
+        childSessionKey: "agent:main:subagent:child",
         agentId: "main",
         label: "research",
+        mode: "run",
         requester: {
           channel: "discord",
           accountId: "work",
@@ -48,7 +50,7 @@ describe("subagent hook runner methods", () => {
       },
       {
         runId: "run-1",
-        targetSessionKey: "agent:main:subagent:child",
+        childSessionKey: "agent:main:subagent:child",
         requesterSessionKey: "agent:main:main",
       },
     );
@@ -71,7 +73,7 @@ describe("subagent hook runner methods", () => {
       },
       {
         runId: "run-1",
-        targetSessionKey: "agent:main:subagent:child",
+        childSessionKey: "agent:main:subagent:child",
         requesterSessionKey: "agent:main:main",
       },
     );
@@ -88,7 +90,7 @@ describe("subagent hook runner methods", () => {
       },
       {
         runId: "run-1",
-        targetSessionKey: "agent:main:subagent:child",
+        childSessionKey: "agent:main:subagent:child",
         requesterSessionKey: "agent:main:main",
       },
     );

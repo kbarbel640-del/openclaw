@@ -564,6 +564,7 @@ export type PluginHookSubagentSpawnedEvent = {
   childSessionKey: string;
   agentId: string;
   label?: string;
+  mode: "run" | "session";
   requester?: {
     channel?: string;
     accountId?: string;

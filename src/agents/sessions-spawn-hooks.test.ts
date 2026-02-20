@@ -64,6 +64,7 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
       runId: "run-1",
       agentId: "main",
       label: "research",
+      mode: "session",
       requester: {
         channel: "discord",
         accountId: "work",
@@ -72,11 +73,11 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
       },
       threadRequested: true,
     });
-    expect(event.targetSessionKey).toEqual(expect.stringMatching(/^agent:main:subagent:/));
+    expect(event.childSessionKey).toEqual(expect.stringMatching(/^agent:main:subagent:/));
     expect(ctx).toMatchObject({
       runId: "run-1",
       requesterSessionKey: "main",
-      targetSessionKey: event.targetSessionKey,
+      childSessionKey: event.childSessionKey,
     });
   });
 
@@ -98,11 +99,36 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
       Record<string, unknown>,
     ];
     expect(event).toMatchObject({
+      mode: "run",
       threadRequested: false,
       requester: {
         channel: "discord",
         to: "channel:123",
       },
+    });
+  });
+
+  it("respects explicit mode=run when thread binding is requested", async () => {
+    const tool = await getSessionsSpawnTool({
+      agentSessionKey: "main",
+      agentChannel: "discord",
+      agentTo: "channel:123",
+    });
+
+    const result = await tool.execute("call3", {
+      task: "do thing",
+      runTimeoutSeconds: 1,
+      thread: true,
+      mode: "run",
+    });
+
+    expect(result.details).toMatchObject({ status: "accepted", runId: "run-1", mode: "run" });
+    const [event] = (runSubagentSpawnedMock.mock.calls[0] ?? []) as unknown as [
+      Record<string, unknown>,
+    ];
+    expect(event).toMatchObject({
+      mode: "run",
+      threadRequested: true,
     });
   });
 });

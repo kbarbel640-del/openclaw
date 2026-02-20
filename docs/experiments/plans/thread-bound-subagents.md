@@ -26,7 +26,21 @@ The goal is to let users "zoom in" to a subagent session directly from Discord b
 
 ### Auto-thread-on-spawn (primary flow)
 
-Default UX: the main agent calls `sessions_spawn({ ..., thread: true })`, Discord creates a thread, and that thread is immediately bound to the new subagent session. The user sees a new thread and talks to the subagent directly there, with no manual `/focus` step.
+Default UX: the main agent calls `sessions_spawn({ ..., thread: true, mode: "session" })`, Discord creates a thread, and that thread is immediately bound to the new subagent session. The user sees a new thread and talks to the subagent directly there, with no manual `/focus` step.
+
+### Spawn mode (recommended)
+
+`sessions_spawn` should expose a spawn lifecycle mode enum:
+
+- `mode: "run" | "session"`
+- `"run"`: current one-shot behavior (`spawn -> execute -> announce -> end`).
+- `"session"`: persistent thread-bound session for direct user conversation until explicit stop/unfocus/reset.
+
+Enum naming convention:
+
+- Tool/input enum values should use lowercase words (and kebab-case only when needed).
+- Do not use snake_case for tool enum values (use `session`, not `thread_session`).
+- Hook/event names can remain snake_case (`subagent_spawned`, `subagent_ended`) to match existing plugin hook conventions.
 
 ### Thread-session binding
 
@@ -152,13 +166,14 @@ When a subagent finishes its task:
 
 ### Primary flow: spawn and auto-bind a thread
 
-The happy path is agent-driven and automatic. The main agent uses `thread: true` on spawn, and the user immediately gets a dedicated subagent thread.
+The happy path is agent-driven and automatic. The main agent uses `thread: true` + `mode: "session"` on spawn, and the user immediately gets a dedicated subagent thread.
 
 ```js
 sessions_spawn({
   task: "...",
   label: "codex-refactor",
   thread: true, // auto-create and bind a Discord thread
+  mode: "session", // keep the spawned agent alive for direct thread conversation
 });
 ```
 
@@ -187,8 +202,9 @@ Expected user-visible behavior:
 
 ### Layer 1: Spawn schema and auto-bind flow (primary)
 
-- Add optional `thread: boolean` to spawn tool/schema and spawn params.
-- On `sessions_spawn({ thread: true })`, auto-create a Discord thread and bind it to the new subagent session.
+- Add optional `thread: boolean` and `mode?: "run" | "session"` to spawn tool/schema and spawn params.
+- On `sessions_spawn({ thread: true, mode: "session" })`, auto-create a Discord thread, bind it to the new subagent session, and keep the session alive for continued thread messages.
+- Keep `mode: "run"` available for one-shot fire-and-report subagents.
 - Keep this as the default UX path for user-visible subagents.
 
 ### Layer 2: Binding table and message routing
@@ -247,13 +263,13 @@ Expected user-visible behavior:
 
 ## 10. Exact implementation touchpoints
 
-### 10.1 Primary spawn path (`sessions_spawn({ thread: true })`)
+### 10.1 Primary spawn path (`sessions_spawn({ thread: true, mode: "session" })`)
 
-| Hook point                            | Exact location                                                                                                                                                         | What to add/modify                                                                                                                                                                |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spawn tool schema                     | `src/agents/tools/sessions-spawn-tool.ts:8` (`SessionsSpawnToolSchema`) and `src/agents/subagent-spawn.ts:20` (`SpawnSubagentParams`)                                  | Add optional `thread: boolean` and carry it through spawn flow so `thread: true` auto-creates + binds a Discord thread after run registration succeeds.                           |
-| Spawn origin capture (thread context) | `src/agents/subagent-spawn.ts:81` (`requesterOrigin`), `src/agents/subagent-spawn.ts:255` (RPC `threadId`), `src/agents/subagent-spawn.ts:284` (`registerSubagentRun`) | Keep/extend this for `sessions_spawn({ thread: true })` so initial requester origin includes thread metadata and lifecycle cleanup can map back cleanly.                          |
-| Provider boot path wiring             | `src/discord/monitor/provider.ts:548` (`createDiscordMessageHandler({...})`) and `src/discord/monitor/provider.ts:431` (`createDiscordNativeCommand({...})`)           | Instantiate one binding manager per account in `monitorDiscordProvider` and inject it into spawn-adjacent routing paths so auto-thread binds are immediately routable end-to-end. |
+| Hook point                            | Exact location                                                                                                                                                         | What to add/modify                                                                                                                                                                                             |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spawn tool schema                     | `src/agents/tools/sessions-spawn-tool.ts:8` (`SessionsSpawnToolSchema`) and `src/agents/subagent-spawn.ts:20` (`SpawnSubagentParams`)                                  | Add optional `thread: boolean` plus `mode?: "run" \| "session"` and carry both through spawn flow so `thread: true` + `mode: "session"` auto-creates + binds a Discord thread after run registration succeeds. |
+| Spawn origin capture (thread context) | `src/agents/subagent-spawn.ts:81` (`requesterOrigin`), `src/agents/subagent-spawn.ts:255` (RPC `threadId`), `src/agents/subagent-spawn.ts:284` (`registerSubagentRun`) | Keep/extend this for `sessions_spawn({ thread: true, mode: "session" })` so initial requester origin includes thread metadata and lifecycle cleanup can map back cleanly.                                      |
+| Provider boot path wiring             | `src/discord/monitor/provider.ts:548` (`createDiscordMessageHandler({...})`) and `src/discord/monitor/provider.ts:431` (`createDiscordNativeCommand({...})`)           | Instantiate one binding manager per account in `monitorDiscordProvider` and inject it into spawn-adjacent routing paths so auto-thread binds are immediately routable end-to-end.                              |
 
 ### 10.2 Binding table bootstrap and persistence
 
@@ -356,7 +372,7 @@ Expected user-visible behavior:
 
 **Primary: parent spawn -> auto-bound thread**
 
-1. Parent agent calls `sessions_spawn({ ..., thread: true })`.
+1. Parent agent calls `sessions_spawn({ ..., thread: true, mode: "session" })`.
 2. Spawn flow registers run + captures origin/thread context in `src/agents/subagent-spawn.ts:81`, `:255`, and `:284`.
 3. Discord thread is created, binding persisted, and inbound/outbound routing immediately uses the new `threadId <-> sessionKey` mapping.
 
@@ -380,7 +396,7 @@ Expected user-visible behavior:
 ### 10.9 Minimal import/signature changes checklist
 
 - `src/agents/tools/sessions-spawn-tool.ts` and `src/agents/subagent-spawn.ts`
-  - add and propagate `thread?: boolean` so `sessions_spawn({ thread: true })` is first-class
+  - add and propagate `thread?: boolean` and `mode?: "run" | "session"` so `sessions_spawn({ thread: true, mode: "session" })` is first-class
 - `src/discord/monitor/provider.ts`
   - add `import { createThreadBindingManager } from "./thread-bindings.js"` (new module)
   - pass `threadBindings` into both `createDiscordMessageHandler` and `createDiscordNativeCommand`
