@@ -470,6 +470,9 @@ export async function runReplyAgent(params: {
         const verifierModel = verifierConfig.model ?? defaultModel;
         const timeoutMs = (verifierConfig.timeoutSeconds ?? 30) * 1000;
 
+        defaultRuntime.log?.(
+          `[verifier] triggered — verifying response with ${verifierModel} (max ${maxAttempts} attempts)`,
+        );
         emitAgentEvent({
           runId,
           sessionKey,
@@ -509,6 +512,7 @@ export async function runReplyAgent(params: {
 
           if (verificationResult.passed) {
             verificationPassed = true;
+            defaultRuntime.log?.(`[verifier] PASS (attempt ${attempt})`);
             emitAgentEvent({
               runId,
               sessionKey,
@@ -520,6 +524,9 @@ export async function runReplyAgent(params: {
 
           // Verification failed for this attempt
           verificationPassed = false;
+          defaultRuntime.log?.(
+            `[verifier] FAIL (attempt ${attempt}): ${verificationResult.feedback ?? "no feedback"}`,
+          );
           emitAgentEvent({
             runId,
             sessionKey,
@@ -532,6 +539,9 @@ export async function runReplyAgent(params: {
           });
 
           if (attempt >= maxAttempts) {
+            defaultRuntime.log?.(
+              `[verifier] exhausted after ${maxAttempts} attempt(s) — delivering best response`,
+            );
             emitAgentEvent({
               runId,
               sessionKey,
@@ -542,6 +552,7 @@ export async function runReplyAgent(params: {
           }
 
           // Retry: construct feedback prompt and re-run agent
+          defaultRuntime.log?.(`[verifier] retrying (attempt ${attempt + 1})`);
           emitAgentEvent({
             runId,
             sessionKey,
