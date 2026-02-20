@@ -161,6 +161,17 @@ const toNormalizedUsage = (usage: UsageAccumulator) => {
   };
 };
 
+function resolveActiveErrorContext(params: {
+  lastAssistant: { provider?: string; model?: string } | undefined;
+  provider: string;
+  model: string;
+}): { provider: string; model: string } {
+  return {
+    provider: params.lastAssistant?.provider ?? params.provider,
+    model: params.lastAssistant?.model ?? params.model,
+  };
+}
+
 export async function runEmbeddedPiAgent(
   params: RunEmbeddedPiAgentParams,
 ): Promise<EmbeddedPiRunResult> {
@@ -550,11 +561,17 @@ export async function runEmbeddedPiAgent(
           const lastTurnTotal = lastAssistantUsage?.total ?? attemptUsage?.total;
           const attemptCompactionCount = Math.max(0, attempt.compactionCount ?? 0);
           autoCompactionCount += attemptCompactionCount;
+          const activeErrorContext = resolveActiveErrorContext({
+            lastAssistant,
+            provider,
+            model: modelId,
+          });
           const formattedAssistantErrorText = lastAssistant
             ? formatAssistantErrorText(lastAssistant, {
                 cfg: params.config,
                 sessionKey: params.sessionKey ?? params.sessionId,
-                provider,
+                provider: activeErrorContext.provider,
+                model: activeErrorContext.model,
               })
             : undefined;
           const assistantErrorText =
@@ -939,7 +956,8 @@ export async function runEmbeddedPiAgent(
                   ? formatAssistantErrorText(lastAssistant, {
                       cfg: params.config,
                       sessionKey: params.sessionKey ?? params.sessionId,
-                      provider,
+                      provider: activeErrorContext.provider,
+                      model: activeErrorContext.model,
                     })
                   : undefined) ||
                 lastAssistant?.errorMessage?.trim() ||
@@ -948,7 +966,10 @@ export async function runEmbeddedPiAgent(
                   : rateLimitFailure
                     ? "LLM request rate limited."
                     : billingFailure
-                      ? formatBillingErrorMessage(provider)
+                      ? formatBillingErrorMessage(
+                          activeErrorContext.provider,
+                          activeErrorContext.model,
+                        )
                       : authFailure
                         ? "LLM request unauthorized."
                         : "LLM request failed.");
@@ -957,8 +978,8 @@ export async function runEmbeddedPiAgent(
                 (isTimeoutErrorMessage(message) ? 408 : undefined);
               throw new FailoverError(message, {
                 reason: assistantFailoverReason ?? "unknown",
-                provider,
-                model: modelId,
+                provider: activeErrorContext.provider,
+                model: activeErrorContext.model,
                 profileId: lastProfileId,
                 status,
               });
@@ -993,7 +1014,8 @@ export async function runEmbeddedPiAgent(
             lastToolError: attempt.lastToolError,
             config: params.config,
             sessionKey: params.sessionKey ?? params.sessionId,
-            provider,
+            provider: activeErrorContext.provider,
+            model: activeErrorContext.model,
             verboseLevel: params.verboseLevel,
             reasoningLevel: params.reasoningLevel,
             toolResultFormat: resolvedToolResultFormat,
