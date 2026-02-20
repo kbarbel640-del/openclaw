@@ -257,6 +257,10 @@ function appendTimelineBlockChunk(params: {
       if (reasoningLine) {
         const cleaned = trimmed.replace(/^_+|_+$/g, "").trim();
         if (cleaned) {
+          const last = out[out.length - 1];
+          if (last?.kind === "reasoning" && last.text === cleaned) {
+            continue;
+          }
           out.push({ kind: "reasoning", text: cleaned });
           processParts.push(cleaned);
         }
@@ -265,6 +269,10 @@ function appendTimelineBlockChunk(params: {
       inReasoning = false;
     }
 
+    const last = out[out.length - 1];
+    if (last?.kind === "block" && last.text === trimmed) {
+      continue;
+    }
     out.push({ kind: "block", text: trimmed });
     processParts.push(trimmed);
   }
@@ -435,6 +443,7 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
   let createMessagePromise: Promise<void> | null = null;
   let opQueue: Promise<void> = Promise.resolve();
   let timelineCarryLine = "";
+  let assistantCarryLine = "";
   let finalStreamStarted = false;
   let processTextForFinalStrip = "";
 
@@ -528,6 +537,15 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
           return;
         }
         if (info.kind === "final") {
+          if (assistantCarryLine.trim()) {
+            const trimmed = assistantCarryLine.trim();
+            const last = timeline[timeline.length - 1];
+            if (!(last?.kind === "block" && last.text === trimmed)) {
+              timeline = [...timeline, { kind: "block", text: trimmed }];
+              processTextForFinalStrip = mergeStreamText(processTextForFinalStrip, `${trimmed}\n`);
+            }
+            assistantCarryLine = "";
+          }
           const flushed = appendTimelineBlockChunk({
             text: "",
             timeline,
@@ -559,12 +577,23 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
         if (!text) {
           return;
         }
-        finalStreamStarted = true;
-        answer = stripProcessPrefixFromFinal(text, processTextForFinalStrip);
-        if (status !== "error" && status !== "tool") {
-          status = "thinking";
+        // Treat assistant partials as part of the "process" timeline to avoid subtitle-like
+        // flicker in the body. The final answer is rendered when `final` arrives.
+        const appended = appendTimelineBlockChunk({
+          text,
+          timeline,
+          carryLine: assistantCarryLine,
+          flushIncompleteLine: false,
+        });
+        timeline = appended.timeline;
+        assistantCarryLine = appended.carryLine;
+        if (appended.processText) {
+          processTextForFinalStrip = mergeStreamText(
+            processTextForFinalStrip,
+            `${appended.processText}\n`,
+          );
         }
-        await sendOrUpdate(finalStreamStarted);
+        await sendOrUpdate(false);
       });
     },
     async finalize() {
