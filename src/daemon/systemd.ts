@@ -249,6 +249,11 @@ export async function uninstallSystemdService({
   } catch {
     stdout.write(`Systemd service not found at ${unitPath}\n`);
   }
+
+  // Reload systemd daemon to pick up the removed unit file
+  await execSystemctl(["--user", "daemon-reload"]);
+  // Reset failure state to clear any crash loops
+  await execSystemctl(["--user", "reset-failed"]);
 }
 
 async function runSystemdServiceAction(params: {
@@ -404,6 +409,11 @@ export async function uninstallLegacySystemdUnits({
     } catch {
       stdout.write(`Legacy systemd unit not found at ${unit.unitPath}\n`);
     }
+  }
+
+  if (systemctlAvailable) {
+    await execSystemctl(["--user", "daemon-reload"]);
+    await execSystemctl(["--user", "reset-failed"]);
   }
 
   return units;
