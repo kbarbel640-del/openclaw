@@ -238,7 +238,12 @@ function resolveFallbackCandidates(params: {
     if (!resolved) {
       continue;
     }
-    addCandidate(resolved.ref, true);
+    // Fallback candidates are explicitly configured by the user — bypass the
+    // agents.defaults.models allowlist check. The allowlist governs which models
+    // may be used in an ad-hoc session override, not which configured fallbacks
+    // may be tried when the primary fails. Enforcing it here caused configured
+    // fallbacks to be silently skipped when the primary hit a rate-limit. (#22136)
+    addCandidate(resolved.ref, false);
   }
 
   if (params.fallbacksOverride === undefined && primary?.provider && primary.model) {
