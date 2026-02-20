@@ -412,7 +412,7 @@ export async function prepareSlackMessage(params: {
   const envelopeOptions = resolveEnvelopeFormatOptions(ctx.cfg);
   const previousTimestamp = readSessionUpdatedAt({
     storePath,
-    sessionKey: route.sessionKey,
+    sessionKey,
   });
   const body = formatInboundEnvelope({
     channel: "Slack",
