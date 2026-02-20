@@ -561,9 +561,10 @@ export async function runReplyAgent(params: {
         sessionKey,
         storePath,
         tokensAfter: compactionStats?.tokensAfter,
-        lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,        contextTokensUsed,
+        lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,
+        contextTokensUsed,
       });
-// Inject post-compaction workspace context for the next agent turn
+      // Inject post-compaction workspace context for the next agent turn
       if (sessionKey) {
         const workspaceDir = process.cwd();
         readPostCompactionContext(workspaceDir)

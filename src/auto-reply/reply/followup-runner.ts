@@ -298,8 +298,9 @@ export function createFollowupRunner(params: {
           sessionStore,
           sessionKey,
           storePath,
-        tokensAfter: compactionStats?.tokensAfter,
-        lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,          contextTokensUsed,
+          tokensAfter: compactionStats?.tokensAfter,
+          lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,
+          contextTokensUsed,
         });
         const verboseEnabled =
           queued.run.verboseLevel !== undefined && queued.run.verboseLevel !== "off";
