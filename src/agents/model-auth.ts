@@ -228,8 +228,6 @@ export async function resolveApiKeyForProvider(params: {
     ollama:
       'Ollama needs any value as API key to register as a provider. Set OLLAMA_API_KEY="ollama-local" or run "openclaw configure". Docs: https://docs.openclaw.ai/providers/ollama',
     vllm: 'vLLM needs any value as API key to register as a provider. Set VLLM_API_KEY="vllm-local" or run "openclaw configure". Docs: https://docs.openclaw.ai/providers/vllm',
-    lmstudio:
-      'LM Studio needs any value as API key to register as a provider. Set LMSTUDIO_API_KEY="lmstudio-local" or run "openclaw configure". Docs: https://docs.openclaw.ai/providers/lmstudio',
   };
   const localHint = localProviderHints[normalized];
 
