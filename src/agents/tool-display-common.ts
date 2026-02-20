@@ -1036,7 +1036,7 @@ export function resolveExecDetail(args: unknown): string | undefined {
 
   // Append the raw command when the summary differs meaningfully from the command itself.
   if (compact && compact !== displaySummary && compact !== summary) {
-    return `${displaySummary}\n\`${compact}\``;
+    return `${displaySummary}\n\n\`${compact}\``;
   }
 
   return displaySummary;
