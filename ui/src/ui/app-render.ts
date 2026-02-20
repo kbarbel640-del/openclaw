@@ -622,7 +622,11 @@ export function renderApp(state: AppViewState) {
                       "id" in entry &&
                       (entry as { id?: string }).id === agentId,
                   );
+                  // For default agent not in list, update agents.defaults.model
                   if (index < 0) {
+                    if (modelId) {
+                      updateConfigFormValue(state, ["agents", "defaults", "model"], modelId);
+                    }
                     return;
                   }
                   const basePath = ["agents", "list", index, "model"];
@@ -658,7 +662,14 @@ export function renderApp(state: AppViewState) {
                       "id" in entry &&
                       (entry as { id?: string }).id === agentId,
                   );
+                  // For default agent not in list, update agents.defaults.model.fallbacks
                   if (index < 0) {
+                    const normalized = fallbacks.map((name) => name.trim()).filter(Boolean);
+                    updateConfigFormValue(
+                      state,
+                      ["agents", "defaults", "model", "fallbacks"],
+                      normalized,
+                    );
                     return;
                   }
                   const basePath = ["agents", "list", index, "model"];
