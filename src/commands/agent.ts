@@ -508,6 +508,25 @@ export async function agentCommand(
     const sessionFile = resolveSessionFilePath(sessionId, sessionEntry, {
       agentId: sessionAgentId,
     });
+    if (sessionStore && sessionKey) {
+      const current = sessionStore[sessionKey] ??
+        sessionEntry ?? { sessionId, updatedAt: Date.now() };
+      if (current.sessionFile !== sessionFile) {
+        const next: SessionEntry = {
+          ...current,
+          sessionId,
+          updatedAt: Date.now(),
+          sessionFile,
+        };
+        await persistSessionEntry({
+          sessionStore,
+          sessionKey,
+          storePath,
+          entry: next,
+        });
+        sessionEntry = next;
+      }
+    }
 
     const startedAt = Date.now();
     let lifecycleEnded = false;
