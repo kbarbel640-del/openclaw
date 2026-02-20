@@ -451,9 +451,7 @@ export async function sendMSTeamsMessages(params: {
   // For top-level replies, activityId is cleared so Teams posts a new
   // message to the channel/chat root.
   const proactiveRef: MSTeamsConversationReference =
-    params.replyStyle === "thread"
-      ? baseRef
-      : { ...baseRef, activityId: undefined };
+    params.replyStyle === "thread" ? baseRef : { ...baseRef, activityId: undefined };
 
   const messageIds: string[] = [];
   await params.adapter.continueConversation(params.appId, proactiveRef, async (ctx) => {
@@ -468,10 +466,10 @@ export async function sendMSTeamsMessages(params: {
       if (params.replyStyle === "thread" && baseRef.activityId) {
         activity.replyToId = baseRef.activityId;
       }
-      const response = await sendWithRetry(
-        async () => await ctx.sendActivity(activity),
-        { messageIndex: idx, messageCount: messages.length },
-      );
+      const response = await sendWithRetry(async () => await ctx.sendActivity(activity), {
+        messageIndex: idx,
+        messageCount: messages.length,
+      });
       messageIds.push(extractMessageId(response) ?? "unknown");
     }
   });
