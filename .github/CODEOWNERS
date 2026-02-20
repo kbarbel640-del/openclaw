@@ -1,0 +1,69 @@
+# OpenClaw CODEOWNERS
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Maintainer areas based on CONTRIBUTING.md
+# Default owner applies to all files not matched by a more specific rule.
+
+# Default — Benevolent Dictator
+*                                       @steipete
+
+# Discord
+src/discord/                            @thewilloftheshadow
+extensions/discord/                     @thewilloftheshadow
+
+# Memory (QMD), Lobster, TUI, IRC
+src/memory/                             @vignesh07
+src/tui/                                @vignesh07
+extensions/irc/                         @vignesh07
+extensions/lobster/                     @vignesh07
+src/config/types.irc.ts                 @vignesh07
+src/config/schema.irc.ts               @vignesh07
+
+# Telegram, API, Nix
+src/telegram/                           @joshp123 @obviyus
+extensions/telegram/                    @joshp123 @obviyus
+src/channels/telegram/                  @joshp123 @obviyus
+src/gateway/                            @joshp123
+
+# iOS app
+apps/ios/                               @obviyus @mbelinky
+
+# Agents, subagents, cron, BlueBubbles, macOS app
+src/agents/                             @tyler6204
+src/cron/                               @tyler6204
+extensions/bluebubbles/                 @tyler6204
+apps/macos/                             @tyler6204
+
+# Security
+src/security/                           @mbelinky
+src/infra/net/fetch-guard.ts            @mbelinky
+src/infra/net/fetch-guard.ssrf.test.ts  @mbelinky
+
+# Docs, Runtime Hardening
+docs/                                   @sebslight
+src/infra/                              @sebslight
+
+# JS Infra (build, CI, packaging)
+package.json                            @cpojer
+pnpm-lock.yaml                          @cpojer
+tsconfig*.json                          @cpojer
+rollup*.js                              @cpojer
+.github/workflows/                      @cpojer
+scripts/                                @cpojer
+
+# Multi-agents, CLI, Web UI
+src/cli/                                @gumadeiras
+ui/                                     @gumadeiras
+src/sessions/                           @gumadeiras
+
+# Signal
+src/signal/                             @joshp123
+extensions/signal/                      @joshp123
+
+# Slack
+src/slack/                              @joshp123
+extensions/slack/                       @joshp123
+
+# WhatsApp
+src/whatsapp/                           @joshp123
+extensions/whatsapp/                    @joshp123

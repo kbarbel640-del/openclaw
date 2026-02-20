@@ -8,6 +8,7 @@ Welcome to the lobster tank! 🦞
 - **Vision:** [`VISION.md`](VISION.md)
 - **Discord:** https://discord.gg/qkhbAGHRBT
 - **X/Twitter:** [@steipete](https://x.com/steipete) / [@openclaw](https://x.com/openclaw)
+- **Code Owners:** [`.github/CODEOWNERS`](.github/CODEOWNERS) — auto-assigns reviewers by area
 
 ## Maintainers
 
