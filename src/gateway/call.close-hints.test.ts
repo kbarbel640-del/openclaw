@@ -14,11 +14,6 @@ describe("resolveCloseReasonHint", () => {
     expect(hint).toContain("openclaw doctor");
   });
 
-  it("returns scope hint for scope-upgrade reasons", () => {
-    const hint = resolveCloseReasonHint("scope-upgrade required");
-    expect(hint).toContain("openclaw devices approve");
-  });
-
   it("returns auth hint for generic unauthorized", () => {
     const hint = resolveCloseReasonHint("unauthorized");
     expect(hint).toContain("gateway.auth.token");

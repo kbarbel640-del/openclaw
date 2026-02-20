@@ -309,9 +309,6 @@ export function resolveCloseReasonHint(reason: string): string | undefined {
   if (lower.includes("device token mismatch")) {
     return "Device token is out of sync. Run: openclaw doctor --repair";
   }
-  if (lower.includes("scope-upgrade") || lower.includes("scope")) {
-    return "Device needs updated permissions. Run: openclaw devices approve --latest";
-  }
   if (lower.includes("unauthorized")) {
     return "Authentication failed. Check gateway.auth.token in your config, or run: openclaw doctor";
   }
