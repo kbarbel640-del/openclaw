@@ -401,8 +401,7 @@ export function renderApp(state: AppViewState) {
                   }
                 },
                 onStartNewSession: (agentId) => {
-                  const mainKey =
-                    state.agentsList?.mainKey ?? state.sessionsResult?.defaults?.mainKey;
+                  const mainKey = state.agentsList?.mainKey;
                   const sessionKey = buildAgentMainSessionKey({ agentId, mainKey });
                   resetChatStateForSessionSwitch(state, sessionKey, {
                     clearAttachments: true,
