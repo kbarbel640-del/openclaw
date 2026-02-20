@@ -81,9 +81,11 @@ export async function validateUrl(rawUrl: string, lookupFn?: LookupFn): Promise<
 
   // Resolve DNS and validate all addresses.
   // resolvePinnedHostnameWithPolicy throws SsrFBlockedError for private IPs.
-  await resolvePinnedHostnameWithPolicy(hostname, {
-    ...(lookupFn ? { lookupFn } : {}),
-  });
+  const resolveOpts: { lookupFn?: LookupFn } = {};
+  if (lookupFn) {
+    resolveOpts.lookupFn = lookupFn;
+  }
+  await resolvePinnedHostnameWithPolicy(hostname, resolveOpts);
 }
 
 /**
