@@ -18,6 +18,7 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 import { mediaKindFromMime } from "../media/constants.js";
 import { isGifMedia } from "../media/mime.js";
 import { normalizePollInput, type PollInput } from "../polls.js";
+import { defaultRuntime } from "../runtime.js";
 import { loadWebMedia } from "../web/media.js";
 import { type ResolvedTelegramAccount, resolveTelegramAccount } from "./accounts.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
@@ -272,7 +273,7 @@ async function withTelegramHtmlParseFallback<T>(params: {
       throw err;
     }
     if (params.verbose) {
-      console.warn(
+      defaultRuntime.error(
         `telegram ${params.label} failed with HTML parse error, retrying as plain text: ${formatErrorMessage(
           err,
         )}`,
@@ -378,7 +379,7 @@ async function withTelegramThreadFallback<T>(
       throw err;
     }
     if (verbose) {
-      console.warn(
+      defaultRuntime.error(
         `telegram ${label} failed with message_thread_id, retrying without thread: ${formatErrorMessage(err)}`,
       );
     }

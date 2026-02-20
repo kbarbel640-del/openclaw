@@ -7,6 +7,7 @@ import { formatErrorMessage } from "../infra/errors.js";
 import { formatDurationPrecise } from "../infra/format-time/format-duration.ts";
 import { registerUnhandledRejectionHandler } from "../infra/unhandled-rejections.js";
 import type { RuntimeEnv } from "../runtime.js";
+import { defaultRuntime } from "../runtime.js";
 import { resolveTelegramAccount } from "./accounts.js";
 import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { createTelegramBot } from "./bot.js";
@@ -89,7 +90,7 @@ const isGrammyHttpError = (err: unknown): boolean => {
 };
 
 export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
-  const log = opts.runtime?.error ?? console.error;
+  const log = opts.runtime?.error ?? defaultRuntime.error;
 
   // Register handler for Grammy HttpError unhandled rejections.
   // This catches network errors that escape the polling loop's try-catch
@@ -133,9 +134,8 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
           updateId,
         });
       } catch (err) {
-        (opts.runtime?.error ?? console.error)(
-          `telegram: failed to persist update offset: ${String(err)}`,
-        );
+        const runtimeError = opts.runtime?.error ?? defaultRuntime.error;
+        runtimeError(`telegram: failed to persist update offset: ${String(err)}`);
       }
     };
 
@@ -196,7 +196,8 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         const delayMs = computeBackoff(TELEGRAM_POLL_RESTART_POLICY, restartAttempts);
         const reason = isConflict ? "getUpdates conflict" : "network error";
         const errMsg = formatErrorMessage(err);
-        (opts.runtime?.error ?? console.error)(
+        const runtimeError = opts.runtime?.error ?? defaultRuntime.error;
+        runtimeError(
           `Telegram ${reason}: ${errMsg}; retrying in ${formatDurationPrecise(delayMs)}.`,
         );
         try {
