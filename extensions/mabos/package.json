@@ -7,9 +7,11 @@
   "author": "Kingler Bercy <kingler@me.com>",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build:ui": "cd ui && npm run build",
+    "build": "npm run build:ui && tsc",
+    "dev:ui": "cd ui && npm run dev",
     "check": "tsc --noEmit",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist ui/dist",
     "test": "node --test dist/tests/*.test.js"
   },
   "dependencies": {
