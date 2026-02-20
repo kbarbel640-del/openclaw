@@ -1,12 +1,12 @@
 import { Type } from "@sinclair/typebox";
 import type { OpenClawConfig } from "../../config/config.js";
-import { fetchWithSsrFGuard } from "../../infra/net/fetch-guard.js";
+import type { AnyAgentTool } from "./common.js";
+import { fetchWithSsrFGuard, type GuardedFetchResult } from "../../infra/net/fetch-guard.js";
 import { SsrFBlockedError } from "../../infra/net/ssrf.js";
 import { logDebug } from "../../logger.js";
 import { wrapExternalContent, wrapWebContent } from "../../security/external-content.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
 import { stringEnum } from "../schema/typebox.js";
-import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 import {
   extractReadableContent,
@@ -24,7 +24,6 @@ import {
   readResponseText,
   resolveCacheTtlMs,
   resolveTimeoutSeconds,
-  withTimeout,
   writeCache,
 } from "./web-shared.js";
 
@@ -376,53 +375,70 @@ export async function fetchFirecrawlContent(params: {
     storeInCache: params.storeInCache,
   };
 
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${params.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: withTimeout(undefined, params.timeoutSeconds * 1000),
-  });
-
-  const payload = (await res.json()) as {
-    success?: boolean;
-    data?: {
-      markdown?: string;
-      content?: string;
-      metadata?: {
-        title?: string;
-        sourceURL?: string;
-        statusCode?: number;
-      };
-    };
-    warning?: string;
-    error?: string;
-  };
-
-  if (!res.ok || payload?.success === false) {
-    const detail = payload?.error ?? "";
-    throw new Error(
-      `Firecrawl fetch failed (${res.status}): ${wrapWebContent(detail || res.statusText, "web_fetch")}`.trim(),
-    );
+  let guardedResult: GuardedFetchResult;
+  try {
+    guardedResult = await fetchWithSsrFGuard({
+      url: endpoint,
+      timeoutMs: params.timeoutSeconds * 1000,
+      init: {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${params.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+      auditContext: "firecrawl-fallback",
+    });
+  } catch (error) {
+    if (error instanceof SsrFBlockedError) {
+      throw new SsrFBlockedError(`Firecrawl endpoint blocked by SSRF guard: ${endpoint}`);
+    }
+    throw error;
   }
+  const res = guardedResult.response;
 
-  const data = payload?.data ?? {};
-  const rawText =
-    typeof data.markdown === "string"
-      ? data.markdown
-      : typeof data.content === "string"
-        ? data.content
-        : "";
-  const text = params.extractMode === "text" ? markdownToText(rawText) : rawText;
-  return {
-    text,
-    title: data.metadata?.title,
-    finalUrl: data.metadata?.sourceURL,
-    status: data.metadata?.statusCode,
-    warning: payload?.warning,
-  };
+  try {
+    const payload = (await res.json()) as {
+      success?: boolean;
+      data?: {
+        markdown?: string;
+        content?: string;
+        metadata?: {
+          title?: string;
+          sourceURL?: string;
+          statusCode?: number;
+        };
+      };
+      warning?: string;
+      error?: string;
+    };
+
+    if (!res.ok || payload?.success === false) {
+      const detail = payload?.error ?? "";
+      throw new Error(
+        `Firecrawl fetch failed (${res.status}): ${wrapWebContent(detail || res.statusText, "web_fetch")}`.trim(),
+      );
+    }
+
+    const data = payload?.data ?? {};
+    const rawText =
+      typeof data.markdown === "string"
+        ? data.markdown
+        : typeof data.content === "string"
+          ? data.content
+          : "";
+    const text = params.extractMode === "text" ? markdownToText(rawText) : rawText;
+    return {
+      text,
+      title: data.metadata?.title,
+      finalUrl: data.metadata?.sourceURL,
+      status: data.metadata?.statusCode,
+      warning: payload?.warning,
+    };
+  } finally {
+    await guardedResult.release();
+  }
 }
 
 type FirecrawlRuntimeParams = {
