@@ -26,15 +26,27 @@ export type EmailMessage = {
   body: string;
 };
 
-/** Resolved Gmail configuration from env vars and plugin config. */
-export type GmailConfig = {
-  /** Parsed Service Account key JSON. */
-  serviceAccountKey: ServiceAccountKey;
-  /** Email address to impersonate via domain-wide delegation. */
-  userEmail: string;
-  /** Maximum emails to fetch (default: 20). */
-  maxEmails: number;
+/** OAuth refresh-token credentials. */
+export type OAuthRefreshConfig = {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
 };
+
+/** Resolved Gmail configuration — discriminated union by auth type. */
+export type GmailConfig =
+  | {
+      authType: "serviceAccount";
+      serviceAccountKey: ServiceAccountKey;
+      /** Email address to impersonate via domain-wide delegation. */
+      userEmail: string;
+      maxEmails: number;
+    }
+  | {
+      authType: "oauth";
+      oauthCredentials: OAuthRefreshConfig;
+      maxEmails: number;
+    };
 
 /** Google Service Account JSON key structure (relevant fields only). */
 export type ServiceAccountKey = {

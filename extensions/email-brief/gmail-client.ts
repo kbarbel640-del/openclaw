@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import type { GmailMessage } from "./gmail-body.js";
-import type { GmailConfig, ServiceAccountKey } from "./types.js";
+import type { GmailConfig, OAuthRefreshConfig, ServiceAccountKey } from "./types.js";
 
 const GMAIL_API_BASE = "https://gmail.googleapis.com";
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
@@ -62,7 +62,8 @@ export class GmailClient {
   }
 
   /**
-   * Get an OAuth2 access token via JWT (Service Account).
+   * Get an OAuth2 access token.
+   * Branches on auth type: Service Account JWT or OAuth refresh token.
    * Caches the token and refreshes 55 minutes before expiry.
    */
   async getAccessToken(): Promise<string> {
@@ -72,7 +73,16 @@ export class GmailClient {
       return this.cachedToken.token;
     }
 
-    const sa = this.config.serviceAccountKey;
+    if (this.config.authType === "oauth") {
+      return this.exchangeOAuthRefreshToken(now);
+    }
+
+    return this.exchangeServiceAccountJwt(now);
+  }
+
+  private async exchangeServiceAccountJwt(now: number): Promise<string> {
+    const cfg = this.config as Extract<GmailConfig, { authType: "serviceAccount" }>;
+    const sa = cfg.serviceAccountKey;
     const iat = Math.floor(now / 1000);
     const exp = iat + 3600;
 
@@ -80,7 +90,7 @@ export class GmailClient {
     const claims = base64url(
       JSON.stringify({
         iss: sa.client_email,
-        sub: this.config.userEmail,
+        sub: cfg.userEmail,
         scope: GMAIL_SCOPE,
         aud: TOKEN_ENDPOINT,
         iat,
@@ -117,6 +127,44 @@ export class GmailClient {
       );
     }
 
+    return this.cacheToken(now, response);
+  }
+
+  private async exchangeOAuthRefreshToken(now: number): Promise<string> {
+    const cfg = this.config as Extract<GmailConfig, { authType: "oauth" }>;
+    const { clientId, clientSecret, refreshToken } = cfg.oauthCredentials;
+
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    });
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(TOKEN_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      });
+    } catch (err) {
+      throw new Error(
+        `Failed to refresh OAuth access token. Check your OAuth credentials. ${sanitizeError(err)}`,
+      );
+    }
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(
+        `Token exchange failed (${response.status}). Check your OAuth credentials. ${sanitizeError(text)}`,
+      );
+    }
+
+    return this.cacheToken(now, response);
+  }
+
+  private async cacheToken(now: number, response: Response): Promise<string> {
     const data = (await response.json()) as { access_token: string; expires_in?: number };
     const expiresIn = data.expires_in ?? 3600;
 
@@ -211,10 +259,11 @@ export class GmailClient {
     if (response.ok) return;
 
     if (response.status === 403) {
-      throw new Error(
-        `Gmail API returned 403 Forbidden. Ensure domain-wide delegation is configured for the Service Account ` +
-          `with scope "${GMAIL_SCOPE}" and the correct client ID in Google Workspace Admin.`,
-      );
+      const detail =
+        this.config.authType === "oauth"
+          ? `Ensure the OAuth token has sufficient permissions and the scope "${GMAIL_SCOPE}" was granted during consent.`
+          : `Ensure domain-wide delegation is configured for the Service Account with scope "${GMAIL_SCOPE}" and the correct client ID in Google Workspace Admin.`;
+      throw new Error(`Gmail API returned 403 Forbidden. ${detail}`);
     }
 
     if (response.status === 429) {
@@ -240,65 +289,81 @@ export class GmailClient {
 /**
  * Resolve Gmail configuration from environment variables and plugin config.
  *
- * Service Account key resolution order:
- *   1. `GMAIL_SERVICE_ACCOUNT_KEY_PATH` env var (path to JSON file)
- *   2. `GMAIL_SERVICE_ACCOUNT_KEY` env var (inline JSON string)
+ * Auto-detection order:
+ *   1. OAuth refresh token — if GMAIL_CLIENT_ID + GMAIL_CLIENT_SECRET + GMAIL_REFRESH_TOKEN all set
+ *   2. Service Account — if GMAIL_SERVICE_ACCOUNT_KEY_PATH or GMAIL_SERVICE_ACCOUNT_KEY set
+ *   3. Error listing both credential options
  *
- * User email resolution order:
- *   1. `GMAIL_USER_EMAIL` env var
- *   2. `pluginConfig.userEmail`
+ * Service Account also requires GMAIL_USER_EMAIL (or pluginConfig.userEmail).
+ * OAuth does NOT need userEmail — Gmail API `users/me` resolves to the authenticated user.
  */
 export function resolveGmailConfig(
   pluginConfig?: { userEmail?: string; maxEmails?: number },
   env: Record<string, string | undefined> = process.env,
 ): GmailConfig {
-  // Resolve Service Account key
-  let serviceAccountKey: ServiceAccountKey;
+  const maxEmails = pluginConfig?.maxEmails ?? 20;
 
+  // --- OAuth refresh token path ---
+  const clientId = env.GMAIL_CLIENT_ID;
+  const clientSecret = env.GMAIL_CLIENT_SECRET;
+  const refreshToken = env.GMAIL_REFRESH_TOKEN;
+
+  if (clientId && clientSecret && refreshToken) {
+    return {
+      authType: "oauth",
+      oauthCredentials: { clientId, clientSecret, refreshToken },
+      maxEmails,
+    };
+  }
+
+  // --- Service Account path ---
   const keyPath = env.GMAIL_SERVICE_ACCOUNT_KEY_PATH;
   const keyJson = env.GMAIL_SERVICE_ACCOUNT_KEY;
 
-  if (keyPath) {
-    try {
-      const raw = fs.readFileSync(keyPath, "utf-8");
-      serviceAccountKey = JSON.parse(raw) as ServiceAccountKey;
-    } catch (err) {
+  if (keyPath || keyJson) {
+    let serviceAccountKey: ServiceAccountKey;
+
+    if (keyPath) {
+      try {
+        const raw = fs.readFileSync(keyPath, "utf-8");
+        serviceAccountKey = JSON.parse(raw) as ServiceAccountKey;
+      } catch (err) {
+        throw new Error(
+          `Failed to read Service Account key from GMAIL_SERVICE_ACCOUNT_KEY_PATH="${keyPath}": ${sanitizeError(err)}`,
+        );
+      }
+    } else {
+      try {
+        serviceAccountKey = JSON.parse(keyJson!) as ServiceAccountKey;
+      } catch (err) {
+        throw new Error(`Failed to parse GMAIL_SERVICE_ACCOUNT_KEY as JSON: ${sanitizeError(err)}`);
+      }
+    }
+
+    // Validate SA key required fields
+    if (!serviceAccountKey.client_email || !serviceAccountKey.private_key) {
       throw new Error(
-        `Failed to read Service Account key from GMAIL_SERVICE_ACCOUNT_KEY_PATH="${keyPath}": ${sanitizeError(err)}`,
+        "Service Account key is missing required fields (client_email, private_key). " +
+          "Check your Service Account credentials.",
       );
     }
-  } else if (keyJson) {
-    try {
-      serviceAccountKey = JSON.parse(keyJson) as ServiceAccountKey;
-    } catch (err) {
-      throw new Error(`Failed to parse GMAIL_SERVICE_ACCOUNT_KEY as JSON: ${sanitizeError(err)}`);
+
+    // Resolve user email (required for SA impersonation)
+    const userEmail = env.GMAIL_USER_EMAIL ?? pluginConfig?.userEmail;
+    if (!userEmail) {
+      throw new Error(
+        "Gmail user email not configured. " +
+          "Set GMAIL_USER_EMAIL env var or userEmail in plugin config.",
+      );
     }
-  } else {
-    throw new Error(
-      "Gmail Service Account credentials not found. " +
-        "Set GMAIL_SERVICE_ACCOUNT_KEY_PATH (path to JSON file) or GMAIL_SERVICE_ACCOUNT_KEY (inline JSON). " +
-        "See docs for Google Workspace domain-wide delegation setup.",
-    );
+
+    return { authType: "serviceAccount", serviceAccountKey, userEmail, maxEmails };
   }
 
-  // Validate SA key required fields
-  if (!serviceAccountKey.client_email || !serviceAccountKey.private_key) {
-    throw new Error(
-      "Service Account key is missing required fields (client_email, private_key). " +
-        "Check your Service Account credentials.",
-    );
-  }
-
-  // Resolve user email
-  const userEmail = env.GMAIL_USER_EMAIL ?? pluginConfig?.userEmail;
-  if (!userEmail) {
-    throw new Error(
-      "Gmail user email not configured. " +
-        "Set GMAIL_USER_EMAIL env var or userEmail in plugin config.",
-    );
-  }
-
-  const maxEmails = pluginConfig?.maxEmails ?? 20;
-
-  return { serviceAccountKey, userEmail, maxEmails };
+  // --- Neither credential type found ---
+  throw new Error(
+    "Gmail credentials not found. Provide one of:\n" +
+      "  - OAuth: GMAIL_CLIENT_ID + GMAIL_CLIENT_SECRET + GMAIL_REFRESH_TOKEN\n" +
+      "  - Service Account: GMAIL_SERVICE_ACCOUNT_KEY_PATH or GMAIL_SERVICE_ACCOUNT_KEY (+ GMAIL_USER_EMAIL)",
+  );
 }

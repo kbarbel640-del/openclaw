@@ -24,10 +24,28 @@ const fakeServiceAccountKey = {
   token_uri: "https://oauth2.googleapis.com/token",
 };
 
-function makeConfig(overrides?: Partial<GmailConfig>): GmailConfig {
+function makeConfig(
+  overrides?: Partial<Extract<GmailConfig, { authType: "serviceAccount" }>>,
+): GmailConfig {
   return {
+    authType: "serviceAccount" as const,
     serviceAccountKey: fakeServiceAccountKey,
     userEmail: "user@example.com",
+    maxEmails: 20,
+    ...overrides,
+  };
+}
+
+function makeOAuthConfig(
+  overrides?: Partial<Extract<GmailConfig, { authType: "oauth" }>>,
+): GmailConfig {
+  return {
+    authType: "oauth" as const,
+    oauthCredentials: {
+      clientId: "test-client-id",
+      clientSecret: "test-client-secret",
+      refreshToken: "test-refresh-token",
+    },
     maxEmails: 20,
     ...overrides,
   };
@@ -331,7 +349,7 @@ describe("GmailClient - Error Handling", () => {
 // ---------------------------------------------------------------------------
 
 describe("resolveGmailConfig", () => {
-  it("resolves config from inline env vars", () => {
+  it("resolves SA config from inline env vars", () => {
     const env = {
       GMAIL_SERVICE_ACCOUNT_KEY: JSON.stringify(fakeServiceAccountKey),
       GMAIL_USER_EMAIL: "user@company.com",
@@ -339,8 +357,11 @@ describe("resolveGmailConfig", () => {
 
     const config = resolveGmailConfig(undefined, env);
 
-    expect(config.serviceAccountKey.client_email).toBe("test@test-project.iam.gserviceaccount.com");
-    expect(config.userEmail).toBe("user@company.com");
+    expect(config.authType).toBe("serviceAccount");
+    expect(config.authType === "serviceAccount" && config.serviceAccountKey.client_email).toBe(
+      "test@test-project.iam.gserviceaccount.com",
+    );
+    expect(config.authType === "serviceAccount" && config.userEmail).toBe("user@company.com");
     expect(config.maxEmails).toBe(20);
   });
 
@@ -351,13 +372,12 @@ describe("resolveGmailConfig", () => {
 
     const config = resolveGmailConfig({ userEmail: "plugin@company.com" }, env);
 
-    expect(config.userEmail).toBe("plugin@company.com");
+    expect(config.authType).toBe("serviceAccount");
+    expect(config.authType === "serviceAccount" && config.userEmail).toBe("plugin@company.com");
   });
 
   it("throws when no credentials are provided", () => {
-    expect(() => resolveGmailConfig(undefined, {})).toThrow(
-      /Service Account credentials not found/,
-    );
+    expect(() => resolveGmailConfig(undefined, {})).toThrow(/Gmail credentials not found/);
   });
 
   it("throws when userEmail is missing from both env and config", () => {
@@ -366,6 +386,54 @@ describe("resolveGmailConfig", () => {
     };
 
     expect(() => resolveGmailConfig(undefined, env)).toThrow(/Gmail user email not configured/);
+  });
+
+  it("resolves OAuth config when all OAuth env vars set", () => {
+    const env = {
+      GMAIL_CLIENT_ID: "oauth-client-id",
+      GMAIL_CLIENT_SECRET: "oauth-client-secret",
+      GMAIL_REFRESH_TOKEN: "oauth-refresh-token",
+    };
+
+    const config = resolveGmailConfig(undefined, env);
+
+    expect(config.authType).toBe("oauth");
+    if (config.authType === "oauth") {
+      expect(config.oauthCredentials.clientId).toBe("oauth-client-id");
+      expect(config.oauthCredentials.clientSecret).toBe("oauth-client-secret");
+      expect(config.oauthCredentials.refreshToken).toBe("oauth-refresh-token");
+    }
+    expect(config.maxEmails).toBe(20);
+  });
+
+  it("does NOT require GMAIL_USER_EMAIL for OAuth", () => {
+    const env = {
+      GMAIL_CLIENT_ID: "id",
+      GMAIL_CLIENT_SECRET: "secret",
+      GMAIL_REFRESH_TOKEN: "token",
+    };
+
+    // Should not throw — userEmail not needed for OAuth
+    const config = resolveGmailConfig(undefined, env);
+    expect(config.authType).toBe("oauth");
+  });
+
+  it("prefers OAuth when both OAuth and SA env vars are set", () => {
+    const env = {
+      GMAIL_CLIENT_ID: "id",
+      GMAIL_CLIENT_SECRET: "secret",
+      GMAIL_REFRESH_TOKEN: "token",
+      GMAIL_SERVICE_ACCOUNT_KEY: JSON.stringify(fakeServiceAccountKey),
+      GMAIL_USER_EMAIL: "user@company.com",
+    };
+
+    const config = resolveGmailConfig(undefined, env);
+    expect(config.authType).toBe("oauth");
+  });
+
+  it("error message lists both credential options when neither is set", () => {
+    expect(() => resolveGmailConfig(undefined, {})).toThrow(/OAuth/);
+    expect(() => resolveGmailConfig(undefined, {})).toThrow(/Service Account/);
   });
 });
 
@@ -413,5 +481,110 @@ describe("GmailClient - Private Key Sanitization", () => {
       const msg = (err as Error).message;
       expect(msg).not.toContain("-----BEGIN");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OAuth Refresh Token Auth
+// ---------------------------------------------------------------------------
+
+describe("GmailClient - OAuth Refresh Token Auth", () => {
+  it("sends grant_type=refresh_token with correct params", async () => {
+    let capturedBody = "";
+
+    const mockFetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+      if (urlStr.includes("oauth2.googleapis.com/token")) {
+        capturedBody = init?.body as string;
+        return new Response(JSON.stringify({ access_token: "oauth-token-123", expires_in: 3600 }), {
+          status: 200,
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    const client = new GmailClient(makeOAuthConfig(), mockFetch);
+    const token = await client.getAccessToken();
+
+    expect(token).toBe("oauth-token-123");
+
+    const params = new URLSearchParams(capturedBody);
+    expect(params.get("grant_type")).toBe("refresh_token");
+    expect(params.get("refresh_token")).toBe("test-refresh-token");
+    expect(params.get("client_id")).toBe("test-client-id");
+    expect(params.get("client_secret")).toBe("test-client-secret");
+    // Should NOT contain JWT assertion
+    expect(params.get("assertion")).toBeNull();
+  });
+
+  it("caches OAuth token and does not re-fetch on second call", async () => {
+    const mockFetch = vi.fn(async () => {
+      return new Response(JSON.stringify({ access_token: "cached-oauth", expires_in: 3600 }), {
+        status: 200,
+      });
+    }) as unknown as typeof fetch;
+
+    const client = new GmailClient(makeOAuthConfig(), mockFetch);
+
+    const token1 = await client.getAccessToken();
+    const token2 = await client.getAccessToken();
+
+    expect(token1).toBe("cached-oauth");
+    expect(token2).toBe("cached-oauth");
+    expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
+  it("retries on 401 after refreshing OAuth token", async () => {
+    let tokenCalls = 0;
+    let messageCalls = 0;
+
+    const mockFetch = vi.fn(async (url: string | URL | Request) => {
+      const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+      if (urlStr.includes("oauth2.googleapis.com/token")) {
+        tokenCalls++;
+        return new Response(
+          JSON.stringify({ access_token: `oauth-tok-${tokenCalls}`, expires_in: 3600 }),
+          { status: 200 },
+        );
+      }
+
+      messageCalls++;
+      if (messageCalls === 1) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      return new Response(JSON.stringify(makeGmailMessage("msg1")), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const client = new GmailClient(makeOAuthConfig(), mockFetch);
+    const messages = await client.getMessages(["msg1"]);
+
+    expect(messages).toHaveLength(1);
+    expect(tokenCalls).toBe(2);
+  });
+
+  it("throws mentioning OAuth credentials on token exchange failure", async () => {
+    const mockFetch = vi.fn(async () => {
+      return new Response("Bad Request", { status: 400 });
+    }) as unknown as typeof fetch;
+
+    const client = new GmailClient(makeOAuthConfig(), mockFetch);
+
+    await expect(client.getAccessToken()).rejects.toThrow(/OAuth credentials/);
+  });
+
+  it("throws mentioning insufficient permissions on 403", async () => {
+    const mockFetch = vi.fn(async (url: string | URL | Request) => {
+      const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+      if (urlStr.includes("oauth2.googleapis.com/token")) {
+        return new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), {
+          status: 200,
+        });
+      }
+      return new Response("Forbidden", { status: 403 });
+    }) as unknown as typeof fetch;
+
+    const client = new GmailClient(makeOAuthConfig(), mockFetch);
+
+    await expect(client.listMessages("test", 10)).rejects.toThrow(/sufficient permissions/);
   });
 });
