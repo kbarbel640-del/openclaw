@@ -14,6 +14,7 @@ import { resolveControlCommandGate } from "../../channels/command-gating.js";
 import { logInboundDrop } from "../../channels/logging.js";
 import { resolveMentionGatingWithBypass } from "../../channels/mention-gating.js";
 import { loadConfig } from "../../config/config.js";
+import { shouldSkipCrossChannelDuplicate } from "../../discord-user/monitor/cross-channel-dedupe.js";
 import { logVerbose, shouldLogVerbose } from "../../globals.js";
 import { recordChannelActivity } from "../../infra/channel-activity.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
@@ -83,6 +84,13 @@ export async function preflightDiscordMessage(
   const allowBots = params.discordConfig?.allowBots ?? false;
   if (params.botUserId && author.id === params.botUserId) {
     // Always ignore own messages to prevent self-reply loops
+    return null;
+  }
+
+  // Cross-channel dedup: bot claims this message first so the discord-user
+  // plugin drops it in guilds where both are present.
+  if (shouldSkipCrossChannelDuplicate(message.id)) {
+    logVerbose(`discord: drop message ${message.id} (cross-channel dedupe)`);
     return null;
   }
 
