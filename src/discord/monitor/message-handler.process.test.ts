@@ -6,20 +6,25 @@ import {
   createThreadBindingManager,
 } from "./thread-bindings.js";
 
-const editMessageDiscord = vi.fn(async () => ({}));
-const deliverDiscordReply = vi.fn(async () => {});
-const createDiscordDraftStream = vi.fn(() => ({
-  update: vi.fn<(text: string) => void>(() => {}),
-  flush: vi.fn(async () => {}),
-  messageId: vi.fn(() => "preview-1"),
-  clear: vi.fn(async () => {}),
-  stop: vi.fn(async () => {}),
-  forceNewMessage: vi.fn(() => {}),
-}));
 const sendMocks = vi.hoisted(() => ({
   reactMessageDiscord: vi.fn(async () => {}),
   removeReactionDiscord: vi.fn(async () => {}),
 }));
+const deliveryMocks = vi.hoisted(() => ({
+  editMessageDiscord: vi.fn(async () => ({})),
+  deliverDiscordReply: vi.fn(async () => {}),
+  createDiscordDraftStream: vi.fn(() => ({
+    update: vi.fn<(text: string) => void>(() => {}),
+    flush: vi.fn(async () => {}),
+    messageId: vi.fn(() => "preview-1"),
+    clear: vi.fn(async () => {}),
+    stop: vi.fn(async () => {}),
+    forceNewMessage: vi.fn(() => {}),
+  })),
+}));
+const editMessageDiscord = deliveryMocks.editMessageDiscord;
+const deliverDiscordReply = deliveryMocks.deliverDiscordReply;
+const createDiscordDraftStream = deliveryMocks.createDiscordDraftStream;
 type DispatchInboundParams = {
   dispatcher: {
     sendFinalReply: (payload: { text?: string }) => boolean | Promise<boolean>;
@@ -46,15 +51,15 @@ vi.mock("../send.js", () => ({
 }));
 
 vi.mock("../send.messages.js", () => ({
-  editMessageDiscord,
+  editMessageDiscord: deliveryMocks.editMessageDiscord,
 }));
 
 vi.mock("../draft-stream.js", () => ({
-  createDiscordDraftStream,
+  createDiscordDraftStream: deliveryMocks.createDiscordDraftStream,
 }));
 
 vi.mock("./reply-delivery.js", () => ({
-  deliverDiscordReply,
+  deliverDiscordReply: deliveryMocks.deliverDiscordReply,
 }));
 
 vi.mock("../../auto-reply/dispatch.js", () => ({
