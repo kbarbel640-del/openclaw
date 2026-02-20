@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import { formatThinkingLevels, normalizeThinkLevel } from "../auto-reply/thinking.js";
 import { loadConfig } from "../config/config.js";
+import {
+  autoBindSpawnedDiscordSubagent,
+  unbindThreadBindingsBySessionKey,
+} from "../discord/monitor/thread-bindings.js";
 import { callGateway } from "../gateway/call.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../routing/session-key.js";
@@ -87,6 +91,61 @@ function resolveSpawnMode(params: {
   return params.threadRequested ? "session" : "run";
 }
 
+function summarizeError(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (typeof err === "string") {
+    return err;
+  }
+  return "error";
+}
+
+async function ensureThreadBindingForSubagentSpawn(params: {
+  channel?: string;
+  accountId?: string;
+  to?: string;
+  threadId?: string | number;
+  childSessionKey: string;
+  agentId: string;
+  label?: string;
+}): Promise<{ status: "ok" } | { status: "error"; error: string }> {
+  const channel = params.channel?.trim().toLowerCase();
+  if (channel !== "discord") {
+    const channelLabel = params.channel?.trim() || "unknown";
+    return {
+      status: "error",
+      error: `thread=true is not supported for channel "${channelLabel}". Only Discord thread-bound subagent sessions are supported right now.`,
+    };
+  }
+
+  try {
+    const binding = await autoBindSpawnedDiscordSubagent({
+      accountId: params.accountId,
+      channel: params.channel,
+      to: params.to,
+      threadId: params.threadId,
+      childSessionKey: params.childSessionKey,
+      agentId: params.agentId,
+      label: params.label,
+      boundBy: "system",
+    });
+    if (!binding) {
+      return {
+        status: "error",
+        error:
+          "Unable to create or bind a Discord thread for this subagent session. Session mode is unavailable for this target.",
+      };
+    }
+    return { status: "ok" };
+  } catch (err) {
+    return {
+      status: "error",
+      error: `Discord thread bind failed: ${summarizeError(err)}`,
+    };
+  }
+}
+
 export async function spawnSubagentDirect(
   params: SpawnSubagentParams,
   ctx: SpawnSubagentContext,
@@ -101,6 +160,12 @@ export async function spawnSubagentDirect(
     requestedMode: params.mode,
     threadRequested: requestThreadBinding,
   });
+  if (spawnMode === "session" && !requestThreadBinding) {
+    return {
+      status: "error",
+      error: 'mode="session" requires thread=true so the subagent can stay bound to a thread.',
+    };
+  }
   const cleanup =
     spawnMode === "session"
       ? "keep"
@@ -114,11 +179,22 @@ export async function spawnSubagentDirect(
     to: ctx.agentTo,
     threadId: ctx.agentThreadId,
   });
+  if (requestThreadBinding) {
+    const channel = requesterOrigin?.channel?.trim().toLowerCase();
+    if (channel !== "discord") {
+      const channelLabel = requesterOrigin?.channel?.trim() || "unknown";
+      return {
+        status: "error",
+        error: `thread=true is not supported for channel "${channelLabel}". Only Discord thread-bound subagent sessions are supported right now.`,
+      };
+    }
+  }
   const runTimeoutSeconds =
     typeof params.runTimeoutSeconds === "number" && Number.isFinite(params.runTimeoutSeconds)
       ? Math.max(0, Math.floor(params.runTimeoutSeconds))
       : 0;
   let modelApplied = false;
+  let threadBindingReady = false;
 
   const cfg = loadConfig();
   const { mainKey, alias } = resolveMainSessionAlias(cfg);
@@ -257,6 +333,34 @@ export async function spawnSubagentDirect(
       };
     }
   }
+  if (requestThreadBinding) {
+    const bindResult = await ensureThreadBindingForSubagentSpawn({
+      channel: requesterOrigin?.channel,
+      accountId: requesterOrigin?.accountId,
+      to: requesterOrigin?.to,
+      threadId: requesterOrigin?.threadId,
+      childSessionKey,
+      agentId: targetAgentId,
+      label: label || undefined,
+    });
+    if (bindResult.status === "error") {
+      try {
+        await callGateway({
+          method: "sessions.delete",
+          params: { key: childSessionKey },
+          timeoutMs: 10_000,
+        });
+      } catch {
+        // Best-effort cleanup only.
+      }
+      return {
+        status: "error",
+        error: bindResult.error,
+        childSessionKey,
+      };
+    }
+    threadBindingReady = true;
+  }
   const childSystemPrompt = buildSubagentSystemPrompt({
     requesterSessionKey,
     requesterOrigin,
@@ -306,8 +410,17 @@ export async function spawnSubagentDirect(
       childRunId = response.runId;
     }
   } catch (err) {
-    const messageText =
-      err instanceof Error ? err.message : typeof err === "string" ? err : "error";
+    if (threadBindingReady) {
+      unbindThreadBindingsBySessionKey({
+        targetSessionKey: childSessionKey,
+        accountId: requesterOrigin?.accountId,
+        targetKind: "subagent",
+        reason: "spawn-failed",
+        sendFarewell: true,
+        farewellText: "Session failed to start. Messages here will no longer be routed.",
+      });
+    }
+    const messageText = summarizeError(err);
     return {
       status: "error",
       error: messageText,

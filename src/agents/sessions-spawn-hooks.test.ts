@@ -7,6 +7,28 @@ import {
 } from "./openclaw-tools.subagents.sessions-spawn.test-harness.js";
 
 const runSubagentSpawnedMock = vi.fn(async () => {});
+const threadBindingMocks = vi.hoisted(() => ({
+  autoBindSpawnedDiscordSubagent: vi.fn(
+    async (params: unknown): Promise<Record<string, unknown> | null> => {
+      const input = params as {
+        accountId?: string;
+        threadId?: string | number;
+        childSessionKey?: string;
+        agentId?: string;
+      };
+      return {
+        accountId: input.accountId ?? "work",
+        channelId: "123",
+        threadId: input.threadId != null ? String(input.threadId) : "thread-1",
+        targetKind: "subagent",
+        targetSessionKey: input.childSessionKey ?? "agent:main:subagent:child",
+        agentId: input.agentId ?? "main",
+        boundBy: "system",
+        boundAt: 1,
+      };
+    },
+  ),
+}));
 
 vi.mock("../plugins/hook-runner-global.js", () => ({
   getGlobalHookRunner: vi.fn(() => ({
@@ -15,9 +37,16 @@ vi.mock("../plugins/hook-runner-global.js", () => ({
   })),
 }));
 
+vi.mock("../discord/monitor/thread-bindings.js", () => ({
+  autoBindSpawnedDiscordSubagent: (params: unknown) =>
+    threadBindingMocks.autoBindSpawnedDiscordSubagent(params),
+  unbindThreadBindingsBySessionKey: vi.fn(() => []),
+}));
+
 describe("sessions_spawn subagent lifecycle hooks", () => {
   beforeEach(() => {
     runSubagentSpawnedMock.mockClear();
+    threadBindingMocks.autoBindSpawnedDiscordSubagent.mockClear();
     const callGatewayMock = getCallGatewayMock();
     callGatewayMock.mockReset();
     setSessionsSpawnConfigOverride({
@@ -55,6 +84,17 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
     });
 
     expect(result.details).toMatchObject({ status: "accepted", runId: "run-1" });
+    expect(threadBindingMocks.autoBindSpawnedDiscordSubagent).toHaveBeenCalledTimes(1);
+    expect(threadBindingMocks.autoBindSpawnedDiscordSubagent).toHaveBeenCalledWith({
+      accountId: "work",
+      channel: "discord",
+      to: "channel:123",
+      threadId: 456,
+      childSessionKey: expect.stringMatching(/^agent:main:subagent:/),
+      agentId: "main",
+      label: "research",
+      boundBy: "system",
+    });
     expect(runSubagentSpawnedMock).toHaveBeenCalledTimes(1);
     const [event, ctx] = (runSubagentSpawnedMock.mock.calls[0] ?? []) as unknown as [
       Record<string, unknown>,
@@ -130,5 +170,55 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
       mode: "run",
       threadRequested: true,
     });
+  });
+
+  it("returns error when thread binding cannot be created", async () => {
+    threadBindingMocks.autoBindSpawnedDiscordSubagent.mockResolvedValueOnce(null);
+    const tool = await getSessionsSpawnTool({
+      agentSessionKey: "main",
+      agentChannel: "discord",
+      agentAccountId: "work",
+      agentTo: "channel:123",
+    });
+
+    const result = await tool.execute("call4", {
+      task: "do thing",
+      runTimeoutSeconds: 1,
+      thread: true,
+      mode: "session",
+    });
+
+    expect(result.details).toMatchObject({ status: "error" });
+    const details = result.details as { error?: string };
+    expect(details.error).toMatch(/thread/i);
+    expect(runSubagentSpawnedMock).not.toHaveBeenCalled();
+    const callGatewayMock = getCallGatewayMock();
+    const calledMethods = callGatewayMock.mock.calls.map((call: [unknown]) => {
+      const request = call[0] as { method?: string };
+      return request.method;
+    });
+    expect(calledMethods).not.toContain("agent");
+  });
+
+  it("rejects thread=true on channels without thread support", async () => {
+    const tool = await getSessionsSpawnTool({
+      agentSessionKey: "main",
+      agentChannel: "signal",
+      agentTo: "+123",
+    });
+
+    const result = await tool.execute("call5", {
+      task: "do thing",
+      thread: true,
+      mode: "session",
+    });
+
+    expect(result.details).toMatchObject({ status: "error" });
+    const details = result.details as { error?: string };
+    expect(details.error).toMatch(/Only Discord/i);
+    expect(threadBindingMocks.autoBindSpawnedDiscordSubagent).not.toHaveBeenCalled();
+    expect(runSubagentSpawnedMock).not.toHaveBeenCalled();
+    const callGatewayMock = getCallGatewayMock();
+    expect(callGatewayMock).not.toHaveBeenCalled();
   });
 });

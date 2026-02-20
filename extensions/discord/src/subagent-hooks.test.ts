@@ -3,12 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerDiscordSubagentHooks } from "./subagent-hooks.js";
 
 const hookMocks = vi.hoisted(() => ({
-  autoBindSpawnedDiscordSubagent: vi.fn(async () => null),
   unbindThreadBindingsBySessionKey: vi.fn(() => []),
 }));
 
 vi.mock("openclaw/plugin-sdk", () => ({
-  autoBindSpawnedDiscordSubagent: hookMocks.autoBindSpawnedDiscordSubagent,
   unbindThreadBindingsBySessionKey: hookMocks.unbindThreadBindingsBySessionKey,
 }));
 
@@ -25,71 +23,13 @@ function registerHandlersForTest() {
 
 describe("discord subagent hook handlers", () => {
   beforeEach(() => {
-    hookMocks.autoBindSpawnedDiscordSubagent.mockClear();
     hookMocks.unbindThreadBindingsBySessionKey.mockClear();
   });
 
-  it("binds Discord thread routing on subagent_spawned when thread is requested", async () => {
+  it("registers only subagent_ended hook", () => {
     const handlers = registerHandlersForTest();
-    const handler = handlers.get("subagent_spawned");
-    if (!handler) {
-      throw new Error("expected subagent_spawned hook handler");
-    }
-
-    await handler(
-      {
-        runId: "run-1",
-        childSessionKey: "agent:main:subagent:child",
-        agentId: "main",
-        label: "research",
-        mode: "session",
-        requester: {
-          channel: "discord",
-          accountId: "work",
-          to: "channel:123",
-          threadId: "456",
-        },
-        threadRequested: true,
-      },
-      {},
-    );
-
-    expect(hookMocks.autoBindSpawnedDiscordSubagent).toHaveBeenCalledTimes(1);
-    expect(hookMocks.autoBindSpawnedDiscordSubagent).toHaveBeenCalledWith({
-      accountId: "work",
-      channel: "discord",
-      to: "channel:123",
-      threadId: "456",
-      childSessionKey: "agent:main:subagent:child",
-      agentId: "main",
-      label: "research",
-      boundBy: "system",
-    });
-  });
-
-  it("skips auto-bind when threadRequested is false", async () => {
-    const handlers = registerHandlersForTest();
-    const handler = handlers.get("subagent_spawned");
-    if (!handler) {
-      throw new Error("expected subagent_spawned hook handler");
-    }
-
-    await handler(
-      {
-        runId: "run-2",
-        childSessionKey: "agent:main:subagent:child-2",
-        agentId: "main",
-        mode: "run",
-        requester: {
-          channel: "discord",
-          to: "channel:123",
-        },
-        threadRequested: false,
-      },
-      {},
-    );
-
-    expect(hookMocks.autoBindSpawnedDiscordSubagent).not.toHaveBeenCalled();
+    expect(handlers.has("subagent_spawned")).toBe(false);
+    expect(handlers.has("subagent_ended")).toBe(true);
   });
 
   it("unbinds thread routing on subagent_ended", () => {
