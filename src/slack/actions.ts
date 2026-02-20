@@ -223,15 +223,25 @@ export async function deleteSlackThreadReplies(
 
   let allReplies: Array<{ ts: string; user?: string }> = [];
   try {
-    const result = await botClient.conversations.replies({
-      channel: channelId,
-      ts: threadTs,
-      limit: 200,
-    });
+    const fetchLimit = 200;
+    let cursor: string | undefined;
 
-    allReplies = (result.messages ?? [])
-      .filter((msg: any) => msg.ts !== threadTs)
-      .map((msg: any) => ({ ts: msg.ts, user: msg.user }));
+    do {
+      const result = await botClient.conversations.replies({
+        channel: channelId,
+        ts: threadTs,
+        limit: fetchLimit,
+        ...(cursor ? { cursor } : {}),
+      });
+
+      const page = (result.messages ?? [])
+        .filter((msg: any) => msg.ts !== threadTs)
+        .map((msg: any) => ({ ts: msg.ts, user: msg.user }));
+      allReplies.push(...page);
+
+      const next = result.response_metadata?.next_cursor;
+      cursor = typeof next === "string" && next.trim().length > 0 ? next.trim() : undefined;
+    } while (cursor);
   } catch {
     // Thread may not exist or may not have replies
     return { deletedBot: [], deletedUser: [], failed: [] };
@@ -246,8 +256,9 @@ export async function deleteSlackThreadReplies(
     try {
       await deleteSlackMessage(channelId, reply.ts, opts);
       deletedBot.push(reply.ts);
-    } catch {
-      // Message may already be deleted
+    } catch (err) {
+      failed.push(reply.ts);
+      logVerbose(`Failed to delete bot reply ${reply.ts} in ${channelId}: ${String(err)}`);
     }
   }
 
