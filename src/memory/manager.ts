@@ -7,6 +7,7 @@ import type { ResolvedMemorySearchConfig } from "../agents/memory-search.js";
 import { resolveMemorySearchConfig } from "../agents/memory-search.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { readFileAutoDecrypt } from "../security/encryption/fs-middleware.js";
 import {
   createEmbeddingProvider,
   type EmbeddingProvider,
@@ -441,7 +442,7 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     if (stat.isSymbolicLink() || !stat.isFile()) {
       throw new Error("path required");
     }
-    const content = await fs.readFile(absPath, "utf-8");
+    const content = await readFileAutoDecrypt(absPath);
     if (!params.from && !params.lines) {
       return { text: content, path: relPath };
     }

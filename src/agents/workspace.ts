@@ -4,6 +4,7 @@ import path from "node:path";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { isCronSessionKey, isSubagentSessionKey } from "../routing/session-key.js";
+import { readFileAutoDecrypt } from "../security/encryption/fs-middleware.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveWorkspaceTemplateDir } from "./workspace-templates.js";
 
@@ -54,8 +55,8 @@ async function readFileWithCache(filePath: string): Promise<string> {
       return cached.content;
     }
 
-    // Read from disk and update cache
-    const content = await fs.readFile(filePath, "utf-8");
+    // Read from disk and update cache (supports encrypted files transparently)
+    const content = await readFileAutoDecrypt(filePath);
     workspaceFileCache.set(filePath, { content, mtimeMs });
     return content;
   } catch (error) {

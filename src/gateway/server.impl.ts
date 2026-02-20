@@ -45,6 +45,7 @@ import { createEmptyPluginRegistry } from "../plugins/registry.js";
 import type { PluginServicesHandle } from "../plugins/services.js";
 import { getTotalQueueSize } from "../process/command-queue.js";
 import type { RuntimeEnv } from "../runtime.js";
+import { bootstrapEncryption, shutdownEncryption } from "../security/encryption/integration.js";
 import { runOnboardingWizard } from "../wizard/onboarding.js";
 import { createAuthRateLimiter, type AuthRateLimiter } from "./auth-rate-limit.js";
 import { startChannelHealthMonitor } from "./channel-health-monitor.js";
@@ -264,6 +265,23 @@ export async function startGatewayServer(
   initSubagentRegistry();
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);
   const defaultWorkspaceDir = resolveAgentWorkspaceDir(cfgAtStart, defaultAgentId);
+
+  // Bootstrap workspace encryption: load keys from Keychain and re-encrypt
+  // any plaintext files that were written since the last startup.
+  const encryptionResult = await bootstrapEncryption(defaultWorkspaceDir);
+  if (encryptionResult.enabled) {
+    if (encryptionResult.keysLoaded) {
+      log.info("gateway: workspace encryption active");
+      if (encryptionResult.reEncrypted.length > 0) {
+        log.info(
+          `gateway: re-encrypted ${encryptionResult.reEncrypted.length} file(s): ${encryptionResult.reEncrypted.join(", ")}`,
+        );
+      }
+    } else {
+      log.warn(`gateway: ${encryptionResult.error}`);
+    }
+  }
+
   const baseMethods = listGatewayMethods();
   const emptyPluginRegistry = createEmptyPluginRegistry();
   const { pluginRegistry, gatewayMethods: baseGatewayMethods } = minimalTestGateway
@@ -764,6 +782,7 @@ export async function startGatewayServer(
       skillsChangeUnsub();
       authRateLimiter?.dispose();
       channelHealthMonitor?.stop();
+      shutdownEncryption();
       await close(opts);
     },
   };
