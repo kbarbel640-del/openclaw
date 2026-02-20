@@ -35,6 +35,8 @@ export type WhatsAppAckReactionConfig = {
   group?: "always" | "mentions" | "never";
 };
 
+export type WhatsAppReactionNotificationMode = "off" | "own" | "all";
+
 export type WhatsAppConfig = {
   /** Optional per-account WhatsApp configuration (multi-account). */
   accounts?: Record<string, WhatsAppAccountConfig>;
@@ -99,6 +101,13 @@ export type WhatsAppConfig = {
   groups?: Record<string, WhatsAppGroupConfig>;
   /** Acknowledgment reaction sent immediately upon message receipt. */
   ackReaction?: WhatsAppAckReactionConfig;
+  /**
+   * Controls which user reactions trigger notifications:
+   * - "off" (default): ignore all reactions
+   * - "own": notify when users react to bot messages
+   * - "all": notify agent of all reactions
+   */
+  reactionNotifications?: WhatsAppReactionNotificationMode;
   /** Debounce window (ms) for batching rapid consecutive messages from the same sender (0 to disable). */
   debounceMs?: number;
   /** Heartbeat visibility settings for this channel. */
@@ -149,6 +158,13 @@ export type WhatsAppAccountConfig = {
   groups?: Record<string, WhatsAppGroupConfig>;
   /** Acknowledgment reaction sent immediately upon message receipt. */
   ackReaction?: WhatsAppAckReactionConfig;
+  /**
+   * Controls which user reactions trigger notifications:
+   * - "off" (default): ignore all reactions
+   * - "own": notify when users react to bot messages
+   * - "all": notify agent of all reactions
+   */
+  reactionNotifications?: WhatsAppReactionNotificationMode;
   /** Debounce window (ms) for batching rapid consecutive messages from the same sender (0 to disable). */
   debounceMs?: number;
   /** Heartbeat visibility settings for this account. */
