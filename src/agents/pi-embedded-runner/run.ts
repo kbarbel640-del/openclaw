@@ -57,6 +57,7 @@ import {
   sessionLikelyHasOversizedToolResults,
 } from "./tool-result-truncation.js";
 import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
+import { isUsagePreflightError } from "./usage-preflight.js";
 import { describeUnknownError } from "./utils.js";
 
 type ApiKeyInfo = ResolvedProviderAuth;
@@ -159,17 +160,6 @@ const toNormalizedUsage = (usage: UsageAccumulator) => {
     total: lastPromptTokens + usage.output || undefined,
   };
 };
-
-function resolveActiveErrorContext(params: {
-  lastAssistant: { provider?: string; model?: string } | undefined;
-  provider: string;
-  model: string;
-}): { provider: string; model: string } {
-  return {
-    provider: params.lastAssistant?.provider ?? params.provider,
-    model: params.lastAssistant?.model ?? params.model,
-  };
-}
 
 export async function runEmbeddedPiAgent(
   params: RunEmbeddedPiAgentParams,
@@ -560,17 +550,11 @@ export async function runEmbeddedPiAgent(
           const lastTurnTotal = lastAssistantUsage?.total ?? attemptUsage?.total;
           const attemptCompactionCount = Math.max(0, attempt.compactionCount ?? 0);
           autoCompactionCount += attemptCompactionCount;
-          const activeErrorContext = resolveActiveErrorContext({
-            lastAssistant,
-            provider,
-            model: modelId,
-          });
           const formattedAssistantErrorText = lastAssistant
             ? formatAssistantErrorText(lastAssistant, {
                 cfg: params.config,
                 sessionKey: params.sessionKey ?? params.sessionId,
-                provider: activeErrorContext.provider,
-                model: activeErrorContext.model,
+                provider,
               })
             : undefined;
           const assistantErrorText =
@@ -761,6 +745,25 @@ export async function runEmbeddedPiAgent(
           }
 
           if (promptError && !aborted) {
+            if (isUsagePreflightError(promptError)) {
+              return {
+                payloads: [
+                  {
+                    text: promptError.userMessage,
+                    isError: true,
+                  },
+                ],
+                meta: {
+                  durationMs: Date.now() - started,
+                  agentMeta: {
+                    sessionId: sessionIdUsed,
+                    provider,
+                    model: model.id,
+                  },
+                  systemPromptReport: attempt.systemPromptReport,
+                },
+              };
+            }
             const errorText = describeUnknownError(promptError);
             // Handle role ordering errors with a user-friendly message
             if (/incorrect role information|roles must alternate/i.test(errorText)) {
@@ -936,8 +939,7 @@ export async function runEmbeddedPiAgent(
                   ? formatAssistantErrorText(lastAssistant, {
                       cfg: params.config,
                       sessionKey: params.sessionKey ?? params.sessionId,
-                      provider: activeErrorContext.provider,
-                      model: activeErrorContext.model,
+                      provider,
                     })
                   : undefined) ||
                 lastAssistant?.errorMessage?.trim() ||
@@ -946,10 +948,7 @@ export async function runEmbeddedPiAgent(
                   : rateLimitFailure
                     ? "LLM request rate limited."
                     : billingFailure
-                      ? formatBillingErrorMessage(
-                          activeErrorContext.provider,
-                          activeErrorContext.model,
-                        )
+                      ? formatBillingErrorMessage(provider)
                       : authFailure
                         ? "LLM request unauthorized."
                         : "LLM request failed.");
@@ -958,8 +957,8 @@ export async function runEmbeddedPiAgent(
                 (isTimeoutErrorMessage(message) ? 408 : undefined);
               throw new FailoverError(message, {
                 reason: assistantFailoverReason ?? "unknown",
-                provider: activeErrorContext.provider,
-                model: activeErrorContext.model,
+                provider,
+                model: modelId,
                 profileId: lastProfileId,
                 status,
               });
@@ -994,8 +993,7 @@ export async function runEmbeddedPiAgent(
             lastToolError: attempt.lastToolError,
             config: params.config,
             sessionKey: params.sessionKey ?? params.sessionId,
-            provider: activeErrorContext.provider,
-            model: activeErrorContext.model,
+            provider,
             verboseLevel: params.verboseLevel,
             reasoningLevel: params.reasoningLevel,
             toolResultFormat: resolvedToolResultFormat,
