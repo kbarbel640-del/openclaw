@@ -1,12 +1,16 @@
-import type { MSTeamsConfig } from "openclaw/plugin-sdk";
+import * as net from "net";
+import type { BaseProbeResult, MSTeamsConfig } from "openclaw/plugin-sdk";
 import { formatUnknownError } from "./errors.js";
 import { loadMSTeamsSdkWithAuth } from "./sdk.js";
 import { resolveMSTeamsCredentials } from "./token.js";
 
-export type ProbeMSTeamsResult = {
-  ok: boolean;
-  error?: string;
+export type ProbeMSTeamsResult = BaseProbeResult<string> & {
   appId?: string;
+  webhook?: {
+    ok: boolean;
+    port: number;
+    error?: string;
+  };
   graph?: {
     ok: boolean;
     error?: string;
@@ -14,6 +18,34 @@ export type ProbeMSTeamsResult = {
     scopes?: string[];
   };
 };
+
+const WEBHOOK_PROBE_TIMEOUT_MS = 2000;
+
+/**
+ * Checks whether the msteams webhook HTTP server is accepting connections on
+ * the given port by attempting a TCP connect. This detects cases where the
+ * server process is running but the port is not actually bound (e.g., because
+ * the provider exited immediately after returning its lifecycle promise).
+ */
+export function probeWebhookPort(port: number): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+
+    const settle = (result: { ok: boolean; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+
+    socket.setTimeout(WEBHOOK_PROBE_TIMEOUT_MS);
+    socket.once("connect", () => settle({ ok: true }));
+    socket.once("error", (err) => settle({ ok: false, error: err.message }));
+    socket.once("timeout", () => settle({ ok: false, error: "connection timed out" }));
+    socket.connect(port, "127.0.0.1");
+  });
+}
 
 function readAccessToken(value: unknown): string | null {
   if (typeof value === "string") {
@@ -72,6 +104,10 @@ export async function probeMSTeams(cfg?: MSTeamsConfig): Promise<ProbeMSTeamsRes
     };
   }
 
+  const port = cfg?.webhook?.port ?? 3978;
+  const [webhookResult] = await Promise.all([probeWebhookPort(port)]);
+  const webhook = { ...webhookResult, port };
+
   try {
     const { sdk, authConfig } = await loadMSTeamsSdkWithAuth(creds);
     const tokenProvider = new sdk.MsalTokenProvider(authConfig);
@@ -96,11 +132,12 @@ export async function probeMSTeams(cfg?: MSTeamsConfig): Promise<ProbeMSTeamsRes
     } catch (err) {
       graph = { ok: false, error: formatUnknownError(err) };
     }
-    return { ok: true, appId: creds.appId, ...(graph ? { graph } : {}) };
+    return { ok: true, appId: creds.appId, webhook, ...(graph ? { graph } : {}) };
   } catch (err) {
     return {
       ok: false,
       appId: creds.appId,
+      webhook,
       error: formatUnknownError(err),
     };
   }

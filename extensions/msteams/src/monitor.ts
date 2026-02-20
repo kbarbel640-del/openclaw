@@ -6,11 +6,12 @@ import {
   type OpenClawConfig,
   type RuntimeEnv,
 } from "openclaw/plugin-sdk";
-import type { MSTeamsConversationStore } from "./conversation-store.js";
-import type { MSTeamsAdapter } from "./messenger.js";
 import { createMSTeamsConversationStoreFs } from "./conversation-store-fs.js";
+import type { MSTeamsConversationStore } from "./conversation-store.js";
 import { formatUnknownError } from "./errors.js";
+import type { MSTeamsAdapter } from "./messenger.js";
 import { registerMSTeamsHandlers, type MSTeamsActivityHandler } from "./monitor-handler.js";
+import type { MSTeamsOnListeningCallback } from "./monitor-types.js";
 import { createMSTeamsPollStoreFs, type MSTeamsPollStore } from "./polls.js";
 import {
   resolveMSTeamsChannelAllowlist,
@@ -26,31 +27,30 @@ export type MonitorMSTeamsOpts = {
   abortSignal?: AbortSignal;
   conversationStore?: MSTeamsConversationStore;
   pollStore?: MSTeamsPollStore;
-};
-
-export type MonitorMSTeamsResult = {
-  app: unknown;
-  shutdown: () => Promise<void>;
+  /**
+   * Called once the HTTP server has successfully bound to its port and is
+   * ready to accept incoming webhook connections. Use this to update channel
+   * status or perform post-start bookkeeping.
+   */
+  onListening?: MSTeamsOnListeningCallback;
 };
 
 const MSTEAMS_WEBHOOK_MAX_BODY_BYTES = DEFAULT_WEBHOOK_MAX_BODY_BYTES;
 
-export async function monitorMSTeamsProvider(
-  opts: MonitorMSTeamsOpts,
-): Promise<MonitorMSTeamsResult> {
+export async function monitorMSTeamsProvider(opts: MonitorMSTeamsOpts): Promise<void> {
   const core = getMSTeamsRuntime();
   const log = core.logging.getChildLogger({ name: "msteams" });
   let cfg = opts.cfg;
   let msteamsCfg = cfg.channels?.msteams;
   if (!msteamsCfg?.enabled) {
     log.debug?.("msteams provider disabled");
-    return { app: null, shutdown: async () => {} };
+    return;
   }
 
   const creds = resolveMSTeamsCredentials(msteamsCfg);
   if (!creds) {
     log.error("msteams credentials not configured");
-    return { app: null, shutdown: async () => {} };
+    return;
   }
   const appId = creds.appId; // Extract for use in closures
 
@@ -273,14 +273,21 @@ export async function monitorMSTeamsProvider(
     fallback: "/api/messages",
   });
 
-  // Start listening and capture the HTTP server handle
-  const httpServer = expressApp.listen(port, () => {
-    log.info(`msteams provider started on port ${port}`);
+  // Start the HTTP server and wait until it has actually bound to the port.
+  // expressApp.listen() is non-blocking: the callback fires asynchronously, so
+  // we must await the 'listening' event before treating the provider as running.
+  // Returning before the port is bound causes the channel manager to interpret
+  // the resolved promise as "provider exited" and immediately triggers a restart
+  // loop (EADDRINUSE cascade).
+  const httpServer = expressApp.listen(port);
+
+  await new Promise<void>((resolve, reject) => {
+    httpServer.once("listening", resolve);
+    httpServer.once("error", reject);
   });
 
-  httpServer.on("error", (err) => {
-    log.error("msteams server error", { error: String(err) });
-  });
+  log.info(`msteams provider started on port ${port}`);
+  opts.onListening?.();
 
   const shutdown = async () => {
     log.info("shutting down msteams provider");
@@ -294,12 +301,27 @@ export async function monitorMSTeamsProvider(
     });
   };
 
-  // Handle abort signal
-  if (opts.abortSignal) {
-    opts.abortSignal.addEventListener("abort", () => {
-      void shutdown();
-    });
-  }
+  httpServer.on("error", (err) => {
+    log.error("msteams server error", { error: String(err) });
+  });
 
-  return { app: expressApp, shutdown };
+  // Stay alive until the abort signal fires, then shut down cleanly.
+  // This ensures the promise returned by monitorMSTeamsProvider only resolves
+  // once the server has actually stopped, matching what the channel manager
+  // expects of a long-running provider task.
+  await new Promise<void>((resolve) => {
+    const abortSignal = opts.abortSignal;
+    if (!abortSignal) {
+      // No abort signal provided: keep alive until the http server closes on its own.
+      httpServer.once("close", resolve);
+      return;
+    }
+    if (abortSignal.aborted) {
+      resolve();
+      return;
+    }
+    abortSignal.addEventListener("abort", () => resolve(), { once: true });
+  });
+
+  await shutdown();
 }
