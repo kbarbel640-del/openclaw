@@ -640,9 +640,7 @@ export const dispatchTelegramMessage = async ({
           }
         },
         onError: (err, info) => {
-          if (info.kind !== "silent") {
-            deliveryState.failedNonSilent += 1;
-          }
+          deliveryState.failedNonSilent += 1;
           runtime.error?.(danger(`telegram ${info.kind} reply failed: ${String(err)}`));
         },
         onReplyStart: createTypingCallbacks({
