@@ -54,8 +54,22 @@ async function checkAndRefreshAuthOnStartup(params: {
   const expiring = summary.profiles.filter((p) => p.status === "expiring");
   const ok = summary.profiles.filter((p) => p.status === "ok" || p.status === "static");
 
+  // OAuth profiles with refresh tokens report status "ok" even when the access
+  // token has expired (they auto-renew on first API call).  Identify these so
+  // we can proactively refresh them and avoid first-request latency.
+  const oauthNeedsRefresh = summary.profiles.filter(
+    (p) =>
+      p.type === "oauth" &&
+      p.status !== "expired" &&
+      p.remainingMs !== undefined &&
+      p.remainingMs <= 0,
+  );
+
   params.log.info(
-    `startup auth check: ${profileCount} profiles — ${ok.length} ok, ${expiring.length} expiring, ${expired.length} expired`,
+    `startup auth check: ${profileCount} profiles — ${ok.length} ok, ${expiring.length} expiring, ${expired.length} expired` +
+      (oauthNeedsRefresh.length > 0
+        ? `, ${oauthNeedsRefresh.length} oauth needing refresh`
+        : ""),
   );
 
   for (const profile of expiring) {
@@ -65,8 +79,10 @@ async function checkAndRefreshAuthOnStartup(params: {
     );
   }
 
-  // Proactively refresh expired OAuth tokens so the first API call doesn't block.
-  for (const profile of expired) {
+  // Proactively refresh expired or access-token-expired OAuth tokens so the
+  // first API call doesn't block.
+  const refreshCandidates = [...expired, ...oauthNeedsRefresh];
+  for (const profile of refreshCandidates) {
     if (profile.type !== "oauth") {
       params.log.warn(
         `auth profile "${profile.profileId}" (${profile.provider}) is expired (type=${profile.type}, no auto-refresh)`,

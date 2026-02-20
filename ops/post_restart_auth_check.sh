@@ -10,14 +10,26 @@ set -euo pipefail
 # 使い方:
 #   ExecStartPost として Gateway systemd service に組み込む
 #   または手動: bash ops/post_restart_auth_check.sh
+#
+# Dependencies:
+#   - curl: for health endpoint polling
+#   - docker compose: for running models status --check
+#   - auth_monitor.py (optional): triggers Slack notification on auth failure
+#
+# Environment:
+#   OC_HOME       — OpenClaw project root (default: script's parent directory)
+#   HEALTH_URL    — Gateway health endpoint (default: http://127.0.0.1:18789/health)
+#   AUTH_MONITOR_ENV — Path to auth monitor env file (default: /etc/openclaw/auth-monitor.env)
 
-COMPOSE_DIR="/home/ubuntu/openclaw"
-HEALTH_URL="http://127.0.0.1:18789/health"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+OC_HOME="${OC_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+COMPOSE_DIR="$OC_HOME"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:18789/health}"
 HEALTH_TIMEOUT=5
 MAX_WAIT_SECONDS=120
 POLL_INTERVAL=3
-AUTH_MONITOR="/home/ubuntu/openclaw/ops/auth_monitor.py"
-AUTH_MONITOR_ENV="/etc/openclaw/auth-monitor.env"
+AUTH_MONITOR="$OC_HOME/ops/auth_monitor.py"
+AUTH_MONITOR_ENV="${AUTH_MONITOR_ENV:-/etc/openclaw/auth-monitor.env}"
 
 log() {
   echo "$(date +%FT%T%z) post-restart-auth: $*"
