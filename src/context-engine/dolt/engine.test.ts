@@ -1,15 +1,15 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DoltRollupParams } from "./rollup.js";
+import type { DoltStore } from "./store/types.js";
 import { requireNodeSqlite } from "../../memory/sqlite.js";
 import { serializeDoltSummaryFrontmatter } from "./contract.js";
 import { DoltContextEngine } from "./engine.js";
-import type { DoltRollupParams } from "./rollup.js";
 import { SqliteDoltStore } from "./store/sqlite-dolt-store.js";
 import { estimateDoltTokenCount } from "./store/token-count.js";
-import type { DoltStore } from "./store/types.js";
 
 const executeDoltRollupMock = vi.hoisted(() => vi.fn());
 
@@ -260,6 +260,41 @@ describe("DoltContextEngine", () => {
     });
     expect(turn?.tokenCount).toBe(estimatedFull.tokenCount);
     expect(turn?.tokenCount).toBeGreaterThan(estimatedFirstBlockOnly.tokenCount);
+  });
+
+  it("ingest preserves full toolResult runtime payload fields", async () => {
+    const { store } = createInMemoryStore();
+    const engine = new DoltContextEngine();
+    setEngineStore(engine, store);
+    const sessionId = "session-ingest-tool-result";
+    const toolResultMessage = {
+      role: "toolResult",
+      toolCallId: "toolu_123",
+      toolName: "read",
+      content: [{ type: "text", text: "file content" }],
+      details: { bytes: 12 },
+      isError: false,
+      timestamp: 123_456,
+    } as unknown as AgentMessage;
+
+    await engine.ingest({
+      sessionId,
+      message: toolResultMessage,
+    });
+
+    const [turn] = store.listRecordsBySession({
+      sessionId,
+      level: "turn",
+    });
+    expect(turn).toBeTruthy();
+    const payload = turn?.payload as Record<string, unknown>;
+    expect(payload.role).toBe("toolResult");
+    expect(payload.toolCallId).toBe("toolu_123");
+    expect(payload.toolName).toBe("read");
+    expect(payload.content).toEqual([{ type: "text", text: "file content" }]);
+    expect(payload.details).toEqual({ bytes: 12 });
+    expect(payload.isError).toBe(false);
+    expect(payload.timestamp).toBe(123_456);
   });
 
   it("afterTurn ingests new turns and compacts when lane pressure exceeds threshold", async () => {

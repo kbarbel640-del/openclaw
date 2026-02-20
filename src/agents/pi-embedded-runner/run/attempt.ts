@@ -718,8 +718,11 @@ export async function runEmbeddedAttempt(
               messages: activeSession.messages,
               tokenBudget: params.contextTokenBudget,
             });
-            if (assembled.messages !== activeSession.messages) {
-              activeSession.agent.replaceMessages(assembled.messages);
+            const assembledMessages = transcriptPolicy.repairToolUseResultPairing
+              ? sanitizeToolUseResultPairing(assembled.messages)
+              : assembled.messages;
+            if (assembledMessages !== activeSession.messages) {
+              activeSession.agent.replaceMessages(assembledMessages);
             }
           } catch (assembleErr) {
             log.warn(

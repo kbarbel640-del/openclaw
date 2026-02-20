@@ -1,10 +1,6 @@
-import path from "node:path";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { resolveAgentDir } from "../../agents/agent-scope.js";
+import path from "node:path";
 import type { OpenClawConfig } from "../../config/config.js";
-import { resolveStateDir } from "../../config/paths.js";
-import { normalizeAgentId } from "../../routing/session-key.js";
-import { registerContextEngine } from "../registry.js";
 import type {
   AssembleResult,
   BootstrapResult,
@@ -14,6 +10,11 @@ import type {
   IngestBatchResult,
   IngestResult,
 } from "../types.js";
+import type { DoltRecord, DoltRecordLevel, DoltStore } from "./store/types.js";
+import { resolveAgentDir } from "../../agents/agent-scope.js";
+import { resolveStateDir } from "../../config/paths.js";
+import { normalizeAgentId } from "../../routing/session-key.js";
+import { registerContextEngine } from "../registry.js";
 import {
   assembleDoltContext,
   resolveDoltAssemblyLaneBudgets,
@@ -30,7 +31,6 @@ import {
 import { finalizeDoltReset } from "./reset-finalization.js";
 import { executeDoltRollup } from "./rollup.js";
 import { openSqliteDoltStore } from "./store/sqlite-dolt-store.js";
-import type { DoltRecord, DoltRecordLevel, DoltStore } from "./store/types.js";
 
 type DoltContextEngineOptions = {
   agentId?: string;
@@ -99,10 +99,7 @@ export class DoltContextEngine implements ContextEngine {
     const store = this.ensureStore();
     const eventTsMs = Date.now();
     const pointer = this.buildTurnPointer(params.sessionId, eventTsMs);
-    const payload = {
-      role: resolveMessageRole(params.message),
-      content: resolveMessageContent(params.message),
-    };
+    const payload = resolveTurnPayload(params.message);
 
     store.upsertRecord({
       pointer,
@@ -458,6 +455,24 @@ function resolveMessageContent(message: AgentMessage): unknown {
     return "";
   }
   return content;
+}
+
+function resolveTurnPayload(message: AgentMessage): unknown {
+  if (!message || typeof message !== "object" || Array.isArray(message)) {
+    return {
+      role: resolveMessageRole(message),
+      content: resolveMessageContent(message),
+    };
+  }
+
+  const payload = { ...(message as unknown as Record<string, unknown>) };
+  if (!("role" in payload)) {
+    payload.role = resolveMessageRole(message);
+  }
+  if (!("content" in payload)) {
+    payload.content = resolveMessageContent(message);
+  }
+  return payload;
 }
 
 function normalizeOptionalString(value: string | undefined): string | null {

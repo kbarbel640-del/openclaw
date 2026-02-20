@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import type { DoltRecord } from "./store/types.js";
 import { requireNodeSqlite } from "../../memory/sqlite.js";
 import {
   assembleDoltContext,
@@ -12,7 +13,6 @@ import {
 } from "./assembly.js";
 import { serializeDoltSummaryFrontmatter } from "./contract.js";
 import { SqliteDoltStore } from "./store/sqlite-dolt-store.js";
-import type { DoltRecord } from "./store/types.js";
 
 type TestStore = {
   store: SqliteDoltStore;
@@ -371,6 +371,48 @@ describe("assembleDoltContext", () => {
 
     expect(result.budget.availableTokens).toBe(0);
     expect(result.messages).toHaveLength(0);
+  });
+
+  it("restores turn payload toolResult fields without lossy conversion", () => {
+    const { store } = createInMemoryStore(() => 3_500);
+    const sessionId = "session-toolresult-restore";
+    const record = store.upsertRecord({
+      pointer: "turn-toolresult-1",
+      sessionId,
+      level: "turn",
+      eventTsMs: 100,
+      payload: {
+        role: "toolResult",
+        toolCallId: "toolu_restore_1",
+        toolName: "read",
+        content: [{ type: "text", text: "ok" }],
+        details: { from: "dolt" },
+        isError: false,
+        timestamp: 42,
+      },
+    });
+    markActive(store, record);
+
+    const result = assembleDoltContext({
+      store,
+      sessionId,
+      tokenBudget: 50_000,
+      lanePolicyOverrides: {
+        bindle: { target: 0, soft: 0, delta: 0, summaryCap: 0 },
+        leaf: { target: 0, soft: 0, delta: 0, summaryCap: 0 },
+        turn: { target: 50_000, soft: 50_000, delta: 0 },
+      },
+    });
+
+    expect(result.messages).toHaveLength(1);
+    const restored = result.messages[0] as unknown as Record<string, unknown>;
+    expect(restored.role).toBe("toolResult");
+    expect(restored.toolCallId).toBe("toolu_restore_1");
+    expect(restored.toolName).toBe("read");
+    expect(restored.content).toEqual([{ type: "text", text: "ok" }]);
+    expect(restored.details).toEqual({ from: "dolt" });
+    expect(restored.isError).toBe(false);
+    expect(restored.timestamp).toBe(42);
   });
 });
 
