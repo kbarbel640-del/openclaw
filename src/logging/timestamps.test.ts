@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
-import { formatLocalIsoWithOffset } from "./timestamps.js";
+import { formatLocalIsoWithOffset, isValidTimeZone } from "./timestamps.js";
 
 describe("formatLocalIsoWithOffset", () => {
   const testDate = new Date("2025-01-01T04:00:00.000Z");
@@ -36,10 +36,30 @@ describe("formatLocalIsoWithOffset", () => {
     expect(result).toMatch(iso8601WithOffset);
   });
 
+  it("falls back gracefully for an invalid timezone", () => {
+    const result = formatLocalIsoWithOffset(testDate, "not-a-tz");
+    const iso8601WithOffset = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}$/;
+    expect(result).toMatch(iso8601WithOffset);
+  });
+
   it("does NOT use getHours, getMinutes, getTimezoneOffset in the implementation", () => {
     const source = fs.readFileSync(path.resolve(__dirname, "timestamps.ts"), "utf-8");
     expect(source).not.toMatch(/\.getHours\s*\(/);
     expect(source).not.toMatch(/\.getMinutes\s*\(/);
     expect(source).not.toMatch(/\.getTimezoneOffset\s*\(/);
+  });
+});
+
+describe("isValidTimeZone", () => {
+  it("returns true for valid IANA timezones", () => {
+    expect(isValidTimeZone("UTC")).toBe(true);
+    expect(isValidTimeZone("America/New_York")).toBe(true);
+    expect(isValidTimeZone("Asia/Shanghai")).toBe(true);
+  });
+
+  it("returns false for invalid timezone strings", () => {
+    expect(isValidTimeZone("not-a-tz")).toBe(false);
+    expect(isValidTimeZone("yo agent's")).toBe(false);
+    expect(isValidTimeZone("")).toBe(false);
   });
 });
