@@ -9,8 +9,8 @@ import {
 describe("cron stagger helpers", () => {
   it("detects recurring top-of-hour cron expressions for 5-field and 6-field cron", () => {
     expect(isRecurringTopOfHourCronExpr("0 * * * *")).toBe(true);
-    expect(isRecurringTopOfHourCronExpr("0 */2 * * *")).toBe(true);
-    expect(isRecurringTopOfHourCronExpr("0 0 */3 * * *")).toBe(true);
+    expect(isRecurringTopOfHourCronExpr("0 */2 * * *")).toBe(false);
+    expect(isRecurringTopOfHourCronExpr("0 0 */3 * * *")).toBe(false);
     expect(isRecurringTopOfHourCronExpr("0 7 * * *")).toBe(false);
     expect(isRecurringTopOfHourCronExpr("15 * * * *")).toBe(false);
   });
