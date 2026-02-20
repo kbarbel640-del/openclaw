@@ -3,6 +3,9 @@ import type { ReasoningLevel, VerboseLevel } from "../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { HookRunner } from "../plugins/hooks.js";
 import type { BlockReplyChunking } from "./pi-embedded-block-chunker.js";
+import type { DeliveryStrategy } from "./delivery-strategy.js";
+import type { TaskCharacteristics } from "./task-analyzer.js";
+import type { UserEngagement } from "./engagement-monitor.js";
 
 export type ToolResultFormat = "markdown" | "plain";
 
@@ -37,6 +40,10 @@ export type SubscribeEmbeddedPiSessionParams = {
   enforceFinalTag?: boolean;
   config?: OpenClawConfig;
   sessionKey?: string;
+  // Intelligent delivery strategy
+  deliveryStrategy?: DeliveryStrategy;
+  taskCharacteristics?: TaskCharacteristics;
+  userEngagement?: UserEngagement;
 };
 
 export type { BlockReplyChunking } from "./pi-embedded-block-chunker.js";

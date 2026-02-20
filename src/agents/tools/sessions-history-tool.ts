@@ -2,6 +2,8 @@ import { Type } from "@sinclair/typebox";
 import { loadConfig } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
 import { capArrayByJsonBytes } from "../../gateway/session-utils.fs.js";
+import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { isSubagentSessionKey } from "../../routing/session-key.js";
 import { truncateUtf16Safe } from "../../utils.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
@@ -14,6 +16,8 @@ import {
   resolveSandboxedSessionToolContext,
   stripToolMessages,
 } from "./sessions-helpers.js";
+
+const auditLog = createSubsystemLogger("sessions/audit");
 
 const SessionsHistoryToolSchema = Type.Object({
   sessionKey: Type.String(),
@@ -212,6 +216,26 @@ export function createSessionsHistoryTool(opts?: {
         return jsonResult({
           status: access.status,
           error: access.error,
+        });
+      }
+
+      // Check subagent session history access config and audit log
+      const isSubagent = isSubagentSessionKey(effectiveRequesterKey);
+      const allowSubagentAccess = cfg.tools?.subagents?.allowSessionHistoryAccess ?? true;
+      if (isSubagent && !allowSubagentAccess) {
+        auditLog.warn("Subagent session history access denied", {
+          requester: effectiveRequesterKey,
+          target: resolvedKey,
+        });
+        return jsonResult({
+          status: "forbidden",
+          error: "Subagent session history access is disabled. Set tools.subagents.allowSessionHistoryAccess=true to allow.",
+        });
+      }
+      if (isSubagent) {
+        auditLog.info("Subagent session history access granted", {
+          requester: effectiveRequesterKey,
+          target: resolvedKey,
         });
       }
 

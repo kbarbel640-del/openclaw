@@ -3,12 +3,15 @@ import type { ReplyDirectiveParseResult } from "../auto-reply/reply/reply-direct
 import type { ReasoningLevel } from "../auto-reply/thinking.js";
 import type { InlineCodeState } from "../markdown/code-spans.js";
 import type { HookRunner } from "../plugins/hooks.js";
+import type { DeliveryStrategy } from "./delivery-strategy.js";
+import type { EngagementMonitor, UserEngagement } from "./engagement-monitor.js";
 import type { EmbeddedBlockChunker } from "./pi-embedded-block-chunker.js";
 import type { MessagingToolSend } from "./pi-embedded-messaging.js";
 import type {
   BlockReplyChunking,
   SubscribeEmbeddedPiSessionParams,
 } from "./pi-embedded-subscribe.types.js";
+import type { TaskCharacteristics } from "./task-analyzer.js";
 import type { NormalizedUsage } from "./usage.js";
 
 export type EmbeddedSubscribeLogger = {
@@ -76,6 +79,13 @@ export type EmbeddedPiSubscribeState = {
   successfulCronAdds: number;
   pendingMessagingMediaUrls: Map<string, string[]>;
   lastAssistant?: AgentMessage;
+  
+  // Intelligent delivery strategy
+  deliveryStrategy?: DeliveryStrategy;
+  taskCharacteristics?: TaskCharacteristics;
+  userEngagement?: UserEngagement;
+  deliveryStartTime?: number;  // Track task start for duration monitoring
+  toolCallsCompleted: number;  // Track progress for milestone delivery
 };
 
 export type EmbeddedPiSubscribeContext = {

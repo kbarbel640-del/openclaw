@@ -1,0 +1,17 @@
+{
+  "id": "clarity",
+  "name": "Clarity",
+  "version": "1.0.0",
+  "description": "Context clarity and focus management plugin",
+  "main": "index.js",
+  "author": "OpenClaw",
+  "license": "MIT",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "enabled": { "type": "boolean" },
+      "semanticDeduplication": { "type": "boolean", "default": true },
+      "semanticMergeThreshold": { "type": "number", "default": 0.7 }
+    }
+  }
+}

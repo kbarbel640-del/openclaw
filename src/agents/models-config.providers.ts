@@ -865,9 +865,18 @@ export async function resolveImplicitCopilotProvider(params: {
   // We intentionally do NOT define custom models for Copilot in models.json.
   // pi-coding-agent treats providers with models as replacements requiring apiKey.
   // We only override baseUrl; the model list comes from pi-ai built-ins.
+  // 
+  // Add required GitHub Copilot headers for IDE auth (applies to all models,
+  // including custom ones added via explicit config).
   return {
     baseUrl,
     models: [],
+    headers: {
+      "User-Agent": "GitHubCopilotChat/0.35.0",
+      "Editor-Version": "vscode/1.107.0",
+      "Editor-Plugin-Version": "copilot-chat/0.35.0",
+      "Copilot-Integration-Id": "vscode-chat",
+    },
   } satisfies ProviderConfig;
 }
 

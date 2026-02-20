@@ -141,3 +141,27 @@ describe("createSessionVisibilityGuard", () => {
     });
   });
 });
+
+describe("subagent session history access", () => {
+  it("allows subagent access by default when config is unset", () => {
+    const cfg = {} as unknown as OpenClawConfig;
+    const allow = cfg.tools?.subagents?.allowSessionHistoryAccess ?? true;
+    expect(allow).toBe(true);
+  });
+
+  it("allows subagent access when explicitly enabled", () => {
+    const cfg = {
+      tools: { subagents: { allowSessionHistoryAccess: true } },
+    } as unknown as OpenClawConfig;
+    const allow = cfg.tools?.subagents?.allowSessionHistoryAccess ?? true;
+    expect(allow).toBe(true);
+  });
+
+  it("denies subagent access when explicitly disabled", () => {
+    const cfg = {
+      tools: { subagents: { allowSessionHistoryAccess: false } },
+    } as unknown as OpenClawConfig;
+    const allow = cfg.tools?.subagents?.allowSessionHistoryAccess ?? true;
+    expect(allow).toBe(false);
+  });
+});

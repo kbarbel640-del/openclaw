@@ -1,0 +1,181 @@
+{
+  "description": "Expected entity extraction results for test conversations",
+  "expectedResults": {
+    "conv-1": {
+      "description": "ClaraCore refactoring discussion",
+      "expectedEntities": [
+        { "id": "project:claracore", "type": "project", "name": "Claracore", "minMentions": 3 },
+        { "id": "topic:entity", "type": "topic", "name": "entity", "minMentions": 2 },
+        { "id": "topic:extraction", "type": "topic", "name": "extraction", "minMentions": 2 },
+        { "id": "tool:subagents", "type": "tool", "name": "subagents", "minMentions": 2 },
+        { "id": "file:soul_md", "type": "file", "name": "SOUL.md", "minMentions": 2 },
+        {
+          "id": "file:docs_architecture_md",
+          "type": "file",
+          "name": "docs/architecture.md",
+          "minMentions": 1
+        },
+        {
+          "id": "project:focus_engine",
+          "type": "project",
+          "name": "FocusEngine",
+          "minMentions": 2
+        },
+        { "id": "plugin:clarity", "type": "plugin", "name": "Clarity", "minMentions": 1 }
+      ],
+      "expectedComposites": ["entity extraction", "focus engine"],
+      "expectedRelationships": [
+        { "source": "project:claracore", "target": "topic:extraction", "type": "related" },
+        { "source": "project:claracore", "target": "tool:subagents", "type": "related" },
+        { "source": "tool:subagents", "target": "file:soul_md", "type": "related" }
+      ],
+      "notes": "Should extract ClaraCore as project, detect subagents tool, identify SOUL.md and architecture.md files"
+    },
+    "conv-2": {
+      "description": "OpenClaw extension development",
+      "expectedEntities": [
+        { "id": "plugin:openclaw", "type": "project", "name": "Openclaw", "minMentions": 2 },
+        { "id": "topic:plugin", "type": "topic", "name": "plugin", "minMentions": 3 },
+        { "id": "plugin:memory", "type": "plugin", "name": "Memory", "minMentions": 2 },
+        { "id": "plugin:awareness", "type": "plugin", "name": "Awareness", "minMentions": 2 },
+        { "id": "tool:recall", "type": "tool", "name": "recall", "minMentions": 1 },
+        { "id": "plugin:continuity", "type": "plugin", "name": "Continuity", "minMentions": 1 },
+        { "id": "file:user_md", "type": "file", "name": "USER.md", "minMentions": 1 },
+        { "id": "plugin:guide", "type": "plugin", "name": "Guide", "minMentions": 1 },
+        { "id": "plugin:reflect", "type": "plugin", "name": "Reflect", "minMentions": 1 },
+        { "id": "tool:web_search", "type": "tool", "name": "web_search", "minMentions": 1 },
+        { "id": "tool:web_fetch", "type": "tool", "name": "web_fetch", "minMentions": 1 }
+      ],
+      "expectedComposites": ["memory search", "plugin development"],
+      "expectedRelationships": [
+        { "source": "plugin:awareness", "target": "tool:recall", "type": "related" },
+        { "source": "plugin:guide", "target": "plugin:reflect", "type": "related" }
+      ],
+      "notes": "Should detect OpenClaw as project (capitalized pattern), extract multiple plugins and tools"
+    },
+    "conv-3": {
+      "description": "Memory system debugging",
+      "expectedEntities": [
+        { "id": "plugin:memory", "type": "plugin", "name": "Memory", "minMentions": 3 },
+        {
+          "id": "file:memory_active_context_md",
+          "type": "file",
+          "name": "memory/active-context.md",
+          "minMentions": 2
+        },
+        { "id": "tool:nodes", "type": "tool", "name": "nodes", "minMentions": 1 },
+        { "id": "plugin:recover", "type": "plugin", "name": "Recover", "minMentions": 2 },
+        { "id": "tool:exec", "type": "tool", "name": "exec", "minMentions": 1 },
+        {
+          "id": "file:docs_memory_architecture_md",
+          "type": "file",
+          "name": "docs/memory-architecture.md",
+          "minMentions": 1
+        }
+      ],
+      "expectedComposites": ["memory system", "error recovery", "file system"],
+      "expectedRelationships": [
+        {
+          "source": "plugin:memory",
+          "target": "file:memory_active_context_md",
+          "type": "contains"
+        },
+        { "source": "plugin:memory", "target": "plugin:recover", "type": "related" }
+      ],
+      "notes": "Should extract memory plugin prominently, detect memory file paths, identify recover plugin for error handling"
+    },
+    "conv-4": {
+      "description": "Model routing discussion",
+      "expectedEntities": [
+        { "id": "plugin:model_router", "type": "plugin", "name": "Model-router", "minMentions": 1 },
+        { "id": "tool:sessions_spawn", "type": "tool", "name": "sessions_spawn", "minMentions": 2 },
+        { "id": "file:agents_md", "type": "file", "name": "AGENTS.md", "minMentions": 1 },
+        {
+          "id": "file:docs_model_selection_md",
+          "type": "file",
+          "name": "docs/model-selection.md",
+          "minMentions": 1
+        },
+        { "id": "plugin:orchestrator", "type": "plugin", "name": "Orchestrator", "minMentions": 1 },
+        { "id": "plugin:sight", "type": "plugin", "name": "Sight", "minMentions": 1 }
+      ],
+      "expectedComposites": ["model routing", "model selection", "task complexity"],
+      "expectedRelationships": [
+        { "source": "tool:sessions_spawn", "target": "plugin:model_router", "type": "uses" },
+        { "source": "plugin:orchestrator", "target": "tool:sessions_spawn", "type": "uses" }
+      ],
+      "notes": "Should detect model-router with hyphen pattern, sessions_spawn tool usage, orchestrator plugin"
+    },
+    "conv-5": {
+      "description": "Documentation and testing workflow",
+      "expectedEntities": [
+        { "id": "plugin:continuity", "type": "plugin", "name": "Continuity", "minMentions": 3 },
+        { "id": "topic:session", "type": "topic", "name": "session", "minMentions": 2 },
+        { "id": "tool:browser", "type": "tool", "name": "browser", "minMentions": 1 },
+        { "id": "tool:message", "type": "tool", "name": "message", "minMentions": 1 },
+        {
+          "id": "file:memory_testing_notes_md",
+          "type": "file",
+          "name": "memory/testing-notes.md",
+          "minMentions": 1
+        },
+        { "id": "file:readme_md", "type": "file", "name": "README.md", "minMentions": 1 }
+      ],
+      "expectedComposites": ["session management", "testing workflow"],
+      "expectedRelationships": [
+        { "source": "plugin:continuity", "target": "topic:session", "type": "related" },
+        { "source": "plugin:continuity", "target": "tool:browser", "type": "uses" }
+      ],
+      "notes": "Should extract continuity plugin prominently, test-related files, browser and message tools"
+    },
+    "conv-6": {
+      "description": "Generic noise conversation",
+      "expectedEntities": [],
+      "expectedComposites": [],
+      "expectedRelationships": [],
+      "notes": "Should extract NO entities - this conversation only contains stop words and generic terms that should be filtered out",
+      "maxEntities": 1,
+      "forbiddenEntities": [
+        "keyword:session",
+        "keyword:model",
+        "keyword:context",
+        "keyword:text",
+        "keyword:message",
+        "keyword:tool",
+        "keyword:conversation",
+        "keyword:exchange"
+      ]
+    }
+  },
+  "precisionTest": {
+    "description": "Tests for entity precision",
+    "cases": [
+      {
+        "input": "ClaraCore uses the subagents tool",
+        "expected": ["project:claracore", "tool:subagents"],
+        "forbidden": ["keyword:uses", "keyword:tool"]
+      },
+      {
+        "input": "Check SOUL.md and AGENTS.md for configuration",
+        "expected": ["file:soul_md", "file:agents_md"],
+        "forbidden": ["keyword:configuration", "keyword:check"]
+      },
+      {
+        "input": "The clarity plugin depends on the memory plugin",
+        "expected": ["plugin:clarity", "plugin:memory"],
+        "forbidden": ["keyword:depends"]
+      },
+      {
+        "input": "Use web_search or web_fetch to find documentation",
+        "expected": ["tool:web_search", "tool:web_fetch"],
+        "forbidden": ["keyword:find"]
+      },
+      {
+        "input": "This is a high-level overview of the system",
+        "expected": [],
+        "forbidden": ["project:high_level"],
+        "notes": "Should NOT extract 'high-level' as it's in SYSTEM_HYPHENATED"
+      }
+    ]
+  }
+}

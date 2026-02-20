@@ -1,0 +1,340 @@
+{
+  "description": "Expected semantic similarity scores for entity pairs",
+  "version": "1.0",
+  "thresholds": {
+    "merge": 0.9,
+    "strong_relation": 0.75,
+    "relation": 0.5,
+    "ignore": 0.3
+  },
+  "test_cases": [
+    {
+      "id": "tc-001",
+      "name": "Clarity plugin variants",
+      "pair": ["clarity", "clarity plugin"],
+      "expected_similarity": {
+        "min": 0.85,
+        "max": 1.0
+      },
+      "expected_action": "merge_or_strong_relate",
+      "rationale": "'clarity plugin' is a specific form of 'clarity' - nearly identical semantic meaning",
+      "test_input": "The clarity plugin uses subagents for entity extraction in OpenClaw"
+    },
+    {
+      "id": "tc-002",
+      "name": "OpenClaw system variants",
+      "pair": ["openclaw", "openclaw gateway"],
+      "expected_similarity": {
+        "min": 0.7,
+        "max": 0.95
+      },
+      "expected_action": "relate",
+      "rationale": "'openclaw gateway' is a component of 'openclaw' - CONTAINS relationship expected",
+      "test_input": "The OpenClaw gateway needs better clarity integration"
+    },
+    {
+      "id": "tc-003",
+      "name": "ClaraCore architecture containment",
+      "pair": ["claracore", "claracore architecture"],
+      "expected_similarity": {
+        "min": 0.8,
+        "max": 0.95
+      },
+      "expected_action": "strong_relate",
+      "expected_relationship": {
+        "type": "CONTAINS",
+        "strength_min": 0.7
+      },
+      "rationale": "'claracore architecture' is an aspect of 'claracore' - should have strong CONTAINS relationship",
+      "test_input": "ClaraCore runtime and claracore architecture docs need updating"
+    },
+    {
+      "id": "tc-004",
+      "name": "ClaraCore runtime containment",
+      "pair": ["claracore", "claracore runtime"],
+      "expected_similarity": {
+        "min": 0.75,
+        "max": 0.9
+      },
+      "expected_action": "strong_relate",
+      "expected_relationship": {
+        "type": "CONTAINS",
+        "strength_min": 0.7
+      },
+      "rationale": "'claracore runtime' is a component of 'claracore'",
+      "test_input": "ClaraCore runtime and claracore architecture docs need updating"
+    },
+    {
+      "id": "tc-005",
+      "name": "Browser tool specificity",
+      "pair": ["browser", "browser tool"],
+      "expected_similarity": {
+        "min": 0.85,
+        "max": 1.0
+      },
+      "expected_action": "merge_or_strong_relate",
+      "rationale": "'browser tool' is the specific tool name for 'browser'",
+      "test_input": "The browser tool and browser automation are different things"
+    },
+    {
+      "id": "tc-006",
+      "name": "Subagent terminology",
+      "pair": ["subagents", "subagents tool"],
+      "expected_similarity": {
+        "min": 0.8,
+        "max": 0.95
+      },
+      "expected_action": "strong_relate",
+      "rationale": "'subagents tool' is the tool form of the 'subagents' concept",
+      "test_input": "Use the subagents tool for parallel processing"
+    },
+    {
+      "id": "tc-007",
+      "name": "Subagent spawning",
+      "pair": ["subagents", "sessions_spawn"],
+      "expected_similarity": {
+        "min": 0.55,
+        "max": 0.8
+      },
+      "expected_action": "relate",
+      "expected_relationship": {
+        "type": "RELATED",
+        "strength_min": 0.4
+      },
+      "rationale": "'sessions_spawn' is the function that creates subagents - functionally related",
+      "test_input": "How do I use subagent spawning?"
+    },
+    {
+      "id": "tc-008",
+      "name": "KV store abbreviations",
+      "pair": ["kv", "kv store"],
+      "expected_similarity": {
+        "min": 0.9,
+        "max": 1.0
+      },
+      "expected_action": "merge",
+      "rationale": "'kv' is just an abbreviation of 'kv store' - should merge",
+      "test_input": "The KV store in OpenClaw uses the kv namespace for clarity"
+    },
+    {
+      "id": "tc-009",
+      "name": "KV store full form",
+      "pair": ["kv_store", "key_value_store"],
+      "expected_similarity": {
+        "min": 0.95,
+        "max": 1.0
+      },
+      "expected_action": "merge",
+      "rationale": "'key_value_store' is the full form of 'kv_store' - identical meaning",
+      "test_input": "Check the key-value store configuration"
+    },
+    {
+      "id": "tc-010",
+      "name": "KV persistence equivalence",
+      "pair": ["kv_persistence", "kv_storage"],
+      "expected_similarity": {
+        "min": 0.85,
+        "max": 0.98
+      },
+      "expected_action": "strong_relate_or_merge",
+      "rationale": "'persistence' and 'storage' are functionally equivalent in this context",
+      "test_input": "KV persistence and kv storage should behave the same"
+    },
+    {
+      "id": "tc-011",
+      "name": "Sonnet version specificity",
+      "pair": ["sonnet", "sonnet-4.5"],
+      "expected_similarity": {
+        "min": 0.7,
+        "max": 0.9
+      },
+      "expected_action": "relate",
+      "expected_relationship": {
+        "type": "RELATED",
+        "strength_min": 0.5
+      },
+      "rationale": "'sonnet-4.5' is a specific version of 'sonnet' family - RELATED not CONTAINS",
+      "test_input": "Is there a difference between sonnet and sonnet-4.5?"
+    },
+    {
+      "id": "tc-012",
+      "name": "Model router compound",
+      "pair": ["model_router", "model-router"],
+      "expected_similarity": {
+        "min": 1.0,
+        "max": 1.0
+      },
+      "expected_action": "merge",
+      "rationale": "Same term, different delimiter - should be identical after normalization",
+      "test_input": "The model-router should route to kimi-coding for code tasks"
+    },
+    {
+      "id": "tc-013",
+      "name": "Entity extraction topic",
+      "pair": ["entity_extraction", "extraction"],
+      "expected_similarity": {
+        "min": 0.75,
+        "max": 0.9
+      },
+      "expected_action": "strong_relate",
+      "expected_relationship": {
+        "type": "RELATED",
+        "strength_min": 0.5
+      },
+      "rationale": "'entity_extraction' is a specific type of 'extraction' - topic relationship",
+      "test_input": "The clarity plugin uses subagents for entity extraction in OpenClaw"
+    },
+    {
+      "id": "tc-014",
+      "name": "File reference variants",
+      "pair": ["SOUL.md", "soul configuration"],
+      "expected_similarity": {
+        "min": 0.6,
+        "max": 0.85
+      },
+      "expected_action": "relate",
+      "rationale": "SOUL.md contains soul configuration - RELATED via content association",
+      "test_input": "Read SOUL.md and the soul configuration file"
+    },
+    {
+      "id": "tc-015",
+      "name": "Architecture docs",
+      "pair": ["docs/architecture.md", "architecture documentation"],
+      "expected_similarity": {
+        "min": 0.75,
+        "max": 0.95
+      },
+      "expected_action": "strong_relate",
+      "rationale": "The file IS the documentation - very strong relationship",
+      "test_input": "Check docs/architecture.md and the architecture documentation"
+    },
+    {
+      "id": "tc-016",
+      "name": "Different concepts - should not match",
+      "pair": ["browser", "subagents"],
+      "expected_similarity": {
+        "min": 0.0,
+        "max": 0.4
+      },
+      "expected_action": "ignore",
+      "rationale": "Different tools - no semantic similarity expected",
+      "test_input": "The browser tool and subagents tool are both useful"
+    },
+    {
+      "id": "tc-017",
+      "name": "Different concepts - projects vs tools",
+      "pair": ["claracore", "subagents"],
+      "expected_similarity": {
+        "min": 0.1,
+        "max": 0.45
+      },
+      "expected_action": "relate_weak_or_ignore",
+      "expected_relationship": {
+        "type": "RELATED",
+        "strength_min": 0.2
+      },
+      "rationale": "Project may use tool - weak co-occurrence relationship possible",
+      "test_input": "ClaraCore uses subagents for parallel processing"
+    },
+    {
+      "id": "tc-018",
+      "name": "Plugin and tool relationship",
+      "pair": ["clarity", "subagents"],
+      "expected_similarity": {
+        "min": 0.2,
+        "max": 0.5
+      },
+      "expected_action": "relate_via_usage",
+      "expected_relationship": {
+        "type": "USES",
+        "strength_min": 0.6
+      },
+      "rationale": "Plugin USES tool - relationship from co-occurrence, not semantic similarity",
+      "test_input": "The clarity plugin uses subagents for entity extraction"
+    },
+    {
+      "id": "tc-019",
+      "name": "Awareness and memory",
+      "pair": ["awareness", "memory"],
+      "expected_similarity": {
+        "min": 0.5,
+        "max": 0.8
+      },
+      "expected_action": "relate",
+      "expected_relationship": {
+        "type": "RELATED",
+        "strength_min": 0.4
+      },
+      "rationale": "Conceptually related - awareness deals with memory/context",
+      "test_input": "The awareness plugin helps with memory and context tracking"
+    },
+    {
+      "id": "tc-020",
+      "name": "Continuity and sessions",
+      "pair": ["continuity", "sessions"],
+      "expected_similarity": {
+        "min": 0.4,
+        "max": 0.7
+      },
+      "expected_action": "relate",
+      "expected_relationship": {
+        "type": "RELATED",
+        "strength_min": 0.3
+      },
+      "rationale": "Continuity manages sessions - functional relationship",
+      "test_input": "Continuity ensures session persistence across restarts"
+    }
+  ],
+  "benchmarks": {
+    "performance": {
+      "extraction_time_1000_lines_ms": {
+        "target": 50,
+        "max_acceptable": 100
+      },
+      "semantic_similarity_100_pairs_ms": {
+        "target": 10,
+        "max_acceptable": 50
+      },
+      "typical_message_processing_ms": {
+        "target": 50,
+        "max_acceptable": 100
+      },
+      "memory_usage_per_1000_entities_mb": {
+        "target": 10,
+        "max_acceptable": 50
+      }
+    },
+    "accuracy": {
+      "precision_at_k_5": {
+        "target": 0.85,
+        "min_acceptable": 0.7
+      },
+      "recall_at_k_10": {
+        "target": 0.8,
+        "min_acceptable": 0.65
+      },
+      "false_positive_rate": {
+        "target": 0.05,
+        "max_acceptable": 0.15
+      }
+    }
+  },
+  "output_format_expectations": {
+    "rich_output": {
+      "max_entities_displayed": 8,
+      "related_concepts_per_entity": {
+        "min": 2,
+        "max": 3
+      },
+      "contextual_phrases_per_entity": {
+        "min": 1,
+        "max": 3
+      }
+    },
+    "relationship_grouping": {
+      "groups": ["USES", "CONTAINS", "RELATED", "DEPENDS_ON", "IMPLEMENTS"],
+      "min_groups_shown": 2,
+      "max_relationships_per_group": 5
+    }
+  }
+}

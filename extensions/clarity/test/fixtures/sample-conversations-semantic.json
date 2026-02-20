@@ -1,0 +1,323 @@
+{
+  "description": "Sample conversations with near-duplicate terms for semantic similarity testing",
+  "conversations": [
+    {
+      "id": "semantic-1",
+      "name": "Clarity plugin variations",
+      "description": "Tests that 'clarity' and 'clarity plugin' are detected as similar",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "The clarity plugin uses subagents for entity extraction in OpenClaw",
+          "agent": "I'll analyze how clarity uses subagents for extraction in the OpenClaw system."
+        },
+        {
+          "turn": 2,
+          "user": "Does the clarity extension support the new v2 API?",
+          "agent": "Yes, the clarity extension fully supports v2 with enhanced entity tracking."
+        },
+        {
+          "turn": 3,
+          "user": "The OpenClaw gateway needs better clarity integration.",
+          "agent": "We can improve the OpenClaw gateway integration with clarity's features."
+        }
+      ],
+      "expected_entities": [
+        "clarity",
+        "clarity_plugin",
+        "subagents",
+        "entity_extraction",
+        "openclaw",
+        "openclaw_gateway",
+        "v2_api"
+      ],
+      "expected_relationships": [
+        {
+          "source": "clarity",
+          "target": "subagents",
+          "type": "USES"
+        },
+        {
+          "source": "clarity",
+          "target": "openclaw",
+          "type": "RELATED"
+        },
+        {
+          "source": "openclaw",
+          "target": "openclaw_gateway",
+          "type": "CONTAINS"
+        }
+      ]
+    },
+    {
+      "id": "semantic-2",
+      "name": "ClaraCore architecture variants",
+      "description": "Tests that 'claracore' and 'claracore architecture' are merged or strongly related",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "ClaraCore runtime and claracore architecture docs need updating.",
+          "agent": "I'll review the ClaraCore runtime and architecture documentation."
+        },
+        {
+          "turn": 2,
+          "user": "The claracore design patterns are documented in the architecture guide.",
+          "agent": "The architecture guide covers all claracore design patterns comprehensively."
+        }
+      ],
+      "expected_entities": [
+        "claracore",
+        "claracore_runtime",
+        "claracore_architecture",
+        "claracore_design"
+      ],
+      "expected_relationships": [
+        {
+          "source": "claracore",
+          "target": "claracore_architecture",
+          "type": "CONTAINS",
+          "strength": ">=0.7"
+        },
+        {
+          "source": "claracore",
+          "target": "claracore_runtime",
+          "type": "CONTAINS",
+          "strength": ">=0.7"
+        }
+      ]
+    },
+    {
+      "id": "semantic-3",
+      "name": "Tool and plugin variations",
+      "description": "Tests variations of tool and plugin names",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "The browser tool and browser automation are different things.",
+          "agent": "Correct, the browser tool is for control while browser automation refers to the concept."
+        },
+        {
+          "turn": 2,
+          "user": "Use the subagents tool for parallel processing.",
+          "agent": "The subagents tool allows spawning parallel tasks efficiently."
+        },
+        {
+          "turn": 3,
+          "user": "How do I use subagent spawning?",
+          "agent": "Subagent spawning is done via the sessions_spawn tool."
+        }
+      ],
+      "expected_entities": [
+        "browser",
+        "browser_tool",
+        "browser_automation",
+        "subagents",
+        "subagents_tool",
+        "sessions_spawn"
+      ],
+      "expected_similarities": [
+        {
+          "pair": ["browser", "browser_tool"],
+          "score": ">=0.8",
+          "action": "merge_or_strong_relate"
+        },
+        {
+          "pair": ["subagents", "subagents_tool"],
+          "score": ">=0.85",
+          "action": "merge_or_strong_relate"
+        },
+        {
+          "pair": ["subagents", "sessions_spawn"],
+          "score": ">=0.6",
+          "action": "relate"
+        }
+      ]
+    },
+    {
+      "id": "semantic-4",
+      "name": "Compound terms and abbreviations",
+      "description": "Tests that compound terms and abbreviations are linked",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "The KV store in OpenClaw uses the kv namespace for clarity.",
+          "agent": "The kv store and its namespace system are core to OpenClaw's clarity integration."
+        },
+        {
+          "turn": 2,
+          "user": "KV persistence and kv storage should behave the same.",
+          "agent": "KV persistence and storage are indeed the same feature."
+        },
+        {
+          "turn": 3,
+          "user": "Check the key-value store configuration.",
+          "agent": "The key-value store config is in openclaw.json."
+        }
+      ],
+      "expected_entities": [
+        "kv",
+        "kv_store",
+        "key_value",
+        "key_value_store",
+        "kv_namespace",
+        "kv_persistence",
+        "kv_storage"
+      ],
+      "expected_similarities": [
+        {
+          "pair": ["kv", "kv_store"],
+          "score": ">=0.9",
+          "action": "merge"
+        },
+        {
+          "pair": ["kv_store", "key_value_store"],
+          "score": ">=0.95",
+          "action": "merge"
+        },
+        {
+          "pair": ["kv_persistence", "kv_storage"],
+          "score": ">=0.9",
+          "action": "merge"
+        }
+      ]
+    },
+    {
+      "id": "semantic-5",
+      "name": "File path variations",
+      "description": "Tests file path normalization and similarity",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "Read SOUL.md and the soul configuration file.",
+          "agent": "SOUL.md contains the soul configuration for the project."
+        },
+        {
+          "turn": 2,
+          "user": "Check docs/architecture.md and the architecture documentation.",
+          "agent": "The architecture docs are in docs/architecture.md."
+        },
+        {
+          "turn": 3,
+          "user": "AGENTS.md and USER.md have project guidelines.",
+          "agent": "Both AGENTS.md and USER.md contain important project information."
+        }
+      ],
+      "expected_entities": ["soul_md", "agents_md", "user_md", "docs_architecture_md"],
+      "expected_similarities": [
+        {
+          "pair": ["SOUL.md", "soul configuration"],
+          "score": ">=0.7",
+          "action": "relate"
+        },
+        {
+          "pair": ["docs/architecture.md", "architecture documentation"],
+          "score": ">=0.8",
+          "action": "relate"
+        }
+      ]
+    },
+    {
+      "id": "semantic-6",
+      "name": "Model and API variations",
+      "description": "Tests AI model name variations and similarities",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "The model-router should route to kimi-coding for code tasks.",
+          "agent": "Kimi-coding is optimal for coding via the model-router."
+        },
+        {
+          "turn": 2,
+          "user": "Use sonnet-4.5 for reasoning tasks.",
+          "agent": "Sonnet 4.5 excels at reasoning according to the model guidelines."
+        },
+        {
+          "turn": 3,
+          "user": "Is there a difference between sonnet and sonnet-4.5?",
+          "agent": "Sonnet-4.5 is the specific version; sonnet may refer to the family."
+        }
+      ],
+      "expected_entities": ["model_router", "kimi_coding", "sonnet_4_5", "sonnet"],
+      "expected_similarities": [
+        {
+          "pair": ["sonnet", "sonnet-4.5"],
+          "score": ">=0.75",
+          "action": "strong_relate"
+        }
+      ]
+    },
+    {
+      "id": "semantic-7",
+      "name": "Rich output format test",
+      "description": "Tests that rich output shows 2-3 related concepts per entity",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "The clarity plugin uses subagents and integrates with the browser tool for testing.",
+          "agent": "Clarity with subagents and browser integration creates a powerful testing setup."
+        },
+        {
+          "turn": 2,
+          "user": "Subagents can spawn parallel tasks and use sessions for isolation.",
+          "agent": "Sessions provide isolation for subagent tasks in the testing framework."
+        },
+        {
+          "turn": 3,
+          "user": "The browser tool supports screenshot and navigation actions.",
+          "agent": "Browser actions include screenshots and navigation via the tool."
+        }
+      ],
+      "expected_output_checks": [
+        {
+          "check": "rich_format_has_related_concepts",
+          "min_related": 2,
+          "max_related": 3
+        },
+        {
+          "check": "contextual_phrase_generation",
+          "entities": ["clarity", "subagents", "browser"]
+        },
+        {
+          "check": "relationship_grouping",
+          "groups": ["USES", "CONTAINS", "RELATED"]
+        }
+      ]
+    },
+    {
+      "id": "semantic-8",
+      "name": "Contextual phrase generation",
+      "description": "Tests that contextual phrases are generated from surrounding text",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "The awareness plugin helps with memory and context tracking in conversations.",
+          "agent": "Awareness tracks memory and maintains conversation context automatically."
+        },
+        {
+          "turn": 2,
+          "user": "Continuity ensures session persistence across restarts.",
+          "agent": "Session persistence is continuity's main feature for handling restarts."
+        },
+        {
+          "turn": 3,
+          "user": "Reflect helps with knowledge management and error pattern recognition.",
+          "agent": "Knowledge management through reflect includes error pattern detection."
+        }
+      ],
+      "expected_contextual_phrases": [
+        {
+          "entity": "awareness",
+          "phrases": ["helps with memory", "context tracking"]
+        },
+        {
+          "entity": "continuity",
+          "phrases": ["session persistence", "across restarts"]
+        },
+        {
+          "entity": "reflect",
+          "phrases": ["knowledge management", "error pattern"]
+        }
+      ]
+    }
+  ]
+}

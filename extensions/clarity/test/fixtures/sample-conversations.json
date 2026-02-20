@@ -1,0 +1,191 @@
+{
+  "description": "Sample conversations for Clarity v2 testing",
+  "conversations": [
+    {
+      "id": "conv-1",
+      "name": "ClaraCore refactoring discussion",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "I need to work on the ClaraCore refactoring. The entity extraction is too basic right now.",
+          "agent": "I'll help you refactor ClaraCore. Let me first check the current structure and see what improvements we can make to entity extraction."
+        },
+        {
+          "turn": 2,
+          "user": "Specifically, I want to use the subagents tool to break this into parallel tasks. The sessions_spawn function should help.",
+          "agent": "Great approach. Using subagents with sessions_spawn will let us parallelize the refactoring work. Let me also check SOUL.md for the project context."
+        },
+        {
+          "turn": 3,
+          "user": "Good idea. Also read the docs/architecture.md file to understand the current design.",
+          "agent": "I'll read the architecture docs and SOUL.md to get the full picture before we start the refactoring."
+        },
+        {
+          "turn": 4,
+          "user": "The focus-engine project might have some patterns we can borrow for this.",
+          "agent": "focus-engine does have excellent patterns for modular design. Let me compare its approach with ClaraCore's current structure."
+        },
+        {
+          "turn": 5,
+          "user": "Let's also check if the clarity plugin is extracting these mentions properly.",
+          "agent": "I'll monitor how the clarity plugin tracks these mentions across our conversation about ClaraCore and focus-engine refactoring."
+        }
+      ]
+    },
+    {
+      "id": "conv-2",
+      "name": "OpenClaw extension development",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "I want to create a new plugin for OpenClaw that handles memory search better.",
+          "agent": "Creating a new OpenClaw plugin for memory search sounds useful. Are you planning to extend the existing memory plugin or create something new?"
+        },
+        {
+          "turn": 2,
+          "user": "It should integrate with the awareness plugin and use the recall tool.",
+          "agent": "Integration with awareness and the recall tool makes sense. The continuity plugin might also be relevant for session management."
+        },
+        {
+          "turn": 3,
+          "user": "Check the USER.md file to see if there's any guidance on plugin development.",
+          "agent": "I'll check USER.md and also look at the existing plugin structure in ~/.openclaw/extensions/ for patterns."
+        },
+        {
+          "turn": 4,
+          "user": "The guide plugin and reflect plugin have good examples of tool usage.",
+          "agent": "guide and reflect are excellent references. They demonstrate proper tool integration and handler patterns."
+        },
+        {
+          "turn": 5,
+          "user": "I also want to add web_search capabilities to fetch documentation.",
+          "agent": "Adding web_search will help fetch up-to-date documentation. Consider also adding web_fetch for specific pages."
+        }
+      ]
+    },
+    {
+      "id": "conv-3",
+      "name": "Memory system debugging",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "The memory plugin isn't persisting data correctly. Let me check memory/active-context.md.",
+          "agent": "Let me investigate the memory persistence issue. I'll start by reading memory/active-context.md and checking the plugin configuration."
+        },
+        {
+          "turn": 2,
+          "user": "Use the nodes tool to check if the paired devices are responding.",
+          "agent": "Good thinking. I'll use nodes to check device connectivity and see if that's affecting memory sync."
+        },
+        {
+          "turn": 3,
+          "user": "Also check the recover plugin - it might have some error recovery patterns we need.",
+          "agent": "The recover plugin does have robust error handling. Let me examine its approach for persistence failures."
+        },
+        {
+          "turn": 4,
+          "user": "Run a test with exec to verify the file system permissions.",
+          "agent": "I'll run an exec command to check file permissions in the memory directory and verify write access."
+        },
+        {
+          "turn": 5,
+          "user": "Let's document this in docs/memory-architecture.md for future reference.",
+          "agent": "Documenting in docs/memory-architecture.md is smart. I'll capture the debugging steps and solutions we find."
+        }
+      ]
+    },
+    {
+      "id": "conv-4",
+      "name": "Model routing discussion",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "The model-router plugin needs to handle kimi-coding vs sonnet-4.5 better.",
+          "agent": "The model-router should definitely distinguish between kimi-coding and sonnet-4.5 capabilities. What specific routing logic needs improvement?"
+        },
+        {
+          "turn": 2,
+          "user": "When I use sessions_spawn, it should pick the right model based on task complexity.",
+          "agent": "That makes sense. sessions_spawn calls should route to different models based on whether the task needs kimi-coding's speed or sonnet-4.5's reasoning."
+        },
+        {
+          "turn": 3,
+          "user": "Check the AGENTS.md file for the model selection guidelines.",
+          "agent": "I'll check AGENTS.md for model selection guidelines. The docs/model-selection.md might also have relevant criteria."
+        },
+        {
+          "turn": 4,
+          "user": "The orchestrator plugin might need updates too for multi-step reasoning.",
+          "agent": "Good point. The orchestrator plugin coordinates complex workflows and needs to match model capabilities to sub-task requirements."
+        },
+        {
+          "turn": 5,
+          "user": "Let's also ensure the sight plugin can handle the visual outputs from different models.",
+          "agent": "The sight plugin's canvas integration should handle visual outputs consistently regardless of which model generates them."
+        }
+      ]
+    },
+    {
+      "id": "conv-5",
+      "name": "Documentation and testing workflow",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "I need to write tests for the continuity plugin's session management.",
+          "agent": "Testing continuity's session management is important. What specific behaviors do you want to verify?"
+        },
+        {
+          "turn": 2,
+          "user": "Use the browser tool to check how sessions are displayed in the web UI.",
+          "agent": "I'll use the browser tool to inspect the session display in the web UI and verify continuity's behavior."
+        },
+        {
+          "turn": 3,
+          "user": "Also test the message tool integration for notifications.",
+          "agent": "The message tool integration is crucial for continuity notifications. Let me test that flow as well."
+        },
+        {
+          "turn": 4,
+          "user": "Document the findings in memory/testing-notes.md.",
+          "agent": "I'll document our testing approach and findings in memory/testing-notes.md for future reference."
+        },
+        {
+          "turn": 5,
+          "user": "Update the README.md in the continuity plugin directory too.",
+          "agent": "Updating continuity's README.md with the test documentation will help other developers understand the expected behavior."
+        }
+      ]
+    },
+    {
+      "id": "conv-6",
+      "name": "Generic noise conversation (should extract minimal entities)",
+      "turns": [
+        {
+          "turn": 1,
+          "user": "Hi, how are you doing today? I wanted to ask about something.",
+          "agent": "I'm doing well, thank you for asking! What would you like to know?"
+        },
+        {
+          "turn": 2,
+          "user": "It's about the session and context of our conversation. The model seems to be working well.",
+          "agent": "I appreciate the feedback. The conversation flow does seem smooth with good context handling."
+        },
+        {
+          "turn": 3,
+          "user": "Yes, the text processing and message exchange is quite efficient.",
+          "agent": "Efficient communication is important. Is there anything specific you'd like to focus on?"
+        },
+        {
+          "turn": 4,
+          "user": "Just wanted to mention that the tool is functioning as expected.",
+          "agent": "Glad to hear everything is working as expected. Let me know if you need assistance with anything specific."
+        },
+        {
+          "turn": 5,
+          "user": "Thanks, that's all for now. Goodbye!",
+          "agent": "You're welcome! Feel free to return anytime you need help."
+        }
+      ]
+    }
+  ]
+}

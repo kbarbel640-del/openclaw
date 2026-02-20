@@ -76,6 +76,12 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     pendingMessagingTargets: new Map(),
     successfulCronAdds: 0,
     pendingMessagingMediaUrls: new Map(),
+    // Intelligent delivery strategy
+    deliveryStrategy: params.deliveryStrategy,
+    taskCharacteristics: params.taskCharacteristics,
+    userEngagement: params.userEngagement,
+    deliveryStartTime: Date.now(),
+    toolCallsCompleted: 0,
   };
   const usageTotals = {
     input: 0,

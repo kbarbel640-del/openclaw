@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import os from "node:os";
+import path from "node:path";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
@@ -31,6 +32,10 @@ import {
   resolveChannelMessageToolHints,
 } from "../../channel-tools.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
+import { DeliveryTelemetry } from "../../delivery-telemetry.js";
+import { analyzeTask } from "../../task-analyzer.js";
+import { EngagementMonitor } from "../../engagement-monitor.js";
+import { selectDeliveryStrategy } from "../../delivery-strategy.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
 import { resolveImageSanitizationLimits } from "../../image-sanitization.js";
@@ -754,6 +759,56 @@ export async function runEmbeddedAttempt(
         });
       };
 
+      // ═══════════════════════════════════════════════════════════════════════
+      // INTELLIGENT MESSAGE DELIVERY - Strategy Selection & Telemetry
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      // Create engagement monitor (tracks user activity state)
+      const engagementMonitor = new EngagementMonitor();
+      engagementMonitor.recordUserMessage();  // Mark user as actively engaged
+      
+      // Analyze task characteristics from recent message history
+      const recentMessages = activeSession.messages.slice(-5);
+      const lastUserMessage = recentMessages
+        .toReversed()
+        .find((m: AgentMessage) => m.role === "user");
+      
+      const taskCharacteristics = analyzeTask({
+        toolCalls: [],  // TODO: Extract from previous turns for better prediction
+        messageText: (lastUserMessage?.content?.[0] as { text?: string })?.text || ""
+      });
+      
+      // Get current engagement state
+      const userEngagement = engagementMonitor.getEngagement();
+      
+      // Select delivery strategy based on task + engagement
+      const deliveryConfig = (params.config?.agents?.defaults as any)?.deliveryStrategy;
+      const strategyDecision = selectDeliveryStrategy(
+        taskCharacteristics,
+        userEngagement,
+        deliveryConfig
+      );
+      
+      // Initialize telemetry for learning
+      const telemetry = new DeliveryTelemetry(
+        path.join(resolveOpenClawAgentDir(), "..", "..", "data")
+      );
+      
+      // Log strategy decision
+      log.info(
+        `[Delivery] Strategy: ${strategyDecision.strategy} ` +
+        `(${strategyDecision.reason}, confidence: ${strategyDecision.confidence}) ` +
+        `[task: ${taskCharacteristics.estimatedDuration}/${taskCharacteristics.complexity}, ` +
+        `engaged: ${userEngagement.isActiveConversation}]`
+      );
+      
+      // Track start time for telemetry
+      const deliveryStartTime = Date.now();
+      let toolCallsExecuted = 0;
+      let messagesSentCount = 0;
+      let strategyEscalated = false;
+      let escalatedTo: typeof strategyDecision.strategy | undefined;
+
       const subscription = subscribeEmbeddedPiSession({
         session: activeSession,
         runId: params.runId,
@@ -776,6 +831,10 @@ export async function runEmbeddedAttempt(
         enforceFinalTag: params.enforceFinalTag,
         config: params.config,
         sessionKey: params.sessionKey ?? params.sessionId,
+        // Intelligent delivery strategy
+        deliveryStrategy: strategyDecision.strategy,
+        taskCharacteristics,
+        userEngagement,
       });
 
       const {
@@ -1232,6 +1291,41 @@ export async function runEmbeddedAttempt(
             log.warn(`llm_output hook failed: ${String(err)}`);
           });
       }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // INTELLIGENT DELIVERY - Record Telemetry
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      const deliveryEndTime = Date.now();
+      const actualDurationMs = deliveryEndTime - deliveryStartTime;
+      
+      // Record delivery event for learning
+      void telemetry.recordEvent({
+        timestamp: deliveryStartTime,
+        sessionKey: params.sessionKey || params.sessionId,
+        
+        // Strategy decision
+        strategy: strategyDecision.strategy,
+        taskDuration: taskCharacteristics.estimatedDuration,
+        taskComplexity: taskCharacteristics.complexity,
+        taskWorkType: taskCharacteristics.workType,
+        userEngaged: userEngagement.isActiveConversation,
+        userWaiting: userEngagement.waitingForResponse,
+        
+        // Execution metrics
+        actualDurationMs,
+        toolCallsExecuted: toolMetas.length,
+        messagessentCount: assistantTexts.length,
+        strategyEscalated,
+        escalatedTo,
+        
+        // Outcome
+        taskCompleted: !aborted && !timedOut,
+        hadErrors: !!getLastToolError?.(),
+        strategyEffective: null,  // Will be determined by follow-up analysis
+      }).catch((err) => {
+        log.debug(`Failed to record delivery telemetry: ${String(err)}`);
+      });
 
       return {
         aborted,

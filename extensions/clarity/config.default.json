@@ -1,0 +1,30 @@
+{
+  "enabled": true,
+  "strictMode": false,
+  "scoring": {
+    "halfLife": 5,
+    "recencyWindow": 3,
+    "recencyBonus": 20,
+    "referenceWeight": 15,
+    "frequencyScale": 10,
+    "anchorBonus": 100
+  },
+  "pruning": {
+    "pruneThreshold": 8,
+    "strictModePreserveThreshold": 25,
+    "maxItemsPerCategory": 20,
+    "targetContextItems": 30,
+    "maxContextItems": 50,
+    "minMentionsPreserve": 3
+  },
+  "extraction": {
+    "minWordLength": 4,
+    "extractProjects": true,
+    "extractTools": true,
+    "extractMemoryFiles": true,
+    "customPatterns": []
+  },
+  "persistInterval": 10,
+  "semanticDeduplication": true,
+  "semanticMergeThreshold": 0.7
+}

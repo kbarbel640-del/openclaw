@@ -680,6 +680,7 @@ export const ToolsSchema = z
     subagents: z
       .object({
         tools: ToolPolicySchema,
+        allowSessionHistoryAccess: z.boolean().optional(),
       })
       .strict()
       .optional(),

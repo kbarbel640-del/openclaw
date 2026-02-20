@@ -1,0 +1,838 @@
+/**
+ * Clarity v2 — Entity-Based Context Extraction
+ * 
+ * Implements the v2 design from docs/clarity-v2-design.md:
+ * - Entity extraction with type classification
+ * - Relationship tracking between entities
+ * - TF-IDF-like scoring with tunable weights
+ * - Composite term detection
+ * 
+ * @version 2.0.0
+ */
+
+'use strict';
+
+// ============================================================================
+// Entity Types
+// ============================================================================
+
+const EntityType = {
+  PROJECT: 'project',
+  PLUGIN: 'plugin',
+  TOOL: 'tool',
+  FILE: 'file',
+  PERSON: 'person',
+  TOPIC: 'topic',
+  DECISION: 'decision'
+};
+
+const RelType = {
+  CONTAINS: 'contains',
+  USES: 'uses',
+  RELATED: 'related',
+  DEPENDS_ON: 'depends_on',
+  IMPLEMENTS: 'implements'
+};
+
+// ============================================================================
+// Stop Words & System Terms
+// ============================================================================
+
+const SYSTEM_HYPHENATED = new Set([
+  'high-level', 'well-known', 'pre-flight', 'so-called', 'state-of-the-art',
+  'end-to-end', 'up-to-date', 'built-in', 'out-of-the-box', 'long-term',
+  'short-term', 'real-time', 'full-time', 'part-time'
+]);
+
+const CLARITY_STOP_WORDS = new Set([
+  // Linguistic
+  'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and',
+  'any', 'are', 'as', 'at', 'be', 'because', 'been', 'before', 'being',
+  'below', 'between', 'both', 'but', 'by', 'could', 'did', 'do', 'does',
+  'doing', 'down', 'during', 'each', 'few', 'for', 'from', 'further',
+  'had', 'has', 'have', 'having', 'he', 'her', 'here', 'hers', 'herself',
+  'him', 'himself', 'his', 'how', 'i', 'if', 'in', 'into', 'is', 'it',
+  'its', 'itself', 'let', 'me', 'more', 'most', 'my', 'myself', 'nor',
+  'of', 'on', 'once', 'only', 'or', 'other', 'ought', 'our', 'ours',
+  'ourselves', 'out', 'over', 'own', 'same', 'she', 'should', 'so',
+  'some', 'such', 'than', 'that', 'the', 'their', 'theirs', 'them',
+  'themselves', 'then', 'there', 'these', 'they', 'this', 'those',
+  'through', 'to', 'too', 'under', 'until', 'up', 'very', 'was', 'we',
+  'were', 'what', 'when', 'where', 'which', 'while', 'who', 'whom',
+  'why', 'with', 'would', 'you', 'your', 'yours', 'yourself',
+  'yourselves',
+  // System/OpenClaw
+  'session', 'model', 'mention', 'context', 'plugin', 'agent', 'tool',
+  'message', 'text', 'content', 'function', 'response', 'request',
+  'exchange', 'turn', 'conversation', 'user', 'assistant', 'claw',
+  'openclaw', 'gateway', 'handler', 'hook', 'event', 'trigger',
+  'token', 'prompt', 'completion', 'inference', 'output', 'input',
+  'parameter', 'setting', 'configuration', 'config', 'option',
+  'default', 'enabled', 'disabled', 'keyword', 'track', 'extract',
+  'score', 'count', 'frequency', 'recency', 'relevance', 'priority',
+  // Technical
+  'true', 'false', 'null', 'undefined', 'string', 'number', 'array',
+  'object', 'value', 'return', 'error', 'result', 'data', 'name',
+  'type', 'key', 'index', 'length', 'module', 'exports', 'require'
+]);
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+const DEFAULT_CONFIG = {
+  // Scoring weights (0-100 scale)
+  weights: {
+    tf: 15,           // Term frequency (0-30 range)
+    idf: 25,          // Inverse document frequency (0-50 range)
+    recency: 30,      // Recency bonus (0-30 range)
+    relationship: 10, // Relationship boost (0-10 range)
+  },
+  anchorBonus: 5,     // Small consistent anchor bonus (was 100 in v1)
+  
+  // Thresholds
+  thresholds: {
+    display: 20,      // Minimum to show in [CLARITY CONTEXT]
+    highRelevance: 40,// Mark with ●
+    mediumRelevance: 25, // Mark with ○
+    track: 10,        // Minimum to track at all
+  },
+  
+  // Extraction
+  extraction: {
+    minWordLength: 3,
+    maxKeywordsPerMessage: 8,
+    extractProjects: true,
+    extractPlugins: true,
+    extractTools: true,
+    extractFiles: true,
+  },
+  
+  // Relationships
+  relationships: {
+    cooccurrenceWindow: 3, // Turns to consider for co-occurrence
+    minCooccurrenceStrength: 0.3,
+  }
+};
+
+// ============================================================================
+// Entity Extractor
+// ============================================================================
+
+class EntityExtractor {
+  constructor(config = {}) {
+    this.config = { ...DEFAULT_CONFIG.extraction, ...config };
+    this.knownPlugins = new Set(['clarity', 'awareness', 'continuity', 'recover', 'reflect', 'guide', 'sight']);
+  }
+
+  /**
+   * Set known plugins from the extensions directory
+   */
+  setKnownPlugins(plugins) {
+    this.knownPlugins = new Set(plugins.map(p => p.toLowerCase()));
+  }
+
+  /**
+   * Extract all entities from text
+   */
+  extract(text) {
+    const entities = [];
+    const seen = new Set();
+
+    // Extract by type
+    const extractors = [
+      this.extractProjects.bind(this),
+      this.extractPlugins.bind(this),
+      this.extractTools.bind(this),
+      this.extractFiles.bind(this),
+      this.extractTopics.bind(this),
+    ];
+
+    for (const extract of extractors) {
+      const found = extract(text);
+      for (const entity of found) {
+        const key = `${entity.type}:${entity.normalized}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          entities.push(entity);
+        }
+      }
+    }
+
+    // Extract composite terms
+    const composites = this.extractCompositeTerms(text, seen);
+    
+    return { entities, composites };
+  }
+
+  /**
+   * Extract project entities
+   */
+  extractProjects(text) {
+    const projects = [];
+    const seen = new Set();
+
+    // CamelCase: ClaraCore, OpenClaw, FocusEngine
+    const camelPattern = /\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b/g;
+    let match;
+    while ((match = camelPattern.exec(text)) !== null) {
+      const name = match[0];
+      const normalized = name.toLowerCase();
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        projects.push({
+          type: EntityType.PROJECT,
+          name,
+          normalized,
+          canonical: `project:${normalized}`
+        });
+      }
+    }
+
+    // Hyphenated (filtered): focus-engine, but not "high-level"
+    const hyphenPattern = /\b[a-z]+(?:-[a-z]+)+\b/g;
+    while ((match = hyphenPattern.exec(text)) !== null) {
+      const name = match[0];
+      if (!SYSTEM_HYPHENATED.has(name) && !seen.has(name)) {
+        seen.add(name);
+        const normalized = name.replace(/-/g, '_');
+        projects.push({
+          type: EntityType.PROJECT,
+          name: name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(''),
+          normalized,
+          canonical: `project:${normalized}`
+        });
+      }
+    }
+
+    // Lowercase with tech suffixes: claracore, openclaw
+    const suffixPattern = /\b[a-z]{3,}(?:core|claw|stack|engine|router|board)\b/gi;
+    while ((match = suffixPattern.exec(text)) !== null) {
+      const name = match[0].toLowerCase();
+      if (!seen.has(name)) {
+        seen.add(name);
+        projects.push({
+          type: EntityType.PROJECT,
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          normalized: name,
+          canonical: `project:${name}`
+        });
+      }
+    }
+
+    return projects;
+  }
+
+  /**
+   * Extract plugin entities
+   */
+  extractPlugins(text) {
+    const plugins = [];
+    const seen = new Set();
+
+    for (const plugin of this.knownPlugins) {
+      const pattern = new RegExp(`\\b${plugin}\\b`, 'gi');
+      if (pattern.test(text) && !seen.has(plugin)) {
+        seen.add(plugin);
+        plugins.push({
+          type: EntityType.PLUGIN,
+          name: plugin.charAt(0).toUpperCase() + plugin.slice(1),
+          normalized: plugin,
+          canonical: `plugin:${plugin}`
+        });
+      }
+    }
+
+    return plugins;
+  }
+
+  /**
+   * Extract tool entities
+   */
+  extractTools(text) {
+    const tools = [];
+    const seen = new Set();
+
+    const toolPatterns = [
+      /\b(sessions_spawn|subagents|memory_search|memory_get|recall|reflect|web_search|web_fetch)\b/g,
+      /\bread|write|edit|exec|browser|process|nodes|message|canvas|tts\b/g
+    ];
+
+    for (const pattern of toolPatterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const name = match[0].toLowerCase();
+        if (!seen.has(name)) {
+          seen.add(name);
+          tools.push({
+            type: EntityType.TOOL,
+            name: name,
+            normalized: name,
+            canonical: `tool:${name}`
+          });
+        }
+      }
+    }
+
+    return tools;
+  }
+
+  /**
+   * Extract file entities
+   */
+  extractFiles(text) {
+    const files = [];
+    const seen = new Set();
+
+    const filePatterns = [
+      { regex: /\bmemory\/[^\s]+\.md\b/gi, prefix: 'memory/' },
+      { regex: /\bdocs\/[^\s]+\.md\b/gi, prefix: 'docs/' },
+      { regex: /\b[A-Z_]+\.md\b/g, prefix: '' },
+      { regex: /\b[\w\/-]+\.json\b/g, prefix: '' }
+    ];
+
+    for (const { regex } of filePatterns) {
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        const name = match[0];
+        const normalized = name.toLowerCase().replace(/[\/\.]/g, '_');
+        if (!seen.has(normalized) && !name.includes('http')) {
+          seen.add(normalized);
+          files.push({
+            type: EntityType.FILE,
+            name,
+            normalized,
+            canonical: `file:${normalized}`
+          });
+        }
+      }
+    }
+
+    return files;
+  }
+
+  /**
+   * Extract topic entities (keywords that pass thresholds)
+   */
+  extractTopics(text) {
+    const topics = [];
+    const words = text.toLowerCase()
+      .split(/[^\w]+/)
+      .filter(w => 
+        w.length >= this.config.minWordLength &&
+        !CLARITY_STOP_WORDS.has(w) &&
+        !/^\d+$/.test(w)
+      );
+
+    // Frequency count
+    const freq = {};
+    for (const w of words) {
+      freq[w] = (freq[w] || 0) + 1;
+    }
+
+    // Only words appearing 2+ times
+    for (const [word, count] of Object.entries(freq)) {
+      if (count >= 2 && topics.length < this.config.maxKeywordsPerMessage) {
+        topics.push({
+          type: EntityType.TOPIC,
+          name: word,
+          normalized: word,
+          canonical: `topic:${word}`,
+          frequency: count
+        });
+      }
+    }
+
+    return topics;
+  }
+
+  /**
+   * Extract composite terms (bigrams/trigrams)
+   */
+  extractCompositeTerms(text, knownEntities) {
+    const tokens = text.toLowerCase()
+      .split(/\s+/)
+      .map(t => t.replace(/[^a-z0-9_]/g, ''))
+      .filter(t => t.length >= 3 && !CLARITY_STOP_WORDS.has(t));
+
+    const composites = [];
+
+    for (let i = 0; i < tokens.length - 1; i++) {
+      // Bigrams
+      const bigram = `${tokens[i]} ${tokens[i+1]}`;
+      if (this.isValidComposite(bigram, knownEntities)) {
+        composites.push(bigram);
+      }
+
+      // Trigrams
+      if (i < tokens.length - 2) {
+        const trigram = `${tokens[i]} ${tokens[i+1]} ${tokens[i+2]}`;
+        if (this.isValidComposite(trigram, knownEntities)) {
+          composites.push(trigram);
+        }
+      }
+    }
+
+    return [...new Set(composites)];
+  }
+
+  isValidComposite(term, knownEntities) {
+    const parts = term.split(' ');
+    return parts.length >= 2 && parts.every(p => p.length >= 3);
+  }
+}
+
+// ============================================================================
+// Entity Scorer
+// ============================================================================
+
+class EntityScorer {
+  constructor(config = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.documentFrequency = new Map();
+    this.totalDocuments = 0;
+  }
+
+  /**
+   * Update document frequency for IDF calculation
+   */
+  updateDocumentFrequency(entities) {
+    this.totalDocuments++;
+    for (const entity of entities) {
+      const key = entity.canonical || entity.id;
+      this.documentFrequency.set(
+        key, 
+        (this.documentFrequency.get(key) || 0) + 1
+      );
+    }
+  }
+
+  /**
+   * Calculate full entity score
+   */
+  scoreEntity(entity, currentTurn, totalTurns) {
+    const tf = this.computeTF(entity);
+    const idf = this.computeIDF(entity.canonical || entity.id);
+    const recency = this.computeRecency(entity.lastMentionTurn || currentTurn, currentTurn);
+    const anchorBonus = entity.isAnchor ? this.config.anchorBonus : 0;
+    const relationshipBoost = this.computeRelationshipBoost(entity);
+
+    const score = 
+      (tf * this.config.weights.tf) +
+      (idf * this.config.weights.idf) +
+      (recency * this.config.weights.recency) +
+      anchorBonus +
+      (relationshipBoost * this.config.weights.relationship);
+
+    return {
+      score: Math.min(score, 100),
+      components: {
+        tf: Math.round(tf * 100) / 100,
+        idf: Math.round(idf * 100) / 100,
+        recency: Math.round(recency * 100) / 100,
+        anchor: anchorBonus,
+        relationship: Math.round(relationshipBoost * 100) / 100
+      }
+    };
+  }
+
+  computeTF(entity) {
+    const history = entity.mentionHistory || [];
+    const recentMentions = history.filter(t => 
+      (entity.currentTurn || 10) - t <= 10
+    ).length;
+    return Math.log(1 + recentMentions);
+  }
+
+  computeIDF(canonicalId) {
+    if (this.totalDocuments === 0) return 1;
+    const docFreq = this.documentFrequency.get(canonicalId) || 1;
+    return Math.log(this.totalDocuments / docFreq);
+  }
+
+  computeRecency(lastMention, currentTurn) {
+    const turnsAgo = currentTurn - lastMention;
+    const halfLife = 5;
+    return Math.exp(-turnsAgo / halfLife);
+  }
+
+  computeRelationshipBoost(entity) {
+    if (!entity.relationships || entity.relationships.length === 0) return 0;
+    const avgStrength = entity.relationships.reduce((sum, r) => 
+      sum + (r.strength || 0), 0
+    ) / entity.relationships.length;
+    return avgStrength;
+  }
+
+  /**
+   * Get threshold levels for display
+   */
+  getThresholds() {
+    return this.config.thresholds;
+  }
+}
+
+// ============================================================================
+// Relationship Tracker
+// ============================================================================
+
+class RelationshipTracker {
+  constructor(config = {}) {
+    this.config = { ...DEFAULT_CONFIG.relationships, ...config };
+    this.relationships = new Map(); // key -> relationship
+  }
+
+  /**
+   * Track co-occurrence of entities in the same turn
+   */
+  trackCooccurrence(entities, turn) {
+    for (let i = 0; i < entities.length; i++) {
+      for (let j = i + 1; j < entities.length; j++) {
+        this.addRelationship(
+          entities[i].canonical || entities[i].id,
+          entities[j].canonical || entities[j].id,
+          RelType.RELATED,
+          turn
+        );
+      }
+    }
+  }
+
+  /**
+   * Add or update a relationship
+   */
+  addRelationship(sourceId, targetId, type, turn) {
+    const key = this._makeKey(sourceId, targetId);
+    const existing = this.relationships.get(key);
+
+    if (existing) {
+      existing.strength = Math.min(1, existing.strength + 0.1);
+      existing.lastCooccurrence = turn;
+      existing.occurrenceCount = (existing.occurrenceCount || 0) + 1;
+    } else {
+      this.relationships.set(key, {
+        sourceId,
+        targetId,
+        type,
+        strength: 0.3,
+        lastCooccurrence: turn,
+        occurrenceCount: 1
+      });
+    }
+  }
+
+  /**
+   * Get relationships for an entity
+   */
+  getRelationships(entityId) {
+    const result = [];
+    for (const rel of this.relationships.values()) {
+      if (rel.sourceId === entityId || rel.targetId === entityId) {
+        result.push(rel);
+      }
+    }
+    return result.sort((a, b) => b.strength - a.strength);
+  }
+
+  /**
+   * Get all relationships as array
+   */
+  getAllRelationships() {
+    return Array.from(this.relationships.values());
+  }
+
+  _makeKey(id1, id2) {
+    return [id1, id2].sort().join('::');
+  }
+}
+
+// ============================================================================
+// Entity Store
+// ============================================================================
+
+class EntityStore {
+  constructor() {
+    this.entities = new Map(); // canonical -> entity
+    this.turn = 0;
+  }
+
+  /**
+   * Add or update an entity from extraction
+   */
+  ingest(extractedEntity, turn) {
+    const id = extractedEntity.canonical;
+    const existing = this.entities.get(id);
+
+    if (existing) {
+      // Update existing
+      existing.mentionCount = (existing.mentionCount || 0) + 1;
+      existing.lastMentionTurn = turn;
+      existing.mentionHistory = existing.mentionHistory || [];
+      existing.mentionHistory.push(turn);
+      if (existing.mentionHistory.length > 20) {
+        existing.mentionHistory.shift();
+      }
+    } else {
+      // Create new
+      this.entities.set(id, {
+        id,
+        type: extractedEntity.type,
+        name: extractedEntity.name,
+        normalized: extractedEntity.normalized,
+        mentionCount: 1,
+        firstMentionTurn: turn,
+        lastMentionTurn: turn,
+        mentionHistory: [turn],
+        relationships: [],
+        contexts: [],
+        isAnchor: false
+      });
+    }
+  }
+
+  /**
+   * Get entity by ID
+   */
+  get(id) {
+    return this.entities.get(id);
+  }
+
+  /**
+   * Get all entities
+   */
+  getAll() {
+    return Array.from(this.entities.values());
+  }
+
+  /**
+   * Set entity anchor status
+   */
+  setAnchor(id, anchored = true) {
+    const entity = this.entities.get(id);
+    if (entity) {
+      entity.isAnchor = anchored;
+    }
+  }
+
+  /**
+   * Add context snippet to entity
+   */
+  addContext(id, snippet) {
+    const entity = this.entities.get(id);
+    if (entity) {
+      entity.contexts = entity.contexts || [];
+      entity.contexts.push(snippet);
+      if (entity.contexts.length > 5) {
+        entity.contexts.shift();
+      }
+    }
+  }
+
+  /**
+   * Get top entities by score
+   */
+  getTopEntities(scorer, limit = 10) {
+    const scored = this.getAll().map(e => {
+      const { score, components } = scorer.scoreEntity(e, this.turn, this.turn);
+      return { ...e, totalScore: score, scoreComponents: components };
+    });
+    return scored.sort((a, b) => b.totalScore - a.totalScore).slice(0, limit);
+  }
+
+  /**
+   * Get entities above threshold
+   */
+  getEntitiesAboveThreshold(scorer, threshold) {
+    return this.getTopEntities(scorer, 1000)
+      .filter(e => e.totalScore >= threshold);
+  }
+}
+
+// ============================================================================
+// Output Formatter
+// ============================================================================
+
+class OutputFormatter {
+  formatContextBlock(entities, relationships) {
+    const lines = ['[CLARITY CONTEXT]'];
+    
+    if (entities.length === 0) {
+      lines.push('  No high-relevance entities tracked.');
+      return lines.join('\n');
+    }
+
+    lines.push('High-relevance entities:');
+    
+    for (const entity of entities) {
+      const bullet = entity.totalScore >= 40 ? '●' : 
+                     entity.totalScore >= 25 ? '○' : '◐';
+      const anchor = entity.isAnchor ? '⚓ ' : '';
+      
+      let relInfo = '';
+      if (entity.relationships && entity.relationships.length > 0) {
+        const topRels = entity.relationships.slice(0, 2).map(r => r.targetId).join(', ');
+        relInfo = ` — related to: ${topRels}`;
+      }
+      
+      lines.push(`  ${bullet} ${anchor}${entity.id} (score: ${Math.round(entity.totalScore)})${relInfo}`);
+    }
+
+    // Group active topics
+    const topics = entities.filter(e => e.type === EntityType.TOPIC);
+    if (topics.length > 0) {
+      lines.push(`\nActive topics:`);
+      lines.push(`  • ${topics.map(t => t.normalized).join(', ')}`);
+    }
+
+    // Show top relationships
+    const strongRelationships = relationships.filter(r => r.strength > 0.5);
+    if (strongRelationships.length > 0) {
+      lines.push(`\nTracked relationships:`);
+      for (const rel of strongRelationships.slice(0, 5)) {
+        lines.push(`  • ${rel.sourceId.split(':')[1]} → ${rel.type} → ${rel.targetId.split(':')[1]} (strength: ${rel.strength.toFixed(1)})`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+}
+
+// ============================================================================
+// Clarity v2 Main Class
+// ============================================================================
+
+class ClarityV2 {
+  constructor(config = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.extractor = new EntityExtractor(this.config.extraction);
+    this.scorer = new EntityScorer(this.config);
+    this.relationships = new RelationshipTracker(this.config.relationships);
+    this.store = new EntityStore();
+    this.formatter = new OutputFormatter();
+    this.turn = 0;
+  }
+
+  /**
+   * Process a new message through the full pipeline
+   */
+  processMessage(text, metadata = {}) {
+    this.turn++;
+    this.store.turn = this.turn;
+
+    // Step 1: Extract entities
+    const { entities: extracted, composites } = this.extractor.extract(text);
+
+    // Step 2: Ingest into store
+    for (const entity of extracted) {
+      this.store.ingest(entity, this.turn);
+    }
+
+    // Step 3: Track relationships
+    this.relationships.trackCooccurrence(extracted, this.turn);
+
+    // Step 4: Update document frequency for IDF
+    this.scorer.updateDocumentFrequency(extracted);
+
+    // Step 5: Update entity relationships from tracker
+    for (const entity of extracted) {
+      const entityId = entity.canonical;
+      const rels = this.relationships.getRelationships(entityId);
+      const stored = this.store.get(entityId);
+      if (stored) {
+        stored.relationships = rels;
+      }
+    }
+
+    return {
+      turn: this.turn,
+      extracted,
+      composites,
+      entityCount: extracted.length
+    };
+  }
+
+  /**
+   * Get current context block for injection
+   */
+  getContextBlock() {
+    const topEntities = this.store.getTopEntities(this.scorer, 10);
+    const relationships = this.relationships.getAllRelationships();
+    return this.formatter.formatContextBlock(topEntities, relationships);
+  }
+
+  /**
+   * Get full state (for API)
+   */
+  getState() {
+    return {
+      turn: this.turn,
+      entities: this.store.getAll(),
+      topEntities: this.store.getTopEntities(this.scorer, 10),
+      relationships: this.relationships.getAllRelationships(),
+      config: this.config
+    };
+  }
+
+  /**
+   * Anchor an entity
+   */
+  anchor(entityId) {
+    this.store.setAnchor(entityId, true);
+  }
+
+  /**
+   * Unanchor an entity
+   */
+  unanchor(entityId) {
+    this.store.setAnchor(entityId, false);
+  }
+
+  /**
+   * Get entity by ID
+   */
+  getEntity(entityId) {
+    return this.store.get(entityId);
+  }
+
+  /**
+   * Detect references to entities in response text
+   */
+  detectReferences(responseText) {
+    const references = [];
+    const normalizedText = ' ' + responseText.toLowerCase() + ' ';
+    
+    for (const entity of this.store.getAll()) {
+      const patterns = [
+        new RegExp(`\\b${entity.id}\\b`, 'i'),
+        new RegExp(`\\b${entity.normalized}\\b`, 'i'),
+      ];
+      
+      for (const pattern of patterns) {
+        if (pattern.test(normalizedText)) {
+          references.push(entity.id);
+          break;
+        }
+      }
+    }
+    
+    return [...new Set(references)];
+  }
+}
+
+// ============================================================================
+// Exports
+// ============================================================================
+
+module.exports = {
+  ClarityV2,
+  EntityExtractor,
+  EntityScorer,
+  EntityStore,
+  RelationshipTracker,
+  OutputFormatter,
+  EntityType,
+  RelType,
+  DEFAULT_CONFIG,
+  CLARITY_STOP_WORDS,
+  SYSTEM_HYPHENATED
+};
