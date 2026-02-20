@@ -130,5 +130,5 @@ ContextMemory may be useful for:
 
 ## Related Links
 
-- [View package on npm](https://www.npmjs.com/package/...)
-- [View profile on GitHub](https://github.com/AkashKobal/...)
+- [View package on npm](https://www.npmjs.com/package/@akashkobal/contextmemory)
+- [View profile on GitHub](https://github.com/AkashKobal/contextmemory)
