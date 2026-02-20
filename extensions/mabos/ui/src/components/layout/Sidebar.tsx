@@ -1,14 +1,23 @@
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  Cpu, LayoutDashboard, Users, ClipboardList, Calendar,
-  BarChart3, Package, DollarSign, Heart, Rocket, Palette,
-  ChevronDown
+  Cpu,
+  LayoutDashboard,
+  Users,
+  ClipboardList,
+  Calendar,
+  BarChart3,
+  Package,
+  DollarSign,
+  Heart,
+  Rocket,
+  Palette,
+  ChevronDown,
 } from "lucide-react";
 
 type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   path: string;
-  section?: string;
 };
 
 const navSections: { title: string; items: NavItem[] }[] = [
@@ -37,19 +46,20 @@ const navSections: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Setup",
-    items: [
-      { icon: Rocket, label: "Onboarding", path: "/onboarding" },
-    ],
+    items: [{ icon: Rocket, label: "Onboarding", path: "/onboarding" }],
   },
 ];
 
-export function Sidebar({
-  activePath,
-  onNavigate,
-}: {
-  activePath: string;
-  onNavigate: (path: string) => void;
-}) {
+export function Sidebar() {
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
+
+  // Strip the basepath to get the relative route path
+  const basepath = "/mabos/dashboard";
+  const relativePath = currentPath.startsWith(basepath)
+    ? currentPath.slice(basepath.length) || "/"
+    : currentPath;
+
   return (
     <aside className="w-[280px] h-screen bg-[var(--bg-secondary)] border-r border-[var(--border-mabos)] p-4 flex flex-col fixed left-0 top-0 z-50">
       {/* Logo */}
@@ -73,20 +83,27 @@ export function Sidebar({
               {section.title}
             </div>
             <div className="space-y-1">
-              {section.items.map((item) => (
-                <button
-                  key={item.path}
-                  onClick={() => onNavigate(item.path)}
-                  className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
-                    activePath === item.path
-                      ? "bg-[var(--accent-green)] text-[var(--bg-primary)] font-medium"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  <item.icon className="w-4 h-4 flex-shrink-0" />
-                  <span>{item.label}</span>
-                </button>
-              ))}
+              {section.items.map((item) => {
+                const isActive =
+                  item.path === "/"
+                    ? relativePath === "/"
+                    : relativePath.startsWith(item.path);
+
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                      isActive
+                        ? "bg-[var(--accent-green)] text-[var(--bg-primary)] font-medium"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    <item.icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         ))}

@@ -1,0 +1,178 @@
+import {
+  createRouter,
+  createRootRoute,
+  createRoute,
+  Outlet,
+} from "@tanstack/react-router";
+import { AppShell } from "@/components/layout/AppShell";
+
+// Root layout
+const rootRoute = createRootRoute({
+  component: () => (
+    <AppShell>
+      <Outlet />
+    </AppShell>
+  ),
+});
+
+// Page components (inline for now, lazy-load later)
+
+function OverviewPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">Overview</h1>
+      <p className="text-[var(--text-secondary)]">
+        Welcome to the MABOS Dashboard.
+      </p>
+    </div>
+  );
+}
+
+function AgentsPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">Agent Management</h1>
+      <p className="text-[var(--text-secondary)]">
+        17 agents across 12 departments
+      </p>
+    </div>
+  );
+}
+
+function TasksPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">Task Management</h1>
+      <p className="text-[var(--text-secondary)]">
+        Agent tasks across all departments
+      </p>
+    </div>
+  );
+}
+
+function PerformancePage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">Performance</h1>
+      <p className="text-[var(--text-secondary)]">Metrics and analytics</p>
+    </div>
+  );
+}
+
+function TimelinePage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">Timeline</h1>
+      <p className="text-[var(--text-secondary)]">
+        Project roadmap and milestones
+      </p>
+    </div>
+  );
+}
+
+function InventoryPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">Inventory</h1>
+      <p className="text-[var(--text-secondary)]">Stock management</p>
+    </div>
+  );
+}
+
+function AccountingPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">Accounting</h1>
+      <p className="text-[var(--text-secondary)]">Financial management</p>
+    </div>
+  );
+}
+
+function HRPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">HR</h1>
+      <p className="text-[var(--text-secondary)]">Workforce management</p>
+    </div>
+  );
+}
+
+function OnboardingPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">Onboarding</h1>
+      <p className="text-[var(--text-secondary)]">Set up a new business</p>
+    </div>
+  );
+}
+
+// Route tree
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: OverviewPage,
+});
+const agentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/agents",
+  component: AgentsPage,
+});
+const tasksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks",
+  component: TasksPage,
+});
+const performanceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/performance",
+  component: PerformancePage,
+});
+const timelineRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/timeline",
+  component: TimelinePage,
+});
+const inventoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/inventory",
+  component: InventoryPage,
+});
+const accountingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/accounting",
+  component: AccountingPage,
+});
+const hrRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr",
+  component: HRPage,
+});
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/onboarding",
+  component: OnboardingPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  agentsRoute,
+  tasksRoute,
+  performanceRoute,
+  timelineRoute,
+  inventoryRoute,
+  accountingRoute,
+  hrRoute,
+  onboardingRoute,
+]);
+
+export const router = createRouter({
+  routeTree,
+  basepath: "/mabos/dashboard",
+});
+
+// Type safety
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
