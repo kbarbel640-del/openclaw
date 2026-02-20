@@ -183,6 +183,12 @@ export async function uploadToSharePoint(params: {
   siteId: string;
   fetchFn?: typeof fetch;
 }): Promise<OneDriveUploadResult> {
+  if (params.buffer.length > ONEDRIVE_SIMPLE_UPLOAD_MAX_BYTES) {
+    throw new Error(
+      `SharePoint simple upload size limit exceeded for ${params.filename}: ${params.buffer.length} bytes (max ${ONEDRIVE_SIMPLE_UPLOAD_MAX_BYTES} bytes). Use files <= 4MB until resumable upload is implemented.`,
+    );
+  }
+
   const fetchFn = params.fetchFn ?? fetch;
   const token = await params.tokenProvider.getAccessToken(GRAPH_SCOPE);
 
