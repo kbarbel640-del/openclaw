@@ -5,6 +5,7 @@ import {
   Outlet,
 } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
+import { OverviewPage } from "@/pages/OverviewPage";
 
 // Root layout
 const rootRoute = createRootRoute({
@@ -15,18 +16,7 @@ const rootRoute = createRootRoute({
   ),
 });
 
-// Page components (inline for now, lazy-load later)
-
-function OverviewPage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-2">Overview</h1>
-      <p className="text-[var(--text-secondary)]">
-        Welcome to the MABOS Dashboard.
-      </p>
-    </div>
-  );
-}
+// Page components (inline placeholders for now)
 
 function AgentsPage() {
   return (
