@@ -1,7 +1,9 @@
 import {
   ChannelType,
   type Client,
+  MessageDeleteListener,
   MessageCreateListener,
+  MessageUpdateListener,
   MessageReactionAddListener,
   MessageReactionRemoveListener,
   PresenceUpdateListener,
@@ -29,6 +31,20 @@ type Logger = ReturnType<typeof import("../../logging/subsystem.js").createSubsy
 export type DiscordMessageEvent = Parameters<MessageCreateListener["handle"]>[0];
 
 export type DiscordMessageHandler = (data: DiscordMessageEvent, client: Client) => Promise<void>;
+
+export type DiscordMessageUpdateEvent = Parameters<MessageUpdateListener["handle"]>[0];
+
+export type DiscordMessageUpdateHandler = (
+  data: DiscordMessageUpdateEvent,
+  client: Client,
+) => Promise<void>;
+
+export type DiscordMessageDeleteEvent = Parameters<MessageDeleteListener["handle"]>[0];
+
+export type DiscordMessageDeleteHandler = (
+  data: DiscordMessageDeleteEvent,
+  client: Client,
+) => Promise<void>;
 
 type DiscordReactionEvent = Parameters<MessageReactionAddListener["handle"]>[0];
 
@@ -91,6 +107,60 @@ export class DiscordMessageListener extends MessageCreateListener {
       .catch((err) => {
         const logger = this.logger ?? discordEventQueueLog;
         logger.error(danger(`discord handler failed: ${String(err)}`));
+      })
+      .finally(() => {
+        logSlowDiscordListener({
+          logger: this.logger,
+          listener: this.constructor.name,
+          event: this.type,
+          durationMs: Date.now() - startedAt,
+        });
+      });
+  }
+}
+
+export class DiscordMessageUpdateListener extends MessageUpdateListener {
+  constructor(
+    private handler: DiscordMessageUpdateHandler,
+    private logger?: Logger,
+  ) {
+    super();
+  }
+
+  async handle(data: DiscordMessageUpdateEvent, client: Client) {
+    const startedAt = Date.now();
+    const task = Promise.resolve(this.handler(data, client));
+    void task
+      .catch((err) => {
+        const logger = this.logger ?? discordEventQueueLog;
+        logger.error(danger(`discord update handler failed: ${String(err)}`));
+      })
+      .finally(() => {
+        logSlowDiscordListener({
+          logger: this.logger,
+          listener: this.constructor.name,
+          event: this.type,
+          durationMs: Date.now() - startedAt,
+        });
+      });
+  }
+}
+
+export class DiscordMessageDeleteListener extends MessageDeleteListener {
+  constructor(
+    private handler: DiscordMessageDeleteHandler,
+    private logger?: Logger,
+  ) {
+    super();
+  }
+
+  async handle(data: DiscordMessageDeleteEvent, client: Client) {
+    const startedAt = Date.now();
+    const task = Promise.resolve(this.handler(data, client));
+    void task
+      .catch((err) => {
+        const logger = this.logger ?? discordEventQueueLog;
+        logger.error(danger(`discord delete handler failed: ${String(err)}`));
       })
       .finally(() => {
         logSlowDiscordListener({

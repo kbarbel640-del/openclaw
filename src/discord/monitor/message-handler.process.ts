@@ -83,6 +83,18 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+function isAbortLikeError(err: unknown): boolean {
+  if (!err || typeof err !== "object") {
+    return false;
+  }
+  const name = (err as { name?: unknown }).name;
+  if (name === "AbortError") {
+    return true;
+  }
+  const message = (err as { message?: unknown }).message;
+  return typeof message === "string" && message.toLowerCase().includes("abort");
+}
+
 function createDiscordStatusReactionController(params: {
   enabled: boolean;
   channelId: string;
@@ -313,11 +325,23 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     baseSessionKey,
     route,
     commandAuthorized,
+    messageSidOverride,
+    messageSids,
+    messageSidFirst,
+    messageSidLast,
+    abortSignal,
   } = ctx;
+
+  if (abortSignal?.aborted) {
+    return;
+  }
 
   const mediaList = await resolveMediaList(message, mediaMaxBytes);
   const forwardedMediaList = await resolveForwardedMediaList(message, mediaMaxBytes);
   mediaList.push(...forwardedMediaList);
+  if (abortSignal?.aborted) {
+    return;
+  }
   const text = messageText;
   if (!text) {
     logVerbose(`discord: drop message ${message.id} (empty content)`);
@@ -540,7 +564,11 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     Provider: "discord" as const,
     Surface: "discord" as const,
     WasMentioned: effectiveWasMentioned,
-    MessageSid: message.id,
+    MessageSid: messageSidOverride?.trim() || message.id,
+    MessageSidFull: message.id,
+    MessageSids: messageSids,
+    MessageSidFirst: messageSidFirst,
+    MessageSidLast: messageSidLast,
     ReplyToId: replyContext?.id,
     ReplyToBody: replyContext?.body,
     ReplyToSender: replyContext?.sender,
@@ -611,6 +639,9 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     ...prefixOptions,
     humanDelay: resolveHumanDelayConfig(cfg, route.agentId),
     deliver: async (payload: ReplyPayload) => {
+      if (abortSignal?.aborted) {
+        return;
+      }
       const replyToId = replyReference.use();
       await deliverDiscordReply({
         replies: [payload],
@@ -624,6 +655,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         maxLinesPerMessage: discordConfig?.maxLinesPerMessage,
         tableMode,
         chunkMode: resolveChunkMode(cfg, "discord", accountId),
+        abortSignal,
       });
       replyReference.markSent();
     },
@@ -638,6 +670,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
 
   let dispatchResult: Awaited<ReturnType<typeof dispatchInboundMessage>> | null = null;
   let dispatchError = false;
+  let dispatchAborted = false;
   try {
     dispatchResult = await dispatchInboundMessage({
       ctx: ctxPayload,
@@ -645,6 +678,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       dispatcher,
       replyOptions: {
         ...replyOptions,
+        abortSignal,
         skillFilter: channelConfig?.skills,
         disableBlockStreaming:
           typeof discordConfig?.blockStreaming === "boolean"
@@ -661,11 +695,17 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     });
   } catch (err) {
     dispatchError = true;
+    dispatchAborted = abortSignal?.aborted || isAbortLikeError(err);
     throw err;
   } finally {
+    if (abortSignal?.aborted) {
+      dispatchAborted = true;
+    }
     markDispatchIdle();
     if (statusReactionsEnabled) {
-      if (dispatchError) {
+      if (dispatchAborted) {
+        await statusReactions.restoreInitial();
+      } else if (dispatchError) {
         await statusReactions.setError();
       } else {
         await statusReactions.setDone();
@@ -679,6 +719,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         void statusReactions.restoreInitial();
       }
     }
+  }
+
+  if (dispatchAborted) {
+    return;
   }
 
   if (!dispatchResult?.queuedFinal) {

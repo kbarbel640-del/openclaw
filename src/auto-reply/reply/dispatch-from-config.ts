@@ -88,6 +88,7 @@ export async function dispatchReplyFromConfig(params: {
   replyResolver?: typeof getReplyFromConfig;
 }): Promise<DispatchFromConfigResult> {
   const { ctx, cfg, dispatcher } = params;
+  const runAbortSignal = params.replyOptions?.abortSignal;
   const diagnosticsEnabled = isDiagnosticsEnabled(cfg);
   const channel = String(ctx.Surface ?? ctx.Provider ?? "unknown").toLowerCase();
   const chatId = ctx.To ?? ctx.From;
@@ -294,6 +295,7 @@ export async function dispatchReplyFromConfig(params: {
           accountId: ctx.AccountId,
           threadId: ctx.MessageThreadId,
           cfg,
+          abortSignal: runAbortSignal,
         });
         queuedFinal = result.ok;
         if (result.ok) {
@@ -354,7 +356,7 @@ export async function dispatchReplyFromConfig(params: {
               return;
             }
             if (shouldRouteToOriginating) {
-              await sendPayloadAsync(deliveryPayload, undefined, false);
+              await sendPayloadAsync(deliveryPayload, runAbortSignal, false);
             } else {
               dispatcher.sendToolResult(deliveryPayload);
             }
@@ -380,7 +382,7 @@ export async function dispatchReplyFromConfig(params: {
               ttsAuto: sessionTtsAuto,
             });
             if (shouldRouteToOriginating) {
-              await sendPayloadAsync(ttsPayload, context?.abortSignal, false);
+              await sendPayloadAsync(ttsPayload, context?.abortSignal ?? runAbortSignal, false);
             } else {
               dispatcher.sendBlockReply(ttsPayload);
             }
@@ -396,6 +398,9 @@ export async function dispatchReplyFromConfig(params: {
     let queuedFinal = false;
     let routedFinalCount = 0;
     for (const reply of replies) {
+      if (runAbortSignal?.aborted) {
+        break;
+      }
       const ttsReply = await maybeApplyTtsToPayload({
         payload: reply,
         cfg,
@@ -414,6 +419,7 @@ export async function dispatchReplyFromConfig(params: {
           accountId: ctx.AccountId,
           threadId: ctx.MessageThreadId,
           cfg,
+          abortSignal: runAbortSignal,
         });
         if (!result.ok) {
           logVerbose(
@@ -437,7 +443,8 @@ export async function dispatchReplyFromConfig(params: {
       ttsMode === "final" &&
       replies.length === 0 &&
       blockCount > 0 &&
-      accumulatedBlockText.trim()
+      accumulatedBlockText.trim() &&
+      !runAbortSignal?.aborted
     ) {
       try {
         const ttsSyntheticReply = await maybeApplyTtsToPayload({
@@ -464,6 +471,7 @@ export async function dispatchReplyFromConfig(params: {
               accountId: ctx.AccountId,
               threadId: ctx.MessageThreadId,
               cfg,
+              abortSignal: runAbortSignal,
             });
             queuedFinal = result.ok || queuedFinal;
             if (result.ok) {

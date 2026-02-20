@@ -141,6 +141,12 @@ export type DiscordAccountConfig = {
   /** Allow bot-authored messages to trigger replies (default: false). */
   allowBots?: boolean;
   /**
+   * Interrupt/rebuild handling for inbound message mutations.
+   * When enabled, new/edit/delete events can abort and replay in-flight runs.
+   * Default: true (set false to disable).
+   */
+  interruptOnMessageMutations?: boolean;
+  /**
    * Controls how guild channel messages are handled:
    * - "open": guild channels bypass allowlists; mention-gating applies
    * - "disabled": block all guild channel messages

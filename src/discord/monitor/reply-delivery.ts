@@ -19,9 +19,14 @@ export async function deliverDiscordReply(params: {
   replyToId?: string;
   tableMode?: MarkdownTableMode;
   chunkMode?: ChunkMode;
+  abortSignal?: AbortSignal;
 }) {
   const chunkLimit = Math.min(params.textLimit, 2000);
+  const isAborted = () => params.abortSignal?.aborted === true;
   for (const payload of params.replies) {
+    if (isAborted()) {
+      return;
+    }
     const mediaList = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
     const rawText = payload.text ?? "";
     const tableMode = params.tableMode ?? "code";
@@ -42,6 +47,9 @@ export async function deliverDiscordReply(params: {
         chunks.push(text);
       }
       for (const chunk of chunks) {
+        if (isAborted()) {
+          return;
+        }
         const trimmed = chunk.trim();
         if (!trimmed) {
           continue;
@@ -63,6 +71,9 @@ export async function deliverDiscordReply(params: {
 
     // Voice message path: audioAsVoice flag routes through sendVoiceMessageDiscord
     if (payload.audioAsVoice) {
+      if (isAborted()) {
+        return;
+      }
       await sendVoiceMessageDiscord(params.target, firstMedia, {
         token: params.token,
         rest: params.rest,
@@ -71,6 +82,9 @@ export async function deliverDiscordReply(params: {
       });
       // Voice messages cannot include text; send remaining text separately if present
       if (text.trim()) {
+        if (isAborted()) {
+          return;
+        }
         await sendMessageDiscord(params.target, text, {
           token: params.token,
           rest: params.rest,
@@ -80,6 +94,9 @@ export async function deliverDiscordReply(params: {
       }
       // Additional media items are sent as regular attachments (voice is single-file only)
       for (const extra of mediaList.slice(1)) {
+        if (isAborted()) {
+          return;
+        }
         await sendMessageDiscord(params.target, "", {
           token: params.token,
           rest: params.rest,
@@ -91,6 +108,9 @@ export async function deliverDiscordReply(params: {
       continue;
     }
 
+    if (isAborted()) {
+      return;
+    }
     await sendMessageDiscord(params.target, text, {
       token: params.token,
       rest: params.rest,
@@ -99,6 +119,9 @@ export async function deliverDiscordReply(params: {
       replyTo,
     });
     for (const extra of mediaList.slice(1)) {
+      if (isAborted()) {
+        return;
+      }
       await sendMessageDiscord(params.target, "", {
         token: params.token,
         rest: params.rest,

@@ -25,6 +25,10 @@ beforeEach(() => {
   upsertPairingRequestMock.mockReset().mockResolvedValue({ code: "PAIRCODE", created: true });
 });
 
+async function flushMessageHandlerRun() {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
 const BASE_CFG: Config = {
   agents: {
     defaults: {
@@ -155,6 +159,7 @@ describe("discord tool result dispatch", () => {
       },
       client,
     );
+    await flushMessageHandlerRun();
 
     expect(capturedCtx?.SessionKey).toBe("agent:main:discord:channel:c1");
   });
@@ -192,6 +197,7 @@ describe("discord tool result dispatch", () => {
       },
       client,
     );
+    await flushMessageHandlerRun();
 
     expect(capturedBody).toContain("Ada (Ada#1234): hello");
   });
@@ -227,6 +233,7 @@ describe("discord tool result dispatch", () => {
       },
       client,
     );
+    await flushMessageHandlerRun();
 
     expect(dispatchMock).not.toHaveBeenCalled();
     expect(upsertPairingRequestMock).toHaveBeenCalled();

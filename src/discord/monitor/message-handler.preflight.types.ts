@@ -79,6 +79,19 @@ export type DiscordMessagePreflightContext = {
   canDetectMention: boolean;
 
   historyEntry?: HistoryEntry;
+  /**
+   * Optional synthetic sid for replay/rebuild runs (edits, interrupts, batch recomputes).
+   * When set, this sid is used for inbound dedupe instead of the raw Discord message id.
+   */
+  messageSidOverride?: string;
+  /** Optional message ids included in a synthetic/rebuilt run. */
+  messageSids?: string[];
+  /** Optional first source message id included in a synthetic/rebuilt run. */
+  messageSidFirst?: string;
+  /** Optional last source message id included in a synthetic/rebuilt run. */
+  messageSidLast?: string;
+  /** Optional cooperative abort signal for in-flight dispatch cancellation. */
+  abortSignal?: AbortSignal;
 };
 
 export type DiscordMessagePreflightParams = {

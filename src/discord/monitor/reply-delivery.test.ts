@@ -84,4 +84,48 @@ describe("deliverDiscordReply", () => {
     expect(sendVoiceMessageDiscordMock).toHaveBeenCalledTimes(1);
     expect(sendMessageDiscordMock).not.toHaveBeenCalled();
   });
+
+  it("does not send when already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await deliverDiscordReply({
+      replies: [
+        {
+          text: "hello world",
+        },
+      ],
+      target: "channel:abort",
+      token: "token",
+      runtime,
+      textLimit: 2000,
+      abortSignal: controller.signal,
+    });
+
+    expect(sendVoiceMessageDiscordMock).not.toHaveBeenCalled();
+    expect(sendMessageDiscordMock).not.toHaveBeenCalled();
+  });
+
+  it("stops sending remaining chunks after abort", async () => {
+    const controller = new AbortController();
+    sendMessageDiscordMock.mockImplementationOnce(async () => {
+      controller.abort();
+      return { messageId: "msg-1", channelId: "channel-1" };
+    });
+
+    await deliverDiscordReply({
+      replies: [
+        {
+          text: "chunk one chunk two chunk three",
+        },
+      ],
+      target: "channel:chunk",
+      token: "token",
+      runtime,
+      textLimit: 10,
+      abortSignal: controller.signal,
+    });
+
+    expect(sendMessageDiscordMock).toHaveBeenCalledTimes(1);
+  });
 });

@@ -279,6 +279,9 @@ export const FIELD_LABELS: Record<string, string> = {
   "channels.discord.retry.minDelayMs": "Discord Retry Min Delay (ms)",
   "channels.discord.retry.maxDelayMs": "Discord Retry Max Delay (ms)",
   "channels.discord.retry.jitter": "Discord Retry Jitter",
+  "channels.discord.interruptOnMessageMutations": "Discord Interrupt on Message Mutations",
+  "channels.discord.accounts.*.interruptOnMessageMutations":
+    "Discord Interrupt on Message Mutations",
   "channels.discord.maxLinesPerMessage": "Discord Max Lines Per Message",
   "channels.discord.ui.components.accentColor": "Discord Component Accent Color",
   "channels.discord.intents.presence": "Discord Presence Intent",

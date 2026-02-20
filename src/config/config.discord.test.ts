@@ -96,4 +96,22 @@ describe("config discord", () => {
       ).toBe(true);
     }
   });
+
+  it("accepts interruptOnMessageMutations toggle", () => {
+    const res = validateConfigObject({
+      channels: {
+        discord: {
+          interruptOnMessageMutations: true,
+          accounts: {
+            secondary: {
+              token: "x",
+              interruptOnMessageMutations: false,
+            },
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
 });

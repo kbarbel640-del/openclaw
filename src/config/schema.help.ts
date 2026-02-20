@@ -415,6 +415,10 @@ export const FIELD_HELP: Record<string, string> = {
   "channels.discord.retry.minDelayMs": "Minimum retry delay in ms for Discord outbound calls.",
   "channels.discord.retry.maxDelayMs": "Maximum retry delay cap in ms for Discord outbound calls.",
   "channels.discord.retry.jitter": "Jitter factor (0-1) applied to Discord retry delays.",
+  "channels.discord.interruptOnMessageMutations":
+    "Enable interrupt/rebuild behavior for inbound message edits/deletes/new messages (default: true; set false to disable).",
+  "channels.discord.accounts.*.interruptOnMessageMutations":
+    "Per-account override for interrupt/rebuild behavior on inbound message edits/deletes/new messages.",
   "channels.discord.maxLinesPerMessage": "Soft max line count per Discord message (default: 17).",
   "channels.discord.ui.components.accentColor":
     "Accent color for Discord component containers (hex). Set per account via channels.discord.accounts.<id>.ui.components.accentColor.",
