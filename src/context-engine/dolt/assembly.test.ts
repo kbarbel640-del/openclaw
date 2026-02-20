@@ -147,7 +147,9 @@ describe("assembleDoltContext", () => {
     ]);
     expect(result.messages).toHaveLength(4);
 
-    const rendered = result.messages.map((message) => stringifyMessageContent(message.content));
+    const rendered = result.messages.map((message) =>
+      stringifyMessageContent(readMessageContent(message)),
+    );
     expect(rendered[0]).toContain("bindle body two");
     expect(rendered[1]).toContain("leaf body two");
     expect(rendered[2]).toContain("turn body two");
@@ -326,4 +328,11 @@ function stringifyMessageContent(content: unknown): string {
     }
   }
   return JSON.stringify(content);
+}
+
+function readMessageContent(message: unknown): unknown {
+  if (message && typeof message === "object" && "content" in message) {
+    return (message as { content?: unknown }).content;
+  }
+  return undefined;
 }

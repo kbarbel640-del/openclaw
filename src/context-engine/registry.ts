@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { ContextEngine } from "./types.js";
 import { defaultSlotIdForKey } from "../plugins/slots.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 
 /**
  * A factory that creates a ContextEngine instance.
@@ -39,21 +40,26 @@ export function listContextEngineIds(): string[] {
 // Resolution
 // ---------------------------------------------------------------------------
 
+export type ResolveContextEngineOptions = {
+  agentId?: string;
+};
+
 /**
- * Resolve which ContextEngine to use based on plugin slot configuration.
+ * Resolve which ContextEngine to use for the active run.
  *
  * Resolution order:
- *   1. `config.plugins.slots.contextEngine` (explicit slot override)
- *   2. Default slot value ("legacy")
+ *   1. `agents.list[].contextEngine` for the selected agent id
+ *   2. `agents.defaults.contextEngine`
+ *   3. `plugins.slots.contextEngine`
+ *   4. Default slot value ("legacy")
  *
  * Throws if the resolved engine id has no registered factory.
  */
-export async function resolveContextEngine(config?: OpenClawConfig): Promise<ContextEngine> {
-  const slotValue = config?.plugins?.slots?.contextEngine;
-  const engineId =
-    typeof slotValue === "string" && slotValue.trim()
-      ? slotValue.trim()
-      : defaultSlotIdForKey("contextEngine");
+export async function resolveContextEngine(
+  config?: OpenClawConfig,
+  options?: ResolveContextEngineOptions,
+): Promise<ContextEngine> {
+  const engineId = resolveContextEngineId(config, options);
 
   const factory = _engines.get(engineId);
   if (!factory) {
@@ -64,4 +70,38 @@ export async function resolveContextEngine(config?: OpenClawConfig): Promise<Con
   }
 
   return factory();
+}
+
+function resolveContextEngineId(
+  config?: OpenClawConfig,
+  options?: ResolveContextEngineOptions,
+): string {
+  return (
+    resolvePerAgentContextEngineId(config, options?.agentId) ??
+    resolveConfiguredContextEngineId(config?.agents?.defaults?.contextEngine) ??
+    resolveConfiguredContextEngineId(config?.plugins?.slots?.contextEngine) ??
+    defaultSlotIdForKey("contextEngine")
+  );
+}
+
+function resolvePerAgentContextEngineId(
+  config: OpenClawConfig | undefined,
+  agentId: string | undefined,
+): string | undefined {
+  if (!config || !agentId) {
+    return undefined;
+  }
+  const normalizedAgentId = normalizeAgentId(agentId);
+  const agentEntry = config.agents?.list?.find(
+    (entry) => normalizeAgentId(entry.id) === normalizedAgentId,
+  );
+  return resolveConfiguredContextEngineId(agentEntry?.contextEngine);
+}
+
+function resolveConfiguredContextEngineId(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }

@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { describe, expect, it, beforeEach } from "vitest";
+import type { OpenClawConfig } from "../config/config.js";
 import type {
   ContextEngine,
   ContextEngineInfo,
@@ -27,6 +28,25 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function configWithSlot(engineId: string): any {
   return { plugins: { slots: { contextEngine: engineId } } };
+}
+
+function configWithSelections(params: {
+  slot?: string;
+  defaults?: string;
+  agent?: { id: string; engineId?: string };
+}): OpenClawConfig {
+  return {
+    plugins: params.slot ? { slots: { contextEngine: params.slot } } : undefined,
+    agents:
+      params.defaults || params.agent
+        ? {
+            defaults: params.defaults ? { contextEngine: params.defaults } : undefined,
+            list: params.agent
+              ? [{ id: params.agent.id, contextEngine: params.agent.engineId }]
+              : undefined,
+          }
+        : undefined,
+  };
 }
 
 function makeMockMessage(role: "user" | "assistant" = "user", text = "hello"): AgentMessage {
@@ -83,6 +103,21 @@ class MockContextEngine implements ContextEngine {
   async dispose(): Promise<void> {
     // no-op
   }
+}
+
+function createNamedMockEngine(id: string): ContextEngine {
+  return {
+    info: { id, name: `${id} Engine`, version: "0.0.1" },
+    async ingest() {
+      return { ingested: true };
+    },
+    async assemble({ messages }) {
+      return { messages, estimatedTokens: 0 };
+    },
+    async compact() {
+      return { ok: true, compacted: false };
+    },
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -242,7 +277,59 @@ describe("Default engine selection", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 4. Invalid engine fallback
+// 4. Selection precedence
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Selection precedence", () => {
+  it("prefers agents.list[].contextEngine over defaults + plugin slot", async () => {
+    const slotId = "slot-engine";
+    const defaultsId = "defaults-engine";
+    const agentId = "agent-engine";
+    registerContextEngine(slotId, () => createNamedMockEngine(slotId));
+    registerContextEngine(defaultsId, () => createNamedMockEngine(defaultsId));
+    registerContextEngine(agentId, () => createNamedMockEngine(agentId));
+
+    const engine = await resolveContextEngine(
+      configWithSelections({
+        slot: slotId,
+        defaults: defaultsId,
+        agent: { id: "alpha", engineId: agentId },
+      }),
+      { agentId: "alpha" },
+    );
+    expect(engine.info.id).toBe(agentId);
+  });
+
+  it("uses agents.defaults.contextEngine when agent override is missing", async () => {
+    const slotId = "slot-engine-b";
+    const defaultsId = "defaults-engine-b";
+    registerContextEngine(slotId, () => createNamedMockEngine(slotId));
+    registerContextEngine(defaultsId, () => createNamedMockEngine(defaultsId));
+
+    const engine = await resolveContextEngine(
+      configWithSelections({
+        slot: slotId,
+        defaults: defaultsId,
+        agent: { id: "alpha" },
+      }),
+      { agentId: "alpha" },
+    );
+    expect(engine.info.id).toBe(defaultsId);
+  });
+
+  it("falls back to plugins.slots.contextEngine when no agent/default selection exists", async () => {
+    const slotId = "slot-engine-c";
+    registerContextEngine(slotId, () => createNamedMockEngine(slotId));
+
+    const engine = await resolveContextEngine(configWithSelections({ slot: slotId }), {
+      agentId: "alpha",
+    });
+    expect(engine.info.id).toBe(slotId);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. Invalid engine fallback
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Invalid engine fallback", () => {
@@ -273,7 +360,7 @@ describe("Invalid engine fallback", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 5. LegacyContextEngine parity
+// 6. LegacyContextEngine parity
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("LegacyContextEngine parity", () => {
@@ -313,7 +400,7 @@ describe("LegacyContextEngine parity", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6. Initialization guard
+// 7. Initialization guard
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Initialization guard", () => {
@@ -324,11 +411,12 @@ describe("Initialization guard", () => {
     expect(() => ensureContextEnginesInitialized()).not.toThrow();
   });
 
-  it("after init, 'legacy' engine is registered", async () => {
+  it("after init, legacy + dolt engines are registered", async () => {
     const { ensureContextEnginesInitialized } = await import("./init.js");
     ensureContextEnginesInitialized();
 
     const ids = listContextEngineIds();
     expect(ids).toContain("legacy");
+    expect(ids).toContain("dolt");
   });
 });

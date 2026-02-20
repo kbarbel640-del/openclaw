@@ -1,3 +1,4 @@
+import { registerDoltContextEngine } from "./dolt/engine.js";
 import { registerLegacyContextEngine } from "./legacy.js";
 
 /**
@@ -20,4 +21,6 @@ export function ensureContextEnginesInitialized(): void {
 
   // Always available – safe fallback for the "legacy" slot default.
   registerLegacyContextEngine();
+  // Built-in bounded context engine.
+  registerDoltContextEngine();
 }

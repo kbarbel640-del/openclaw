@@ -15,6 +15,7 @@ export {
 export type { ContextEngineFactory } from "./registry.js";
 
 export { LegacyContextEngine, registerLegacyContextEngine } from "./legacy.js";
+export { DoltContextEngine, registerDoltContextEngine } from "./dolt/engine.js";
 
 export { ensureContextEnginesInitialized } from "./init.js";
 

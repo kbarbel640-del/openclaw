@@ -50,7 +50,9 @@ export async function runBeforeSessionResetLifecycle(params: {
 
   try {
     ensureContextEnginesInitialized();
-    const contextEngine = await resolveContextEngine(params.cfg);
+    const contextEngine = await resolveContextEngine(params.cfg, {
+      agentId: params.agentId,
+    });
     if (typeof contextEngine.beforeSessionReset !== "function") {
       await contextEngine.dispose?.();
       return;

@@ -471,7 +471,9 @@ export async function runEmbeddedPiAgent(
       // Resolve the context engine once and reuse across retries to avoid
       // repeated DB connections for the LCM engine.
       ensureContextEnginesInitialized();
-      const contextEngine = await resolveContextEngine(params.config);
+      const contextEngine = await resolveContextEngine(params.config, {
+        agentId: workspaceResolution.agentId,
+      });
       try {
         while (true) {
           attemptedThinking.add(thinkLevel);

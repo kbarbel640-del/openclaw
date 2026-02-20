@@ -236,6 +236,92 @@ describe("executeDoltRollup", () => {
         .map((lane) => lane.pointer),
     ).toEqual([result.parentRecord.pointer]);
   });
+
+  it("evicts active bindles oldest-first in the runtime rollup path and keeps records persisted", async () => {
+    const { store } = createInMemoryStore(() => 4_000);
+    const olderBindle = upsertBindle({
+      store,
+      pointer: "bindle-old-1",
+      sessionId: "session-a",
+      eventTsMs: 100,
+      children: ["leaf-old-1"],
+      body: "older bindle",
+    });
+    const newerBindle = upsertBindle({
+      store,
+      pointer: "bindle-old-2",
+      sessionId: "session-a",
+      eventTsMs: 200,
+      children: ["leaf-old-2"],
+      body: "newer bindle",
+    });
+    markActive(store, olderBindle);
+    markActive(store, newerBindle);
+
+    const leaf1 = upsertLeaf({
+      store,
+      pointer: "leaf-1",
+      sessionId: "session-a",
+      eventTsMs: 1_000,
+      children: ["turn-1", "turn-2"],
+      body: "leaf one",
+    });
+    const leaf2 = upsertLeaf({
+      store,
+      pointer: "leaf-2",
+      sessionId: "session-a",
+      eventTsMs: 2_000,
+      children: ["turn-3", "turn-4"],
+      body: "leaf two",
+    });
+    markActive(store, leaf1);
+    markActive(store, leaf2);
+
+    const summarize = vi.fn(
+      async (params: DoltSummarizeParams): Promise<DoltSummarizeResult> => ({
+        summary: makeSummaryPayload({
+          summaryType: "bindle",
+          startEpochMs: params.datesCovered.startEpochMs,
+          endEpochMs: params.datesCovered.endEpochMs,
+          children: params.childPointers,
+          body: "runtime bindle summary",
+        }).summary,
+        metadata: {
+          summary_type: "bindle" as const,
+          finalized_at_reset: false,
+          prompt_template: "bindle" as const,
+          max_output_tokens: 2000,
+        },
+        modelSelection: {
+          provider: "openai",
+          modelId: "gpt-5",
+        },
+      }),
+    );
+
+    const result = await executeDoltRollup({
+      store,
+      sessionId: "session-a",
+      targetLevel: "bindle",
+      sourceRecords: [leaf1, leaf2],
+      bindleEvictionTargetTokens: 0,
+      summarize,
+    });
+
+    expect(result.bindleEviction?.before.activeCount).toBe(3);
+    expect(result.bindleEviction?.after.activeCount).toBe(0);
+    expect(result.bindleEviction?.evictedPointers).toEqual([
+      "bindle-old-1",
+      "bindle-old-2",
+      result.parentRecord.pointer,
+    ]);
+    expect(
+      store.listActiveLane({ sessionId: "session-a", level: "bindle", activeOnly: true }),
+    ).toHaveLength(0);
+    expect(store.getRecord("bindle-old-1")).not.toBeNull();
+    expect(store.getRecord("bindle-old-2")).not.toBeNull();
+    expect(store.getRecord(result.parentRecord.pointer)).not.toBeNull();
+  });
 });
 
 function upsertTurn(params: {
@@ -273,6 +359,29 @@ function upsertLeaf(params: {
     eventTsMs: params.eventTsMs,
     payload: makeSummaryPayload({
       summaryType: "leaf",
+      startEpochMs: params.eventTsMs - 100,
+      endEpochMs: params.eventTsMs,
+      children: params.children,
+      body: params.body,
+    }),
+  });
+}
+
+function upsertBindle(params: {
+  store: SqliteDoltStore;
+  pointer: string;
+  sessionId: string;
+  eventTsMs: number;
+  children: string[];
+  body: string;
+}): DoltRecord {
+  return params.store.upsertRecord({
+    pointer: params.pointer,
+    sessionId: params.sessionId,
+    level: "bindle",
+    eventTsMs: params.eventTsMs,
+    payload: makeSummaryPayload({
+      summaryType: "bindle",
       startEpochMs: params.eventTsMs - 100,
       endEpochMs: params.eventTsMs,
       children: params.children,

@@ -52,7 +52,7 @@ export function assembleDoltContext(params: DoltAssemblyParams): DoltAssemblyRes
   const tokenBudget = normalizeNonNegativeInt(params.tokenBudget ?? 0);
   const runtimeReserveTokens = normalizeNonNegativeInt(params.runtimeReserveTokens ?? 0);
   const availableTokens = Math.max(0, tokenBudget - runtimeReserveTokens);
-  const laneBudgets = resolveLaneBudgets({
+  const laneBudgets = resolveDoltAssemblyLaneBudgets({
     availableTokens,
     lanePolicies,
   });
@@ -99,14 +99,20 @@ export function assembleDoltContext(params: DoltAssemblyParams): DoltAssemblyRes
   };
 }
 
-function resolveLaneBudgets(params: { availableTokens: number; lanePolicies: DoltLanePolicies }): {
+/**
+ * Resolve per-lane token budgets from total available context tokens.
+ */
+export function resolveDoltAssemblyLaneBudgets(params: {
+  availableTokens: number;
+  lanePolicies: DoltLanePolicies;
+}): {
   bindle: number;
   leaf: number;
   turn: number;
 } {
-  const bindleCap = resolveLaneCap(params.lanePolicies.bindle);
-  const leafCap = resolveLaneCap(params.lanePolicies.leaf);
-  const turnCap = resolveLaneCap(params.lanePolicies.turn);
+  const bindleCap = resolveDoltLaneCap(params.lanePolicies.bindle);
+  const leafCap = resolveDoltLaneCap(params.lanePolicies.leaf);
+  const turnCap = resolveDoltLaneCap(params.lanePolicies.turn);
 
   let remaining = params.availableTokens;
   const bindle = Math.min(remaining, bindleCap);
@@ -118,7 +124,10 @@ function resolveLaneBudgets(params: { availableTokens: number; lanePolicies: Dol
   return { bindle, leaf, turn };
 }
 
-function resolveLaneCap(policy: DoltLanePolicy): number {
+/**
+ * Resolve hard cap for one lane from policy target/summary cap fields.
+ */
+export function resolveDoltLaneCap(policy: DoltLanePolicy): number {
   if (typeof policy.summaryCap === "number") {
     return normalizeNonNegativeInt(policy.summaryCap);
   }
@@ -171,7 +180,7 @@ function toAgentMessage(record: DoltRecord): AgentMessage {
     return {
       role: "assistant",
       content: summary,
-    } as AgentMessage;
+    } as unknown as AgentMessage;
   }
 
   const payloadRole = typeof payload?.role === "string" ? payload.role : null;
@@ -179,13 +188,13 @@ function toAgentMessage(record: DoltRecord): AgentMessage {
     return {
       role: payloadRole,
       content: (payload as { content?: unknown }).content ?? "",
-    } as AgentMessage;
+    } as unknown as AgentMessage;
   }
 
   return {
     role: record.level === "turn" ? "user" : "assistant",
     content: safeJsonStringify(record.payload),
-  } as AgentMessage;
+  } as unknown as AgentMessage;
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {

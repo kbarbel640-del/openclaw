@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import type { DoltRecord, DoltStore } from "./store/types.js";
 import {
+  enforceDoltBindleOldestFirstEviction,
+  type DoltBindleEvictionTelemetry,
+} from "./eviction.js";
+import { DOLT_LANE_POLICIES_DEFAULT } from "./policy.js";
+import {
   summarizeDoltRollup,
   type DoltRollupPromptTemplateId,
   type DoltSummaryModelSelection,
@@ -22,6 +27,7 @@ export type DoltRollupParams = {
   model?: string;
   providerOverride?: string;
   modelOverride?: string;
+  bindleEvictionTargetTokens?: number;
   summarize?: typeof summarizeDoltRollup;
 };
 
@@ -30,6 +36,7 @@ export type DoltRollupResult = {
   childPointers: string[];
   mode: DoltRollupPromptTemplateId;
   modelSelection: DoltSummaryModelSelection;
+  bindleEviction?: DoltBindleEvictionTelemetry;
 };
 
 /**
@@ -138,11 +145,24 @@ export async function executeDoltRollup(params: DoltRollupParams): Promise<DoltR
     });
   }
 
+  const bindleEviction =
+    targetLevel === "bindle"
+      ? enforceDoltBindleOldestFirstEviction({
+          store: params.store,
+          sessionId,
+          sessionKey: params.sessionKey,
+          targetTokens: normalizeNonNegativeInt(
+            params.bindleEvictionTargetTokens ?? DOLT_LANE_POLICIES_DEFAULT.bindle.target,
+          ),
+        }).telemetry
+      : undefined;
+
   return {
     parentRecord,
     childPointers,
     mode,
     modelSelection: summarized.modelSelection,
+    bindleEviction,
   };
 }
 
@@ -273,4 +293,11 @@ function normalizeOptionalString(value: string | null | undefined): string | nul
   }
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function normalizeNonNegativeInt(value: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(value));
 }

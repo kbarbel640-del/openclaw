@@ -47,6 +47,33 @@ describe("plugins.slots.contextEngine", () => {
   });
 });
 
+describe("agents contextEngine selection", () => {
+  it("accepts agents.defaults.contextEngine", () => {
+    const result = OpenClawSchema.safeParse({
+      agents: {
+        defaults: {
+          contextEngine: "dolt",
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts agents.list[].contextEngine", () => {
+    const result = OpenClawSchema.safeParse({
+      agents: {
+        list: [
+          {
+            id: "main",
+            contextEngine: "dolt",
+          },
+        ],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("ui.seamColor", () => {
   it("accepts hex colors", () => {
     const res = validateConfigObject({ ui: { seamColor: "#FF4500" } });

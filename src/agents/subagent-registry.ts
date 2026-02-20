@@ -5,6 +5,7 @@ import { resolveContextEngine } from "../context-engine/registry.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { resolveAgentIdFromSessionKey } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { resetAnnounceQueuesForTests } from "./subagent-announce-queue.js";
@@ -98,7 +99,9 @@ async function notifyContextEngineSubagentEnded(params: {
 }) {
   try {
     ensureContextEnginesInitialized();
-    const engine = await resolveContextEngine(loadConfig());
+    const engine = await resolveContextEngine(loadConfig(), {
+      agentId: resolveAgentIdFromSessionKey(params.childSessionKey),
+    });
     if (!engine.onSubagentEnded) {
       return;
     }
