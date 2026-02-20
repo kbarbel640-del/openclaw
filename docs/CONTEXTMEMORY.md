@@ -41,7 +41,7 @@ From the OpenClaw project root directory:
 contextmemory init
 ```
 
-This creates a `.contextmemory/` directory used to store development context locally.
+This creates a `.contextmemory/` directory used to store development context locally. Ensure this directory is in your `.gitignore`.
 
 Example structure:
 
