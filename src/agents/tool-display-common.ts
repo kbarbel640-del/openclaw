@@ -582,21 +582,22 @@ function stripShellPreamble(command: string): PreambleResult {
   let chdirPath: string | undefined;
 
   for (let i = 0; i < 4; i += 1) {
-    const andIndex = rest.indexOf("&&");
-    const orIndex = rest.indexOf("||");
-    const semicolonIndex = rest.indexOf(";");
-    const newlineIndex = rest.indexOf("\n");
-
-    const candidates = [
-      { index: andIndex, length: 2 },
-      { index: orIndex, length: 2 },
-      { index: semicolonIndex, length: 1 },
-      { index: newlineIndex, length: 1 },
-    ]
-      .filter((candidate) => candidate.index >= 0)
-      .toSorted((a, b) => a.index - b.index);
-
-    const first = candidates[0];
+    // Find the first top-level separator (&&, ||, ;, \n) respecting quotes/escaping.
+    let first: { index: number; length: number } | undefined;
+    scanTopLevelChars(rest, (char, idx) => {
+      if (char === "&" && rest[idx + 1] === "&") {
+        first = { index: idx, length: 2 };
+        return false;
+      }
+      if (char === "|" && rest[idx + 1] === "|") {
+        first = { index: idx, length: 2 };
+        return false;
+      }
+      if (char === ";" || char === "\n") {
+        first = { index: idx, length: 1 };
+        return false;
+      }
+    });
     const head = (first ? rest.slice(0, first.index) : rest).trim();
     // cd/pushd/popd is preamble when followed by a separator, or when we already
     // stripped at least one preamble segment (handles chained cd's like `cd /tmp && cd /app`).

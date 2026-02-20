@@ -220,6 +220,20 @@ describe("tool display details", () => {
     expect(detail).toBe("cd /tmp && cd /app (in /app)");
   });
 
+  it("respects quotes when splitting preamble separators", () => {
+    const detail = formatToolDetail(
+      resolveToolDisplay({
+        name: "exec",
+        args: { command: 'export MSG="foo && bar" && echo test' },
+      }),
+    );
+
+    // The && inside quotes must not be treated as a separator —
+    // summary line should be "print text", not "run export" (which would happen
+    // if the quoted && was mistaken for a real separator).
+    expect(detail).toMatch(/^print text/);
+  });
+
   it("recognizes heredoc/inline script exec details", () => {
     const pyDetail = formatToolDetail(
       resolveToolDisplay({
