@@ -9,6 +9,7 @@ import { OverviewPage } from "@/pages/OverviewPage";
 import { AgentsPage } from "@/pages/AgentsPage";
 import { AgentDetailPage } from "@/pages/AgentDetailPage";
 import { TasksPage } from "@/pages/TasksPage";
+import { PerformancePage } from "@/pages/PerformancePage";
 
 // Root layout
 const rootRoute = createRootRoute({
@@ -20,15 +21,6 @@ const rootRoute = createRootRoute({
 });
 
 // Page components (inline placeholders for now)
-
-function PerformancePage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-2">Performance</h1>
-      <p className="text-[var(--text-secondary)]">Metrics and analytics</p>
-    </div>
-  );
-}
 
 function TimelinePage() {
   return (
