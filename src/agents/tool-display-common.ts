@@ -520,20 +520,26 @@ function scanTopLevelChars(
   }
 }
 
-function firstTopLevelStage(command: string): string {
-  let splitIndex = -1;
+function splitTopLevelStages(command: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+
   scanTopLevelChars(command, (char, index) => {
     if (char === ";") {
-      splitIndex = index;
-      return false;
+      parts.push(command.slice(start, index));
+      start = index + 1;
+      return true;
     }
     if ((char === "&" || char === "|") && command[index + 1] === char) {
-      splitIndex = index;
-      return false;
+      parts.push(command.slice(start, index));
+      start = index + 2;
+      return true;
     }
     return true;
   });
-  return splitIndex >= 0 ? command.slice(0, splitIndex) : command;
+
+  parts.push(command.slice(start));
+  return parts.map((part) => part.trim()).filter((part) => part.length > 0);
 }
 
 function splitTopLevelPipes(command: string): string[] {
@@ -550,6 +556,11 @@ function splitTopLevelPipes(command: string): string[] {
 
   parts.push(command.slice(start));
   return parts.map((part) => part.trim()).filter((part) => part.length > 0);
+}
+
+function isChdirCommand(head: string): boolean {
+  const bin = binaryName(splitShellWords(head, 2)[0]);
+  return bin === "cd" || bin === "pushd" || bin === "popd";
 }
 
 function stripShellPreamble(command: string): string {
@@ -571,7 +582,10 @@ function stripShellPreamble(command: string): string {
     const first = candidates[0];
     const head = (first ? rest.slice(0, first.index) : rest).trim();
     const isPreamble =
-      head.startsWith("set ") || head.startsWith("export ") || head.startsWith("unset ");
+      head.startsWith("set ") ||
+      head.startsWith("export ") ||
+      head.startsWith("unset ") ||
+      (first && isChdirCommand(head));
 
     if (!isPreamble) {
       break;
@@ -853,13 +867,7 @@ function summarizeKnownExec(words: string[]): string {
   return /^[A-Za-z0-9._/-]+$/.test(arg) ? `run ${bin} ${arg}` : `run ${bin}`;
 }
 
-function summarizeExecCommand(command: string): string | undefined {
-  const cleaned = stripShellPreamble(command);
-  const stage = firstTopLevelStage(cleaned).trim();
-  if (!stage) {
-    return cleaned ? summarizeKnownExec(trimLeadingEnv(splitShellWords(cleaned))) : undefined;
-  }
-
+function summarizePipeline(stage: string): string {
   const pipeline = splitTopLevelPipes(stage);
   if (pipeline.length > 1) {
     const first = summarizeKnownExec(trimLeadingEnv(splitShellWords(pipeline[0])));
@@ -867,8 +875,101 @@ function summarizeExecCommand(command: string): string | undefined {
     const extra = pipeline.length > 2 ? ` (+${pipeline.length - 2} steps)` : "";
     return `${first} -> ${last}${extra}`;
   }
-
   return summarizeKnownExec(trimLeadingEnv(splitShellWords(stage)));
+}
+
+function summarizeExecCommand(command: string): string | undefined {
+  const cleaned = stripShellPreamble(command);
+  if (!cleaned) {
+    return undefined;
+  }
+
+  const stages = splitTopLevelStages(cleaned);
+  if (stages.length === 0) {
+    return undefined;
+  }
+
+  const summaries = stages.map((stage) => summarizePipeline(stage));
+
+  if (summaries.length === 1) {
+    return summaries[0];
+  }
+
+  return summaries.join(" → ");
+}
+
+/** Known summarizer prefixes that indicate a recognized command with useful context. */
+const KNOWN_SUMMARY_PREFIXES = [
+  "check git",
+  "view git",
+  "show git",
+  "list git",
+  "switch git",
+  "create git",
+  "pull git",
+  "push git",
+  "fetch git",
+  "merge git",
+  "rebase git",
+  "stage git",
+  "restore git",
+  "reset git",
+  "stash git",
+  "search ",
+  "find files",
+  "list files",
+  "show first",
+  "show last",
+  "print line",
+  "print text",
+  "copy ",
+  "move ",
+  "remove ",
+  "create folder",
+  "create file",
+  "fetch http",
+  "install dependencies",
+  "run tests",
+  "run build",
+  "start app",
+  "run lint",
+  "run openclaw",
+  "run node script",
+  "run node ",
+  "run python",
+  "run ruby",
+  "run php",
+  "run sed",
+  "run git ",
+  "run npm ",
+  "run pnpm ",
+  "run yarn ",
+  "run bun ",
+  "check js syntax",
+];
+
+/** True when the summary is generic and the raw command would be more informative. */
+function isGenericSummary(summary: string): boolean {
+  if (summary === "run command") {
+    return true;
+  }
+  // "run <binary>" or "run <binary> <arg>" without useful context
+  if (summary.startsWith("run ")) {
+    return !KNOWN_SUMMARY_PREFIXES.some((prefix) => summary.startsWith(prefix));
+  }
+  return false;
+}
+
+/** Compact the raw command for display: collapse whitespace, trim long strings. */
+function compactRawCommand(raw: string, maxLength = 120): string {
+  const oneLine = raw
+    .replace(/\s*\n\s*/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (oneLine.length <= maxLength) {
+    return oneLine;
+  }
+  return `${oneLine.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
 export function resolveExecDetail(args: unknown): string | undefined {
@@ -892,6 +993,12 @@ export function resolveExecDetail(args: unknown): string | undefined {
         ? record.cwd
         : undefined;
   const cwd = cwdRaw?.trim();
+
+  // When the summary is generic (e.g. "run jj"), use the compact raw command instead.
+  if (isGenericSummary(summary)) {
+    const compact = compactRawCommand(unwrapped);
+    return cwd ? `${compact} (in ${cwd})` : compact;
+  }
 
   return cwd ? `${summary} (in ${cwd})` : summary;
 }

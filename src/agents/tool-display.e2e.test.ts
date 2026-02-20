@@ -104,6 +104,84 @@ describe("tool display details", () => {
     expect(detail).toContain(".openclaw/workspace)");
   });
 
+  it("strips cd preamble and summarizes the real command", () => {
+    const detail = formatToolDetail(
+      resolveToolDisplay({
+        name: "exec",
+        args: { command: "cd ~/my-project && npm install" },
+      }),
+    );
+
+    expect(detail).toBe("install dependencies");
+  });
+
+  it("strips cd preamble and summarizes multiple stages", () => {
+    const detail = formatToolDetail(
+      resolveToolDisplay({
+        name: "exec",
+        args: { command: "cd ~/my-project && npm install && npm test" },
+      }),
+    );
+
+    expect(detail).toBe("install dependencies → run tests");
+  });
+
+  it("strips pushd preamble", () => {
+    const detail = formatToolDetail(
+      resolveToolDisplay({
+        name: "exec",
+        args: { command: "pushd /tmp && git status" },
+      }),
+    );
+
+    expect(detail).toBe("check git status");
+  });
+
+  it("summarizes all stages joined by && or ;", () => {
+    const detail = formatToolDetail(
+      resolveToolDisplay({
+        name: "exec",
+        args: { command: "git fetch && git rebase origin/main" },
+      }),
+    );
+
+    expect(detail).toBe("fetch git changes → rebase git branch");
+  });
+
+  it("falls back to raw command for unknown binaries", () => {
+    const detail = formatToolDetail(
+      resolveToolDisplay({
+        name: "exec",
+        args: { command: "jj rebase -s abc -d main" },
+      }),
+    );
+
+    expect(detail).toBe("jj rebase -s abc -d main");
+  });
+
+  it("falls back to raw command for unknown binary with cwd", () => {
+    const detail = formatToolDetail(
+      resolveToolDisplay({
+        name: "exec",
+        args: { command: "mycli deploy --prod", workdir: "/app" },
+      }),
+    );
+
+    expect(detail).toBe("mycli deploy --prod (in /app)");
+  });
+
+  it("handles standalone cd as raw command", () => {
+    const detail = formatToolDetail(
+      resolveToolDisplay({
+        name: "exec",
+        args: { command: "cd /tmp" },
+      }),
+    );
+
+    // standalone cd (no following command) — treated as raw since it's generic
+    expect(detail).toBe("cd /tmp");
+  });
+
   it("recognizes heredoc/inline script exec details", () => {
     const pyDetail = formatToolDetail(
       resolveToolDisplay({
