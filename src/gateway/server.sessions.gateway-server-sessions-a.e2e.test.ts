@@ -26,8 +26,8 @@ const sessionHookMocks = vi.hoisted(() => ({
   triggerInternalHook: vi.fn(async () => {}),
 }));
 
-const threadBindingLifecycleMocks = vi.hoisted(() => ({
-  unbindThreadBindingsBySessionKey: vi.fn(() => []),
+const subagentLifecycleHookMocks = vi.hoisted(() => ({
+  runSubagentEnded: vi.fn(async () => {}),
 }));
 
 vi.mock("../auto-reply/reply/queue.js", async () => {
@@ -60,11 +60,14 @@ vi.mock("../hooks/internal-hooks.js", async () => {
   };
 });
 
-vi.mock("../discord/monitor/thread-bindings.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../discord/monitor/thread-bindings.js")>();
+vi.mock("../plugins/hook-runner-global.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../plugins/hook-runner-global.js")>();
   return {
     ...actual,
-    unbindThreadBindingsBySessionKey: threadBindingLifecycleMocks.unbindThreadBindingsBySessionKey,
+    getGlobalHookRunner: vi.fn(() => ({
+      hasHooks: (hookName: string) => hookName === "subagent_ended",
+      runSubagentEnded: subagentLifecycleHookMocks.runSubagentEnded,
+    })),
   };
 });
 
@@ -146,7 +149,7 @@ describe("gateway server sessions", () => {
     sessionCleanupMocks.clearSessionQueues.mockClear();
     sessionCleanupMocks.stopSubagentsForRequester.mockClear();
     sessionHookMocks.triggerInternalHook.mockClear();
-    threadBindingLifecycleMocks.unbindThreadBindingsBySessionKey.mockClear();
+    subagentLifecycleHookMocks.runSubagentEnded.mockClear();
   });
 
   test("lists and patches session store via sessions.* RPC", async () => {
@@ -618,13 +621,19 @@ describe("gateway server sessions", () => {
       ["discord:group:dev", "agent:main:discord:group:dev", "sess-active"],
       "sess-active",
     );
-    expect(threadBindingLifecycleMocks.unbindThreadBindingsBySessionKey).toHaveBeenCalledTimes(1);
-    expect(threadBindingLifecycleMocks.unbindThreadBindingsBySessionKey).toHaveBeenCalledWith({
-      targetSessionKey: "agent:main:discord:group:dev",
-      targetKind: "acp",
-      reason: "session-delete",
-      sendFarewell: true,
-    });
+    expect(subagentLifecycleHookMocks.runSubagentEnded).toHaveBeenCalledTimes(1);
+    expect(subagentLifecycleHookMocks.runSubagentEnded).toHaveBeenCalledWith(
+      {
+        targetSessionKey: "agent:main:discord:group:dev",
+        targetKind: "acp",
+        reason: "session-delete",
+        sendFarewell: true,
+        outcome: "deleted",
+      },
+      {
+        childSessionKey: "agent:main:discord:group:dev",
+      },
+    );
 
     ws.close();
   });
@@ -652,13 +661,19 @@ describe("gateway server sessions", () => {
       ["main", "agent:main:main", "sess-main"],
       "sess-main",
     );
-    expect(threadBindingLifecycleMocks.unbindThreadBindingsBySessionKey).toHaveBeenCalledTimes(1);
-    expect(threadBindingLifecycleMocks.unbindThreadBindingsBySessionKey).toHaveBeenCalledWith({
-      targetSessionKey: "agent:main:main",
-      targetKind: "acp",
-      reason: "session-reset",
-      sendFarewell: true,
-    });
+    expect(subagentLifecycleHookMocks.runSubagentEnded).toHaveBeenCalledTimes(1);
+    expect(subagentLifecycleHookMocks.runSubagentEnded).toHaveBeenCalledWith(
+      {
+        targetSessionKey: "agent:main:main",
+        targetKind: "acp",
+        reason: "session-reset",
+        sendFarewell: true,
+        outcome: "reset",
+      },
+      {
+        childSessionKey: "agent:main:main",
+      },
+    );
 
     ws.close();
   });

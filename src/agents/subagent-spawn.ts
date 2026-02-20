@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { formatThinkingLevels, normalizeThinkLevel } from "../auto-reply/thinking.js";
 import { loadConfig } from "../config/config.js";
-import { autoBindSpawnedDiscordSubagent } from "../discord/monitor/thread-bindings.js";
 import { callGateway } from "../gateway/call.js";
+import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../routing/session-key.js";
 import { normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { resolveAgentConfig } from "./agent-scope.js";
@@ -298,20 +298,31 @@ export async function spawnSubagentDirect(
     expectsCompletionMessage: params.expectsCompletionMessage === true,
   });
 
-  if (requestThreadBinding) {
+  const hookRunner = getGlobalHookRunner();
+  if (hookRunner?.hasHooks("subagent_spawned")) {
     try {
-      await autoBindSpawnedDiscordSubagent({
-        accountId: ctx.agentAccountId,
-        channel: ctx.agentChannel,
-        to: ctx.agentTo,
-        threadId: ctx.agentThreadId,
-        childSessionKey,
-        agentId: targetAgentId,
-        label: label || undefined,
-        boundBy: "system",
-      });
+      await hookRunner.runSubagentSpawned(
+        {
+          runId: childRunId,
+          childSessionKey,
+          agentId: targetAgentId,
+          label: label || undefined,
+          requester: {
+            channel: requesterOrigin?.channel,
+            accountId: requesterOrigin?.accountId,
+            to: requesterOrigin?.to,
+            threadId: requesterOrigin?.threadId,
+          },
+          threadRequested: requestThreadBinding,
+        },
+        {
+          runId: childRunId,
+          childSessionKey,
+          requesterSessionKey: requesterInternalKey,
+        },
+      );
     } catch {
-      // Spawn should still return accepted if auto-thread binding fails.
+      // Spawn should still return accepted if spawn lifecycle hooks fail.
     }
   }
 

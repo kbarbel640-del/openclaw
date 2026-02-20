@@ -1,7 +1,7 @@
 import { loadConfig } from "../config/config.js";
-import { unbindThreadBindingsBySessionKey } from "../discord/monitor/thread-bindings.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
+import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { defaultRuntime } from "../runtime.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { resetAnnounceQueuesForTests } from "./subagent-announce-queue.js";
@@ -89,6 +89,41 @@ const resumedRuns = new Set<string>();
 
 function suppressAnnounceForSteerRestart(entry?: SubagentRunRecord) {
   return entry?.suppressAnnounceReason === "steer-restart";
+}
+
+type SubagentEndedOutcome = "ok" | "error" | "timeout" | "killed";
+
+async function emitSubagentEndedHook(params: {
+  entry: SubagentRunRecord;
+  reason: string;
+  sendFarewell?: boolean;
+  accountId?: string;
+  outcome?: SubagentEndedOutcome;
+  error?: string;
+}) {
+  const hookRunner = getGlobalHookRunner();
+  if (!hookRunner?.hasHooks("subagent_ended")) {
+    return;
+  }
+
+  await hookRunner.runSubagentEnded(
+    {
+      targetSessionKey: params.entry.childSessionKey,
+      targetKind: "subagent",
+      reason: params.reason,
+      sendFarewell: params.sendFarewell,
+      accountId: params.accountId,
+      runId: params.entry.runId,
+      endedAt: params.entry.endedAt,
+      outcome: params.outcome,
+      error: params.error,
+    },
+    {
+      runId: params.entry.runId,
+      childSessionKey: params.entry.childSessionKey,
+      requesterSessionKey: params.entry.requesterSessionKey,
+    },
+  );
 }
 
 function startSubagentAnnounceCleanupFlow(runId: string, entry: SubagentRunRecord): boolean {
@@ -277,51 +312,61 @@ function ensureListener() {
   }
   listenerStarted = true;
   listenerStop = onAgentEvent((evt) => {
-    if (!evt || evt.stream !== "lifecycle") {
-      return;
-    }
-    const entry = subagentRuns.get(evt.runId);
-    if (!entry) {
-      return;
-    }
-    const phase = evt.data?.phase;
-    if (phase === "start") {
-      const startedAt = typeof evt.data?.startedAt === "number" ? evt.data.startedAt : undefined;
-      if (startedAt) {
-        entry.startedAt = startedAt;
-        persistSubagentRuns();
+    void (async () => {
+      if (!evt || evt.stream !== "lifecycle") {
+        return;
       }
-      return;
-    }
-    if (phase !== "end" && phase !== "error") {
-      return;
-    }
-    const endedAt = typeof evt.data?.endedAt === "number" ? evt.data.endedAt : Date.now();
-    entry.endedAt = endedAt;
-    if (phase === "error") {
-      const error = typeof evt.data?.error === "string" ? evt.data.error : undefined;
-      entry.outcome = { status: "error", error };
-    } else if (evt.data?.aborted) {
-      entry.outcome = { status: "timeout" };
-    } else {
-      entry.outcome = { status: "ok" };
-    }
-    persistSubagentRuns();
-    unbindThreadBindingsBySessionKey({
-      targetSessionKey: entry.childSessionKey,
-      accountId: entry.requesterOrigin?.accountId,
-      targetKind: "subagent",
-      reason: phase === "error" ? "subagent-error" : "subagent-complete",
-      sendFarewell: true,
-    });
+      const entry = subagentRuns.get(evt.runId);
+      if (!entry) {
+        return;
+      }
+      const phase = evt.data?.phase;
+      if (phase === "start") {
+        const startedAt = typeof evt.data?.startedAt === "number" ? evt.data.startedAt : undefined;
+        if (startedAt) {
+          entry.startedAt = startedAt;
+          persistSubagentRuns();
+        }
+        return;
+      }
+      if (phase !== "end" && phase !== "error") {
+        return;
+      }
+      const endedAt = typeof evt.data?.endedAt === "number" ? evt.data.endedAt : Date.now();
+      entry.endedAt = endedAt;
+      if (phase === "error") {
+        const error = typeof evt.data?.error === "string" ? evt.data.error : undefined;
+        entry.outcome = { status: "error", error };
+      } else if (evt.data?.aborted) {
+        entry.outcome = { status: "timeout" };
+      } else {
+        entry.outcome = { status: "ok" };
+      }
+      persistSubagentRuns();
+      try {
+        await emitSubagentEndedHook({
+          entry,
+          accountId: entry.requesterOrigin?.accountId,
+          reason: phase === "error" ? "subagent-error" : "subagent-complete",
+          sendFarewell: true,
+          outcome:
+            entry.outcome?.status === "error" || entry.outcome?.status === "timeout"
+              ? entry.outcome.status
+              : "ok",
+          error: entry.outcome?.status === "error" ? entry.outcome.error : undefined,
+        });
+      } catch {
+        // Hook failures should not block cleanup.
+      }
 
-    if (suppressAnnounceForSteerRestart(entry)) {
-      return;
-    }
+      if (suppressAnnounceForSteerRestart(entry)) {
+        return;
+      }
 
-    if (!startSubagentAnnounceCleanupFlow(evt.runId, entry)) {
-      return;
-    }
+      if (!startSubagentAnnounceCleanupFlow(evt.runId, entry)) {
+        return;
+      }
+    })();
   });
 }
 
@@ -606,13 +651,18 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
     if (mutated) {
       persistSubagentRuns();
     }
-    unbindThreadBindingsBySessionKey({
-      targetSessionKey: entry.childSessionKey,
-      accountId: entry.requesterOrigin?.accountId,
-      targetKind: "subagent",
-      reason: wait.status === "error" ? "subagent-error" : "subagent-complete",
-      sendFarewell: true,
-    });
+    try {
+      await emitSubagentEndedHook({
+        entry,
+        accountId: entry.requesterOrigin?.accountId,
+        reason: wait.status === "error" ? "subagent-error" : "subagent-complete",
+        sendFarewell: true,
+        outcome: wait.status === "error" ? "error" : wait.status === "timeout" ? "timeout" : "ok",
+        error: wait.status === "error" ? waitError : undefined,
+      });
+    } catch {
+      // Hook failures should not block cleanup.
+    }
     if (suppressAnnounceForSteerRestart(entry)) {
       return;
     }
@@ -749,7 +799,7 @@ export function markSubagentRunTerminated(params: {
   const now = Date.now();
   const reason = params.reason?.trim() || "killed";
   let updated = 0;
-  const childSessionKeys = new Set<string>();
+  const entriesByChildSessionKey = new Map<string, SubagentRunRecord>();
   for (const runId of runIds) {
     const entry = subagentRuns.get(runId);
     if (!entry) {
@@ -763,17 +813,22 @@ export function markSubagentRunTerminated(params: {
     entry.cleanupHandled = true;
     entry.cleanupCompletedAt = now;
     entry.suppressAnnounceReason = "killed";
-    childSessionKeys.add(entry.childSessionKey);
+    if (!entriesByChildSessionKey.has(entry.childSessionKey)) {
+      entriesByChildSessionKey.set(entry.childSessionKey, entry);
+    }
     updated += 1;
   }
   if (updated > 0) {
     persistSubagentRuns();
-    for (const childSessionKey of childSessionKeys) {
-      unbindThreadBindingsBySessionKey({
-        targetSessionKey: childSessionKey,
-        targetKind: "subagent",
+    for (const entry of entriesByChildSessionKey.values()) {
+      void emitSubagentEndedHook({
+        entry,
         reason: "subagent-killed",
         sendFarewell: true,
+        outcome: "killed",
+        error: reason,
+      }).catch(() => {
+        // Hook failures should not break termination flow.
       });
     }
   }

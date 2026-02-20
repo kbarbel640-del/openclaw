@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
-import type { GatewayClient, GatewayRequestHandlers, RespondFn } from "./types.js";
 import { resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { abortEmbeddedPiRun, waitForEmbeddedPiRunEnd } from "../../agents/pi-embedded.js";
 import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
@@ -13,8 +12,8 @@ import {
   type SessionEntry,
   updateSessionStore,
 } from "../../config/sessions.js";
-import { unbindThreadBindingsBySessionKey } from "../../discord/monitor/thread-bindings.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
+import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-key.js";
 import {
   ErrorCodes,
@@ -44,6 +43,7 @@ import {
 } from "../session-utils.js";
 import { applySessionsPatchToStore } from "../sessions-patch.js";
 import { resolveSessionKeyFromResolveParams } from "../sessions-resolve.js";
+import type { GatewayClient, GatewayRequestHandlers, RespondFn } from "./types.js";
 import { assertValidParams } from "./validation.js";
 
 function requireSessionKey(key: unknown, respond: RespondFn): string | null {
@@ -131,6 +131,28 @@ function archiveSessionTranscriptsForSession(params: {
     agentId: params.agentId,
     reason: params.reason,
   });
+}
+
+async function emitSessionUnboundLifecycleEvent(params: {
+  targetSessionKey: string;
+  reason: "session-reset" | "session-delete";
+}) {
+  const hookRunner = getGlobalHookRunner();
+  if (!hookRunner?.hasHooks("subagent_ended")) {
+    return;
+  }
+  await hookRunner.runSubagentEnded(
+    {
+      targetSessionKey: params.targetSessionKey,
+      targetKind: "acp",
+      reason: params.reason,
+      sendFarewell: true,
+      outcome: params.reason === "session-reset" ? "reset" : "deleted",
+    },
+    {
+      childSessionKey: params.targetSessionKey,
+    },
+  );
 }
 
 async function ensureSessionRuntimeCleanup(params: {
@@ -368,11 +390,9 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       agentId: target.agentId,
       reason: "reset",
     });
-    unbindThreadBindingsBySessionKey({
+    await emitSessionUnboundLifecycleEvent({
       targetSessionKey: target.canonicalKey ?? key,
-      targetKind: "acp",
       reason: "session-reset",
-      sendFarewell: true,
     });
     respond(true, { ok: true, key: target.canonicalKey, entry: next }, undefined);
   },
@@ -426,11 +446,9 @@ export const sessionsHandlers: GatewayRequestHandlers = {
           reason: "deleted",
         })
       : [];
-    unbindThreadBindingsBySessionKey({
+    await emitSessionUnboundLifecycleEvent({
       targetSessionKey: target.canonicalKey ?? key,
-      targetKind: "acp",
       reason: "session-delete",
-      sendFarewell: true,
     });
 
     respond(true, { ok: true, key: target.canonicalKey, deleted: existed, archived }, undefined);
