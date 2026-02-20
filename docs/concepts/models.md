@@ -25,7 +25,7 @@ OpenClaw selects models in this order:
 Related:
 
 - `agents.defaults.models` is the allowlist/catalog of models OpenClaw can use (plus aliases).
-- `agents.defaults.imageModel` is used **only when** the primary model can’t accept images.
+- `agents.defaults.imageModel` is used for image operations regardless of whether the primary model supports images (tool description is adjusted based on primary model vision support).
 - Per-agent defaults can override `agents.defaults.model` via `agents.list[].model` plus bindings (see [/concepts/multi-agent](/concepts/multi-agent)).
 
 ## Quick model picks (anecdotal)

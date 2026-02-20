@@ -275,8 +275,8 @@ After approval, you can chat normally.
 
 **1. Group policy** (`channels.feishu.groupPolicy`):
 
-- `"open"` = allow everyone in groups (default)
-- `"allowlist"` = only allow `groupAllowFrom`
+- `"open"` = allow everyone in groups
+- `"allowlist"` = only allow `groupAllowFrom` (default)
 - `"disabled"` = disable group messages
 
 **2. Mention requirement** (`channels.feishu.groups.<chat_id>.requireMention`):
@@ -543,7 +543,7 @@ Key options:
 | `channels.feishu.accounts.<id>.domain`            | Per-account API domain override | `feishu`         |
 | `channels.feishu.dmPolicy`                        | DM policy                       | `pairing`        |
 | `channels.feishu.allowFrom`                       | DM allowlist (open_id list)     | -                |
-| `channels.feishu.groupPolicy`                     | Group policy                    | `open`           |
+| `channels.feishu.groupPolicy`                     | Group policy                    | `allowlist`      |
 | `channels.feishu.groupAllowFrom`                  | Group allowlist                 | -                |
 | `channels.feishu.groups.<chat_id>.requireMention` | Require @mention                | `true`           |
 | `channels.feishu.groups.<chat_id>.enabled`        | Enable group                    | `true`           |

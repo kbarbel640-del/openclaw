@@ -57,7 +57,7 @@ extra folders, archive or move them to Trash (for example `trash ~/openclaw`).
 If you intentionally keep multiple workspaces, make sure
 `agents.defaults.workspace` points to the active one.
 
-`openclaw doctor` warns when it detects extra workspace directories.
+`openclaw doctor` may warn when it detects extra workspace directories.
 
 ## Workspace file map (what each file means)
 
