@@ -207,3 +207,19 @@ export const SkillsUpdateParamsSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+export const SkillsAddFromUrlParamsSchema = Type.Object(
+  {
+    url: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const SkillsAddFromUrlResultSchema = Type.Object(
+  {
+    ok: Type.Boolean(),
+    name: Type.Optional(NonEmptyString),
+    message: NonEmptyString,
+  },
+  { additionalProperties: false },
+);

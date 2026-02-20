@@ -6,7 +6,6 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 const compiler = "tsdown";
-const compilerArgs = ["exec", compiler, "--no-clean"];
 
 export const runNodeWatchedPaths = ["src", "tsconfig.json", "package.json"];
 
@@ -231,9 +230,14 @@ export async function runNodeMain(params = {}) {
   }
 
   logRunner("Building TypeScript (dist is stale).", deps);
-  const buildCmd = deps.platform === "win32" ? "cmd.exe" : "pnpm";
-  const buildArgs =
-    deps.platform === "win32" ? ["/d", "/s", "/c", "pnpm", ...compilerArgs] : compilerArgs;
+  const tsdownBin = path.join(deps.cwd, "node_modules", "tsdown", "dist", "run.mjs");
+  const useNodeTsdown = deps.platform !== "win32" && deps.fs.existsSync(tsdownBin);
+  const buildCmd = useNodeTsdown ? deps.execPath : deps.platform === "win32" ? "cmd.exe" : "pnpm";
+  const buildArgs = useNodeTsdown
+    ? [tsdownBin, "--no-clean"]
+    : deps.platform === "win32"
+      ? ["/d", "/s", "/c", "pnpm", "--filter", ".", "exec", compiler, "--no-clean"]
+      : ["--filter", ".", "exec", compiler, "--no-clean"];
   const build = deps.spawn(buildCmd, buildArgs, {
     cwd: deps.cwd,
     env: deps.env,

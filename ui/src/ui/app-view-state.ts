@@ -200,6 +200,9 @@ export type AppViewState = {
   skillEdits: Record<string, string>;
   skillMessages: Record<string, SkillMessage>;
   skillsBusyKey: string | null;
+  addFromUrlUrl: string;
+  addFromUrlBusy: boolean;
+  addFromUrlMessage: string | null;
   debugLoading: boolean;
   debugStatus: StatusSummary | null;
   debugHealth: HealthSnapshot | null;
