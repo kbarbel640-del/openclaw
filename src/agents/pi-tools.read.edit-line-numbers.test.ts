@@ -14,9 +14,13 @@ line 6`;
     const mockBridge: SandboxFsBridge = {
       readFile: vi.fn(async () => Buffer.from(testContent, "utf-8")),
       writeFile: vi.fn(async () => {}),
-      stat: vi.fn(async () => ({ isFile: () => true, isDirectory: () => false })),
+      stat: vi.fn(async () => ({
+        type: "file" as const,
+        size: testContent.length,
+        mtimeMs: Date.now(),
+      })),
       mkdirp: vi.fn(async () => {}),
-    };
+    } as unknown as SandboxFsBridge;
 
     const tool = createSandboxedEditTool({
       root: "/test",
@@ -44,9 +48,13 @@ function test() {
     const mockBridge: SandboxFsBridge = {
       readFile: vi.fn(async () => Buffer.from(testContent, "utf-8")),
       writeFile: vi.fn(async () => {}),
-      stat: vi.fn(async () => ({ isFile: () => true, isDirectory: () => false })),
+      stat: vi.fn(async () => ({
+        type: "file" as const,
+        size: testContent.length,
+        mtimeMs: Date.now(),
+      })),
       mkdirp: vi.fn(async () => {}),
-    };
+    } as unknown as SandboxFsBridge;
 
     const tool = createSandboxedEditTool({
       root: "/test",
@@ -79,9 +87,13 @@ function test() {
     const mockBridge: SandboxFsBridge = {
       readFile: vi.fn(async () => Buffer.from(testContent, "utf-8")),
       writeFile: vi.fn(async () => {}),
-      stat: vi.fn(async () => ({ isFile: () => true, isDirectory: () => false })),
+      stat: vi.fn(async () => ({
+        type: "file" as const,
+        size: testContent.length,
+        mtimeMs: Date.now(),
+      })),
       mkdirp: vi.fn(async () => {}),
-    };
+    } as unknown as SandboxFsBridge;
 
     const tool = createSandboxedEditTool({
       root: "/test",
@@ -105,9 +117,13 @@ line 3`;
     const mockBridge: SandboxFsBridge = {
       readFile: vi.fn(async () => Buffer.from(testContent, "utf-8")),
       writeFile: vi.fn(async () => {}),
-      stat: vi.fn(async () => ({ isFile: () => true, isDirectory: () => false })),
+      stat: vi.fn(async () => ({
+        type: "file" as const,
+        size: testContent.length,
+        mtimeMs: Date.now(),
+      })),
       mkdirp: vi.fn(async () => {}),
-    };
+    } as unknown as SandboxFsBridge;
 
     const tool = createSandboxedEditTool({
       root: "/test",
