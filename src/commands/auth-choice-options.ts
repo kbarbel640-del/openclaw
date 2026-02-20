@@ -155,6 +155,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["cloudflare-ai-gateway-api-key"],
   },
   {
+    value: "digitalocean",
+    label: "DigitalOcean",
+    hint: "Gradient AI API key",
+    choices: ["digitalocean-gradient-api-key"],
+  },
+  {
     value: "custom",
     label: "Custom Provider",
     hint: "Any OpenAI or Anthropic compatible endpoint",
@@ -295,6 +301,11 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     value: "minimax-api-lightning",
     label: "MiniMax M2.5 Lightning",
     hint: "Faster, higher output cost",
+  },
+  {
+    value: "digitalocean-gradient-api-key",
+    label: "DigitalOcean Gradient API key",
+    hint: "Access Llama models via Gradient AI",
   },
   { value: "custom-api-key", label: "Custom Provider" },
 ];

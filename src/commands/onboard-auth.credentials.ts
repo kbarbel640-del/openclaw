@@ -349,6 +349,18 @@ export function setQianfanApiKey(key: string, agentDir?: string) {
   });
 }
 
+export function setDigitalOceanGradientApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "digitalocean:default",
+    credential: {
+      type: "api_key",
+      provider: "digitalocean",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+
 export function setXaiApiKey(key: string, agentDir?: string) {
   upsertAuthProfile({
     profileId: "xai:default",

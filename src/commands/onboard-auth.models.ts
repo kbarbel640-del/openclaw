@@ -27,6 +27,61 @@ export const ZAI_GLOBAL_BASE_URL = "https://api.z.ai/api/paas/v4";
 export const ZAI_CN_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
 export const ZAI_DEFAULT_MODEL_ID = "glm-5";
 
+export const DIGITALOCEAN_GRADIENT_BASE_URL = "https://inference.do-ai.run/v1";
+export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID = "llama3.3-70b-instruct";
+export const DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_REF = `digitalocean/${DIGITALOCEAN_GRADIENT_DEFAULT_MODEL_ID}`;
+
+const DIGITALOCEAN_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+export function buildDigitalOceanGradientModelDefinition(params: {
+  modelId: string;
+  name?: string;
+  reasoning?: boolean;
+  contextWindow?: number;
+  maxTokens?: number;
+}): ModelDefinitionConfig {
+  return {
+    id: params.modelId,
+    name: params.name || params.modelId,
+    reasoning: params.reasoning ?? true,
+    input: ["text"],
+    cost: DIGITALOCEAN_DEFAULT_COST,
+    contextWindow: params.contextWindow ?? 128000,
+    maxTokens: params.maxTokens ?? 8192,
+  };
+}
+
+export function buildDigitalOceanGradientModels(): ModelDefinitionConfig[] {
+  return [
+    buildDigitalOceanGradientModelDefinition({
+      modelId: "llama3.3-70b-instruct",
+      name: "Llama 3.3 70B Instruct",
+      reasoning: false,
+      contextWindow: 128000,
+      maxTokens: 8192,
+    }),
+    buildDigitalOceanGradientModelDefinition({
+      modelId: "openai-gpt-oss-120b",
+      name: "GPT OSS 120B",
+      reasoning: false,
+      contextWindow: 131072,
+      maxTokens: 8192,
+    }),
+    buildDigitalOceanGradientModelDefinition({
+      modelId: "deepseek-r1-distill-llama-70b",
+      name: "DeepSeek R1 Distill Llama 70B",
+      reasoning: true,
+      contextWindow: 128000,
+      maxTokens: 8192,
+    }),
+  ];
+}
+
 export function resolveZaiBaseUrl(endpoint?: string): string {
   switch (endpoint) {
     case "coding-cn":

@@ -21,6 +21,7 @@ type OnboardProviderAuthOptionKey = keyof Pick<
   | "xaiApiKey"
   | "litellmApiKey"
   | "qianfanApiKey"
+  | "digitaloceanApiKey"
 >;
 
 export type OnboardProviderAuthFlag = {
@@ -165,5 +166,12 @@ export const ONBOARD_PROVIDER_AUTH_FLAGS: ReadonlyArray<OnboardProviderAuthFlag>
     cliFlag: "--qianfan-api-key",
     cliOption: "--qianfan-api-key <key>",
     description: "QIANFAN API key",
+  },
+  {
+    optionKey: "digitaloceanApiKey",
+    authChoice: "digitalocean-gradient-api-key",
+    cliFlag: "--digitalocean-api-key",
+    cliOption: "--digitalocean-api-key <key>",
+    description: "DigitalOcean Gradient AI API key",
   },
 ];

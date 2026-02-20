@@ -10,6 +10,7 @@ import { applyAuthChoiceHuggingface } from "./auth-choice.apply.huggingface.js";
 import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import { applyAuthChoiceOpenRouter } from "./auth-choice.apply.openrouter.js";
 import { applyDefaultModelChoice } from "./auth-choice.default-model.js";
+import { applyDigitalOceanGradientAuthChoice } from "./digitalocean-gradient-config.js";
 import {
   applyGoogleGeminiModelDefault,
   GOOGLE_GEMINI_DEFAULT_MODEL,
@@ -951,6 +952,10 @@ export async function applyAuthChoiceApiProviders(
       agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
     }
     return { config: nextConfig, agentModelOverride };
+  }
+
+  if (authChoice === "digitalocean-gradient-api-key") {
+    return await applyDigitalOceanGradientAuthChoice(params);
   }
 
   return null;
