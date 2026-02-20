@@ -1,7 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DoltRecord } from "./store/types.js";
-import type { DoltSummarizeParams, DoltSummarizeResult } from "./summarizer.js";
-import type { DoltTelemetryEvent, DoltTelemetryEventType } from "./telemetry.js";
 import { requireNodeSqlite } from "../../memory/sqlite.js";
 import { hydrateDoltBootstrapState } from "./bootstrap.js";
 import { serializeDoltSummaryFrontmatter } from "./contract.js";
@@ -9,6 +6,9 @@ import { evaluateDoltLanePressure, selectDoltTurnChunkForCompaction } from "./po
 import { finalizeDoltReset } from "./reset-finalization.js";
 import { executeDoltRollup } from "./rollup.js";
 import { SqliteDoltStore } from "./store/sqlite-dolt-store.js";
+import type { DoltRecord } from "./store/types.js";
+import type { DoltSummarizeParams, DoltSummarizeResult } from "./summarizer.js";
+import type { DoltTelemetryEvent, DoltTelemetryEventType } from "./telemetry.js";
 import { onDoltTelemetryEvent, resetDoltTelemetryForTest } from "./telemetry.js";
 
 type TestStore = {
@@ -43,11 +43,11 @@ describe("dolt telemetry runtime integration", () => {
 
     evaluateDoltLanePressure({
       laneTokenCount: 45_000,
-      policy: { soft: 40_000, delta: 4_000, target: 36_000 },
+      policy: { soft: 40_000, delta: 4_000, target: 10_000 },
     });
     evaluateDoltLanePressure({
       laneTokenCount: 37_000,
-      policy: { soft: 40_000, delta: 4_000, target: 36_000 },
+      policy: { soft: 40_000, delta: 4_000, target: 10_000 },
       hardLimitSafetyMode: true,
     });
     selectDoltTurnChunkForCompaction({

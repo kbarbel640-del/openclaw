@@ -19,7 +19,7 @@ describe("resolveDoltLanePolicies", () => {
     expect(resolved.turn).toEqual({
       soft: 41_000,
       delta: 4_000,
-      target: 36_000,
+      target: 10_000,
     });
     expect(resolved.leaf).toEqual(DOLT_LANE_POLICIES_DEFAULT.leaf);
     expect(resolved.bindle).toEqual({
@@ -132,7 +132,7 @@ describe("selectDoltTurnChunkForCompaction", () => {
     });
 
     expect(selection.freshTailCount).toBe(3);
-    expect(selection.selectedCount).toBe(6);
+    expect(selection.selectedCount).toBe(15);
     expect(selection.selected.map((turn) => turn.pointer)).toEqual([
       "turn-1",
       "turn-2",
@@ -140,6 +140,15 @@ describe("selectDoltTurnChunkForCompaction", () => {
       "turn-4",
       "turn-5",
       "turn-6",
+      "turn-7",
+      "turn-8",
+      "turn-9",
+      "turn-10",
+      "turn-11",
+      "turn-12",
+      "turn-13",
+      "turn-14",
+      "turn-15",
     ]);
   });
 

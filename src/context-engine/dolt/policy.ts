@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { DoltRecordLevel } from "./store/types.js";
 import { renderPayloadForTokenEstimation } from "./store/token-count.js";
+import type { DoltRecordLevel } from "./store/types.js";
 import { emitDoltTelemetryEvent } from "./telemetry.js";
 
 export type DoltLanePolicy = {
@@ -54,7 +54,8 @@ export const DOLT_LANE_POLICIES_DEFAULT: DoltLanePolicies = {
   turn: {
     soft: 40_000,
     delta: 4_000,
-    target: 36_000,
+    // Drain toward fresh-tail retention (max 2 turns or 10k tokens).
+    target: 10_000,
   },
   leaf: {
     soft: 10_000,
