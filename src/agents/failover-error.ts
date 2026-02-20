@@ -161,9 +161,6 @@ export function resolveFailoverReasonFromError(err: unknown): FailoverReason | n
   if (status === 408) {
     return "timeout";
   }
-  if (status === 503) {
-    return "timeout";
-  }
   if (status === 400) {
     return "format";
   }

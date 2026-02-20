@@ -583,12 +583,7 @@ const ERROR_PATTERNS = {
     "resource_exhausted",
     "usage limit",
   ],
-  overloaded: [
-    /overloaded_error|"type"\s*:\s*"overloaded_error"/i,
-    "overloaded",
-    "service unavailable",
-    "high demand",
-  ],
+  overloaded: [/overloaded_error|"type"\s*:\s*"overloaded_error"/i, "overloaded"],
   timeout: [
     "timeout",
     "timed out",
