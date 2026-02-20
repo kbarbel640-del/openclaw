@@ -24,10 +24,17 @@ const doltContextToolsPlugin = {
       optional: true,
     });
 
-    api.registerTool((ctx) => createDoltExpandTool({ queries: queryRuntime.forContext(ctx) }), {
-      name: "dolt_expand",
-      optional: true,
-    });
+    api.registerTool(
+      (ctx) =>
+        createDoltExpandTool({
+          queries: queryRuntime.forContext(ctx),
+          sessionKey: ctx.sessionKey,
+        }),
+      {
+        name: "dolt_expand",
+        optional: true,
+      },
+    );
 
     api.registerTool((ctx) => createDoltGrepTool({ queries: queryRuntime.forContext(ctx) }), {
       name: "dolt_grep",
