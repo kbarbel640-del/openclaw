@@ -1,19 +1,25 @@
-![npm](https://img.shields.io/npm/v/@akashkobal/contextmemory)
-![license](https://img.shields.io/npm/l/@akashkobal/contextmemory)
+# ContextMemory Integration Guide
 
-# ContextMemory 🧠
+This guide explains how OpenClaw contributors can optionally use ContextMemory to persist development context across AI-assisted coding sessions.
 
-Persistent AI coding context memory for developers and teams.
+## Overview
 
-Git tracks your code history. **ContextMemory tracks your intent history.**
+ContextMemory is a CLI tool that helps developers save and restore their working context, including:
 
-Never re-explain your architecture, decisions, or progress to AI assistants again.
+- Current task
+- Goals and decisions
+- Implementation progress
+- Next planned steps
+
+This can be useful when working with AI coding assistants such as ChatGPT, Claude, or Cursor, allowing contributors to resume work without manually reconstructing project context.
+
+ContextMemory does not modify OpenClaw source code and is entirely optional.
 
 ---
 
-## 🚀 Installation
+## Installation
 
-Install globally from npm:
+Install ContextMemory globally using npm:
 
 ```bash
 npm install -g @akashkobal/contextmemory
@@ -27,85 +33,64 @@ contextmemory --help
 
 ---
 
-## ⚡ Quick Start
+## Initialize in OpenClaw Repository
 
-Initialize inside your project:
+From the OpenClaw project root directory:
 
 ```bash
 contextmemory init
 ```
 
-Save your working context:
+This creates a `.contextmemory/` directory used to store development context locally.
 
-```bash
-contextmemory save
-```
-
-Quick save:
-
-```bash
-contextmemory save "Implemented multi-model execution"
-```
-
-Resume your context:
-
-```bash
-contextmemory resume
-```
-
-This copies a formatted prompt to your clipboard.  
-Paste it into ChatGPT, Cursor, Claude, or any AI coding tool.
-
----
-
-## 🧠 How It Works
-
-ContextMemory creates:
+Example structure:
 
 ```
 .contextmemory/
 ├── context.json
 ├── history/
-│   ├── entry-1.json
-│   ├── entry-2.json
 ```
 
-Each entry captures:
-
-- Task
-- Goal
-- Approaches
-- Decisions
-- Current State
-- Next Steps
+This directory is local to your development environment.
 
 ---
 
-## 📦 Commands
+## Saving Development Context
 
-### Core
+To save your current OpenClaw development state:
 
 ```bash
-contextmemory init
-contextmemory save
+contextmemory save "Working on OpenClaw feature implementation"
+```
+
+This records relevant information such as:
+
+- Task description  
+- Current progress  
+- Development decisions  
+- Next steps  
+
+You can update context at any time during development.
+
+---
+
+## Resuming Development Context
+
+To restore previously saved context:
+
+```bash
 contextmemory resume
-contextmemory log
-contextmemory diff
 ```
 
-### Automation
+This copies a formatted context summary to your clipboard.
 
-```bash
-contextmemory watch
-contextmemory hook install
-contextmemory handoff @username
-```
+You can paste it into your AI coding assistant to restore development continuity.
 
 ---
 
-## 🔌 MCP Integration (Optional)
+## Optional MCP Integration
 
-Add to your MCP configuration:
+If using an MCP-compatible AI tool, add the following configuration:
 
 ```json
 {
@@ -118,34 +103,32 @@ Add to your MCP configuration:
 }
 ```
 
----
-
-## 🏗 Works With
-
-- Spring Boot
-- React
-- Node.js
-- Python
-- Microservices
-- Monorepos
-
-AI Tools:
-
-- ChatGPT
-- Cursor
-- Claude
-- Copilot
-- Windsurf
+This allows compatible tools to access stored context automatically.
 
 ---
 
-## 📄 License
+## Example Use Cases in OpenClaw Development
 
-MIT
+ContextMemory may be useful for:
+
+- Large feature development  
+- Multi-session contributions  
+- Refactoring tasks  
+- AI-assisted debugging  
+- Tracking architectural decisions  
 
 ---
 
-## 👨‍💻 Author
+## Notes
 
-Akash Kobal  
-GitHub: [https://github.com/AkashKobal](https://github.com/AkashKobal)
+- ContextMemory is optional  
+- It does not change OpenClaw functionality  
+- It stores context locally in your development environment  
+- It can be safely ignored if not needed  
+
+---
+
+## Related Links
+
+- npm package: https://www.npmjs.com/package/@akashkobal/contextmemory  
+- Source repository: https://github.com/AkashKobal/contextmemory
