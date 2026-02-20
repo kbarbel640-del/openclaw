@@ -289,13 +289,16 @@ export const dispatchTelegramMessage = async ({
     await lane.stream.flush();
   };
 
-  const disableBlockStreaming = forceBlockStreamingForReasoning
-    ? false
-    : typeof telegramCfg.blockStreaming === "boolean"
-      ? !telegramCfg.blockStreaming
-      : canStreamAnswerDraft || streamMode === "off"
-        ? true
-        : undefined;
+  const disableBlockStreaming =
+    streamMode === "off"
+      ? true
+      : forceBlockStreamingForReasoning
+        ? false
+        : typeof telegramCfg.blockStreaming === "boolean"
+          ? !telegramCfg.blockStreaming
+          : canStreamAnswerDraft
+            ? true
+            : undefined;
 
   const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
     cfg,
@@ -366,6 +369,7 @@ export const dispatchTelegramMessage = async ({
   const deliveryState = {
     delivered: false,
     skippedNonSilent: 0,
+    failedNonSilent: 0,
   };
   const finalizedPreviewByLane: Record<LaneName, boolean> = {
     answer: false,
@@ -636,6 +640,9 @@ export const dispatchTelegramMessage = async ({
           }
         },
         onError: (err, info) => {
+          if (info.kind !== "silent") {
+            deliveryState.failedNonSilent += 1;
+          }
           runtime.error?.(danger(`telegram ${info.kind} reply failed: ${String(err)}`));
         },
         onReplyStart: createTypingCallbacks({
@@ -720,7 +727,10 @@ export const dispatchTelegramMessage = async ({
     }
   }
   let sentFallback = false;
-  if (!deliveryState.delivered && deliveryState.skippedNonSilent > 0) {
+  if (
+    !deliveryState.delivered &&
+    (deliveryState.skippedNonSilent > 0 || deliveryState.failedNonSilent > 0)
+  ) {
     const result = await deliverReplies({
       replies: [{ text: EMPTY_RESPONSE_FALLBACK }],
       ...deliveryBaseOptions,
