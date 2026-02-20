@@ -84,18 +84,6 @@ function stripLeadingByNonWsPrefix(text: string, nonWsPrefix: string): string {
   return text.slice(cutIndex).replace(/^\s+/, "");
 }
 
-function stripProcessPrefixFromFinal(finalText: string, processText: string): string {
-  const finalWs = stripWhitespace(finalText);
-  const processWs = stripWhitespace(processText);
-  if (!finalWs || !processWs) {
-    return finalText;
-  }
-  if (!finalWs.startsWith(processWs)) {
-    return finalText;
-  }
-  return stripLeadingByNonWsPrefix(finalText, processWs);
-}
-
 function extractSystemTraceLines(text: string): { cleanedText: string; traceLines: string[] } {
   if (!text) {
     return { cleanedText: text, traceLines: [] };
