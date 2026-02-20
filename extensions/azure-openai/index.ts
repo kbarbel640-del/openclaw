@@ -64,9 +64,10 @@ async function fetchAzureOpenAiModels(params: {
     .map((id) => {
       const lower = id.toLowerCase();
       const reasoning = /^o\d|reason/i.test(lower);
-      const input = lower.includes("vision") || lower.includes("gpt-4o")
-        ? (["text", "image"] as const)
-        : (["text"] as const);
+      const input =
+        lower.includes("vision") || lower.includes("gpt-4o")
+          ? (["text", "image"] as const)
+          : (["text"] as const);
       return {
         id,
         name: id,
@@ -122,7 +123,9 @@ const azureOpenAiPlugin = {
               message: "Azure OpenAI endpoint URL",
               placeholder: "https://your-resource-name.openai.azure.com",
               validate: (value) => {
-                const val = String(value ?? "").trim().replace(/\/$/, "");
+                const val = String(value ?? "")
+                  .trim()
+                  .replace(/\/$/, "");
                 if (!val) {
                   return "Endpoint URL is required";
                 }
@@ -215,7 +218,9 @@ const azureOpenAiPlugin = {
               message: "Azure OpenAI endpoint URL",
               placeholder: "https://your-resource-name.openai.azure.com",
               validate: (value) => {
-                const val = String(value ?? "").trim().replace(/\/$/, "");
+                const val = String(value ?? "")
+                  .trim()
+                  .replace(/\/$/, "");
                 if (!val) {
                   return "Endpoint URL is required";
                 }
