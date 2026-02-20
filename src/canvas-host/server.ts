@@ -1,14 +1,13 @@
+import * as fsSync from "node:fs";
 import fs from "node:fs/promises";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
-import os from "node:os";
 import path from "node:path";
 import type { Duplex } from "node:stream";
-
 import chokidar from "chokidar";
 import { type WebSocket, WebSocketServer } from "ws";
+import { resolveStateDir } from "../config/paths.js";
 import { isTruthyEnvValue } from "../infra/env.js";
-import { SafeOpenError, openFileWithinRoot } from "../infra/fs-safe.js";
 import { detectMime } from "../media/mime.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { ensureDir, resolveUserPath } from "../utils.js";
@@ -18,6 +17,7 @@ import {
   handleA2uiHttpRequest,
   injectCanvasLiveReload,
 } from "./a2ui.js";
+import { normalizeUrlPath, resolveFileWithinRoot } from "./file-resolver.js";
 
 export type CanvasHostOpts = {
   runtime: RuntimeEnv;
@@ -59,7 +59,7 @@ function defaultIndexHTML() {
   return `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Moltbot Canvas</title>
+<title>OpenClaw Canvas</title>
 <style>
   html, body { height: 100%; margin: 0; background: #000; color: #fff; font: 16px/1.4 -apple-system, BlinkMacSystemFont, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
   .wrap { min-height: 100%; display: grid; place-items: center; padding: 24px; }
@@ -77,7 +77,7 @@ function defaultIndexHTML() {
 <div class="wrap">
   <div class="card">
     <div class="title">
-      <h1>Moltbot Canvas</h1>
+      <h1>OpenClaw Canvas</h1>
       <div class="sub">Interactive test page (auto-reload enabled)</div>
     </div>
 
@@ -102,46 +102,35 @@ function defaultIndexHTML() {
     !!(
       window.webkit &&
       window.webkit.messageHandlers &&
-      (window.webkit.messageHandlers.moltbotCanvasA2UIAction ||
-        window.webkit.messageHandlers.clawdbotCanvasA2UIAction)
+      window.webkit.messageHandlers.openclawCanvasA2UIAction
     );
   const hasAndroid = () =>
     !!(
-      (window.moltbotCanvasA2UIAction &&
-        typeof window.moltbotCanvasA2UIAction.postMessage === "function") ||
-      (window.clawdbotCanvasA2UIAction &&
-        typeof window.clawdbotCanvasA2UIAction.postMessage === "function")
+      (window.openclawCanvasA2UIAction &&
+        typeof window.openclawCanvasA2UIAction.postMessage === "function")
     );
-  const legacySend = typeof window.clawdbotSendUserAction === "function" ? window.clawdbotSendUserAction : undefined;
-  if (!window.moltbotSendUserAction && legacySend) {
-    window.moltbotSendUserAction = legacySend;
-  }
-  if (!window.clawdbotSendUserAction && typeof window.moltbotSendUserAction === "function") {
-    window.clawdbotSendUserAction = window.moltbotSendUserAction;
-  }
-  const hasHelper = () =>
-    typeof window.moltbotSendUserAction === "function" ||
-    typeof window.clawdbotSendUserAction === "function";
+  const hasHelper = () => typeof window.openclawSendUserAction === "function";
   statusEl.innerHTML =
     "Bridge: " +
     (hasHelper() ? "<span class='ok'>ready</span>" : "<span class='bad'>missing</span>") +
     " · iOS=" + (hasIOS() ? "yes" : "no") +
     " · Android=" + (hasAndroid() ? "yes" : "no");
 
-  window.addEventListener("moltbot:a2ui-action-status", (ev) => {
+  const onStatus = (ev) => {
     const d = ev && ev.detail || {};
     log("Action status: id=" + (d.id || "?") + " ok=" + String(!!d.ok) + (d.error ? (" error=" + d.error) : ""));
-  });
+  };
+  window.addEventListener("openclaw:a2ui-action-status", onStatus);
 
   function send(name, sourceComponentId) {
     if (!hasHelper()) {
-      log("No action bridge found. Ensure you're viewing this on an iOS/Android Moltbot node canvas.");
+      log("No action bridge found. Ensure you're viewing this on an iOS/Android OpenClaw node canvas.");
       return;
     }
     const sendUserAction =
-      typeof window.moltbotSendUserAction === "function"
-        ? window.moltbotSendUserAction
-        : window.clawdbotSendUserAction;
+      typeof window.openclawSendUserAction === "function"
+        ? window.openclawSendUserAction
+        : undefined;
     const ok = sendUserAction({
       name,
       surfaceId: "main",
@@ -160,55 +149,28 @@ function defaultIndexHTML() {
 `;
 }
 
-function normalizeUrlPath(rawPath: string): string {
-  const decoded = decodeURIComponent(rawPath || "/");
-  const normalized = path.posix.normalize(decoded);
-  return normalized.startsWith("/") ? normalized : `/${normalized}`;
-}
-
-async function resolveFilePath(rootReal: string, urlPath: string) {
-  const normalized = normalizeUrlPath(urlPath);
-  const rel = normalized.replace(/^\/+/, "");
-  if (rel.split("/").some((p) => p === "..")) return null;
-
-  const tryOpen = async (relative: string) => {
-    try {
-      return await openFileWithinRoot({ rootDir: rootReal, relativePath: relative });
-    } catch (err) {
-      if (err instanceof SafeOpenError) return null;
-      throw err;
-    }
-  };
-
-  if (normalized.endsWith("/")) {
-    return await tryOpen(path.posix.join(rel, "index.html"));
-  }
-
-  const candidate = path.join(rootReal, rel);
-  try {
-    const st = await fs.lstat(candidate);
-    if (st.isSymbolicLink()) return null;
-    if (st.isDirectory()) {
-      return await tryOpen(path.posix.join(rel, "index.html"));
-    }
-  } catch {
-    // ignore
-  }
-
-  return await tryOpen(rel);
-}
-
 function isDisabledByEnv() {
-  if (isTruthyEnvValue(process.env.CLAWDBOT_SKIP_CANVAS_HOST)) return true;
-  if (process.env.NODE_ENV === "test") return true;
-  if (process.env.VITEST) return true;
+  if (isTruthyEnvValue(process.env.OPENCLAW_SKIP_CANVAS_HOST)) {
+    return true;
+  }
+  if (isTruthyEnvValue(process.env.OPENCLAW_SKIP_CANVAS_HOST)) {
+    return true;
+  }
+  if (process.env.NODE_ENV === "test") {
+    return true;
+  }
+  if (process.env.VITEST) {
+    return true;
+  }
   return false;
 }
 
 function normalizeBasePath(rawPath: string | undefined) {
   const trimmed = (rawPath ?? CANVAS_HOST_PATH).trim();
   const normalized = normalizeUrlPath(trimmed || CANVAS_HOST_PATH);
-  if (normalized === "/") return "/";
+  if (normalized === "/") {
+    return "/";
+  }
   return normalized.replace(/\/+$/, "");
 }
 
@@ -228,6 +190,18 @@ async function prepareCanvasRoot(rootDir: string) {
   return rootReal;
 }
 
+function resolveDefaultCanvasRoot(): string {
+  const candidates = [path.join(resolveStateDir(), "canvas")];
+  const existing = candidates.find((dir) => {
+    try {
+      return fsSync.statSync(dir).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+  return existing ?? candidates[0];
+}
+
 export async function createCanvasHostHandler(
   opts: CanvasHostHandlerOpts,
 ): Promise<CanvasHostHandler> {
@@ -242,10 +216,14 @@ export async function createCanvasHostHandler(
     };
   }
 
-  const rootDir = resolveUserPath(opts.rootDir ?? path.join(os.homedir(), "clawd", "canvas"));
+  const rootDir = resolveUserPath(opts.rootDir ?? resolveDefaultCanvasRoot());
   const rootReal = await prepareCanvasRoot(rootDir);
 
   const liveReload = opts.liveReload !== false;
+  const testMode = opts.allowInTests === true;
+  const reloadDebounceMs = testMode ? 12 : 75;
+  const writeStabilityThresholdMs = testMode ? 12 : 75;
+  const writePollIntervalMs = testMode ? 5 : 10;
   const wss = liveReload ? new WebSocketServer({ noServer: true }) : null;
   const sockets = new Set<WebSocket>();
   if (wss) {
@@ -257,7 +235,9 @@ export async function createCanvasHostHandler(
 
   let debounce: NodeJS.Timeout | null = null;
   const broadcastReload = () => {
-    if (!liveReload) return;
+    if (!liveReload) {
+      return;
+    }
     for (const ws of sockets) {
       try {
         ws.send("reload");
@@ -267,11 +247,13 @@ export async function createCanvasHostHandler(
     }
   };
   const scheduleReload = () => {
-    if (debounce) clearTimeout(debounce);
+    if (debounce) {
+      clearTimeout(debounce);
+    }
     debounce = setTimeout(() => {
       debounce = null;
       broadcastReload();
-    }, 75);
+    }, reloadDebounceMs);
     debounce.unref?.();
   };
 
@@ -279,8 +261,11 @@ export async function createCanvasHostHandler(
   const watcher = liveReload
     ? chokidar.watch(rootReal, {
         ignoreInitial: true,
-        awaitWriteFinish: { stabilityThreshold: 75, pollInterval: 10 },
-        usePolling: opts.allowInTests === true,
+        awaitWriteFinish: {
+          stabilityThreshold: writeStabilityThresholdMs,
+          pollInterval: writePollIntervalMs,
+        },
+        usePolling: testMode,
         ignored: [
           /(^|[\\/])\../, // dotfiles
           /(^|[\\/])node_modules([\\/]|$)/,
@@ -289,7 +274,9 @@ export async function createCanvasHostHandler(
     : null;
   watcher?.on("all", () => scheduleReload());
   watcher?.on("error", (err) => {
-    if (watcherClosed) return;
+    if (watcherClosed) {
+      return;
+    }
     watcherClosed = true;
     opts.runtime.error(
       `canvasHost watcher error: ${String(err)} (live reload disabled; consider canvasHost.liveReload=false or a smaller canvasHost.root)`,
@@ -298,9 +285,13 @@ export async function createCanvasHostHandler(
   });
 
   const handleUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-    if (!wss) return false;
+    if (!wss) {
+      return false;
+    }
     const url = new URL(req.url ?? "/", "http://localhost");
-    if (url.pathname !== CANVAS_WS_PATH) return false;
+    if (url.pathname !== CANVAS_WS_PATH) {
+      return false;
+    }
     wss.handleUpgrade(req, socket as Socket, head, (ws) => {
       wss.emit("connection", ws, req);
     });
@@ -309,7 +300,9 @@ export async function createCanvasHostHandler(
 
   const handleHttpRequest = async (req: IncomingMessage, res: ServerResponse) => {
     const urlRaw = req.url;
-    if (!urlRaw) return false;
+    if (!urlRaw) {
+      return false;
+    }
 
     try {
       const url = new URL(urlRaw, "http://localhost");
@@ -322,13 +315,10 @@ export async function createCanvasHostHandler(
 
       let urlPath = url.pathname;
       if (basePath !== "/") {
-        if (urlPath === basePath) {
-          urlPath = "/";
-        } else if (urlPath.startsWith(`${basePath}/`)) {
-          urlPath = urlPath.slice(basePath.length) || "/";
-        } else {
+        if (urlPath !== basePath && !urlPath.startsWith(`${basePath}/`)) {
           return false;
         }
+        urlPath = urlPath === basePath ? "/" : urlPath.slice(basePath.length) || "/";
       }
 
       if (req.method !== "GET" && req.method !== "HEAD") {
@@ -338,13 +328,13 @@ export async function createCanvasHostHandler(
         return true;
       }
 
-      const opened = await resolveFilePath(rootReal, urlPath);
+      const opened = await resolveFileWithinRoot(rootReal, urlPath);
       if (!opened) {
         if (urlPath === "/" || urlPath.endsWith("/")) {
           res.statusCode = 404;
           res.setHeader("Content-Type", "text/html; charset=utf-8");
           res.end(
-            `<!doctype html><meta charset="utf-8" /><title>Moltbot Canvas</title><pre>Missing file.\nCreate ${rootDir}/index.html</pre>`,
+            `<!doctype html><meta charset="utf-8" /><title>OpenClaw Canvas</title><pre>Missing file.\nCreate ${rootDir}/index.html</pre>`,
           );
           return true;
         }
@@ -394,7 +384,9 @@ export async function createCanvasHostHandler(
     handleHttpRequest,
     handleUpgrade,
     close: async () => {
-      if (debounce) clearTimeout(debounce);
+      if (debounce) {
+        clearTimeout(debounce);
+      }
       watcherClosed = true;
       await watcher?.close().catch(() => {});
       if (wss) {
@@ -420,12 +412,18 @@ export async function startCanvasHost(opts: CanvasHostServerOpts): Promise<Canva
     }));
   const ownsHandler = opts.ownsHandler ?? opts.handler === undefined;
 
-  const bindHost = opts.listenHost?.trim() || "0.0.0.0";
+  const bindHost = opts.listenHost?.trim() || "127.0.0.1";
   const server: Server = http.createServer((req, res) => {
-    if (String(req.headers.upgrade ?? "").toLowerCase() === "websocket") return;
+    if (String(req.headers.upgrade ?? "").toLowerCase() === "websocket") {
+      return;
+    }
     void (async () => {
-      if (await handleA2uiHttpRequest(req, res)) return;
-      if (await handler.handleHttpRequest(req, res)) return;
+      if (await handleA2uiHttpRequest(req, res)) {
+        return;
+      }
+      if (await handler.handleHttpRequest(req, res)) {
+        return;
+      }
       res.statusCode = 404;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.end("Not Found");
@@ -437,7 +435,9 @@ export async function startCanvasHost(opts: CanvasHostServerOpts): Promise<Canva
     });
   });
   server.on("upgrade", (req, socket, head) => {
-    if (handler.handleUpgrade(req, socket, head)) return;
+    if (handler.handleUpgrade(req, socket, head)) {
+      return;
+    }
     socket.destroy();
   });
 
@@ -467,7 +467,9 @@ export async function startCanvasHost(opts: CanvasHostServerOpts): Promise<Canva
     port: boundPort,
     rootDir: handler.rootDir,
     close: async () => {
-      if (ownsHandler) await handler.close();
+      if (ownsHandler) {
+        await handler.close();
+      }
       await new Promise<void>((resolve, reject) =>
         server.close((err) => (err ? reject(err) : resolve())),
       );

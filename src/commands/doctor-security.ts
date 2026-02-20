@@ -1,16 +1,16 @@
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import { listChannelPlugins } from "../channels/plugins/index.js";
 import type { ChannelId } from "../channels/plugins/types.js";
-import type { MoltbotConfig, GatewayBindMode } from "../config/config.js";
-import { readChannelAllowFromStore } from "../pairing/pairing-store.js";
-import { note } from "../terminal/note.js";
 import { formatCliCommand } from "../cli/command-format.js";
+import type { OpenClawConfig, GatewayBindMode } from "../config/config.js";
 import { resolveGatewayAuth } from "../gateway/auth.js";
 import { isLoopbackHost, resolveGatewayBindHost } from "../gateway/net.js";
+import { resolveDmAllowState } from "../security/dm-policy-shared.js";
+import { note } from "../terminal/note.js";
 
-export async function noteSecurityWarnings(cfg: MoltbotConfig) {
+export async function noteSecurityWarnings(cfg: OpenClawConfig) {
   const warnings: string[] = [];
-  const auditHint = `- Run: ${formatCliCommand("moltbot security audit --deep")}`;
+  const auditHint = `- Run: ${formatCliCommand("openclaw security audit --deep")}`;
 
   // ===========================================
   // GATEWAY NETWORK EXPOSURE CHECK
@@ -48,19 +48,19 @@ export async function noteSecurityWarnings(cfg: MoltbotConfig) {
       const authFixLines =
         resolvedAuth.mode === "password"
           ? [
-              `  Fix: ${formatCliCommand("moltbot configure")} to set a password`,
-              `  Or switch to token: ${formatCliCommand("moltbot config set gateway.auth.mode token")}`,
+              `  Fix: ${formatCliCommand("openclaw configure")} to set a password`,
+              `  Or switch to token: ${formatCliCommand("openclaw config set gateway.auth.mode token")}`,
             ]
           : [
-              `  Fix: ${formatCliCommand("moltbot doctor --fix")} to generate a token`,
+              `  Fix: ${formatCliCommand("openclaw doctor --fix")} to generate a token`,
               `  Or set token directly: ${formatCliCommand(
-                "moltbot config set gateway.auth.mode token",
+                "openclaw config set gateway.auth.mode token",
               )}`,
             ];
       warnings.push(
         `- CRITICAL: Gateway bound to ${bindDescriptor} without authentication.`,
         `  Anyone on your network (or internet if port-forwarded) can fully control your agent.`,
-        `  Fix: ${formatCliCommand("moltbot config set gateway.bind loopback")}`,
+        `  Fix: ${formatCliCommand("openclaw config set gateway.bind loopback")}`,
         ...authFixLines,
       );
     } else {
@@ -84,21 +84,12 @@ export async function noteSecurityWarnings(cfg: MoltbotConfig) {
   }) => {
     const dmPolicy = params.dmPolicy;
     const policyPath = params.policyPath ?? `${params.allowFromPath}policy`;
-    const configAllowFrom = (params.allowFrom ?? []).map((v) => String(v).trim());
-    const hasWildcard = configAllowFrom.includes("*");
-    const storeAllowFrom = await readChannelAllowFromStore(params.provider).catch(() => []);
-    const normalizedCfg = configAllowFrom
-      .filter((v) => v !== "*")
-      .map((v) => (params.normalizeEntry ? params.normalizeEntry(v) : v))
-      .map((v) => v.trim())
-      .filter(Boolean);
-    const normalizedStore = storeAllowFrom
-      .map((v) => (params.normalizeEntry ? params.normalizeEntry(v) : v))
-      .map((v) => v.trim())
-      .filter(Boolean);
-    const allowCount = Array.from(new Set([...normalizedCfg, ...normalizedStore])).length;
+    const { hasWildcard, allowCount, isMultiUserDm } = await resolveDmAllowState({
+      provider: params.provider,
+      allowFrom: params.allowFrom,
+      normalizeEntry: params.normalizeEntry,
+    });
     const dmScope = cfg.session?.dmScope ?? "main";
-    const isMultiUserDm = hasWildcard || allowCount > 1;
 
     if (dmPolicy === "open") {
       const allowFromPath = `${params.allowFromPath}allowFrom`;
@@ -124,13 +115,17 @@ export async function noteSecurityWarnings(cfg: MoltbotConfig) {
 
     if (dmScope === "main" && isMultiUserDm) {
       warnings.push(
-        `- ${params.label} DMs: multiple senders share the main session; set session.dmScope="per-channel-peer" (or "per-account-channel-peer" for multi-account channels) to isolate sessions.`,
+        `- ${params.label} DMs: multiple senders share the main session; run: ` +
+          formatCliCommand('openclaw config set session.dmScope "per-channel-peer"') +
+          ' (or "per-account-channel-peer" for multi-account channels) to isolate sessions.',
       );
     }
   };
 
   for (const plugin of listChannelPlugins()) {
-    if (!plugin.security) continue;
+    if (!plugin.security) {
+      continue;
+    }
     const accountIds = plugin.config.listAccountIds(cfg);
     const defaultAccountId = resolveChannelDefaultAccountId({
       plugin,
@@ -139,11 +134,15 @@ export async function noteSecurityWarnings(cfg: MoltbotConfig) {
     });
     const account = plugin.config.resolveAccount(cfg, defaultAccountId);
     const enabled = plugin.config.isEnabled ? plugin.config.isEnabled(account, cfg) : true;
-    if (!enabled) continue;
+    if (!enabled) {
+      continue;
+    }
     const configured = plugin.config.isConfigured
       ? await plugin.config.isConfigured(account, cfg)
       : true;
-    if (!configured) continue;
+    if (!configured) {
+      continue;
+    }
     const dmPolicy = plugin.security.resolveDmPolicy?.({
       cfg,
       accountId: defaultAccountId,
@@ -167,7 +166,9 @@ export async function noteSecurityWarnings(cfg: MoltbotConfig) {
         accountId: defaultAccountId,
         account,
       });
-      if (extra?.length) warnings.push(...extra);
+      if (extra?.length) {
+        warnings.push(...extra);
+      }
     }
   }
 

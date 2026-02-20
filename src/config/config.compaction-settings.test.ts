@@ -1,15 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { loadConfig } from "./config.js";
 import { withTempHome } from "./test-helpers.js";
 
 describe("config compaction settings", () => {
   it("preserves memory flush config values", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".clawdbot");
+      const configDir = path.join(home, ".openclaw");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
-        path.join(configDir, "moltbot.json"),
+        path.join(configDir, "openclaw.json"),
         JSON.stringify(
           {
             agents: {
@@ -33,12 +34,12 @@ describe("config compaction settings", () => {
         "utf-8",
       );
 
-      vi.resetModules();
-      const { loadConfig } = await import("./config.js");
       const cfg = loadConfig();
 
       expect(cfg.agents?.defaults?.compaction?.reserveTokensFloor).toBe(12_345);
       expect(cfg.agents?.defaults?.compaction?.mode).toBe("safeguard");
+      expect(cfg.agents?.defaults?.compaction?.reserveTokens).toBeUndefined();
+      expect(cfg.agents?.defaults?.compaction?.keepRecentTokens).toBeUndefined();
       expect(cfg.agents?.defaults?.compaction?.memoryFlush?.enabled).toBe(false);
       expect(cfg.agents?.defaults?.compaction?.memoryFlush?.softThresholdTokens).toBe(1234);
       expect(cfg.agents?.defaults?.compaction?.memoryFlush?.prompt).toBe("Write notes.");
@@ -46,12 +47,41 @@ describe("config compaction settings", () => {
     });
   });
 
-  it("defaults compaction mode to safeguard", async () => {
+  it("preserves pi compaction override values", async () => {
     await withTempHome(async (home) => {
-      const configDir = path.join(home, ".clawdbot");
+      const configDir = path.join(home, ".openclaw");
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
-        path.join(configDir, "moltbot.json"),
+        path.join(configDir, "openclaw.json"),
+        JSON.stringify(
+          {
+            agents: {
+              defaults: {
+                compaction: {
+                  reserveTokens: 15_000,
+                  keepRecentTokens: 12_000,
+                },
+              },
+            },
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
+
+      const cfg = loadConfig();
+      expect(cfg.agents?.defaults?.compaction?.reserveTokens).toBe(15_000);
+      expect(cfg.agents?.defaults?.compaction?.keepRecentTokens).toBe(12_000);
+    });
+  });
+
+  it("defaults compaction mode to safeguard", async () => {
+    await withTempHome(async (home) => {
+      const configDir = path.join(home, ".openclaw");
+      await fs.mkdir(configDir, { recursive: true });
+      await fs.writeFile(
+        path.join(configDir, "openclaw.json"),
         JSON.stringify(
           {
             agents: {
@@ -68,8 +98,6 @@ describe("config compaction settings", () => {
         "utf-8",
       );
 
-      vi.resetModules();
-      const { loadConfig } = await import("./config.js");
       const cfg = loadConfig();
 
       expect(cfg.agents?.defaults?.compaction?.mode).toBe("safeguard");

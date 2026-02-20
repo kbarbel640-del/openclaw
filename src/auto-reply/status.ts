@@ -1,18 +1,24 @@
 import fs from "node:fs";
-
 import { lookupContextTokens } from "../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL, DEFAULT_PROVIDER } from "../agents/defaults.js";
 import { resolveModelAuthMode } from "../agents/model-auth.js";
 import { resolveConfiguredModelRef } from "../agents/model-selection.js";
 import { resolveSandboxRuntimeStatus } from "../agents/sandbox.js";
+import type { SkillCommandSpec } from "../agents/skills.js";
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../agents/usage.js";
-import type { MoltbotConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/config.js";
 import {
   resolveMainSessionKey,
   resolveSessionFilePath,
+  resolveSessionFilePathOptions,
   type SessionEntry,
   type SessionScope,
 } from "../config/sessions.js";
+import { formatTimeAgo } from "../infra/format-time/format-relative.ts";
+import { resolveCommitHash } from "../infra/git-commit.js";
+import type { MediaUnderstandingDecision } from "../media-understanding/types.js";
+import { listPluginCommands } from "../plugins/commands.js";
+import { resolveAgentIdFromSessionKey } from "../routing/session-key.js";
 import {
   getTtsMaxLength,
   getTtsProvider,
@@ -21,7 +27,6 @@ import {
   resolveTtsConfig,
   resolveTtsPrefsPath,
 } from "../tts/tts.js";
-import { resolveCommitHash } from "../infra/git-commit.js";
 import {
   estimateUsageCost,
   formatTokenCount as formatTokenCountShared,
@@ -34,13 +39,15 @@ import {
   listChatCommandsForConfig,
   type ChatCommandDefinition,
 } from "./commands-registry.js";
-import { listPluginCommands } from "../plugins/commands.js";
-import type { SkillCommandSpec } from "../agents/skills.js";
 import type { CommandCategory } from "./commands-registry.types.js";
+import { resolveActiveFallbackState } from "./fallback-state.js";
+import { formatProviderModelRef, resolveSelectedAndActiveModel } from "./model-runtime.js";
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "./thinking.js";
-import type { MediaUnderstandingDecision } from "../media-understanding/types.js";
 
-type AgentConfig = Partial<NonNullable<NonNullable<MoltbotConfig["agents"]>["defaults"]>>;
+type AgentDefaults = NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>;
+type AgentConfig = Partial<AgentDefaults> & {
+  model?: AgentDefaults["model"] | string;
+};
 
 export const formatTokenCount = formatTokenCountShared;
 
@@ -54,21 +61,24 @@ type QueueStatus = {
 };
 
 type StatusArgs = {
-  config?: MoltbotConfig;
+  config?: OpenClawConfig;
   agent: AgentConfig;
+  agentId?: string;
   sessionEntry?: SessionEntry;
   sessionKey?: string;
   sessionScope?: SessionScope;
+  sessionStorePath?: string;
   groupActivation?: "mention" | "always";
   resolvedThink?: ThinkLevel;
   resolvedVerbose?: VerboseLevel;
   resolvedReasoning?: ReasoningLevel;
   resolvedElevated?: ElevatedLevel;
   modelAuth?: string;
+  activeModelAuth?: string;
   usageLine?: string;
   timeLine?: string;
   queue?: QueueStatus;
-  mediaDecisions?: MediaUnderstandingDecision[];
+  mediaDecisions?: ReadonlyArray<MediaUnderstandingDecision>;
   subagentsLine?: string;
   includeTranscriptUsage?: boolean;
   now?: number;
@@ -84,16 +94,24 @@ function resolveRuntimeLabel(
       sessionKey,
     });
     const sandboxMode = runtimeStatus.mode ?? "off";
-    if (sandboxMode === "off") return "direct";
+    if (sandboxMode === "off") {
+      return "direct";
+    }
     const runtime = runtimeStatus.sandboxed ? "docker" : sessionKey ? "direct" : "unknown";
     return `${runtime}/${sandboxMode}`;
   }
 
   const sandboxMode = args.agent?.sandbox?.mode ?? "off";
-  if (sandboxMode === "off") return "direct";
+  if (sandboxMode === "off") {
+    return "direct";
+  }
   const sandboxed = (() => {
-    if (!sessionKey) return false;
-    if (sandboxMode === "all") return true;
+    if (!sessionKey) {
+      return false;
+    }
+    if (sandboxMode === "all") {
+      return true;
+    }
     if (args.config) {
       return resolveSandboxRuntimeStatus({
         cfg: args.config,
@@ -127,39 +145,39 @@ export const formatContextUsageShort = (
   contextTokens: number | null | undefined,
 ) => `Context ${formatTokens(total, contextTokens ?? null)}`;
 
-const formatAge = (ms?: number | null) => {
-  if (!ms || ms < 0) return "unknown";
-  const minutes = Math.round(ms / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
-};
-
 const formatQueueDetails = (queue?: QueueStatus) => {
-  if (!queue) return "";
+  if (!queue) {
+    return "";
+  }
   const depth = typeof queue.depth === "number" ? `depth ${queue.depth}` : null;
   if (!queue.showDetails) {
     return depth ? ` (${depth})` : "";
   }
   const detailParts: string[] = [];
-  if (depth) detailParts.push(depth);
+  if (depth) {
+    detailParts.push(depth);
+  }
   if (typeof queue.debounceMs === "number") {
     const ms = Math.max(0, Math.round(queue.debounceMs));
     const label =
       ms >= 1000 ? `${ms % 1000 === 0 ? ms / 1000 : (ms / 1000).toFixed(1)}s` : `${ms}ms`;
     detailParts.push(`debounce ${label}`);
   }
-  if (typeof queue.cap === "number") detailParts.push(`cap ${queue.cap}`);
-  if (queue.dropPolicy) detailParts.push(`drop ${queue.dropPolicy}`);
+  if (typeof queue.cap === "number") {
+    detailParts.push(`cap ${queue.cap}`);
+  }
+  if (queue.dropPolicy) {
+    detailParts.push(`drop ${queue.dropPolicy}`);
+  }
   return detailParts.length ? ` (${detailParts.join(" · ")})` : "";
 };
 
 const readUsageFromSessionLog = (
   sessionId?: string,
   sessionEntry?: SessionEntry,
+  agentId?: string,
+  sessionKey?: string,
+  storePath?: string,
 ):
   | {
       input: number;
@@ -169,10 +187,25 @@ const readUsageFromSessionLog = (
       model?: string;
     }
   | undefined => {
-  // Transcripts are stored at the session file path (fallback: ~/.clawdbot/sessions/<SessionId>.jsonl)
-  if (!sessionId) return undefined;
-  const logPath = resolveSessionFilePath(sessionId, sessionEntry);
-  if (!fs.existsSync(logPath)) return undefined;
+  // Transcripts are stored at the session file path (fallback: ~/.openclaw/sessions/<SessionId>.jsonl)
+  if (!sessionId) {
+    return undefined;
+  }
+  let logPath: string;
+  try {
+    const resolvedAgentId =
+      agentId ?? (sessionKey ? resolveAgentIdFromSessionKey(sessionKey) : undefined);
+    logPath = resolveSessionFilePath(
+      sessionId,
+      sessionEntry,
+      resolveSessionFilePathOptions({ agentId: resolvedAgentId, storePath }),
+    );
+  } catch {
+    return undefined;
+  }
+  if (!fs.existsSync(logPath)) {
+    return undefined;
+  }
 
   try {
     const lines = fs.readFileSync(logPath, "utf-8").split(/\n+/);
@@ -183,7 +216,9 @@ const readUsageFromSessionLog = (
     let lastUsage: ReturnType<typeof normalizeUsage> | undefined;
 
     for (const line of lines) {
-      if (!line.trim()) continue;
+      if (!line.trim()) {
+        continue;
+      }
       try {
         const parsed = JSON.parse(line) as {
           message?: {
@@ -195,19 +230,25 @@ const readUsageFromSessionLog = (
         };
         const usageRaw = parsed.message?.usage ?? parsed.usage;
         const usage = normalizeUsage(usageRaw);
-        if (usage) lastUsage = usage;
+        if (usage) {
+          lastUsage = usage;
+        }
         model = parsed.message?.model ?? parsed.model ?? model;
       } catch {
         // ignore bad lines
       }
     }
 
-    if (!lastUsage) return undefined;
+    if (!lastUsage) {
+      return undefined;
+    }
     input = lastUsage.input ?? 0;
     output = lastUsage.output ?? 0;
     promptTokens = derivePromptTokens(lastUsage) ?? lastUsage.total ?? input + output;
     const total = lastUsage.total ?? promptTokens + output;
-    if (promptTokens === 0 && total === 0) return undefined;
+    if (promptTokens === 0 && total === 0) {
+      return undefined;
+    }
     return { input, output, promptTokens, total, model };
   } catch {
     return undefined;
@@ -215,14 +256,48 @@ const readUsageFromSessionLog = (
 };
 
 const formatUsagePair = (input?: number | null, output?: number | null) => {
-  if (input == null && output == null) return null;
+  if (input == null && output == null) {
+    return null;
+  }
   const inputLabel = typeof input === "number" ? formatTokenCount(input) : "?";
   const outputLabel = typeof output === "number" ? formatTokenCount(output) : "?";
   return `🧮 Tokens: ${inputLabel} in / ${outputLabel} out`;
 };
 
-const formatMediaUnderstandingLine = (decisions?: MediaUnderstandingDecision[]) => {
-  if (!decisions || decisions.length === 0) return null;
+const formatCacheLine = (
+  input?: number | null,
+  cacheRead?: number | null,
+  cacheWrite?: number | null,
+) => {
+  if (!cacheRead && !cacheWrite) {
+    return null;
+  }
+  if (
+    (typeof cacheRead !== "number" || cacheRead <= 0) &&
+    (typeof cacheWrite !== "number" || cacheWrite <= 0)
+  ) {
+    return null;
+  }
+
+  const cachedLabel = typeof cacheRead === "number" ? formatTokenCount(cacheRead) : "0";
+  const newLabel = typeof cacheWrite === "number" ? formatTokenCount(cacheWrite) : "0";
+
+  const totalInput =
+    (typeof cacheRead === "number" ? cacheRead : 0) +
+    (typeof cacheWrite === "number" ? cacheWrite : 0) +
+    (typeof input === "number" ? input : 0);
+  const hitRate =
+    totalInput > 0 && typeof cacheRead === "number"
+      ? Math.round((cacheRead / totalInput) * 100)
+      : 0;
+
+  return `🗄️ Cache: ${hitRate}% hit · ${cachedLabel} cached, ${newLabel} new`;
+};
+
+const formatMediaUnderstandingLine = (decisions?: ReadonlyArray<MediaUnderstandingDecision>) => {
+  if (!decisions || decisions.length === 0) {
+    return null;
+  }
   const parts = decisions
     .map((decision) => {
       const count = decision.attachments.length;
@@ -253,16 +328,22 @@ const formatMediaUnderstandingLine = (decisions?: MediaUnderstandingDecision[]) 
       return null;
     })
     .filter((part): part is string => part != null);
-  if (parts.length === 0) return null;
-  if (parts.every((part) => part.endsWith(" none"))) return null;
+  if (parts.length === 0) {
+    return null;
+  }
+  if (parts.every((part) => part.endsWith(" none"))) {
+    return null;
+  }
   return `📎 Media: ${parts.join(" · ")}`;
 };
 
 const formatVoiceModeLine = (
-  config?: MoltbotConfig,
+  config?: OpenClawConfig,
   sessionEntry?: SessionEntry,
 ): string | null => {
-  if (!config) return null;
+  if (!config) {
+    return null;
+  }
   const ttsConfig = resolveTtsConfig(config);
   const prefsPath = resolveTtsPrefsPath(ttsConfig);
   const autoMode = resolveTtsAutoMode({
@@ -270,7 +351,9 @@ const formatVoiceModeLine = (
     prefsPath,
     sessionAuto: sessionEntry?.ttsAuto,
   });
-  if (autoMode === "off") return null;
+  if (autoMode === "off") {
+    return null;
+  }
   const provider = getTtsProvider(ttsConfig, prefsPath);
   const maxLength = getTtsMaxLength(prefsPath);
   const summarize = isSummarizationEnabled(prefsPath) ? "on" : "off";
@@ -285,37 +368,68 @@ export function buildStatusMessage(args: StatusArgs): string {
       agents: {
         defaults: args.agent ?? {},
       },
-    } as MoltbotConfig,
+    } as OpenClawConfig,
     defaultProvider: DEFAULT_PROVIDER,
     defaultModel: DEFAULT_MODEL,
   });
-  const provider = entry?.providerOverride ?? resolved.provider ?? DEFAULT_PROVIDER;
-  let model = entry?.modelOverride ?? resolved.model ?? DEFAULT_MODEL;
+  const selectedProvider = entry?.providerOverride ?? resolved.provider ?? DEFAULT_PROVIDER;
+  const selectedModel = entry?.modelOverride ?? resolved.model ?? DEFAULT_MODEL;
+  const modelRefs = resolveSelectedAndActiveModel({
+    selectedProvider,
+    selectedModel,
+    sessionEntry: entry,
+  });
+  let activeProvider = modelRefs.active.provider;
+  let activeModel = modelRefs.active.model;
   let contextTokens =
     entry?.contextTokens ??
     args.agent?.contextTokens ??
-    lookupContextTokens(model) ??
+    lookupContextTokens(activeModel) ??
     DEFAULT_CONTEXT_TOKENS;
 
   let inputTokens = entry?.inputTokens;
   let outputTokens = entry?.outputTokens;
+  let cacheRead = entry?.cacheRead;
+  let cacheWrite = entry?.cacheWrite;
   let totalTokens = entry?.totalTokens ?? (entry?.inputTokens ?? 0) + (entry?.outputTokens ?? 0);
 
   // Prefer prompt-size tokens from the session transcript when it looks larger
   // (cached prompt tokens are often missing from agent meta/store).
   if (args.includeTranscriptUsage) {
-    const logUsage = readUsageFromSessionLog(entry?.sessionId, entry);
+    const logUsage = readUsageFromSessionLog(
+      entry?.sessionId,
+      entry,
+      args.agentId,
+      args.sessionKey,
+      args.sessionStorePath,
+    );
     if (logUsage) {
       const candidate = logUsage.promptTokens || logUsage.total;
       if (!totalTokens || totalTokens === 0 || candidate > totalTokens) {
         totalTokens = candidate;
       }
-      if (!model) model = logUsage.model ?? model;
+      if (!entry?.model && logUsage.model) {
+        const slashIndex = logUsage.model.indexOf("/");
+        if (slashIndex > 0) {
+          const provider = logUsage.model.slice(0, slashIndex).trim();
+          const model = logUsage.model.slice(slashIndex + 1).trim();
+          if (provider && model) {
+            activeProvider = provider;
+            activeModel = model;
+          }
+        } else {
+          activeModel = logUsage.model;
+        }
+      }
       if (!contextTokens && logUsage.model) {
         contextTokens = lookupContextTokens(logUsage.model) ?? contextTokens;
       }
-      if (!inputTokens || inputTokens === 0) inputTokens = logUsage.input;
-      if (!outputTokens || outputTokens === 0) outputTokens = logUsage.output;
+      if (!inputTokens || inputTokens === 0) {
+        inputTokens = logUsage.input;
+      }
+      if (!outputTokens || outputTokens === 0) {
+        outputTokens = logUsage.output;
+      }
     }
   }
 
@@ -333,7 +447,7 @@ export function buildStatusMessage(args: StatusArgs): string {
   const updatedAt = entry?.updatedAt;
   const sessionLine = [
     `Session: ${args.sessionKey ?? "unknown"}`,
-    typeof updatedAt === "number" ? `updated ${formatAge(now - updatedAt)}` : "no activity",
+    typeof updatedAt === "number" ? `updated ${formatTimeAgo(now - updatedAt)}` : "no activity",
   ]
     .filter(Boolean)
     .join(" • ");
@@ -378,14 +492,21 @@ export function buildStatusMessage(args: StatusArgs): string {
   ];
   const activationLine = activationParts.filter(Boolean).join(" · ");
 
-  const authMode = resolveModelAuthMode(provider, args.config);
-  const authLabelValue =
-    args.modelAuth ?? (authMode && authMode !== "unknown" ? authMode : undefined);
-  const showCost = authLabelValue === "api-key" || authLabelValue === "mixed";
+  const activeAuthMode = resolveModelAuthMode(activeProvider, args.config);
+  const selectedAuthLabelValue =
+    args.modelAuth ??
+    (() => {
+      const selectedAuthMode = resolveModelAuthMode(selectedProvider, args.config);
+      return selectedAuthMode && selectedAuthMode !== "unknown" ? selectedAuthMode : undefined;
+    })();
+  const activeAuthLabelValue =
+    args.activeModelAuth ??
+    (activeAuthMode && activeAuthMode !== "unknown" ? activeAuthMode : undefined);
+  const showCost = activeAuthLabelValue === "api-key" || activeAuthLabelValue === "mixed";
   const costConfig = showCost
     ? resolveModelCostConfig({
-        provider,
-        model,
+        provider: activeProvider,
+        model: activeModel,
         config: args.config,
       })
     : undefined;
@@ -402,12 +523,25 @@ export function buildStatusMessage(args: StatusArgs): string {
       : undefined;
   const costLabel = showCost && hasUsage ? formatUsd(cost) : undefined;
 
-  const modelLabel = model ? `${provider}/${model}` : "unknown";
-  const authLabel = authLabelValue ? ` · 🔑 ${authLabelValue}` : "";
-  const modelLine = `🧠 Model: ${modelLabel}${authLabel}`;
+  const selectedModelLabel = modelRefs.selected.label || "unknown";
+  const activeModelLabel = formatProviderModelRef(activeProvider, activeModel) || "unknown";
+  const fallbackState = resolveActiveFallbackState({
+    selectedModelRef: selectedModelLabel,
+    activeModelRef: activeModelLabel,
+    state: entry,
+  });
+  const selectedAuthLabel = selectedAuthLabelValue ? ` · 🔑 ${selectedAuthLabelValue}` : "";
+  const modelLine = `🧠 Model: ${selectedModelLabel}${selectedAuthLabel}`;
+  const showFallbackAuth = activeAuthLabelValue && activeAuthLabelValue !== selectedAuthLabelValue;
+  const fallbackLine = fallbackState.active
+    ? `↪️ Fallback: ${activeModelLabel}${
+        showFallbackAuth ? ` · 🔑 ${activeAuthLabelValue}` : ""
+      } (${fallbackState.reason ?? "selected model unavailable"})`
+    : null;
   const commit = resolveCommitHash();
-  const versionLine = `🦞 Moltbot ${VERSION}${commit ? ` (${commit})` : ""}`;
+  const versionLine = `🦞 OpenClaw ${VERSION}${commit ? ` (${commit})` : ""}`;
   const usagePair = formatUsagePair(inputTokens, outputTokens);
+  const cacheLine = formatCacheLine(inputTokens, cacheRead, cacheWrite);
   const costLine = costLabel ? `💵 Cost: ${costLabel}` : null;
   const usageCostLine =
     usagePair && costLine ? `${usagePair} · ${costLine}` : (usagePair ?? costLine);
@@ -418,7 +552,9 @@ export function buildStatusMessage(args: StatusArgs): string {
     versionLine,
     args.timeLine,
     modelLine,
+    fallbackLine,
     usageCostLine,
+    cacheLine,
     `📚 ${contextLine}`,
     mediaLine,
     args.usageLine,
@@ -468,7 +604,7 @@ function groupCommandsByCategory(
   return grouped;
 }
 
-export function buildHelpMessage(cfg?: MoltbotConfig): string {
+export function buildHelpMessage(cfg?: OpenClawConfig): string {
   const lines = ["ℹ️ Help", ""];
 
   lines.push("Session");
@@ -476,8 +612,12 @@ export function buildHelpMessage(cfg?: MoltbotConfig): string {
   lines.push("");
 
   const optionParts = ["/think <level>", "/model <id>", "/verbose on|off"];
-  if (cfg?.commands?.config === true) optionParts.push("/config");
-  if (cfg?.commands?.debug === true) optionParts.push("/debug");
+  if (cfg?.commands?.config === true) {
+    optionParts.push("/config");
+  }
+  if (cfg?.commands?.debug === true) {
+    optionParts.push("/debug");
+  }
   lines.push("Options");
   lines.push(`  ${optionParts.join("  |  ")}`);
   lines.push("");
@@ -521,7 +661,9 @@ function formatCommandEntry(command: ChatCommandDefinition): string {
     .filter((alias) => alias.toLowerCase() !== primary.toLowerCase())
     .filter((alias) => {
       const key = alias.toLowerCase();
-      if (seen.has(key)) return false;
+      if (seen.has(key)) {
+        return false;
+      }
       seen.add(key);
       return true;
     });
@@ -544,7 +686,9 @@ function buildCommandItems(
 
   for (const category of CATEGORY_ORDER) {
     const categoryCommands = grouped.get(category) ?? [];
-    if (categoryCommands.length === 0) continue;
+    if (categoryCommands.length === 0) {
+      continue;
+    }
     const label = CATEGORY_LABELS[category];
     for (const command of categoryCommands) {
       items.push({ label, text: formatCommandEntry(command) });
@@ -568,7 +712,9 @@ function formatCommandList(items: CommandsListItem[]): string {
 
   for (const item of items) {
     if (item.label !== currentLabel) {
-      if (lines.length > 0) lines.push("");
+      if (lines.length > 0) {
+        lines.push("");
+      }
       lines.push(item.label);
       currentLabel = item.label;
     }
@@ -579,7 +725,7 @@ function formatCommandList(items: CommandsListItem[]): string {
 }
 
 export function buildCommandsMessage(
-  cfg?: MoltbotConfig,
+  cfg?: OpenClawConfig,
   skillCommands?: SkillCommandSpec[],
   options?: CommandsMessageOptions,
 ): string {
@@ -588,7 +734,7 @@ export function buildCommandsMessage(
 }
 
 export function buildCommandsMessagePaginated(
-  cfg?: MoltbotConfig,
+  cfg?: OpenClawConfig,
   skillCommands?: SkillCommandSpec[],
   options?: CommandsMessageOptions,
 ): CommandsMessageResult {

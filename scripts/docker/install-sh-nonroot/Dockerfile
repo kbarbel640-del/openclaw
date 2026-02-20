@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:cd1dba651b3080c3686ecf4e3c4220f026b521fb76978881737d24f200828b2b
 
 RUN set -eux; \
   for attempt in 1 2 3; do \
@@ -23,7 +23,7 @@ WORKDIR /home/app
 ENV NPM_CONFIG_FUND=false
 ENV NPM_CONFIG_AUDIT=false
 
-COPY run.sh /usr/local/bin/moltbot-install-nonroot
-RUN sudo chmod +x /usr/local/bin/moltbot-install-nonroot
+COPY run.sh /usr/local/bin/openclaw-install-nonroot
+RUN sudo chmod +x /usr/local/bin/openclaw-install-nonroot
 
-ENTRYPOINT ["/usr/local/bin/moltbot-install-nonroot"]
+ENTRYPOINT ["/usr/local/bin/openclaw-install-nonroot"]

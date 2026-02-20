@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearSessionStoreCacheForTest,
   loadSessionStore,
@@ -10,12 +10,23 @@ import {
 } from "./sessions.js";
 
 describe("Session Store Cache", () => {
+  let fixtureRoot = "";
+  let caseId = 0;
   let testDir: string;
   let storePath: string;
 
+  beforeAll(() => {
+    fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "session-cache-test-"));
+  });
+
+  afterAll(() => {
+    if (fixtureRoot) {
+      fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
   beforeEach(() => {
-    // Create a temporary directory for test
-    testDir = path.join(os.tmpdir(), `session-cache-test-${Date.now()}`);
+    testDir = path.join(fixtureRoot, `case-${caseId++}`);
     fs.mkdirSync(testDir, { recursive: true });
     storePath = path.join(testDir, "sessions.json");
 
@@ -23,16 +34,12 @@ describe("Session Store Cache", () => {
     clearSessionStoreCacheForTest();
 
     // Reset environment variable
-    delete process.env.CLAWDBOT_SESSION_CACHE_TTL_MS;
+    delete process.env.OPENCLAW_SESSION_CACHE_TTL_MS;
   });
 
   afterEach(() => {
-    // Clean up test directory
-    if (fs.existsSync(testDir)) {
-      fs.rmSync(testDir, { recursive: true, force: true });
-    }
     clearSessionStoreCacheForTest();
-    delete process.env.CLAWDBOT_SESSION_CACHE_TTL_MS;
+    delete process.env.OPENCLAW_SESSION_CACHE_TTL_MS;
   });
 
   it("should load session store from disk on first call", async () => {
@@ -94,7 +101,7 @@ describe("Session Store Cache", () => {
     const loaded1 = loadSessionStore(storePath);
     loaded1["session:1"].cliSessionIds = { openai: "mutated" };
     if (loaded1["session:1"].skillsSnapshot?.skills?.length) {
-      loaded1["session:1"].skillsSnapshot!.skills[0].name = "mutated";
+      loaded1["session:1"].skillsSnapshot.skills[0].name = "mutated";
     }
 
     const loaded2 = loadSessionStore(storePath);
@@ -161,8 +168,8 @@ describe("Session Store Cache", () => {
     expect(loaded2["session:1"].displayName).toBe("Updated Session 1");
   });
 
-  it("should respect CLAWDBOT_SESSION_CACHE_TTL_MS=0 to disable cache", async () => {
-    process.env.CLAWDBOT_SESSION_CACHE_TTL_MS = "0";
+  it("should respect OPENCLAW_SESSION_CACHE_TTL_MS=0 to disable cache", async () => {
+    process.env.OPENCLAW_SESSION_CACHE_TTL_MS = "0";
     clearSessionStoreCacheForTest();
 
     const testStore: Record<string, SessionEntry> = {

@@ -1,4 +1,4 @@
-import { MarkdownConfigSchema, ToolPolicySchema } from "clawdbot/plugin-sdk";
+import { MarkdownConfigSchema, ToolPolicySchema } from "openclaw/plugin-sdk";
 import { z } from "zod";
 
 const allowFromEntry = z.union([z.string(), z.number()]);
@@ -40,6 +40,7 @@ const bluebubblesAccountSchema = z.object({
   textChunkLimit: z.number().int().positive().optional(),
   chunkMode: z.enum(["length", "newline"]).optional(),
   mediaMaxMb: z.number().int().positive().optional(),
+  mediaLocalRoots: z.array(z.string()).optional(),
   sendReadReceipts: z.boolean().optional(),
   blockStreaming: z.boolean().optional(),
   groups: z.object({}).catchall(bluebubblesGroupConfigSchema).optional(),

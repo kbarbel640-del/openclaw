@@ -42,6 +42,12 @@ async function getRelayPort() {
   return n
 }
 
+async function getGatewayToken() {
+  const stored = await chrome.storage.local.get(['gatewayToken'])
+  const token = String(stored.gatewayToken || '').trim()
+  return token || ''
+}
+
 function setBadge(tabId, kind) {
   const cfg = BADGE[kind]
   void chrome.action.setBadgeText({ tabId, text: cfg.text })
@@ -55,14 +61,23 @@ async function ensureRelayConnection() {
 
   relayConnectPromise = (async () => {
     const port = await getRelayPort()
+    const gatewayToken = await getGatewayToken()
     const httpBase = `http://127.0.0.1:${port}`
-    const wsUrl = `ws://127.0.0.1:${port}/extension`
+    const wsUrl = gatewayToken
+      ? `ws://127.0.0.1:${port}/extension?token=${encodeURIComponent(gatewayToken)}`
+      : `ws://127.0.0.1:${port}/extension`
 
     // Fast preflight: is the relay server up?
     try {
       await fetch(`${httpBase}/`, { method: 'HEAD', signal: AbortSignal.timeout(2000) })
     } catch (err) {
       throw new Error(`Relay server not reachable at ${httpBase} (${String(err)})`)
+    }
+
+    if (!gatewayToken) {
+      throw new Error(
+        'Missing gatewayToken in extension settings (chrome.storage.local.gatewayToken)',
+      )
     }
 
     const ws = new WebSocket(wsUrl)
@@ -114,7 +129,7 @@ function onRelayClosed(reason) {
     setBadge(tabId, 'connecting')
     void chrome.action.setTitle({
       tabId,
-      title: 'Moltbot Browser Relay: disconnected (click to re-attach)',
+      title: 'OpenClaw Browser Relay: disconnected (click to re-attach)',
     })
   }
   tabs.clear()
@@ -225,7 +240,7 @@ async function attachTab(tabId, opts = {}) {
   tabBySession.set(sessionId, tabId)
   void chrome.action.setTitle({
     tabId,
-    title: 'Moltbot Browser Relay: attached (click to detach)',
+    title: 'OpenClaw Browser Relay: attached (click to detach)',
   })
 
   if (!opts.skipAttachedEvent) {
@@ -278,7 +293,7 @@ async function detachTab(tabId, reason) {
   setBadge(tabId, 'off')
   void chrome.action.setTitle({
     tabId,
-    title: 'Moltbot Browser Relay (click to attach/detach)',
+    title: 'OpenClaw Browser Relay (click to attach/detach)',
   })
 }
 
@@ -297,7 +312,7 @@ async function connectOrToggleForActiveTab() {
   setBadge(tabId, 'connecting')
   void chrome.action.setTitle({
     tabId,
-    title: 'Moltbot Browser Relay: connecting to local relay…',
+    title: 'OpenClaw Browser Relay: connecting to local relay…',
   })
 
   try {
@@ -308,7 +323,7 @@ async function connectOrToggleForActiveTab() {
     setBadge(tabId, 'error')
     void chrome.action.setTitle({
       tabId,
-      title: 'Moltbot Browser Relay: relay not running (open options for setup)',
+      title: 'OpenClaw Browser Relay: relay not running (open options for setup)',
     })
     void maybeOpenHelpOnce()
     // Extra breadcrumbs in chrome://extensions service worker logs.

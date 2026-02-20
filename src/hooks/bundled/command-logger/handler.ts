@@ -24,8 +24,9 @@
  */
 
 import fs from "node:fs/promises";
-import path from "node:path";
 import os from "node:os";
+import path from "node:path";
+import { resolveStateDir } from "../../../config/paths.js";
 import type { HookHandler } from "../../hooks.js";
 
 /**
@@ -39,7 +40,8 @@ const logCommand: HookHandler = async (event) => {
 
   try {
     // Create log directory
-    const logDir = path.join(os.homedir(), ".clawdbot", "logs");
+    const stateDir = resolveStateDir(process.env, os.homedir);
+    const logDir = path.join(stateDir, "logs");
     await fs.mkdir(logDir, { recursive: true });
 
     // Append to command log file
