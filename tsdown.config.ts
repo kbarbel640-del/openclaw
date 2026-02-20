@@ -56,4 +56,17 @@ export default defineConfig([
     fixedExtension: false,
     platform: "node",
   },
+  {
+    // Pi embedded runner extensions — loaded dynamically at runtime via resolvePiExtensionPath().
+    // Must be built as separate entry points into pi-extensions/ (one level above dist/) so that
+    // the path resolver (path.join(distDir, "..", "pi-extensions", `${id}.js`)) can find them.
+    entry: [
+      "src/agents/pi-extensions/context-pruning.ts",
+      "src/agents/pi-extensions/compaction-safeguard.ts",
+    ],
+    outDir: "pi-extensions",
+    env,
+    fixedExtension: false,
+    platform: "node",
+  },
 ]);
