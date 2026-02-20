@@ -426,12 +426,18 @@ export class QmdMemoryManager implements MemorySearchManager {
           `qmd ${qmdSearchCommand} does not support configured flags; retrying search with qmd query`,
         );
         try {
-          const fallbackArgs = this.buildSearchArgs("query", trimmed, limit);
-          fallbackArgs.push(...this.buildCollectionFilterArgs(collectionNames));
-          const fallback = await this.runQmd(fallbackArgs, {
-            timeoutMs: this.qmd.limits.timeoutMs,
-          });
-          parsed = parseQmdQueryJson(fallback.stdout, fallback.stderr);
+          if (collectionNames.length > 1) {
+            // Same multi-collection guard as the main path: multiple -c flags silently fail in
+            // QMD 1.0.x, so iterate each collection individually and merge results.
+            parsed = await this.runQueryAcrossCollections(trimmed, limit, collectionNames, "query");
+          } else {
+            const fallbackArgs = this.buildSearchArgs("query", trimmed, limit);
+            fallbackArgs.push(...this.buildCollectionFilterArgs(collectionNames));
+            const fallback = await this.runQmd(fallbackArgs, {
+              timeoutMs: this.qmd.limits.timeoutMs,
+            });
+            parsed = parseQmdQueryJson(fallback.stdout, fallback.stderr);
+          }
         } catch (fallbackErr) {
           log.warn(`qmd query fallback failed: ${String(fallbackErr)}`);
           throw fallbackErr instanceof Error ? fallbackErr : new Error(String(fallbackErr));
