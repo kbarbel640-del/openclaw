@@ -10,11 +10,12 @@ export async function writeOAuthCredentials(
   provider: string,
   creds: OAuthCredentials,
   agentDir?: string,
-): Promise<void> {
+): Promise<string> {
   const email =
     typeof creds.email === "string" && creds.email.trim() ? creds.email.trim() : "default";
+  const profileId = `${provider}:${email}`;
   upsertAuthProfile({
-    profileId: `${provider}:${email}`,
+    profileId,
     credential: {
       type: "oauth",
       provider,
@@ -22,6 +23,7 @@ export async function writeOAuthCredentials(
     },
     agentDir: resolveAuthAgentDir(agentDir),
   });
+  return profileId;
 }
 
 export async function setAnthropicApiKey(key: string, agentDir?: string) {
@@ -50,13 +52,18 @@ export async function setGeminiApiKey(key: string, agentDir?: string) {
   });
 }
 
-export async function setMinimaxApiKey(key: string, agentDir?: string) {
+export async function setMinimaxApiKey(
+  key: string,
+  agentDir?: string,
+  profileId: string = "minimax:default",
+) {
+  const provider = profileId.split(":")[0] ?? "minimax";
   // Write to resolved agent dir so gateway finds credentials on startup.
   upsertAuthProfile({
-    profileId: "minimax:default",
+    profileId,
     credential: {
       type: "api_key",
-      provider: "minimax",
+      provider,
       key,
     },
     agentDir: resolveAuthAgentDir(agentDir),

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { classifySignalCliLogLine } from "./daemon.js";
 import { probeSignal } from "./probe.js";
 
 const signalCheckMock = vi.fn();
@@ -62,5 +63,28 @@ describe("probeSignal", () => {
     expect(signalCheckMock).toHaveBeenCalledWith("http://127.0.0.1:8080", 1000, {
       account: "+15550001111",
     });
+  });
+});
+
+describe("classifySignalCliLogLine", () => {
+  it("treats INFO/DEBUG as log (even if emitted on stderr)", () => {
+    expect(classifySignalCliLogLine("INFO  DaemonCommand - Started")).toBe("log");
+    expect(classifySignalCliLogLine("DEBUG Something")).toBe("log");
+  });
+
+  it("treats WARN/ERROR as error", () => {
+    expect(classifySignalCliLogLine("WARN  Something")).toBe("error");
+    expect(classifySignalCliLogLine("WARNING Something")).toBe("error");
+    expect(classifySignalCliLogLine("ERROR Something")).toBe("error");
+  });
+
+  it("treats failures without explicit severity as error", () => {
+    expect(classifySignalCliLogLine("Failed to initialize HTTP Server - oops")).toBe("error");
+    expect(classifySignalCliLogLine('Exception in thread "main"')).toBe("error");
+  });
+
+  it("returns null for empty lines", () => {
+    expect(classifySignalCliLogLine("")).toBe(null);
+    expect(classifySignalCliLogLine("   ")).toBe(null);
   });
 });
