@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { NextcloudTalkWebhookHeaders } from "./types.js";
 
 const SIGNATURE_HEADER = "x-nextcloud-talk-signature";
@@ -24,14 +24,14 @@ export function verifyNextcloudTalkSignature(params: {
     .update(random + body)
     .digest("hex");
 
-  if (signature.length !== expected.length) {
-    return false;
-  }
-  let result = 0;
-  for (let i = 0; i < signature.length; i++) {
-    result |= signature.charCodeAt(i) ^ expected.charCodeAt(i);
-  }
-  return result === 0;
+  const sigBuf = Buffer.from(signature, "utf8");
+  const expBuf = Buffer.from(expected, "utf8");
+  const maxLen = Math.max(sigBuf.length, expBuf.length);
+  const paddedSig = Buffer.alloc(maxLen, 0);
+  const paddedExp = Buffer.alloc(maxLen, 0);
+  sigBuf.copy(paddedSig);
+  expBuf.copy(paddedExp);
+  return timingSafeEqual(paddedSig, paddedExp);
 }
 
 /**
