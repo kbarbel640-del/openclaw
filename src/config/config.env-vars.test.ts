@@ -29,7 +29,7 @@ describe("config env vars", () => {
     });
   });
 
-  it("blocks dangerous environment variable keys from config injection", async () => {
+  it("blocks dangerous environment variable keys from env.vars config injection", async () => {
     const dangerousKeys = ["NODE_OPTIONS", "LD_PRELOAD", "PATH", "HOME"];
     const overrides: Record<string, string | undefined> = {};
     for (const key of dangerousKeys) {
@@ -41,6 +41,24 @@ describe("config env vars", () => {
         vars[key] = "injected-value";
       }
       applyConfigEnvVars({ env: { vars } } as OpenClawConfig);
+      for (const key of dangerousKeys) {
+        expect(process.env[key]).toBeUndefined();
+      }
+    });
+  });
+
+  it("blocks dangerous environment variable keys from top-level env config injection", async () => {
+    const dangerousKeys = ["NODE_OPTIONS", "LD_PRELOAD", "PATH", "HOME"];
+    const overrides: Record<string, string | undefined> = {};
+    for (const key of dangerousKeys) {
+      overrides[key] = undefined;
+    }
+    await withEnvOverride(overrides, async () => {
+      const env: Record<string, string> = {};
+      for (const key of dangerousKeys) {
+        env[key] = "injected-value";
+      }
+      applyConfigEnvVars({ env } as OpenClawConfig);
       for (const key of dangerousKeys) {
         expect(process.env[key]).toBeUndefined();
       }
