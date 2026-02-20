@@ -181,8 +181,16 @@ export function attachGatewayWsMessageHandler(params: {
       return;
     }
     const text = rawDataToString(data);
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(text);
+      parsed = JSON.parse(text);
+    } catch {
+      logWsControl.warn(
+        `dropping malformed WebSocket frame conn=${connId} remote=${remoteAddr ?? "?"}: invalid JSON`,
+      );
+      return;
+    }
+    try {
       const frameType =
         parsed && typeof parsed === "object" && "type" in parsed
           ? typeof (parsed as { type?: unknown }).type === "string"
