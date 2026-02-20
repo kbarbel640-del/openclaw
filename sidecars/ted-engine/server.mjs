@@ -273,6 +273,376 @@ function appendAudit(action, details) {
   });
 }
 
+function blockedExplainability(reasonCode, blockedAction, nextSafeStep) {
+  return {
+    blocked: true,
+    reason_code: reasonCode,
+    blocked_action: blockedAction,
+    next_safe_step: nextSafeStep,
+  };
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function validateRoleCardPayload(roleCard) {
+  if (!roleCard || typeof roleCard !== "object") {
+    return {
+      ok: false,
+      reason_code: "INVALID_ROLE_CARD",
+      blocked_action: "role_card_validation",
+      next_safe_step: "Provide a JSON role card object.",
+    };
+  }
+
+  const requiredStringFields = ["role_id", "domain"];
+  for (const field of requiredStringFields) {
+    if (!isNonEmptyString(roleCard[field])) {
+      return {
+        ok: false,
+        reason_code: "ROLE_CARD_MISSING_REQUIRED_FIELD",
+        blocked_action: "role_card_validation",
+        next_safe_step: `Provide non-empty ${field}.`,
+      };
+    }
+  }
+
+  const requiredArrayFields = [
+    "inputs",
+    "outputs",
+    "definition_of_done",
+    "hard_bans",
+    "escalation",
+  ];
+  for (const field of requiredArrayFields) {
+    const value = roleCard[field];
+    if (
+      !Array.isArray(value) ||
+      value.length === 0 ||
+      value.some((item) => !isNonEmptyString(item))
+    ) {
+      return {
+        ok: false,
+        reason_code: "ROLE_CARD_INVALID_SECTION",
+        blocked_action: "role_card_validation",
+        next_safe_step: `Provide non-empty string items for ${field}.`,
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
+function validateOutputContractPayload(output) {
+  if (!output || typeof output !== "object") {
+    return {
+      ok: false,
+      reason_code: "INVALID_OUTPUT_CONTRACT",
+      blocked_action: "output_contract_validation",
+      next_safe_step: "Provide a JSON output contract object.",
+    };
+  }
+
+  const requiredFields = [
+    "title",
+    "summary",
+    "recommended_actions",
+    "questions",
+    "citations",
+    "entity_tag",
+    "audience",
+  ];
+  for (const field of requiredFields) {
+    if (!(field in output)) {
+      return {
+        ok: false,
+        reason_code: "OUTPUT_CONTRACT_MISSING_FIELD",
+        blocked_action: "output_contract_validation",
+        next_safe_step: `Add missing required field ${field}.`,
+      };
+    }
+  }
+
+  if (!isNonEmptyString(output.title) || !isNonEmptyString(output.summary)) {
+    return {
+      ok: false,
+      reason_code: "OUTPUT_CONTRACT_INVALID_TEXT",
+      blocked_action: "output_contract_validation",
+      next_safe_step: "Provide non-empty title and summary fields.",
+    };
+  }
+
+  if (
+    !Array.isArray(output.recommended_actions) ||
+    !Array.isArray(output.questions) ||
+    !Array.isArray(output.citations)
+  ) {
+    return {
+      ok: false,
+      reason_code: "OUTPUT_CONTRACT_INVALID_ARRAYS",
+      blocked_action: "output_contract_validation",
+      next_safe_step: "Ensure recommended_actions, questions, and citations are arrays.",
+    };
+  }
+
+  if (!output.entity_tag || typeof output.entity_tag !== "object") {
+    return {
+      ok: false,
+      reason_code: "OUTPUT_CONTRACT_INVALID_ENTITY_TAG",
+      blocked_action: "output_contract_validation",
+      next_safe_step: "Provide entity_tag object with required governance fields.",
+    };
+  }
+
+  if (!isNonEmptyString(output.entity_tag.primary_entity)) {
+    return {
+      ok: false,
+      reason_code: "OUTPUT_CONTRACT_INVALID_ENTITY_TAG",
+      blocked_action: "output_contract_validation",
+      next_safe_step: "Set entity_tag.primary_entity to a valid scoped entity.",
+    };
+  }
+
+  if (!isNonEmptyString(output.audience)) {
+    return {
+      ok: false,
+      reason_code: "OUTPUT_CONTRACT_INVALID_AUDIENCE",
+      blocked_action: "output_contract_validation",
+      next_safe_step: "Provide the target audience identifier.",
+    };
+  }
+
+  return { ok: true };
+}
+
+function validateEntityProvenanceCheckPayload(body) {
+  if (!body || typeof body !== "object") {
+    return {
+      ok: false,
+      reason_code: "INVALID_ENTITY_CHECK_REQUEST",
+      blocked_action: "entity_provenance_check",
+      next_safe_step: "Provide objects array and optional target_entity in JSON body.",
+    };
+  }
+  if (!Array.isArray(body.objects) || body.objects.length === 0) {
+    return {
+      ok: false,
+      reason_code: "OBJECTS_REQUIRED",
+      blocked_action: "entity_provenance_check",
+      next_safe_step: "Provide at least one object with id/entity_tag/provenance.",
+    };
+  }
+  if (typeof body.target_entity !== "undefined" && !isNonEmptyString(body.target_entity)) {
+    return {
+      ok: false,
+      reason_code: "INVALID_TARGET_ENTITY",
+      blocked_action: "entity_provenance_check",
+      next_safe_step: "Use a non-empty target_entity when provided.",
+    };
+  }
+  return { ok: true };
+}
+
+async function validateRoleCardEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const roleCard = body?.role_card;
+  const result = validateRoleCardPayload(roleCard);
+  if (!result.ok) {
+    appendAudit("GOV_ROLE_CARD_BLOCK", {
+      reason_code: result.reason_code,
+      blocked_action: result.blocked_action,
+    });
+    sendJson(
+      res,
+      400,
+      blockedExplainability(result.reason_code, result.blocked_action, result.next_safe_step),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  appendAudit("GOV_ROLE_CARD_PASS", { role_id: roleCard.role_id });
+  sendJson(res, 200, { valid: true, role_id: roleCard.role_id });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function checkHardBansEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  if (!body || typeof body !== "object") {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_HARD_BAN_CHECK_REQUEST",
+        "hard_ban_check",
+        "Provide role_card and candidate_output in JSON body.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  const roleCardResult = validateRoleCardPayload(body.role_card);
+  if (!roleCardResult.ok) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        roleCardResult.reason_code,
+        "hard_ban_check",
+        "Fix role_card structure before evaluating hard bans.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const outputText =
+    typeof body.candidate_output === "string" ? body.candidate_output.toLowerCase() : "";
+  if (!outputText) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_CANDIDATE_OUTPUT",
+        "hard_ban_check",
+        "Provide non-empty candidate_output text.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const matchedBans = body.role_card.hard_bans.filter((ban) =>
+    outputText.includes(String(ban).toLowerCase()),
+  );
+  if (matchedBans.length > 0) {
+    appendAudit("GOV_HARD_BAN_BLOCK", { matched_bans: matchedBans });
+    sendJson(res, 409, {
+      ...blockedExplainability(
+        "HARD_BAN_VIOLATION",
+        "candidate_output_release",
+        "Revise candidate output to remove banned behavior and resubmit.",
+      ),
+      matched_bans: matchedBans,
+    });
+    logLine(`POST ${route} -> 409`);
+    return;
+  }
+
+  appendAudit("GOV_HARD_BAN_PASS", { role_id: body.role_card.role_id });
+  sendJson(res, 200, { allowed: true });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function validateOutputContractEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const output = body?.output;
+  const result = validateOutputContractPayload(output);
+  if (!result.ok) {
+    appendAudit("GOV_OUTPUT_CONTRACT_BLOCK", {
+      reason_code: result.reason_code,
+      blocked_action: result.blocked_action,
+    });
+    sendJson(
+      res,
+      400,
+      blockedExplainability(result.reason_code, result.blocked_action, result.next_safe_step),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  appendAudit("GOV_OUTPUT_CONTRACT_PASS", { audience: output.audience });
+  sendJson(res, 200, { valid: true });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function checkEntityProvenanceEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const requestValidation = validateEntityProvenanceCheckPayload(body);
+  if (!requestValidation.ok) {
+    appendAudit("GOV_ENTITY_CHECK_BLOCK", {
+      reason_code: requestValidation.reason_code,
+      blocked_action: requestValidation.blocked_action,
+    });
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        requestValidation.reason_code,
+        requestValidation.blocked_action,
+        requestValidation.next_safe_step,
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const targetEntity = isNonEmptyString(body.target_entity) ? body.target_entity.trim() : null;
+  const missingMetadataIds = [];
+  const offendingObjectIds = [];
+
+  for (const raw of body.objects) {
+    const obj = raw && typeof raw === "object" ? raw : {};
+    const objectId = isNonEmptyString(obj.id) ? obj.id.trim() : "unknown_object";
+    const primaryEntity = obj?.entity_tag?.primary_entity;
+    const sourceType = obj?.provenance?.source_type;
+    const sourceId = obj?.provenance?.source_id;
+    const retrievedAt = obj?.provenance?.retrieved_at;
+    if (
+      !isNonEmptyString(primaryEntity) ||
+      !isNonEmptyString(sourceType) ||
+      !isNonEmptyString(sourceId) ||
+      !isNonEmptyString(retrievedAt)
+    ) {
+      missingMetadataIds.push(objectId);
+      continue;
+    }
+    if (targetEntity && primaryEntity.trim() !== targetEntity) {
+      offendingObjectIds.push(objectId);
+    }
+  }
+
+  if (missingMetadataIds.length > 0) {
+    appendAudit("GOV_ENTITY_CHECK_BLOCK", {
+      reason_code: "MISSING_ENTITY_OR_PROVENANCE",
+      object_ids: missingMetadataIds,
+    });
+    sendJson(res, 409, {
+      ...blockedExplainability(
+        "MISSING_ENTITY_OR_PROVENANCE",
+        "entity_provenance_check",
+        "Populate entity_tag.primary_entity and provenance fields for all objects.",
+      ),
+      object_ids: missingMetadataIds,
+    });
+    logLine(`POST ${route} -> 409`);
+    return;
+  }
+
+  if (offendingObjectIds.length > 0) {
+    appendAudit("GOV_ENTITY_CHECK_BLOCK", {
+      reason_code: "CROSS_ENTITY_BLOCK",
+      target_entity: targetEntity,
+      object_ids: offendingObjectIds,
+    });
+    sendJson(res, 409, {
+      ...blockedExplainability(
+        "CROSS_ENTITY_BLOCK",
+        "cross_entity_render",
+        "Remove offending objects or route output to the matching entity audience.",
+      ),
+      target_entity: targetEntity,
+      object_ids: offendingObjectIds,
+    });
+    logLine(`POST ${route} -> 409`);
+    return;
+  }
+
+  appendAudit("GOV_ENTITY_CHECK_PASS", { target_entity: targetEntity });
+  sendJson(res, 200, { allowed: true, target_entity: targetEntity });
+  logLine(`POST ${route} -> 200`);
+}
+
 function appendPatternEvent(event) {
   ensureDirectory(patternsDir);
   fs.appendFileSync(patternsLedgerPath, `${JSON.stringify(event)}\n`, "utf8");
@@ -1424,6 +1794,26 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "POST" && route === "/triage/ingest") {
     await ingestTriageItem(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/governance/role-cards/validate") {
+    await validateRoleCardEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/governance/hard-bans/check") {
+    await checkHardBansEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/governance/output/validate") {
+    await validateOutputContractEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/governance/entity/check") {
+    await checkEntityProvenanceEndpoint(req, res, route);
     return;
   }
 
