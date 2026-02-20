@@ -172,9 +172,7 @@ describe("web media loading", () => {
 
     await expect(
       loadWebMedia(file, { maxBytes: cap, optimizeImages: false, localRoots: [fixtureRoot] }),
-    ).rejects.toThrow(
-      /Media exceeds/i,
-    );
+    ).rejects.toThrow(/Media exceeds/i);
   });
 
   it("sniffs mime before extension when loading local files", async () => {
