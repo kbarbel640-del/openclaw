@@ -463,6 +463,30 @@ describe("createStatusReactionController", () => {
     expect(stallCalls).toHaveLength(0);
   });
 
+  it("should reset stall timers on repeated same-phase updates", async () => {
+    const { adapter, calls } = createMockAdapter();
+    const controller = createStatusReactionController({
+      enabled: true,
+      adapter,
+      initialEmoji: "👀",
+    });
+
+    void controller.setThinking();
+    await vi.advanceTimersByTimeAsync(DEFAULT_TIMING.debounceMs);
+
+    // Advance halfway to soft stall
+    await vi.advanceTimersByTimeAsync(DEFAULT_TIMING.stallSoftMs / 2);
+
+    // Re-affirm same phase (should reset timers)
+    void controller.setThinking();
+
+    // Advance another halfway - should not trigger stall yet
+    await vi.advanceTimersByTimeAsync(DEFAULT_TIMING.stallSoftMs / 2);
+
+    const stallCalls = calls.filter((c) => c.emoji === DEFAULT_EMOJIS.stallSoft);
+    expect(stallCalls).toHaveLength(0);
+  });
+
   it("should call onError callback when adapter throws", async () => {
     const onError = vi.fn();
     const adapter: StatusReactionAdapter = {

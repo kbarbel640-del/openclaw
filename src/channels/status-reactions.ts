@@ -256,8 +256,11 @@ export function createStatusReactionController(params: {
       return;
     }
 
-    // Deduplicate: if already scheduled/current, skip
+    // Deduplicate: if already scheduled/current, skip send but keep stall timers fresh
     if (emoji === currentEmoji || emoji === pendingEmoji) {
+      if (!options.skipStallReset) {
+        resetStallTimers();
+      }
       return;
     }
 
