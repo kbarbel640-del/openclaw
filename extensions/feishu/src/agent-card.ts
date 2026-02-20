@@ -414,6 +414,7 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
   let opQueue: Promise<void> = Promise.resolve();
   let previousTimelineText = "";
   let timelineCarryLine = "";
+  let preTraceTimeline: TimelineEntry[] = [];
   let finalStreamStarted = false;
   let hasTraceContext = false;
 
@@ -463,13 +464,24 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
         const { cleanedText: textRaw, traceLines } = extractSystemTraceLines(textRawOriginal);
 
         if (traceLines.length > 0) {
+          if (!hasTraceContext && preTraceTimeline.length > 0) {
+            timeline = [...timeline, ...preTraceTimeline];
+            preTraceTimeline = [];
+          }
+          hasTraceContext = true;
           for (const line of traceLines) {
             timeline = [...timeline, { kind: "block", text: line }];
           }
-          hasTraceContext = true;
         }
 
         if (info.kind === "tool") {
+          if (!finalStreamStarted && answer.trim()) {
+            answer = "";
+          }
+          if (!hasTraceContext && preTraceTimeline.length > 0) {
+            timeline = [...timeline, ...preTraceTimeline];
+            preTraceTimeline = [];
+          }
           const parsed = parseToolSummary(textRaw);
           if (parsed) {
             timeline = [...timeline, { kind: "tool", tool: parsed }];
@@ -484,18 +496,29 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
         }
 
         if (info.kind === "block") {
+          const targetTimeline = hasTraceContext ? timeline : preTraceTimeline;
           const appended = appendTimelineFromText({
             text: textRaw,
-            timeline,
+            timeline: targetTimeline,
             previousText: previousTimelineText,
             carryLine: timelineCarryLine,
-            allowBlock: hasTraceContext,
+            allowBlock: true,
             flushIncompleteLine: false,
           });
-          timeline = appended.timeline;
+          if (hasTraceContext) {
+            timeline = appended.timeline;
+          } else {
+            preTraceTimeline = appended.timeline;
+          }
           previousTimelineText = appended.previousText;
           timelineCarryLine = appended.carryLine;
-          if (appended.sawReasoning) {
+          if (!hasTraceContext && appended.sawReasoning) {
+            hasTraceContext = true;
+            if (preTraceTimeline.length > 0) {
+              timeline = [...timeline, ...preTraceTimeline];
+              preTraceTimeline = [];
+            }
+          } else if (appended.sawReasoning) {
             hasTraceContext = true;
           }
         }
@@ -514,7 +537,7 @@ export function createFeishuAgentCardRenderer(params: CreateFeishuAgentCardRende
           finalStreamStarted = true;
         }
 
-        if (text) {
+        if (info.kind === "final" && text) {
           answer = mergeStreamText(answer, text);
         }
         status = info.kind === "final" ? "completed" : status === "error" ? "error" : "thinking";
