@@ -278,7 +278,10 @@ function resolveAntigravityOpus46ForwardCompatModel(
   });
 }
 
-const GEMINI_31_PRO_MODEL_IDS = ["gemini-3.1-pro-low-preview", "gemini-3.1-pro-high-preview"];
+const GEMINI_31_PRO_MODEL_IDS = new Set([
+  "gemini-3.1-pro-low-preview",
+  "gemini-3.1-pro-high-preview",
+]);
 const GEMINI_31_TEMPLATE_MODEL_IDS = ["gemini-3-pro-preview"] as const;
 
 function resolveGemini31ForwardCompatModel(
@@ -297,7 +300,7 @@ function resolveGemini31ForwardCompatModel(
 
   const trimmedModelId = modelId.trim();
   const lower = trimmedModelId.toLowerCase();
-  if (!GEMINI_31_PRO_MODEL_IDS.includes(lower)) {
+  if (!GEMINI_31_PRO_MODEL_IDS.has(lower)) {
     return undefined;
   }
 
