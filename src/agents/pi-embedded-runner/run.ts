@@ -27,6 +27,7 @@ import {
 import { normalizeProviderId } from "../model-selection.js";
 import { ensureOpenClawModelsJson } from "../models-config.js";
 import {
+  ensureMinAntigravityVersion,
   formatBillingErrorMessage,
   classifyFailoverReason,
   formatAssistantErrorText,
@@ -276,6 +277,10 @@ export async function runEmbeddedPiAgent(
       if (!model) {
         throw new Error(error ?? `Unknown model: ${provider}/${modelId}`);
       }
+      ensureMinAntigravityVersion({
+        provider: model.provider,
+        modelId: model.id,
+      });
 
       const ctxInfo = resolveContextWindowInfo({
         cfg: params.config,

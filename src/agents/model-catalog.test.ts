@@ -91,4 +91,123 @@ describe("loadModelCatalog", () => {
     expect(spark?.name).toBe("gpt-5.3-codex-spark");
     expect(spark?.reasoning).toBe(true);
   });
+
+  it("adds google-antigravity gemini 3.1 forward-compat entries from gemini-3-pro-high", async () => {
+    __setModelCatalogImportForTest(
+      async () =>
+        ({
+          AuthStorage: class {},
+          ModelRegistry: class {
+            getAll() {
+              return [
+                {
+                  id: "gemini-3-pro-high",
+                  provider: "google-antigravity",
+                  name: "Gemini 3 Pro High (Antigravity)",
+                  reasoning: true,
+                  contextWindow: 1_048_576,
+                  input: ["text", "image"],
+                },
+              ];
+            }
+          },
+        }) as unknown as PiSdkModule,
+    );
+
+    const result = await loadModelCatalog({ config: {} as OpenClawConfig });
+
+    expect(result).toContainEqual(
+      expect.objectContaining({
+        provider: "google-antigravity",
+        id: "gemini-3.1-pro-high",
+      }),
+    );
+    expect(result).toContainEqual(
+      expect.objectContaining({
+        provider: "google-antigravity",
+        id: "gemini-3.1-pro-low",
+      }),
+    );
+  });
+
+  it("adds google-antigravity gemini 3.1 forward-compat entries from gemini-3-pro-high-preview", async () => {
+    __setModelCatalogImportForTest(
+      async () =>
+        ({
+          AuthStorage: class {},
+          ModelRegistry: class {
+            getAll() {
+              return [
+                {
+                  id: "gemini-3-pro-high-preview",
+                  provider: "google-antigravity",
+                  name: "Gemini 3 Pro High Preview (Antigravity)",
+                  reasoning: true,
+                  contextWindow: 1_048_576,
+                  input: ["text", "image"],
+                },
+              ];
+            }
+          },
+        }) as unknown as PiSdkModule,
+    );
+
+    const result = await loadModelCatalog({ config: {} as OpenClawConfig });
+
+    expect(result).toContainEqual(
+      expect.objectContaining({
+        provider: "google-antigravity",
+        id: "gemini-3.1-pro-high",
+      }),
+    );
+    expect(result).toContainEqual(
+      expect.objectContaining({
+        provider: "google-antigravity",
+        id: "gemini-3.1-pro-low",
+      }),
+    );
+  });
+
+  it("adds google gemini 3.1 forward-compat entries from gemini-3-pro-high", async () => {
+    __setModelCatalogImportForTest(
+      async () =>
+        ({
+          AuthStorage: class {},
+          ModelRegistry: class {
+            getAll() {
+              return [
+                {
+                  id: "gemini-3-pro-high",
+                  provider: "google",
+                  name: "Gemini 3 Pro High",
+                  reasoning: true,
+                  contextWindow: 1_048_576,
+                  input: ["text", "image"],
+                },
+              ];
+            }
+          },
+        }) as unknown as PiSdkModule,
+    );
+
+    const result = await loadModelCatalog({ config: {} as OpenClawConfig });
+    expect(result).toContainEqual(
+      expect.objectContaining({
+        provider: "google",
+        id: "gemini-3.1-pro",
+      }),
+    );
+    expect(result).toContainEqual(
+      expect.objectContaining({
+        provider: "google",
+        id: "gemini-3.1-pro-high-preview",
+      }),
+    );
+    expect(result).toContainEqual(
+      expect.objectContaining({
+        provider: "google",
+        id: "gemini-3.1-pro-low-preview",
+      }),
+    );
+  });
 });

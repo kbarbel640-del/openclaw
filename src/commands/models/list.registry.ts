@@ -9,6 +9,7 @@ import {
 } from "../../agents/model-auth.js";
 import {
   ANTIGRAVITY_OPUS_46_FORWARD_COMPAT_CANDIDATES,
+  GEMINI_31_FORWARD_COMPAT_CANDIDATES,
   resolveForwardCompatModel,
 } from "../../agents/model-forward-compat.js";
 import { ensureOpenClawModelsJson } from "../../agents/models-config.js";
@@ -106,8 +107,12 @@ export async function loadModelRegistry(cfg: OpenClawConfig) {
   const authStorage = discoverAuthStorage(agentDir);
   const registry = discoverModels(authStorage, agentDir);
   const appended = appendAntigravityForwardCompatModels(registry.getAll(), registry);
-  const models = appended.models;
-  const synthesizedForwardCompat = appended.synthesizedForwardCompat;
+  const appendedGemini = appendGemini31ForwardCompatModels(appended.models, registry);
+  const models = appendedGemini.models;
+  const synthesizedForwardCompat = [
+    ...appended.synthesizedForwardCompat,
+    ...appendedGemini.synthesizedForwardCompat,
+  ];
   let availableKeys: Set<string> | undefined;
   let availabilityErrorMessage: string | undefined;
 
@@ -163,6 +168,60 @@ function appendAntigravityForwardCompatModels(
       key,
       templatePrefixes: candidate.templatePrefixes,
     });
+  }
+
+  return { models: nextModels, synthesizedForwardCompat };
+}
+
+function appendGemini31ForwardCompatModels(
+  models: Model<Api>[],
+  modelRegistry: ModelRegistry,
+): { models: Model<Api>[]; synthesizedForwardCompat: SynthesizedForwardCompat[] } {
+  const nextModels = [...models];
+  const synthesizedForwardCompat: SynthesizedForwardCompat[] = [];
+  const antigravityGemini31Candidates = [
+    {
+      id: "gemini-3.1-pro-low",
+      templatePrefixes: ["google-antigravity/gemini-3-pro"],
+    },
+    {
+      id: "gemini-3.1-pro-high",
+      templatePrefixes: ["google-antigravity/gemini-3-pro"],
+    },
+  ] as const;
+
+  // Discover which Google-like providers exist in the current model list
+  const googleProviders = new Set(
+    nextModels
+      .filter((m) => m.provider === "google" || m.provider === "google-antigravity")
+      .map((m) => m.provider),
+  );
+
+  for (const provider of googleProviders) {
+    const candidates =
+      provider === "google-antigravity"
+        ? antigravityGemini31Candidates
+        : GEMINI_31_FORWARD_COMPAT_CANDIDATES;
+    for (const candidate of candidates) {
+      const key = modelKey(provider, candidate.id);
+      const hasForwardCompat = nextModels.some(
+        (model) => modelKey(model.provider, model.id) === key,
+      );
+      if (hasForwardCompat) {
+        continue;
+      }
+
+      const fallback = resolveForwardCompatModel(provider, candidate.id, modelRegistry);
+      if (!fallback) {
+        continue;
+      }
+
+      nextModels.push(fallback);
+      synthesizedForwardCompat.push({
+        key,
+        templatePrefixes: candidate.templatePrefixes,
+      });
+    }
   }
 
   return { models: nextModels, synthesizedForwardCompat };

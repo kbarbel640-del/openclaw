@@ -33,6 +33,7 @@ import { resolveOpenClawDocsPath } from "../docs-path.js";
 import { getApiKeyForModel, resolveModelAuthMode } from "../model-auth.js";
 import { ensureOpenClawModelsJson } from "../models-config.js";
 import {
+  ensureMinAntigravityVersion,
   ensureSessionHeader,
   validateAnthropicTurns,
   validateGeminiTurns,
@@ -283,6 +284,10 @@ export async function compactEmbeddedPiSessionDirect(
     const reason = error ?? `Unknown model: ${provider}/${modelId}`;
     return fail(reason);
   }
+  ensureMinAntigravityVersion({
+    provider: model.provider,
+    modelId: model.id,
+  });
   try {
     const apiKeyInfo = await getApiKeyForModel({
       model,

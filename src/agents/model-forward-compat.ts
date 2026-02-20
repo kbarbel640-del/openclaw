@@ -2,6 +2,7 @@ import type { Api, Model } from "@mariozechner/pi-ai";
 import { DEFAULT_CONTEXT_TOKENS } from "./defaults.js";
 import { normalizeModelCompat } from "./model-compat.js";
 import { normalizeProviderId } from "./model-selection.js";
+import { normalizeGoogleModelId } from "./models-config.providers.js";
 import type { ModelRegistry } from "./pi-model-discovery.js";
 
 const OPENAI_CODEX_GPT_53_MODEL_ID = "gpt-5.3-codex";
@@ -278,12 +279,57 @@ function resolveAntigravityOpus46ForwardCompatModel(
   });
 }
 
-const GEMINI_31_PRO_MODEL_IDS = new Set([
+const GEMINI_31_CANONICAL_MODEL_IDS = [
+  "gemini-3.1-pro",
   "gemini-3.1-pro-low-preview",
   "gemini-3.1-pro-high-preview",
   "gemini-3.1-pro-preview-customtools",
+] as const;
+const GEMINI_31_ALIAS_MODEL_IDS = [
+  "gemini-3.1-pro-low",
+  "gemini-3.1-pro-high",
+  "gemini-3.1-pro-customtools",
+] as const;
+const GEMINI_31_PRO_MODEL_IDS: ReadonlySet<string> = new Set([
+  ...GEMINI_31_CANONICAL_MODEL_IDS,
+  ...GEMINI_31_ALIAS_MODEL_IDS,
 ]);
-const GEMINI_31_TEMPLATE_MODEL_IDS = ["gemini-3-pro-preview"] as const;
+const GEMINI_31_GENERIC_TEMPLATE_MODEL_IDS = [
+  "gemini-3-pro-preview",
+  "gemini-3-pro-high",
+  "gemini-3-pro-high-preview",
+  "gemini-3-pro-low",
+  "gemini-3-pro-low-preview",
+  ...GEMINI_31_CANONICAL_MODEL_IDS,
+  ...GEMINI_31_ALIAS_MODEL_IDS,
+] as const;
+const GEMINI_31_HIGH_TEMPLATE_MODEL_IDS = [
+  "gemini-3-pro-high",
+  "gemini-3-pro-high-preview",
+  "gemini-3.1-pro-high",
+  "gemini-3.1-pro-high-preview",
+] as const;
+const GEMINI_31_LOW_TEMPLATE_MODEL_IDS = [
+  "gemini-3-pro-low",
+  "gemini-3-pro-low-preview",
+  "gemini-3.1-pro-low",
+  "gemini-3.1-pro-low-preview",
+] as const;
+const GEMINI_31_CUSTOMTOOLS_TEMPLATE_MODEL_IDS = [
+  "gemini-3-pro-preview",
+  "gemini-3.1-pro",
+  "gemini-3.1-pro-customtools",
+  "gemini-3.1-pro-preview-customtools",
+] as const;
+const GEMINI_31_ANTIGRAVITY_RUNTIME_MODEL_ID_HIGH = "gemini-3.1-pro-high";
+const GEMINI_31_ANTIGRAVITY_RUNTIME_MODEL_ID_LOW = "gemini-3.1-pro-low";
+
+const GEMINI_31_PROVIDERS = ["google"] as const;
+
+export const GEMINI_31_FORWARD_COMPAT_CANDIDATES = [...GEMINI_31_CANONICAL_MODEL_IDS].map((id) => ({
+  id,
+  templatePrefixes: GEMINI_31_PROVIDERS.map((p) => `${p}/gemini-3-pro`),
+}));
 
 function resolveGemini31ForwardCompatModel(
   provider: string,
@@ -291,27 +337,76 @@ function resolveGemini31ForwardCompatModel(
   modelRegistry: ModelRegistry,
 ): Model<Api> | undefined {
   const normalizedProvider = normalizeProviderId(provider);
-  if (
-    normalizedProvider !== "google" &&
-    normalizedProvider !== "google-gemini-cli" &&
-    normalizedProvider !== "google-antigravity"
-  ) {
+  if (normalizedProvider !== "google" && normalizedProvider !== "google-antigravity") {
     return undefined;
   }
 
   const trimmedModelId = modelId.trim();
-  const lower = trimmedModelId.toLowerCase();
+  const resolvedModelId =
+    normalizedProvider === "google" ? normalizeGoogleModelId(trimmedModelId) : trimmedModelId;
+  const lower = resolvedModelId.toLowerCase();
   if (!GEMINI_31_PRO_MODEL_IDS.has(lower)) {
+    return undefined;
+  }
+
+  const templateIds = resolveGemini31TemplateIds(lower);
+
+  // Cloud Code Assist expects known model ids in the on-wire payload.
+  // For antigravity aliases, use the discovered template metadata but keep
+  // execution on Gemini 3.1 ids (3-pro ids are deprecated server-side).
+  if (normalizedProvider === "google-antigravity") {
+    const resolvedModelId = normalizeGemini31RequestedId(trimmedModelId);
+    for (const templateId of [...new Set(templateIds)].filter(Boolean)) {
+      const template = modelRegistry.find(normalizedProvider, templateId) as Model<Api> | null;
+      if (!template) {
+        continue;
+      }
+      return normalizeModelCompat({
+        ...template,
+        id: resolvedModelId,
+        name: trimmedModelId,
+        reasoning: true,
+      } as Model<Api>);
+    }
     return undefined;
   }
 
   return cloneFirstTemplateModel({
     normalizedProvider,
-    trimmedModelId,
-    templateIds: [...GEMINI_31_TEMPLATE_MODEL_IDS],
+    trimmedModelId: resolvedModelId,
+    templateIds,
     modelRegistry,
     patch: { reasoning: true },
   });
+}
+
+function resolveGemini31TemplateIds(modelId: string): string[] {
+  const prioritized = modelId.includes("customtools")
+    ? GEMINI_31_CUSTOMTOOLS_TEMPLATE_MODEL_IDS
+    : modelId.includes("-high")
+      ? GEMINI_31_HIGH_TEMPLATE_MODEL_IDS
+      : modelId.includes("-low")
+        ? GEMINI_31_LOW_TEMPLATE_MODEL_IDS
+        : GEMINI_31_GENERIC_TEMPLATE_MODEL_IDS;
+  return [...new Set([...prioritized, ...GEMINI_31_GENERIC_TEMPLATE_MODEL_IDS])];
+}
+
+function normalizeGemini31RequestedId(modelId: string): string {
+  const lower = modelId.toLowerCase();
+  if (lower === "gemini-3.1-pro-low" || lower === "gemini-3.1-pro-low-preview") {
+    return GEMINI_31_ANTIGRAVITY_RUNTIME_MODEL_ID_LOW;
+  }
+  if (lower === "gemini-3.1-pro-high" || lower === "gemini-3.1-pro-high-preview") {
+    return GEMINI_31_ANTIGRAVITY_RUNTIME_MODEL_ID_HIGH;
+  }
+  if (
+    lower === "gemini-3.1-pro" ||
+    lower === "gemini-3.1-pro-customtools" ||
+    lower === "gemini-3.1-pro-preview-customtools"
+  ) {
+    return GEMINI_31_ANTIGRAVITY_RUNTIME_MODEL_ID_HIGH;
+  }
+  return modelId;
 }
 
 export function resolveForwardCompatModel(
