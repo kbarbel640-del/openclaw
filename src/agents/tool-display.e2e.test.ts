@@ -112,7 +112,7 @@ describe("tool display details", () => {
       }),
     );
 
-    expect(detail).toBe("install dependencies");
+    expect(detail).toBe("install dependencies (in ~/my-project)");
   });
 
   it("strips cd preamble and summarizes multiple stages", () => {
@@ -123,7 +123,7 @@ describe("tool display details", () => {
       }),
     );
 
-    expect(detail).toBe("install dependencies → run tests");
+    expect(detail).toBe("install dependencies → run tests (in ~/my-project)");
   });
 
   it("strips pushd preamble", () => {
@@ -134,7 +134,7 @@ describe("tool display details", () => {
       }),
     );
 
-    expect(detail).toBe("check git status");
+    expect(detail).toBe("check git status (in /tmp)");
   });
 
   it("summarizes all stages joined by && or ;", () => {
