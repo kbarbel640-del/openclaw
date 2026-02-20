@@ -9,6 +9,7 @@ import {
 } from "../../agents/model-auth.js";
 import {
   ANTIGRAVITY_OPUS_46_FORWARD_COMPAT_CANDIDATES,
+  COPILOT_1M_FORWARD_COMPAT_CANDIDATES,
   resolveForwardCompatModel,
 } from "../../agents/model-forward-compat.js";
 import { ensureOpenClawModelsJson } from "../../agents/models-config.js";
@@ -117,6 +118,12 @@ export async function loadModelRegistry(cfg: OpenClawConfig) {
     for (const synthesized of synthesizedForwardCompat) {
       if (hasAvailableTemplate(availableKeys, synthesized.templatePrefixes)) {
         availableKeys.add(synthesized.key);
+      }
+    }
+    // Copilot "-1m" variants inherit auth from their base model.
+    for (const candidate of COPILOT_1M_FORWARD_COMPAT_CANDIDATES) {
+      if (hasAvailableTemplate(availableKeys, candidate.templatePrefixes)) {
+        availableKeys.add(candidate.key);
       }
     }
   } catch (err) {
