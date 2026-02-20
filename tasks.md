@@ -64,8 +64,8 @@ For each job card increment:
 - scripts/ted-profile/proof_jc005.sh
 - scripts/ted-profile/proof_jc006.sh
 - scripts/ted-profile/proof_jc007.sh
-- scripts/ted-profile/proof_jc008.sh (planned)
-- scripts/ted-profile/proof_jc009.sh (planned)
+- scripts/ted-profile/proof_jc008.sh
+- scripts/ted-profile/proof_jc009.sh
 - scripts/ted-profile/proof_jc010.sh (planned)
 
 ## Mandatory Value/Friction Evidence (each increment)

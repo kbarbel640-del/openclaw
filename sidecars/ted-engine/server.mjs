@@ -36,6 +36,12 @@ const filingDir = path.join(artifactsDir, "filing");
 const filingSuggestionsPath = path.join(filingDir, "suggestions.jsonl");
 const graphProfilesConfigPath = path.join(__dirname, "config", "graph.profiles.json");
 const graphLastErrorByProfile = new Map();
+let automationPauseState = {
+  paused: false,
+  paused_at_ms: 0,
+  reason: null,
+  queued_non_critical: 0,
+};
 
 function logLine(message) {
   const line = `[${new Date().toISOString()}] ${message}\n`;
@@ -640,6 +646,318 @@ async function checkEntityProvenanceEndpoint(req, res, route) {
 
   appendAudit("GOV_ENTITY_CHECK_PASS", { target_entity: targetEntity });
   sendJson(res, 200, { allowed: true, target_entity: targetEntity });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function evaluateConfidenceEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const thresholdRaw = Number(body?.threshold ?? 0.8);
+  const threshold = Number.isFinite(thresholdRaw) ? Math.max(0, Math.min(1, thresholdRaw)) : 0.8;
+  const items = Array.isArray(body?.extracted_items) ? body.extracted_items : [];
+  if (items.length === 0) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "EXTRACTED_ITEMS_REQUIRED",
+        "confidence_evaluation",
+        "Provide extracted_items with confidence scores and source references.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const escalatedItems = [];
+  const autoReadyItems = [];
+  for (const raw of items) {
+    const item = raw && typeof raw === "object" ? raw : {};
+    const confidenceRaw = Number(item.confidence);
+    const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 0;
+    const itemId = isNonEmptyString(item.item_id) ? item.item_id.trim() : "unknown_item";
+    const sourceRefs = Array.isArray(item.source_refs) ? item.source_refs : [];
+    const risky = item.risky === true;
+    if (confidence < threshold) {
+      escalatedItems.push({
+        item_id: itemId,
+        reason_code: "LOW_CONFIDENCE",
+        confidence,
+        source_refs: sourceRefs,
+        question: "Please confirm extracted action before apply.",
+      });
+      continue;
+    }
+    autoReadyItems.push({
+      item_id: itemId,
+      confidence,
+      source_refs: sourceRefs,
+      requires_approval: risky,
+    });
+  }
+
+  const escalationRequired = escalatedItems.length > 0;
+  appendAudit("GOV_CONFIDENCE_EVALUATE", {
+    threshold,
+    escalated_count: escalatedItems.length,
+    auto_ready_count: autoReadyItems.length,
+  });
+  sendJson(res, 200, {
+    threshold,
+    escalation_required: escalationRequired,
+    escalated_items: escalatedItems,
+    auto_ready_items: autoReadyItems,
+  });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function checkContradictionsEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const candidate = body?.candidate_commitment;
+  const priorCommitments = Array.isArray(body?.prior_commitments) ? body.prior_commitments : [];
+  if (!candidate || typeof candidate !== "object" || priorCommitments.length === 0) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_CONTRADICTION_REQUEST",
+        "contradiction_check",
+        "Provide candidate_commitment and prior_commitments array.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  const candidateField = isNonEmptyString(candidate.field) ? candidate.field.trim() : "";
+  const candidateValue = isNonEmptyString(candidate.value) ? candidate.value.trim() : "";
+  if (!candidateField || !candidateValue) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_CANDIDATE_COMMITMENT",
+        "contradiction_check",
+        "Provide candidate_commitment.field and candidate_commitment.value.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const contradictions = [];
+  for (const raw of priorCommitments) {
+    const prior = raw && typeof raw === "object" ? raw : {};
+    const priorField = isNonEmptyString(prior.field) ? prior.field.trim() : "";
+    const priorValue = isNonEmptyString(prior.value) ? prior.value.trim() : "";
+    if (!priorField || !priorValue || priorField !== candidateField) {
+      continue;
+    }
+    if (priorValue === candidateValue) {
+      continue;
+    }
+    contradictions.push({
+      field: candidateField,
+      candidate_value: candidateValue,
+      prior_value: priorValue,
+      source_id: isNonEmptyString(prior.source_id) ? prior.source_id.trim() : null,
+      citation: isNonEmptyString(prior.citation) ? prior.citation.trim() : null,
+    });
+  }
+
+  if (contradictions.length > 0) {
+    appendAudit("GOV_CONTRADICTION_BLOCK", {
+      field: candidateField,
+      contradiction_count: contradictions.length,
+    });
+    sendJson(res, 409, {
+      ...blockedExplainability(
+        "CONTRADICTION_DETECTED",
+        "draft_commitment_release",
+        "Resolve contradiction or escalate for operator certification.",
+      ),
+      contradictions,
+    });
+    logLine(`POST ${route} -> 409`);
+    return;
+  }
+
+  appendAudit("GOV_CONTRADICTION_PASS", { field: candidateField });
+  sendJson(res, 200, { contradictions_found: false });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function routeEscalationEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const riskLevel = isNonEmptyString(body?.risk_level) ? body.risk_level.trim().toUpperCase() : "";
+  if (!["LOW", "MEDIUM", "HIGH"].includes(riskLevel)) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_RISK_LEVEL",
+        "escalation_routing",
+        "Set risk_level to LOW, MEDIUM, or HIGH.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  const reasons = Array.isArray(body?.reasons)
+    ? body.reasons.filter((value) => isNonEmptyString(value))
+    : [];
+  const mustEscalate = riskLevel === "HIGH" || riskLevel === "MEDIUM" || reasons.length > 0;
+  const routeTarget = mustEscalate ? "approval_queue" : "operator_review";
+  appendAudit("GOV_ESCALATION_ROUTE", {
+    risk_level: riskLevel,
+    route_target: routeTarget,
+    reasons_count: reasons.length,
+    item_id: isNonEmptyString(body?.item_id) ? body.item_id.trim() : null,
+  });
+  sendJson(res, 200, {
+    escalated: mustEscalate,
+    route_target: routeTarget,
+    no_execute: true,
+    reason_codes: reasons,
+  });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function pauseAutomationEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const reason = isNonEmptyString(body?.reason) ? body.reason.trim() : "operator_pause";
+  automationPauseState = {
+    ...automationPauseState,
+    paused: true,
+    paused_at_ms: Date.now(),
+    reason,
+  };
+  appendAudit("OPS_AUTOMATION_PAUSE", { reason });
+  sendJson(res, 200, {
+    paused: true,
+    reason,
+    queued_non_critical: automationPauseState.queued_non_critical,
+  });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function dispatchCheckEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const priority = isNonEmptyString(body?.priority) ? body.priority.trim().toUpperCase() : "";
+  if (!["CRITICAL", "HIGH", "MEDIUM", "LOW"].includes(priority)) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_PRIORITY",
+        "dispatch_check",
+        "Set priority to CRITICAL, HIGH, MEDIUM, or LOW.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  if (automationPauseState.paused && priority !== "CRITICAL") {
+    automationPauseState = {
+      ...automationPauseState,
+      queued_non_critical: automationPauseState.queued_non_critical + 1,
+    };
+    appendAudit("OPS_DISPATCH_QUEUED", {
+      priority,
+      reason_code: "PAUSE_ACTIVE",
+      queued_non_critical: automationPauseState.queued_non_critical,
+    });
+    sendJson(res, 409, {
+      ...blockedExplainability(
+        "PAUSE_ACTIVE",
+        "non_critical_dispatch",
+        "Resume automation or run action manually if urgent.",
+      ),
+      queued_non_critical: automationPauseState.queued_non_critical,
+    });
+    logLine(`POST ${route} -> 409`);
+    return;
+  }
+
+  appendAudit("OPS_DISPATCH_ALLOWED", { priority, paused: automationPauseState.paused });
+  sendJson(res, 200, { allowed: true, priority });
+  logLine(`POST ${route} -> 200`);
+}
+
+function resumeAutomationEndpoint(res, route) {
+  const now = Date.now();
+  const pausedSeconds =
+    automationPauseState.paused && automationPauseState.paused_at_ms > 0
+      ? Math.max(0, Math.floor((now - automationPauseState.paused_at_ms) / 1000))
+      : 0;
+  const catchUpSummary = {
+    paused_seconds: pausedSeconds,
+    queued_non_critical: automationPauseState.queued_non_critical,
+    next_action: "Process queued non-critical work in priority order.",
+  };
+  appendAudit("OPS_AUTOMATION_RESUME", catchUpSummary);
+  automationPauseState = {
+    paused: false,
+    paused_at_ms: 0,
+    reason: null,
+    queued_non_critical: 0,
+  };
+  sendJson(res, 200, {
+    resumed: true,
+    catch_up_summary: catchUpSummary,
+  });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function evaluateRatePolicyEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const quotaPercentRaw = Number(body?.quota_percent);
+  const quotaPercent = Number.isFinite(quotaPercentRaw) ? quotaPercentRaw : NaN;
+  const priority = isNonEmptyString(body?.priority) ? body.priority.trim().toUpperCase() : "";
+  if (!Number.isFinite(quotaPercent) || quotaPercent < 0 || quotaPercent > 100) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_QUOTA_PERCENT",
+        "rate_policy_evaluation",
+        "Set quota_percent between 0 and 100.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (!["CRITICAL", "HIGH", "MEDIUM", "LOW"].includes(priority)) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_PRIORITY",
+        "rate_policy_evaluation",
+        "Set priority to CRITICAL, HIGH, MEDIUM, or LOW.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  let action = "ALLOW";
+  let reasonCode = "WITHIN_BUDGET";
+  if (quotaPercent > 80 && (priority === "LOW" || priority === "MEDIUM")) {
+    action = "DEFER";
+    reasonCode = "QUOTA_PRESSURE";
+  }
+  appendAudit("OPS_RATE_POLICY_EVALUATE", {
+    quota_percent: quotaPercent,
+    priority,
+    action,
+    reason_code: reasonCode,
+  });
+  sendJson(res, 200, {
+    quota_percent: quotaPercent,
+    priority,
+    action,
+    reason_code: reasonCode,
+  });
   logLine(`POST ${route} -> 200`);
 }
 
@@ -1814,6 +2132,41 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "POST" && route === "/governance/entity/check") {
     await checkEntityProvenanceEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/governance/confidence/evaluate") {
+    await evaluateConfidenceEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/governance/contradictions/check") {
+    await checkContradictionsEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/governance/escalations/route") {
+    await routeEscalationEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/ops/pause") {
+    await pauseAutomationEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/ops/dispatch/check") {
+    await dispatchCheckEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/ops/resume") {
+    resumeAutomationEndpoint(res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/ops/rate/evaluate") {
+    await evaluateRatePolicyEndpoint(req, res, route);
     return;
   }
 

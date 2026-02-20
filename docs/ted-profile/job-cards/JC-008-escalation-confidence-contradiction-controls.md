@@ -38,6 +38,6 @@ Ted Engine enforces escalation for risky/low-confidence outputs and flags contra
 
 ## Proof Evidence (Executed)
 
-- Date: TBD
+- Date: 2026-02-20
 - Proof Script: `scripts/ted-profile/proof_jc008.sh`
-- Result: PENDING
+- Result: PASS

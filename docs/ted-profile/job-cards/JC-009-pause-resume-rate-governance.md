@@ -37,6 +37,6 @@ Operator can pause non-critical automation and apply quota-aware backoff without
 
 ## Proof Evidence (Executed)
 
-- Date: TBD
+- Date: 2026-02-20
 - Proof Script: `scripts/ted-profile/proof_jc009.sh`
-- Result: PENDING
+- Result: PASS
