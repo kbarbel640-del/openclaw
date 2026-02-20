@@ -109,7 +109,7 @@ function createStreamFnWithExtraParams(
 
 function isDirectOpenAIBaseUrl(baseUrl: unknown): boolean {
   if (typeof baseUrl !== "string" || !baseUrl.trim()) {
-    return true;
+    return false;
   }
 
   try {
