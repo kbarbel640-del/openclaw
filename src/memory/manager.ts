@@ -39,6 +39,28 @@ const log = createSubsystemLogger("memory");
 
 const INDEX_CACHE = new Map<string, MemoryIndexManager>();
 
+/**
+ * Evicts the cached memory index manager for the given agent so the next
+ * getMemorySearchManager creates a fresh instance. Use after "database is not open"
+ * or similar to force reconnect. Idempotent if no manager is cached.
+ */
+export async function evictMemoryIndexManager(
+  cfg: OpenClawConfig,
+  agentId: string,
+): Promise<void> {
+  const settings = resolveMemorySearchConfig(cfg, agentId);
+  if (!settings) {
+    return;
+  }
+  const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+  const key = `${agentId}:${workspaceDir}:${JSON.stringify(settings)}`;
+  const existing = INDEX_CACHE.get(key);
+  if (existing) {
+    INDEX_CACHE.delete(key);
+    await existing.close();
+  }
+}
+
 export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements MemorySearchManager {
   private readonly cacheKey: string;
   protected readonly cfg: OpenClawConfig;
@@ -186,6 +208,9 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
   }
 
   async warmSession(sessionKey?: string): Promise<void> {
+    if (this.closed) {
+      return;
+    }
     if (!this.settings.sync.onSessionStart) {
       return;
     }
@@ -209,6 +234,9 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       sessionKey?: string;
     },
   ): Promise<MemorySearchResult[]> {
+    if (this.closed) {
+      return [];
+    }
     void this.warmSession(opts?.sessionKey);
     if (this.settings.sync.onSearch && (this.dirty || this.sessionsDirty)) {
       void this.sync({ reason: "search" }).catch((err) => {
@@ -379,6 +407,9 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     force?: boolean;
     progress?: (update: MemorySyncProgressUpdate) => void;
   }): Promise<void> {
+    if (this.closed) {
+      return;
+    }
     if (this.syncing) {
       return this.syncing;
     }
@@ -393,6 +424,9 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     from?: number;
     lines?: number;
   }): Promise<{ text: string; path: string }> {
+    if (this.closed) {
+      throw new Error("memory manager closed");
+    }
     const rawPath = params.relPath.trim();
     if (!rawPath) {
       throw new Error("path required");
@@ -462,6 +496,18 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
   }
 
   status(): MemoryProviderStatus {
+    if (this.closed) {
+      return {
+        backend: "builtin",
+        provider: "none",
+        model: "none",
+        fallback: undefined,
+        files: 0,
+        chunks: 0,
+        dirty: false,
+        custom: {},
+      };
+    }
     const sourceFilter = this.buildSourceFilter();
     const files = this.db
       .prepare(`SELECT COUNT(*) as c FROM files WHERE 1=1${sourceFilter.sql}`)

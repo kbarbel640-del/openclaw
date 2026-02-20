@@ -315,6 +315,45 @@ export abstract class MemoryManagerSyncOps {
     await this.removeIndexFiles(backupPath);
   }
 
+  /** Synchronous swap so we never yield to the event loop with this.db closed. */
+  private swapIndexFilesSync(targetPath: string, tempPath: string): void {
+    const backupPath = `${targetPath}.backup-${randomUUID()}`;
+    this.moveIndexFilesSync(targetPath, backupPath);
+    try {
+      this.moveIndexFilesSync(tempPath, targetPath);
+    } catch (err) {
+      this.moveIndexFilesSync(backupPath, targetPath);
+      throw err;
+    }
+    this.removeIndexFilesSync(backupPath);
+  }
+
+  private moveIndexFilesSync(sourceBase: string, targetBase: string): void {
+    const suffixes = ["", "-wal", "-shm"];
+    for (const suffix of suffixes) {
+      const source = `${sourceBase}${suffix}`;
+      const target = `${targetBase}${suffix}`;
+      try {
+        fsSync.renameSync(source, target);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw err;
+        }
+      }
+    }
+  }
+
+  private removeIndexFilesSync(basePath: string): void {
+    const suffixes = ["", "-wal", "-shm"];
+    for (const suffix of suffixes) {
+      try {
+        fsSync.rmSync(`${basePath}${suffix}`, { force: true });
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   private async moveIndexFiles(sourceBase: string, targetBase: string): Promise<void> {
     const suffixes = ["", "-wal", "-shm"];
     for (const suffix of suffixes) {
@@ -841,6 +880,9 @@ export abstract class MemoryManagerSyncOps {
     force?: boolean;
     progress?: (update: MemorySyncProgressUpdate) => void;
   }) {
+    if (this.closed) {
+      return;
+    }
     const progress = params?.progress ? this.createSyncProgress(params.progress) : undefined;
     if (progress) {
       progress.report({
@@ -1074,7 +1116,7 @@ export abstract class MemoryManagerSyncOps {
       originalDb.close();
       originalDbClosed = true;
 
-      await this.swapIndexFiles(dbPath, tempDbPath);
+      this.swapIndexFilesSync(dbPath, tempDbPath);
 
       this.db = this.openDatabaseAtPath(dbPath);
       this.vectorReady = null;

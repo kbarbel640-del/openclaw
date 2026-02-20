@@ -2,7 +2,7 @@ import { Type } from "@sinclair/typebox";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { MemoryCitationsMode } from "../../config/types.memory.js";
 import { resolveMemoryBackendConfig } from "../../memory/backend-config.js";
-import { getMemorySearchManager } from "../../memory/index.js";
+import { evictMemoryIndexManager, getMemorySearchManager } from "../../memory/index.js";
 import type { MemorySearchResult } from "../../memory/types.js";
 import { parseAgentSessionKey } from "../../routing/session-key.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
@@ -56,7 +56,7 @@ export function createMemorySearchTool(options: {
       const query = readStringParam(params, "query", { required: true });
       const maxResults = readNumberParam(params, "maxResults");
       const minScore = readNumberParam(params, "minScore");
-      const { manager, error } = await getMemorySearchManager({
+      let { manager, error } = await getMemorySearchManager({
         cfg,
         agentId,
       });
@@ -92,6 +92,40 @@ export function createMemorySearchTool(options: {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("database is not open")) {
+          await evictMemoryIndexManager(cfg, agentId);
+          const retry = await getMemorySearchManager({ cfg, agentId });
+          if (retry.manager) {
+            try {
+              const rawResults = await retry.manager.search(query, {
+                maxResults,
+                minScore,
+                sessionKey: options.agentSessionKey,
+              });
+              const status = retry.manager.status();
+              const decorated = decorateCitations(rawResults, shouldIncludeCitations({
+                mode: resolveMemoryCitationsMode(cfg),
+                sessionKey: options.agentSessionKey,
+              }));
+              const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+              const results =
+                status.backend === "qmd"
+                  ? clampResultsByInjectedChars(decorated, resolved.qmd?.limits.maxInjectedChars)
+                  : decorated;
+              const searchMode = (status.custom as { searchMode?: string } | undefined)?.searchMode;
+              return jsonResult({
+                results,
+                provider: status.provider,
+                model: status.model,
+                fallback: status.fallback,
+                citations: resolveMemoryCitationsMode(cfg),
+                mode: searchMode,
+              });
+            } catch {
+              // fall through to error below
+            }
+          }
+        }
         return jsonResult({ results: [], disabled: true, error: message });
       }
     },
@@ -117,7 +151,7 @@ export function createMemoryGetTool(options: {
       const relPath = readStringParam(params, "path", { required: true });
       const from = readNumberParam(params, "from", { integer: true });
       const lines = readNumberParam(params, "lines", { integer: true });
-      const { manager, error } = await getMemorySearchManager({
+      let { manager, error } = await getMemorySearchManager({
         cfg,
         agentId,
       });
@@ -133,6 +167,22 @@ export function createMemoryGetTool(options: {
         return jsonResult(result);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("database is not open")) {
+          await evictMemoryIndexManager(cfg, agentId);
+          const retry = await getMemorySearchManager({ cfg, agentId });
+          if (retry.manager) {
+            try {
+              const result = await retry.manager.readFile({
+                relPath,
+                from: from ?? undefined,
+                lines: lines ?? undefined,
+              });
+              return jsonResult(result);
+            } catch {
+              // fall through to error below
+            }
+          }
+        }
         return jsonResult({ path: relPath, text: "", disabled: true, error: message });
       }
     },

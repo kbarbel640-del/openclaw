@@ -63,11 +63,26 @@ export async function getMemorySearchManager(params: {
   }
 
   try {
-    const { MemoryIndexManager } = await import("./manager.js");
-    const manager = await MemoryIndexManager.get(params);
-    return { manager };
+    const { MemoryIndexManager, evictMemoryIndexManager } = await import("./manager.js");
+    let manager = await MemoryIndexManager.get(params);
+    if (manager) {
+      return { manager };
+    }
+    return { manager: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("database is not open")) {
+      const { evictMemoryIndexManager } = await import("./manager.js");
+      await evictMemoryIndexManager(params.cfg, params.agentId);
+      try {
+        const { MemoryIndexManager } = await import("./manager.js");
+        const manager = await MemoryIndexManager.get(params);
+        return { manager };
+      } catch (retryErr) {
+        const retryMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        return { manager: null, error: retryMessage };
+      }
+    }
     return { manager: null, error: message };
   }
 }
