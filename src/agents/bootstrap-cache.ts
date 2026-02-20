@@ -1,11 +1,6 @@
 import { loadWorkspaceBootstrapFiles, type WorkspaceBootstrapFile } from "./workspace.js";
 
-type BootstrapCacheEntry = {
-  files: WorkspaceBootstrapFile[];
-  workspaceDir: string;
-};
-
-const cache = new Map<string, BootstrapCacheEntry>();
+const cache = new Map<string, WorkspaceBootstrapFile[]>();
 
 export async function getOrLoadBootstrapFiles(params: {
   workspaceDir: string;
@@ -13,15 +8,11 @@ export async function getOrLoadBootstrapFiles(params: {
 }): Promise<WorkspaceBootstrapFile[]> {
   const existing = cache.get(params.sessionKey);
   if (existing) {
-    // Bypass cache if workspaceDir changed (shouldn't happen in practice)
-    if (existing.workspaceDir === params.workspaceDir) {
-      return existing.files;
-    }
-    cache.delete(params.sessionKey);
+    return existing;
   }
 
   const files = await loadWorkspaceBootstrapFiles(params.workspaceDir);
-  cache.set(params.sessionKey, { files, workspaceDir: params.workspaceDir });
+  cache.set(params.sessionKey, files);
   return files;
 }
 

@@ -65,17 +65,6 @@ describe("getOrLoadBootstrapFiles", () => {
     expect(r2).toBe(files2);
     expect(mockLoad).toHaveBeenCalledTimes(2);
   });
-
-  it("bypasses cache when workspaceDir changes for same session key", async () => {
-    const files2 = [makeFile("AGENTS.md", "# Agent other workspace")];
-    mockLoad.mockResolvedValueOnce(files).mockResolvedValueOnce(files2);
-
-    await getOrLoadBootstrapFiles({ workspaceDir: "/ws", sessionKey: "session-1" });
-    const result = await getOrLoadBootstrapFiles({ workspaceDir: "/ws2", sessionKey: "session-1" });
-
-    expect(result).toBe(files2);
-    expect(mockLoad).toHaveBeenCalledTimes(2);
-  });
 });
 
 describe("clearBootstrapSnapshot", () => {
