@@ -11,11 +11,14 @@ export default function contextPruningExtension(api: ExtensionAPI): void {
 
     if (runtime.settings.mode === "cache-ttl") {
       const ttlMs = runtime.settings.ttlMs;
-      const lastTouch = runtime.lastCacheTouchAt ?? null;
-      if (!lastTouch || ttlMs <= 0) {
+      if (ttlMs <= 0) {
         return undefined;
       }
-      if (ttlMs > 0 && Date.now() - lastTouch < ttlMs) {
+      const lastTouch = runtime.lastCacheTouchAt ?? null;
+      // If lastTouch is null (no prior Anthropic call recorded, e.g. after a gateway
+      // restart that wrote a zero-timestamp entry), allow pruning immediately — the
+      // cache is effectively cold and there is no TTL window to respect.
+      if (lastTouch !== null && Date.now() - lastTouch < ttlMs) {
         return undefined;
       }
     }
