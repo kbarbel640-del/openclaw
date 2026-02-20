@@ -1,4 +1,5 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import type { Addressable } from "../../src/ai-fabric/resolve-agent.js";
 import type { Agent } from "../../src/ai-fabric/types.js";
 import { normalizeAgentStatus } from "../../src/ai-fabric/agent-status.js";
 import { normalizeAgentSystemStatus } from "../../src/ai-fabric/agent-system-status.js";
@@ -12,6 +13,7 @@ import {
   computeEndpoint,
 } from "../../src/ai-fabric/resolve-agent.js";
 import { resolveIamSecret } from "../../src/ai-fabric/resolve-iam-secret.js";
+import { tryParseRoutingPlan, matchFragmentToAgent } from "../../src/ai-fabric/routing-plan.js";
 
 // Re-export shared utilities for backwards compatibility
 export { resolveAgent } from "../../src/ai-fabric/resolve-agent.js";
@@ -166,6 +168,23 @@ export default function register(api: OpenClawPluginApi) {
           message: userMessage,
         });
 
+        // Agent-system orchestrators return a routing plan instead of
+        // dispatching to sub-agents. Detect and handle client-side.
+        if (target.kind === "agent-system" && result.ok) {
+          const plan = tryParseRoutingPlan(result.text);
+          if (plan) {
+            const agentOnly = addressables.filter((a) => a.kind === "agent");
+            const dispatched = await dispatchRoutingPlan(
+              plan,
+              agentOnly,
+              client,
+              target,
+              a2aClient,
+            );
+            return { text: dispatched };
+          }
+        }
+
         return { text: formatAgentResponse(target.name, result) };
       } catch (err) {
         if (err instanceof A2AError) {
@@ -182,4 +201,65 @@ export default function register(api: OpenClawPluginApi) {
       }
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Client-side orchestration for agent-system routing plans
+// ---------------------------------------------------------------------------
+
+async function dispatchRoutingPlan(
+  plan: import("../../src/ai-fabric/routing-plan.js").RoutingPlan,
+  agents: Addressable[],
+  client: CloudruSimpleClient,
+  system: Addressable,
+  a2aClient: CloudruA2AClient,
+): Promise<string> {
+  // Try to get member roles from agent-system details for better matching
+  let memberRoles: Map<string, string> | undefined;
+  try {
+    const details = await client.getAgentSystem(system.id);
+    const members = details.options?.agents;
+    if (members?.length) {
+      memberRoles = new Map<string, string>();
+      for (const m of members) {
+        if (m.role) memberRoles.set(m.agentId, m.role);
+      }
+      // Also ensure member agents are in the addressables list
+      const knownIds = new Set(agents.map((a) => a.id));
+      const missingIds = members.map((m) => m.agentId).filter((id) => !knownIds.has(id));
+      if (missingIds.length > 0) {
+        const fetched = await Promise.all(
+          missingIds.map((id) => client.getAgent(id).catch(() => null)),
+        );
+        for (const a of fetched) {
+          if (a) agents.push(agentToAddressable(a));
+        }
+      }
+    }
+  } catch {
+    // Non-fatal — proceed with token-based matching
+  }
+
+  // Dispatch each fragment to the matched agent in parallel
+  const results = await Promise.all(
+    plan.fragments.map(async (fragment) => {
+      const matched = matchFragmentToAgent(fragment.agent, agents, memberRoles);
+      if (!matched) {
+        return { label: fragment.agent, text: `Could not find agent for "${fragment.agent}".` };
+      }
+
+      const ep = computeEndpoint(matched);
+      try {
+        const res = await a2aClient.sendMessage({ endpoint: ep, message: fragment.text });
+        return { label: matched.name, text: res.text };
+      } catch (err) {
+        const msg = err instanceof A2AError ? err.message : (err as Error).message;
+        return { label: matched.name, text: `Error: ${msg}` };
+      }
+    }),
+  );
+
+  // Format aggregated response
+  const sections = results.map((r) => `[${r.label}]\n${r.text}`);
+  return `Agent System: ${system.name}\n\n${sections.join("\n\n")}`;
 }
