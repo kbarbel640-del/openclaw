@@ -105,6 +105,18 @@ export function validateConfigObjectRaw(
       })),
     };
   }
+  // Normalize raw IP in gateway.bind to bind:"custom" + customBindHost:<ip>.
+  // This keeps the OpenClawConfig type narrow (GatewayBindMode literals only)
+  // while accepting legacy configs that wrote an IP directly into gateway.bind. (#23686)
+  const rawData = validated.data as Record<string, unknown>;
+  const gw = rawData.gateway as Record<string, unknown> | undefined;
+  if (gw && typeof gw.bind === "string" && /^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$|^[0-9a-fA-F:]+$/.test(gw.bind)) {
+    if (!gw.customBindHost) {
+      gw.customBindHost = gw.bind;
+    }
+    gw.bind = "custom";
+  }
+
   const duplicates = findDuplicateAgentDirs(validated.data as OpenClawConfig);
   if (duplicates.length > 0) {
     return {

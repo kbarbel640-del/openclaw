@@ -14,6 +14,11 @@ import {
   SessionSendPolicySchema,
 } from "./zod-schema.session.js";
 
+// Matches a valid dotted-decimal IPv4 or hex-colon IPv6 address.
+// Used to accept raw IPs in gateway.bind for backward compat (#23686).
+const RAW_IP_REGEX =
+  /^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$|^[0-9a-fA-F:]+$/;
+
 const BrowserSnapshotDefaultsSchema = z
   .object({
     mode: z.literal("efficient").optional(),
@@ -421,6 +426,10 @@ export const OpenClawSchema = z
             z.literal("loopback"),
             z.literal("custom"),
             z.literal("tailnet"),
+            // Accept raw IP address strings (e.g. Tailscale IPs like 100.x.x.x) for
+            // backward compatibility. Normalized to bind:"custom" + customBindHost:<ip>
+            // in validateConfigObject before the OpenClawConfig cast. (#23686)
+            z.string().regex(RAW_IP_REGEX),
           ])
           .optional(),
         customBindHost: z.string().optional(),
