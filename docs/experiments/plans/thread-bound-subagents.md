@@ -32,6 +32,15 @@ Default UX: the main agent calls `sessions_spawn({ ..., thread: true })`, Discor
 
 A mapping between a Discord thread ID and a subagent session key. While a binding is active, messages in the thread bypass the main agent and route directly to the bound session.
 
+### ACP harness extensions
+
+The same binding model can extend to ACP harness sessions (`codex-acp` / `claude-acp`) by generalizing bindings from "thread -> subagent" to "thread -> target" with:
+
+- `targetKind`: `subagent` | `acp`
+- `targetSessionKey`: canonical session key for routing
+
+No ACP protocol changes are required; this is routing/binding behavior in the gateway layer.
+
 ### Focus / unfocus (advanced usage)
 
 Manual binding (focus) and unbinding (unfocus) remain available as an escape hatch:
@@ -39,6 +48,7 @@ Manual binding (focus) and unbinding (unfocus) remain available as an escape hat
 - `/focus <subagent-label>` binds an existing subagent that was spawned without `thread: true`.
 - `/unfocus` manually removes an active binding from the current thread.
 - Agent-side/manual thread creation plus bind remains possible when needed.
+- For ACP, `/focus` should resolve arbitrary sessions via `sessions.resolve` (`key` / `sessionId` / `label`), not only subagent labels.
 
 ### Webhook persona
 
@@ -388,3 +398,14 @@ Expected user-visible behavior:
   - add `focus` / `unfocus` / `agents` command definitions in `buildChatCommands`
 - `src/auto-reply/reply/commands-subagents.ts`
   - extend prefix/action parser and implement focus/unfocus/agents behavior using existing subagent lookup helpers
+
+### 10.10 ACP harness extensions
+
+- Extend binding records to target arbitrary sessions, not only subagent labels:
+  - `targetKind: "subagent" | "acp"`
+  - `targetSessionKey: string` (resolved canonical key)
+- Update `/focus` resolution path to call `sessions.resolve` so ACP harness sessions (`codex-acp` / `claude-acp`) can be bound by key/sessionId/label.
+- Lifecycle policy:
+  - subagent bindings auto-unbind on completion/kill
+  - ACP bindings unbind on `/unfocus`, thread archive/delete, or `sessions.reset` / `sessions.delete`
+- Keep ACP transport/protocol unchanged; only routing + thread-binding state management is added.
