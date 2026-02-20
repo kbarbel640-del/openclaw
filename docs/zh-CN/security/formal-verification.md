@@ -30,7 +30,7 @@ x-i18n:
 
 ## 模型存放位置
 
-模型维护在一个单独的仓库中：[vignesh07/openclaw-formal-models](https://github.com/vignesh07/openclaw-formal-models)。
+> 注意：正式模型仓库目前正在迁移中。目前，安全模型维护在 OpenClaw 主仓库的 `specs/` 目录下。
 
 ## 重要注意事项
 

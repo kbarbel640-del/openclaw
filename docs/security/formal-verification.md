@@ -23,7 +23,7 @@ misconfiguration safety), under explicit assumptions.
 
 ## Where the models live
 
-Models are maintained in a separate repo: [vignesh07/openclaw-formal-models](https://github.com/vignesh07/openclaw-formal-models).
+> Note: The formal models repository is currently being migrated. For now, security models are maintained in the main OpenClaw repository under `specs/`.
 
 ## Important caveats
 
