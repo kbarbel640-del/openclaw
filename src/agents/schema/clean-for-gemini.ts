@@ -69,7 +69,7 @@ function tryFlattenLiteralAnyOf(variants: unknown[]): { type: string; enum: unkn
     const variantType =
       typeof v.type === "string"
         ? v.type
-        : Array.isArray(v.type) && v.type.length === 1
+        : Array.isArray(v.type) && v.type.length === 1 && typeof v.type[0] === "string"
           ? v.type[0]
           : null;
     if (!variantType) {
