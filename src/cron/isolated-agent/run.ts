@@ -491,7 +491,7 @@ export async function runCronIsolatedAgentTurn(params: {
           timeoutMs,
           runId: cronSession.sessionEntry.sessionId,
           requireExplicitMessageTarget: true,
-          disableMessageTool: deliveryRequested,
+          disableMessageTool: deliveryRequested || deliveryPlan.mode === "none",
         });
       },
     });
