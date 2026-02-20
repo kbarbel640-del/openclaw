@@ -18,20 +18,22 @@ export function createEventHandlers(context: EventHandlerContext) {
   const { chatLog, tui, state, setActivityStatus, refreshSessionInfo, getAgentDisplayName } =
     context;
 
-  // Helper to get agent's display name from sessionKey or current state
+  // Helper to get agent's display name from sessionKey event metadata
   const getAgentNameFromSession = (sessionKey?: string) => {
     // Parse agentId from sessionKey (format: agent:<id>:main)
-    let agentId = state.currentAgentId;
-    if (sessionKey) {
-      const parts = sessionKey.split(":");
-      if (parts.length >= 2 && parts[0] === "agent") {
-        agentId = parts[1];
-      }
+    // Derive from event metadata only, not UI state, to avoid misattribution
+    // when events arrive after the user switches agents/sessions.
+    if (!sessionKey) {
+      return undefined;
+    }
+    const parts = sessionKey.split(":");
+    const agentId = parts.length >= 2 && parts[0] === "agent" ? parts[1] : undefined;
+    if (!agentId) {
+      return undefined;
     }
     if (getAgentDisplayName) {
       return getAgentDisplayName(agentId);
     }
-    // Fallback: capitalize first letter of agentId
     if (agentId === "main") {
       return "Aria";
     }

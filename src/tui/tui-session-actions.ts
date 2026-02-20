@@ -190,7 +190,13 @@ export function createSessionActions(context: SessionActionContext) {
             includeThinking: state.showThinking,
           });
           if (text) {
-            chatLog.finalizeAssistant(text);
+            // Derive agent name from session key so history messages show labels
+            const parsed = parseAgentSessionKey(state.currentSessionKey);
+            const agentId = parsed?.agentId;
+            const agentName = agentId
+              ? agentNames.get(agentId) ?? (agentId === "main" ? "Aria" : agentId.charAt(0).toUpperCase() + agentId.slice(1))
+              : undefined;
+            chatLog.finalizeAssistant(text, undefined, agentName);
           }
           continue;
         }
