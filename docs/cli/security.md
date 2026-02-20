@@ -59,3 +59,14 @@ openclaw security audit --fix --json | jq '{fix: .fix.ok, summary: .report.summa
 - disable tools (`gateway`, `cron`, `exec`, etc.)
 - change gateway bind/auth/network exposure choices
 - remove or rewrite plugins/skills
+
+## Operational pattern for public sharing (non-sensitive)
+
+When preparing public templates or public-facing documentation, keep policy generic and avoid environment-specific secrets/keys:
+
+- Publish only high-level guardrails (deny-by-default for sensitive ops, explicit approval for risky actions).
+- Treat fetched/external input as untrusted content.
+- Apply output redaction before sharing outside local trusted context.
+- Link to a generic baseline checklist instead of private tenant details.
+
+For a short, reusable template, see [Minimal Public Safety Checklist](/security/minimal-public-safety-checklist).
