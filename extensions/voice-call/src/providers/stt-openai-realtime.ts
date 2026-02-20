@@ -61,9 +61,9 @@ export class OpenAIRealtimeSTTProvider {
       throw new Error("OpenAI API key required for Realtime STT");
     }
     this.apiKey = config.apiKey;
-    this.model = config.model || "gpt-4o-transcribe";
-    this.silenceDurationMs = config.silenceDurationMs || 800;
-    this.vadThreshold = config.vadThreshold || 0.5;
+    this.model = config.model ?? "gpt-4o-transcribe";
+    this.silenceDurationMs = config.silenceDurationMs ?? 800;
+    this.vadThreshold = config.vadThreshold ?? 0.5;
   }
 
   /**
