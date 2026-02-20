@@ -349,8 +349,10 @@ export function buildIMessageInboundContext(params: {
   media?: {
     path?: string;
     type?: string;
+    url?: string;
     paths?: string[];
     types?: Array<string | undefined>;
+    urls?: string[];
   };
   historyLimit: number;
   groupHistories: Map<string, HistoryEntry[]>;
