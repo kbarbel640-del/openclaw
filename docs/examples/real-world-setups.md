@@ -26,6 +26,7 @@ A single OpenClaw instance acting as a personal command center:
 - **Memory system**: Daily notes in `memory/YYYY-MM-DD.md`, curated long-term memory in `MEMORY.md`
 
 **Key config patterns:**
+
 - Heartbeat every 30 minutes with a `HEARTBEAT.md` checklist
 - Isolated cron jobs for heavy analysis (uses Opus for quality)
 - Cheaper models (Haiku/Flash) for frequent, simple tasks
@@ -44,6 +45,7 @@ An AI agent that handles inbound leads for a service business:
 - **Ad campaign management**: Tracks Google Ads performance, suggests keyword optimizations
 
 **Architecture:**
+
 ```
 Visitor → Landing Page → Form Submit
                             ↓
@@ -92,6 +94,7 @@ Automated market monitoring and analysis:
 - **Paper trading**: Tracks simulated trades to validate strategies before going live
 
 **Cron setup:**
+
 ```bash
 # Crypto scan every 2 hours
 openclaw cron add --name "crypto-scan" --every "2h" --session isolated \
