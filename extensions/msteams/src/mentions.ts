@@ -107,7 +107,7 @@ export function formatMentionText(text: string, mentions: MentionInfo[]): string
   for (const mention of mentions) {
     // Replace @Name or @name with <at>Name</at>
     const escapedName = mention.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const namePattern = new RegExp(`(?<![/\\w])@${escapedName}\\b`, "gi");
+    const namePattern = new RegExp(`(?<![/\\w])@${escapedName}(?=\\s|[.,!?;:]|$)`, "giu");
     formatted = formatted.replace(namePattern, `<at>${mention.name}</at>`);
   }
   return formatted;

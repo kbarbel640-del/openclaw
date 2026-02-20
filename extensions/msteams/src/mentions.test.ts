@@ -232,4 +232,33 @@ describe("formatMentionText", () => {
 
     expect(result).toBe("Hey <at>John(Test)</at> and <at>Alice.Smith</at>");
   });
+
+  it("does not replace @name inside a URL", () => {
+    const text = "See https://github.com/@Alice for the profile";
+    const mentions = [{ id: "28:aaa", name: "Alice" }];
+
+    const result = formatMentionText(text, mentions);
+
+    // @Alice inside the URL path must remain untouched
+    expect(result).toBe("See https://github.com/@Alice for the profile");
+  });
+
+  it("replaces standalone @name but leaves @name inside URLs untouched", () => {
+    const text = "Hey @Alice, see https://github.com/@Alice for the profile";
+    const mentions = [{ id: "28:aaa", name: "Alice" }];
+
+    const result = formatMentionText(text, mentions);
+
+    expect(result).toBe("Hey <at>Alice</at>, see https://github.com/@Alice for the profile");
+  });
+
+  it("does not replace @name inside URLs with unicode names", () => {
+    const text = "参照: https://example.com/@田中 そして @田中 さんへ";
+    const mentions = [{ id: "28:aaa", name: "田中" }];
+
+    const result = formatMentionText(text, mentions);
+
+    // @田中 in the URL must be untouched; standalone @田中 followed by space should be replaced
+    expect(result).toBe("参照: https://example.com/@田中 そして <at>田中</at> さんへ");
+  });
 });
