@@ -1,8 +1,6 @@
 ---
 name: security-audit
-description: >
-  Implements Phase 10 of the Gateway Auth Enforcement Roadmap. Updates the
-  security audit tool with new mandatory checks and adds --strict flag for CI.
+description: Implements Phase 10 of the Gateway Auth Enforcement Roadmap. Updates the security audit tool with new mandatory checks and adds --strict flag for CI.
 tools:
   - read
   - edit

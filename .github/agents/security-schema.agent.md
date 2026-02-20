@@ -1,8 +1,6 @@
 ---
 name: security-schema
-description: >
-  Implements Phase 1 of the Gateway Auth Enforcement Roadmap. Creates the
-  mandatory security requirements module and adds securityConfigured to the config schema.
+description: Implements Phase 1 of the Gateway Auth Enforcement Roadmap. Creates the mandatory security requirements module and adds securityConfigured to the config schema.
 tools:
   - read
   - edit

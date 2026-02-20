@@ -1,13 +1,7 @@
 ---
 name: auth-hardening
-description: >
-  Implements Phases 3-8 of the Gateway Auth Enforcement Roadmap. Hardens all
-  gateway endpoints, removes bypass paths, and enforces authentication everywhere.
-tools:
-  - read
-  - edit
-  - search
-  - terminal
+description: Implements Phases 3-8 of the Gateway Auth Enforcement Roadmap. Hardens all gateway endpoints, removes bypass paths, and enforces authentication everywhere.
+tools: [execute, read, agent, edit, search]
 ---
 
 You are a senior security engineer hardening the OpenClaw gateway authentication system.

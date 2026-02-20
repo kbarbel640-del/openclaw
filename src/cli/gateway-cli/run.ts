@@ -10,6 +10,10 @@ import {
   resolveStateDir,
   resolveGatewayPort,
 } from "../../config/config.js";
+import {
+  validateSecurityRequirements,
+  formatSecurityFailures,
+} from "../../config/security-requirements.js";
 import { resolveGatewayAuth } from "../../gateway/auth.js";
 import { startGatewayServer } from "../../gateway/server.js";
 import { setGatewayWsLogStyle } from "../../gateway/ws-logging.js";
@@ -175,6 +179,14 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
       );
       defaultRuntime.error(`Config write audit: ${configAuditPath}`);
     }
+    defaultRuntime.exit(1);
+    return;
+  }
+
+  // Phase 3: Validate security requirements before starting gateway
+  const securityValidation = validateSecurityRequirements(cfg);
+  if (!securityValidation.valid) {
+    defaultRuntime.error(formatSecurityFailures(securityValidation.failures));
     defaultRuntime.exit(1);
     return;
   }

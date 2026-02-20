@@ -21,6 +21,10 @@ import {
   writeConfigFile,
 } from "../config/config.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
+import {
+  validateSecurityRequirements,
+  formatSecurityFailures,
+} from "../config/security-requirements.js";
 import { clearAgentRunContext, onAgentEvent } from "../infra/agent-events.js";
 import {
   ensureControlUiAssetsBuilt,
@@ -164,6 +168,13 @@ export async function startGatewayServer(
 ): Promise<GatewayServer> {
   const minimalTestGateway =
     process.env.VITEST === "1" && process.env.OPENCLAW_TEST_MINIMAL_GATEWAY === "1";
+
+  // Phase 3: Defense-in-depth security validation
+  const initialConfig = loadConfig();
+  const securityValidation = validateSecurityRequirements(initialConfig);
+  if (!securityValidation.valid) {
+    throw new Error(formatSecurityFailures(securityValidation.failures));
+  }
 
   // Ensure all default port derivations (browser/canvas) see the actual runtime port.
   process.env.OPENCLAW_GATEWAY_PORT = String(port);

@@ -1,13 +1,7 @@
 ---
 name: onboarding-wizard
-description: >
-  Implements Phases 2 and 9 of the Gateway Auth Enforcement Roadmap. Enforces
-  mandatory security configuration in the onboarding wizard and hooks auth.
-tools:
-  - read
-  - edit
-  - search
-  - terminal
+description: Implements Phases 2 and 9 of the Gateway Auth Enforcement Roadmap. Enforces mandatory security configuration in the onboarding wizard and hooks auth.
+tools: [vscode, execute, read, agent, edit, search, memory]
 ---
 
 You are a CLI/UX engineer updating the OpenClaw onboarding wizard for mandatory security configuration.
