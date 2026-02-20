@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
 import {
   addSubagentRunForTests,
   resetSubagentRegistryForTests,
 } from "../../agents/subagent-registry.js";
+import type { OpenClawConfig } from "../../config/config.js";
 
 const hoisted = vi.hoisted(() => {
   const callGatewayMock = vi.fn();
@@ -160,6 +160,7 @@ describe("/focus, /unfocus, /agents", () => {
         createThread: false,
         targetKind: "acp",
         targetSessionKey: "agent:codex-acp:session-1",
+        introText: "🤖 codex-acp session active. Messages here go directly to this session.",
       }),
     );
   });

@@ -72,7 +72,6 @@ export type ThreadBindingManager = {
 
 const THREAD_BINDINGS_VERSION = 1 as const;
 const THREAD_BINDINGS_SWEEP_INTERVAL_MS = 120_000;
-const DEFAULT_INTRO_TEXT = "Codex session active. Messages here go directly to the agent.";
 const DEFAULT_FAREWELL_TEXT = "Session ended. Messages here will no longer be routed.";
 
 type ThreadBindingsGlobalState = {
@@ -290,6 +289,16 @@ export function resolveThreadBindingThreadName(params: {
   const base = label || params.agentId?.trim() || "agent";
   const raw = `🤖 ${base}`.replace(/\s+/g, " ").trim();
   return raw.slice(0, 100);
+}
+
+export function resolveThreadBindingIntroText(params: {
+  agentId?: string;
+  label?: string;
+}): string {
+  const label = params.label?.trim();
+  const base = label || params.agentId?.trim() || "agent";
+  const normalized = base.replace(/\s+/g, " ").trim().slice(0, 100) || "agent";
+  return `🤖 ${normalized} session active. Messages here go directly to this session.`;
 }
 
 function summarizeBindingPersona(record: ThreadBindingRecord): string {
@@ -859,7 +868,10 @@ export async function autoBindSpawnedDiscordSubagent(params: {
     agentId: params.agentId,
     label: params.label,
     boundBy: params.boundBy ?? "system",
-    introText: DEFAULT_INTRO_TEXT,
+    introText: resolveThreadBindingIntroText({
+      agentId: params.agentId,
+      label: params.label,
+    }),
   });
 }
 

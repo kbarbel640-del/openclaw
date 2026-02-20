@@ -25,6 +25,7 @@ import {
 } from "../../config/sessions.js";
 import {
   getThreadBindingManager,
+  resolveThreadBindingIntroText,
   resolveThreadBindingThreadName,
 } from "../../discord/monitor/thread-bindings.js";
 import { parseDiscordTarget } from "../../discord/targets.js";
@@ -508,7 +509,10 @@ export const handleSubagentsCommand: CommandHandler = async (params, allowTextCo
       agentId: focusTarget.agentId,
       label,
       boundBy: params.command.senderId || "unknown",
-      introText: "Codex session active. Messages here go directly to the agent.",
+      introText: resolveThreadBindingIntroText({
+        agentId: focusTarget.agentId,
+        label,
+      }),
     });
     if (!binding) {
       return {

@@ -30,6 +30,7 @@ import {
 } from "./pi-embedded.js";
 import { type AnnounceQueueItem, enqueueAnnounce } from "./subagent-announce-queue.js";
 import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
+import type { SpawnSubagentMode } from "./subagent-spawn.js";
 import { sanitizeTextContent, extractAssistantText } from "./tools/sessions-helpers.js";
 
 type ToolResultMessage = {
@@ -48,10 +49,14 @@ type SubagentAnnounceDeliveryResult = {
 function buildCompletionDeliveryMessage(params: {
   findings: string;
   subagentName: string;
+  spawnMode?: SpawnSubagentMode;
 }): string {
   const findingsText = params.findings.trim();
   const hasFindings = findingsText.length > 0 && findingsText !== "(no output)";
-  const header = `✅ Subagent ${params.subagentName} finished`;
+  const header =
+    params.spawnMode === "session"
+      ? `✅ Subagent ${params.subagentName} completed this task (session remains active)`
+      : `✅ Subagent ${params.subagentName} finished`;
   if (!hasFindings) {
     return header;
   }
@@ -288,6 +293,35 @@ function resolveAnnounceOrigin(
   // actually on and must take priority over the session entry, which may carry
   // stale lastChannel / lastTo values from a previous channel interaction.
   return mergeDeliveryContext(normalizedRequester, normalizedEntry);
+}
+
+async function resolveDiscordThreadCompletionOrigin(params: {
+  childSessionKey: string;
+  requesterOrigin?: DeliveryContext;
+}): Promise<DeliveryContext | undefined> {
+  const requesterOrigin = normalizeDeliveryContext(params.requesterOrigin);
+  const channel = requesterOrigin?.channel?.trim().toLowerCase();
+  if (channel !== "discord") {
+    return requesterOrigin;
+  }
+  try {
+    const { getThreadBindingManager } = await import("../discord/monitor/thread-bindings.js");
+    const bindings = getThreadBindingManager(requesterOrigin?.accountId)?.listBySessionKey(
+      params.childSessionKey,
+    );
+    const binding = bindings?.[0];
+    if (!binding) {
+      return requesterOrigin;
+    }
+    return normalizeDeliveryContext({
+      channel: "discord",
+      accountId: binding.accountId,
+      to: `channel:${binding.threadId}`,
+      threadId: binding.threadId,
+    });
+  } catch {
+    return requesterOrigin;
+  }
 }
 
 async function sendAnnounce(item: AnnounceQueueItem) {
@@ -724,6 +758,7 @@ export async function runSubagentAnnounceFlow(params: {
   outcome?: SubagentRunOutcome;
   announceType?: SubagentAnnounceType;
   expectsCompletionMessage?: boolean;
+  spawnMode?: SpawnSubagentMode;
 }): Promise<boolean> {
   let didAnnounce = false;
   const expectsCompletionMessage = params.expectsCompletionMessage === true;
@@ -913,6 +948,7 @@ export async function runSubagentAnnounceFlow(params: {
     completionMessage = buildCompletionDeliveryMessage({
       findings,
       subagentName,
+      spawnMode: params.spawnMode,
     });
     const internalSummaryMessage = [
       `[System Message] [sessionId: ${announceSessionId}] A ${announceType} "${taskLabel}" just ${statusLabel}.`,
@@ -935,6 +971,13 @@ export async function runSubagentAnnounceFlow(params: {
       const { entry } = loadRequesterSessionEntry(targetRequesterSessionKey);
       directOrigin = resolveAnnounceOrigin(entry, targetRequesterOrigin);
     }
+    const completionDirectOrigin =
+      expectsCompletionMessage && !requesterIsSubagent
+        ? await resolveDiscordThreadCompletionOrigin({
+            childSessionKey: params.childSessionKey,
+            requesterOrigin: directOrigin,
+          })
+        : targetRequesterOrigin;
     // Use a deterministic idempotency key so the gateway dedup cache
     // catches duplicates if this announce is also queued by the gateway-
     // level message queue while the main session is busy (#17122).
@@ -945,8 +988,11 @@ export async function runSubagentAnnounceFlow(params: {
       triggerMessage,
       completionMessage,
       summaryLine: taskLabel,
-      requesterOrigin: targetRequesterOrigin,
-      completionDirectOrigin: targetRequesterOrigin,
+      requesterOrigin:
+        expectsCompletionMessage && !requesterIsSubagent
+          ? completionDirectOrigin
+          : targetRequesterOrigin,
+      completionDirectOrigin,
       directOrigin,
       targetRequesterSessionKey,
       requesterIsSubagent,

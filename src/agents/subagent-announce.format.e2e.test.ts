@@ -6,6 +6,10 @@ type RequesterResolution = {
   requesterSessionKey: string;
   requesterOrigin?: Record<string, unknown>;
 } | null;
+type ThreadBinding = {
+  accountId: string;
+  threadId: string;
+};
 
 const agentSpy = vi.fn(async (_req: AgentCallRequest) => ({ runId: "run-main", status: "ok" }));
 const sendSpy = vi.fn(async (_req: AgentCallRequest) => ({ runId: "send-main", status: "ok" }));
@@ -24,6 +28,10 @@ const subagentRegistryMock = {
   countActiveDescendantRuns: vi.fn((_sessionKey: string) => 0),
   resolveRequesterForChildSession: vi.fn((_sessionKey: string): RequesterResolution => null),
 };
+const threadBindingsMock = {
+  listBySessionKey: vi.fn((_sessionKey: string): ThreadBinding[] => []),
+};
+const getThreadBindingManagerMock = vi.fn((_accountId?: string) => threadBindingsMock);
 const chatHistoryMock = vi.fn(async (_sessionKey?: string) => ({
   messages: [] as Array<unknown>,
 }));
@@ -103,6 +111,9 @@ vi.mock("../config/sessions.js", () => ({
 vi.mock("./pi-embedded.js", () => embeddedRunMock);
 
 vi.mock("./subagent-registry.js", () => subagentRegistryMock);
+vi.mock("../discord/monitor/thread-bindings.js", () => ({
+  getThreadBindingManager: (accountId?: string) => getThreadBindingManagerMock(accountId),
+}));
 
 vi.mock("../config/config.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../config/config.js")>();
@@ -124,6 +135,10 @@ describe("subagent announce formatting", () => {
     subagentRegistryMock.isSubagentSessionRunActive.mockReset().mockReturnValue(true);
     subagentRegistryMock.countActiveDescendantRuns.mockReset().mockReturnValue(0);
     subagentRegistryMock.resolveRequesterForChildSession.mockReset().mockReturnValue(null);
+    threadBindingsMock.listBySessionKey.mockReset().mockReturnValue([]);
+    getThreadBindingManagerMock.mockReset().mockImplementation((_accountId?: string) => {
+      return threadBindingsMock;
+    });
     readLatestAssistantReplyMock.mockReset().mockResolvedValue("raw subagent reply");
     chatHistoryMock.mockReset().mockResolvedValue({ messages: [] });
     sessionStore = {};
@@ -427,6 +442,41 @@ describe("subagent announce formatting", () => {
     expect(call?.params?.threadId).toBe("99");
   });
 
+  it("prefers bound Discord thread target for completion direct-send", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    threadBindingsMock.listBySessionKey.mockReturnValueOnce([
+      {
+        accountId: "acct-1",
+        threadId: "777",
+      },
+    ]);
+
+    const didAnnounce = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-direct-thread-bound",
+      requesterSessionKey: "agent:main:main",
+      requesterDisplayKey: "main",
+      requesterOrigin: {
+        channel: "discord",
+        to: "channel:12345",
+        accountId: "acct-1",
+      },
+      ...defaultOutcomeAnnounce,
+      expectsCompletionMessage: true,
+      spawnMode: "session",
+    });
+
+    expect(didAnnounce).toBe(true);
+    expect(getThreadBindingManagerMock).toHaveBeenCalledWith("acct-1");
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    const call = sendSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
+    expect(call?.params?.channel).toBe("discord");
+    expect(call?.params?.to).toBe("channel:777");
+    expect(call?.params?.threadId).toBe("777");
+    const message = typeof call?.params?.message === "string" ? call.params.message : "";
+    expect(message).toContain("completed this task (session remains active)");
+    expect(message).not.toContain("finished");
+  });
   it("steers announcements into an active run when queue mode is steer", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
     embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(true);
