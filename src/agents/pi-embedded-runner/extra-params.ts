@@ -314,6 +314,81 @@ function createZaiToolStreamWrapper(
 }
 
 /**
+ * Create a streamFn wrapper that injects a default tool_choice into the payload
+ * when the model requires it explicitly (e.g. z-ai/glm5 on NVIDIA's API).
+ * Only injects if tool_choice is not already set in the payload.
+ */
+function createDefaultToolChoiceWrapper(
+  baseStreamFn: StreamFn | undefined,
+  toolChoice: string,
+): StreamFn {
+  const underlying = baseStreamFn ?? streamSimple;
+  return (model, context, options) => {
+    const originalOnPayload = options?.onPayload;
+    return underlying(model, context, {
+      ...options,
+      onPayload: (payload) => {
+        if (payload && typeof payload === "object") {
+          const p = payload as Record<string, unknown>;
+          // Only inject if tools are present and tool_choice is not already set
+          if (p.tools && !p.tool_choice) {
+            p.tool_choice = toolChoice;
+          }
+        }
+        originalOnPayload?.(payload);
+      },
+    });
+  };
+}
+
+/**
+ * Create a streamFn wrapper that translates the thinking field into chat_template_kwargs.
+ *
+ * NVIDIA's Kimi K2.5 NIM ignores thinking:{type:"disabled"} but honours
+ * chat_template_kwargs:{"thinking":false} to switch to Instant Mode (no reasoning traces).
+ * When thinking:{type:"enabled"} is present we simply remove it — the model reasons by default.
+ */
+function createChatTemplateKwargsThinkingWrapper(baseStreamFn: StreamFn | undefined): StreamFn {
+  const underlying = baseStreamFn ?? streamSimple;
+  return (model, context, options) => {
+    const originalOnPayload = options?.onPayload;
+    return underlying(model, context, {
+      ...options,
+      onPayload: (payload) => {
+        if (payload && typeof payload === "object") {
+          const p = payload as Record<string, unknown>;
+          const thinking = p.thinking as { type?: string } | undefined;
+          if (thinking?.type === "disabled") {
+            p.chat_template_kwargs = { thinking: false };
+            delete p.thinking;
+          } else if (thinking?.type === "enabled") {
+            // Model reasons by default — no extra field needed.
+            delete p.thinking;
+          }
+        }
+        originalOnPayload?.(payload);
+      },
+    });
+  };
+}
+
+/**
+ * Model-level compat hints consumed by applyExtraParamsToAgent.
+ * Distinct from user-configured extraParams.
+ */
+export type ModelCompatHints = {
+  /** Force tool_choice to this value when tools are present and the model requires it. */
+  defaultToolChoice?: string;
+  /**
+   * When true, intercepts thinking:{type:"disabled"} in the payload and replaces it with
+   * chat_template_kwargs:{"thinking":false} (and strips thinking:{type:"enabled"} since the
+   * model reasons by default). Required for Kimi K2.5 on NVIDIA's NIM endpoint which ignores
+   * the thinking field but honours chat_template_kwargs.
+   */
+  thinkingViaTemplateKwargs?: boolean;
+};
+
+/**
  * Apply extra params (like temperature) to an agent's streamFn.
  * Also adds OpenRouter app attribution headers when using the OpenRouter provider.
  *
@@ -325,6 +400,7 @@ export function applyExtraParamsToAgent(
   provider: string,
   modelId: string,
   extraParamsOverride?: Record<string, unknown>,
+  modelCompatHints?: ModelCompatHints,
 ): void {
   const extraParams = resolveExtraParams({
     cfg,
@@ -372,4 +448,21 @@ export function applyExtraParamsToAgent(
   // Force `store=true` for direct OpenAI/OpenAI Codex providers so multi-turn
   // server-side conversation state is preserved.
   agent.streamFn = createOpenAIResponsesStoreWrapper(agent.streamFn);
+
+  // Inject a default tool_choice for models that require it explicitly (e.g. z-ai/glm5).
+  if (modelCompatHints?.defaultToolChoice) {
+    log.debug(
+      `injecting default tool_choice="${modelCompatHints.defaultToolChoice}" for ${provider}/${modelId}`,
+    );
+    agent.streamFn = createDefaultToolChoiceWrapper(
+      agent.streamFn,
+      modelCompatHints.defaultToolChoice,
+    );
+  }
+
+  // Translate thinking field to chat_template_kwargs for models that require it (e.g. Kimi K2.5 on NVIDIA).
+  if (modelCompatHints?.thinkingViaTemplateKwargs) {
+    log.debug(`translating thinking field to chat_template_kwargs for ${provider}/${modelId}`);
+    agent.streamFn = createChatTemplateKwargsThinkingWrapper(agent.streamFn);
+  }
 }

@@ -642,6 +642,13 @@ export async function runEmbeddedAttempt(
         params.provider,
         params.modelId,
         params.streamParams,
+        {
+          // Pass through model-level compat hints that extra-params uses for payload injection
+          defaultToolChoice: (params.model.compat as Record<string, unknown> | undefined)
+            ?.defaultToolChoice as string | undefined,
+          thinkingViaTemplateKwargs: (params.model.compat as Record<string, unknown> | undefined)
+            ?.thinkingViaTemplateKwargs as boolean | undefined,
+        },
       );
 
       if (cacheTrace) {

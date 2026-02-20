@@ -652,6 +652,70 @@ export function buildNvidiaProvider(): ProviderConfig {
         contextWindow: 8192,
         maxTokens: 2048,
       },
+      {
+        id: "z-ai/glm5",
+        name: "Z.AI GLM5",
+        reasoning: true,
+        input: ["text"],
+        cost: NVIDIA_DEFAULT_COST,
+        contextWindow: NVIDIA_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NVIDIA_DEFAULT_MAX_TOKENS,
+        // Z.AI models on NVIDIA require tool_choice explicitly; thinkingFormat "openai" prevents
+        // the SDK from injecting thinking:{type:"disabled"} which truncates reasoning on NVIDIA's API.
+        compat: { defaultToolChoice: "auto", thinkingFormat: "openai" },
+      },
+      {
+        id: "z-ai/glm4.7",
+        name: "Z.AI GLM4.7",
+        reasoning: true,
+        input: ["text"],
+        cost: NVIDIA_DEFAULT_COST,
+        contextWindow: NVIDIA_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NVIDIA_DEFAULT_MAX_TOKENS,
+        compat: { defaultToolChoice: "auto", thinkingFormat: "openai" },
+      },
+      {
+        id: "moonshotai/kimi-k2.5",
+        name: "Moonshot Kimi K2.5",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: NVIDIA_DEFAULT_COST,
+        contextWindow: NVIDIA_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NVIDIA_DEFAULT_MAX_TOKENS,
+        // thinkingFormat "openai" — NVIDIA's NIM ignores thinking:{type:"disabled"} and
+        // chat_template_kwargs only works for vLLM/SGLang deploys, not the official NIM endpoint.
+        // Kimi always reasons on NVIDIA; Instant Mode is not available via the API.
+        // No defaultToolChoice — tool_choice:"auto" cuts off Kimi's reasoning mid-sentence on NVIDIA.
+        compat: { thinkingFormat: "openai" },
+      },
+      {
+        id: "qwen/qwen3.5-397b-a17b",
+        name: "Qwen3.5 397B A17B",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: NVIDIA_DEFAULT_COST,
+        contextWindow: NVIDIA_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NVIDIA_DEFAULT_MAX_TOKENS,
+      },
+
+      {
+        id: "minimaxai/minimax-m2.1",
+        name: "MiniMax M2.1",
+        reasoning: true,
+        input: ["text"],
+        cost: NVIDIA_DEFAULT_COST,
+        contextWindow: NVIDIA_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NVIDIA_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "openai/gpt-oss-120b",
+        name: "OpenAI GPT-OSS 120B",
+        reasoning: true,
+        input: ["text"],
+        cost: NVIDIA_DEFAULT_COST,
+        contextWindow: NVIDIA_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NVIDIA_DEFAULT_MAX_TOKENS,
+      },
     ],
   };
 }

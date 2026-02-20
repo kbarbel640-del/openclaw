@@ -19,6 +19,14 @@ export type ModelCompatConfig = {
   requiresAssistantAfterToolResult?: boolean;
   requiresThinkingAsText?: boolean;
   requiresMistralToolIds?: boolean;
+  /** Force a specific tool_choice value on every request (e.g. "auto" for models that require it explicitly). */
+  defaultToolChoice?: "auto" | "required" | "none";
+  /**
+   * When true, the thinking on/off toggle is sent via chat_template_kwargs instead of the
+   * thinking field (e.g. Kimi K2.5 on NVIDIA's NIM ignores thinking:{type:"disabled"} but
+   * honours chat_template_kwargs:{"thinking":false}).
+   */
+  thinkingViaTemplateKwargs?: boolean;
 };
 
 export type ModelProviderAuthMode = "api-key" | "aws-sdk" | "oauth" | "token";

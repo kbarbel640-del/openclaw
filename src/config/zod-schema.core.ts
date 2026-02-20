@@ -28,6 +28,10 @@ export const ModelCompatSchema = z
     requiresAssistantAfterToolResult: z.boolean().optional(),
     requiresThinkingAsText: z.boolean().optional(),
     requiresMistralToolIds: z.boolean().optional(),
+    defaultToolChoice: z
+      .union([z.literal("auto"), z.literal("required"), z.literal("none")])
+      .optional(),
+    thinkingViaTemplateKwargs: z.boolean().optional(),
   })
   .strict()
   .optional();
