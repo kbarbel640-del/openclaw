@@ -239,4 +239,77 @@ describe("resolveModel", () => {
     expect(result.model?.id).toBe("gpt-5.3-codex");
     expect(result.model?.provider).toBe("openai-codex");
   });
+
+  it("inherits reasoning flag from matching model entry in provider config", () => {
+    const cfg = {
+      models: {
+        providers: {
+          ollama: {
+            baseUrl: "http://ollama.internal:11434/v1",
+            api: "openai-responses",
+            models: [
+              {
+                id: "glm-4.7-flash-thinking",
+                reasoning: true,
+                contextWindow: 128000,
+              },
+            ],
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    const result = resolveModel("ollama", "glm-4.7-flash-thinking", "/tmp/agent", cfg);
+
+    expect(result.error).toBeUndefined();
+    expect(result.model?.reasoning).toBe(true);
+    expect(result.model?.contextWindow).toBe(128000);
+  });
+
+  it("defaults reasoning to false when model entry does not specify it", () => {
+    const cfg = {
+      models: {
+        providers: {
+          ollama: {
+            baseUrl: "http://ollama.internal:11434/v1",
+            models: [
+              {
+                id: "llama3",
+                contextWindow: 8192,
+              },
+            ],
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    const result = resolveModel("ollama", "llama3", "/tmp/agent", cfg);
+
+    expect(result.error).toBeUndefined();
+    expect(result.model?.reasoning).toBeFalsy();
+  });
+
+  it("defaults reasoning to false when model id does not match any entry", () => {
+    const cfg = {
+      models: {
+        providers: {
+          ollama: {
+            baseUrl: "http://ollama.internal:11434/v1",
+            models: [
+              {
+                id: "glm-4.7-flash-thinking",
+                reasoning: true,
+                contextWindow: 128000,
+              },
+            ],
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    const result = resolveModel("ollama", "some-other-model", "/tmp/agent", cfg);
+
+    expect(result.error).toBeUndefined();
+    expect(result.model?.reasoning).toBeFalsy();
+  });
 });
