@@ -21,5 +21,5 @@ interface MigrationResult {
   errors: string[];
 }
 export declare function migrate(opts?: { dryRun?: boolean }): Promise<MigrationResult>;
-
+export {};
 //# sourceMappingURL=migrate.d.ts.map
