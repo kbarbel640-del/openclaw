@@ -93,3 +93,6 @@ package-lock.json
 
 # Local iOS signing overrides
 apps/ios/LocalSigning.xcconfig
+
+# Claude Code local settings
+.claude/
