@@ -70,6 +70,16 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
         `  Ensure your auth credentials are strong and not exposed.`,
       );
     }
+
+    const tlsEnabled = cfg.gateway?.tls?.enabled === true;
+    if (!tlsEnabled) {
+      warnings.push(
+        `- WARNING: Gateway bound to ${bindDescriptor} without TLS.`,
+        `  Credentials and chat data are sent in plaintext on the network.`,
+        `  Fix: Enable TLS (${formatCliCommand("openclaw config set gateway.tls.enabled true")})`,
+        `  or use loopback binding (${formatCliCommand("openclaw config set gateway.bind loopback")}).`,
+      );
+    }
   }
 
   const warnDmPolicy = async (params: {

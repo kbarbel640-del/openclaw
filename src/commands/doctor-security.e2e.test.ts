@@ -68,6 +68,30 @@ describe("noteSecurityWarnings gateway exposure", () => {
     expect(message).toContain("CRITICAL");
   });
 
+  it("warns about missing TLS on non-loopback bind", async () => {
+    process.env.OPENCLAW_GATEWAY_TOKEN = "token-123";
+    const cfg = { gateway: { bind: "lan" } } as OpenClawConfig;
+    await noteSecurityWarnings(cfg);
+    const message = lastMessage();
+    expect(message).toContain("without TLS");
+    expect(message).toContain("gateway.tls.enabled");
+  });
+
+  it("skips TLS warning when TLS is enabled", async () => {
+    process.env.OPENCLAW_GATEWAY_TOKEN = "token-123";
+    const cfg = { gateway: { bind: "lan", tls: { enabled: true } } } as OpenClawConfig;
+    await noteSecurityWarnings(cfg);
+    const message = lastMessage();
+    expect(message).not.toContain("without TLS");
+  });
+
+  it("skips TLS warning for loopback bind", async () => {
+    const cfg = { gateway: { bind: "loopback" } } as OpenClawConfig;
+    await noteSecurityWarnings(cfg);
+    const message = lastMessage();
+    expect(message).not.toContain("without TLS");
+  });
+
   it("skips warning for loopback bind", async () => {
     const cfg = { gateway: { bind: "loopback" } } as OpenClawConfig;
     await noteSecurityWarnings(cfg);
