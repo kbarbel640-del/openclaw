@@ -216,15 +216,23 @@ export function loadPluginManifestRegistry(params: {
         }
         continue;
       }
-      // A user-installed plugin shadowing a bundled one is expected behaviour
-      // and should not trigger a warning. Both records are still added so the
-      // loader can mark the lower-precedence copy as disabled. Only genuinely
-      // conflicting non-bundled plugins (or two bundled plugins at different
-      // paths) warrant a warning.
+      // A user-installed plugin shadowing a bundled one is expected behaviour.
+      // Emit an info diagnostic (not a warning) so the shadowing is visible
+      // in debug output without alarming users doing intentional overrides.
+      // Only genuinely conflicting non-bundled plugins (or two bundled plugins
+      // at different paths) warrant a warning.
       const existingIsBundled = existing.candidate.origin === "bundled";
       const candidateIsBundled = candidate.origin === "bundled";
       const oneBundled = existingIsBundled !== candidateIsBundled; // XOR
-      if (!oneBundled) {
+      if (oneBundled) {
+        const userOrigin = existingIsBundled ? candidate.origin : existing.candidate.origin;
+        diagnostics.push({
+          level: "info",
+          pluginId: manifest.id,
+          source: candidate.source,
+          message: `bundled plugin '${manifest.id}' is shadowed by ${userOrigin}-installed copy — this is expected`,
+        });
+      } else {
         diagnostics.push({
           level: "warn",
           pluginId: manifest.id,

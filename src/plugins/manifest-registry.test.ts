@@ -111,6 +111,12 @@ describe("loadPluginManifestRegistry", () => {
     expect(registry.plugins.length).toBe(2);
     expect(registry.plugins.find((p) => p.origin === "global")).toBeDefined();
     expect(registry.plugins.find((p) => p.origin === "bundled")).toBeDefined();
+    // An info diagnostic is emitted so the shadowing is visible in debug output.
+    const infoDiag = registry.diagnostics.find(
+      (d) => d.level === "info" && d.pluginId === "nextcloud-talk",
+    );
+    expect(infoDiag).toBeDefined();
+    expect(infoDiag?.message).toContain("shadowed");
   });
 
   it("suppresses duplicate warning when config plugin shadows bundled (config wins)", () => {
@@ -139,6 +145,12 @@ describe("loadPluginManifestRegistry", () => {
     expect(registry.plugins.length).toBe(2);
     expect(registry.plugins.find((p) => p.origin === "config")).toBeDefined();
     expect(registry.plugins.find((p) => p.origin === "bundled")).toBeDefined();
+    // An info diagnostic is emitted so the shadowing is visible in debug output.
+    const infoDiag = registry.diagnostics.find(
+      (d) => d.level === "info" && d.pluginId === "config-shadows-bundled",
+    );
+    expect(infoDiag).toBeDefined();
+    expect(infoDiag?.message).toContain("shadowed");
   });
 
   it("emits duplicate warning when two bundled plugins at different paths share the same id", () => {
