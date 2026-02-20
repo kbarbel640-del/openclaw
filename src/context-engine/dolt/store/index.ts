@@ -15,5 +15,6 @@ export type {
   DoltRecordLevel,
   DoltRecordUpsert,
   DoltStore,
+  DoltTokenCountMethod,
 } from "./types.js";
-export { DOLT_RECORD_LEVELS } from "./types.js";
+export { DOLT_RECORD_LEVELS, DOLT_TOKEN_COUNT_METHODS } from "./types.js";

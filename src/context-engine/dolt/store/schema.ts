@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 /**
  * Increment when schema migrations are added.
  */
-export const DOLT_STORE_SCHEMA_VERSION = 1;
+export const DOLT_STORE_SCHEMA_VERSION = 2;
 
 /**
  * Ensure all Dolt store tables, columns, and indexes exist.
@@ -26,6 +26,7 @@ export function ensureDoltStoreSchema(db: DatabaseSync): void {
       level TEXT NOT NULL CHECK (level IN ('turn', 'leaf', 'bindle')),
       event_ts_ms INTEGER NOT NULL,
       token_count INTEGER NOT NULL DEFAULT 0,
+      token_count_method TEXT NOT NULL DEFAULT 'estimateTokens' CHECK (token_count_method IN ('estimateTokens', 'fallback')),
       payload_json TEXT,
       finalized_at_reset INTEGER NOT NULL DEFAULT 0 CHECK (finalized_at_reset IN (0, 1)),
       created_at_ms INTEGER NOT NULL,
@@ -34,6 +35,12 @@ export function ensureDoltStoreSchema(db: DatabaseSync): void {
   `);
   ensureColumn(db, "dolt_records", "session_key", "TEXT");
   ensureColumn(db, "dolt_records", "token_count", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(
+    db,
+    "dolt_records",
+    "token_count_method",
+    "TEXT NOT NULL DEFAULT 'estimateTokens' CHECK (token_count_method IN ('estimateTokens', 'fallback'))",
+  );
   ensureColumn(db, "dolt_records", "payload_json", "TEXT");
   ensureColumn(
     db,

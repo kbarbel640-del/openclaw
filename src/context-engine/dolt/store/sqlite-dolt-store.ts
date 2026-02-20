@@ -1,12 +1,19 @@
+import type { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import readline from "node:readline";
-import type { DatabaseSync } from "node:sqlite";
 import { requireNodeSqlite } from "../../../memory/sqlite.js";
+import {
+  parseDoltSummaryDocument,
+  validateDoltChildrenChronologicalOrder,
+  validateDoltLineageEdgeLevels,
+} from "../contract.js";
 import { ensureDoltStoreSchema } from "./schema.js";
+import { estimateDoltTokenCount } from "./token-count.js";
 import {
   DOLT_RECORD_LEVELS,
+  DOLT_TOKEN_COUNT_METHODS,
   type DoltActiveLaneEntry,
   type DoltActiveLaneUpsert,
   type DoltBootstrapParams,
@@ -19,6 +26,7 @@ import {
   type DoltRecordLevel,
   type DoltRecordUpsert,
   type DoltStore,
+  type DoltTokenCountMethod,
 } from "./types.js";
 
 type SqliteRowRecord = {
@@ -28,6 +36,7 @@ type SqliteRowRecord = {
   level: string;
   event_ts_ms: number;
   token_count: number;
+  token_count_method: string;
   payload_json: string | null;
   finalized_at_reset: number;
   created_at_ms: number;
@@ -55,7 +64,6 @@ type SqliteRowLane = {
 type JsonlTurn = {
   pointer?: string;
   eventTsMs?: number;
-  tokenCount?: number;
   payload?: unknown;
 };
 
@@ -87,10 +95,26 @@ export class SqliteDoltStore implements DoltStore {
     const pointer = requireNonEmptyString(params.pointer, "pointer");
     const sessionId = requireNonEmptyString(params.sessionId, "sessionId");
     const level = requireRecordLevel(params.level);
+    const existing = this.getRecord(pointer);
+    const payload = resolvePayloadForWrite(params.payload, existing);
+    const payloadJson = serializePayload(payload);
+    const payloadChanged = didPayloadChange(existing, payloadJson);
+    const summaryMetadata = validateRecordPayloadContract({
+      pointer,
+      level,
+      payload,
+    });
     const eventTsMs = normalizeTimestampMs(params.eventTsMs, this.now());
-    const tokenCount = normalizeNonNegativeInt(params.tokenCount ?? 0, 0);
-    const finalizedAtReset = params.finalizedAtReset ? 1 : 0;
-    const payloadJson = serializePayload(params.payload);
+    const tokenCountWrite = resolveTokenCountWrite({
+      existing,
+      payload,
+      payloadChanged,
+    });
+    const finalizedAtReset = resolveFinalizedAtResetForWrite({
+      explicit: params.finalizedAtReset,
+      existing,
+      summaryMetadata,
+    });
     const createdAtMs = this.now();
     const updatedAtMs = createdAtMs;
 
@@ -104,18 +128,20 @@ export class SqliteDoltStore implements DoltStore {
             level,
             event_ts_ms,
             token_count,
+            token_count_method,
             payload_json,
             finalized_at_reset,
             created_at_ms,
             updated_at_ms
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(pointer) DO UPDATE SET
             session_id = excluded.session_id,
             session_key = excluded.session_key,
             level = excluded.level,
             event_ts_ms = excluded.event_ts_ms,
             token_count = excluded.token_count,
+            token_count_method = excluded.token_count_method,
             payload_json = excluded.payload_json,
             finalized_at_reset = excluded.finalized_at_reset,
             updated_at_ms = excluded.updated_at_ms
@@ -127,7 +153,8 @@ export class SqliteDoltStore implements DoltStore {
         normalizeOptionalString(params.sessionKey),
         level,
         eventTsMs,
-        tokenCount,
+        tokenCountWrite.tokenCount,
+        tokenCountWrite.tokenCountMethod,
         payloadJson,
         finalizedAtReset,
         createdAtMs,
@@ -156,6 +183,7 @@ export class SqliteDoltStore implements DoltStore {
             level,
             event_ts_ms,
             token_count,
+            token_count_method,
             payload_json,
             finalized_at_reset,
             created_at_ms,
@@ -189,6 +217,7 @@ export class SqliteDoltStore implements DoltStore {
           level,
           event_ts_ms,
           token_count,
+          token_count_method,
           payload_json,
           finalized_at_reset,
           created_at_ms,
@@ -237,7 +266,20 @@ export class SqliteDoltStore implements DoltStore {
   upsertLineageEdge(params: DoltLineageEdgeUpsert): void {
     const parentPointer = requireNonEmptyString(params.parentPointer, "parentPointer");
     const childPointer = requireNonEmptyString(params.childPointer, "childPointer");
+    const parentRecord = this.requirePersistedRecord(parentPointer, "parentPointer");
+    const childRecord = this.requirePersistedRecord(childPointer, "childPointer");
     const childLevel = requireRecordLevel(params.childLevel);
+    if (childRecord.level !== childLevel) {
+      throw new Error(
+        `Dolt lineage violation: child level for ${childPointer} does not match persisted record level (${childRecord.level}).`,
+      );
+    }
+    validateDoltLineageEdgeLevels({
+      parentLevel: parentRecord.level,
+      childLevel,
+      parentPointer,
+      childPointer,
+    });
     const childIndex = normalizeNonNegativeInt(params.childIndex, 0);
     const createdAtMs = this.now();
 
@@ -268,18 +310,47 @@ export class SqliteDoltStore implements DoltStore {
     children: DoltLineageChildInput[];
   }): void {
     const parentPointer = requireNonEmptyString(params.parentPointer, "parentPointer");
+    const parentRecord = this.requirePersistedRecord(parentPointer, "parentPointer");
     const children = params.children ?? [];
+    const resolvedChildren = children.map((child, idx) => {
+      const childPointer = requireNonEmptyString(child.pointer, "children.pointer");
+      const childLevel = requireRecordLevel(child.level);
+      const childRecord = this.requirePersistedRecord(childPointer, "children.pointer");
+      if (childRecord.level !== childLevel) {
+        throw new Error(
+          `Dolt lineage violation: child level for ${childPointer} does not match persisted record level (${childRecord.level}).`,
+        );
+      }
+      validateDoltLineageEdgeLevels({
+        parentLevel: parentRecord.level,
+        childLevel,
+        parentPointer,
+        childPointer,
+      });
+      return {
+        pointer: childPointer,
+        level: childLevel,
+        index: normalizeNonNegativeInt(child.index ?? idx, idx),
+        eventTsMs: childRecord.eventTsMs,
+      };
+    });
+    const sortedForChronology = [...resolvedChildren]
+      .toSorted((a, b) => a.index - b.index || a.pointer.localeCompare(b.pointer))
+      .map((child) => ({ pointer: child.pointer, eventTsMs: child.eventTsMs }));
+    validateDoltChildrenChronologicalOrder({
+      parentPointer,
+      children: sortedForChronology,
+    });
 
     this.db.exec("BEGIN");
     try {
       this.db.prepare(`DELETE FROM dolt_lineage WHERE parent_pointer = ?`).run(parentPointer);
-      for (let idx = 0; idx < children.length; idx++) {
-        const child = children[idx];
+      for (const child of resolvedChildren) {
         this.upsertLineageEdge({
           parentPointer,
-          childPointer: requireNonEmptyString(child.pointer, "children.pointer"),
-          childLevel: requireRecordLevel(child.level),
-          childIndex: normalizeNonNegativeInt(child.index ?? idx, idx),
+          childPointer: child.pointer,
+          childLevel: child.level,
+          childIndex: child.index,
         });
       }
       this.db.exec("COMMIT");
@@ -323,6 +394,7 @@ export class SqliteDoltStore implements DoltStore {
             r.level,
             r.event_ts_ms,
             r.token_count,
+            r.token_count_method,
             r.payload_json,
             r.finalized_at_reset,
             r.created_at_ms,
@@ -491,7 +563,6 @@ export class SqliteDoltStore implements DoltStore {
           usedPointers,
         );
         const eventTsMs = normalizeTimestampMs(turn.eventTsMs ?? idx + 1, idx + 1);
-        const tokenCount = normalizeNonNegativeInt(turn.tokenCount ?? 0, 0);
         const payload = turn.payload ?? null;
 
         this.upsertRecord({
@@ -500,7 +571,6 @@ export class SqliteDoltStore implements DoltStore {
           sessionKey,
           level: "turn",
           eventTsMs,
-          tokenCount,
           payload,
           finalizedAtReset: false,
         });
@@ -524,6 +594,14 @@ export class SqliteDoltStore implements DoltStore {
       importedRecords: turns.length,
       source,
     };
+  }
+
+  private requirePersistedRecord(pointer: string, label: string): DoltRecord {
+    const record = this.getRecord(pointer);
+    if (!record) {
+      throw new Error(`${label} does not reference a persisted Dolt record: ${pointer}`);
+    }
+    return record;
   }
 
   /**
@@ -555,6 +633,7 @@ function mapRecordRow(row: SqliteRowRecord): DoltRecord {
     level: requireRecordLevel(row.level),
     eventTsMs: normalizeTimestampMs(row.event_ts_ms, 0),
     tokenCount: normalizeNonNegativeInt(row.token_count, 0),
+    tokenCountMethod: requireTokenCountMethod(row.token_count_method),
     payload: deserializePayload(row.payload_json),
     finalizedAtReset: row.finalized_at_reset === 1,
     createdAtMs: normalizeTimestampMs(row.created_at_ms, 0),
@@ -607,6 +686,101 @@ function requireRecordLevel(value: string): DoltRecordLevel {
     return value as DoltRecordLevel;
   }
   throw new Error(`Invalid Dolt record level: ${value}`);
+}
+
+function requireTokenCountMethod(value: string): DoltTokenCountMethod {
+  if (DOLT_TOKEN_COUNT_METHODS.includes(value as DoltTokenCountMethod)) {
+    return value as DoltTokenCountMethod;
+  }
+  throw new Error(`Invalid Dolt token count method: ${value}`);
+}
+
+function resolvePayloadForWrite(payload: unknown, existing: DoltRecord | null): unknown {
+  if (payload === undefined) {
+    return existing?.payload ?? null;
+  }
+  return payload;
+}
+
+function didPayloadChange(existing: DoltRecord | null, nextPayloadJson: string | null): boolean {
+  if (!existing) {
+    return true;
+  }
+  return serializePayload(existing.payload) !== nextPayloadJson;
+}
+
+function validateRecordPayloadContract(params: {
+  pointer: string;
+  level: DoltRecordLevel;
+  payload: unknown;
+}): { frontmatterFinalizedAtReset?: boolean } {
+  if (params.level === "turn") {
+    return {};
+  }
+
+  const payloadRecord = toRecord(params.payload);
+  const summaryText = payloadRecord?.summary;
+  if (typeof summaryText !== "string" || !summaryText.trim()) {
+    throw new Error(
+      `Dolt metadata contract violation: ${params.pointer} (${params.level}) must persist payload.summary with YAML front-matter.`,
+    );
+  }
+
+  const summaryDoc = parseDoltSummaryDocument(summaryText);
+  if (summaryDoc.frontmatter.summaryType !== params.level) {
+    throw new Error(
+      `Dolt metadata contract violation: ${params.pointer} front-matter summary-type ${summaryDoc.frontmatter.summaryType} does not match level ${params.level}.`,
+    );
+  }
+
+  return {
+    frontmatterFinalizedAtReset: summaryDoc.frontmatter.finalizedAtReset,
+  };
+}
+
+function resolveFinalizedAtResetForWrite(params: {
+  explicit: boolean | undefined;
+  existing: DoltRecord | null;
+  summaryMetadata: { frontmatterFinalizedAtReset?: boolean };
+}): number {
+  const fromFrontmatter = params.summaryMetadata.frontmatterFinalizedAtReset;
+  if (typeof params.explicit === "boolean") {
+    if (typeof fromFrontmatter === "boolean" && fromFrontmatter !== params.explicit) {
+      throw new Error(
+        "Dolt metadata contract violation: payload front-matter finalized-at-reset must match record finalizedAtReset.",
+      );
+    }
+    return params.explicit ? 1 : 0;
+  }
+  if (typeof fromFrontmatter === "boolean") {
+    return fromFrontmatter ? 1 : 0;
+  }
+  if (params.existing?.finalizedAtReset) {
+    return 1;
+  }
+  return 0;
+}
+
+function resolveTokenCountWrite(params: {
+  existing: DoltRecord | null;
+  payload: unknown;
+  payloadChanged: boolean;
+}): {
+  tokenCount: number;
+  tokenCountMethod: DoltTokenCountMethod;
+} {
+  if (params.existing && !params.payloadChanged) {
+    return {
+      tokenCount: params.existing.tokenCount,
+      tokenCountMethod: params.existing.tokenCountMethod,
+    };
+  }
+
+  const estimated = estimateDoltTokenCount({ payload: params.payload });
+  return {
+    tokenCount: normalizeNonNegativeInt(estimated.tokenCount, 0),
+    tokenCountMethod: estimated.tokenCountMethod,
+  };
 }
 
 function normalizeNonNegativeInt(value: number, fallback: number): number {
@@ -666,7 +840,6 @@ async function readTurnsFromJsonl(sessionFile: string, sessionId: string): Promi
         parseTimestampMs(messageEntry.timestamp) ??
         parseTimestampMs(messageEntry.messageTimestamp) ??
         lineNumber;
-      const tokenCount = parseTokenCount(messageEntry.usage);
       const pointer = messageEntry.id ? `turn:${sessionId}:msg:${messageEntry.id}` : undefined;
       const payload = {
         role: messageEntry.role,
@@ -683,7 +856,6 @@ async function readTurnsFromJsonl(sessionFile: string, sessionId: string): Promi
       turns.push({
         pointer,
         eventTsMs,
-        tokenCount,
         payload,
       });
     }
@@ -700,10 +872,6 @@ function normalizeHistoryTurns(turns: DoltBootstrapTurn[]): JsonlTurn[] {
     eventTsMs:
       typeof turn.eventTsMs === "number" && Number.isFinite(turn.eventTsMs)
         ? turn.eventTsMs
-        : undefined,
-    tokenCount:
-      typeof turn.tokenCount === "number" && Number.isFinite(turn.tokenCount)
-        ? turn.tokenCount
         : undefined,
     payload: turn.payload ?? null,
   }));
@@ -783,30 +951,6 @@ function isTimestampValue(value: unknown): value is string | number {
     return Number.isFinite(value);
   }
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function parseTokenCount(usage: unknown): number {
-  const usageRecord = toRecord(usage);
-  if (!usageRecord) {
-    return 0;
-  }
-  const total = readNumber(usageRecord.total);
-  if (typeof total === "number") {
-    return Math.max(0, Math.floor(total));
-  }
-
-  const input = readNumber(usageRecord.input) ?? 0;
-  const output = readNumber(usageRecord.output) ?? 0;
-  const cacheRead = readNumber(usageRecord.cacheRead) ?? 0;
-  const cacheWrite = readNumber(usageRecord.cacheWrite) ?? 0;
-  return Math.max(0, Math.floor(input + output + cacheRead + cacheWrite));
-}
-
-function readNumber(value: unknown): number | null {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return null;
-  }
-  return value;
 }
 
 function dedupePointer(pointer: string, seen: Map<string, number>): string {

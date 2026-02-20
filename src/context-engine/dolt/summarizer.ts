@@ -1,8 +1,9 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
+import type { OpenClawConfig } from "../../config/config.js";
 import { resolveOpenClawAgentDir } from "../../agents/agent-paths.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../../agents/defaults.js";
 import { getApiKeyForModel } from "../../agents/model-auth.js";
@@ -10,15 +11,19 @@ import { ensureOpenClawModelsJson } from "../../agents/models-config.js";
 import { ensureSessionHeader } from "../../agents/pi-embedded-helpers.js";
 import { applyExtraParamsToAgent } from "../../agents/pi-embedded-runner/extra-params.js";
 import { resolveModel } from "../../agents/pi-embedded-runner/model.js";
-import type { OpenClawConfig } from "../../config/config.js";
 import { resolveUserPath } from "../../utils.js";
+import {
+  prefixDoltSummaryFrontmatter,
+  serializeDoltSummaryFrontmatter,
+  type DoltSummaryType,
+} from "./contract.js";
 
 export const DOLT_SUMMARY_MAX_OUTPUT_TOKENS = 2000;
 export const DOLT_LEAF_MIN_SOURCE_TURNS = 2;
 
 export type DoltRollupPromptTemplateId = "leaf" | "bindle" | "reset-short-bindle";
 
-export type DoltRollupSummaryType = "leaf" | "bindle";
+export type DoltRollupSummaryType = DoltSummaryType;
 
 export type DoltSummarySourceTurn = {
   pointer: string;
@@ -225,15 +230,12 @@ function renderSummaryFrontmatter(params: {
   childPointers: string[];
   finalizedAtReset: boolean;
 }): string {
-  const children = params.childPointers.map((pointer) => `'${pointer}'`).join(", ");
-  return [
-    "---",
-    `summary-type: ${params.summaryType}`,
-    `dates-covered: ${params.datesCovered.startEpochMs}|${params.datesCovered.endEpochMs}`,
-    `children: [${children}]`,
-    `finalized-at-reset: ${params.finalizedAtReset ? "true" : "false"}`,
-    "---",
-  ].join("\n");
+  return serializeDoltSummaryFrontmatter({
+    summaryType: params.summaryType,
+    datesCovered: params.datesCovered,
+    children: params.childPointers,
+    finalizedAtReset: params.finalizedAtReset,
+  });
 }
 
 function prefixSummaryFrontmatter(params: {
@@ -243,21 +245,15 @@ function prefixSummaryFrontmatter(params: {
   childPointers: string[];
   finalizedAtReset: boolean;
 }): string {
-  const summaryWithoutFrontmatter = stripLeadingFrontmatter(params.summary);
-  const frontmatter = renderSummaryFrontmatter(params);
-  return `${frontmatter}\n${summaryWithoutFrontmatter.trimStart()}`;
-}
-
-function stripLeadingFrontmatter(summary: string): string {
-  const trimmed = summary.trimStart();
-  if (!trimmed.startsWith("---\n")) {
-    return summary;
-  }
-  const endIndex = trimmed.indexOf("\n---\n");
-  if (endIndex === -1) {
-    return summary;
-  }
-  return trimmed.slice(endIndex + "\n---\n".length);
+  return prefixDoltSummaryFrontmatter({
+    summary: params.summary,
+    frontmatter: {
+      summaryType: params.summaryType,
+      datesCovered: params.datesCovered,
+      children: params.childPointers,
+      finalizedAtReset: params.finalizedAtReset,
+    },
+  });
 }
 
 async function runDoltSummaryPromptWithEmbeddedSession(

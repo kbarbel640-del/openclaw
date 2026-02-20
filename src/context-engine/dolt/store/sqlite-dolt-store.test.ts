@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { requireNodeSqlite } from "../../../memory/sqlite.js";
+import { serializeDoltSummaryFrontmatter } from "../contract.js";
 import { SqliteDoltStore } from "./sqlite-dolt-store.js";
 
 type TestStore = {
@@ -20,6 +21,28 @@ function createInMemoryStore(now: () => number = () => Date.now()): TestStore {
   const created = { store, db };
   createdStores.push(created);
   return created;
+}
+
+function makeSummaryPayload(params: {
+  summaryType: "leaf" | "bindle";
+  startEpochMs: number;
+  endEpochMs: number;
+  children: string[];
+  finalizedAtReset: boolean;
+  body: string;
+}): { summary: string } {
+  const frontmatter = serializeDoltSummaryFrontmatter({
+    summaryType: params.summaryType,
+    datesCovered: {
+      startEpochMs: params.startEpochMs,
+      endEpochMs: params.endEpochMs,
+    },
+    children: params.children,
+    finalizedAtReset: params.finalizedAtReset,
+  });
+  return {
+    summary: `${frontmatter}\n${params.body}`,
+  };
 }
 
 afterEach(async () => {
@@ -59,7 +82,6 @@ describe("SqliteDoltStore", () => {
       sessionId: "session-a",
       level: "turn",
       eventTsMs: 200,
-      tokenCount: 10,
       payload: { role: "assistant", content: "later" },
     });
     store.upsertRecord({
@@ -67,7 +89,6 @@ describe("SqliteDoltStore", () => {
       sessionId: "session-a",
       level: "turn",
       eventTsMs: 100,
-      tokenCount: 8,
       payload: { role: "user", content: "earlier" },
     });
     store.upsertRecord({
@@ -75,8 +96,14 @@ describe("SqliteDoltStore", () => {
       sessionId: "session-a",
       level: "leaf",
       eventTsMs: 150,
-      tokenCount: 30,
-      payload: { summary: "rollup", frontMatter: { turns: 2 } },
+      payload: makeSummaryPayload({
+        summaryType: "leaf",
+        startEpochMs: 100,
+        endEpochMs: 200,
+        children: ["turn-1", "turn-2"],
+        finalizedAtReset: true,
+        body: "rollup",
+      }),
       finalizedAtReset: true,
     });
 
@@ -86,7 +113,18 @@ describe("SqliteDoltStore", () => {
 
     const leaf = store.getRecord("leaf-1");
     expect(leaf?.finalizedAtReset).toBe(true);
-    expect(leaf?.payload).toEqual({ summary: "rollup", frontMatter: { turns: 2 } });
+    expect(leaf?.tokenCountMethod).toBe("estimateTokens");
+    expect(leaf?.tokenCount).toBeGreaterThanOrEqual(0);
+    expect(leaf?.payload).toEqual(
+      makeSummaryPayload({
+        summaryType: "leaf",
+        startEpochMs: 100,
+        endEpochMs: 200,
+        children: ["turn-1", "turn-2"],
+        finalizedAtReset: true,
+        body: "rollup",
+      }),
+    );
   });
 
   it("replaces and lists direct lineage children in index order", () => {
@@ -96,6 +134,14 @@ describe("SqliteDoltStore", () => {
       sessionId: "session-a",
       level: "leaf",
       eventTsMs: 300,
+      payload: makeSummaryPayload({
+        summaryType: "leaf",
+        startEpochMs: 100,
+        endEpochMs: 200,
+        children: ["turn-a", "turn-b"],
+        finalizedAtReset: false,
+        body: "parent leaf",
+      }),
     });
     store.upsertRecord({
       pointer: "turn-a",
@@ -229,7 +275,10 @@ describe("SqliteDoltStore", () => {
       "turn:session-a:msg:m1",
       "turn:session-a:msg:m2",
     ]);
-    expect(turns.map((row) => row.tokenCount)).toEqual([12, 18]);
+    for (const turn of turns) {
+      expect(turn.tokenCount).toBeGreaterThanOrEqual(0);
+      expect(turn.tokenCountMethod).toBe("estimateTokens");
+    }
     expect(
       store.listActiveLane({ sessionId: "session-a", level: "turn", activeOnly: true }),
     ).toHaveLength(2);
@@ -265,13 +314,11 @@ describe("SqliteDoltStore", () => {
         {
           pointer: "turn-history-1",
           eventTsMs: 10,
-          tokenCount: 2,
           payload: { role: "user", content: "hello" },
         },
         {
           pointer: "turn-history-2",
           eventTsMs: 20,
-          tokenCount: 3,
           payload: { role: "assistant", content: "hi" },
         },
       ],
@@ -284,5 +331,115 @@ describe("SqliteDoltStore", () => {
     });
     const turns = store.listRecordsBySession({ sessionId: "session-history", level: "turn" });
     expect(turns.map((row) => row.pointer)).toEqual(["turn-history-1", "turn-history-2"]);
+  });
+
+  it("rejects malformed summary front-matter for leaf records", () => {
+    const { store } = createInMemoryStore(() => 7_000);
+    expect(() =>
+      store.upsertRecord({
+        pointer: "leaf-bad-frontmatter",
+        sessionId: "session-a",
+        level: "leaf",
+        eventTsMs: 300,
+        payload: { summary: "not-frontmatter body only" },
+      }),
+    ).toThrow(/YAML front-matter/);
+  });
+
+  it("rejects lineage child-level violations", () => {
+    const { store } = createInMemoryStore(() => 8_000);
+    store.upsertRecord({
+      pointer: "bindle-parent",
+      sessionId: "session-a",
+      level: "bindle",
+      eventTsMs: 500,
+      payload: makeSummaryPayload({
+        summaryType: "bindle",
+        startEpochMs: 100,
+        endEpochMs: 200,
+        children: ["leaf-1"],
+        finalizedAtReset: false,
+        body: "bindle summary",
+      }),
+    });
+    store.upsertRecord({
+      pointer: "turn-1",
+      sessionId: "session-a",
+      level: "turn",
+      eventTsMs: 100,
+      payload: { role: "user", content: "hi" },
+    });
+
+    expect(() =>
+      store.upsertLineageEdge({
+        parentPointer: "bindle-parent",
+        childPointer: "turn-1",
+        childIndex: 0,
+        childLevel: "turn",
+      }),
+    ).toThrow(/lineage violation/);
+  });
+
+  it("rejects non-chronological child ordering when replacing lineage", () => {
+    const { store } = createInMemoryStore(() => 9_000);
+    store.upsertRecord({
+      pointer: "leaf-parent",
+      sessionId: "session-a",
+      level: "leaf",
+      eventTsMs: 300,
+      payload: makeSummaryPayload({
+        summaryType: "leaf",
+        startEpochMs: 100,
+        endEpochMs: 200,
+        children: ["turn-newer", "turn-older"],
+        finalizedAtReset: false,
+        body: "parent",
+      }),
+    });
+    store.upsertRecord({
+      pointer: "turn-newer",
+      sessionId: "session-a",
+      level: "turn",
+      eventTsMs: 200,
+      payload: { role: "assistant", content: "newer" },
+    });
+    store.upsertRecord({
+      pointer: "turn-older",
+      sessionId: "session-a",
+      level: "turn",
+      eventTsMs: 100,
+      payload: { role: "user", content: "older" },
+    });
+
+    expect(() =>
+      store.replaceDirectChildren({
+        parentPointer: "leaf-parent",
+        children: [
+          { pointer: "turn-newer", level: "turn", index: 0 },
+          { pointer: "turn-older", level: "turn", index: 1 },
+        ],
+      }),
+    ).toThrow(/must be chronological/);
+  });
+
+  it("rejects finalizedAtReset mismatch between payload front-matter and record flag", () => {
+    const { store } = createInMemoryStore(() => 10_000);
+    expect(() =>
+      store.upsertRecord({
+        pointer: "leaf-mismatch",
+        sessionId: "session-a",
+        level: "leaf",
+        eventTsMs: 300,
+        finalizedAtReset: false,
+        payload: makeSummaryPayload({
+          summaryType: "leaf",
+          startEpochMs: 100,
+          endEpochMs: 200,
+          children: ["turn-1"],
+          finalizedAtReset: true,
+          body: "body",
+        }),
+      }),
+    ).toThrow(/finalized-at-reset/);
   });
 });

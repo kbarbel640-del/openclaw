@@ -6,6 +6,13 @@ export const DOLT_RECORD_LEVELS = ["turn", "leaf", "bindle"] as const;
 export type DoltRecordLevel = (typeof DOLT_RECORD_LEVELS)[number];
 
 /**
+ * Canonical token counting methods persisted for each record.
+ */
+export const DOLT_TOKEN_COUNT_METHODS = ["estimateTokens", "fallback"] as const;
+
+export type DoltTokenCountMethod = (typeof DOLT_TOKEN_COUNT_METHODS)[number];
+
+/**
  * Canonical persisted record for turn/leaf/bindle units.
  */
 export type DoltRecord = {
@@ -15,6 +22,7 @@ export type DoltRecord = {
   level: DoltRecordLevel;
   eventTsMs: number;
   tokenCount: number;
+  tokenCountMethod: DoltTokenCountMethod;
   payload: unknown;
   finalizedAtReset: boolean;
   createdAtMs: number;
@@ -30,7 +38,6 @@ export type DoltRecordUpsert = {
   sessionKey?: string | null;
   level: DoltRecordLevel;
   eventTsMs: number;
-  tokenCount?: number;
   payload?: unknown;
   finalizedAtReset?: boolean;
 };
@@ -97,7 +104,6 @@ export type DoltActiveLaneUpsert = {
 export type DoltBootstrapTurn = {
   pointer?: string;
   eventTsMs?: number;
-  tokenCount?: number;
   payload?: unknown;
 };
 
