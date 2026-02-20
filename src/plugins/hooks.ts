@@ -11,6 +11,7 @@ import type {
   PluginHookAfterToolCallEvent,
   PluginHookAgentContext,
   PluginHookAgentEndEvent,
+  PluginHookAgentEndResult,
   PluginHookBeforeAgentStartEvent,
   PluginHookBeforeAgentStartResult,
   PluginHookBeforeModelResolveEvent,
@@ -266,14 +267,30 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
 
   /**
    * Run agent_end hook.
-   * Allows plugins to analyze completed conversations.
-   * Runs in parallel (fire-and-forget).
+   * Collects results from all hooks. If any hook returns { continue: true },
+   * returns that result to trigger message injection.
    */
   async function runAgentEnd(
     event: PluginHookAgentEndEvent,
     ctx: PluginHookAgentContext,
-  ): Promise<void> {
-    return runVoidHook("agent_end", event, ctx);
+  ): Promise<PluginHookAgentEndResult | undefined> {
+    const hooks = getHooks("agent_end");
+    if (hooks.length === 0) return undefined;
+
+    const results = await Promise.all(
+      hooks.map(async (hook) => {
+        try {
+          const result = await hook.handler(event, ctx);
+          return result;
+        } catch (err) {
+          handleHookError(hook, err);
+          return undefined;
+        }
+      }),
+    );
+
+    // Return the first result with continue: true
+    return results.find((r) => r?.continue);
   }
 
   /**
