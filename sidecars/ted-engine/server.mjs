@@ -961,6 +961,223 @@ async function evaluateRatePolicyEndpoint(req, res, route) {
   logLine(`POST ${route} -> 200`);
 }
 
+function checksumText(text) {
+  let sum = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    sum = (sum + text.charCodeAt(i) * (i + 1)) % 2147483647;
+  }
+  return String(sum);
+}
+
+function deriveDeterministicModifiers(metrics) {
+  const draftAcceptanceRateRaw = Number(metrics?.draft_acceptance_rate);
+  const triageReductionRateRaw = Number(metrics?.triage_reduction_rate);
+  const recurrenceRateRaw = Number(metrics?.recurrence_rate);
+  const draftAcceptanceRate = Number.isFinite(draftAcceptanceRateRaw) ? draftAcceptanceRateRaw : 0;
+  const triageReductionRate = Number.isFinite(triageReductionRateRaw) ? triageReductionRateRaw : 0;
+  const recurrenceRate = Number.isFinite(recurrenceRateRaw) ? recurrenceRateRaw : 0;
+
+  const modifiers = [];
+  const reasons = [];
+  if (draftAcceptanceRate >= 0.8) {
+    modifiers.push("Favor concise draft structures that previously passed without edits.");
+    reasons.push("DRAFT_ACCEPTANCE_HIGH");
+  }
+  if (triageReductionRate >= 0.2) {
+    modifiers.push("Prefer routing patterns that reduced unresolved triage volume.");
+    reasons.push("TRIAGE_REDUCTION_HIGH");
+  }
+  if (recurrenceRate >= 0.15) {
+    modifiers.push("Escalate recurring error patterns before applying downstream actions.");
+    reasons.push("ERROR_RECURRENCE_ELEVATED");
+  }
+
+  return {
+    modifiers: modifiers.slice(0, 3),
+    reasons: reasons.slice(0, 3),
+    metrics_snapshot: {
+      draft_acceptance_rate: draftAcceptanceRate,
+      triage_reduction_rate: triageReductionRate,
+      recurrence_rate: recurrenceRate,
+    },
+  };
+}
+
+async function evaluateLearningModifiersEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const roleId = isNonEmptyString(body?.role_id) ? body.role_id.trim() : "";
+  if (!roleId) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_ROLE_ID",
+        "learning_modifiers_evaluate",
+        "Provide non-empty role_id.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  const derived = deriveDeterministicModifiers(body?.metrics || {});
+  const signature = checksumText(
+    JSON.stringify({ role_id: roleId, ...derived.metrics_snapshot, reasons: derived.reasons }),
+  );
+  appendAudit("LEARNING_MODIFIERS_EVALUATE", {
+    role_id: roleId,
+    reason_codes: derived.reasons,
+    signature,
+  });
+  sendJson(res, 200, {
+    role_id: roleId,
+    modifiers: derived.modifiers,
+    reason_codes: derived.reasons,
+    reversible: true,
+    deterministic_signature: signature,
+    no_policy_override: true,
+  });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function affinityRouteEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const enabled = body?.enabled !== false;
+  const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
+  if (candidates.length === 0) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "CANDIDATES_REQUIRED",
+        "affinity_routing",
+        "Provide candidates array with candidate_id and base_score.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  const affinityMap = new Map();
+  if (Array.isArray(body?.affinities)) {
+    for (const raw of body.affinities) {
+      const item = raw && typeof raw === "object" ? raw : {};
+      const candidateId = isNonEmptyString(item.candidate_id) ? item.candidate_id.trim() : "";
+      const affinityRaw = Number(item.affinity);
+      if (!candidateId || !Number.isFinite(affinityRaw)) {
+        continue;
+      }
+      affinityMap.set(candidateId, Math.max(0, Math.min(1, affinityRaw)));
+    }
+  }
+
+  const excluded = [];
+  const ranked = [];
+  for (const raw of candidates) {
+    const candidate = raw && typeof raw === "object" ? raw : {};
+    const candidateId = isNonEmptyString(candidate.candidate_id)
+      ? candidate.candidate_id.trim()
+      : "";
+    const baseScoreRaw = Number(candidate.base_score);
+    const baseScore = Number.isFinite(baseScoreRaw) ? baseScoreRaw : 0;
+    if (!candidateId) {
+      continue;
+    }
+    if (candidate.policy_blocked === true) {
+      excluded.push({ candidate_id: candidateId, reason_code: "POLICY_BLOCKED" });
+      continue;
+    }
+    const affinityScore = enabled ? affinityMap.get(candidateId) || 0 : 0;
+    ranked.push({
+      candidate_id: candidateId,
+      score: baseScore + affinityScore * 0.1,
+      base_score: baseScore,
+      affinity_score: affinityScore,
+    });
+  }
+
+  ranked.sort((a, b) => {
+    if (b.score === a.score) {
+      return a.candidate_id.localeCompare(b.candidate_id);
+    }
+    return b.score - a.score;
+  });
+
+  appendAudit("LEARNING_AFFINITY_ROUTE", {
+    enabled,
+    ranked_count: ranked.length,
+    excluded_count: excluded.length,
+  });
+  sendJson(res, 200, {
+    affinity_enabled: enabled,
+    ordered_candidate_ids: ranked.map((item) => item.candidate_id),
+    ranked_candidates: ranked,
+    excluded,
+    no_policy_override: true,
+  });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function captureMeetingSummaryEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const meetingId = isNonEmptyString(body?.meeting_id) ? body.meeting_id.trim() : "";
+  if (!meetingId) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_MEETING_ID",
+        "meeting_capture",
+        "Provide non-empty meeting_id.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (body?.excluded === true) {
+    appendAudit("MEETING_CAPTURE_SKIPPED", {
+      meeting_id: meetingId,
+      reason_code: "EXCLUDED_MEETING",
+    });
+    sendJson(res, 200, {
+      meeting_id: meetingId,
+      processed: false,
+      status: "SKIPPED_EXCLUDED",
+      reason_code: "EXCLUDED_MEETING",
+    });
+    logLine(`POST ${route} -> 200`);
+    return;
+  }
+
+  const transcript = isNonEmptyString(body?.transcript) ? body.transcript.trim() : "";
+  const lines = transcript
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const summary =
+    lines.length > 0 ? lines[0].slice(0, 220) : "Meeting captured with no transcript details.";
+  const actionItems = lines
+    .filter((line) => line.toUpperCase().startsWith("ACTION:"))
+    .map((line) => line.slice(7).trim())
+    .filter(Boolean)
+    .slice(0, 8);
+  appendAudit("MEETING_CAPTURE_PROCESSED", {
+    meeting_id: meetingId,
+    action_items_count: actionItems.length,
+    deal_id: isNonEmptyString(body?.deal_id) ? body.deal_id.trim() : null,
+    task_id: isNonEmptyString(body?.task_id) ? body.task_id.trim() : null,
+  });
+  sendJson(res, 200, {
+    meeting_id: meetingId,
+    processed: true,
+    summary,
+    action_items: actionItems,
+    linkage: {
+      deal_id: isNonEmptyString(body?.deal_id) ? body.deal_id.trim() : null,
+      task_id: isNonEmptyString(body?.task_id) ? body.task_id.trim() : null,
+    },
+  });
+  logLine(`POST ${route} -> 200`);
+}
+
 function appendPatternEvent(event) {
   ensureDirectory(patternsDir);
   fs.appendFileSync(patternsLedgerPath, `${JSON.stringify(event)}\n`, "utf8");
@@ -2167,6 +2384,21 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "POST" && route === "/ops/rate/evaluate") {
     await evaluateRatePolicyEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/learning/modifiers/evaluate") {
+    await evaluateLearningModifiersEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/learning/affinity/route") {
+    await affinityRouteEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/learning/meetings/capture") {
+    await captureMeetingSummaryEndpoint(req, res, route);
     return;
   }
 

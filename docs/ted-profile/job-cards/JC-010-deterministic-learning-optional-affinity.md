@@ -37,6 +37,6 @@ Growth and learning modifiers are deterministic and auditable, while affinity re
 
 ## Proof Evidence (Executed)
 
-- Date: TBD
+- Date: 2026-02-20
 - Proof Script: `scripts/ted-profile/proof_jc010.sh`
-- Result: PENDING
+- Result: PASS
