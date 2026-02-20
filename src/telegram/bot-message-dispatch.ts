@@ -312,6 +312,7 @@ export const dispatchTelegramMessage = async ({
   };
 
   let queuedFinal = false;
+  let dispatchError: unknown;
   try {
     ({ queuedFinal } = await dispatchReplyWithBufferedBlockDispatcher({
       ctx: ctxPayload,
@@ -487,12 +488,15 @@ export const dispatchTelegramMessage = async ({
         onModelSelected,
       },
     }));
+  } catch (err) {
+    dispatchError = err;
   } finally {
     await draftStream?.stop();
   }
   let sentFallback = false;
   try {
     if (
+      !dispatchError &&
       !deliveryState.delivered &&
       (deliveryState.skippedNonSilent > 0 || deliveryState.failedDeliveries > 0)
     ) {
@@ -504,6 +508,9 @@ export const dispatchTelegramMessage = async ({
     }
   } finally {
     await clearDraftPreviewIfNeeded();
+  }
+  if (dispatchError) {
+    throw dispatchError;
   }
 
   const hasFinalResponse = queuedFinal || sentFallback;

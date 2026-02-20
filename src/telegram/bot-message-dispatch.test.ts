@@ -687,6 +687,20 @@ describe("dispatchTelegramMessage draft streaming", () => {
     expect(draftStream.clear).toHaveBeenCalledTimes(1);
   });
 
+  it("clears preview when dispatcher throws before fallback phase", async () => {
+    const draftStream = createDraftStream(999);
+    createTelegramDraftStream.mockReturnValue(draftStream);
+    dispatchReplyWithBufferedBlockDispatcher.mockRejectedValue(new Error("dispatcher exploded"));
+
+    await expect(dispatchWithContext({ context: createContext() })).rejects.toThrow(
+      "dispatcher exploded",
+    );
+
+    expect(draftStream.stop).toHaveBeenCalledTimes(1);
+    expect(draftStream.clear).toHaveBeenCalledTimes(1);
+    expect(deliverReplies).not.toHaveBeenCalled();
+  });
+
   it("supports concurrent dispatches with independent previews", async () => {
     const draftA = createDraftStream(11);
     const draftB = createDraftStream(22);
