@@ -17,12 +17,13 @@ Use the Notion API to create/read/update pages, data sources (databases), and bl
 
 1. Create an integration at https://notion.so/my-integrations
 2. Copy the API key (starts with `ntn_` or `secret_`)
-3. Store it:
+3. Store it persistently using `config.patch` to add it to the `env` section of the configuration:
 
-```bash
-mkdir -p ~/.config/notion
-echo "ntn_your_key_here" > ~/.config/notion/api_key
 ```
+config.patch action with raw: {"env":{"NOTION_API_KEY":"ntn_your_key_here"}}
+```
+
+Alternatively, set the `NOTION_API_KEY` environment variable externally (e.g., Docker `--env`, `.env` file, or CI secrets).
 
 4. Share target pages/databases with your integration (click "..." → "Connect to" → your integration name)
 
@@ -31,7 +32,7 @@ echo "ntn_your_key_here" > ~/.config/notion/api_key
 All requests need:
 
 ```bash
-NOTION_KEY=$(cat ~/.config/notion/api_key)
+NOTION_KEY="$NOTION_API_KEY"
 curl -X GET "https://api.notion.com/v1/..." \
   -H "Authorization: Bearer $NOTION_KEY" \
   -H "Notion-Version: 2025-09-03" \
