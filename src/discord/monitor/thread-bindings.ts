@@ -1,5 +1,5 @@
-import { ChannelType, Routes } from "discord-api-types/v10";
 import path from "node:path";
+import { ChannelType, Routes } from "discord-api-types/v10";
 import { resolveStateDir } from "../../config/paths.js";
 import { logVerbose } from "../../globals.js";
 import { loadJsonFile, saveJsonFile } from "../../infra/json-file.js";
@@ -75,12 +75,43 @@ const THREAD_BINDINGS_SWEEP_INTERVAL_MS = 120_000;
 const DEFAULT_INTRO_TEXT = "Codex session active. Messages here go directly to the agent.";
 const DEFAULT_FAREWELL_TEXT = "Session ended. Messages here will no longer be routed.";
 
-const MANAGERS_BY_ACCOUNT_ID = new Map<string, ThreadBindingManager>();
-const BINDINGS_BY_THREAD_ID = new Map<string, ThreadBindingRecord>();
-const BINDINGS_BY_SESSION_KEY = new Map<string, Set<string>>();
-const PERSIST_BY_ACCOUNT_ID = new Map<string, boolean>();
+type ThreadBindingsGlobalState = {
+  managersByAccountId: Map<string, ThreadBindingManager>;
+  bindingsByThreadId: Map<string, ThreadBindingRecord>;
+  bindingsBySessionKey: Map<string, Set<string>>;
+  persistByAccountId: Map<string, boolean>;
+  loadedBindings: boolean;
+};
 
-let loadedBindings = false;
+// Plugin hooks can load this module via Jiti while core imports it via ESM.
+// Store mutable state on globalThis so both loader paths share one registry.
+const THREAD_BINDINGS_STATE_KEY = "__openclawDiscordThreadBindingsState";
+
+function createThreadBindingsGlobalState(): ThreadBindingsGlobalState {
+  return {
+    managersByAccountId: new Map<string, ThreadBindingManager>(),
+    bindingsByThreadId: new Map<string, ThreadBindingRecord>(),
+    bindingsBySessionKey: new Map<string, Set<string>>(),
+    persistByAccountId: new Map<string, boolean>(),
+    loadedBindings: false,
+  };
+}
+
+function resolveThreadBindingsGlobalState(): ThreadBindingsGlobalState {
+  const runtimeGlobal = globalThis as typeof globalThis & {
+    [THREAD_BINDINGS_STATE_KEY]?: ThreadBindingsGlobalState;
+  };
+  if (!runtimeGlobal[THREAD_BINDINGS_STATE_KEY]) {
+    runtimeGlobal[THREAD_BINDINGS_STATE_KEY] = createThreadBindingsGlobalState();
+  }
+  return runtimeGlobal[THREAD_BINDINGS_STATE_KEY];
+}
+
+const THREAD_BINDINGS_STATE = resolveThreadBindingsGlobalState();
+const MANAGERS_BY_ACCOUNT_ID = THREAD_BINDINGS_STATE.managersByAccountId;
+const BINDINGS_BY_THREAD_ID = THREAD_BINDINGS_STATE.bindingsByThreadId;
+const BINDINGS_BY_SESSION_KEY = THREAD_BINDINGS_STATE.bindingsBySessionKey;
+const PERSIST_BY_ACCOUNT_ID = THREAD_BINDINGS_STATE.persistByAccountId;
 
 function shouldDefaultPersist(): boolean {
   return !(process.env.VITEST || process.env.NODE_ENV === "test");
@@ -226,10 +257,10 @@ function saveBindingsToDisk() {
 }
 
 function ensureBindingsLoaded() {
-  if (loadedBindings) {
+  if (THREAD_BINDINGS_STATE.loadedBindings) {
     return;
   }
-  loadedBindings = true;
+  THREAD_BINDINGS_STATE.loadedBindings = true;
   BINDINGS_BY_THREAD_ID.clear();
   BINDINGS_BY_SESSION_KEY.clear();
 
@@ -897,6 +928,6 @@ export const __testing = {
     BINDINGS_BY_THREAD_ID.clear();
     BINDINGS_BY_SESSION_KEY.clear();
     PERSIST_BY_ACCOUNT_ID.clear();
-    loadedBindings = false;
+    THREAD_BINDINGS_STATE.loadedBindings = false;
   },
 };
