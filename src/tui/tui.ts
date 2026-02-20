@@ -664,6 +664,34 @@ export async function runTui(opts: TuiOptions) {
     abortActive,
   } = sessionActions;
 
+  const {
+    handleCommand,
+    sendMessage,
+    flushQueuedMessage,
+    openModelSelector,
+    openAgentSelector,
+    openSessionSelector,
+  } = createCommandHandlers({
+    client,
+    chatLog,
+    tui,
+    opts,
+    state,
+    deliverDefault,
+    openOverlay,
+    closeOverlay,
+    refreshSessionInfo,
+    applySessionInfoFromPatch,
+    loadHistory,
+    setSession,
+    refreshAgents,
+    abortActive,
+    setActivityStatus,
+    formatSessionKey,
+    noteLocalRunId,
+    forgetLocalRunId,
+  });
+
   const { handleChatEvent, handleAgentEvent } = createEventHandlers({
     chatLog,
     tui,
@@ -674,29 +702,10 @@ export async function runTui(opts: TuiOptions) {
     isLocalRunId,
     forgetLocalRunId,
     clearLocalRunIds,
+    onRunSettled: () => {
+      void flushQueuedMessage();
+    },
   });
-
-  const { handleCommand, sendMessage, openModelSelector, openAgentSelector, openSessionSelector } =
-    createCommandHandlers({
-      client,
-      chatLog,
-      tui,
-      opts,
-      state,
-      deliverDefault,
-      openOverlay,
-      closeOverlay,
-      refreshSessionInfo,
-      applySessionInfoFromPatch,
-      loadHistory,
-      setSession,
-      refreshAgents,
-      abortActive,
-      setActivityStatus,
-      formatSessionKey,
-      noteLocalRunId,
-      forgetLocalRunId,
-    });
 
   const { runLocalShellLine } = createLocalShellRunner({
     chatLog,
