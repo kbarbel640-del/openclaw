@@ -26,6 +26,8 @@ const sessionHookMocks = vi.hoisted(() => ({
   triggerInternalHook: vi.fn(async () => {}),
 }));
 
+type SessionsDeleteResponse = { ok: true; deleted: boolean; key?: string };
+
 vi.mock("../auto-reply/reply/queue.js", async () => {
   const actual = await vi.importActual<typeof import("../auto-reply/reply/queue.js")>(
     "../auto-reply/reply/queue.js",
@@ -396,7 +398,7 @@ describe("gateway server sessions", () => {
     const filesAfterCompact = await fs.readdir(dir);
     expect(filesAfterCompact.some((f) => f.startsWith("sess-main.jsonl.bak."))).toBe(true);
 
-    const deleted = await rpcReq<{ ok: true; deleted: boolean }>(ws, "sessions.delete", {
+    const deleted = await rpcReq<SessionsDeleteResponse>(ws, "sessions.delete", {
       key: "agent:main:discord:group:dev",
     });
     expect(deleted.ok).toBe(true);
@@ -595,7 +597,7 @@ describe("gateway server sessions", () => {
     const mainDelete = await rpcReq(ws, "sessions.delete", { key: "main" });
     expect(mainDelete.ok).toBe(false);
 
-    const deleted = await rpcReq<{ ok: true; deleted: boolean }>(ws, "sessions.delete", {
+    const deleted = await rpcReq<SessionsDeleteResponse>(ws, "sessions.delete", {
       key: "discord:group:dev",
     });
     expect(deleted.ok).toBe(true);
@@ -832,7 +834,7 @@ describe("gateway server sessions", () => {
     expect(patched.ok).toBe(true);
     expect(patched.payload?.key).toBe("agent:main:discord:group:dev");
 
-    const deleted = await rpcReq<{ ok: true; deleted: boolean }>(ws, "sessions.delete", {
+    const deleted = await rpcReq<SessionsDeleteResponse>(ws, "sessions.delete", {
       key: "agent:main:discord:group:dev",
       deleteTranscript: false,
     });
