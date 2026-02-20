@@ -21,6 +21,8 @@ export async function startGatewayMemoryBackend(params: {
       );
       continue;
     }
-    params.log.info?.(`${resolved.backend} memory startup initialization armed for agent "${agentId}"`);
+    params.log.info?.(
+      `${resolved.backend} memory startup initialization armed for agent "${agentId}"`,
+    );
   }
 }

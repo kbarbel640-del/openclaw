@@ -7,7 +7,7 @@ import { resolveStateDir } from "../config/paths.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import type { ResolvedMemoryBackendConfig, ResolvedRemoteConfig } from "./backend-config.js";
 import { buildFileEntry, listMemoryFiles } from "./internal.js";
-import { RemoteVectorStoreClient } from "./remote-client.js";
+import { RemoteVectorStoreClient, extractSearchResultText } from "./remote-client.js";
 import { RemoteManifest } from "./remote-manifest.js";
 import type {
   MemoryEmbeddingProbeResult,
@@ -17,7 +17,7 @@ import type {
   MemorySyncProgressUpdate,
 } from "./types.js";
 
-const log = createSubsystemLogger("memory");
+const log = createSubsystemLogger("memory:remote");
 
 const SUPPORTED_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".html", ".htm"]);
 
@@ -55,7 +55,6 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
   private pendingSync: Promise<void> | null = null;
   private closed = false;
   private fileCount = 0;
-  private chunkCount = 0;
 
   private constructor(params: {
     cfg: OpenClawConfig;
@@ -67,11 +66,7 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
     this.remote = params.remote;
     this.workspaceDir = resolveAgentWorkspaceDir(params.cfg, params.agentId);
     const stateDir = resolveStateDir(process.env, os.homedir);
-    this.manifestPath = path.join(
-      stateDir,
-      "memory",
-      `${params.agentId}-remote-manifest.json`,
-    );
+    this.manifestPath = path.join(stateDir, "memory", `${params.agentId}-remote-manifest.json`);
     this.client = new RemoteVectorStoreClient({
       baseUrl: params.remote.baseUrl,
       apiKey: params.remote.apiKey,
@@ -98,6 +93,7 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
           log.warn(`remote memory sync failed: ${String(err)}`);
         });
       }, this.remote.syncIntervalMs);
+      this.syncTimer.unref();
     }
   }
 
@@ -153,13 +149,14 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
 
     const mapped: MemorySearchResult[] = [];
     for (const hit of results) {
-      const resolved = await this.resolveLineNumbers(hit.filename, hit.content);
+      const text = extractSearchResultText(hit.content);
+      const resolved = await this.resolveLineNumbers(hit.filename, text);
       mapped.push({
         path: resolved.relPath,
         startLine: resolved.startLine,
         endLine: resolved.endLine,
         score: hit.score,
-        snippet: hit.content,
+        snippet: text,
         source: "memory",
       });
     }
@@ -215,7 +212,7 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
       model: undefined,
       requestedProvider: "remote",
       files: this.fileCount,
-      chunks: this.chunkCount,
+      chunks: 0,
       dirty: false,
       workspaceDir: this.workspaceDir,
       dbPath: this.manifestPath,
@@ -242,9 +239,7 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
 
   async probeEmbeddingAvailability(): Promise<MemoryEmbeddingProbeResult> {
     const ok = await this.client.healthCheck();
-    return ok
-      ? { ok: true }
-      : { ok: false, error: "remote vector store unreachable" };
+    return ok ? { ok: true } : { ok: false, error: "remote vector store unreachable" };
   }
 
   async probeVectorAvailability(): Promise<boolean> {
@@ -263,15 +258,15 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
     await this.pendingSync?.catch(() => undefined);
   }
 
-  private async runSync(params: {
-    reason: string;
-    force?: boolean;
-  }): Promise<void> {
+  private async runSync(params: { reason: string; force?: boolean }): Promise<void> {
     if (this.closed || !this.vectorStoreId) {
       return;
     }
-    if (this.pendingSync && !params.force) {
-      return this.pendingSync;
+    if (this.pendingSync) {
+      if (!params.force) {
+        return this.pendingSync;
+      }
+      await this.pendingSync.catch(() => undefined);
     }
 
     const run = async () => {
@@ -286,6 +281,9 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
         }
 
         const entry = await buildFileEntry(absPath, this.workspaceDir);
+        if (!entry) {
+          continue;
+        }
         activeRelPaths.add(entry.path);
 
         const existing = this.manifest.getEntry(entry.path);
@@ -316,9 +314,7 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
         }
       }
 
-      const staleEntries = this.manifest
-        .getAllEntries()
-        .filter((e) => !activeRelPaths.has(e.path));
+      const staleEntries = this.manifest.getAllEntries().filter((e) => !activeRelPaths.has(e.path));
       for (const stale of staleEntries) {
         try {
           await this.client.detachFile(this.vectorStoreId!, stale.fileId);
@@ -363,7 +359,7 @@ export class RemoteVectorStoreManager implements MemorySearchManager {
     try {
       const absPath = path.resolve(this.workspaceDir, relPath);
       const content = await fs.readFile(absPath, "utf-8");
-      const searchText = chunkContent.trim().split("\n")[0]!;
+      const searchText = chunkContent.trim().split("\n")[0];
       const idx = content.indexOf(searchText);
       if (idx >= 0) {
         const before = content.slice(0, idx);

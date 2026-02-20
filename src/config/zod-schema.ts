@@ -88,7 +88,7 @@ const MemoryQmdSchema = z
 const MemoryRemoteSchema = z
   .object({
     baseUrl: z.string().optional(),
-    apiKey: z.string().optional(),
+    apiKey: z.string().optional().register(sensitive),
     headers: z.record(z.string(), z.string()).optional(),
     vectorStoreId: z.string().optional(),
     vectorStoreName: z.string().optional(),
@@ -100,9 +100,7 @@ const MemoryRemoteSchema = z
 
 const MemorySchema = z
   .object({
-    backend: z
-      .union([z.literal("builtin"), z.literal("qmd"), z.literal("remote")])
-      .optional(),
+    backend: z.union([z.literal("builtin"), z.literal("qmd"), z.literal("remote")]).optional(),
     citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
     qmd: MemoryQmdSchema.optional(),
     remote: MemoryRemoteSchema.optional(),

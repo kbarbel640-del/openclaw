@@ -52,6 +52,7 @@ export async function getMemorySearchManager(params: {
               const { MemoryIndexManager } = await import("./manager.js");
               return await MemoryIndexManager.get(params);
             },
+            label: "remote",
           },
           () => REMOTE_MANAGER_CACHE.delete(cacheKey),
         );
@@ -124,6 +125,7 @@ class FallbackMemoryManager implements MemorySearchManager {
     private readonly deps: {
       primary: MemorySearchManager;
       fallbackFactory: () => Promise<MemorySearchManager | null>;
+      label?: string;
     },
     private readonly onClose?: () => void,
   ) {}
@@ -138,7 +140,9 @@ class FallbackMemoryManager implements MemorySearchManager {
       } catch (err) {
         this.primaryFailed = true;
         this.lastError = err instanceof Error ? err.message : String(err);
-        log.warn(`qmd memory failed; switching to builtin index: ${this.lastError}`);
+        log.warn(
+          `${this.deps.label ?? "primary"} memory failed; switching to builtin index: ${this.lastError}`,
+        );
         await this.deps.primary.close?.().catch(() => {});
         // Evict the failed wrapper so the next request can retry QMD with a fresh manager.
         this.evictCacheEntry();
@@ -167,7 +171,7 @@ class FallbackMemoryManager implements MemorySearchManager {
       return this.deps.primary.status();
     }
     const fallbackStatus = this.fallback?.status();
-    const fallbackInfo = { from: "qmd", reason: this.lastError ?? "unknown" };
+    const fallbackInfo = { from: this.deps.label ?? "qmd", reason: this.lastError ?? "unknown" };
     if (fallbackStatus) {
       const custom = fallbackStatus.custom ?? {};
       return {

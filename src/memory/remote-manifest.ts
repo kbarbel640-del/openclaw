@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 
-const log = createSubsystemLogger("memory");
+const log = createSubsystemLogger("memory:remote");
 
 export type ManifestFileEntry = {
   path: string;
