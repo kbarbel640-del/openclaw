@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { OpenClawConfig } from "../../config/config.js";
 import type { DoltRecord, DoltStore } from "./store/types.js";
 import {
   enforceDoltBindleOldestFirstEviction,
@@ -27,6 +28,7 @@ export type DoltRollupParams = {
   model?: string;
   providerOverride?: string;
   modelOverride?: string;
+  config?: OpenClawConfig;
   bindleEvictionTargetTokens?: number;
   summarize?: typeof summarizeDoltRollup;
 };
@@ -91,6 +93,7 @@ export async function executeDoltRollup(params: DoltRollupParams): Promise<DoltR
     model: params.model,
     providerOverride: params.providerOverride,
     modelOverride: params.modelOverride,
+    config: params.config,
   });
 
   const pointer =

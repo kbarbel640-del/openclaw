@@ -305,6 +305,8 @@ export const FIELD_LABELS: Record<string, string> = {
   "agents.list[].identity.avatar": "Agent Avatar",
   "agents.list[].contextEngine": "Agent Context Engine",
   "discovery.mdns.mode": "mDNS Discovery Mode",
+  "contextEngines.dolt.summarizerProvider": "Dolt Summarizer Provider",
+  "contextEngines.dolt.summarizerModel": "Dolt Summarizer Model",
   "plugins.enabled": "Enable Plugins",
   "plugins.allow": "Plugin Allowlist",
   "plugins.deny": "Plugin Denylist",

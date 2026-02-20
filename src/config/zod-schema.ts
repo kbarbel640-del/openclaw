@@ -641,6 +641,18 @@ export const OpenClawSchema = z
       })
       .strict()
       .optional(),
+    contextEngines: z
+      .object({
+        dolt: z
+          .object({
+            summarizerProvider: z.string().optional(),
+            summarizerModel: z.string().optional(),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((cfg, ctx) => {

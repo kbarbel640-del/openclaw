@@ -269,6 +269,10 @@ export const FIELD_HELP: Record<string, string> = {
     "Minimum appended bytes before session transcripts trigger reindex (default: 100000).",
   "agents.defaults.memorySearch.sync.sessions.deltaMessages":
     "Minimum appended JSONL lines before session transcripts trigger reindex (default: 50).",
+  "contextEngines.dolt.summarizerProvider":
+    'Provider for the Dolt summarizer model (e.g. "anthropic"). Falls back to the system default provider.',
+  "contextEngines.dolt.summarizerModel":
+    'Model id for the Dolt summarizer (e.g. "claude-sonnet-4-5-20241022"). Falls back to the system default model.',
   "plugins.enabled": "Enable plugin/extension loading (default: true).",
   "plugins.allow": "Optional allowlist of plugin ids; when set, only listed plugins load.",
   "plugins.deny": "Optional denylist of plugin ids; deny wins over allowlist.",

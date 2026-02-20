@@ -74,6 +74,31 @@ describe("agents contextEngine selection", () => {
   });
 });
 
+describe("contextEngines.dolt", () => {
+  it("accepts dolt summarizer model settings", () => {
+    const result = OpenClawSchema.safeParse({
+      contextEngines: {
+        dolt: {
+          summarizerProvider: "anthropic",
+          summarizerModel: "claude-sonnet-4-5-20241022",
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects unknown fields inside contextEngines.dolt", () => {
+    const result = OpenClawSchema.safeParse({
+      contextEngines: {
+        dolt: {
+          unknownField: "bad",
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("ui.seamColor", () => {
   it("accepts hex colors", () => {
     const res = validateConfigObject({ ui: { seamColor: "#FF4500" } });

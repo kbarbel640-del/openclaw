@@ -101,15 +101,26 @@ const PROMPT_TEMPLATE_MAP: Record<DoltRollupPromptTemplateId, DoltSummaryPromptT
 
 /**
  * Resolve which provider/model pair the Dolt summarizer will use.
- * This matches the legacy compaction fallback pattern:
- * explicit override -> provided pair -> defaults.
+ *
+ * Resolution order (first non-empty wins):
+ *   1. explicit override (providerOverride / modelOverride)
+ *   2. caller-supplied pair (provider / model)
+ *   3. contextEngines.dolt config (summarizerProvider / summarizerModel)
+ *   4. system defaults (DEFAULT_PROVIDER / DEFAULT_MODEL)
  */
 export function resolveDoltSummaryModelSelection(
-  params: Pick<DoltSummarizeParams, "provider" | "model" | "providerOverride" | "modelOverride">,
+  params: Pick<
+    DoltSummarizeParams,
+    "provider" | "model" | "providerOverride" | "modelOverride" | "config"
+  >,
 ): DoltSummaryModelSelection {
+  const configProvider = params.config?.contextEngines?.dolt?.summarizerProvider;
+  const configModel = params.config?.contextEngines?.dolt?.summarizerModel;
   const provider =
-    (params.providerOverride ?? params.provider ?? DEFAULT_PROVIDER).trim() || DEFAULT_PROVIDER;
-  const modelId = (params.modelOverride ?? params.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+    (params.providerOverride ?? params.provider ?? configProvider ?? DEFAULT_PROVIDER).trim() ||
+    DEFAULT_PROVIDER;
+  const modelId =
+    (params.modelOverride ?? params.model ?? configModel ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
   return { provider, modelId };
 }
 

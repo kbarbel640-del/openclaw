@@ -126,6 +126,7 @@ export async function finalizeDoltReset(
       model: params.model,
       providerOverride: params.providerOverride,
       modelOverride: params.modelOverride,
+      config: params.config,
       summarize,
     });
     turnToLeafRollups += 1;
@@ -159,6 +160,7 @@ export async function finalizeDoltReset(
       model: params.model,
       providerOverride: params.providerOverride,
       modelOverride: params.modelOverride,
+      config: params.config,
       summarize,
     });
     leafToBindleRollups += 1;

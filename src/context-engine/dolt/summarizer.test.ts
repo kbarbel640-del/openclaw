@@ -46,6 +46,64 @@ describe("resolveDoltSummaryModelSelection", () => {
       modelId: "claude-sonnet-4-5",
     });
   });
+
+  it("reads contextEngines.dolt config when no explicit params are supplied", () => {
+    expect(
+      resolveDoltSummaryModelSelection({
+        config: {
+          contextEngines: {
+            dolt: {
+              summarizerProvider: "anthropic",
+              summarizerModel: "claude-sonnet-4-5-20241022",
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      provider: "anthropic",
+      modelId: "claude-sonnet-4-5-20241022",
+    });
+  });
+
+  it("explicit overrides take precedence over config", () => {
+    expect(
+      resolveDoltSummaryModelSelection({
+        providerOverride: "openai",
+        modelOverride: "gpt-4.1",
+        config: {
+          contextEngines: {
+            dolt: {
+              summarizerProvider: "anthropic",
+              summarizerModel: "claude-sonnet-4-5-20241022",
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      provider: "openai",
+      modelId: "gpt-4.1",
+    });
+  });
+
+  it("caller-supplied provider/model take precedence over config", () => {
+    expect(
+      resolveDoltSummaryModelSelection({
+        provider: "google",
+        model: "gemini-2.5-pro",
+        config: {
+          contextEngines: {
+            dolt: {
+              summarizerProvider: "anthropic",
+              summarizerModel: "claude-sonnet-4-5-20241022",
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      provider: "google",
+      modelId: "gemini-2.5-pro",
+    });
+  });
 });
 
 describe("summarizeDoltRollup", () => {
