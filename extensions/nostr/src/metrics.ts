@@ -20,7 +20,8 @@ export type EventMetricName =
   | "event.rejected.oversized_ciphertext"
   | "event.rejected.oversized_plaintext"
   | "event.rejected.decrypt_failed"
-  | "event.rejected.self_message";
+  | "event.rejected.self_message"
+  | "event.rejected.not_targeted";
 
 export type RelayMetricName =
   | "relay.connect"
@@ -108,6 +109,7 @@ export interface MetricsSnapshot {
     oversizedPlaintext: number;
     decryptFailed: number;
     selfMessage: number;
+    notTargeted: number;
   };
 
   /** Relay stats by URL */
@@ -170,6 +172,7 @@ export function createMetrics(onMetric?: OnMetricCallback): NostrMetrics {
     oversizedPlaintext: 0,
     decryptFailed: 0,
     selfMessage: 0,
+    notTargeted: 0,
   };
 
   // Per-relay stats
@@ -276,6 +279,9 @@ export function createMetrics(onMetric?: OnMetricCallback): NostrMetrics {
         break;
       case "event.rejected.self_message":
         eventsRejected.selfMessage += value;
+        break;
+      case "event.rejected.not_targeted":
+        eventsRejected.notTargeted += value;
         break;
 
       // Relay metrics
@@ -410,6 +416,7 @@ export function createMetrics(onMetric?: OnMetricCallback): NostrMetrics {
       oversizedPlaintext: 0,
       decryptFailed: 0,
       selfMessage: 0,
+      notTargeted: 0,
     });
     relays.clear();
     rateLimiting.perSenderHits = 0;
@@ -442,6 +449,7 @@ export function createNoopMetrics(): NostrMetrics {
       oversizedPlaintext: 0,
       decryptFailed: 0,
       selfMessage: 0,
+      notTargeted: 0,
     },
     relays: {},
     rateLimiting: { perSenderHits: 0, globalHits: 0 },
