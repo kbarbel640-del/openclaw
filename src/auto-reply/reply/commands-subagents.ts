@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
+import type { SubagentRunRecord } from "../../agents/subagent-registry.js";
+import type { CommandHandler } from "./commands-types.js";
 import { AGENT_LANE_SUBAGENT } from "../../agents/lanes.js";
 import { abortEmbeddedPiRun } from "../../agents/pi-embedded.js";
-import type { SubagentRunRecord } from "../../agents/subagent-registry.js";
 import {
   clearSubagentRunSteerRestart,
   listSubagentRunsForRequester,
@@ -23,6 +24,11 @@ import {
   resolveStorePath,
   updateSessionStore,
 } from "../../config/sessions.js";
+import {
+  getThreadBindingManager,
+  resolveThreadBindingThreadName,
+} from "../../discord/monitor/thread-bindings.js";
+import { parseDiscordTarget } from "../../discord/targets.js";
 import { callGateway } from "../../gateway/call.js";
 import { logVerbose } from "../../globals.js";
 import { formatTimeAgo } from "../../infra/format-time/format-relative.ts";
@@ -35,7 +41,6 @@ import {
 } from "../../shared/subagents-format.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
 import { stopSubagentsForRequester } from "./abort.js";
-import type { CommandHandler } from "./commands-types.js";
 import { clearSessionQueues } from "./queue.js";
 import {
   formatRunLabel,
@@ -49,7 +54,22 @@ const COMMAND = "/subagents";
 const COMMAND_KILL = "/kill";
 const COMMAND_STEER = "/steer";
 const COMMAND_TELL = "/tell";
-const ACTIONS = new Set(["list", "kill", "log", "send", "steer", "info", "spawn", "help"]);
+const COMMAND_FOCUS = "/focus";
+const COMMAND_UNFOCUS = "/unfocus";
+const COMMAND_AGENTS = "/agents";
+const ACTIONS = new Set([
+  "list",
+  "kill",
+  "log",
+  "send",
+  "steer",
+  "info",
+  "spawn",
+  "focus",
+  "unfocus",
+  "agents",
+  "help",
+]);
 const RECENT_WINDOW_MINUTES = 30;
 const SUBAGENT_TASK_PREVIEW_MAX = 110;
 const STEER_ABORT_SETTLE_TIMEOUT_MS = 5_000;
@@ -170,6 +190,105 @@ function resolveSubagentTarget(
   });
 }
 
+type FocusTargetResolution = {
+  targetKind: "subagent" | "acp";
+  targetSessionKey: string;
+  agentId: string;
+  label?: string;
+};
+
+const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isDiscordSurface(params: Parameters<CommandHandler>[0]): boolean {
+  const channel =
+    params.ctx.OriginatingChannel ??
+    params.command.channel ??
+    params.ctx.Surface ??
+    params.ctx.Provider;
+  return (
+    String(channel ?? "")
+      .trim()
+      .toLowerCase() === "discord"
+  );
+}
+
+function resolveDiscordAccountId(params: Parameters<CommandHandler>[0]): string {
+  const accountId = typeof params.ctx.AccountId === "string" ? params.ctx.AccountId.trim() : "";
+  return accountId || "default";
+}
+
+function resolveDiscordChannelIdForFocus(
+  params: Parameters<CommandHandler>[0],
+): string | undefined {
+  const toCandidates = [
+    typeof params.ctx.OriginatingTo === "string" ? params.ctx.OriginatingTo.trim() : "",
+    typeof params.command.to === "string" ? params.command.to.trim() : "",
+    typeof params.ctx.To === "string" ? params.ctx.To.trim() : "",
+  ].filter(Boolean);
+  for (const candidate of toCandidates) {
+    try {
+      const target = parseDiscordTarget(candidate, { defaultKind: "channel" });
+      if (target?.kind === "channel" && target.id) {
+        return target.id;
+      }
+    } catch {
+      // Ignore parse failures and try the next candidate.
+    }
+  }
+  return undefined;
+}
+
+async function resolveFocusTargetSession(params: {
+  runs: SubagentRunRecord[];
+  token: string;
+}): Promise<FocusTargetResolution | null> {
+  const subagentMatch = resolveSubagentTarget(params.runs, params.token);
+  if (subagentMatch.entry) {
+    const key = subagentMatch.entry.childSessionKey;
+    const parsed = parseAgentSessionKey(key);
+    return {
+      targetKind: "subagent",
+      targetSessionKey: key,
+      agentId: parsed?.agentId ?? "main",
+      label: formatRunLabel(subagentMatch.entry),
+    };
+  }
+
+  const token = params.token.trim();
+  if (!token) {
+    return null;
+  }
+  const attempts: Array<Record<string, string>> = [];
+  attempts.push({ key: token });
+  if (SESSION_ID_RE.test(token)) {
+    attempts.push({ sessionId: token });
+  }
+  attempts.push({ label: token });
+
+  for (const attempt of attempts) {
+    try {
+      const resolved = await callGateway<{ key?: string }>({
+        method: "sessions.resolve",
+        params: attempt,
+      });
+      const key = typeof resolved?.key === "string" ? resolved.key.trim() : "";
+      if (!key) {
+        continue;
+      }
+      const parsed = parseAgentSessionKey(key);
+      return {
+        targetKind: key.includes(":subagent:") ? "subagent" : "acp",
+        targetSessionKey: key,
+        agentId: parsed?.agentId ?? "main",
+        label: token,
+      };
+    } catch {
+      // Try the next resolution strategy.
+    }
+  }
+  return null;
+}
+
 function buildSubagentsHelp() {
   return [
     "Subagents",
@@ -181,6 +300,9 @@ function buildSubagentsHelp() {
     "- /subagents send <id|#> <message>",
     "- /subagents steer <id|#> <message>",
     "- /subagents spawn <agentId> <task> [--model <model>] [--thinking <level>]",
+    "- /focus <subagent-label|session-key|session-id|session-label>",
+    "- /unfocus",
+    "- /agents",
     "- /kill <id|#|all>",
     "- /steer <id|#> <message>",
     "- /tell <id|#> <message>",
@@ -246,7 +368,13 @@ export const handleSubagentsCommand: CommandHandler = async (params, allowTextCo
         ? COMMAND_STEER
         : normalized.startsWith(COMMAND_TELL)
           ? COMMAND_TELL
-          : null;
+          : normalized.startsWith(COMMAND_FOCUS)
+            ? COMMAND_FOCUS
+            : normalized.startsWith(COMMAND_UNFOCUS)
+              ? COMMAND_UNFOCUS
+              : normalized.startsWith(COMMAND_AGENTS)
+                ? COMMAND_AGENTS
+                : null;
   if (!handledPrefix) {
     return null;
   }
@@ -269,6 +397,12 @@ export const handleSubagentsCommand: CommandHandler = async (params, allowTextCo
     restTokens.splice(0, 1);
   } else if (handledPrefix === COMMAND_KILL) {
     action = "kill";
+  } else if (handledPrefix === COMMAND_FOCUS) {
+    action = "focus";
+  } else if (handledPrefix === COMMAND_UNFOCUS) {
+    action = "unfocus";
+  } else if (handledPrefix === COMMAND_AGENTS) {
+    action = "agents";
   } else {
     action = "steer";
   }
@@ -283,6 +417,165 @@ export const handleSubagentsCommand: CommandHandler = async (params, allowTextCo
 
   if (action === "help") {
     return { shouldContinue: false, reply: { text: buildSubagentsHelp() } };
+  }
+
+  if (action === "agents") {
+    const isDiscord = isDiscordSurface(params);
+    const accountId = isDiscord ? resolveDiscordAccountId(params) : undefined;
+    const threadBindings = accountId ? getThreadBindingManager(accountId) : null;
+    const active = sortSubagentRuns(runs).filter((entry) => !entry.endedAt);
+    const lines = ["agents:", "-----"];
+    if (active.length === 0) {
+      lines.push("(none)");
+    } else {
+      let index = 1;
+      for (const entry of active) {
+        const threadBinding = threadBindings?.listBySessionKey(entry.childSessionKey)[0];
+        const bindingText = threadBinding
+          ? `thread:${threadBinding.threadId}`
+          : isDiscord
+            ? "unbound"
+            : "bindings available on discord";
+        lines.push(`${index}. ${formatRunLabel(entry)} (${bindingText})`);
+        index += 1;
+      }
+    }
+    if (threadBindings) {
+      const acpBindings = threadBindings
+        .listBindings()
+        .filter((entry) => entry.targetKind === "acp");
+      if (acpBindings.length > 0) {
+        lines.push("", "acp/session bindings:", "-----");
+        for (const binding of acpBindings) {
+          lines.push(
+            `- ${binding.label ?? binding.targetSessionKey} (thread:${binding.threadId}, session:${binding.targetSessionKey})`,
+          );
+        }
+      }
+    }
+    return { shouldContinue: false, reply: { text: lines.join("\n") } };
+  }
+
+  if (action === "focus") {
+    if (!isDiscordSurface(params)) {
+      return {
+        shouldContinue: false,
+        reply: { text: "⚠️ /focus is only available on Discord." },
+      };
+    }
+    const token = restTokens.join(" ").trim();
+    if (!token) {
+      return {
+        shouldContinue: false,
+        reply: { text: "Usage: /focus <subagent-label|session-key|session-id|session-label>" },
+      };
+    }
+    const accountId = resolveDiscordAccountId(params);
+    const threadBindings = getThreadBindingManager(accountId);
+    if (!threadBindings) {
+      return {
+        shouldContinue: false,
+        reply: { text: "⚠️ Discord thread bindings are unavailable for this account." },
+      };
+    }
+    const focusTarget = await resolveFocusTargetSession({ runs, token });
+    if (!focusTarget) {
+      return {
+        shouldContinue: false,
+        reply: { text: `⚠️ Unable to resolve focus target: ${token}` },
+      };
+    }
+    const currentThreadId =
+      params.ctx.MessageThreadId != null ? String(params.ctx.MessageThreadId).trim() : "";
+    const parentChannelId = currentThreadId ? undefined : resolveDiscordChannelIdForFocus(params);
+    if (!currentThreadId && !parentChannelId) {
+      return {
+        shouldContinue: false,
+        reply: { text: "⚠️ Could not resolve a Discord channel for /focus." },
+      };
+    }
+    const label = focusTarget.label || token;
+    const binding = await threadBindings.bindTarget({
+      threadId: currentThreadId || undefined,
+      channelId: parentChannelId,
+      createThread: !currentThreadId,
+      threadName: resolveThreadBindingThreadName({
+        agentId: focusTarget.agentId,
+        label,
+      }),
+      targetKind: focusTarget.targetKind,
+      targetSessionKey: focusTarget.targetSessionKey,
+      agentId: focusTarget.agentId,
+      label,
+      boundBy: params.command.senderId || "unknown",
+      introText: "Codex session active. Messages here go directly to the agent.",
+    });
+    if (!binding) {
+      return {
+        shouldContinue: false,
+        reply: { text: "⚠️ Failed to bind a Discord thread to the target session." },
+      };
+    }
+    const actionText = currentThreadId
+      ? `bound this thread to ${binding.targetSessionKey}`
+      : `created thread ${binding.threadId} and bound it to ${binding.targetSessionKey}`;
+    return {
+      shouldContinue: false,
+      reply: {
+        text: `✅ ${actionText} (${binding.targetKind}).`,
+      },
+    };
+  }
+
+  if (action === "unfocus") {
+    if (!isDiscordSurface(params)) {
+      return {
+        shouldContinue: false,
+        reply: { text: "⚠️ /unfocus is only available on Discord." },
+      };
+    }
+    const threadId = params.ctx.MessageThreadId != null ? String(params.ctx.MessageThreadId) : "";
+    if (!threadId.trim()) {
+      return {
+        shouldContinue: false,
+        reply: { text: "⚠️ /unfocus must be run inside a Discord thread." },
+      };
+    }
+    const threadBindings = getThreadBindingManager(resolveDiscordAccountId(params));
+    if (!threadBindings) {
+      return {
+        shouldContinue: false,
+        reply: { text: "⚠️ Discord thread bindings are unavailable for this account." },
+      };
+    }
+    const binding = threadBindings.getByThreadId(threadId);
+    if (!binding) {
+      return {
+        shouldContinue: false,
+        reply: { text: "ℹ️ This thread is not currently focused." },
+      };
+    }
+    const senderId = params.command.senderId?.trim() || "";
+    if (
+      binding.boundBy &&
+      binding.boundBy !== "system" &&
+      senderId &&
+      senderId !== binding.boundBy
+    ) {
+      return {
+        shouldContinue: false,
+        reply: { text: `⚠️ Only ${binding.boundBy} can unfocus this thread.` },
+      };
+    }
+    threadBindings.unbindThread({
+      threadId,
+      reason: "manual",
+      sendFarewell: true,
+    });
+    return {
+      shouldContinue: false,
+      reply: { text: "✅ Thread unfocused." },
+    };
   }
 
   if (action === "list") {

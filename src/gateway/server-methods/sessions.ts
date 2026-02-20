@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import type { GatewayClient, GatewayRequestHandlers, RespondFn } from "./types.js";
 import { resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { abortEmbeddedPiRun, waitForEmbeddedPiRunEnd } from "../../agents/pi-embedded.js";
 import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
@@ -12,6 +13,7 @@ import {
   type SessionEntry,
   updateSessionStore,
 } from "../../config/sessions.js";
+import { unbindThreadBindingsBySessionKey } from "../../discord/monitor/thread-bindings.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-key.js";
 import {
@@ -42,7 +44,6 @@ import {
 } from "../session-utils.js";
 import { applySessionsPatchToStore } from "../sessions-patch.js";
 import { resolveSessionKeyFromResolveParams } from "../sessions-resolve.js";
-import type { GatewayClient, GatewayRequestHandlers, RespondFn } from "./types.js";
 import { assertValidParams } from "./validation.js";
 
 function requireSessionKey(key: unknown, respond: RespondFn): string | null {
@@ -367,6 +368,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       agentId: target.agentId,
       reason: "reset",
     });
+    unbindThreadBindingsBySessionKey({
+      targetSessionKey: target.canonicalKey ?? key,
+      targetKind: "acp",
+      reason: "session-reset",
+      sendFarewell: true,
+    });
     respond(true, { ok: true, key: target.canonicalKey, entry: next }, undefined);
   },
   "sessions.delete": async ({ params, respond, client, isWebchatConnect }) => {
@@ -419,6 +426,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
           reason: "deleted",
         })
       : [];
+    unbindThreadBindingsBySessionKey({
+      targetSessionKey: target.canonicalKey ?? key,
+      targetKind: "acp",
+      reason: "session-delete",
+      sendFarewell: true,
+    });
 
     respond(true, { ok: true, key: target.canonicalKey, deleted: existed, archived }, undefined);
   },

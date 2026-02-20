@@ -1,11 +1,11 @@
-import { listChannelDocks } from "../channels/dock.js";
-import { getActivePluginRegistry } from "../plugins/runtime.js";
-import { COMMAND_ARG_FORMATTERS } from "./commands-args.js";
 import type {
   ChatCommandDefinition,
   CommandCategory,
   CommandScope,
 } from "./commands-registry.types.js";
+import { listChannelDocks } from "../channels/dock.js";
+import { getActivePluginRegistry } from "../plugins/runtime.js";
+import { COMMAND_ARG_FORMATTERS } from "./commands-args.js";
 import { listThinkingLevels } from "./thinking.js";
 
 type DefineChatCommandInput = {
@@ -288,6 +288,35 @@ function buildChatCommands(): ChatCommandDefinition[] {
         },
       ],
       argsMenu: "auto",
+    }),
+    defineChatCommand({
+      key: "focus",
+      nativeName: "focus",
+      description: "Bind this Discord thread (or a new one) to a session target.",
+      textAlias: "/focus",
+      category: "management",
+      args: [
+        {
+          name: "target",
+          description: "Subagent label/index or session key/id/label",
+          type: "string",
+          captureRemaining: true,
+        },
+      ],
+    }),
+    defineChatCommand({
+      key: "unfocus",
+      nativeName: "unfocus",
+      description: "Remove the current Discord thread binding.",
+      textAlias: "/unfocus",
+      category: "management",
+    }),
+    defineChatCommand({
+      key: "agents",
+      nativeName: "agents",
+      description: "List thread-bound agents for this session.",
+      textAlias: "/agents",
+      category: "management",
     }),
     defineChatCommand({
       key: "kill",

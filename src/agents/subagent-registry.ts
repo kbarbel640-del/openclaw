@@ -1,4 +1,5 @@
 import { loadConfig } from "../config/config.js";
+import { unbindThreadBindingsBySessionKey } from "../discord/monitor/thread-bindings.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
 import { defaultRuntime } from "../runtime.js";
@@ -306,6 +307,13 @@ function ensureListener() {
       entry.outcome = { status: "ok" };
     }
     persistSubagentRuns();
+    unbindThreadBindingsBySessionKey({
+      targetSessionKey: entry.childSessionKey,
+      accountId: entry.requesterOrigin?.accountId,
+      targetKind: "subagent",
+      reason: phase === "error" ? "subagent-error" : "subagent-complete",
+      sendFarewell: true,
+    });
 
     if (suppressAnnounceForSteerRestart(entry)) {
       return;
@@ -598,6 +606,13 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
     if (mutated) {
       persistSubagentRuns();
     }
+    unbindThreadBindingsBySessionKey({
+      targetSessionKey: entry.childSessionKey,
+      accountId: entry.requesterOrigin?.accountId,
+      targetKind: "subagent",
+      reason: wait.status === "error" ? "subagent-error" : "subagent-complete",
+      sendFarewell: true,
+    });
     if (suppressAnnounceForSteerRestart(entry)) {
       return;
     }
@@ -734,6 +749,7 @@ export function markSubagentRunTerminated(params: {
   const now = Date.now();
   const reason = params.reason?.trim() || "killed";
   let updated = 0;
+  const childSessionKeys = new Set<string>();
   for (const runId of runIds) {
     const entry = subagentRuns.get(runId);
     if (!entry) {
@@ -747,10 +763,19 @@ export function markSubagentRunTerminated(params: {
     entry.cleanupHandled = true;
     entry.cleanupCompletedAt = now;
     entry.suppressAnnounceReason = "killed";
+    childSessionKeys.add(entry.childSessionKey);
     updated += 1;
   }
   if (updated > 0) {
     persistSubagentRuns();
+    for (const childSessionKey of childSessionKeys) {
+      unbindThreadBindingsBySessionKey({
+        targetSessionKey: childSessionKey,
+        targetKind: "subagent",
+        reason: "subagent-killed",
+        sendFarewell: true,
+      });
+    }
   }
   return updated;
 }
