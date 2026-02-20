@@ -106,6 +106,28 @@ describe("startTelegramWebhook", () => {
     abort.abort();
   });
 
+  it("server stays listening after startTelegramWebhook resolves (regression guard for #21822)", async () => {
+    // The channel manager bug: startTelegramWebhook used to make monitorTelegramProvider
+    // return immediately after listen, causing auto-restart → EADDRINUSE on re-bind.
+    // Fix: monitor.ts now awaits server.once("close"). This test verifies the server
+    // is still listening (accepting requests) after startTelegramWebhook resolves.
+    const abort = new AbortController();
+    const { server } = await startTelegramWebhook({
+      token: "tok",
+      secret: "secret",
+      port: 0,
+      abortSignal: abort.signal,
+    });
+
+    // Server must still be listening after the function returns.
+    expect(server.listening).toBe(true);
+
+    // Abort shuts it down.
+    abort.abort();
+    await new Promise<void>((resolve) => server.once("close", resolve));
+    expect(server.listening).toBe(false);
+  });
+
   it("rejects startup when webhook secret is missing", async () => {
     await expect(
       startTelegramWebhook({

@@ -152,7 +152,12 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
     });
 
     if (opts.useWebhook) {
-      await startTelegramWebhook({
+      // startTelegramWebhook returns as soon as the HTTP server starts listening.
+      // We must await the server's "close" event to keep monitorTelegramProvider
+      // pending for the server's lifetime. Without this, the channel manager
+      // misreads the immediate return as "provider exited" and auto-restarts,
+      // which tries to re-bind the same port and crashes with EADDRINUSE. (#21822)
+      const { server } = await startTelegramWebhook({
         token,
         accountId: account.accountId,
         config: cfg,
@@ -165,6 +170,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         abortSignal: opts.abortSignal,
         publicUrl: opts.webhookUrl,
       });
+      await new Promise<void>((resolve) => server.once("close", resolve));
       return;
     }
 
