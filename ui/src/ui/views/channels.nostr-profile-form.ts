@@ -5,6 +5,7 @@
  */
 
 import { html, nothing, type TemplateResult } from "lit";
+import { t } from "../../i18n/index.ts";
 import type { NostrProfile as NostrProfileType } from "../types.ts";
 
 // ============================================================================
@@ -247,7 +248,7 @@ export function renderNostrProfileForm(params: {
           @click=${callbacks.onSave}
           ?disabled=${state.saving || !isDirty}
         >
-          ${state.saving ? "Saving..." : "Save & Publish"}
+          ${state.saving ? t("common.actions.saving") : t("common.actions.savePublish")}
         </button>
 
         <button
@@ -270,7 +271,7 @@ export function renderNostrProfileForm(params: {
           @click=${callbacks.onCancel}
           ?disabled=${state.saving}
         >
-          Cancel
+          ${t("common.actions.cancel")}
         </button>
       </div>
 

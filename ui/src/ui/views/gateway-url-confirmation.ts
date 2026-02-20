@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import type { AppViewState } from "../app-view-state.ts";
 
 export function renderGatewayUrlConfirmation(state: AppViewState) {
@@ -31,7 +32,7 @@ export function renderGatewayUrlConfirmation(state: AppViewState) {
             class="btn"
             @click=${() => state.handleGatewayUrlCancel()}
           >
-            Cancel
+            ${t("common.actions.cancel")}
           </button>
         </div>
       </div>

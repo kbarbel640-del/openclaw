@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import type {
   ExecApprovalsAllowlistEntry,
   ExecApprovalsFile,
@@ -216,7 +217,7 @@ export function renderExecApprovals(state: ExecApprovalsState) {
           ?disabled=${state.disabled || !state.dirty || !targetReady}
           @click=${state.onSave}
         >
-          ${state.saving ? "Saving…" : "Save"}
+          ${state.saving ? t("common.actions.saving") : t("common.actions.save")}
         </button>
       </div>
 
@@ -227,7 +228,7 @@ export function renderExecApprovals(state: ExecApprovalsState) {
           ? html`<div class="row" style="margin-top: 12px; gap: 12px;">
             <div class="muted">Load exec approvals to edit allowlists.</div>
             <button class="btn" ?disabled=${state.loading || !targetReady} @click=${state.onLoad}>
-              ${state.loading ? "Loading…" : "Load approvals"}
+              ${state.loading ? t("common.actions.loading") : t("common.actions.loadApprovals")}
             </button>
           </div>`
           : html`
@@ -555,7 +556,7 @@ function renderExecApprovalsAllowlist(state: ExecApprovalsState) {
           state.onPatch(allowlistPath, next);
         }}
       >
-        Add pattern
+        ${t("common.actions.addPattern")}
       </button>
     </div>
     <div class="list" style="margin-top: 12px;">
@@ -613,7 +614,7 @@ function renderAllowlistEntry(
             state.onRemove(["agents", state.selectedScope, "allowlist", index]);
           }}
         >
-          Remove
+          ${t("common.actions.remove")}
         </button>
       </div>
     </div>

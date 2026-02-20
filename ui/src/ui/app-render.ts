@@ -197,7 +197,7 @@ export function renderApp(state: AppViewState) {
                 class="btn btn--sm update-banner__btn"
                 ?disabled=${state.updateRunning || !state.connected}
                 @click=${() => runUpdate(state)}
-              >${state.updateRunning ? "Updating…" : "Update now"}</button>
+              >${state.updateRunning ? t("common.actions.updating") : t("common.actions.updateNow")}</button>
             </div>`
             : nothing
         }

@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import type {
   AgentIdentityResult,
   AgentsFilesListResult,
@@ -112,7 +113,7 @@ export function renderAgents(props: AgentsProps) {
             <div class="card-sub">${agents.length} configured.</div>
           </div>
           <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
-            ${props.loading ? "Loading…" : "Refresh"}
+            ${props.loading ? t("common.actions.loading") : t("common.actions.refresh")}
           </button>
         </div>
         ${
@@ -396,7 +397,7 @@ function renderAgentOverview(params: {
   const skillFilter = Array.isArray(config.entry?.skills) ? config.entry?.skills : null;
   const skillCount = skillFilter?.length ?? null;
   const identityStatus = agentIdentityLoading
-    ? "Loading…"
+    ? t("common.actions.loading")
     : agentIdentityError
       ? "Unavailable"
       : "";
@@ -473,14 +474,14 @@ function renderAgentOverview(params: {
         </div>
         <div class="row" style="justify-content: flex-end; gap: 8px;">
           <button class="btn btn--sm" ?disabled=${configLoading} @click=${onConfigReload}>
-            Reload Config
+            ${t("common.actions.reloadConfig")}
           </button>
           <button
             class="btn btn--sm primary"
             ?disabled=${configSaving || !configDirty}
             @click=${onConfigSave}
           >
-            ${configSaving ? "Saving…" : "Save"}
+            ${configSaving ? t("common.actions.saving") : t("common.actions.save")}
           </button>
         </div>
       </div>

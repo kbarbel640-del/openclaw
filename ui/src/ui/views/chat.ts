@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
 import {
@@ -470,7 +471,7 @@ export function renderChat(props: ChatProps) {
               ?disabled=${!props.connected}
               @click=${props.onSend}
             >
-              ${isBusy ? "Queue" : "Send"}<kbd class="btn-kbd">↵</kbd>
+              ${isBusy ? t("common.actions.queue") : t("common.actions.send")}<kbd class="btn-kbd">↵</kbd>
             </button>
           </div>
         </div>
