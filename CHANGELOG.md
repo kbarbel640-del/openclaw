@@ -12,6 +12,8 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- LINE: remove redundant `group:`/`room:` prefix from `buildPeerId` so peer-based binding routes match the raw group/room ID as documented. (#21907)
+
 - macOS/Build: default release packaging to `BUNDLE_ID=ai.openclaw.mac` in `scripts/package-mac-dist.sh`, so Sparkle feed URL is retained and auto-update no longer fails with an empty appcast feed. (#19750) thanks @loganprit.
 
 - Signal/Outbound: preserve case for Base64 group IDs during outbound target normalization so cross-context routing and policy checks no longer break when group IDs include uppercase characters. (#5578) Thanks @heyhudson.
