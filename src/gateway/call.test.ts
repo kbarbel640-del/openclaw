@@ -28,9 +28,13 @@ vi.mock("../config/config.js", async (importOriginal) => {
   };
 });
 
-vi.mock("../infra/tailnet.js", () => ({
-  pickPrimaryTailnetIPv4,
-}));
+vi.mock("../infra/tailnet.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../infra/tailnet.js")>();
+  return {
+    ...actual,
+    pickPrimaryTailnetIPv4,
+  };
+});
 
 vi.mock("./net.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./net.js")>();
