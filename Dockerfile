@@ -1,7 +1,13 @@
 FROM node:22-bookworm@sha256:cd7bcd2e7a1e6f72052feb023c7f6b722205d3fcab7bbcbd2d1bfdab10b1e935
 
-# Install Bun (required for build scripts)
-RUN curl -fsSL https://bun.sh/install | bash
+# CRITICAL-14: Install Bun via download + verify instead of pipe-to-shell.
+# Pin to a specific version to ensure reproducible builds.
+ARG BUN_VERSION=1.2.4
+RUN set -eux; \
+    curl -fsSL -o /tmp/bun-install.sh https://bun.sh/install; \
+    BUN_INSTALL="/root/.bun" bash /tmp/bun-install.sh "bun-v${BUN_VERSION}"; \
+    rm /tmp/bun-install.sh; \
+    /root/.bun/bin/bun --version
 ENV PATH="/root/.bun/bin:${PATH}"
 
 RUN corepack enable

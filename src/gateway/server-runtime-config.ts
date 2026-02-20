@@ -107,6 +107,17 @@ export async function resolveGatewayRuntimeConfig(params: {
   const trustedProxies = params.cfg.gateway?.trustedProxies ?? [];
 
   assertGatewayAuthConfigured(resolvedAuth);
+
+  // CRITICAL-3: Block auth mode "none" on non-loopback binds.
+  // The resolved type only allows "token"|"password", but user config is untyped JSON
+  // and could smuggle mode:"none" at runtime — reject it explicitly.
+  if ((authMode as string) === "none" && !isLoopbackHost(bindHost)) {
+    throw new Error(
+      `refusing to bind gateway to ${bindHost}:${params.port} with auth.mode=none ` +
+        `(mode "none" is only allowed with bind=loopback; set gateway.auth.token/password)`,
+    );
+  }
+
   if (tailscaleMode === "funnel" && authMode !== "password") {
     throw new Error(
       "tailscale funnel requires gateway auth mode=password (set gateway.auth.password or OPENCLAW_GATEWAY_PASSWORD)",

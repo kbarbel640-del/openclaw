@@ -286,6 +286,35 @@ export function getHookType(sessionKey: string): ExternalContentSource {
 }
 
 /**
+ * CRITICAL-9: Tools that MUST be denied when processing external/untrusted content.
+ *
+ * These tools can cause damage if triggered by prompt injection in external content
+ * (emails, webhooks, etc.). The restriction is enforced at the tool-policy level,
+ * not advisory-only.
+ */
+export const EXTERNAL_CONTENT_RESTRICTED_TOOLS: readonly string[] = [
+  "exec",
+  "write",
+  "edit",
+  "apply_patch",
+  "cron",
+  "gateway",
+  "sessions_send",
+  "sessions_spawn",
+  "nodes",
+  "message",
+] as const;
+
+/**
+ * Build a tool deny policy for external/untrusted content sessions.
+ * Returns a `ToolPolicyLike`-compatible object that can be merged into
+ * the tool policy pipeline.
+ */
+export function buildExternalContentDenyPolicy(): { deny: string[] } {
+  return { deny: [...EXTERNAL_CONTENT_RESTRICTED_TOOLS] };
+}
+
+/**
  * Wraps web search/fetch content with security markers.
  * This is a simpler wrapper for web tools that just need content wrapped.
  */

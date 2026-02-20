@@ -26,6 +26,86 @@ import { extensionUsesSkippedScannerPath, isPathInside } from "../security/scan-
 import * as skillScanner from "../security/skill-scanner.js";
 import { CONFIG_DIR, resolveUserPath } from "../utils.js";
 
+// ---------------------------------------------------------------------------
+// CRITICAL-11: Plugin Security Scan
+// ---------------------------------------------------------------------------
+
+type PluginScanSummary = {
+  critical: number;
+  high: number;
+  findings: string[];
+};
+
+/**
+ * Critical patterns in plugin code that indicate dangerous capability usage.
+ * These cannot be overridden with --force.
+ */
+const CRITICAL_SCAN_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /child_process/g, label: "uses child_process (arbitrary command execution)" },
+  { pattern: /\beval\s*\(/g, label: "uses eval() (arbitrary code execution)" },
+  { pattern: /Function\s*\(/g, label: "uses Function() constructor (code generation)" },
+  { pattern: /process\.env/g, label: "accesses process.env (environment variable read)" },
+  {
+    pattern: /require\s*\(\s*["'](?:fs|node:fs)/g,
+    label: "requires fs module (filesystem access)",
+  },
+  {
+    pattern: /require\s*\(\s*["'](?:net|node:net|http|node:http|https|node:https)/g,
+    label: "requires network module (network access)",
+  },
+];
+
+async function scanPluginDir(dir: string): Promise<PluginScanSummary> {
+  const findings: string[] = [];
+  let critical = 0;
+  let high = 0;
+
+  async function walkDir(current: string): Promise<void> {
+    let dirents: Awaited<ReturnType<typeof fs.readdir>>;
+    try {
+      dirents = await fs.readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of dirents) {
+      const name = String(entry.name);
+      const fullPath = path.join(current, name);
+      if (entry.isDirectory()) {
+        if (name === "node_modules" || name === ".git") {
+          continue;
+        }
+        await walkDir(fullPath);
+      } else if (/\.(js|ts|mjs|cjs|mts|cts)$/.test(name)) {
+        let content: string;
+        try {
+          content = await fs.readFile(fullPath, "utf-8");
+        } catch {
+          continue;
+        }
+        for (const { pattern, label } of CRITICAL_SCAN_PATTERNS) {
+          pattern.lastIndex = 0;
+          if (pattern.test(content)) {
+            const relative = path.relative(dir, fullPath);
+            findings.push(`${relative}: ${label}`);
+            critical += 1;
+          }
+        }
+      }
+    }
+  }
+
+  await walkDir(dir);
+  return { critical, high, findings };
+}
+
+/**
+ * Scan a plugin directory for security issues.
+ * Critical findings cannot be overridden and will block installation.
+ */
+export async function scanPluginSecurity(dir: string): Promise<PluginScanSummary> {
+  return scanPluginDir(dir);
+}
+
 type PluginInstallLogger = {
   info?: (message: string) => void;
   warn?: (message: string) => void;
@@ -248,6 +328,19 @@ async function installPluginFromPackageDir(params: {
     return {
       ok: false,
       error: `plugin already exists: ${targetDir} (delete it first)`,
+    };
+  }
+
+  // CRITICAL-11: Run security scan before installation.
+  // Critical findings block installation and cannot be overridden.
+  const scanResult = await scanPluginDir(params.packageDir);
+  if (scanResult.critical > 0) {
+    return {
+      ok: false,
+      error:
+        `plugin installation blocked: ${scanResult.critical} critical security finding(s) detected. ` +
+        `Critical findings cannot be overridden.\n` +
+        scanResult.findings.map((f) => `  - ${f}`).join("\n"),
     };
   }
 

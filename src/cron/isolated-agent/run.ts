@@ -48,6 +48,7 @@ import { resolveOutboundSessionRoute } from "../../infra/outbound/outbound-sessi
 import { logWarn } from "../../logger.js";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../../routing/session-key.js";
 import {
+  buildExternalContentDenyPolicy,
   buildSafeExternalPrompt,
   detectSuspiciousPatterns,
   getHookType,
@@ -189,7 +190,7 @@ export async function runCronIsolatedAgentTurn(params: {
   } else if (overrideModel) {
     agentCfg.model = { ...existingModel, ...overrideModel };
   }
-  const cfgWithAgentDefaults: OpenClawConfig = {
+  let cfgWithAgentDefaults: OpenClawConfig = {
     ...params.cfg,
     agents: Object.assign({}, params.cfg.agents, { defaults: agentCfg }),
   };
@@ -387,6 +388,21 @@ export async function runCronIsolatedAgentTurn(params: {
           `(session=${baseSessionKey}, patterns=${suspiciousPatterns.length}): ${suspiciousPatterns.slice(0, 3).join(", ")}`,
       );
     }
+  }
+
+  // CRITICAL-9: Enforce tool restrictions for external content sessions.
+  // When processing untrusted external content (emails, webhooks), deny dangerous
+  // tools that could be exploited via prompt injection.
+  if (shouldWrapExternal) {
+    const externalDenyPolicy = buildExternalContentDenyPolicy();
+    const existingDeny = cfgWithAgentDefaults.tools?.deny ?? [];
+    cfgWithAgentDefaults = {
+      ...cfgWithAgentDefaults,
+      tools: {
+        ...cfgWithAgentDefaults.tools,
+        deny: [...new Set([...existingDeny, ...externalDenyPolicy.deny])],
+      },
+    };
   }
 
   if (shouldWrapExternal) {

@@ -42,6 +42,7 @@ import type {
   PluginHookToolResultPersistResult,
   PluginHookBeforeMessageWriteEvent,
   PluginHookBeforeMessageWriteResult,
+  PluginOrigin,
 } from "./types.js";
 
 // Re-export types for consumers
@@ -92,6 +93,16 @@ export type HookRunnerOptions = {
   /** If true, errors in hooks will be caught and logged instead of thrown */
   catchErrors?: boolean;
 };
+
+/**
+ * CRITICAL-10: Origins considered trusted for system prompt / tool param modification.
+ * Only bundled and config-defined plugins may modify these sensitive values.
+ */
+const TRUSTED_HOOK_ORIGINS: ReadonlySet<PluginOrigin> = new Set(["bundled", "config"]);
+
+function isTrustedHookOrigin(origin?: PluginOrigin): boolean {
+  return origin !== undefined && TRUSTED_HOOK_ORIGINS.has(origin);
+}
 
 /**
  * Get hooks for a specific hook name, sorted by priority (higher first).
@@ -253,15 +264,60 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     event: PluginHookBeforeAgentStartEvent,
     ctx: PluginHookAgentContext,
   ): Promise<PluginHookBeforeAgentStartResult | undefined> {
-    return runModifyingHook<"before_agent_start", PluginHookBeforeAgentStartResult>(
-      "before_agent_start",
-      event,
-      ctx,
-      (acc, next) => ({
-        ...mergeBeforePromptBuild(acc, next),
-        ...mergeBeforeModelResolve(acc, next),
-      }),
-    );
+    const hooks = getHooksForName(registry, "before_agent_start");
+    if (hooks.length === 0) {
+      return undefined;
+    }
+
+    // CRITICAL-10: Identify untrusted plugins that might try to modify system prompts.
+    const untrustedModifiers = hooks.filter((h) => !isTrustedHookOrigin(h.origin));
+
+    let result: PluginHookBeforeAgentStartResult | undefined;
+
+    for (const hook of hooks) {
+      try {
+        const handlerResult = await (
+          hook.handler as (
+            event: unknown,
+            ctx: unknown,
+          ) => Promise<PluginHookBeforeAgentStartResult>
+        )(event, ctx);
+
+        if (handlerResult !== undefined && handlerResult !== null) {
+          // CRITICAL-10: Block system prompt modification from untrusted plugins.
+          if (handlerResult.systemPrompt !== undefined && !isTrustedHookOrigin(hook.origin)) {
+            logger?.warn(
+              `[SECURITY] BLOCKED: untrusted plugin "${hook.pluginId}" (origin=${hook.origin ?? "unknown"}) ` +
+                `attempted system prompt modification — stripped`,
+            );
+            handlerResult.systemPrompt = undefined;
+          }
+
+          const merged: PluginHookBeforeAgentStartResult = {
+            ...mergeBeforePromptBuild(result, handlerResult),
+            ...mergeBeforeModelResolve(result, handlerResult),
+          };
+          result = merged;
+        }
+      } catch (err) {
+        const msg = `[hooks] before_agent_start handler from ${hook.pluginId} failed: ${String(err)}`;
+        if (catchErrors) {
+          logger?.error(msg);
+        } else {
+          throw new Error(msg, { cause: err });
+        }
+      }
+    }
+
+    // Log if untrusted plugins were present (even if they didn't attempt modification).
+    if (untrustedModifiers.length > 0) {
+      logger?.debug?.(
+        `[SECURITY] before_agent_start: ${untrustedModifiers.length} untrusted plugin(s) present: ` +
+          untrustedModifiers.map((h) => h.pluginId).join(", "),
+      );
+    }
+
+    return result;
   }
 
   /**
@@ -385,16 +441,47 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     event: PluginHookBeforeToolCallEvent,
     ctx: PluginHookToolContext,
   ): Promise<PluginHookBeforeToolCallResult | undefined> {
-    return runModifyingHook<"before_tool_call", PluginHookBeforeToolCallResult>(
-      "before_tool_call",
-      event,
-      ctx,
-      (acc, next) => ({
-        params: next.params ?? acc?.params,
-        block: next.block ?? acc?.block,
-        blockReason: next.blockReason ?? acc?.blockReason,
-      }),
-    );
+    const hooks = getHooksForName(registry, "before_tool_call");
+    if (hooks.length === 0) {
+      return undefined;
+    }
+
+    let result: PluginHookBeforeToolCallResult | undefined;
+
+    for (const hook of hooks) {
+      try {
+        const handlerResult = await (
+          hook.handler as (event: unknown, ctx: unknown) => Promise<PluginHookBeforeToolCallResult>
+        )(event, ctx);
+
+        if (handlerResult !== undefined && handlerResult !== null) {
+          // CRITICAL-10: Block tool parameter modification from untrusted plugins.
+          // Untrusted plugins may still block tools (defensive) but cannot rewrite params.
+          if (handlerResult.params !== undefined && !isTrustedHookOrigin(hook.origin)) {
+            logger?.warn(
+              `[SECURITY] BLOCKED: untrusted plugin "${hook.pluginId}" (origin=${hook.origin ?? "unknown"}) ` +
+                `attempted tool param modification for "${event.toolName}" — stripped`,
+            );
+            handlerResult.params = undefined;
+          }
+
+          result = {
+            params: handlerResult.params ?? result?.params,
+            block: handlerResult.block ?? result?.block,
+            blockReason: handlerResult.blockReason ?? result?.blockReason,
+          };
+        }
+      } catch (err) {
+        const msg = `[hooks] before_tool_call handler from ${hook.pluginId} failed: ${String(err)}`;
+        if (catchErrors) {
+          logger?.error(msg);
+        } else {
+          throw new Error(msg, { cause: err });
+        }
+      }
+    }
+
+    return result;
   }
 
   /**
