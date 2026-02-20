@@ -46,7 +46,9 @@ export function extractText(message: unknown): string | null {
  */
 function formatErrorMessage(raw: string): string {
   const trimmed = raw.trim();
-  if (!trimmed) return "LLM request failed with an unknown error.";
+  if (!trimmed) {
+    return "LLM request failed with an unknown error.";
+  }
 
   // Try to extract message from JSON error payload
   const jsonStart = trimmed.indexOf("{");
