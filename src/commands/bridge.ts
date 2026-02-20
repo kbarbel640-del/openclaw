@@ -13,7 +13,14 @@ wireModelsBridgeCommands(bridgeRegistry);
 const BridgeInputSchema = z.object({
   action: z.string(),
   args: z.record(z.any()).optional(),
-  context: z.record(z.any()).optional(),
+  context: z
+    .object({
+      channel: z.string().optional(),
+      userId: z.string().optional(),
+      isAdmin: z.boolean().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    })
+    .optional(),
 });
 
 export function registerBridgeCommand(program: Command) {
@@ -37,29 +44,45 @@ export function registerBridgeCommand(program: Command) {
           inputStr = Buffer.concat(chunks).toString("utf-8");
         }
 
-        if (!inputStr) {
-          console.error(JSON.stringify({ success: false, error: "No input payload provided" }));
-          process.exit(1);
-        }
-
-        // 2. Parse & Validate
+        console.error("DEBUG input:", inputStr); // Debug
         const json = JSON.parse(inputStr);
-        const input = BridgeInputSchema.parse(json);
+        console.error("DEBUG parsed json"); // Debug
 
-        // 3. Dispatch
-        const command = bridgeRegistry.get(input.action);
-        if (!command) {
-          console.error(
-            JSON.stringify({ success: false, error: `Unknown action: ${input.action}` }),
-          );
-          process.exit(1);
+        try {
+          const input = BridgeInputSchema.parse(json);
+          console.error("DEBUG validated input"); // Debug
+
+          // 3. Dispatch
+          const command = bridgeRegistry.get(input.action);
+          if (!command) {
+            console.error(
+              JSON.stringify({ success: false, error: `Unknown action: ${input.action}` }),
+            );
+            process.exit(1);
+          }
+          console.error("DEBUG dispatched command:", input.action); // Debug
+
+          // 4. Execute
+          const args = command.schema
+            ? command.schema.parse(input.args ?? command.defaultArgs ?? {})
+            : (input.args ?? {});
+
+          const context = {
+            channel: input.context?.channel ?? "cli",
+            userId: input.context?.userId,
+            isAdmin: input.context?.isAdmin ?? true,
+            metadata: input.context?.metadata,
+          };
+
+          const result = await command.handler(args, context);
+          console.error("DEBUG executed handler"); // Debug
+
+          // 5. Output
+          console.log(JSON.stringify(result, null, 2));
+        } catch (innerErr) {
+          console.error("DEBUG inner error:", innerErr);
+          throw innerErr;
         }
-
-        // 4. Execute
-        const result = await command.handler(input.args ?? {}, input.context);
-
-        // 5. Output
-        console.log(JSON.stringify(result, null, 2));
       } catch (err) {
         console.error(JSON.stringify({ success: false, error: String(err) }));
         process.exit(1);

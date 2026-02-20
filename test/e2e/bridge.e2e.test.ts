@@ -53,7 +53,7 @@ describe("Command Bridge E2E", () => {
   });
 
   it("should fail on invalid json input", async () => {
-    const { stdout, stderr, exitCode } = await execa("bun", [CLI_PATH, "bridge"], {
+    const { stderr, exitCode } = await execa("bun", [CLI_PATH, "bridge"], {
       input: "invalid-json",
       reject: false,
     });

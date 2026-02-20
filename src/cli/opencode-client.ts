@@ -7,10 +7,21 @@ interface BridgeResponse<T = unknown> {
   view?: string;
 }
 
+interface BridgeContext {
+  channel?: string;
+  isAdmin?: boolean;
+  userId?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export class OpenClawClient {
   constructor(private binPath: string = process.env.OPENCLAW_BIN || "openclaw") {}
 
-  async execute<T>(action: string, args: Record<string, unknown> = {}): Promise<BridgeResponse<T>> {
+  async execute<T>(
+    action: string,
+    args: Record<string, unknown> = {},
+    options: { context?: BridgeContext; timeout?: number } = {},
+  ): Promise<BridgeResponse<T>> {
     const isTsFile = this.binPath.endsWith(".ts");
     const isJsFile = this.binPath.endsWith(".js");
     const cmd = isTsFile ? "npx" : isJsFile ? "node" : this.binPath;
@@ -20,19 +31,27 @@ export class OpenClawClient {
         ? [this.binPath, "bridge"]
         : ["bridge"];
 
+    const timeoutMs = options.timeout ?? 10000;
+
     return new Promise((resolve, reject) => {
       const payload = JSON.stringify({
         action,
         args,
         context: {
           channel: "opencode-client",
-          isAdmin: true,
+          isAdmin: true, // Default to true for backward compatibility/ease of use, but overridable
+          ...options.context,
         },
       });
 
       const child = spawn(cmd, cmdArgs, {
         stdio: ["pipe", "pipe", "pipe"],
       });
+
+      const timer = setTimeout(() => {
+        child.kill();
+        reject(new Error(`Command timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
 
       let stdout = "";
       let stderr = "";
@@ -44,7 +63,13 @@ export class OpenClawClient {
         stderr += chunk;
       });
 
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+
       child.on("close", (code) => {
+        clearTimeout(timer);
         if (code !== 0) {
           try {
             const errResponse = JSON.parse(stdout);
@@ -59,7 +84,8 @@ export class OpenClawClient {
           const response = JSON.parse(stdout);
           resolve(response);
         } catch (err) {
-          reject(new Error(`Failed to parse response: ${err}\nOutput: ${stdout}`));
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          reject(new Error(`Failed to parse response: ${errorMsg}\nOutput: ${stdout}`));
         }
       });
 

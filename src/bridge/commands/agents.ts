@@ -1,8 +1,9 @@
 import { z } from "zod";
-import type { BridgeCommand, BridgeRegistry } from "../types.js";
+import type { BridgeRegistry } from "../types.js";
 import { listAgentIds } from "../../agents/agent-scope.js";
 import { loadConfig } from "../../config/config.js";
-import { resolveAgentMainSessionKey, loadSessionEntry } from "../../config/sessions.js";
+import { resolveAgentMainSessionKey } from "../../config/sessions.js";
+import { loadSessionEntry } from "../../gateway/session-utils.js";
 
 const AgentsListSchema = z.object({
   filter: z.string().optional(),
@@ -17,7 +18,11 @@ export function wireAgentsBridgeCommands(registry: BridgeRegistry) {
     name: "agents.list",
     description: "List all available agents and their basic status",
     schema: AgentsListSchema,
-    handler: async (args) => {
+    handler: async (args, context) => {
+      if (!context.isAdmin) {
+        return { success: false, error: "Unauthorized: Admin access required" };
+      }
+
       const config = loadConfig();
       const agentIds = listAgentIds(config);
 
@@ -36,7 +41,7 @@ export function wireAgentsBridgeCommands(registry: BridgeRegistry) {
 
       // Filter if requested
       const filtered = args.filter
-        ? agents.filter((a) => a.id.includes(args.filter!) || a.name.includes(args.filter!))
+        ? agents.filter((a) => a.id.startsWith(args.filter!) || a.name.includes(args.filter!))
         : agents;
 
       return {
@@ -51,7 +56,11 @@ export function wireAgentsBridgeCommands(registry: BridgeRegistry) {
     name: "agents.status",
     description: "Get detailed status for a specific agent",
     schema: AgentsStatusSchema,
-    handler: async (args) => {
+    handler: async (args, context) => {
+      if (!context.isAdmin) {
+        return { success: false, error: "Unauthorized: Admin access required" };
+      }
+
       const config = loadConfig();
       const agentIds = listAgentIds(config);
 
