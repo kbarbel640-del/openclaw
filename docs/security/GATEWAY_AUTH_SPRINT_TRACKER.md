@@ -26,8 +26,8 @@
 | ----- | ---- | ----------------------------------------------------------- | ----------- | --- | ----------------- | ---------- | -------------------- |
 | 1     | 1.1  | Create `security-requirements.ts`                           | done        | —   | security-schema   | 2026-02-20 | Tests: 36/36 pass ✓  |
 | 1     | 1.2  | Add `securityConfigured` to config schema                   | done        | —   | security-schema   | 2026-02-20 | Tests: 36/36 pass ✓  |
-| 3     | 3.1  | Gateway CLI security validation                             | not-started | —   | auth-hardening    | —          | Depends: Phase 1     |
-| 3     | 3.2  | Server-side security validation (defense-in-depth)          | not-started | —   | auth-hardening    | —          | Depends: Phase 1     |
+| 3     | 3.1  | Gateway CLI security validation                             | done        | —   | auth-hardening    | 2026-02-20 | Tests: 1,182 pass ✓  |
+| 3     | 3.2  | Server-side security validation (defense-in-depth)          | done        | —   | auth-hardening    | 2026-02-20 | Tests: 1,182 pass ✓  |
 | 2     | 2.1  | Mandatory security step in onboarding                       | not-started | —   | onboarding-wizard | —          | Depends: Phase 1     |
 | 2     | 2.2  | Gateway config wizard mandatory auth                        | not-started | —   | onboarding-wizard | —          | Depends: Phase 1     |
 | 2     | 2.3  | Token generation helper                                     | not-started | —   | onboarding-wizard | —          | Depends: Phase 1     |
@@ -60,10 +60,10 @@
 ## Summary
 
 - **Total Tasks**: 30
-- **Done**: 2
+- **Done**: 4
 - **In Progress**: 0
 - **Blocked**: 0
-- **Remaining**: 28
+- **Remaining**: 26
 
 ---
 
@@ -71,6 +71,7 @@
 
 | Date       | Sprint   | Action      | Details                           |
 | ---------- | -------- | ----------- | --------------------------------- |
+| 2026-02-20 | Sprint 2 | Completed   | Phase 3 verified, 1,182 tests ✓   |
 | 2026-02-20 | Sprint 1 | Completed   | Phase 1 verified, 36/36 tests ✓   |
 | 2026-02-19 | Sprint 1 | Started     | Phase 1 (security schema) kickoff |
 | 2026-02-18 | —        | Initialized | Sprint tracker created            |
