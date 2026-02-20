@@ -71,7 +71,7 @@ describe("resilient-fetch", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("throws after exhausting all retries", async () => {
+  it("throws after exhausting all retries on network errors", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
 
     const promise = resilientFetch("https://example.com", undefined, {
@@ -82,5 +82,20 @@ describe("resilient-fetch", () => {
     await vi.advanceTimersByTimeAsync(500);
 
     await expect(promise).rejects.toThrow("Failed to fetch");
+  });
+
+  it("returns last 5xx Response after exhausting all retries", async () => {
+    const error503 = new Response("service unavailable", { status: 503 });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(error503);
+
+    const promise = resilientFetch("https://example.com", undefined, {
+      maxAttempts: 2,
+      baseDelayMs: 50,
+    });
+
+    await vi.advanceTimersByTimeAsync(500);
+
+    const result = await promise;
+    expect(result.status).toBe(503);
   });
 });

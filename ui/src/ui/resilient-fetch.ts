@@ -59,6 +59,7 @@ export async function resilientFetch(
   const timeoutMs = config?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   let lastError: unknown;
+  let lastResponse: Response | null = null;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const controller = new AbortController();
@@ -88,7 +89,8 @@ export async function resilientFetch(
         return response;
       }
 
-      // 5xx - retry if we have attempts left
+      // 5xx - save response to return if all retries fail
+      lastResponse = response;
       lastError = new Error(`Server error: ${response.status} ${response.statusText}`);
     } catch (err) {
       clearTimeout(timeoutId);
@@ -109,5 +111,10 @@ export async function resilientFetch(
     }
   }
 
+  // If the last failure was a 5xx response, return it so callers can
+  // inspect the status, headers, and body of the final attempt.
+  if (lastResponse) {
+    return lastResponse;
+  }
   throw lastError;
 }
