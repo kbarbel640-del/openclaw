@@ -583,14 +583,14 @@ function stripShellPreamble(command: string): PreambleResult {
 
   for (let i = 0; i < 4; i += 1) {
     // Find the first top-level separator (&&, ||, ;, \n) respecting quotes/escaping.
-    let first: { index: number; length: number } | undefined;
+    let first: { index: number; length: number; isOr?: boolean } | undefined;
     scanTopLevelChars(rest, (char, idx) => {
       if (char === "&" && rest[idx + 1] === "&") {
         first = { index: idx, length: 2 };
         return false;
       }
       if (char === "|" && rest[idx + 1] === "|") {
-        first = { index: idx, length: 2 };
+        first = { index: idx, length: 2, isOr: true };
         return false;
       }
       if (char === ";" || char === "\n") {
@@ -599,9 +599,10 @@ function stripShellPreamble(command: string): PreambleResult {
       }
     });
     const head = (first ? rest.slice(0, first.index) : rest).trim();
-    // cd/pushd/popd is preamble when followed by a separator, or when we already
+    // cd/pushd/popd is preamble when followed by && / ; / \n, or when we already
     // stripped at least one preamble segment (handles chained cd's like `cd /tmp && cd /app`).
-    const isChdir = (first || i > 0) && isChdirCommand(head);
+    // NOT for || — `cd /app || npm install` means npm runs when cd *fails*, so (in /app) is wrong.
+    const isChdir = (first ? !first.isOr : i > 0) && isChdirCommand(head);
     const isPreamble =
       head.startsWith("set ") || head.startsWith("export ") || head.startsWith("unset ") || isChdir;
 
@@ -903,6 +904,7 @@ function summarizePipeline(stage: string): string {
 type ExecSummary = {
   text: string;
   chdirPath?: string;
+  allGeneric?: boolean;
 };
 
 function summarizeExecCommand(command: string): ExecSummary | undefined {
@@ -919,8 +921,9 @@ function summarizeExecCommand(command: string): ExecSummary | undefined {
 
   const summaries = stages.map((stage) => summarizePipeline(stage));
   const text = summaries.length === 1 ? summaries[0] : summaries.join(" → ");
+  const allGeneric = summaries.every((s) => isGenericSummary(s));
 
-  return { text, chdirPath };
+  return { text, chdirPath, allGeneric };
 }
 
 /** Known summarizer prefixes that indicate a recognized command with useful context. */
@@ -1023,8 +1026,9 @@ export function resolveExecDetail(args: unknown): string | undefined {
 
   const compact = compactRawCommand(unwrapped);
 
-  // When the summary is generic (e.g. "run jj"), use the compact raw command instead.
-  if (isGenericSummary(summary)) {
+  // When ALL stages are generic (e.g. "run jj"), use the compact raw command instead.
+  // For mixed stages like "run cargo build → run tests", keep the summary since some parts are useful.
+  if (result?.allGeneric !== false && isGenericSummary(summary)) {
     return cwd ? `${compact} (in ${cwd})` : compact;
   }
 

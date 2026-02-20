@@ -147,7 +147,9 @@ describe("tool display details", () => {
       }),
     );
 
-    expect(detail).toBe("install dependencies (in /app)\n`cd /app || npm install`");
+    // || means npm install runs when cd FAILS — cd should NOT be stripped as preamble.
+    // Both stages are summarized; cd is not treated as context prefix.
+    expect(detail).toMatch(/^run cd \/app → install dependencies/);
   });
 
   it("explicit workdir takes priority over cd path", () => {
@@ -194,6 +196,18 @@ describe("tool display details", () => {
     );
 
     expect(detail).toBe("mycli deploy --prod (in /app)");
+  });
+
+  it("keeps multi-stage summary when only some stages are generic", () => {
+    const detail = formatToolDetail(
+      resolveToolDisplay({
+        name: "exec",
+        args: { command: "cargo build && npm test" },
+      }),
+    );
+
+    // "run cargo build" is generic, but "run tests" is known — keep joined summary
+    expect(detail).toMatch(/^run cargo build → run tests/);
   });
 
   it("handles standalone cd as raw command", () => {
