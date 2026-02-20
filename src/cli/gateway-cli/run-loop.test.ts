@@ -176,4 +176,34 @@ describe("gateway discover routing helpers", () => {
     expect(pickBeaconHost(beacon)).toBe("test-host.local");
     expect(pickGatewayPort(beacon)).toBe(18789);
   });
+
+  it("builds wss:// URL when gatewayTls is true", () => {
+    const beacon: GatewayBonjourBeacon = {
+      instanceName: "TLS-GW",
+      host: "10.0.0.5",
+      port: 18789,
+      gatewayTls: true,
+    };
+    const host = pickBeaconHost(beacon);
+    const port = pickGatewayPort(beacon);
+    const scheme = beacon.gatewayTls ? "wss" : "ws";
+    const wsUrl = host ? `${scheme}://${host}:${port}` : null;
+    expect(wsUrl).toBe("wss://10.0.0.5:18789");
+  });
+
+  it("builds ws:// URL when gatewayTls is false or undefined", () => {
+    for (const gatewayTls of [false, undefined]) {
+      const beacon: GatewayBonjourBeacon = {
+        instanceName: "Plain-GW",
+        host: "10.0.0.6",
+        port: 18789,
+        gatewayTls,
+      };
+      const host = pickBeaconHost(beacon);
+      const port = pickGatewayPort(beacon);
+      const scheme = beacon.gatewayTls ? "wss" : "ws";
+      const wsUrl = host ? `${scheme}://${host}:${port}` : null;
+      expect(wsUrl).toBe("ws://10.0.0.6:18789");
+    }
+  });
 });
