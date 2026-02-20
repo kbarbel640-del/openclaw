@@ -181,7 +181,8 @@ export function attachGatewayWsMessageHandler(params: {
       return;
     }
     const text = rawDataToString(data);
-    let parsed: unknown;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- narrowed by Ajv validators below
+    let parsed: any;
     try {
       parsed = JSON.parse(text);
     } catch {
