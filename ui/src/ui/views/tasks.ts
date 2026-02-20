@@ -1,8 +1,11 @@
 import { html, nothing, type TemplateResult } from "lit";
-import type { OpenClawApp } from "../app.js";
+import type { AppViewState } from "../app-view-state.ts";
 import { normalizeBasePath } from "../navigation.ts";
 
-type TasksHost = OpenClawApp & { tasksState?: TasksState };
+type TasksHost = AppViewState & {
+  requestUpdate: () => void;
+  tasksState?: TasksState;
+};
 
 type TaskStatus = "upcoming" | "in_progress" | "done";
 type TaskPriority = "P0" | "P1" | "P2" | "P3";
@@ -70,7 +73,7 @@ const DEFAULT_STATE: TasksState = {
   editNotes: "",
 };
 
-function resolveGatewayHttpAuthHeader(host: OpenClawApp): string | null {
+function resolveGatewayHttpAuthHeader(host: TasksHost): string | null {
   const deviceToken = host.hello?.auth?.deviceToken?.trim();
   if (deviceToken) {
     return `Bearer ${deviceToken}`;
@@ -86,7 +89,7 @@ function resolveGatewayHttpAuthHeader(host: OpenClawApp): string | null {
   return null;
 }
 
-function buildGatewayHttpHeaders(host: OpenClawApp): Record<string, string> {
+function buildGatewayHttpHeaders(host: TasksHost): Record<string, string> {
   const authorization = resolveGatewayHttpAuthHeader(host);
   return authorization ? { Authorization: authorization } : {};
 }
@@ -325,16 +328,18 @@ async function deleteTask(host: TasksHost, id: string) {
   }
 }
 
-export function ensureTasksState(host: TasksHost) {
-  if (!host.tasksState) {
-    host.tasksState = structuredClone(DEFAULT_STATE);
-    void loadTasks(host);
+export function ensureTasksState(host: AppViewState) {
+  const h = host as TasksHost;
+  if (!h.tasksState) {
+    h.tasksState = structuredClone(DEFAULT_STATE);
+    void loadTasks(h);
   }
 }
 
-export function renderTasksTab(host: TasksHost): TemplateResult {
+export function renderTasksTab(host: AppViewState): TemplateResult {
+  const h = host as TasksHost;
   ensureTasksState(host);
-  const st = host.tasksState!;
+  const st = h.tasksState!;
   const tasks = st.store?.tasks ?? [];
   const filtered = tasks.filter((t) => filterTask(t, st.q.trim(), st.priority));
 
@@ -432,7 +437,7 @@ export function renderTasksTab(host: TasksHost): TemplateResult {
 
     <div class="tasks">
       <div class="row">
-        <button class="btn" @click=${() => loadTasks(host)}>${st.loading ? "Loading…" : "Refresh"}</button>
+        <button class="btn" @click=${() => loadTasks(h)}>${st.loading ? "Loading…" : "Refresh"}</button>
         <div>${st.store?.updatedAt ? `Updated: ${st.store.updatedAt}` : ""}</div>
         <div>${st.busy ? "Saving…" : ""}</div>
         ${st.error ? html`<div class="danger">${st.error}</div>` : nothing}
@@ -444,7 +449,7 @@ export function renderTasksTab(host: TasksHost): TemplateResult {
           .value=${st.q}
           @input=${(e: Event) => {
             st.q = (e.target as HTMLInputElement | null)?.value ?? "";
-            host.requestUpdate();
+            h.requestUpdate();
           }}
         />
         <select
@@ -452,7 +457,7 @@ export function renderTasksTab(host: TasksHost): TemplateResult {
           @change=${(e: Event) => {
             const v = (e.target as HTMLSelectElement | null)?.value ?? "";
             st.priority = v === "P0" || v === "P1" || v === "P2" || v === "P3" ? v : "";
-            host.requestUpdate();
+            h.requestUpdate();
           }}
         >
           <option value="">All priorities</option>
@@ -520,7 +525,7 @@ export function renderTasksTab(host: TasksHost): TemplateResult {
             ></textarea>
           </div>
           <div class="row">
-            <button class="btn" @click=${() => createTask(host)}>Add</button>
+            <button class="btn" @click=${() => createTask(h)}>Add</button>
           </div>
         </div>
       </div>
@@ -589,7 +594,7 @@ export function renderTasksTab(host: TasksHost): TemplateResult {
                   <button
                     class="btn"
                     @click=${() =>
-                      patchTask(host, editTaskObj.id, {
+                      patchTask(h, editTaskObj.id, {
                         title: st.editTitle,
                         status: st.editStatus,
                         priority: st.editPriority || undefined,
@@ -600,7 +605,7 @@ export function renderTasksTab(host: TasksHost): TemplateResult {
                   >
                     Save
                   </button>
-                  <button class="btn" @click=${() => cancelEdit(host)}>Cancel</button>
+                  <button class="btn" @click=${() => cancelEdit(h)}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -615,9 +620,9 @@ export function renderTasksTab(host: TasksHost): TemplateResult {
             ${upcoming.map((t) =>
               taskCard({
                 t,
-                onEdit: () => startEdit(host, t),
-                onDelete: () => deleteTask(host, t.id),
-                onSetStatus: (s) => patchTask(host, t.id, { status: s }),
+                onEdit: () => startEdit(h, t),
+                onDelete: () => deleteTask(h, t.id),
+                onSetStatus: (s) => patchTask(h, t.id, { status: s }),
               }),
             )}
           </div>
@@ -628,9 +633,9 @@ export function renderTasksTab(host: TasksHost): TemplateResult {
             ${progress.map((t) =>
               taskCard({
                 t,
-                onEdit: () => startEdit(host, t),
-                onDelete: () => deleteTask(host, t.id),
-                onSetStatus: (s) => patchTask(host, t.id, { status: s }),
+                onEdit: () => startEdit(h, t),
+                onDelete: () => deleteTask(h, t.id),
+                onSetStatus: (s) => patchTask(h, t.id, { status: s }),
               }),
             )}
           </div>
@@ -641,9 +646,9 @@ export function renderTasksTab(host: TasksHost): TemplateResult {
             ${done.map((t) =>
               taskCard({
                 t,
-                onEdit: () => startEdit(host, t),
-                onDelete: () => deleteTask(host, t.id),
-                onSetStatus: (s) => patchTask(host, t.id, { status: s }),
+                onEdit: () => startEdit(h, t),
+                onDelete: () => deleteTask(h, t.id),
+                onSetStatus: (s) => patchTask(h, t.id, { status: s }),
               }),
             )}
           </div>
