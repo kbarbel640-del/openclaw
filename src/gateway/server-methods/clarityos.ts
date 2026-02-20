@@ -38,6 +38,38 @@ function clampLimit(raw: unknown, fallback = 200, max = 2000): number {
   return Math.max(1, Math.min(max, Math.floor(n)));
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function asIsoString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const dt = new Date(trimmed);
+  if (Number.isNaN(dt.getTime())) {
+    return null;
+  }
+  return dt.toISOString();
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 export const clarityosHandlers: GatewayRequestHandlers = {
   "clarityos.status": async ({ respond }) => {
     const root = resolveWorkspaceRoot();
@@ -49,9 +81,83 @@ export const clarityosHandlers: GatewayRequestHandlers = {
       ? fs.readFileSync(progressPath, "utf8").split(/\r?\n/).filter(Boolean).slice(-30)
       : [];
 
+    const timelineLatest = readJsonSafe(path.join(base, "timeline-latest.json"));
+    const timelineRows = Array.isArray(timelineLatest) ? timelineLatest : [];
+    const timelineFirst = asRecord(timelineRows[0]);
+
+    const statusObj = asRecord(status) ?? {};
+    const statusExtra = asRecord(statusObj.extra) ?? {};
+    const watchdog = asRecord(statusExtra.watchdog) ?? {};
+
+    const now = Date.now();
+    const checkpointIso = asIsoString(watchdog.next_checkpoint_due_ts);
+    const checkpointMs = checkpointIso ? Date.parse(checkpointIso) : Number.NaN;
+    const checkpointDeltaMin = Number.isFinite(checkpointMs)
+      ? Math.max(0, Math.round((checkpointMs - now) / 60000))
+      : null;
+
+    const startedAtUtc =
+      asIsoString(statusExtra.started_at_utc) ??
+      asIsoString(watchdog.last_code_change_ts) ??
+      asIsoString(statusObj.ts) ??
+      asIsoString(timelineFirst?.ts) ??
+      undefined;
+
+    const existingMilestones = asStringArray(statusExtra.next_milestones);
+    const activeMilestone =
+      typeof watchdog.active_milestone_key === "string" ? watchdog.active_milestone_key.trim() : "";
+    const step = typeof statusObj.step === "string" ? statusObj.step.trim() : "";
+    const nextMilestones =
+      existingMilestones.length > 0
+        ? existingMilestones
+        : activeMilestone
+          ? [activeMilestone]
+          : step
+            ? [step]
+            : [];
+
+    const currentTask =
+      typeof statusExtra.current_task === "string" && statusExtra.current_task.trim()
+        ? statusExtra.current_task.trim()
+        : step || undefined;
+
+    const progressPercent =
+      typeof statusExtra.progress_percent === "number" &&
+      Number.isFinite(statusExtra.progress_percent)
+        ? Math.max(0, Math.min(100, statusExtra.progress_percent))
+        : undefined;
+
+    const etaMinutes =
+      typeof statusExtra.eta_minutes === "number" && Number.isFinite(statusExtra.eta_minutes)
+        ? Math.max(0, Math.floor(statusExtra.eta_minutes))
+        : (checkpointDeltaMin ?? undefined);
+
+    const etaRange =
+      typeof statusExtra.eta_range === "string" && statusExtra.eta_range.trim()
+        ? statusExtra.eta_range.trim()
+        : typeof etaMinutes === "number"
+          ? `~${etaMinutes} min`
+          : undefined;
+
+    const enrichedExtra = {
+      ...statusExtra,
+      current_task: currentTask,
+      started_at_utc: startedAtUtc,
+      progress_percent: progressPercent,
+      eta_minutes: etaMinutes,
+      eta_range: etaRange,
+      next_milestones: nextMilestones,
+      watchdog,
+    };
+
+    const enrichedStatus = {
+      ...statusObj,
+      extra: enrichedExtra,
+    };
+
     respond(true, {
       workspace: root,
-      status,
+      status: enrichedStatus,
       verification,
       progressTail,
       generatedAt: new Date().toISOString(),
