@@ -60,7 +60,17 @@ describe("noteFallbackModelHealth", () => {
           "kimi-coding": {
             baseUrl: "https://api.kimi.example.com",
             apiKey: "test-key",
-            models: [{ id: "k2p5", name: "K2P5" }],
+            models: [
+              {
+                id: "k2p5",
+                name: "K2P5",
+                reasoning: false,
+                input: ["text"],
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 128000,
+                maxTokens: 8192,
+              },
+            ],
           },
         },
       },
@@ -147,6 +157,29 @@ describe("noteFallbackModelHealth", () => {
     expect(noteCalls).toHaveLength(1);
     expect(noteCalls[0].message).toContain("missing-provider");
     expect(noteCalls[0].message).toContain("my-agent");
+  });
+
+  it("checks per-agent subagent fallbacks", async () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "worker",
+            subagents: {
+              model: {
+                primary: "anthropic/claude-sonnet-4-5",
+                fallbacks: ["no-such-provider/model-y"],
+              },
+            },
+          },
+        ],
+      },
+    };
+    await noteFallbackModelHealth(cfg);
+    expect(noteCalls).toHaveLength(1);
+    expect(noteCalls[0].message).toContain("no-such-provider");
+    expect(noteCalls[0].message).toContain("worker");
+    expect(noteCalls[0].message).toContain("subagents.model.fallbacks");
   });
 
   it("deduplicates identical fallback refs", async () => {

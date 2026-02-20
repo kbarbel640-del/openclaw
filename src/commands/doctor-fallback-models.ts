@@ -54,7 +54,7 @@ function collectFallbackRefs(cfg: OpenClawConfig): FallbackRef[] {
     );
   }
 
-  // Per-agent fallbacks: agents.list[].model.fallbacks
+  // Per-agent fallbacks: agents.list[].model.fallbacks and agents.list[].subagents.model.fallbacks
   const agentList = cfg.agents?.list ?? [];
   for (const agent of agentList) {
     const agentId = agent.id ?? "unknown";
@@ -63,6 +63,13 @@ function collectFallbackRefs(cfg: OpenClawConfig): FallbackRef[] {
       addRefs(
         (agentModel as { fallbacks?: string[] }).fallbacks,
         `agents.list[${agentId}].model.fallbacks`,
+      );
+    }
+    const agentSubagentModel = agent.subagents?.model;
+    if (agentSubagentModel && typeof agentSubagentModel === "object") {
+      addRefs(
+        (agentSubagentModel as { fallbacks?: string[] }).fallbacks,
+        `agents.list[${agentId}].subagents.model.fallbacks`,
       );
     }
   }
