@@ -97,13 +97,13 @@ Successfully processed 1 files`;
       // F = Full control (read + write)
       // M = Modify (read + write)
       // W = Write
-      // D = Delete (considered write)
+      // D = Delete only (not write)
       // R = Read only
       const testCases = [
         { rights: "(F)", canWrite: true, canRead: true },
         { rights: "(M)", canWrite: true, canRead: true },
         { rights: "(W)", canWrite: true, canRead: false },
-        { rights: "(D)", canWrite: true, canRead: false },
+        { rights: "(D)", canWrite: false, canRead: false },
         { rights: "(R)", canWrite: false, canRead: true },
         { rights: "(RX)", canWrite: false, canRead: true },
       ];
