@@ -12,6 +12,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Hooks/Slug: pass configured model/provider from `resolveDefaultModelForAgent` to `runEmbeddedPiAgent` in `generateSlugViaLLM` so session-memory slug generation respects the user's configured model instead of always falling back to hardcoded `anthropic/claude-opus-4-6` defaults. (#21650)
 - macOS/Build: default release packaging to `BUNDLE_ID=ai.openclaw.mac` in `scripts/package-mac-dist.sh`, so Sparkle feed URL is retained and auto-update no longer fails with an empty appcast feed. (#19750) thanks @loganprit.
 
 - Signal/Outbound: preserve case for Base64 group IDs during outbound target normalization so cross-context routing and policy checks no longer break when group IDs include uppercase characters. (#5578) Thanks @heyhudson.
