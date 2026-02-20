@@ -249,8 +249,7 @@ export async function uninstallSystemdService({
   } catch {
     stdout.write(`Systemd service not found at ${unitPath}\n`);
   }
-
-  // Reload systemd daemon to pick up the removed unit file
+  
   // Reload systemd daemon to pick up the removed unit file
   const reload = await execSystemctl(["--user", "daemon-reload"]);
   if (reload.code !== 0) {
@@ -419,8 +418,15 @@ export async function uninstallLegacySystemdUnits({
   }
 
   if (systemctlAvailable) {
-    await execSystemctl(["--user", "daemon-reload"]);
-    await execSystemctl(["--user", "reset-failed"]);
+    const reload = await execSystemctl(["--user", "daemon-reload"]);
+    if (reload.code !== 0) {
+      stdout.write(`Warning: systemctl daemon-reload failed: ${reload.stderr || reload.stdout}\n`);
+    }
+
+    const reset = await execSystemctl(["--user", "reset-failed"]);
+    if (reset.code !== 0) {
+      stdout.write(`Warning: systemctl reset-failed failed: ${reset.stderr || reset.stdout}\n`);
+    }
   }
 
   return units;
