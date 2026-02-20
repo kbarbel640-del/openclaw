@@ -65,15 +65,18 @@ async function assertLocalMediaAllowed(
     return;
   }
   const roots = localRoots ?? getDefaultLocalRoots();
-  // Resolve symlinks so a symlink under /tmp pointing to /etc/passwd is caught.
-  let resolved: string;
+  // Resolve symlinks so paths under aliased directories (e.g. /tmp <-> /private/tmp)
+  // are handled correctly.
+  const resolvedMediaCandidates = new Set<string>([path.resolve(mediaPath)]);
   try {
-    resolved = await fs.realpath(mediaPath);
+    resolvedMediaCandidates.add(await fs.realpath(mediaPath));
   } catch {
-    resolved = path.resolve(mediaPath);
+    // Ignore realpath errors; use lexical path as fallback.
   }
 
-  // Hardening: the default allowlist includes the OpenClaw temp dir, and tests/CI may
+  const mediaCandidates = [...resolvedMediaCandidates].map((candidate) => path.resolve(candidate));
+
+  // Hardening: the default allowlist includes `os.tmpdir()`, and tests/CI may
   // override the state dir into tmp. Avoid accidentally allowing per-agent
   // `workspace-*` state roots via the temp-root prefix match; require explicit
   // localRoots for those.
@@ -81,7 +84,7 @@ async function assertLocalMediaAllowed(
     const workspaceRoot = roots.find((root) => path.basename(root) === "workspace");
     if (workspaceRoot) {
       const stateDir = path.dirname(workspaceRoot);
-      const rel = path.relative(stateDir, resolved);
+      const rel = path.relative(stateDir, mediaCandidates[0] ?? path.resolve(mediaPath));
       if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) {
         const firstSegment = rel.split(path.sep)[0] ?? "";
         if (firstSegment.startsWith("workspace-")) {
@@ -100,14 +103,23 @@ async function assertLocalMediaAllowed(
     } catch {
       resolvedRoot = path.resolve(root);
     }
-    if (resolvedRoot === path.parse(resolvedRoot).root) {
-      throw new LocalMediaAccessError(
-        "invalid-root",
-        `Invalid localRoots entry (refuses filesystem root): ${root}. Pass a narrower directory.`,
-      );
-    }
-    if (resolved === resolvedRoot || resolved.startsWith(resolvedRoot + path.sep)) {
-      return;
+    const resolvedRootCandidates = new Set<string>([
+      path.resolve(root),
+      path.resolve(resolvedRoot),
+    ]);
+    for (const candidate of resolvedRootCandidates) {
+      if (candidate === path.parse(candidate).root) {
+        throw new LocalMediaAccessError(
+          "invalid-root",
+          `Invalid localRoots entry (refuses filesystem root): ${root}. Pass a narrower directory.`,
+        );
+      }
+      for (const mediaCandidate of mediaCandidates) {
+        const rel = path.relative(candidate, mediaCandidate);
+        if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) {
+          return;
+        }
+      }
     }
   }
   throw new LocalMediaAccessError(
