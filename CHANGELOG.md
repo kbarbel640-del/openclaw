@@ -6,6 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Plugins: add `gateway-alias` extension — hostname-based reverse proxy for multi-gateway setups. Access gateways by name (`http://hal`, `http://sam`) instead of port numbers. Includes `/etc/hosts` management, pfctl/iptables port forwarding setup, WebSocket upgrade support, and `/aliases` command.
 - iOS/Gateway: stabilize background wake and reconnect behavior with background reconnect suppression/lease windows, BGAppRefresh wake fallback, location wake hook throttling, and APNs wake retry+nudge instrumentation. (#21226) thanks @mbelinky.
 - Auto-reply/UI: add model fallback lifecycle visibility in verbose logs, /status active-model context with fallback reason, and cohesive WebUI fallback indicators. (#20704) Thanks @joshavant.
 

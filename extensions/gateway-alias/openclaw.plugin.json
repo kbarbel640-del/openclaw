@@ -1,0 +1,50 @@
+{
+  "id": "gateway-alias",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "aliases": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "description": "Map of hostname alias to gateway port, e.g. { \"hal\": 18789, \"sam\": 19789 }"
+      },
+      "port": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535,
+        "description": "Port the reverse proxy listens on (default: 80)"
+      },
+      "bind": {
+        "type": "string",
+        "description": "Bind address for the proxy (default: 127.0.0.1)"
+      },
+      "manageHosts": {
+        "type": "boolean",
+        "description": "Manage /etc/hosts entries for aliases (default: true, requires sudo)"
+      }
+    }
+  },
+  "uiHints": {
+    "aliases": {
+      "label": "Hostname Aliases",
+      "help": "Map of hostname to gateway port. E.g. { \"hal\": 18789, \"sam\": 19789 }"
+    },
+    "port": {
+      "label": "Proxy Listen Port",
+      "help": "Port for the reverse proxy (default: 80). Ports below 1024 may require elevated privileges."
+    },
+    "bind": {
+      "label": "Proxy Bind Address",
+      "help": "Address the proxy binds to (default: 127.0.0.1)"
+    },
+    "manageHosts": {
+      "label": "Manage /etc/hosts",
+      "help": "Auto-add/remove 127.0.0.1 entries for aliases in /etc/hosts"
+    }
+  }
+}

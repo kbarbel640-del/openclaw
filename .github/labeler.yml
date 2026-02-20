@@ -89,6 +89,10 @@
       - any-glob-to-any-file:
           - "extensions/twitch/**"
           - "docs/channels/twitch.md"
+"extension: gateway-alias":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/gateway-alias/**"
 "channel: voice-call":
   - changed-files:
       - any-glob-to-any-file:
