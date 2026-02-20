@@ -523,26 +523,30 @@ export function createGatewayHttpServer(opts: {
         return;
       }
       // Local task dashboard API (Control UI tab).
-      if (requestPath === "/api/tasks" || requestPath.startsWith("/api/tasks/")) {
-        const token = getBearerToken(req);
-        const authResult = await authorizeGatewayConnect({
-          auth: resolvedAuth,
-          connectAuth: token ? { token, password: token } : null,
-          req,
-          trustedProxies,
-          rateLimiter,
-        });
-        if (!authResult.ok) {
-          sendGatewayAuthFailure(res, authResult);
-          return;
-        }
-        if (
-          await handleTasksHttpRequest(req, res, {
-            cfg: configSnapshot,
-            basePath: controlUiBasePath,
-          })
-        ) {
-          return;
+      {
+        const base = controlUiBasePath?.trim() ? controlUiBasePath.trim().replace(/\/+$/, "") : "";
+        const tasksPrefix = base ? `${base}/api/tasks` : "/api/tasks";
+        if (requestPath === tasksPrefix || requestPath.startsWith(`${tasksPrefix}/`)) {
+          const token = getBearerToken(req);
+          const authResult = await authorizeGatewayConnect({
+            auth: resolvedAuth,
+            connectAuth: token ? { token, password: token } : null,
+            req,
+            trustedProxies,
+            rateLimiter,
+          });
+          if (!authResult.ok) {
+            sendGatewayAuthFailure(res, authResult);
+            return;
+          }
+          if (
+            await handleTasksHttpRequest(req, res, {
+              cfg: configSnapshot,
+              basePath: controlUiBasePath,
+            })
+          ) {
+            return;
+          }
         }
       }
 
