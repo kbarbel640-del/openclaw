@@ -393,9 +393,15 @@ export type PluginHookLlmOutputEvent = {
 // agent_end hook
 export type PluginHookAgentEndEvent = {
   messages: unknown[];
+  lastAssistantMessage?: string;
   success: boolean;
   error?: string;
   durationMs?: number;
+};
+
+export type PluginHookAgentEndResult = {
+  continue?: boolean;
+  message?: string;
 };
 
 // Compaction hooks
@@ -584,7 +590,10 @@ export type PluginHookHandlerMap = {
     event: PluginHookLlmOutputEvent,
     ctx: PluginHookAgentContext,
   ) => Promise<void> | void;
-  agent_end: (event: PluginHookAgentEndEvent, ctx: PluginHookAgentContext) => Promise<void> | void;
+  agent_end: (
+    event: PluginHookAgentEndEvent,
+    ctx: PluginHookAgentContext,
+  ) => Promise<PluginHookAgentEndResult | void> | PluginHookAgentEndResult | void;
   before_compaction: (
     event: PluginHookBeforeCompactionEvent,
     ctx: PluginHookAgentContext,
