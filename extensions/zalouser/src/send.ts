@@ -104,6 +104,11 @@ export async function sendImageZalouser(
   options: ZalouserSendOptions = {},
 ): Promise<ZalouserSendResult> {
   const profile = options.profile || process.env.ZCA_PROFILE || "default";
+
+  if (!threadId?.trim()) {
+    return { ok: false, error: "No threadId provided" };
+  }
+
   const args = ["msg", "image", threadId.trim(), "-u", imageUrl.trim()];
   if (options.caption) {
     args.push("-m", options.caption.slice(0, 2000));
@@ -129,6 +134,11 @@ export async function sendLinkZalouser(
   options: ZalouserSendOptions = {},
 ): Promise<ZalouserSendResult> {
   const profile = options.profile || process.env.ZCA_PROFILE || "default";
+
+  if (!threadId?.trim()) {
+    return { ok: false, error: "No threadId provided" };
+  }
+
   const args = ["msg", "link", threadId.trim(), url.trim()];
   if (options.isGroup) {
     args.push("-g");
