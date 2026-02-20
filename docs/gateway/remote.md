@@ -125,5 +125,6 @@ Short version: **keep the Gateway loopback-only** unless you’re sure you need 
 - **Tailscale Serve** can authenticate via identity headers when `gateway.auth.allowTailscale: true`.
   Set it to `false` if you want tokens/passwords instead.
 - Treat browser control like operator access: tailnet-only + deliberate node pairing.
+- **Docker/private networks**: `ws://` is blocked for non-loopback addresses by default. For Docker bridge networks (172.x) or other private IPs, set `gateway.allowPlaintextWs: true` or `OPENCLAW_ALLOW_PLAINTEXT_WS=1`. This allows `ws://` to RFC1918 private addresses only; public IPs still require `wss://`. See [Docker](/install/docker#plaintext-websocket-on-docker-networks).
 
 Deep dive: [Security](/gateway/security).

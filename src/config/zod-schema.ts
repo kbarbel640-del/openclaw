@@ -394,7 +394,9 @@ export const OpenClawSchema = z
     gateway: z
       .object({
         port: z.number().int().positive().optional(),
+        allowPlaintextWs: z.boolean().optional(),
         mode: z.union([z.literal("local"), z.literal("remote")]).optional(),
+        customBindHost: z.string().optional(),
         bind: z
           .union([
             z.literal("auto"),
@@ -404,7 +406,6 @@ export const OpenClawSchema = z
             z.literal("tailnet"),
           ])
           .optional(),
-        customBindHost: z.string().optional(),
         controlUi: z
           .object({
             enabled: z.boolean().optional(),

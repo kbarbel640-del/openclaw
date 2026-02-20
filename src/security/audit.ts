@@ -345,6 +345,19 @@ function collectGatewayConfigFindings(
     });
   }
 
+  if (cfg.gateway?.allowPlaintextWs === true || env.OPENCLAW_ALLOW_PLAINTEXT_WS === "1") {
+    findings.push({
+      checkId: "gateway.allow_plaintext_ws",
+      severity: "warn",
+      title: "Plaintext ws:// allowed on private networks",
+      detail:
+        "gateway.allowPlaintextWs=true (or OPENCLAW_ALLOW_PLAINTEXT_WS=1) allows unencrypted ws:// connections to private/RFC1918 addresses (e.g. Docker bridge networks). " +
+        "Credentials and chat data are transmitted in cleartext within the private network.",
+      remediation:
+        "Use wss:// with TLS for gateway connections, or remove this setting when not using Docker/private networks.",
+    });
+  }
+
   if (cfg.gateway?.controlUi?.allowInsecureAuth === true) {
     findings.push({
       checkId: "gateway.control_ui.insecure_auth",

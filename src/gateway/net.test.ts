@@ -303,6 +303,41 @@ describe("isSecureWebSocketUrl", () => {
     });
   });
 
+  describe("ws:// with allowPrivateNetworks (Docker/LAN)", () => {
+    it("returns true for ws:// to Docker bridge network IPs", () => {
+      const opts = { allowPrivateNetworks: true };
+      expect(isSecureWebSocketUrl("ws://172.18.0.2:18789", opts)).toBe(true);
+      expect(isSecureWebSocketUrl("ws://172.17.0.1:18789", opts)).toBe(true);
+      expect(isSecureWebSocketUrl("ws://172.19.5.100:18789", opts)).toBe(true);
+    });
+
+    it("returns true for ws:// to RFC1918 private addresses", () => {
+      const opts = { allowPrivateNetworks: true };
+      expect(isSecureWebSocketUrl("ws://10.0.0.5:18789", opts)).toBe(true);
+      expect(isSecureWebSocketUrl("ws://192.168.1.100:18789", opts)).toBe(true);
+      expect(isSecureWebSocketUrl("ws://100.64.0.1:18789", opts)).toBe(true);
+    });
+
+    it("still returns false for ws:// to public addresses even with allowPrivateNetworks", () => {
+      const opts = { allowPrivateNetworks: true };
+      expect(isSecureWebSocketUrl("ws://remote.example.com:18789", opts)).toBe(false);
+      expect(isSecureWebSocketUrl("ws://8.8.8.8:18789", opts)).toBe(false);
+      expect(isSecureWebSocketUrl("ws://1.1.1.1:18789", opts)).toBe(false);
+    });
+
+    it("still returns true for ws:// to loopback with allowPrivateNetworks", () => {
+      const opts = { allowPrivateNetworks: true };
+      expect(isSecureWebSocketUrl("ws://127.0.0.1:18789", opts)).toBe(true);
+      expect(isSecureWebSocketUrl("ws://localhost:18789", opts)).toBe(true);
+    });
+
+    it("returns false for ws:// to private addresses without allowPrivateNetworks", () => {
+      expect(isSecureWebSocketUrl("ws://172.18.0.2:18789")).toBe(false);
+      expect(isSecureWebSocketUrl("ws://10.0.0.5:18789")).toBe(false);
+      expect(isSecureWebSocketUrl("ws://192.168.1.100:18789")).toBe(false);
+    });
+  });
+
   describe("invalid URLs", () => {
     it("returns false for invalid URLs", () => {
       expect(isSecureWebSocketUrl("not-a-url")).toBe(false);

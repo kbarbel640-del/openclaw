@@ -406,11 +406,17 @@ export function isLoopbackHost(host: string): boolean {
  * Returns true if the URL is secure for transmitting data:
  * - wss:// (TLS) is always secure
  * - ws:// is only secure for loopback addresses (localhost, 127.x.x.x, ::1)
+ * - When allowPrivateNetworks is true, ws:// is also allowed for RFC1918 private
+ *   addresses (10.x, 172.16-31.x, 192.168.x, link-local, CGNAT) to support Docker
+ *   bridge networks and similar internal environments.
  *
  * All other ws:// URLs are considered insecure because both credentials
  * AND chat/conversation data would be exposed to network interception.
  */
-export function isSecureWebSocketUrl(url: string): boolean {
+export function isSecureWebSocketUrl(
+  url: string,
+  opts?: { allowPrivateNetworks?: boolean },
+): boolean {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -426,6 +432,19 @@ export function isSecureWebSocketUrl(url: string): boolean {
     return false;
   }
 
-  // ws:// is only secure for loopback addresses
-  return isLoopbackHost(parsed.hostname);
+  // ws:// is always secure for loopback addresses
+  if (isLoopbackHost(parsed.hostname)) {
+    return true;
+  }
+
+  // When allowPrivateNetworks is enabled (e.g. Docker), also allow private/RFC1918 addresses
+  if (opts?.allowPrivateNetworks) {
+    const host =
+      parsed.hostname.startsWith("[") && parsed.hostname.endsWith("]")
+        ? parsed.hostname.slice(1, -1)
+        : parsed.hostname;
+    return isPrivateOrLoopbackAddress(host);
+  }
+
+  return false;
 }

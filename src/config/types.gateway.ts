@@ -280,6 +280,16 @@ export type GatewayConfig = {
   /** Single multiplexed port for Gateway WS + HTTP (default: 18789). */
   port?: number;
   /**
+   * Allow plaintext ws:// connections to private/RFC1918 network addresses
+   * (e.g. Docker bridge networks like 172.18.x.x).
+   * By default, ws:// is only allowed for loopback (127.0.0.1/localhost/::1).
+   * When true, ws:// is also allowed for private ranges (10.x, 172.16-31.x, 192.168.x)
+   * but public addresses still require wss://.
+   * Can also be set via OPENCLAW_ALLOW_PLAINTEXT_WS=1 environment variable.
+   * Default: false.
+   */
+  allowPlaintextWs?: boolean;
+  /**
    * Explicit gateway mode. When set to "remote", local gateway start is disabled.
    * When set to "local", the CLI may start the gateway locally.
    */

@@ -5,6 +5,8 @@ export const FIELD_HELP: Record<string, string> = {
   "meta.lastTouchedAt": "ISO timestamp of the last config write (auto-set).",
   "update.channel": 'Update channel for git + npm installs ("stable", "beta", or "dev").',
   "update.checkOnStart": "Check for npm updates when the gateway starts (default: true).",
+  "gateway.allowPlaintextWs":
+    "Allow plaintext ws:// to private/RFC1918 addresses (Docker networks, LAN). Still blocks public IPs. Also settable via OPENCLAW_ALLOW_PLAINTEXT_WS=1 env var.",
   "gateway.remote.url": "Remote Gateway WebSocket URL (ws:// or wss://).",
   "gateway.remote.tlsFingerprint":
     "Expected sha256 TLS fingerprint for the remote gateway (pin to avoid MITM).",
