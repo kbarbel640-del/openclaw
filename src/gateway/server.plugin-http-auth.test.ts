@@ -135,8 +135,20 @@ describe("gateway plugin HTTP auth boundary", () => {
           createRequest({ path: "/plugin/public" }),
           unauthenticatedPublic.res,
         );
-        expect(unauthenticatedPublic.res.statusCode).toBe(200);
-        expect(unauthenticatedPublic.getBody()).toContain('"route":"public"');
+        expect(unauthenticatedPublic.res.statusCode).toBe(401);
+        expect(unauthenticatedPublic.getBody()).toContain("Unauthorized");
+
+        const authenticatedPublic = createResponse();
+        await dispatchRequest(
+          server,
+          createRequest({
+            path: "/plugin/public",
+            authorization: "Bearer test-token",
+          }),
+          authenticatedPublic.res,
+        );
+        expect(authenticatedPublic.res.statusCode).toBe(200);
+        expect(authenticatedPublic.getBody()).toContain('"route":"public"');
 
         expect(handlePluginRequest).toHaveBeenCalledTimes(2);
       },
