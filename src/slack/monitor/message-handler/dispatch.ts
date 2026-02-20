@@ -19,6 +19,7 @@ import {
 import type { SlackStreamSession } from "../../streaming.js";
 import { appendSlackStream, startSlackStream, stopSlackStream } from "../../streaming.js";
 import { resolveSlackThreadTargets } from "../../threading.js";
+import { completeInflightMessage, registerInflightMessage, updateCatchupWatermark } from "../catchup.js";
 import { createSlackReplyDeliveryPlan, deliverReplies, resolveSlackThreadTs } from "../replies.js";
 import type { PreparedSlackMessage } from "./types.js";
 
@@ -347,50 +348,84 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     hasStreamedMessage = true;
   };
 
-  const { queuedFinal, counts } = await dispatchInboundMessage({
-    ctx: prepared.ctxPayload,
-    cfg,
-    dispatcher,
-    replyOptions: {
-      ...replyOptions,
-      skillFilter: prepared.channelConfig?.skills,
-      hasRepliedRef,
-      disableBlockStreaming: useStreaming
-        ? true
-        : typeof account.config.blockStreaming === "boolean"
-          ? !account.config.blockStreaming
-          : undefined,
-      onModelSelected,
-      onPartialReply: useStreaming
-        ? undefined
-        : async (payload) => {
-            updateDraftFromPartial(payload.text);
-          },
-      onAssistantMessageStart: useStreaming
-        ? undefined
-        : async () => {
-            if (hasStreamedMessage) {
-              draftStream.forceNewMessage();
-              hasStreamedMessage = false;
-              appendRenderedText = "";
-              appendSourceText = "";
-              statusUpdateCount = 0;
-            }
-          },
-      onReasoningEnd: useStreaming
-        ? undefined
-        : async () => {
-            if (hasStreamedMessage) {
-              draftStream.forceNewMessage();
-              hasStreamedMessage = false;
-              appendRenderedText = "";
-              appendSourceText = "";
-              statusUpdateCount = 0;
-            }
-          },
-    },
-  });
-  await draftStream.flush();
+  // -----------------------------------------------------------------------
+  // At-least-once watermark: register this message as in-flight so the
+  // watermark cannot advance past it until processing completes.
+  // -----------------------------------------------------------------------
+  const watermarkTs = message.ts ?? message.event_ts;
+  if (watermarkTs) {
+    registerInflightMessage(message.channel, watermarkTs, account.accountId);
+  }
+
+  let queuedFinal = false;
+  let counts = { tool: 0, block: 0, final: 0 };
+  let processingFailed = false;
+
+  try {
+    const result = await dispatchInboundMessage({
+      ctx: prepared.ctxPayload,
+      cfg,
+      dispatcher,
+      replyOptions: {
+        ...replyOptions,
+        skillFilter: prepared.channelConfig?.skills,
+        hasRepliedRef,
+        disableBlockStreaming: useStreaming
+          ? true
+          : typeof account.config.blockStreaming === "boolean"
+            ? !account.config.blockStreaming
+            : undefined,
+        onModelSelected,
+        onPartialReply: useStreaming
+          ? undefined
+          : async (payload) => {
+              updateDraftFromPartial(payload.text);
+            },
+        onAssistantMessageStart: useStreaming
+          ? undefined
+          : async () => {
+              if (hasStreamedMessage) {
+                draftStream.forceNewMessage();
+                hasStreamedMessage = false;
+                appendRenderedText = "";
+                appendSourceText = "";
+                statusUpdateCount = 0;
+              }
+            },
+        onReasoningEnd: useStreaming
+          ? undefined
+          : async () => {
+              if (hasStreamedMessage) {
+                draftStream.forceNewMessage();
+                hasStreamedMessage = false;
+                appendRenderedText = "";
+                appendSourceText = "";
+                statusUpdateCount = 0;
+              }
+            },
+      },
+    });
+    queuedFinal = result.queuedFinal;
+    counts = result.counts;
+  } catch (err) {
+    processingFailed = true;
+    runtime.error?.(
+      danger(`slack: dispatch failed for ${message.channel}/${watermarkTs ?? message.ts}: ${String(err)}`),
+    );
+  } finally {
+    // Complete in-flight tracking regardless of outcome so deferred
+    // watermarks from other concurrent dispatches can drain.
+    if (watermarkTs) {
+      completeInflightMessage(message.channel, watermarkTs, account.accountId, !processingFailed);
+    }
+  }
+
+  // Best-effort cleanup (runs regardless of processing outcome)
+  try {
+    await draftStream.flush();
+  } catch {
+    // Draft stream flush is best-effort; reply delivery already complete.
+  }
   draftStream.stop();
   markDispatchIdle();
 
@@ -404,6 +439,22 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     } catch (err) {
       runtime.error?.(danger(`slack-stream: failed to stop stream: ${String(err)}`));
     }
+  }
+
+  // On processing failure, do not advance watermark — the message will be
+  // re-processed via catch-up on next restart (at-least-once semantics).
+  if (processingFailed) {
+    try {
+      await draftStream.clear();
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
+  // Advance the catch-up watermark (respects in-flight safety)
+  if (watermarkTs) {
+    updateCatchupWatermark(message.channel, watermarkTs, account.accountId);
   }
 
   const anyReplyDelivered = queuedFinal || (counts.block ?? 0) > 0 || (counts.final ?? 0) > 0;
