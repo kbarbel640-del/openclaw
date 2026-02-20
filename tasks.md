@@ -5,6 +5,7 @@ Gates for all work:
 - docs/ted-profile/sdd-pack/09_TEST_AND_RELEASE_GATES.md
 - docs/ted-profile/sdd-pack/14_DAY1_PROMOTION_POLICY.md
 - docs/ted-profile/sdd-pack/15_VALUE_AND_FRICTION_GATES.md
+- docs/ted-profile/sdd-pack/16_COUNCIL_EXPANSION_AND_COWORK_REVIEW.md
 
 Roadmap reference:
 
@@ -22,6 +23,7 @@ For each job card increment:
 5. Set promotion state (`SHADOW`, `PREVIEW`, `GA`, `DEFERRED`)
 6. Confirm increment improves the canonical operator loop
 7. Record friction-budget KPI evidence in the job card
+8. Run council interrogation checklist and record findings/remediation
 
 ## Active Job Cards (execute in order)
 
@@ -81,3 +83,11 @@ For each job card increment:
   - approval queue oldest age
   - unresolved triage end-of-day count
   - explainability missing count
+
+## Mandatory Council Interrogation Evidence (each increment)
+
+- Workflow vs agent boundary declaration
+- Cognitive load impact statement + fast-repair path
+- Orchestration retry/idempotency evidence
+- Offline/production eval coverage and regression results
+- Security/compliance abuse-path checks

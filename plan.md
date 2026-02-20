@@ -8,6 +8,7 @@ Canonical planning docs live in:
 - Sidecar tooling spec: docs/ted-profile/sdd-pack/08_OPENCLAW_SIDECAR_TOOLING_SPEC.md
 - Day-1 promotion policy: docs/ted-profile/sdd-pack/14_DAY1_PROMOTION_POLICY.md
 - Value/friction gates: docs/ted-profile/sdd-pack/15_VALUE_AND_FRICTION_GATES.md
+- Council co-work review: docs/ted-profile/sdd-pack/16_COUNCIL_EXPANSION_AND_COWORK_REVIEW.md
 
 ## Promotion model (required)
 
@@ -35,6 +36,12 @@ Every slice runs through recursive SDD phases:
    - morning brief -> draft queue -> approve/escalate -> end-of-day digest
 7. Enforce friction budget gates before promotion:
    - manual effort, approval queue age, unresolved triage, explainability completeness
+8. Run council interrogation pass before each promotion decision:
+   - workflow-vs-agent boundary
+   - cognitive load and fast repair
+   - orchestration retry/idempotency
+   - eval/regression quality
+   - security/policy abuse checks
 
 All phases must pass gates defined in:
 

@@ -172,3 +172,36 @@ Legend:
   - "what blocked", "why", and "next safe step" fields are present for all deny paths.
 - Proof:
   - Negative-path test outputs include reason code plus remediation guidance.
+
+---
+
+## EPIC 7 — Council Co-Work Assurance
+
+### OC7.1 — Expanded council interrogation pass is mandatory
+
+- Status: TODO
+- Goal: prevent co-work quality regressions by enforcing expert interrogation before promotion.
+- DoD:
+  - All new permanent council seats participate in review with written findings.
+  - Interrogation questions are answered for each promotion slice.
+- Proof:
+  - Council review artifact updated with findings and remediation decisions.
+
+### OC7.2 — Workflow-vs-agent boundary contract
+
+- Status: TODO
+- Goal: minimize unsafe agentic behavior and unnecessary complexity.
+- DoD:
+  - Each promoted slice declares deterministic workflow path vs adaptive agent path.
+- Proof:
+  - Slice artifact includes boundary contract and negative-path tests.
+
+### OC7.3 — Evals and fast-repair coverage
+
+- Status: TODO
+- Goal: ensure operator trust and correction speed at co-work scale.
+- DoD:
+  - Golden eval sets for drafting/extraction/escalation are active.
+  - Fast repair (<10s correction flow) is tested for operator-facing slices.
+- Proof:
+  - Eval and fast-repair evidence attached to release gating.
