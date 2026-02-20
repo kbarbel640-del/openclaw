@@ -14,6 +14,11 @@ import { loadInternalHooks } from "./loader.js";
 describe("loader", () => {
   let tmpDir: string;
   let originalBundledDir: string | undefined;
+  const isolatedEntries = {
+    clawvault: {
+      enabled: false,
+    },
+  } as const;
 
   beforeEach(async () => {
     clearInternalHooks();
@@ -48,6 +53,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: false,
+            entries: isolatedEntries,
           },
         },
       };
@@ -76,6 +82,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -105,6 +112,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               { event: "command:new", module: handler1Path },
               { event: "command:stop", module: handler2Path },
@@ -135,6 +143,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -157,6 +166,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -188,6 +198,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -217,6 +228,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -249,6 +261,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
