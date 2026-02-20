@@ -200,7 +200,7 @@ export function openEditCron(state: CronState, job: CronJob) {
       typeof (job.schedule as unknown as { everyMs?: number }).everyMs === "number"
         ? String(Math.floor((job.schedule as unknown as { everyMs: number }).everyMs / 60000))
         : "",
-    everyUnit: job.schedule.kind === "every" ? "minutes" : "minutes",
+    everyUnit: "minutes",
     cronExpr:
       job.schedule.kind === "cron" &&
       typeof (job.schedule as unknown as { expr?: string }).expr === "string"
