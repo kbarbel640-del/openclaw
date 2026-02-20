@@ -4,9 +4,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import "./test-helpers/fast-coding-tools.js";
 import type { OpenClawConfig } from "../config/config.js";
-import { createOpenClawCodingTools } from "./pi-tools.js";
 import type { SandboxDockerConfig } from "./sandbox.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
+import { createOpenClawCodingTools } from "./pi-tools.js";
 
 type ToolWithExecute = {
   execute: (toolCallId: string, args: unknown, signal?: AbortSignal) => Promise<unknown>;
@@ -659,7 +659,9 @@ describe("Agent-specific tool filtering", () => {
         command: "echo done",
         host: "sandbox",
       }),
-    ).rejects.toThrow("exec host not allowed");
+    ).rejects.toThrow(
+      /exec host not allowed \(requested sandbox; configure tools\.exec\.host=sandbox to allow\)\./,
+    );
 
     const helperTools = createOpenClawCodingTools({
       config: cfg,

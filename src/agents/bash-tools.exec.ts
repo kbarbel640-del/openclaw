@@ -1,6 +1,11 @@
+import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
+import type {
+  ExecElevatedDefaults,
+  ExecToolDefaults,
+  ExecToolDetails,
+} from "./bash-tools.exec-types.js";
 import { type ExecHost, maxAsk, minSecurity, resolveSafeBins } from "../infra/exec-approvals.js";
 import { getTrustedSafeBinDirs } from "../infra/exec-safe-bin-trust.js";
 import {
@@ -28,11 +33,6 @@ import {
   execSchema,
   validateHostEnv,
 } from "./bash-tools.exec-runtime.js";
-import type {
-  ExecElevatedDefaults,
-  ExecToolDefaults,
-  ExecToolDetails,
-} from "./bash-tools.exec-types.js";
 import {
   buildSandboxEnv,
   clampWithDefault,
@@ -285,7 +285,7 @@ export function createExecTool(
       if (!elevatedRequested && requestedHost && requestedHost !== configuredHost) {
         throw new Error(
           `exec host not allowed (requested ${renderExecHostLabel(requestedHost)}; ` +
-            `configure tools.exec.host=${renderExecHostLabel(configuredHost)} to allow).`,
+            `configure tools.exec.host=${renderExecHostLabel(requestedHost)} to allow).`,
         );
       }
       if (elevatedRequested) {
