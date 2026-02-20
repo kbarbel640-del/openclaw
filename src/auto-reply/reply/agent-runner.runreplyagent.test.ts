@@ -1381,7 +1381,9 @@ describe("runReplyAgent typing (heartbeat)", () => {
 
 describe("runReplyAgent heartbeat model isolation", () => {
   it("does not persist heartbeat model/context over the user session model", async () => {
-    const fixtureRoot = await fs.mkdtemp(path.join(tmpdir(), "openclaw-heartbeat-model-isolation-"));
+    const fixtureRoot = await fs.mkdtemp(
+      path.join(tmpdir(), "openclaw-heartbeat-model-isolation-"),
+    );
     try {
       const storePath = path.join(fixtureRoot, "sessions.json");
       const sessionKey = "main";
