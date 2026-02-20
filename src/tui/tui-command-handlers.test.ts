@@ -90,7 +90,11 @@ describe("tui command handlers", () => {
     const addSystem = vi.fn();
     const requestRender = vi.fn();
     const setActivityStatus = vi.fn();
-    const state = {
+    const state: {
+      currentSessionKey: string;
+      activeChatRunId: string | null;
+      sessionInfo: Record<string, never>;
+    } = {
       currentSessionKey: "agent:main:main",
       activeChatRunId: "active-run",
       sessionInfo: {},
