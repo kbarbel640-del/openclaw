@@ -24,7 +24,25 @@ export type AddSkillFromUrlResult = {
   message: string;
 };
 
-const SAFE_NAME_REGEX = /^[a-zA-Z0-9_.-]+$/;
+/**
+ * Returns true if name is safe to use as a skill directory name (no path traversal,
+ * path separators, or null bytes). Allows non-ASCII and emoji (e.g. GitHub repo names).
+ */
+function isSafeSkillDirName(name: string): boolean {
+  if (name.length === 0) {
+    return false;
+  }
+  if (name.includes("..")) {
+    return false;
+  }
+  if (name.includes("/") || name.includes("\\")) {
+    return false;
+  }
+  if (name.includes("\0")) {
+    return false;
+  }
+  return true;
+}
 
 /**
  * Parse a Git repo URL and derive a safe directory name.
@@ -45,11 +63,16 @@ export function parseSkillRepoUrl(url: string): { url: string; name: string } {
     throw new Error("Only https URLs are allowed");
   }
   const pathname = parsed.pathname.replace(/\/+$/, "") || "/";
-  const segment = pathname.split("/").filter(Boolean).pop() ?? "";
+  let segment = pathname.split("/").filter(Boolean).pop() ?? "";
+  try {
+    segment = decodeURIComponent(segment);
+  } catch {
+    // leave segment as-is if malformed percent-encoding
+  }
   const name = segment.replace(/\.git$/i, "").trim();
-  if (!name || !SAFE_NAME_REGEX.test(name)) {
+  if (!isSafeSkillDirName(name)) {
     throw new Error(
-      `Invalid repo name derived from URL (use only letters, numbers, dots, hyphens, underscores): ${name || "(empty)"}`,
+      `Invalid repo name: must not contain .. / \\ or null bytes. Got: ${name || "(empty)"}`,
     );
   }
   return { url: trimmed, name };
@@ -98,14 +121,6 @@ export async function addSkillFromUrl(
     };
   }
 
-  if (fs.existsSync(targetDir)) {
-    return {
-      ok: false,
-      name,
-      message: `Skill directory already exists: ${name}. Remove it first or use a different URL.`,
-    };
-  }
-
   const cloneOpts: CommandOptions = { timeoutMs: cloneTimeoutMs, cwd: managedDir };
   const cloneResult = await runCommandWithTimeout(
     ["git", "clone", "--depth", "1", url, name],
@@ -113,18 +128,20 @@ export async function addSkillFromUrl(
   );
   if (cloneResult.code !== 0) {
     const stderr = cloneResult.stderr.trim() || cloneResult.stdout.trim();
+    const dirExisted = fs.existsSync(targetDir);
     try {
-      if (fs.existsSync(targetDir)) {
+      if (dirExisted) {
         fs.rmSync(targetDir, { recursive: true });
       }
     } catch {
       // ignore cleanup failure
     }
-    return {
-      ok: false,
-      name,
-      message: stderr ? `Clone failed: ${stderr}` : "Clone failed",
-    };
+    const message = dirExisted
+      ? `Skill directory already exists: ${name}. Remove it first or use a different URL.`
+      : stderr
+        ? `Clone failed: ${stderr}`
+        : "Clone failed";
+    return { ok: false, name, message };
   }
 
   const packageJsonPath = path.join(targetDir, "package.json");
@@ -138,7 +155,7 @@ export async function addSkillFromUrl(
     if (installResult.code !== 0) {
       const stderr = installResult.stderr.trim() || installResult.stdout.trim();
       return {
-        ok: true,
+        ok: false,
         name,
         message: `Cloned successfully; dependency install failed: ${stderr || "unknown"}`,
       };
@@ -152,15 +169,19 @@ export async function addSkillFromUrl(
   };
 }
 
+/**
+ * Build install argv with --ignore-scripts to avoid running lifecycle scripts
+ * from untrusted skill repos (supply-chain safety).
+ */
 function buildInstallArgv(nodeManager: "npm" | "pnpm" | "yarn" | "bun"): string[] {
   switch (nodeManager) {
     case "pnpm":
-      return ["pnpm", "install", "--omit=dev"];
+      return ["pnpm", "install", "--omit=dev", "--ignore-scripts"];
     case "yarn":
-      return ["yarn", "install", "--production"];
+      return ["yarn", "install", "--production", "--ignore-scripts"];
     case "bun":
-      return ["bun", "install", "--production"];
+      return ["bun", "install", "--production", "--ignore-scripts"];
     default:
-      return ["npm", "install", "--omit=dev"];
+      return ["npm", "install", "--omit=dev", "--ignore-scripts"];
   }
 }
