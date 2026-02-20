@@ -1,4 +1,6 @@
 import { ChannelType } from "@buape/carbon";
+import type { ReplyPayload } from "../../auto-reply/types.js";
+import type { DiscordMessagePreflightContext } from "./message-handler.preflight.js";
 import { resolveAckReaction, resolveHumanDelayConfig } from "../../agents/identity.js";
 import { EmbeddedBlockChunker } from "../../agents/pi-embedded-block-chunker.js";
 import { resolveChunkMode } from "../../auto-reply/chunk.js";
@@ -10,7 +12,6 @@ import {
 } from "../../auto-reply/reply/history.js";
 import { finalizeInboundContext } from "../../auto-reply/reply/inbound-context.js";
 import { createReplyDispatcherWithTyping } from "../../auto-reply/reply/reply-dispatcher.js";
-import type { ReplyPayload } from "../../auto-reply/types.js";
 import { shouldAckReaction as shouldAckReactionGate } from "../../channels/ack-reactions.js";
 import { logTypingFailure, logAckFailure } from "../../channels/logging.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
@@ -36,7 +37,6 @@ import { reactMessageDiscord, removeReactionDiscord } from "../send.js";
 import { editMessageDiscord } from "../send.messages.js";
 import { normalizeDiscordSlug, resolveDiscordOwnerAllowFrom } from "./allow-list.js";
 import { resolveTimestampMs } from "./format.js";
-import type { DiscordMessagePreflightContext } from "./message-handler.preflight.js";
 import {
   buildDiscordMediaPayload,
   resolveDiscordMessageText,
@@ -94,6 +94,8 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     guildSlug,
     channelConfig,
     baseSessionKey,
+    boundSessionKey,
+    threadBindings,
     route,
     commandAuthorized,
   } = ctx;
@@ -324,7 +326,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     CommandBody: baseText,
     From: effectiveFrom,
     To: effectiveTo,
-    SessionKey: autoThreadContext?.SessionKey ?? threadKeys.sessionKey,
+    SessionKey: boundSessionKey ?? autoThreadContext?.SessionKey ?? threadKeys.sessionKey,
     AccountId: route.accountId,
     ChatType: isDirectMessage ? "direct" : "channel",
     ConversationLabel: fromLabel,
@@ -346,6 +348,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     ReplyToBody: replyContext?.body,
     ReplyToSender: replyContext?.sender,
     ParentSessionKey: autoThreadContext?.ParentSessionKey ?? threadKeys.parentSessionKey,
+    MessageThreadId: threadChannel?.id ?? autoThreadContext?.createdThreadId ?? undefined,
     ThreadStarterBody: threadStarterBody,
     ThreadLabel: threadLabel,
     Timestamp: resolveTimestampMs(message.timestamp),
@@ -633,6 +636,8 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         maxLinesPerMessage: discordConfig?.maxLinesPerMessage,
         tableMode,
         chunkMode,
+        sessionKey: ctxPayload.SessionKey,
+        threadBindings,
       });
       replyReference.markSent();
     },

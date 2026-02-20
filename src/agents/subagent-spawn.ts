@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { formatThinkingLevels, normalizeThinkLevel } from "../auto-reply/thinking.js";
 import { loadConfig } from "../config/config.js";
+import { autoBindSpawnedDiscordSubagent } from "../discord/monitor/thread-bindings.js";
 import { callGateway } from "../gateway/call.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../routing/session-key.js";
 import { normalizeDeliveryContext } from "../utils/delivery-context.js";
@@ -24,6 +25,7 @@ export type SpawnSubagentParams = {
   model?: string;
   thinking?: string;
   runTimeoutSeconds?: number;
+  thread?: boolean;
   cleanup?: "delete" | "keep";
   expectsCompletionMessage?: boolean;
 };
@@ -88,6 +90,7 @@ export async function spawnSubagentDirect(
     typeof params.runTimeoutSeconds === "number" && Number.isFinite(params.runTimeoutSeconds)
       ? Math.max(0, Math.floor(params.runTimeoutSeconds))
       : 0;
+  const requestThreadBinding = params.thread === true;
   let modelApplied = false;
 
   const cfg = loadConfig();
@@ -294,6 +297,23 @@ export async function spawnSubagentDirect(
     runTimeoutSeconds,
     expectsCompletionMessage: params.expectsCompletionMessage === true,
   });
+
+  if (requestThreadBinding) {
+    try {
+      await autoBindSpawnedDiscordSubagent({
+        accountId: ctx.agentAccountId,
+        channel: ctx.agentChannel,
+        to: ctx.agentTo,
+        threadId: ctx.agentThreadId,
+        childSessionKey,
+        agentId: targetAgentId,
+        label: label || undefined,
+        boundBy: "system",
+      });
+    } catch {
+      // Spawn should still return accepted if auto-thread binding fails.
+    }
+  }
 
   return {
     status: "accepted",

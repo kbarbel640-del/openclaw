@@ -1,4 +1,3 @@
-import { inspect } from "node:util";
 import {
   Client,
   ReadyListener,
@@ -10,9 +9,11 @@ import {
 import { GatewayCloseCodes, type GatewayPlugin } from "@buape/carbon/gateway";
 import { VoicePlugin } from "@buape/carbon/voice";
 import { Routes } from "discord-api-types/v10";
+import { inspect } from "node:util";
+import type { HistoryEntry } from "../../auto-reply/reply/history.js";
+import type { OpenClawConfig, ReplyToMode } from "../../config/config.js";
 import { resolveTextChunkLimit } from "../../auto-reply/chunk.js";
 import { listNativeCommandSpecsForConfig } from "../../auto-reply/commands-registry.js";
-import type { HistoryEntry } from "../../auto-reply/reply/history.js";
 import { listSkillCommandsForAgents } from "../../auto-reply/skill-commands.js";
 import {
   addAllowlistUserEntriesFromConfigEntry,
@@ -27,7 +28,6 @@ import {
   resolveNativeCommandsEnabled,
   resolveNativeSkillsEnabled,
 } from "../../config/commands.js";
-import type { OpenClawConfig, ReplyToMode } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { danger, logVerbose, shouldLogVerbose, warn } from "../../globals.js";
 import { formatErrorMessage } from "../../infra/errors.js";
@@ -74,6 +74,7 @@ import {
 } from "./native-command.js";
 import { resolveDiscordPresenceUpdate } from "./presence.js";
 import { resolveDiscordRestFetch } from "./rest-fetch.js";
+import { createThreadBindingManager } from "./thread-bindings.js";
 
 export type MonitorDiscordOpts = {
   token?: string;
@@ -439,6 +440,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     );
   }
   const voiceManagerRef: { current: DiscordVoiceManager | null } = { current: null };
+  const threadBindings = createThreadBindingManager({
+    accountId: account.accountId,
+    token,
+  });
   const commands: BaseCommand[] = commandSpecs.map((spec) =>
     createDiscordNativeCommand({
       command: spec,
@@ -447,6 +452,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       accountId: account.accountId,
       sessionPrefix,
       ephemeralDefault,
+      threadBindings,
     }),
   );
   if (nativeEnabled && voiceEnabled) {
@@ -484,6 +490,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       discordConfig: discordCfg,
       accountId: account.accountId,
       sessionPrefix,
+      threadBindings,
     }),
     createDiscordModelPickerFallbackButton({
       cfg,
@@ -618,6 +625,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     groupDmChannels,
     allowFrom,
     guildEntries,
+    threadBindings,
   });
 
   registerDiscordListener(client.listeners, new DiscordMessageListener(messageHandler, logger));
@@ -760,6 +768,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     if (execApprovalsHandler) {
       await execApprovalsHandler.stop();
     }
+    threadBindings.stop();
   }
 }
 

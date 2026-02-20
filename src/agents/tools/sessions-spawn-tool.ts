@@ -1,8 +1,8 @@
 import { Type } from "@sinclair/typebox";
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
+import type { AnyAgentTool } from "./common.js";
 import { optionalStringEnum } from "../schema/typebox.js";
 import { spawnSubagentDirect } from "../subagent-spawn.js";
-import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
 
 const SessionsSpawnToolSchema = Type.Object({
@@ -14,6 +14,7 @@ const SessionsSpawnToolSchema = Type.Object({
   runTimeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
   // Back-compat: older callers used timeoutSeconds for this tool.
   timeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
+  thread: Type.Optional(Type.Boolean()),
   cleanup: optionalStringEnum(["delete", "keep"] as const),
 });
 
@@ -56,6 +57,7 @@ export function createSessionsSpawnTool(opts?: {
         typeof timeoutSecondsCandidate === "number" && Number.isFinite(timeoutSecondsCandidate)
           ? Math.max(0, Math.floor(timeoutSecondsCandidate))
           : undefined;
+      const thread = params.thread === true;
 
       const result = await spawnSubagentDirect(
         {
@@ -65,6 +67,7 @@ export function createSessionsSpawnTool(opts?: {
           model: modelOverride,
           thinking: thinkingOverrideRaw,
           runTimeoutSeconds,
+          thread,
           cleanup,
           expectsCompletionMessage: true,
         },
