@@ -107,6 +107,18 @@ export async function createWaSocket(
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
   const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  const useProxy = proxyUrl && (proxyUrl.startsWith("http://") || proxyUrl.startsWith("https://"));
+  let agent: InstanceType<typeof HttpsProxyAgent> | undefined;
+  if (useProxy) {
+    try {
+      agent = new HttpsProxyAgent(proxyUrl);
+    } catch (err) {
+      sessionLogger.warn(
+        { proxyUrl, error: String(err) },
+        "Invalid proxy URL, falling back to direct connection",
+      );
+    }
+  }
   const sock = makeWASocket({
     auth: {
       creds: state.creds,
@@ -118,12 +130,7 @@ export async function createWaSocket(
     browser: ["openclaw", "cli", VERSION],
     syncFullHistory: false,
     markOnlineOnConnect: false,
-    ...(proxyUrl
-      ? {
-          agent: new HttpsProxyAgent(proxyUrl),
-          connectTimeoutMs: 60_000,
-        }
-      : { connectTimeoutMs: 60_000 }),
+    ...(agent ? { agent, connectTimeoutMs: 60_000 } : {}),
   });
 
   sock.ev.on("creds.update", () => enqueueSaveCreds(authDir, saveCreds, sessionLogger));
