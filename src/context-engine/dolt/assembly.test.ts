@@ -1,7 +1,14 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { DoltRecord } from "./store/types.js";
 import { requireNodeSqlite } from "../../memory/sqlite.js";
-import { assembleDoltContext } from "./assembly.js";
+import {
+  assembleDoltContext,
+  writeDoltContextSnapshot,
+  type DoltContextSnapshot,
+} from "./assembly.js";
 import { serializeDoltSummaryFrontmatter } from "./contract.js";
 import { SqliteDoltStore } from "./store/sqlite-dolt-store.js";
 
@@ -218,6 +225,61 @@ describe("assembleDoltContext", () => {
     ]);
     expect(result.selectedRecords.bindle).toHaveLength(0);
     expect(result.selectedRecords.turn).toHaveLength(0);
+  });
+
+  it("writes an atomic context snapshot file with lane pointers", () => {
+    const { store } = createInMemoryStore(() => 5_000);
+    const turn = upsertTurn({
+      store,
+      sessionId: "session-snap",
+      pointer: "turn-snap-1",
+      eventTsMs: 100,
+      content: "snapshot turn",
+    });
+    const leaf = upsertSummary({
+      store,
+      sessionId: "session-snap",
+      pointer: "leaf-snap-1",
+      level: "leaf",
+      eventTsMs: 200,
+      body: "snapshot leaf",
+      children: ["turn-snap-1"],
+    });
+    markActive(store, turn);
+    markActive(store, leaf);
+
+    const result = assembleDoltContext({
+      store,
+      sessionId: "session-snap",
+      tokenBudget: 50_000,
+    });
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dolt-snap-"));
+    const snapshotPath = path.join(tmpDir, "dolt-context.json");
+    try {
+      writeDoltContextSnapshot({
+        result,
+        sessionId: "session-snap",
+        snapshotPath,
+      });
+
+      expect(fs.existsSync(snapshotPath)).toBe(true);
+      // Tmp file should be cleaned up after atomic rename.
+      expect(fs.existsSync(`${snapshotPath}.tmp`)).toBe(false);
+
+      const snapshot: DoltContextSnapshot = JSON.parse(fs.readFileSync(snapshotPath, "utf-8"));
+
+      expect(snapshot.sessionId).toBe("session-snap");
+      expect(snapshot.estimatedTokens).toBe(result.estimatedTokens);
+      expect(snapshot.lanes.leaf).toHaveLength(1);
+      expect(snapshot.lanes.leaf[0]?.pointer).toBe("leaf-snap-1");
+      expect(snapshot.lanes.turn).toHaveLength(1);
+      expect(snapshot.lanes.turn[0]?.pointer).toBe("turn-snap-1");
+      expect(snapshot.lanes.bindle).toHaveLength(0);
+      expect(typeof snapshot.assembledAt).toBe("string");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it("reserves runtime budget before lane allocation", () => {

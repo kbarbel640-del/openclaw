@@ -1,4 +1,6 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import fs from "node:fs";
+import path from "node:path";
 import type { DoltRecord, DoltRecordLevel, DoltStore } from "./store/types.js";
 import {
   resolveDoltLanePolicies,
@@ -127,6 +129,72 @@ export function assembleDoltContext(params: DoltAssemblyParams): DoltAssemblyRes
       turn: orderedTurns,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Context snapshot — lightweight JSON file written after each assembly so
+// external tools (TUI, watch, jq) can inspect the live bounded context.
+// ---------------------------------------------------------------------------
+
+/** Shape of the JSON snapshot written to disk after assembly. */
+export type DoltContextSnapshot = {
+  sessionId: string;
+  assembledAt: string;
+  estimatedTokens: number;
+  budget: DoltAssemblyBudget;
+  lanes: {
+    bindle: DoltContextSnapshotRecord[];
+    leaf: DoltContextSnapshotRecord[];
+    turn: DoltContextSnapshotRecord[];
+  };
+};
+
+export type DoltContextSnapshotRecord = {
+  pointer: string;
+  tokenCount: number;
+  eventTsMs: number;
+  level: DoltRecordLevel;
+};
+
+/**
+ * Write a JSON snapshot of the most recent assembly result to disk.
+ *
+ * The file is a plain JSON object whose `lanes` arrays contain pointers
+ * into the SQLite store — not the full record payloads.  External tools
+ * can poll this file and join against the DB for full content when needed.
+ *
+ * Writes are atomic (write-to-tmp then rename) to avoid partial reads.
+ */
+export function writeDoltContextSnapshot(params: {
+  result: DoltAssemblyResult;
+  sessionId: string;
+  snapshotPath: string;
+}): void {
+  const toSnapshotRecord = (r: DoltRecord): DoltContextSnapshotRecord => ({
+    pointer: r.pointer,
+    tokenCount: r.tokenCount,
+    eventTsMs: r.eventTsMs,
+    level: r.level,
+  });
+
+  const snapshot: DoltContextSnapshot = {
+    sessionId: params.sessionId,
+    assembledAt: new Date().toISOString(),
+    estimatedTokens: params.result.estimatedTokens,
+    budget: params.result.budget,
+    lanes: {
+      bindle: params.result.selectedRecords.bindle.map(toSnapshotRecord),
+      leaf: params.result.selectedRecords.leaf.map(toSnapshotRecord),
+      turn: params.result.selectedRecords.turn.map(toSnapshotRecord),
+    },
+  };
+
+  // Atomic write: tmp file then rename to avoid partial reads from pollers.
+  const dir = path.dirname(params.snapshotPath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmpPath = `${params.snapshotPath}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(snapshot, null, 2), "utf-8");
+  fs.renameSync(tmpPath, params.snapshotPath);
 }
 
 /**
