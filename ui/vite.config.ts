@@ -36,6 +36,12 @@ export default defineConfig(() => {
       host: true,
       port: 5173,
       strictPort: true,
+      // When opening the app from another machine (e.g. SSH + browser on laptop), set
+      // VITE_HMR_HOST to the server's IP or hostname so the HMR WebSocket connects there.
+      hmr:
+        process.env.VITE_HMR_HOST !== undefined && process.env.VITE_HMR_HOST !== ""
+          ? { host: process.env.VITE_HMR_HOST, port: 5173 }
+          : true,
     },
   };
 });
