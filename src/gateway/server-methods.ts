@@ -35,6 +35,73 @@ import { webHandlers } from "./server-methods/web.js";
 import { wizardHandlers } from "./server-methods/wizard.js";
 
 const CONTROL_PLANE_WRITE_METHODS = new Set(["config.apply", "config.patch", "update.run"]);
+const NODE_ROLE_ALLOWED_METHODS = new Set(["health"]);
+const ROLE_AUTH_FAILURE_LIMIT = 3;
+const ROLE_AUTH_FAILURE_WINDOW_MS = 30_000;
+const ROLE_AUTH_FAILURE_LOCKOUT_MS = 30_000;
+
+type RoleAuthFailureState = {
+  attempts: number;
+  windowStartAtMs: number;
+  lockedUntilMs?: number;
+};
+
+const roleAuthFailuresByConn = new Map<string, RoleAuthFailureState>();
+
+function consumeUnauthorizedRoleBudget(client: GatewayRequestOptions["client"]): {
+  blocked: boolean;
+  retryAfterMs: number;
+  attempts: number;
+} {
+  const connId = client?.connId;
+  if (!connId) {
+    return { blocked: false, retryAfterMs: 0, attempts: 0 };
+  }
+  const now = Date.now();
+  const current = roleAuthFailuresByConn.get(connId);
+  const state: RoleAuthFailureState =
+    current && now - current.windowStartAtMs <= ROLE_AUTH_FAILURE_WINDOW_MS
+      ? { ...current }
+      : { attempts: 0, windowStartAtMs: now };
+
+  if (state.lockedUntilMs && now < state.lockedUntilMs) {
+    return {
+      blocked: true,
+      retryAfterMs: state.lockedUntilMs - now,
+      attempts: state.attempts,
+    };
+  }
+
+  if (state.lockedUntilMs && now >= state.lockedUntilMs) {
+    state.attempts = 0;
+    state.windowStartAtMs = now;
+    state.lockedUntilMs = undefined;
+  }
+
+  state.attempts += 1;
+  if (state.attempts >= ROLE_AUTH_FAILURE_LIMIT) {
+    state.lockedUntilMs = now + ROLE_AUTH_FAILURE_LOCKOUT_MS;
+  }
+  roleAuthFailuresByConn.set(connId, state);
+
+  return {
+    blocked: Boolean(state.lockedUntilMs),
+    retryAfterMs: state.lockedUntilMs ? state.lockedUntilMs - now : 0,
+    attempts: state.attempts,
+  };
+}
+
+function resetUnauthorizedRoleBudget(client: GatewayRequestOptions["client"]): void {
+  const connId = client?.connId;
+  if (connId) {
+    roleAuthFailuresByConn.delete(connId);
+  }
+}
+
+function isUnauthorizedRoleErrorMessage(message: string): boolean {
+  return message.startsWith("unauthorized role:");
+}
+
 function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["client"]) {
   if (!client?.connect) {
     return null;
@@ -48,6 +115,9 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
     return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);
   }
   if (role === "node") {
+    if (NODE_ROLE_ALLOWED_METHODS.has(method)) {
+      return null;
+    }
     return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);
   }
   if (role !== "operator") {
@@ -98,9 +168,36 @@ export async function handleGatewayRequest(
   const { req, respond, client, isWebchatConnect, context } = opts;
   const authError = authorizeGatewayMethod(req.method, client);
   if (authError) {
+    const role = client?.connect?.role ?? "operator";
+    if (role === "node" && isUnauthorizedRoleErrorMessage(authError.message)) {
+      const budget = consumeUnauthorizedRoleBudget(client);
+      if (budget.blocked) {
+        context.logGateway.warn(
+          `node authz rate-limited conn=${client?.connId ?? "unknown"} method=${req.method} retryAfterMs=${budget.retryAfterMs} attempts=${budget.attempts}`,
+        );
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.UNAVAILABLE,
+            `rate limit exceeded for unauthorized role errors; retry after ${Math.ceil(budget.retryAfterMs / 1000)}s`,
+            {
+              retryable: true,
+              retryAfterMs: budget.retryAfterMs,
+              details: {
+                method: req.method,
+                limit: `${ROLE_AUTH_FAILURE_LIMIT} per ${Math.round(ROLE_AUTH_FAILURE_WINDOW_MS / 1000)}s`,
+              },
+            },
+          ),
+        );
+        return;
+      }
+    }
     respond(false, undefined, authError);
     return;
   }
+  resetUnauthorizedRoleBudget(client);
   if (CONTROL_PLANE_WRITE_METHODS.has(req.method)) {
     const budget = consumeControlPlaneWriteBudget({ client });
     if (!budget.allowed) {
@@ -145,3 +242,9 @@ export async function handleGatewayRequest(
     context,
   });
 }
+
+export const __testing = {
+  resetUnauthorizedRoleRateLimitState() {
+    roleAuthFailuresByConn.clear();
+  },
+};
