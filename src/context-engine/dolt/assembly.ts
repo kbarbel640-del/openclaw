@@ -294,21 +294,25 @@ function toAgentMessage(record: DoltRecord): AgentMessage {
   if (summary) {
     return {
       role: "assistant",
-      content: summary,
+      content: [{ type: "text", text: summary }],
     } as unknown as AgentMessage;
   }
 
   const payloadRole = typeof payload?.role === "string" ? payload.role : null;
   if (payloadRole && payload && "content" in payload) {
+    const rawContent = (payload as { content?: unknown }).content;
+    // Ensure content is an array of content blocks for pi-agent compatibility.
+    const content =
+      typeof rawContent === "string" ? [{ type: "text", text: rawContent }] : (rawContent ?? "");
     return {
       role: payloadRole,
-      content: (payload as { content?: unknown }).content ?? "",
+      content,
     } as unknown as AgentMessage;
   }
 
   return {
     role: record.level === "turn" ? "user" : "assistant",
-    content: safeJsonStringify(record.payload),
+    content: [{ type: "text", text: safeJsonStringify(record.payload) }],
   } as unknown as AgentMessage;
 }
 
