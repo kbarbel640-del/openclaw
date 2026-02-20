@@ -76,6 +76,7 @@ export type FollowupRun = {
     timeoutMs: number;
     blockReplyBreak: "text_end" | "message_end";
     ownerNumbers?: string[];
+    senderIsOwner?: boolean;
     extraSystemPrompt?: string;
     enforceFinalTag?: boolean;
   };
