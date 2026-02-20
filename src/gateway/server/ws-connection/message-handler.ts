@@ -427,7 +427,10 @@ export function attachGatewayWsMessageHandler(params: {
           close(1008, truncateCloseReason(authMessage));
         };
         if (!device) {
-          if (scopes.length > 0) {
+          // When the control-ui bypass is active and shared-secret auth passed,
+          // preserve client-declared scopes. The admin explicitly opted into this
+          // tradeoff via allowInsecureAuth / dangerouslyDisableDeviceAuth.
+          if (scopes.length > 0 && !(allowControlUiBypass && sharedAuthOk)) {
             scopes = [];
             connectParams.scopes = scopes;
           }

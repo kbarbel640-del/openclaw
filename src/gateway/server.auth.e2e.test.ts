@@ -567,6 +567,7 @@ describe("gateway server auth/connect", () => {
     const res = await connectReq(ws, {
       token: "secret",
       device: null,
+      scopes: ["operator.admin", "operator.approvals", "operator.pairing"],
       client: {
         id: GATEWAY_CLIENT_NAMES.CONTROL_UI,
         version: "1.0.0",
@@ -575,6 +576,11 @@ describe("gateway server auth/connect", () => {
       },
     });
     expect(res.ok).toBe(true);
+
+    // Verify scopes are preserved — RPC calls should work
+    const health = await rpcReq(ws, "health");
+    expect(health.ok).toBe(true);
+
     ws.close();
     await server.close();
     if (prevToken === undefined) {
