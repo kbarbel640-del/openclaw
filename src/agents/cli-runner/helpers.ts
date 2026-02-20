@@ -221,7 +221,7 @@ export function parseCliJson(raw: string, backend: CliBackendConfig): CliOutput 
     const assistantEntry = parsed.find((e: unknown) => isRecord(e) && e.type === "assistant");
     if (assistantEntry && isRecord(assistantEntry)) {
       const text = collectText(assistantEntry);
-      if (!sessionId && isRecord(assistantEntry)) {
+      if (!sessionId) {
         sessionId = pickSessionId(assistantEntry, backend);
       }
       return text.trim() ? { text: text.trim(), sessionId, usage } : null;
