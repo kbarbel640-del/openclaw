@@ -231,5 +231,27 @@ describe("resolveGatewayRuntimeConfig", () => {
         }),
       ).rejects.toThrow("gateway bind=custom requested 192.168.1.100 but resolved 0.0.0.0");
     });
+
+    it("should reject dangerous control-ui auth bypass flags without explicit env override", async () => {
+      const cfg = {
+        gateway: {
+          bind: "loopback" as const,
+          auth: {
+            mode: "token" as const,
+            token: "test-token-123",
+          },
+          controlUi: {
+            allowInsecureAuth: true,
+          },
+        },
+      };
+
+      await expect(
+        resolveGatewayRuntimeConfig({
+          cfg,
+          port: 18789,
+        }),
+      ).rejects.toThrow("OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH=1");
+    });
   });
 });

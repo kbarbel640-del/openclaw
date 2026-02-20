@@ -50,7 +50,7 @@ describe("createGatewayPluginRequestHandler", () => {
         httpRoutes: [
           {
             pluginId: "route",
-            path: "/demo",
+            path: "/plugins/route/demo",
             handler: routeHandler,
             source: "route",
           },
@@ -63,7 +63,7 @@ describe("createGatewayPluginRequestHandler", () => {
     });
 
     const { res } = makeMockHttpResponse();
-    const handled = await handler({ url: "/demo" } as IncomingMessage, res);
+    const handled = await handler({ url: "/plugins/route/demo" } as IncomingMessage, res);
     expect(handled).toBe(true);
     expect(routeHandler).toHaveBeenCalledTimes(1);
     expect(fallback).not.toHaveBeenCalled();

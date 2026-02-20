@@ -173,6 +173,8 @@ const resolveGatewayToken = (): string => TEST_GATEWAY_TOKEN;
 const gatewayAuthHeaders = () => ({ authorization: `Bearer ${resolveGatewayToken()}` });
 
 const allowAgentsListForMain = () => {
+  const gatewayCfg = (cfg.gateway as Record<string, unknown> | undefined) ?? {};
+  const gatewayTools = (gatewayCfg.tools as Record<string, unknown> | undefined) ?? {};
   cfg = {
     ...cfg,
     agents: {
@@ -185,6 +187,13 @@ const allowAgentsListForMain = () => {
           },
         },
       ],
+    },
+    gateway: {
+      ...gatewayCfg,
+      tools: {
+        ...gatewayTools,
+        allow: ["agents_list"],
+      },
     },
   };
 };
@@ -265,6 +274,7 @@ describe("POST /tools/invoke", () => {
       ...cfg,
       agents: { list: [{ id: "main", default: true }] },
       tools: { profile: "minimal", alsoAllow: ["agents_list"] },
+      gateway: { tools: { allow: ["agents_list"] } },
     };
 
     const resProfile = await invokeAgentsListAuthed({ sessionKey: "main" });
@@ -276,6 +286,7 @@ describe("POST /tools/invoke", () => {
     cfg = {
       ...cfg,
       tools: { alsoAllow: ["agents_list"] },
+      gateway: { tools: { allow: ["agents_list"] } },
     };
 
     const resImplicit = await invokeAgentsListAuthed({ sessionKey: "main" });
@@ -444,6 +455,7 @@ describe("POST /tools/invoke", () => {
         ],
       },
       session: { mainKey: "primary" },
+      gateway: { tools: { allow: ["agents_list"] } },
     };
 
     const resDefault = await invokeAgentsListAuthed();
@@ -459,6 +471,7 @@ describe("POST /tools/invoke", () => {
       agents: {
         list: [{ id: "main", default: true, tools: { allow: ["tools_invoke_test"] } }],
       },
+      gateway: { tools: { allow: ["tools_invoke_test"] } },
     };
 
     const inputRes = await invokeToolAuthed({

@@ -522,10 +522,9 @@ export function createGatewayHttpServer(opts: {
         return;
       }
       if (handlePluginRequest) {
-        // Channel HTTP endpoints are gateway-auth protected by default.
-        // Non-channel plugin routes remain plugin-owned and must enforce
-        // their own auth when exposing sensitive functionality.
-        if (requestPath.startsWith("/api/channels/")) {
+        const isPluginPath =
+          requestPath.startsWith("/plugins/") || requestPath.startsWith("/api/channels/");
+        if (isPluginPath) {
           const token = getBearerToken(req);
           const authResult = await authorizeGatewayConnect({
             auth: resolvedAuth,
@@ -538,9 +537,9 @@ export function createGatewayHttpServer(opts: {
             sendGatewayAuthFailure(res, authResult);
             return;
           }
-        }
-        if (await handlePluginRequest(req, res)) {
-          return;
+          if (await handlePluginRequest(req, res)) {
+            return;
+          }
         }
       }
       if (openResponsesEnabled) {

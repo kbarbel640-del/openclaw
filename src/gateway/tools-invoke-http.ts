@@ -21,7 +21,6 @@ import { logWarn } from "../logger.js";
 import { isTestDefaultMemorySlotDisabled } from "../plugins/config-state.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
-import { DEFAULT_GATEWAY_HTTP_TOOL_DENY } from "../security/dangerous-tools.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
@@ -275,16 +274,21 @@ export async function handleToolsInvokeHttpRequest(
     ],
   });
 
-  // Gateway HTTP-specific deny list — applies to ALL sessions via HTTP.
+  // Gateway HTTP-specific exposure list — deny by default unless explicitly allowlisted.
   const gatewayToolsCfg = cfg.gateway?.tools;
-  const defaultGatewayDeny: string[] = DEFAULT_GATEWAY_HTTP_TOOL_DENY.filter(
-    (name) => !gatewayToolsCfg?.allow?.includes(name),
+  const gatewayAllowSet = new Set(
+    (Array.isArray(gatewayToolsCfg?.allow) ? gatewayToolsCfg.allow : [])
+      .map((name) => name.trim())
+      .filter(Boolean),
   );
-  const gatewayDenyNames = defaultGatewayDeny.concat(
-    Array.isArray(gatewayToolsCfg?.deny) ? gatewayToolsCfg.deny : [],
+  const gatewayDenySet = new Set(
+    (Array.isArray(gatewayToolsCfg?.deny) ? gatewayToolsCfg.deny : [])
+      .map((name) => name.trim())
+      .filter(Boolean),
   );
-  const gatewayDenySet = new Set(gatewayDenyNames);
-  const gatewayFiltered = subagentFiltered.filter((t) => !gatewayDenySet.has(t.name));
+  const gatewayFiltered = subagentFiltered.filter(
+    (tool) => gatewayAllowSet.has(tool.name) && !gatewayDenySet.has(tool.name),
+  );
 
   const tool = gatewayFiltered.find((t) => t.name === toolName);
   if (!tool) {

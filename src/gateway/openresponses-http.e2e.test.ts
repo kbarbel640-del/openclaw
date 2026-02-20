@@ -540,7 +540,7 @@ describe("OpenResponses HTTP API (e2e)", () => {
     };
     expect(blockedPrivateJson.error?.type).toBe("invalid_request_error");
     expect(blockedPrivateJson.error?.message ?? "").toMatch(
-      /invalid request|private|internal|blocked/i,
+      /invalid request|private|internal|blocked|disabled/i,
     );
 
     const blockedMetadata = await postResponses(port, {
@@ -565,7 +565,7 @@ describe("OpenResponses HTTP API (e2e)", () => {
     };
     expect(blockedMetadataJson.error?.type).toBe("invalid_request_error");
     expect(blockedMetadataJson.error?.message ?? "").toMatch(
-      /invalid request|blocked|metadata|internal/i,
+      /invalid request|blocked|metadata|internal|disabled/i,
     );
 
     const blockedScheme = await postResponses(port, {

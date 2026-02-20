@@ -127,6 +127,47 @@ function buildFileInstallResult(pluginId: string, targetFile: string): InstallPl
   };
 }
 
+function formatCriticalScanDetails(
+  summary: Awaited<ReturnType<typeof skillScanner.scanDirectoryWithSummary>>,
+): string {
+  const criticalDetails = summary.findings
+    .filter((finding) => finding.severity === "critical")
+    .slice(0, 6)
+    .map((finding) => `${finding.message} (${finding.file}:${finding.line})`)
+    .join("; ");
+  return criticalDetails || "critical dangerous code patterns detected";
+}
+
+async function enforcePluginCodeSafetyScan(params: {
+  pluginId: string;
+  scanRoot: string;
+  includeFiles: string[];
+  logger: PluginInstallLogger;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const summary = await skillScanner.scanDirectoryWithSummary(params.scanRoot, {
+      includeFiles: params.includeFiles,
+    });
+    if (summary.critical > 0) {
+      return {
+        ok: false,
+        error: `plugin "${params.pluginId}" blocked by code safety scan: ${formatCriticalScanDetails(summary)}`,
+      };
+    }
+    if (summary.warn > 0) {
+      params.logger.warn?.(
+        `Plugin "${params.pluginId}" has ${summary.warn} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
+      );
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `plugin "${params.pluginId}" code safety scan failed: ${String(err)}`,
+    };
+  }
+}
+
 export function resolvePluginInstallDir(pluginId: string, extensionsDir?: string): string {
   const extensionsBase = extensionsDir
     ? resolveUserPath(extensionsDir)
@@ -205,28 +246,14 @@ async function installPluginFromPackageDir(params: {
     forcedScanEntries.push(resolvedEntry);
   }
 
-  // Scan plugin source for dangerous code patterns (warn-only; never blocks install)
-  try {
-    const scanSummary = await skillScanner.scanDirectoryWithSummary(params.packageDir, {
-      includeFiles: forcedScanEntries,
-    });
-    if (scanSummary.critical > 0) {
-      const criticalDetails = scanSummary.findings
-        .filter((f) => f.severity === "critical")
-        .map((f) => `${f.message} (${f.file}:${f.line})`)
-        .join("; ");
-      logger.warn?.(
-        `WARNING: Plugin "${pluginId}" contains dangerous code patterns: ${criticalDetails}`,
-      );
-    } else if (scanSummary.warn > 0) {
-      logger.warn?.(
-        `Plugin "${pluginId}" has ${scanSummary.warn} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
-      );
-    }
-  } catch (err) {
-    logger.warn?.(
-      `Plugin "${pluginId}" code safety scan failed (${String(err)}). Installation continues; run "openclaw security audit --deep" after install.`,
-    );
+  const scanResult = await enforcePluginCodeSafetyScan({
+    pluginId,
+    scanRoot: params.packageDir,
+    includeFiles: forcedScanEntries,
+    logger,
+  });
+  if (!scanResult.ok) {
+    return scanResult;
   }
 
   const extensionsDir = params.extensionsDir
@@ -411,6 +438,16 @@ export async function installPluginFromFile(params: {
 
   if (mode === "install" && (await fileExists(targetFile))) {
     return { ok: false, error: `plugin already exists: ${targetFile} (delete it first)` };
+  }
+
+  const scanResult = await enforcePluginCodeSafetyScan({
+    pluginId,
+    scanRoot: path.dirname(filePath),
+    includeFiles: [filePath],
+    logger,
+  });
+  if (!scanResult.ok) {
+    return scanResult;
   }
 
   if (dryRun) {

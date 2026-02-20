@@ -234,12 +234,13 @@ export async function startGatewayServer(
   }
 
   let cfgAtStart = loadConfig();
+  const persistGeneratedToken = process.env.OPENCLAW_PERSIST_GENERATED_GATEWAY_TOKEN === "1";
   const authBootstrap = await ensureGatewayStartupAuth({
     cfg: cfgAtStart,
     env: process.env,
     authOverride: opts.auth,
     tailscaleOverride: opts.tailscale,
-    persist: true,
+    persist: persistGeneratedToken,
   });
   cfgAtStart = authBootstrap.cfg;
   if (authBootstrap.generatedToken) {
@@ -249,7 +250,7 @@ export async function startGatewayServer(
       );
     } else {
       log.warn(
-        "Gateway auth token was missing. Generated a runtime token for this startup without changing config; restart will generate a different token. Persist one with `openclaw config set gateway.auth.mode token` and `openclaw config set gateway.auth.token <token>`.",
+        "Gateway auth token was missing. Generated a runtime token for this startup without changing config; restart will generate a different token. Persist one explicitly with `openclaw config set gateway.auth.mode token` and `openclaw config set gateway.auth.token <token>`, or set OPENCLAW_PERSIST_GENERATED_GATEWAY_TOKEN=1 for auto-persist.",
       );
     }
   }
@@ -310,11 +311,9 @@ export async function startGatewayServer(
   let hooksConfig = runtimeConfig.hooksConfig;
   const canvasHostEnabled = runtimeConfig.canvasHostEnabled;
 
-  // Create auth rate limiter only when explicitly configured.
+  // Always enforce auth brute-force limits; config values override defaults.
   const rateLimitConfig = cfgAtStart.gateway?.auth?.rateLimit;
-  const authRateLimiter: AuthRateLimiter | undefined = rateLimitConfig
-    ? createAuthRateLimiter(rateLimitConfig)
-    : undefined;
+  const authRateLimiter: AuthRateLimiter = createAuthRateLimiter(rateLimitConfig);
 
   let controlUiRootState: ControlUiRootState | undefined;
   if (controlUiRootOverride) {

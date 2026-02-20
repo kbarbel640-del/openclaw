@@ -171,22 +171,32 @@ describe("OpenAI-compatible HTTP API (e2e)", () => {
       }
 
       {
-        mockAgentOnce([{ text: "hello" }]);
-        const res = await postChatCompletions(
-          port,
-          { model: "openclaw", messages: [{ role: "user", content: "hi" }] },
-          {
-            "x-openclaw-agent-id": "beta",
-            "x-openclaw-session-key": "agent:beta:openai:custom",
-          },
-        );
-        expect(res.status).toBe(200);
+        const prevSessionHeaderOverride = process.env.OPENCLAW_ALLOW_HTTP_SESSION_KEY_HEADER;
+        process.env.OPENCLAW_ALLOW_HTTP_SESSION_KEY_HEADER = "1";
+        try {
+          mockAgentOnce([{ text: "hello" }]);
+          const res = await postChatCompletions(
+            port,
+            { model: "openclaw", messages: [{ role: "user", content: "hi" }] },
+            {
+              "x-openclaw-agent-id": "beta",
+              "x-openclaw-session-key": "agent:beta:openai:custom",
+            },
+          );
+          expect(res.status).toBe(200);
 
-        const opts = (agentCommand.mock.calls[0] as unknown[] | undefined)?.[0];
-        expect((opts as { sessionKey?: string } | undefined)?.sessionKey).toBe(
-          "agent:beta:openai:custom",
-        );
-        await res.text();
+          const opts = (agentCommand.mock.calls[0] as unknown[] | undefined)?.[0];
+          expect((opts as { sessionKey?: string } | undefined)?.sessionKey).toBe(
+            "agent:beta:openai:custom",
+          );
+          await res.text();
+        } finally {
+          if (prevSessionHeaderOverride === undefined) {
+            delete process.env.OPENCLAW_ALLOW_HTTP_SESSION_KEY_HEADER;
+          } else {
+            process.env.OPENCLAW_ALLOW_HTTP_SESSION_KEY_HEADER = prevSessionHeaderOverride;
+          }
+        }
       }
 
       {

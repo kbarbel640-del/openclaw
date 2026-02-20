@@ -232,6 +232,9 @@ describe("loadOpenClawPlugins", () => {
         plugins: {
           load: { paths: [plugin.file] },
           allow: ["allowed"],
+          entries: {
+            allowed: { enabled: true },
+          },
         },
       },
     });
@@ -277,8 +280,10 @@ describe("loadOpenClawPlugins", () => {
       config: {
         plugins: {
           load: { paths: [plugin.file] },
+          allow: ["configurable"],
           entries: {
             configurable: {
+              enabled: true,
               config: "nope" as unknown as Record<string, unknown>,
             },
           },
@@ -324,6 +329,9 @@ describe("loadOpenClawPlugins", () => {
         plugins: {
           load: { paths: [plugin.file] },
           allow: ["channel-demo"],
+          entries: {
+            "channel-demo": { enabled: true },
+          },
         },
       },
     });
@@ -348,6 +356,9 @@ describe("loadOpenClawPlugins", () => {
         plugins: {
           load: { paths: [plugin.file] },
           allow: ["http-demo"],
+          entries: {
+            "http-demo": { enabled: true },
+          },
         },
       },
     });
@@ -363,7 +374,7 @@ describe("loadOpenClawPlugins", () => {
     const plugin = writePlugin({
       id: "http-route-demo",
       body: `export default { id: "http-route-demo", register(api) {
-  api.registerHttpRoute({ path: "/demo", handler: async (_req, res) => { res.statusCode = 200; res.end("ok"); } });
+  api.registerHttpRoute({ path: "/plugins/http-route-demo/demo", handler: async (_req, res) => { res.statusCode = 200; res.end("ok"); } });
 } };`,
     });
 
@@ -374,15 +385,52 @@ describe("loadOpenClawPlugins", () => {
         plugins: {
           load: { paths: [plugin.file] },
           allow: ["http-route-demo"],
+          entries: {
+            "http-route-demo": { enabled: true },
+          },
         },
       },
     });
 
     const route = registry.httpRoutes.find((entry) => entry.pluginId === "http-route-demo");
     expect(route).toBeDefined();
-    expect(route?.path).toBe("/demo");
+    expect(route?.path).toBe("/plugins/http-route-demo/demo");
     const httpPlugin = registry.plugins.find((entry) => entry.id === "http-route-demo");
     expect(httpPlugin?.httpHandlers).toBe(1);
+  });
+
+  it("rejects plugin http routes outside the plugin namespace", () => {
+    process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = "/nonexistent/bundled/plugins";
+    const plugin = writePlugin({
+      id: "http-route-bad",
+      body: `export default { id: "http-route-bad", register(api) {
+  api.registerHttpRoute({ path: "/v1/responses", handler: async (_req, res) => { res.statusCode = 200; res.end("bad"); } });
+} };`,
+    });
+
+    const registry = loadOpenClawPlugins({
+      cache: false,
+      workspaceDir: plugin.dir,
+      config: {
+        plugins: {
+          load: { paths: [plugin.file] },
+          allow: ["http-route-bad"],
+          entries: {
+            "http-route-bad": { enabled: true },
+          },
+        },
+      },
+    });
+
+    const route = registry.httpRoutes.find((entry) => entry.pluginId === "http-route-bad");
+    expect(route).toBeUndefined();
+    const diag = registry.diagnostics.find(
+      (entry) =>
+        entry.pluginId === "http-route-bad" &&
+        entry.level === "error" &&
+        entry.message.includes("http route must be namespaced"),
+    );
+    expect(diag).toBeDefined();
   });
 
   it("respects explicit disable in config", () => {
@@ -540,6 +588,9 @@ describe("loadOpenClawPlugins", () => {
         config: {
           plugins: {
             allow: ["rogue"],
+            entries: {
+              rogue: { enabled: true },
+            },
           },
         },
       });

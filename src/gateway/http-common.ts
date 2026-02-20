@@ -11,6 +11,9 @@ import { readJsonBody } from "./hooks.js";
 export function setDefaultSecurityHeaders(res: ServerResponse) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), usb=()");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
 }
 
 export function sendJson(res: ServerResponse, status: number, body: unknown) {
