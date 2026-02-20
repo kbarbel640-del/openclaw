@@ -531,6 +531,14 @@ export async function performStartupCatchUp(
           ? Boolean(event.text?.includes(`<@${ctx.botUserId}>`))
           : false;
 
+        // Register as in-flight so the watermark cannot advance past
+        // this ts until processing completes (at-least-once safety).
+        const msgTs = msg.ts;
+        if (msgTs) {
+          registerInflightMessage(channelId, msgTs, accountId);
+        }
+
+        let processingFailed = false;
         try {
           await handleSlackMessage(event, {
             source: "message",
@@ -538,15 +546,20 @@ export async function performStartupCatchUp(
           });
           channelCount++;
           totalMessages++;
-
-          // Update watermark immediately for each processed message
-          if (msg.ts) {
-            updateCatchupWatermark(channelId, msg.ts, accountId);
-          }
         } catch (err) {
+          processingFailed = true;
           runtime.error?.(
             `slack catch-up [${accountId}]: failed to process message ${msg.ts} in ${channelId}: ${String(err)}`,
           );
+        } finally {
+          if (msgTs) {
+            completeInflightMessage(channelId, msgTs, accountId, !processingFailed);
+          }
+        }
+
+        // Only advance watermark after successful processing
+        if (!processingFailed && msgTs) {
+          updateCatchupWatermark(channelId, msgTs, accountId);
         }
       }
 
