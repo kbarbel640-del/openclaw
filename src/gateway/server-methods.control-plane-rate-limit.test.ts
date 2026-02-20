@@ -52,7 +52,7 @@ describe("gateway control-plane write rate limit", () => {
         role: "node",
         scopes: [],
         client: {
-          id: "openclaw-node",
+          id: "node-host",
           version: "1.0.0",
           platform: "darwin",
           mode: "node",
