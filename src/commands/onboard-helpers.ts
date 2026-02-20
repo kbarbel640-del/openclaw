@@ -309,7 +309,7 @@ export async function ensureWorkspaceAndSessions(
     } catch {
       // File doesn't exist, create it with empty structure
       await fs.mkdir(agentStateSessionsDir, { recursive: true });
-      const emptySessions = { sessions: [] };
+      const emptySessions = {};
       await fs.writeFile(sessionsFile, JSON.stringify(emptySessions, null, 2));
       runtime.log(`Agent state initialized: ${shortenHomePath(sessionsFile)}`);
     }
