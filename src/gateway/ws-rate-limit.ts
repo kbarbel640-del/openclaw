@@ -56,9 +56,7 @@ const DEFAULT_MAX_WARNINGS = 3;
 // Implementation
 // ---------------------------------------------------------------------------
 
-export function createWsConnectionRateLimiter(
-  config?: WsRateLimitConfig,
-): WsConnectionRateLimiter {
+export function createWsConnectionRateLimiter(config?: WsRateLimitConfig): WsConnectionRateLimiter {
   const maxMessages = config?.maxMessages ?? DEFAULT_MAX_MESSAGES;
   const windowMs = config?.windowMs ?? DEFAULT_WINDOW_MS;
   const maxWarnings = config?.maxWarnings ?? DEFAULT_MAX_WARNINGS;

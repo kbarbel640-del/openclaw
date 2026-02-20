@@ -2,7 +2,6 @@ import type { IncomingMessage } from "node:http";
 import os from "node:os";
 import type { WebSocket } from "ws";
 import { loadConfig } from "../../../config/config.js";
-import { createWsConnectionRateLimiter } from "../../ws-rate-limit.js";
 import {
   deriveDeviceIdFromPublicKey,
   normalizeDevicePublicKeyBase64Url,
@@ -58,6 +57,7 @@ import { handleGatewayRequest } from "../../server-methods.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "../../server-methods/types.js";
 import { formatError } from "../../server-utils.js";
 import { formatForLog, logWs } from "../../ws-log.js";
+import { createWsConnectionRateLimiter } from "../../ws-rate-limit.js";
 import { truncateCloseReason } from "../close-reason.js";
 import {
   buildGatewaySnapshot,
