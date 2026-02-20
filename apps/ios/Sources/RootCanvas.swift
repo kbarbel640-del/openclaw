@@ -97,8 +97,8 @@ struct RootCanvas: View {
                     .environment(self.gatewayController)
             case .chat:
                 ChatSheet(
-                    // Chat RPCs run on the operator session (read/write scopes).
-                    gateway: self.appModel.operatorSession,
+                    // Chat RPCs run on the node session which has device identity.
+                    gateway: self.appModel.gatewaySession,
                     sessionKey: self.appModel.mainSessionKey,
                     agentName: self.appModel.activeAgentName,
                     userAccent: self.appModel.seamColor)

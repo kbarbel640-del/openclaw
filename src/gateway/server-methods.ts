@@ -39,6 +39,13 @@ const APPROVAL_METHODS = new Set([
   "exec.approval.resolve",
 ]);
 const NODE_ROLE_METHODS = new Set(["node.invoke.result", "node.event", "skills.bins"]);
+const NODE_CHAT_METHODS = new Set([
+  "health",
+  "chat.history",
+  "chat.send",
+  "chat.abort",
+  "sessions.list",
+]);
 const PAIRING_METHODS = new Set([
   "node.pair.request",
   "node.pair.list",
@@ -110,6 +117,11 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
       return null;
     }
     return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);
+  }
+  if (NODE_CHAT_METHODS.has(method)) {
+    if (role === "node") {
+      return null;
+    }
   }
   if (role === "node") {
     return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);

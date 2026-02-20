@@ -162,7 +162,7 @@ final class NodeAppModel {
 
         let enabled = UserDefaults.standard.bool(forKey: "voiceWake.enabled")
         self.voiceWake.setEnabled(enabled)
-        self.talkMode.attachGateway(self.operatorGateway)
+        self.talkMode.attachGateway(self.nodeGateway)
         self.refreshLastShareEventFromRelay()
         let talkEnabled = UserDefaults.standard.bool(forKey: "talk.enabled")
         // Route through the coordinator so VoiceWake and Talk don't fight over the microphone.
