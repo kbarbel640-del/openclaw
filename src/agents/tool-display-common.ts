@@ -568,11 +568,13 @@ function stripShellPreamble(command: string): string {
 
   for (let i = 0; i < 4; i += 1) {
     const andIndex = rest.indexOf("&&");
+    const orIndex = rest.indexOf("||");
     const semicolonIndex = rest.indexOf(";");
     const newlineIndex = rest.indexOf("\n");
 
     const candidates = [
       { index: andIndex, length: 2 },
+      { index: orIndex, length: 2 },
       { index: semicolonIndex, length: 1 },
       { index: newlineIndex, length: 1 },
     ]
