@@ -18,15 +18,20 @@ Argument: $ARGUMENTS (default: "prod")
 
 4. **Build**: run `pnpm build` and verify it succeeds.
 
-5. **Start gateway**: run `env -u CLAUDECODE pnpm openclaw gateway --force` in the background.
+5. **Restart Cloud.ru FM proxy** (if `docker-compose.cloudru-proxy.yml` exists in the workspace):
+   - Run `docker compose -f docker-compose.cloudru-proxy.yml up -d --force-recreate` to ensure the proxy picks up the latest `.env` values.
+   - Wait 5 seconds, then verify proxy health: `curl -sf http://localhost:8082/health`.
+   - If the compose file doesn't exist, skip this step silently.
+
+6. **Start gateway**: run `env -u CLAUDECODE pnpm openclaw gateway --force` in the background.
    - IMPORTANT: Must unset `CLAUDECODE` env var to avoid "nested session" error when running inside Claude Code.
 
-6. **Verify health** (wait ~8 seconds first): run `pnpm openclaw health`.
+7. **Verify health** (wait ~8 seconds first): run `pnpm openclaw health`.
    - If health check fails, read the gateway log at `/tmp/openclaw/openclaw-*.log` (most recent) and report the error.
 
-7. **Check channels**: run `pnpm openclaw channels status --probe` and report status.
+8. **Check channels**: run `pnpm openclaw channels status --probe` and report status.
 
-8. **Report**: summarize what's running (port, bot username, health status).
+9. **Report**: summarize what's running (port, bot username, health status).
 
 ## Dev mode (`dev`)
 
@@ -36,12 +41,17 @@ Argument: $ARGUMENTS (default: "prod")
 
 3. **Build**: run `pnpm build` and verify it succeeds.
 
-4. **Start gateway**: run `env -u CLAUDECODE pnpm openclaw gateway --dev --force` in the background.
+4. **Restart Cloud.ru FM proxy** (if `docker-compose.cloudru-proxy.yml` exists in the workspace):
+   - Run `docker compose -f docker-compose.cloudru-proxy.yml up -d --force-recreate` to ensure the proxy picks up the latest `.env` values.
+   - Wait 5 seconds, then verify proxy health: `curl -sf http://localhost:8082/health`.
+   - If the compose file doesn't exist, skip this step silently.
+
+5. **Start gateway**: run `env -u CLAUDECODE pnpm openclaw gateway --dev --force` in the background.
    - The `--dev` flag auto-creates config and uses port 19001 by default.
 
-5. **Verify health**: wait ~8 seconds, then run `pnpm openclaw --dev health`.
+6. **Verify health**: wait ~8 seconds, then run `pnpm openclaw --dev health`.
 
-6. **Report**: summarize what's running.
+7. **Report**: summarize what's running.
 
 ## Key differences
 

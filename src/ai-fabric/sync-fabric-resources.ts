@@ -4,7 +4,7 @@
  * Top-level orchestrator that syncs Cloud.ru AI Fabric resources
  * to the Claude CLI workspace:
  *
- * 1. MCP servers → claude-mcp-cloudru.json + .claude/settings.json
+ * 1. MCP servers → claude-mcp-cloudru.json + .mcp.json + .claude/settings.json (permissions)
  * 2. Agents & systems → SKILL.md files in managed skills dir
  * 3. Re-sync → picks up new skills via syncSkillsToClaudeCommands
  *
@@ -134,7 +134,7 @@ export async function syncFabricResources(params: SyncFabricParams): Promise<Syn
       const mcpConfigPath = await writeMcpConfigFile({ workspaceDir, servers: mcpServers });
       log.debug(`wrote MCP config: ${mcpConfigPath}`);
 
-      // Merge into .claude/settings.json (with Bearer token for auth)
+      // Merge into .mcp.json + permissions into .claude/settings.json
       const mcpConfig = buildMcpConfig(mcpServers, { bearerToken });
       await syncMcpToClaudeSettings({ workspaceDir, mcpServers: mcpConfig.mcpServers });
       mcpServerCount = healthyMcp.length;
@@ -176,7 +176,7 @@ export async function syncFabricResources(params: SyncFabricParams): Promise<Syn
  * Disconnect AI Fabric resources from the Claude CLI workspace.
  *
  * Inverse of {@link syncFabricResources}: removes MCP servers from
- * `.claude/settings.json`, cleans generated `fabric-*` skills, and
+ * `.mcp.json` and permissions from `.claude/settings.json`, cleans generated `fabric-*` skills, and
  * re-syncs commands so stale `.claude/commands/` entries are removed.
  *
  * Reusable across: plugins, CLI, gateway.
@@ -190,7 +190,7 @@ export async function disconnectFabricResources(params: {
   let skillsCleaned = 0;
   let commandsCleaned = 0;
 
-  // Step 1: Remove MCP servers from .claude/settings.json
+  // Step 1: Remove MCP servers from .mcp.json + permissions from .claude/settings.json
   try {
     const mcpConfigPath = path.join(workspaceDir, CLOUDRU_MCP_CONFIG_FILENAME);
     const raw = await fsp.readFile(mcpConfigPath, "utf-8");
@@ -289,9 +289,9 @@ async function countFabricCommands(workspaceDir: string): Promise<number> {
 }
 
 async function countMcpInSettings(workspaceDir: string): Promise<number> {
-  const settingsPath = path.join(workspaceDir, ".claude", "settings.json");
+  const mcpJsonPath = path.join(workspaceDir, ".mcp.json");
   try {
-    const raw = await fsp.readFile(settingsPath, "utf-8");
+    const raw = await fsp.readFile(mcpJsonPath, "utf-8");
     const parsed = JSON.parse(raw) as { mcpServers?: Record<string, unknown> };
     return Object.keys(parsed.mcpServers ?? {}).length;
   } catch {

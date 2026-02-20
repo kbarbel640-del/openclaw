@@ -281,14 +281,12 @@ export function resolveSkillsPromptForRun(params: {
   if (snapshotPrompt) {
     return snapshotPrompt;
   }
-  if (params.entries && params.entries.length > 0) {
-    const prompt = buildWorkspaceSkillsPrompt(params.workspaceDir, {
-      entries: params.entries,
-      config: params.config,
-    });
-    return prompt.trim() ? prompt : "";
-  }
-  return "";
+  // Build prompt from provided entries or load from disk (bundled + managed + workspace skills)
+  const prompt = buildWorkspaceSkillsPrompt(params.workspaceDir, {
+    entries: params.entries,
+    config: params.config,
+  });
+  return prompt.trim() ? prompt : "";
 }
 
 export function loadWorkspaceSkillEntries(

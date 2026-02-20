@@ -16,7 +16,7 @@ const CLOUDRU_MCP_BASE_URL = "https://ai-agents.api.cloud.ru/mcp";
 
 export type McpConfigEntry = {
   url: string;
-  transport: "sse";
+  transport: "sse" | "http";
   headers?: Record<string, string>;
 };
 

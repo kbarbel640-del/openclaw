@@ -101,49 +101,86 @@ export async function syncSkillsToClaudeCommands(params: {
 }
 
 // ---------------------------------------------------------------------------
-// MCP → .claude/settings.json
+// MCP → .mcp.json + permissions → .claude/settings.json
 // ---------------------------------------------------------------------------
 
 /**
- * Merge MCP server entries into `<workspaceDir>/.claude/settings.json`.
+ * Convert a {@link McpConfigEntry} (`transport: "sse"`) to the format
+ * Claude CLI expects (`type: "sse"`).
+ */
+function toClaudeMcpEntry(entry: McpConfigEntry): Record<string, unknown> {
+  const { transport, ...rest } = entry;
+  return { ...rest, type: transport };
+}
+
+/**
+ * Sync MCP server entries into the Claude CLI workspace:
  *
- * - Additive: existing keys (`permissions`, `hooks`, manual `mcpServers`) are preserved.
- * - Parse errors in an existing file are logged and treated as empty `{}`.
+ * 1. Writes MCP servers to `<workspaceDir>/.mcp.json` (Claude CLI reads
+ *    MCP config from this file, **not** `.claude/settings.json`).
+ * 2. Writes `permissions.allow` entries to `<workspaceDir>/.claude/settings.json`
+ *    so Claude CLI can call MCP tools without interactive prompting.
+ *
+ * Both writes are additive — existing keys are preserved.
  */
 export async function syncMcpToClaudeSettings(params: {
   workspaceDir: string;
   mcpServers: Record<string, McpConfigEntry>;
 }): Promise<void> {
+  const mcpJsonPath = path.join(params.workspaceDir, ".mcp.json");
   const settingsPath = path.join(params.workspaceDir, ".claude", "settings.json");
 
   await serializeByKey(`claudeSync:mcp:${params.workspaceDir}`, async () => {
-    await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
-
-    let settings: Record<string, unknown> = {};
+    // --- 1. Write MCP servers to .mcp.json ---
+    let mcpJson: Record<string, unknown> = {};
     try {
-      const raw = await fsp.readFile(settingsPath, "utf-8");
+      const raw = await fsp.readFile(mcpJsonPath, "utf-8");
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        settings = parsed as Record<string, unknown>;
+        mcpJson = parsed as Record<string, unknown>;
       }
     } catch (err) {
       if (isNodeError(err) && err.code === "ENOENT") {
         // File doesn't exist yet — start fresh
       } else {
-        log.warn(`failed to parse ${settingsPath}, starting fresh: ${String(err)}`);
+        log.warn(`failed to parse ${mcpJsonPath}, starting fresh: ${String(err)}`);
       }
     }
 
     const existingMcp =
-      settings.mcpServers && typeof settings.mcpServers === "object"
-        ? (settings.mcpServers as Record<string, unknown>)
+      mcpJson.mcpServers && typeof mcpJson.mcpServers === "object"
+        ? (mcpJson.mcpServers as Record<string, unknown>)
         : {};
 
-    settings.mcpServers = { ...existingMcp, ...params.mcpServers };
+    const convertedServers: Record<string, unknown> = {};
+    for (const [name, entry] of Object.entries(params.mcpServers)) {
+      convertedServers[name] = toClaudeMcpEntry(entry);
+    }
+    mcpJson.mcpServers = { ...existingMcp, ...convertedServers };
 
-    // Grant permissions for MCP tools so Claude CLI can call them without prompting
+    await fsp.writeFile(mcpJsonPath, JSON.stringify(mcpJson, null, 2) + "\n", "utf-8");
+    log.debug(`merged ${Object.keys(params.mcpServers).length} MCP servers into ${mcpJsonPath}`);
+
+    // --- 2. Write permissions to .claude/settings.json ---
     const serverNames = Object.keys(params.mcpServers);
     if (serverNames.length > 0) {
+      await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
+
+      let settings: Record<string, unknown> = {};
+      try {
+        const raw = await fsp.readFile(settingsPath, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          settings = parsed as Record<string, unknown>;
+        }
+      } catch (err) {
+        if (isNodeError(err) && err.code === "ENOENT") {
+          // File doesn't exist yet
+        } else {
+          log.warn(`failed to parse ${settingsPath}, starting fresh: ${String(err)}`);
+        }
+      }
+
       const permissions =
         settings.permissions && typeof settings.permissions === "object"
           ? (settings.permissions as Record<string, unknown>)
@@ -155,48 +192,52 @@ export async function syncMcpToClaudeSettings(params: {
       }
       permissions.allow = [...allowSet];
       settings.permissions = permissions;
-    }
 
-    await fsp.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
-    log.debug(`merged ${Object.keys(params.mcpServers).length} MCP servers into ${settingsPath}`);
+      await fsp.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+      log.debug(`wrote ${serverNames.length} MCP permissions into ${settingsPath}`);
+    }
   });
 }
 
 // ---------------------------------------------------------------------------
-// MCP removal from .claude/settings.json
+// MCP removal from .mcp.json + permissions from .claude/settings.json
 // ---------------------------------------------------------------------------
 
 /**
- * Remove specified MCP server keys from `<workspaceDir>/.claude/settings.json`.
+ * Remove specified MCP server keys from `<workspaceDir>/.mcp.json`
+ * and their corresponding `permissions.allow` entries from
+ * `<workspaceDir>/.claude/settings.json`.
  *
- * Returns the number of keys actually removed. Safe to call when the file
- * does not exist or contains no `mcpServers` — returns 0.
+ * Returns the number of MCP keys actually removed. Safe to call when the
+ * files do not exist — returns 0.
  */
 export async function removeFabricMcpFromClaudeSettings(params: {
   workspaceDir: string;
   serverNames: string[];
 }): Promise<number> {
+  const mcpJsonPath = path.join(params.workspaceDir, ".mcp.json");
   const settingsPath = path.join(params.workspaceDir, ".claude", "settings.json");
 
   return serializeByKey(`claudeSync:mcp:${params.workspaceDir}`, async () => {
-    let settings: Record<string, unknown> = {};
+    // --- 1. Remove servers from .mcp.json ---
+    let mcpJson: Record<string, unknown> = {};
     try {
-      const raw = await fsp.readFile(settingsPath, "utf-8");
+      const raw = await fsp.readFile(mcpJsonPath, "utf-8");
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        settings = parsed as Record<string, unknown>;
+        mcpJson = parsed as Record<string, unknown>;
       }
     } catch (err) {
       if (isNodeError(err) && err.code === "ENOENT") {
         return 0;
       }
-      log.warn(`failed to parse ${settingsPath}: ${String(err)}`);
+      log.warn(`failed to parse ${mcpJsonPath}: ${String(err)}`);
       return 0;
     }
 
     const existingMcp =
-      settings.mcpServers && typeof settings.mcpServers === "object"
-        ? (settings.mcpServers as Record<string, unknown>)
+      mcpJson.mcpServers && typeof mcpJson.mcpServers === "object"
+        ? (mcpJson.mcpServers as Record<string, unknown>)
         : {};
 
     let removed = 0;
@@ -208,24 +249,34 @@ export async function removeFabricMcpFromClaudeSettings(params: {
     }
 
     if (removed > 0) {
-      settings.mcpServers = existingMcp;
+      mcpJson.mcpServers = existingMcp;
+      await fsp.writeFile(mcpJsonPath, JSON.stringify(mcpJson, null, 2) + "\n", "utf-8");
+      log.debug(`removed ${removed} MCP servers from ${mcpJsonPath}`);
 
-      // Remove corresponding MCP permissions
-      const permissions =
-        settings.permissions && typeof settings.permissions === "object"
-          ? (settings.permissions as Record<string, unknown>)
-          : {};
-      if (Array.isArray(permissions.allow)) {
-        const removePrefixes = params.serverNames.map((n) => `mcp__${n}`);
-        permissions.allow = (permissions.allow as string[]).filter(
-          (rule) =>
-            !removePrefixes.some((prefix) => rule === prefix || rule.startsWith(prefix + "__")),
-        );
-        settings.permissions = permissions;
+      // --- 2. Remove permissions from .claude/settings.json ---
+      try {
+        const raw = await fsp.readFile(settingsPath, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const settings = parsed as Record<string, unknown>;
+          const permissions =
+            settings.permissions && typeof settings.permissions === "object"
+              ? (settings.permissions as Record<string, unknown>)
+              : {};
+          if (Array.isArray(permissions.allow)) {
+            const removePrefixes = params.serverNames.map((n) => `mcp__${n}`);
+            permissions.allow = (permissions.allow as string[]).filter(
+              (rule) =>
+                !removePrefixes.some((prefix) => rule === prefix || rule.startsWith(prefix + "__")),
+            );
+            settings.permissions = permissions;
+            await fsp.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+            log.debug(`removed MCP permissions from ${settingsPath}`);
+          }
+        }
+      } catch {
+        // settings.json may not exist — that's fine
       }
-
-      await fsp.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
-      log.debug(`removed ${removed} MCP servers from ${settingsPath}`);
     }
 
     return removed;
