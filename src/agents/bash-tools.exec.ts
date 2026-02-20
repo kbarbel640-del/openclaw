@@ -56,12 +56,9 @@ export type {
  * On Windows (PowerShell), PTY is needed for proper output capture, so we default to true.
  * On other platforms, PTY is opt-in via explicit param.pty=true.
  */
-function shouldUsePty(
-  paramPty: boolean | undefined,
-  inSandbox: boolean,
-): boolean {
+function shouldUsePty(paramPty: boolean | undefined, inSandbox: boolean): boolean {
   if (paramPty !== undefined) {
-    return paramPty === true && !inSandbox;
+    return paramPty && !inSandbox;
   }
   // Default to PTY on Windows when not in sandbox
   return !inSandbox && process.platform === "win32";
