@@ -53,7 +53,7 @@ describe("getOpencodeZenStaticFallbackModels", () => {
   it("returns an array of models", () => {
     const models = getOpencodeZenStaticFallbackModels();
     expect(Array.isArray(models)).toBe(true);
-    expect(models.length).toBe(10);
+    expect(models.length).toBe(13);
   });
 
   it("includes Claude, GPT, Gemini, and GLM models", () => {
@@ -65,6 +65,7 @@ describe("getOpencodeZenStaticFallbackModels", () => {
     expect(ids).toContain("gpt-5.2");
     expect(ids).toContain("gpt-5.1-codex");
     expect(ids).toContain("gemini-3-pro");
+    expect(ids).toContain("gemini-3.1-pro-preview-customtools");
     expect(ids).toContain("glm-4.7");
   });
 
@@ -97,5 +98,8 @@ describe("OPENCODE_ZEN_MODEL_ALIASES", () => {
     expect(OPENCODE_ZEN_MODEL_ALIASES.gpt4).toBe("gpt-5.1");
     expect(OPENCODE_ZEN_MODEL_ALIASES.o1).toBe("gpt-5.2");
     expect(OPENCODE_ZEN_MODEL_ALIASES["gemini-2.5"]).toBe("gemini-3-pro");
+    expect(OPENCODE_ZEN_MODEL_ALIASES["gemini-3.1-pro-customtools"]).toBe(
+      "gemini-3.1-pro-preview-customtools",
+    );
   });
 });

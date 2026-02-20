@@ -28,6 +28,8 @@ const DEFAULT_MODEL_ALIASES: Readonly<Record<string, string>> = {
   "gemini-3.1": "google/gemini-3.1-pro-low-preview",
   "gemini-3.1-low": "google/gemini-3.1-pro-low-preview",
   "gemini-3.1-high": "google/gemini-3.1-pro-high-preview",
+  "gemini-3.1-customtools": "google/gemini-3.1-pro-preview-customtools",
+  "gemini-3.1-pro-customtools": "google/gemini-3.1-pro-preview-customtools",
 };
 
 const DEFAULT_MODEL_COST: ModelDefinitionConfig["cost"] = {

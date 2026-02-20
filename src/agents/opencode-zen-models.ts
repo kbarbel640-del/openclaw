@@ -71,6 +71,8 @@ export const OPENCODE_ZEN_MODEL_ALIASES: Record<string, string> = {
   "gemini-3.1-pro": "gemini-3.1-pro-low",
   "gemini-3.1-low": "gemini-3.1-pro-low",
   "gemini-3.1-high": "gemini-3.1-pro-high",
+  "gemini-3.1-customtools": "gemini-3.1-pro-preview-customtools",
+  "gemini-3.1-pro-customtools": "gemini-3.1-pro-preview-customtools",
 
   // Legacy Gemini 2.5 aliases (map to the nearest current Gemini tier).
   "gemini-2.5": "gemini-3-pro",
@@ -134,6 +136,7 @@ const MODEL_COSTS: Record<
   "gemini-3-pro": { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 0 },
   "gemini-3.1-pro-low": { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 0 },
   "gemini-3.1-pro-high": { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 0 },
+  "gemini-3.1-pro-preview-customtools": { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 0 },
   "gpt-5.1-codex-mini": {
     input: 0.25,
     output: 2,
@@ -161,6 +164,7 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "gemini-3-pro": 1048576,
   "gemini-3.1-pro-low": 1048576,
   "gemini-3.1-pro-high": 1048576,
+  "gemini-3.1-pro-preview-customtools": 1048576,
   "gpt-5.1-codex-mini": 400000,
   "gpt-5.1": 400000,
   "glm-4.7": 204800,
@@ -180,6 +184,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "gemini-3-pro": 65536,
   "gemini-3.1-pro-low": 65536,
   "gemini-3.1-pro-high": 65536,
+  "gemini-3.1-pro-preview-customtools": 65536,
   "gpt-5.1-codex-mini": 128000,
   "gpt-5.1": 128000,
   "glm-4.7": 131072,
@@ -219,6 +224,7 @@ const MODEL_NAMES: Record<string, string> = {
   "gemini-3-pro": "Gemini 3 Pro",
   "gemini-3.1-pro-low": "Gemini 3.1 Pro Low",
   "gemini-3.1-pro-high": "Gemini 3.1 Pro High",
+  "gemini-3.1-pro-preview-customtools": "Gemini 3.1 Pro Custom Tools",
   "gpt-5.1-codex-mini": "GPT-5.1 Codex Mini",
   "gpt-5.1": "GPT-5.1",
   "glm-4.7": "GLM-4.7",
@@ -249,6 +255,7 @@ export function getOpencodeZenStaticFallbackModels(): ModelDefinitionConfig[] {
     "gemini-3-pro",
     "gemini-3.1-pro-low",
     "gemini-3.1-pro-high",
+    "gemini-3.1-pro-preview-customtools",
     "gpt-5.1-codex-mini",
     "gpt-5.1",
     "glm-4.7",

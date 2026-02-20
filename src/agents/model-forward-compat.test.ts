@@ -56,4 +56,30 @@ describe("agents/model-forward-compat", () => {
     const model = resolveForwardCompatModel("openai", "claude-opus-4-6", registry);
     expect(model).toBeUndefined();
   });
+
+  it("resolves gemini 3.1 customtools via gemini 3 template", () => {
+    const registry = createRegistry({
+      "google/gemini-3-pro-preview": createTemplateModel("google", "gemini-3-pro-preview"),
+    });
+    const model = resolveForwardCompatModel(
+      "google",
+      "gemini-3.1-pro-preview-customtools",
+      registry,
+    );
+    expect(model?.id).toBe("gemini-3.1-pro-preview-customtools");
+    expect(model?.name).toBe("gemini-3.1-pro-preview-customtools");
+    expect(model?.provider).toBe("google");
+  });
+
+  it("does not resolve gemini 3.1 customtools fallback for other providers", () => {
+    const registry = createRegistry({
+      "google/gemini-3-pro-preview": createTemplateModel("google", "gemini-3-pro-preview"),
+    });
+    const model = resolveForwardCompatModel(
+      "openai",
+      "gemini-3.1-pro-preview-customtools",
+      registry,
+    );
+    expect(model).toBeUndefined();
+  });
 });

@@ -281,6 +281,7 @@ function resolveAntigravityOpus46ForwardCompatModel(
 const GEMINI_31_PRO_MODEL_IDS = new Set([
   "gemini-3.1-pro-low-preview",
   "gemini-3.1-pro-high-preview",
+  "gemini-3.1-pro-preview-customtools",
 ]);
 const GEMINI_31_TEMPLATE_MODEL_IDS = ["gemini-3-pro-preview"] as const;
 
