@@ -2550,6 +2550,8 @@ public struct ToolInterruptEmitParams: Codable, Sendable {
     public let runid: String
     public let sessionkey: String
     public let toolcallid: String
+    public let toolname: String?
+    public let normalizedargshash: String?
     public let interrupt: [String: AnyCodable]
     public let timeoutms: Int?
     public let twophase: Bool?
@@ -2559,6 +2561,8 @@ public struct ToolInterruptEmitParams: Codable, Sendable {
         runid: String,
         sessionkey: String,
         toolcallid: String,
+        toolname: String?,
+        normalizedargshash: String?,
         interrupt: [String: AnyCodable],
         timeoutms: Int?,
         twophase: Bool?
@@ -2567,6 +2571,8 @@ public struct ToolInterruptEmitParams: Codable, Sendable {
         self.runid = runid
         self.sessionkey = sessionkey
         self.toolcallid = toolcallid
+        self.toolname = toolname
+        self.normalizedargshash = normalizedargshash
         self.interrupt = interrupt
         self.timeoutms = timeoutms
         self.twophase = twophase
@@ -2576,6 +2582,8 @@ public struct ToolInterruptEmitParams: Codable, Sendable {
         case runid = "runId"
         case sessionkey = "sessionKey"
         case toolcallid = "toolCallId"
+        case toolname = "toolName"
+        case normalizedargshash = "normalizedArgsHash"
         case interrupt
         case timeoutms = "timeoutMs"
         case twophase = "twoPhase"
@@ -2587,7 +2595,13 @@ public struct ToolInterruptResumeParams: Codable, Sendable {
     public let runid: String
     public let sessionkey: String
     public let toolcallid: String
+    public let toolname: String?
+    public let normalizedargshash: String?
     public let resumetoken: String
+    public let decisionreason: AnyCodable?
+    public let policyruleid: AnyCodable?
+    public let decisionatms: Int?
+    public let decisionmeta: [String: AnyCodable]?
     public let result: AnyCodable
 
     public init(
@@ -2595,14 +2609,26 @@ public struct ToolInterruptResumeParams: Codable, Sendable {
         runid: String,
         sessionkey: String,
         toolcallid: String,
+        toolname: String?,
+        normalizedargshash: String?,
         resumetoken: String,
+        decisionreason: AnyCodable?,
+        policyruleid: AnyCodable?,
+        decisionatms: Int?,
+        decisionmeta: [String: AnyCodable]?,
         result: AnyCodable
     ) {
         self.approvalrequestid = approvalrequestid
         self.runid = runid
         self.sessionkey = sessionkey
         self.toolcallid = toolcallid
+        self.toolname = toolname
+        self.normalizedargshash = normalizedargshash
         self.resumetoken = resumetoken
+        self.decisionreason = decisionreason
+        self.policyruleid = policyruleid
+        self.decisionatms = decisionatms
+        self.decisionmeta = decisionmeta
         self.result = result
     }
     private enum CodingKeys: String, CodingKey {
@@ -2610,7 +2636,13 @@ public struct ToolInterruptResumeParams: Codable, Sendable {
         case runid = "runId"
         case sessionkey = "sessionKey"
         case toolcallid = "toolCallId"
+        case toolname = "toolName"
+        case normalizedargshash = "normalizedArgsHash"
         case resumetoken = "resumeToken"
+        case decisionreason = "decisionReason"
+        case policyruleid = "policyRuleId"
+        case decisionatms = "decisionAtMs"
+        case decisionmeta = "decisionMeta"
         case result
     }
 }
