@@ -249,7 +249,7 @@ export async function uninstallSystemdService({
   } catch {
     stdout.write(`Systemd service not found at ${unitPath}\n`);
   }
-  
+
   // Reload systemd daemon to pick up the removed unit file
   const reload = await execSystemctl(["--user", "daemon-reload"]);
   if (reload.code !== 0) {
