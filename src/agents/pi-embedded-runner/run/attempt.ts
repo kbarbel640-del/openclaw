@@ -30,6 +30,7 @@ import {
   listChannelSupportedActions,
   resolveChannelMessageToolHints,
 } from "../../channel-tools.js";
+import { resolveContextWindowInfo } from "../../context-window-guard.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
@@ -70,6 +71,11 @@ import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
 import { isRunnerAbortError } from "../abort.js";
 import { appendCacheTtlTimestamp, isCacheTtlEligibleProvider } from "../cache-ttl.js";
+import {
+  computeStaticPromptTokens,
+  planContextMessages,
+  type ContextPlanResult,
+} from "../context-planner.js";
 import { buildEmbeddedExtensionPaths } from "../extensions.js";
 import { applyExtraParamsToAgent } from "../extra-params.js";
 import {
@@ -90,6 +96,12 @@ import { buildEmbeddedSandboxInfo } from "../sandbox-info.js";
 import { prewarmSessionFile, trackSessionManagerAccess } from "../session-manager-cache.js";
 import { prepareSessionManagerForRun } from "../session-manager-init.js";
 import {
+  buildSessionSummaryPrompt,
+  loadSessionSummaryState,
+  persistSessionSummaryState,
+  updateSessionSummaryState,
+} from "../session-summary.js";
+import {
   applySystemPromptOverrideToSession,
   buildEmbeddedSystemPrompt,
   createSystemPromptOverride,
@@ -104,6 +116,37 @@ import {
 } from "./compaction-timeout.js";
 import { detectAndLoadPromptImages } from "./images.js";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
+
+const DEFAULT_SUMMARY_INJECTION_PRESSURE_THRESHOLD = 0.72;
+
+export type SessionSummaryInjectionDecision = {
+  inject: boolean;
+  reason: "none" | "trimmed" | "pressure";
+  pressureRatio: number;
+};
+
+export function decideSessionSummaryInjection(params: {
+  summaryContext: string;
+  basePlan: ContextPlanResult;
+  pressureThreshold?: number;
+}): SessionSummaryInjectionDecision {
+  const pressureThreshold = Number.isFinite(params.pressureThreshold)
+    ? Math.max(0, params.pressureThreshold ?? DEFAULT_SUMMARY_INJECTION_PRESSURE_THRESHOLD)
+    : DEFAULT_SUMMARY_INJECTION_PRESSURE_THRESHOLD;
+  const pressureRatio =
+    params.basePlan.estimatedHistoryTokensBefore / Math.max(1, params.basePlan.historyBudgetTokens);
+
+  if (!params.summaryContext.trim()) {
+    return { inject: false, reason: "none", pressureRatio };
+  }
+  if (params.basePlan.trimmed) {
+    return { inject: true, reason: "trimmed", pressureRatio };
+  }
+  if (pressureRatio >= pressureThreshold) {
+    return { inject: true, reason: "pressure", pressureRatio };
+  }
+  return { inject: false, reason: "none", pressureRatio };
+}
 
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
@@ -483,6 +526,7 @@ export async function runEmbeddedAttempt(
     });
     const systemPromptOverride = createSystemPromptOverride(appendPrompt);
     const systemPromptText = systemPromptOverride();
+    let effectiveSystemPromptText = systemPromptText;
 
     const sessionLock = await acquireSessionWriteLock({
       sessionFile: params.sessionFile,
@@ -584,7 +628,7 @@ export async function runEmbeddedAttempt(
         sessionManager,
         settingsManager,
       }));
-      applySystemPromptOverrideToSession(session, systemPromptText);
+      applySystemPromptOverrideToSession(session, effectiveSystemPromptText);
       if (!session) {
         throw new Error("Embedded agent session missing");
       }
@@ -658,6 +702,7 @@ export async function runEmbeddedAttempt(
         );
       }
 
+      let sessionSummaryContext = "";
       try {
         const prior = await sanitizeSessionHistory({
           messages: activeSession.messages,
@@ -676,17 +721,87 @@ export async function runEmbeddedAttempt(
         const validated = transcriptPolicy.validateAnthropicTurns
           ? validateAnthropicTurns(validatedGemini)
           : validatedGemini;
-        const truncated = limitHistoryTurns(
-          validated,
+        const priorSummaryState = await loadSessionSummaryState({
+          sessionFile: params.sessionFile,
+        });
+        const nextSummaryState = updateSessionSummaryState({
+          state: priorSummaryState,
+          messages: validated,
+        });
+        if (
+          nextSummaryState.lastProcessedMessageCount !==
+            priorSummaryState.lastProcessedMessageCount ||
+          nextSummaryState.items.length !== priorSummaryState.items.length
+        ) {
+          await persistSessionSummaryState({
+            sessionFile: params.sessionFile,
+            state: nextSummaryState,
+          }).catch((summaryErr) => {
+            log.debug(`session summary persistence skipped: ${String(summaryErr)}`);
+          });
+        }
+        sessionSummaryContext =
+          buildSessionSummaryPrompt({
+            state: nextSummaryState,
+          }) ?? "";
+
+        const contextWindowTokens = resolveContextWindowInfo({
+          cfg: params.config,
+          provider: params.provider,
+          modelId: params.modelId,
+          modelContextWindow: params.model?.contextWindow,
+          defaultTokens: DEFAULT_CONTEXT_TOKENS,
+        }).tokens;
+        const reserveTokens = resolveCompactionReserveTokensFloor(params.config);
+        const baseStaticPromptTokens = computeStaticPromptTokens({
+          systemPrompt: systemPromptText,
+          prompt: params.prompt,
+        });
+        const basePlan = planContextMessages({
+          messages: validated,
+          contextWindowTokens,
+          reserveTokens,
+          staticPromptTokens: baseStaticPromptTokens,
+        });
+        const summaryDecision = decideSessionSummaryInjection({
+          summaryContext: sessionSummaryContext,
+          basePlan,
+        });
+        let budgeted = basePlan;
+        if (summaryDecision.inject) {
+          effectiveSystemPromptText = `${systemPromptText}\n\n${sessionSummaryContext}`;
+          applySystemPromptOverrideToSession(activeSession, effectiveSystemPromptText);
+          const summarizedStaticPromptTokens = computeStaticPromptTokens({
+            systemPrompt: effectiveSystemPromptText,
+            prompt: params.prompt,
+          });
+          budgeted = planContextMessages({
+            messages: validated,
+            contextWindowTokens,
+            reserveTokens,
+            staticPromptTokens: summarizedStaticPromptTokens,
+          });
+        }
+        const turnLimited = limitHistoryTurns(
+          budgeted.messages,
           getDmHistoryLimitFromSessionKey(params.sessionKey, params.config),
         );
-        // Re-run tool_use/tool_result pairing repair after truncation, since
-        // limitHistoryTurns can orphan tool_result blocks by removing the
+        // Re-run tool_use/tool_result pairing repair after trimming, since
+        // token/turn trimming can orphan tool_result blocks by removing the
         // assistant message that contained the matching tool_use.
         const limited = transcriptPolicy.repairToolUseResultPairing
-          ? sanitizeToolUseResultPairing(truncated)
-          : truncated;
-        cacheTrace?.recordStage("session:limited", { messages: limited });
+          ? sanitizeToolUseResultPairing(turnLimited)
+          : turnLimited;
+        cacheTrace?.recordStage("session:limited", {
+          messages: limited,
+          note:
+            `trimmed=${budgeted.trimmed ? "yes" : "no"} ` +
+            `reason=${budgeted.reason} ` +
+            `tokens=${budgeted.estimatedHistoryTokensAfter}/${budgeted.historyBudgetTokens} ` +
+            `summary=${summaryDecision.inject ? "on" : "off"} ` +
+            `summaryReason=${summaryDecision.reason} ` +
+            `pressure=${summaryDecision.pressureRatio.toFixed(2)}`,
+        });
         if (limited.length > 0) {
           activeSession.agent.replaceMessages(limited);
         }
@@ -929,7 +1044,6 @@ export async function runEmbeddedAttempt(
             );
           }
         }
-
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
         cacheTrace?.recordStage("prompt:before", {
           prompt: effectivePrompt,
@@ -995,7 +1109,7 @@ export async function runEmbeddedAttempt(
           // Diagnostic: log context sizes before prompt to help debug early overflow errors.
           if (log.isEnabled("debug")) {
             const msgCount = activeSession.messages.length;
-            const systemLen = systemPromptText?.length ?? 0;
+            const systemLen = effectiveSystemPromptText.length;
             const promptLen = effectivePrompt.length;
             const sessionSummary = summarizeSessionContext(activeSession.messages);
             log.debug(

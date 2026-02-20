@@ -57,6 +57,7 @@ export type ResolvedMemorySearchConfig = {
   query: {
     maxResults: number;
     minScore: number;
+    maxInjectedChars: number;
     hybrid: {
       enabled: boolean;
       vectorWeight: number;
@@ -88,6 +89,7 @@ const DEFAULT_SESSION_DELTA_BYTES = 100_000;
 const DEFAULT_SESSION_DELTA_MESSAGES = 50;
 const DEFAULT_MAX_RESULTS = 6;
 const DEFAULT_MIN_SCORE = 0.35;
+const DEFAULT_MAX_INJECTED_CHARS = 4_000;
 const DEFAULT_HYBRID_ENABLED = true;
 const DEFAULT_HYBRID_VECTOR_WEIGHT = 0.7;
 const DEFAULT_HYBRID_TEXT_WEIGHT = 0.3;
@@ -230,6 +232,10 @@ function mergeConfig(
   const query = {
     maxResults: overrides?.query?.maxResults ?? defaults?.query?.maxResults ?? DEFAULT_MAX_RESULTS,
     minScore: overrides?.query?.minScore ?? defaults?.query?.minScore ?? DEFAULT_MIN_SCORE,
+    maxInjectedChars:
+      overrides?.query?.maxInjectedChars ??
+      defaults?.query?.maxInjectedChars ??
+      DEFAULT_MAX_INJECTED_CHARS,
   };
   const hybrid = {
     enabled:
@@ -290,6 +296,7 @@ function mergeConfig(
         : DEFAULT_TEMPORAL_DECAY_HALF_LIFE_DAYS,
     ),
   );
+  const maxInjectedChars = clampInt(query.maxInjectedChars, 1, Number.MAX_SAFE_INTEGER);
   const deltaBytes = clampInt(sync.sessions.deltaBytes, 0, Number.MAX_SAFE_INTEGER);
   const deltaMessages = clampInt(sync.sessions.deltaMessages, 0, Number.MAX_SAFE_INTEGER);
   return {
@@ -316,6 +323,7 @@ function mergeConfig(
     query: {
       ...query,
       minScore,
+      maxInjectedChars,
       hybrid: {
         enabled: Boolean(hybrid.enabled),
         vectorWeight: normalizedVectorWeight,
