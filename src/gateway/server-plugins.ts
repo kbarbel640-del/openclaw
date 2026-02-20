@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { loadConfig } from "../config/config.js";
 import type { PluginRuntime } from "../plugins/runtime/types.js";
-import type { ErrorShape } from "./protocol/index.js";
 import type { GatewayRequestHandler, GatewayRequestOptions } from "./server-methods/types.js";
 import { loadOpenClawPlugins } from "../plugins/loader.js";
 import { getPluginRuntimeGatewayRequestScope } from "../plugins/runtime/gateway-request-scope.js";
+import { PROTOCOL_VERSION, type ErrorShape } from "./protocol/index.js";
 import { handleGatewayRequest } from "./server-methods.js";
 
 // ── Internal gateway dispatch for plugin runtime ────────────────────
@@ -12,6 +12,14 @@ import { handleGatewayRequest } from "./server-methods.js";
 function createSyntheticOperatorClient(): GatewayRequestOptions["client"] {
   return {
     connect: {
+      minProtocol: PROTOCOL_VERSION,
+      maxProtocol: PROTOCOL_VERSION,
+      client: {
+        id: "gateway-client",
+        version: "plugin-runtime",
+        platform: process.platform,
+        mode: "backend",
+      },
       role: "operator",
       scopes: ["operator.admin", "operator.approvals", "operator.pairing"],
     },

@@ -2,13 +2,14 @@ import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReplyPayload } from "../types.js";
 import type { FollowupRun } from "./queue.js";
 import { loadSessionStore, saveSessionStore, type SessionEntry } from "../../config/sessions.js";
 import { createMockTypingController } from "./test-helpers.js";
 
 const runEmbeddedPiAgentMock = vi.fn();
 const routingMocks = vi.hoisted(() => ({
-  routeReply: vi.fn(async () => ({ ok: true, messageId: "mock" })),
+  routeReply: vi.fn(async (_params: unknown) => ({ ok: true, messageId: "mock" })),
 }));
 
 vi.mock("../../agents/model-fallback.js", () => ({
@@ -86,7 +87,7 @@ describe("createFollowupRunner compaction", () => {
     const sessionStore: Record<string, SessionEntry> = {
       main: sessionEntry,
     };
-    const onBlockReply = vi.fn(async () => {});
+    const onBlockReply = vi.fn(async (_payload: ReplyPayload) => {});
 
     runEmbeddedPiAgentMock.mockImplementationOnce(
       async (params: {
@@ -141,14 +142,15 @@ describe("createFollowupRunner compaction", () => {
     await runner(queued);
 
     expect(onBlockReply).toHaveBeenCalled();
-    expect(onBlockReply.mock.calls[0][0].text).toContain("Auto-compaction complete");
+    const firstPayload = onBlockReply.mock.calls[0]?.[0] as ReplyPayload | undefined;
+    expect(firstPayload?.text).toContain("Auto-compaction complete");
     expect(sessionStore.main.compactionCount).toBe(1);
   });
 });
 
 describe("createFollowupRunner messaging tool dedupe", () => {
   it("drops payloads already sent via messaging tool", async () => {
-    const onBlockReply = vi.fn(async () => {});
+    const onBlockReply = vi.fn(async (_payload: ReplyPayload) => {});
     runEmbeddedPiAgentMock.mockResolvedValueOnce({
       payloads: [{ text: "hello world!" }],
       messagingToolSentTexts: ["hello world!"],
@@ -168,7 +170,7 @@ describe("createFollowupRunner messaging tool dedupe", () => {
   });
 
   it("delivers payloads when not duplicates", async () => {
-    const onBlockReply = vi.fn(async () => {});
+    const onBlockReply = vi.fn(async (_payload: ReplyPayload) => {});
     runEmbeddedPiAgentMock.mockResolvedValueOnce({
       payloads: [{ text: "hello world!" }],
       messagingToolSentTexts: ["different message"],
@@ -188,7 +190,7 @@ describe("createFollowupRunner messaging tool dedupe", () => {
   });
 
   it("suppresses replies when a messaging tool sent via the same provider + target", async () => {
-    const onBlockReply = vi.fn(async () => {});
+    const onBlockReply = vi.fn(async (_payload: ReplyPayload) => {});
     runEmbeddedPiAgentMock.mockResolvedValueOnce({
       payloads: [{ text: "hello world!" }],
       messagingToolSentTexts: ["different message"],
@@ -218,7 +220,7 @@ describe("createFollowupRunner messaging tool dedupe", () => {
     const sessionStore: Record<string, SessionEntry> = { [sessionKey]: sessionEntry };
     await saveSessionStore(storePath, sessionStore);
 
-    const onBlockReply = vi.fn(async () => {});
+    const onBlockReply = vi.fn(async (_payload: ReplyPayload) => {});
     runEmbeddedPiAgentMock.mockResolvedValueOnce({
       payloads: [{ text: "hello world!" }],
       messagingToolSentTexts: ["different message"],
@@ -247,14 +249,14 @@ describe("createFollowupRunner messaging tool dedupe", () => {
 
     expect(onBlockReply).not.toHaveBeenCalled();
     const store = loadSessionStore(storePath, { skipCache: true });
-    expect(store[sessionKey]?.totalTokens ?? 0).toBeGreaterThan(0);
+    expect(store[sessionKey]?.inputTokens ?? 0).toBeGreaterThan(0);
     expect(store[sessionKey]?.model).toBe("claude-opus-4-5");
   });
 });
 
 describe("createFollowupRunner primary routing", () => {
   it("routes followup replies to primary channel in primary-only mode", async () => {
-    const onBlockReply = vi.fn(async () => {});
+    const onBlockReply = vi.fn(async (_payload: ReplyPayload) => {});
     runEmbeddedPiAgentMock.mockResolvedValueOnce({
       payloads: [{ text: "hello" }],
       meta: {},
@@ -290,7 +292,9 @@ describe("createFollowupRunner primary routing", () => {
     await runner(queued);
 
     expect(onBlockReply).not.toHaveBeenCalled();
-    const calls = routingMocks.routeReply.mock.calls.map((call) => call[0]);
+    const calls = routingMocks.routeReply.mock.calls.map(
+      (call) => call[0] as { channel?: string; payload?: ReplyPayload },
+    );
     expect(calls.some((call) => call.channel === "telegram")).toBe(true);
     expect(calls.some((call) => call.channel === "imessage")).toBe(false);
     const primaryPayload = calls.find((call) => call.channel === "telegram")?.payload;
@@ -298,7 +302,7 @@ describe("createFollowupRunner primary routing", () => {
   });
 
   it("mirrors followup replies to source and primary in mirror mode", async () => {
-    const onBlockReply = vi.fn(async () => {});
+    const onBlockReply = vi.fn(async (_payload: ReplyPayload) => {});
     runEmbeddedPiAgentMock.mockResolvedValueOnce({
       payloads: [{ text: "hello" }],
       meta: {},
@@ -334,7 +338,9 @@ describe("createFollowupRunner primary routing", () => {
     await runner(queued);
 
     expect(onBlockReply).not.toHaveBeenCalled();
-    const calls = routingMocks.routeReply.mock.calls.map((call) => call[0]);
+    const calls = routingMocks.routeReply.mock.calls.map(
+      (call) => call[0] as { channel?: string; payload?: ReplyPayload },
+    );
     expect(calls.some((call) => call.channel === "telegram")).toBe(true);
     expect(calls.some((call) => call.channel === "imessage")).toBe(true);
   });

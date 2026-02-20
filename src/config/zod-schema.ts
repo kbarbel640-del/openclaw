@@ -5,6 +5,7 @@ import { ApprovalsSchema } from "./zod-schema.approvals.js";
 import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
 import { HookMappingSchema, HooksGmailSchema, InternalHooksSchema } from "./zod-schema.hooks.js";
 import { ChannelsSchema } from "./zod-schema.providers.js";
+import { sensitive } from "./zod-schema.sensitive.js";
 import {
   CommandsSchema,
   MessagesSchema,
@@ -91,6 +92,14 @@ const MemorySchema = z
   .strict()
   .optional();
 
+const HttpUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  }, "Expected http:// or https:// URL");
+
 const PrimaryRoutingChannelSchema = z.union([
   z.literal("telegram"),
   z.literal("whatsapp"),
@@ -118,6 +127,7 @@ const RoutingSchema = z
 
 export const OpenClawSchema = z
   .object({
+    $schema: z.string().optional(),
     meta: z
       .object({
         lastTouchedVersion: z.string().optional(),
@@ -318,6 +328,8 @@ export const OpenClawSchema = z
         enabled: z.boolean().optional(),
         store: z.string().optional(),
         maxConcurrentRuns: z.number().int().positive().optional(),
+        webhook: HttpUrlSchema.optional(),
+        webhookToken: z.string().optional().register(sensitive),
       })
       .strict()
       .optional(),
@@ -424,6 +436,14 @@ export const OpenClawSchema = z
           .strict()
           .optional(),
         trustedProxies: z.array(z.string()).optional(),
+        tools: z
+          .object({
+            deny: z.array(z.string()).optional(),
+            allow: z.array(z.string()).optional(),
+          })
+          .strict()
+          .optional(),
+        channelHealthCheckMinutes: z.number().int().min(0).optional(),
         tailscale: z
           .object({
             mode: z.union([z.literal("off"), z.literal("serve"), z.literal("funnel")]).optional(),
@@ -588,6 +608,7 @@ export const OpenClawSchema = z
         slots: z
           .object({
             memory: z.string().optional(),
+            contextEngine: z.string().optional(),
           })
           .strict()
           .optional(),

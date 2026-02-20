@@ -18,7 +18,8 @@ describe("$schema key in config (#14998)", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.$schema).toBe("https://openclaw.ai/config.json");
+      const parsed = result.data as { $schema?: string };
+      expect(parsed.$schema).toBe("https://openclaw.ai/config.json");
     }
   });
 

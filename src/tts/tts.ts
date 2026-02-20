@@ -163,7 +163,7 @@ type TtsUserPrefs = {
   };
 };
 
-type ResolvedTtsModelOverrides = {
+export type ResolvedTtsModelOverrides = {
   enabled: boolean;
   allowText: boolean;
   allowProvider: boolean;
@@ -174,7 +174,7 @@ type ResolvedTtsModelOverrides = {
   allowSeed: boolean;
 };
 
-type TtsDirectiveOverrides = {
+export type TtsDirectiveOverrides = {
   ttsText?: string;
   provider?: TtsProvider;
   openai?: {
@@ -202,7 +202,7 @@ type TtsDirectiveOverrides = {
   };
 };
 
-type TtsDirectiveParseResult = {
+export type TtsDirectiveParseResult = {
   cleanedText: string;
   ttsText?: string;
   hasDirective: boolean;
