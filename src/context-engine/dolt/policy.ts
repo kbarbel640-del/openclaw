@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { DoltRecordLevel } from "./store/types.js";
 import { renderPayloadForTokenEstimation } from "./store/token-count.js";
+import { emitDoltTelemetryEvent } from "./telemetry.js";
 
 export type DoltLanePolicy = {
   soft: number;
@@ -97,44 +98,57 @@ export function evaluateDoltLanePressure(params: {
   const softTriggerThreshold = policy.soft + policy.delta;
   const pressureDelta = Math.max(0, laneTokenCount - policy.target);
   const overTarget = laneTokenCount > policy.target;
+  let decision: DoltLanePressureDecision;
 
   if (params.drainMode === true && overTarget) {
-    return {
+    decision = {
       shouldCompact: true,
       trigger: "drain",
       nextDrainMode: true,
       softTriggerThreshold,
       pressureDelta,
     };
-  }
-
-  if (params.hardLimitSafetyMode === true && overTarget) {
-    return {
+  } else if (params.hardLimitSafetyMode === true && overTarget) {
+    decision = {
       shouldCompact: true,
       trigger: "hard_limit_bypass",
       nextDrainMode: true,
       softTriggerThreshold,
       pressureDelta,
     };
-  }
-
-  if (laneTokenCount > softTriggerThreshold) {
-    return {
+  } else if (laneTokenCount > softTriggerThreshold) {
+    decision = {
       shouldCompact: true,
       trigger: "soft_delta",
       nextDrainMode: true,
       softTriggerThreshold,
       pressureDelta,
     };
+  } else {
+    decision = {
+      shouldCompact: false,
+      trigger: "none",
+      nextDrainMode: false,
+      softTriggerThreshold,
+      pressureDelta,
+    };
   }
 
-  return {
-    shouldCompact: false,
-    trigger: "none",
-    nextDrainMode: false,
-    softTriggerThreshold,
-    pressureDelta,
-  };
+  emitDoltTelemetryEvent({
+    event_type: "dolt_lane_pressure_decision",
+    payload: {
+      lane_token_total: laneTokenCount,
+      should_compact: decision.shouldCompact,
+      trigger_path: decision.trigger,
+      next_drain_mode: decision.nextDrainMode,
+      soft_trigger_threshold: softTriggerThreshold,
+      pressure_delta: pressureDelta,
+      drain_mode: params.drainMode === true,
+      hard_limit_safety_mode: params.hardLimitSafetyMode === true,
+    },
+  });
+
+  return decision;
 }
 
 /**
@@ -181,9 +195,10 @@ export function selectDoltTurnChunkForCompaction(params: {
     0,
     normalizeNonNegativeInt(params.laneTokenCount, 0) - policy.target,
   );
+  const normalizedLaneTokenCount = normalizeNonNegativeInt(params.laneTokenCount, 0);
 
   if (maxSelectableCount < minChunkTurns) {
-    return {
+    const selection: DoltTurnChunkSelection = {
       selected: [],
       selectedTokenCount: 0,
       selectedCount: 0,
@@ -192,6 +207,14 @@ export function selectDoltTurnChunkForCompaction(params: {
       pressureDelta,
       maxSelectableCount,
     };
+    emitChunkSelectionTelemetry({
+      laneTokenCount: normalizedLaneTokenCount,
+      selection,
+      minChunkTurns,
+      freshTailMinTurns,
+      freshTailTokenLimit,
+    });
+    return selection;
   }
 
   let selectedCount = 0;
@@ -209,8 +232,7 @@ export function selectDoltTurnChunkForCompaction(params: {
   selectedCount = Math.min(maxSelectableCount, selectedCount);
   const selected = turns.slice(0, selectedCount);
   selectedTokenCount = selected.reduce((sum, turn) => sum + turn.tokenCount, 0);
-
-  return {
+  const selection: DoltTurnChunkSelection = {
     selected,
     selectedTokenCount,
     selectedCount,
@@ -219,6 +241,14 @@ export function selectDoltTurnChunkForCompaction(params: {
     pressureDelta,
     maxSelectableCount,
   };
+  emitChunkSelectionTelemetry({
+    laneTokenCount: normalizedLaneTokenCount,
+    selection,
+    minChunkTurns,
+    freshTailMinTurns,
+    freshTailTokenLimit,
+  });
+  return selection;
 }
 
 /**
@@ -370,4 +400,28 @@ function normalizeNonNegativeInt(value: number, fallback: number): number {
 
 function estimateTokensFromBytes(utf8Bytes: number): number {
   return utf8Bytes === 0 ? 0 : Math.ceil(utf8Bytes / 4);
+}
+
+function emitChunkSelectionTelemetry(params: {
+  laneTokenCount: number;
+  selection: DoltTurnChunkSelection;
+  minChunkTurns: number;
+  freshTailMinTurns: number;
+  freshTailTokenLimit: number;
+}): void {
+  emitDoltTelemetryEvent({
+    event_type: "dolt_turn_chunk_selection",
+    payload: {
+      lane_token_total: params.laneTokenCount,
+      pressure_delta: params.selection.pressureDelta,
+      max_selectable_count: params.selection.maxSelectableCount,
+      selected_count: params.selection.selectedCount,
+      selected_token_total: params.selection.selectedTokenCount,
+      fresh_tail_preserved_count: params.selection.freshTailCount,
+      fresh_tail_preserved_token_total: params.selection.freshTailTokenCount,
+      min_chunk_turns: params.minChunkTurns,
+      fresh_tail_min_turns: params.freshTailMinTurns,
+      fresh_tail_token_limit: params.freshTailTokenLimit,
+    },
+  });
 }

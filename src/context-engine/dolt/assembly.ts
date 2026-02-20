@@ -6,6 +6,7 @@ import {
   type DoltLanePolicyOverrides,
   type DoltLanePolicies,
 } from "./policy.js";
+import { collectDoltActiveLaneSnapshot, emitDoltTelemetryEvent } from "./telemetry.js";
 
 export type DoltAssemblyParams = {
   store: DoltStore;
@@ -82,6 +83,35 @@ export function assembleDoltContext(params: DoltAssemblyParams): DoltAssemblyRes
   const orderedRecords = [...orderedBindles, ...orderedLeaves, ...orderedTurns];
   const messages = orderedRecords.map(toAgentMessage);
   const estimatedTokens = orderedRecords.reduce((sum, record) => sum + record.tokenCount, 0);
+  const laneActiveSnapshot = collectDoltActiveLaneSnapshot({
+    store: params.store,
+    sessionId,
+  });
+  const lane_selected_record_counts = {
+    bindle: orderedBindles.length,
+    leaf: orderedLeaves.length,
+    turn: orderedTurns.length,
+  };
+  const lane_selected_token_totals = {
+    bindle: sumRecordTokens(orderedBindles),
+    leaf: sumRecordTokens(orderedLeaves),
+    turn: sumRecordTokens(orderedTurns),
+  };
+
+  emitDoltTelemetryEvent({
+    event_type: "dolt_assembly_snapshot",
+    session_id: sessionId,
+    payload: {
+      token_budget: tokenBudget,
+      runtime_reserve_tokens: runtimeReserveTokens,
+      available_tokens: availableTokens,
+      lane_budget_tokens: laneBudgets,
+      lane_selected_record_counts,
+      lane_selected_token_totals,
+      lane_active_record_counts: laneActiveSnapshot.lane_active_record_counts,
+      lane_active_token_totals: laneActiveSnapshot.lane_active_token_totals,
+    },
+  });
 
   return {
     messages,
@@ -171,6 +201,10 @@ function oldestFirst(records: DoltRecord[]): DoltRecord[] {
   return [...records].toSorted(
     (a, b) => a.eventTsMs - b.eventTsMs || a.pointer.localeCompare(b.pointer),
   );
+}
+
+function sumRecordTokens(records: DoltRecord[]): number {
+  return records.reduce((sum, record) => sum + normalizeNonNegativeInt(record.tokenCount), 0);
 }
 
 function toAgentMessage(record: DoltRecord): AgentMessage {

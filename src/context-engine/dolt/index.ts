@@ -9,3 +9,4 @@ export * from "./rollup.js";
 export * from "./assembly.js";
 export * from "./bootstrap.js";
 export * from "./reset-finalization.js";
+export * from "./telemetry.js";

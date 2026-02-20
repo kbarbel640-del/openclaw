@@ -1,4 +1,5 @@
 import type { DoltRecord, DoltStore } from "./store/types.js";
+import { emitDoltTelemetryEvent } from "./telemetry.js";
 
 type DoltActiveBindle = {
   pointer: string;
@@ -88,6 +89,28 @@ export function enforceDoltBindleOldestFirstEviction(params: {
   }
 
   const after = buildSnapshot(activeBindles);
+  emitDoltTelemetryEvent({
+    event_type: "dolt_bindle_eviction",
+    session_id: sessionId,
+    session_key: normalizeOptionalString(params.sessionKey) ?? undefined,
+    payload: {
+      target_tokens: targetTokens,
+      evicted_count: evictedPointers.length,
+      before_active_count: before.activeCount,
+      before_total_tokens: before.totalTokens,
+      before_oldest_pointer: before.oldest?.pointer ?? null,
+      before_oldest_recency_ts_ms: before.oldest?.recencyTsMs ?? null,
+      before_newest_pointer: before.newest?.pointer ?? null,
+      before_newest_recency_ts_ms: before.newest?.recencyTsMs ?? null,
+      after_active_count: after.activeCount,
+      after_total_tokens: after.totalTokens,
+      after_oldest_pointer: after.oldest?.pointer ?? null,
+      after_oldest_recency_ts_ms: after.oldest?.recencyTsMs ?? null,
+      after_newest_pointer: after.newest?.pointer ?? null,
+      after_newest_recency_ts_ms: after.newest?.recencyTsMs ?? null,
+    },
+  });
+
   return {
     activePointers: activeBindles.map((bindle) => bindle.pointer),
     evictedPointers,
@@ -179,4 +202,12 @@ function requireNonEmptyString(value: string, label: string): string {
     throw new Error(`${label} must be a non-empty string`);
   }
   return trimmed;
+}
+
+function normalizeOptionalString(value: string | null | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }

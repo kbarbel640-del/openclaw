@@ -12,6 +12,7 @@ import {
   type DoltSummaryModelSelection,
   type DoltSummarySourceTurn,
 } from "./summarizer.js";
+import { collectDoltActiveLaneSnapshot, emitDoltTelemetryEvent } from "./telemetry.js";
 
 export type DoltRollupLevel = "leaf" | "bindle";
 
@@ -50,6 +51,7 @@ export type DoltRollupResult = {
  */
 export async function executeDoltRollup(params: DoltRollupParams): Promise<DoltRollupResult> {
   const sessionId = requireNonEmptyString(params.sessionId, "sessionId");
+  const sessionKey = normalizeOptionalString(params.sessionKey);
   const sourceRecords = normalizeSourceRecords(params.sourceRecords);
   const targetLevel = params.targetLevel;
   const expectedSourceLevel = expectedSourceLevelForTarget(targetLevel);
@@ -75,6 +77,10 @@ export async function executeDoltRollup(params: DoltRollupParams): Promise<DoltR
     targetLevel,
     requestedMode: params.mode,
   });
+  const laneSnapshotBefore = collectDoltActiveLaneSnapshot({
+    store: params.store,
+    sessionId,
+  });
   const childPointers = sourceRecords.map((record) => record.pointer);
   const first = sourceRecords[0];
   const last = sourceRecords[sourceRecords.length - 1];
@@ -82,6 +88,23 @@ export async function executeDoltRollup(params: DoltRollupParams): Promise<DoltR
     startEpochMs: first.eventTsMs,
     endEpochMs: last.eventTsMs,
   };
+  const sourceTokenStats = buildSourceTokenStats(sourceRecords);
+  emitDoltTelemetryEvent({
+    event_type: "dolt_rollup_summary_quality",
+    session_id: sessionId,
+    session_key: sessionKey ?? undefined,
+    payload: {
+      target_level: targetLevel,
+      source_level: expectedSourceLevel,
+      summary_mode: mode,
+      source_record_count: sourceRecords.length,
+      source_token_total: sourceTokenStats.total,
+      source_token_min: sourceTokenStats.min,
+      source_token_max: sourceTokenStats.max,
+      reset_forced_summary_count: params.finalizedAtReset === true ? 1 : 0,
+      finalized_at_reset: params.finalizedAtReset === true,
+    },
+  });
   const summarize = params.summarize ?? summarizeDoltRollup;
   const summarized = await summarize({
     sourceTurns: sourceRecords.map(toSummarySourceTurn),
@@ -107,7 +130,7 @@ export async function executeDoltRollup(params: DoltRollupParams): Promise<DoltR
   const parentRecord = params.store.upsertRecord({
     pointer,
     sessionId,
-    sessionKey: params.sessionKey,
+    sessionKey,
     level: targetLevel,
     eventTsMs: datesCovered.endEpochMs,
     payload: {
@@ -129,7 +152,7 @@ export async function executeDoltRollup(params: DoltRollupParams): Promise<DoltR
   });
   params.store.upsertActiveLane({
     sessionId,
-    sessionKey: params.sessionKey,
+    sessionKey,
     level: targetLevel,
     pointer: parentRecord.pointer,
     isActive: true,
@@ -153,12 +176,37 @@ export async function executeDoltRollup(params: DoltRollupParams): Promise<DoltR
       ? enforceDoltBindleOldestFirstEviction({
           store: params.store,
           sessionId,
-          sessionKey: params.sessionKey,
+          sessionKey,
           targetTokens: normalizeNonNegativeInt(
             params.bindleEvictionTargetTokens ?? DOLT_LANE_POLICIES_DEFAULT.bindle.target,
           ),
         }).telemetry
       : undefined;
+  const laneSnapshotAfter = collectDoltActiveLaneSnapshot({
+    store: params.store,
+    sessionId,
+  });
+  emitDoltTelemetryEvent({
+    event_type: "dolt_rollup_completed",
+    session_id: sessionId,
+    session_key: sessionKey ?? undefined,
+    payload: {
+      target_level: targetLevel,
+      parent_pointer: parentRecord.pointer,
+      child_pointer_count: childPointers.length,
+      bindle_eviction_count: bindleEviction?.evictedCount ?? 0,
+      bindle_eviction_target_tokens:
+        targetLevel === "bindle"
+          ? normalizeNonNegativeInt(
+              params.bindleEvictionTargetTokens ?? DOLT_LANE_POLICIES_DEFAULT.bindle.target,
+            )
+          : null,
+      lane_active_before_record_counts: laneSnapshotBefore.lane_active_record_counts,
+      lane_active_before_token_totals: laneSnapshotBefore.lane_active_token_totals,
+      lane_active_after_record_counts: laneSnapshotAfter.lane_active_record_counts,
+      lane_active_after_token_totals: laneSnapshotAfter.lane_active_token_totals,
+    },
+  });
 
   return {
     parentRecord,
@@ -303,4 +351,28 @@ function normalizeNonNegativeInt(value: number): number {
     return 0;
   }
   return Math.max(0, Math.floor(value));
+}
+
+function buildSourceTokenStats(records: DoltRecord[]): { total: number; min: number; max: number } {
+  if (records.length === 0) {
+    return {
+      total: 0,
+      min: 0,
+      max: 0,
+    };
+  }
+  let total = 0;
+  let min = Number.POSITIVE_INFINITY;
+  let max = 0;
+  for (const record of records) {
+    const tokenCount = normalizeNonNegativeInt(record.tokenCount);
+    total += tokenCount;
+    min = Math.min(min, tokenCount);
+    max = Math.max(max, tokenCount);
+  }
+  return {
+    total,
+    min: Number.isFinite(min) ? min : 0,
+    max,
+  };
 }

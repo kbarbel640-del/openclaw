@@ -14,6 +14,7 @@ import {
   type DoltSummarizeParams,
   type DoltSummarizeResult,
 } from "./summarizer.js";
+import { collectDoltActiveLaneSnapshot, emitDoltTelemetryEvent } from "./telemetry.js";
 
 export const DOLT_RESET_MIN_TURN_SOURCE_FLOOR = DOLT_LEAF_MIN_SOURCE_TURNS;
 export const DOLT_RESET_MIN_LEAF_SOURCE_FLOOR = 2;
@@ -97,7 +98,9 @@ export async function finalizeDoltReset(
 
   // Step 2: force turn->leaf compaction while selection can meet the floor.
   let turnToLeafRollups = 0;
+  let turnToLeafConvergenceLoops = 0;
   for (let pass = 0; pass < maxCompactionPasses; pass += 1) {
+    turnToLeafConvergenceLoops += 1;
     const activeTurns = listActiveRecords({
       store: params.store,
       sessionId,
@@ -139,7 +142,9 @@ export async function finalizeDoltReset(
 
   // Step 3: force leaf->bindle compaction while selection can meet the floor.
   let leafToBindleRollups = 0;
+  let leafToBindleConvergenceLoops = 0;
   for (let pass = 0; pass < maxCompactionPasses; pass += 1) {
+    leafToBindleConvergenceLoops += 1;
     const activeLeaves = listActiveRecords({
       store: params.store,
       sessionId,
@@ -190,6 +195,22 @@ export async function finalizeDoltReset(
     const childPointers = residualRecords.map((record) => record.pointer);
     const firstSource = residualRecords[0];
     const lastSource = residualRecords[residualRecords.length - 1];
+    const sourceTokenStats = buildSourceTokenStats(residualRecords);
+    emitDoltTelemetryEvent({
+      event_type: "dolt_reset_summary_quality",
+      session_id: sessionId,
+      session_key: sessionKey ?? undefined,
+      payload: {
+        summary_mode: "reset-short-bindle",
+        source_record_count: residualRecords.length,
+        source_turn_count: residualTurns.length,
+        source_leaf_count: residualLeaves.length,
+        source_token_total: sourceTokenStats.total,
+        source_token_min: sourceTokenStats.min,
+        source_token_max: sourceTokenStats.max,
+        reset_forced_summary_count: 1,
+      },
+    });
     const summary = await summarize({
       sourceTurns: residualRecords.map(toSummarySourceTurn),
       mode: "reset-short-bindle",
@@ -271,12 +292,35 @@ export async function finalizeDoltReset(
     leaves: listActivePointers(params.store, sessionId, "leaf"),
     turns: listActivePointers(params.store, sessionId, "turn"),
   };
+  const laneActiveSnapshot = collectDoltActiveLaneSnapshot({
+    store: params.store,
+    sessionId,
+  });
+  const shortBindleCreated = typeof shortBindlePointer === "string";
+  emitDoltTelemetryEvent({
+    event_type: "dolt_reset_finalization_completed",
+    session_id: sessionId,
+    session_key: sessionKey ?? undefined,
+    payload: {
+      ingested_tail_count: ingestedTailCount,
+      turn_to_leaf_rollups: turnToLeafRollups,
+      leaf_to_bindle_rollups: leafToBindleRollups,
+      turn_to_leaf_convergence_loops: turnToLeafConvergenceLoops,
+      leaf_to_bindle_convergence_loops: leafToBindleConvergenceLoops,
+      short_bindle_created: shortBindleCreated,
+      short_bindle_created_count: shortBindleCreated ? 1 : 0,
+      residual_turn_count: residualTurns.length,
+      residual_leaf_count: residualLeaves.length,
+      lane_active_record_counts: laneActiveSnapshot.lane_active_record_counts,
+      lane_active_token_totals: laneActiveSnapshot.lane_active_token_totals,
+    },
+  });
 
   return {
     ingestedTailCount,
     turnToLeafRollups,
     leafToBindleRollups,
-    shortBindleCreated: typeof shortBindlePointer === "string",
+    shortBindleCreated,
     shortBindlePointer,
     residualBeforeShortBindle: {
       turns: residualTurns.map((record) => record.pointer),
@@ -455,4 +499,28 @@ function normalizeOptionalString(value: string | null | undefined): string | nul
   }
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function buildSourceTokenStats(records: DoltRecord[]): { total: number; min: number; max: number } {
+  if (records.length === 0) {
+    return {
+      total: 0,
+      min: 0,
+      max: 0,
+    };
+  }
+  let total = 0;
+  let min = Number.POSITIVE_INFINITY;
+  let max = 0;
+  for (const record of records) {
+    const tokenCount = normalizeNonNegativeInt(record.tokenCount, 0);
+    total += tokenCount;
+    min = Math.min(min, tokenCount);
+    max = Math.max(max, tokenCount);
+  }
+  return {
+    total,
+    min: Number.isFinite(min) ? min : 0,
+    max,
+  };
 }

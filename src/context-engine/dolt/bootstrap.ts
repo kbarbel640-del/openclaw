@@ -5,6 +5,7 @@ import {
   type DoltLanePolicies,
   type DoltLanePolicyOverrides,
 } from "./policy.js";
+import { collectDoltActiveLaneSnapshot, emitDoltTelemetryEvent } from "./telemetry.js";
 
 export type DoltBootstrapHydrationParams = {
   store: DoltStore;
@@ -97,20 +98,41 @@ export function hydrateDoltBootstrapState(
     runtimeReserveTokens,
     lanePolicies,
   });
+  const activatedPointers = {
+    bindle: selectedBindles
+      .toSorted((a, b) => a.eventTsMs - b.eventTsMs || a.pointer.localeCompare(b.pointer))
+      .map((record) => record.pointer),
+    leaf: selectedLeaves
+      .toSorted((a, b) => a.eventTsMs - b.eventTsMs || a.pointer.localeCompare(b.pointer))
+      .map((record) => record.pointer),
+    turn: selectedTurns
+      .toSorted((a, b) => a.eventTsMs - b.eventTsMs || a.pointer.localeCompare(b.pointer))
+      .map((record) => record.pointer),
+  };
+  const laneActiveSnapshot = collectDoltActiveLaneSnapshot({
+    store: params.store,
+    sessionId,
+  });
+
+  emitDoltTelemetryEvent({
+    event_type: "dolt_bootstrap_hydration",
+    session_id: sessionId,
+    session_key: sessionKey ?? undefined,
+    payload: {
+      hydrated: selectedBindles.length + selectedLeaves.length + selectedTurns.length > 0,
+      activated_pointer_counts: {
+        bindle: activatedPointers.bindle.length,
+        leaf: activatedPointers.leaf.length,
+        turn: activatedPointers.turn.length,
+      },
+      lane_active_record_counts: laneActiveSnapshot.lane_active_record_counts,
+      lane_active_token_totals: laneActiveSnapshot.lane_active_token_totals,
+    },
+  });
 
   return {
     hydrated: selectedBindles.length + selectedLeaves.length + selectedTurns.length > 0,
-    activatedPointers: {
-      bindle: selectedBindles
-        .toSorted((a, b) => a.eventTsMs - b.eventTsMs || a.pointer.localeCompare(b.pointer))
-        .map((record) => record.pointer),
-      leaf: selectedLeaves
-        .toSorted((a, b) => a.eventTsMs - b.eventTsMs || a.pointer.localeCompare(b.pointer))
-        .map((record) => record.pointer),
-      turn: selectedTurns
-        .toSorted((a, b) => a.eventTsMs - b.eventTsMs || a.pointer.localeCompare(b.pointer))
-        .map((record) => record.pointer),
-    },
+    activatedPointers,
     assembly,
   };
 }
