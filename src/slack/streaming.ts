@@ -36,6 +36,12 @@ export type StartSlackStreamParams = {
   threadTs: string;
   /** Optional initial markdown text to include in the stream start. */
   text?: string;
+  /**
+   * The team ID associated with the recipient. Required by the Slack streaming
+   * API (`chat.startStream`) when streaming into a DM or thread — omitting it
+   * causes a `missing_recipient_team_id` error.
+   */
+  recipientTeamId?: string;
 };
 
 export type AppendSlackStreamParams = {
@@ -64,13 +70,14 @@ export type StopSlackStreamParams = {
 export async function startSlackStream(
   params: StartSlackStreamParams,
 ): Promise<SlackStreamSession> {
-  const { client, channel, threadTs, text } = params;
+  const { client, channel, threadTs, text, recipientTeamId } = params;
 
   logVerbose(`slack-stream: starting stream in ${channel} thread=${threadTs}`);
 
   const streamer = client.chatStream({
     channel,
     thread_ts: threadTs,
+    ...(recipientTeamId ? { recipient_team_id: recipientTeamId } : {}),
   });
 
   const session: SlackStreamSession = {

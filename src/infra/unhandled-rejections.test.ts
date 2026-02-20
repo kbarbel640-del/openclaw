@@ -114,4 +114,25 @@ describe("isTransientNetworkError", () => {
     const error = new AggregateError([new Error("regular error")], "Multiple errors");
     expect(isTransientNetworkError(error)).toBe(false);
   });
+
+  it("returns true for @slack/web-api WebAPIRequestError wrapping a network error via .original", () => {
+    // @slack/web-api wraps network errors in .original (not .cause).
+    // Omitting this traversal caused the gateway to crash on transient Slack
+    // SDK network errors (e.g. ECONNRESET during a WebSocket reconnect).
+    const networkError = Object.assign(new Error("connection reset"), { code: "ECONNRESET" });
+    const slackRequestError = Object.assign(new Error("An API error occurred: network error"), {
+      code: "slack_webapi_request_error",
+      original: networkError,
+    });
+    expect(isTransientNetworkError(slackRequestError)).toBe(true);
+  });
+
+  it("returns true for Slack SDK error with nested transient error in .original", () => {
+    const innerError = Object.assign(new Error("timeout"), { code: "ETIMEDOUT" });
+    const slackError = Object.assign(new Error("slack request failed"), {
+      code: "slack_webapi_request_error",
+      original: innerError,
+    });
+    expect(isTransientNetworkError(slackError)).toBe(true);
+  });
 });

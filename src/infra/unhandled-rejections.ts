@@ -42,6 +42,18 @@ function getErrorCause(err: unknown): unknown {
   return (err as { cause?: unknown }).cause;
 }
 
+/**
+ * Returns the "wrapped" error from SDK-specific error wrappers.
+ * For example, @slack/web-api's WebAPIRequestError stores the original
+ * network error in `.original` rather than `.cause`.
+ */
+function getWrappedOriginal(err: unknown): unknown {
+  if (!err || typeof err !== "object") {
+    return undefined;
+  }
+  return (err as { original?: unknown }).original;
+}
+
 function extractErrorCodeWithCause(err: unknown): string | undefined {
   const direct = extractErrorCode(err);
   if (direct) {
@@ -107,6 +119,14 @@ export function isTransientNetworkError(err: unknown): boolean {
   const cause = getErrorCause(err);
   if (cause && cause !== err) {
     return isTransientNetworkError(cause);
+  }
+
+  // @slack/web-api's WebAPIRequestError wraps the original network error in
+  // `.original` (not `.cause`). Traverse it so transient Slack SDK network
+  // errors don't crash the gateway.
+  const original = getWrappedOriginal(err);
+  if (original && original !== err && original !== cause) {
+    return isTransientNetworkError(original);
   }
 
   // AggregateError may wrap multiple causes
