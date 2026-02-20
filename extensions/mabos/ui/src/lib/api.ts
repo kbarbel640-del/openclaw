@@ -48,4 +48,6 @@ export const api = {
   getCampaigns: (businessId: string) =>
     get<unknown[]>(`/businesses/${businessId}/campaigns`),
   onboard: (body: unknown) => post<unknown>("/onboard", body),
+  sendChatMessage: (body: { agentId: string; message: string; businessId: string }) =>
+    post<{ ok: boolean; messageId: string; message: string }>("/chat", body),
 };

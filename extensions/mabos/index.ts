@@ -1094,6 +1094,125 @@ export default function register(api: OpenClawPluginApi) {
     },
   });
 
+  // API: Chat — send message to an agent's inbox
+  api.registerHttpRoute({
+    path: "/mabos/api/chat",
+    handler: async (req, res) => {
+      if (req.method !== "POST") {
+        res.statusCode = 405;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Method not allowed" }));
+        return;
+      }
+      try {
+        const { readFile, writeFile, mkdir } = await import("node:fs/promises");
+        const { join, dirname } = await import("node:path");
+
+        let body = "";
+        for await (const chunk of req as any) body += chunk;
+        const params = JSON.parse(body);
+
+        if (!params.agentId || !params.message || !params.businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({ error: "Missing required fields: agentId, message, businessId" }),
+          );
+          return;
+        }
+
+        const agentId = sanitizeId(params.agentId);
+        const businessId = sanitizeId(params.businessId);
+        if (!agentId || !businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid agent or business ID" }));
+          return;
+        }
+
+        // Write message to agent's inbox
+        const inboxPath = join(
+          workspaceDir,
+          "businesses",
+          businessId,
+          "agents",
+          agentId,
+          "inbox.json",
+        );
+        let inbox: any[] = [];
+        try {
+          inbox = JSON.parse(await readFile(inboxPath, "utf-8"));
+        } catch {
+          /* empty inbox */
+        }
+
+        const msg = {
+          id: `CHAT-${Date.now()}`,
+          from: "dashboard-user",
+          to: agentId,
+          performative: "QUERY",
+          content: params.message,
+          priority: "normal",
+          timestamp: new Date().toISOString(),
+          read: false,
+          channel: "dashboard",
+        };
+
+        inbox.push(msg);
+        await mkdir(dirname(inboxPath), { recursive: true });
+        await writeFile(inboxPath, JSON.stringify(inbox, null, 2), "utf-8");
+
+        res.setHeader("Content-Type", "application/json");
+        res.end(
+          JSON.stringify({
+            ok: true,
+            messageId: msg.id,
+            message: `Message delivered to ${agentId}. The agent will process it during the next BDI cycle.`,
+          }),
+        );
+      } catch (err) {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: String(err) }));
+      }
+    },
+  });
+
+  // API: Chat SSE — stream agent events to the dashboard
+  api.registerHttpRoute({
+    path: "/mabos/api/chat/events",
+    handler: async (req, res) => {
+      const url = new URL(req.url || "", "http://localhost");
+      const agentId = sanitizeId(url.searchParams.get("agentId") || "");
+      const businessId = sanitizeId(url.searchParams.get("businessId") || "");
+
+      if (!agentId || !businessId) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Missing agentId or businessId" }));
+        return;
+      }
+
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+
+      // Send initial connection event
+      res.write(`data: ${JSON.stringify({ type: "connected", agentId })}\n\n`);
+
+      // Heartbeat every 30s to keep connection alive
+      const heartbeat = setInterval(() => {
+        res.write(`: heartbeat\n\n`);
+      }, 30000);
+
+      req.on("close", () => {
+        clearInterval(heartbeat);
+      });
+    },
+  });
+
   // API: Get goal model for a business
   api.registerHttpRoute({
     path: "/mabos/api/businesses/:id/goals",
