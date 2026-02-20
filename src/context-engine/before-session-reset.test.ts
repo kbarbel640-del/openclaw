@@ -77,7 +77,7 @@ describe("runBeforeSessionResetLifecycle", () => {
     const engineId = `before-reset-${Date.now()}-a`;
     registerContextEngine(
       engineId,
-      () =>
+      (_config, _options) =>
         new TestContextEngine({
           onBeforeSessionReset: beforeSpy,
           onDispose: disposeSpy,
@@ -106,7 +106,9 @@ describe("runBeforeSessionResetLifecycle", () => {
 
   it("returns early when sessionId is missing", async () => {
     const engineId = `before-reset-${Date.now()}-b`;
-    const factorySpy = vi.fn(() => new TestContextEngine({}));
+    const factorySpy = vi.fn((_config?: OpenClawConfig, _options?: { agentId?: string }) => {
+      return new TestContextEngine({});
+    });
     registerContextEngine(engineId, factorySpy);
 
     const cfg = {

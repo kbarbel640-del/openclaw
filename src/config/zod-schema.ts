@@ -429,8 +429,8 @@ export const OpenClawSchema = z
         auth: z
           .object({
             mode: z.union([z.literal("token"), z.literal("password")]).optional(),
-            token: z.string().optional(),
-            password: z.string().optional(),
+            token: z.string().optional().register(sensitive),
+            password: z.string().optional().register(sensitive),
             allowTailscale: z.boolean().optional(),
           })
           .strict()
@@ -584,7 +584,7 @@ export const OpenClawSchema = z
             z
               .object({
                 enabled: z.boolean().optional(),
-                apiKey: z.string().optional(),
+                apiKey: z.string().optional().register(sensitive),
                 env: z.record(z.string(), z.string()).optional(),
                 config: z.record(z.string(), z.unknown()).optional(),
               })

@@ -513,7 +513,7 @@ describe("dolt e2e regression gate", () => {
     const dispose = vi.fn(async () => {});
     const engineId = `e2e-reset-engine-${Date.now()}`;
 
-    registerContextEngine(engineId, () => ({
+    registerContextEngine(engineId, (_config, _options) => ({
       info: {
         id: engineId,
         name: "Reset E2E Engine",

@@ -1,13 +1,6 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { describe, expect, it, beforeEach } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
-import type {
-  ContextEngine,
-  ContextEngineInfo,
-  AssembleResult,
-  CompactResult,
-  IngestResult,
-} from "./types.js";
 // ---------------------------------------------------------------------------
 // We dynamically import the registry so we can get a fresh module per test
 // group when needed.  For most groups we use the shared singleton directly.
@@ -19,6 +12,13 @@ import {
   listContextEngineIds,
   resolveContextEngine,
 } from "./registry.js";
+import type {
+  ContextEngine,
+  ContextEngineInfo,
+  AssembleResult,
+  CompactResult,
+  IngestResult,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -126,7 +126,8 @@ function createNamedMockEngine(id: string): ContextEngine {
 
 describe("Engine contract tests", () => {
   it("a mock engine implementing ContextEngine can be registered and resolved", async () => {
-    const factory = () => new MockContextEngine();
+    const factory = (_config?: OpenClawConfig, _options?: { agentId?: string }) =>
+      new MockContextEngine();
     registerContextEngine("mock", factory);
 
     const resolved = getContextEngineFactory("mock");
@@ -194,14 +195,16 @@ describe("Engine contract tests", () => {
 
 describe("Registry tests", () => {
   it("registerContextEngine() stores a factory", () => {
-    const factory = () => new MockContextEngine();
+    const factory = (_config?: OpenClawConfig, _options?: { agentId?: string }) =>
+      new MockContextEngine();
     registerContextEngine("reg-test-1", factory);
 
     expect(getContextEngineFactory("reg-test-1")).toBe(factory);
   });
 
   it("getContextEngineFactory() returns the factory", () => {
-    const factory = () => new MockContextEngine();
+    const factory = (_config?: OpenClawConfig, _options?: { agentId?: string }) =>
+      new MockContextEngine();
     registerContextEngine("reg-test-2", factory);
 
     const retrieved = getContextEngineFactory("reg-test-2");
@@ -211,8 +214,8 @@ describe("Registry tests", () => {
 
   it("listContextEngineIds() returns all registered ids", () => {
     // Ensure at least our test entries exist
-    registerContextEngine("reg-test-a", () => new MockContextEngine());
-    registerContextEngine("reg-test-b", () => new MockContextEngine());
+    registerContextEngine("reg-test-a", (_config, _options) => new MockContextEngine());
+    registerContextEngine("reg-test-b", (_config, _options) => new MockContextEngine());
 
     const ids = listContextEngineIds();
     expect(ids).toContain("reg-test-a");
@@ -221,8 +224,10 @@ describe("Registry tests", () => {
   });
 
   it("registering the same id overwrites the previous factory", () => {
-    const factory1 = () => new MockContextEngine();
-    const factory2 = () => new MockContextEngine();
+    const factory1 = (_config?: OpenClawConfig, _options?: { agentId?: string }) =>
+      new MockContextEngine();
+    const factory2 = (_config?: OpenClawConfig, _options?: { agentId?: string }) =>
+      new MockContextEngine();
 
     registerContextEngine("reg-overwrite", factory1);
     expect(getContextEngineFactory("reg-overwrite")).toBe(factory1);
@@ -243,7 +248,7 @@ describe("Default engine selection", () => {
     // Registration is idempotent (Map.set), so calling again is safe.
     registerLegacyContextEngine();
     // Register a lightweight "lcm" stub so we don't need a DB connection.
-    registerContextEngine("lcm", () => {
+    registerContextEngine("lcm", (_config, _options) => {
       const engine: ContextEngine = {
         info: { id: "lcm", name: "LCM Stub", version: "0.0.0" },
         async ingest() {
@@ -285,9 +290,9 @@ describe("Selection precedence", () => {
     const slotId = "slot-engine";
     const defaultsId = "defaults-engine";
     const agentId = "agent-engine";
-    registerContextEngine(slotId, () => createNamedMockEngine(slotId));
-    registerContextEngine(defaultsId, () => createNamedMockEngine(defaultsId));
-    registerContextEngine(agentId, () => createNamedMockEngine(agentId));
+    registerContextEngine(slotId, (_config, _options) => createNamedMockEngine(slotId));
+    registerContextEngine(defaultsId, (_config, _options) => createNamedMockEngine(defaultsId));
+    registerContextEngine(agentId, (_config, _options) => createNamedMockEngine(agentId));
 
     const engine = await resolveContextEngine(
       configWithSelections({
@@ -303,8 +308,8 @@ describe("Selection precedence", () => {
   it("uses agents.defaults.contextEngine when agent override is missing", async () => {
     const slotId = "slot-engine-b";
     const defaultsId = "defaults-engine-b";
-    registerContextEngine(slotId, () => createNamedMockEngine(slotId));
-    registerContextEngine(defaultsId, () => createNamedMockEngine(defaultsId));
+    registerContextEngine(slotId, (_config, _options) => createNamedMockEngine(slotId));
+    registerContextEngine(defaultsId, (_config, _options) => createNamedMockEngine(defaultsId));
 
     const engine = await resolveContextEngine(
       configWithSelections({
@@ -319,7 +324,7 @@ describe("Selection precedence", () => {
 
   it("falls back to plugins.slots.contextEngine when no agent/default selection exists", async () => {
     const slotId = "slot-engine-c";
-    registerContextEngine(slotId, () => createNamedMockEngine(slotId));
+    registerContextEngine(slotId, (_config, _options) => createNamedMockEngine(slotId));
 
     const engine = await resolveContextEngine(configWithSelections({ slot: slotId }), {
       agentId: "alpha",

@@ -1,13 +1,16 @@
 import type { OpenClawConfig } from "../config/config.js";
-import type { ContextEngine } from "./types.js";
 import { defaultSlotIdForKey } from "../plugins/slots.js";
 import { normalizeAgentId } from "../routing/session-key.js";
+import type { ContextEngine } from "./types.js";
 
 /**
  * A factory that creates a ContextEngine instance.
  * Supports async creation for engines that need DB connections etc.
  */
-export type ContextEngineFactory = () => ContextEngine | Promise<ContextEngine>;
+export type ContextEngineFactory = (
+  config?: OpenClawConfig,
+  options?: { agentId?: string },
+) => ContextEngine | Promise<ContextEngine>;
 
 // ---------------------------------------------------------------------------
 // Registry (module-level singleton)
@@ -69,7 +72,7 @@ export async function resolveContextEngine(
     );
   }
 
-  return factory();
+  return factory(config, options);
 }
 
 function resolveContextEngineId(
