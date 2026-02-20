@@ -376,6 +376,12 @@ export function applyHuggingfaceConfig(cfg: OpenClawConfig): OpenClawConfig {
   return applyAgentDefaultModelPrimary(next, HUGGINGFACE_DEFAULT_MODEL_REF);
 }
 
+/**
+ * Apply xAI provider configuration using the chat completions API mode.
+ * xAI supports two API modes:
+ * - openai-completions (default, chat completions API)
+ * - openai-responses (Responses API with native web_search, x_search, code_execution tools)
+ */
 export function applyXaiProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
   const models = { ...cfg.agents?.defaults?.models };
   models[XAI_DEFAULT_MODEL_REF] = {
@@ -398,6 +404,29 @@ export function applyXaiProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
 export function applyXaiConfig(cfg: OpenClawConfig): OpenClawConfig {
   const next = applyXaiProviderConfig(cfg);
   return applyAgentDefaultModelPrimary(next, XAI_DEFAULT_MODEL_REF);
+}
+
+/**
+ * Apply xAI provider configuration using the Responses API mode.
+ * This enables native xAI server-side tools (web_search, x_search, code_execution).
+ */
+export function applyXaiResponsesApiConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const models = { ...cfg.agents?.defaults?.models };
+  models[XAI_DEFAULT_MODEL_REF] = {
+    ...models[XAI_DEFAULT_MODEL_REF],
+    alias: models[XAI_DEFAULT_MODEL_REF]?.alias ?? "Grok",
+  };
+
+  const defaultModel = buildXaiModelDefinition();
+
+  return applyProviderConfigWithDefaultModel(cfg, {
+    agentModels: models,
+    providerId: "xai",
+    api: "openai-responses",
+    baseUrl: XAI_BASE_URL,
+    defaultModel,
+    defaultModelId: XAI_DEFAULT_MODEL_ID,
+  });
 }
 
 export function applyAuthProfileConfig(
