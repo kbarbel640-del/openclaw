@@ -1919,6 +1919,15 @@ private extension NodeAppModel {
                 } catch {
                     attempt += 1
                     GatewayDiagnostics.log("operator gateway connect error: \(error.localizedDescription)")
+
+                    // If pairing is required for the operator session (e.g. role-upgrade),
+                    // defer to the node loop's pairing flow instead of churning retries.
+                    let lower = error.localizedDescription.lowercased()
+                    if lower.contains("not_paired") || lower.contains("pairing required") {
+                        GatewayDiagnostics.log("operator session pairing required — deferring to node pairing flow")
+                        break
+                    }
+
                     let sleepSeconds = min(8.0, 0.5 * pow(1.7, Double(attempt)))
                     try? await Task.sleep(nanoseconds: UInt64(sleepSeconds * 1_000_000_000))
                 }
@@ -2140,9 +2149,11 @@ private extension NodeAppModel {
             clientId: clientId,
             clientMode: "ui",
             clientDisplayName: displayName,
-            // Operator traffic should authenticate via shared gateway auth only.
-            // Including device identity here can trigger duplicate pairing flows.
-            includeDeviceIdentity: false)
+            // Device identity is required so the server preserves operator scopes.
+            // Without it, the server strips all self-declared scopes (security policy).
+            // Role-upgrade pairing (node → operator) is auto-approved server-side
+            // when shared auth is valid, so no duplicate manual approval is needed.
+            includeDeviceIdentity: true)
     }
 
     func legacyClientIdFallback(currentClientId: String, error: Error) -> String? {
