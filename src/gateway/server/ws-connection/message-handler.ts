@@ -624,7 +624,8 @@ export function attachGatewayWsMessageHandler(params: {
           return;
         }
 
-        const skipPairing = allowControlUiBypass && sharedAuthOk;
+        const isSharedAuth = authOk && (authMethod === "token" || authMethod === "password");
+        const skipPairing = (allowControlUiBypass && sharedAuthOk) || isSharedAuth;
         if (device && devicePublicKey && !skipPairing) {
           const formatAuditList = (items: string[] | undefined): string => {
             if (!items || items.length === 0) {

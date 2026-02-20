@@ -628,6 +628,15 @@ describe("gateway server auth/connect", () => {
       expect(res.error?.message ?? "").toContain("secure context");
       ws.close();
     });
+
+    test("connects with device identity when using valid token, without requiring pairing (#22146)", async () => {
+      // Sub-agents connect with a device identity AND a gateway token.
+      // Token auth should be sufficient — device pairing must not be required.
+      const ws = await openWs(port);
+      const res = await connectReq(ws, { token: "secret" });
+      expect(res.ok).toBe(true);
+      ws.close();
+    });
   });
 
   describe("explicit none auth", () => {
