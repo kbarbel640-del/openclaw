@@ -293,10 +293,9 @@ function buildCard(params: {
 }): Record<string, unknown> {
   const hasAnswer = Boolean(params.answer.trim());
   const shouldCollapseTimeline = params.collapseTimeline && hasAnswer;
-  const filteredTimeline =
-    shouldCollapseTimeline
-      ? trimFinalDupBlocks(params.timeline, params.answer)
-      : params.timeline;
+  const filteredTimeline = shouldCollapseTimeline
+    ? trimFinalDupBlocks(params.timeline, params.answer)
+    : params.timeline;
 
   const timelineMarkdown = filteredTimeline
     .map((entry) => formatTimelineLine(entry))
