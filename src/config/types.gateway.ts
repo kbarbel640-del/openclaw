@@ -11,6 +11,11 @@ export type GatewayTlsConfig = {
   keyPath?: string;
   /** Optional PEM CA bundle for TLS clients (mTLS or custom roots). */
   caPath?: string;
+  /**
+   * Require and verify client certificates (mTLS). Requires `caPath`.
+   * Default: false.
+   */
+  requireClientCert?: boolean;
 };
 
 export type WideAreaDiscoveryConfig = {
@@ -198,7 +203,7 @@ export type GatewayHttpResponsesConfig = {
 };
 
 export type GatewayHttpResponsesFilesConfig = {
-  /** Allow URL fetches for input_file. Default: true. */
+  /** Allow URL fetches for input_file. Default: false. */
   allowUrl?: boolean;
   /**
    * Optional hostname allowlist for URL fetches.
@@ -229,7 +234,7 @@ export type GatewayHttpResponsesPdfConfig = {
 };
 
 export type GatewayHttpResponsesImagesConfig = {
-  /** Allow URL fetches for input_image. Default: true. */
+  /** Allow URL fetches for input_image. Default: false. */
   allowUrl?: boolean;
   /**
    * Optional hostname allowlist for URL fetches.
@@ -270,9 +275,12 @@ export type GatewayNodesConfig = {
 };
 
 export type GatewayToolsConfig = {
-  /** Tools to deny via gateway HTTP /tools/invoke (extends defaults). */
+  /** Tools to deny via gateway HTTP /tools/invoke (applies after allowlist). */
   deny?: string[];
-  /** Tools to explicitly allow (removes from default deny list). */
+  /**
+   * Explicit allowlist for gateway HTTP /tools/invoke.
+   * When empty/unset, no tools are exposed over HTTP.
+   */
   allow?: string[];
 };
 

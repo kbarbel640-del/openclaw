@@ -191,7 +191,7 @@ export function resolveEnableState(
   if (origin === "bundled") {
     return { enabled: false, reason: "bundled (disabled by default)" };
   }
-  return { enabled: true };
+  return { enabled: false, reason: "external plugin (disabled by default)" };
 }
 
 export function resolveMemorySlotDecision(params: {

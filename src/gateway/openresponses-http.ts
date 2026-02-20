@@ -116,7 +116,7 @@ function resolveResponsesLimits(
       urlAllowlist: normalizeHostnameAllowlist(files?.urlAllowlist),
     },
     images: {
-      allowUrl: images?.allowUrl ?? true,
+      allowUrl: images?.allowUrl ?? false,
       urlAllowlist: normalizeHostnameAllowlist(images?.urlAllowlist),
       allowedMimes: normalizeMimeList(images?.allowedMimes, DEFAULT_INPUT_IMAGE_MIMES),
       maxBytes: images?.maxBytes ?? DEFAULT_INPUT_IMAGE_MAX_BYTES,

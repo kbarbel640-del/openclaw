@@ -311,6 +311,21 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       });
       return;
     }
+    const pluginPrefix = `/plugins/${record.id}`;
+    const isPluginScoped =
+      normalizedPath === pluginPrefix || normalizedPath.startsWith(`${pluginPrefix}/`);
+    const isChannelRoute = normalizedPath.startsWith("/api/channels/");
+    if (!isPluginScoped && !isChannelRoute) {
+      pushDiagnostic({
+        level: "error",
+        pluginId: record.id,
+        source: record.source,
+        message:
+          `http route must be namespaced under ${pluginPrefix}/... ` +
+          `or /api/channels/... (received: ${normalizedPath})`,
+      });
+      return;
+    }
     if (registry.httpRoutes.some((entry) => entry.path === normalizedPath)) {
       pushDiagnostic({
         level: "error",

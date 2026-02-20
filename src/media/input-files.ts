@@ -170,7 +170,7 @@ export function normalizeMimeList(values: string[] | undefined, fallback: string
 
 export function resolveInputFileLimits(config?: InputFileLimitsConfig): InputFileLimits {
   return {
-    allowUrl: config?.allowUrl ?? true,
+    allowUrl: config?.allowUrl ?? false,
     allowedMimes: normalizeMimeList(config?.allowedMimes, DEFAULT_INPUT_FILE_MIMES),
     maxBytes: config?.maxBytes ?? DEFAULT_INPUT_FILE_MAX_BYTES,
     maxChars: config?.maxChars ?? DEFAULT_INPUT_FILE_MAX_CHARS,

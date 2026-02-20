@@ -283,9 +283,9 @@ function collectGatewayConfigFindings(
     findings.push({
       checkId: "gateway.tools_invoke_http.dangerous_allow",
       severity: extraRisk ? "critical" : "warn",
-      title: "Gateway HTTP /tools/invoke re-enables dangerous tools",
+      title: "Gateway HTTP /tools/invoke exposes dangerous tools",
       detail:
-        `gateway.tools.allow includes ${reenabledOverHttp.join(", ")} which removes them from the default HTTP deny list. ` +
+        `gateway.tools.allow includes ${reenabledOverHttp.join(", ")}. ` +
         "This can allow remote session spawning / control-plane actions via HTTP and increases RCE blast radius if the gateway is reachable.",
       remediation:
         "Remove these entries from gateway.tools.allow (recommended). " +
@@ -435,19 +435,6 @@ function collectGatewayConfigFindings(
           '(e.g., ["nick@example.com"]).',
       });
     }
-  }
-
-  if (bind !== "loopback" && auth.mode !== "trusted-proxy" && !cfg.gateway?.auth?.rateLimit) {
-    findings.push({
-      checkId: "gateway.auth_no_rate_limit",
-      severity: "warn",
-      title: "No auth rate limiting configured",
-      detail:
-        "gateway.bind is not loopback but no gateway.auth.rateLimit is configured. " +
-        "Without rate limiting, brute-force auth attacks are not mitigated.",
-      remediation:
-        "Set gateway.auth.rateLimit (e.g. { maxAttempts: 10, windowMs: 60000, lockoutMs: 300000 }).",
-    });
   }
 
   return findings;
@@ -673,7 +660,7 @@ export async function runSecurityAudit(opts: SecurityAuditOptions): Promise<Secu
   findings.push(...collectExecRuntimeFindings(cfg));
   findings.push(...collectHooksHardeningFindings(cfg, env));
   findings.push(...collectGatewayHttpNoAuthFindings(cfg, env));
-  findings.push(...collectGatewayHttpSessionKeyOverrideFindings(cfg));
+  findings.push(...collectGatewayHttpSessionKeyOverrideFindings(cfg, env));
   findings.push(...collectSandboxDockerNoopFindings(cfg));
   findings.push(...collectSandboxDangerousConfigFindings(cfg));
   findings.push(...collectNodeDenyCommandPatternFindings(cfg));

@@ -2,9 +2,8 @@
 // Keep these centralized so gateway HTTP restrictions, security audits, and ACP prompts don't drift.
 
 /**
- * Tools denied via Gateway HTTP `POST /tools/invoke` by default.
- * These are high-risk because they enable session orchestration, control-plane actions,
- * or interactive flows that don't make sense over a non-interactive HTTP surface.
+ * High-risk tools that should never be exposed over HTTP accidentally.
+ * These are used by security audits and policy checks.
  */
 export const DEFAULT_GATEWAY_HTTP_TOOL_DENY = [
   // Session orchestration — spawning agents remotely is RCE

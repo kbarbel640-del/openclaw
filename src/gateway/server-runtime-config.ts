@@ -79,6 +79,17 @@ export async function resolveGatewayRuntimeConfig(params: {
     typeof controlUiRootRaw === "string" && controlUiRootRaw.trim().length > 0
       ? controlUiRootRaw.trim()
       : undefined;
+  const allowInsecureControlUiAuth = params.cfg.gateway?.controlUi?.allowInsecureAuth === true;
+  const disableControlUiDeviceAuth =
+    params.cfg.gateway?.controlUi?.dangerouslyDisableDeviceAuth === true;
+  if (
+    (allowInsecureControlUiAuth || disableControlUiDeviceAuth) &&
+    process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH !== "1"
+  ) {
+    throw new Error(
+      "gateway.controlUi.allowInsecureAuth/dangerouslyDisableDeviceAuth are blocked by default; set OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH=1 to acknowledge the risk explicitly",
+    );
+  }
   const tailscaleBase = params.cfg.gateway?.tailscale ?? {};
   const tailscaleOverrides = params.tailscale ?? {};
   const tailscaleConfig = mergeGatewayTailscaleConfig(tailscaleBase, tailscaleOverrides);

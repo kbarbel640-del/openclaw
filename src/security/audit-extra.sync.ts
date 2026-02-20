@@ -510,11 +510,15 @@ export function collectHooksHardeningFindings(
 
 export function collectGatewayHttpSessionKeyOverrideFindings(
   cfg: OpenClawConfig,
+  env: NodeJS.ProcessEnv = process.env,
 ): SecurityAuditFinding[] {
   const findings: SecurityAuditFinding[] = [];
   const chatCompletionsEnabled = cfg.gateway?.http?.endpoints?.chatCompletions?.enabled === true;
   const responsesEnabled = cfg.gateway?.http?.endpoints?.responses?.enabled === true;
   if (!chatCompletionsEnabled && !responsesEnabled) {
+    return findings;
+  }
+  if (env.OPENCLAW_ALLOW_HTTP_SESSION_KEY_HEADER !== "1") {
     return findings;
   }
 
@@ -525,7 +529,7 @@ export function collectGatewayHttpSessionKeyOverrideFindings(
 
   findings.push({
     checkId: "gateway.http.session_key_override_enabled",
-    severity: "info",
+    severity: "warn",
     title: "HTTP API session-key override is enabled",
     detail:
       `${enabledEndpoints.join(", ")} accept x-openclaw-session-key for per-request session routing. ` +

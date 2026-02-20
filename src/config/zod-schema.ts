@@ -498,6 +498,7 @@ export const OpenClawSchema = z
             certPath: z.string().optional(),
             keyPath: z.string().optional(),
             caPath: z.string().optional(),
+            requireClientCert: z.boolean().optional(),
           })
           .optional(),
         http: z

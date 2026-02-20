@@ -688,27 +688,39 @@ describe("gateway server auth/connect", () => {
   });
 
   test("allows control ui without device identity when insecure auth is enabled", async () => {
+    const prevUnsafeControlUiAuth = process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH;
+    process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH = "1";
     testState.gatewayControlUi = { allowInsecureAuth: true };
-    const { server, ws, prevToken } = await startServerWithClient("secret", {
-      wsHeaders: { origin: "http://127.0.0.1" },
-    });
-    const res = await connectReq(ws, {
-      token: "secret",
-      device: null,
-      client: {
-        id: GATEWAY_CLIENT_NAMES.CONTROL_UI,
-        version: "1.0.0",
-        platform: "web",
-        mode: GATEWAY_CLIENT_MODES.WEBCHAT,
-      },
-    });
-    expect(res.ok).toBe(true);
-    ws.close();
-    await server.close();
-    restoreGatewayToken(prevToken);
+    try {
+      const { server, ws, prevToken } = await startServerWithClient("secret", {
+        wsHeaders: { origin: "http://127.0.0.1" },
+      });
+      const res = await connectReq(ws, {
+        token: "secret",
+        device: null,
+        client: {
+          id: GATEWAY_CLIENT_NAMES.CONTROL_UI,
+          version: "1.0.0",
+          platform: "web",
+          mode: GATEWAY_CLIENT_MODES.WEBCHAT,
+        },
+      });
+      expect(res.ok).toBe(true);
+      ws.close();
+      await server.close();
+      restoreGatewayToken(prevToken);
+    } finally {
+      if (prevUnsafeControlUiAuth === undefined) {
+        delete process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH;
+      } else {
+        process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH = prevUnsafeControlUiAuth;
+      }
+    }
   });
 
   test("allows control ui with device identity when insecure auth is enabled", async () => {
+    const prevUnsafeControlUiAuth = process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH;
+    process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH = "1";
     testState.gatewayControlUi = { allowInsecureAuth: true };
     testState.gatewayAuth = { mode: "token", token: "secret" };
     const { writeConfigFile } = await import("../config/config.js");
@@ -758,10 +770,17 @@ describe("gateway server auth/connect", () => {
       });
     } finally {
       restoreGatewayToken(prevToken);
+      if (prevUnsafeControlUiAuth === undefined) {
+        delete process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH;
+      } else {
+        process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH = prevUnsafeControlUiAuth;
+      }
     }
   });
 
   test("allows control ui with stale device identity when device auth is disabled", async () => {
+    const prevUnsafeControlUiAuth = process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH;
+    process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH = "1";
     testState.gatewayControlUi = { dangerouslyDisableDeviceAuth: true };
     testState.gatewayAuth = { mode: "token", token: "secret" };
     const prevToken = process.env.OPENCLAW_GATEWAY_TOKEN;
@@ -792,6 +811,11 @@ describe("gateway server auth/connect", () => {
       });
     } finally {
       restoreGatewayToken(prevToken);
+      if (prevUnsafeControlUiAuth === undefined) {
+        delete process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH;
+      } else {
+        process.env.OPENCLAW_ALLOW_INSECURE_CONTROL_UI_AUTH = prevUnsafeControlUiAuth;
+      }
     }
   });
 

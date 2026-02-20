@@ -297,7 +297,7 @@ function warnWhenAllowlistIsOpen(params: {
     .join(", ");
   const extra = nonBundled.length > 6 ? ` (+${nonBundled.length - 6} more)` : "";
   params.logger.warn(
-    `[plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: ${preview}${extra}. Set plugins.allow to explicit trusted ids.`,
+    `[plugins] plugins.allow is empty; discovered non-bundled plugins stay disabled by default: ${preview}${extra}. Set plugins.allow to explicit trusted ids.`,
   );
 }
 

@@ -178,7 +178,7 @@ describe("security audit", () => {
     }
   });
 
-  it("warns when non-loopback bind has auth but no auth rate limit", async () => {
+  it("does not warn about missing auth rate limit when defaults are enforced", async () => {
     const cfg: OpenClawConfig = {
       gateway: {
         bind: "lan",
@@ -188,7 +188,7 @@ describe("security audit", () => {
 
     const res = await audit(cfg, { env: {} });
 
-    expect(hasFinding(res, "gateway.auth_no_rate_limit", "warn")).toBe(true);
+    expect(hasFinding(res, "gateway.auth_no_rate_limit")).toBe(false);
   });
 
   it("warns when gateway.tools.allow re-enables dangerous HTTP /tools/invoke tools (loopback)", async () => {
@@ -1407,13 +1407,15 @@ describe("security audit", () => {
       },
     };
 
-    const res = await audit(cfg);
+    const res = await audit(cfg, {
+      env: { OPENCLAW_ALLOW_HTTP_SESSION_KEY_HEADER: "1" },
+    });
 
     expect(res.findings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           checkId: "gateway.http.session_key_override_enabled",
-          severity: "info",
+          severity: "warn",
         }),
       ]),
     );

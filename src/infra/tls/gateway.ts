@@ -73,10 +73,21 @@ export async function loadGatewayTlsRuntime(
   }
 
   const autoGenerate = cfg.autoGenerate !== false;
+  const requireClientCert = cfg.requireClientCert === true;
   const baseDir = path.join(CONFIG_DIR, "gateway", "tls");
   const certPath = resolveUserPath(cfg.certPath ?? path.join(baseDir, "gateway-cert.pem"));
   const keyPath = resolveUserPath(cfg.keyPath ?? path.join(baseDir, "gateway-key.pem"));
   const caPath = cfg.caPath ? resolveUserPath(cfg.caPath) : undefined;
+
+  if (requireClientCert && !caPath) {
+    return {
+      enabled: false,
+      required: true,
+      certPath,
+      keyPath,
+      error: "gateway tls: requireClientCert=true requires caPath",
+    };
+  }
 
   const hasCert = await fileExists(certPath);
   const hasKey = await fileExists(keyPath);
@@ -135,6 +146,8 @@ export async function loadGatewayTlsRuntime(
         key,
         ca,
         minVersion: "TLSv1.3",
+        requestCert: requireClientCert,
+        rejectUnauthorized: requireClientCert,
       },
     };
   } catch (err) {

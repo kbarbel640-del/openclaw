@@ -66,7 +66,7 @@ async function dispatchRequest(
 }
 
 describe("gateway plugin HTTP auth boundary", () => {
-  test("requires gateway auth for /api/channels/* plugin routes and allows authenticated pass-through", async () => {
+  test("requires gateway auth for plugin namespaces and allows authenticated pass-through", async () => {
     const resolvedAuth: ResolvedGatewayAuth = {
       mode: "token",
       token: "test-token",
@@ -86,7 +86,7 @@ describe("gateway plugin HTTP auth boundary", () => {
             res.end(JSON.stringify({ ok: true, route: "channel" }));
             return true;
           }
-          if (pathname === "/plugin/public") {
+          if (pathname === "/plugins/demo/public") {
             res.statusCode = 200;
             res.setHeader("Content-Type", "application/json; charset=utf-8");
             res.end(JSON.stringify({ ok: true, route: "public" }));
@@ -129,14 +129,30 @@ describe("gateway plugin HTTP auth boundary", () => {
         expect(authenticated.res.statusCode).toBe(200);
         expect(authenticated.getBody()).toContain('"route":"channel"');
 
-        const unauthenticatedPublic = createResponse();
+        const unauthenticatedPlugin = createResponse();
         await dispatchRequest(
           server,
-          createRequest({ path: "/plugin/public" }),
-          unauthenticatedPublic.res,
+          createRequest({ path: "/plugins/demo/public" }),
+          unauthenticatedPlugin.res,
         );
-        expect(unauthenticatedPublic.res.statusCode).toBe(200);
-        expect(unauthenticatedPublic.getBody()).toContain('"route":"public"');
+        expect(unauthenticatedPlugin.res.statusCode).toBe(401);
+        expect(unauthenticatedPlugin.getBody()).toContain("Unauthorized");
+
+        const authenticatedPlugin = createResponse();
+        await dispatchRequest(
+          server,
+          createRequest({
+            path: "/plugins/demo/public",
+            authorization: "Bearer test-token",
+          }),
+          authenticatedPlugin.res,
+        );
+        expect(authenticatedPlugin.res.statusCode).toBe(200);
+        expect(authenticatedPlugin.getBody()).toContain('"route":"public"');
+
+        const nonPluginPath = createResponse();
+        await dispatchRequest(server, createRequest({ path: "/plugin/public" }), nonPluginPath.res);
+        expect(nonPluginPath.res.statusCode).toBe(404);
 
         expect(handlePluginRequest).toHaveBeenCalledTimes(2);
       },
