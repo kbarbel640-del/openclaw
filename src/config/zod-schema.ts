@@ -107,7 +107,7 @@ const MemoryQmdSchema = z
 const MemoryRemoteSchema = z
   .object({
     baseUrl: z.string().optional(),
-    apiKey: z.string().optional(),
+    apiKey: z.string().optional().register(sensitive),
     headers: z.record(z.string(), z.string()).optional(),
     vectorStoreId: z.string().optional(),
     vectorStoreName: z.string().optional(),
