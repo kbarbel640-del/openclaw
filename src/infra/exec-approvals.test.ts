@@ -73,6 +73,21 @@ describe("exec approvals allowlist matching", () => {
     expect(match).toBeNull();
   });
 
+  it("treats allowlist matching as case-insensitive on Windows/macOS, case-sensitive otherwise", () => {
+    const resolution = {
+      rawExecutable: "rg",
+      resolvedPath: "/opt/homebrew/bin/rg",
+      executableName: "rg",
+    };
+    const entries: ExecAllowlistEntry[] = [{ pattern: "/OPT/**/RG" }];
+    const match = matchAllowlist(entries, resolution);
+    if (process.platform === "win32" || process.platform === "darwin") {
+      expect(match?.pattern).toBe("/OPT/**/RG");
+      return;
+    }
+    expect(match).toBeNull();
+  });
+
   it("requires a resolved path", () => {
     const resolution = {
       rawExecutable: "bin/rg",

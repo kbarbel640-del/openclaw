@@ -96,7 +96,8 @@ If a prompt is required but no UI is reachable, fallback decides:
 ## Allowlist (per agent)
 
 Allowlists are **per agent**. If multiple agents exist, switch which agent you’re
-editing in the macOS app. Patterns are **case-insensitive glob matches**.
+editing in the macOS app. Patterns are glob matches:
+case-insensitive on Windows and macOS, case-sensitive on Linux.
 Patterns should resolve to **binary paths** (basename-only entries are ignored).
 Legacy `agents.default` entries are migrated to `agents.main` on load.
 
@@ -133,8 +134,8 @@ behavior (for example `sort -o/--output` and grep recursive flags).
 Safe bins also force argv tokens to be treated as **literal text** at execution time (no globbing
 and no `$VARS` expansion) for stdin-only segments, so patterns like `*` or `$HOME/...` cannot be
 used to smuggle file reads.
-Safe bins must also resolve from trusted binary directories (system defaults plus the gateway
-process `PATH` at startup). This blocks request-scoped PATH hijacking attempts.
+Safe bins must also resolve from trusted binary directories (system defaults only by default).
+This blocks request-scoped PATH hijacking attempts and avoids implicit trust from `PATH`.
 Shell chaining and redirections are not auto-allowed in allowlist mode.
 
 Shell chaining (`&&`, `||`, `;`) is allowed when every top-level segment satisfies the allowlist
