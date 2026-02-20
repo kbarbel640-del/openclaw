@@ -19,4 +19,4 @@ See the [Trust page](https://trust.openclaw.ai) for full reporting instructions 
 - **Jamieson O'Reilly** ([@theonejvo](https://twitter.com/theonejvo)) - Security & Trust
 - Discord: #security channel
 
-- [Safety guard examples (templates)](/scripts/safety-guards/README.md) - Optional shell-based examples
+- [Safety guard examples (templates)](https://github.com/openclaw/openclaw/blob/main/scripts/safety-guards/README.md) - Optional shell-based examples
