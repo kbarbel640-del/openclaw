@@ -1,0 +1,10 @@
+{
+  "id": "massivenet_provider_node",
+  "name": "MassiveNet Provider Node",
+  "description": "Thin MassiveNet provider-node worker loop for polling and completing node jobs.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

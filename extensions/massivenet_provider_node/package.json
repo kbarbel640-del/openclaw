@@ -1,0 +1,15 @@
+{
+  "name": "@openclaw/massivenet-provider-node",
+  "version": "2026.2.20",
+  "private": true,
+  "description": "OpenClaw MassiveNet provider-node worker extension",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
