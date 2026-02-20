@@ -66,9 +66,10 @@ export async function writeOAuthCredentials(
   creds: OAuthCredentials,
   agentDir?: string,
   options?: WriteOAuthCredentialsOptions,
-): Promise<void> {
+): Promise<string> {
   const email =
     typeof creds.email === "string" && creds.email.trim() ? creds.email.trim() : "default";
+  const profileId = `${provider}:${email}`;
   const resolvedAgentDir = path.resolve(resolveAuthAgentDir(agentDir));
   const targetAgentDirs = options?.syncSiblingAgents
     ? resolveSiblingAgentDirs(resolvedAgentDir)
@@ -82,7 +83,7 @@ export async function writeOAuthCredentials(
 
   // Primary write must succeed — let it throw on failure.
   upsertAuthProfile({
-    profileId: `${provider}:${email}`,
+    profileId,
     credential,
     agentDir: resolvedAgentDir,
   });
@@ -97,7 +98,7 @@ export async function writeOAuthCredentials(
       }
       try {
         upsertAuthProfile({
-          profileId: `${provider}:${email}`,
+          profileId,
           credential,
           agentDir: targetAgentDir,
         });
@@ -106,6 +107,7 @@ export async function writeOAuthCredentials(
       }
     }
   }
+  return profileId;
 }
 
 export async function setAnthropicApiKey(key: string, agentDir?: string) {
