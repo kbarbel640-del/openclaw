@@ -108,14 +108,25 @@ function summarizeGuilds(entries?: Record<string, unknown>) {
 
 const DEFAULT_THREAD_BINDING_TTL_HOURS = 24;
 
-function resolveThreadBindingSessionTtlMs(ttlHoursRaw: unknown): number {
-  if (typeof ttlHoursRaw !== "number" || !Number.isFinite(ttlHoursRaw)) {
-    return DEFAULT_THREAD_BINDING_TTL_HOURS * 60 * 60 * 1000;
+function normalizeThreadBindingTtlHours(raw: unknown): number | undefined {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return undefined;
   }
-  if (ttlHoursRaw < 0) {
-    return DEFAULT_THREAD_BINDING_TTL_HOURS * 60 * 60 * 1000;
+  if (raw < 0) {
+    return undefined;
   }
-  return Math.floor(ttlHoursRaw * 60 * 60 * 1000);
+  return raw;
+}
+
+function resolveThreadBindingSessionTtlMs(params: {
+  channelTtlHoursRaw: unknown;
+  sessionTtlHoursRaw: unknown;
+}): number {
+  const ttlHours =
+    normalizeThreadBindingTtlHours(params.channelTtlHoursRaw) ??
+    normalizeThreadBindingTtlHours(params.sessionTtlHoursRaw) ??
+    DEFAULT_THREAD_BINDING_TTL_HOURS;
+  return Math.floor(ttlHours * 60 * 60 * 1000);
 }
 
 function formatThreadBindingSessionTtlLabel(ttlMs: number): string {
@@ -257,9 +268,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   const replyToMode = opts.replyToMode ?? discordCfg.replyToMode ?? "off";
   const dmEnabled = dmConfig?.enabled ?? true;
   const dmPolicy = discordCfg.dmPolicy ?? dmConfig?.policy ?? "pairing";
-  const threadBindingSessionTtlMs = resolveThreadBindingSessionTtlMs(
-    discordCfg.threadBindings?.ttlHours,
-  );
+  const threadBindingSessionTtlMs = resolveThreadBindingSessionTtlMs({
+    channelTtlHoursRaw: discordCfg.threadBindings?.ttlHours,
+    sessionTtlHoursRaw: cfg.session?.threadBindings?.ttlHours,
+  });
   const groupDmEnabled = dmConfig?.groupEnabled ?? false;
   const groupDmChannels = dmConfig?.groupChannels;
   const nativeEnabled = resolveNativeCommandsEnabled({

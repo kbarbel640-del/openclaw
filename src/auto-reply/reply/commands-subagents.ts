@@ -304,6 +304,7 @@ function buildSubagentsHelp() {
     "- /focus <subagent-label|session-key|session-id|session-label>",
     "- /unfocus",
     "- /agents",
+    "- /session ttl <duration|off>",
     "- /kill <id|#|all>",
     "- /steer <id|#> <message>",
     "- /tell <id|#> <message>",

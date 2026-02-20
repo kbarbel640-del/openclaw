@@ -42,8 +42,12 @@ vi.mock("../send.messages.js", () => ({
   createThreadDiscord: hoisted.createThreadDiscord,
 }));
 
-const { __testing, createThreadBindingManager, resolveThreadBindingIntroText } =
-  await import("./thread-bindings.js");
+const {
+  __testing,
+  createThreadBindingManager,
+  resolveThreadBindingIntroText,
+  setThreadBindingTtlBySessionKey,
+} = await import("./thread-bindings.js");
 
 describe("thread binding ttl", () => {
   beforeEach(() => {
@@ -96,6 +100,110 @@ describe("thread binding ttl", () => {
       expect(hoisted.sendWebhookMessageDiscord).toHaveBeenCalledTimes(1);
       const farewell = hoisted.sendWebhookMessageDiscord.mock.calls[0]?.[0] as string | undefined;
       expect(farewell).toContain("Session ended automatically after 1m");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps binding when thread sweep probe fails transiently", async () => {
+    vi.useFakeTimers();
+    try {
+      const manager = createThreadBindingManager({
+        accountId: "default",
+        persist: false,
+        enableSweeper: true,
+        sessionTtlMs: 24 * 60 * 60 * 1000,
+      });
+
+      await manager.bindTarget({
+        threadId: "thread-1",
+        channelId: "parent-1",
+        targetKind: "subagent",
+        targetSessionKey: "agent:main:subagent:child",
+        agentId: "main",
+        webhookId: "wh-1",
+        webhookToken: "tok-1",
+      });
+
+      hoisted.restGet.mockRejectedValueOnce(new Error("ECONNRESET"));
+
+      await vi.advanceTimersByTimeAsync(120_000);
+
+      expect(manager.getByThreadId("thread-1")).toBeDefined();
+      expect(hoisted.sendWebhookMessageDiscord).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("unbinds when thread sweep probe reports unknown channel", async () => {
+    vi.useFakeTimers();
+    try {
+      const manager = createThreadBindingManager({
+        accountId: "default",
+        persist: false,
+        enableSweeper: true,
+        sessionTtlMs: 24 * 60 * 60 * 1000,
+      });
+
+      await manager.bindTarget({
+        threadId: "thread-1",
+        channelId: "parent-1",
+        targetKind: "subagent",
+        targetSessionKey: "agent:main:subagent:child",
+        agentId: "main",
+        webhookId: "wh-1",
+        webhookToken: "tok-1",
+      });
+
+      hoisted.restGet.mockRejectedValueOnce({
+        status: 404,
+        rawError: { code: 10003, message: "Unknown Channel" },
+      });
+
+      await vi.advanceTimersByTimeAsync(120_000);
+
+      expect(manager.getByThreadId("thread-1")).toBeUndefined();
+      expect(hoisted.sendWebhookMessageDiscord).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("updates ttl by target session key", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-02-20T23:00:00.000Z"));
+      const manager = createThreadBindingManager({
+        accountId: "default",
+        persist: false,
+        enableSweeper: false,
+        sessionTtlMs: 24 * 60 * 60 * 1000,
+      });
+
+      await manager.bindTarget({
+        threadId: "thread-1",
+        channelId: "parent-1",
+        targetKind: "subagent",
+        targetSessionKey: "agent:main:subagent:child",
+        agentId: "main",
+        webhookId: "wh-1",
+        webhookToken: "tok-1",
+      });
+      vi.setSystemTime(new Date("2026-02-20T23:15:00.000Z"));
+
+      const updated = setThreadBindingTtlBySessionKey({
+        accountId: "default",
+        targetSessionKey: "agent:main:subagent:child",
+        ttlMs: 2 * 60 * 60 * 1000,
+      });
+
+      expect(updated).toHaveLength(1);
+      expect(updated[0]?.boundAt).toBe(new Date("2026-02-20T23:15:00.000Z").getTime());
+      expect(updated[0]?.expiresAt).toBe(new Date("2026-02-21T01:15:00.000Z").getTime());
+      expect(manager.getByThreadId("thread-1")?.expiresAt).toBe(
+        new Date("2026-02-21T01:15:00.000Z").getTime(),
+      );
     } finally {
       vi.useRealTimers();
     }

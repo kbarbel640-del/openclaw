@@ -76,6 +76,7 @@ const THREAD_BINDINGS_VERSION = 1 as const;
 const THREAD_BINDINGS_SWEEP_INTERVAL_MS = 120_000;
 const DEFAULT_THREAD_BINDING_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const DEFAULT_FAREWELL_TEXT = "Session ended. Messages here will no longer be routed.";
+const DISCORD_UNKNOWN_CHANNEL_ERROR_CODE = 10_003;
 
 type ThreadBindingsGlobalState = {
   managersByAccountId: Map<string, ThreadBindingManager>;
@@ -202,7 +203,7 @@ function normalizeThreadBindingTtlMs(raw: unknown): number {
   return ttlMs;
 }
 
-function formatThreadBindingTtlLabel(ttlMs: number): string {
+export function formatThreadBindingTtlLabel(ttlMs: number): string {
   if (ttlMs <= 0) {
     return "disabled";
   }
@@ -460,6 +461,61 @@ function summarizeDiscordError(err: unknown): string {
     return String(err);
   }
   return "error";
+}
+
+function extractNumericDiscordErrorValue(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    return Number(value);
+  }
+  return undefined;
+}
+
+function extractDiscordErrorStatus(err: unknown): number | undefined {
+  if (!err || typeof err !== "object") {
+    return undefined;
+  }
+  const candidate = err as {
+    status?: unknown;
+    statusCode?: unknown;
+    response?: { status?: unknown };
+  };
+  return (
+    extractNumericDiscordErrorValue(candidate.status) ??
+    extractNumericDiscordErrorValue(candidate.statusCode) ??
+    extractNumericDiscordErrorValue(candidate.response?.status)
+  );
+}
+
+function extractDiscordErrorCode(err: unknown): number | undefined {
+  if (!err || typeof err !== "object") {
+    return undefined;
+  }
+  const candidate = err as {
+    code?: unknown;
+    rawError?: { code?: unknown };
+    body?: { code?: unknown };
+    response?: { body?: { code?: unknown }; data?: { code?: unknown } };
+  };
+  return (
+    extractNumericDiscordErrorValue(candidate.code) ??
+    extractNumericDiscordErrorValue(candidate.rawError?.code) ??
+    extractNumericDiscordErrorValue(candidate.body?.code) ??
+    extractNumericDiscordErrorValue(candidate.response?.body?.code) ??
+    extractNumericDiscordErrorValue(candidate.response?.data?.code)
+  );
+}
+
+function isDiscordThreadGoneError(err: unknown): boolean {
+  const code = extractDiscordErrorCode(err);
+  if (code === DISCORD_UNKNOWN_CHANNEL_ERROR_CODE) {
+    return true;
+  }
+  const status = extractDiscordErrorStatus(err);
+  // 404: deleted/unknown channel. 403: bot no longer has access.
+  return status === 404 || status === 403;
 }
 
 async function maybeSendBindingMessage(params: { record: ThreadBindingRecord; text: string }) {
@@ -856,21 +912,24 @@ export function createThreadBindingManager(
             sessionTtlMs,
           });
           if (expiresAt != null && Date.now() >= expiresAt) {
+            const ttlFromBinding = Math.max(0, expiresAt - binding.boundAt);
             manager.unbindThread({
               threadId: binding.threadId,
               reason: "ttl-expired",
               sendFarewell: true,
+              farewellText: resolveThreadBindingFarewellText({
+                reason: "ttl-expired",
+                sessionTtlMs: ttlFromBinding,
+              }),
             });
             continue;
           }
           try {
             const channel = await rest.get(Routes.channel(binding.threadId));
             if (!channel || typeof channel !== "object") {
-              manager.unbindThread({
-                threadId: binding.threadId,
-                reason: "thread-delete",
-                sendFarewell: false,
-              });
+              logVerbose(
+                `discord thread binding sweep probe returned invalid payload for ${binding.threadId}`,
+              );
               continue;
             }
             if (isThreadArchived(channel)) {
@@ -880,12 +939,21 @@ export function createThreadBindingManager(
                 sendFarewell: true,
               });
             }
-          } catch {
-            manager.unbindThread({
-              threadId: binding.threadId,
-              reason: "thread-delete",
-              sendFarewell: false,
-            });
+          } catch (err) {
+            if (isDiscordThreadGoneError(err)) {
+              logVerbose(
+                `discord thread binding sweep removing stale binding ${binding.threadId}: ${summarizeDiscordError(err)}`,
+              );
+              manager.unbindThread({
+                threadId: binding.threadId,
+                reason: "thread-delete",
+                sendFarewell: false,
+              });
+              continue;
+            }
+            logVerbose(
+              `discord thread binding sweep probe failed for ${binding.threadId}: ${summarizeDiscordError(err)}`,
+            );
           }
         }
       })();
@@ -1024,6 +1092,47 @@ export function unbindThreadBindingsBySessionKey(params: {
     saveBindingsToDisk();
   }
   return removed;
+}
+
+export function setThreadBindingTtlBySessionKey(params: {
+  targetSessionKey: string;
+  accountId?: string;
+  ttlMs: number;
+}): ThreadBindingRecord[] {
+  ensureBindingsLoaded();
+  const targetSessionKey = params.targetSessionKey.trim();
+  if (!targetSessionKey) {
+    return [];
+  }
+  const accountId = params.accountId ? normalizeAccountId(params.accountId) : undefined;
+  const ids = resolveBindingIdsForSession({
+    targetSessionKey,
+    accountId,
+  });
+  if (ids.length === 0) {
+    return [];
+  }
+  const ttlMs = normalizeThreadBindingTtlMs(params.ttlMs);
+  const now = Date.now();
+  const expiresAt = ttlMs > 0 ? now + ttlMs : undefined;
+  const updated: ThreadBindingRecord[] = [];
+  for (const threadId of ids) {
+    const existing = BINDINGS_BY_THREAD_ID.get(threadId);
+    if (!existing) {
+      continue;
+    }
+    const nextRecord: ThreadBindingRecord = {
+      ...existing,
+      boundAt: now,
+      expiresAt,
+    };
+    setBindingRecord(nextRecord);
+    updated.push(nextRecord);
+  }
+  if (updated.length > 0 && shouldPersistAnyBindingState()) {
+    saveBindingsToDisk();
+  }
+  return updated;
 }
 
 export const __testing = {

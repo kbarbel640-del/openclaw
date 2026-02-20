@@ -66,6 +66,12 @@ export const SessionSchema = z
       })
       .strict()
       .optional(),
+    threadBindings: z
+      .object({
+        ttlHours: z.number().nonnegative().optional(),
+      })
+      .strict()
+      .optional(),
     maintenance: z
       .object({
         mode: z.enum(["enforce", "warn"]).optional(),

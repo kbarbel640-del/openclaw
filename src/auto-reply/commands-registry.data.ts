@@ -1,11 +1,11 @@
+import { listChannelDocks } from "../channels/dock.js";
+import { getActivePluginRegistry } from "../plugins/runtime.js";
+import { COMMAND_ARG_FORMATTERS } from "./commands-args.js";
 import type {
   ChatCommandDefinition,
   CommandCategory,
   CommandScope,
 } from "./commands-registry.types.js";
-import { listChannelDocks } from "../channels/dock.js";
-import { getActivePluginRegistry } from "../plugins/runtime.js";
-import { COMMAND_ARG_FORMATTERS } from "./commands-args.js";
 import { listThinkingLevels } from "./thinking.js";
 
 type DefineChatCommandInput = {
@@ -261,6 +261,28 @@ function buildChatCommands(): ChatCommandDefinition[] {
       description: "Show your sender id.",
       textAlias: "/whoami",
       category: "status",
+    }),
+    defineChatCommand({
+      key: "session",
+      nativeName: "session",
+      description: "Manage session-level settings (for example /session ttl).",
+      textAlias: "/session",
+      category: "session",
+      args: [
+        {
+          name: "action",
+          description: "ttl",
+          type: "string",
+          choices: ["ttl"],
+        },
+        {
+          name: "value",
+          description: "Duration (24h, 90m) or off",
+          type: "string",
+          captureRemaining: true,
+        },
+      ],
+      argsMenu: "auto",
     }),
     defineChatCommand({
       key: "subagents",
