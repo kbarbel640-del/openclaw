@@ -1,0 +1,19 @@
+{
+  "name": "@openclaw/telegram-digest",
+  "version": "2026.2.20",
+  "private": true,
+  "description": "Telegram channel digest with LLM summarization",
+  "type": "module",
+  "dependencies": {
+    "input": "^1.0.1",
+    "telegram": "^2.26.22"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
