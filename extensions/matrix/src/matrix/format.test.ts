@@ -30,4 +30,49 @@ describe("markdownToMatrixHtml", () => {
     const html = markdownToMatrixHtml("line1\nline2");
     expect(html).toContain("<br");
   });
+
+  describe("LaTeX/Math rendering (data-mx-maths)", () => {
+    it("converts display math $$...$$", () => {
+      const html = markdownToMatrixHtml("Here is math: $$x^2 + y^2 = z^2$$");
+      expect(html).toContain('<div data-mx-maths="x^2 + y^2 = z^2">');
+      expect(html).toContain("<code>x^2 + y^2 = z^2</code>");
+    });
+
+    it("converts inline math $...$", () => {
+      const html = markdownToMatrixHtml("The equation $x = 1$ is true.");
+      expect(html).toContain('<span data-mx-maths="x = 1">');
+      expect(html).toContain("<code>x = 1</code>");
+    });
+
+    it("handles multiple inline math expressions", () => {
+      const html = markdownToMatrixHtml("We have $a$ and $b$ and $c$.");
+      expect(html).toContain('data-mx-maths="a"');
+      expect(html).toContain('data-mx-maths="b"');
+      expect(html).toContain('data-mx-maths="c"');
+    });
+
+    it("converts LaTeX display environment \\[...\\]", () => {
+      const html = markdownToMatrixHtml("Math: \\[x^2 + 1\\]");
+      expect(html).toContain('<div data-mx-maths="x^2 + 1">');
+    });
+
+    it("converts LaTeX inline environment \\(...\\)", () => {
+      const html = markdownToMatrixHtml("We have \\(x = 1\\) here.");
+      expect(html).toContain('<span data-mx-maths="x = 1">');
+    });
+
+    it("preserves LaTeX in code blocks (does not convert)", () => {
+      const html = markdownToMatrixHtml("Code: `$$x^2$$`");
+      // LaTeX inside backticks should NOT be converted to data-mx-maths
+      // The backticks create a code element which preserves literal content
+      expect(html).toContain("<code>");
+      expect(html).toContain("x^2");
+      expect(html).not.toContain('data-mx-maths=');
+    });
+
+    it("strips whitespace from LaTeX content", () => {
+      const html = markdownToMatrixHtml("Math: $  x^2  $");
+      expect(html).toContain('data-mx-maths="x^2"');
+    });
+  });
 });
