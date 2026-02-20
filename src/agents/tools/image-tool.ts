@@ -223,23 +223,26 @@ async function resolveSandboxedImagePath(params: {
     return { resolved: resolved.hostPath };
   } catch (err) {
     const name = path.basename(filePath);
+    // First try media/inbound relative to the sandbox workspace root.
     const candidateRel = path.join("media", "inbound", name);
-    try {
-      const stat = await params.sandbox.bridge.stat({
-        filePath: candidateRel,
-        cwd: params.sandbox.root,
-      });
-      if (!stat) {
-        throw err;
+    // Also try the global state media directory — inbound files from channels
+    // (e.g. Telegram topic sessions) land there, not in the per-agent workspace.
+    const candidateAbs = path.join(resolveStateDir(), "media", "inbound", name);
+    for (const candidate of [
+      { filePath: candidateRel, cwd: params.sandbox.root },
+      { filePath: candidateAbs, cwd: undefined },
+    ]) {
+      try {
+        const stat = await params.sandbox.bridge.stat(candidate);
+        if (stat) {
+          const out = params.sandbox.bridge.resolvePath(candidate);
+          return { resolved: out.hostPath, rewrittenFrom: filePath };
+        }
+      } catch {
+        // try next candidate
       }
-    } catch {
-      throw err;
     }
-    const out = params.sandbox.bridge.resolvePath({
-      filePath: candidateRel,
-      cwd: params.sandbox.root,
-    });
-    return { resolved: out.hostPath, rewrittenFrom: filePath };
+    throw err;
   }
 }
 
