@@ -30,6 +30,11 @@ import {
 } from "../../auth-rate-limit.js";
 import type { GatewayAuthResult, ResolvedGatewayAuth } from "../../auth.js";
 import { authorizeGatewayConnect, isLocalDirectRequest } from "../../auth.js";
+import {
+  buildCanvasScopedHostUrl,
+  CANVAS_CAPABILITY_TTL_MS,
+  mintCanvasCapabilityToken,
+} from "../../canvas-capability.js";
 import { buildDeviceAuthPayload } from "../../device-auth.js";
 import { isLoopbackAddress, isTrustedProxyAddress, resolveGatewayClientIp } from "../../net.js";
 import { resolveHostName } from "../../net.js";
@@ -706,42 +711,46 @@ export function attachGatewayWsMessageHandler(params: {
               return;
             }
           } else {
+            const hasLegacyPairedMetadata =
+              paired.roles === undefined && paired.scopes === undefined;
             const pairedRoles = Array.isArray(paired.roles)
               ? paired.roles
               : paired.role
                 ? [paired.role]
                 : [];
-            const allowedRoles = new Set(pairedRoles);
-            if (allowedRoles.size === 0) {
-              logUpgradeAudit("role-upgrade", pairedRoles, paired.scopes);
-              const ok = await requirePairing("role-upgrade");
-              if (!ok) {
-                return;
-              }
-            } else if (!allowedRoles.has(role)) {
-              logUpgradeAudit("role-upgrade", pairedRoles, paired.scopes);
-              const ok = await requirePairing("role-upgrade");
-              if (!ok) {
-                return;
-              }
-            }
-
-            const pairedScopes = Array.isArray(paired.scopes) ? paired.scopes : [];
-            if (scopes.length > 0) {
-              if (pairedScopes.length === 0) {
-                logUpgradeAudit("scope-upgrade", pairedRoles, pairedScopes);
-                const ok = await requirePairing("scope-upgrade");
+            if (!hasLegacyPairedMetadata) {
+              const allowedRoles = new Set(pairedRoles);
+              if (allowedRoles.size === 0) {
+                logUpgradeAudit("role-upgrade", pairedRoles, paired.scopes);
+                const ok = await requirePairing("role-upgrade");
                 if (!ok) {
                   return;
                 }
-              } else {
-                const allowedScopes = new Set(pairedScopes);
-                const missingScope = scopes.find((scope) => !allowedScopes.has(scope));
-                if (missingScope) {
+              } else if (!allowedRoles.has(role)) {
+                logUpgradeAudit("role-upgrade", pairedRoles, paired.scopes);
+                const ok = await requirePairing("role-upgrade");
+                if (!ok) {
+                  return;
+                }
+              }
+
+              const pairedScopes = Array.isArray(paired.scopes) ? paired.scopes : [];
+              if (scopes.length > 0) {
+                if (pairedScopes.length === 0) {
                   logUpgradeAudit("scope-upgrade", pairedRoles, pairedScopes);
                   const ok = await requirePairing("scope-upgrade");
                   if (!ok) {
                     return;
+                  }
+                } else {
+                  const allowedScopes = new Set(pairedScopes);
+                  const missingScope = scopes.find((scope) => !allowedScopes.has(scope));
+                  if (missingScope) {
+                    logUpgradeAudit("scope-upgrade", pairedRoles, pairedScopes);
+                    const ok = await requirePairing("scope-upgrade");
+                    if (!ok) {
+                      return;
+                    }
                   }
                 }
               }
@@ -822,6 +831,15 @@ export function attachGatewayWsMessageHandler(params: {
           snapshot.health = cachedHealth;
           snapshot.stateVersion.health = getHealthVersion();
         }
+        const canvasCapability =
+          role === "node" && canvasHostUrl ? mintCanvasCapabilityToken() : undefined;
+        const canvasCapabilityExpiresAtMs = canvasCapability
+          ? Date.now() + CANVAS_CAPABILITY_TTL_MS
+          : undefined;
+        const scopedCanvasHostUrl =
+          canvasHostUrl && canvasCapability
+            ? (buildCanvasScopedHostUrl(canvasHostUrl, canvasCapability) ?? canvasHostUrl)
+            : canvasHostUrl;
         const helloOk = {
           type: "hello-ok",
           protocol: PROTOCOL_VERSION,
@@ -833,7 +851,7 @@ export function attachGatewayWsMessageHandler(params: {
           },
           features: { methods: gatewayMethods, events },
           snapshot,
-          canvasHostUrl,
+          canvasHostUrl: scopedCanvasHostUrl,
           auth: deviceToken
             ? {
                 deviceToken: deviceToken.token,
@@ -856,6 +874,8 @@ export function attachGatewayWsMessageHandler(params: {
           connId,
           presenceKey,
           clientIp: reportedClientIp,
+          canvasCapability,
+          canvasCapabilityExpiresAtMs,
         };
         setClient(nextClient);
         setHandshakeState("connected");
