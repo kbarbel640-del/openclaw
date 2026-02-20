@@ -9,6 +9,7 @@ status: Proposed
 ## Intent
 
 Allow controlled self-serve changes via skills/rules and track improvement using metrics.
+Treat "bots" as governed role/skill profiles that can improve over time without becoming uncontrolled autonomous services.
 
 ## Scope (plain English)
 

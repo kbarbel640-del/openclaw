@@ -4,6 +4,11 @@
 
 From OpenClaw chat, operator runs a Ted command that returns sidecar /doctor output.
 
+## Promotion State
+
+- Current: GA (foundation gate)
+- Promotion rule: this card must remain PASS for all later slices.
+
 ## Why this is first
 
 Proves the platform/sidecar boundary before we build any features (Graph, ledgers, filing, deadlines).

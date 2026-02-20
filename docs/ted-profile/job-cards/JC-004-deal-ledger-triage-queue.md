@@ -9,6 +9,11 @@ Ted Engine maintains a canonical, auditable system of record for:
 
 This enables later workflows (filing, deadlines, dashboards) to be governed and explainable.
 
+## Promotion State
+
+- Current: PREVIEW
+- Promotion rule: promote to GA only after linkage-or-triage behavior and pattern controls remain deterministic under proof gates.
+
 ## Non-negotiables
 
 - Every sidecar action that produces an artifact must link to deal_id or task_id, or go to triage.

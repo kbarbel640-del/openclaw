@@ -4,6 +4,13 @@
 
 Ted Engine can (a) read limited email/calendar context and (b) create **drafts only** in Outlook for two separate M365 profiles (e.g., Olumie + Everest), while preserving strict governance and auditability.
 
+## Promotion State
+
+- Current: PREVIEW
+- Promotion rule:
+  - stays PREVIEW until tenant auth prerequisites are satisfied and full revoke/health proofs are stable
+  - may move to GA only after deterministic PASS runs and zero governance regressions
+
 ## Canonical spec reference
 
 - docs/ted-profile/sdd-pack/07_M365_GRAPH_SPEC.md

@@ -4,6 +4,11 @@
 
 After a Mac reboot, OpenClaw and the Ted Engine sidecar are both running and healthy without manual steps.
 
+## Promotion State
+
+- Current: GA (foundation gate)
+- Promotion rule: reboot/autostart proof must remain PASS before any PREVIEW/GA expansion.
+
 ## Why this is next
 
 We have proven the OpenClaw ↔ sidecar seam (JC-001). Now we must make the runtime reliable before adding Graph and workflow features.
