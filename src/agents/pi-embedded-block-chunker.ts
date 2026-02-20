@@ -19,6 +19,8 @@ type BreakResult = {
   fenceSplit?: FenceSplit;
 };
 
+const SENTENCE_BOUNDARY_RE = /(?:[.!?;](?=\s|$)|[。！？；…])/g;
+
 type ParagraphBreak = {
   index: number;
   length: number;
@@ -29,7 +31,7 @@ function findSafeSentenceBreakIndex(
   fenceSpans: FenceSpan[],
   minChars: number,
 ): number {
-  const matches = text.matchAll(/[.!?](?=\s|$)/g);
+  const matches = text.matchAll(SENTENCE_BOUNDARY_RE);
   let sentenceIdx = -1;
   for (const match of matches) {
     const at = match.index ?? -1;

@@ -127,4 +127,20 @@ describe("EmbeddedBlockChunker", () => {
     expect(chunks).toEqual(["Intro\n```js\nconst a = 1;\n\nconst b = 2;\n```"]);
     expect(chunker.bufferedText).toBe("After fence");
   });
+
+  it("breaks on CJK sentence punctuation in sentence mode", () => {
+    const chunker = new EmbeddedBlockChunker({
+      minChars: 1,
+      maxChars: 5,
+      breakPreference: "sentence",
+    });
+
+    chunker.append("第一句。第二句！第三句？第四句；第五句…");
+
+    const chunks: string[] = [];
+    chunker.drain({ force: false, emit: (chunk) => chunks.push(chunk) });
+
+    expect(chunks).toEqual(["第一句。", "第二句！", "第三句？", "第四句；"]);
+    expect(chunker.bufferedText).toBe("第五句…");
+  });
 });
