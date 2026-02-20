@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { MsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/config.js";
+import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
 import {
   buildProviderRegistry,
   createMediaAttachmentCache,
@@ -20,7 +20,10 @@ async function withAudioFixture(
 ) {
   const originalPath = process.env.PATH;
   process.env.PATH = "/usr/bin:/bin";
-  const tmpPath = path.join(os.tmpdir(), `openclaw-auto-audio-${Date.now()}.wav`);
+  const preferredTmpRoot = resolvePreferredOpenClawTmpDir();
+  await fs.mkdir(preferredTmpRoot, { recursive: true });
+  const fixtureDir = await fs.mkdtemp(path.join(preferredTmpRoot, "openclaw-auto-audio-"));
+  const tmpPath = path.join(fixtureDir, "sample.wav");
   await fs.writeFile(tmpPath, Buffer.from("RIFF"));
   const ctx: MsgContext = { MediaPath: tmpPath, MediaType: "audio/wav" };
   const media = normalizeMediaAttachments(ctx);
@@ -31,7 +34,7 @@ async function withAudioFixture(
   } finally {
     process.env.PATH = originalPath;
     await cache.cleanup();
-    await fs.unlink(tmpPath).catch(() => {});
+    await fs.rm(fixtureDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 

@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { MsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/config.js";
+import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
 import {
   buildProviderRegistry,
   createMediaAttachmentCache,
@@ -13,7 +13,10 @@ import {
 
 describe("runCapability deepgram provider options", () => {
   it("merges provider options, headers, and baseUrl overrides", async () => {
-    const tmpPath = path.join(os.tmpdir(), `openclaw-deepgram-${Date.now()}.wav`);
+    const preferredTmpRoot = resolvePreferredOpenClawTmpDir();
+    await fs.mkdir(preferredTmpRoot, { recursive: true });
+    const fixtureDir = await fs.mkdtemp(path.join(preferredTmpRoot, "openclaw-deepgram-"));
+    const tmpPath = path.join(fixtureDir, "sample.wav");
     await fs.writeFile(tmpPath, Buffer.from("RIFF"));
     const ctx: MsgContext = { MediaPath: tmpPath, MediaType: "audio/wav" };
     const media = normalizeMediaAttachments(ctx);
@@ -104,7 +107,7 @@ describe("runCapability deepgram provider options", () => {
       expect((seenQuery as Record<string, unknown>)["detectLanguage"]).toBeUndefined();
     } finally {
       await cache.cleanup();
-      await fs.unlink(tmpPath).catch(() => {});
+      await fs.rm(fixtureDir, { recursive: true, force: true }).catch(() => {});
     }
   });
 });
