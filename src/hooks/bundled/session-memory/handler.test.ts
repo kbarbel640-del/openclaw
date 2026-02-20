@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../../config/config.js";
-import { makeTempWorkspace, writeWorkspaceFile } from "../../../test-helpers/workspace.js";
 import type { HookHandler } from "../../hooks.js";
+import { makeTempWorkspace, writeWorkspaceFile } from "../../../test-helpers/workspace.js";
 import { createHookEvent } from "../../hooks.js";
 
 // Avoid calling the embedded Pi agent (global command lane); keep this unit test deterministic.
@@ -189,7 +189,41 @@ describe("session-memory hook", () => {
     expect(memoryContent).toContain("user: Normal message");
   });
 
-  it("respects custom messages config (limits to N messages)", async () => {
+  it("filters out common automation noise (NO_REPLY, HEARTBEAT_OK, voice filenames)", async () => {
+    const sessionContent = createMockSessionContent([
+      { role: "assistant", content: "NO_REPLY" },
+      { role: "user", content: "HEARTBEAT_OK" },
+      { role: "assistant", content: "reply-9530-seed-90513.mp3" },
+      { role: "user", content: "Actual user question" },
+      { role: "assistant", content: "Actual assistant answer" },
+    ]);
+    const { memoryContent } = await runNewWithPreviousSession({ sessionContent });
+
+    expect(memoryContent).not.toContain("NO_REPLY");
+    expect(memoryContent).not.toContain("HEARTBEAT_OK");
+    expect(memoryContent).not.toContain("reply-9530");
+    expect(memoryContent).toContain("user: Actual user question");
+    expect(memoryContent).toContain("assistant: Actual assistant answer");
+  });
+
+  it("strips untrusted metadata JSON blocks from messages", async () => {
+    const noisy = `Conversation info (untrusted metadata):
+\`\`\`json
+{"message_id":"123"}
+\`\`\`
+Ok now real text`;
+    const sessionContent = createMockSessionContent([
+      { role: "user", content: noisy },
+      { role: "assistant", content: "Acknowledged" },
+    ]);
+    const { memoryContent } = await runNewWithPreviousSession({ sessionContent });
+
+    expect(memoryContent).toContain("user: Ok now real text");
+    expect(memoryContent).not.toContain("untrusted metadata");
+    expect(memoryContent).not.toContain("message_id");
+  });
+
+  it("respects custom excerptMessages config (limits to N messages)", async () => {
     // Create 10 messages
     const entries = [];
     for (let i = 1; i <= 10; i++) {
@@ -203,7 +237,7 @@ describe("session-memory hook", () => {
         hooks: {
           internal: {
             entries: {
-              "session-memory": { enabled: true, messages: 3 },
+              "session-memory": { enabled: true, excerptMessages: 3 },
             },
           },
         },
@@ -216,6 +250,30 @@ describe("session-memory hook", () => {
     expect(memoryContent).toContain("user: Message 8");
     expect(memoryContent).toContain("user: Message 9");
     expect(memoryContent).toContain("user: Message 10");
+  });
+
+  it("supports includeExcerpt=false (no Conversation Summary section)", async () => {
+    const sessionContent = createMockSessionContent([
+      { role: "user", content: "Hello" },
+      { role: "assistant", content: "World" },
+    ]);
+    const { memoryContent } = await runNewWithPreviousSession({
+      sessionContent,
+      cfg: (tempDir) => ({
+        agents: { defaults: { workspace: tempDir } },
+        hooks: {
+          internal: {
+            entries: {
+              "session-memory": { enabled: true, includeExcerpt: false },
+            },
+          },
+        },
+      }),
+    });
+
+    expect(memoryContent).not.toContain("## Conversation Summary");
+    expect(memoryContent).not.toContain("user: Hello");
+    expect(memoryContent).not.toContain("assistant: World");
   });
 
   it("filters messages before slicing (fix for #2681)", async () => {
