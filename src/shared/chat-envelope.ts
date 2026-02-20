@@ -49,13 +49,14 @@ export function stripEnvelope(text: string): string {
  *   { ... }
  *   ```
  *
- * Also strips "Sender (untrusted metadata):" and "Forwarded message context (untrusted metadata):" blocks.
+ * Also strips other gateway-injected blocks: Sender, Forwarded message context,
+ * Thread starter, Replied message, and Chat history since last reply.
  */
 const INBOUND_META_BLOCK =
-  /(?:^|\n)\s*(?:Conversation info|Sender|Forwarded message context)\s*\(untrusted metadata\):?\s*\n```json\n[\s\S]*?\n```/g;
+  /(?:^|\n)\s*(?:Conversation info|Sender|Forwarded message context|Thread starter|Replied message|Chat history since last reply)\s*\(untrusted[^)]*\):?\s*\n```(?:json)?\n[\s\S]*?\n```/g;
 
 export function stripInboundMeta(text: string): string {
-  if (!text.includes("(untrusted metadata)")) {
+  if (!text.includes("(untrusted")) {
     return text;
   }
   return text.replace(INBOUND_META_BLOCK, "").trim();

@@ -51,6 +51,33 @@ Sender (untrusted metadata):
     expect(stripInboundMeta(input)).toBe(input);
   });
 
+  it("strips thread starter block", () => {
+    const input = `Hello
+Thread starter (untrusted, for context):
+\`\`\`json
+{"text": "original message"}
+\`\`\``;
+    expect(stripInboundMeta(input)).toBe("Hello");
+  });
+
+  it("strips replied message block", () => {
+    const input = `My reply
+Replied message (untrusted, for context):
+\`\`\`json
+{"text": "what was replied to"}
+\`\`\``;
+    expect(stripInboundMeta(input)).toBe("My reply");
+  });
+
+  it("strips chat history block", () => {
+    const input = `New message
+Chat history since last reply (untrusted, for context):
+\`\`\`
+Some history here
+\`\`\``;
+    expect(stripInboundMeta(input)).toBe("New message");
+  });
+
   it("handles metadata-only messages", () => {
     const input = `Conversation info (untrusted metadata):
 \`\`\`json
