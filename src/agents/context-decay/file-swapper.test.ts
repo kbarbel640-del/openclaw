@@ -118,26 +118,51 @@ describe("swapAgedToolResults", () => {
     expect(Object.keys(store)).toHaveLength(0);
   });
 
-  it("skips tool results past summarize threshold", async () => {
+  it("skips tool results past summarize threshold only when summary exists", async () => {
     const messages = buildMessages(5);
     const config: ContextDecayConfig = {
       swapToolResultsAfterTurns: 2,
       summarizeToolResultsAfterTurns: 3,
     };
 
+    // Run WITHOUT summaries — items past summarize threshold still get swapped as fallback
     await swapAgedToolResults({
       sessionFilePath: sessionPath(),
       messages,
       config,
     });
+    const storeWithout = await loadSwappedFileStore(sessionPath());
+    const countWithout = Object.keys(storeWithout).length;
+    expect(countWithout).toBeGreaterThan(0);
 
-    const store = await loadSwappedFileStore(sessionPath());
-    // Only results with age >= 2 AND age < 3 should be swapped
-    for (const [, entry] of Object.entries(store)) {
-      expect(entry).toBeDefined();
+    // Now pre-populate summary store for all tool result indices and run again
+    // (on a fresh session path to avoid overlap with existing swaps)
+    const session2 = path.join(tmpDir, "session2.jsonl");
+    const { saveSummaryStore } = await import("./summary-store.js");
+    const summaryStore: Record<number, unknown> = {};
+    for (let i = 0; i < messages.length; i++) {
+      if (messages[i].role === "toolResult") {
+        summaryStore[i] = {
+          summary: "summarized",
+          originalTokenEstimate: 100,
+          summaryTokenEstimate: 10,
+          summarizedAt: new Date().toISOString(),
+          model: "test/model",
+        };
+      }
     }
-    // Older results (age >= 3) should NOT be in the store
-    // since summarizer handles those
+    await saveSummaryStore(session2, summaryStore as never);
+
+    await swapAgedToolResults({
+      sessionFilePath: session2,
+      messages,
+      config,
+    });
+    const storeWith = await loadSwappedFileStore(session2);
+    const countWith = Object.keys(storeWith).length;
+
+    // With summaries, fewer items should be swapped (those past summarize threshold are skipped)
+    expect(countWith).toBeLessThan(countWithout);
   });
 
   it("skips tool results past strip threshold", async () => {

@@ -38,12 +38,16 @@ import {
 import { swapAgedToolResults } from "../../context-decay/file-swapper.js";
 import { summarizeAgedTurnWindows } from "../../context-decay/group-summarizer.js";
 import { summarizeAgedToolResults } from "../../context-decay/summarizer.js";
-import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
+import { DEFAULT_CONTEXT_TOKENS, DEFAULT_PROVIDER } from "../../defaults.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
 import { resolveImageSanitizationLimits } from "../../image-sanitization.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
-import { resolveDefaultModelForAgent } from "../../model-selection.js";
+import {
+  buildModelAliasIndex,
+  resolveDefaultModelForAgent,
+  resolveModelRefFromString,
+} from "../../model-selection.js";
 import { createOllamaStreamFn, OLLAMA_NATIVE_BASE_URL } from "../../ollama-stream.js";
 import {
   isCloudCodeAssistFormatError,
@@ -115,6 +119,39 @@ import {
 } from "./compaction-timeout.js";
 import { detectAndLoadPromptImages } from "./images.js";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
+
+// Concurrency guard: at most one decay summarization pass per session at a time (Bug 2)
+const decayInFlight = new Map<string, boolean>();
+
+/** Resolve a context-decay model alias (e.g. "sonnet") to a full Model object, falling back to the primary model. */
+function resolveDecayModel(
+  modelAlias: string | undefined,
+  params: Pick<EmbeddedRunAttemptParams, "config" | "modelRegistry" | "model">,
+): EmbeddedRunAttemptParams["model"] {
+  if (!modelAlias || !params.config) {
+    return params.model;
+  }
+  try {
+    const aliasIndex = buildModelAliasIndex({
+      cfg: params.config,
+      defaultProvider: DEFAULT_PROVIDER,
+    });
+    const resolved = resolveModelRefFromString({
+      raw: modelAlias,
+      defaultProvider: DEFAULT_PROVIDER,
+      aliasIndex,
+    });
+    if (resolved) {
+      const found = params.modelRegistry.find(resolved.ref.provider, resolved.ref.model);
+      if (found) {
+        return found;
+      }
+    }
+  } catch {
+    // fall through to default
+  }
+  return params.model;
+}
 
 /**
  * Inject detected images into their original message positions in the conversation history.
@@ -1223,32 +1260,50 @@ export async function runEmbeddedAttempt(
           });
         }
 
-        // Fire-and-forget: summarize aged tool results for context decay
-        if (contextDecayConfig?.summarizeToolResultsAfterTurns && params.model) {
-          void summarizeAgedToolResults({
-            sessionFilePath: params.sessionFile,
-            messages: messagesSnapshot,
-            config: contextDecayConfig,
-            model: params.model,
-            authStorage: params.authStorage,
-            abortSignal: params.abortSignal,
-          }).catch((err) => {
-            log.warn(`context-decay summarization failed: ${err}`);
-          });
-        }
-
-        // Fire-and-forget: group-summarize aged turn windows
-        if (contextDecayConfig?.summarizeWindowAfterTurns && params.model) {
-          void summarizeAgedTurnWindows({
-            sessionFilePath: params.sessionFile,
-            messages: messagesSnapshot,
-            config: contextDecayConfig,
-            model: params.model,
-            authStorage: params.authStorage,
-            abortSignal: params.abortSignal,
-          }).catch((err) => {
-            log.warn(`context-decay group summarization failed: ${err}`);
-          });
+        // Fire-and-forget: summarize aged tool results + group windows (sequentially, with concurrency guard)
+        if (!decayInFlight.get(params.sessionFile)) {
+          decayInFlight.set(params.sessionFile, true);
+          void (async () => {
+            try {
+              // Individual summarization first (saves to disk for group summarizer)
+              if (contextDecayConfig?.summarizeToolResultsAfterTurns && params.model) {
+                const individualModel = resolveDecayModel(
+                  contextDecayConfig.summarizationModel,
+                  params,
+                );
+                await summarizeAgedToolResults({
+                  sessionFilePath: params.sessionFile,
+                  messages: messagesSnapshot,
+                  config: contextDecayConfig,
+                  model: individualModel,
+                  authStorage: params.authStorage,
+                  abortSignal: params.abortSignal,
+                });
+              }
+              // Group summarization second (reads individual summaries saved above)
+              if (contextDecayConfig?.summarizeWindowAfterTurns && params.model) {
+                const groupModel = resolveDecayModel(
+                  contextDecayConfig.groupSummarizationModel ??
+                    contextDecayConfig.summarizationModel,
+                  params,
+                );
+                await summarizeAgedTurnWindows({
+                  sessionFilePath: params.sessionFile,
+                  messages: messagesSnapshot,
+                  config: contextDecayConfig,
+                  model: groupModel,
+                  authStorage: params.authStorage,
+                  abortSignal: params.abortSignal,
+                });
+              }
+            } catch (err) {
+              log.warn(`context-decay background tasks failed: ${String(err)}`);
+            } finally {
+              decayInFlight.delete(params.sessionFile);
+            }
+          })();
+        } else {
+          log.debug(`context-decay: skipping — already in-flight for ${params.sessionFile}`);
         }
       } finally {
         clearTimeout(abortTimer);

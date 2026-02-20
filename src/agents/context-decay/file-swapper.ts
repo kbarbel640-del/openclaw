@@ -6,6 +6,7 @@ import { log } from "../pi-embedded-runner/logger.js";
 import { loadSwappedFileStore, resultsDir, saveSwappedFileStore } from "./file-store.js";
 import { generateHeuristicHint } from "./hint-generator.js";
 import { extractContentText, extractToolInfo } from "./message-utils.js";
+import { loadSummaryStore } from "./summary-store.js";
 import { computeTurnAges } from "./turn-ages.js";
 
 const DEFAULT_SWAP_MIN_CHARS = 256;
@@ -30,6 +31,7 @@ export async function swapAgedToolResults(params: {
 
   const minChars = config.swapMinChars ?? DEFAULT_SWAP_MIN_CHARS;
   const existingStore = await loadSwappedFileStore(sessionFilePath);
+  const existingSummaries = await loadSummaryStore(sessionFilePath);
   const turnAges = computeTurnAges(messages);
   const toSwap: Array<{ index: number; toolName: string; args: string; content: string }> = [];
 
@@ -51,8 +53,12 @@ export async function swapAgedToolResults(params: {
     if (existingStore[i]) {
       continue;
     }
-    // Skip if past summarize threshold — let the summarizer handle it
-    if (config.summarizeToolResultsAfterTurns && age >= config.summarizeToolResultsAfterTurns) {
+    // Skip if past summarize threshold AND a summary already exists — let the view transform use it
+    if (
+      config.summarizeToolResultsAfterTurns &&
+      age >= config.summarizeToolResultsAfterTurns &&
+      existingSummaries[i]
+    ) {
       continue;
     }
     // Skip if past strip threshold — will be stripped anyway
