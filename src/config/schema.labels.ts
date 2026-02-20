@@ -237,6 +237,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "browser.remoteCdpTimeoutMs": "Remote CDP Timeout (ms)",
   "browser.remoteCdpHandshakeTimeoutMs": "Remote CDP Handshake Timeout (ms)",
   "session.dmScope": "DM Session Scope",
+  "session.channelGroups": "Channel Session Groups",
   "session.agentToAgent.maxPingPongTurns": "Agent-to-Agent Ping-Pong Turns",
   "messages.suppressToolErrors": "Suppress Tool Error Warnings",
   "messages.ackReaction": "Ack Reaction Emoji",

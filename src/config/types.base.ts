@@ -90,6 +90,8 @@ export type SessionConfig = {
   dmScope?: DmScope;
   /** Map platform-prefixed identities (e.g. "telegram:123") to canonical DM peers. */
   identityLinks?: Record<string, string[]>;
+  /** Map canonical channel-group ids to provider-prefixed channel/group ids. */
+  channelGroups?: Record<string, string[]>;
   resetTriggers?: string[];
   idleMinutes?: number;
   reset?: SessionResetConfig;
