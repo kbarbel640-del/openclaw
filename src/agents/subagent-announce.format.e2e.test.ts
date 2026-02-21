@@ -491,6 +491,110 @@ describe("subagent announce formatting", () => {
     expect(call?.params?.to).toBe("channel:thread-bound-1");
   });
 
+  it("does not duplicate to main channel when two active bound sessions complete from the same requester channel", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    sessionStore = {
+      "agent:main:subagent:child-a": {
+        sessionId: "child-session-a",
+      },
+      "agent:main:subagent:child-b": {
+        sessionId: "child-session-b",
+      },
+      "agent:main:main": {
+        sessionId: "requester-session-main",
+      },
+    };
+
+    // Simulate active sibling runs so non-bound paths would normally coordinate via agent().
+    subagentRegistryMock.countActiveDescendantRuns.mockImplementation((sessionKey: string) =>
+      sessionKey === "agent:main:main" ? 2 : 0,
+    );
+    registerSessionBindingAdapter({
+      channel: "discord",
+      accountId: "acct-1",
+      listBySession: (targetSessionKey: string) => {
+        if (targetSessionKey === "agent:main:subagent:child-a") {
+          return [
+            {
+              bindingId: "discord:acct-1:thread-child-a",
+              targetSessionKey,
+              targetKind: "subagent",
+              conversation: {
+                channel: "discord",
+                accountId: "acct-1",
+                conversationId: "thread-child-a",
+                parentConversationId: "main-parent-channel",
+              },
+              status: "active",
+              boundAt: Date.now(),
+            },
+          ];
+        }
+        if (targetSessionKey === "agent:main:subagent:child-b") {
+          return [
+            {
+              bindingId: "discord:acct-1:thread-child-b",
+              targetSessionKey,
+              targetKind: "subagent",
+              conversation: {
+                channel: "discord",
+                accountId: "acct-1",
+                conversationId: "thread-child-b",
+                parentConversationId: "main-parent-channel",
+              },
+              status: "active",
+              boundAt: Date.now(),
+            },
+          ];
+        }
+        return [];
+      },
+      resolveByConversation: () => null,
+    });
+
+    await Promise.all([
+      runSubagentAnnounceFlow({
+        childSessionKey: "agent:main:subagent:child-a",
+        childRunId: "run-child-a",
+        requesterSessionKey: "agent:main:main",
+        requesterDisplayKey: "main",
+        requesterOrigin: {
+          channel: "discord",
+          to: "channel:main-parent-channel",
+          accountId: "acct-1",
+        },
+        ...defaultOutcomeAnnounce,
+        expectsCompletionMessage: true,
+        spawnMode: "session",
+      }),
+      runSubagentAnnounceFlow({
+        childSessionKey: "agent:main:subagent:child-b",
+        childRunId: "run-child-b",
+        requesterSessionKey: "agent:main:main",
+        requesterDisplayKey: "main",
+        requesterOrigin: {
+          channel: "discord",
+          to: "channel:main-parent-channel",
+          accountId: "acct-1",
+        },
+        ...defaultOutcomeAnnounce,
+        expectsCompletionMessage: true,
+        spawnMode: "session",
+      }),
+    ]);
+
+    await expect.poll(() => sendSpy.mock.calls.length).toBe(2);
+    expect(agentSpy).not.toHaveBeenCalled();
+
+    const directTargets = sendSpy.mock.calls.map(
+      (call) => (call?.[0] as { params?: { to?: string } })?.params?.to,
+    );
+    expect(directTargets).toEqual(
+      expect.arrayContaining(["channel:thread-child-a", "channel:thread-child-b"]),
+    );
+    expect(directTargets).not.toContain("channel:main-parent-channel");
+  });
+
   it("uses failure header for completion direct-send when subagent outcome is error", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
     sessionStore = {
