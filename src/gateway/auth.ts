@@ -34,6 +34,8 @@ export type ResolvedGatewayAuth = {
   password?: string;
   allowTailscale: boolean;
   trustedProxy?: GatewayTrustedProxyConfig;
+  trustLocalhost: boolean;
+  allowedHosts: string[];
 };
 
 export type GatewayAuthResult = {
@@ -114,6 +116,111 @@ export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: str
   return (hostIsLocal || hostIsTailscaleServe) && (!hasForwarded || remoteIsTrustedProxy);
 }
 
+/**
+ * Validate the Host header against a list of allowed hosts.
+ * This protects against DNS rebinding attacks by rejecting requests
+ * where the Host header doesn't match expected values.
+ *
+ * @param req - The incoming HTTP request
+ * @param allowedHosts - List of allowed Host header values (without port)
+ * @returns Object with validation result and the extracted hostname
+ */
+function getHostName(hostHeader?: string): string {
+  const host = (hostHeader ?? "").trim().toLowerCase();
+  if (!host) {
+    return "";
+  }
+  if (host.startsWith("[")) {
+    const end = host.indexOf("]");
+    if (end !== -1) {
+      return host.slice(1, end);
+    }
+  }
+  const [name] = host.split(":");
+  return name ?? "";
+}
+
+export function validateHostHeader(
+  req?: IncomingMessage,
+  allowedHosts?: string[],
+): { valid: boolean; host: string; reason?: string } {
+  if (!req) {
+    return { valid: false, host: "", reason: "no_request" };
+  }
+
+  const host = getHostName(req.headers?.host);
+  if (!host) {
+    return { valid: false, host: "", reason: "host_missing" };
+  }
+
+  // Fail secure: if no allowed hosts configured, reject all requests.
+  // This prevents accidental security bypass from misconfiguration.
+  // Callers should always use resolveGatewayAuth() which provides defaults.
+  if (!allowedHosts || allowedHosts.length === 0) {
+    return { valid: false, host, reason: "no_allowed_hosts_configured" };
+  }
+
+  // Check if host matches any allowed host (case-insensitive)
+  const normalizedHost = host.toLowerCase();
+  const isAllowed = allowedHosts.some((allowed) => {
+    const normalizedAllowed = allowed.toLowerCase();
+    // Exact match
+    if (normalizedHost === normalizedAllowed) {
+      return true;
+    }
+    // Allow .ts.net suffix for Tailscale
+    if (normalizedAllowed === "*.ts.net" && normalizedHost.endsWith(".ts.net")) {
+      return true;
+    }
+    return false;
+  });
+
+  if (!isAllowed) {
+    return {
+      valid: false,
+      host,
+      reason: "host_not_allowed",
+    };
+  }
+
+  return { valid: true, host };
+}
+
+/**
+ * Check if localhost trust should be applied for this request.
+ * Returns true only if:
+ * 1. trustLocalhost is explicitly enabled in config
+ * 2. The request passes isLocalDirectRequest checks
+ * 3. The Host header passes validation
+ *
+ * @param req - The incoming HTTP request
+ * @param auth - Resolved gateway auth config
+ * @param trustedProxies - List of trusted proxy IPs
+ */
+export function shouldTrustLocalhost(
+  req?: IncomingMessage,
+  auth?: ResolvedGatewayAuth,
+  trustedProxies?: string[],
+): boolean {
+  // Must be explicitly enabled
+  if (!auth?.trustLocalhost) {
+    return false;
+  }
+
+  // Must be a local direct request
+  if (!isLocalDirectRequest(req, trustedProxies)) {
+    return false;
+  }
+
+  // Host header must be valid (DNS rebinding protection)
+  const hostCheck = validateHostHeader(req, auth.allowedHosts);
+  if (!hostCheck.valid) {
+    return false;
+  }
+
+  return true;
+}
+
 function getTailscaleUser(req?: IncomingMessage): TailscaleUser | null {
   if (!req) {
     return null;
@@ -183,6 +290,9 @@ async function resolveVerifiedTailscaleUser(params: {
   };
 }
 
+/** Default allowed Host header values for DNS rebinding protection. */
+const DEFAULT_ALLOWED_HOSTS = ["localhost", "127.0.0.1", "::1"];
+
 export function resolveGatewayAuth(params: {
   authConfig?: GatewayAuthConfig | null;
   authOverride?: GatewayAuthConfig | null;
@@ -239,6 +349,10 @@ export function resolveGatewayAuth(params: {
   const allowTailscale =
     authConfig.allowTailscale ??
     (params.tailscaleMode === "serve" && mode !== "password" && mode !== "trusted-proxy");
+  // Default to false for zero-trust security model
+  const trustLocalhost = authConfig.trustLocalhost ?? false;
+  // Merge default allowed hosts with any user-configured ones
+  const allowedHosts = [...DEFAULT_ALLOWED_HOSTS, ...(authConfig.allowedHosts ?? [])];
 
   return {
     mode,
@@ -247,6 +361,8 @@ export function resolveGatewayAuth(params: {
     password,
     allowTailscale,
     trustedProxy,
+    trustLocalhost,
+    allowedHosts,
   };
 }
 

@@ -446,6 +446,8 @@ export const OpenClawSchema = z
               })
               .strict()
               .optional(),
+            trustLocalhost: z.boolean().optional(),
+            allowedHosts: z.array(z.string()).optional(),
           })
           .strict()
           .optional(),

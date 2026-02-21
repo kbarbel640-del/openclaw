@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
-import { authorizeGatewayConnect, resolveGatewayAuth } from "./auth.js";
+import {
+  authorizeGatewayConnect,
+  resolveGatewayAuth,
+  validateHostHeader,
+  shouldTrustLocalhost,
+  type ResolvedGatewayAuth,
+} from "./auth.js";
 
 function createLimiterSpy(): AuthRateLimiter & {
   check: ReturnType<typeof vi.fn>;
@@ -88,7 +94,13 @@ describe("gateway auth", () => {
 
   it("does not throw when req is missing socket", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: false },
+      auth: {
+        mode: "token",
+        token: "secret",
+        allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
+      },
       connectAuth: { token: "secret" },
       // Regression: avoid crashing on req.socket.remoteAddress when callers pass a non-IncomingMessage.
       req: {} as never,
@@ -98,14 +110,26 @@ describe("gateway auth", () => {
 
   it("reports missing and mismatched token reasons", async () => {
     const missing = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: false },
+      auth: {
+        mode: "token",
+        token: "secret",
+        allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
+      },
       connectAuth: null,
     });
     expect(missing.ok).toBe(false);
     expect(missing.reason).toBe("token_missing");
 
     const mismatch = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: false },
+      auth: {
+        mode: "token",
+        token: "secret",
+        allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
+      },
       connectAuth: { token: "wrong" },
     });
     expect(mismatch.ok).toBe(false);
@@ -114,7 +138,7 @@ describe("gateway auth", () => {
 
   it("reports missing token config reason", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", allowTailscale: false },
+      auth: { mode: "token", allowTailscale: false, trustLocalhost: false, allowedHosts: [] },
       connectAuth: { token: "anything" },
     });
     expect(res.ok).toBe(false);
@@ -123,7 +147,7 @@ describe("gateway auth", () => {
 
   it("allows explicit auth mode none", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "none", allowTailscale: false },
+      auth: { mode: "none", allowTailscale: false, trustLocalhost: false, allowedHosts: [] },
       connectAuth: null,
     });
     expect(res.ok).toBe(true);
@@ -151,14 +175,26 @@ describe("gateway auth", () => {
 
   it("reports missing and mismatched password reasons", async () => {
     const missing = await authorizeGatewayConnect({
-      auth: { mode: "password", password: "secret", allowTailscale: false },
+      auth: {
+        mode: "password",
+        password: "secret",
+        allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
+      },
       connectAuth: null,
     });
     expect(missing.ok).toBe(false);
     expect(missing.reason).toBe("password_missing");
 
     const mismatch = await authorizeGatewayConnect({
-      auth: { mode: "password", password: "secret", allowTailscale: false },
+      auth: {
+        mode: "password",
+        password: "secret",
+        allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
+      },
       connectAuth: { password: "wrong" },
     });
     expect(mismatch.ok).toBe(false);
@@ -167,7 +203,7 @@ describe("gateway auth", () => {
 
   it("reports missing password config reason", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "password", allowTailscale: false },
+      auth: { mode: "password", allowTailscale: false, trustLocalhost: false, allowedHosts: [] },
       connectAuth: { password: "secret" },
     });
     expect(res.ok).toBe(false);
@@ -176,7 +212,13 @@ describe("gateway auth", () => {
 
   it("treats local tailscale serve hostnames as direct", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: true },
+      auth: {
+        mode: "token",
+        token: "secret",
+        allowTailscale: true,
+        trustLocalhost: false,
+        allowedHosts: [],
+      },
       connectAuth: { token: "secret" },
       req: {
         socket: { remoteAddress: "127.0.0.1" },
@@ -190,7 +232,13 @@ describe("gateway auth", () => {
 
   it("allows tailscale identity to satisfy token mode auth", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: true },
+      auth: {
+        mode: "token",
+        token: "secret",
+        allowTailscale: true,
+        trustLocalhost: false,
+        allowedHosts: [],
+      },
       connectAuth: null,
       tailscaleWhois: async () => ({ login: "peter", name: "Peter" }),
       req: {
@@ -214,7 +262,13 @@ describe("gateway auth", () => {
   it("uses proxy-aware request client IP by default for rate-limit checks", async () => {
     const limiter = createLimiterSpy();
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: false },
+      auth: {
+        mode: "token",
+        token: "secret",
+        allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
+      },
       connectAuth: { token: "wrong" },
       req: {
         socket: { remoteAddress: "127.0.0.1" },
@@ -233,7 +287,13 @@ describe("gateway auth", () => {
   it("passes custom rate-limit scope to limiter operations", async () => {
     const limiter = createLimiterSpy();
     const res = await authorizeGatewayConnect({
-      auth: { mode: "password", password: "secret", allowTailscale: false },
+      auth: {
+        mode: "password",
+        password: "secret",
+        allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
+      },
       connectAuth: { password: "wrong" },
       rateLimiter: limiter,
       rateLimitScope: "custom-scope",
@@ -264,6 +324,8 @@ describe("trusted-proxy auth", () => {
       auth: options?.auth ?? {
         mode: "trusted-proxy",
         allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
         trustedProxy: trustedProxyConfig,
       },
       connectAuth: null,
@@ -331,6 +393,8 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
         trustedProxy: {
           userHeader: "x-forwarded-user",
           allowUsers: ["admin@example.com", "nick@example.com"],
@@ -350,6 +414,8 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
         trustedProxy: {
           userHeader: "x-forwarded-user",
           allowUsers: ["admin@example.com", "nick@example.com"],
@@ -382,6 +448,8 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
       },
       headers: {
         "x-forwarded-user": "nick@example.com",
@@ -397,6 +465,8 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
         trustedProxy: {
           userHeader: "x-pomerium-claim-email",
           requiredHeaders: ["x-pomerium-jwt-assertion"],
@@ -420,6 +490,8 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        trustLocalhost: false,
+        allowedHosts: [],
         trustedProxy: {
           userHeader: "x-forwarded-user",
         },
@@ -431,5 +503,111 @@ describe("trusted-proxy auth", () => {
 
     expect(res.ok).toBe(true);
     expect(res.user).toBe("nick@example.com");
+  });
+});
+
+describe("validateHostHeader", () => {
+  it("rejects missing request", () => {
+    const result = validateHostHeader(undefined, ["localhost"]);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("no_request");
+  });
+
+  it("rejects missing host header", () => {
+    const result = validateHostHeader({ headers: {} } as never, ["localhost"]);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("host_missing");
+  });
+
+  it("accepts localhost when in allowed list", () => {
+    const result = validateHostHeader({ headers: { host: "localhost:3000" } } as never, [
+      "localhost",
+      "127.0.0.1",
+    ]);
+    expect(result.valid).toBe(true);
+    expect(result.host).toBe("localhost");
+  });
+
+  it("rejects host not in allowed list (DNS rebinding protection)", () => {
+    const result = validateHostHeader({ headers: { host: "evil.attacker.com" } } as never, [
+      "localhost",
+      "127.0.0.1",
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("host_not_allowed");
+    expect(result.host).toBe("evil.attacker.com");
+  });
+
+  it("allows tailscale hosts with wildcard pattern", () => {
+    const result = validateHostHeader(
+      { headers: { host: "myhost.tailnet-abc.ts.net:443" } } as never,
+      ["localhost", "*.ts.net"],
+    );
+    expect(result.valid).toBe(true);
+    expect(result.host).toBe("myhost.tailnet-abc.ts.net");
+  });
+
+  it("rejects all hosts when allowed list is empty (fail secure)", () => {
+    const result = validateHostHeader({ headers: { host: "anything.com" } } as never, []);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("no_allowed_hosts_configured");
+  });
+});
+
+describe("shouldTrustLocalhost", () => {
+  const makeAuth = (trustLocalhost: boolean): ResolvedGatewayAuth => ({
+    mode: "token",
+    token: "secret",
+    allowTailscale: false,
+    trustLocalhost,
+    allowedHosts: ["localhost", "127.0.0.1", "::1"],
+  });
+
+  it("returns false when trustLocalhost is disabled (default)", () => {
+    const result = shouldTrustLocalhost(
+      {
+        socket: { remoteAddress: "127.0.0.1" },
+        headers: { host: "localhost:3000" },
+      } as never,
+      makeAuth(false),
+      [],
+    );
+    expect(result).toBe(false);
+  });
+
+  it("returns true only when trustLocalhost is explicitly enabled", () => {
+    const result = shouldTrustLocalhost(
+      {
+        socket: { remoteAddress: "127.0.0.1" },
+        headers: { host: "localhost:3000" },
+      } as never,
+      makeAuth(true),
+      [],
+    );
+    expect(result).toBe(true);
+  });
+
+  it("returns false for remote connections even with trustLocalhost enabled", () => {
+    const result = shouldTrustLocalhost(
+      {
+        socket: { remoteAddress: "203.0.113.1" },
+        headers: { host: "localhost:3000" },
+      } as never,
+      makeAuth(true),
+      [],
+    );
+    expect(result).toBe(false);
+  });
+
+  it("returns false when Host header fails validation (DNS rebinding)", () => {
+    const result = shouldTrustLocalhost(
+      {
+        socket: { remoteAddress: "127.0.0.1" },
+        headers: { host: "evil.attacker.com" },
+      } as never,
+      makeAuth(true),
+      [],
+    );
+    expect(result).toBe(false);
   });
 });

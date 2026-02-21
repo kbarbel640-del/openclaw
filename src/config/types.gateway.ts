@@ -119,6 +119,18 @@ export type GatewayAuthConfig = {
    * Required when mode is "trusted-proxy".
    */
   trustedProxy?: GatewayTrustedProxyConfig;
+  /**
+   * Trust localhost connections without token authentication (default: false).
+   * WARNING: Enabling this weakens security and exposes the gateway to DNS rebinding
+   * and other localhost-based attacks. Only enable if you understand the risks.
+   */
+  trustLocalhost?: boolean;
+  /**
+   * Allowed Host header values for incoming requests.
+   * Requests with Host headers not in this list will be rejected (DNS rebinding protection).
+   * Default: ["localhost", "127.0.0.1", "::1"] plus any configured Tailscale hostnames.
+   */
+  allowedHosts?: string[];
 };
 
 export type GatewayAuthRateLimitConfig = {

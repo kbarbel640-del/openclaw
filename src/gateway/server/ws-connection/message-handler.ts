@@ -30,7 +30,7 @@ import {
   type AuthRateLimiter,
 } from "../../auth-rate-limit.js";
 import type { GatewayAuthResult, ResolvedGatewayAuth } from "../../auth.js";
-import { authorizeGatewayConnect, isLocalDirectRequest } from "../../auth.js";
+import { authorizeGatewayConnect, isLocalDirectRequest, validateHostHeader } from "../../auth.js";
 import {
   buildCanvasScopedHostUrl,
   CANVAS_CAPABILITY_TTL_MS,
@@ -152,6 +152,19 @@ export function attachGatewayWsMessageHandler(params: {
   const hostIsTailscaleServe = hostName.endsWith(".ts.net");
   const hostIsLocalish = hostIsLocal || hostIsTailscaleServe;
   const isLocalClient = isLocalDirectRequest(upgradeReq, trustedProxies);
+
+  // Validate Host header to protect against DNS rebinding attacks.
+  // This check runs even for local clients as an additional defense layer.
+  const hostValidation = validateHostHeader(upgradeReq, resolvedAuth.allowedHosts);
+  if (!hostValidation.valid) {
+    logWsControl.warn(
+      `Rejected connection with invalid Host header: ${hostValidation.host || "(empty)"} ` +
+        `(reason: ${hostValidation.reason}). Possible DNS rebinding attack.`,
+    );
+    close(1008, "invalid host header");
+    return;
+  }
+
   const reportedClientIp =
     isLocalClient || hasUntrustedProxyHeaders
       ? undefined
@@ -488,6 +501,9 @@ export function attachGatewayWsMessageHandler(params: {
             close(1008, "device signature expired");
             return;
           }
+          // Nonce is required for remote clients. Local clients (determined by
+          // isLocalDirectRequest) can skip the nonce for backward compatibility,
+          // but still must pass Host header validation (DNS rebinding protection).
           const nonceRequired = !isLocalClient;
           const providedNonce = typeof device.nonce === "string" ? device.nonce.trim() : "";
           if (nonceRequired && !providedNonce) {
