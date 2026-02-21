@@ -1101,4 +1101,41 @@ export const WatiConfigSchema = WatiAccountSchemaBase.extend({
     path: ["allowFrom"],
     message: 'channels.wati.dmPolicy="open" requires channels.wati.allowFrom to include "*"',
   });
+
+  const baseWebhookUrl = typeof value.webhookUrl === "string" ? value.webhookUrl.trim() : "";
+  const baseWebhookSecret =
+    typeof value.webhookSecret === "string" ? value.webhookSecret.trim() : "";
+  if (baseWebhookUrl && !baseWebhookSecret) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "channels.wati.webhookUrl requires channels.wati.webhookSecret",
+      path: ["webhookSecret"],
+    });
+  }
+  if (!value.accounts) {
+    return;
+  }
+  for (const [accountId, account] of Object.entries(value.accounts)) {
+    if (!account) {
+      continue;
+    }
+    if (account.enabled === false) {
+      continue;
+    }
+    const accountWebhookUrl =
+      typeof account.webhookUrl === "string" ? account.webhookUrl.trim() : "";
+    if (!accountWebhookUrl) {
+      continue;
+    }
+    const accountSecret =
+      typeof account.webhookSecret === "string" ? account.webhookSecret.trim() : "";
+    if (!accountSecret && !baseWebhookSecret) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "channels.wati.accounts.*.webhookUrl requires channels.wati.webhookSecret or channels.wati.accounts.*.webhookSecret",
+        path: ["accounts", accountId, "webhookSecret"],
+      });
+    }
+  }
 });

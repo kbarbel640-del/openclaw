@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import * as http from "node:http";
 
 export type WatiInboundMessage = {
@@ -38,7 +39,7 @@ export function startWatiWebhook(opts: WatiWebhookOpts): {
     }
 
     if (req.method === "POST") {
-      handleIncoming(req, res, opts.onMessage);
+      handleIncoming(req, res, opts.onMessage, opts.webhookSecret);
       return;
     }
 
@@ -81,12 +82,28 @@ function handleIncoming(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   onMessage: (msg: WatiInboundMessage) => void,
+  webhookSecret?: string,
 ): void {
   let body = "";
   req.on("data", (chunk: Buffer) => {
     body += chunk.toString();
   });
   req.on("end", () => {
+    // Validate webhook signature when a secret is configured
+    if (webhookSecret) {
+      const signature = req.headers["x-hub-signature-256"] || req.headers["x-wati-signature"];
+      if (!signature) {
+        res.writeHead(401).end("Missing signature");
+        return;
+      }
+      const expected =
+        "sha256=" + crypto.createHmac("sha256", webhookSecret).update(body).digest("hex");
+      if (!crypto.timingSafeEqual(Buffer.from(String(signature)), Buffer.from(expected))) {
+        res.writeHead(403).end("Invalid signature");
+        return;
+      }
+    }
+
     res.writeHead(200).end("ok");
 
     try {
@@ -111,6 +128,8 @@ function handleIncoming(
         (payload.pushName as string) ||
         "";
       const timestamp = payload.timestamp || payload.created || "";
+      // WATI API uses different field names across versions:
+      //   fromMe (v2+), from_me (v1 legacy), owner (older webhook format)
       const fromMe = payload.fromMe ?? payload.from_me ?? payload.owner ?? false;
       const messageType = (payload.type as string) || (payload.messageType as string) || "text";
 
