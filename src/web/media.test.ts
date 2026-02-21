@@ -1,13 +1,12 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { resolveStateDir } from "../config/paths.js";
 import { sendVoiceMessageDiscord } from "../discord/send.js";
 import * as ssrf from "../infra/net/ssrf.js";
+import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
 import { optimizeImageToPng } from "../media/image-ops.js";
-import { captureEnv } from "../test-utils/env.js";
 import {
   LocalMediaAccessError,
   loadWebMedia,
@@ -27,7 +26,6 @@ let alphaPngFile = "";
 let fallbackPngBuffer: Buffer;
 let fallbackPngFile = "";
 let fallbackPngCap = 0;
-let stateDirSnapshot: ReturnType<typeof captureEnv>;
 
 async function writeTempFile(buffer: Buffer, ext: string): Promise<string> {
   const file = path.join(fixtureRoot, `media-${fixtureFileCount++}${ext}`);
@@ -50,13 +48,9 @@ async function createLargeTestJpeg(): Promise<{ buffer: Buffer; file: string }> 
 }
 
 beforeAll(async () => {
-  stateDirSnapshot = captureEnv(["OPENCLAW_STATE_DIR"]);
-  const testStateDir = path.join(os.tmpdir(), "openclaw-media-state-test");
-  process.env.OPENCLAW_STATE_DIR = testStateDir;
-
-  const mediaRoot = path.join(testStateDir, "media");
-  await fs.mkdir(mediaRoot, { recursive: true });
-  fixtureRoot = await fs.mkdtemp(path.join(mediaRoot, "openclaw-media-test-"));
+  fixtureRoot = await fs.mkdtemp(
+    path.join(resolvePreferredOpenClawTmpDir(), "openclaw-media-test-"),
+  );
   largeJpegBuffer = await sharp({
     create: {
       width: 400,
@@ -105,7 +99,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await fs.rm(fixtureRoot, { recursive: true, force: true });
-  stateDirSnapshot.restore();
   if (global.gc) {
     global.gc();
   }
@@ -335,7 +328,9 @@ describe("local media root guard", () => {
   });
 
   it("allows local paths under an explicit root", async () => {
-    const result = await loadWebMedia(tinyPngFile, 1024 * 1024, { localRoots: [os.tmpdir()] });
+    const result = await loadWebMedia(tinyPngFile, 1024 * 1024, {
+      localRoots: [resolvePreferredOpenClawTmpDir()],
+    });
     expect(result.kind).toBe("image");
   });
 
