@@ -61,7 +61,7 @@ import {
   compactWithSafetyTimeout,
   EMBEDDED_COMPACTION_TIMEOUT_MS,
 } from "./compaction-safety-timeout.js";
-import { buildEmbeddedExtensionPaths } from "./extensions.js";
+import { buildEmbeddedExtensionFactories } from "./extensions.js";
 import {
   logToolSchemasForGoogle,
   sanitizeSessionHistory,
@@ -534,24 +534,24 @@ export async function compactEmbeddedPiSessionDirect(
         settingsManager,
         cfg: params.config,
       });
-      // Sets compaction/pruning runtime state and returns extension paths
+      // Sets compaction/pruning runtime state and returns extension factories
       // that must be passed to the resource loader for the safeguard to be active.
-      const extensionPaths = buildEmbeddedExtensionPaths({
+      const extensionFactories = buildEmbeddedExtensionFactories({
         cfg: params.config,
         sessionManager,
         provider,
         modelId,
         model,
       });
-      // Only create an explicit resource loader when there are extension paths
+      // Only create an explicit resource loader when there are extension factories
       // to register; otherwise let createAgentSession use its built-in default.
       let resourceLoader: DefaultResourceLoader | undefined;
-      if (extensionPaths.length > 0) {
+      if (extensionFactories.length > 0) {
         resourceLoader = new DefaultResourceLoader({
           cwd: resolvedWorkspace,
           agentDir,
           settingsManager,
-          additionalExtensionPaths: extensionPaths,
+          extensionFactories,
         });
         await resourceLoader.reload();
       }

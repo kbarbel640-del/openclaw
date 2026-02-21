@@ -75,7 +75,7 @@ import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
 import { isRunnerAbortError } from "../abort.js";
 import { appendCacheTtlTimestamp, isCacheTtlEligibleProvider } from "../cache-ttl.js";
-import { buildEmbeddedExtensionPaths } from "../extensions.js";
+import { buildEmbeddedExtensionFactories } from "../extensions.js";
 import { applyExtraParamsToAgent } from "../extra-params.js";
 import {
   logToolSchemasForGoogle,
@@ -539,24 +539,24 @@ export async function runEmbeddedAttempt(
         cfg: params.config,
       });
 
-      // Sets compaction/pruning runtime state and returns extension paths
+      // Sets compaction/pruning runtime state and returns extension factories
       // that must be passed to the resource loader for the safeguard to be active.
-      const extensionPaths = buildEmbeddedExtensionPaths({
+      const extensionFactories = buildEmbeddedExtensionFactories({
         cfg: params.config,
         sessionManager,
         provider: params.provider,
         modelId: params.modelId,
         model: params.model,
       });
-      // Only create an explicit resource loader when there are extension paths
+      // Only create an explicit resource loader when there are extension factories
       // to register; otherwise let createAgentSession use its built-in default.
       let resourceLoader: DefaultResourceLoader | undefined;
-      if (extensionPaths.length > 0) {
+      if (extensionFactories.length > 0) {
         resourceLoader = new DefaultResourceLoader({
           cwd: resolvedWorkspace,
           agentDir,
           settingsManager,
-          additionalExtensionPaths: extensionPaths,
+          extensionFactories,
         });
         await resourceLoader.reload();
       }
