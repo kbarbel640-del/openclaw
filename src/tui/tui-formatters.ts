@@ -1,5 +1,4 @@
 import { formatRawAssistantErrorForUi } from "../agents/pi-embedded-helpers.js";
-import { stripInboundMetadataBlocks } from "../shared/chat-envelope.js";
 import { stripAnsi } from "../terminal/ansi.js";
 import { formatTokenCount } from "../utils/usage-format.js";
 
@@ -11,6 +10,32 @@ const BINARY_LINE_REPLACEMENT_THRESHOLD = 12;
 const URL_PREFIX_RE = /^(https?:\/\/|file:\/\/)/i;
 const WINDOWS_DRIVE_RE = /^[a-zA-Z]:[\\/]/;
 const FILE_LIKE_RE = /^[a-zA-Z0-9._-]+$/;
+const REGEX_ESCAPE_RE = /[.*+?^${}()|[\]\\-]/g;
+const INBOUND_METADATA_HEADERS = [
+  "Conversation info (untrusted metadata):",
+  "Sender (untrusted metadata):",
+  "Thread starter (untrusted, for context):",
+  "Replied message (untrusted, for context):",
+  "Forwarded message context (untrusted metadata):",
+  "Chat history since last reply (untrusted, for context):",
+];
+const INBOUND_METADATA_PREFIX_RE = new RegExp(
+  "^\\s*(?:" +
+    INBOUND_METADATA_HEADERS.map((header) => header.replace(REGEX_ESCAPE_RE, "\\$&")).join("|") +
+    ")\\r?\\n```json\\r?\\n[\\s\\S]*?\\r?\\n```(?:\\r?\\n)*",
+);
+
+function stripInboundMetadataPrefixOnly(text: string): string {
+  let remaining = text;
+  for (;;) {
+    const match = INBOUND_METADATA_PREFIX_RE.exec(remaining);
+    if (!match) {
+      break;
+    }
+    remaining = remaining.slice(match[0].length).replace(/^\r?\n+/, "");
+  }
+  return remaining.trim();
+}
 
 function hasControlChars(text: string): boolean {
   for (const char of text) {
@@ -275,7 +300,9 @@ export function extractTextFromMessage(
   const text = extractTextBlocks(record.content, opts);
   if (text) {
     if (record.role === "user") {
-      return stripInboundMetadataBlocks(text);
+      // Only strip known AI-facing metadata blocks when they are prepended.
+      // If users type similar text later in the message, preserve it.
+      return stripInboundMetadataPrefixOnly(text);
     }
     return text;
   }
