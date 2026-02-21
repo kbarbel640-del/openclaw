@@ -2,39 +2,41 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { captureEnv } from "../test-utils/env.js";
 import { startGatewayServer } from "./server.js";
+import { extractPayloadText } from "./test-helpers.agent-results.js";
 import {
   connectDeviceAuthReq,
   connectGatewayClient,
   getFreeGatewayPort,
+  startGatewayWithClient,
 } from "./test-helpers.e2e.js";
 import { installOpenAiResponsesMock } from "./test-helpers.openai-mock.js";
+import { buildOpenAiResponsesProviderConfig } from "./test-openai-responses-model.js";
 
-function extractPayloadText(result: unknown): string {
-  const record = result as Record<string, unknown>;
-  const payloads = Array.isArray(record.payloads) ? record.payloads : [];
-  const texts = payloads
-    .map((p) => (p && typeof p === "object" ? (p as Record<string, unknown>).text : undefined))
-    .filter((t): t is string => typeof t === "string" && t.trim().length > 0);
-  return texts.join("\n").trim();
-}
+let writeConfigFile: typeof import("../config/config.js").writeConfigFile;
+let resolveConfigPath: typeof import("../config/config.js").resolveConfigPath;
 
 describe("gateway e2e", () => {
+  beforeAll(async () => {
+    ({ writeConfigFile, resolveConfigPath } = await import("../config/config.js"));
+  });
+
   it(
     "runs a mock OpenAI tool call end-to-end via gateway agent loop",
     { timeout: 90_000 },
     async () => {
-      const prev = {
-        home: process.env.HOME,
-        configPath: process.env.OPENCLAW_CONFIG_PATH,
-        token: process.env.OPENCLAW_GATEWAY_TOKEN,
-        skipChannels: process.env.OPENCLAW_SKIP_CHANNELS,
-        skipGmail: process.env.OPENCLAW_SKIP_GMAIL_WATCHER,
-        skipCron: process.env.OPENCLAW_SKIP_CRON,
-        skipCanvas: process.env.OPENCLAW_SKIP_CANVAS_HOST,
-        skipBrowser: process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER,
-      };
+      const envSnapshot = captureEnv([
+        "HOME",
+        "OPENCLAW_CONFIG_PATH",
+        "OPENCLAW_GATEWAY_TOKEN",
+        "OPENCLAW_SKIP_CHANNELS",
+        "OPENCLAW_SKIP_GMAIL_WATCHER",
+        "OPENCLAW_SKIP_CRON",
+        "OPENCLAW_SKIP_CANVAS_HOST",
+        "OPENCLAW_SKIP_BROWSER_CONTROL_SERVER",
+      ]);
 
       const { baseUrl: openaiBaseUrl, restore } = installOpenAiResponsesMock();
 
@@ -66,40 +68,15 @@ describe("gateway e2e", () => {
         models: {
           mode: "replace",
           providers: {
-            openai: {
-              baseUrl: openaiBaseUrl,
-              apiKey: "test",
-              api: "openai-responses",
-              models: [
-                {
-                  id: "gpt-5.2",
-                  name: "gpt-5.2",
-                  api: "openai-responses",
-                  reasoning: false,
-                  input: ["text"],
-                  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-                  contextWindow: 128_000,
-                  maxTokens: 4096,
-                },
-              ],
-            },
+            openai: buildOpenAiResponsesProviderConfig(openaiBaseUrl),
           },
         },
         gateway: { auth: { token } },
       };
 
-      await fs.writeFile(configPath, `${JSON.stringify(cfg, null, 2)}\n`);
-      process.env.OPENCLAW_CONFIG_PATH = configPath;
-
-      const port = await getFreeGatewayPort();
-      const server = await startGatewayServer(port, {
-        bind: "loopback",
-        auth: { mode: "token", token },
-        controlUiEnabled: false,
-      });
-
-      const client = await connectGatewayClient({
-        url: `ws://127.0.0.1:${port}`,
+      const { server, client } = await startGatewayWithClient({
+        cfg,
+        configPath,
         token,
         clientDisplayName: "vitest-mock-openai",
       });
@@ -138,30 +115,23 @@ describe("gateway e2e", () => {
         await server.close({ reason: "mock openai test complete" });
         await fs.rm(tempHome, { recursive: true, force: true });
         restore();
-        process.env.HOME = prev.home;
-        process.env.OPENCLAW_CONFIG_PATH = prev.configPath;
-        process.env.OPENCLAW_GATEWAY_TOKEN = prev.token;
-        process.env.OPENCLAW_SKIP_CHANNELS = prev.skipChannels;
-        process.env.OPENCLAW_SKIP_GMAIL_WATCHER = prev.skipGmail;
-        process.env.OPENCLAW_SKIP_CRON = prev.skipCron;
-        process.env.OPENCLAW_SKIP_CANVAS_HOST = prev.skipCanvas;
-        process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER = prev.skipBrowser;
+        envSnapshot.restore();
       }
     },
   );
 
   it("runs wizard over ws and writes auth token config", { timeout: 90_000 }, async () => {
-    const prev = {
-      home: process.env.HOME,
-      stateDir: process.env.OPENCLAW_STATE_DIR,
-      configPath: process.env.OPENCLAW_CONFIG_PATH,
-      token: process.env.OPENCLAW_GATEWAY_TOKEN,
-      skipChannels: process.env.OPENCLAW_SKIP_CHANNELS,
-      skipGmail: process.env.OPENCLAW_SKIP_GMAIL_WATCHER,
-      skipCron: process.env.OPENCLAW_SKIP_CRON,
-      skipCanvas: process.env.OPENCLAW_SKIP_CANVAS_HOST,
-      skipBrowser: process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER,
-    };
+    const envSnapshot = captureEnv([
+      "HOME",
+      "OPENCLAW_STATE_DIR",
+      "OPENCLAW_CONFIG_PATH",
+      "OPENCLAW_GATEWAY_TOKEN",
+      "OPENCLAW_SKIP_CHANNELS",
+      "OPENCLAW_SKIP_GMAIL_WATCHER",
+      "OPENCLAW_SKIP_CRON",
+      "OPENCLAW_SKIP_CANVAS_HOST",
+      "OPENCLAW_SKIP_BROWSER_CONTROL_SERVER",
+    ]);
 
     process.env.OPENCLAW_SKIP_CHANNELS = "1";
     process.env.OPENCLAW_SKIP_GMAIL_WATCHER = "1";
@@ -185,7 +155,6 @@ describe("gateway e2e", () => {
         await prompter.intro("Wizard E2E");
         await prompter.note("write token");
         const token = await prompter.text({ message: "token" });
-        const { writeConfigFile } = await import("../config/config.js");
         await writeConfigFile({
           gateway: { auth: { mode: "token", token: String(token) } },
         });
@@ -233,7 +202,6 @@ describe("gateway e2e", () => {
       expect(didSendToken).toBe(true);
       expect(next.status).toBe("done");
 
-      const { resolveConfigPath } = await import("../config/config.js");
       const parsed = JSON.parse(await fs.readFile(resolveConfigPath(), "utf8"));
       const token = (parsed as Record<string, unknown>)?.gateway as
         | Record<string, unknown>
@@ -264,15 +232,7 @@ describe("gateway e2e", () => {
     } finally {
       await server2.close({ reason: "wizard auth verify" });
       await fs.rm(tempHome, { recursive: true, force: true });
-      process.env.HOME = prev.home;
-      process.env.OPENCLAW_STATE_DIR = prev.stateDir;
-      process.env.OPENCLAW_CONFIG_PATH = prev.configPath;
-      process.env.OPENCLAW_GATEWAY_TOKEN = prev.token;
-      process.env.OPENCLAW_SKIP_CHANNELS = prev.skipChannels;
-      process.env.OPENCLAW_SKIP_GMAIL_WATCHER = prev.skipGmail;
-      process.env.OPENCLAW_SKIP_CRON = prev.skipCron;
-      process.env.OPENCLAW_SKIP_CANVAS_HOST = prev.skipCanvas;
-      process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER = prev.skipBrowser;
+      envSnapshot.restore();
     }
   });
 });
