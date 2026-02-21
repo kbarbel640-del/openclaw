@@ -213,6 +213,12 @@ importers:
       oxlint-tsgolint:
         specifier: ^0.14.1
         version: 0.14.1
+      rolldown:
+        specifier: 1.0.0-rc.5
+        version: 1.0.0-rc.5
+      signal-utils:
+        specifier: ^0.21.1
+        version: 0.21.1(signal-polyfill@0.2.2)
       tsdown:
         specifier: ^0.20.3
         version: 0.20.3(@typescript/native-preview@7.0.0-dev.20260219.1)(typescript@5.9.3)
