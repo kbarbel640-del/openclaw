@@ -215,7 +215,7 @@ describe("tts", () => {
 
   describe("parseTtsDirectives", () => {
     it("extracts overrides and strips directives when enabled", () => {
-      const policy = resolveModelOverridePolicy({ enabled: true, allowProvider: true });
+      const policy = resolveModelOverridePolicy({ enabled: true });
       const input =
         "Hello [[tts:provider=elevenlabs voiceId=pMsXgVXv3BLzUgSXRplE stability=0.4 speed=1.1]] world\n\n" +
         "[[tts:text]](laughs) Read the song once more.[[/tts:text]]";
@@ -230,20 +230,19 @@ describe("tts", () => {
     });
 
     it("accepts edge as provider override", () => {
-      const policy = resolveModelOverridePolicy({ enabled: true, allowProvider: true });
+      const policy = resolveModelOverridePolicy({ enabled: true });
       const input = "Hello [[tts:provider=edge]] world";
       const result = parseTtsDirectives(input, policy);
 
       expect(result.overrides.provider).toBe("edge");
     });
 
-    it("rejects provider override by default while keeping voice overrides enabled", () => {
+    it("accepts qwen as provider override", () => {
       const policy = resolveModelOverridePolicy({ enabled: true });
-      const input = "Hello [[tts:provider=edge voice=alloy]] world";
+      const input = "Hello [[tts:provider=qwen]] world";
       const result = parseTtsDirectives(input, policy);
 
-      expect(result.overrides.provider).toBeUndefined();
-      expect(result.overrides.openai?.voice).toBe("alloy");
+      expect(result.overrides.provider).toBe("qwen");
     });
 
     it("keeps text intact when overrides are disabled", () => {
@@ -441,6 +440,24 @@ describe("tts", () => {
           const config = resolveTtsConfig(baseCfg);
           const provider = getTtsProvider(config, "/tmp/tts-prefs-edge.json");
           expect(provider).toBe("edge");
+        },
+      );
+    });
+
+    it("prefers Qwen when enabled and no API keys are present", () => {
+      withEnv(
+        {
+          OPENAI_API_KEY: undefined,
+          ELEVENLABS_API_KEY: undefined,
+          XI_API_KEY: undefined,
+        },
+        () => {
+          const config = resolveTtsConfig({
+            ...baseCfg,
+            messages: { tts: { qwen: { enabled: true } } },
+          });
+          const provider = getTtsProvider(config, "/tmp/tts-prefs-qwen.json");
+          expect(provider).toBe("qwen");
         },
       );
     });

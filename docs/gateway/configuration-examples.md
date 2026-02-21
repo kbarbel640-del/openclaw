@@ -460,6 +460,30 @@ Save to `~/.openclaw/openclaw.json` and you can DM the bot from that number.
 }
 ```
 
+### Dolt context engine by agent
+
+```json5
+{
+  plugins: {
+    slots: {
+      // Slot fallback when no agent-specific selection is set.
+      contextEngine: "legacy",
+    },
+  },
+  agents: {
+    defaults: {
+      // Default for agents that do not set their own contextEngine.
+      contextEngine: "legacy",
+    },
+    list: [
+      { id: "main", default: true, contextEngine: "dolt" },
+      { id: "ops", contextEngine: "dolt" },
+      { id: "safe", contextEngine: "legacy" },
+    ],
+  },
+}
+```
+
 ### Secure DM mode (shared inbox / multi-user DMs)
 
 If more than one person can DM your bot (multiple entries in `allowFrom`, pairing approvals for multiple people, or `dmPolicy: "open"`), enable **secure DM mode** so DMs from different senders don’t share one context by default:

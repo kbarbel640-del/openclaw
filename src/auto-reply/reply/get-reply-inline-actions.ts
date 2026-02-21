@@ -248,7 +248,7 @@ export async function handleInlineActions(params: {
     if (!opts?.onBlockReply) {
       return;
     }
-    await opts.onBlockReply(reply);
+    await opts.onBlockReply({ ...reply, skipTts: true });
   };
 
   const inlineCommand =

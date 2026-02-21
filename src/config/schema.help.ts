@@ -17,6 +17,10 @@ export const FIELD_HELP: Record<string, string> = {
     "Optional allowlist of skills for this agent (omit = all skills; empty = no skills).",
   "agents.list[].identity.avatar":
     "Avatar image path (relative to the agent workspace only) or a remote URL/data URL.",
+  "agents.list.*.contextEngine":
+    "Context-engine plugin id for this agent. Overrides agents.defaults.contextEngine and plugins.slots.contextEngine.",
+  "agents.list[].contextEngine":
+    "Context-engine plugin id for this agent. Overrides agents.defaults.contextEngine and plugins.slots.contextEngine.",
   "agents.defaults.heartbeat.suppressToolErrorWarnings":
     "Suppress tool error warning payloads during heartbeat runs.",
   "agents.list[].heartbeat.suppressToolErrorWarnings":
@@ -179,6 +183,8 @@ export const FIELD_HELP: Record<string, string> = {
     'Include absolute timestamps in message envelopes ("on" or "off").',
   "agents.defaults.envelopeElapsed": 'Include elapsed time in message envelopes ("on" or "off").',
   "agents.defaults.models": "Configured model catalog (keys are full provider/model IDs).",
+  "agents.defaults.contextEngine":
+    "Default context-engine plugin id for agents (overrides plugins.slots.contextEngine).",
   "agents.defaults.memorySearch":
     "Vector search over MEMORY.md and memory/*.md (per-agent overrides supported).",
   "agents.defaults.memorySearch.sources":
@@ -278,6 +284,10 @@ export const FIELD_HELP: Record<string, string> = {
     "Minimum appended bytes before session transcripts trigger reindex (default: 100000).",
   "agents.defaults.memorySearch.sync.sessions.deltaMessages":
     "Minimum appended JSONL lines before session transcripts trigger reindex (default: 50).",
+  "contextEngines.dolt.summarizerProvider":
+    'Provider for the Dolt summarizer model (e.g. "anthropic"). Falls back to the system default provider.',
+  "contextEngines.dolt.summarizerModel":
+    'Model id for the Dolt summarizer (e.g. "claude-sonnet-4-5-20241022"). Falls back to the system default model.',
   "plugins.enabled": "Enable plugin/extension loading (default: true).",
   "plugins.allow": "Optional allowlist of plugin ids; when set, only listed plugins load.",
   "plugins.deny": "Optional denylist of plugin ids; deny wins over allowlist.",
@@ -285,6 +295,7 @@ export const FIELD_HELP: Record<string, string> = {
   "plugins.slots": "Select which plugins own exclusive slots (memory, etc.).",
   "plugins.slots.memory":
     'Select the active memory plugin by id, or "none" to disable memory plugins.',
+  "plugins.slots.contextEngine": "Select the active context-engine plugin by id.",
   "plugins.entries": "Per-plugin settings keyed by plugin id (enable/disable + config payloads).",
   "plugins.entries.*.enabled": "Overrides plugin enable/disable for this entry (restart required).",
   "plugins.entries.*.config": "Plugin-defined config payload (schema is provided by the plugin).",

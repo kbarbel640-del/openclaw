@@ -433,6 +433,8 @@ export function buildAgentSystemPrompt(params: {
     "## Tooling",
     "Tool availability (filtered by policy):",
     "Tool names are case-sensitive. Call tools exactly as listed.",
+    "If the user asks for a tool and it's listed above, call it immediately.",
+    "If you're unsure whether a tool is available, attempt it once; report any tool error instead of guessing.",
     toolLines.length > 0
       ? toolLines.join("\n")
       : [

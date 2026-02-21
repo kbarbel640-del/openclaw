@@ -32,6 +32,11 @@ export type MonitorIMessageOpts = {
   dbPath?: string;
   accountId?: string;
   config?: OpenClawConfig;
+  /**
+   * Optional contact name resolver used to make envelope headers human-readable.
+   * Intended for tests and custom deployments; default behavior uses a best-effort macOS Contacts lookup.
+   */
+  resolveContactName?: (phone: string) => Promise<string | null>;
   allowFrom?: Array<string | number>;
   groupAllowFrom?: Array<string | number>;
   includeAttachments?: boolean;

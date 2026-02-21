@@ -13,6 +13,7 @@ export type OpenAiBatchRequest = {
   body: {
     model: string;
     input: string;
+    input_type?: "query" | "document";
   };
 };
 

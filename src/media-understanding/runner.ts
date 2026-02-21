@@ -262,6 +262,28 @@ async function resolveLocalWhisperEntry(): Promise<MediaUnderstandingModelConfig
   };
 }
 
+async function resolveLocalTranscribeScriptEntry(): Promise<MediaUnderstandingModelConfig | null> {
+  const envCommand = process.env.CLAWDBOT_AUDIO_TRANSCRIBE_COMMAND?.trim();
+  if (envCommand) {
+    if (!(await hasBinary(envCommand))) {
+      return null;
+    }
+    return {
+      type: "cli",
+      command: envCommand,
+      args: ["{{MediaPath}}"],
+    };
+  }
+  if (!(await hasBinary("transcribe.sh"))) {
+    return null;
+  }
+  return {
+    type: "cli",
+    command: "transcribe.sh",
+    args: ["{{MediaPath}}"],
+  };
+}
+
 async function resolveSherpaOnnxEntry(): Promise<MediaUnderstandingModelConfig | null> {
   if (!(await hasBinary("sherpa-onnx-offline"))) {
     return null;
@@ -300,6 +322,10 @@ async function resolveSherpaOnnxEntry(): Promise<MediaUnderstandingModelConfig |
 }
 
 async function resolveLocalAudioEntry(): Promise<MediaUnderstandingModelConfig | null> {
+  const transcribeScript = await resolveLocalTranscribeScriptEntry();
+  if (transcribeScript) {
+    return transcribeScript;
+  }
   const sherpa = await resolveSherpaOnnxEntry();
   if (sherpa) {
     return sherpa;

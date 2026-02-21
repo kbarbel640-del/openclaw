@@ -163,6 +163,12 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
   for (const handler of HANDLERS) {
     const result = await handler(params, allowTextCommands);
     if (result) {
+      if (result.reply) {
+        return {
+          ...result,
+          reply: { ...result.reply, skipTts: true },
+        };
+      }
       return result;
     }
   }

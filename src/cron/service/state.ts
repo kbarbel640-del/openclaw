@@ -87,6 +87,10 @@ export type CronServiceState = {
   store: CronStoreFile | null;
   timer: NodeJS.Timeout | null;
   running: boolean;
+  /** True while a cron job is executing (runIsolatedAgentJob / heartbeat wait).
+   *  When set, `locked()` skips the promise chain to prevent deadlock when the
+   *  executing job re-enters the cron service (e.g. agent calling `cron.add`). */
+  executingJob: boolean;
   op: Promise<unknown>;
   warnedDisabled: boolean;
   storeLoadedAtMs: number | null;
@@ -99,6 +103,7 @@ export function createCronServiceState(deps: CronServiceDeps): CronServiceState 
     store: null,
     timer: null,
     running: false,
+    executingJob: false,
     op: Promise.resolve(),
     warnedDisabled: false,
     storeLoadedAtMs: null,

@@ -343,6 +343,7 @@ export function buildIMessageInboundContext(params: {
   cfg: OpenClawConfig;
   decision: IMessageInboundDispatchDecision;
   message: IMessagePayload;
+  senderDisplayName?: string;
   envelopeOptions?: EnvelopeFormatOptions;
   previousTimestamp?: number;
   remoteHost?: string;
@@ -363,6 +364,7 @@ export function buildIMessageInboundContext(params: {
 } {
   const envelopeOptions = params.envelopeOptions ?? resolveEnvelopeFormatOptions(params.cfg);
   const { decision } = params;
+  const senderDisplayName = params.senderDisplayName?.trim() || decision.senderNormalized;
   const chatId = decision.chatId;
   const chatTarget =
     decision.isGroup && chatId != null ? formatIMessageChatTarget(chatId) : undefined;
@@ -378,7 +380,7 @@ export function buildIMessageInboundContext(params: {
     groupLabel: params.message.chat_name ?? undefined,
     groupId: chatId !== undefined ? String(chatId) : "unknown",
     groupFallback: "Group",
-    directLabel: decision.senderNormalized,
+    directLabel: senderDisplayName,
     directId: decision.sender,
   });
 
@@ -388,7 +390,7 @@ export function buildIMessageInboundContext(params: {
     timestamp: decision.createdAt,
     body: `${decision.bodyText}${replySuffix}`,
     chatType: decision.isGroup ? "group" : "direct",
-    sender: { name: decision.senderNormalized, id: decision.sender },
+    sender: { name: senderDisplayName, id: decision.sender },
     previousTimestamp: params.previousTimestamp,
     envelope: envelopeOptions,
   });
@@ -441,7 +443,7 @@ export function buildIMessageInboundContext(params: {
     GroupMembers: decision.isGroup
       ? (params.message.participants ?? []).filter(Boolean).join(", ")
       : undefined,
-    SenderName: decision.senderNormalized,
+    SenderName: senderDisplayName,
     SenderId: decision.sender,
     Provider: "imessage",
     Surface: "imessage",

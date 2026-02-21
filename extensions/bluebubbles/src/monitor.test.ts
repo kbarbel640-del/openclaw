@@ -94,6 +94,12 @@ function createMockRuntime(): PluginRuntime {
       loadConfig: vi.fn(() => ({})) as unknown as PluginRuntime["config"]["loadConfig"],
       writeConfigFile: vi.fn() as unknown as PluginRuntime["config"]["writeConfigFile"],
     },
+    subagent: {
+      run: vi.fn() as unknown as PluginRuntime["subagent"]["run"],
+      waitForRun: vi.fn() as unknown as PluginRuntime["subagent"]["waitForRun"],
+      getSession: vi.fn() as unknown as PluginRuntime["subagent"]["getSession"],
+      deleteSession: vi.fn() as unknown as PluginRuntime["subagent"]["deleteSession"],
+    },
     system: {
       enqueueSystemEvent:
         mockEnqueueSystemEvent as unknown as PluginRuntime["system"]["enqueueSystemEvent"],

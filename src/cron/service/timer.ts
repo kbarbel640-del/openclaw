@@ -478,8 +478,16 @@ export async function runDueJobs(state: CronServiceState) {
   }
   const now = state.deps.nowMs();
   const due = collectRunnableJobs(state, now);
-  for (const job of due) {
-    await executeJob(state, job, now, { forced: false });
+  // Set executingJob so that nested cron operations (e.g. an agent calling
+  // cron.add from within runIsolatedAgentJob) can bypass the lock chain
+  // and avoid deadlock.
+  state.executingJob = true;
+  try {
+    for (const job of due) {
+      await executeJob(state, job, now, { forced: false });
+    }
+  } finally {
+    state.executingJob = false;
   }
 }
 

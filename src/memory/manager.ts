@@ -120,6 +120,7 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       provider: settings.provider,
       remote: settings.remote,
       model: settings.model,
+      queryModel: settings.queryModel,
       fallback: settings.fallback,
       local: settings.local,
     });
@@ -511,8 +512,12 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     // Determine search mode: "fts-only" if no provider, "hybrid" otherwise
     const searchMode = this.provider ? "hybrid" : "fts-only";
     const providerInfo = this.provider
-      ? { provider: this.provider.id, model: this.provider.model }
-      : { provider: "none", model: undefined };
+      ? {
+          provider: this.provider.id,
+          model: this.provider.model,
+          queryModel: this.openAi?.queryModel,
+        }
+      : { provider: "none", model: undefined, queryModel: undefined };
 
     return {
       backend: "builtin",
@@ -523,6 +528,7 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       dbPath: this.settings.store.path,
       provider: providerInfo.provider,
       model: providerInfo.model,
+      queryModel: providerInfo.queryModel,
       requestedProvider: this.requestedProvider,
       sources: Array.from(this.sources),
       extraPaths: this.settings.extraPaths,

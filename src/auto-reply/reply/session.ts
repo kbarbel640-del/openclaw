@@ -11,7 +11,6 @@ import {
   evaluateSessionFreshness,
   type GroupKeyResolution,
   loadSessionStore,
-  resolveAndPersistSessionFile,
   resolveChannelResetConfig,
   resolveThreadFlag,
   resolveSessionResetPolicy,
@@ -26,6 +25,7 @@ import {
   updateSessionStore,
 } from "../../config/sessions.js";
 import type { TtsAutoMode } from "../../config/types.tts.js";
+import { runBeforeSessionResetLifecycle } from "../../context-engine/before-session-reset.js";
 import { archiveSessionTranscripts } from "../../gateway/session-utils.fs.js";
 import { deliverSessionMaintenanceWarning } from "../../infra/session-maintenance-warning.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
@@ -140,6 +140,7 @@ export async function initSessionState(params: {
   let systemSent = false;
   let abortedLastRun = false;
   let resetTriggered = false;
+  let resetReason: "new" | "reset" | undefined;
 
   let persistedThinking: string | undefined;
   let persistedVerbose: string | undefined;
@@ -191,6 +192,7 @@ export async function initSessionState(params: {
       isNewSession = true;
       bodyStripped = "";
       resetTriggered = true;
+      resetReason = triggerLower === "/new" ? "new" : "reset";
       break;
     }
     const triggerPrefixLower = `${triggerLower} `;
@@ -201,6 +203,7 @@ export async function initSessionState(params: {
       isNewSession = true;
       bodyStripped = strippedForReset.slice(trigger.length).trimStart();
       resetTriggered = true;
+      resetReason = triggerLower === "/new" ? "new" : "reset";
       break;
     }
   }
@@ -257,8 +260,6 @@ export async function initSessionState(params: {
       persistedVerbose = entry.verboseLevel;
       persistedReasoning = entry.reasoningLevel;
       persistedTtsAuto = entry.ttsAuto;
-      persistedModelOverride = entry.modelOverride;
-      persistedProviderOverride = entry.providerOverride;
     }
   }
 
@@ -355,21 +356,25 @@ export async function initSessionState(params: {
       console.warn(`[session-init] forked session created: file=${forked.sessionFile}`);
     }
   }
-  const fallbackSessionFile = !sessionEntry.sessionFile
-    ? resolveSessionTranscriptPath(sessionEntry.sessionId, agentId, ctx.MessageThreadId)
-    : undefined;
-  const resolvedSessionFile = await resolveAndPersistSessionFile({
-    sessionId: sessionEntry.sessionId,
-    sessionKey,
-    sessionStore,
-    storePath,
-    sessionEntry,
-    agentId,
-    sessionsDir: path.dirname(storePath),
-    fallbackSessionFile,
-    activeSessionKey: sessionKey,
-  });
-  sessionEntry = resolvedSessionFile.sessionEntry;
+  if (!sessionEntry.sessionFile) {
+    sessionEntry.sessionFile = resolveSessionTranscriptPath(
+      sessionEntry.sessionId,
+      agentId,
+      ctx.MessageThreadId,
+    );
+  }
+  if (resetTriggered && previousSessionEntry?.sessionId) {
+    await runBeforeSessionResetLifecycle({
+      cfg,
+      sessionId: previousSessionEntry.sessionId,
+      sessionKey,
+      sessionEntry: previousSessionEntry,
+      sessionFile: previousSessionEntry.sessionFile,
+      storePath,
+      agentId,
+      reason: resetReason ?? "reset",
+    });
+  }
   if (isNewSession) {
     sessionEntry.compactionCount = 0;
     sessionEntry.memoryFlushCompactionCount = undefined;

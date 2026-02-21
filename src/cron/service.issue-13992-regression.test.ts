@@ -11,6 +11,7 @@ describe("issue #13992 regression - cron jobs skip execution", () => {
       timer: null,
       storeLoadedAtMs: Date.now(),
       storeFileMtimeMs: null,
+      executingJob: false,
       op: Promise.resolve(),
       warnedDisabled: false,
       deps: {

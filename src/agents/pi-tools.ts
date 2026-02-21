@@ -24,7 +24,7 @@ import { resolveImageSanitizationLimits } from "./image-sanitization.js";
 import type { ModelAuthMode } from "./model-auth.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
-import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
+import { wrapToolWithHookRunner } from "./pi-tools.hooks.js";
 import {
   isToolAllowedByPolicies,
   resolveEffectiveToolPolicy,
@@ -490,11 +490,7 @@ export function createOpenClawCodingTools(options?: {
     normalizeToolParameters(tool, { modelProvider: options?.modelProvider }),
   );
   const withHooks = normalized.map((tool) =>
-    wrapToolWithBeforeToolCallHook(tool, {
-      agentId,
-      sessionKey: options?.sessionKey,
-      loopDetection: resolveToolLoopDetectionConfig({ cfg: options?.config, agentId }),
-    }),
+    wrapToolWithHookRunner(tool, { agentId, sessionKey: options?.sessionKey }),
   );
   const withAbort = options?.abortSignal
     ? withHooks.map((tool) => wrapToolWithAbortSignal(tool, options.abortSignal))

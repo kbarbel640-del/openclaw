@@ -35,6 +35,7 @@ import { truncateUtf16Safe } from "../../utils.js";
 import { resolveIMessageAccount } from "../accounts.js";
 import { createIMessageRpcClient } from "../client.js";
 import { DEFAULT_IMESSAGE_PROBE_TIMEOUT_MS } from "../constants.js";
+import { resolveContactNameFromPhoneNumber } from "../contacts.js";
 import { probeIMessage } from "../probe.js";
 import { sendMessageIMessage } from "../send.js";
 import { attachIMessageMonitorAbortHandler } from "./abort-handler.js";
@@ -320,6 +321,10 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       return;
     }
 
+    const resolveContactName = opts.resolveContactName ?? resolveContactNameFromPhoneNumber;
+    const senderContactName = await resolveContactName(decision.sender).catch(() => null);
+    const senderDisplayName = senderContactName?.trim() || decision.senderNormalized;
+
     const storePath = resolveStorePath(cfg.session?.store, {
       agentId: decision.route.agentId,
     });
@@ -333,6 +338,7 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       message,
       previousTimestamp,
       remoteHost,
+      senderDisplayName,
       historyLimit,
       groupHistories,
       media: {

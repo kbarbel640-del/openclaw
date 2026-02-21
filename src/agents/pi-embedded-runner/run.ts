@@ -1,5 +1,9 @@
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
+import {
+  ensureContextEnginesInitialized,
+  resolveContextEngine,
+} from "../../context-engine/index.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
@@ -45,7 +49,6 @@ import {
 } from "../pi-embedded-helpers.js";
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../usage.js";
 import { redactRunIdentifier, resolveRunWorkspaceDir } from "../workspace-run.js";
-import { compactEmbeddedPiSessionDirect } from "./compact.js";
 import { resolveGlobalLane, resolveSessionLane } from "./lanes.js";
 import { log } from "./logger.js";
 import { resolveModel } from "./model.js";
@@ -100,19 +103,6 @@ const createUsageAccumulator = (): UsageAccumulator => ({
 
 function createCompactionDiagId(): string {
   return `ovf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// Defensive guard for the outer run loop across all retry branches.
-const BASE_RUN_RETRY_ITERATIONS = 24;
-const RUN_RETRY_ITERATIONS_PER_PROFILE = 8;
-const MIN_RUN_RETRY_ITERATIONS = 32;
-const MAX_RUN_RETRY_ITERATIONS = 160;
-
-function resolveMaxRunRetryIterations(profileCandidateCount: number): number {
-  const scaled =
-    BASE_RUN_RETRY_ITERATIONS +
-    Math.max(1, profileCandidateCount) * RUN_RETRY_ITERATIONS_PER_PROFILE;
-  return Math.min(MAX_RUN_RETRY_ITERATIONS, Math.max(MIN_RUN_RETRY_ITERATIONS, scaled));
 }
 
 const hasUsageValues = (
@@ -172,17 +162,6 @@ const toNormalizedUsage = (usage: UsageAccumulator) => {
     total: lastPromptTokens + usage.output || undefined,
   };
 };
-
-function resolveActiveErrorContext(params: {
-  lastAssistant: { provider?: string; model?: string } | undefined;
-  provider: string;
-  model: string;
-}): { provider: string; model: string } {
-  return {
-    provider: params.lastAssistant?.provider ?? params.provider,
-    model: params.lastAssistant?.model ?? params.model,
-  };
-}
 
 export async function runEmbeddedPiAgent(
   params: RunEmbeddedPiAgentParams,
@@ -287,11 +266,7 @@ export async function runEmbeddedPiAgent(
         params.config,
       );
       if (!model) {
-        throw new FailoverError(error ?? `Unknown model: ${provider}/${modelId}`, {
-          reason: "model_not_found",
-          provider,
-          model: modelId,
-        });
+        throw new Error(error ?? `Unknown model: ${provider}/${modelId}`);
       }
 
       const ctxInfo = resolveContextWindowInfo({
@@ -488,45 +463,19 @@ export async function runEmbeddedPiAgent(
       }
 
       const MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
-      const MAX_RUN_LOOP_ITERATIONS = resolveMaxRunRetryIterations(profileCandidates.length);
       let overflowCompactionAttempts = 0;
       let toolResultTruncationAttempted = false;
       const usageAccumulator = createUsageAccumulator();
       let lastRunPromptUsage: ReturnType<typeof normalizeUsage> | undefined;
       let autoCompactionCount = 0;
-      let runLoopIterations = 0;
+      // Resolve the context engine once and reuse across retries to avoid
+      // repeated DB connections for the LCM engine.
+      ensureContextEnginesInitialized();
+      const contextEngine = await resolveContextEngine(params.config, {
+        agentId: workspaceResolution.agentId,
+      });
       try {
         while (true) {
-          if (runLoopIterations >= MAX_RUN_LOOP_ITERATIONS) {
-            const message =
-              `Exceeded retry limit after ${runLoopIterations} attempts ` +
-              `(max=${MAX_RUN_LOOP_ITERATIONS}).`;
-            log.error(
-              `[run-retry-limit] sessionKey=${params.sessionKey ?? params.sessionId} ` +
-                `provider=${provider}/${modelId} attempts=${runLoopIterations} ` +
-                `maxAttempts=${MAX_RUN_LOOP_ITERATIONS}`,
-            );
-            return {
-              payloads: [
-                {
-                  text:
-                    "Request failed after repeated internal retries. " +
-                    "Please try again, or use /new to start a fresh session.",
-                  isError: true,
-                },
-              ],
-              meta: {
-                durationMs: Date.now() - started,
-                agentMeta: {
-                  sessionId: params.sessionId,
-                  provider,
-                  model: model.id,
-                },
-                error: { kind: "retry_limit", message },
-              },
-            };
-          }
-          runLoopIterations += 1;
           attemptedThinking.add(thinkLevel);
           await fs.mkdir(resolvedWorkspace, { recursive: true });
 
@@ -554,6 +503,8 @@ export async function runEmbeddedPiAgent(
             workspaceDir: resolvedWorkspace,
             agentDir,
             config: params.config,
+            contextEngine,
+            contextTokenBudget: ctxInfo.tokens,
             skillsSnapshot: params.skillsSnapshot,
             prompt,
             images: params.images,
@@ -609,17 +560,11 @@ export async function runEmbeddedPiAgent(
           const lastTurnTotal = lastAssistantUsage?.total ?? attemptUsage?.total;
           const attemptCompactionCount = Math.max(0, attempt.compactionCount ?? 0);
           autoCompactionCount += attemptCompactionCount;
-          const activeErrorContext = resolveActiveErrorContext({
-            lastAssistant,
-            provider,
-            model: modelId,
-          });
           const formattedAssistantErrorText = lastAssistant
             ? formatAssistantErrorText(lastAssistant, {
                 cfg: params.config,
                 sessionKey: params.sessionKey ?? params.sessionId,
-                provider: activeErrorContext.provider,
-                model: activeErrorContext.model,
+                provider,
               })
             : undefined;
           const assistantErrorText =
@@ -689,31 +634,35 @@ export async function runEmbeddedPiAgent(
               log.warn(
                 `context overflow detected (attempt ${overflowCompactionAttempts}/${MAX_OVERFLOW_COMPACTION_ATTEMPTS}); attempting auto-compaction for ${provider}/${modelId}`,
               );
-              const compactResult = await compactEmbeddedPiSessionDirect({
+              const compactResult = await contextEngine.compact({
                 sessionId: params.sessionId,
-                sessionKey: params.sessionKey,
-                messageChannel: params.messageChannel,
-                messageProvider: params.messageProvider,
-                agentAccountId: params.agentAccountId,
-                authProfileId: lastProfileId,
                 sessionFile: params.sessionFile,
-                workspaceDir: resolvedWorkspace,
-                agentDir,
-                config: params.config,
-                skillsSnapshot: params.skillsSnapshot,
-                senderIsOwner: params.senderIsOwner,
-                provider,
-                model: modelId,
-                runId: params.runId,
-                thinkLevel,
-                reasoningLevel: params.reasoningLevel,
-                bashElevated: params.bashElevated,
-                extraSystemPrompt: params.extraSystemPrompt,
-                ownerNumbers: params.ownerNumbers,
-                trigger: "overflow",
-                diagId: overflowDiagId,
-                attempt: overflowCompactionAttempts,
-                maxAttempts: MAX_OVERFLOW_COMPACTION_ATTEMPTS,
+                tokenBudget: ctxInfo.tokens,
+                compactionTarget: "budget",
+                legacyParams: {
+                  sessionKey: params.sessionKey,
+                  messageChannel: params.messageChannel,
+                  messageProvider: params.messageProvider,
+                  agentAccountId: params.agentAccountId,
+                  authProfileId: lastProfileId,
+                  workspaceDir: resolvedWorkspace,
+                  agentDir,
+                  config: params.config,
+                  skillsSnapshot: params.skillsSnapshot,
+                  senderIsOwner: params.senderIsOwner,
+                  provider,
+                  model: modelId,
+                  runId: params.runId,
+                  thinkLevel,
+                  reasoningLevel: params.reasoningLevel,
+                  bashElevated: params.bashElevated,
+                  extraSystemPrompt: params.extraSystemPrompt,
+                  ownerNumbers: params.ownerNumbers,
+                  trigger: "overflow",
+                  diagId: overflowDiagId,
+                  attempt: overflowCompactionAttempts,
+                  maxAttempts: MAX_OVERFLOW_COMPACTION_ATTEMPTS,
+                },
               });
               if (compactResult.compacted) {
                 autoCompactionCount += 1;
@@ -759,8 +708,8 @@ export async function runEmbeddedPiAgent(
                   log.info(
                     `[context-overflow-recovery] Truncated ${truncResult.truncatedCount} tool result(s); retrying prompt`,
                   );
-                  // Do NOT reset overflowCompactionAttempts here — the global cap must remain
-                  // enforced across all iterations to prevent unbounded compaction cycles (OC-65).
+                  // Session is now smaller; allow compaction retries again.
+                  overflowCompactionAttempts = 0;
                   continue;
                 }
                 log.warn(
@@ -985,8 +934,7 @@ export async function runEmbeddedPiAgent(
                   ? formatAssistantErrorText(lastAssistant, {
                       cfg: params.config,
                       sessionKey: params.sessionKey ?? params.sessionId,
-                      provider: activeErrorContext.provider,
-                      model: activeErrorContext.model,
+                      provider,
                     })
                   : undefined) ||
                 lastAssistant?.errorMessage?.trim() ||
@@ -995,10 +943,7 @@ export async function runEmbeddedPiAgent(
                   : rateLimitFailure
                     ? "LLM request rate limited."
                     : billingFailure
-                      ? formatBillingErrorMessage(
-                          activeErrorContext.provider,
-                          activeErrorContext.model,
-                        )
+                      ? formatBillingErrorMessage(provider)
                       : authFailure
                         ? "LLM request unauthorized."
                         : "LLM request failed.");
@@ -1007,8 +952,8 @@ export async function runEmbeddedPiAgent(
                 (isTimeoutErrorMessage(message) ? 408 : undefined);
               throw new FailoverError(message, {
                 reason: assistantFailoverReason ?? "unknown",
-                provider: activeErrorContext.provider,
-                model: activeErrorContext.model,
+                provider,
+                model: modelId,
                 profileId: lastProfileId,
                 status,
               });
@@ -1043,8 +988,7 @@ export async function runEmbeddedPiAgent(
             lastToolError: attempt.lastToolError,
             config: params.config,
             sessionKey: params.sessionKey ?? params.sessionId,
-            provider: activeErrorContext.provider,
-            model: activeErrorContext.model,
+            provider,
             verboseLevel: params.verboseLevel,
             reasoningLevel: params.reasoningLevel,
             toolResultFormat: resolvedToolResultFormat,
@@ -1122,6 +1066,7 @@ export async function runEmbeddedPiAgent(
           };
         }
       } finally {
+        await contextEngine.dispose?.();
         process.chdir(prevCwd);
       }
     }),

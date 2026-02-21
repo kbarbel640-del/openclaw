@@ -18,7 +18,8 @@ describe("$schema key in config (#14998)", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.$schema).toBe("https://openclaw.ai/config.json");
+      const parsed = result.data as { $schema?: string };
+      expect(parsed.$schema).toBe("https://openclaw.ai/config.json");
     }
   });
 
@@ -29,6 +30,71 @@ describe("$schema key in config (#14998)", () => {
 
   it("rejects non-string $schema", () => {
     const result = OpenClawSchema.safeParse({ $schema: 123 });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("plugins.slots.contextEngine", () => {
+  it("accepts a contextEngine slot id", () => {
+    const result = OpenClawSchema.safeParse({
+      plugins: {
+        slots: {
+          contextEngine: "lcm",
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("agents contextEngine selection", () => {
+  it("accepts agents.defaults.contextEngine", () => {
+    const result = OpenClawSchema.safeParse({
+      agents: {
+        defaults: {
+          contextEngine: "dolt",
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts agents.list[].contextEngine", () => {
+    const result = OpenClawSchema.safeParse({
+      agents: {
+        list: [
+          {
+            id: "main",
+            contextEngine: "dolt",
+          },
+        ],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("contextEngines.dolt", () => {
+  it("accepts dolt summarizer model settings", () => {
+    const result = OpenClawSchema.safeParse({
+      contextEngines: {
+        dolt: {
+          summarizerProvider: "anthropic",
+          summarizerModel: "claude-sonnet-4-5-20241022",
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects unknown fields inside contextEngines.dolt", () => {
+    const result = OpenClawSchema.safeParse({
+      contextEngines: {
+        dolt: {
+          unknownField: "bad",
+        },
+      },
+    });
     expect(result.success).toBe(false);
   });
 });

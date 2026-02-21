@@ -26,6 +26,7 @@ describe("issue #17852 - daily cron jobs should not skip days", () => {
       timer: null,
       storeLoadedAtMs: nowMs,
       storeFileMtimeMs: null,
+      executingJob: false,
       op: Promise.resolve(),
       warnedDisabled: false,
       deps: {

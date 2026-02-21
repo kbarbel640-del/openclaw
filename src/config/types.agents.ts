@@ -28,6 +28,8 @@ export type AgentConfig = {
   /** Optional allowlist of skills for this agent (omit = all skills; empty = none). */
   skills?: string[];
   memorySearch?: MemorySearchConfig;
+  /** Optional context-engine plugin id for this agent. */
+  contextEngine?: string;
   /** Human-like delay between block replies for this agent. */
   humanDelay?: HumanDelayConfig;
   /** Optional per-agent heartbeat overrides. */

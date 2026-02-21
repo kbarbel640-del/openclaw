@@ -206,7 +206,12 @@ export async function run(state: CronServiceState, id: string, mode?: "due" | "f
     if (!due) {
       return { ok: true, ran: false, reason: "not-due" as const };
     }
-    await executeJob(state, job, now, { forced: mode === "force" });
+    state.executingJob = true;
+    try {
+      await executeJob(state, job, now, { forced: mode === "force" });
+    } finally {
+      state.executingJob = false;
+    }
     recomputeNextRuns(state);
     await persist(state);
     armTimer(state);

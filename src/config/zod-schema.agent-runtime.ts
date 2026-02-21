@@ -13,6 +13,21 @@ import { sensitive } from "./zod-schema.sensitive.js";
 export const HeartbeatSchema = z
   .object({
     every: z.string().optional(),
+    randomizeEvery: z.boolean().optional(),
+    randomEveryMin: z.string().optional(),
+    randomEveryMax: z.string().optional(),
+    quietHours: z
+      .union([
+        z
+          .object({
+            start: z.string(),
+            end: z.string(),
+            timezone: z.string().optional(),
+          })
+          .strict(),
+        z.literal(false),
+      ])
+      .optional(),
     activeHours: z
       .object({
         start: z.string().optional(),
@@ -44,6 +59,28 @@ export const HeartbeatSchema = z
         path: ["every"],
         message: "invalid duration (use ms, s, m, h)",
       });
+    }
+    if (val.randomEveryMin) {
+      try {
+        parseDurationMs(val.randomEveryMin, { defaultUnit: "m" });
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["randomEveryMin"],
+          message: "invalid duration (use ms, s, m, h)",
+        });
+      }
+    }
+    if (val.randomEveryMax) {
+      try {
+        parseDurationMs(val.randomEveryMax, { defaultUnit: "m" });
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["randomEveryMax"],
+          message: "invalid duration (use ms, s, m, h)",
+        });
+      }
     }
 
     const active = val.activeHours;
@@ -506,6 +543,7 @@ export const MemorySearchSchema = z
       ])
       .optional(),
     model: z.string().optional(),
+    queryModel: z.string().optional(),
     local: z
       .object({
         modelPath: z.string().optional(),
@@ -602,6 +640,7 @@ export const AgentEntrySchema = z
     model: AgentModelSchema.optional(),
     skills: z.array(z.string()).optional(),
     memorySearch: MemorySearchSchema,
+    contextEngine: z.string().optional(),
     humanDelay: HumanDelaySchema.optional(),
     heartbeat: HeartbeatSchema,
     identity: IdentitySchema,

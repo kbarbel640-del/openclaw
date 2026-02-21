@@ -6,6 +6,7 @@ import {
   resolveDefaultAgentId,
 } from "../agents/agent-scope.js";
 import { appendCronStyleCurrentTimeLine } from "../agents/current-time.js";
+import { resolveUserTimezone } from "../agents/date-time.js";
 import { resolveEffectiveMessagesConfig } from "../agents/identity.js";
 import { DEFAULT_HEARTBEAT_FILENAME } from "../agents/workspace.js";
 import { resolveHeartbeatReplyPayload } from "../auto-reply/heartbeat-reply-payload.js";
@@ -41,15 +42,14 @@ import { CommandLane } from "../process/lanes.js";
 import { normalizeAgentId, toAgentStoreSessionKey } from "../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { escapeRegExp } from "../utils.js";
-import { formatErrorMessage, hasErrnoCode } from "./errors.js";
-import { isWithinActiveHours } from "./heartbeat-active-hours.js";
+import { formatErrorMessage } from "./errors.js";
+import { isWithinActiveHours, resolveMinutesInTimeZone } from "./heartbeat-active-hours.js";
 import {
   buildCronEventPrompt,
   isCronSystemEvent,
   isExecCompletionEvent,
 } from "./heartbeat-events-filter.js";
 import { emitHeartbeatEvent, resolveIndicatorType } from "./heartbeat-events.js";
-import { resolveHeartbeatReasonKind } from "./heartbeat-reason.js";
 import { resolveHeartbeatVisibility } from "./heartbeat-visibility.js";
 import {
   type HeartbeatRunResult,
@@ -96,6 +96,14 @@ export type HeartbeatSummary = {
 };
 
 const DEFAULT_HEARTBEAT_TARGET = "last";
+const DEFAULT_RANDOM_HEARTBEAT_MIN = "45m";
+const DEFAULT_RANDOM_HEARTBEAT_MAX = "1.5h";
+
+type HeartbeatQuietHours = {
+  startMin: number;
+  endMin: number;
+  timeZone: string;
+};
 
 // Prompt used when an async exec has completed and the result should be relayed to the user.
 // This overrides the standard heartbeat prompt to ensure the model responds with the exec result
@@ -106,10 +114,176 @@ const EXEC_EVENT_PROMPT =
   "If it failed, explain what went wrong.";
 export { isCronSystemEvent };
 
+function resolveHeartbeatRandomIntervalRangeMs(
+  cfg: OpenClawConfig,
+  heartbeat?: HeartbeatConfig,
+): { minMs: number; maxMs: number } | null {
+  const source = heartbeat ?? cfg.agents?.defaults?.heartbeat;
+  if (!source) {
+    return null;
+  }
+  if (source.randomizeEvery !== true) {
+    return null;
+  }
+
+  const minRaw = source.randomEveryMin ?? DEFAULT_RANDOM_HEARTBEAT_MIN;
+  const maxRaw = source.randomEveryMax ?? DEFAULT_RANDOM_HEARTBEAT_MAX;
+  let minMs: number;
+  let maxMs: number;
+  try {
+    minMs = parseDurationMs(String(minRaw).trim(), { defaultUnit: "m" });
+    maxMs = parseDurationMs(String(maxRaw).trim(), { defaultUnit: "m" });
+  } catch {
+    return null;
+  }
+  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
+    return null;
+  }
+  if (minMs <= 0 || maxMs <= 0) {
+    return null;
+  }
+  if (maxMs < minMs) {
+    return null;
+  }
+  return { minMs, maxMs };
+}
+
+function pickRandomDelayMs(range: { minMs: number; maxMs: number }): number {
+  if (range.maxMs === range.minMs) {
+    return range.minMs;
+  }
+  const span = range.maxMs - range.minMs;
+  // Triangular distribution biased toward the midpoint
+  const skew = (Math.random() + Math.random()) / 2;
+  return range.minMs + Math.floor(skew * (span + 1));
+}
+
+function parseClockTimeToMinutes(raw: string): number | null {
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) {
+    return null;
+  }
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!match) {
+    return null;
+  }
+  const hourRaw = Number(match[1]);
+  const minuteRaw = match[2] ? Number(match[2]) : 0;
+  if (!Number.isFinite(hourRaw) || !Number.isFinite(minuteRaw)) {
+    return null;
+  }
+  if (minuteRaw < 0 || minuteRaw > 59) {
+    return null;
+  }
+
+  let hour = hourRaw;
+  const ampm = match[3];
+  if (ampm === "am") {
+    if (hour === 12) {
+      hour = 0;
+    }
+    if (hour < 0 || hour > 11) {
+      return null;
+    }
+  } else if (ampm === "pm") {
+    if (hour === 12) {
+      hour = 12;
+    } else {
+      hour += 12;
+    }
+    if (hour < 12 || hour > 23) {
+      return null;
+    }
+  } else {
+    if (hour < 0 || hour > 23) {
+      return null;
+    }
+  }
+  return hour * 60 + minuteRaw;
+}
+
+function resolveHeartbeatQuietHours(
+  cfg: OpenClawConfig,
+  heartbeat?: HeartbeatConfig,
+): HeartbeatQuietHours | null {
+  const quietRaw = heartbeat?.quietHours ?? cfg.agents?.defaults?.heartbeat?.quietHours;
+  if (!quietRaw) {
+    return null;
+  }
+  if (typeof quietRaw === "boolean") {
+    return null;
+  }
+  const startMin = parseClockTimeToMinutes(quietRaw.start ?? "");
+  const endMin = parseClockTimeToMinutes(quietRaw.end ?? "");
+  if (startMin === null || endMin === null) {
+    return null;
+  }
+  const timeZone = resolveUserTimezone(quietRaw.timezone ?? cfg.agents?.defaults?.userTimezone);
+  return { startMin, endMin, timeZone };
+}
+
+function isWithinQuietHours(minutes: number, quiet: HeartbeatQuietHours): boolean {
+  const { startMin, endMin } = quiet;
+  if (startMin === endMin) {
+    return true;
+  }
+  if (startMin < endMin) {
+    return minutes >= startMin && minutes < endMin;
+  }
+  return minutes >= startMin || minutes < endMin;
+}
+
+function minutesUntilQuietEnd(minutes: number, quiet: HeartbeatQuietHours): number {
+  const { startMin, endMin } = quiet;
+  if (startMin === endMin) {
+    return 24 * 60;
+  }
+  if (startMin < endMin) {
+    return Math.max(0, endMin - minutes);
+  }
+  if (minutes >= startMin) {
+    return 1440 - minutes + endMin;
+  }
+  return Math.max(0, endMin - minutes);
+}
+
+function applyQuietHoursDelay(params: {
+  nowMs: number;
+  delayMs: number;
+  quiet: HeartbeatQuietHours | null;
+  jitterRange?: { minMs: number; maxMs: number } | null;
+}): number {
+  const { nowMs, delayMs, quiet, jitterRange } = params;
+  if (!quiet) {
+    return delayMs;
+  }
+  const candidateMs = nowMs + delayMs;
+  const candidateMinutes = resolveMinutesInTimeZone(candidateMs, quiet.timeZone);
+  if (candidateMinutes === null) {
+    return delayMs;
+  }
+  if (!isWithinQuietHours(candidateMinutes, quiet)) {
+    return delayMs;
+  }
+  const minutesToQuietEnd = minutesUntilQuietEnd(candidateMinutes, quiet);
+  const jitterMs =
+    jitterRange && jitterRange.maxMs >= jitterRange.minMs ? pickRandomDelayMs(jitterRange) : 0;
+  return delayMs + minutesToQuietEnd * 60_000 + jitterMs;
+}
+
+function shouldRespectQuietHours(reason?: string): boolean {
+  if (!reason) {
+    return false;
+  }
+  return reason.trim().toLowerCase() === "interval";
+}
+
 type HeartbeatAgentState = {
   agentId: string;
   heartbeat?: HeartbeatConfig;
   intervalMs: number;
+  randomRange?: { minMs: number; maxMs: number } | null;
+  quietHours?: HeartbeatQuietHours | null;
   lastRunMs?: number;
   nextDueMs: number;
 };
@@ -475,91 +649,6 @@ function normalizeHeartbeatReply(
   return { shouldSkip: false, text: finalText, hasMedia };
 }
 
-type HeartbeatReasonFlags = {
-  isExecEventReason: boolean;
-  isCronEventReason: boolean;
-  isWakeReason: boolean;
-};
-
-type HeartbeatSkipReason = "empty-heartbeat-file";
-
-type HeartbeatPreflight = HeartbeatReasonFlags & {
-  session: ReturnType<typeof resolveHeartbeatSession>;
-  pendingEventEntries: ReturnType<typeof peekSystemEventEntries>;
-  hasTaggedCronEvents: boolean;
-  shouldInspectPendingEvents: boolean;
-  skipReason?: HeartbeatSkipReason;
-};
-
-function resolveHeartbeatReasonFlags(reason?: string): HeartbeatReasonFlags {
-  const reasonKind = resolveHeartbeatReasonKind(reason);
-  return {
-    isExecEventReason: reasonKind === "exec-event",
-    isCronEventReason: reasonKind === "cron",
-    isWakeReason: reasonKind === "wake" || reasonKind === "hook",
-  };
-}
-
-async function resolveHeartbeatPreflight(params: {
-  cfg: OpenClawConfig;
-  agentId: string;
-  heartbeat?: HeartbeatConfig;
-  forcedSessionKey?: string;
-  reason?: string;
-}): Promise<HeartbeatPreflight> {
-  const reasonFlags = resolveHeartbeatReasonFlags(params.reason);
-  const session = resolveHeartbeatSession(
-    params.cfg,
-    params.agentId,
-    params.heartbeat,
-    params.forcedSessionKey,
-  );
-  const pendingEventEntries = peekSystemEventEntries(session.sessionKey);
-  const hasTaggedCronEvents = pendingEventEntries.some((event) =>
-    event.contextKey?.startsWith("cron:"),
-  );
-  const shouldInspectPendingEvents =
-    reasonFlags.isExecEventReason || reasonFlags.isCronEventReason || hasTaggedCronEvents;
-  const shouldBypassFileGates =
-    reasonFlags.isExecEventReason ||
-    reasonFlags.isCronEventReason ||
-    reasonFlags.isWakeReason ||
-    hasTaggedCronEvents;
-  const basePreflight = {
-    ...reasonFlags,
-    session,
-    pendingEventEntries,
-    hasTaggedCronEvents,
-    shouldInspectPendingEvents,
-  } satisfies Omit<HeartbeatPreflight, "skipReason">;
-
-  if (shouldBypassFileGates) {
-    return basePreflight;
-  }
-
-  const workspaceDir = resolveAgentWorkspaceDir(params.cfg, params.agentId);
-  const heartbeatFilePath = path.join(workspaceDir, DEFAULT_HEARTBEAT_FILENAME);
-  try {
-    const heartbeatFileContent = await fs.readFile(heartbeatFilePath, "utf-8");
-    if (isHeartbeatContentEffectivelyEmpty(heartbeatFileContent)) {
-      return {
-        ...basePreflight,
-        skipReason: "empty-heartbeat-file",
-      };
-    }
-  } catch (err: unknown) {
-    if (hasErrnoCode(err, "ENOENT")) {
-      // Missing HEARTBEAT.md is intentional in some setups (for example, when
-      // heartbeat instructions live outside the file), so keep the run active.
-      // The heartbeat prompt already says "if it exists".
-      return basePreflight;
-    }
-    // For other read errors, proceed with heartbeat as before.
-  }
-
-  return basePreflight;
-}
-
 export async function runHeartbeatOnce(opts: {
   cfg?: OpenClawConfig;
   agentId?: string;
@@ -586,30 +675,78 @@ export async function runHeartbeatOnce(opts: {
     return { status: "skipped", reason: "quiet-hours" };
   }
 
+  // Check quiet hours for interval-triggered heartbeats only.
+  if (shouldRespectQuietHours(opts.reason)) {
+    const quietHours = resolveHeartbeatQuietHours(cfg, heartbeat);
+    if (quietHours) {
+      const currentMinutes = resolveMinutesInTimeZone(startedAt, quietHours.timeZone);
+      if (currentMinutes !== null && isWithinQuietHours(currentMinutes, quietHours)) {
+        return { status: "skipped", reason: "quiet-hours" };
+      }
+    }
+  }
+
   const queueSize = (opts.deps?.getQueueSize ?? getQueueSize)(CommandLane.Main);
   if (queueSize > 0) {
     return { status: "skipped", reason: "requests-in-flight" };
   }
 
-  // Preflight centralizes trigger classification, event inspection, and HEARTBEAT.md gating.
-  const preflight = await resolveHeartbeatPreflight({
+  // Skip heartbeat if HEARTBEAT.md exists but has no actionable content.
+  // This saves API calls/costs when the file is effectively empty (only comments/headers).
+  // EXCEPTION: Don't skip for exec events, cron events, or explicit wake requests -
+  // they have pending system events to process regardless of HEARTBEAT.md content.
+  const isExecEventReason = opts.reason === "exec-event";
+  const isCronEventReason = Boolean(opts.reason?.startsWith("cron:"));
+  const isWakeReason = opts.reason === "wake" || Boolean(opts.reason?.startsWith("hook:"));
+  const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+  const heartbeatFilePath = path.join(workspaceDir, DEFAULT_HEARTBEAT_FILENAME);
+  try {
+    const heartbeatFileContent = await fs.readFile(heartbeatFilePath, "utf-8");
+    if (
+      isHeartbeatContentEffectivelyEmpty(heartbeatFileContent) &&
+      !isExecEventReason &&
+      !isCronEventReason &&
+      !isWakeReason
+    ) {
+      emitHeartbeatEvent({
+        status: "skipped",
+        reason: "empty-heartbeat-file",
+        durationMs: Date.now() - startedAt,
+      });
+      return { status: "skipped", reason: "empty-heartbeat-file" };
+    }
+  } catch {
+    // File doesn't exist or can't be read - proceed with heartbeat.
+    // The LLM prompt says "if it exists" so this is expected behavior.
+  }
+
+  const { entry, sessionKey, storePath, store } = resolveHeartbeatSession(
     cfg,
     agentId,
     heartbeat,
-    forcedSessionKey: opts.sessionKey,
-    reason: opts.reason,
-  });
-  if (preflight.skipReason) {
-    emitHeartbeatEvent({
-      status: "skipped",
-      reason: preflight.skipReason,
-      durationMs: Date.now() - startedAt,
-    });
-    return { status: "skipped", reason: preflight.skipReason };
+    opts.sessionKey,
+  );
+
+  // Skip heartbeat if the user was recently active in the agent's main session.
+  // The heartbeat may run in its own session (e.g. "agent:main:heartbeat"), so we
+  // check the main conversation session's updatedAt — not the heartbeat session's.
+  const RECENT_ACTIVITY_MS = 5 * 60_000; // 5 minutes
+  const isScheduledHeartbeat = opts.reason === "interval";
+  if (isScheduledHeartbeat) {
+    const resolvedAgentId = normalizeAgentId(agentId ?? resolveDefaultAgentId(cfg));
+    const mainKey = resolveAgentMainSessionKey({ cfg, agentId: resolvedAgentId });
+    const mainEntry = store[mainKey];
+    const mainUpdatedAt = mainEntry?.updatedAt;
+    if (typeof mainUpdatedAt === "number" && startedAt - mainUpdatedAt < RECENT_ACTIVITY_MS) {
+      emitHeartbeatEvent({
+        status: "skipped",
+        reason: "recent-activity",
+        durationMs: Date.now() - startedAt,
+      });
+      return { status: "skipped", reason: "recent-activity" };
+    }
   }
-  const { entry, sessionKey, storePath } = preflight.session;
-  const { isCronEventReason, pendingEventEntries } = preflight;
-  const previousUpdatedAt = entry?.updatedAt;
+
   const delivery = resolveHeartbeatDeliveryTarget({ cfg, entry, heartbeat });
   const heartbeatAccountId = heartbeat?.accountId?.trim();
   if (delivery.reason === "unknown-account") {
@@ -641,7 +778,12 @@ export async function runHeartbeatOnce(opts: {
   // Check if this is an exec event or cron event with pending system events.
   // If so, use a specialized prompt that instructs the model to relay the result
   // instead of the standard heartbeat prompt with "reply HEARTBEAT_OK".
-  const shouldInspectPendingEvents = preflight.shouldInspectPendingEvents;
+  const isExecEvent = opts.reason === "exec-event";
+  const pendingEventEntries = peekSystemEventEntries(sessionKey);
+  const hasTaggedCronEvents = pendingEventEntries.some((event) =>
+    event.contextKey?.startsWith("cron:"),
+  );
+  const shouldInspectPendingEvents = isExecEvent || isCronEventReason || hasTaggedCronEvents;
   const pendingEvents = shouldInspectPendingEvents
     ? pendingEventEntries.map((event) => event.text)
     : [];
@@ -708,6 +850,10 @@ export async function runHeartbeatOnce(opts: {
     });
     return true;
   };
+
+  // `getReplyFromConfig` may touch the session store entry (including clobbering `updatedAt`).
+  // Capture the prior value so early-return paths can restore monotonicity.
+  const previousUpdatedAt = entry?.updatedAt;
 
   try {
     // Capture transcript state before the heartbeat run so we can prune if HEARTBEAT_OK
@@ -969,14 +1115,54 @@ export function startHeartbeatRunner(opts: {
   };
   let initialized = false;
 
-  const resolveNextDue = (now: number, intervalMs: number, prevState?: HeartbeatAgentState) => {
-    if (typeof prevState?.lastRunMs === "number") {
-      return prevState.lastRunMs + intervalMs;
+  const computeNextDue = (params: {
+    anchorMs: number;
+    intervalMs: number;
+    randomRange?: { minMs: number; maxMs: number } | null;
+    quietHours?: HeartbeatQuietHours | null;
+  }) => {
+    const baseDelay = params.randomRange
+      ? pickRandomDelayMs(params.randomRange)
+      : params.intervalMs;
+    const delayMs = applyQuietHoursDelay({
+      nowMs: params.anchorMs,
+      delayMs: baseDelay,
+      quiet: params.quietHours ?? null,
+      jitterRange: params.randomRange ?? null,
+    });
+    return params.anchorMs + delayMs;
+  };
+
+  const isRandomRangeEqual = (
+    a?: { minMs: number; maxMs: number } | null,
+    b?: { minMs: number; maxMs: number } | null,
+  ) => {
+    if (!a && !b) {
+      return true;
     }
-    if (prevState && prevState.intervalMs === intervalMs && prevState.nextDueMs > now) {
+    if (!a || !b) {
+      return false;
+    }
+    return a.minMs === b.minMs && a.maxMs === b.maxMs;
+  };
+
+  const resolveNextDue = (params: {
+    now: number;
+    intervalMs: number;
+    randomRange?: { minMs: number; maxMs: number } | null;
+    quietHours?: HeartbeatQuietHours | null;
+    prevState?: HeartbeatAgentState;
+  }) => {
+    const { now, intervalMs, randomRange, quietHours, prevState } = params;
+    if (
+      prevState &&
+      prevState.intervalMs === intervalMs &&
+      isRandomRangeEqual(prevState.randomRange, randomRange) &&
+      prevState.nextDueMs > now
+    ) {
       return prevState.nextDueMs;
     }
-    return now + intervalMs;
+    return computeNextDue({ anchorMs: now, intervalMs, randomRange, quietHours });
   };
 
   const advanceAgentSchedule = (agent: HeartbeatAgentState, now: number) => {
@@ -1028,12 +1214,22 @@ export function startHeartbeatRunner(opts: {
         continue;
       }
       intervals.push(intervalMs);
+      const randomRange = resolveHeartbeatRandomIntervalRangeMs(cfg, agent.heartbeat);
+      const quietHours = resolveHeartbeatQuietHours(cfg, agent.heartbeat);
       const prevState = prevAgents.get(agent.agentId);
-      const nextDueMs = resolveNextDue(now, intervalMs, prevState);
+      const nextDueMs = resolveNextDue({
+        now,
+        intervalMs,
+        randomRange,
+        quietHours,
+        prevState,
+      });
       nextAgents.set(agent.agentId, {
         agentId: agent.agentId,
         heartbeat: agent.heartbeat,
         intervalMs,
+        randomRange,
+        quietHours,
         lastRunMs: prevState?.lastRunMs,
         nextDueMs,
       });
@@ -1148,7 +1344,13 @@ export function startHeartbeatRunner(opts: {
         return res;
       }
       if (res.status !== "skipped" || res.reason !== "disabled") {
-        advanceAgentSchedule(agent, now);
+        agent.lastRunMs = now;
+        agent.nextDueMs = computeNextDue({
+          anchorMs: now,
+          intervalMs: agent.intervalMs,
+          randomRange: agent.randomRange,
+          quietHours: agent.quietHours,
+        });
       }
       if (res.status === "ran") {
         ran = true;
