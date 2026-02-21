@@ -1,5 +1,5 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import { readNumberParam, readStringParam } from "../agents/tools/common.js";
+import { readBooleanParam, readNumberParam, readStringParam } from "../agents/tools/common.js";
 import type { ChannelMessageActionContext } from "../channels/plugins/types.js";
 import { parseSlackBlocksInput } from "../slack/blocks-input.js";
 
@@ -160,6 +160,23 @@ export async function handleSlackMessageAction(params: {
         action: action === "pin" ? "pinMessage" : action === "unpin" ? "unpinMessage" : "listPins",
         channelId: resolveChannelId(),
         messageId,
+        accountId,
+      },
+      cfg,
+    );
+  }
+
+  if (action === "channel-create") {
+    const name = readStringParam(actionParams, "name", { required: true });
+    const topic = readStringParam(actionParams, "topic");
+    const isPrivate =
+      readBooleanParam(actionParams, "private") ?? readBooleanParam(actionParams, "isPrivate");
+    return await invoke(
+      {
+        action: "channelCreate",
+        name,
+        topic: topic ?? undefined,
+        isPrivate: isPrivate ?? undefined,
         accountId,
       },
       cfg,

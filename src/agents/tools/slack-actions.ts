@@ -2,6 +2,7 @@ import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { OpenClawConfig } from "../../config/config.js";
 import { resolveSlackAccount } from "../../slack/accounts.js";
 import {
+  createSlackChannel,
   deleteSlackMessage,
   editSlackMessage,
   getSlackMemberInfo,
@@ -22,6 +23,7 @@ import { withNormalizedTimestamp } from "../date-time.js";
 import {
   createActionGate,
   jsonResult,
+  readBooleanParam,
   readNumberParam,
   readReactionParams,
   readStringParam,
@@ -299,7 +301,7 @@ export async function handleSlackAction(
       }
       return jsonResult({ ok: true });
     }
-    const pins = writeOpts
+    const pins = readOpts
       ? await listSlackPins(channelId, readOpts)
       : await listSlackPins(channelId);
     const normalizedPins = pins.map((pin) => {
@@ -314,12 +316,27 @@ export async function handleSlackAction(
     return jsonResult({ ok: true, pins: normalizedPins });
   }
 
+  if (action === "channelCreate") {
+    if (!isActionEnabled("channels")) {
+      throw new Error("Slack channel management is disabled.");
+    }
+    const name = readStringParam(params, "name", { required: true });
+    const topic = readStringParam(params, "topic");
+    const isPrivate = readBooleanParam(params, "private") ?? readBooleanParam(params, "isPrivate");
+    const result = await createSlackChannel(name, {
+      ...writeOpts,
+      isPrivate: isPrivate ?? undefined,
+      topic: topic ?? undefined,
+    });
+    return jsonResult({ ok: true, channel: result });
+  }
+
   if (action === "memberInfo") {
     if (!isActionEnabled("memberInfo")) {
       throw new Error("Slack member info is disabled.");
     }
     const userId = readStringParam(params, "userId", { required: true });
-    const info = writeOpts
+    const info = readOpts
       ? await getSlackMemberInfo(userId, readOpts)
       : await getSlackMemberInfo(userId);
     return jsonResult({ ok: true, info });

@@ -4,6 +4,7 @@ import { handleSlackAction } from "./slack-actions.js";
 
 const deleteSlackMessage = vi.fn(async (..._args: unknown[]) => ({}));
 const editSlackMessage = vi.fn(async (..._args: unknown[]) => ({}));
+const createSlackChannel = vi.fn(async (..._args: unknown[]) => ({ id: "C_NEW" }));
 const getSlackMemberInfo = vi.fn(async (..._args: unknown[]) => ({}));
 const listSlackEmojis = vi.fn(async (..._args: unknown[]) => ({}));
 const listSlackPins = vi.fn(async (..._args: unknown[]) => ({}));
@@ -17,6 +18,7 @@ const sendSlackMessage = vi.fn(async (..._args: unknown[]) => ({}));
 const unpinSlackMessage = vi.fn(async (..._args: unknown[]) => ({}));
 
 vi.mock("../../slack/actions.js", () => ({
+  createSlackChannel,
   deleteSlackMessage,
   editSlackMessage,
   getSlackMemberInfo,
@@ -542,6 +544,25 @@ describe("handleSlackAction", () => {
     const expectedMs = Math.round(1735689600.789 * 1000);
     expect(payload.pins[0].message?.timestampMs).toBe(expectedMs);
     expect(payload.pins[0].message?.timestampUtc).toBe(new Date(expectedMs).toISOString());
+  });
+
+  it("creates channels with topic and privacy", async () => {
+    const cfg = { channels: { slack: { botToken: "tok" } } } as OpenClawConfig;
+    createSlackChannel.mockClear();
+    const result = await handleSlackAction(
+      {
+        action: "channelCreate",
+        name: "leads",
+        topic: "Lead Discovery Hub",
+        private: "true",
+      },
+      cfg,
+    );
+    expect(createSlackChannel).toHaveBeenCalledWith("leads", {
+      isPrivate: true,
+      topic: "Lead Discovery Hub",
+    });
+    expect(result.details).toMatchObject({ ok: true, channel: { id: "C_NEW" } });
   });
 
   it("uses user token for reads when available", async () => {

@@ -127,6 +127,31 @@ export function readNumberParam(
   return integer ? Math.trunc(value) : value;
 }
 
+export function readBooleanParam(
+  params: Record<string, unknown>,
+  key: string,
+  options: { required?: boolean; label?: string } = {},
+): boolean | undefined {
+  const { required = false, label = key } = options;
+  const raw = params[key];
+  if (typeof raw === "boolean") {
+    return raw;
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim().toLowerCase();
+    if (trimmed === "true") {
+      return true;
+    }
+    if (trimmed === "false") {
+      return false;
+    }
+  }
+  if (required) {
+    throw new ToolInputError(`${label} required`);
+  }
+  return undefined;
+}
+
 export function readStringArrayParam(
   params: Record<string, unknown>,
   key: string,
