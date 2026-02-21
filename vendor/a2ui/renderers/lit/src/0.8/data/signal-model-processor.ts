@@ -16,10 +16,10 @@
 
 import { A2uiMessageProcessor } from "./model-processor.js";
 
-import { SignalArray } from "signal-utils/array";
-import { SignalMap } from "signal-utils/map";
-import { SignalObject } from "signal-utils/object";
-import { SignalSet } from "signal-utils/set";
+import { SignalArray } from "../signal-utils/array.js";
+import { SignalMap } from "../signal-utils/map.js";
+import { SignalObject } from "../signal-utils/object.js";
+import { SignalSet } from "../signal-utils/set.js";
 
 export function create() {
   return new A2uiMessageProcessor({

@@ -23,7 +23,7 @@ import {
 } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { map } from "lit/directives/map.js";
-import { effect } from "signal-utils/subtle/microtask-effect";
+import { effect } from "../signal-utils/subtle/microtask-effect.js";
 import { A2uiMessageProcessor } from "../data/model-processor.js";
 import { StringValue } from "../types/primitives.js";
 import { Theme, AnyComponentNode, SurfaceID } from "../types/types.js";
