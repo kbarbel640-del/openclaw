@@ -1094,6 +1094,125 @@ export default function register(api: OpenClawPluginApi) {
     },
   });
 
+  // API: Chat — send message to an agent's inbox
+  api.registerHttpRoute({
+    path: "/mabos/api/chat",
+    handler: async (req, res) => {
+      if (req.method !== "POST") {
+        res.statusCode = 405;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Method not allowed" }));
+        return;
+      }
+      try {
+        const { readFile, writeFile, mkdir } = await import("node:fs/promises");
+        const { join, dirname } = await import("node:path");
+
+        let body = "";
+        for await (const chunk of req as any) body += chunk;
+        const params = JSON.parse(body);
+
+        if (!params.agentId || !params.message || !params.businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({ error: "Missing required fields: agentId, message, businessId" }),
+          );
+          return;
+        }
+
+        const agentId = sanitizeId(params.agentId);
+        const businessId = sanitizeId(params.businessId);
+        if (!agentId || !businessId) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid agent or business ID" }));
+          return;
+        }
+
+        // Write message to agent's inbox
+        const inboxPath = join(
+          workspaceDir,
+          "businesses",
+          businessId,
+          "agents",
+          agentId,
+          "inbox.json",
+        );
+        let inbox: any[] = [];
+        try {
+          inbox = JSON.parse(await readFile(inboxPath, "utf-8"));
+        } catch {
+          /* empty inbox */
+        }
+
+        const msg = {
+          id: `CHAT-${Date.now()}`,
+          from: "dashboard-user",
+          to: agentId,
+          performative: "QUERY",
+          content: params.message,
+          priority: "normal",
+          timestamp: new Date().toISOString(),
+          read: false,
+          channel: "dashboard",
+        };
+
+        inbox.push(msg);
+        await mkdir(dirname(inboxPath), { recursive: true });
+        await writeFile(inboxPath, JSON.stringify(inbox, null, 2), "utf-8");
+
+        res.setHeader("Content-Type", "application/json");
+        res.end(
+          JSON.stringify({
+            ok: true,
+            messageId: msg.id,
+            message: `Message delivered to ${agentId}. The agent will process it during the next BDI cycle.`,
+          }),
+        );
+      } catch (err) {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: String(err) }));
+      }
+    },
+  });
+
+  // API: Chat SSE — stream agent events to the dashboard
+  api.registerHttpRoute({
+    path: "/mabos/api/chat/events",
+    handler: async (req, res) => {
+      const url = new URL(req.url || "", "http://localhost");
+      const agentId = sanitizeId(url.searchParams.get("agentId") || "");
+      const businessId = sanitizeId(url.searchParams.get("businessId") || "");
+
+      if (!agentId || !businessId) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Missing agentId or businessId" }));
+        return;
+      }
+
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+
+      // Send initial connection event
+      res.write(`data: ${JSON.stringify({ type: "connected", agentId })}\n\n`);
+
+      // Heartbeat every 30s to keep connection alive
+      const heartbeat = setInterval(() => {
+        res.write(`: heartbeat\n\n`);
+      }, 30000);
+
+      req.on("close", () => {
+        clearInterval(heartbeat);
+      });
+    },
+  });
+
   // API: Get goal model for a business
   api.registerHttpRoute({
     path: "/mabos/api/businesses/:id/goals",
@@ -1563,29 +1682,35 @@ export default function register(api: OpenClawPluginApi) {
     path: "/mabos/dashboard",
     handler: async (_req, res) => {
       try {
-        const { readFile } = await import("node:fs/promises");
+        const { readFile, access } = await import("node:fs/promises");
         const { join } = await import("node:path");
         const { fileURLToPath } = await import("node:url");
         const thisDir = join(fileURLToPath(import.meta.url), "..");
-        const htmlPath = join(thisDir, "src", "dashboard", "index.html");
+        // Try Vite build output first, fall back to src/dashboard/
+        let htmlPath = join(thisDir, "ui", "dist", "index.html");
+        try {
+          await access(htmlPath);
+        } catch {
+          htmlPath = join(thisDir, "src", "dashboard", "index.html");
+        }
         const html = await readFile(htmlPath, "utf-8");
         res.setHeader("Content-Type", "text/html");
         res.end(html);
       } catch {
         res.setHeader("Content-Type", "text/html");
         res.end(
-          `<!DOCTYPE html><html><head><title>MABOS</title></head><body style="background:#0d1117;color:#c9d1d9;font-family:sans-serif;padding:40px"><h1 style="color:#58a6ff">MABOS Dashboard</h1><p>Dashboard files not found. Ensure src/dashboard/ exists.</p></body></html>`,
+          `<!DOCTYPE html><html><head><title>MABOS</title></head><body style="background:#0d1117;color:#c9d1d9;font-family:sans-serif;padding:40px"><h1 style="color:#58a6ff">MABOS Dashboard</h1><p>Dashboard files not found. Run <code>cd extensions/mabos/ui && npm run build</code> first.</p></body></html>`,
         );
       }
     },
   });
 
-  // Dashboard: wildcard static file server for all dashboard assets
+  // Dashboard: wildcard static file server for all dashboard assets + SPA fallback
   api.registerHttpRoute({
     path: "/mabos/dashboard/*",
     handler: async (req, res) => {
       try {
-        const { readFile } = await import("node:fs/promises");
+        const { readFile, access } = await import("node:fs/promises");
         const path = await import("node:path");
         const { join, extname } = path;
         const { fileURLToPath } = await import("node:url");
@@ -1600,16 +1725,6 @@ export default function register(api: OpenClawPluginApi) {
           return;
         }
 
-        const fullPath = join(thisDir, "src", "dashboard", filePath);
-        const baseDir = path.resolve(join(thisDir, "src", "dashboard"));
-        const resolved = path.resolve(fullPath);
-
-        // Block directory traversal via resolved path comparison
-        if (!resolved.startsWith(baseDir + path.sep) && resolved !== baseDir) {
-          res.statusCode = 403;
-          res.end("Forbidden");
-          return;
-        }
         const contentTypes: Record<string, string> = {
           ".html": "text/html",
           ".css": "text/css",
@@ -1618,17 +1733,70 @@ export default function register(api: OpenClawPluginApi) {
           ".svg": "image/svg+xml",
           ".png": "image/png",
           ".ico": "image/x-icon",
+          ".woff": "font/woff",
+          ".woff2": "font/woff2",
+          ".ttf": "font/ttf",
         };
 
         const ext = extname(filePath).toLowerCase();
-        const contentType = contentTypes[ext] || "application/octet-stream";
 
+        // Try Vite build output first, then fall back to src/dashboard/
+        const vitePath = join(thisDir, "ui", "dist", filePath);
+        const legacyPath = join(thisDir, "src", "dashboard", filePath);
+
+        // Determine which base directory to use
+        let fullPath: string;
+        let baseDir: string;
+        try {
+          await access(vitePath);
+          fullPath = vitePath;
+          baseDir = path.resolve(join(thisDir, "ui", "dist"));
+        } catch {
+          fullPath = legacyPath;
+          baseDir = path.resolve(join(thisDir, "src", "dashboard"));
+        }
+
+        const resolved = path.resolve(fullPath);
+
+        // Block directory traversal via resolved path comparison
+        if (!resolved.startsWith(baseDir + path.sep) && resolved !== baseDir) {
+          res.statusCode = 403;
+          res.end("Forbidden");
+          return;
+        }
+
+        // If no file extension or unknown extension, serve index.html for SPA routing
+        if (!ext || !contentTypes[ext]) {
+          const htmlPath = join(thisDir, "ui", "dist", "index.html");
+          try {
+            const html = await readFile(htmlPath, "utf-8");
+            res.setHeader("Content-Type", "text/html");
+            res.end(html);
+            return;
+          } catch {
+            // Fall through to 404
+          }
+        }
+
+        const contentType = contentTypes[ext] || "application/octet-stream";
         const content = await readFile(fullPath);
         res.setHeader("Content-Type", contentType);
         res.end(content);
       } catch {
-        res.statusCode = 404;
-        res.end("Not found");
+        // SPA fallback: serve index.html for any non-file route
+        try {
+          const { readFile } = await import("node:fs/promises");
+          const { join } = await import("node:path");
+          const { fileURLToPath } = await import("node:url");
+          const thisDir = join(fileURLToPath(import.meta.url), "..");
+          const htmlPath = join(thisDir, "ui", "dist", "index.html");
+          const html = await readFile(htmlPath, "utf-8");
+          res.setHeader("Content-Type", "text/html");
+          res.end(html);
+        } catch {
+          res.statusCode = 404;
+          res.end("Not found");
+        }
       }
     },
   });
