@@ -545,14 +545,18 @@ Text: "${currentPrompt}"`;
     let rewrittenLines = finalLines.join("\n");
     if (agent) {
       this.log("  ✍️ [MIND] Rewriting memories into natural first-person narrative...");
-      const translationPrompt = `Convierte las siguientes notas de base de datos en recuerdos personales en primera persona. 
-Eres tú (la IA) recordando tus interacciones con el usuario ("Julio" o el usuario).
-Escríbelo en español fluido, natural y muy conversacional.
-No uses formato de logs ("human", "assistant", timestamps literales), elimínalo todo.
-Manten un formato de lista con guiones, un recuerdo por línea.
-Sé breve.
+      const translationPrompt = `Convert the following database notes into personal, first-person memories. 
+You are the AI remembering your past interactions with the user.
+CRITICAL: Write the memories in the EXACT SAME LANGUAGE as the CURRENT USER MESSAGE below.
+Keep it fluid, natural, and conversational.
+Do not use log formats ("human", "assistant", literal timestamps), remove all that.
+Maintain a bulleted list format, one memory per line.
+Be concise.
 
-MEMORIAS CRUDAS:
+CURRENT USER MESSAGE (Detect language from this):
+"${currentPrompt}"
+
+RAW MEMORIES:
 ${finalLines.join("\n")}`;
 
       const res = await agent.complete(translationPrompt);
