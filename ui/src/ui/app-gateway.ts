@@ -224,6 +224,10 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
         payload.sessionKey,
       );
     }
+    // Preserve stream text so the bubble stays visible until history replaces it.
+    // handleChatEvent clears chatStream on "final", which collapses scroll height
+    // and can corrupt chatUserNearBottom before loadChatHistory fills in the real message.
+    const streamBeforeFinal = (host as unknown as OpenClawApp).chatStream;
     const state = handleChatEvent(host as unknown as OpenClawApp, payload);
     if (state === "final" || state === "error" || state === "aborted") {
       resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
@@ -239,7 +243,11 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
       }
     }
     if (state === "final") {
-      void loadChatHistory(host as unknown as OpenClawApp);
+      // Keep stream bubble visible to prevent scroll collapse while history loads.
+      (host as unknown as OpenClawApp).chatStream = streamBeforeFinal;
+      void loadChatHistory(host as unknown as OpenClawApp, { skipLoading: true }).then(() => {
+        (host as unknown as OpenClawApp).chatStream = null;
+      });
     }
     return;
   }

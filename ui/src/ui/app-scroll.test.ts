@@ -38,7 +38,6 @@ function createScrollHost(
     querySelector: vi.fn().mockReturnValue(container),
     style: { setProperty: vi.fn() } as unknown as CSSStyleDeclaration,
     chatScrollFrame: null as number | null,
-    chatScrollTimeout: null as number | null,
     chatHasAutoScrolled: false,
     chatUserNearBottom: true,
     chatNewMessagesBelow: false,
@@ -61,26 +60,18 @@ function createScrollEvent(scrollHeight: number, scrollTop: number, clientHeight
 /* ------------------------------------------------------------------ */
 
 describe("handleChatScroll", () => {
-  it("sets chatUserNearBottom=true when within the 450px threshold", () => {
+  it("sets chatUserNearBottom=true when within the 50px lock threshold", () => {
     const { host } = createScrollHost({});
-    // distanceFromBottom = 2000 - 1600 - 400 = 0 → clearly near bottom
-    const event = createScrollEvent(2000, 1600, 400);
+    // distanceFromBottom = 2000 - 1570 - 400 = 30 → within 50px
+    const event = createScrollEvent(2000, 1570, 400);
     handleChatScroll(host, event);
     expect(host.chatUserNearBottom).toBe(true);
   });
 
-  it("sets chatUserNearBottom=true when distance is just under threshold", () => {
+  it("sets chatUserNearBottom=false when beyond the 50px lock threshold", () => {
     const { host } = createScrollHost({});
-    // distanceFromBottom = 2000 - 1151 - 400 = 449 → just under threshold
-    const event = createScrollEvent(2000, 1151, 400);
-    handleChatScroll(host, event);
-    expect(host.chatUserNearBottom).toBe(true);
-  });
-
-  it("sets chatUserNearBottom=false when distance is exactly at threshold", () => {
-    const { host } = createScrollHost({});
-    // distanceFromBottom = 2000 - 1150 - 400 = 450 → at threshold (uses strict <)
-    const event = createScrollEvent(2000, 1150, 400);
+    // distanceFromBottom = 2000 - 1500 - 400 = 100 → beyond 50px
+    const event = createScrollEvent(2000, 1500, 400);
     handleChatScroll(host, event);
     expect(host.chatUserNearBottom).toBe(false);
   });
@@ -93,13 +84,22 @@ describe("handleChatScroll", () => {
     expect(host.chatUserNearBottom).toBe(false);
   });
 
-  it("sets chatUserNearBottom=false when user scrolled up past one long message (>200px <450px)", () => {
+  it("clears chatNewMessagesBelow within the 450px indicator threshold", () => {
     const { host } = createScrollHost({});
-    // distanceFromBottom = 2000 - 1250 - 400 = 350 → old threshold would say "near", new says "near"
-    // distanceFromBottom = 2000 - 1100 - 400 = 500 → old threshold would say "not near", new also "not near"
+    host.chatNewMessagesBelow = true;
+    // distanceFromBottom = 2000 - 1200 - 400 = 400 → within 450px indicator range
+    const event = createScrollEvent(2000, 1200, 400);
+    handleChatScroll(host, event);
+    expect(host.chatNewMessagesBelow).toBe(false);
+  });
+
+  it("does NOT clear chatNewMessagesBelow beyond the 450px indicator threshold", () => {
+    const { host } = createScrollHost({});
+    host.chatNewMessagesBelow = true;
+    // distanceFromBottom = 2000 - 1100 - 400 = 500 → beyond 450px indicator range
     const event = createScrollEvent(2000, 1100, 400);
     handleChatScroll(host, event);
-    expect(host.chatUserNearBottom).toBe(false);
+    expect(host.chatNewMessagesBelow).toBe(true);
   });
 });
 
@@ -127,7 +127,6 @@ describe("scheduleChatScroll", () => {
       scrollTop: 1600,
       clientHeight: 400,
     });
-    // distanceFromBottom = 2000 - 1600 - 400 = 0 → near bottom
     host.chatUserNearBottom = true;
 
     scheduleChatScroll(host);
@@ -142,7 +141,6 @@ describe("scheduleChatScroll", () => {
       scrollTop: 500,
       clientHeight: 400,
     });
-    // distanceFromBottom = 2000 - 500 - 400 = 1100 → not near bottom
     host.chatUserNearBottom = false;
     const originalScrollTop = container.scrollTop;
 
@@ -158,15 +156,13 @@ describe("scheduleChatScroll", () => {
       scrollTop: 500,
       clientHeight: 400,
     });
-    // User has scrolled up — chatUserNearBottom is false
     host.chatUserNearBottom = false;
-    host.chatHasAutoScrolled = true; // Already past initial load
+    host.chatHasAutoScrolled = true;
     const originalScrollTop = container.scrollTop;
 
     scheduleChatScroll(host, true);
     await host.updateComplete;
 
-    // force=true should still NOT override explicit user scroll-up after initial load
     expect(container.scrollTop).toBe(originalScrollTop);
   });
 
@@ -177,12 +173,11 @@ describe("scheduleChatScroll", () => {
       clientHeight: 400,
     });
     host.chatUserNearBottom = false;
-    host.chatHasAutoScrolled = false; // Initial load
+    host.chatHasAutoScrolled = false;
 
     scheduleChatScroll(host, true);
     await host.updateComplete;
 
-    // On initial load, force should work regardless
     expect(container.scrollTop).toBe(container.scrollHeight);
   });
 
@@ -231,7 +226,6 @@ describe("streaming scroll behavior", () => {
     host.chatHasAutoScrolled = true;
     const originalScrollTop = container.scrollTop;
 
-    // Simulate rapid streaming token updates
     scheduleChatScroll(host);
     scheduleChatScroll(host);
     scheduleChatScroll(host);
@@ -249,7 +243,6 @@ describe("streaming scroll behavior", () => {
     host.chatUserNearBottom = true;
     host.chatHasAutoScrolled = true;
 
-    // Simulate streaming
     scheduleChatScroll(host);
     await host.updateComplete;
 
