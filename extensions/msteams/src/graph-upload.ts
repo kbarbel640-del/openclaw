@@ -137,6 +137,40 @@ function parseDriveItemUploadResult(
   };
 }
 
+function parseNextExpectedRangeStart(responseBody: string): number | null {
+  if (!responseBody) {
+    return null;
+  }
+
+  let data: { nextExpectedRanges?: unknown };
+  try {
+    data = JSON.parse(responseBody) as { nextExpectedRanges?: unknown };
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(data.nextExpectedRanges) || data.nextExpectedRanges.length === 0) {
+    return null;
+  }
+
+  const firstRange = data.nextExpectedRanges[0];
+  if (typeof firstRange !== "string") {
+    return null;
+  }
+
+  const match = /^(\d+)(?:-\d*)?$/.exec(firstRange.trim());
+  if (!match) {
+    return null;
+  }
+
+  const nextStart = Number.parseInt(match[1], 10);
+  if (!Number.isSafeInteger(nextStart) || nextStart < 0) {
+    return null;
+  }
+
+  return nextStart;
+}
+
 async function uploadWithSimpleEndpoint(params: {
   buffer: Buffer;
   uploadPath: string;
@@ -244,7 +278,20 @@ async function uploadWithResumableSession(params: {
     });
 
     if (response.status === 202) {
-      start = endExclusive;
+      const body = await readResponseBody(response);
+      const nextStart = parseNextExpectedRangeStart(body);
+      if (nextStart === null) {
+        throw new Error(
+          `${params.requestName} resumable upload continuation missing nextExpectedRanges - ${body}`,
+        );
+      }
+      if (nextStart > bytes.byteLength) {
+        throw new Error(
+          `${params.requestName} resumable upload continuation out of bounds: ${nextStart}/${bytes.byteLength}`,
+        );
+      }
+
+      start = nextStart;
       continue;
     }
 

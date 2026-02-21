@@ -41,8 +41,9 @@ describe("graph-upload", () => {
     );
   });
 
-  it("uses resumable upload session for files > 4MB", async () => {
+  it("uses server nextExpectedRanges when resuming upload session for files > 4MB", async () => {
     const totalBytes = 5 * 1024 * 1024 + 20;
+    const resumedStart = 3 * 1024 * 1024;
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.endsWith("/createUploadSession")) {
         return new Response(JSON.stringify({ uploadUrl: "https://upload.example/session" }), {
@@ -55,10 +56,13 @@ describe("graph-upload", () => {
         const contentRange =
           (init?.headers as Record<string, string> | undefined)?.["Content-Range"] ?? "";
         if (contentRange.startsWith("bytes 0-")) {
-          return new Response(JSON.stringify({ nextExpectedRanges: ["5242880-"] }), {
+          return new Response(JSON.stringify({ nextExpectedRanges: [`${resumedStart}-`] }), {
             status: 202,
             headers: { "content-type": "application/json" },
           });
+        }
+        if (contentRange !== `bytes ${resumedStart}-5242899/${totalBytes}`) {
+          return new Response("wrong continuation range", { status: 416 });
         }
         return new Response(
           JSON.stringify({
@@ -92,6 +96,6 @@ describe("graph-upload", () => {
     const secondChunkHeaders = fetchMock.mock.calls[2]?.[1]?.headers as Record<string, string>;
 
     expect(firstChunkHeaders["Content-Range"]).toBe(`bytes 0-5242879/${totalBytes}`);
-    expect(secondChunkHeaders["Content-Range"]).toBe(`bytes 5242880-5242899/${totalBytes}`);
+    expect(secondChunkHeaders["Content-Range"]).toBe(`bytes ${resumedStart}-5242899/${totalBytes}`);
   });
 });
