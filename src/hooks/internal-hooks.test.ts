@@ -456,3 +456,36 @@ describe("hooks", () => {
     });
   });
 });
+
+describe("globalThis singleton", () => {
+  it("handlers Map is stored on globalThis for cross-chunk sharing", () => {
+    const GLOBAL_KEY = "__openclaw_internal_hooks__";
+    const globalMap = (globalThis as Record<string, unknown>)[GLOBAL_KEY];
+    expect(globalMap).toBeInstanceOf(Map);
+
+    // Registering a handler should be visible through the globalThis reference
+    const spy = vi.fn();
+    registerInternalHook("test:singleton", spy);
+    expect((globalMap as Map<string, unknown[]>).has("test:singleton")).toBe(true);
+
+    // Clean up
+    unregisterInternalHook("test:singleton", spy);
+  });
+
+  it("register and trigger share the same handlers Map across imports", async () => {
+    const handler = vi.fn();
+    registerInternalHook("message:received", handler);
+
+    const event = createInternalHookEvent("message", "received", "test-session", {
+      from: "test-user",
+      channelId: "discord",
+    });
+
+    await triggerInternalHook(event);
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler).toHaveBeenCalledWith(event);
+
+    // Clean up
+    unregisterInternalHook("message:received", handler);
+  });
+});
