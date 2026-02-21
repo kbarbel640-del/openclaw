@@ -321,6 +321,39 @@ scripts/e2e/onboard-docker.sh
 pnpm test:docker:qr
 ```
 
+### Plaintext WebSocket on Docker networks
+
+By default, OpenClaw blocks plaintext `ws://` connections to non-loopback addresses
+to prevent credential and chat data exposure. Docker bridge networks use private
+IPs (e.g. `172.18.0.2`) that trigger this security check.
+
+If your CLI container connects to a gateway container over a Docker bridge network,
+enable plaintext WebSocket for private addresses:
+
+**Option A** — environment variable (recommended for Docker):
+
+```yaml
+# docker-compose.yml
+services:
+  openclaw-cli:
+    environment:
+      OPENCLAW_ALLOW_PLAINTEXT_WS: "1"
+```
+
+**Option B** — config file (`~/.openclaw/openclaw.json`):
+
+```json5
+{
+  gateway: {
+    allowPlaintextWs: true,
+  },
+}
+```
+
+This only allows `ws://` to RFC1918 private addresses (10.x, 172.16-31.x,
+192.168.x), link-local (169.254.x), and CGNAT (100.64-127.x). Public addresses still require `wss://`. For production deployments
+exposed beyond the Docker host, use TLS (`wss://`) instead.
+
 ### Notes
 
 - Gateway bind defaults to `lan` for container use.

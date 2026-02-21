@@ -345,6 +345,52 @@ describe("buildGatewayConnectionDetails", () => {
 
     expect(details.url).toBe("ws://127.0.0.1:18789");
   });
+
+  it("allows ws:// to LAN IP when allowPlaintextWs is true in config", () => {
+    loadConfig.mockReturnValue({
+      gateway: { mode: "local", bind: "lan", allowPlaintextWs: true },
+    });
+    resolveGatewayPort.mockReturnValue(18800);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+    pickPrimaryLanIPv4.mockReturnValue("172.18.0.2");
+
+    const details = buildGatewayConnectionDetails();
+
+    expect(details.url).toBe("ws://172.18.0.2:18800");
+  });
+
+  it("allows ws:// to LAN IP when OPENCLAW_ALLOW_PLAINTEXT_WS=1 env var is set", () => {
+    loadConfig.mockReturnValue({
+      gateway: { mode: "local", bind: "lan" },
+    });
+    resolveGatewayPort.mockReturnValue(18800);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+    pickPrimaryLanIPv4.mockReturnValue("10.0.0.5");
+
+    const envSnap = captureEnv(["OPENCLAW_ALLOW_PLAINTEXT_WS"]);
+    try {
+      process.env.OPENCLAW_ALLOW_PLAINTEXT_WS = "1";
+      const details = buildGatewayConnectionDetails();
+      expect(details.url).toBe("ws://10.0.0.5:18800");
+    } finally {
+      envSnap.restore();
+    }
+  });
+
+  it("still blocks ws:// to public IPs even with allowPlaintextWs", () => {
+    loadConfig.mockReturnValue({
+      gateway: {
+        mode: "remote",
+        bind: "loopback",
+        allowPlaintextWs: true,
+        remote: { url: "ws://remote.example.com:18789" },
+      },
+    });
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+
+    expect(() => buildGatewayConnectionDetails()).toThrow("SECURITY ERROR");
+  });
 });
 
 describe("callGateway error details", () => {

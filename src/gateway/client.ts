@@ -62,6 +62,8 @@ export type GatewayClientOptions = {
   minProtocol?: number;
   maxProtocol?: number;
   tlsFingerprint?: string;
+  /** Allow plaintext ws:// to private/RFC1918 addresses (e.g. Docker networks). */
+  allowPlaintextWs?: boolean;
   onEvent?: (evt: EventFrame) => void;
   onHelloOk?: (hello: HelloOk) => void;
   onConnectError?: (err: Error) => void;
@@ -112,10 +114,13 @@ export class GatewayClient {
       return;
     }
 
-    // Security check: block ALL plaintext ws:// to non-loopback addresses (CWE-319, CVSS 9.8)
+    // Security check: block plaintext ws:// to non-loopback addresses (CWE-319, CVSS 9.8)
     // This protects both credentials AND chat/conversation data from MITM attacks.
     // Device tokens may be loaded later in sendConnect(), so we block regardless of hasCredentials.
-    if (!isSecureWebSocketUrl(url)) {
+    // When allowPlaintextWs is set, private/RFC1918 addresses are also permitted.
+    const allowPrivateNetworks =
+      this.opts.allowPlaintextWs === true || process.env.OPENCLAW_ALLOW_PLAINTEXT_WS === "1";
+    if (!isSecureWebSocketUrl(url, { allowPrivateNetworks })) {
       // Safe hostname extraction - avoid throwing on malformed URLs in error path
       let displayHost = url;
       try {

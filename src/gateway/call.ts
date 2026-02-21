@@ -139,17 +139,23 @@ export function buildGatewayConnectionDetails(
     : undefined;
   const bindDetail = !urlOverride && !remoteUrl ? `Bind: ${bindMode}` : undefined;
 
-  // Security check: block ALL insecure ws:// to non-loopback addresses (CWE-319, CVSS 9.8)
+  // Security check: block insecure ws:// to non-loopback addresses (CWE-319, CVSS 9.8)
   // This applies to the FINAL resolved URL, regardless of source (config, CLI override, etc).
   // Both credentials and chat/conversation data must not be transmitted over plaintext to remote hosts.
-  if (!isSecureWebSocketUrl(url)) {
+  // When gateway.allowPlaintextWs=true or OPENCLAW_ALLOW_PLAINTEXT_WS=1, private/RFC1918
+  // addresses (e.g. Docker bridge networks) are also allowed over ws://.
+  const allowPrivateNetworks =
+    config.gateway?.allowPlaintextWs === true || process.env.OPENCLAW_ALLOW_PLAINTEXT_WS === "1";
+  if (!isSecureWebSocketUrl(url, { allowPrivateNetworks })) {
     throw new Error(
       [
         `SECURITY ERROR: Gateway URL "${url}" uses plaintext ws:// to a non-loopback address.`,
         "Both credentials and chat data would be exposed to network interception.",
         `Source: ${urlSource}`,
         `Config: ${configPath}`,
-        "Fix: Use wss:// for the gateway URL, or connect via SSH tunnel to localhost.",
+        allowPrivateNetworks
+          ? "Fix: Use wss:// for the gateway URL, or connect via SSH tunnel to localhost. (allowPlaintextWs is enabled but the address is not a private network.)"
+          : "Fix: Use wss:// for the gateway URL, connect via SSH tunnel to localhost, or set gateway.allowPlaintextWs=true (or OPENCLAW_ALLOW_PLAINTEXT_WS=1) for Docker/private networks.",
       ].join("\n"),
     );
   }
@@ -314,6 +320,7 @@ async function executeGatewayRequestWithScopes<T>(params: {
   token?: string;
   password?: string;
   tlsFingerprint?: string;
+  allowPlaintextWs?: boolean;
   timeoutMs: number;
   safeTimerTimeoutMs: number;
   connectionDetails: GatewayConnectionDetails;
@@ -341,6 +348,7 @@ async function executeGatewayRequestWithScopes<T>(params: {
       token,
       password,
       tlsFingerprint,
+      allowPlaintextWs: params.allowPlaintextWs,
       instanceId: opts.instanceId ?? randomUUID(),
       clientName: opts.clientName ?? GATEWAY_CLIENT_NAMES.CLI,
       clientDisplayName: opts.clientDisplayName,
@@ -407,6 +415,9 @@ async function callGatewayWithScopes<T = Record<string, unknown>>(
   const url = connectionDetails.url;
   const tlsFingerprint = await resolveGatewayTlsFingerprint({ opts, context, url });
   const { token, password } = resolveGatewayCredentials(context);
+  const allowPlaintextWs =
+    context.config.gateway?.allowPlaintextWs === true ||
+    process.env.OPENCLAW_ALLOW_PLAINTEXT_WS === "1";
   return await executeGatewayRequestWithScopes<T>({
     opts,
     scopes,
@@ -414,6 +425,7 @@ async function callGatewayWithScopes<T = Record<string, unknown>>(
     token,
     password,
     tlsFingerprint,
+    allowPlaintextWs: allowPlaintextWs || undefined,
     timeoutMs,
     safeTimerTimeoutMs,
     connectionDetails,

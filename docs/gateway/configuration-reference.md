@@ -2016,6 +2016,7 @@ See [Plugins](/tools/plugin).
     mode: "local", // local | remote
     port: 18789,
     bind: "loopback",
+    // allowPlaintextWs: true, // allow ws:// to private/Docker IPs (default: false)
     auth: {
       mode: "token", // none | token | password | trusted-proxy
       token: "your-token",
@@ -2072,6 +2073,7 @@ See [Plugins](/tools/plugin).
 - `remote.transport`: `ssh` (default) or `direct` (ws/wss). For `direct`, `remote.url` must be `ws://` or `wss://`.
 - `gateway.remote.token` is for remote CLI calls only; does not enable local gateway auth.
 - `trustedProxies`: reverse proxy IPs that terminate TLS. Only list proxies you control.
+- `allowPlaintextWs`: when `true`, permits plaintext `ws://` connections to RFC1918 private addresses (Docker bridge networks, LAN). Public addresses still require `wss://`. Also settable via `OPENCLAW_ALLOW_PLAINTEXT_WS=1` env var. Default: `false`.
 - `gateway.tools.deny`: extra tool names blocked for HTTP `POST /tools/invoke` (extends default deny list).
 - `gateway.tools.allow`: remove tool names from the default HTTP deny list.
 
