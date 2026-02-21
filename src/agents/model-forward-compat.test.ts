@@ -56,4 +56,121 @@ describe("agents/model-forward-compat", () => {
     const model = resolveForwardCompatModel("openai", "claude-opus-4-6", registry);
     expect(model).toBeUndefined();
   });
+
+  it("resolves gemini 3.1 customtools via gemini 3 template", () => {
+    const registry = createRegistry({
+      "google/gemini-3-pro-preview": createTemplateModel("google", "gemini-3-pro-preview"),
+    });
+    const model = resolveForwardCompatModel(
+      "google",
+      "gemini-3.1-pro-preview-customtools",
+      registry,
+    );
+    expect(model?.id).toBe("gemini-3.1-pro-preview-customtools");
+    expect(model?.name).toBe("gemini-3.1-pro-preview-customtools");
+    expect(model?.provider).toBe("google");
+  });
+
+  it("normalizes google gemini 3.1 low alias to preview id via gemini 3 template", () => {
+    const registry = createRegistry({
+      "google/gemini-3-pro-low": createTemplateModel("google", "gemini-3-pro-low"),
+    });
+    const model = resolveForwardCompatModel("google", "gemini-3.1-pro-low", registry);
+    expect(model?.id).toBe("gemini-3.1-pro-low-preview");
+    expect(model?.name).toBe("gemini-3.1-pro-low-preview");
+    expect(model?.provider).toBe("google");
+  });
+
+  it("resolves antigravity gemini 3.1 via gemini 3 pro high template", () => {
+    const registry = createRegistry({
+      "google-antigravity/gemini-3-pro-high": createTemplateModel(
+        "google-antigravity",
+        "gemini-3-pro-high",
+      ),
+    });
+    const model = resolveForwardCompatModel(
+      "google-antigravity",
+      "gemini-3.1-pro-low-preview",
+      registry,
+    );
+    expect(model?.id).toBe("gemini-3.1-pro-low");
+    expect(model?.name).toBe("gemini-3.1-pro-low-preview");
+    expect(model?.provider).toBe("google-antigravity");
+  });
+
+  it("prefers low antigravity templates for gemini 3.1 low ids", () => {
+    const registry = createRegistry({
+      "google-antigravity/gemini-3-pro-high": createTemplateModel(
+        "google-antigravity",
+        "gemini-3-pro-high",
+      ),
+      "google-antigravity/gemini-3-pro-low": createTemplateModel(
+        "google-antigravity",
+        "gemini-3-pro-low",
+      ),
+    });
+    const model = resolveForwardCompatModel(
+      "google-antigravity",
+      "gemini-3.1-pro-low-preview",
+      registry,
+    );
+    expect(model?.id).toBe("gemini-3.1-pro-low");
+    expect(model?.name).toBe("gemini-3.1-pro-low-preview");
+    expect(model?.provider).toBe("google-antigravity");
+  });
+
+  it("resolves antigravity gemini 3.1 via gemini 3 pro high preview template", () => {
+    const registry = createRegistry({
+      "google-antigravity/gemini-3-pro-high-preview": createTemplateModel(
+        "google-antigravity",
+        "gemini-3-pro-high-preview",
+      ),
+    });
+    const model = resolveForwardCompatModel(
+      "google-antigravity",
+      "gemini-3.1-pro-high-preview",
+      registry,
+    );
+    expect(model?.id).toBe("gemini-3.1-pro-high");
+    expect(model?.name).toBe("gemini-3.1-pro-high-preview");
+    expect(model?.provider).toBe("google-antigravity");
+  });
+
+  it("resolves antigravity gemini 3.1 non-preview alias ids", () => {
+    const registry = createRegistry({
+      "google-antigravity/gemini-3.1-pro-high-preview": createTemplateModel(
+        "google-antigravity",
+        "gemini-3.1-pro-high-preview",
+      ),
+    });
+    const model = resolveForwardCompatModel("google-antigravity", "gemini-3.1-pro-high", registry);
+    expect(model?.id).toBe("gemini-3.1-pro-high");
+    expect(model?.name).toBe("gemini-3.1-pro-high");
+    expect(model?.provider).toBe("google-antigravity");
+  });
+
+  it("resolves antigravity direct gemini 3.1 pro id", () => {
+    const registry = createRegistry({
+      "google-antigravity/gemini-3-pro-high": createTemplateModel(
+        "google-antigravity",
+        "gemini-3-pro-high",
+      ),
+    });
+    const model = resolveForwardCompatModel("google-antigravity", "gemini-3.1-pro", registry);
+    expect(model?.id).toBe("gemini-3.1-pro-high");
+    expect(model?.name).toBe("gemini-3.1-pro");
+    expect(model?.provider).toBe("google-antigravity");
+  });
+
+  it("does not resolve gemini 3.1 customtools fallback for other providers", () => {
+    const registry = createRegistry({
+      "google/gemini-3-pro-preview": createTemplateModel("google", "gemini-3-pro-preview"),
+    });
+    const model = resolveForwardCompatModel(
+      "openai",
+      "gemini-3.1-pro-preview-customtools",
+      registry,
+    );
+    expect(model).toBeUndefined();
+  });
 });

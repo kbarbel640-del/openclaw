@@ -31,6 +31,32 @@ const CODEX_PROVIDER = "openai-codex";
 const OPENAI_CODEX_GPT53_MODEL_ID = "gpt-5.3-codex";
 const OPENAI_CODEX_GPT53_SPARK_MODEL_ID = "gpt-5.3-codex-spark";
 
+const GEMINI_31_CATALOG_MODEL_IDS = [
+  "gemini-3.1-pro",
+  "gemini-3.1-pro-low-preview",
+  "gemini-3.1-pro-high-preview",
+  "gemini-3.1-pro-preview-customtools",
+] as const;
+const GEMINI_31_ANTIGRAVITY_CATALOG_MODEL_IDS = [
+  "gemini-3.1-pro-low",
+  "gemini-3.1-pro-high",
+] as const;
+const GEMINI_31_CATALOG_PROVIDERS = ["google", "google-antigravity"] as const;
+const GEMINI_31_TEMPLATE_IDS = [
+  "gemini-3-pro-preview",
+  "gemini-3-pro-high",
+  "gemini-3-pro-high-preview",
+  "gemini-3-pro-low",
+  "gemini-3-pro-low-preview",
+  "gemini-3.1-pro",
+  "gemini-3.1-pro-low",
+  "gemini-3.1-pro-high",
+  "gemini-3.1-pro-customtools",
+  "gemini-3.1-pro-low-preview",
+  "gemini-3.1-pro-high-preview",
+  "gemini-3.1-pro-preview-customtools",
+] as const;
+
 function applyOpenAICodexSparkFallback(models: ModelCatalogEntry[]): void {
   const hasSpark = models.some(
     (entry) =>
@@ -54,6 +80,39 @@ function applyOpenAICodexSparkFallback(models: ModelCatalogEntry[]): void {
     id: OPENAI_CODEX_GPT53_SPARK_MODEL_ID,
     name: OPENAI_CODEX_GPT53_SPARK_MODEL_ID,
   });
+}
+
+function applyGemini31ForwardCompat(models: ModelCatalogEntry[]): void {
+  for (const provider of GEMINI_31_CATALOG_PROVIDERS) {
+    const targetModelIds =
+      provider === "google-antigravity"
+        ? GEMINI_31_ANTIGRAVITY_CATALOG_MODEL_IDS
+        : GEMINI_31_CATALOG_MODEL_IDS;
+    const template = GEMINI_31_TEMPLATE_IDS.map((templateId) =>
+      models.find((entry) => entry.provider === provider && entry.id === templateId),
+    ).find((entry): entry is ModelCatalogEntry => entry !== undefined);
+    if (!template) {
+      continue;
+    }
+
+    for (const modelId of targetModelIds) {
+      const exists = models.some(
+        (entry) => entry.provider === provider && entry.id.toLowerCase() === modelId,
+      );
+      if (exists) {
+        continue;
+      }
+
+      models.push({
+        id: modelId,
+        name: modelId,
+        provider,
+        contextWindow: template.contextWindow,
+        reasoning: true,
+        input: template.input,
+      });
+    }
+  }
 }
 
 export function resetModelCatalogCacheForTest() {
@@ -140,6 +199,7 @@ export async function loadModelCatalog(params?: {
         models.push({ id, name, provider, contextWindow, reasoning, input });
       }
       applyOpenAICodexSparkFallback(models);
+      applyGemini31ForwardCompat(models);
 
       if (models.length === 0) {
         // If we found nothing, don't cache this result so we can try again.

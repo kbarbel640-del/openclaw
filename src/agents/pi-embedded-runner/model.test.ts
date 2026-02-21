@@ -299,6 +299,58 @@ describe("resolveModel", () => {
     });
   });
 
+  it("builds an antigravity gemini 3.1 forward-compat fallback from preview templates", () => {
+    mockDiscoveredModel({
+      provider: "google-antigravity",
+      modelId: "gemini-3-pro-high-preview",
+      templateModel: buildForwardCompatTemplate({
+        id: "gemini-3-pro-high-preview",
+        name: "Gemini 3 Pro High Preview",
+        provider: "google-antigravity",
+        api: "google-gemini-cli",
+        baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+      }),
+    });
+
+    expectResolvedForwardCompatFallback({
+      provider: "google-antigravity",
+      id: "gemini-3.1-pro-high-preview",
+      expectedModel: {
+        provider: "google-antigravity",
+        id: "gemini-3.1-pro-high",
+        api: "google-gemini-cli",
+        baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+        reasoning: true,
+      },
+    });
+  });
+
+  it("builds an antigravity gemini 3.1 forward-compat fallback for non-preview alias ids", () => {
+    mockDiscoveredModel({
+      provider: "google-antigravity",
+      modelId: "gemini-3.1-pro-high-preview",
+      templateModel: buildForwardCompatTemplate({
+        id: "gemini-3.1-pro-high-preview",
+        name: "Gemini 3.1 Pro High Preview",
+        provider: "google-antigravity",
+        api: "google-gemini-cli",
+        baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+      }),
+    });
+
+    expectResolvedForwardCompatFallback({
+      provider: "google-antigravity",
+      id: "gemini-3.1-pro-high",
+      expectedModel: {
+        provider: "google-antigravity",
+        id: "gemini-3.1-pro-high",
+        api: "google-gemini-cli",
+        baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+        reasoning: true,
+      },
+    });
+  });
+
   it("builds a zai forward-compat fallback for glm-5", () => {
     mockDiscoveredModel({
       provider: "zai",

@@ -39,6 +39,7 @@ vi.mock("../workspace-run.js", () => ({
 vi.mock("../pi-embedded-helpers.js", () => ({
   formatBillingErrorMessage: vi.fn(() => ""),
   classifyFailoverReason: vi.fn(() => null),
+  ensureMinAntigravityVersion: vi.fn(() => {}),
   formatAssistantErrorText: vi.fn(() => ""),
   isAuthAssistantError: vi.fn(() => false),
   isBillingAssistantError: vi.fn(() => false),

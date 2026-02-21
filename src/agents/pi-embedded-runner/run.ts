@@ -27,6 +27,7 @@ import {
 import { normalizeProviderId } from "../model-selection.js";
 import { ensureOpenClawModelsJson } from "../models-config.js";
 import {
+  ensureMinAntigravityVersion,
   formatBillingErrorMessage,
   classifyFailoverReason,
   formatAssistantErrorText,
@@ -280,6 +281,10 @@ export async function runEmbeddedPiAgent(
           model: modelId,
         });
       }
+      ensureMinAntigravityVersion({
+        provider: model.provider,
+        modelId: model.id,
+      });
 
       const ctxInfo = resolveContextWindowInfo({
         cfg: params.config,
