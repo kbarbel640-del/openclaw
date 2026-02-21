@@ -314,6 +314,41 @@ function getAllProviders() {
   return map;
 }
 
+// ---------------------------------------------------------------------------
+// Optional DB-backed provider support (provider-db.cjs)
+// ---------------------------------------------------------------------------
+
+var providerDB;
+try {
+  providerDB = require("./provider-db.cjs");
+} catch (_) {
+  providerDB = null; // DB module not available, fallback to hardcoded
+}
+
+/**
+ * Get testable models with DB support. Falls back to hardcoded if DB unavailable.
+ * Opens DB, seeds builtins, merges with config, then closes.
+ * @param {Object} cfg - full openclaw.json config
+ * @param {Object} [envKeys] - { providerName: apiKey } overrides
+ * @param {string} [dbPath] - optional DB path override
+ * @returns {Array<Object>} flat model list with connection details
+ */
+function getTestableModelsWithDB(cfg, envKeys, dbPath) {
+  if (!providerDB) return getTestableModels(cfg, envKeys);
+
+  var db;
+  try {
+    db = providerDB.initDB(dbPath);
+    providerDB.seedBuiltinProviders(db);
+    return providerDB.getTestableModelsFromDB(db, cfg, envKeys);
+  } catch (e) {
+    console.error("Warning: DB unavailable, falling back to hardcoded providers:", e.message);
+    return getTestableModels(cfg, envKeys);
+  } finally {
+    if (db) providerDB.closeDB(db);
+  }
+}
+
 module.exports = {
   KNOWN_PROVIDERS: KNOWN_PROVIDERS,
   getKnownProviders: getKnownProviders,
@@ -322,4 +357,6 @@ module.exports = {
   isModelFree: isModelFree,
   generateProviderConfig: generateProviderConfig,
   getAllProviders: getAllProviders,
+  getTestableModelsWithDB: getTestableModelsWithDB,
+  providerDB: providerDB,
 };

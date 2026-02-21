@@ -102,6 +102,9 @@ function parseArgs() {
     providers: null,
     weights: null,
     help: false,
+    manageProviders: null,  // sub-command: list|add|remove|test|seed
+    manageProvidersArg: null, // argument for the sub-command
+    providersDB: null,       // --providers-db <path>
   };
 
   for (var i = 0; i < args.length; i++) {
@@ -125,6 +128,16 @@ function parseArgs() {
       case "--config":
         CONFIG_PATH = args[++i];
         break;
+      case "--manage-providers":
+        opts.manageProviders = args[++i] || "list";
+        // Collect optional argument for the sub-command
+        if (i + 1 < args.length && args[i + 1] && args[i + 1].charAt(0) !== "-") {
+          opts.manageProvidersArg = args[++i];
+        }
+        break;
+      case "--providers-db":
+        opts.providersDB = args[++i];
+        break;
     }
   }
 
@@ -136,7 +149,7 @@ function showHelp() {
   console.log("");
   console.log("Usage: node model-optimizer.cjs [options]");
   console.log("");
-  console.log("Options:");
+  console.log("Benchmark Options:");
   console.log("  --auto           Run benchmark and auto-rotate if improvement found");
   console.log("  --dry-run        Benchmark only, do not update config");
   console.log("  --discover       Include provider discovery (check env for new providers)");
@@ -150,6 +163,14 @@ function showHelp() {
   console.log("  --config <path>  Config file path (default: " + DEFAULT_CONFIG_PATH + ")");
   console.log("                   Also settable via OPENCLAW_CONFIG_PATH env var");
   console.log("  --help           Show this help");
+  console.log("");
+  console.log("Provider Management:");
+  console.log("  --manage-providers list             List all providers in DB");
+  console.log("  --manage-providers add <json-file>  Add provider from JSON file");
+  console.log("  --manage-providers remove <name>    Remove provider by name");
+  console.log("  --manage-providers test <name>      Quick-test a specific provider");
+  console.log("  --manage-providers seed             Seed/refresh builtin providers");
+  console.log("  --providers-db <path>               SQLite DB path (default: ~/.openclaw/providers.db)");
 }
 
 // ---------------------------------------------------------------------------
@@ -527,6 +548,168 @@ function buildResultJSON(ranked, failures, rawResults, rotated, reason, backupPa
 }
 
 // ---------------------------------------------------------------------------
+// Provider Management CLI
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle --manage-providers sub-commands.
+ * @param {Object} opts - parsed CLI options
+ */
+function handleProviders(opts) {
+  var providerDB = registry.providerDB;
+  if (!providerDB) {
+    console.error("Error: provider-db.cjs not available. Cannot manage providers.");
+    process.exit(1);
+  }
+
+  var db;
+  try {
+    db = providerDB.initDB(opts.providersDB);
+    providerDB.seedBuiltinProviders(db);
+  } catch (e) {
+    console.error("Error initializing provider DB: " + e.message);
+    process.exit(1);
+  }
+
+  var cmd = opts.manageProviders;
+  var arg = opts.manageProvidersArg;
+
+  try {
+    switch (cmd) {
+      case "list": {
+        var providers = providerDB.getProviders(db);
+        if (opts.json) {
+          var detailed = providers.map(function(p) {
+            return providerDB.getProvider(db, p.name);
+          });
+          console.log(JSON.stringify(detailed, null, 2));
+        } else {
+          console.log("\n  Providers in database (" + providers.length + "):\n");
+          console.log("  Name              Display Name         Models  Enabled  Builtin");
+          console.log("  ----------------  -------------------  ------  -------  -------");
+          for (var i = 0; i < providers.length; i++) {
+            var p = providers[i];
+            var full = providerDB.getProvider(db, p.name);
+            var modelCount = full && full.models ? full.models.length : 0;
+            console.log(
+              "  " + p.name.padEnd(18) +
+              p.displayName.slice(0, 19).padEnd(21) +
+              String(modelCount).padEnd(8) +
+              (p.enabled ? "YES" : "NO").padEnd(9) +
+              (p.isBuiltin ? "YES" : "NO")
+            );
+          }
+        }
+        break;
+      }
+
+      case "add": {
+        if (!arg) {
+          console.error("Error: --manage-providers add requires a JSON file path.");
+          console.error("  Usage: --manage-providers add <path-to-provider.json>");
+          process.exit(1);
+        }
+        var data;
+        try {
+          var raw = fs.readFileSync(arg, "utf8");
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.error("Error reading JSON file '" + arg + "': " + e.message);
+          process.exit(1);
+        }
+        var added = providerDB.addProvider(db, data);
+        if (opts.json) {
+          console.log(JSON.stringify(added, null, 2));
+        } else {
+          console.log("  Added provider: " + added.name + " (" + added.displayName + ")");
+          console.log("  Models: " + added.models.length);
+          console.log("  Base URL: " + added.baseUrl);
+        }
+        break;
+      }
+
+      case "remove": {
+        if (!arg) {
+          console.error("Error: --manage-providers remove requires a provider name.");
+          process.exit(1);
+        }
+        try {
+          providerDB.removeProvider(db, arg);
+          if (!opts.json) console.log("  Removed provider: " + arg);
+          else console.log(JSON.stringify({ removed: arg, success: true }));
+        } catch (e) {
+          // If it's a builtin, offer force option
+          if (e.message.indexOf("builtin") >= 0) {
+            console.error("  " + e.message);
+            console.error("  To force-remove a builtin, edit the DB directly.");
+          } else {
+            console.error("Error: " + e.message);
+          }
+          process.exit(1);
+        }
+        break;
+      }
+
+      case "test": {
+        if (!arg) {
+          console.error("Error: --manage-providers test requires a provider name.");
+          process.exit(1);
+        }
+        var provider = providerDB.getProvider(db, arg);
+        if (!provider) {
+          console.error("Provider '" + arg + "' not found in DB.");
+          process.exit(1);
+        }
+        if (!opts.json) {
+          console.log("\n  Provider: " + provider.name + " (" + provider.displayName + ")");
+          console.log("  Base URL: " + provider.baseUrl);
+          console.log("  API: " + provider.api);
+          console.log("  Auth: " + provider.authType + (provider.requiresKey ? " (key required)" : ""));
+          console.log("  Env var: " + (provider.envVar || "(none)"));
+          console.log("  Enabled: " + provider.enabled);
+          console.log("  Builtin: " + provider.isBuiltin);
+          console.log("  Rate limits: " + provider.rateLimit.requestsPerMinute + " rpm, " + provider.rateLimit.tokensPerMinute + " tpm");
+          console.log("  Models (" + provider.models.length + "):");
+          for (var j = 0; j < provider.models.length; j++) {
+            var m = provider.models[j];
+            console.log("    - " + m.id + " (" + m.name + ") free:" + m.free + " enabled:" + m.enabled);
+          }
+          // Check if API key is available
+          var hasKey = false;
+          if (provider.envVar) {
+            hasKey = !!process.env[provider.envVar];
+            console.log("  API key (" + provider.envVar + "): " + (hasKey ? "SET" : "NOT SET"));
+          }
+        } else {
+          console.log(JSON.stringify(provider, null, 2));
+        }
+        break;
+      }
+
+      case "seed": {
+        // Force re-seed by re-running seedBuiltinProviders (already done above, but user can call explicitly)
+        var before = providerDB.getProviders(db);
+        providerDB.seedBuiltinProviders(db);
+        var after = providerDB.getProviders(db);
+        if (!opts.json) {
+          console.log("  Seeded builtin providers. Total: " + after.length + " (was: " + before.length + ")");
+        } else {
+          console.log(JSON.stringify({ total: after.length, previous: before.length }));
+        }
+        break;
+      }
+
+      default:
+        console.error("Unknown sub-command: " + cmd);
+        console.error("Valid: list, add, remove, test, seed");
+        process.exit(1);
+    }
+  } finally {
+    providerDB.closeDB(db);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -535,6 +718,12 @@ async function main() {
 
   if (opts.help) {
     showHelp();
+    process.exit(0);
+  }
+
+  // Handle provider management sub-commands (no benchmark needed)
+  if (opts.manageProviders) {
+    handleProviders(opts);
     process.exit(0);
   }
 
@@ -556,7 +745,13 @@ async function main() {
     }
   }
 
-  var models = registry.getTestableModels(cfg, envKeys);
+  // Use DB-backed model list when available, otherwise fall back to hardcoded
+  var models;
+  if (registry.getTestableModelsWithDB && (opts.providersDB || opts.discover)) {
+    models = registry.getTestableModelsWithDB(cfg, envKeys, opts.providersDB);
+  } else {
+    models = registry.getTestableModels(cfg, envKeys);
+  }
 
   // Filter by provider
   if (opts.providers) {
