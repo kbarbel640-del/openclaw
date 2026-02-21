@@ -333,6 +333,19 @@ export async function runEmbeddedAttempt(
     const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
     logToolSchemasForGoogle({ tools, provider: params.provider });
 
+    // Validate that essential built-in tools are present after creation.
+    // A partial set indicates a race condition or initialization failure (#22426).
+    if (!params.disableTools) {
+      const EXPECTED_CORE_TOOLS = ["read", "write", "edit", "exec", "web_search", "web_fetch"];
+      const registeredNames = new Set(tools.map((t) => t.name));
+      const missing = EXPECTED_CORE_TOOLS.filter((name) => !registeredNames.has(name));
+      if (missing.length > 0) {
+        log.warn(
+          `tool registration incomplete after creation: missing [${missing.join(", ")}] — registered ${registeredNames.size} tools total (${[...registeredNames].join(", ")})`,
+        );
+      }
+    }
+
     const machineName = await getMachineDisplayName();
     const runtimeChannel = normalizeMessageChannel(params.messageChannel ?? params.messageProvider);
     let runtimeCapabilities = runtimeChannel
