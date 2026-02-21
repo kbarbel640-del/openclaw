@@ -86,6 +86,6 @@ describe("withReplyDispatcher", () => {
       replyResolver: async () => ({ text: "ok" }),
     });
 
-    expect(order).toEqual(["sendFinalReply", "markComplete", "waitForIdle"]);
+    expect(order).toEqual(["sendFinalReply", "waitForIdle", "markComplete", "waitForIdle"]);
   });
 });

@@ -100,14 +100,16 @@ describe("hydrateDoltBootstrapState", () => {
       tokenBudget: 50_000,
       lanePolicyOverrides: {
         bindle: {
-          target: 50_000,
-          soft: 50_000,
+          // tight budget: fits bindle2 only (newest-first selection)
+          target: bindle2.tokenCount,
+          soft: bindle2.tokenCount,
           delta: 0,
           summaryCap: bindle2.tokenCount + 1,
         },
         leaf: {
-          target: 50_000,
-          soft: 50_000,
+          // tight budget: fits leaf2 only
+          target: leaf2.tokenCount,
+          soft: leaf2.tokenCount,
           delta: 0,
           summaryCap: leaf2.tokenCount + 1,
         },
