@@ -75,7 +75,9 @@ describe("resolveExistingPathsWithinRoot", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.paths).toEqual([path.join(uploadsDir, "missing.txt")]);
+      // Paths are resolved to their real (symlink-free) form
+      const realUploadsDir = await fs.realpath(uploadsDir);
+      expect(result.paths).toEqual([path.join(realUploadsDir, "missing.txt")]);
     }
   });
 
@@ -98,7 +100,66 @@ describe("resolveExistingPathsWithinRoot", () => {
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error).toContain("regular non-symlink file");
+        expect(result.error).toContain("must stay within uploads directory");
+      }
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "accepts paths through parent directory symlinks",
+    async () => {
+      const { baseDir, uploadsDir } = await createFixtureRoot();
+      cleanupDirs.add(baseDir);
+
+      const filePath = path.join(uploadsDir, "doc.txt");
+      await fs.writeFile(filePath, "hello", "utf8");
+
+      // Create a symlink to the parent dir (simulates macOS /tmp -> /private/tmp)
+      const symlinkDir = path.join(baseDir, "link-to-base");
+      await fs.symlink(baseDir, symlinkDir);
+      cleanupDirs.add(symlinkDir);
+      const symlinkUploadsDir = path.join(symlinkDir, "uploads");
+
+      // Root uses symlinked path; file path also goes through symlink
+      const result = await resolveExistingPathsWithinRoot({
+        rootDir: symlinkUploadsDir,
+        requestedPaths: [path.join(symlinkUploadsDir, "doc.txt")],
+        scopeLabel: "uploads directory",
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.paths).toEqual([await fs.realpath(filePath)]);
+      }
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "accepts real paths when root uses a symlinked directory",
+    async () => {
+      const { baseDir, uploadsDir } = await createFixtureRoot();
+      cleanupDirs.add(baseDir);
+
+      const filePath = path.join(uploadsDir, "doc.txt");
+      await fs.writeFile(filePath, "hello", "utf8");
+
+      // Create a symlink to the parent dir
+      const symlinkDir = path.join(baseDir, "link-to-base");
+      await fs.symlink(baseDir, symlinkDir);
+      cleanupDirs.add(symlinkDir);
+      const symlinkUploadsDir = path.join(symlinkDir, "uploads");
+
+      // Root uses symlinked path, but request uses the real (resolved) path
+      const realFilePath = await fs.realpath(filePath);
+      const result = await resolveExistingPathsWithinRoot({
+        rootDir: symlinkUploadsDir,
+        requestedPaths: [realFilePath],
+        scopeLabel: "uploads directory",
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.paths).toEqual([realFilePath]);
       }
     },
   );
