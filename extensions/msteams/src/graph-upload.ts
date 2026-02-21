@@ -351,20 +351,25 @@ export async function createSharingLink(params: {
   const fetchFn = params.fetchFn ?? fetch;
   const token = await params.tokenProvider.getAccessToken(GRAPH_SCOPE);
 
-  const res = await fetchFn(`${GRAPH_ROOT}/me/drive/items/${params.itemId}/createLink`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+  const res = await fetchWithRetry({
+    fetchFn,
+    url: `${GRAPH_ROOT}/me/drive/items/${params.itemId}/createLink`,
+    requestName: `OneDrive createLink (${params.itemId})`,
+    init: {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "view",
+        scope: params.scope ?? "organization",
+      }),
     },
-    body: JSON.stringify({
-      type: "view",
-      scope: params.scope ?? "organization",
-    }),
   });
 
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
+    const body = await readResponseBody(res);
     throw new Error(`Create sharing link failed: ${res.status} ${res.statusText} - ${body}`);
   }
 
@@ -483,13 +488,15 @@ export async function getDriveItemProperties(params: {
   const fetchFn = params.fetchFn ?? fetch;
   const token = await params.tokenProvider.getAccessToken(GRAPH_SCOPE);
 
-  const res = await fetchFn(
-    `${GRAPH_ROOT}/sites/${params.siteId}/drive/items/${params.itemId}?$select=eTag,webDavUrl,name`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  );
+  const res = await fetchWithRetry({
+    fetchFn,
+    url: `${GRAPH_ROOT}/sites/${params.siteId}/drive/items/${params.itemId}?$select=eTag,webDavUrl,name`,
+    requestName: `SharePoint getDriveItemProperties (${params.siteId}/${params.itemId})`,
+    init: { headers: { Authorization: `Bearer ${token}` } },
+  });
 
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
+    const body = await readResponseBody(res);
     throw new Error(`Get driveItem properties failed: ${res.status} ${res.statusText} - ${body}`);
   }
 
@@ -522,12 +529,17 @@ export async function getChatMembers(params: {
   const fetchFn = params.fetchFn ?? fetch;
   const token = await params.tokenProvider.getAccessToken(GRAPH_SCOPE);
 
-  const res = await fetchFn(`${GRAPH_ROOT}/chats/${params.chatId}/members`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const res = await fetchWithRetry({
+    fetchFn,
+    url: `${GRAPH_ROOT}/chats/${params.chatId}/members`,
+    requestName: `Teams getChatMembers (${params.chatId})`,
+    init: {
+      headers: { Authorization: `Bearer ${token}` },
+    },
   });
 
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
+    const body = await readResponseBody(res);
     throw new Error(`Get chat members failed: ${res.status} ${res.statusText} - ${body}`);
   }
 
@@ -578,9 +590,11 @@ export async function createSharePointSharingLink(params: {
     body.recipients = params.recipientObjectIds.map((id) => ({ objectId: id }));
   }
 
-  const res = await fetchFn(
-    `${apiRoot}/sites/${params.siteId}/drive/items/${params.itemId}/createLink`,
-    {
+  const res = await fetchWithRetry({
+    fetchFn,
+    url: `${apiRoot}/sites/${params.siteId}/drive/items/${params.itemId}/createLink`,
+    requestName: `SharePoint createLink (${params.siteId}/${params.itemId})`,
+    init: {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -588,10 +602,10 @@ export async function createSharePointSharingLink(params: {
       },
       body: JSON.stringify(body),
     },
-  );
+  });
 
   if (!res.ok) {
-    const respBody = await res.text().catch(() => "");
+    const respBody = await readResponseBody(res);
     throw new Error(
       `Create SharePoint sharing link failed: ${res.status} ${res.statusText} - ${respBody}`,
     );

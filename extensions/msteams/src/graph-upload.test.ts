@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { uploadToOneDrive, uploadToSharePoint } from "./graph-upload.js";
+import { createSharingLink, uploadToOneDrive, uploadToSharePoint } from "./graph-upload.js";
 
 const tokenProvider = {
   getAccessToken: vi.fn(async () => "test-token"),
@@ -93,5 +93,34 @@ describe("graph-upload", () => {
 
     expect(firstChunkHeaders["Content-Range"]).toBe(`bytes 0-5242879/${totalBytes}`);
     expect(secondChunkHeaders["Content-Range"]).toBe(`bytes 5242880-5242899/${totalBytes}`);
+  });
+
+  it("retries on 429 for Graph requests", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("rate limited", {
+          status: 429,
+          statusText: "Too Many Requests",
+          headers: { "Retry-After": "0" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ link: { webUrl: "https://share.example/link" } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    const result = await createSharingLink({
+      itemId: "item-123",
+      tokenProvider,
+      fetchFn: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(result.webUrl).toBe("https://share.example/link");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 });
