@@ -32,9 +32,11 @@ export function computeNextRunAtMs(schedule: CronSchedule, nowMs: number, lastRu
 
   if (schedule.kind === "every") {
     const everyMs = Math.max(1, Math.floor(schedule.everyMs));
-    const anchor = Math.max(0, Math.floor(lastRunAtMs ?? schedule.anchorMs ?? nowMs));
+// Only use lastRunAtMs if it was executed recently (within the interval)
+const recentLastRun = lastRunAtMs && (nowMs - lastRunAtMs) < everyMs ? lastRunAtMs : undefined;
+
+      const anchor = Math.max(0, Math.floor(recentLastRun ?? schedule.anchorMs ?? nowMs));
     if (nowMs < anchor) {
-      return anchor;
     }
     const elapsed = nowMs - anchor;
     const steps = Math.max(1, Math.floor((elapsed + everyMs - 1) / everyMs));
