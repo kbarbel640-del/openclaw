@@ -7,7 +7,6 @@ public protocol WebSocketTasking: AnyObject {
     func resume()
     func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?)
     func send(_ message: URLSessionWebSocketTask.Message) async throws
-    func sendPing(pongReceiveHandler: @escaping @Sendable (Error?) -> Void)
     func receive() async throws -> URLSessionWebSocketTask.Message
     func receive(completionHandler: @escaping @Sendable (Result<URLSessionWebSocketTask.Message, Error>) -> Void)
 }
@@ -41,18 +40,6 @@ public struct WebSocketTaskBox: @unchecked Sendable {
     {
         self.task.receive(completionHandler: completionHandler)
     }
-
-    public func sendPing() async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            self.task.sendPing { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: ())
-                }
-            }
-        }
-    }
 }
 
 public protocol WebSocketSessioning: AnyObject {
@@ -85,9 +72,9 @@ public struct GatewayConnectOptions: Sendable {
     public var clientId: String
     public var clientMode: String
     public var clientDisplayName: String?
-    // When false, the connection omits the signed device identity payload and cannot use
-    // device-scoped auth (role/scope upgrades will require pairing). Keep this true for
-    // role/scoped sessions such as operator UI clients.
+    // When false, the connection omits the signed device identity payload.
+    // This is useful for secondary "operator" connections where the shared gateway token
+    // should authorize without triggering device pairing flows.
     public var includeDeviceIdentity: Bool
 
     public init(
@@ -150,12 +137,8 @@ public actor GatewayChannelActor {
     // and we must include the nonce once the gateway requires v2 signing.
     private let connectTimeoutSeconds: Double = 12
     private let connectChallengeTimeoutSeconds: Double = 6.0
-    // Some networks will silently drop idle TCP/TLS flows around ~30s. The gateway tick is server->client,
-    // but NATs/proxies often require outbound traffic to keep the connection alive.
-    private let keepaliveIntervalSeconds: Double = 15.0
     private var watchdogTask: Task<Void, Never>?
     private var tickTask: Task<Void, Never>?
-    private var keepaliveTask: Task<Void, Never>?
     private let defaultRequestTimeoutMs: Double = 15000
     private let pushHandler: (@Sendable (GatewayPush) async -> Void)?
     private let connectOptions: GatewayConnectOptions?
@@ -194,8 +177,6 @@ public actor GatewayChannelActor {
         self.tickTask?.cancel()
         self.tickTask = nil
 
-        self.keepaliveTask?.cancel()
-        self.keepaliveTask = nil
 
         self.task?.cancel(with: .goingAway, reason: nil)
         self.task = nil
@@ -226,7 +207,7 @@ public actor GatewayChannelActor {
     private func watchdogLoop() async {
         // Keep nudging reconnect in case exponential backoff stalls.
         while self.shouldReconnect {
-            guard await self.sleepUnlessCancelled(nanoseconds: 30 * 1_000_000_000) else { return } // 30s cadence
+            try? await Task.sleep(nanoseconds: 30 * 1_000_000_000) // 30s cadence
             guard self.shouldReconnect else { return }
             if self.connected { continue }
             do {
@@ -279,37 +260,10 @@ public actor GatewayChannelActor {
         self.connected = true
         self.backoffMs = 500
         self.lastSeq = nil
-        self.startKeepalive()
-
         let waiters = self.connectWaiters
         self.connectWaiters.removeAll()
         for waiter in waiters {
             waiter.resume(returning: ())
-        }
-    }
-
-    private func startKeepalive() {
-        self.keepaliveTask?.cancel()
-        self.keepaliveTask = Task { [weak self] in
-            guard let self else { return }
-            await self.keepaliveLoop()
-        }
-    }
-
-    private func keepaliveLoop() async {
-        while self.shouldReconnect {
-            guard await self.sleepUnlessCancelled(
-                nanoseconds: UInt64(self.keepaliveIntervalSeconds * 1_000_000_000))
-            else { return }
-            guard self.shouldReconnect else { return }
-            guard self.connected else { continue }
-            guard let task = self.task else { continue }
-            // Best-effort ping keeps NAT/proxy state alive without generating RPC load.
-            do {
-                try await task.sendPing()
-            } catch {
-                // Avoid spamming logs; the reconnect paths will surface meaningful errors.
-            }
         }
     }
 
@@ -506,8 +460,6 @@ public actor GatewayChannelActor {
         let wrapped = self.wrap(err, context: "gateway receive")
         self.logger.error("gateway ws receive failed \(wrapped.localizedDescription, privacy: .public)")
         self.connected = false
-        self.keepaliveTask?.cancel()
-        self.keepaliveTask = nil
         await self.disconnectHandler?("receive failed: \(wrapped.localizedDescription)")
         await self.failPending(wrapped)
         await self.scheduleReconnect()
@@ -608,7 +560,7 @@ public actor GatewayChannelActor {
     private func watchTicks() async {
         let tolerance = self.tickIntervalMs * 2
         while self.connected {
-            guard await self.sleepUnlessCancelled(nanoseconds: UInt64(tolerance * 1_000_000)) else { return }
+            try? await Task.sleep(nanoseconds: UInt64(tolerance * 1_000_000))
             guard self.connected else { return }
             if let last = self.lastTick {
                 let delta = Date().timeIntervalSince(last) * 1000
@@ -631,7 +583,7 @@ public actor GatewayChannelActor {
         guard self.shouldReconnect else { return }
         let delay = self.backoffMs / 1000
         self.backoffMs = min(self.backoffMs * 2, 30000)
-        guard await self.sleepUnlessCancelled(nanoseconds: UInt64(delay * 1_000_000_000)) else { return }
+        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         guard self.shouldReconnect else { return }
         do {
             try await self.connect()
@@ -640,15 +592,6 @@ public actor GatewayChannelActor {
             self.logger.error("gateway reconnect failed \(wrapped.localizedDescription, privacy: .public)")
             await self.scheduleReconnect()
         }
-    }
-
-    private nonisolated func sleepUnlessCancelled(nanoseconds: UInt64) async -> Bool {
-        do {
-            try await Task.sleep(nanoseconds: nanoseconds)
-        } catch {
-            return false
-        }
-        return !Task.isCancelled
     }
 
     public func request(

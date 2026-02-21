@@ -35,6 +35,10 @@ struct SettingsRootView: View {
                     .tabItem { Label("Voice Wake", systemImage: "waveform.circle") }
                     .tag(SettingsTab.voiceWake)
 
+                TalkModeSettings(isActive: self.selectedTab == .talkMode)
+                    .tabItem { Label("Talk Mode", systemImage: "waveform.and.person.filled") }
+                    .tag(SettingsTab.talkMode)
+
                 ConfigSettings()
                     .tabItem { Label("Config", systemImage: "slider.horizontal.3") }
                     .tag(SettingsTab.config)
@@ -176,7 +180,7 @@ struct SettingsRootView: View {
 }
 
 enum SettingsTab: CaseIterable {
-    case general, channels, skills, sessions, cron, config, instances, voiceWake, permissions, debug, about
+    case general, channels, skills, sessions, cron, config, instances, voiceWake, talkMode, permissions, debug, about
     static let windowWidth: CGFloat = 824 // wider
     static let windowHeight: CGFloat = 790 // +10% (more room)
     var title: String {
@@ -189,6 +193,7 @@ enum SettingsTab: CaseIterable {
         case .config: "Config"
         case .instances: "Instances"
         case .voiceWake: "Voice Wake"
+        case .talkMode: "Talk Mode"
         case .permissions: "Permissions"
         case .debug: "Debug"
         case .about: "About"
@@ -205,6 +210,7 @@ enum SettingsTab: CaseIterable {
         case .config: "slider.horizontal.3"
         case .instances: "network"
         case .voiceWake: "waveform.circle"
+        case .talkMode: "waveform.and.person.filled"
         case .permissions: "lock.shield"
         case .debug: "ant"
         case .about: "info.circle"

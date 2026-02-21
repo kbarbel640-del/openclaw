@@ -38,6 +38,8 @@ actor PortGuardian {
 
     func sweep(mode: AppState.ConnectionMode) async {
         self.logger.info("port sweep starting (mode=\(mode.rawValue, privacy: .public))")
+        self.logger.info("port sweep skipped (disabled)")
+        return
         guard mode != .unconfigured else {
             self.logger.info("port sweep skipped (mode=unconfigured)")
             return

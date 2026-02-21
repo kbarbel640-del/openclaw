@@ -12,6 +12,37 @@ actor TalkModeRuntime {
     private let ttsLogger = Logger(subsystem: "ai.openclaw", category: "talk.tts")
     private static let defaultModelIdFallback = "eleven_v3"
 
+    private final class RollingAudioBuffer: @unchecked Sendable {
+        private let lock = NSLock()
+        private var samples: [Float] = []
+        private var sampleRate: Double = 44100
+        private let maxSeconds: Double = 6.0
+
+        func append(buffer: AVAudioPCMBuffer) {
+            guard let channelData = buffer.floatChannelData?.pointee else { return }
+            let count = Int(buffer.frameLength)
+            let sr = buffer.format.sampleRate
+            let newSamples = Array(UnsafeBufferPointer(start: channelData, count: count))
+            lock.lock()
+            sampleRate = sr
+            samples.append(contentsOf: newSamples)
+            let maxFrames = Int(sr * maxSeconds)
+            if samples.count > maxFrames {
+                samples.removeFirst(samples.count - maxFrames)
+            }
+            lock.unlock()
+        }
+
+        func drain() -> (samples: [Float], sampleRate: Double) {
+            lock.lock()
+            let s = samples
+            let sr = sampleRate
+            samples.removeAll(keepingCapacity: true)
+            lock.unlock()
+            return (s, sr)
+        }
+    }
+
     private final class RMSMeter: @unchecked Sendable {
         private let lock = NSLock()
         private var latestRMS: Double = 0
@@ -37,6 +68,7 @@ actor TalkModeRuntime {
     private var recognitionGeneration: Int = 0
     private var rmsTask: Task<Void, Never>?
     private let rmsMeter = RMSMeter()
+    private let audioBuffer = RollingAudioBuffer()
 
     private var captureTask: Task<Void, Never>?
     private var silenceTask: Task<Void, Never>?
@@ -119,6 +151,7 @@ actor TalkModeRuntime {
             return
         }
         await self.reloadConfig()
+        Task { try? await SpeakerVerifier.shared.loadModelsIfNeeded() }
         guard self.isCurrent(gen) else { return }
         if self.isPaused {
             self.phase = .idle
@@ -190,11 +223,13 @@ actor TalkModeRuntime {
         let format = input.outputFormat(forBus: 0)
         input.removeTap(onBus: 0)
         let meter = self.rmsMeter
+        let audioBuf = self.audioBuffer
         input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak request, meter] buffer, _ in
             request?.append(buffer)
             if let rms = Self.rmsLevel(buffer: buffer) {
                 meter.set(rms)
             }
+            audioBuf.append(buffer: buffer)
         }
 
         audioEngine.prepare()
@@ -320,6 +355,14 @@ actor TalkModeRuntime {
         self.phase = .thinking
         await MainActor.run { TalkModeController.shared.updatePhase(.thinking) }
         await self.stopRecognition()
+
+        let (capturedSamples, capturedRate) = self.audioBuffer.drain()
+        if !(await SpeakerVerifier.shared.verify(samples: capturedSamples, sampleRate: Float(capturedRate))) {
+            self.logger.info("talk speaker verify failed — ignoring transcript")
+            await self.resumeListeningIfNeeded()
+            return
+        }
+
         await self.sendAndSpeak(text)
     }
 
@@ -697,7 +740,7 @@ actor TalkModeRuntime {
         self.phase = .speaking
         self.lastPlaybackWasPCM = true
 
-        let finished = await Self.playInt16PCMStream(
+        let finished = await OpenAITTSPlayer.shared.play(
             stream: stream,
             sampleRate: Double(sampleRate),
             logger: self.ttsLogger)
@@ -709,89 +752,6 @@ actor TalkModeRuntime {
         }
     }
 
-    /// Plays a stream of int16 LE PCM bytes using AVAudioEngine with float32 format.
-    /// Returns true when playback completes normally.
-    @MainActor
-    private static func playInt16PCMStream(
-        stream: AsyncThrowingStream<Data, Error>,
-        sampleRate: Double,
-        logger: Logger) async -> Bool
-    {
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: sampleRate,
-            channels: 1,
-            interleaved: false)
-        else {
-            logger.error("talk openai-tts: failed to create AVAudioFormat")
-            return false
-        }
-
-        let engine = AVAudioEngine()
-        let player = AVAudioPlayerNode()
-        engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: format)
-
-        do {
-            try engine.start()
-        } catch {
-            logger.error("talk openai-tts: engine start failed: \(error.localizedDescription, privacy: .public)")
-            return false
-        }
-
-        return await withCheckedContinuation { continuation in
-            var pendingBuffers = 0
-            var inputDone = false
-            var resumed = false
-
-            func finish(_ success: Bool) {
-                guard !resumed else { return }
-                resumed = true
-                player.stop()
-                engine.stop()
-                continuation.resume(returning: success)
-            }
-
-            Task { @MainActor in
-                do {
-                    for try await chunk in stream {
-                        guard chunk.count >= 2 else { continue }
-                        let frameCount = chunk.count / 2
-                        guard let buf = AVAudioPCMBuffer(
-                            pcmFormat: format,
-                            frameCapacity: AVAudioFrameCount(frameCount))
-                        else { continue }
-                        buf.frameLength = AVAudioFrameCount(frameCount)
-
-                        // Convert int16 LE → float32 [-1, 1]
-                        chunk.withUnsafeBytes { raw in
-                            let src = raw.bindMemory(to: Int16.self)
-                            let dst = buf.floatChannelData![0]
-                            for i in 0 ..< frameCount {
-                                dst[i] = Float(src[i]) / 32768.0
-                            }
-                        }
-
-                        pendingBuffers += 1
-                        player.scheduleBuffer(buf) {
-                            Task { @MainActor in
-                                pendingBuffers -= 1
-                                if inputDone, pendingBuffers == 0 {
-                                    finish(true)
-                                }
-                            }
-                        }
-                        if !player.isPlaying { player.play() }
-                    }
-                    inputDone = true
-                    if pendingBuffers == 0 { finish(true) }
-                } catch {
-                    logger.error("talk openai-tts stream error: \(error.localizedDescription, privacy: .public)")
-                    finish(false)
-                }
-            }
-        }
-    }
 
     private static func openAITTSStream(
         baseUrl: URL,
@@ -935,6 +895,7 @@ actor TalkModeRuntime {
     }
 
     func stopSpeaking(reason: TalkStopReason) async {
+        await OpenAITTSPlayer.shared.stop()
         let usePCM = self.lastPlaybackWasPCM
         let interruptedAt = usePCM ? await self.stopPCM() : await self.stopMP3()
         _ = usePCM ? await self.stopMP3() : await self.stopPCM()
@@ -1198,5 +1159,116 @@ extension TalkModeRuntime {
             return nil
         }
         return normalized
+    }
+}
+
+
+// MARK: - OpenAITTSPlayer
+
+@MainActor
+private final class OpenAITTSPlayer {
+    static let shared = OpenAITTSPlayer()
+
+    private let logger = Logger(subsystem: "ai.openclaw", category: "talk.tts.openai")
+    private var engine: AVAudioEngine?
+    private var player: AVAudioPlayerNode?
+    private var continuation: CheckedContinuation<Bool, Never>?
+    private var resumed = false
+
+    func stop() {
+        player?.stop()
+        engine?.stop()
+        engine = nil
+        player = nil
+        let c = continuation
+        continuation = nil
+        if !resumed {
+            resumed = true
+            c?.resume(returning: false)
+        }
+    }
+
+    func play(stream: AsyncThrowingStream<Data, Error>, sampleRate: Double, logger: Logger) async -> Bool {
+        stop()
+
+        guard let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: sampleRate,
+            channels: 1,
+            interleaved: false)
+        else {
+            logger.error("talk openai-tts: failed to create AVAudioFormat")
+            return false
+        }
+
+        let newEngine = AVAudioEngine()
+        let newPlayer = AVAudioPlayerNode()
+        engine = newEngine
+        player = newPlayer
+        newEngine.attach(newPlayer)
+        newEngine.connect(newPlayer, to: newEngine.mainMixerNode, format: format)
+
+        do {
+            try newEngine.start()
+        } catch {
+            logger.error("talk openai-tts: engine start failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+
+        resumed = false
+        return await withCheckedContinuation { [weak self] cont in
+            guard let self else {
+                cont.resume(returning: false)
+                return
+            }
+            self.continuation = cont
+            var pendingBuffers = 0
+            var inputDone = false
+
+            Task { @MainActor [weak self] in
+                let finish: @MainActor (Bool) -> Void = { @MainActor [weak self] success in
+                    guard let self, !self.resumed else { return }
+                    self.resumed = true
+                    newPlayer.stop()
+                    newEngine.stop()
+                    self.engine = nil
+                    self.player = nil
+                    self.continuation = nil
+                    cont.resume(returning: success)
+                }
+
+                do {
+                    for try await chunk in stream {
+                        guard chunk.count >= 2 else { continue }
+                        let frameCount = chunk.count / 2
+                        guard let buf = AVAudioPCMBuffer(
+                            pcmFormat: format,
+                            frameCapacity: AVAudioFrameCount(frameCount))
+                        else { continue }
+                        buf.frameLength = AVAudioFrameCount(frameCount)
+                        chunk.withUnsafeBytes { raw in
+                            let src = raw.bindMemory(to: Int16.self)
+                            let dst = buf.floatChannelData![0]
+                            for i in 0 ..< frameCount {
+                                dst[i] = Float(src[i]) / 32768.0
+                            }
+                        }
+                        pendingBuffers += 1
+                        newPlayer.scheduleBuffer(buf) {
+                            Task { @MainActor in
+                                pendingBuffers -= 1
+                                if inputDone, pendingBuffers == 0 { finish(true) }
+                            }
+                        }
+                        if !newPlayer.isPlaying { newPlayer.play() }
+                    }
+                    inputDone = true
+                    if pendingBuffers == 0 { finish(true) }
+                } catch {
+                    logger.error("talk openai-tts stream error: \(error.localizedDescription, privacy: .public)")
+                    finish(false)
+                }
+            }
+        }
     }
 }

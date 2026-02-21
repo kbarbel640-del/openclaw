@@ -20,6 +20,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.8.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.8.1"),
         .package(url: "https://github.com/steipete/Peekaboo.git", branch: "main"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.7.9"),
         .package(path: "../shared/OpenClawKit"),
         .package(path: "../../Swabble"),
     ],
@@ -54,6 +55,7 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "PeekabooBridge", package: "Peekaboo"),
                 .product(name: "PeekabooAutomationKit", package: "Peekaboo"),
+                .product(name: "FluidAudio", package: "FluidAudio"),
             ],
             exclude: [
                 "Resources/Info.plist",
