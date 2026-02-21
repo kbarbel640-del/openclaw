@@ -112,6 +112,14 @@ function resolveOwnerAllowFromList(params: {
   }
   const filtered: string[] = [];
   for (const entry of raw) {
+    // Large integers lose IEEE-754 precision silently in JSON (e.g. Discord snowflake
+    // 1048693844750901359 → 1048693844750901400). Warn so users know to quote as a string.
+    if (typeof entry === "number" && !Number.isSafeInteger(entry)) {
+      console.warn(
+        `[command-auth] ownerAllowFrom entry (${entry}) exceeds MAX_SAFE_INTEGER and may have ` +
+          `lost precision. Quote it as a string in your config: "${entry}"`,
+      );
+    }
     const trimmed = String(entry ?? "").trim();
     if (!trimmed) {
       continue;
@@ -215,6 +223,11 @@ function resolveSenderCandidates(params: {
   return normalized;
 }
 
+// IEEE-754 float comparison for large numeric IDs (e.g. Discord snowflakes) that lost
+// precision when stored as unquoted JSON numbers. Both strings map to the same double.
+const matchByFloat = (a: string, b: string): boolean =>
+  /^\d{16,}$/.test(a) && /^\d{16,}$/.test(b) && Number(a) === Number(b);
+
 export function resolveCommandAuthorization(params: {
   ctx: MsgContext;
   cfg: OpenClawConfig;
@@ -297,10 +310,18 @@ export function resolveCommandAuthorization(params: {
     from,
   });
   const matchedSender = ownerList.length
-    ? senderCandidates.find((candidate) => ownerList.includes(candidate))
+    ? senderCandidates.find(
+        (candidate) =>
+          ownerList.includes(candidate) ||
+          ownerList.some((entry) => matchByFloat(candidate, entry)),
+      )
     : undefined;
   const matchedCommandOwner = ownerCandidatesForCommands.length
-    ? senderCandidates.find((candidate) => ownerCandidatesForCommands.includes(candidate))
+    ? senderCandidates.find(
+        (candidate) =>
+          ownerCandidatesForCommands.includes(candidate) ||
+          ownerCandidatesForCommands.some((entry) => matchByFloat(candidate, entry)),
+      )
     : undefined;
   const senderId = matchedSender ?? senderCandidates[0];
 
@@ -323,7 +344,11 @@ export function resolveCommandAuthorization(params: {
     // commands.allowFrom is configured - use it for authorization
     const commandsAllowAll = commandsAllowFromList.some((entry) => entry.trim() === "*");
     const matchedCommandsAllowFrom = commandsAllowFromList.length
-      ? senderCandidates.find((candidate) => commandsAllowFromList.includes(candidate))
+      ? senderCandidates.find(
+          (candidate) =>
+            commandsAllowFromList.includes(candidate) ||
+            commandsAllowFromList.some((entry) => matchByFloat(candidate, entry)),
+        )
       : undefined;
     isAuthorizedSender = commandsAllowAll || Boolean(matchedCommandsAllowFrom);
   } else {

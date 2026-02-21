@@ -212,6 +212,33 @@ describe("resolveCommandAuthorization", () => {
     expect(auth.ownerList).toEqual(["123"]);
   });
 
+  it("matches Discord owner IDs despite JSON numeric precision loss (snowflake > MAX_SAFE_INTEGER)", () => {
+    // Discord snowflakes exceed Number.MAX_SAFE_INTEGER (~9*10^15). When stored as an
+    // unquoted JSON number, 1048693844750901359 is parsed as 1048693844750901400.
+    // Both values parse to the same IEEE-754 float, so they should still match.
+    const realDiscordId = "1048693844750901359";
+    const precisionLostId = String(Number(realDiscordId)); // "1048693844750901400"
+
+    // Sanity-check: these ARE different strings but same float.
+    expect(realDiscordId).not.toBe(precisionLostId);
+    expect(Number(realDiscordId)).toBe(Number(precisionLostId));
+
+    // Config stored the ID as an unquoted number (precision lost).
+    const cfg = {
+      commands: { ownerAllowFrom: [Number(realDiscordId)] }, // stored as JS number
+      channels: { discord: {} },
+    } as unknown as OpenClawConfig;
+
+    const ctx = {
+      Provider: "discord",
+      Surface: "discord",
+      SenderId: realDiscordId, // Discord API always gives the real string ID
+    } as MsgContext;
+
+    const auth = resolveCommandAuthorization({ ctx, cfg, commandAuthorized: true });
+    expect(auth.senderIsOwner).toBe(true);
+  });
+
   it("does not infer a provider from channel allowlists for webchat command contexts", () => {
     const cfg = {
       channels: { whatsapp: { allowFrom: ["+15551234567"] } },
