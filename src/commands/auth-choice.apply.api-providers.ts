@@ -787,6 +787,11 @@ export async function applyAuthChoiceApiProviders(
   if (authChoice === "apertis-api-key") {
     let hasCredential = false;
 
+    if (!hasCredential && params.opts?.apertisApiKey) {
+      await setApertisApiKey(normalizeApiKeyInput(params.opts.apertisApiKey), params.agentDir);
+      hasCredential = true;
+    }
+
     if (!hasCredential && params.opts?.token && params.opts?.tokenProvider === "apertis") {
       await setApertisApiKey(normalizeApiKeyInput(params.opts.token), params.agentDir);
       hasCredential = true;
