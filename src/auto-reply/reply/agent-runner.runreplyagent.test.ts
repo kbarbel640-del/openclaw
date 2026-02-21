@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { SessionEntry } from "../../config/sessions.js";
 import * as sessions from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
+import { withStateDirEnv } from "../../test-helpers/state-dir-env.js";
 import type { TemplateContext } from "../templating.js";
 import type { GetReplyOptions } from "../types.js";
 import type { FollowupRun, QueueSettings } from "./queue.js";
@@ -269,35 +270,11 @@ async function runReplyAgentWithBase(params: {
 }
 
 describe("runReplyAgent typing (heartbeat)", () => {
-  let fixtureRoot = "";
-  let caseId = 0;
-
-  type StateEnvSnapshot = {
-    OPENCLAW_STATE_DIR: string | undefined;
-  };
-
-  function snapshotStateEnv(): StateEnvSnapshot {
-    return { OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR };
-  }
-
-  function restoreStateEnv(snapshot: StateEnvSnapshot) {
-    if (snapshot.OPENCLAW_STATE_DIR === undefined) {
-      delete process.env.OPENCLAW_STATE_DIR;
-    } else {
-      process.env.OPENCLAW_STATE_DIR = snapshot.OPENCLAW_STATE_DIR;
-    }
-  }
-
   async function withTempStateDir<T>(fn: (stateDir: string) => Promise<T>): Promise<T> {
-    const stateDir = path.join(fixtureRoot, `case-${++caseId}`);
-    await fs.mkdir(stateDir, { recursive: true });
-    const envSnapshot = snapshotStateEnv();
-    process.env.OPENCLAW_STATE_DIR = stateDir;
-    try {
-      return await fn(stateDir);
-    } finally {
-      restoreStateEnv(envSnapshot);
-    }
+    return await withStateDirEnv(
+      "openclaw-typing-heartbeat-",
+      async ({ stateDir }) => await fn(stateDir),
+    );
   }
 
   async function writeCorruptGeminiSessionFixture(params: {
@@ -320,16 +297,6 @@ describe("runReplyAgent typing (heartbeat)", () => {
 
     return { storePath, sessionEntry, sessionStore, transcriptPath };
   }
-
-  beforeAll(async () => {
-    fixtureRoot = await fs.mkdtemp(path.join(tmpdir(), "openclaw-typing-heartbeat-"));
-  });
-
-  afterAll(async () => {
-    if (fixtureRoot) {
-      await fs.rm(fixtureRoot, { recursive: true, force: true });
-    }
-  });
 
   it("signals typing for normal runs", async () => {
     const onPartialReply = vi.fn();
@@ -380,6 +347,50 @@ describe("runReplyAgent typing (heartbeat)", () => {
 
     expect(onPartialReply).not.toHaveBeenCalled();
     expect(typing.startTypingOnText).not.toHaveBeenCalled();
+    expect(typing.startTypingLoop).not.toHaveBeenCalled();
+  });
+
+  it("suppresses partial streaming for NO_REPLY prefixes", async () => {
+    const onPartialReply = vi.fn();
+    state.runEmbeddedPiAgentMock.mockImplementationOnce(async (params: AgentRunParams) => {
+      await params.onPartialReply?.({ text: "NO_" });
+      await params.onPartialReply?.({ text: "NO_RE" });
+      await params.onPartialReply?.({ text: "NO_REPLY" });
+      return { payloads: [{ text: "NO_REPLY" }], meta: {} };
+    });
+
+    const { run, typing } = createMinimalRun({
+      opts: { isHeartbeat: false, onPartialReply },
+      typingMode: "message",
+    });
+    await run();
+
+    expect(onPartialReply).not.toHaveBeenCalled();
+    expect(typing.startTypingOnText).not.toHaveBeenCalled();
+    expect(typing.startTypingLoop).not.toHaveBeenCalled();
+  });
+
+  it("does not suppress partial streaming for normal 'No' prefixes", async () => {
+    const onPartialReply = vi.fn();
+    state.runEmbeddedPiAgentMock.mockImplementationOnce(async (params: AgentRunParams) => {
+      await params.onPartialReply?.({ text: "No" });
+      await params.onPartialReply?.({ text: "No, that is valid" });
+      return { payloads: [{ text: "No, that is valid" }], meta: {} };
+    });
+
+    const { run, typing } = createMinimalRun({
+      opts: { isHeartbeat: false, onPartialReply },
+      typingMode: "message",
+    });
+    await run();
+
+    expect(onPartialReply).toHaveBeenCalledTimes(2);
+    expect(onPartialReply).toHaveBeenNthCalledWith(1, { text: "No", mediaUrls: undefined });
+    expect(onPartialReply).toHaveBeenNthCalledWith(2, {
+      text: "No, that is valid",
+      mediaUrls: undefined,
+    });
+    expect(typing.startTypingOnText).toHaveBeenCalled();
     expect(typing.startTypingLoop).not.toHaveBeenCalled();
   });
 
@@ -531,6 +542,61 @@ describe("runReplyAgent typing (heartbeat)", () => {
     await runPromise;
     expect(calls).toBe(2);
     vi.useRealTimers();
+  });
+
+  it("delivers tool results in order even when dispatched concurrently", async () => {
+    const deliveryOrder: string[] = [];
+    const onToolResult = vi.fn(async (payload: { text?: string }) => {
+      // Simulate variable network latency: first result is slower than second
+      const delay = payload.text === "first" ? 50 : 10;
+      await new Promise((r) => setTimeout(r, delay));
+      deliveryOrder.push(payload.text ?? "");
+    });
+
+    state.runEmbeddedPiAgentMock.mockImplementationOnce(async (params: AgentRunParams) => {
+      // Fire two tool results without awaiting — simulates concurrent tool completion
+      void params.onToolResult?.({ text: "first", mediaUrls: [] });
+      void params.onToolResult?.({ text: "second", mediaUrls: [] });
+      // Small delay to let the chain settle before returning
+      await new Promise((r) => setTimeout(r, 150));
+      return { payloads: [{ text: "final" }], meta: {} };
+    });
+
+    const { run } = createMinimalRun({
+      typingMode: "message",
+      opts: { onToolResult },
+    });
+    await run();
+
+    expect(onToolResult).toHaveBeenCalledTimes(2);
+    // Despite "first" having higher latency, it must be delivered before "second"
+    expect(deliveryOrder).toEqual(["first", "second"]);
+  });
+
+  it("continues delivering later tool results after an earlier tool result fails", async () => {
+    const delivered: string[] = [];
+    const onToolResult = vi.fn(async (payload: { text?: string }) => {
+      if (payload.text === "first") {
+        throw new Error("simulated delivery failure");
+      }
+      delivered.push(payload.text ?? "");
+    });
+
+    state.runEmbeddedPiAgentMock.mockImplementationOnce(async (params: AgentRunParams) => {
+      void params.onToolResult?.({ text: "first", mediaUrls: [] });
+      void params.onToolResult?.({ text: "second", mediaUrls: [] });
+      await new Promise((r) => setTimeout(r, 50));
+      return { payloads: [{ text: "final" }], meta: {} };
+    });
+
+    const { run } = createMinimalRun({
+      typingMode: "message",
+      opts: { onToolResult },
+    });
+    await run();
+
+    expect(onToolResult).toHaveBeenCalledTimes(2);
+    expect(delivered).toEqual(["second"]);
   });
 
   it("announces auto-compaction in verbose mode and tracks count", async () => {
