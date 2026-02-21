@@ -29,8 +29,8 @@ export async function applyAuthChoiceClaudeAgentSdk(
     await params.prompter.note(
       [
         "Claude Code CLI not found on PATH.",
-        "Install it first: npm install -g @anthropic-ai/claude-code",
-        "Then authenticate: claude /login",
+        "Install it first: https://docs.anthropic.com/en/docs/claude-code/overview",
+        "Then authenticate: claude login",
       ].join("\n"),
       "Claude CLI",
     );
