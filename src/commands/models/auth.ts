@@ -1,60 +1,44 @@
 import { confirm as clackConfirm, select as clackSelect, text as clackText } from "@clack/prompts";
-import type { AuthProfileCredential } from "../../agents/auth-profiles/types.js";
-import type {
-  ProviderAuthMethod,
-  ProviderAuthResult,
-  ProviderPlugin,
-} from "../../plugins/types.js";
-import type { RuntimeEnv } from "../../runtime.js";
-import type { AuthChoice } from "../onboard-types.js";
 import {
   resolveAgentDir,
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
 } from "../../agents/agent-scope.js";
 import { upsertAuthProfile } from "../../agents/auth-profiles.js";
+import type { AuthProfileCredential } from "../../agents/auth-profiles/types.js";
 import { normalizeProviderId } from "../../agents/model-selection.js";
 import { resolveDefaultAgentWorkspaceDir } from "../../agents/workspace.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
-import { readConfigFileSnapshot, type OpenClawConfig } from "../../config/config.js";
 import { logConfigUpdated } from "../../config/logging.js";
 import { resolvePluginProviders } from "../../plugins/providers.js";
+import type { ProviderAuthResult, ProviderPlugin } from "../../plugins/types.js";
+import type { RuntimeEnv } from "../../runtime.js";
 import { stylePromptHint, stylePromptMessage } from "../../terminal/prompt-style.js";
 import { createClackPrompter } from "../../wizard/clack-prompter.js";
+import { formatAuthChoiceChoicesForCli } from "../auth-choice-options.js";
 import { applyAuthChoice } from "../auth-choice.apply.js";
 import { validateAnthropicSetupToken } from "../auth-token.js";
 import { isRemoteEnvironment } from "../oauth-env.js";
 import { createVpsAwareOAuthHandlers } from "../oauth-flow.js";
 import { applyAuthProfileConfig } from "../onboard-auth.js";
 import { openUrl } from "../onboard-helpers.js";
-import { updateConfig } from "./shared.js";
+import type { AuthChoice } from "../onboard-types.js";
+import {
+  applyDefaultModel,
+  mergeConfigPatch,
+  pickAuthMethod,
+  resolveProviderMatch,
+} from "../provider-auth-helpers.js";
+import { loadValidConfigOrThrow, updateConfig } from "./shared.js";
 
-const BUILTIN_AUTH_CHOICES: AuthChoice[] = [
-  "openai-codex",
-  "openai-api-key",
-  "token",
-  "apiKey",
-  "github-copilot",
-  "gemini-api-key",
-  "openrouter-api-key",
-  "ai-gateway-api-key",
-  "moonshot-api-key",
-  "kimi-code-api-key",
-  "synthetic-api-key",
-  "venice-api-key",
-  "zai-api-key",
-  "xiaomi-api-key",
-  "google-antigravity",
-  "google-gemini-cli",
-  "minimax-portal",
-  "minimax-api",
-  "minimax-api-lightning",
-  "qwen-portal",
-  "copilot-proxy",
-  "opencode-zen",
-  "chutes",
-];
+const BUILTIN_AUTH_CHOICES = formatAuthChoiceChoicesForCli({ includeSkip: false })
+  .split("|")
+  .map((choice) => choice.trim())
+  .filter((choice): choice is AuthChoice => choice.length > 0);
+const BUILTIN_AUTH_CHOICE_BY_PROVIDER = new Map<string, AuthChoice>(
+  BUILTIN_AUTH_CHOICES.map((choice) => [normalizeProviderId(choice), choice]),
+);
 
 const confirm = (params: Parameters<typeof clackConfirm>[0]) =>
   clackConfirm({
@@ -120,7 +104,7 @@ export async function modelsAuthSetupTokenCommand(
     message: "Paste Anthropic setup-token",
     validate: (value) => validateAnthropicSetupToken(String(value ?? "")),
   });
-  const token = String(tokenInput).trim();
+  const token = String(tokenInput ?? "").trim();
   const profileId = resolveDefaultTokenProfileId(provider);
 
   upsertAuthProfile({
@@ -163,11 +147,11 @@ export async function modelsAuthPasteTokenCommand(
     message: `Paste token for ${provider}`,
     validate: (value) => (value?.trim() ? undefined : "Required"),
   });
-  const token = String(tokenInput).trim();
+  const token = String(tokenInput ?? "").trim();
 
   const expires =
     opts.expiresIn?.trim() && opts.expiresIn.trim().length > 0
-      ? Date.now() + parseDurationMs(String(opts.expiresIn).trim(), { defaultUnit: "d" })
+      ? Date.now() + parseDurationMs(String(opts.expiresIn ?? "").trim(), { defaultUnit: "d" })
       : undefined;
 
   upsertAuthProfile({
@@ -267,80 +251,29 @@ type LoginOptions = {
   setDefault?: boolean;
 };
 
-function resolveProviderMatch(
+export function resolveRequestedLoginProviderOrThrow(
   providers: ProviderPlugin[],
   rawProvider?: string,
+  builtinProviderChoices: readonly string[] = [],
 ): ProviderPlugin | null {
-  const raw = rawProvider?.trim();
-  if (!raw) {
+  const requested = rawProvider?.trim();
+  if (!requested) {
     return null;
   }
-  const normalized = normalizeProviderId(raw);
-  return (
-    providers.find((provider) => normalizeProviderId(provider.id) === normalized) ??
-    providers.find(
-      (provider) =>
-        provider.aliases?.some((alias) => normalizeProviderId(alias) === normalized) ?? false,
-    ) ??
-    null
+  const matched = resolveProviderMatch(providers, requested);
+  if (matched) {
+    return matched;
+  }
+  const pluginProviderIds = providers.map((provider) => provider.id).filter(Boolean);
+  const available = [...new Set([...builtinProviderChoices, ...pluginProviderIds])].toSorted(
+    (a, b) => a.localeCompare(b),
   );
-}
-
-function pickAuthMethod(provider: ProviderPlugin, rawMethod?: string): ProviderAuthMethod | null {
-  const raw = rawMethod?.trim();
-  if (!raw) {
-    return null;
-  }
-  const normalized = raw.toLowerCase();
-  return (
-    provider.auth.find((method) => method.id.toLowerCase() === normalized) ??
-    provider.auth.find((method) => method.label.toLowerCase() === normalized) ??
-    null
+  const availableText = available.length > 0 ? available.join(", ") : "(none)";
+  const availabilityLabel =
+    builtinProviderChoices.length > 0 ? "Available providers" : "Loaded providers";
+  throw new Error(
+    `Unknown provider "${requested}". ${availabilityLabel}: ${availableText}. Verify plugins via \`${formatCliCommand("openclaw plugins list --json")}\`.`,
   );
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value));
-}
-
-function mergeConfigPatch<T>(base: T, patch: unknown): T {
-  if (!isPlainRecord(base) || !isPlainRecord(patch)) {
-    return patch as T;
-  }
-
-  const next: Record<string, unknown> = { ...base };
-  for (const [key, value] of Object.entries(patch)) {
-    const existing = next[key];
-    if (isPlainRecord(existing) && isPlainRecord(value)) {
-      next[key] = mergeConfigPatch(existing, value);
-    } else {
-      next[key] = value;
-    }
-  }
-  return next as T;
-}
-
-function applyDefaultModel(cfg: OpenClawConfig, model: string): OpenClawConfig {
-  const models = { ...cfg.agents?.defaults?.models };
-  models[model] = models[model] ?? {};
-
-  const existingModel = cfg.agents?.defaults?.model;
-  return {
-    ...cfg,
-    agents: {
-      ...cfg.agents,
-      defaults: {
-        ...cfg.agents?.defaults,
-        models,
-        model: {
-          ...(existingModel && typeof existingModel === "object" && "fallbacks" in existingModel
-            ? { fallbacks: (existingModel as { fallbacks?: string[] }).fallbacks }
-            : undefined),
-          primary: model,
-        },
-      },
-    },
-  };
 }
 
 function credentialMode(credential: AuthProfileCredential): "api_key" | "oauth" | "token" {
@@ -358,13 +291,7 @@ export async function modelsAuthLoginCommand(opts: LoginOptions, runtime: Runtim
     throw new Error("models auth login requires an interactive TTY.");
   }
 
-  const snapshot = await readConfigFileSnapshot();
-  if (!snapshot.valid) {
-    const issues = snapshot.issues.map((issue) => `- ${issue.path}: ${issue.message}`).join("\n");
-    throw new Error(`Invalid config at ${snapshot.path}\n${issues}`);
-  }
-
-  const config = snapshot.config;
+  const config = await loadValidConfigOrThrow();
   const defaultAgentId = resolveDefaultAgentId(config);
   const agentDir = resolveAgentDir(config, defaultAgentId);
   const workspaceDir =
@@ -374,9 +301,7 @@ export async function modelsAuthLoginCommand(opts: LoginOptions, runtime: Runtim
 
   const normalizedProvider = opts.provider ? normalizeProviderId(opts.provider) : undefined;
   const builtinAuthChoice = normalizedProvider
-    ? (BUILTIN_AUTH_CHOICES.find((choice) => normalizeProviderId(choice) === normalizedProvider) as
-        | AuthChoice
-        | undefined)
+    ? BUILTIN_AUTH_CHOICE_BY_PROVIDER.get(normalizedProvider)
     : undefined;
 
   if (builtinAuthChoice) {
@@ -399,14 +324,6 @@ export async function modelsAuthLoginCommand(opts: LoginOptions, runtime: Runtim
 
   const providers = resolvePluginProviders({ config, workspaceDir });
 
-  if (opts.provider && providers.length > 0) {
-    const matched = resolveProviderMatch(providers, opts.provider);
-    if (!matched) {
-      const availableIds = [...BUILTIN_AUTH_CHOICES, ...providers.map((p) => p.id)].join(", ");
-      throw new Error(`Provider "${opts.provider}" not found. Available: ${availableIds}.`);
-    }
-  }
-
   if (providers.length === 0 && !opts.provider) {
     throw new Error(
       `No provider plugins found. Use --provider <id> with a built-in auth choice ` +
@@ -415,8 +332,13 @@ export async function modelsAuthLoginCommand(opts: LoginOptions, runtime: Runtim
     );
   }
 
+  const requestedProvider = resolveRequestedLoginProviderOrThrow(
+    providers,
+    opts.provider,
+    BUILTIN_AUTH_CHOICES,
+  );
   const selectedProvider =
-    resolveProviderMatch(providers, opts.provider) ??
+    requestedProvider ??
     (providers.length > 0
       ? await prompter
           .select({
