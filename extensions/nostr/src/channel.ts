@@ -5,6 +5,7 @@ import {
   createDefaultChannelRuntimeState,
   DEFAULT_ACCOUNT_ID,
   formatPairingApproveHint,
+  resolveAllowlistMatchSimple,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
 import type { NostrProfile } from "./config-schema.js";
@@ -25,6 +26,21 @@ const activeBuses = new Map<string, NostrBusHandle>();
 
 // Store metrics snapshots per account (for status reporting)
 const metricsSnapshots = new Map<string, MetricsSnapshot>();
+
+function normalizeNostrAllowEntry(raw: string): string {
+  const trimmed = raw.replace(/^nostr:/i, "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed === "*") {
+    return "*";
+  }
+  try {
+    return normalizePubkey(trimmed);
+  } catch {
+    return trimmed.toLowerCase();
+  }
+}
 
 export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
   id: "nostr",
@@ -211,16 +227,69 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
         privateKey: account.privateKey,
         relays: account.relays,
         onMessage: async (senderPubkey, text, reply) => {
+          const normalizedSenderPubkey = normalizeNostrAllowEntry(senderPubkey);
           ctx.log?.debug?.(
-            `[${account.accountId}] DM from ${senderPubkey}: ${text.slice(0, 50)}...`,
+            `[${account.accountId}] DM from ${normalizedSenderPubkey}: ${text.slice(0, 50)}...`,
           );
 
           const cfg = runtime.config.loadConfig();
+          const dmPolicy = account.config.dmPolicy ?? "pairing";
+          if (dmPolicy === "disabled") {
+            ctx.log?.debug?.(
+              `[${account.accountId}] drop DM sender ${normalizedSenderPubkey} (dmPolicy=disabled)`,
+            );
+            return;
+          }
+
+          if (dmPolicy !== "open") {
+            const configuredAllowFrom = (account.config.allowFrom ?? [])
+              .map((entry) => normalizeNostrAllowEntry(String(entry)))
+              .filter(Boolean);
+            const storeAllowFrom = await runtime.channel.pairing
+              .readAllowFromStore("nostr", undefined, account.accountId)
+              .catch(() => []);
+            const effectiveAllowFrom = [...configuredAllowFrom, ...storeAllowFrom]
+              .map((entry) => normalizeNostrAllowEntry(String(entry)))
+              .filter(Boolean);
+            const senderAllowed = resolveAllowlistMatchSimple({
+              allowFrom: effectiveAllowFrom,
+              senderId: normalizedSenderPubkey,
+            }).allowed;
+            if (!senderAllowed) {
+              if (dmPolicy === "pairing") {
+                const { code, created } = await runtime.channel.pairing.upsertPairingRequest({
+                  channel: "nostr",
+                  id: normalizedSenderPubkey,
+                  accountId: account.accountId,
+                });
+                if (created) {
+                  try {
+                    await reply(
+                      runtime.channel.pairing.buildPairingReply({
+                        channel: "nostr",
+                        idLine: `Your Nostr pubkey: ${normalizedSenderPubkey}`,
+                        code,
+                      }),
+                    );
+                  } catch (error) {
+                    ctx.log?.error?.(
+                      `[${account.accountId}] failed sending pairing reply to ${normalizedSenderPubkey}: ${String(error)}`,
+                    );
+                  }
+                }
+              }
+              ctx.log?.debug?.(
+                `[${account.accountId}] drop DM sender ${normalizedSenderPubkey} (dmPolicy=${dmPolicy})`,
+              );
+              return;
+            }
+          }
+
           const route = runtime.channel.routing.resolveAgentRoute({
             cfg,
             channel: "nostr",
             accountId: account.accountId,
-            peer: { kind: "direct", id: senderPubkey },
+            peer: { kind: "direct", id: normalizedSenderPubkey },
           });
           const storePath = runtime.channel.session.resolveStorePath(cfg.session?.store, {
             agentId: route.agentId,
@@ -232,7 +301,7 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
           });
           const body = runtime.channel.reply.formatAgentEnvelope({
             channel: "Nostr",
-            from: senderPubkey,
+            from: normalizedSenderPubkey,
             timestamp: Date.now(),
             previousTimestamp,
             envelope: envelopeOptions,
@@ -244,17 +313,17 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             BodyForAgent: text,
             RawBody: text,
             CommandBody: text,
-            From: `nostr:${senderPubkey}`,
+            From: `nostr:${normalizedSenderPubkey}`,
             To: `nostr:${account.publicKey}`,
             SessionKey: route.sessionKey,
             AccountId: route.accountId,
             ChatType: "direct",
-            ConversationLabel: senderPubkey,
-            SenderName: senderPubkey,
-            SenderId: senderPubkey,
+            ConversationLabel: normalizedSenderPubkey,
+            SenderName: normalizedSenderPubkey,
+            SenderId: normalizedSenderPubkey,
             Provider: "nostr",
             Surface: "nostr",
-            MessageSid: `nostr:${Date.now()}:${senderPubkey.slice(0, 12)}`,
+            MessageSid: `nostr:${Date.now()}:${normalizedSenderPubkey.slice(0, 12)}`,
             Timestamp: Date.now(),
             OriginatingChannel: "nostr",
             OriginatingTo: `nostr:${account.publicKey}`,
@@ -264,6 +333,12 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             storePath,
             sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
             ctx: ctxPayload,
+            updateLastRoute: {
+              sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
+              channel: "nostr",
+              to: normalizedSenderPubkey,
+              accountId: route.accountId,
+            },
             onRecordError: (error) => {
               ctx.log?.error?.(
                 `[${account.accountId}] failed updating nostr session meta: ${String(error)}`,
