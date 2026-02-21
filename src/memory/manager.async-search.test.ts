@@ -64,7 +64,7 @@ describe("memory search async sync", () => {
     manager = await createMemoryManagerOrThrow(cfg);
 
     const pending = new Promise<void>(() => {});
-    const syncMock = vi.fn(async () => pending);
+    const syncMock = vi.fn<() => Promise<void>>(async () => pending);
     (manager as unknown as { sync: () => Promise<void> }).sync = syncMock;
 
     const activeManager = manager;
@@ -77,9 +77,9 @@ describe("memory search async sync", () => {
 
   it("waits for in-flight search sync during close", async () => {
     const cfg = buildConfig();
-    let releaseSync = () => {};
+    let resolveSync!: () => void;
     const syncGate = new Promise<void>((resolve) => {
-      releaseSync = () => resolve();
+      resolveSync = resolve;
     });
     embedBatch.mockImplementation(async (input: string[]) => {
       await syncGate;
@@ -97,7 +97,7 @@ describe("memory search async sync", () => {
     await Promise.resolve();
     expect(closed).toBe(false);
 
-    releaseSync();
+    resolveSync();
     await closePromise;
     manager = null;
 
