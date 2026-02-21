@@ -73,7 +73,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             "google-antigravity": {
@@ -93,7 +93,7 @@ describe("models-config normalizes google-antigravity api", () => {
             },
           },
         },
-      };
+      } as OpenClawConfig;
 
       await ensureOpenClawModelsJson(cfg);
 
@@ -113,7 +113,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             "google-antigravity": {
@@ -133,7 +133,7 @@ describe("models-config normalizes google-antigravity api", () => {
             },
           },
         },
-      };
+      } as OpenClawConfig;
 
       await ensureOpenClawModelsJson(cfg);
 
@@ -153,7 +153,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             Google_Antigravity: {
@@ -173,7 +173,7 @@ describe("models-config normalizes google-antigravity api", () => {
             },
           },
         },
-      };
+      } as OpenClawConfig;
 
       await ensureOpenClawModelsJson(cfg);
 
@@ -193,7 +193,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             " google-antigravity ": {
@@ -213,7 +213,7 @@ describe("models-config normalizes google-antigravity api", () => {
             },
           },
         },
-      };
+      } as OpenClawConfig;
 
       await ensureOpenClawModelsJson(cfg);
 
@@ -234,7 +234,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             "google-antigravity": {
@@ -269,7 +269,7 @@ describe("models-config normalizes google-antigravity api", () => {
             },
           },
         },
-      };
+      } as OpenClawConfig;
 
       await ensureOpenClawModelsJson(cfg);
 
@@ -292,7 +292,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             "google-antigravity": {
@@ -312,7 +312,7 @@ describe("models-config normalizes google-antigravity api", () => {
             },
           },
         },
-      };
+      } as OpenClawConfig;
 
       await ensureOpenClawModelsJson(cfg);
 
@@ -332,7 +332,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             "custom-proxy": {
@@ -352,7 +352,7 @@ describe("models-config normalizes google-antigravity api", () => {
             },
           },
         },
-      };
+      } as OpenClawConfig;
 
       await ensureOpenClawModelsJson(cfg);
 
