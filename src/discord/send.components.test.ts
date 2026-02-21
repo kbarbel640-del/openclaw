@@ -6,9 +6,11 @@ import { makeDiscordRest } from "./send.test-harness.js";
 
 const loadConfigMock = vi.hoisted(() => vi.fn(() => ({ session: { dmScope: "main" } })));
 
-vi.mock("../config/config.js", () => {
+vi.mock("../config/config.js", async () => {
+  const actual = await vi.importActual<typeof import("../config/config.js")>("../config/config.js");
   return {
-    loadConfig: () => loadConfigMock(),
+    ...actual,
+    loadConfig: (...args: Parameters<typeof actual.loadConfig>) => loadConfigMock(...args),
   };
 });
 vi.mock("./components-registry.js", () => ({
