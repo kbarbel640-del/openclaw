@@ -99,11 +99,51 @@ function buildOwnerIdentityLine(
   return `Authorized senders: ${displayOwnerNumbers.join(", ")}. These senders are allowlisted; do not assume they are the owner.`;
 }
 
-function buildTimeSection(params: { userTimezone?: string }) {
+/**
+ * Check if a MM-DD birthday is today or tomorrow in the given timezone.
+ * Returns "today" | "tomorrow" | null.
+ */
+export function checkBirthday(
+  birthdayMmDd: string,
+  userTimezone: string,
+  now?: Date,
+): "today" | "tomorrow" | null {
+  const date = now ?? new Date();
+  let localDate: Date;
+  try {
+    const formatted = date.toLocaleDateString("en-CA", { timeZone: userTimezone }); // YYYY-MM-DD
+    localDate = new Date(formatted + "T00:00:00");
+  } catch {
+    localDate = date;
+  }
+  const month = localDate.getMonth() + 1;
+  const day = localDate.getDate();
+  const [bMonth, bDay] = birthdayMmDd.split("-").map(Number);
+  if (month === bMonth && day === bDay) return "today";
+  // Check tomorrow
+  const tomorrow = new Date(localDate);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tMonth = tomorrow.getMonth() + 1;
+  const tDay = tomorrow.getDate();
+  if (tMonth === bMonth && tDay === bDay) return "tomorrow";
+  return null;
+}
+
+function buildTimeSection(params: { userTimezone?: string; userBirthday?: string }) {
   if (!params.userTimezone) {
     return [];
   }
-  return ["## Current Date & Time", `Time zone: ${params.userTimezone}`, ""];
+  const lines = ["## Current Date & Time", `Time zone: ${params.userTimezone}`];
+  if (params.userBirthday) {
+    const when = checkBirthday(params.userBirthday, params.userTimezone);
+    if (when === "today") {
+      lines.push("🎂 It is the user's birthday today! Feel free to acknowledge it warmly.");
+    } else if (when === "tomorrow") {
+      lines.push("🎂 The user's birthday is tomorrow.");
+    }
+  }
+  lines.push("");
+  return lines;
 }
 
 function buildReplyTagsSection(isMinimal: boolean) {
@@ -205,6 +245,8 @@ export function buildAgentSystemPrompt(params: {
   toolSummaries?: Record<string, string>;
   modelAliasLines?: string[];
   userTimezone?: string;
+  /** User birthday in MM-DD format for prompt injection on/near birthday. */
+  userBirthday?: string;
   userTime?: string;
   userTimeFormat?: ResolvedTimeFormat;
   contextFiles?: EmbeddedContextFile[];
@@ -556,6 +598,7 @@ export function buildAgentSystemPrompt(params: {
     ...buildUserIdentitySection(ownerLine, isMinimal),
     ...buildTimeSection({
       userTimezone,
+      userBirthday: params.userBirthday?.trim(),
     }),
     "## Workspace Files (injected)",
     "These user-editable files are loaded by OpenClaw and included below in Project Context.",

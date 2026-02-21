@@ -504,6 +504,7 @@ export async function compactEmbeddedPiSessionDirect(
       tools,
       modelAliasLines: buildModelAliasLines(params.config),
       userTimezone,
+      userBirthday: params.config?.agents?.defaults?.userBirthday,
       userTime,
       userTimeFormat,
       contextFiles,

@@ -464,6 +464,7 @@ export async function runEmbeddedAttempt(
       tools,
       modelAliasLines: buildModelAliasLines(params.config),
       userTimezone,
+      userBirthday: params.config?.agents?.defaults?.userBirthday,
       userTime,
       userTimeFormat,
       contextFiles,

@@ -140,6 +140,8 @@ export type AgentDefaultsConfig = {
   bootstrapTotalMaxChars?: number;
   /** Optional IANA timezone for the user (used in system prompt; defaults to host timezone). */
   userTimezone?: string;
+  /** Optional user birthday in MM-DD format (e.g. "03-15"). Adds a note to the system prompt on the day and the day before. */
+  userBirthday?: string;
   /** Time format in system prompt: auto (OS preference), 12-hour, or 24-hour. */
   timeFormat?: "auto" | "12" | "24";
   /**

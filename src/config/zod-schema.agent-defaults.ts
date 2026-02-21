@@ -48,6 +48,10 @@ export const AgentDefaultsSchema = z
     bootstrapMaxChars: z.number().int().positive().optional(),
     bootstrapTotalMaxChars: z.number().int().positive().optional(),
     userTimezone: z.string().optional(),
+    userBirthday: z
+      .string()
+      .regex(/^\d{2}-\d{2}$/, "Must be MM-DD format (e.g. 03-15)")
+      .optional(),
     timeFormat: z.union([z.literal("auto"), z.literal("12"), z.literal("24")]).optional(),
     envelopeTimezone: z.string().optional(),
     envelopeTimestamp: z.union([z.literal("on"), z.literal("off")]).optional(),

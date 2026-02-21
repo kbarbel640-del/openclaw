@@ -98,6 +98,7 @@ export function buildSystemPrompt(params: {
     toolNames: params.tools.map((tool) => tool.name),
     modelAliasLines: buildModelAliasLines(params.config),
     userTimezone,
+    userBirthday: params.config?.agents?.defaults?.userBirthday,
     userTime,
     userTimeFormat,
     contextFiles: params.contextFiles,

@@ -46,6 +46,7 @@ export function buildEmbeddedSystemPrompt(params: {
   tools: AgentTool[];
   modelAliasLines: string[];
   userTimezone: string;
+  userBirthday?: string;
   userTime?: string;
   userTimeFormat?: ResolvedTimeFormat;
   contextFiles?: EmbeddedContextFile[];
@@ -74,6 +75,7 @@ export function buildEmbeddedSystemPrompt(params: {
     toolSummaries: buildToolSummaryMap(params.tools),
     modelAliasLines: params.modelAliasLines,
     userTimezone: params.userTimezone,
+    userBirthday: params.userBirthday,
     userTime: params.userTime,
     userTimeFormat: params.userTimeFormat,
     contextFiles: params.contextFiles,
