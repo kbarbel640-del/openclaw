@@ -16,6 +16,11 @@ describe("loader", () => {
   let caseId = 0;
   let tmpDir: string;
   let originalBundledDir: string | undefined;
+  const isolatedEntries = {
+    clawvault: {
+      enabled: false,
+    },
+  } as const;
 
   beforeAll(async () => {
     fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-hooks-loader-"));
@@ -55,6 +60,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: false,
+            entries: isolatedEntries,
           },
         },
       };
@@ -83,6 +89,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -112,6 +119,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               { event: "command:new", module: path.basename(handler1Path) },
               { event: "command:stop", module: path.basename(handler2Path) },
@@ -142,6 +150,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -162,6 +171,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -186,6 +196,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -213,6 +224,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",
@@ -245,6 +257,7 @@ describe("loader", () => {
         hooks: {
           internal: {
             enabled: true,
+            entries: isolatedEntries,
             handlers: [
               {
                 event: "command:new",

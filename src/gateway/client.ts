@@ -80,6 +80,18 @@ export function describeGatewayCloseCode(code: number): string | undefined {
   return GATEWAY_CLOSE_CODE_HINTS[code];
 }
 
+export function formatGatewayConnectError(err: unknown): string {
+  const raw = String(err);
+  if (raw.toLowerCase().includes("pairing required")) {
+    return (
+      `gateway connect failed: ${raw}\n` +
+      "Pairing repair required. Run `openclaw devices approve --latest` " +
+      "(or `openclaw devices list` to pick a requestId)."
+    );
+  }
+  return `gateway connect failed: ${raw}`;
+}
+
 export class GatewayClient {
   private ws: WebSocket | null = null;
   private opts: GatewayClientOptions;
@@ -314,7 +326,7 @@ export class GatewayClient {
       })
       .catch((err) => {
         this.opts.onConnectError?.(err instanceof Error ? err : new Error(String(err)));
-        const msg = `gateway connect failed: ${String(err)}`;
+        const msg = formatGatewayConnectError(err);
         if (this.opts.mode === GATEWAY_CLIENT_MODES.PROBE) {
           logDebug(msg);
         } else {
