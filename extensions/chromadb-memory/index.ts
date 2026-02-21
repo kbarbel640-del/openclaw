@@ -304,7 +304,9 @@ export default function register(api: OpenClawPluginApi) {
   // Tool: chromadb_search
   // ========================================================================
 
-  api.registerTool({
+  // Register as a factory so each agent gets its own tool instance with the
+  // correct agentId captured at creation time (not at call time).
+  api.registerTool((toolCtx) => ({
     name: "chromadb_search",
     description:
       "Search the ChromaDB long-term memory archive. Contains indexed memory files, session transcripts, and homelab documentation. Use when you need deep historical context or can't find something in memory_search.",
@@ -316,14 +318,14 @@ export default function register(api: OpenClawPluginApi) {
       },
       required: ["query"],
     },
-    async execute(_toolCallId, params, context?: { agentId?: string }) {
+    async execute(_toolCallId, params) {
       const { query, limit = 5 } = params as {
         query: string;
         limit?: number;
       };
 
       try {
-        const agentId = context?.agentId ?? api.agentId;
+        const agentId = toolCtx.agentId; // captured per-agent at tool creation
         const collectionId = await getCollectionId(agentId);
         const embedding = await getEmbedding(
           cfg.ollamaUrl,
@@ -376,8 +378,7 @@ export default function register(api: OpenClawPluginApi) {
         };
       } catch (err) {
         // Clear cache for the affected collection on error
-        const agentId = context?.agentId ?? api.agentId;
-        const name = collectionNameForAgent(cfg, agentId);
+        const name = collectionNameForAgent(cfg, toolCtx.agentId);
         _resolvedCollectionIds.delete(name);
         return {
           content: [
@@ -390,18 +391,18 @@ export default function register(api: OpenClawPluginApi) {
         };
       }
     },
-  });
+  }));
 
   // ========================================================================
   // Auto-recall: inject relevant memories before each agent turn
   // ========================================================================
 
   if (cfg.autoRecall) {
-    api.on("before_agent_start", async (event: { prompt?: string; agentId?: string }) => {
+    api.on("before_agent_start", async (event: { prompt?: string; messages?: unknown[] }, ctx?: { agentId?: string; sessionKey?: string }) => {
       if (!event.prompt || event.prompt.length < 10) return;
 
-      // Resolve agentId: prefer event field, fall back to api.agentId (if exposed)
-      const agentId = event.agentId ?? api.agentId;
+      // agentId comes from the second ctx parameter (not the event)
+      const agentId = ctx?.agentId;
 
       try {
         const collectionId = await getCollectionId(agentId);
@@ -420,7 +421,11 @@ export default function register(api: OpenClawPluginApi) {
 
         // Filter by minimum similarity
         const relevant = results.filter((r) => r.score >= cfg.minScore);
-        if (relevant.length === 0) return;
+        if (relevant.length === 0) {
+          const colName = collectionNameForAgent(cfg, agentId);
+          api.logger.info(`chromadb-memory: auto-recall no results above minScore for agent "${agentId ?? "default"}" (collection: ${colName}, candidates: ${results.length}, minScore: ${cfg.minScore})`);
+          return;
+        }
 
         const memoryContext = relevant
           .map(
