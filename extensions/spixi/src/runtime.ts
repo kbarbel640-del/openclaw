@@ -1,5 +1,5 @@
-import type { PluginRuntime } from "openclaw/plugin-sdk";
 import axios from "axios";
+import type { PluginRuntime } from "openclaw/plugin-sdk";
 
 type SpixiChannelRuntime = {
   sendMessage: (to: string, text: string, opts?: { baseUrl?: string }) => Promise<unknown>;

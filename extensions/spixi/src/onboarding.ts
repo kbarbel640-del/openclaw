@@ -1,8 +1,8 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import type { ChannelOnboardingAdapter, ChannelOnboardingDmPolicy } from "openclaw/plugin-sdk";
 import type { DmPolicy } from "openclaw/plugin-sdk";
-import type { SpixiAccountConfig } from "./types.js";
 import { listSpixiAccountIds, resolveSpixiAccount } from "./accounts.js";
+import type { SpixiAccountConfig } from "./types.js";
 
 const channel = "spixi" as const;
 
