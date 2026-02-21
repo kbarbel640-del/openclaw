@@ -137,9 +137,8 @@ vi.mock("../agents/openclaw-tools.js", () => {
 });
 
 const { handleToolsInvokeHttpRequest } = await import("./tools-invoke-http.js");
-const { getGatewayToolMetricsSnapshot, resetGatewayToolMetricsForTests } = await import(
-  "./tool-observability.js"
-);
+const { getGatewayToolMetricsSnapshot, resetGatewayToolMetricsForTests } =
+  await import("./tool-observability.js");
 
 let pluginHttpHandlers: Array<(req: IncomingMessage, res: ServerResponse) => Promise<boolean>> = [];
 
