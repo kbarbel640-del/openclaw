@@ -248,12 +248,44 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     event: PluginHookBeforePromptBuildEvent,
     ctx: PluginHookAgentContext,
   ): Promise<PluginHookBeforePromptBuildResult | undefined> {
-    return runModifyingHook<"before_prompt_build", PluginHookBeforePromptBuildResult>(
-      "before_prompt_build",
-      event,
-      ctx,
-      mergeBeforePromptBuild,
-    );
+    const hooks = getHooksForName(registry, "before_prompt_build");
+    if (hooks.length === 0) {
+      return undefined;
+    }
+
+    let result: PluginHookBeforePromptBuildResult | undefined;
+
+    for (const hook of hooks) {
+      try {
+        const handlerResult = await (
+          hook.handler as (
+            event: unknown,
+            ctx: unknown,
+          ) => Promise<PluginHookBeforePromptBuildResult>
+        )(event, ctx);
+
+        if (handlerResult !== undefined && handlerResult !== null) {
+          // CRITICAL-10: Block system prompt modification from untrusted plugins.
+          if (handlerResult.systemPrompt !== undefined && !isTrustedHookOrigin(hook.origin)) {
+            logger?.warn(
+              `[SECURITY] BLOCKED: untrusted plugin "${hook.pluginId}" (origin=${hook.origin ?? "unknown"}) attempted system prompt modification via before_prompt_build — stripped`,
+            );
+            handlerResult.systemPrompt = undefined;
+          }
+
+          result = mergeBeforePromptBuild(result, handlerResult);
+        }
+      } catch (err) {
+        const msg = `[hooks] before_prompt_build handler from ${hook.pluginId} failed: ${String(err)}`;
+        if (catchErrors) {
+          logger?.error(msg);
+        } else {
+          throw new Error(msg, { cause: err });
+        }
+      }
+    }
+
+    return result;
   }
 
   /**

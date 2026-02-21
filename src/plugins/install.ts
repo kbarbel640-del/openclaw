@@ -46,12 +46,13 @@ const CRITICAL_SCAN_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /Function\s*\(/g, label: "uses Function() constructor (code generation)" },
   { pattern: /process\.env/g, label: "accesses process.env (environment variable read)" },
   {
-    pattern: /require\s*\(\s*["'](?:fs|node:fs)/g,
-    label: "requires fs module (filesystem access)",
+    pattern: /(?:require\s*\(\s*["']|from\s+["']|import\s+["'])(?:fs|node:fs)/g,
+    label: "imports fs module (filesystem access)",
   },
   {
-    pattern: /require\s*\(\s*["'](?:net|node:net|http|node:http|https|node:https)/g,
-    label: "requires network module (network access)",
+    pattern:
+      /(?:require\s*\(\s*["']|from\s+["']|import\s+["'])(?:net|node:net|http|node:http|https|node:https)/g,
+    label: "imports network module (network access)",
   },
 ];
 
@@ -61,10 +62,8 @@ async function scanPluginDir(dir: string): Promise<PluginScanSummary> {
   let high = 0;
 
   async function walkDir(current: string): Promise<void> {
-    let dirents: Awaited<ReturnType<typeof fs.readdir>>;
-    try {
-      dirents = await fs.readdir(current, { withFileTypes: true });
-    } catch {
+    const dirents = await fs.readdir(current, { withFileTypes: true }).catch((): null => null);
+    if (!dirents) {
       return;
     }
     for (const entry of dirents) {
@@ -96,6 +95,35 @@ async function scanPluginDir(dir: string): Promise<PluginScanSummary> {
 
   await walkDir(dir);
   return { critical, high, findings };
+}
+
+/**
+ * Scan a single plugin file for critical security patterns.
+ */
+async function scanPluginFile(filePath: string): Promise<PluginScanSummary> {
+  const findings: string[] = [];
+  let critical = 0;
+
+  if (!/\.(js|ts|mjs|cjs|mts|cts)$/.test(filePath)) {
+    return { critical: 0, high: 0, findings: [] };
+  }
+
+  let content: string;
+  try {
+    content = await fs.readFile(filePath, "utf-8");
+  } catch {
+    return { critical: 0, high: 0, findings: [] };
+  }
+
+  for (const { pattern, label } of CRITICAL_SCAN_PATTERNS) {
+    pattern.lastIndex = 0;
+    if (pattern.test(content)) {
+      findings.push(`${path.basename(filePath)}: ${label}`);
+      critical += 1;
+    }
+  }
+
+  return { critical, high: 0, findings };
 }
 
 /**
@@ -504,6 +532,18 @@ export async function installPluginFromFile(params: {
 
   if (mode === "install" && (await fileExists(targetFile))) {
     return { ok: false, error: `plugin already exists: ${targetFile} (delete it first)` };
+  }
+
+  // CRITICAL-11: Scan single-file plugin before installation.
+  const scanResult = await scanPluginFile(filePath);
+  if (scanResult.critical > 0) {
+    return {
+      ok: false,
+      error:
+        `plugin installation blocked: ${scanResult.critical} critical security finding(s) detected. ` +
+        `Critical findings cannot be overridden.\n` +
+        scanResult.findings.map((f) => `  - ${f}`).join("\n"),
+    };
   }
 
   if (dryRun) {
