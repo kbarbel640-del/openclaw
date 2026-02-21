@@ -445,7 +445,8 @@ export async function runReplyAgent(params: {
     }
 
     const usage = runResult.meta?.agentMeta?.usage;
-    const usageForResponse = usage ?? runResult.meta?.agentMeta?.lastCallUsage;
+    const turnUsage = runResult.meta?.agentMeta?.turnUsage;
+    const usageForResponse = turnUsage ?? usage ?? runResult.meta?.agentMeta?.lastCallUsage;
     const promptTokens = runResult.meta?.agentMeta?.promptTokens;
     const modelUsed = runResult.meta?.agentMeta?.model ?? fallbackModel ?? defaultModel;
     const providerUsed =
