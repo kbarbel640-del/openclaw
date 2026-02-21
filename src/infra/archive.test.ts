@@ -4,6 +4,7 @@ import path from "node:path";
 import JSZip from "jszip";
 import * as tar from "tar";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { ArchiveSecurityError } from "./archive.js";
 import { extractArchive, resolveArchiveKind, resolvePackedRootDir } from "./archive.js";
 
 let fixtureRoot = "";
@@ -13,6 +14,22 @@ async function makeTempDir(prefix = "case") {
   const dir = path.join(fixtureRoot, `${prefix}-${fixtureCount++}`);
   await fs.mkdir(dir, { recursive: true });
   return dir;
+}
+
+async function expectExtractedSizeBudgetExceeded(params: {
+  archivePath: string;
+  destDir: string;
+  timeoutMs?: number;
+  maxExtractedBytes: number;
+}) {
+  await expect(
+    extractArchive({
+      archivePath: params.archivePath,
+      destDir: params.destDir,
+      timeoutMs: params.timeoutMs ?? 5_000,
+      limits: { maxExtractedBytes: params.maxExtractedBytes },
+    }),
+  ).rejects.toThrow("archive extracted size exceeds limit");
 }
 
 beforeAll(async () => {
@@ -63,6 +80,34 @@ describe("archive utils", () => {
     ).rejects.toThrow(/(escapes destination|absolute)/i);
   });
 
+  it("rejects zip entries that traverse pre-existing destination symlinks", async () => {
+    const workDir = await makeTempDir();
+    const archivePath = path.join(workDir, "bundle.zip");
+    const extractDir = path.join(workDir, "extract");
+    const outsideDir = path.join(workDir, "outside");
+
+    await fs.mkdir(extractDir, { recursive: true });
+    await fs.mkdir(outsideDir, { recursive: true });
+    await fs.symlink(outsideDir, path.join(extractDir, "escape"));
+
+    const zip = new JSZip();
+    zip.file("escape/pwn.txt", "owned");
+    await fs.writeFile(archivePath, await zip.generateAsync({ type: "nodebuffer" }));
+
+    await expect(
+      extractArchive({ archivePath, destDir: extractDir, timeoutMs: 5_000 }),
+    ).rejects.toMatchObject({
+      code: "destination-symlink-traversal",
+    } satisfies Partial<ArchiveSecurityError>);
+
+    const outsideFile = path.join(outsideDir, "pwn.txt");
+    const outsideExists = await fs
+      .stat(outsideFile)
+      .then(() => true)
+      .catch(() => false);
+    expect(outsideExists).toBe(false);
+  });
+
   it("extracts tar archives", async () => {
     const workDir = await makeTempDir();
     const archivePath = path.join(workDir, "bundle.tar");
@@ -106,14 +151,11 @@ describe("archive utils", () => {
     await fs.writeFile(archivePath, await zip.generateAsync({ type: "nodebuffer" }));
 
     await fs.mkdir(extractDir, { recursive: true });
-    await expect(
-      extractArchive({
-        archivePath,
-        destDir: extractDir,
-        timeoutMs: 5_000,
-        limits: { maxExtractedBytes: 32 },
-      }),
-    ).rejects.toThrow("archive extracted size exceeds limit");
+    await expectExtractedSizeBudgetExceeded({
+      archivePath,
+      destDir: extractDir,
+      maxExtractedBytes: 32,
+    });
   });
 
   it("rejects archives that exceed archive size budget", async () => {
@@ -148,14 +190,11 @@ describe("archive utils", () => {
     await tar.c({ cwd: workDir, file: archivePath }, ["package"]);
 
     await fs.mkdir(extractDir, { recursive: true });
-    await expect(
-      extractArchive({
-        archivePath,
-        destDir: extractDir,
-        timeoutMs: 5_000,
-        limits: { maxExtractedBytes: 32 },
-      }),
-    ).rejects.toThrow("archive extracted size exceeds limit");
+    await expectExtractedSizeBudgetExceeded({
+      archivePath,
+      destDir: extractDir,
+      maxExtractedBytes: 32,
+    });
   });
 
   it("rejects tar entries with absolute extraction paths", async () => {
