@@ -1347,7 +1347,8 @@ async function dispatchDiscordCommandInteraction(params: {
       return;
     }
     if (dmPolicy !== "open") {
-      const storeAllowFrom = await readChannelAllowFromStore("discord").catch(() => []);
+      const storeAllowFrom =
+        dmPolicy === "allowlist" ? [] : await readChannelAllowFromStore("discord").catch(() => []);
       const effectiveAllowFrom = [
         ...(discordConfig?.allowFrom ?? discordConfig?.dm?.allowFrom ?? []),
         ...storeAllowFrom,
