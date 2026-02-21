@@ -2,8 +2,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { complete } from "@mariozechner/pi-ai";
 import type { Command } from "commander";
+import { resolveOpenClawAgentDir } from "../../agents/agent-paths.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { resolveModel } from "../../agents/pi-embedded-runner/model.js";
+import type { OpenClawPluginApi } from "../../plugins/types.js";
 import { ConsolidationService } from "../../services/memory/ConsolidationService.js";
 import { GraphService } from "../../services/memory/GraphService.js";
 import { SubconsciousService, type LLMClient } from "../../services/memory/SubconsciousService.js";
@@ -22,28 +24,8 @@ type MindMemoryPluginConfig = {
   };
 };
 
-interface PluginApi {
-  config: Record<string, unknown>;
-  logger: {
-    info: (msg: string) => void;
-    error: (msg: string) => void;
-    warn: (msg: string) => void;
-  };
-  registerService: (service: {
-    id: string;
-    start: () => Promise<void>;
-    stop: () => Promise<void>;
-  }) => void;
-  registerCli: (cb: (ctx: { program: Command }) => void, options: { commands: string[] }) => void;
-  registerGatewayMethod: (
-    id: string,
-    cb: (ctx: {
-      params: Record<string, unknown>;
-      respond: (ok: boolean, payload?: unknown) => void;
-    }) => Promise<void>,
-  ) => void;
-  registerTool: (tool: unknown) => void;
-}
+// Use the real plugin API type so api.on() is available
+type PluginApi = OpenClawPluginApi;
 
 /** Extract the mind-memory plugin config from the global config. */
 function getMindMemoryConfig(globalConfig: Record<string, unknown>): MindMemoryPluginConfig {
@@ -235,6 +217,7 @@ export default function register(api: PluginApi) {
   // 3. Register Explicit Tool for Conscious Memory Access
   api.registerTool({
     name: "remember",
+    label: "remember",
     description:
       "Search the long-term knowledge graph for memories, facts, and entities related to a query. Use this when you need to explicitly recall information from previous conversations or specific details about the user that might not be in the immediate context.",
     parameters: {
@@ -262,6 +245,7 @@ export default function register(api: PluginApi) {
         if (combined.length === 0) {
           return {
             content: [{ type: "text", text: "No relevant memories found." }],
+            details: null,
           };
         }
 
@@ -286,14 +270,111 @@ export default function register(api: PluginApi) {
               text: `Found ${combined.length} memories:\n${lines.join("\n")}`,
             },
           ],
+          details: null,
         };
       } catch (e: unknown) {
         return {
           content: [{ type: "text", text: `Error searching memory: ${(e as Error).message}` }],
           isError: true,
+          details: null,
         };
       }
     },
+  });
+
+  // 4. Register before_reset hook to sync the ending session to STORY.md when /new or /reset is called.
+  // This is fire-and-forget so it doesn't block the session reset.
+  api.on("before_reset", (event, ctx) => {
+    const { messages } = event;
+    if (!messages || messages.length === 0) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const agentId = resolveDefaultAgentId(api.config);
+        const workspaceDir = ctx.workspaceDir ?? resolveAgentWorkspaceDir(api.config, agentId);
+        const storyPath = path.join(workspaceDir, "STORY.md");
+        const agentDir = resolveOpenClawAgentDir();
+        const debug = !!config.debug;
+
+        // Resolve narrative model from config or fallback to main agent model
+        const narrativeProvider =
+          (config.narrative as { provider?: string } | undefined)?.provider ?? "github-copilot";
+        const narrativeModel =
+          (config.narrative as { model?: string } | undefined)?.model ?? "gemini-2.0-flash-001";
+
+        const { model, authStorage, modelRegistry, error } = resolveModel(
+          narrativeProvider,
+          narrativeModel,
+          agentDir,
+          api.config,
+        );
+
+        if (!model) {
+          api.logger.warn(
+            `[mind-memory] before_reset: could not resolve narrative model: ${error ?? "unknown"}`,
+          );
+          return;
+        }
+
+        // Create a subconscious agent for the narrative LLM call
+        const { createSubconsciousAgent } =
+          await import("../../agents/pi-embedded-runner/subconscious-agent.js");
+        const subconsciousAgent = createSubconsciousAgent({
+          model,
+          authStorage,
+          modelRegistry,
+          debug,
+          autoBootstrapHistory: false,
+        });
+
+        // Map the raw hook messages to the shape syncStoryWithSession expects.
+        // commands-core.ts parses the .jsonl and provides: { type: "message", message: { role, text } }
+        type MessageEntry = {
+          role?: string;
+          text?: string;
+          content?: unknown;
+          timestamp?: number | string;
+          created_at?: string;
+        };
+        const sessionMessages = (messages as MessageEntry[]).filter(
+          (m): m is MessageEntry & { role: string } =>
+            typeof m.role === "string" && m.role !== "system",
+        );
+
+        if (sessionMessages.length === 0) {
+          return;
+        }
+
+        if (debug) {
+          process.stderr.write(
+            `🧠 [MIND] before_reset: syncing ${sessionMessages.length} messages to STORY.md...\n`,
+          );
+        }
+
+        const { ConsolidationService: CS } =
+          await import("../../services/memory/ConsolidationService.js");
+        const { GraphService: GS } = await import("../../services/memory/GraphService.js");
+        const gUrl = config.graphiti?.baseUrl || "http://localhost:8001";
+        const gs = new GS(gUrl, debug);
+        const cons = new CS(gs, debug);
+
+        await cons.syncStoryWithSession(
+          sessionMessages,
+          storyPath,
+          subconsciousAgent,
+          undefined,
+          50000,
+        );
+
+        if (debug) {
+          process.stderr.write(`✅ [MIND] before_reset: STORY.md sync complete.\n`);
+        }
+      } catch (err: unknown) {
+        api.logger.warn(`[mind-memory] before_reset hook failed: ${String(err)}`);
+      }
+    })();
   });
 
   api.logger.info("Mind Memory plugin registered (Mind v1.0 Modular)");
