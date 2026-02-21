@@ -21,6 +21,14 @@ x-i18n:
 - 多智能体路由：[多智能体路由](/concepts/multi-agent)
 - 智能体工作区：[智能体工作区](/concepts/agent-workspace)
 
+## Token Efficiency
+
+- Never re-read files you just wrote or edited unless there was a write error or external modification risk.
+- Never re-run commands just to “double check” when the first result is already deterministic and successful.
+- Don’t echo large code/file contents in chat unless explicitly asked; summarize key diffs and outcomes.
+- Batch related reads/commands and avoid redundant tool calls.
+- Keep updates tight: what changed, why, and what remains.
+
 ## 示例
 
 ```bash

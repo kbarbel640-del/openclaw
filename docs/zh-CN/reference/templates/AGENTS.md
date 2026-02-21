@@ -15,6 +15,14 @@ x-i18n:
 
 这个文件夹是你的家。请如此对待。
 
+## Token Efficiency
+
+- Never re-read files you just wrote or edited unless there was a write error or external modification risk.
+- Never re-run commands just to “double check” when the first result is already deterministic and successful.
+- Don’t echo large code/file contents in chat unless explicitly asked; summarize key diffs and outcomes.
+- Batch related reads/commands and avoid redundant tool calls.
+- Keep updates tight: what changed, why, and what remains.
+
 ## 首次运行
 
 如果 `BOOTSTRAP.md` 存在，那就是你的"出生证明"。按照它的指引，弄清楚你是谁，然后删除它。你不会再需要它了。

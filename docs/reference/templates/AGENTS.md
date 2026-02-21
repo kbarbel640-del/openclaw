@@ -9,6 +9,14 @@ read_when:
 
 This folder is home. Treat it that way.
 
+## Token Efficiency
+
+- Never re-read files you just wrote or edited unless there was a write error or external modification risk.
+- Never re-run commands just to “double check” when the first result is already deterministic and successful.
+- Don’t echo large code/file contents in chat unless explicitly asked; summarize key diffs and outcomes.
+- Batch related reads/commands and avoid redundant tool calls.
+- Keep updates tight: what changed, why, and what remains.
+
 ## First Run
 
 If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out who you are, then delete it. You won't need it again.

@@ -3,6 +3,14 @@
 - Repo: https://github.com/openclaw/openclaw
 - GitHub issues/comments/PR comments: use literal multiline strings or `-F - <<'EOF'` (or $'...') for real newlines; never embed "\\n".
 
+## Token Efficiency
+
+- Never re-read files you just wrote or edited unless there was a write error or external modification risk.
+- Never re-run commands just to “double check” when the first result is already deterministic and successful.
+- Don’t echo large code/file contents in chat unless explicitly asked; summarize key diffs and outcomes.
+- Batch related reads/commands and avoid redundant tool calls.
+- Keep updates tight: what changed, why, and what remains.
+
 ## Project Structure & Module Organization
 
 - Source code: `src/` (CLI wiring in `src/cli`, commands in `src/commands`, web provider in `src/provider-web.ts`, infra in `src/infra`, media pipeline in `src/media`).
