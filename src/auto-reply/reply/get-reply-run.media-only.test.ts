@@ -40,8 +40,8 @@ vi.mock("../command-detection.js", () => ({
   hasControlCommand: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock("../thinking-auto.js", () => ({
-  selectAdaptiveThinkingLevel: vi.fn().mockReturnValue(undefined),
+vi.mock("../thinking-auto-model.js", () => ({
+  resolveAutoThinkingLevelWithModel: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("./agent-runner.js", () => ({
@@ -83,7 +83,7 @@ vi.mock("./typing-mode.js", () => ({
   resolveTypingMode: vi.fn().mockReturnValue("off"),
 }));
 
-import { selectAdaptiveThinkingLevel } from "../thinking-auto.js";
+import { resolveAutoThinkingLevelWithModel } from "../thinking-auto-model.js";
 import { runReplyAgent } from "./agent-runner.js";
 
 function baseParams(
@@ -129,6 +129,7 @@ function baseParams(
     } as never,
     defaultActivation: "always",
     resolvedThinkLevel: "high",
+    resolvedThinkAuto: false,
     resolvedVerboseLevel: "off",
     resolvedReasoningLevel: "off",
     resolvedElevatedLevel: "off",
@@ -196,9 +197,8 @@ describe("runPreparedReply handling", () => {
     expect(vi.mocked(runReplyAgent)).not.toHaveBeenCalled();
   });
 
-  it("falls back to model defaults when adaptive selection is inconclusive", async () => {
-    const resolveDefaultThinkingLevel = vi.fn().mockResolvedValue("off");
-    vi.mocked(selectAdaptiveThinkingLevel).mockReturnValue(undefined);
+  it("falls back directly to defaults when auto-thinking mode is disabled", async () => {
+    const resolveDefaultThinkingLevel = vi.fn().mockResolvedValue("medium");
 
     await runPreparedReply(
       baseParams({
@@ -219,6 +219,43 @@ describe("runPreparedReply handling", () => {
           OriginatingTo: "C123",
         },
         resolvedThinkLevel: undefined,
+        resolvedThinkAuto: false,
+        modelState: {
+          resolveDefaultThinkingLevel,
+        } as never,
+      }),
+    );
+
+    const call = vi.mocked(runReplyAgent).mock.calls[0]?.[0];
+    expect(call?.followupRun.run.thinkLevel).toBe("medium");
+    expect(vi.mocked(resolveAutoThinkingLevelWithModel)).not.toHaveBeenCalled();
+    expect(resolveDefaultThinkingLevel).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to model defaults when auto-thinking classifier is inconclusive", async () => {
+    const resolveDefaultThinkingLevel = vi.fn().mockResolvedValue("off");
+    vi.mocked(resolveAutoThinkingLevelWithModel).mockResolvedValue(undefined);
+
+    await runPreparedReply(
+      baseParams({
+        ctx: {
+          Body: "Can you take a look at this?",
+          RawBody: "Can you take a look at this?",
+          CommandBody: "Can you take a look at this?",
+          OriginatingChannel: "slack",
+          OriginatingTo: "C123",
+          ChatType: "group",
+        },
+        sessionCtx: {
+          Body: "Can you take a look at this?",
+          BodyStripped: "Can you take a look at this?",
+          Provider: "slack",
+          ChatType: "group",
+          OriginatingChannel: "slack",
+          OriginatingTo: "C123",
+        },
+        resolvedThinkLevel: undefined,
+        resolvedThinkAuto: true,
         modelState: {
           resolveDefaultThinkingLevel,
         } as never,
@@ -227,12 +264,12 @@ describe("runPreparedReply handling", () => {
 
     const call = vi.mocked(runReplyAgent).mock.calls[0]?.[0];
     expect(call?.followupRun.run.thinkLevel).toBe("off");
-    expect(vi.mocked(selectAdaptiveThinkingLevel)).toHaveBeenCalledOnce();
+    expect(vi.mocked(resolveAutoThinkingLevelWithModel)).toHaveBeenCalledOnce();
     expect(resolveDefaultThinkingLevel).toHaveBeenCalledOnce();
   });
 
-  it("does not run adaptive selection when think level is already resolved", async () => {
-    vi.mocked(selectAdaptiveThinkingLevel).mockReturnValue("xhigh");
+  it("does not run auto-thinking classifier when think level is already resolved", async () => {
+    vi.mocked(resolveAutoThinkingLevelWithModel).mockResolvedValue("xhigh");
     const resolveDefaultThinkingLevel = vi.fn().mockResolvedValue("off");
 
     await runPreparedReply(
@@ -254,6 +291,7 @@ describe("runPreparedReply handling", () => {
           OriginatingTo: "C123",
         },
         resolvedThinkLevel: "low",
+        resolvedThinkAuto: true,
         modelState: {
           resolveDefaultThinkingLevel,
         } as never,
@@ -262,7 +300,7 @@ describe("runPreparedReply handling", () => {
 
     const call = vi.mocked(runReplyAgent).mock.calls[0]?.[0];
     expect(call?.followupRun.run.thinkLevel).toBe("low");
-    expect(vi.mocked(selectAdaptiveThinkingLevel)).not.toHaveBeenCalled();
+    expect(vi.mocked(resolveAutoThinkingLevelWithModel)).not.toHaveBeenCalled();
     expect(resolveDefaultThinkingLevel).not.toHaveBeenCalled();
   });
 });
