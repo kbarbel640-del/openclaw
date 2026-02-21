@@ -930,7 +930,9 @@ Optional **Docker sandboxing** for the embedded agent. See [Sandboxing](/gateway
         browser: {
           enabled: false,
           image: "openclaw-sandbox-browser:bookworm-slim",
+          network: "openclaw-sandbox-browser",
           cdpPort: 9222,
+          cdpSourceRange: "172.21.0.1/32",
           vncPort: 5900,
           noVncPort: 6080,
           headless: false,
@@ -992,9 +994,11 @@ Optional **Docker sandboxing** for the embedded agent. See [Sandboxing](/gateway
 **`docker.binds`** mounts additional host directories; global and per-agent binds are merged.
 
 **Sandboxed browser** (`sandbox.browser.enabled`): Chromium + CDP in a container. noVNC URL injected into system prompt. Does not require `browser.enabled` in main config.
-noVNC observer access uses VNC auth by default and the generated URL includes the password query parameter automatically.
+noVNC observer access uses VNC auth by default and OpenClaw emits a short-lived token URL (instead of exposing the password in the shared URL).
 
 - `allowHostControl: false` (default) blocks sandboxed sessions from targeting the host browser.
+- `network` defaults to `openclaw-sandbox-browser` (dedicated bridge network). Set to `bridge` only when you explicitly want global bridge connectivity.
+- `cdpSourceRange` optionally restricts CDP ingress at the container edge to a CIDR range (for example `172.21.0.1/32`).
 - `sandbox.browser.binds` mounts additional host directories into the sandbox browser container only. When set (including `[]`), it replaces `docker.binds` for the browser container.
 
 </Accordion>
