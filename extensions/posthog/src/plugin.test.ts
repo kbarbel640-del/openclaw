@@ -19,13 +19,17 @@ vi.mock("openclaw/plugin-sdk", async () => {
   };
 });
 
-vi.mock("node:crypto", () => ({
-  randomUUID: vi.fn(() => `uuid-${Math.random().toString(36).slice(2, 8)}`),
-}));
+vi.mock("node:crypto", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:crypto")>();
+  return {
+    ...actual,
+    randomUUID: vi.fn(() => `uuid-${Math.random().toString(36).slice(2, 8)}`),
+  };
+});
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import type { PostHogPluginConfig } from "./types.js";
 import { registerPostHogHooks } from "./plugin.js";
+import type { PostHogPluginConfig } from "./types.js";
 
 type HookHandler = (event: unknown, ctx: unknown) => void | Promise<void>;
 type ServiceDef = { id: string; start: () => Promise<void>; stop?: () => Promise<void> };
