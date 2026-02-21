@@ -22,7 +22,7 @@ Add to your `openclaw.json` (or `openclaw.yaml`):
         "config": {
           "apiKey": "phc_your_project_key",
           "host": "https://us.i.posthog.com",
-          "privacyMode": true,
+          "privacyMode": false,
           "traceGrouping": "message",
           "sessionWindowMinutes": 60,
         },
@@ -41,7 +41,7 @@ Add to your `openclaw.json` (or `openclaw.yaml`):
 | ---------------------- | -------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `apiKey`               | `string`                   | _(required)_               | Your PostHog project API key                                                                                          |
 | `host`                 | `string`                   | `https://us.i.posthog.com` | PostHog instance URL                                                                                                  |
-| `privacyMode`          | `boolean`                  | `true`                     | When enabled, LLM input/output content is not sent to PostHog                                                         |
+| `privacyMode`          | `boolean`                  | `false`                    | When enabled, LLM input/output content is not sent to PostHog                                                         |
 | `traceGrouping`        | `"message"` \| `"session"` | `"message"`                | Trace grouping mode. `"message"`: one trace per runId. `"session"`: group all generations in a session into one trace |
 | `sessionWindowMinutes` | `number`                   | `60`                       | Minutes of inactivity before starting a new session window. Applies to both trace grouping modes                      |
 | `enabled`              | `boolean`                  | `true`                     | Enable or disable the plugin                                                                                          |
@@ -110,4 +110,4 @@ Captured when a message cycle completes (`message.processed` diagnostic event).
 
 ## Privacy
 
-With `privacyMode: true` (the default), no message content, prompts, or tool parameters are sent to PostHog. Token counts, latency, model info, and error status are always captured.
+With `privacyMode: true`, no message content, prompts, or tool parameters are sent to PostHog. Token counts, latency, model info, and error status are always captured.

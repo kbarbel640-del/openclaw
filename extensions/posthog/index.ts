@@ -1,6 +1,6 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import type { PostHogPluginConfig } from "./src/types.js";
 import { registerPostHogHooks } from "./src/plugin.js";
+import type { PostHogPluginConfig } from "./src/types.js";
 
 const DEFAULT_HOST = "https://us.i.posthog.com";
 
@@ -20,7 +20,7 @@ const plugin = {
     const config: PostHogPluginConfig = {
       apiKey: raw.apiKey as string,
       host: (raw.host as string) || DEFAULT_HOST,
-      privacyMode: raw.privacyMode !== false,
+      privacyMode: raw.privacyMode === true,
       enabled: raw.enabled !== false,
       traceGrouping,
       sessionWindowMinutes,

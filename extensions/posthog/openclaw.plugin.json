@@ -14,7 +14,7 @@
       },
       "privacyMode": {
         "type": "boolean",
-        "default": true,
+        "default": false,
         "description": "When enabled, LLM input/output content is not sent to PostHog"
       },
       "traceGrouping": {
