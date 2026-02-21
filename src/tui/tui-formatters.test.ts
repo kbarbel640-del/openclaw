@@ -138,11 +138,11 @@ Assistant body`,
     const text = extractTextFromMessage({
       role: "user",
       content:
-        "Hello world\nConversation info (untrusted metadata):\n```json\n{\"message_id\":\"123\"}\n```\n\nFollow-up",
+        'Hello world\nConversation info (untrusted metadata):\n```json\n{"message_id":"123"}\n```\n\nFollow-up',
     });
 
     expect(text).toBe(
-      "Hello world\nConversation info (untrusted metadata):\n```json\n{\"message_id\":\"123\"}\n```\n\nFollow-up",
+      'Hello world\nConversation info (untrusted metadata):\n```json\n{"message_id":"123"}\n```\n\nFollow-up',
     );
   });
 });
