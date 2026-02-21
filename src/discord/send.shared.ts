@@ -1,3 +1,4 @@
+import type { RESTAPIPoll } from "discord-api-types/rest/v10";
 import {
   Embed,
   RequestClient,
@@ -7,11 +8,10 @@ import {
   type TopLevelComponents,
 } from "@buape/carbon";
 import { PollLayoutType } from "discord-api-types/payloads/v10";
-import type { RESTAPIPoll } from "discord-api-types/rest/v10";
-import { Routes, type APIEmbed } from "discord-api-types/v10";
+import { Routes, MessageFlags, type APIEmbed } from "discord-api-types/v10";
 import type { ChunkMode } from "../auto-reply/chunk.js";
-import { loadConfig } from "../config/config.js";
 import type { RetryRunner } from "../infra/retry-policy.js";
+import { loadConfig } from "../config/config.js";
 import { normalizePollDurationHours, normalizePollInput, type PollInput } from "../polls.js";
 import { loadWebMedia } from "../web/media.js";
 import { resolveDiscordAccount } from "./accounts.js";
@@ -345,7 +345,6 @@ async function sendDiscordText(
     throw new Error("Message must be non-empty for Discord sends");
   }
   const messageReference = replyTo ? { message_id: replyTo, fail_if_not_exists: false } : undefined;
-  const flags = silent ? SUPPRESS_NOTIFICATIONS_FLAG : undefined;
   const chunks = buildDiscordTextChunks(text, { maxLinesPerMessage, chunkMode });
   const sendChunk = async (chunk: string, isFirst: boolean) => {
     const chunkComponents = resolveDiscordSendComponents({
@@ -354,6 +353,8 @@ async function sendDiscordText(
       isFirst,
     });
     const chunkEmbeds = resolveDiscordSendEmbeds({ embeds, isFirst });
+    const v2Flag = hasV2Components(chunkComponents) ? MessageFlags.IsComponentsV2 : 0;
+    const flags = (silent ? SUPPRESS_NOTIFICATIONS_FLAG : 0) | v2Flag || undefined;
     const payload = buildDiscordMessagePayload({
       text: chunk,
       components: chunkComponents,
@@ -403,7 +404,6 @@ async function sendDiscordMedia(
   const chunks = text ? buildDiscordTextChunks(text, { maxLinesPerMessage, chunkMode }) : [];
   const caption = chunks[0] ?? "";
   const messageReference = replyTo ? { message_id: replyTo, fail_if_not_exists: false } : undefined;
-  const flags = silent ? SUPPRESS_NOTIFICATIONS_FLAG : undefined;
   let fileData: Blob;
   if (media.buffer instanceof Blob) {
     fileData = media.buffer;
@@ -418,6 +418,8 @@ async function sendDiscordMedia(
     isFirst: true,
   });
   const captionEmbeds = resolveDiscordSendEmbeds({ embeds, isFirst: true });
+  const v2Flag = hasV2Components(captionComponents) ? MessageFlags.IsComponentsV2 : 0;
+  const flags = (silent ? SUPPRESS_NOTIFICATIONS_FLAG : 0) | v2Flag || undefined;
   const payload = buildDiscordMessagePayload({
     text: caption,
     components: captionComponents,
