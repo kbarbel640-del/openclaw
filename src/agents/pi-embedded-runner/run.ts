@@ -1,6 +1,5 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
-import crypto from "node:crypto";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { SessionSystemPromptReport } from "../../config/sessions/types.js";
 import { generateSecureToken } from "../../infra/secure-random.js";
@@ -114,9 +113,8 @@ function snapshotToolSchema(report?: SessionSystemPromptReport): ToolSchemaSnaps
         propertiesCount: entry.propertiesCount ?? null,
       }),
     )
-    .sort();
-  const fingerprint = crypto
-    .createHash("sha256")
+    .toSorted();
+  const fingerprint = createHash("sha256")
     .update(serializedEntries.join("|"))
     .digest("hex")
     .slice(0, 12);
