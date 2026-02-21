@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import { logInfo } from "../logger.js";
 import { defaultRuntime } from "../runtime.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { theme } from "../terminal/theme.js";
@@ -9,9 +8,7 @@ import {
   registerAutoUpdateOptions,
   handleAutoUpdateOptions,
   displayAutoUpdateStatus,
-  loadAutoUpdateConfig,
   recordUpdateCheck,
-  getNextCheckTime,
 } from "./update-cli/auto-update.js";
 import {
   type UpdateCommandOptions,
@@ -97,20 +94,6 @@ ${theme.muted("Docs:")} ${formatDocsLink("/cli/update", "docs.openclaw.ai/cli/up
         const autoUpdateHandled = await handleAutoUpdateOptions(opts);
         if (autoUpdateHandled) {
           return;
-        }
-
-        const config = await loadAutoUpdateConfig();
-
-        if (config.enabled && config.interval !== "manual" && process.env.OPENCLAW_AUTO_UPDATE) {
-          const nextCheck = await getNextCheckTime();
-          if (nextCheck && new Date() < nextCheck) {
-            logInfo(
-              `Auto-update not due yet (interval: ${config.interval}). Skipping check.`,
-              defaultRuntime,
-            );
-            await displayAutoUpdateStatus();
-            return;
-          }
         }
 
         let updateSucceeded = false;

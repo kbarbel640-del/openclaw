@@ -37,7 +37,17 @@ export async function loadAutoUpdateConfig(): Promise<AutoUpdateConfig> {
     const content = await fs.readFile(configPath, "utf-8");
     const parsed = JSON.parse(content);
     if (parsed && typeof parsed === "object") {
-      return parsed as AutoUpdateConfig;
+      const config = parsed as Partial<AutoUpdateConfig>;
+      if (
+        typeof config.enabled === "boolean" &&
+        (config.interval === "daily" ||
+          config.interval === "weekly" ||
+          config.interval === "manual") &&
+        Array.isArray(config.skipVersions) &&
+        typeof config.notifyOnUpdate === "boolean"
+      ) {
+        return config as AutoUpdateConfig;
+      }
     }
     throw new Error("Invalid config format");
   } catch (err) {
@@ -192,11 +202,11 @@ export async function recordUpdateCheck(): Promise<void> {
 export async function getNextCheckTime(): Promise<Date | null> {
   const config = await loadAutoUpdateConfig();
 
-  if (!config.enabled || config.interval === "manual") {
+  if (!config.enabled || config.interval === "manual" || !config.lastCheck) {
     return null;
   }
 
-  const lastCheck = config.lastCheck ? new Date(config.lastCheck) : new Date();
+  const lastCheck = new Date(config.lastCheck);
   const intervalMs = config.interval === "daily" ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
 
   return new Date(lastCheck.getTime() + intervalMs);
