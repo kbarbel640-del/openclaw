@@ -1,9 +1,9 @@
 import { Type } from "@sinclair/typebox";
-import type { OpenClawConfig } from "../../config/config.js";
-import type { AnyAgentTool } from "./common.js";
 import { formatCliCommand } from "../../cli/command-format.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { wrapWebContent } from "../../security/external-content.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
+import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 import {
   CacheEntry,
@@ -374,7 +374,9 @@ function resolveGrokConfig(search?: WebSearchConfig): GrokConfig {
 
 function resolveGrokBaseUrl(grok?: GrokConfig): string {
   const fromConfig =
-    grok && "baseUrl" in grok && typeof grok.baseUrl === "string" ? grok.baseUrl.trim() : "";
+    grok && "baseUrl" in grok && typeof grok.baseUrl === "string"
+      ? grok.baseUrl.trim().replace(/\/$/, "")
+      : "";
   if (fromConfig) {
     return fromConfig;
   }

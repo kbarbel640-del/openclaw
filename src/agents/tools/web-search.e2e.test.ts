@@ -154,6 +154,12 @@ describe("web_search grok config resolution", () => {
     );
   });
 
+  it("strips trailing slash from baseUrl", () => {
+    expect(resolveGrokBaseUrl({ baseUrl: "https://custom.api.com/v1/" })).toBe(
+      "https://custom.api.com/v1",
+    );
+  });
+
   it("uses default model when not specified", () => {
     expect(resolveGrokModel({})).toBe("grok-4-1-fast");
     expect(resolveGrokModel(undefined)).toBe("grok-4-1-fast");
