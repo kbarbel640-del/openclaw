@@ -385,22 +385,25 @@ class EmailAccountRuntime {
             // This ensures emails from the same sender are processed sequentially
             // while emails from different senders are processed in parallel
             if (uid !== null) {
+              const messageUid = uid; // Capture uid to ensure it's not null in closure
               this.processEmailWithSenderQueue(fromEmail, async () => {
                 try {
-                  await this.messageHandler(from, fromEmail, subject, body, messageId, uid);
+                  await this.messageHandler(from, fromEmail, subject, body, messageId, messageUid);
 
                   // Mark as processed only after successful handler completion
                   this.markMessageAsProcessed(messageId);
 
                   // Mark email as \Seen after successful processing
-                  this.imapConnection!.addFlags(uid, ["\\Seen"], (err: Error | null) => {
+                  this.imapConnection!.addFlags(messageUid, ["\\Seen"], (err: Error | null) => {
                     if (err) {
                       console.error(
                         `[EMAIL PLUGIN] [${this.accountId}] Failed to mark email as seen:`,
                         err,
                       );
                     } else {
-                      console.log(`[EMAIL PLUGIN] [${this.accountId}] ✓ Marked UID ${uid} as seen`);
+                      console.log(
+                        `[EMAIL PLUGIN] [${this.accountId}] ✓ Marked UID ${messageUid} as seen`,
+                      );
                     }
                   });
 
