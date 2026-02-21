@@ -12,9 +12,7 @@ import type { OpenClawConfig } from "../config/config.js";
 export type InternalHookEventType = "command" | "session" | "agent" | "gateway" | "message" | "channel";
 
 export type ChannelConnectedHookContext = {
-  /** Channel identifier (e.g., "whatsapp", "telegram", "discord") */
   channel: string;
-  /** Account identifier within the channel */
   accountId: string;
 };
 
@@ -23,7 +21,6 @@ export type ChannelConnectedHookEvent = InternalHookEvent & {
   action: "connected";
   context: ChannelConnectedHookContext;
 };
-
 
 export type AgentBootstrapHookContext = {
   workspaceDir: string;
