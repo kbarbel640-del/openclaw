@@ -612,9 +612,31 @@ export function isTimeoutErrorMessage(raw: string): boolean {
   return matchesErrorPatterns(raw, ERROR_PATTERNS.timeout);
 }
 
+export function isProcessTerminationError(raw: string): boolean {
+  if (!raw) {
+    return false;
+  }
+  const value = raw.toLowerCase();
+  // Detect SIGPIPE (exit code 141) and SIGKILL (exit code 137)
+  // Fix #11722: Don't report process termination as billing error
+  return (
+    value.includes("sigpipe") ||
+    value.includes("sigkill") ||
+    value.includes("exit code 141") ||
+    value.includes("exit code 137") ||
+    value.includes("signal 13") || // SIGPIPE
+    value.includes("signal 9") // SIGKILL
+  );
+}
+
 export function isBillingErrorMessage(raw: string): boolean {
   const value = raw.toLowerCase();
   if (!value) {
+    return false;
+  }
+
+  // Fix #11722: Process termination should not be reported as billing error
+  if (isProcessTerminationError(raw)) {
     return false;
   }
 
