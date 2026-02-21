@@ -36,6 +36,7 @@ export type SafeLocalReadResult = {
 
 const NOT_FOUND_CODES = new Set(["ENOENT", "ENOTDIR"]);
 const SUPPORTS_NOFOLLOW = process.platform !== "win32" && "O_NOFOLLOW" in fsConstants;
+const IS_WIN32 = process.platform === "win32";
 const OPEN_READ_FLAGS = fsConstants.O_RDONLY | (SUPPORTS_NOFOLLOW ? fsConstants.O_NOFOLLOW : 0);
 
 const ensureTrailingSep = (value: string) => (value.endsWith(path.sep) ? value : value + path.sep);
@@ -71,13 +72,13 @@ async function openVerifiedLocalFile(filePath: string): Promise<SafeOpenResult> 
     if (!stat.isFile()) {
       throw new SafeOpenError("not-file", "not a file");
     }
-    if (stat.ino !== lstat.ino || stat.dev !== lstat.dev) {
+    if (stat.ino !== lstat.ino || (!IS_WIN32 && stat.dev !== lstat.dev)) {
       throw new SafeOpenError("path-mismatch", "path changed during read");
     }
 
     const realPath = await fs.realpath(filePath);
     const realStat = await fs.stat(realPath);
-    if (stat.ino !== realStat.ino || stat.dev !== realStat.dev) {
+    if (stat.ino !== realStat.ino || (!IS_WIN32 && stat.dev !== realStat.dev)) {
       throw new SafeOpenError("path-mismatch", "path mismatch");
     }
 
