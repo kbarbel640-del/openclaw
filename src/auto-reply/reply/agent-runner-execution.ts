@@ -138,10 +138,7 @@ export async function runAgentTurnWithFallback(params: {
           }
           text = stripped.text;
         }
-        if (
-          isSilentReplyText(text, SILENT_REPLY_TOKEN) ||
-          isSilentReplyPrefixText(text, SILENT_REPLY_TOKEN)
-        ) {
+        if (isSilentReplyText(text, SILENT_REPLY_TOKEN)) {
           return { skip: true };
         }
         if (!text) {
@@ -160,6 +157,9 @@ export async function runAgentTurnWithFallback(params: {
         return { text: sanitized, skip: false };
       };
       const handlePartialForTyping = async (payload: ReplyPayload): Promise<string | undefined> => {
+        if (isSilentReplyPrefixText(payload.text, SILENT_REPLY_TOKEN)) {
+          return undefined;
+        }
         const { text, skip } = normalizeStreamingText(payload);
         if (skip || !text) {
           return undefined;

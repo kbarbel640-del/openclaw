@@ -147,8 +147,7 @@ export const dispatchTelegramMessage = async ({
   const canStreamReasoningDraft = canStreamAnswerDraft || streamReasoningDraft;
   const draftReplyToMessageId =
     replyToMode !== "off" && typeof msg.message_id === "number" ? msg.message_id : undefined;
-  const draftMinInitialChars =
-    previewStreamingEnabled || streamReasoningDraft ? 1 : DRAFT_MIN_INITIAL_CHARS;
+  const draftMinInitialChars = DRAFT_MIN_INITIAL_CHARS;
   const mediaLocalRoots = getAgentScopedMediaLocalRoots(cfg, route.agentId);
   type LaneName = "answer" | "reasoning";
   type DraftLaneState = {
