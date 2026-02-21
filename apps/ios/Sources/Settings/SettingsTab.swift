@@ -51,6 +51,8 @@ struct SettingsTab: View {
     @State private var manualGatewayPortText: String = ""
     @State private var gatewayExpanded: Bool = true
     @State private var selectedAgentPickerId: String = ""
+    @State private var talkTtsBaseUrl: String = ""
+    @State private var talkSttLocale: String = ""
 
     @State private var showResetOnboardingAlert: Bool = false
     @State private var activeFeatureHelp: FeatureHelp?
@@ -306,6 +308,25 @@ struct SettingsTab: View {
                             help: "Keeps the screen awake while OpenClaw is open.")
 
                         DisclosureGroup("Advanced") {
+                            TextField("STT Language (e.g. ko-KR)", text: self.$talkSttLocale)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .onChange(of: self.talkSttLocale) { _, newValue in
+                                    GatewaySettingsStore.saveTalkSttLocale(newValue.isEmpty ? nil : newValue)
+                                }
+                            Text("Speech recognition locale. Leave empty to use device language.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            TextField("TTS Base URL", text: self.$talkTtsBaseUrl)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .keyboardType(.URL)
+                                .onChange(of: self.talkTtsBaseUrl) { _, newValue in
+                                    GatewaySettingsStore.saveTalkTtsBaseUrl(newValue.isEmpty ? nil : newValue)
+                                }
+                            Text("OpenAI-compatible TTS server URL (e.g. http://192.168.x.x:8880). Leave empty to use ElevenLabs.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                             self.featureToggle(
                                 "Voice Directive Hint",
                                 isOn: self.$talkVoiceDirectiveHintEnabled,
@@ -399,6 +420,8 @@ struct SettingsTab: View {
                 // Keep setup front-and-center when disconnected; keep things compact once connected.
                 self.gatewayExpanded = !self.isGatewayConnected
                 self.selectedAgentPickerId = self.appModel.selectedAgentId ?? ""
+                self.talkTtsBaseUrl = GatewaySettingsStore.loadTalkTtsBaseUrl() ?? ""
+                self.talkSttLocale = GatewaySettingsStore.loadTalkSttLocale() ?? ""
             }
             .onChange(of: self.selectedAgentPickerId) { _, newValue in
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)

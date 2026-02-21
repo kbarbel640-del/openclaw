@@ -26,6 +26,8 @@ enum GatewaySettingsStore {
     private static let preferredGatewayStableIDAccount = "preferredStableID"
     private static let lastDiscoveredGatewayStableIDAccount = "lastDiscoveredStableID"
     private static let talkElevenLabsApiKeyAccount = "elevenlabs.apiKey"
+    private static let talkTtsBaseUrlDefaultsKey = "talk.ttsBaseUrl"
+    private static let talkSttLocaleDefaultsKey = "talk.sttLocale"
 
     static func bootstrapPersistence() {
         self.ensureStableInstanceID()
@@ -152,6 +154,38 @@ enum GatewaySettingsStore {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if value?.isEmpty == false { return value }
         return nil
+    }
+
+    static func loadTalkTtsBaseUrl() -> String? {
+        let value = UserDefaults.standard.string(forKey: self.talkTtsBaseUrlDefaultsKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if value?.isEmpty == false { return value }
+        return nil
+    }
+
+    static func saveTalkTtsBaseUrl(_ baseUrl: String?) {
+        let trimmed = baseUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmed.isEmpty {
+            UserDefaults.standard.removeObject(forKey: self.talkTtsBaseUrlDefaultsKey)
+        } else {
+            UserDefaults.standard.set(trimmed, forKey: self.talkTtsBaseUrlDefaultsKey)
+        }
+    }
+
+    static func loadTalkSttLocale() -> String? {
+        let value = UserDefaults.standard.string(forKey: self.talkSttLocaleDefaultsKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if value?.isEmpty == false { return value }
+        return nil
+    }
+
+    static func saveTalkSttLocale(_ localeId: String?) {
+        let trimmed = localeId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmed.isEmpty {
+            UserDefaults.standard.removeObject(forKey: self.talkSttLocaleDefaultsKey)
+        } else {
+            UserDefaults.standard.set(trimmed, forKey: self.talkSttLocaleDefaultsKey)
+        }
     }
 
     static func saveTalkElevenLabsApiKey(_ apiKey: String?) {

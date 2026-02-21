@@ -62,6 +62,7 @@ final class TalkModeManager: NSObject {
     private var modelOverrideActive = false
     private var defaultOutputFormat: String?
     private var apiKey: String?
+    private var ttsBaseUrl: URL?
     private var voiceAliases: [String: String] = [:]
     private var interruptOnSpeech: Bool = true
     private var mainSessionKey: String = "main"
@@ -475,7 +476,10 @@ final class TalkModeManager: NSObject {
         #endif
 
         self.stopRecognition()
-        self.speechRecognizer = SFSpeechRecognizer()
+        let sttLocaleId = GatewaySettingsStore.loadTalkSttLocale()
+            ?? Locale.preferredLanguages.first
+            ?? Locale.current.identifier
+        self.speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: sttLocaleId))
         guard let recognizer = self.speechRecognizer else {
             throw NSError(domain: "TalkMode", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Speech recognizer unavailable",
@@ -982,7 +986,25 @@ final class TalkModeManager: NSObject {
             }
             let canUseElevenLabs = (voiceId?.isEmpty == false) && (apiKey?.isEmpty == false)
 
-            if canUseElevenLabs, let voiceId, let apiKey {
+            GatewayDiagnostics.log("talk tts: ttsBaseUrl=\(self.ttsBaseUrl?.absoluteString ?? "nil") canUseElevenLabs=\(canUseElevenLabs)")
+            if let ttsBaseUrl = self.ttsBaseUrl {
+                GatewayDiagnostics.log("talk tts: provider=openai-tts")
+                let voice = self.currentVoiceId ?? self.defaultVoiceId ?? "default"
+                let model = self.currentModelId ?? self.defaultModelId ?? "qwen3-tts"
+                let stream = Self.openAITTSStream(
+                    baseUrl: ttsBaseUrl, text: cleaned, model: model, voice: voice,
+                    sampleRate: 24000, timeoutSeconds: 30)
+                if self.interruptOnSpeech {
+                    do { try self.startRecognition() } catch {
+                        self.logger.warning("startRecognition failed: \(error.localizedDescription, privacy: .public)")
+                    }
+                }
+                self.statusText = "Speaking…"
+                let finished = await OpenAITTSPlayerIOS.shared.play(
+                    stream: stream, sampleRate: 24000.0, logger: self.logger)
+                let duration = Date().timeIntervalSince(started)
+                self.logger.info("openai-tts finished=\(finished, privacy: .public) dur=\(duration, privacy: .public)s")
+            } else if canUseElevenLabs, let voiceId, let apiKey {
                 GatewayDiagnostics.log("talk tts: provider=elevenlabs voiceId=\(voiceId)")
                 let desiredOutputFormat = (directive?.outputFormat ?? self.defaultOutputFormat)?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1109,6 +1131,7 @@ final class TalkModeManager: NSObject {
         } else if !hasIncremental {
             return
         }
+        OpenAITTSPlayerIOS.shared.stop()
         TalkSystemSpeechSynthesizer.shared.stop()
         self.cancelIncrementalSpeech()
         self.isSpeaking = false
@@ -1339,6 +1362,19 @@ final class TalkModeManager: NSObject {
             try? await TalkSystemSpeechSynthesizer.shared.speak(
                 text: text,
                 language: self.incrementalSpeechLanguage)
+            return
+        }
+
+        if let ttsBaseUrl = self.ttsBaseUrl {
+            GatewayDiagnostics.log("talk incremental tts: provider=openai-tts")
+            let voice = self.defaultVoiceId ?? self.currentVoiceId ?? "default"
+            let model = self.currentModelId ?? self.defaultModelId ?? "qwen3-tts"
+            let stream = Self.openAITTSStream(
+                baseUrl: ttsBaseUrl, text: text, model: model, voice: voice,
+                sampleRate: 24000, timeoutSeconds: 30)
+            let finished = await OpenAITTSPlayerIOS.shared.play(
+                stream: stream, sampleRate: 24000.0, logger: self.logger)
+            self.logger.info("openai-tts incremental finished=\(finished, privacy: .public)")
             return
         }
 
@@ -1733,6 +1769,14 @@ extension TalkModeManager {
             } else {
                 self.apiKey = (localApiKey?.isEmpty == false) ? localApiKey : configApiKey
             }
+            let storedBaseUrl = GatewaySettingsStore.loadTalkTtsBaseUrl()
+            if let baseUrlStr = storedBaseUrl, !baseUrlStr.isEmpty, let baseUrl = URL(string: baseUrlStr) {
+                self.ttsBaseUrl = baseUrl
+                GatewayDiagnostics.log("talk reloadConfig: ttsBaseUrl=\(baseUrlStr)")
+            } else {
+                self.ttsBaseUrl = nil
+                GatewayDiagnostics.log("talk reloadConfig: ttsBaseUrl=nil (not configured)")
+            }
             if let interrupt = talk?["interruptOnSpeech"] as? Bool {
                 self.interruptOnSpeech = interrupt
             }
@@ -1873,3 +1917,174 @@ private struct IncrementalSpeechContext {
 }
 
 // swiftlint:enable type_body_length
+
+// MARK: - OpenAI TTS (for local TTS server)
+
+extension TalkModeManager {
+    static func openAITTSStream(
+        baseUrl: URL,
+        text: String,
+        model: String,
+        voice: String,
+        sampleRate: Int,
+        timeoutSeconds: TimeInterval
+    ) -> AsyncThrowingStream<Data, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let url = baseUrl.appendingPathComponent("v1/audio/speech")
+                    let payload: [String: Any] = [
+                        "input": text,
+                        "model": model,
+                        "voice": voice,
+                        "response_format": "pcm",
+                        "sample_rate": sampleRate,
+                    ]
+                    let body = try JSONSerialization.data(withJSONObject: payload)
+                    var req = URLRequest(url: url)
+                    req.httpMethod = "POST"
+                    req.httpBody = body
+                    req.timeoutInterval = timeoutSeconds
+                    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    req.setValue("audio/pcm", forHTTPHeaderField: "Accept")
+                    let sessionConfig = URLSessionConfiguration.ephemeral
+                    sessionConfig.timeoutIntervalForRequest = timeoutSeconds
+                    sessionConfig.timeoutIntervalForResource = timeoutSeconds + 30
+                    sessionConfig.waitsForConnectivity = false
+                    let session = URLSession(configuration: sessionConfig)
+                    let (bytes, response) = try await session.bytes(for: req)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw NSError(domain: "OpenAITTS", code: 1, userInfo: [
+                            NSLocalizedDescriptionKey: "invalid response",
+                        ])
+                    }
+                    if http.statusCode >= 400 {
+                        var errorData = Data()
+                        for try await byte in bytes {
+                            errorData.append(byte)
+                            if errorData.count >= 4096 { break }
+                        }
+                        let msg = String(data: errorData.prefix(4096), encoding: .utf8) ?? "unknown"
+                        throw NSError(domain: "OpenAITTS", code: http.statusCode, userInfo: [
+                            NSLocalizedDescriptionKey: "OpenAI TTS failed: \(http.statusCode) \(msg)",
+                        ])
+                    }
+                    let chunkSize = 4096
+                    var buffer = Data()
+                    buffer.reserveCapacity(chunkSize)
+                    for try await byte in bytes {
+                        buffer.append(byte)
+                        if buffer.count >= chunkSize {
+                            continuation.yield(buffer)
+                            buffer.removeAll(keepingCapacity: true)
+                        }
+                    }
+                    if !buffer.isEmpty { continuation.yield(buffer) }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}
+
+// MARK: - OpenAITTSPlayerIOS
+
+@MainActor
+final class OpenAITTSPlayerIOS {
+    static let shared = OpenAITTSPlayerIOS()
+
+    private let logger = Logger(subsystem: "ai.openclaw.ios", category: "talk.tts.openai")
+    private var engine: AVAudioEngine?
+    private var player: AVAudioPlayerNode?
+    private var continuation: CheckedContinuation<Bool, Never>?
+    private var resumed = false
+
+    func stop() {
+        player?.stop()
+        engine?.stop()
+        engine = nil
+        player = nil
+        let c = continuation
+        continuation = nil
+        if !resumed {
+            resumed = true
+            c?.resume(returning: false)
+        }
+    }
+
+    func play(stream: AsyncThrowingStream<Data, Error>, sampleRate: Double, logger: Logger) async -> Bool {
+        stop()
+        guard let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: sampleRate,
+            channels: 1,
+            interleaved: false)
+        else {
+            logger.error("talk openai-tts: failed to create AVAudioFormat")
+            return false
+        }
+        let newEngine = AVAudioEngine()
+        let newPlayer = AVAudioPlayerNode()
+        engine = newEngine
+        player = newPlayer
+        newEngine.attach(newPlayer)
+        newEngine.connect(newPlayer, to: newEngine.mainMixerNode, format: format)
+        do {
+            try newEngine.start()
+        } catch {
+            logger.error("talk openai-tts: engine start failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        resumed = false
+        return await withCheckedContinuation { [weak self] cont in
+            guard let self else { cont.resume(returning: false); return }
+            self.continuation = cont
+            var pendingBuffers = 0
+            var inputDone = false
+            Task { @MainActor [weak self] in
+                let finish: @MainActor (Bool) -> Void = { @MainActor [weak self] success in
+                    guard let self, !self.resumed else { return }
+                    self.resumed = true
+                    newPlayer.stop()
+                    newEngine.stop()
+                    self.engine = nil
+                    self.player = nil
+                    self.continuation = nil
+                    cont.resume(returning: success)
+                }
+                do {
+                    for try await chunk in stream {
+                        guard chunk.count >= 2 else { continue }
+                        let frameCount = chunk.count / 2
+                        guard let buf = AVAudioPCMBuffer(
+                            pcmFormat: format,
+                            frameCapacity: AVAudioFrameCount(frameCount))
+                        else { continue }
+                        buf.frameLength = AVAudioFrameCount(frameCount)
+                        chunk.withUnsafeBytes { raw in
+                            let src = raw.bindMemory(to: Int16.self)
+                            let dst = buf.floatChannelData![0]
+                            for i in 0 ..< frameCount { dst[i] = Float(src[i]) / 32768.0 }
+                        }
+                        pendingBuffers += 1
+                        newPlayer.scheduleBuffer(buf) {
+                            Task { @MainActor in
+                                pendingBuffers -= 1
+                                if inputDone, pendingBuffers == 0 { finish(true) }
+                            }
+                        }
+                        if !newPlayer.isPlaying { newPlayer.play() }
+                    }
+                    inputDone = true
+                    if pendingBuffers == 0 { finish(true) }
+                } catch {
+                    logger.error("talk openai-tts stream error: \(error.localizedDescription, privacy: .public)")
+                    finish(false)
+                }
+            }
+        }
+    }
+}

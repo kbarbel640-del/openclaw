@@ -196,7 +196,10 @@ final class VoiceWakeManager: NSObject {
             return
         }
 
-        self.speechRecognizer = SFSpeechRecognizer()
+        let sttLocaleId = GatewaySettingsStore.loadTalkSttLocale()
+            ?? Locale.preferredLanguages.first
+            ?? Locale.current.identifier
+        self.speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: sttLocaleId))
         guard self.speechRecognizer != nil else {
             self.statusText = "Speech recognizer unavailable"
             self.isListening = false
