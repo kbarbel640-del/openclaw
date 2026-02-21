@@ -69,6 +69,12 @@ export function isLocalPath(url: string): boolean {
     return true;
   }
 
+  // Windows rooted absolute path (e.g. \tmp\file.txt). This can appear when
+  // POSIX-style paths are normalized on Windows via node:path helpers.
+  if (url.startsWith("\\")) {
+    return true;
+  }
+
   // Windows drive-letter absolute path (e.g. C:\foo\bar.txt or C:/foo/bar.txt)
   if (/^[a-zA-Z]:[\\/]/.test(url)) {
     return true;
