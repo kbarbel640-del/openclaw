@@ -39,9 +39,12 @@ async function main() {
   // implement the long.js API that Baileys/WAProto expects (fromBits, ...).
   // Ensure we use long.js so the embedded gateway doesn't crash at startup.
   if (typeof process.versions.bun === "string") {
-    const mod = await import("long");
-    const Long = (mod as unknown as { default?: unknown }).default ?? mod;
-    (globalThis as unknown as { Long?: unknown }).Long = Long;
+    const specifier = "long";
+    const mod = await import(specifier).catch(() => null);
+    if (mod) {
+      const Long = (mod as unknown as { default?: unknown }).default ?? mod;
+      (globalThis as unknown as { Long?: unknown }).Long = Long;
+    }
   }
 
   const [

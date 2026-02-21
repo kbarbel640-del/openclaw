@@ -18,9 +18,12 @@ async function patchBunLongForProtobuf(): Promise<void> {
   if (typeof process.versions.bun !== "string") {
     return;
   }
-  const mod = await import("long");
-  const Long = (mod as unknown as { default?: unknown }).default ?? mod;
-  (globalThis as unknown as { Long?: unknown }).Long = Long;
+  const specifier = "long";
+  const mod = await import(specifier).catch(() => null);
+  if (mod) {
+    const Long = (mod as unknown as { default?: unknown }).default ?? mod;
+    (globalThis as unknown as { Long?: unknown }).Long = Long;
+  }
 }
 
 async function main() {
