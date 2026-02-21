@@ -343,7 +343,7 @@ export async function initSessionState(params: {
     sessionStore[parentSessionKey]
   ) {
     log.warn(
-      `[session-init] forking from parent session: parentKey=${parentSessionKey} → sessionKey=${sessionKey} ` +
+      `forking from parent session: parentKey=${parentSessionKey} → sessionKey=${sessionKey} ` +
         `parentTokens=${sessionStore[parentSessionKey].totalTokens ?? "?"}`,
     );
     const forked = forkSessionFromParent({
@@ -355,7 +355,7 @@ export async function initSessionState(params: {
       sessionId = forked.sessionId;
       sessionEntry.sessionId = forked.sessionId;
       sessionEntry.sessionFile = forked.sessionFile;
-      log.warn(`[session-init] forked session created: file=${forked.sessionFile}`);
+      log.warn(`forked session created: file=${forked.sessionFile}`);
     }
   }
   const fallbackSessionFile = !sessionEntry.sessionFile

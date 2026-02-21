@@ -1,3 +1,4 @@
+import util from "node:util";
 import { createAccountActionGate } from "../channels/plugins/account-action-gate.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { TelegramAccountConfig, TelegramActionConfig } from "../config/types.js";
@@ -16,17 +17,13 @@ function formatDebugArg(value: unknown): string {
   if (value instanceof Error) {
     return value.stack ?? value.message;
   }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+  return util.inspect(value, { colors: false, depth: null, compact: true, breakLength: Infinity });
 }
 
 const debugAccounts = (...args: unknown[]) => {
   if (isTruthyEnvValue(process.env.OPENCLAW_DEBUG_TELEGRAM_ACCOUNTS)) {
     const parts = args.map((arg) => formatDebugArg(arg));
-    log.warn(`[telegram:accounts] ${parts.join(" ")}`.trim());
+    log.warn(parts.join(" ").trim());
   }
 };
 
