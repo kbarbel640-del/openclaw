@@ -1,7 +1,7 @@
 {
   "id": "ted-sidecar",
   "name": "Ted Sidecar",
-  "description": "Registers /ted commands that call the local Ted Engine sidecar with strict loopback and path allowlist guards.",
+  "description": "Registers /ted commands that call the local Ted Engine sidecar with strict loopback and path allowlist guards (doctor, status, catalog).",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

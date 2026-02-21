@@ -20,6 +20,7 @@ describe("ted-sidecar safety guards", () => {
   it("maps command actions to allowlisted paths", () => {
     expect(resolvePathFromAction("doctor")).toBe("/doctor");
     expect(resolvePathFromAction("status")).toBe("/status");
+    expect(resolvePathFromAction("catalog")).toBe("/status");
     expect(() => resolvePathFromAction("secrets")).toThrow(/Usage/);
   });
 

@@ -6,7 +6,7 @@ This extension wires OpenClaw to a local Ted sidecar over loopback HTTP.
 
 - Default base URL is `http://127.0.0.1:48080` (`extensions/ted-sidecar/index.ts:6`).
 - Sidecar autostart uses `spawn(process.execPath, [sidecarEntry])` (`extensions/ted-sidecar/index.ts:250`).
-- `/ted` command path is intentionally restricted to governed health/discoverability operations (`extensions/ted-sidecar/index.ts:282`).
+- `/ted` command path is intentionally restricted to health operations (`extensions/ted-sidecar/index.ts:282`).
 
 ## Authoritative wiring sources
 
@@ -17,14 +17,6 @@ This extension wires OpenClaw to a local Ted sidecar over loopback HTTP.
 
 ## Non-negotiables (security + correctness)
 
-- Contract surface policy:
-  - Treat only `/status` and `/doctor` as stable external contract.
-  - Any other sidecar endpoint usage must be explicitly promoted in `docs/integration/ted-sidecar-contract.md` and test-backed.
-- Timeout policy:
-  - If touching timeout behavior (plugin vs doctor), include explicit rationale and update the contract doc.
-- Boundary evidence:
-  - PRs that touch sidecar boundary files MUST include file:line evidence in the PR description (Boundary Evidence section).
-
 - Loopback-only base URL enforcement:
   - Allowed hosts are `127.0.0.1`, `localhost`, `::1` (`extensions/ted-sidecar/index.ts:28`).
   - Non-loopback base URLs are rejected (`extensions/ted-sidecar/index.ts:41`).
@@ -32,9 +24,9 @@ This extension wires OpenClaw to a local Ted sidecar over loopback HTTP.
   - Credentials in URL are rejected (`extensions/ted-sidecar/index.ts:45`).
   - Only `http:`/`https:` protocols are accepted (`extensions/ted-sidecar/index.ts:49`).
 - Unhealthy mode and routing safety:
-  - Allowlist is `/status` and `/doctor`; `/ted catalog` reads `/status` (no new sidecar route surface) (`extensions/ted-sidecar/index.ts:8`).
+  - Allowlist is `/status` and `/doctor` (`extensions/ted-sidecar/index.ts:8`).
   - Endpoint construction enforces allowlist and loopback host (`extensions/ted-sidecar/index.ts:89`).
-  - When sidecar is unhealthy, non-governed `/ted` usage is denied (`extensions/ted-sidecar/index.ts:291`).
+  - When sidecar is unhealthy, non-doctor/status `/ted` usage is denied (`extensions/ted-sidecar/index.ts:291`).
 
 ## Config behavior (do not guess)
 

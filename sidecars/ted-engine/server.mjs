@@ -42,6 +42,26 @@ let automationPauseState = {
   reason: null,
   queued_non_critical: 0,
 };
+let lastCatchUpSummary = null;
+
+const EXECUTION_MODE_VALUES = new Set(["DETERMINISTIC", "ADAPTIVE"]);
+const EXEMPT_AUTH_ROUTES = new Set(["/status", "/doctor", "/auth/mint"]);
+const OPERATOR_KEY = process.env.TED_ENGINE_OPERATOR_KEY?.trim() || "ted-local-operator";
+const STATIC_BEARER_TOKEN = process.env.TED_ENGINE_AUTH_TOKEN?.trim() || "";
+const AUTH_TTL_MS_RAW = Number.parseInt(process.env.TED_ENGINE_AUTH_TTL_MS || "3600000", 10);
+const AUTH_TTL_MS =
+  Number.isFinite(AUTH_TTL_MS_RAW) && AUTH_TTL_MS_RAW > 0 ? AUTH_TTL_MS_RAW : 3600000;
+const mintedBearerTokens = new Map();
+const IDEMPOTENCY_TTL_MS_RAW = Number.parseInt(
+  process.env.TED_ENGINE_IDEMPOTENCY_TTL_MS || "3600000",
+  10,
+);
+const IDEMPOTENCY_TTL_MS =
+  Number.isFinite(IDEMPOTENCY_TTL_MS_RAW) && IDEMPOTENCY_TTL_MS_RAW > 0
+    ? IDEMPOTENCY_TTL_MS_RAW
+    : 3600000;
+const idempotencyCache = new Map();
+const DISCOVERABILITY_VERSION = "2026-02-20";
 
 function logLine(message) {
   const line = `[${new Date().toISOString()}] ${message}\n`;
@@ -49,12 +69,35 @@ function logLine(message) {
 }
 
 function buildPayload() {
+  const catalog = {
+    discoverability_version: DISCOVERABILITY_VERSION,
+    commands: ["/ted doctor", "/ted status", "/ted catalog"],
+    route_families: [
+      "/deals/*",
+      "/triage/*",
+      "/filing/suggestions/*",
+      "/governance/*",
+      "/ops/*",
+      "/learning/*",
+      "/graph/*",
+    ],
+    governance_guards: [
+      "draft_only_boundary",
+      "approval_first",
+      "single_operator",
+      "fail_closed",
+      "auth_non_health_required",
+      "loopback_only",
+    ],
+    non_health_auth_required: true,
+  };
   return {
     version: VERSION,
     uptime: Math.floor((Date.now() - STARTED_AT_MS) / 1000),
     profiles_count: PROFILES_COUNT,
     deals_count: listDeals().length,
     triage_open_count: listOpenTriageItems().length,
+    catalog,
   };
 }
 
@@ -286,6 +329,193 @@ function blockedExplainability(reasonCode, blockedAction, nextSafeStep) {
     blocked_action: blockedAction,
     next_safe_step: nextSafeStep,
   };
+}
+
+function normalizeRoutePolicyKey(route) {
+  if (typeof route !== "string" || route.length === 0) {
+    return "";
+  }
+  const dynamicPatterns = [
+    [/^\/deals\/[^/]+$/, "/deals/{deal_id}"],
+    [/^\/triage\/[^/]+\/link$/, "/triage/{item_id}/link"],
+    [/^\/filing\/suggestions\/[^/]+\/approve$/, "/filing/suggestions/{suggestion_id}/approve"],
+    [/^\/triage\/patterns\/[^/]+\/approve$/, "/triage/patterns/{pattern_id}/approve"],
+    [/^\/graph\/[^/]+\/status$/, "/graph/{profile_id}/status"],
+    [/^\/graph\/[^/]+\/calendar\/list$/, "/graph/{profile_id}/calendar/list"],
+    [/^\/graph\/[^/]+\/auth\/device\/start$/, "/graph/{profile_id}/auth/device/start"],
+    [/^\/graph\/[^/]+\/auth\/device\/poll$/, "/graph/{profile_id}/auth/device/poll"],
+    [/^\/graph\/[^/]+\/auth\/revoke$/, "/graph/{profile_id}/auth/revoke"],
+    [/^\/graph\/[^/]+\/mail\/draft\/create$/, "/graph/{profile_id}/mail/draft/create"],
+  ];
+  for (const [pattern, key] of dynamicPatterns) {
+    if (pattern.test(route)) {
+      return key;
+    }
+  }
+  return route;
+}
+
+const executionBoundaryPolicy = new Map(
+  [
+    "/deals/create",
+    "/deals/list",
+    "/deals/{deal_id}",
+    "/triage/list",
+    "/triage/ingest",
+    "/triage/{item_id}/link",
+    "/governance/role-cards/validate",
+    "/governance/hard-bans/check",
+    "/governance/output/validate",
+    "/governance/entity/check",
+    "/governance/confidence/evaluate",
+    "/governance/contradictions/check",
+    "/governance/escalations/route",
+    "/governance/repair/simulate",
+    "/ops/pause",
+    "/ops/dispatch/check",
+    "/ops/resume",
+    "/ops/resume/last",
+    "/ops/rate/evaluate",
+    "/ops/retry/evaluate",
+    "/learning/modifiers/evaluate",
+    "/learning/meetings/capture",
+    "/filing/suggestions/propose",
+    "/filing/suggestions/list",
+    "/filing/suggestions/{suggestion_id}/approve",
+    "/triage/patterns",
+    "/triage/patterns/propose",
+    "/triage/patterns/{pattern_id}/approve",
+    "/graph/{profile_id}/status",
+    "/graph/{profile_id}/calendar/list",
+    "/graph/{profile_id}/auth/device/start",
+    "/graph/{profile_id}/auth/device/poll",
+    "/graph/{profile_id}/auth/revoke",
+    "/graph/{profile_id}/mail/draft/create",
+    "/graph/diagnostics/classify",
+  ].map((key) => [key, "WORKFLOW_ONLY"]),
+);
+executionBoundaryPolicy.set("/learning/affinity/route", "ADAPTIVE_ALLOWED");
+executionBoundaryPolicy.set("/auth/mint", "WORKFLOW_ONLY");
+
+function requestedExecutionMode(req) {
+  const raw = req.headers["x-ted-execution-mode"];
+  const value =
+    typeof raw === "string" && raw.trim().length > 0 ? raw.trim().toUpperCase() : "DETERMINISTIC";
+  if (!EXECUTION_MODE_VALUES.has(value)) {
+    return { ok: false, mode: value };
+  }
+  return { ok: true, mode: value };
+}
+
+function checkExecutionBoundary(routeKey, mode) {
+  const policy = executionBoundaryPolicy.get(routeKey);
+  if (!policy) {
+    return {
+      ok: false,
+      status_code: 409,
+      payload: blockedExplainability(
+        "UNDECLARED_EXECUTION_BOUNDARY",
+        "route_execution",
+        "Declare route execution boundary before enabling this operation.",
+      ),
+    };
+  }
+  if (policy === "WORKFLOW_ONLY" && mode === "ADAPTIVE") {
+    return {
+      ok: false,
+      status_code: 409,
+      payload: blockedExplainability(
+        "OUT_OF_CONTRACT_EXECUTION_MODE",
+        "adaptive_execution",
+        "Retry with deterministic execution mode for this route.",
+      ),
+    };
+  }
+  return { ok: true, policy };
+}
+
+function cleanupExpiredMintedTokens() {
+  const now = Date.now();
+  for (const [token, expiry] of mintedBearerTokens.entries()) {
+    if (!Number.isFinite(expiry) || expiry <= now) {
+      mintedBearerTokens.delete(token);
+    }
+  }
+}
+
+function cleanupExpiredIdempotencyEntries() {
+  const now = Date.now();
+  for (const [cacheKey, entry] of idempotencyCache.entries()) {
+    if (!entry || !Number.isFinite(entry.expires_at_ms) || entry.expires_at_ms <= now) {
+      idempotencyCache.delete(cacheKey);
+    }
+  }
+}
+
+function mintBearerToken() {
+  const token = `ted-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  const expiresAtMs = Date.now() + AUTH_TTL_MS;
+  mintedBearerTokens.set(token, expiresAtMs);
+  return { token, expires_at_ms: expiresAtMs };
+}
+
+function extractBearerToken(req) {
+  const authHeader = req.headers.authorization;
+  if (typeof authHeader !== "string") {
+    return "";
+  }
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || "";
+}
+
+function isValidBearerToken(token) {
+  if (!token) {
+    return false;
+  }
+  if (STATIC_BEARER_TOKEN && token === STATIC_BEARER_TOKEN) {
+    return true;
+  }
+  cleanupExpiredMintedTokens();
+  const expiry = mintedBearerTokens.get(token);
+  if (!Number.isFinite(expiry) || expiry <= Date.now()) {
+    return false;
+  }
+  return true;
+}
+
+function idempotencyCacheKey(routeKey, key) {
+  return `${routeKey}::${key}`;
+}
+
+function idempotencyKeyFromRequest(req) {
+  const raw = req.headers["x-idempotency-key"];
+  if (typeof raw !== "string") {
+    return "";
+  }
+  const value = raw.trim();
+  if (value.length === 0 || value.length > 128) {
+    return "";
+  }
+  return value;
+}
+
+function getIdempotentReplay(routeKey, key) {
+  cleanupExpiredIdempotencyEntries();
+  const cacheKey = idempotencyCacheKey(routeKey, key);
+  const cached = idempotencyCache.get(cacheKey);
+  if (!cached) {
+    return null;
+  }
+  return cached;
+}
+
+function storeIdempotentReplay(routeKey, key, statusCode, responseBody) {
+  const cacheKey = idempotencyCacheKey(routeKey, key);
+  idempotencyCache.set(cacheKey, {
+    status_code: statusCode,
+    response_body: responseBody,
+    expires_at_ms: Date.now() + IDEMPOTENCY_TTL_MS,
+  });
 }
 
 function isNonEmptyString(value) {
@@ -893,7 +1123,9 @@ function resumeAutomationEndpoint(res, route) {
     paused_seconds: pausedSeconds,
     queued_non_critical: automationPauseState.queued_non_critical,
     next_action: "Process queued non-critical work in priority order.",
+    generated_at: new Date(now).toISOString(),
   };
+  lastCatchUpSummary = catchUpSummary;
   appendAudit("OPS_AUTOMATION_RESUME", catchUpSummary);
   automationPauseState = {
     paused: false,
@@ -906,6 +1138,14 @@ function resumeAutomationEndpoint(res, route) {
     catch_up_summary: catchUpSummary,
   });
   logLine(`POST ${route} -> 200`);
+}
+
+function getLastResumeSummaryEndpoint(res, route) {
+  sendJson(res, 200, {
+    available: !!lastCatchUpSummary,
+    catch_up_summary: lastCatchUpSummary,
+  });
+  logLine(`GET ${route} -> 200`);
 }
 
 async function evaluateRatePolicyEndpoint(req, res, route) {
@@ -958,6 +1198,98 @@ async function evaluateRatePolicyEndpoint(req, res, route) {
     action,
     reason_code: reasonCode,
   });
+  logLine(`POST ${route} -> 200`);
+}
+
+async function evaluateRetryPolicyEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const priority = isNonEmptyString(body?.priority) ? body.priority.trim().toUpperCase() : "";
+  const attemptRaw = Number(body?.attempt);
+  const attempt = Number.isFinite(attemptRaw) ? Math.floor(attemptRaw) : NaN;
+  if (!["CRITICAL", "HIGH", "MEDIUM", "LOW"].includes(priority)) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_PRIORITY",
+        "retry_policy_evaluation",
+        "Set priority to CRITICAL, HIGH, MEDIUM, or LOW.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (!Number.isFinite(attempt) || attempt < 1 || attempt > 20) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_ATTEMPT",
+        "retry_policy_evaluation",
+        "Set attempt to an integer between 1 and 20.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  const maxByPriority = {
+    CRITICAL: 6,
+    HIGH: 5,
+    MEDIUM: 4,
+    LOW: 3,
+  };
+  const maxAttempts = maxByPriority[priority];
+  const stopped = attempt >= maxAttempts;
+  const baseBackoffMs = Math.min(60000, 1000 * 2 ** (attempt - 1));
+  const multiplier = priority === "LOW" ? 2 : priority === "MEDIUM" ? 1.5 : 1;
+  const retryAfterMs = Math.floor(baseBackoffMs * multiplier);
+  const response = {
+    priority,
+    attempt,
+    max_attempts: maxAttempts,
+    action: stopped ? "STOP" : "RETRY",
+    retry_after_ms: stopped ? null : retryAfterMs,
+    reason_code: stopped ? "RETRY_LIMIT_REACHED" : "RETRY_ALLOWED",
+  };
+  appendAudit("OPS_RETRY_POLICY_EVALUATE", response);
+  sendJson(res, 200, response);
+  logLine(`POST ${route} -> 200`);
+}
+
+async function simulateFastRepairEndpoint(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const proposalId = isNonEmptyString(body?.proposal_id) ? body.proposal_id.trim() : "";
+  const correction = isNonEmptyString(body?.correction) ? body.correction.trim() : "";
+  if (!proposalId || !correction) {
+    sendJson(
+      res,
+      400,
+      blockedExplainability(
+        "INVALID_REPAIR_REQUEST",
+        "fast_repair_simulation",
+        "Provide proposal_id and correction text.",
+      ),
+    );
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  // Deterministic simulated latency for repeatable proofing.
+  const elapsedMs = 3200;
+  const response = {
+    proposal_id: proposalId,
+    corrected: true,
+    elapsed_ms: elapsedMs,
+    explainability: {
+      blocked_action: "proposal_execution",
+      reason_code: "OPERATOR_CORRECTION_APPLIED",
+      next_safe_step: "Review corrected proposal and certify when ready.",
+    },
+  };
+  appendAudit("GOV_FAST_REPAIR_SIMULATION", {
+    proposal_id: proposalId,
+    elapsed_ms: elapsedMs,
+  });
+  sendJson(res, 200, response);
   logLine(`POST ${route} -> 200`);
 }
 
@@ -1292,6 +1624,20 @@ function listFilingSuggestions(parsedUrl, res, route) {
 }
 
 async function proposeFilingSuggestion(req, res, route) {
+  const routeKey = normalizeRoutePolicyKey(route);
+  const idempotencyKey = idempotencyKeyFromRequest(req);
+  if (idempotencyKey) {
+    const replay = getIdempotentReplay(routeKey, idempotencyKey);
+    if (replay) {
+      sendJson(res, replay.status_code, {
+        ...replay.response_body,
+        deduped: true,
+        idempotency_key: idempotencyKey,
+      });
+      logLine(`POST ${route} -> ${replay.status_code}`);
+      return;
+    }
+  }
   const body = await readJsonBody(req).catch(() => null);
   if (!body || typeof body !== "object") {
     sendJson(res, 400, { error: "invalid_json_body" });
@@ -1356,11 +1702,38 @@ async function proposeFilingSuggestion(req, res, route) {
     deal_id: dealId || undefined,
     triage_item_id: triageItemId || undefined,
   });
-  sendJson(res, 201, { proposed: true, suggestion_id: suggestionId, status: "PROPOSED" });
+  const responseBody = {
+    proposed: true,
+    suggestion_id: suggestionId,
+    status: "PROPOSED",
+    deduped: false,
+    idempotency_key: idempotencyKey || undefined,
+  };
+  if (idempotencyKey) {
+    storeIdempotentReplay(routeKey, idempotencyKey, 200, responseBody);
+    sendJson(res, 200, responseBody);
+    logLine(`POST ${route} -> 200`);
+    return;
+  }
+  sendJson(res, 201, responseBody);
   logLine(`POST ${route} -> 201`);
 }
 
 async function approveFilingSuggestion(suggestionId, req, res, route) {
+  const routeKey = normalizeRoutePolicyKey(route);
+  const idempotencyKey = idempotencyKeyFromRequest(req);
+  if (idempotencyKey) {
+    const replay = getIdempotentReplay(routeKey, idempotencyKey);
+    if (replay) {
+      sendJson(res, replay.status_code, {
+        ...replay.response_body,
+        deduped: true,
+        idempotency_key: idempotencyKey,
+      });
+      logLine(`POST ${route} -> ${replay.status_code}`);
+      return;
+    }
+  }
   if (!suggestionId || !isSlugSafe(suggestionId)) {
     sendJson(res, 400, { error: "invalid_suggestion_id" });
     logLine(`POST ${route} -> 400`);
@@ -1396,7 +1769,17 @@ async function approveFilingSuggestion(suggestionId, req, res, route) {
     suggestion_id: suggestionId,
     approved_by: approvedBy,
   });
-  sendJson(res, 200, { approved: true, suggestion_id: suggestionId, status: "APPROVED" });
+  const responseBody = {
+    approved: true,
+    suggestion_id: suggestionId,
+    status: "APPROVED",
+    deduped: false,
+    idempotency_key: idempotencyKey || undefined,
+  };
+  if (idempotencyKey) {
+    storeIdempotentReplay(routeKey, idempotencyKey, 200, responseBody);
+  }
+  sendJson(res, 200, responseBody);
   logLine(`POST ${route} -> 200`);
 }
 
@@ -1549,6 +1932,20 @@ async function approvePattern(patternId, req, res, route) {
 }
 
 async function createDeal(req, res, route) {
+  const routeKey = normalizeRoutePolicyKey(route);
+  const idempotencyKey = idempotencyKeyFromRequest(req);
+  if (idempotencyKey) {
+    const replay = getIdempotentReplay(routeKey, idempotencyKey);
+    if (replay) {
+      sendJson(res, replay.status_code, {
+        ...replay.response_body,
+        deduped: true,
+        idempotency_key: idempotencyKey,
+      });
+      logLine(`POST ${route} -> ${replay.status_code}`);
+      return;
+    }
+  }
   const body = await readJsonBody(req).catch(() => null);
   if (!body || typeof body !== "object") {
     sendJson(res, 400, { error: "invalid_json_body" });
@@ -1583,7 +1980,16 @@ async function createDeal(req, res, route) {
   };
   fs.writeFileSync(filePath, `${JSON.stringify(deal, null, 2)}\n`, "utf8");
   appendAudit("DEAL_CREATE", { deal_id: dealId });
-  sendJson(res, 200, { created: true, deal_id: dealId });
+  const responseBody = {
+    created: true,
+    deal_id: dealId,
+    deduped: false,
+    idempotency_key: idempotencyKey || undefined,
+  };
+  if (idempotencyKey) {
+    storeIdempotentReplay(routeKey, idempotencyKey, 200, responseBody);
+  }
+  sendJson(res, 200, responseBody);
   logLine(`POST ${route} -> 200`);
 }
 
@@ -1630,6 +2036,20 @@ function listTriageEndpoint(res, route) {
 }
 
 async function ingestTriageItem(req, res, route) {
+  const routeKey = normalizeRoutePolicyKey(route);
+  const idempotencyKey = idempotencyKeyFromRequest(req);
+  if (idempotencyKey) {
+    const replay = getIdempotentReplay(routeKey, idempotencyKey);
+    if (replay) {
+      sendJson(res, replay.status_code, {
+        ...replay.response_body,
+        deduped: true,
+        idempotency_key: idempotencyKey,
+      });
+      logLine(`POST ${route} -> ${replay.status_code}`);
+      return;
+    }
+  }
   const body = await readJsonBody(req).catch(() => null);
   if (!body || typeof body !== "object") {
     sendJson(res, 400, { error: "invalid_json_body" });
@@ -1709,13 +2129,22 @@ async function ingestTriageItem(req, res, route) {
     suggested_deal_id: finalSuggestedDealId,
     suggested_task_id: finalSuggestedTaskId,
   });
-  sendJson(res, 201, {
+  const responseBody = {
     ingested: true,
     item_id: itemId,
     status: "OPEN",
     suggested_deal_id: finalSuggestedDealId,
     suggested_task_id: finalSuggestedTaskId,
-  });
+    deduped: false,
+    idempotency_key: idempotencyKey || undefined,
+  };
+  if (idempotencyKey) {
+    storeIdempotentReplay(routeKey, idempotencyKey, 200, responseBody);
+    sendJson(res, 200, responseBody);
+    logLine(`POST ${route} -> 200`);
+    return;
+  }
+  sendJson(res, 201, responseBody);
   logLine(`POST ${route} -> 201`);
 }
 
@@ -2117,6 +2546,32 @@ async function readJsonBody(req) {
   return JSON.parse(raw);
 }
 
+async function mintSidecarAuthToken(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  const operatorKey = typeof body?.operator_key === "string" ? body.operator_key.trim() : "";
+  if (!operatorKey || operatorKey !== OPERATOR_KEY) {
+    sendJson(
+      res,
+      403,
+      blockedExplainability(
+        "OPERATOR_KEY_INVALID",
+        "auth_token_mint",
+        "Use the configured operator key to mint a sidecar auth token.",
+      ),
+    );
+    logLine(`POST ${route} -> 403`);
+    return;
+  }
+  const minted = mintBearerToken();
+  sendJson(res, 200, {
+    token: minted.token,
+    token_type: "Bearer",
+    expires_at: new Date(minted.expires_at_ms).toISOString(),
+    auth_mode: STATIC_BEARER_TOKEN ? "STATIC_OR_MINTED" : "MINTED_ONLY",
+  });
+  logLine(`POST ${route} -> 200`);
+}
+
 async function startGraphDeviceCode(profileId, res, route) {
   const cfg = getGraphProfileConfig(profileId);
   if (!cfg.ok) {
@@ -2304,6 +2759,67 @@ const server = http.createServer(async (req, res) => {
   const method = (req.method || "").toUpperCase();
   const parsed = new URL(req.url || "/", `http://${HOST}:${PORT}`);
   const route = parsed.pathname;
+  const routeKey = normalizeRoutePolicyKey(route);
+
+  if (method === "POST" && route === "/auth/mint") {
+    await mintSidecarAuthToken(req, res, route);
+    return;
+  }
+
+  if (method !== "GET" && method !== "POST") {
+    sendJson(res, 405, { error: "method_not_allowed" });
+    logLine(`${method} ${route} -> 405`);
+    return;
+  }
+
+  if (!EXEMPT_AUTH_ROUTES.has(route)) {
+    const token = extractBearerToken(req);
+    if (!isValidBearerToken(token)) {
+      appendAudit("AUTH_BLOCK", {
+        reason_code: "MISSING_OR_INVALID_AUTH",
+        route: routeKey,
+      });
+      sendJson(
+        res,
+        401,
+        blockedExplainability(
+          "MISSING_OR_INVALID_AUTH",
+          "sidecar_route_execution",
+          "Mint a token via /auth/mint and retry with Authorization: Bearer <token>.",
+        ),
+      );
+      logLine(`${method} ${route} -> 401`);
+      return;
+    }
+  }
+
+  if (executionBoundaryPolicy.has(routeKey)) {
+    const modeResult = requestedExecutionMode(req);
+    if (!modeResult.ok) {
+      sendJson(
+        res,
+        400,
+        blockedExplainability(
+          "INVALID_EXECUTION_MODE",
+          "route_execution",
+          "Set x-ted-execution-mode to DETERMINISTIC or ADAPTIVE.",
+        ),
+      );
+      logLine(`${method} ${route} -> 400`);
+      return;
+    }
+    const boundaryCheck = checkExecutionBoundary(routeKey, modeResult.mode);
+    if (!boundaryCheck.ok) {
+      appendAudit("BOUNDARY_BLOCK", {
+        route: routeKey,
+        mode: modeResult.mode,
+        reason_code: boundaryCheck.payload.reason_code,
+      });
+      sendJson(res, boundaryCheck.status_code, boundaryCheck.payload);
+      logLine(`${method} ${route} -> ${boundaryCheck.status_code}`);
+      return;
+    }
+  }
 
   if (method === "POST" && route === "/deals/create") {
     await createDeal(req, res, route);
@@ -2367,6 +2883,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (method === "POST" && route === "/governance/repair/simulate") {
+    await simulateFastRepairEndpoint(req, res, route);
+    return;
+  }
+
   if (method === "POST" && route === "/ops/pause") {
     await pauseAutomationEndpoint(req, res, route);
     return;
@@ -2382,8 +2903,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (method === "GET" && route === "/ops/resume/last") {
+    getLastResumeSummaryEndpoint(res, route);
+    return;
+  }
+
   if (method === "POST" && route === "/ops/rate/evaluate") {
     await evaluateRatePolicyEndpoint(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/ops/retry/evaluate") {
+    await evaluateRetryPolicyEndpoint(req, res, route);
     return;
   }
 
@@ -2523,12 +3054,6 @@ const server = http.createServer(async (req, res) => {
     const result = classifyGraphErrorText(errorText);
     sendJsonPretty(res, 200, result);
     logLine(`${method} ${route} -> 200`);
-    return;
-  }
-
-  if (method !== "GET" && method !== "POST") {
-    sendJson(res, 405, { error: "method_not_allowed" });
-    logLine(`${method} ${route} -> 405`);
     return;
   }
 
