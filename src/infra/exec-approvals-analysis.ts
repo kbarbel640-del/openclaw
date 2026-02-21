@@ -115,7 +115,8 @@ function normalizeMatchTarget(value: string): string {
     const stripped = value.replace(/^\\\\[?.]\\/, "");
     return stripped.replace(/\\/g, "/").toLowerCase();
   }
-  return value.replace(/\\\\/g, "/").toLowerCase();
+  const normalized = value.replace(/\\\\/g, "/");
+  return process.platform === "darwin" ? normalized.toLowerCase() : normalized;
 }
 
 function tryRealpath(value: string): string | null {
@@ -126,7 +127,7 @@ function tryRealpath(value: string): string | null {
   }
 }
 
-function globToRegExp(pattern: string): RegExp {
+function globToRegExp(pattern: string, caseInsensitive: boolean): RegExp {
   let regex = "^";
   let i = 0;
   while (i < pattern.length) {
@@ -151,7 +152,7 @@ function globToRegExp(pattern: string): RegExp {
     i += 1;
   }
   regex += "$";
-  return new RegExp(regex, "i");
+  return new RegExp(regex, caseInsensitive ? "i" : undefined);
 }
 
 function matchesPattern(pattern: string, target: string): boolean {
@@ -169,7 +170,8 @@ function matchesPattern(pattern: string, target: string): boolean {
   }
   normalizedPattern = normalizeMatchTarget(normalizedPattern);
   normalizedTarget = normalizeMatchTarget(normalizedTarget);
-  const regex = globToRegExp(normalizedPattern);
+  const caseInsensitive = process.platform === "win32" || process.platform === "darwin";
+  const regex = globToRegExp(normalizedPattern, caseInsensitive);
   return regex.test(normalizedTarget);
 }
 

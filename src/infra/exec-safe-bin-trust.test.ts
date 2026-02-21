@@ -7,11 +7,25 @@ import {
 } from "./exec-safe-bin-trust.js";
 
 describe("exec safe bin trust", () => {
-  it("builds trusted dirs from defaults and injected PATH", () => {
+  it("builds trusted dirs from defaults only by default", () => {
     const dirs = buildTrustedSafeBinDirs({
       pathEnv: "/custom/bin:/alt/bin:/custom/bin",
       delimiter: ":",
       baseDirs: ["/usr/bin"],
+    });
+
+    expect(dirs.has(path.resolve("/usr/bin"))).toBe(true);
+    expect(dirs.has(path.resolve("/custom/bin"))).toBe(false);
+    expect(dirs.has(path.resolve("/alt/bin"))).toBe(false);
+    expect(dirs.size).toBe(1);
+  });
+
+  it("includes PATH entries only when explicitly enabled", () => {
+    const dirs = buildTrustedSafeBinDirs({
+      pathEnv: "/custom/bin:/alt/bin:/custom/bin",
+      delimiter: ":",
+      baseDirs: ["/usr/bin"],
+      includePathEnv: true,
     });
 
     expect(dirs.has(path.resolve("/usr/bin"))).toBe(true);
@@ -20,19 +34,22 @@ describe("exec safe bin trust", () => {
     expect(dirs.size).toBe(3);
   });
 
-  it("memoizes trusted dirs per PATH snapshot", () => {
+  it("memoizes trusted dirs per PATH snapshot when PATH trust is enabled", () => {
     const a = getTrustedSafeBinDirs({
       pathEnv: "/first/bin",
       delimiter: ":",
       refresh: true,
+      includePathEnv: true,
     });
     const b = getTrustedSafeBinDirs({
       pathEnv: "/first/bin",
       delimiter: ":",
+      includePathEnv: true,
     });
     const c = getTrustedSafeBinDirs({
       pathEnv: "/second/bin",
       delimiter: ":",
+      includePathEnv: true,
     });
 
     expect(a).toBe(b);
