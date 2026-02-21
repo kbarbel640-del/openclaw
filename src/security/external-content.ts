@@ -297,3 +297,30 @@ export function wrapWebContent(
   // Marker sanitization happens in wrapExternalContent
   return wrapExternalContent(content, { source, includeWarning });
 }
+
+/**
+ * CRITICAL-9: Tools that MUST be denied when processing external/untrusted content.
+ *
+ * These tools can cause damage if triggered by prompt injection in external content
+ * (emails, webhooks, etc.). The restriction is enforced at the tool-policy level,
+ * not advisory-only.
+ */
+export const EXTERNAL_CONTENT_RESTRICTED_TOOLS: readonly string[] = [
+  "exec",
+  "write",
+  "edit",
+  "apply_patch",
+  "cron",
+  "gateway",
+  "sessions_send",
+  "sessions_spawn",
+  "nodes",
+  "message",
+] as const;
+
+/**
+ * Build a tool deny policy for external/untrusted content sessions.
+ */
+export function buildExternalContentDenyPolicy(): { deny: string[] } {
+  return { deny: [...EXTERNAL_CONTENT_RESTRICTED_TOOLS] };
+}
