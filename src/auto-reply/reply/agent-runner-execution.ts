@@ -415,6 +415,7 @@ export async function runAgentTurnWithFallback(params: {
       runResult = fallbackResult.result;
       fallbackProvider = fallbackResult.provider;
       fallbackModel = fallbackResult.model;
+
       fallbackAttempts = Array.isArray(fallbackResult.attempts)
         ? fallbackResult.attempts.map((attempt) => ({
             provider: String(attempt.provider ?? ""),
