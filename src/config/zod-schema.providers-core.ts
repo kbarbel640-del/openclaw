@@ -127,6 +127,8 @@ export const TelegramAccountSchemaBase = z
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     streamMode: z.enum(["off", "partial", "block"]).optional().default("partial"),
     mediaMaxMb: z.number().positive().optional(),
+    /** Disable image compression when sending to preserve original quality. Defaults to false (compress). */
+    mediaOptimize: z.boolean().optional(),
     timeoutSeconds: z.number().int().positive().optional(),
     retry: RetryConfigSchema,
     network: z
