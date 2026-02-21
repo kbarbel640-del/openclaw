@@ -70,11 +70,15 @@ describe("buildExportSessionReply", () => {
     };
 
     const reply = await buildExportSessionReply(params);
+    const replyText = reply.text;
+    if (replyText === undefined) {
+      throw new Error("Expected reply.text to be defined");
+    }
 
-    expect(reply.text).toContain("✅ Session exported!");
+    expect(replyText).toContain("✅ Session exported!");
     expect(hoisted.resolveCommandsSystemPromptBundleMock).toHaveBeenCalledOnce();
 
-    const outputPathMatch = reply.text.match(/📄 File: (.+)/);
+    const outputPathMatch = replyText.match(/📄 File: (.+)/);
     expect(outputPathMatch).toBeTruthy();
     const outputPath = outputPathMatch?.[1] ?? "";
     const absoluteOutputPath = path.isAbsolute(outputPath)
