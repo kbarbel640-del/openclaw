@@ -3,6 +3,7 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveAgentConfig, resolveAgentModelPrimary } from "./agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
 import type { ModelCatalogEntry } from "./model-catalog.js";
+import { isForwardCompatModelId } from "./model-forward-compat.js";
 import { normalizeGoogleModelId } from "./models-config.providers.js";
 
 const log = createSubsystemLogger("model-selection");
@@ -405,6 +406,10 @@ export function buildAllowedModelSet(params: {
     } else if (configuredProviders[providerKey] != null) {
       // Explicitly configured providers should be allowlist-able even when
       // they don't exist in the curated model catalog.
+      allowedKeys.add(key);
+    } else if (isForwardCompatModelId(parsed.provider, parsed.model)) {
+      // Forward-compat models (e.g., claude-opus-4-6) should be allowlist-able
+      // even before the catalog is updated.
       allowedKeys.add(key);
     }
   }
