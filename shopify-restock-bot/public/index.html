@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopify Smart Restock Bot - Inventory Intelligence</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .priority-critical { border-left: 5px solid #dc3545; background-color: #f8d7da; }
+        .priority-high { border-left: 5px solid #fd7e14; background-color: #fff3cd; }
+        .priority-medium { border-left: 5px solid #ffc107; background-color: #fff3cd; }
+        .priority-low { border-left: 5px solid #6c757d; background-color: #f8f9fa; }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .metric-positive { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+        .metric-warning { background: linear-gradient(135deg, #ff9a00 0%, #ffad00 100%); }
+        .metric-danger { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 50px;
+        }
+        
+        .restock-item {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .restock-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 0;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1><i class="fas fa-chart-line"></i> Shopify Smart Restock Bot</h1>
+                    <p class="lead mb-0">AI-Powered Inventory Intelligence for Your Store</p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <button id="connectStoreBtn" class="btn btn-light btn-lg">
+                        <i class="fas fa-link"></i> Connect Store
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Connection Form (hidden by default) -->
+        <div id="connectionForm" class="card mb-4" style="display: none;">
+            <div class="card-header">
+                <h5><i class="fas fa-plug"></i> Connect Your Shopify Store</h5>
+            </div>
+            <div class="card-body">
+                <form id="storeConnectForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="shopDomain" class="form-label">Shop Domain *</label>
+                                <input type="text" class="form-control" id="shopDomain" 
+                                       placeholder="your-store.myshopify.com" required>
+                                <div class="form-text">Your shop's .myshopify.com domain</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="accessToken" class="form-label">Private App Access Token *</label>
+                                <input type="password" class="form-control" id="accessToken" 
+                                       placeholder="shpat_..." required>
+                                <div class="form-text">Create a private app with inventory read permissions</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plug"></i> Connect Store
+                            </button>
+                            <button type="button" class="btn btn-secondary ms-2" onclick="hideConnectionForm()">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="loading-spinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Analyzing inventory...</span>
+            </div>
+            <p class="mt-3">Analyzing your inventory with AI...</p>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboardContent" style="display: none;">
+            <!-- Key Metrics -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="metric-card metric-danger">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h3 id="criticalItems">0</h3>
+                                <p class="mb-0">Critical Items</p>
+                            </div>
+                            <div class="display-4">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card metric-warning">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h3 id="lowStockItems">0</h3>
+                                <p class="mb-0">Low Stock</p>
+                            </div>
+                            <div class="display-4">
+                                <i class="fas fa-boxes"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card metric-positive">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h3 id="totalItems">0</h3>
+                                <p class="mb-0">Total Products</p>
+                            </div>
+                            <div class="display-4">
+                                <i class="fas fa-cube"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h3 id="potentialLoss">$0</h3>
+                                <p class="mb-0">Revenue at Risk</p>
+                            </div>
+                            <div class="display-4">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Items -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5><i class="fas fa-tasks"></i> Restock Recommendations</h5>
+                            <div class="btn-group" role="group">
+                                <input type="radio" class="btn-check" name="priorityFilter" id="all" checked>
+                                <label class="btn btn-outline-primary" for="all">All</label>
+                                
+                                <input type="radio" class="btn-check" name="priorityFilter" id="critical">
+                                <label class="btn btn-outline-danger" for="critical">Critical</label>
+                                
+                                <input type="radio" class="btn-check" name="priorityFilter" id="high">
+                                <label class="btn btn-outline-warning" for="high">High</label>
+                                
+                                <input type="radio" class="btn-check" name="priorityFilter" id="medium">
+                                <label class="btn btn-outline-secondary" for="medium">Medium</label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="restockItems">
+                                <!-- Restock items will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Insights -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-lightbulb"></i> AI Insights</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="insights">
+                                <!-- Insights will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-5 py-4 bg-light text-center">
+        <div class="container">
+            <p class="text-muted mb-0">
+                🤠 <strong>Shopify Smart Restock Bot</strong> - Built by Claw McGraw | 
+                Saving you money through intelligent inventory management
+            </p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentData = null;
+
+        document.getElementById('connectStoreBtn').addEventListener('click', showConnectionForm);
+        document.getElementById('storeConnectForm').addEventListener('submit', connectStore);
+
+        // Priority filter handlers
+        document.querySelectorAll('input[name="priorityFilter"]').forEach(radio => {
+            radio.addEventListener('change', filterRestockItems);
+        });
+
+        function showConnectionForm() {
+            document.getElementById('connectionForm').style.display = 'block';
+            document.getElementById('connectStoreBtn').style.display = 'none';
+        }
+
+        function hideConnectionForm() {
+            document.getElementById('connectionForm').style.display = 'none';
+            document.getElementById('connectStoreBtn').style.display = 'inline-block';
+        }
+
+        async function connectStore(event) {
+            event.preventDefault();
+            
+            const shopDomain = document.getElementById('shopDomain').value;
+            const accessToken = document.getElementById('accessToken').value;
+            
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('connectionForm').style.display = 'none';
+            
+            try {
+                // Connect store
+                const connectResponse = await fetch('/api/stores/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shopDomain, accessToken })
+                });
+                
+                if (!connectResponse.ok) {
+                    throw new Error('Failed to connect store');
+                }
+                
+                // Get analysis
+                const analysisResponse = await fetch(`/api/stores/${shopDomain}/analysis`);
+                const data = await analysisResponse.json();
+                
+                displayDashboard(data);
+                
+            } catch (error) {
+                alert('Failed to connect store: ' + error.message);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                showConnectionForm();
+            }
+        }
+
+        function displayDashboard(data) {
+            currentData = data;
+            
+            document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('dashboardContent').style.display = 'block';
+            
+            // Update metrics
+            document.getElementById('criticalItems').textContent = 
+                data.recommendations.summary.criticalItems;
+            document.getElementById('lowStockItems').textContent = 
+                data.recommendations.summary.criticalItems + data.recommendations.summary.highPriorityItems;
+            document.getElementById('totalItems').textContent = 
+                data.analysis.totalProducts;
+            document.getElementById('potentialLoss').textContent = 
+                '$' + Math.round(data.recommendations.summary.estimatedRevenueLoss).toLocaleString();
+            
+            displayRestockItems();
+            displayInsights(data.recommendations.insights);
+        }
+
+        function displayRestockItems() {
+            if (!currentData) return;
+            
+            const container = document.getElementById('restockItems');
+            const recommendations = currentData.recommendations;
+            
+            // Combine all action items
+            const allItems = [
+                ...recommendations.actionItems.critical.map(item => ({...item, priority: 'critical'})),
+                ...recommendations.actionItems.high.map(item => ({...item, priority: 'high'})),
+                ...recommendations.actionItems.medium.map(item => ({...item, priority: 'medium'}))
+            ];
+            
+            if (allItems.length === 0) {
+                container.innerHTML = '<p class="text-muted">🎉 Great news! No urgent restock actions needed.</p>';
+                return;
+            }
+            
+            container.innerHTML = allItems.map(item => `
+                <div class="restock-item card mb-3 priority-${item.priority}" data-priority="${item.priority}">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6 class="card-title">${item.productTitle}</h6>
+                                <p class="card-text">
+                                    <strong>SKU:</strong> ${item.sku || 'N/A'} | 
+                                    <strong>Current Stock:</strong> ${item.currentStock} | 
+                                    <strong>Days Left:</strong> ${Math.floor(item.daysOfInventory)}
+                                </p>
+                                <p class="card-text">${item.recommendation.message}</p>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="mb-2">
+                                    <span class="badge bg-${getPriorityColor(item.priority)} fs-6">
+                                        ${item.priority.toUpperCase()}
+                                    </span>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Reorder: ${item.optimalReorderQuantity} units</strong>
+                                </div>
+                                <div class="text-muted">
+                                    Revenue at risk: $${Math.round(item.revenueAtRisk || 0)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function displayInsights(insights) {
+            const container = document.getElementById('insights');
+            
+            if (insights.length === 0) {
+                container.innerHTML = '<p class="text-muted">No insights available yet.</p>';
+                return;
+            }
+            
+            container.innerHTML = insights.map(insight => `
+                <div class="alert alert-${getInsightColor(insight.impact)} mb-3">
+                    <div class="d-flex">
+                        <div class="me-3">
+                            <i class="fas fa-${getInsightIcon(insight.type)} fa-2x"></i>
+                        </div>
+                        <div>
+                            <h6 class="alert-heading">${insight.title}</h6>
+                            <p class="mb-0">${insight.message}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterRestockItems() {
+            const selectedPriority = document.querySelector('input[name="priorityFilter"]:checked').id;
+            const items = document.querySelectorAll('.restock-item');
+            
+            items.forEach(item => {
+                if (selectedPriority === 'all' || item.dataset.priority === selectedPriority) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function getPriorityColor(priority) {
+            const colors = {
+                critical: 'danger',
+                high: 'warning',
+                medium: 'info',
+                low: 'secondary'
+            };
+            return colors[priority] || 'secondary';
+        }
+
+        function getInsightColor(impact) {
+            const colors = {
+                positive: 'success',
+                neutral: 'info',
+                negative: 'warning'
+            };
+            return colors[impact] || 'info';
+        }
+
+        function getInsightIcon(type) {
+            const icons = {
+                inventory_health: 'heartbeat',
+                cash_flow: 'dollar-sign',
+                top_performer: 'star',
+                slow_movers: 'clock',
+                turnover_rate: 'sync-alt',
+                trending_demand: 'trending-up'
+            };
+            return icons[type] || 'lightbulb';
+        }
+
+        // Auto-refresh every 30 minutes
+        setInterval(() => {
+            if (currentData && currentData.shopDomain) {
+                location.reload();
+            }
+        }, 30 * 60 * 1000);
+    </script>
+</body>
+</html>
