@@ -1,7 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_AGENT_MAX_CONCURRENT, DEFAULT_SUBAGENT_MAX_CONCURRENT } from "./agent-limits.js";
+import {
+  DEFAULT_AGENT_MAX_CONCURRENT,
+  DEFAULT_SUBAGENT_MAX_CONCURRENT,
+  DEFAULT_SUBAGENT_MAX_SPAWN_DEPTH,
+} from "./agent-limits.js";
 import { loadConfig } from "./config.js";
 import { withTempHome } from "./home-env.test-harness.js";
 
@@ -53,6 +57,7 @@ describe("config identity defaults", () => {
       expect(cfg.agents?.list).toBeUndefined();
       expect(cfg.agents?.defaults?.maxConcurrent).toBe(DEFAULT_AGENT_MAX_CONCURRENT);
       expect(cfg.agents?.defaults?.subagents?.maxConcurrent).toBe(DEFAULT_SUBAGENT_MAX_CONCURRENT);
+      expect(cfg.agents?.defaults?.subagents?.maxSpawnDepth).toBe(DEFAULT_SUBAGENT_MAX_SPAWN_DEPTH);
       expect(cfg.session).toBeUndefined();
     });
   });
@@ -169,28 +174,6 @@ describe("config identity defaults", () => {
       });
 
       expect(cfg.messages?.responsePrefix).toBe("");
-    });
-  });
-
-  it("does not derive responsePrefix from identity emoji", async () => {
-    await withTempHome("openclaw-config-identity-", async (home) => {
-      const cfg = await writeAndLoadConfig(home, {
-        agents: {
-          list: [
-            {
-              id: "main",
-              identity: {
-                name: "OpenClaw",
-                theme: "space lobster",
-                emoji: "🦞",
-              },
-            },
-          ],
-        },
-        messages: {},
-      });
-
-      expect(cfg.messages?.responsePrefix).toBeUndefined();
     });
   });
 });

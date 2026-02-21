@@ -166,22 +166,35 @@ Behavior:
 
 - Starts a new `agent:<agentId>:subagent:<uuid>` session with `deliver: false`.
 - Sub-agents default to the full tool set **minus session tools** (configurable via `tools.subagents.tools`).
-- Sub-agents are not allowed to call `sessions_spawn` (no sub-agent → sub-agent spawning).
+- Depth policy is enforced for nested spawns. With the default `maxSpawnDepth = 2`, depth-1 sub-agents can call `sessions_spawn`, depth-2 sub-agents cannot.
 - Always non-blocking: returns `{ status: "accepted", runId, childSessionKey }` immediately.
-- After completion, OpenClaw runs a sub-agent **announce step** and posts the result to the requester chat channel.
-- Reply exactly `ANNOUNCE_SKIP` during the announce step to stay silent.
-- Announce replies are normalized to `Status`/`Result`/`Notes`; `Status` comes from runtime outcome (not model text).
+- After completion, OpenClaw builds a sub-agent announce system message from the child session's latest assistant reply and injects it to the requester session.
+- Delivery stays internal (`deliver=false`) when the requester is a sub-agent, and is user-facing (`deliver=true`) when the requester is main.
+- Recipient agents can return the internal silent token to suppress duplicate outward delivery in the same turn.
+- Announce replies are normalized to runtime-derived status plus result context.
 - Sub-agent sessions are auto-archived after `agents.defaults.subagents.archiveAfterMinutes` (default: 60).
 - Announce replies include a stats line (runtime, tokens, sessionKey/sessionId, transcript path, and optional cost).
 
 ## Sandbox Session Visibility
 
-Sandboxed sessions can use session tools, but by default they only see sessions they spawned via `sessions_spawn`.
+Session tools can be scoped to reduce cross-session access.
+
+Default behavior:
+
+- `tools.sessions.visibility` defaults to `tree` (current session + spawned subagent sessions).
+- For sandboxed sessions, `agents.defaults.sandbox.sessionToolsVisibility` can hard-clamp visibility.
 
 Config:
 
 ```json5
 {
+  tools: {
+    sessions: {
+      // "self" | "tree" | "agent" | "all"
+      // default: "tree"
+      visibility: "tree",
+    },
+  },
   agents: {
     defaults: {
       sandbox: {
@@ -192,3 +205,11 @@ Config:
   },
 }
 ```
+
+Notes:
+
+- `self`: only the current session key.
+- `tree`: current session + sessions spawned by the current session.
+- `agent`: any session belonging to the current agent id.
+- `all`: any session (cross-agent access still requires `tools.agentToAgent`).
+- When a session is sandboxed and `sessionToolsVisibility="spawned"`, OpenClaw clamps visibility to `tree` even if you set `tools.sessions.visibility="all"`.
