@@ -318,7 +318,7 @@ async function spawnSubtask(mission: MissionRecord, subtask: SubtaskRecord): Pro
   mission.totalSpawns++;
 
   // Auto-track: mark linked task list task as in_progress
-  startTaskByMission(mission.missionId, subtask.id);
+  startTaskByMission(mission.missionId, subtask.id, subtask.agentId);
 
   // Register in the subagent registry with maxRetries=0 — mission handles retries
   registerSubagentRun({

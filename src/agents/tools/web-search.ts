@@ -20,6 +20,8 @@ import {
 const SEARCH_PROVIDERS = ["brave", "perplexity"] as const;
 const DEFAULT_SEARCH_COUNT = 5;
 const MAX_SEARCH_COUNT = 10;
+const BRAVE_RATE_LIMIT_RETRIES = 3;
+const BRAVE_RATE_LIMIT_BASE_DELAY_MS = 1000;
 
 const BRAVE_SEARCH_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 const DEFAULT_PERPLEXITY_BASE_URL = "https://openrouter.ai/api/v1";
@@ -309,6 +311,33 @@ function resolveSiteName(url: string | undefined): string | undefined {
   }
 }
 
+/**
+ * Parse Retry-After header value (seconds or HTTP date)
+ */
+function parseRetryAfter(headerValue: string | null): number | undefined {
+  if (!headerValue) return undefined;
+  const trimmed = headerValue.trim();
+  if (!trimmed) return undefined;
+  // Try parsing as seconds first
+  const seconds = Number.parseInt(trimmed, 10);
+  if (!Number.isNaN(seconds) && seconds > 0) {
+    return seconds * 1000; // Convert to milliseconds
+  }
+  // Try parsing as HTTP date
+  const date = new Date(trimmed);
+  if (!Number.isNaN(date.getTime())) {
+    return Math.max(0, date.getTime() - Date.now());
+  }
+  return undefined;
+}
+
+/**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function runPerplexitySearch(params: {
   query: string;
   apiKey: string;
@@ -417,45 +446,71 @@ async function runWebSearch(params: {
     url.searchParams.set("freshness", params.freshness);
   }
 
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "X-Subscription-Token": params.apiKey,
-    },
-    signal: withTimeout(undefined, params.timeoutSeconds * 1000),
-  });
+  // Retry loop for rate limit handling
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= BRAVE_RATE_LIMIT_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "X-Subscription-Token": params.apiKey,
+        },
+        signal: withTimeout(undefined, params.timeoutSeconds * 1000),
+      });
 
-  if (!res.ok) {
-    const detail = await readResponseText(res);
-    throw new Error(`Brave Search API error (${res.status}): ${detail || res.statusText}`);
+      if (res.ok) {
+        const data = (await res.json()) as BraveSearchResponse;
+        const results = Array.isArray(data.web?.results) ? (data.web?.results ?? []) : [];
+        const mapped = results.map((entry) => {
+          const description = entry.description ?? "";
+          const title = entry.title ?? "";
+          const url = entry.url ?? "";
+          const rawSiteName = resolveSiteName(url);
+          return {
+            title: title ? wrapWebContent(title, "web_search") : "",
+            url, // Keep raw for tool chaining
+            description: description ? wrapWebContent(description, "web_search") : "",
+            published: entry.age || undefined,
+            siteName: rawSiteName || undefined,
+          };
+        });
+
+        const payload = {
+          query: params.query,
+          provider: params.provider,
+          count: mapped.length,
+          tookMs: Date.now() - start,
+          results: mapped,
+        };
+        writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
+        return payload;
+      }
+
+      // Handle rate limit (429) with retry
+      if (res.status === 429 && attempt < BRAVE_RATE_LIMIT_RETRIES) {
+        const retryAfter = parseRetryAfter(res.headers.get("retry-after"));
+        // Use Retry-After header if present, otherwise use exponential backoff
+        const delayMs = retryAfter ?? BRAVE_RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, attempt);
+        await sleep(delayMs);
+        continue; // Retry
+      }
+
+      // Non-retryable error or exhausted retries
+      const detail = await readResponseText(res);
+      throw new Error(`Brave Search API error (${res.status}): ${detail || res.statusText}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Only retry on rate limit errors (429)
+      if (attempt < BRAVE_RATE_LIMIT_RETRIES) {
+        const delayMs = BRAVE_RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, attempt);
+        await sleep(delayMs);
+      }
+    }
   }
 
-  const data = (await res.json()) as BraveSearchResponse;
-  const results = Array.isArray(data.web?.results) ? (data.web?.results ?? []) : [];
-  const mapped = results.map((entry) => {
-    const description = entry.description ?? "";
-    const title = entry.title ?? "";
-    const url = entry.url ?? "";
-    const rawSiteName = resolveSiteName(url);
-    return {
-      title: title ? wrapWebContent(title, "web_search") : "",
-      url, // Keep raw for tool chaining
-      description: description ? wrapWebContent(description, "web_search") : "",
-      published: entry.age || undefined,
-      siteName: rawSiteName || undefined,
-    };
-  });
-
-  const payload = {
-    query: params.query,
-    provider: params.provider,
-    count: mapped.length,
-    tookMs: Date.now() - start,
-    results: mapped,
-  };
-  writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
-  return payload;
+  // All retries exhausted
+  throw lastError ?? new Error("Brave Search API failed after retries");
 }
 
 export function createWebSearchTool(options?: {
@@ -540,4 +595,6 @@ export const __testing = {
   inferPerplexityBaseUrlFromApiKey,
   resolvePerplexityBaseUrl,
   normalizeFreshness,
+  parseRetryAfter,
+  sleep,
 } as const;

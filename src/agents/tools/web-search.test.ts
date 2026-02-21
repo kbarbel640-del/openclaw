@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { __testing } from "./web-search.js";
 
-const { inferPerplexityBaseUrlFromApiKey, resolvePerplexityBaseUrl, normalizeFreshness } =
-  __testing;
+const {
+  inferPerplexityBaseUrlFromApiKey,
+  resolvePerplexityBaseUrl,
+  normalizeFreshness,
+  parseRetryAfter,
+  sleep,
+} = __testing;
 
 describe("web_search perplexity baseUrl defaults", () => {
   it("detects a Perplexity key prefix", () => {
@@ -66,5 +71,33 @@ describe("web_search freshness normalization", () => {
     expect(normalizeFreshness("2024-13-01to2024-01-31")).toBeUndefined();
     expect(normalizeFreshness("2024-02-30to2024-03-01")).toBeUndefined();
     expect(normalizeFreshness("2024-03-10to2024-03-01")).toBeUndefined();
+  });
+});
+
+describe("web_search retry helper functions", () => {
+  describe("parseRetryAfter", () => {
+    it("parses seconds value", () => {
+      expect(parseRetryAfter("5")).toBe(5000);
+      expect(parseRetryAfter("1")).toBe(1000);
+    });
+
+    it("returns undefined for null", () => {
+      expect(parseRetryAfter(null)).toBeUndefined();
+    });
+
+    it("returns undefined for invalid values", () => {
+      expect(parseRetryAfter("")).toBeUndefined();
+      expect(parseRetryAfter("abc")).toBeUndefined();
+      expect(parseRetryAfter("invalid")).toBeUndefined();
+    });
+  });
+
+  describe("sleep", () => {
+    it("resolves after specified milliseconds", async () => {
+      const start = Date.now();
+      await sleep(50);
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeGreaterThanOrEqual(45); // Allow small timing variance
+    });
   });
 });

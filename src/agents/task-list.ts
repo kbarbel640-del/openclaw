@@ -151,27 +151,40 @@ export function linkMissionToTaskList(missionId: string, listId: string): void {
  * Called from `handleSubtaskCompletion()` when a subtask starts running.
  * Marks the first pending task for the matching agent in the linked list as in_progress.
  */
-export function startTaskByMission(missionId: string, subtaskId: string): void {
+export function startTaskByMission(missionId: string, subtaskId: string, agentId?: string): void {
   const listId = missionToList.get(missionId);
   if (!listId) return;
 
   const list = taskLists.get(listId);
   if (!list) return;
 
-  // Find a pending task for the same subtask/agent
-  for (const task of list.tasks.values()) {
-    if (task.status === "pending" && !task.missionId) {
-      // Link by position: first unlinked pending task gets this mission+subtask
-      task.missionId = missionId;
-      task.status = "in_progress";
-      task.startedAt = Date.now();
-      persist();
-      log.info(
-        `[task-list] auto-link: task "${task.subject}" → mission ${missionId.slice(0, 8)} subtask ${subtaskId}`,
-      );
-      return;
+  // Try to match by agentId first (accurate), fall back to first-pending (positional)
+  let matched: TaskRecord | undefined;
+  if (agentId) {
+    for (const task of list.tasks.values()) {
+      if (task.status === "pending" && !task.missionId && task.agentId === agentId) {
+        matched = task;
+        break;
+      }
     }
   }
+  if (!matched) {
+    for (const task of list.tasks.values()) {
+      if (task.status === "pending" && !task.missionId) {
+        matched = task;
+        break;
+      }
+    }
+  }
+  if (!matched) return;
+
+  matched.missionId = missionId;
+  matched.status = "in_progress";
+  matched.startedAt = Date.now();
+  persist();
+  log.info(
+    `[task-list] auto-link: task "${matched.subject}" (${matched.agentId}) → mission ${missionId.slice(0, 8)} subtask ${subtaskId}`,
+  );
 }
 
 /**
