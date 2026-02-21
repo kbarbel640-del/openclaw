@@ -32,7 +32,7 @@ export function computeNextRunAtMs(schedule: CronSchedule, nowMs: number, lastRu
 
   if (schedule.kind === "every") {
     const everyMs = Math.max(1, Math.floor(schedule.everyMs));
-    const anchor = Math.max(0, Math.floor(lastRunAtMs ?? schedule.anchorMs ?? nowMs))
+    const anchor = Math.max(0, Math.floor(lastRunAtMs ?? schedule.anchorMs ?? nowMs));
     if (nowMs < anchor) {
       return anchor;
     }
