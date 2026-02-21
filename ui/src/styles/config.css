@@ -627,6 +627,13 @@
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
+.cfg-field--muted {
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: var(--muted-subtle, rgba(128, 128, 128, 0.08));
+  border: 1px solid rgba(128, 128, 128, 0.15);
+}
+
 .cfg-field__label {
   font-size: 13px;
   font-weight: 600;

@@ -46,9 +46,11 @@ import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { deleteSessionAndRefresh, loadSessions, patchSession } from "./controllers/sessions.ts";
 import {
+  addSkillFromUrl,
   installSkill,
   loadSkills,
   saveSkillApiKey,
+  updateAddFromUrlUrl,
   updateSkillEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
@@ -706,6 +708,9 @@ export function renderApp(state: AppViewState) {
                 edits: state.skillEdits,
                 messages: state.skillMessages,
                 busyKey: state.skillsBusyKey,
+                addFromUrlUrl: state.addFromUrlUrl,
+                addFromUrlBusy: state.addFromUrlBusy,
+                addFromUrlMessage: state.addFromUrlMessage,
                 onFilterChange: (next) => (state.skillsFilter = next),
                 onRefresh: () => loadSkills(state, { clearMessages: true }),
                 onToggle: (key, enabled) => updateSkillEnabled(state, key, enabled),
@@ -713,6 +718,8 @@ export function renderApp(state: AppViewState) {
                 onSaveKey: (key) => saveSkillApiKey(state, key),
                 onInstall: (skillKey, name, installId) =>
                   installSkill(state, skillKey, name, installId),
+                onAddFromUrlUrlChange: (url) => updateAddFromUrlUrl(state, url),
+                onAddFromUrl: () => addSkillFromUrl(state, state.addFromUrlUrl),
               })
             : nothing
         }
