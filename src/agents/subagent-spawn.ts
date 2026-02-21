@@ -422,6 +422,7 @@ export async function spawnSubagentDirect(
   } catch (err) {
     if (threadBindingReady) {
       const hasEndedHook = hookRunner?.hasHooks("subagent_ended") === true;
+      let endedHookEmitted = false;
       if (hasEndedHook) {
         try {
           await hookRunner?.runSubagentEnded(
@@ -441,21 +442,25 @@ export async function spawnSubagentDirect(
               requesterSessionKey: requesterInternalKey,
             },
           );
+          endedHookEmitted = true;
         } catch {
           // Spawn should still return an actionable error even if cleanup hooks fail.
         }
-      } else {
-        // Fallback cleanup for channel plugins that bind on spawn but do not
-        // register subagent_ended lifecycle hooks.
-        try {
-          await callGateway({
-            method: "sessions.delete",
-            params: { key: childSessionKey, deleteTranscript: true },
-            timeoutMs: 10_000,
-          });
-        } catch {
-          // Best-effort only.
-        }
+      }
+      // Always delete the provisional child session after a failed spawn attempt.
+      // If we already emitted subagent_ended above, suppress a duplicate lifecycle hook.
+      try {
+        await callGateway({
+          method: "sessions.delete",
+          params: {
+            key: childSessionKey,
+            deleteTranscript: true,
+            emitLifecycleHooks: !endedHookEmitted,
+          },
+          timeoutMs: 10_000,
+        });
+      } catch {
+        // Best-effort only.
       }
     }
     const messageText = summarizeError(err);

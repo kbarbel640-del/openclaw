@@ -305,6 +305,17 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
       outcome: "error",
       error: "Session failed to start",
     });
+    const deleteCall = callGatewayMock.mock.calls
+      .map((call: [unknown]) => call[0] as { method?: string; params?: Record<string, unknown> })
+      .find(
+        (request: { method?: string; params?: Record<string, unknown> }) =>
+          request.method === "sessions.delete",
+      );
+    expect(deleteCall?.params).toMatchObject({
+      key: event.targetSessionKey,
+      deleteTranscript: true,
+      emitLifecycleHooks: false,
+    });
   });
 
   it("falls back to sessions.delete cleanup when subagent_ended hook is unavailable", async () => {
@@ -338,5 +349,15 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
       return request.method;
     });
     expect(methods).toContain("sessions.delete");
+    const deleteCall = callGatewayMock.mock.calls
+      .map((call: [unknown]) => call[0] as { method?: string; params?: Record<string, unknown> })
+      .find(
+        (request: { method?: string; params?: Record<string, unknown> }) =>
+          request.method === "sessions.delete",
+      );
+    expect(deleteCall?.params).toMatchObject({
+      deleteTranscript: true,
+      emitLifecycleHooks: true,
+    });
   });
 });

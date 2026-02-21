@@ -141,6 +141,7 @@ function archiveSessionTranscriptsForSession(params: {
 async function emitSessionUnboundLifecycleEvent(params: {
   targetSessionKey: string;
   reason: "session-reset" | "session-delete";
+  emitHooks?: boolean;
 }) {
   const targetKind = isSubagentSessionKey(params.targetSessionKey) ? "subagent" : "acp";
   unbindThreadBindingsBySessionKey({
@@ -149,6 +150,10 @@ async function emitSessionUnboundLifecycleEvent(params: {
     reason: params.reason,
     sendFarewell: true,
   });
+
+  if (params.emitHooks === false) {
+    return;
+  }
 
   const hookRunner = getGlobalHookRunner();
   if (!hookRunner?.hasHooks("subagent_ended")) {
@@ -465,9 +470,11 @@ export const sessionsHandlers: GatewayRequestHandlers = {
           })
         : [];
     if (deleted) {
+      const emitLifecycleHooks = p.emitLifecycleHooks !== false;
       await emitSessionUnboundLifecycleEvent({
         targetSessionKey: target.canonicalKey ?? key,
         reason: "session-delete",
+        emitHooks: emitLifecycleHooks,
       });
     }
 

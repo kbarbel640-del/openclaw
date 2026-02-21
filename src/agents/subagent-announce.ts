@@ -1107,7 +1107,11 @@ export async function runSubagentAnnounceFlow(params: {
       try {
         await callGateway({
           method: "sessions.delete",
-          params: { key: params.childSessionKey, deleteTranscript: true },
+          params: {
+            key: params.childSessionKey,
+            deleteTranscript: true,
+            emitLifecycleHooks: false,
+          },
           timeoutMs: 10_000,
         });
       } catch {

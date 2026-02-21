@@ -726,6 +726,37 @@ describe("gateway server sessions", () => {
     ws.close();
   });
 
+  test("sessions.delete can skip lifecycle hooks while still unbinding thread bindings", async () => {
+    const { dir } = await createSessionStoreDir();
+    await writeSingleLineSession(dir, "sess-subagent", "hello");
+    await writeSessionStore({
+      entries: {
+        "agent:main:subagent:worker": {
+          sessionId: "sess-subagent",
+          updatedAt: Date.now(),
+        },
+      },
+    });
+
+    const { ws } = await openClient();
+    const deleted = await rpcReq<{ ok: true; deleted: boolean }>(ws, "sessions.delete", {
+      key: "agent:main:subagent:worker",
+      emitLifecycleHooks: false,
+    });
+    expect(deleted.ok).toBe(true);
+    expect(deleted.payload?.deleted).toBe(true);
+    expect(subagentLifecycleHookMocks.runSubagentEnded).not.toHaveBeenCalled();
+    expect(threadBindingMocks.unbindThreadBindingsBySessionKey).toHaveBeenCalledTimes(1);
+    expect(threadBindingMocks.unbindThreadBindingsBySessionKey).toHaveBeenCalledWith({
+      targetSessionKey: "agent:main:subagent:worker",
+      targetKind: "subagent",
+      reason: "session-delete",
+      sendFarewell: true,
+    });
+
+    ws.close();
+  });
+
   test("sessions.delete directly unbinds thread bindings when hooks are unavailable", async () => {
     const { dir } = await createSessionStoreDir();
     await writeSingleLineSession(dir, "sess-subagent", "hello");
