@@ -1,4 +1,4 @@
-import { resolveTelegramAccount } from "openclaw/plugin-sdk";
+import { resolveTelegramAccount } from "../../../telegram/accounts.js";
 import type { TelegramInlineButtons } from "../../../telegram/button-types.js";
 import { markdownToTelegramHtmlChunks } from "../../../telegram/format.js";
 import {
