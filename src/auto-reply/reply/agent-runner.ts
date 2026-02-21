@@ -426,6 +426,7 @@ export async function runReplyAgent(params: {
     }
 
     const usage = runResult.meta?.agentMeta?.usage;
+    const usageForResponse = usage ?? runResult.meta?.agentMeta?.lastCallUsage;
     const promptTokens = runResult.meta?.agentMeta?.promptTokens;
     const modelUsed = runResult.meta?.agentMeta?.model ?? fallbackModel ?? defaultModel;
     const providerUsed =
@@ -533,19 +534,19 @@ export async function runReplyAgent(params: {
 
     await signalTypingIfNeeded(guardedReplyPayloads, typingSignals);
 
-    if (isDiagnosticsEnabled(cfg) && hasNonzeroUsage(usage)) {
-      const input = usage.input ?? 0;
-      const output = usage.output ?? 0;
-      const cacheRead = usage.cacheRead ?? 0;
-      const cacheWrite = usage.cacheWrite ?? 0;
+    if (isDiagnosticsEnabled(cfg) && hasNonzeroUsage(usageForResponse)) {
+      const input = usageForResponse.input ?? 0;
+      const output = usageForResponse.output ?? 0;
+      const cacheRead = usageForResponse.cacheRead ?? 0;
+      const cacheWrite = usageForResponse.cacheWrite ?? 0;
       const promptTokens = input + cacheRead + cacheWrite;
-      const totalTokens = usage.total ?? promptTokens + output;
+      const totalTokens = usageForResponse.total ?? promptTokens + output;
       const costConfig = resolveModelCostConfig({
         provider: providerUsed,
         model: modelUsed,
         config: cfg,
       });
-      const costUsd = estimateUsageCost({ usage, cost: costConfig });
+      const costUsd = estimateUsageCost({ usage: usageForResponse, cost: costConfig });
       emitDiagnosticEvent({
         type: "model.usage",
         sessionKey,
@@ -575,7 +576,7 @@ export async function runReplyAgent(params: {
       activeSessionEntry?.responseUsage ??
       (sessionKey ? activeSessionStore?.[sessionKey]?.responseUsage : undefined);
     const responseUsageMode = resolveResponseUsageMode(responseUsageRaw);
-    if (responseUsageMode !== "off" && hasNonzeroUsage(usage)) {
+    if (responseUsageMode !== "off" && hasNonzeroUsage(usageForResponse)) {
       const authMode = resolveModelAuthMode(providerUsed, cfg);
       const showCost = authMode === "api-key";
       const costConfig = showCost
@@ -586,7 +587,7 @@ export async function runReplyAgent(params: {
           })
         : undefined;
       let formatted = formatResponseUsageLine({
-        usage,
+        usage: usageForResponse,
         showCost,
         costConfig,
       });
