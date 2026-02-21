@@ -1298,15 +1298,26 @@ describe("QmdMemoryManager", () => {
   it("throws when sqlite index is busy", async () => {
     const { manager } = await createManager();
     const inner = manager as unknown as {
-      db: { prepare: () => { get: () => never }; close: () => void } | null;
+      db: {
+        prepare: () => {
+          all: () => never;
+          get: () => never;
+        };
+        close: () => void;
+      } | null;
       resolveDocLocation: (docid?: string) => Promise<unknown>;
     };
+    const busyStmt: { all: () => never; get: () => never } = {
+      all: () => {
+        throw new Error("SQLITE_BUSY: database is locked");
+      },
+      get: () => {
+        throw new Error("SQLITE_BUSY: database is locked");
+      },
+    };
+
     inner.db = {
-      prepare: () => ({
-        get: () => {
-          throw new Error("SQLITE_BUSY: database is locked");
-        },
-      }),
+      prepare: () => busyStmt,
       close: () => {},
     };
     await expect(inner.resolveDocLocation("abc123")).rejects.toThrow(
