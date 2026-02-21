@@ -716,10 +716,15 @@ export async function runEmbeddedPiAgent(
               if (!skipResonance) {
                 try {
                   const subsvc = new SubconsciousService(gs, debug);
+                  const soulPath = path.join(resolvedWorkspace, "SOUL.md");
+                  const soulContext = await fs.readFile(soulPath, "utf-8").catch(() => undefined);
                   const flashbackText = await subsvc.getFlashback(
                     globalSessionId,
                     params.prompt,
                     subconsciousAgent,
+                    undefined,
+                    [],
+                    soulContext,
                   );
 
                   if (flashbackText) {
