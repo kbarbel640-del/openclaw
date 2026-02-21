@@ -68,6 +68,12 @@ export const handleAgentCommand: CommandHandler = async (params, allowTextComman
     return null;
   }
 
+  // On Telegram, /agent is handled by a dedicated instant interceptor in bot-handlers.ts.
+  // Skip here to avoid double-processing.
+  if (command.surface === "telegram") {
+    return null;
+  }
+
   const isNative = params.ctx.CommandSource === "native";
   if (!isNative && !allowTextCommands) {
     return null;
