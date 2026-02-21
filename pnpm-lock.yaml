@@ -449,6 +449,16 @@ importers:
 
   extensions/open-prose: {}
 
+  extensions/persist-postgres:
+    dependencies:
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.8
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
   extensions/signal:
     devDependencies:
       openclaw:
