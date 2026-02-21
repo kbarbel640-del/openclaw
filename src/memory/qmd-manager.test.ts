@@ -1226,6 +1226,9 @@ describe("QmdMemoryManager", () => {
         all: () => {
           throw new Error("SQLITE_BUSY: database is locked");
         },
+        get: () => {
+          throw new Error("SQLITE_BUSY: database is locked");
+        },
       }),
       close: () => {},
     };
@@ -1256,6 +1259,9 @@ describe("QmdMemoryManager", () => {
     inner.db = {
       prepare: () => ({
         all: () => {
+          throw new Error("SQLITE_BUSY: database is locked");
+        },
+        get: () => {
           throw new Error("SQLITE_BUSY: database is locked");
         },
       }),
