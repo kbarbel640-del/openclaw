@@ -34,6 +34,7 @@ import { replaceCliName, resolveCliName } from "../cli-name.js";
 import { formatCliCommand } from "../command-format.js";
 import { installCompletion } from "../completion-cli.js";
 import { runDaemonInstall, runDaemonRestart } from "../daemon-cli.js";
+import { shouldSkipVersion } from "./auto-update.js";
 import { createUpdateProgress, printResult } from "./progress.js";
 import { prepareRestartScript, runRestartScript } from "./restart-helper.js";
 import {
@@ -537,6 +538,14 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
           fallbackToLatest = channel === "beta" && resolved.tag === "latest";
           return resolved.version;
         });
+
+    if (targetVersion && (await shouldSkipVersion(targetVersion))) {
+      if (!opts.json) {
+        defaultRuntime.log(theme.muted(`Skipping update to ${targetVersion} (in skip list).`));
+      }
+      return;
+    }
+
     const cmp =
       currentVersion && targetVersion ? compareSemverStrings(currentVersion, targetVersion) : null;
     const needsConfirm =

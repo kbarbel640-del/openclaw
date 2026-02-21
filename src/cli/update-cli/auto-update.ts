@@ -52,7 +52,12 @@ export async function loadAutoUpdateConfig(): Promise<AutoUpdateConfig> {
     throw new Error("Invalid config format");
   } catch (err) {
     const error = err as Error & { code?: string; name?: string };
-    if (error && error.code !== "ENOENT" && error.name !== "SyntaxError") {
+    if (
+      error &&
+      error.code !== "ENOENT" &&
+      error.name !== "SyntaxError" &&
+      error.message !== "Invalid config format"
+    ) {
       logWarn(
         `Failed to load auto-update config: ${error.message}. Using defaults.`,
         defaultRuntime,
@@ -145,7 +150,10 @@ export async function handleAutoUpdateOptions(
   }
 
   if (options.skip !== undefined) {
-    config.skipVersions = options.skip.split(",").map((v) => v.trim());
+    config.skipVersions = options.skip
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
     logSuccess(`Skip versions: ${config.skipVersions.join(", ")}`, defaultRuntime);
     changed = true;
   }
@@ -166,6 +174,7 @@ export async function handleAutoUpdateOptions(
 // Display auto-update status
 export async function displayAutoUpdateStatus(): Promise<void> {
   const config = await loadAutoUpdateConfig();
+  const nextCheck = await getNextCheckTime();
 
   logInfo("\n" + theme.heading("Auto-Update Settings"), defaultRuntime);
   logInfo("─".repeat(40), defaultRuntime);
@@ -182,6 +191,9 @@ export async function displayAutoUpdateStatus(): Promise<void> {
     `  Notify:    ${config.notifyOnUpdate ? theme.success("ON") : theme.warn("OFF")}`,
     defaultRuntime,
   );
+  if (nextCheck) {
+    logInfo(`  Next:      ${nextCheck.toLocaleDateString()}`, defaultRuntime);
+  }
   logInfo("─".repeat(40) + "\n", defaultRuntime);
 }
 
