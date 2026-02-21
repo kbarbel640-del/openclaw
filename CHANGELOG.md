@@ -7,6 +7,9 @@ Docs: https://docs.openclaw.ai
 ### Changes
 
 - Docs: fix FAQ typos and add documentation spellcheck automation with a custom codespell dictionary/ignore list, including CI coverage. (#22457) Thanks @vincentkoc.
+- Dev tooling: add dead-code scans to CI via Knip/ts-prune/ts-unused-exports and report unused dependencies/exports in non-blocking checks. (#22468) Thanks @vincentkoc.
+- Dev tooling: move `@larksuiteoapi/node-sdk` out of root `package.json` and keep it scoped to `extensions/feishu` where it is used. (#22471) Thanks @vincentkoc.
+- Dev tooling: remove unused root dependency `signal-utils` from core manifest after confirming it was only used by extension-only paths. (#22471) Thanks @vincentkoc.
 - Agents/Subagents: default subagent spawn depth now uses shared `maxSpawnDepth=2`, enabling depth-1 orchestrator spawning by default while keeping depth policy checks consistent across spawn and prompt paths. (#22223) Thanks @tyler6204.
 - Channels/CLI: add per-account/channel `defaultTo` outbound routing fallback so `openclaw agent --deliver` can send without explicit `--reply-to` when a default target is configured. (#16985) Thanks @KirillShchetinin.
 - iOS/Chat: clean chat UI noise by stripping inbound untrusted metadata/timestamp prefixes, formatting tool outputs into concise summaries/errors, compacting the composer while typing, and supporting tap-to-dismiss keyboard in chat view. (#22122) thanks @mbelinky.
@@ -112,6 +115,7 @@ Docs: https://docs.openclaw.ai
 - Security/Dependencies: bump transitive `hono` usage to `4.11.10` to incorporate timing-safe authentication comparison hardening for `basicAuth`/`bearerAuth` (`GHSA-gq3j-xvxp-8hrf`). Thanks @vincentkoc.
 - Security/Gateway: parse `X-Forwarded-For` with trust-preserving semantics when requests come from configured trusted proxies, preventing proxy-chain spoofing from influencing client IP classification and rate-limit identity. Thanks @AnthonyDiSanti and @vincentkoc.
 - iOS/Gateway/Tools: prefer uniquely connected node matches when duplicate display names exist, surface actionable `nodes invoke` pairing-required guidance with request IDs, and refresh active iOS gateway registration after location-capability setting changes so capability updates apply immediately. (#22120) thanks @mbelinky.
+- Security/Sandbox: remove default `--no-sandbox` for the browser container entrypoint, add explicit opt-in via `OPENCLAW_BROWSER_NO_SANDBOX` / `CLAWDBOT_BROWSER_NO_SANDBOX`, and harden the default container security posture (`GHSA-43x4-g22p-3hrq`). Thanks @TerminalsandCoffee and @vincentkoc.
 
 ## 2026.2.19
 
