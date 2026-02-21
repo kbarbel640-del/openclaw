@@ -178,11 +178,18 @@ export class BrainMcpClient {
     workspaceId: string;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
+    // Auto-inject audit fields after caller metadata so they can't be overridden.
+    // Distinguishes system writes from direct agent MCP calls (which bypass this path).
+    const metadata = {
+      ...(params.metadata ?? {}),
+      source_system: "openclaw",
+      written_at: new Date().toISOString(),
+    };
     const memories = JSON.stringify([
       {
         content: params.content,
         workspace_id: params.workspaceId,
-        metadata: params.metadata ?? {},
+        metadata,
       },
     ]);
     // Escape any single quotes in the JSON for shell-safe embedding
