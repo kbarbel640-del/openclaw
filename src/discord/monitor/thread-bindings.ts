@@ -6,10 +6,11 @@ export type {
 
 export {
   formatThreadBindingTtlLabel,
-  isRecentlyUnboundThreadWebhookMessage,
   resolveThreadBindingIntroText,
   resolveThreadBindingThreadName,
-} from "./thread-bindings.state.js";
+} from "./thread-bindings.messages.js";
+
+export { isRecentlyUnboundThreadWebhookMessage } from "./thread-bindings.state.js";
 
 export {
   autoBindSpawnedDiscordSubagent,

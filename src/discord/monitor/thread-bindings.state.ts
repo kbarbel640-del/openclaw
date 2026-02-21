@@ -4,7 +4,6 @@ import { resolveStateDir } from "../../config/paths.js";
 import { loadJsonFile, saveJsonFile } from "../../infra/json-file.js";
 import { normalizeAccountId, resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import {
-  DEFAULT_FAREWELL_TEXT,
   DEFAULT_THREAD_BINDING_TTL_MS,
   RECENT_UNBOUND_WEBHOOK_ECHO_TTL_MS,
   THREAD_BINDINGS_VERSION,
@@ -19,6 +18,7 @@ type ThreadBindingsGlobalState = {
   managersByAccountId: Map<string, ThreadBindingManager>;
   bindingsByThreadId: Map<string, ThreadBindingRecord>;
   bindingsBySessionKey: Map<string, Set<string>>;
+  tokensByAccountId: Map<string, string>;
   recentUnboundWebhookEchoesByBindingKey: Map<string, { webhookId: string; expiresAt: number }>;
   reusableWebhooksByAccountChannel: Map<string, { webhookId: string; webhookToken: string }>;
   persistByAccountId: Map<string, boolean>;
@@ -34,6 +34,7 @@ function createThreadBindingsGlobalState(): ThreadBindingsGlobalState {
     managersByAccountId: new Map<string, ThreadBindingManager>(),
     bindingsByThreadId: new Map<string, ThreadBindingRecord>(),
     bindingsBySessionKey: new Map<string, Set<string>>(),
+    tokensByAccountId: new Map<string, string>(),
     recentUnboundWebhookEchoesByBindingKey: new Map<
       string,
       { webhookId: string; expiresAt: number }
@@ -62,11 +63,29 @@ const THREAD_BINDINGS_STATE = resolveThreadBindingsGlobalState();
 export const MANAGERS_BY_ACCOUNT_ID = THREAD_BINDINGS_STATE.managersByAccountId;
 export const BINDINGS_BY_THREAD_ID = THREAD_BINDINGS_STATE.bindingsByThreadId;
 export const BINDINGS_BY_SESSION_KEY = THREAD_BINDINGS_STATE.bindingsBySessionKey;
+export const TOKENS_BY_ACCOUNT_ID = THREAD_BINDINGS_STATE.tokensByAccountId;
 export const RECENT_UNBOUND_WEBHOOK_ECHOES_BY_BINDING_KEY =
   THREAD_BINDINGS_STATE.recentUnboundWebhookEchoesByBindingKey;
 export const REUSABLE_WEBHOOKS_BY_ACCOUNT_CHANNEL =
   THREAD_BINDINGS_STATE.reusableWebhooksByAccountChannel;
 export const PERSIST_BY_ACCOUNT_ID = THREAD_BINDINGS_STATE.persistByAccountId;
+
+export function rememberThreadBindingToken(params: { accountId?: string; token?: string }) {
+  const normalizedAccountId = normalizeAccountId(params.accountId);
+  const token = params.token?.trim();
+  if (!token) {
+    return;
+  }
+  TOKENS_BY_ACCOUNT_ID.set(normalizedAccountId, token);
+}
+
+export function forgetThreadBindingToken(accountId?: string) {
+  TOKENS_BY_ACCOUNT_ID.delete(normalizeAccountId(accountId));
+}
+
+export function getThreadBindingToken(accountId?: string): string | undefined {
+  return TOKENS_BY_ACCOUNT_ID.get(normalizeAccountId(accountId));
+}
 
 export function shouldDefaultPersist(): boolean {
   return !(process.env.VITEST || process.env.NODE_ENV === "test");
@@ -174,20 +193,6 @@ export function normalizeThreadBindingTtlMs(raw: unknown): number {
     return DEFAULT_THREAD_BINDING_TTL_MS;
   }
   return ttlMs;
-}
-
-export function formatThreadBindingTtlLabel(ttlMs: number): string {
-  if (ttlMs <= 0) {
-    return "disabled";
-  }
-  if (ttlMs < 60_000) {
-    return "<1m";
-  }
-  const totalMinutes = Math.floor(ttlMs / 60_000);
-  if (totalMinutes % 60 === 0) {
-    return `${Math.floor(totalMinutes / 60)}h`;
-  }
-  return `${totalMinutes}m`;
 }
 
 export function resolveThreadBindingExpiresAt(params: {
@@ -394,52 +399,6 @@ export function ensureBindingsLoaded() {
   }
 }
 
-export function resolveThreadBindingThreadName(params: {
-  agentId?: string;
-  label?: string;
-}): string {
-  const label = params.label?.trim();
-  const base = label || params.agentId?.trim() || "agent";
-  const raw = `🤖 ${base}`.replace(/\s+/g, " ").trim();
-  return raw.slice(0, 100);
-}
-
-export function resolveThreadBindingIntroText(params: {
-  agentId?: string;
-  label?: string;
-  sessionTtlMs?: number;
-}): string {
-  const label = params.label?.trim();
-  const base = label || params.agentId?.trim() || "agent";
-  const normalized = base.replace(/\s+/g, " ").trim().slice(0, 100) || "agent";
-  const ttlMs = normalizeThreadBindingTtlMs(params.sessionTtlMs);
-  if (ttlMs > 0) {
-    return `🤖 ${normalized} session active (auto-unfocus in ${formatThreadBindingTtlLabel(ttlMs)}). Messages here go directly to this session.`;
-  }
-  return `🤖 ${normalized} session active. Messages here go directly to this session.`;
-}
-
-export function resolveThreadBindingFarewellText(params: {
-  reason?: string;
-  farewellText?: string;
-  sessionTtlMs: number;
-}): string {
-  const custom = params.farewellText?.trim();
-  if (custom) {
-    return custom;
-  }
-  if (params.reason === "ttl-expired") {
-    return `Session ended automatically after ${formatThreadBindingTtlLabel(params.sessionTtlMs)}. Messages here will no longer be routed.`;
-  }
-  return DEFAULT_FAREWELL_TEXT;
-}
-
-export function summarizeBindingPersona(record: ThreadBindingRecord): string {
-  const label = record.label?.trim();
-  const base = label || record.agentId;
-  return (`🤖 ${base}`.trim() || "🤖 agent").slice(0, 80);
-}
-
 export function resolveBindingIdsForSession(params: {
   targetSessionKey: string;
   accountId?: string;
@@ -479,6 +438,7 @@ export function resetThreadBindingsForTests() {
   BINDINGS_BY_SESSION_KEY.clear();
   RECENT_UNBOUND_WEBHOOK_ECHOES_BY_BINDING_KEY.clear();
   REUSABLE_WEBHOOKS_BY_ACCOUNT_CHANNEL.clear();
+  TOKENS_BY_ACCOUNT_ID.clear();
   PERSIST_BY_ACCOUNT_ID.clear();
   THREAD_BINDINGS_STATE.loadedBindings = false;
 }

@@ -41,7 +41,7 @@ import {
 } from "../../shared/subagents-format.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
 import { stopSubagentsForRequester } from "./abort.js";
-import type { CommandHandler } from "./commands-types.js";
+import type { CommandHandler, CommandHandlerResult } from "./commands-types.js";
 import { clearSessionQueues } from "./queue.js";
 import {
   formatRunLabel,
@@ -357,12 +357,50 @@ function loadSubagentSessionEntry(
   return { storePath, store, entry: store[childKey] };
 }
 
-export const handleSubagentsCommand: CommandHandler = async (params, allowTextCommands) => {
-  if (!allowTextCommands) {
-    return null;
+type SubagentsAction =
+  | "list"
+  | "kill"
+  | "log"
+  | "send"
+  | "steer"
+  | "info"
+  | "spawn"
+  | "focus"
+  | "unfocus"
+  | "agents"
+  | "help";
+
+type SubagentsCommandParams = Parameters<CommandHandler>[0];
+
+type SubagentsCommandContext = {
+  params: SubagentsCommandParams;
+  handledPrefix: string;
+  requesterKey: string;
+  runs: SubagentRunRecord[];
+  restTokens: string[];
+};
+
+function stopWithText(text: string): CommandHandlerResult {
+  return { shouldContinue: false, reply: { text } };
+}
+
+function stopWithUnknownTargetError(error?: string): CommandHandlerResult {
+  return stopWithText(`⚠️ ${error ?? "Unknown subagent."}`);
+}
+
+function resolveSubagentEntryForToken(
+  runs: SubagentRunRecord[],
+  token: string | undefined,
+): { entry: SubagentRunRecord } | { reply: CommandHandlerResult } {
+  const resolved = resolveSubagentTarget(runs, token);
+  if (!resolved.entry) {
+    return { reply: stopWithUnknownTargetError(resolved.error) };
   }
-  const normalized = params.command.commandBodyNormalized;
-  const handledPrefix = normalized.startsWith(COMMAND)
+  return { entry: resolved.entry };
+}
+
+function resolveHandledPrefix(normalized: string): string | null {
+  return normalized.startsWith(COMMAND)
     ? COMMAND
     : normalized.startsWith(COMMAND_KILL)
       ? COMMAND_KILL
@@ -377,6 +415,559 @@ export const handleSubagentsCommand: CommandHandler = async (params, allowTextCo
               : normalized.startsWith(COMMAND_AGENTS)
                 ? COMMAND_AGENTS
                 : null;
+}
+
+function resolveSubagentsAction(params: {
+  handledPrefix: string;
+  restTokens: string[];
+}): SubagentsAction | null {
+  if (params.handledPrefix === COMMAND) {
+    const [actionRaw] = params.restTokens;
+    const action = (actionRaw?.toLowerCase() || "list") as SubagentsAction;
+    if (!ACTIONS.has(action)) {
+      return null;
+    }
+    params.restTokens.splice(0, 1);
+    return action;
+  }
+  if (params.handledPrefix === COMMAND_KILL) {
+    return "kill";
+  }
+  if (params.handledPrefix === COMMAND_FOCUS) {
+    return "focus";
+  }
+  if (params.handledPrefix === COMMAND_UNFOCUS) {
+    return "unfocus";
+  }
+  if (params.handledPrefix === COMMAND_AGENTS) {
+    return "agents";
+  }
+  return "steer";
+}
+
+function handleSubagentsHelpAction(): CommandHandlerResult {
+  return stopWithText(buildSubagentsHelp());
+}
+
+function handleSubagentsAgentsAction(ctx: SubagentsCommandContext): CommandHandlerResult {
+  const { params, requesterKey, runs } = ctx;
+  const isDiscord = isDiscordSurface(params);
+  const accountId = isDiscord ? resolveDiscordAccountId(params) : undefined;
+  const threadBindings = accountId ? getThreadBindingManager(accountId) : null;
+  const visibleRuns = sortSubagentRuns(runs).filter((entry) => {
+    if (!entry.endedAt) {
+      return true;
+    }
+    return Boolean(threadBindings?.listBySessionKey(entry.childSessionKey)[0]);
+  });
+  const lines = ["agents:", "-----"];
+  if (visibleRuns.length === 0) {
+    lines.push("(none)");
+  } else {
+    let index = 1;
+    for (const entry of visibleRuns) {
+      const threadBinding = threadBindings?.listBySessionKey(entry.childSessionKey)[0];
+      const bindingText = threadBinding
+        ? `thread:${threadBinding.threadId}`
+        : isDiscord
+          ? "unbound"
+          : "bindings available on discord";
+      lines.push(`${index}. ${formatRunLabel(entry)} (${bindingText})`);
+      index += 1;
+    }
+  }
+  if (threadBindings) {
+    const acpBindings = threadBindings
+      .listBindings()
+      .filter((entry) => entry.targetKind === "acp" && entry.targetSessionKey === requesterKey);
+    if (acpBindings.length > 0) {
+      lines.push("", "acp/session bindings:", "-----");
+      for (const binding of acpBindings) {
+        lines.push(
+          `- ${binding.label ?? binding.targetSessionKey} (thread:${binding.threadId}, session:${binding.targetSessionKey})`,
+        );
+      }
+    }
+  }
+  return stopWithText(lines.join("\n"));
+}
+
+async function handleSubagentsFocusAction(
+  ctx: SubagentsCommandContext,
+): Promise<CommandHandlerResult> {
+  const { params, runs, restTokens } = ctx;
+  if (!isDiscordSurface(params)) {
+    return stopWithText("⚠️ /focus is only available on Discord.");
+  }
+  const token = restTokens.join(" ").trim();
+  if (!token) {
+    return stopWithText("Usage: /focus <subagent-label|session-key|session-id|session-label>");
+  }
+  const accountId = resolveDiscordAccountId(params);
+  const threadBindings = getThreadBindingManager(accountId);
+  if (!threadBindings) {
+    return stopWithText("⚠️ Discord thread bindings are unavailable for this account.");
+  }
+  const focusTarget = await resolveFocusTargetSession({ runs, token });
+  if (!focusTarget) {
+    return stopWithText(`⚠️ Unable to resolve focus target: ${token}`);
+  }
+  const currentThreadId =
+    params.ctx.MessageThreadId != null ? String(params.ctx.MessageThreadId).trim() : "";
+  const parentChannelId = currentThreadId ? undefined : resolveDiscordChannelIdForFocus(params);
+  if (!currentThreadId && !parentChannelId) {
+    return stopWithText("⚠️ Could not resolve a Discord channel for /focus.");
+  }
+  const senderId = params.command.senderId?.trim() || "";
+  if (currentThreadId) {
+    const existingBinding = threadBindings.getByThreadId(currentThreadId);
+    if (
+      existingBinding &&
+      existingBinding.boundBy &&
+      existingBinding.boundBy !== "system" &&
+      senderId &&
+      senderId !== existingBinding.boundBy
+    ) {
+      return stopWithText(`⚠️ Only ${existingBinding.boundBy} can refocus this thread.`);
+    }
+  }
+  const label = focusTarget.label || token;
+  const binding = await threadBindings.bindTarget({
+    threadId: currentThreadId || undefined,
+    channelId: parentChannelId,
+    createThread: !currentThreadId,
+    threadName: resolveThreadBindingThreadName({
+      agentId: focusTarget.agentId,
+      label,
+    }),
+    targetKind: focusTarget.targetKind,
+    targetSessionKey: focusTarget.targetSessionKey,
+    agentId: focusTarget.agentId,
+    label,
+    boundBy: senderId || "unknown",
+    introText: resolveThreadBindingIntroText({
+      agentId: focusTarget.agentId,
+      label,
+      sessionTtlMs: threadBindings.getSessionTtlMs(),
+    }),
+  });
+  if (!binding) {
+    return stopWithText("⚠️ Failed to bind a Discord thread to the target session.");
+  }
+  const actionText = currentThreadId
+    ? `bound this thread to ${binding.targetSessionKey}`
+    : `created thread ${binding.threadId} and bound it to ${binding.targetSessionKey}`;
+  return stopWithText(`✅ ${actionText} (${binding.targetKind}).`);
+}
+
+function handleSubagentsUnfocusAction(ctx: SubagentsCommandContext): CommandHandlerResult {
+  const { params } = ctx;
+  if (!isDiscordSurface(params)) {
+    return stopWithText("⚠️ /unfocus is only available on Discord.");
+  }
+  const threadId = params.ctx.MessageThreadId != null ? String(params.ctx.MessageThreadId) : "";
+  if (!threadId.trim()) {
+    return stopWithText("⚠️ /unfocus must be run inside a Discord thread.");
+  }
+  const threadBindings = getThreadBindingManager(resolveDiscordAccountId(params));
+  if (!threadBindings) {
+    return stopWithText("⚠️ Discord thread bindings are unavailable for this account.");
+  }
+  const binding = threadBindings.getByThreadId(threadId);
+  if (!binding) {
+    return stopWithText("ℹ️ This thread is not currently focused.");
+  }
+  const senderId = params.command.senderId?.trim() || "";
+  if (binding.boundBy && binding.boundBy !== "system" && senderId && senderId !== binding.boundBy) {
+    return stopWithText(`⚠️ Only ${binding.boundBy} can unfocus this thread.`);
+  }
+  threadBindings.unbindThread({
+    threadId,
+    reason: "manual",
+    sendFarewell: true,
+  });
+  return stopWithText("✅ Thread unfocused.");
+}
+
+function handleSubagentsListAction(ctx: SubagentsCommandContext): CommandHandlerResult {
+  const { params, runs } = ctx;
+  const sorted = sortSubagentRuns(runs);
+  const now = Date.now();
+  const recentCutoff = now - RECENT_WINDOW_MINUTES * 60_000;
+  const storeCache: SessionStoreCache = new Map();
+  let index = 1;
+  const mapRuns = (entries: SubagentRunRecord[], runtimeMs: (entry: SubagentRunRecord) => number) =>
+    entries.map((entry) => {
+      const { entry: sessionEntry } = loadSubagentSessionEntry(
+        params,
+        entry.childSessionKey,
+        storeCache,
+      );
+      const line = formatSubagentListLine({
+        entry,
+        index,
+        runtimeMs: runtimeMs(entry),
+        sessionEntry,
+      });
+      index += 1;
+      return line;
+    });
+  const activeEntries = sorted.filter((entry) => !entry.endedAt);
+  const activeLines = mapRuns(activeEntries, (entry) => now - (entry.startedAt ?? entry.createdAt));
+  const recentEntries = sorted.filter(
+    (entry) => !!entry.endedAt && (entry.endedAt ?? 0) >= recentCutoff,
+  );
+  const recentLines = mapRuns(
+    recentEntries,
+    (entry) => (entry.endedAt ?? now) - (entry.startedAt ?? entry.createdAt),
+  );
+
+  const lines = ["active subagents:", "-----"];
+  if (activeLines.length === 0) {
+    lines.push("(none)");
+  } else {
+    lines.push(activeLines.join("\n"));
+  }
+  lines.push("", `recent subagents (last ${RECENT_WINDOW_MINUTES}m):`, "-----");
+  if (recentLines.length === 0) {
+    lines.push("(none)");
+  } else {
+    lines.push(recentLines.join("\n"));
+  }
+  return stopWithText(lines.join("\n"));
+}
+
+async function handleSubagentsKillAction(
+  ctx: SubagentsCommandContext,
+): Promise<CommandHandlerResult> {
+  const { params, handledPrefix, requesterKey, runs, restTokens } = ctx;
+  const target = restTokens[0];
+  if (!target) {
+    return stopWithText(
+      handledPrefix === COMMAND ? "Usage: /subagents kill <id|#|all>" : "Usage: /kill <id|#|all>",
+    );
+  }
+  if (target === "all" || target === "*") {
+    stopSubagentsForRequester({
+      cfg: params.cfg,
+      requesterSessionKey: requesterKey,
+    });
+    return { shouldContinue: false };
+  }
+
+  const targetResolution = resolveSubagentEntryForToken(runs, target);
+  if ("reply" in targetResolution) {
+    return targetResolution.reply;
+  }
+  if (targetResolution.entry.endedAt) {
+    return stopWithText(`${formatRunLabel(targetResolution.entry)} is already finished.`);
+  }
+
+  const childKey = targetResolution.entry.childSessionKey;
+  const { storePath, store, entry } = loadSubagentSessionEntry(params, childKey);
+  const sessionId = entry?.sessionId;
+  if (sessionId) {
+    abortEmbeddedPiRun(sessionId);
+  }
+  const cleared = clearSessionQueues([childKey, sessionId]);
+  if (cleared.followupCleared > 0 || cleared.laneCleared > 0) {
+    logVerbose(
+      `subagents kill: cleared followups=${cleared.followupCleared} lane=${cleared.laneCleared} keys=${cleared.keys.join(",")}`,
+    );
+  }
+  if (entry) {
+    entry.abortedLastRun = true;
+    entry.updatedAt = Date.now();
+    store[childKey] = entry;
+    await updateSessionStore(storePath, (nextStore) => {
+      nextStore[childKey] = entry;
+    });
+  }
+  markSubagentRunTerminated({
+    runId: targetResolution.entry.runId,
+    childSessionKey: childKey,
+    reason: "killed",
+  });
+  // Cascade: also stop any sub-sub-agents spawned by this child.
+  stopSubagentsForRequester({
+    cfg: params.cfg,
+    requesterSessionKey: childKey,
+  });
+  return { shouldContinue: false };
+}
+
+function handleSubagentsInfoAction(ctx: SubagentsCommandContext): CommandHandlerResult {
+  const { params, runs, restTokens } = ctx;
+  const target = restTokens[0];
+  if (!target) {
+    return stopWithText("ℹ️ Usage: /subagents info <id|#>");
+  }
+  const targetResolution = resolveSubagentEntryForToken(runs, target);
+  if ("reply" in targetResolution) {
+    return targetResolution.reply;
+  }
+  const run = targetResolution.entry;
+  const { entry: sessionEntry } = loadSubagentSessionEntry(params, run.childSessionKey);
+  const runtime =
+    run.startedAt && Number.isFinite(run.startedAt)
+      ? (formatDurationCompact((run.endedAt ?? Date.now()) - run.startedAt) ?? "n/a")
+      : "n/a";
+  const outcome = run.outcome
+    ? `${run.outcome.status}${run.outcome.error ? ` (${run.outcome.error})` : ""}`
+    : "n/a";
+  const lines = [
+    "ℹ️ Subagent info",
+    `Status: ${resolveDisplayStatus(run)}`,
+    `Label: ${formatRunLabel(run)}`,
+    `Task: ${run.task}`,
+    `Run: ${run.runId}`,
+    `Session: ${run.childSessionKey}`,
+    `SessionId: ${sessionEntry?.sessionId ?? "n/a"}`,
+    `Transcript: ${sessionEntry?.sessionFile ?? "n/a"}`,
+    `Runtime: ${runtime}`,
+    `Created: ${formatTimestampWithAge(run.createdAt)}`,
+    `Started: ${formatTimestampWithAge(run.startedAt)}`,
+    `Ended: ${formatTimestampWithAge(run.endedAt)}`,
+    `Cleanup: ${run.cleanup}`,
+    run.archiveAtMs ? `Archive: ${formatTimestampWithAge(run.archiveAtMs)}` : undefined,
+    run.cleanupHandled ? "Cleanup handled: yes" : undefined,
+    `Outcome: ${outcome}`,
+  ].filter(Boolean);
+  return stopWithText(lines.join("\n"));
+}
+
+async function handleSubagentsLogAction(
+  ctx: SubagentsCommandContext,
+): Promise<CommandHandlerResult> {
+  const { runs, restTokens } = ctx;
+  const target = restTokens[0];
+  if (!target) {
+    return stopWithText("📜 Usage: /subagents log <id|#> [limit]");
+  }
+  const includeTools = restTokens.some((token) => token.toLowerCase() === "tools");
+  const limitToken = restTokens.find((token) => /^\d+$/.test(token));
+  const limit = limitToken ? Math.min(200, Math.max(1, Number.parseInt(limitToken, 10))) : 20;
+  const targetResolution = resolveSubagentEntryForToken(runs, target);
+  if ("reply" in targetResolution) {
+    return targetResolution.reply;
+  }
+  const history = await callGateway<{ messages: Array<unknown> }>({
+    method: "chat.history",
+    params: { sessionKey: targetResolution.entry.childSessionKey, limit },
+  });
+  const rawMessages = Array.isArray(history?.messages) ? history.messages : [];
+  const filtered = includeTools ? rawMessages : stripToolMessages(rawMessages);
+  const lines = formatLogLines(filtered as ChatMessage[]);
+  const header = `📜 Subagent log: ${formatRunLabel(targetResolution.entry)}`;
+  if (lines.length === 0) {
+    return stopWithText(`${header}\n(no messages)`);
+  }
+  return stopWithText([header, ...lines].join("\n"));
+}
+
+async function handleSubagentsSendAction(
+  ctx: SubagentsCommandContext,
+  steerRequested: boolean,
+): Promise<CommandHandlerResult> {
+  const { params, handledPrefix, runs, restTokens } = ctx;
+  const target = restTokens[0];
+  const message = restTokens.slice(1).join(" ").trim();
+  if (!target || !message) {
+    return stopWithText(
+      steerRequested
+        ? handledPrefix === COMMAND
+          ? "Usage: /subagents steer <id|#> <message>"
+          : `Usage: ${handledPrefix} <id|#> <message>`
+        : "Usage: /subagents send <id|#> <message>",
+    );
+  }
+  const targetResolution = resolveSubagentEntryForToken(runs, target);
+  if ("reply" in targetResolution) {
+    return targetResolution.reply;
+  }
+  if (steerRequested && targetResolution.entry.endedAt) {
+    return stopWithText(`${formatRunLabel(targetResolution.entry)} is already finished.`);
+  }
+  const { entry: targetSessionEntry } = loadSubagentSessionEntry(
+    params,
+    targetResolution.entry.childSessionKey,
+  );
+  const targetSessionId =
+    typeof targetSessionEntry?.sessionId === "string" && targetSessionEntry.sessionId.trim()
+      ? targetSessionEntry.sessionId.trim()
+      : undefined;
+
+  if (steerRequested) {
+    // Suppress stale announce before interrupting the in-flight run.
+    markSubagentRunForSteerRestart(targetResolution.entry.runId);
+
+    // Force an immediate interruption and make steer the next run.
+    if (targetSessionId) {
+      abortEmbeddedPiRun(targetSessionId);
+    }
+    const cleared = clearSessionQueues([targetResolution.entry.childSessionKey, targetSessionId]);
+    if (cleared.followupCleared > 0 || cleared.laneCleared > 0) {
+      logVerbose(
+        `subagents steer: cleared followups=${cleared.followupCleared} lane=${cleared.laneCleared} keys=${cleared.keys.join(",")}`,
+      );
+    }
+
+    // Best effort: wait for the interrupted run to settle so the steer
+    // message is appended on the existing conversation state.
+    try {
+      await callGateway({
+        method: "agent.wait",
+        params: {
+          runId: targetResolution.entry.runId,
+          timeoutMs: STEER_ABORT_SETTLE_TIMEOUT_MS,
+        },
+        timeoutMs: STEER_ABORT_SETTLE_TIMEOUT_MS + 2_000,
+      });
+    } catch {
+      // Continue even if wait fails; steer should still be attempted.
+    }
+  }
+
+  const idempotencyKey = crypto.randomUUID();
+  let runId: string = idempotencyKey;
+  try {
+    const response = await callGateway<{ runId: string }>({
+      method: "agent",
+      params: {
+        message,
+        sessionKey: targetResolution.entry.childSessionKey,
+        sessionId: targetSessionId,
+        idempotencyKey,
+        deliver: false,
+        channel: INTERNAL_MESSAGE_CHANNEL,
+        lane: AGENT_LANE_SUBAGENT,
+        timeout: 0,
+      },
+      timeoutMs: 10_000,
+    });
+    const responseRunId = typeof response?.runId === "string" ? response.runId : undefined;
+    if (responseRunId) {
+      runId = responseRunId;
+    }
+  } catch (err) {
+    if (steerRequested) {
+      // Replacement launch failed; restore announce behavior for the
+      // original run so completion is not silently suppressed.
+      clearSubagentRunSteerRestart(targetResolution.entry.runId);
+    }
+    const messageText =
+      err instanceof Error ? err.message : typeof err === "string" ? err : "error";
+    return stopWithText(`send failed: ${messageText}`);
+  }
+
+  if (steerRequested) {
+    replaceSubagentRunAfterSteer({
+      previousRunId: targetResolution.entry.runId,
+      nextRunId: runId,
+      fallback: targetResolution.entry,
+      runTimeoutSeconds: targetResolution.entry.runTimeoutSeconds ?? 0,
+    });
+    return stopWithText(
+      `steered ${formatRunLabel(targetResolution.entry)} (run ${runId.slice(0, 8)}).`,
+    );
+  }
+
+  const waitMs = 30_000;
+  const wait = await callGateway<{ status?: string; error?: string }>({
+    method: "agent.wait",
+    params: { runId, timeoutMs: waitMs },
+    timeoutMs: waitMs + 2000,
+  });
+  if (wait?.status === "timeout") {
+    return stopWithText(`⏳ Subagent still running (run ${runId.slice(0, 8)}).`);
+  }
+  if (wait?.status === "error") {
+    const waitError = typeof wait.error === "string" ? wait.error : "unknown error";
+    return stopWithText(`⚠️ Subagent error: ${waitError} (run ${runId.slice(0, 8)}).`);
+  }
+
+  const history = await callGateway<{ messages: Array<unknown> }>({
+    method: "chat.history",
+    params: { sessionKey: targetResolution.entry.childSessionKey, limit: 50 },
+  });
+  const filtered = stripToolMessages(Array.isArray(history?.messages) ? history.messages : []);
+  const last = filtered.length > 0 ? filtered[filtered.length - 1] : undefined;
+  const replyText = last ? extractAssistantText(last) : undefined;
+  return stopWithText(
+    replyText ?? `✅ Sent to ${formatRunLabel(targetResolution.entry)} (run ${runId.slice(0, 8)}).`,
+  );
+}
+
+async function handleSubagentsSpawnAction(
+  ctx: SubagentsCommandContext,
+): Promise<CommandHandlerResult> {
+  const { params, requesterKey, restTokens } = ctx;
+  const agentId = restTokens[0];
+  // Parse remaining tokens: task text with optional --model and --thinking flags.
+  const taskParts: string[] = [];
+  let model: string | undefined;
+  let thinking: string | undefined;
+  for (let i = 1; i < restTokens.length; i++) {
+    if (restTokens[i] === "--model" && i + 1 < restTokens.length) {
+      i += 1;
+      model = restTokens[i];
+    } else if (restTokens[i] === "--thinking" && i + 1 < restTokens.length) {
+      i += 1;
+      thinking = restTokens[i];
+    } else {
+      taskParts.push(restTokens[i]);
+    }
+  }
+  const task = taskParts.join(" ").trim();
+  if (!agentId || !task) {
+    return stopWithText(
+      "Usage: /subagents spawn <agentId> <task> [--model <model>] [--thinking <level>]",
+    );
+  }
+
+  const commandTo = typeof params.command.to === "string" ? params.command.to.trim() : "";
+  const originatingTo =
+    typeof params.ctx.OriginatingTo === "string" ? params.ctx.OriginatingTo.trim() : "";
+  const fallbackTo = typeof params.ctx.To === "string" ? params.ctx.To.trim() : "";
+  // OriginatingTo reflects the active conversation target and is safer than
+  // command.to for cross-surface command dispatch.
+  const normalizedTo = originatingTo || commandTo || fallbackTo || undefined;
+
+  const result = await spawnSubagentDirect(
+    {
+      task,
+      agentId,
+      model,
+      thinking,
+      mode: "run",
+      cleanup: "keep",
+      expectsCompletionMessage: true,
+    },
+    {
+      agentSessionKey: requesterKey,
+      agentChannel: params.ctx.OriginatingChannel ?? params.command.channel,
+      agentAccountId: params.ctx.AccountId,
+      agentTo: normalizedTo,
+      agentThreadId: params.ctx.MessageThreadId,
+      agentGroupId: params.sessionEntry?.groupId ?? null,
+      agentGroupChannel: params.sessionEntry?.groupChannel ?? null,
+      agentGroupSpace: params.sessionEntry?.space ?? null,
+    },
+  );
+  if (result.status === "accepted") {
+    return stopWithText(
+      `Spawned subagent ${agentId} (session ${result.childSessionKey}, run ${result.runId?.slice(0, 8)}).`,
+    );
+  }
+  return stopWithText(`Spawn failed: ${result.error ?? result.status}`);
+}
+
+export const handleSubagentsCommand: CommandHandler = async (params, allowTextCommands) => {
+  if (!allowTextCommands) {
+    return null;
+  }
+  const normalized = params.command.commandBodyNormalized;
+  const handledPrefix = resolveHandledPrefix(normalized);
   if (!handledPrefix) {
     return null;
   }
@@ -389,636 +980,49 @@ export const handleSubagentsCommand: CommandHandler = async (params, allowTextCo
 
   const rest = normalized.slice(handledPrefix.length).trim();
   const restTokens = rest.split(/\s+/).filter(Boolean);
-  let action = "list";
-  if (handledPrefix === COMMAND) {
-    const [actionRaw] = restTokens;
-    action = actionRaw?.toLowerCase() || "list";
-    if (!ACTIONS.has(action)) {
-      return { shouldContinue: false, reply: { text: buildSubagentsHelp() } };
-    }
-    restTokens.splice(0, 1);
-  } else if (handledPrefix === COMMAND_KILL) {
-    action = "kill";
-  } else if (handledPrefix === COMMAND_FOCUS) {
-    action = "focus";
-  } else if (handledPrefix === COMMAND_UNFOCUS) {
-    action = "unfocus";
-  } else if (handledPrefix === COMMAND_AGENTS) {
-    action = "agents";
-  } else {
-    action = "steer";
+  const action = resolveSubagentsAction({ handledPrefix, restTokens });
+  if (!action) {
+    return handleSubagentsHelpAction();
   }
-
   const requesterKey = resolveRequesterSessionKey(params, {
     preferCommandTarget: action === "spawn",
   });
   if (!requesterKey) {
-    return { shouldContinue: false, reply: { text: "⚠️ Missing session key." } };
-  }
-  const runs = listSubagentRunsForRequester(requesterKey);
-
-  if (action === "help") {
-    return { shouldContinue: false, reply: { text: buildSubagentsHelp() } };
+    return stopWithText("⚠️ Missing session key.");
   }
 
-  if (action === "agents") {
-    const isDiscord = isDiscordSurface(params);
-    const accountId = isDiscord ? resolveDiscordAccountId(params) : undefined;
-    const threadBindings = accountId ? getThreadBindingManager(accountId) : null;
-    const visibleRuns = sortSubagentRuns(runs).filter((entry) => {
-      if (!entry.endedAt) {
-        return true;
-      }
-      return Boolean(threadBindings?.listBySessionKey(entry.childSessionKey)[0]);
-    });
-    const lines = ["agents:", "-----"];
-    if (visibleRuns.length === 0) {
-      lines.push("(none)");
-    } else {
-      let index = 1;
-      for (const entry of visibleRuns) {
-        const threadBinding = threadBindings?.listBySessionKey(entry.childSessionKey)[0];
-        const bindingText = threadBinding
-          ? `thread:${threadBinding.threadId}`
-          : isDiscord
-            ? "unbound"
-            : "bindings available on discord";
-        lines.push(`${index}. ${formatRunLabel(entry)} (${bindingText})`);
-        index += 1;
-      }
-    }
-    if (threadBindings) {
-      const acpBindings = threadBindings
-        .listBindings()
-        .filter((entry) => entry.targetKind === "acp" && entry.targetSessionKey === requesterKey);
-      if (acpBindings.length > 0) {
-        lines.push("", "acp/session bindings:", "-----");
-        for (const binding of acpBindings) {
-          lines.push(
-            `- ${binding.label ?? binding.targetSessionKey} (thread:${binding.threadId}, session:${binding.targetSessionKey})`,
-          );
-        }
-      }
-    }
-    return { shouldContinue: false, reply: { text: lines.join("\n") } };
+  const ctx: SubagentsCommandContext = {
+    params,
+    handledPrefix,
+    requesterKey,
+    runs: listSubagentRunsForRequester(requesterKey),
+    restTokens,
+  };
+
+  switch (action) {
+    case "help":
+      return handleSubagentsHelpAction();
+    case "agents":
+      return handleSubagentsAgentsAction(ctx);
+    case "focus":
+      return await handleSubagentsFocusAction(ctx);
+    case "unfocus":
+      return handleSubagentsUnfocusAction(ctx);
+    case "list":
+      return handleSubagentsListAction(ctx);
+    case "kill":
+      return await handleSubagentsKillAction(ctx);
+    case "info":
+      return handleSubagentsInfoAction(ctx);
+    case "log":
+      return await handleSubagentsLogAction(ctx);
+    case "send":
+      return await handleSubagentsSendAction(ctx, false);
+    case "steer":
+      return await handleSubagentsSendAction(ctx, true);
+    case "spawn":
+      return await handleSubagentsSpawnAction(ctx);
+    default:
+      return handleSubagentsHelpAction();
   }
-
-  if (action === "focus") {
-    if (!isDiscordSurface(params)) {
-      return {
-        shouldContinue: false,
-        reply: { text: "⚠️ /focus is only available on Discord." },
-      };
-    }
-    const token = restTokens.join(" ").trim();
-    if (!token) {
-      return {
-        shouldContinue: false,
-        reply: { text: "Usage: /focus <subagent-label|session-key|session-id|session-label>" },
-      };
-    }
-    const accountId = resolveDiscordAccountId(params);
-    const threadBindings = getThreadBindingManager(accountId);
-    if (!threadBindings) {
-      return {
-        shouldContinue: false,
-        reply: { text: "⚠️ Discord thread bindings are unavailable for this account." },
-      };
-    }
-    const focusTarget = await resolveFocusTargetSession({ runs, token });
-    if (!focusTarget) {
-      return {
-        shouldContinue: false,
-        reply: { text: `⚠️ Unable to resolve focus target: ${token}` },
-      };
-    }
-    const currentThreadId =
-      params.ctx.MessageThreadId != null ? String(params.ctx.MessageThreadId).trim() : "";
-    const parentChannelId = currentThreadId ? undefined : resolveDiscordChannelIdForFocus(params);
-    if (!currentThreadId && !parentChannelId) {
-      return {
-        shouldContinue: false,
-        reply: { text: "⚠️ Could not resolve a Discord channel for /focus." },
-      };
-    }
-    const senderId = params.command.senderId?.trim() || "";
-    if (currentThreadId) {
-      const existingBinding = threadBindings.getByThreadId(currentThreadId);
-      if (
-        existingBinding &&
-        existingBinding.boundBy &&
-        existingBinding.boundBy !== "system" &&
-        senderId &&
-        senderId !== existingBinding.boundBy
-      ) {
-        return {
-          shouldContinue: false,
-          reply: { text: `⚠️ Only ${existingBinding.boundBy} can refocus this thread.` },
-        };
-      }
-    }
-    const label = focusTarget.label || token;
-    const binding = await threadBindings.bindTarget({
-      threadId: currentThreadId || undefined,
-      channelId: parentChannelId,
-      createThread: !currentThreadId,
-      threadName: resolveThreadBindingThreadName({
-        agentId: focusTarget.agentId,
-        label,
-      }),
-      targetKind: focusTarget.targetKind,
-      targetSessionKey: focusTarget.targetSessionKey,
-      agentId: focusTarget.agentId,
-      label,
-      boundBy: senderId || "unknown",
-      introText: resolveThreadBindingIntroText({
-        agentId: focusTarget.agentId,
-        label,
-        sessionTtlMs: threadBindings.getSessionTtlMs(),
-      }),
-    });
-    if (!binding) {
-      return {
-        shouldContinue: false,
-        reply: { text: "⚠️ Failed to bind a Discord thread to the target session." },
-      };
-    }
-    const actionText = currentThreadId
-      ? `bound this thread to ${binding.targetSessionKey}`
-      : `created thread ${binding.threadId} and bound it to ${binding.targetSessionKey}`;
-    return {
-      shouldContinue: false,
-      reply: {
-        text: `✅ ${actionText} (${binding.targetKind}).`,
-      },
-    };
-  }
-
-  if (action === "unfocus") {
-    if (!isDiscordSurface(params)) {
-      return {
-        shouldContinue: false,
-        reply: { text: "⚠️ /unfocus is only available on Discord." },
-      };
-    }
-    const threadId = params.ctx.MessageThreadId != null ? String(params.ctx.MessageThreadId) : "";
-    if (!threadId.trim()) {
-      return {
-        shouldContinue: false,
-        reply: { text: "⚠️ /unfocus must be run inside a Discord thread." },
-      };
-    }
-    const threadBindings = getThreadBindingManager(resolveDiscordAccountId(params));
-    if (!threadBindings) {
-      return {
-        shouldContinue: false,
-        reply: { text: "⚠️ Discord thread bindings are unavailable for this account." },
-      };
-    }
-    const binding = threadBindings.getByThreadId(threadId);
-    if (!binding) {
-      return {
-        shouldContinue: false,
-        reply: { text: "ℹ️ This thread is not currently focused." },
-      };
-    }
-    const senderId = params.command.senderId?.trim() || "";
-    if (
-      binding.boundBy &&
-      binding.boundBy !== "system" &&
-      senderId &&
-      senderId !== binding.boundBy
-    ) {
-      return {
-        shouldContinue: false,
-        reply: { text: `⚠️ Only ${binding.boundBy} can unfocus this thread.` },
-      };
-    }
-    threadBindings.unbindThread({
-      threadId,
-      reason: "manual",
-      sendFarewell: true,
-    });
-    return {
-      shouldContinue: false,
-      reply: { text: "✅ Thread unfocused." },
-    };
-  }
-
-  if (action === "list") {
-    const sorted = sortSubagentRuns(runs);
-    const now = Date.now();
-    const recentCutoff = now - RECENT_WINDOW_MINUTES * 60_000;
-    const storeCache: SessionStoreCache = new Map();
-    let index = 1;
-    const mapRuns = (
-      entries: SubagentRunRecord[],
-      runtimeMs: (entry: SubagentRunRecord) => number,
-    ) =>
-      entries.map((entry) => {
-        const { entry: sessionEntry } = loadSubagentSessionEntry(
-          params,
-          entry.childSessionKey,
-          storeCache,
-        );
-        const line = formatSubagentListLine({
-          entry,
-          index,
-          runtimeMs: runtimeMs(entry),
-          sessionEntry,
-        });
-        index += 1;
-        return line;
-      });
-    const activeEntries = sorted.filter((entry) => !entry.endedAt);
-    const activeLines = mapRuns(
-      activeEntries,
-      (entry) => now - (entry.startedAt ?? entry.createdAt),
-    );
-    const recentEntries = sorted.filter(
-      (entry) => !!entry.endedAt && (entry.endedAt ?? 0) >= recentCutoff,
-    );
-    const recentLines = mapRuns(
-      recentEntries,
-      (entry) => (entry.endedAt ?? now) - (entry.startedAt ?? entry.createdAt),
-    );
-
-    const lines = ["active subagents:", "-----"];
-    if (activeLines.length === 0) {
-      lines.push("(none)");
-    } else {
-      lines.push(activeLines.join("\n"));
-    }
-    lines.push("", `recent subagents (last ${RECENT_WINDOW_MINUTES}m):`, "-----");
-    if (recentLines.length === 0) {
-      lines.push("(none)");
-    } else {
-      lines.push(recentLines.join("\n"));
-    }
-    return { shouldContinue: false, reply: { text: lines.join("\n") } };
-  }
-
-  if (action === "kill") {
-    const target = restTokens[0];
-    if (!target) {
-      return {
-        shouldContinue: false,
-        reply: {
-          text:
-            handledPrefix === COMMAND
-              ? "Usage: /subagents kill <id|#|all>"
-              : "Usage: /kill <id|#|all>",
-        },
-      };
-    }
-    if (target === "all" || target === "*") {
-      stopSubagentsForRequester({
-        cfg: params.cfg,
-        requesterSessionKey: requesterKey,
-      });
-      return { shouldContinue: false };
-    }
-    const resolved = resolveSubagentTarget(runs, target);
-    if (!resolved.entry) {
-      return {
-        shouldContinue: false,
-        reply: { text: `⚠️ ${resolved.error ?? "Unknown subagent."}` },
-      };
-    }
-    if (resolved.entry.endedAt) {
-      return {
-        shouldContinue: false,
-        reply: { text: `${formatRunLabel(resolved.entry)} is already finished.` },
-      };
-    }
-
-    const childKey = resolved.entry.childSessionKey;
-    const { storePath, store, entry } = loadSubagentSessionEntry(params, childKey);
-    const sessionId = entry?.sessionId;
-    if (sessionId) {
-      abortEmbeddedPiRun(sessionId);
-    }
-    const cleared = clearSessionQueues([childKey, sessionId]);
-    if (cleared.followupCleared > 0 || cleared.laneCleared > 0) {
-      logVerbose(
-        `subagents kill: cleared followups=${cleared.followupCleared} lane=${cleared.laneCleared} keys=${cleared.keys.join(",")}`,
-      );
-    }
-    if (entry) {
-      entry.abortedLastRun = true;
-      entry.updatedAt = Date.now();
-      store[childKey] = entry;
-      await updateSessionStore(storePath, (nextStore) => {
-        nextStore[childKey] = entry;
-      });
-    }
-    markSubagentRunTerminated({
-      runId: resolved.entry.runId,
-      childSessionKey: childKey,
-      reason: "killed",
-    });
-    // Cascade: also stop any sub-sub-agents spawned by this child.
-    stopSubagentsForRequester({
-      cfg: params.cfg,
-      requesterSessionKey: childKey,
-    });
-    return { shouldContinue: false };
-  }
-
-  if (action === "info") {
-    const target = restTokens[0];
-    if (!target) {
-      return { shouldContinue: false, reply: { text: "ℹ️ Usage: /subagents info <id|#>" } };
-    }
-    const resolved = resolveSubagentTarget(runs, target);
-    if (!resolved.entry) {
-      return {
-        shouldContinue: false,
-        reply: { text: `⚠️ ${resolved.error ?? "Unknown subagent."}` },
-      };
-    }
-    const run = resolved.entry;
-    const { entry: sessionEntry } = loadSubagentSessionEntry(params, run.childSessionKey);
-    const runtime =
-      run.startedAt && Number.isFinite(run.startedAt)
-        ? (formatDurationCompact((run.endedAt ?? Date.now()) - run.startedAt) ?? "n/a")
-        : "n/a";
-    const outcome = run.outcome
-      ? `${run.outcome.status}${run.outcome.error ? ` (${run.outcome.error})` : ""}`
-      : "n/a";
-    const lines = [
-      "ℹ️ Subagent info",
-      `Status: ${resolveDisplayStatus(run)}`,
-      `Label: ${formatRunLabel(run)}`,
-      `Task: ${run.task}`,
-      `Run: ${run.runId}`,
-      `Session: ${run.childSessionKey}`,
-      `SessionId: ${sessionEntry?.sessionId ?? "n/a"}`,
-      `Transcript: ${sessionEntry?.sessionFile ?? "n/a"}`,
-      `Runtime: ${runtime}`,
-      `Created: ${formatTimestampWithAge(run.createdAt)}`,
-      `Started: ${formatTimestampWithAge(run.startedAt)}`,
-      `Ended: ${formatTimestampWithAge(run.endedAt)}`,
-      `Cleanup: ${run.cleanup}`,
-      run.archiveAtMs ? `Archive: ${formatTimestampWithAge(run.archiveAtMs)}` : undefined,
-      run.cleanupHandled ? "Cleanup handled: yes" : undefined,
-      `Outcome: ${outcome}`,
-    ].filter(Boolean);
-    return { shouldContinue: false, reply: { text: lines.join("\n") } };
-  }
-
-  if (action === "log") {
-    const target = restTokens[0];
-    if (!target) {
-      return { shouldContinue: false, reply: { text: "📜 Usage: /subagents log <id|#> [limit]" } };
-    }
-    const includeTools = restTokens.some((token) => token.toLowerCase() === "tools");
-    const limitToken = restTokens.find((token) => /^\d+$/.test(token));
-    const limit = limitToken ? Math.min(200, Math.max(1, Number.parseInt(limitToken, 10))) : 20;
-    const resolved = resolveSubagentTarget(runs, target);
-    if (!resolved.entry) {
-      return {
-        shouldContinue: false,
-        reply: { text: `⚠️ ${resolved.error ?? "Unknown subagent."}` },
-      };
-    }
-    const history = await callGateway<{ messages: Array<unknown> }>({
-      method: "chat.history",
-      params: { sessionKey: resolved.entry.childSessionKey, limit },
-    });
-    const rawMessages = Array.isArray(history?.messages) ? history.messages : [];
-    const filtered = includeTools ? rawMessages : stripToolMessages(rawMessages);
-    const lines = formatLogLines(filtered as ChatMessage[]);
-    const header = `📜 Subagent log: ${formatRunLabel(resolved.entry)}`;
-    if (lines.length === 0) {
-      return { shouldContinue: false, reply: { text: `${header}\n(no messages)` } };
-    }
-    return { shouldContinue: false, reply: { text: [header, ...lines].join("\n") } };
-  }
-
-  if (action === "send" || action === "steer") {
-    const steerRequested = action === "steer";
-    const target = restTokens[0];
-    const message = restTokens.slice(1).join(" ").trim();
-    if (!target || !message) {
-      return {
-        shouldContinue: false,
-        reply: {
-          text: steerRequested
-            ? handledPrefix === COMMAND
-              ? "Usage: /subagents steer <id|#> <message>"
-              : `Usage: ${handledPrefix} <id|#> <message>`
-            : "Usage: /subagents send <id|#> <message>",
-        },
-      };
-    }
-    const resolved = resolveSubagentTarget(runs, target);
-    if (!resolved.entry) {
-      return {
-        shouldContinue: false,
-        reply: { text: `⚠️ ${resolved.error ?? "Unknown subagent."}` },
-      };
-    }
-    if (steerRequested && resolved.entry.endedAt) {
-      return {
-        shouldContinue: false,
-        reply: { text: `${formatRunLabel(resolved.entry)} is already finished.` },
-      };
-    }
-    const { entry: targetSessionEntry } = loadSubagentSessionEntry(
-      params,
-      resolved.entry.childSessionKey,
-    );
-    const targetSessionId =
-      typeof targetSessionEntry?.sessionId === "string" && targetSessionEntry.sessionId.trim()
-        ? targetSessionEntry.sessionId.trim()
-        : undefined;
-
-    if (steerRequested) {
-      // Suppress stale announce before interrupting the in-flight run.
-      markSubagentRunForSteerRestart(resolved.entry.runId);
-
-      // Force an immediate interruption and make steer the next run.
-      if (targetSessionId) {
-        abortEmbeddedPiRun(targetSessionId);
-      }
-      const cleared = clearSessionQueues([resolved.entry.childSessionKey, targetSessionId]);
-      if (cleared.followupCleared > 0 || cleared.laneCleared > 0) {
-        logVerbose(
-          `subagents steer: cleared followups=${cleared.followupCleared} lane=${cleared.laneCleared} keys=${cleared.keys.join(",")}`,
-        );
-      }
-
-      // Best effort: wait for the interrupted run to settle so the steer
-      // message is appended on the existing conversation state.
-      try {
-        await callGateway({
-          method: "agent.wait",
-          params: {
-            runId: resolved.entry.runId,
-            timeoutMs: STEER_ABORT_SETTLE_TIMEOUT_MS,
-          },
-          timeoutMs: STEER_ABORT_SETTLE_TIMEOUT_MS + 2_000,
-        });
-      } catch {
-        // Continue even if wait fails; steer should still be attempted.
-      }
-    }
-
-    const idempotencyKey = crypto.randomUUID();
-    let runId: string = idempotencyKey;
-    try {
-      const response = await callGateway<{ runId: string }>({
-        method: "agent",
-        params: {
-          message,
-          sessionKey: resolved.entry.childSessionKey,
-          sessionId: targetSessionId,
-          idempotencyKey,
-          deliver: false,
-          channel: INTERNAL_MESSAGE_CHANNEL,
-          lane: AGENT_LANE_SUBAGENT,
-          timeout: 0,
-        },
-        timeoutMs: 10_000,
-      });
-      const responseRunId = typeof response?.runId === "string" ? response.runId : undefined;
-      if (responseRunId) {
-        runId = responseRunId;
-      }
-    } catch (err) {
-      if (steerRequested) {
-        // Replacement launch failed; restore announce behavior for the
-        // original run so completion is not silently suppressed.
-        clearSubagentRunSteerRestart(resolved.entry.runId);
-      }
-      const messageText =
-        err instanceof Error ? err.message : typeof err === "string" ? err : "error";
-      return { shouldContinue: false, reply: { text: `send failed: ${messageText}` } };
-    }
-
-    if (steerRequested) {
-      replaceSubagentRunAfterSteer({
-        previousRunId: resolved.entry.runId,
-        nextRunId: runId,
-        fallback: resolved.entry,
-        runTimeoutSeconds: resolved.entry.runTimeoutSeconds ?? 0,
-      });
-      return {
-        shouldContinue: false,
-        reply: {
-          text: `steered ${formatRunLabel(resolved.entry)} (run ${runId.slice(0, 8)}).`,
-        },
-      };
-    }
-
-    const waitMs = 30_000;
-    const wait = await callGateway<{ status?: string; error?: string }>({
-      method: "agent.wait",
-      params: { runId, timeoutMs: waitMs },
-      timeoutMs: waitMs + 2000,
-    });
-    if (wait?.status === "timeout") {
-      return {
-        shouldContinue: false,
-        reply: { text: `⏳ Subagent still running (run ${runId.slice(0, 8)}).` },
-      };
-    }
-    if (wait?.status === "error") {
-      const waitError = typeof wait.error === "string" ? wait.error : "unknown error";
-      return {
-        shouldContinue: false,
-        reply: {
-          text: `⚠️ Subagent error: ${waitError} (run ${runId.slice(0, 8)}).`,
-        },
-      };
-    }
-
-    const history = await callGateway<{ messages: Array<unknown> }>({
-      method: "chat.history",
-      params: { sessionKey: resolved.entry.childSessionKey, limit: 50 },
-    });
-    const filtered = stripToolMessages(Array.isArray(history?.messages) ? history.messages : []);
-    const last = filtered.length > 0 ? filtered[filtered.length - 1] : undefined;
-    const replyText = last ? extractAssistantText(last) : undefined;
-    return {
-      shouldContinue: false,
-      reply: {
-        text:
-          replyText ?? `✅ Sent to ${formatRunLabel(resolved.entry)} (run ${runId.slice(0, 8)}).`,
-      },
-    };
-  }
-
-  if (action === "spawn") {
-    const agentId = restTokens[0];
-    // Parse remaining tokens: task text with optional --model and --thinking flags.
-    const taskParts: string[] = [];
-    let model: string | undefined;
-    let thinking: string | undefined;
-    for (let i = 1; i < restTokens.length; i++) {
-      if (restTokens[i] === "--model" && i + 1 < restTokens.length) {
-        i += 1;
-        model = restTokens[i];
-      } else if (restTokens[i] === "--thinking" && i + 1 < restTokens.length) {
-        i += 1;
-        thinking = restTokens[i];
-      } else {
-        taskParts.push(restTokens[i]);
-      }
-    }
-    const task = taskParts.join(" ").trim();
-    if (!agentId || !task) {
-      return {
-        shouldContinue: false,
-        reply: {
-          text: "Usage: /subagents spawn <agentId> <task> [--model <model>] [--thinking <level>]",
-        },
-      };
-    }
-
-    const commandTo = typeof params.command.to === "string" ? params.command.to.trim() : "";
-    const originatingTo =
-      typeof params.ctx.OriginatingTo === "string" ? params.ctx.OriginatingTo.trim() : "";
-    const fallbackTo = typeof params.ctx.To === "string" ? params.ctx.To.trim() : "";
-    // OriginatingTo reflects the active conversation target and is safer than
-    // command.to for cross-surface command dispatch.
-    const normalizedTo = originatingTo || commandTo || fallbackTo || undefined;
-
-    const result = await spawnSubagentDirect(
-      {
-        task,
-        agentId,
-        model,
-        thinking,
-        mode: "run",
-        cleanup: "keep",
-        expectsCompletionMessage: true,
-      },
-      {
-        agentSessionKey: requesterKey,
-        agentChannel: params.ctx.OriginatingChannel ?? params.command.channel,
-        agentAccountId: params.ctx.AccountId,
-        agentTo: normalizedTo,
-        agentThreadId: params.ctx.MessageThreadId,
-        agentGroupId: params.sessionEntry?.groupId ?? null,
-        agentGroupChannel: params.sessionEntry?.groupChannel ?? null,
-        agentGroupSpace: params.sessionEntry?.space ?? null,
-      },
-    );
-    if (result.status === "accepted") {
-      return {
-        shouldContinue: false,
-        reply: {
-          text: `Spawned subagent ${agentId} (session ${result.childSessionKey}, run ${result.runId?.slice(0, 8)}).`,
-        },
-      };
-    }
-    return {
-      shouldContinue: false,
-      reply: { text: `Spawn failed: ${result.error ?? result.status}` },
-    };
-  }
-
-  return { shouldContinue: false, reply: { text: buildSubagentsHelp() } };
 };

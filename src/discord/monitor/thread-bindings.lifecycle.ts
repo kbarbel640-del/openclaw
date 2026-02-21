@@ -3,16 +3,19 @@ import { parseDiscordTarget } from "../targets.js";
 import { resolveChannelIdForBinding } from "./thread-bindings.discord-api.js";
 import { getThreadBindingManager } from "./thread-bindings.manager.js";
 import {
+  resolveThreadBindingIntroText,
+  resolveThreadBindingThreadName,
+} from "./thread-bindings.messages.js";
+import {
   BINDINGS_BY_THREAD_ID,
   MANAGERS_BY_ACCOUNT_ID,
   ensureBindingsLoaded,
+  getThreadBindingToken,
   normalizeThreadBindingTtlMs,
   normalizeThreadId,
   rememberRecentUnboundWebhookEcho,
   removeBindingRecord,
   resolveBindingIdsForSession,
-  resolveThreadBindingIntroText,
-  resolveThreadBindingThreadName,
   saveBindingsToDisk,
   setBindingRecord,
   shouldPersistBindingMutations,
@@ -66,6 +69,7 @@ export async function autoBindSpawnedDiscordSubagent(params: {
   if (!manager) {
     return null;
   }
+  const managerToken = getThreadBindingToken(manager.accountId);
 
   const requesterThreadId = normalizeThreadId(params.threadId);
   let channelId = "";
@@ -77,6 +81,7 @@ export async function autoBindSpawnedDiscordSubagent(params: {
       channelId =
         (await resolveChannelIdForBinding({
           accountId: manager.accountId,
+          token: managerToken,
           threadId: requesterThreadId,
         })) ?? "";
     }
@@ -94,6 +99,7 @@ export async function autoBindSpawnedDiscordSubagent(params: {
       channelId =
         (await resolveChannelIdForBinding({
           accountId: manager.accountId,
+          token: managerToken,
           threadId: target.id,
         })) ?? "";
     } catch {

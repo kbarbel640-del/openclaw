@@ -2,6 +2,7 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import {
   autoBindSpawnedDiscordSubagent,
   listThreadBindingsBySessionKey,
+  resolveDiscordAccount,
   unbindThreadBindingsBySessionKey,
 } from "openclaw/plugin-sdk";
 
@@ -16,16 +17,29 @@ function summarizeError(err: unknown): string {
 }
 
 export function registerDiscordSubagentHooks(api: OpenClawPluginApi) {
+  const isThreadBoundSubagentSpawnEnabled = (accountId?: string) => {
+    const account = resolveDiscordAccount({
+      cfg: api.config,
+      accountId,
+    });
+    return account.config.threadBindings?.spawnSubagentSessions === true;
+  };
+
   api.on("subagent_spawning", async (event) => {
     if (!event.threadRequested) {
       return;
     }
     const channel = event.requester?.channel?.trim().toLowerCase();
     if (channel !== "discord") {
-      const channelLabel = event.requester?.channel?.trim() || "unknown";
+      // Ignore non-Discord channels so channel-specific plugins can handle
+      // their own thread/session provisioning without Discord blocking them.
+      return;
+    }
+    if (!isThreadBoundSubagentSpawnEnabled(event.requester?.accountId)) {
       return {
         status: "error" as const,
-        error: `thread=true is not supported for channel "${channelLabel}". Only Discord thread-bound subagent sessions are supported right now.`,
+        error:
+          "Discord thread-bound subagent spawns are disabled for this account (set channels.discord.threadBindings.spawnSubagentSessions=true to enable).",
       };
     }
     try {

@@ -420,27 +420,42 @@ export async function spawnSubagentDirect(
       childRunId = response.runId;
     }
   } catch (err) {
-    if (threadBindingReady && hookRunner?.hasHooks("subagent_ended")) {
-      try {
-        await hookRunner.runSubagentEnded(
-          {
-            targetSessionKey: childSessionKey,
-            targetKind: "subagent",
-            reason: "spawn-failed",
-            sendFarewell: true,
-            accountId: requesterOrigin?.accountId,
-            runId: childRunId,
-            outcome: "error",
-            error: "Session failed to start",
-          },
-          {
-            runId: childRunId,
-            childSessionKey,
-            requesterSessionKey: requesterInternalKey,
-          },
-        );
-      } catch {
-        // Spawn should still return an actionable error even if cleanup hooks fail.
+    if (threadBindingReady) {
+      const hasEndedHook = hookRunner?.hasHooks("subagent_ended") === true;
+      if (hasEndedHook) {
+        try {
+          await hookRunner?.runSubagentEnded(
+            {
+              targetSessionKey: childSessionKey,
+              targetKind: "subagent",
+              reason: "spawn-failed",
+              sendFarewell: true,
+              accountId: requesterOrigin?.accountId,
+              runId: childRunId,
+              outcome: "error",
+              error: "Session failed to start",
+            },
+            {
+              runId: childRunId,
+              childSessionKey,
+              requesterSessionKey: requesterInternalKey,
+            },
+          );
+        } catch {
+          // Spawn should still return an actionable error even if cleanup hooks fail.
+        }
+      } else {
+        // Fallback cleanup for channel plugins that bind on spawn but do not
+        // register subagent_ended lifecycle hooks.
+        try {
+          await callGateway({
+            method: "sessions.delete",
+            params: { key: childSessionKey, deleteTranscript: true },
+            timeoutMs: 10_000,
+          });
+        } catch {
+          // Best-effort only.
+        }
       }
     }
     const messageText = summarizeError(err);

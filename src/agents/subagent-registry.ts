@@ -416,110 +416,157 @@ async function finalizeSubagentCleanup(
   if (!entry) {
     return;
   }
-  if (!didAnnounce) {
-    const now = Date.now();
-    const endedAgo = typeof entry.endedAt === "number" ? now - entry.endedAt : 0;
-    // Normal defer: the run ended, but descendant runs are still active.
-    // Don't consume retry budget in this state or we can give up before
-    // descendants finish and before the parent synthesizes the final reply.
-    const activeDescendantRuns = Math.max(0, countActiveDescendantRuns(entry.childSessionKey));
-    if (entry.expectsCompletionMessage === true && activeDescendantRuns > 0) {
-      if (endedAgo > ANNOUNCE_EXPIRY_MS) {
-        const completionReason = entry.endedReason ?? SUBAGENT_ENDED_REASON_COMPLETE;
-        if (
-          shouldEmitEndedHookForRun({
-            entry,
-            reason: completionReason,
-          })
-        ) {
-          await emitSubagentEndedHookForRun({
-            entry,
-            reason: completionReason,
-            sendFarewell: true,
-          });
-        }
-        logAnnounceGiveUp(entry, "expiry");
-        entry.cleanupCompletedAt = now;
-        persistSubagentRuns();
-        retryDeferredCompletedAnnounces(runId);
-        return;
-      }
-      entry.lastAnnounceRetryAt = now;
-      entry.cleanupHandled = false;
-      resumedRuns.delete(runId);
-      persistSubagentRuns();
-      setTimeout(() => {
-        resumeSubagentRun(runId);
-      }, MIN_ANNOUNCE_RETRY_DELAY_MS).unref?.();
-      return;
-    }
+  if (didAnnounce) {
+    const completionReason = resolveCleanupCompletionReason(entry);
+    await emitCompletionEndedHookIfNeeded(entry, completionReason);
+    completeCleanupBookkeeping({
+      runId,
+      entry,
+      cleanup,
+      completedAt: Date.now(),
+    });
+    return;
+  }
 
-    const retryCount = (entry.announceRetryCount ?? 0) + 1;
-    entry.announceRetryCount = retryCount;
+  const now = Date.now();
+  const deferredDecision = resolveDeferredCleanupDecision({
+    entry,
+    now,
+    activeDescendantRuns: Math.max(0, countActiveDescendantRuns(entry.childSessionKey)),
+  });
+
+  if (deferredDecision.kind === "defer-descendants") {
     entry.lastAnnounceRetryAt = now;
-
-    // Check if the announce has exceeded retry limits or expired (#18264).
-    if (retryCount >= MAX_ANNOUNCE_RETRY_COUNT || endedAgo > ANNOUNCE_EXPIRY_MS) {
-      const completionReason = entry.endedReason ?? SUBAGENT_ENDED_REASON_COMPLETE;
-      if (
-        entry.expectsCompletionMessage === true &&
-        shouldEmitEndedHookForRun({
-          entry,
-          reason: completionReason,
-        })
-      ) {
-        await emitSubagentEndedHookForRun({
-          entry,
-          reason: completionReason,
-          sendFarewell: true,
-        });
-      }
-      // Give up: mark as completed to break the infinite retry loop.
-      logAnnounceGiveUp(entry, retryCount >= MAX_ANNOUNCE_RETRY_COUNT ? "retry-limit" : "expiry");
-      entry.cleanupCompletedAt = now;
-      persistSubagentRuns();
-      retryDeferredCompletedAnnounces(runId);
-      return;
-    }
-
-    // Allow retry on the next wake if announce was deferred or failed.
     entry.cleanupHandled = false;
     resumedRuns.delete(runId);
     persistSubagentRuns();
-    if (entry.expectsCompletionMessage !== true) {
-      return;
-    }
-    setTimeout(
-      () => {
-        resumeSubagentRun(runId);
-      },
-      resolveAnnounceRetryDelayMs(entry.announceRetryCount ?? 0),
-    ).unref?.();
+    setTimeout(() => {
+      resumeSubagentRun(runId);
+    }, deferredDecision.delayMs).unref?.();
     return;
   }
-  const completionReason = entry.endedReason ?? SUBAGENT_ENDED_REASON_COMPLETE;
+
+  if (deferredDecision.retryCount != null) {
+    entry.announceRetryCount = deferredDecision.retryCount;
+    entry.lastAnnounceRetryAt = now;
+  }
+
+  if (deferredDecision.kind === "give-up") {
+    const completionReason = resolveCleanupCompletionReason(entry);
+    await emitCompletionEndedHookIfNeeded(entry, completionReason);
+    logAnnounceGiveUp(entry, deferredDecision.reason);
+    completeCleanupBookkeeping({
+      runId,
+      entry,
+      cleanup: "keep",
+      completedAt: now,
+    });
+    return;
+  }
+
+  // Allow retry on the next wake if announce was deferred or failed.
+  entry.cleanupHandled = false;
+  resumedRuns.delete(runId);
+  persistSubagentRuns();
+  if (deferredDecision.resumeDelayMs == null) {
+    return;
+  }
+  setTimeout(() => {
+    resumeSubagentRun(runId);
+  }, deferredDecision.resumeDelayMs).unref?.();
+}
+
+type DeferredCleanupDecision =
+  | {
+      kind: "defer-descendants";
+      delayMs: number;
+    }
+  | {
+      kind: "give-up";
+      reason: "retry-limit" | "expiry";
+      retryCount?: number;
+    }
+  | {
+      kind: "retry";
+      retryCount: number;
+      resumeDelayMs?: number;
+    };
+
+function resolveCleanupCompletionReason(entry: SubagentRunRecord) {
+  return entry.endedReason ?? SUBAGENT_ENDED_REASON_COMPLETE;
+}
+
+function resolveEndedAgoMs(entry: SubagentRunRecord, now: number): number {
+  return typeof entry.endedAt === "number" ? now - entry.endedAt : 0;
+}
+
+function resolveDeferredCleanupDecision(params: {
+  entry: SubagentRunRecord;
+  now: number;
+  activeDescendantRuns: number;
+}): DeferredCleanupDecision {
+  const endedAgo = resolveEndedAgoMs(params.entry, params.now);
+  if (params.entry.expectsCompletionMessage === true && params.activeDescendantRuns > 0) {
+    if (endedAgo > ANNOUNCE_EXPIRY_MS) {
+      return { kind: "give-up", reason: "expiry" };
+    }
+    // Normal defer: descendants are still active.
+    return { kind: "defer-descendants", delayMs: MIN_ANNOUNCE_RETRY_DELAY_MS };
+  }
+
+  const retryCount = (params.entry.announceRetryCount ?? 0) + 1;
+  if (retryCount >= MAX_ANNOUNCE_RETRY_COUNT || endedAgo > ANNOUNCE_EXPIRY_MS) {
+    return {
+      kind: "give-up",
+      reason: retryCount >= MAX_ANNOUNCE_RETRY_COUNT ? "retry-limit" : "expiry",
+      retryCount,
+    };
+  }
+
+  return {
+    kind: "retry",
+    retryCount,
+    resumeDelayMs:
+      params.entry.expectsCompletionMessage === true
+        ? resolveAnnounceRetryDelayMs(retryCount)
+        : undefined,
+  };
+}
+
+async function emitCompletionEndedHookIfNeeded(
+  entry: SubagentRunRecord,
+  reason: SubagentLifecycleEndedReason,
+) {
   if (
     entry.expectsCompletionMessage === true &&
     shouldEmitEndedHookForRun({
       entry,
-      reason: completionReason,
+      reason,
     })
   ) {
     await emitSubagentEndedHookForRun({
       entry,
-      reason: completionReason,
+      reason,
       sendFarewell: true,
     });
   }
-  if (cleanup === "delete") {
-    subagentRuns.delete(runId);
+}
+
+function completeCleanupBookkeeping(params: {
+  runId: string;
+  entry: SubagentRunRecord;
+  cleanup: "delete" | "keep";
+  completedAt: number;
+}) {
+  if (params.cleanup === "delete") {
+    subagentRuns.delete(params.runId);
     persistSubagentRuns();
-    retryDeferredCompletedAnnounces(runId);
+    retryDeferredCompletedAnnounces(params.runId);
     return;
   }
-  entry.cleanupCompletedAt = Date.now();
+  params.entry.cleanupCompletedAt = params.completedAt;
   persistSubagentRuns();
-  retryDeferredCompletedAnnounces(runId);
+  retryDeferredCompletedAnnounces(params.runId);
 }
 
 function retryDeferredCompletedAnnounces(excludeRunId?: string) {

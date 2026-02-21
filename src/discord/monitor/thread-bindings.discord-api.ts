@@ -3,11 +3,11 @@ import { logVerbose } from "../../globals.js";
 import { createDiscordRestClient } from "../client.js";
 import { sendMessageDiscord, sendWebhookMessageDiscord } from "../send.js";
 import { createThreadDiscord } from "../send.messages.js";
+import { summarizeBindingPersona } from "./thread-bindings.messages.js";
 import {
   BINDINGS_BY_THREAD_ID,
   REUSABLE_WEBHOOKS_BY_ACCOUNT_CHANNEL,
   rememberReusableWebhook,
-  summarizeBindingPersona,
   toReusableWebhookKey,
 } from "./thread-bindings.state.js";
 import {

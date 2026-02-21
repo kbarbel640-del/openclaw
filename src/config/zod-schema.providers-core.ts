@@ -391,6 +391,7 @@ export const DiscordAccountSchema = z
     threadBindings: z
       .object({
         ttlHours: z.number().nonnegative().optional(),
+        spawnSubagentSessions: z.boolean().optional(),
       })
       .strict()
       .optional(),

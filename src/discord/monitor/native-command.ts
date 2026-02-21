@@ -356,6 +356,7 @@ async function resolveDiscordModelPickerRoute(params: {
   interaction: CommandInteraction | ButtonInteraction | StringSelectMenuInteraction;
   cfg: ReturnType<typeof loadConfig>;
   accountId: string;
+  threadBindings: ThreadBindingManager;
 }) {
   const { interaction, cfg, accountId } = params;
   const channel = interaction.channel;
@@ -386,7 +387,7 @@ async function resolveDiscordModelPickerRoute(params: {
     threadParentId = parentInfo.id;
   }
 
-  return resolveAgentRoute({
+  const route = resolveAgentRoute({
     cfg,
     channel: "discord",
     accountId,
@@ -398,6 +399,19 @@ async function resolveDiscordModelPickerRoute(params: {
     },
     parentPeer: threadParentId ? { kind: "channel", id: threadParentId } : undefined,
   });
+
+  const threadBinding = isThreadChannel
+    ? params.threadBindings.getByThreadId(rawChannelId)
+    : undefined;
+  const boundSessionKey = threadBinding?.targetSessionKey?.trim();
+  const boundAgentId = boundSessionKey ? resolveAgentIdFromSessionKey(boundSessionKey) : undefined;
+  return boundSessionKey
+    ? {
+        ...route,
+        sessionKey: boundSessionKey,
+        agentId: boundAgentId ?? route.agentId,
+      }
+    : route;
 }
 
 function resolveDiscordModelPickerCurrentModel(params: {
@@ -439,6 +453,7 @@ async function replyWithDiscordModelPickerProviders(params: {
   command: DiscordModelPickerCommandContext;
   userId: string;
   accountId: string;
+  threadBindings: ThreadBindingManager;
   preferFollowUp: boolean;
 }) {
   const data = await loadDiscordModelPickerData(params.cfg);
@@ -446,6 +461,7 @@ async function replyWithDiscordModelPickerProviders(params: {
     interaction: params.interaction,
     cfg: params.cfg,
     accountId: params.accountId,
+    threadBindings: params.threadBindings,
   });
   const currentModel = resolveDiscordModelPickerCurrentModel({
     cfg: params.cfg,
@@ -606,6 +622,7 @@ async function handleDiscordModelPickerInteraction(
     interaction,
     cfg: ctx.cfg,
     accountId: ctx.accountId,
+    threadBindings: ctx.threadBindings,
   });
   const currentModelRef = resolveDiscordModelPickerCurrentModel({
     cfg: ctx.cfg,
@@ -1447,6 +1464,7 @@ async function dispatchDiscordCommandInteraction(params: {
       command: pickerCommandContext,
       userId: user.id,
       accountId,
+      threadBindings,
       preferFollowUp,
     });
     return;

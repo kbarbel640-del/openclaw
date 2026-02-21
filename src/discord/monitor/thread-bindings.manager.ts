@@ -13,10 +13,16 @@ import {
   summarizeDiscordError,
 } from "./thread-bindings.discord-api.js";
 import {
+  resolveThreadBindingFarewellText,
+  resolveThreadBindingThreadName,
+} from "./thread-bindings.messages.js";
+import {
   BINDINGS_BY_THREAD_ID,
+  forgetThreadBindingToken,
   MANAGERS_BY_ACCOUNT_ID,
   PERSIST_BY_ACCOUNT_ID,
   ensureBindingsLoaded,
+  rememberThreadBindingToken,
   normalizeTargetKind,
   normalizeThreadBindingTtlMs,
   normalizeThreadId,
@@ -25,8 +31,6 @@ import {
   resolveBindingIdsForSession,
   resolveBindingRecordKey,
   resolveThreadBindingExpiresAt,
-  resolveThreadBindingFarewellText,
-  resolveThreadBindingThreadName,
   resolveThreadBindingsPath,
   saveBindingsToDisk,
   setBindingRecord,
@@ -80,8 +84,11 @@ export function createThreadBindingManager(
   const accountId = normalizeAccountId(params.accountId);
   const existing = MANAGERS_BY_ACCOUNT_ID.get(accountId);
   if (existing) {
+    rememberThreadBindingToken({ accountId, token: params.token });
     return existing;
   }
+
+  rememberThreadBindingToken({ accountId, token: params.token });
 
   const persist = params.persist ?? shouldDefaultPersist();
   PERSIST_BY_ACCOUNT_ID.set(accountId, persist);
@@ -274,6 +281,7 @@ export function createThreadBindingManager(
         sweepTimer = null;
       }
       unregisterManager(accountId, manager);
+      forgetThreadBindingToken(accountId);
     },
   };
 

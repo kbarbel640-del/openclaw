@@ -294,7 +294,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   const ephemeralDefault = slashCommand.ephemeral;
   const voiceEnabled = discordCfg.voice?.enabled !== false;
 
-  if (token) {
+  const resolveAllowlistConfig = async () => {
+    if (!token) {
+      return;
+    }
     if (guildEntries && Object.keys(guildEntries).length > 0) {
       try {
         const entries: Array<{ input: string; guildKey: string; channelKey?: string }> = [];
@@ -442,7 +445,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         }
       }
     }
-  }
+  };
+
+  await resolveAllowlistConfig();
 
   if (shouldLogVerbose()) {
     logVerbose(
@@ -706,114 +711,120 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
 
   runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
 
-  // Start exec approvals handler after client is ready
-  if (execApprovalsHandler) {
-    await execApprovalsHandler.start();
-  }
+  const runGatewayLifecycle = async () => {
+    // Start exec approvals handler after client is ready
+    if (execApprovalsHandler) {
+      await execApprovalsHandler.start();
+    }
 
-  const gateway = client.getPlugin<GatewayPlugin>("gateway");
-  if (gateway) {
-    registerGateway(account.accountId, gateway);
-  }
-  const gatewayEmitter = getDiscordGatewayEmitter(gateway);
-  const stopGatewayLogging = attachDiscordGatewayLogging({
-    emitter: gatewayEmitter,
-    runtime,
-  });
-  const abortSignal = opts.abortSignal;
-  const onAbort = () => {
-    if (!gateway) {
-      return;
+    const gateway = client.getPlugin<GatewayPlugin>("gateway");
+    if (gateway) {
+      registerGateway(account.accountId, gateway);
     }
-    // Carbon emits an error when maxAttempts is 0; keep a one-shot listener to avoid
-    // an unhandled error after we tear down listeners during abort.
-    gatewayEmitter?.once("error", () => {});
-    gateway.options.reconnect = { maxAttempts: 0 };
-    gateway.disconnect();
-  };
-  if (abortSignal?.aborted) {
-    onAbort();
-  } else {
-    abortSignal?.addEventListener("abort", onAbort, { once: true });
-  }
-  // Timeout to detect zombie connections where HELLO is never received.
-  const HELLO_TIMEOUT_MS = 30000;
-  let helloTimeoutId: ReturnType<typeof setTimeout> | undefined;
-  const onGatewayDebug = (msg: unknown) => {
-    const message = String(msg);
-    if (!message.includes("WebSocket connection opened")) {
-      return;
-    }
-    if (helloTimeoutId) {
-      clearTimeout(helloTimeoutId);
-    }
-    helloTimeoutId = setTimeout(() => {
-      if (!gateway?.isConnected) {
-        runtime.log?.(
-          danger(
-            `connection stalled: no HELLO received within ${HELLO_TIMEOUT_MS}ms, forcing reconnect`,
-          ),
-        );
-        gateway?.disconnect();
-        gateway?.connect(false);
+    const gatewayEmitter = getDiscordGatewayEmitter(gateway);
+    const stopGatewayLogging = attachDiscordGatewayLogging({
+      emitter: gatewayEmitter,
+      runtime,
+    });
+    const abortSignal = opts.abortSignal;
+    const onAbort = () => {
+      if (!gateway) {
+        return;
       }
-      helloTimeoutId = undefined;
-    }, HELLO_TIMEOUT_MS);
-  };
-  gatewayEmitter?.on("debug", onGatewayDebug);
-  // Disallowed intents (4014) should stop the provider without crashing the gateway.
-  let sawDisallowedIntents = false;
-  try {
-    await waitForDiscordGatewayStop({
-      gateway: gateway
-        ? {
-            emitter: gatewayEmitter,
-            disconnect: () => gateway.disconnect(),
-          }
-        : undefined,
-      abortSignal,
-      onGatewayError: (err) => {
-        if (isDiscordDisallowedIntentsError(err)) {
-          sawDisallowedIntents = true;
-          runtime.error?.(
+      // Carbon emits an error when maxAttempts is 0; keep a one-shot listener to avoid
+      // an unhandled error after we tear down listeners during abort.
+      gatewayEmitter?.once("error", () => {});
+      gateway.options.reconnect = { maxAttempts: 0 };
+      gateway.disconnect();
+    };
+    if (abortSignal?.aborted) {
+      onAbort();
+    } else {
+      abortSignal?.addEventListener("abort", onAbort, { once: true });
+    }
+
+    // Timeout to detect zombie connections where HELLO is never received.
+    const HELLO_TIMEOUT_MS = 30000;
+    let helloTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    const onGatewayDebug = (msg: unknown) => {
+      const message = String(msg);
+      if (!message.includes("WebSocket connection opened")) {
+        return;
+      }
+      if (helloTimeoutId) {
+        clearTimeout(helloTimeoutId);
+      }
+      helloTimeoutId = setTimeout(() => {
+        if (!gateway?.isConnected) {
+          runtime.log?.(
             danger(
-              "discord: gateway closed with code 4014 (missing privileged gateway intents). Enable the required intents in the Discord Developer Portal or disable them in config.",
+              `connection stalled: no HELLO received within ${HELLO_TIMEOUT_MS}ms, forcing reconnect`,
             ),
           );
-          return;
+          gateway?.disconnect();
+          gateway?.connect(false);
         }
-        runtime.error?.(danger(`discord gateway error: ${String(err)}`));
-      },
-      shouldStopOnError: (err) => {
-        const message = String(err);
-        return (
-          message.includes("Max reconnect attempts") ||
-          message.includes("Fatal Gateway error") ||
-          isDiscordDisallowedIntentsError(err)
-        );
-      },
-    });
-  } catch (err) {
-    if (!sawDisallowedIntents && !isDiscordDisallowedIntentsError(err)) {
-      throw err;
+        helloTimeoutId = undefined;
+      }, HELLO_TIMEOUT_MS);
+    };
+    gatewayEmitter?.on("debug", onGatewayDebug);
+
+    // Disallowed intents (4014) should stop the provider without crashing the gateway.
+    let sawDisallowedIntents = false;
+    try {
+      await waitForDiscordGatewayStop({
+        gateway: gateway
+          ? {
+              emitter: gatewayEmitter,
+              disconnect: () => gateway.disconnect(),
+            }
+          : undefined,
+        abortSignal,
+        onGatewayError: (err) => {
+          if (isDiscordDisallowedIntentsError(err)) {
+            sawDisallowedIntents = true;
+            runtime.error?.(
+              danger(
+                "discord: gateway closed with code 4014 (missing privileged gateway intents). Enable the required intents in the Discord Developer Portal or disable them in config.",
+              ),
+            );
+            return;
+          }
+          runtime.error?.(danger(`discord gateway error: ${String(err)}`));
+        },
+        shouldStopOnError: (err) => {
+          const message = String(err);
+          return (
+            message.includes("Max reconnect attempts") ||
+            message.includes("Fatal Gateway error") ||
+            isDiscordDisallowedIntentsError(err)
+          );
+        },
+      });
+    } catch (err) {
+      if (!sawDisallowedIntents && !isDiscordDisallowedIntentsError(err)) {
+        throw err;
+      }
+    } finally {
+      unregisterGateway(account.accountId);
+      stopGatewayLogging();
+      if (helloTimeoutId) {
+        clearTimeout(helloTimeoutId);
+      }
+      gatewayEmitter?.removeListener("debug", onGatewayDebug);
+      abortSignal?.removeEventListener("abort", onAbort);
+      if (voiceManager) {
+        await voiceManager.destroy();
+        voiceManagerRef.current = null;
+      }
+      if (execApprovalsHandler) {
+        await execApprovalsHandler.stop();
+      }
+      threadBindings.stop();
     }
-  } finally {
-    unregisterGateway(account.accountId);
-    stopGatewayLogging();
-    if (helloTimeoutId) {
-      clearTimeout(helloTimeoutId);
-    }
-    gatewayEmitter?.removeListener("debug", onGatewayDebug);
-    abortSignal?.removeEventListener("abort", onAbort);
-    if (voiceManager) {
-      await voiceManager.destroy();
-      voiceManagerRef.current = null;
-    }
-    if (execApprovalsHandler) {
-      await execApprovalsHandler.stop();
-    }
-    threadBindings.stop();
-  }
+  };
+
+  await runGatewayLifecycle();
 }
 
 async function clearDiscordNativeCommands(params: {

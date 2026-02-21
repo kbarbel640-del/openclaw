@@ -7,6 +7,7 @@ import {
 } from "./openclaw-tools.subagents.sessions-spawn.test-harness.js";
 
 const hookRunnerMocks = vi.hoisted(() => ({
+  hasSubagentEndedHook: true,
   runSubagentSpawning: vi.fn(async (event: unknown) => {
     const input = event as {
       threadRequested?: boolean;
@@ -37,7 +38,7 @@ vi.mock("../plugins/hook-runner-global.js", () => ({
     hasHooks: (hookName: string) =>
       hookName === "subagent_spawning" ||
       hookName === "subagent_spawned" ||
-      hookName === "subagent_ended",
+      (hookName === "subagent_ended" && hookRunnerMocks.hasSubagentEndedHook),
     runSubagentSpawning: hookRunnerMocks.runSubagentSpawning,
     runSubagentSpawned: hookRunnerMocks.runSubagentSpawned,
     runSubagentEnded: hookRunnerMocks.runSubagentEnded,
@@ -46,6 +47,7 @@ vi.mock("../plugins/hook-runner-global.js", () => ({
 
 describe("sessions_spawn subagent lifecycle hooks", () => {
   beforeEach(() => {
+    hookRunnerMocks.hasSubagentEndedHook = true;
     hookRunnerMocks.runSubagentSpawning.mockClear();
     hookRunnerMocks.runSubagentSpawned.mockClear();
     hookRunnerMocks.runSubagentEnded.mockClear();
@@ -303,5 +305,38 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
       outcome: "error",
       error: "Session failed to start",
     });
+  });
+
+  it("falls back to sessions.delete cleanup when subagent_ended hook is unavailable", async () => {
+    hookRunnerMocks.hasSubagentEndedHook = false;
+    const callGatewayMock = getCallGatewayMock();
+    callGatewayMock.mockImplementation(async (opts: unknown) => {
+      const request = opts as { method?: string };
+      if (request.method === "agent") {
+        throw new Error("spawn failed");
+      }
+      return {};
+    });
+    const tool = await getSessionsSpawnTool({
+      agentSessionKey: "main",
+      agentChannel: "discord",
+      agentAccountId: "work",
+      agentTo: "channel:123",
+      agentThreadId: "456",
+    });
+
+    const result = await tool.execute("call8", {
+      task: "do thing",
+      thread: true,
+      mode: "session",
+    });
+
+    expect(result.details).toMatchObject({ status: "error" });
+    expect(hookRunnerMocks.runSubagentEnded).not.toHaveBeenCalled();
+    const methods = callGatewayMock.mock.calls.map((call: [unknown]) => {
+      const request = call[0] as { method?: string };
+      return request.method;
+    });
+    expect(methods).toContain("sessions.delete");
   });
 });

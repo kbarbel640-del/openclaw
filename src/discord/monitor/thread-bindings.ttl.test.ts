@@ -365,6 +365,43 @@ describe("thread binding ttl", () => {
     );
   });
 
+  it("passes manager token when resolving parent channels for auto-bind", async () => {
+    createThreadBindingManager({
+      accountId: "runtime",
+      token: "runtime-token",
+      persist: false,
+      enableSweeper: false,
+      sessionTtlMs: 24 * 60 * 60 * 1000,
+    });
+
+    hoisted.createDiscordRestClient.mockClear();
+    hoisted.restGet.mockClear();
+    hoisted.restGet.mockResolvedValueOnce({
+      id: "thread-runtime",
+      type: 11,
+      parent_id: "parent-runtime",
+    });
+    hoisted.createThreadDiscord.mockClear();
+    hoisted.createThreadDiscord.mockResolvedValueOnce({ id: "thread-created-runtime" });
+
+    const childBinding = await autoBindSpawnedDiscordSubagent({
+      accountId: "runtime",
+      channel: "discord",
+      to: "channel:thread-runtime",
+      childSessionKey: "agent:main:subagent:child-runtime",
+      agentId: "main",
+    });
+
+    expect(childBinding).not.toBeNull();
+    const firstClientArgs = hoisted.createDiscordRestClient.mock.calls[0]?.[0] as
+      | { accountId?: string; token?: string }
+      | undefined;
+    expect(firstClientArgs).toMatchObject({
+      accountId: "runtime",
+      token: "runtime-token",
+    });
+  });
+
   it("keeps overlapping thread ids isolated per account", async () => {
     const a = createThreadBindingManager({
       accountId: "a",

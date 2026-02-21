@@ -148,6 +148,11 @@ export type DiscordThreadBindingsConfig = {
    * Set to 0 to disable TTL. Default: 24.
    */
   ttlHours?: number;
+  /**
+   * Allow `sessions_spawn({ thread: true })` to auto-create + bind Discord
+   * threads for subagent sessions. Default: false (opt-in).
+   */
+  spawnSubagentSessions?: boolean;
 };
 
 export type DiscordSlashCommandConfig = {
