@@ -45,14 +45,17 @@ function normalizeLevel(value: unknown): LogLevel | null {
   return LEVELS.has(lowered) ? lowered : null;
 }
 
-function formatLogValue(value: unknown): string {
+function formatLogValue(value: unknown, depth = 0): string {
   if (value == null) {
     return "";
+  }
+  if (depth > 5) {
+    return "[Max Depth]";
   }
   if (typeof value === "string") {
     const parsed = parseMaybeJsonString(value);
     if (parsed) {
-      return formatLogValue(parsed);
+      return formatLogValue(parsed, depth + 1);
     }
     return value;
   }
@@ -69,7 +72,13 @@ function formatLogValue(value: unknown): string {
       return obj.summary;
     }
     // Otherwise, stringify it cleanly with indentation.
-    return JSON.stringify(value, null, 2);
+    // JSON.stringify naturally handles circular refs by throwing,
+    // but the depth limit above prevents stack overflow from nesting.
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return "[Circular or Large Object]";
+    }
   }
   return typeof value === "symbol" ? value.toString() : JSON.stringify(value);
 }
