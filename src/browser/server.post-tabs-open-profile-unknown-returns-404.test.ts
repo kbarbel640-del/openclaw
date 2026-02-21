@@ -1,13 +1,21 @@
 import { fetch as realFetch } from "undici";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  cleanupBrowserControlServerTestContext,
   getBrowserControlServerBaseUrl,
+  getBrowserControlServerTestState,
+  getCdpMocks,
+  getFreePort,
   installBrowserControlServerHooks,
   makeResponse,
-  resetBrowserControlServerTestContext,
+  getPwMocks,
+  restoreGatewayPortEnv,
   startBrowserControlServerFromConfig,
+  stopBrowserControlServer,
 } from "./server.control-server.test-harness.js";
+
+const state = getBrowserControlServerTestState();
+const cdpMocks = getCdpMocks();
+const pwMocks = getPwMocks();
 
 describe("browser control server", () => {
   installBrowserControlServerHooks();
@@ -43,7 +51,24 @@ describe("browser control server", () => {
 
 describe("profile CRUD endpoints", () => {
   beforeEach(async () => {
-    await resetBrowserControlServerTestContext();
+    state.reachable = false;
+    state.cfgAttachOnly = false;
+
+    for (const fn of Object.values(pwMocks)) {
+      fn.mockClear();
+    }
+    for (const fn of Object.values(cdpMocks)) {
+      fn.mockClear();
+    }
+
+    state.testPort = await getFreePort();
+    state.cdpBaseUrl = `http://127.0.0.1:${state.testPort + 1}`;
+    state.prevGatewayPort = process.env.OPENCLAW_GATEWAY_PORT;
+    process.env.OPENCLAW_GATEWAY_PORT = String(state.testPort - 2);
+    state.prevGatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+    state.prevGatewayPassword = process.env.OPENCLAW_GATEWAY_PASSWORD;
+    delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    delete process.env.OPENCLAW_GATEWAY_PASSWORD;
 
     vi.stubGlobal(
       "fetch",
@@ -58,7 +83,20 @@ describe("profile CRUD endpoints", () => {
   });
 
   afterEach(async () => {
-    await cleanupBrowserControlServerTestContext();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    restoreGatewayPortEnv(state.prevGatewayPort);
+    if (state.prevGatewayToken === undefined) {
+      delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    } else {
+      process.env.OPENCLAW_GATEWAY_TOKEN = state.prevGatewayToken;
+    }
+    if (state.prevGatewayPassword === undefined) {
+      delete process.env.OPENCLAW_GATEWAY_PASSWORD;
+    } else {
+      process.env.OPENCLAW_GATEWAY_PASSWORD = state.prevGatewayPassword;
+    }
+    await stopBrowserControlServer();
   });
 
   it("validates profile create/delete endpoints", async () => {
