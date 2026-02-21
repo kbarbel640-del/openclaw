@@ -189,7 +189,7 @@ describe("processDiscordMessage ack reactions", () => {
       reactMessageDiscord.mock.calls as unknown as Array<[unknown, unknown, string]>
     ).map((call) => call[2]);
     expect(emojis).toContain("👀");
-    expect(emojis).toContain("✅");
+    expect(emojis).toContain("👍");
     expect(emojis).not.toContain("🧠");
     expect(emojis).not.toContain("💻");
   });
@@ -217,9 +217,9 @@ describe("processDiscordMessage ack reactions", () => {
     const emojis = (
       reactMessageDiscord.mock.calls as unknown as Array<[unknown, unknown, string]>
     ).map((call) => call[2]);
-    expect(emojis).toContain("⏳");
-    expect(emojis).toContain("⚠️");
-    expect(emojis).toContain("✅");
+    expect(emojis).toContain("🥱");
+    expect(emojis).toContain("😨");
+    expect(emojis).toContain("👍");
   });
 });
 
