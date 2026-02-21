@@ -528,13 +528,19 @@ export async function handleFeishuMessage(params: {
 
   // Initialize and use ReactionStateManager for multi-message emoji tracking
   const reactionManager = initReactionStateManager({ cfg, log, error });
+  log(`[bot.ts] Reaction manager initialized for ${ctx.messageId}. Triggering onMessageQueued...`);
 
   // Add QUEUED emoji immediately when message is received
-  await reactionManager.onMessageQueued({
-    messageId: ctx.messageId,
-    chatId: ctx.chatId,
-    accountId: account.accountId,
-  });
+  try {
+    await reactionManager.onMessageQueued({
+      messageId: ctx.messageId,
+      chatId: ctx.chatId,
+      accountId: account.accountId,
+    });
+    log(`[bot.ts] onMessageQueued completed successfully for ${ctx.messageId}`);
+  } catch (err) {
+    log(`[bot.ts] Exception thrown during onMessageQueued for ${ctx.messageId}: ${String(err)}`);
+  }
 
   // Track message in timeout monitor
   registerPendingMessage(ctx.messageId, ctx.chatId, account.accountId);

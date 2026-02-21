@@ -91,11 +91,15 @@ export function tryRecordMessage(messageId: string, chatId: string = "unknown"):
     stmt.run(messageId, chatId, Date.now());
     return true;
   } catch (err: any) {
-    // UNIQUE constraint failed
-    if (err?.code === "SQLITE_CONSTRAINT" || err?.message?.includes("UNIQUE constraint")) {
+    // ONLY reject if it's explicitly a UNIQUE constraint violation (message already seen)
+    if (
+      String(err?.code).includes("SQLITE_CONSTRAINT") ||
+      String(err?.message).includes("UNIQUE constraint")
+    ) {
       return false;
     }
-    return true; // fail-open
+    // Fail-open: if the db insertion fails for any other reason (e.g., table missing), let the message through.
+    return true;
   }
 }
 
