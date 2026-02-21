@@ -142,8 +142,12 @@ export function detectRepetition(
     try {
       const regex = new RegExp(escaped, "g");
       let count = 0;
-      while (regex.exec(content) !== null) {
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(content)) !== null) {
         count++;
+        if (match[0].length === 0) {
+          regex.lastIndex++; // Prevent infinite loop on zero-length match
+        }
         if (count > maxRepetitions) {
           break;
         }

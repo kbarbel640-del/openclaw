@@ -39,16 +39,19 @@ export function loadConstitution(config?: SecurityAlignmentConfig): Constitution
   ).map((p) => ({ ...p }));
 
   // Load custom constitution file if specified
-  // Load custom constitution file if specified
   if (config?.constitutionPath) {
     try {
       const customData = JSON.parse(fs.readFileSync(config.constitutionPath, "utf-8"));
-      basePrinciples = [
-        ...basePrinciples.filter((p) => p.immutable),
-        ...(customData.principles as ConstitutionPrinciple[]).map((p) => ({ ...p })),
-      ];
-    } catch (error) {
-      // Fall back to defaults if custom constitution cannot be loaded
+      if (Array.isArray(customData.principles)) {
+        for (const p of customData.principles) {
+          basePrinciples.push({
+            ...p,
+            immutable: false, // Never allow external files to set immutable
+          });
+        }
+      }
+    } catch {
+      // Invalid path or malformed JSON — fall back to defaults
     }
   }
 
