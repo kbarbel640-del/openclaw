@@ -482,7 +482,7 @@ export async function runEmbeddedAttempt(
       tools,
     });
     const systemPromptOverride = createSystemPromptOverride(appendPrompt);
-    const systemPromptText = systemPromptOverride();
+    let systemPromptText = systemPromptOverride();
 
     const sessionLock = await acquireSessionWriteLock({
       sessionFile: params.sessionFile,
@@ -571,6 +571,37 @@ export async function runEmbeddedAttempt(
         : [];
 
       const allCustomTools = [...customTools, ...clientToolDefs];
+
+      // Run before_agent_start hooks before createAgentSession so systemPrompt injection is used by the agent.
+      if (hookRunner?.hasHooks("before_agent_start")) {
+        try {
+          const sessionContext = sessionManager.buildSessionContext();
+          const hookResult = await hookRunner.runBeforeAgentStart(
+            {
+              prompt: params.prompt,
+              messages: sessionContext?.messages ?? [],
+            },
+            {
+              agentId: params.sessionKey?.split(":")[0] ?? "main",
+              sessionKey: params.sessionKey,
+              workspaceDir: params.workspaceDir,
+              messageProvider: params.messageProvider ?? undefined,
+            },
+          );
+          if (
+            hookResult?.systemPrompt &&
+            typeof hookResult.systemPrompt === "string" &&
+            hookResult.systemPrompt.trim()
+          ) {
+            systemPromptText = `${systemPromptText}\n\n${hookResult.systemPrompt.trim()}`;
+            log.debug(
+              `hooks: appended systemPrompt (${hookResult.systemPrompt.length} chars)`,
+            );
+          }
+        } catch (hookErr) {
+          log.warn(`before_agent_start hook failed: ${String(hookErr)}`);
+        }
+      }
 
       ({ session } = await createAgentSession({
         cwd: resolvedWorkspace,
