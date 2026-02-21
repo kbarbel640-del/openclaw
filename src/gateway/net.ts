@@ -147,7 +147,11 @@ function stripOptionalPort(ip: string): string {
 }
 
 export function parseForwardedForClientIp(forwardedFor?: string): string | undefined {
-  const raw = forwardedFor?.split(",")[0]?.trim();
+  const entries = forwardedFor
+    ?.split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  const raw = entries?.at(-1);
   if (!raw) {
     return undefined;
   }
@@ -240,7 +244,10 @@ export function resolveGatewayClientIp(params: {
   if (!isTrustedProxyAddress(remote, params.trustedProxies)) {
     return remote;
   }
-  return parseForwardedForClientIp(params.forwardedFor) ?? parseRealIp(params.realIp) ?? remote;
+  // Fail closed when traffic comes from a trusted proxy but client-origin headers
+  // are missing or invalid. Falling back to the proxy's own IP can accidentally
+  // treat unrelated requests as local/trusted.
+  return parseForwardedForClientIp(params.forwardedFor) ?? parseRealIp(params.realIp);
 }
 
 export function isLocalGatewayAddress(ip: string | undefined): boolean {
@@ -395,4 +402,34 @@ export function isLoopbackHost(host: string): boolean {
   // Handle bracketed IPv6 addresses like [::1]
   const unbracket = h.startsWith("[") && h.endsWith("]") ? h.slice(1, -1) : h;
   return isLoopbackAddress(unbracket);
+}
+
+/**
+ * Security check for WebSocket URLs (CWE-319: Cleartext Transmission of Sensitive Information).
+ *
+ * Returns true if the URL is secure for transmitting data:
+ * - wss:// (TLS) is always secure
+ * - ws:// is only secure for loopback addresses (localhost, 127.x.x.x, ::1)
+ *
+ * All other ws:// URLs are considered insecure because both credentials
+ * AND chat/conversation data would be exposed to network interception.
+ */
+export function isSecureWebSocketUrl(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol === "wss:") {
+    return true;
+  }
+
+  if (parsed.protocol !== "ws:") {
+    return false;
+  }
+
+  // ws:// is only secure for loopback addresses
+  return isLoopbackHost(parsed.hostname);
 }
