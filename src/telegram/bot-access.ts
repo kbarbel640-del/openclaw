@@ -1,5 +1,6 @@
 import { firstDefined, isSenderIdAllowed, mergeAllowFromSources } from "../channels/allow-from.js";
 import type { AllowlistMatch } from "../channels/allowlist-match.js";
+import { defaultRuntime } from "../runtime.js";
 
 export type NormalizedAllowFrom = {
   entries: string[];
@@ -21,7 +22,7 @@ function warnInvalidAllowFromEntries(entries: string[]) {
       continue;
     }
     warnedInvalidEntries.add(entry);
-    console.warn(
+    defaultRuntime.error(
       [
         "[telegram] Invalid allowFrom entry:",
         JSON.stringify(entry),

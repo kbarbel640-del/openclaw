@@ -2,6 +2,10 @@ import type { User } from "@buape/carbon";
 import type { PluralKitMessageInfo } from "../pluralkit.js";
 import { formatDiscordUserTag } from "./format.js";
 
+type DiscordMemberLike = {
+  nickname?: string | null;
+};
+
 export type DiscordSenderIdentity = {
   id: string;
   name?: string;
@@ -28,8 +32,7 @@ export function resolveDiscordWebhookId(message: DiscordWebhookMessageLike): str
 
 export function resolveDiscordSenderIdentity(params: {
   author: User;
-  // oxlint-disable-next-line typescript/no-explicit-any
-  member?: any;
+  member?: DiscordMemberLike | null;
   pluralkitInfo?: PluralKitMessageInfo | null;
 }): DiscordSenderIdentity {
   const pkInfo = params.pluralkitInfo ?? null;
@@ -74,8 +77,7 @@ export function resolveDiscordSenderIdentity(params: {
 
 export function resolveDiscordSenderLabel(params: {
   author: User;
-  // oxlint-disable-next-line typescript/no-explicit-any
-  member?: any;
+  member?: DiscordMemberLike | null;
   pluralkitInfo?: PluralKitMessageInfo | null;
 }): string {
   return resolveDiscordSenderIdentity(params).label;
