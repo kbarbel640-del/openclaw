@@ -2,7 +2,6 @@ import { format } from "node:util";
 import { mergeAllowlist, summarizeMapping, type RuntimeEnv } from "openclaw/plugin-sdk";
 import { resolveMatrixTargets } from "../../resolve-targets.js";
 import { getMatrixRuntime } from "../../runtime.js";
-import { ensureMatrixSdkInstalled } from "../deps.js";
 import type { CoreConfig, ReplyToMode } from "../../types.js";
 import { resolveMatrixAccount } from "../accounts.js";
 import { setActiveMatrixClient } from "../active-client.js";
@@ -12,6 +11,7 @@ import {
   resolveSharedMatrixClient,
   stopSharedClientForAccount,
 } from "../client.js";
+import { ensureMatrixSdkInstalled } from "../deps.js";
 import { normalizeMatrixUserId } from "./allowlist.js";
 import { registerMatrixAutoJoin } from "./auto-join.js";
 import { createDirectRoomTracker } from "./direct.js";
