@@ -51,6 +51,18 @@ final class NodeAppModel {
         case error
     }
 
+    enum DeepLinkSource {
+        case external
+        case internalTrusted
+    }
+
+    struct PendingAgentDeepLink: Identifiable, Equatable {
+        let id: String
+        let link: AgentDeepLink
+        let originalURL: URL
+        let preview: String
+    }
+
     var isBackgrounded: Bool = false
     let screen: ScreenController
     private let camera: any CameraServicing
@@ -74,6 +86,7 @@ final class NodeAppModel {
     var gatewayAgents: [AgentSummary] = []
     var lastShareEventText: String = "No share events yet."
     var openChatRequestID: Int = 0
+    var pendingExternalAgentDeepLink: PendingAgentDeepLink?
 
     // Primary "node" connection: used for device capabilities and node.invoke requests.
     private let nodeGateway = GatewayNodeSession()
@@ -186,7 +199,7 @@ final class NodeAppModel {
         self.screen.onDeepLink = { [weak self] url in
             guard let self else { return }
             Task { @MainActor in
-                await self.handleDeepLink(url: url)
+                await self.handleDeepLink(url: url, source: .external)
             }
         }
 
@@ -744,18 +757,22 @@ final class NodeAppModel {
         await self.nodeGateway.sendEvent(event: "voice.transcript", payloadJSON: json)
     }
 
-    func handleDeepLink(url: URL) async {
+    func handleDeepLink(url: URL, source: DeepLinkSource = .external) async {
         guard let route = DeepLinkParser.parse(url) else { return }
 
         switch route {
         case let .agent(link):
-            await self.handleAgentDeepLink(link, originalURL: url)
+            await self.handleAgentDeepLink(link, originalURL: url, source: source)
         case .gateway:
             break
         }
     }
 
-    private func handleAgentDeepLink(_ link: AgentDeepLink, originalURL: URL) async {
+    private func handleAgentDeepLink(
+        _ link: AgentDeepLink,
+        originalURL: URL,
+        source: DeepLinkSource,
+    ) async {
         let message = link.message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }
         self.deepLinkLogger.info(
@@ -775,6 +792,16 @@ final class NodeAppModel {
             return
         }
 
+        if source == .external {
+            self.pendingExternalAgentDeepLink = PendingAgentDeepLink(
+                id: UUID().uuidString,
+                link: link,
+                originalURL: originalURL,
+                preview: Self.summarizeDeepLinkMessage(message))
+            self.deepLinkLogger.info("agent deep link queued for user approval")
+            return
+        }
+
         do {
             try await self.sendAgentRequest(link: link)
             self.screen.errorText = nil
@@ -786,6 +813,40 @@ final class NodeAppModel {
             self.recordShareEvent("Failed: \(error.localizedDescription)")
             self.deepLinkLogger.error("agent deep link send failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    func approvePendingExternalAgentDeepLink() async {
+        guard let pending = self.pendingExternalAgentDeepLink else { return }
+        self.pendingExternalAgentDeepLink = nil
+
+        do {
+            try await self.sendAgentRequest(link: pending.link)
+            self.screen.errorText = nil
+            self.recordShareEvent("Sent approved deep link (\(pending.link.message.count) chars).")
+            self.deepLinkLogger.info(
+                "approved agent deep link forwarded url=\(pending.originalURL.absoluteString, privacy: .public)")
+            self.openChatRequestID &+= 1
+        } catch {
+            self.screen.errorText = "Agent request failed: \(error.localizedDescription)"
+            self.recordShareEvent("Failed: \(error.localizedDescription)")
+            self.deepLinkLogger.error(
+                "approved deep link send failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func rejectPendingExternalAgentDeepLink() {
+        guard let pending = self.pendingExternalAgentDeepLink else { return }
+        self.pendingExternalAgentDeepLink = nil
+        self.deepLinkLogger.info(
+            "agent deep link rejected by user url=\(pending.originalURL.absoluteString, privacy: .public)")
+    }
+
+    private static func summarizeDeepLinkMessage(_ message: String, limit: Int = 160): String {
+        let normalized = message.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+        if normalized.count <= limit {
+            return normalized
+        }
+        return String(normalized.prefix(limit)) + "..."
     }
 
     private func sendAgentRequest(link: AgentDeepLink) async throws {
@@ -2247,7 +2308,7 @@ extension NodeAppModel {
             return
         }
 
-        await self.handleDeepLink(url: deepLink)
+        await self.handleDeepLink(url: deepLink, source: .internalTrusted)
     }
 
     func refreshLastShareEventFromRelay() {

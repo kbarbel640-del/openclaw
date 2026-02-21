@@ -472,7 +472,7 @@ struct OpenClawApp: App {
                     self.appDelegate.appModel = self.appModel
                 }
                 .onOpenURL { url in
-                    Task { await self.appModel.handleDeepLink(url: url) }
+                    Task { await self.appModel.handleDeepLink(url: url, source: .external) }
                 }
                 .onChange(of: self.scenePhase) { _, newValue in
                     self.appModel.setScenePhase(newValue)

@@ -88,6 +88,28 @@ struct RootCanvas: View {
             }
         }
         .gatewayTrustPromptAlert()
+                .alert(
+            "Allow External Agent Request?",
+            isPresented: Binding(
+                get: { self.appModel.pendingExternalAgentDeepLink != nil },
+                set: { presented in
+                    if !presented {
+                        self.appModel.rejectPendingExternalAgentDeepLink()
+                    }
+                }),
+            presenting: self.appModel.pendingExternalAgentDeepLink)
+        { _ in
+            Button("Deny", role: .cancel) {
+                self.appModel.rejectPendingExternalAgentDeepLink()
+            }
+            Button("Allow") {
+                Task { await self.appModel.approvePendingExternalAgentDeepLink() }
+            }
+        } message: { pending in
+            Text(
+                "An external deep link requested an agent action.\n\nPreview: \(pending.preview)"
+            )
+        }
         .sheet(item: self.$presentedSheet) { sheet in
             switch sheet {
             case .settings:
