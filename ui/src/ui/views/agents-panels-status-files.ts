@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import {
   formatCronPayload,
@@ -200,7 +201,7 @@ export function renderAgentChannels(params: {
             <div class="card-sub">Gateway-wide channel status snapshot.</div>
           </div>
           <button class="btn btn--sm" ?disabled=${params.loading} @click=${params.onRefresh}>
-            ${params.loading ? "Refreshing…" : "Refresh"}
+            ${params.loading ? t("common.actions.refreshing") : t("common.actions.refresh")}
           </button>
         </div>
         <div class="muted" style="margin-top: 8px;">
@@ -284,7 +285,7 @@ export function renderAgentCron(params: {
             <div class="card-sub">Gateway cron status.</div>
           </div>
           <button class="btn btn--sm" ?disabled=${params.loading} @click=${params.onRefresh}>
-            ${params.loading ? "Refreshing…" : "Refresh"}
+            ${params.loading ? t("common.actions.refreshing") : t("common.actions.refresh")}
           </button>
         </div>
         <div class="stat-grid" style="margin-top: 16px;">
@@ -387,7 +388,7 @@ export function renderAgentFiles(params: {
           ?disabled=${params.agentFilesLoading}
           @click=${() => params.onLoadFiles(params.agentId)}
         >
-          ${params.agentFilesLoading ? "Loading…" : "Refresh"}
+          ${params.agentFilesLoading ? t("common.actions.loading") : t("common.actions.refresh")}
         </button>
       </div>
       ${
@@ -445,7 +446,7 @@ export function renderAgentFiles(params: {
                                 ?disabled=${params.agentFileSaving || !isDirty}
                                 @click=${() => params.onFileSave(activeEntry.name)}
                               >
-                                ${params.agentFileSaving ? "Saving…" : "Save"}
+                                ${params.agentFileSaving ? t("common.actions.saving") : t("common.actions.save")}
                               </button>
                             </div>
                           </div>
