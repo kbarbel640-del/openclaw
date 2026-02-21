@@ -63,24 +63,28 @@ struct MenuContent: View {
             .disabled(self.state.connectionMode == .unconfigured)
 
             Divider()
-            Toggle(isOn: self.heartbeatsBinding) {
-                HStack(spacing: 8) {
-                    Label("Send Heartbeats", systemImage: "waveform.path.ecg")
-                    Spacer(minLength: 0)
-                    self.statusLine(label: self.heartbeatStatus.label, color: self.heartbeatStatus.color)
-                }
+            self.settingToggleRow(
+                title: "Send Heartbeats",
+                systemImage: "waveform.path.ecg",
+                isOn: self.state.heartbeatsEnabled)
+            {
+                self.heartbeatsBinding.wrappedValue.toggle()
             }
-            Toggle(
-                isOn: Binding(
-                    get: { self.browserControlEnabled },
-                    set: { enabled in
-                        self.browserControlEnabled = enabled
-                        Task { await self.saveBrowserControlEnabled(enabled) }
-                    })) {
-                Label("Browser Control", systemImage: "globe")
+            self.settingToggleRow(
+                title: "Browser Control",
+                systemImage: "globe",
+                isOn: self.browserControlEnabled)
+            {
+                let enabled = !self.browserControlEnabled
+                self.browserControlEnabled = enabled
+                Task { await self.saveBrowserControlEnabled(enabled) }
             }
-            Toggle(isOn: self.$cameraEnabled) {
-                Label("Allow Camera", systemImage: "camera")
+            self.settingToggleRow(
+                title: "Allow Camera",
+                systemImage: "camera",
+                isOn: self.cameraEnabled)
+            {
+                self.cameraEnabled.toggle()
             }
             Picker(selection: self.execApprovalModeBinding) {
                 ForEach(ExecApprovalQuickMode.allCases) { mode in
@@ -89,16 +93,24 @@ struct MenuContent: View {
             } label: {
                 Label("Exec Approvals", systemImage: "terminal")
             }
-            Toggle(isOn: Binding(get: { self.state.canvasEnabled }, set: { self.state.canvasEnabled = $0 })) {
-                Label("Allow Canvas", systemImage: "rectangle.and.pencil.and.ellipsis")
+            self.settingToggleRow(
+                title: "Allow Canvas",
+                systemImage: "rectangle.and.pencil.and.ellipsis",
+                isOn: self.state.canvasEnabled)
+            {
+                self.state.canvasEnabled.toggle()
             }
             .onChange(of: self.state.canvasEnabled) { _, enabled in
                 if !enabled {
                     CanvasManager.shared.hideAll()
                 }
             }
-            Toggle(isOn: self.voiceWakeBinding) {
-                Label("Voice Wake", systemImage: "mic.fill")
+            self.settingToggleRow(
+                title: "Voice Wake",
+                systemImage: "mic.fill",
+                isOn: self.state.swabbleEnabled)
+            {
+                self.voiceWakeBinding.wrappedValue.toggle()
             }
             .disabled(!voiceWakeSupported)
             .opacity(voiceWakeSupported ? 1 : 0.5)
@@ -147,7 +159,6 @@ struct MenuContent: View {
             .opacity(voiceWakeSupported ? 1 : 0.5)
             Divider()
             Button("Settings…") { self.open(tab: .general) }
-                .keyboardShortcut(",", modifiers: [.command])
             self.debugMenu
             Button("About OpenClaw") { self.open(tab: .about) }
             if let updater, updater.isAvailable, self.updateStatus.isUpdateReady {
@@ -414,6 +425,25 @@ struct MenuContent: View {
                 .layoutPriority(1)
         }
         .padding(.top, 2)
+    }
+
+    private func settingToggleRow(
+        title: String,
+        systemImage: String,
+        isOn: Bool,
+        action: @escaping () -> Void) -> some View
+    {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Label(title, systemImage: systemImage)
+                Spacer(minLength: 0)
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(isOn ? Color.accentColor : .secondary.opacity(0.45))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
     }
 
     private var activeBinding: Binding<Bool> {
