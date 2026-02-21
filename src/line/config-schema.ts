@@ -13,6 +13,8 @@ const LineGroupConfigSchema = z
   })
   .strict();
 
+const DeliveryModeSchema = z.enum(["auto", "push"]);
+
 const LineAccountConfigSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -27,6 +29,7 @@ const LineAccountConfigSchema = z
     groupPolicy: GroupPolicySchema.optional().default("allowlist"),
     mediaMaxMb: z.number().optional(),
     webhookPath: z.string().optional(),
+    deliveryMode: DeliveryModeSchema.optional().default("auto"),
     groups: z.record(z.string(), LineGroupConfigSchema.optional()).optional(),
   })
   .strict();
@@ -45,6 +48,7 @@ export const LineConfigSchema = z
     groupPolicy: GroupPolicySchema.optional().default("allowlist"),
     mediaMaxMb: z.number().optional(),
     webhookPath: z.string().optional(),
+    deliveryMode: DeliveryModeSchema.optional().default("auto"),
     accounts: z.record(z.string(), LineAccountConfigSchema.optional()).optional(),
     groups: z.record(z.string(), LineGroupConfigSchema.optional()).optional(),
   })

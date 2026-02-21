@@ -22,6 +22,7 @@ import {
 } from "./send.js";
 import { buildTemplateMessageFromPayload } from "./template-messages.js";
 import type { LineChannelData, ResolvedLineAccount } from "./types.js";
+import { resolveLineAccount } from "./accounts.js";
 import { dispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/reply/provider-dispatcher.js";
 import { resolveEffectiveMessagesConfig } from "../agents/identity.js";
 import { chunkMarkdownText } from "../auto-reply/chunk.js";
@@ -135,6 +136,8 @@ export async function monitorLineProvider(
     webhookPath,
   } = opts;
   const resolvedAccountId = accountId ?? "default";
+  const resolvedAccount = resolveLineAccount({ cfg: config, accountId: resolvedAccountId });
+  const deliveryMode = resolvedAccount.config.deliveryMode ?? "auto";
 
   // Record starting state
   recordChannelRuntimeState({
@@ -203,8 +206,8 @@ export async function monitorLineProvider(
               const { replyTokenUsed: nextReplyTokenUsed } = await deliverLineAutoReply({
                 payload,
                 lineData,
-                to: ctxPayload.From,
-                replyToken,
+                to: ctx.userId ?? ctxPayload.From,
+                replyToken: deliveryMode === "push" ? undefined : replyToken,
                 replyTokenUsed,
                 accountId: ctx.accountId,
                 textLimit,
@@ -253,7 +256,19 @@ export async function monitorLineProvider(
         runtime.error?.(danger(`line: auto-reply failed: ${String(err)}`));
 
         // Send error message to user
-        if (replyToken) {
+        if (deliveryMode === "push") {
+          try {
+            await pushMessageLine(
+              ctx.userId ?? ctxPayload.From,
+              "Sorry, I encountered an error processing your message.",
+              {
+                accountId: ctx.accountId,
+              },
+            );
+          } catch (pushErr) {
+            runtime.error?.(danger(`line: error push failed: ${String(pushErr)}`));
+          }
+        } else if (replyToken) {
           try {
             await replyMessageLine(
               replyToken,

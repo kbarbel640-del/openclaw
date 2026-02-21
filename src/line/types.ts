@@ -10,6 +10,8 @@ import type {
 
 export type LineTokenSource = "config" | "env" | "file" | "none";
 
+export type LineDeliveryMode = "auto" | "push";
+
 export interface LineConfig {
   enabled?: boolean;
   channelAccessToken?: string;
@@ -23,6 +25,7 @@ export interface LineConfig {
   groupPolicy?: "open" | "allowlist" | "disabled";
   mediaMaxMb?: number;
   webhookPath?: string;
+  deliveryMode?: LineDeliveryMode;
   accounts?: Record<string, LineAccountConfig>;
   groups?: Record<string, LineGroupConfig>;
 }
@@ -40,6 +43,7 @@ export interface LineAccountConfig {
   groupPolicy?: "open" | "allowlist" | "disabled";
   mediaMaxMb?: number;
   webhookPath?: string;
+  deliveryMode?: LineDeliveryMode;
   groups?: Record<string, LineGroupConfig>;
 }
 
