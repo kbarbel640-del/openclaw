@@ -35,21 +35,40 @@ export function BusinessGoalsPage() {
   // Transform the raw goal model into BusinessGoal objects
   const goals: BusinessGoal[] = useMemo(() => {
     if (!goalModel) return [];
+    const model = goalModel as any;
 
-    // The backend returns a Tropos model; goals may be in different formats
-    const rawGoals = (goalModel as any).goals || [];
-    return rawGoals.map((g: any) => ({
-      id: g.id || "",
-      name: g.text || g.name || "",
-      description: g.description || "",
-      level:
-        g.level ||
-        (g.priority >= 0.7 ? "strategic" : g.priority >= 0.4 ? "tactical" : "operational"),
-      type: g.type === "hard" ? "hardgoal" : g.type === "soft" ? "softgoal" : g.type || "hardgoal",
-      priority: typeof g.priority === "number" ? g.priority : 0.5,
-      desires: g.desires || [],
-      workflows: g.workflows || [],
-    }));
+    // Goals live inside actors[].goals (Tropos model) or at top-level .goals
+    let rawGoals: any[] = model.goals || [];
+    if (rawGoals.length === 0 && Array.isArray(model.actors)) {
+      // Extract goals from all actors (stakeholder has the main goals)
+      for (const actor of model.actors) {
+        if (Array.isArray(actor.goals)) {
+          for (const g of actor.goals) {
+            rawGoals.push({ ...g, actor: actor.id });
+          }
+        }
+      }
+    }
+
+    // Also enrich with goal_mapping data (agent assignments)
+    const mapping = Array.isArray(model.goal_mapping) ? model.goal_mapping : [];
+
+    return rawGoals.map((g: any, idx: number) => {
+      const mapped = mapping.find((m: any) => m.stakeholder_goal === (g.goal || g.name || g.text));
+      return {
+        id: g.id || `goal-${idx}`,
+        name: g.goal || g.text || g.name || "",
+        description: g.description || mapped?.decomposition || "",
+        level:
+          g.level ||
+          (g.priority >= 0.7 ? "strategic" : g.priority >= 0.4 ? "tactical" : "operational"),
+        type:
+          g.type === "hard" ? "hardgoal" : g.type === "soft" ? "softgoal" : g.type || "hardgoal",
+        priority: typeof g.priority === "number" ? g.priority : 0.5,
+        desires: g.desires || [],
+        workflows: g.workflows || [],
+      };
+    });
   }, [goalModel]);
 
   const filtered = useMemo(() => {
