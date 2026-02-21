@@ -856,9 +856,8 @@ async function readTurnsFromJsonl(sessionFile: string, sessionId: string): Promi
         lineNumber;
       const pointer = messageEntry.id ? `turn:${sessionId}:msg:${messageEntry.id}` : undefined;
       const payload = {
+        ...messageEntry.message,
         role: messageEntry.role,
-        content: messageEntry.content,
-        usage: messageEntry.usage,
         source: {
           file: sessionFile,
           line: lineNumber,
@@ -912,9 +911,8 @@ function parseMessageEntry(entry: Record<string, unknown>): {
   parentId: string | null;
   timestamp: string | number | null;
   messageTimestamp: string | number | null;
-  role: "user" | "assistant";
-  content: unknown;
-  usage: unknown;
+  role: string;
+  message: Record<string, unknown>;
 } | null {
   if (entry.type !== "message") {
     return null;
@@ -923,8 +921,8 @@ function parseMessageEntry(entry: Record<string, unknown>): {
   if (!message) {
     return null;
   }
-  const role = message.role;
-  if (role !== "user" && role !== "assistant") {
+  const role = normalizeOptionalString(typeof message.role === "string" ? message.role : null);
+  if (!role) {
     return null;
   }
 
@@ -934,8 +932,10 @@ function parseMessageEntry(entry: Record<string, unknown>): {
     timestamp: isTimestampValue(entry.timestamp) ? entry.timestamp : null,
     messageTimestamp: isTimestampValue(message.timestamp) ? message.timestamp : null,
     role,
-    content: message.content,
-    usage: message.usage ?? entry.usage ?? null,
+    message: {
+      ...message,
+      usage: message.usage ?? entry.usage ?? null,
+    },
   };
 }
 

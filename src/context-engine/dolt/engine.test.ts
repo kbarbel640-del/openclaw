@@ -181,6 +181,20 @@ describe("DoltContextEngine", () => {
           timestamp: 2,
           message: { role: "assistant", content: "bootstrap reply" },
         }),
+        JSON.stringify({
+          type: "message",
+          id: "msg-3",
+          parentId: "msg-2",
+          timestamp: 3,
+          message: {
+            role: "toolResult",
+            toolCallId: "toolu_bootstrap",
+            toolName: "exec",
+            content: [{ type: "text", text: "bootstrap tool output" }],
+            details: { status: "completed", exitCode: 0 },
+            isError: false,
+          },
+        }),
       ].join("\n"),
       "utf8",
     );
@@ -192,9 +206,25 @@ describe("DoltContextEngine", () => {
 
     expect(result).toEqual({
       bootstrapped: true,
-      importedMessages: 2,
+      importedMessages: 3,
     });
-    expect(store.countSessionRecords("session-bootstrap-engine")).toBe(2);
+    expect(store.countSessionRecords("session-bootstrap-engine")).toBe(3);
+
+    const turns = store.listRecordsBySession({
+      sessionId: "session-bootstrap-engine",
+      level: "turn",
+    });
+    const toolResult = turns.find(
+      (row) => row.pointer === "turn:session-bootstrap-engine:msg:msg-3",
+    );
+    expect(toolResult).toBeTruthy();
+    const payload = toolResult?.payload as Record<string, unknown>;
+    expect(payload.role).toBe("toolResult");
+    expect(payload.toolCallId).toBe("toolu_bootstrap");
+    expect(payload.toolName).toBe("exec");
+    expect(payload.content).toEqual([{ type: "text", text: "bootstrap tool output" }]);
+    expect(payload.details).toEqual({ status: "completed", exitCode: 0 });
+    expect(payload.isError).toBe(false);
   });
 
   it("ingest writes turn records and active-lane entries", async () => {

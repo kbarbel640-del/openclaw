@@ -255,6 +255,21 @@ describe("SqliteDoltStore", () => {
             usage: { total: 18 },
           },
         }),
+        JSON.stringify({
+          type: "message",
+          id: "m3",
+          parentId: "m2",
+          timestamp: "2026-02-20T00:00:03.000Z",
+          message: {
+            role: "toolResult",
+            toolCallId: "toolu_123",
+            toolName: "exec",
+            content: [{ type: "text", text: "ok" }],
+            details: { status: "completed", exitCode: 0 },
+            isError: false,
+          },
+          usage: { total: 7 },
+        }),
       ].join("\n"),
       "utf-8",
     );
@@ -266,15 +281,16 @@ describe("SqliteDoltStore", () => {
     });
     expect(bootstrap).toEqual({
       bootstrapped: true,
-      importedRecords: 2,
+      importedRecords: 3,
       source: "jsonl",
     });
 
     const turns = store.listRecordsBySession({ sessionId: "session-a", level: "turn" });
-    expect(turns).toHaveLength(2);
+    expect(turns).toHaveLength(3);
     expect(turns.map((row) => row.pointer)).toEqual([
       "turn:session-a:msg:m1",
       "turn:session-a:msg:m2",
+      "turn:session-a:msg:m3",
     ]);
     for (const turn of turns) {
       expect(turn.tokenCount).toBeGreaterThanOrEqual(0);
@@ -282,7 +298,24 @@ describe("SqliteDoltStore", () => {
     }
     expect(
       store.listActiveLane({ sessionId: "session-a", level: "turn", activeOnly: true }),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
+
+    const toolResult = turns.find((row) => row.pointer === "turn:session-a:msg:m3");
+    expect(toolResult).toBeTruthy();
+    const payload = toolResult?.payload as Record<string, unknown>;
+    expect(payload.role).toBe("toolResult");
+    expect(payload.toolCallId).toBe("toolu_123");
+    expect(payload.toolName).toBe("exec");
+    expect(payload.content).toEqual([{ type: "text", text: "ok" }]);
+    expect(payload.details).toEqual({ status: "completed", exitCode: 0 });
+    expect(payload.isError).toBe(false);
+    expect(payload.usage).toEqual({ total: 7 });
+    expect(payload.source).toEqual({
+      file: sessionFile,
+      line: 4,
+      entryId: "m3",
+      parentId: "m2",
+    });
   });
 
   it("skips bootstrap when records already exist for the session", async () => {
