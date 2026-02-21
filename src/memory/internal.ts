@@ -73,9 +73,14 @@ function shouldIgnorePath(params: {
   const absPathPosix = toPosixPath(path.resolve(params.absPath));
   const rootRelPosix = toPosixPath(path.relative(params.rootDir, params.absPath));
   const workspaceRelPosix = toPosixPath(path.relative(params.workspaceDir, params.absPath));
-  const candidates = [absPathPosix, rootRelPosix, workspaceRelPosix]
+  const baseCandidates = [absPathPosix, rootRelPosix, workspaceRelPosix]
     .filter((value) => value.length > 0 && value !== ".")
-    .map((value) => (params.isDirectory ? `${value.replace(/\/+$/g, "")}/` : value));
+    .map((value) => value.replace(/\/+$/g, ""));
+  const candidates = Array.from(
+    new Set(
+      params.isDirectory ? baseCandidates.flatMap((value) => [value, `${value}/`]) : baseCandidates,
+    ),
+  );
 
   for (const rawPattern of params.ignorePaths) {
     const pattern = rawPattern.trim();

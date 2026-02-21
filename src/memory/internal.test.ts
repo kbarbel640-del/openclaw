@@ -133,6 +133,7 @@ describe("listMemoryFiles", () => {
   });
 
   it("respects ignorePaths glob patterns", async () => {
+    const tmpDir = getTmpDir();
     await fs.writeFile(path.join(tmpDir, "MEMORY.md"), "# Default memory");
     const extraDir = path.join(tmpDir, "extra");
     await fs.mkdir(extraDir, { recursive: true });
@@ -156,7 +157,29 @@ describe("listMemoryFiles", () => {
     expect(files.some((file) => file.includes(".venv"))).toBe(false);
   });
 
+  it("supports directory ignore patterns with and without /** suffix", async () => {
+    const tmpDir = getTmpDir();
+    await fs.writeFile(path.join(tmpDir, "MEMORY.md"), "# Default memory");
+    const extraDir = path.join(tmpDir, "extra");
+    await fs.mkdir(extraDir, { recursive: true });
+    await fs.writeFile(path.join(extraDir, "note.md"), "# Note");
+
+    const nodeModules = path.join(extraDir, "node_modules");
+    await fs.mkdir(nodeModules, { recursive: true });
+    await fs.writeFile(path.join(nodeModules, "readme.md"), "# Ignore me");
+
+    const venv = path.join(extraDir, ".venv");
+    await fs.mkdir(venv, { recursive: true });
+    await fs.writeFile(path.join(venv, "docs.md"), "# Ignore me too");
+
+    const files = await listMemoryFiles(tmpDir, [extraDir], ["**/node_modules", "**/.venv/"]);
+    expect(files).toHaveLength(2); // MEMORY.md + note.md
+    expect(files.some((file) => file.includes("node_modules"))).toBe(false);
+    expect(files.some((file) => file.includes(".venv"))).toBe(false);
+  });
+
   it("supports wildcard glob patterns in ignorePaths", async () => {
+    const tmpDir = getTmpDir();
     await fs.writeFile(path.join(tmpDir, "MEMORY.md"), "# Default memory");
     const extraDir = path.join(tmpDir, "extra");
     await fs.mkdir(extraDir, { recursive: true });
