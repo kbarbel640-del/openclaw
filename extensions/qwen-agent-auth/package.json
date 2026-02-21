@@ -1,0 +1,15 @@
+{
+  "name": "@openclaw/qwen-agent-auth",
+  "version": "2026.2.22",
+  "private": true,
+  "description": "OpenClaw Qwen Agent OAuth provider plugin",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

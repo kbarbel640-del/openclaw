@@ -1,0 +1,9 @@
+{
+  "id": "qwen-agent-auth",
+  "providers": ["qwen-agent"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

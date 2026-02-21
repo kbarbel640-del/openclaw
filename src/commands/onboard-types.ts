@@ -43,6 +43,7 @@ export type AuthChoice =
   | "opencode-zen"
   | "github-copilot"
   | "copilot-proxy"
+  | "qwen-agent"
   | "qwen-portal"
   | "xai-api-key"
   | "volcengine-api-key"

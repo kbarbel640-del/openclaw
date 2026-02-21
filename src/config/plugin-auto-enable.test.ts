@@ -60,6 +60,24 @@ describe("applyPluginAutoEnable", () => {
     expect(result.config.plugins?.entries?.["google-antigravity-auth"]?.enabled).toBe(true);
   });
 
+  it("auto-enables qwen agent auth plugin when qwen-agent profile exists", () => {
+    const result = applyPluginAutoEnable({
+      config: {
+        auth: {
+          profiles: {
+            "qwen-agent:default": {
+              provider: "qwen-agent",
+              mode: "oauth",
+            },
+          },
+        },
+      },
+      env: {},
+    });
+
+    expect(result.config.plugins?.entries?.["qwen-agent-auth"]?.enabled).toBe(true);
+  });
+
   it("skips when plugins are globally disabled", () => {
     const result = applyPluginAutoEnable({
       config: {

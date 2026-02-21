@@ -41,7 +41,7 @@ describe("buildAuthChoiceOptions", () => {
     ["Together AI auth choice", ["together-api-key"]],
     ["Synthetic auth choice", ["synthetic-api-key"]],
     ["Chutes OAuth auth choice", ["chutes"]],
-    ["Qwen auth choice", ["qwen-portal"]],
+    ["Qwen auth choice", ["qwen-agent", "qwen-portal"]],
     ["xAI auth choice", ["xai-api-key"]],
     ["Volcano Engine auth choice", ["volcengine-api-key"]],
     ["BytePlus auth choice", ["byteplus-api-key"]],

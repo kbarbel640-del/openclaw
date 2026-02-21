@@ -202,15 +202,17 @@ Kimi Coding uses Moonshot AI's Anthropic-compatible endpoint:
 ### Qwen OAuth (free tier)
 
 Qwen provides OAuth access to Qwen Coder + Vision via a device-code flow.
-Enable the bundled plugin, then log in:
+Enable a bundled plugin, then log in:
 
 ```bash
-openclaw plugins enable qwen-portal-auth
-openclaw models auth login --provider qwen-portal --set-default
+openclaw plugins enable qwen-agent-auth
+openclaw models auth login --provider qwen-agent --set-default
 ```
 
 Model refs:
 
+- `qwen-agent/coder-model`
+- `qwen-agent/vision-model`
 - `qwen-portal/coder-model`
 - `qwen-portal/vision-model`
 
