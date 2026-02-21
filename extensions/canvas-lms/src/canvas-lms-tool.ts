@@ -413,7 +413,12 @@ async function resolveCanvasAuthToken(params: {
     if (shouldRefreshToken(state)) {
       state = await refreshOAuthToken({
         fetchImpl: params.fetchImpl,
-        config: oauth,
+        config: {
+          ...oauth,
+          refreshToken: state.refreshToken ?? oauth.refreshToken,
+          accessToken: state.accessToken || oauth.accessToken,
+          expiresAt: state.expiresAt ?? oauth.expiresAt,
+        },
         timeoutMs: params.timeoutMs,
         maxRetries: params.maxRetries,
       });

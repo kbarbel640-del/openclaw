@@ -251,6 +251,71 @@ describe("canvas-lms-tool", () => {
     expect(apiHeaders.Authorization).toBe("Bearer new-access-token");
   });
 
+  it("uses rotated refresh token from cache on subsequent oauth refreshes", async () => {
+    const refresh1 = new Response(
+      JSON.stringify({
+        access_token: "access-1",
+        refresh_token: "refresh-1",
+        expires_in: 1,
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
+    const data1 = new Response(JSON.stringify([{ id: 1, name: "OAuth Course 1" }]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+    const refresh2 = new Response(
+      JSON.stringify({
+        access_token: "access-2",
+        refresh_token: "refresh-2",
+        expires_in: 3600,
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
+    const data2 = new Response(JSON.stringify([{ id: 2, name: "OAuth Course 2" }]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(refresh1)
+      .mockResolvedValueOnce(data1)
+      .mockResolvedValueOnce(refresh2)
+      .mockResolvedValueOnce(data2);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tool = createCanvasLmsTool(
+      fakeApi({
+        pluginConfig: {
+          baseUrl: "https://canvas.example.edu",
+          oauth: {
+            clientId: "cid-rotating",
+            clientSecret: "csecret",
+            refreshToken: "refresh-0",
+            accessToken: "expired-access",
+            expiresAt: Date.now() - 60_000,
+          },
+        },
+      }),
+    );
+
+    await tool.execute("call-oauth-rot-1", { action: "list_courses" });
+    await tool.execute("call-oauth-rot-2", { action: "list_courses" });
+
+    const firstRefreshBody = fetchMock.mock.calls[0]?.[1]?.body;
+    const secondRefreshBody = fetchMock.mock.calls[2]?.[1]?.body;
+    expect(firstRefreshBody).toBeInstanceOf(URLSearchParams);
+    expect(secondRefreshBody).toBeInstanceOf(URLSearchParams);
+    expect((firstRefreshBody as URLSearchParams).get("refresh_token")).toBe("refresh-0");
+    expect((secondRefreshBody as URLSearchParams).get("refresh_token")).toBe("refresh-1");
+  });
+
   it("enforces secure oauth token url by default", async () => {
     vi.stubGlobal("fetch", vi.fn());
     const tool = createCanvasLmsTool(
