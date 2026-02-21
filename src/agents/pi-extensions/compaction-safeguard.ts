@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { createSubsystemLogger } from "../../logging/subsystem.js";
 import type { ExtensionAPI, FileOperations } from "@mariozechner/pi-coding-agent";
+import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { extractSections } from "../../auto-reply/reply/post-compaction-context.js";
 import {
   BASE_CHUNK_RATIO,

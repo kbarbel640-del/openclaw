@@ -3,8 +3,8 @@ import {
   ListFoundationModelsCommand,
   type ListFoundationModelsCommandOutput,
 } from "@aws-sdk/client-bedrock";
-import { createSubsystemLogger } from "../logging/subsystem.js";
 import type { BedrockDiscoveryConfig, ModelDefinitionConfig } from "../config/types.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 
 const log = createSubsystemLogger("bedrock-discovery");
 

@@ -1,9 +1,9 @@
 import { Type } from "@sinclair/typebox";
 import { isRestartEnabled } from "../../config/commands.js";
 import type { OpenClawConfig } from "../../config/config.js";
-import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { resolveConfigSnapshotHash } from "../../config/io.js";
 import { extractDeliveryInfo } from "../../config/sessions.js";
+import { createSubsystemLogger } from "../../logging/subsystem.js";
 import {
   formatDoctorNonInteractiveHint,
   type RestartSentinelPayload,

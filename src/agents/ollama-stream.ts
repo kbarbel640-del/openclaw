@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import type { StreamFn } from "@mariozechner/pi-agent-core";
-import { createSubsystemLogger } from "../logging/subsystem.js";
 import type {
   AssistantMessage,
   StopReason,
@@ -10,6 +9,7 @@ import type {
   Usage,
 } from "@mariozechner/pi-ai";
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 
 const log = createSubsystemLogger("ollama-stream");
 

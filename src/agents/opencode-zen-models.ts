@@ -1,5 +1,3 @@
-import { createSubsystemLogger } from "../logging/subsystem.js";
-
 /**
  * OpenCode Zen model catalog with dynamic fetching, caching, and static fallback.
  *
@@ -14,6 +12,7 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
  */
 
 import type { ModelApi, ModelDefinitionConfig } from "../config/types.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 
 const log = createSubsystemLogger("opencode-zen-models");
 
