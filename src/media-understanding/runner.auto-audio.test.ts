@@ -20,11 +20,15 @@ async function withAudioFixture(
 ) {
   const originalPath = process.env.PATH;
   process.env.PATH = "/usr/bin:/bin";
-  const tmpPath = path.join(os.tmpdir(), `openclaw-auto-audio-${Date.now()}.wav`);
+  const testStateDir = path.join(os.tmpdir(), "openclaw-auto-audio-state");
+  process.env.OPENCLAW_STATE_DIR = testStateDir;
+  const mediaDir = path.join(testStateDir, "media");
+  await fs.mkdir(mediaDir, { recursive: true });
+  const tmpPath = path.join(mediaDir, `openclaw-auto-audio-${Date.now()}.wav`);
   await fs.writeFile(tmpPath, Buffer.from("RIFF"));
   const ctx: MsgContext = { MediaPath: tmpPath, MediaType: "audio/wav" };
   const media = normalizeMediaAttachments(ctx);
-  const cache = createMediaAttachmentCache(media);
+  const cache = createMediaAttachmentCache(media, { localPathRoots: [mediaDir] });
 
   try {
     await run({ ctx, media, cache });

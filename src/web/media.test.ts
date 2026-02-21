@@ -50,7 +50,13 @@ async function createLargeTestJpeg(): Promise<{ buffer: Buffer; file: string }> 
 }
 
 beforeAll(async () => {
-  fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-media-test-"));
+  stateDirSnapshot = captureEnv(["OPENCLAW_STATE_DIR"]);
+  const testStateDir = path.join(os.tmpdir(), "openclaw-media-state-test");
+  process.env.OPENCLAW_STATE_DIR = testStateDir;
+
+  const mediaRoot = path.join(testStateDir, "media");
+  await fs.mkdir(mediaRoot, { recursive: true });
+  fixtureRoot = await fs.mkdtemp(path.join(mediaRoot, "openclaw-media-test-"));
   largeJpegBuffer = await sharp({
     create: {
       width: 400,
@@ -99,6 +105,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await fs.rm(fixtureRoot, { recursive: true, force: true });
+  stateDirSnapshot.restore();
 });
 
 afterEach(() => {
@@ -106,22 +113,6 @@ afterEach(() => {
 });
 
 describe("web media loading", () => {
-  beforeAll(() => {
-    // Ensure state dir is stable and not influenced by other tests that stub OPENCLAW_STATE_DIR.
-    // Also keep it outside the OpenClaw temp root so default localRoots doesn't accidentally make all state readable.
-    stateDirSnapshot = captureEnv(["OPENCLAW_STATE_DIR"]);
-    process.env.OPENCLAW_STATE_DIR = path.join(
-      path.parse(os.tmpdir()).root,
-      "var",
-      "lib",
-      "openclaw-media-state-test",
-    );
-  });
-
-  afterAll(() => {
-    stateDirSnapshot.restore();
-  });
-
   beforeAll(() => {
     vi.spyOn(ssrf, "resolvePinnedHostname").mockImplementation(async (hostname) => {
       const normalized = hostname.trim().toLowerCase().replace(/\.$/, "");

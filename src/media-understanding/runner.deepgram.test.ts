@@ -13,11 +13,15 @@ import {
 
 describe("runCapability deepgram provider options", () => {
   it("merges provider options, headers, and baseUrl overrides", async () => {
-    const tmpPath = path.join(os.tmpdir(), `openclaw-deepgram-${Date.now()}.wav`);
+    const testStateDir = path.join(os.tmpdir(), "openclaw-deepgram-state");
+    process.env.OPENCLAW_STATE_DIR = testStateDir;
+    const mediaDir = path.join(testStateDir, "media");
+    await fs.mkdir(mediaDir, { recursive: true });
+    const tmpPath = path.join(mediaDir, `openclaw-deepgram-${Date.now()}.wav`);
     await fs.writeFile(tmpPath, Buffer.from("RIFF"));
     const ctx: MsgContext = { MediaPath: tmpPath, MediaType: "audio/wav" };
     const media = normalizeMediaAttachments(ctx);
-    const cache = createMediaAttachmentCache(media);
+    const cache = createMediaAttachmentCache(media, { localPathRoots: [mediaDir] });
 
     let seenQuery: Record<string, string | number | boolean> | undefined;
     let seenBaseUrl: string | undefined;
