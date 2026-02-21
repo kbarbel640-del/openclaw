@@ -787,9 +787,32 @@ export async function handleInvoke(
     execArgv = segments[0].argv;
   }
 
+  const resolvedCwd = params.cwd?.trim() || undefined;
+  if (resolvedCwd && !fs.existsSync(resolvedCwd)) {
+    await sendNodeEvent(
+      client,
+      "exec.denied",
+      buildExecEventPayload({
+        sessionKey,
+        runId,
+        host: "node",
+        command: cmdText,
+        reason: "cwd-not-found",
+      }),
+    );
+    await sendInvokeResult(client, frame, {
+      ok: false,
+      error: {
+        code: "INVALID_REQUEST",
+        message: `working directory not found: ${resolvedCwd} — create it on the node or check your agent workspace config`,
+      },
+    });
+    return;
+  }
+
   const result = await runCommand(
     execArgv,
-    params.cwd?.trim() || undefined,
+    resolvedCwd,
     env,
     params.timeoutMs ?? undefined,
   );
