@@ -18,6 +18,7 @@ async function patchBunLongForProtobuf(): Promise<void> {
   if (typeof process.versions.bun !== "string") {
     return;
   }
+  // @ts-ignore: dynamic import of long is safe here, but ts resolver may fail in some envs
   const mod = await import("long");
   const Long = (mod as unknown as { default?: unknown }).default ?? mod;
   (globalThis as unknown as { Long?: unknown }).Long = Long;
