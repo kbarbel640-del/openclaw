@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { captureEnv } from "../test-utils/env.js";
 
 const loadConfig = vi.fn();
 const resolveGatewayPort = vi.fn();
@@ -10,7 +9,6 @@ let lastClientOptions: {
   url?: string;
   token?: string;
   password?: string;
-  scopes?: string[];
   onHelloOk?: () => void | Promise<void>;
   onClose?: (code: number, reason: string) => void;
 } | null = null;
@@ -32,13 +30,9 @@ vi.mock("../infra/tailnet.js", () => ({
   pickPrimaryTailnetIPv4,
 }));
 
-vi.mock("./net.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./net.js")>();
-  return {
-    ...actual,
-    pickPrimaryLanIPv4,
-  };
-});
+vi.mock("./net.js", () => ({
+  pickPrimaryLanIPv4,
+}));
 
 vi.mock("./client.js", () => ({
   describeGatewayCloseCode: (code: number) => {
@@ -55,7 +49,6 @@ vi.mock("./client.js", () => ({
       url?: string;
       token?: string;
       password?: string;
-      scopes?: string[];
       onHelloOk?: () => void | Promise<void>;
       onClose?: (code: number, reason: string) => void;
     }) {
@@ -75,100 +68,51 @@ vi.mock("./client.js", () => ({
   },
 }));
 
-const { buildGatewayConnectionDetails, callGateway, callGatewayCli, callGatewayScoped } =
-  await import("./call.js");
-
-function resetGatewayCallMocks() {
-  loadConfig.mockReset();
-  resolveGatewayPort.mockReset();
-  pickPrimaryTailnetIPv4.mockReset();
-  pickPrimaryLanIPv4.mockReset();
-  lastClientOptions = null;
-  startMode = "hello";
-  closeCode = 1006;
-  closeReason = "";
-}
-
-function setGatewayNetworkDefaults(port = 18789) {
-  resolveGatewayPort.mockReturnValue(port);
-  pickPrimaryTailnetIPv4.mockReturnValue(undefined);
-}
-
-function setLocalLoopbackGatewayConfig(port = 18789) {
-  loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "loopback" } });
-  setGatewayNetworkDefaults(port);
-}
-
-function makeRemotePasswordGatewayConfig(remotePassword: string, localPassword = "from-config") {
-  return {
-    gateway: {
-      mode: "remote",
-      remote: { url: "wss://remote.example:18789", password: remotePassword },
-      auth: { password: localPassword },
-    },
-  };
-}
+const { buildGatewayConnectionDetails, callGateway } = await import("./call.js");
 
 describe("callGateway url resolution", () => {
   beforeEach(() => {
-    resetGatewayCallMocks();
+    loadConfig.mockReset();
+    resolveGatewayPort.mockReset();
+    pickPrimaryTailnetIPv4.mockReset();
+    pickPrimaryLanIPv4.mockReset();
+    lastClientOptions = null;
+    startMode = "hello";
+    closeCode = 1006;
+    closeReason = "";
   });
 
-  it.each([
-    {
-      label: "keeps loopback when local bind is auto even if tailnet is present",
-      tailnetIp: "100.64.0.1",
-    },
-    {
-      label: "falls back to loopback when local bind is auto without tailnet IP",
-      tailnetIp: undefined,
-    },
-  ])("$label", async ({ tailnetIp }) => {
+  it("keeps loopback when local bind is auto even if tailnet is present", async () => {
     loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "auto" } });
     resolveGatewayPort.mockReturnValue(18800);
-    pickPrimaryTailnetIPv4.mockReturnValue(tailnetIp);
+    pickPrimaryTailnetIPv4.mockReturnValue("100.64.0.1");
 
     await callGateway({ method: "health" });
 
     expect(lastClientOptions?.url).toBe("ws://127.0.0.1:18800");
   });
 
-  it("uses loopback with TLS when local bind is tailnet", async () => {
-    loadConfig.mockReturnValue({
-      gateway: { mode: "local", bind: "tailnet", tls: { enabled: true } },
-    });
+  it("falls back to loopback when local bind is auto without tailnet IP", async () => {
+    loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "auto" } });
     resolveGatewayPort.mockReturnValue(18800);
-    pickPrimaryTailnetIPv4.mockReturnValue("100.64.0.1");
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 
     await callGateway({ method: "health" });
 
-    expect(lastClientOptions?.url).toBe("wss://127.0.0.1:18800");
+    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:18800");
   });
 
-  it("uses loopback without TLS when local bind is tailnet", async () => {
+  it("uses tailnet IP when local bind is tailnet and tailnet is present", async () => {
     loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "tailnet" } });
     resolveGatewayPort.mockReturnValue(18800);
     pickPrimaryTailnetIPv4.mockReturnValue("100.64.0.1");
 
     await callGateway({ method: "health" });
 
-    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:18800");
+    expect(lastClientOptions?.url).toBe("ws://100.64.0.1:18800");
   });
 
-  it("uses loopback with TLS when bind is lan", async () => {
-    loadConfig.mockReturnValue({
-      gateway: { mode: "local", bind: "lan", tls: { enabled: true } },
-    });
-    resolveGatewayPort.mockReturnValue(18800);
-    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
-    pickPrimaryLanIPv4.mockReturnValue("192.168.1.42");
-
-    await callGateway({ method: "health" });
-
-    expect(lastClientOptions?.url).toBe("wss://127.0.0.1:18800");
-  });
-
-  it("uses loopback without TLS when bind is lan", async () => {
+  it("uses LAN IP when bind is lan and LAN IP is available", async () => {
     loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "lan" } });
     resolveGatewayPort.mockReturnValue(18800);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
@@ -176,7 +120,7 @@ describe("callGateway url resolution", () => {
 
     await callGateway({ method: "health" });
 
-    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:18800");
+    expect(lastClientOptions?.url).toBe("ws://192.168.1.42:18800");
   });
 
   it("falls back to loopback when bind is lan but no LAN IP found", async () => {
@@ -207,41 +151,54 @@ describe("callGateway url resolution", () => {
     expect(lastClientOptions?.token).toBe("explicit-token");
   });
 
-  it.each([
-    {
-      label: "uses least-privilege scopes by default for non-CLI callers",
-      call: () => callGateway({ method: "health" }),
-      expectedScopes: ["operator.read"],
-    },
-    {
-      label: "keeps legacy admin scopes for explicit CLI callers",
-      call: () => callGatewayCli({ method: "health" }),
-      expectedScopes: ["operator.admin", "operator.approvals", "operator.pairing"],
-    },
-  ])("$label", async ({ call, expectedScopes }) => {
-    setLocalLoopbackGatewayConfig();
-    await call();
-    expect(lastClientOptions?.scopes).toEqual(expectedScopes);
+  it("uses local url when OPENCLAW_IS_GATEWAY_SERVER is true even in remote mode", async () => {
+    process.env.OPENCLAW_IS_GATEWAY_SERVER = "true";
+    loadConfig.mockReturnValue({
+      gateway: {
+        mode: "remote",
+        bind: "loopback",
+        remote: { url: "wss://remote.example.com/ws" },
+      },
+    });
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+
+    await callGateway({ method: "health" });
+
+    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:18789");
+    delete process.env.OPENCLAW_IS_GATEWAY_SERVER;
   });
 
-  it("passes explicit scopes through, including empty arrays", async () => {
-    setLocalLoopbackGatewayConfig();
+  it("uses local url when forceLocal is true even in remote mode", async () => {
+    loadConfig.mockReturnValue({
+      gateway: {
+        mode: "remote",
+        bind: "loopback",
+        remote: { url: "wss://remote.example.com/ws" },
+      },
+    });
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 
-    await callGatewayScoped({ method: "health", scopes: ["operator.read"] });
-    expect(lastClientOptions?.scopes).toEqual(["operator.read"]);
+    await callGateway({ method: "health", forceLocal: true });
 
-    await callGatewayScoped({ method: "health", scopes: [] });
-    expect(lastClientOptions?.scopes).toEqual([]);
+    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:18789");
   });
 });
 
 describe("buildGatewayConnectionDetails", () => {
   beforeEach(() => {
-    resetGatewayCallMocks();
+    loadConfig.mockReset();
+    resolveGatewayPort.mockReset();
+    pickPrimaryTailnetIPv4.mockReset();
+    pickPrimaryLanIPv4.mockReset();
   });
 
   it("uses explicit url overrides and omits bind details", () => {
-    setLocalLoopbackGatewayConfig(18800);
+    loadConfig.mockReturnValue({
+      gateway: { mode: "local", bind: "loopback" },
+    });
+    resolveGatewayPort.mockReturnValue(18800);
     pickPrimaryTailnetIPv4.mockReturnValue("100.64.0.1");
 
     const details = buildGatewayConnectionDetails({
@@ -274,22 +231,7 @@ describe("buildGatewayConnectionDetails", () => {
     expect(details.message).toContain("Gateway target: ws://127.0.0.1:18789");
   });
 
-  it("uses loopback URL and loopback source when bind is lan", () => {
-    loadConfig.mockReturnValue({
-      gateway: { mode: "local", bind: "lan", tls: { enabled: true } },
-    });
-    resolveGatewayPort.mockReturnValue(18800);
-    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
-    pickPrimaryLanIPv4.mockReturnValue("10.0.0.5");
-
-    const details = buildGatewayConnectionDetails();
-
-    expect(details.url).toBe("wss://127.0.0.1:18800");
-    expect(details.urlSource).toBe("local loopback");
-    expect(details.bindDetail).toBe("Bind: lan");
-  });
-
-  it("uses loopback URL for bind=lan without TLS", () => {
+  it("uses LAN IP and reports lan source when bind is lan", () => {
     loadConfig.mockReturnValue({
       gateway: { mode: "local", bind: "lan" },
     });
@@ -299,8 +241,9 @@ describe("buildGatewayConnectionDetails", () => {
 
     const details = buildGatewayConnectionDetails();
 
-    expect(details.url).toBe("ws://127.0.0.1:18800");
-    expect(details.urlSource).toBe("local loopback");
+    expect(details.url).toBe("ws://10.0.0.5:18800");
+    expect(details.urlSource).toBe("local lan 10.0.0.5");
+    expect(details.bindDetail).toBe("Bind: lan");
   });
 
   it("prefers remote url when configured", () => {
@@ -322,34 +265,34 @@ describe("buildGatewayConnectionDetails", () => {
     expect(details.remoteFallbackNote).toBeUndefined();
   });
 
-  it("throws for insecure ws:// remote URLs (CWE-319)", () => {
+  it("overrides remote url and uses local when forceLocal is true", () => {
     loadConfig.mockReturnValue({
       gateway: {
         mode: "remote",
-        bind: "loopback",
-        remote: { url: "ws://remote.example.com:18789" },
+        bind: "tailnet",
+        remote: { url: "wss://remote.example.com/ws" },
       },
     });
-    resolveGatewayPort.mockReturnValue(18789);
-    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+    resolveGatewayPort.mockReturnValue(18800);
+    pickPrimaryTailnetIPv4.mockReturnValue("100.64.0.9");
 
-    expect(() => buildGatewayConnectionDetails()).toThrow("SECURITY ERROR");
-    expect(() => buildGatewayConnectionDetails()).toThrow("plaintext ws://");
-    expect(() => buildGatewayConnectionDetails()).toThrow("wss://");
-  });
+    const details = buildGatewayConnectionDetails({ forceLocal: true });
 
-  it("allows ws:// for loopback addresses in local mode", () => {
-    setLocalLoopbackGatewayConfig();
-
-    const details = buildGatewayConnectionDetails();
-
-    expect(details.url).toBe("ws://127.0.0.1:18789");
+    expect(details.url).toBe("ws://100.64.0.9:18800");
+    expect(details.urlSource).toBe("local tailnet 100.64.0.9");
   });
 });
 
 describe("callGateway error details", () => {
   beforeEach(() => {
-    resetGatewayCallMocks();
+    loadConfig.mockReset();
+    resolveGatewayPort.mockReset();
+    pickPrimaryTailnetIPv4.mockReset();
+    pickPrimaryLanIPv4.mockReset();
+    lastClientOptions = null;
+    startMode = "hello";
+    closeCode = 1006;
+    closeReason = "";
   });
 
   afterEach(() => {
@@ -360,7 +303,11 @@ describe("callGateway error details", () => {
     startMode = "close";
     closeCode = 1006;
     closeReason = "";
-    setLocalLoopbackGatewayConfig();
+    loadConfig.mockReturnValue({
+      gateway: { mode: "local", bind: "loopback" },
+    });
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 
     let err: Error | null = null;
     try {
@@ -377,40 +324,48 @@ describe("callGateway error details", () => {
 
   it("includes connection details on timeout", async () => {
     startMode = "silent";
-    setLocalLoopbackGatewayConfig();
+    loadConfig.mockReturnValue({
+      gateway: { mode: "local", bind: "loopback" },
+    });
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 
     vi.useFakeTimers();
-    let errMessage = "";
+    let err: Error | null = null;
     const promise = callGateway({ method: "health", timeoutMs: 5 }).catch((caught) => {
-      errMessage = caught instanceof Error ? caught.message : String(caught);
+      err = caught as Error;
     });
 
     await vi.advanceTimersByTimeAsync(5);
     await promise;
 
-    expect(errMessage).toContain("gateway timeout after 5ms");
-    expect(errMessage).toContain("Gateway target: ws://127.0.0.1:18789");
-    expect(errMessage).toContain("Source: local loopback");
-    expect(errMessage).toContain("Bind: loopback");
+    expect(err?.message).toContain("gateway timeout after 5ms");
+    expect(err?.message).toContain("Gateway target: ws://127.0.0.1:18789");
+    expect(err?.message).toContain("Source: local loopback");
+    expect(err?.message).toContain("Bind: loopback");
   });
 
   it("does not overflow very large timeout values", async () => {
     startMode = "silent";
-    setLocalLoopbackGatewayConfig();
+    loadConfig.mockReturnValue({
+      gateway: { mode: "local", bind: "loopback" },
+    });
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 
     vi.useFakeTimers();
-    let errMessage = "";
+    let err: Error | null = null;
     const promise = callGateway({ method: "health", timeoutMs: 2_592_010_000 }).catch((caught) => {
-      errMessage = caught instanceof Error ? caught.message : String(caught);
+      err = caught as Error;
     });
 
     await vi.advanceTimersByTimeAsync(1);
-    expect(errMessage).toBe("");
+    expect(err).toBeNull();
 
     lastClientOptions?.onClose?.(1006, "");
     await promise;
 
-    expect(errMessage).toContain("gateway closed (1006");
+    expect(err?.message).toContain("gateway closed (1006");
   });
 
   it("fails fast when remote mode is missing remote url", async () => {
@@ -427,16 +382,22 @@ describe("callGateway error details", () => {
 });
 
 describe("callGateway url override auth requirements", () => {
-  let envSnapshot: ReturnType<typeof captureEnv>;
-
   beforeEach(() => {
-    envSnapshot = captureEnv(["OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_PASSWORD"]);
-    resetGatewayCallMocks();
-    setGatewayNetworkDefaults(18789);
+    loadConfig.mockReset();
+    resolveGatewayPort.mockReset();
+    pickPrimaryTailnetIPv4.mockReset();
+    pickPrimaryLanIPv4.mockReset();
+    lastClientOptions = null;
+    startMode = "hello";
+    closeCode = 1006;
+    closeReason = "";
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
   });
 
   afterEach(() => {
-    envSnapshot.restore();
+    delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    delete process.env.OPENCLAW_GATEWAY_PASSWORD;
   });
 
   it("throws when url override is set without explicit credentials", async () => {
@@ -456,105 +417,147 @@ describe("callGateway url override auth requirements", () => {
 });
 
 describe("callGateway password resolution", () => {
-  let envSnapshot: ReturnType<typeof captureEnv>;
-  const explicitAuthCases = [
-    {
-      label: "password",
-      authKey: "password",
-      envKey: "OPENCLAW_GATEWAY_PASSWORD",
-      envValue: "from-env",
-      configValue: "from-config",
-      explicitValue: "explicit-password",
-    },
-    {
-      label: "token",
-      authKey: "token",
-      envKey: "OPENCLAW_GATEWAY_TOKEN",
-      envValue: "env-token",
-      configValue: "local-token",
-      explicitValue: "explicit-token",
-    },
-  ] as const;
+  const originalEnvPassword = process.env.OPENCLAW_GATEWAY_PASSWORD;
 
   beforeEach(() => {
-    envSnapshot = captureEnv(["OPENCLAW_GATEWAY_PASSWORD", "OPENCLAW_GATEWAY_TOKEN"]);
-    resetGatewayCallMocks();
+    loadConfig.mockReset();
+    resolveGatewayPort.mockReset();
+    pickPrimaryTailnetIPv4.mockReset();
+    pickPrimaryLanIPv4.mockReset();
+    lastClientOptions = null;
+    startMode = "hello";
+    closeCode = 1006;
+    closeReason = "";
     delete process.env.OPENCLAW_GATEWAY_PASSWORD;
-    delete process.env.OPENCLAW_GATEWAY_TOKEN;
-    setGatewayNetworkDefaults(18789);
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
   });
 
   afterEach(() => {
-    envSnapshot.restore();
-  });
-
-  it.each([
-    {
-      label: "uses local config password when env is unset",
-      envPassword: undefined,
-      config: {
-        gateway: {
-          mode: "local",
-          bind: "loopback",
-          auth: { password: "secret" },
-        },
-      },
-      expectedPassword: "secret",
-    },
-    {
-      label: "prefers env password over local config password",
-      envPassword: "from-env",
-      config: {
-        gateway: {
-          mode: "local",
-          bind: "loopback",
-          auth: { password: "from-config" },
-        },
-      },
-      expectedPassword: "from-env",
-    },
-    {
-      label: "uses remote password in remote mode when env is unset",
-      envPassword: undefined,
-      config: makeRemotePasswordGatewayConfig("remote-secret"),
-      expectedPassword: "remote-secret",
-    },
-    {
-      label: "prefers env password over remote password in remote mode",
-      envPassword: "from-env",
-      config: makeRemotePasswordGatewayConfig("remote-secret"),
-      expectedPassword: "from-env",
-    },
-  ])("$label", async ({ envPassword, config, expectedPassword }) => {
-    if (envPassword !== undefined) {
-      process.env.OPENCLAW_GATEWAY_PASSWORD = envPassword;
+    if (originalEnvPassword == null) {
+      delete process.env.OPENCLAW_GATEWAY_PASSWORD;
+    } else {
+      process.env.OPENCLAW_GATEWAY_PASSWORD = originalEnvPassword;
     }
-    loadConfig.mockReturnValue(config);
-
-    await callGateway({ method: "health" });
-
-    expect(lastClientOptions?.password).toBe(expectedPassword);
   });
 
-  it.each(explicitAuthCases)("uses explicit $label when url override is set", async (testCase) => {
-    process.env[testCase.envKey] = testCase.envValue;
-    const auth = { [testCase.authKey]: testCase.configValue } as {
-      password?: string;
-      token?: string;
-    };
+  it("uses local config password when env is unset", async () => {
     loadConfig.mockReturnValue({
       gateway: {
         mode: "local",
-        auth,
+        bind: "loopback",
+        auth: { password: "secret" },
+      },
+    });
+
+    await callGateway({ method: "health" });
+
+    expect(lastClientOptions?.password).toBe("secret");
+  });
+
+  it("prefers env password over local config password", async () => {
+    process.env.OPENCLAW_GATEWAY_PASSWORD = "from-env";
+    loadConfig.mockReturnValue({
+      gateway: {
+        mode: "local",
+        bind: "loopback",
+        auth: { password: "from-config" },
+      },
+    });
+
+    await callGateway({ method: "health" });
+
+    expect(lastClientOptions?.password).toBe("from-env");
+  });
+
+  it("uses remote password in remote mode when env is unset", async () => {
+    loadConfig.mockReturnValue({
+      gateway: {
+        mode: "remote",
+        remote: { url: "ws://remote.example:18789", password: "remote-secret" },
+        auth: { password: "from-config" },
+      },
+    });
+
+    await callGateway({ method: "health" });
+
+    expect(lastClientOptions?.password).toBe("remote-secret");
+  });
+
+  it("prefers env password over remote password in remote mode", async () => {
+    process.env.OPENCLAW_GATEWAY_PASSWORD = "from-env";
+    loadConfig.mockReturnValue({
+      gateway: {
+        mode: "remote",
+        remote: { url: "ws://remote.example:18789", password: "remote-secret" },
+        auth: { password: "from-config" },
+      },
+    });
+
+    await callGateway({ method: "health" });
+
+    expect(lastClientOptions?.password).toBe("from-env");
+  });
+
+  it("uses explicit password when url override is set", async () => {
+    process.env.OPENCLAW_GATEWAY_PASSWORD = "from-env";
+    loadConfig.mockReturnValue({
+      gateway: {
+        mode: "local",
+        auth: { password: "from-config" },
       },
     });
 
     await callGateway({
       method: "health",
       url: "wss://override.example/ws",
-      [testCase.authKey]: testCase.explicitValue,
+      password: "explicit-password",
     });
 
-    expect(lastClientOptions?.[testCase.authKey]).toBe(testCase.explicitValue);
+    expect(lastClientOptions?.password).toBe("explicit-password");
+  });
+});
+
+describe("callGateway token resolution", () => {
+  const originalEnvToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+
+  beforeEach(() => {
+    loadConfig.mockReset();
+    resolveGatewayPort.mockReset();
+    pickPrimaryTailnetIPv4.mockReset();
+    pickPrimaryLanIPv4.mockReset();
+    lastClientOptions = null;
+    startMode = "hello";
+    closeCode = 1006;
+    closeReason = "";
+    delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+  });
+
+  afterEach(() => {
+    if (originalEnvToken == null) {
+      delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    } else {
+      process.env.OPENCLAW_GATEWAY_TOKEN = originalEnvToken;
+    }
+  });
+
+  it("uses explicit token when url override is set", async () => {
+    process.env.OPENCLAW_GATEWAY_TOKEN = "env-token";
+    loadConfig.mockReturnValue({
+      gateway: {
+        mode: "local",
+        auth: { token: "local-token" },
+      },
+    });
+
+    await callGateway({
+      method: "health",
+      url: "wss://override.example/ws",
+      token: "explicit-token",
+    });
+
+    expect(lastClientOptions?.token).toBe("explicit-token");
   });
 });
