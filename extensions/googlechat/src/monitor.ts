@@ -231,8 +231,9 @@ export async function handleGoogleChatWebhookRequest(
   if (matchedTargets.length === 0) {
     res.statusCode = 401;
     const reasonSummary = failures.map((entry) => entry.reason ?? "unknown").join(", ");
-    for (const target of targets) {
-      selectedTargetsError(target.runtime, "no verified webhook target", {
+    const targetToReport = targets[0];
+    if (targetToReport) {
+      selectedTargetsError(targetToReport.runtime, "no verified webhook target", {
         path: resolved.path,
         auth: effectiveBearer ? "present" : "missing",
         failureReasons: reasonSummary,
@@ -244,8 +245,9 @@ export async function handleGoogleChatWebhookRequest(
 
   if (matchedTargets.length > 1) {
     res.statusCode = 401;
-    for (const target of targets) {
-      selectedTargetsError(target.runtime, "ambiguous webhook target", {
+    const targetToReport = targets[0];
+    if (targetToReport) {
+      selectedTargetsError(targetToReport.runtime, "ambiguous webhook target", {
         path: resolved.path,
         accountIds: matchedTargets.map((target) => target.account.accountId).join(","),
       });
