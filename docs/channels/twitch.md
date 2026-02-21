@@ -64,7 +64,7 @@ Minimal config:
 
 - A Twitch channel owned by the Gateway.
 - Deterministic routing: replies always go back to Twitch.
-- Each account maps to an isolated session key `agent:<agentId>:twitch:<accountName>`.
+- Each Twitch channel maps to a session key `agent:<agentId>:twitch:group:<channelName>`.
 - `username` is the bot's account (who authenticates), `channel` is which chat room to join.
 
 ## Onboarding (detailed, recommended)

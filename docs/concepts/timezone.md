@@ -84,7 +84,6 @@ unset, OpenClaw resolves the **host timezone at runtime** (no config write).
 The system prompt includes:
 
 - `Current Date & Time` section with local time and timezone
-- `Time format: 12-hour` or `24-hour`
 
 You can control the prompt format with `agents.defaults.timeFormat` (`auto` | `12` | `24`).
 

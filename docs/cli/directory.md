@@ -20,7 +20,7 @@ Directory lookups for channels that support it (contacts/peers, groups, and “m
 
 - `directory` is meant to help you find IDs you can paste into other commands (especially `openclaw message send --target ...`).
 - For many channels, results are config-backed (allowlists / configured groups) rather than a live provider directory.
-- Default output is `id` (and sometimes `name`) separated by a tab; use `--json` for scripting.
+- Default output is a formatted table with `ID` and `Name` columns; use `--json` for scripting.
 
 ## Using results with `message send`
 
