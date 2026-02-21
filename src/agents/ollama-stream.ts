@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { StreamFn } from "@mariozechner/pi-agent-core";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import type {
   AssistantMessage,
   StopReason,
@@ -9,6 +10,8 @@ import type {
   Usage,
 } from "@mariozechner/pi-ai";
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
+
+const log = createSubsystemLogger("ollama-stream");
 
 export const OLLAMA_NATIVE_BASE_URL = "http://127.0.0.1:11434";
 
@@ -261,7 +264,7 @@ export async function* parseNdjsonStream(
       try {
         yield JSON.parse(trimmed) as OllamaChatResponse;
       } catch {
-        console.warn("[ollama-stream] Skipping malformed NDJSON line:", trimmed.slice(0, 120));
+        log.warn(`Skipping malformed NDJSON line: ${trimmed.slice(0, 120)}`);
       }
     }
   }
@@ -270,10 +273,7 @@ export async function* parseNdjsonStream(
     try {
       yield JSON.parse(buffer.trim()) as OllamaChatResponse;
     } catch {
-      console.warn(
-        "[ollama-stream] Skipping malformed trailing data:",
-        buffer.trim().slice(0, 120),
-      );
+      log.warn(`Skipping malformed trailing data: ${buffer.trim().slice(0, 120)}`);
     }
   }
 }
