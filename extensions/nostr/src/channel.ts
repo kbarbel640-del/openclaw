@@ -334,7 +334,7 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
             ctx: ctxPayload,
             updateLastRoute: {
-              sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
+              sessionKey: route.mainSessionKey,
               channel: "nostr",
               to: normalizedSenderPubkey,
               accountId: route.accountId,

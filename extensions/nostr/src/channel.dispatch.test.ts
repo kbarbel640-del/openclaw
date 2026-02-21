@@ -61,6 +61,7 @@ describe("nostr inbound dispatch", () => {
             agentId: "main",
             accountId: "default",
             sessionKey: "nostr:session:1",
+            mainSessionKey: "agent:main:main",
           }),
         },
         session: {
@@ -154,7 +155,7 @@ describe("nostr inbound dispatch", () => {
     expect(recordInboundSessionMock).toHaveBeenCalledTimes(1);
     const recordArg = recordInboundSessionMock.mock.calls[0]?.[0];
     expect(recordArg?.updateLastRoute).toEqual({
-      sessionKey: "nostr:session:1",
+      sessionKey: "agent:main:main",
       channel: "nostr",
       to: "sender-pubkey",
       accountId: "default",
@@ -197,6 +198,7 @@ describe("nostr inbound dispatch", () => {
             agentId: "main",
             accountId: "default",
             sessionKey: "nostr:session:1",
+            mainSessionKey: "agent:main:main",
           }),
         },
         session: {
