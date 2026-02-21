@@ -1,5 +1,9 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { CliBackendConfig } from "../config/types.js";
+import {
+  CLI_FRESH_WATCHDOG_DEFAULTS,
+  CLI_RESUME_WATCHDOG_DEFAULTS,
+} from "./cli-watchdog-defaults.js";
 import { normalizeProviderId } from "./model-selection.js";
 
 export type ResolvedCliBackend = {
@@ -16,9 +20,11 @@ const CLAUDE_MODEL_ALIASES: Record<string, string> = {
   "claude-opus-4-5": "opus",
   "claude-opus-4": "opus",
   sonnet: "sonnet",
+  "sonnet-4.6": "sonnet",
   "sonnet-4.5": "sonnet",
   "sonnet-4.1": "sonnet",
   "sonnet-4.0": "sonnet",
+  "claude-sonnet-4-6": "sonnet",
   "claude-sonnet-4-5": "sonnet",
   "claude-sonnet-4-1": "sonnet",
   "claude-sonnet-4-0": "sonnet",
@@ -50,6 +56,12 @@ const DEFAULT_CLAUDE_BACKEND: CliBackendConfig = {
   systemPromptMode: "append",
   systemPromptWhen: "always",
   clearEnv: ["ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY_OLD"],
+  reliability: {
+    watchdog: {
+      fresh: { ...CLI_FRESH_WATCHDOG_DEFAULTS },
+      resume: { ...CLI_RESUME_WATCHDOG_DEFAULTS },
+    },
+  },
   serialize: true,
   usageFields: {
     input: ["input_tokens", "inputTokens"],
@@ -107,6 +119,12 @@ const DEFAULT_CODEX_BACKEND: CliBackendConfig = {
   sessionMode: "existing",
   imageArg: "--image",
   imageMode: "repeat",
+  reliability: {
+    watchdog: {
+      fresh: { ...CLI_FRESH_WATCHDOG_DEFAULTS },
+      resume: { ...CLI_RESUME_WATCHDOG_DEFAULTS },
+    },
+  },
   serialize: true,
   usageFields: {
     input: ["prompt_tokens", "input_tokens"],
@@ -160,6 +178,10 @@ function mergeBackendConfig(base: CliBackendConfig, override?: CliBackendConfig)
   if (!override) {
     return { ...base };
   }
+  const baseFresh = base.reliability?.watchdog?.fresh ?? {};
+  const baseResume = base.reliability?.watchdog?.resume ?? {};
+  const overrideFresh = override.reliability?.watchdog?.fresh ?? {};
+  const overrideResume = override.reliability?.watchdog?.resume ?? {};
   return {
     ...base,
     ...override,
@@ -182,6 +204,22 @@ function mergeBackendConfig(base: CliBackendConfig, override?: CliBackendConfig)
           },
         }
       : base.streamingFormat,
+    reliability: {
+      ...base.reliability,
+      ...override.reliability,
+      watchdog: {
+        ...base.reliability?.watchdog,
+        ...override.reliability?.watchdog,
+        fresh: {
+          ...baseFresh,
+          ...overrideFresh,
+        },
+        resume: {
+          ...baseResume,
+          ...overrideResume,
+        },
+      },
+    },
   };
 }
 
