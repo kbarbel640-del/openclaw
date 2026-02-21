@@ -22,13 +22,6 @@ describe("messageAction", () => {
 
     expect((action as { text: string }).text).toBe("Click");
   });
-
-  it("truncates label to 20 characters", () => {
-    const action = messageAction("This is a very long label text");
-
-    expect(action.label.length).toBe(20);
-    expect(action.label).toBe("This is a very long ");
-  });
 });
 
 describe("uriAction", () => {
@@ -38,6 +31,23 @@ describe("uriAction", () => {
     expect(action.type).toBe("uri");
     expect(action.label).toBe("Open");
     expect((action as { uri: string }).uri).toBe("https://example.com");
+  });
+});
+
+describe("action label truncation", () => {
+  it.each([
+    {
+      createAction: () => messageAction("This is a very long label text"),
+      expectedLabel: "This is a very long ",
+    },
+    {
+      createAction: () => uriAction("Click here to visit our website", "https://example.com"),
+      expectedLabel: "Click here to visit ",
+    },
+  ])("truncates labels to 20 characters", ({ createAction, expectedLabel }) => {
+    const action = createAction();
+    expect(action.label).toBe(expectedLabel);
+    expect((action.label ?? "").length).toBe(20);
   });
 });
 
@@ -82,6 +92,18 @@ describe("datetimePickerAction", () => {
     expect((action as { data: string }).data).toBe("date_picked");
   });
 
+  it("creates a time picker action", () => {
+    const action = datetimePickerAction("Pick time", "time_picked", "time");
+
+    expect((action as { mode: string }).mode).toBe("time");
+  });
+
+  it("creates a datetime picker action", () => {
+    const action = datetimePickerAction("Pick datetime", "datetime_picked", "datetime");
+
+    expect((action as { mode: string }).mode).toBe("datetime");
+  });
+
   it("includes initial/min/max when provided", () => {
     const action = datetimePickerAction("Pick", "data", "date", {
       initial: "2024-06-15",
@@ -96,8 +118,8 @@ describe("datetimePickerAction", () => {
 });
 
 describe("createGridLayout", () => {
-  it("creates a 2x3 grid layout for tall menu", () => {
-    const actions = [
+  function createSixSimpleActions() {
+    return [
       messageAction("A1"),
       messageAction("A2"),
       messageAction("A3"),
@@ -112,6 +134,10 @@ describe("createGridLayout", () => {
       ReturnType<typeof messageAction>,
       ReturnType<typeof messageAction>,
     ];
+  }
+
+  it("creates a 2x3 grid layout for tall menu", () => {
+    const actions = createSixSimpleActions();
 
     const areas = createGridLayout(1686, actions);
 
@@ -132,21 +158,7 @@ describe("createGridLayout", () => {
   });
 
   it("creates a 2x3 grid layout for short menu", () => {
-    const actions = [
-      messageAction("A1"),
-      messageAction("A2"),
-      messageAction("A3"),
-      messageAction("A4"),
-      messageAction("A5"),
-      messageAction("A6"),
-    ] as [
-      ReturnType<typeof messageAction>,
-      ReturnType<typeof messageAction>,
-      ReturnType<typeof messageAction>,
-      ReturnType<typeof messageAction>,
-      ReturnType<typeof messageAction>,
-      ReturnType<typeof messageAction>,
-    ];
+    const actions = createSixSimpleActions();
 
     const areas = createGridLayout(843, actions);
 
