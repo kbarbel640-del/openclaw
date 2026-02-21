@@ -36,7 +36,7 @@ export function createSynologyChatPlugin() {
 
     capabilities: {
       chatTypes: ["direct" as const],
-      media: false,
+      media: true,
       threads: false,
       reactions: false,
       edit: false,
@@ -77,6 +77,21 @@ export function createSynologyChatPlugin() {
       },
     },
 
+    pairing: {
+      idLabel: "synologyChatUserId",
+      normalizeAllowEntry: (entry: string) => entry.toLowerCase().trim(),
+      notifyApproval: async ({ cfg, id }: { cfg: any; id: string }) => {
+        const account = resolveAccount(cfg);
+        if (!account.incomingUrl) return;
+        await sendMessage(
+          account.incomingUrl,
+          "OpenClaw: your access has been approved.",
+          id,
+          account.allowInsecureSsl,
+        );
+      },
+    },
+
     security: {
       resolveDmPolicy: ({
         cfg,
@@ -102,6 +117,54 @@ export function createSynologyChatPlugin() {
           normalizeEntry: (raw: string) => raw.toLowerCase().trim(),
         };
       },
+      collectWarnings: ({ account }: { account: ResolvedSynologyChatAccount }) => {
+        const warnings: string[] = [];
+        if (!account.token) {
+          warnings.push(
+            "- Synology Chat: token is not configured. The webhook will reject all requests.",
+          );
+        }
+        if (!account.incomingUrl) {
+          warnings.push(
+            "- Synology Chat: incomingUrl is not configured. The bot cannot send replies.",
+          );
+        }
+        if (account.allowInsecureSsl) {
+          warnings.push(
+            "- Synology Chat: SSL verification is disabled (allowInsecureSsl=true). Only use this for local NAS with self-signed certificates.",
+          );
+        }
+        if (account.dmPolicy === "open") {
+          warnings.push(
+            '- Synology Chat: dmPolicy="open" allows any user to message the bot. Consider "allowlist" for production use.',
+          );
+        }
+        return warnings;
+      },
+    },
+
+    messaging: {
+      normalizeTarget: (target: string) => {
+        const trimmed = target.trim();
+        if (!trimmed) return undefined;
+        // Strip common prefixes
+        return trimmed.replace(/^synology[-_]?chat:/i, "").trim();
+      },
+      targetResolver: {
+        looksLikeId: (id: string) => {
+          const trimmed = id?.trim();
+          if (!trimmed) return false;
+          // Synology Chat user IDs are numeric
+          return /^\d+$/.test(trimmed) || /^synology[-_]?chat:/i.test(trimmed);
+        },
+        hint: "<userId>",
+      },
+    },
+
+    directory: {
+      self: async () => null,
+      listPeers: async () => [],
+      listGroups: async () => [],
     },
 
     outbound: {
@@ -181,7 +244,7 @@ export function createSynologyChatPlugin() {
             };
 
             // Dispatch via the SDK's buffered block dispatcher
-            const result = await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+            await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
               ctx: msgCtx,
               cfg: currentCfg,
               dispatcherOptions: {
@@ -229,6 +292,32 @@ export function createSynologyChatPlugin() {
       stopAccount: async (ctx: any) => {
         ctx.log?.info?.(`Synology Chat account ${ctx.accountId} stopped`);
       },
+    },
+
+    agentPrompt: {
+      messageToolHints: () => [
+        "",
+        "### Synology Chat Formatting",
+        "Synology Chat supports limited formatting. Use these patterns:",
+        "",
+        "**Links**: Use `<URL|display text>` to create clickable links.",
+        "  Example: `<https://example.com|Click here>` renders as a clickable link.",
+        "",
+        "**File sharing**: Include a publicly accessible URL to share files or images.",
+        "  The NAS will download and attach the file (max 32 MB).",
+        "",
+        "**Limitations**:",
+        "- No markdown, bold, italic, or code blocks",
+        "- No buttons, cards, or interactive elements",
+        "- No message editing after send",
+        "- Keep messages under 2000 characters for best readability",
+        "",
+        "**Best practices**:",
+        "- Use short, clear responses (Synology Chat has a minimal UI)",
+        "- Use line breaks to separate sections",
+        "- Use numbered or bulleted lists for clarity",
+        "- Wrap URLs with `<URL|label>` for user-friendly links",
+      ],
     },
   };
 }

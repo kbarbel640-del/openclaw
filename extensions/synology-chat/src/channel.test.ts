@@ -24,7 +24,6 @@ vi.mock("./runtime.js", () => ({
       reply: {
         dispatchReplyWithBufferedBlockDispatcher: vi.fn().mockResolvedValue({
           counts: {},
-          queuedFinal: null,
         }),
       },
     },
@@ -62,10 +61,10 @@ describe("createSynologyChatPlugin", () => {
   });
 
   describe("capabilities", () => {
-    it("supports direct chat only", () => {
+    it("supports direct chat with media", () => {
       const plugin = createSynologyChatPlugin();
       expect(plugin.capabilities.chatTypes).toEqual(["direct"]);
-      expect(plugin.capabilities.media).toBe(false);
+      expect(plugin.capabilities.media).toBe(true);
       expect(plugin.capabilities.threads).toBe(false);
     });
   });
@@ -107,10 +106,134 @@ describe("createSynologyChatPlugin", () => {
         allowInsecureSsl: true,
       };
       const result = plugin.security.resolveDmPolicy({ cfg: {}, account });
-      expect(result!.policy).toBe("allowlist");
-      expect(result!.allowFrom).toEqual(["user1"]);
-      expect(typeof result!.normalizeEntry).toBe("function");
-      expect(result!.normalizeEntry!("  USER1  ")).toBe("user1");
+      expect(result.policy).toBe("allowlist");
+      expect(result.allowFrom).toEqual(["user1"]);
+      expect(typeof result.normalizeEntry).toBe("function");
+      expect(result.normalizeEntry("  USER1  ")).toBe("user1");
+    });
+  });
+
+  describe("pairing", () => {
+    it("has notifyApproval and normalizeAllowEntry", () => {
+      const plugin = createSynologyChatPlugin();
+      expect(plugin.pairing.idLabel).toBe("synologyChatUserId");
+      expect(typeof plugin.pairing.normalizeAllowEntry).toBe("function");
+      expect(plugin.pairing.normalizeAllowEntry("  USER1  ")).toBe("user1");
+      expect(typeof plugin.pairing.notifyApproval).toBe("function");
+    });
+  });
+
+  describe("security.collectWarnings", () => {
+    it("warns when token is missing", () => {
+      const plugin = createSynologyChatPlugin();
+      const account = {
+        accountId: "default",
+        enabled: true,
+        token: "",
+        incomingUrl: "https://nas/incoming",
+        nasHost: "h",
+        webhookPath: "/w",
+        dmPolicy: "allowlist" as const,
+        allowedUserIds: [],
+        rateLimitPerMinute: 30,
+        botName: "Bot",
+        allowInsecureSsl: false,
+      };
+      const warnings = plugin.security.collectWarnings({ account });
+      expect(warnings.some((w: string) => w.includes("token"))).toBe(true);
+    });
+
+    it("warns when allowInsecureSsl is true", () => {
+      const plugin = createSynologyChatPlugin();
+      const account = {
+        accountId: "default",
+        enabled: true,
+        token: "t",
+        incomingUrl: "https://nas/incoming",
+        nasHost: "h",
+        webhookPath: "/w",
+        dmPolicy: "allowlist" as const,
+        allowedUserIds: [],
+        rateLimitPerMinute: 30,
+        botName: "Bot",
+        allowInsecureSsl: true,
+      };
+      const warnings = plugin.security.collectWarnings({ account });
+      expect(warnings.some((w: string) => w.includes("SSL"))).toBe(true);
+    });
+
+    it("warns when dmPolicy is open", () => {
+      const plugin = createSynologyChatPlugin();
+      const account = {
+        accountId: "default",
+        enabled: true,
+        token: "t",
+        incomingUrl: "https://nas/incoming",
+        nasHost: "h",
+        webhookPath: "/w",
+        dmPolicy: "open" as const,
+        allowedUserIds: [],
+        rateLimitPerMinute: 30,
+        botName: "Bot",
+        allowInsecureSsl: false,
+      };
+      const warnings = plugin.security.collectWarnings({ account });
+      expect(warnings.some((w: string) => w.includes("open"))).toBe(true);
+    });
+
+    it("returns no warnings for fully configured account", () => {
+      const plugin = createSynologyChatPlugin();
+      const account = {
+        accountId: "default",
+        enabled: true,
+        token: "t",
+        incomingUrl: "https://nas/incoming",
+        nasHost: "h",
+        webhookPath: "/w",
+        dmPolicy: "allowlist" as const,
+        allowedUserIds: ["user1"],
+        rateLimitPerMinute: 30,
+        botName: "Bot",
+        allowInsecureSsl: false,
+      };
+      const warnings = plugin.security.collectWarnings({ account });
+      expect(warnings).toHaveLength(0);
+    });
+  });
+
+  describe("messaging", () => {
+    it("normalizeTarget strips prefix and trims", () => {
+      const plugin = createSynologyChatPlugin();
+      expect(plugin.messaging.normalizeTarget("synology-chat:123")).toBe("123");
+      expect(plugin.messaging.normalizeTarget("  456  ")).toBe("456");
+      expect(plugin.messaging.normalizeTarget("")).toBeUndefined();
+    });
+
+    it("targetResolver.looksLikeId matches numeric IDs", () => {
+      const plugin = createSynologyChatPlugin();
+      expect(plugin.messaging.targetResolver.looksLikeId("12345")).toBe(true);
+      expect(plugin.messaging.targetResolver.looksLikeId("synology-chat:99")).toBe(true);
+      expect(plugin.messaging.targetResolver.looksLikeId("notanumber")).toBe(false);
+      expect(plugin.messaging.targetResolver.looksLikeId("")).toBe(false);
+    });
+  });
+
+  describe("directory", () => {
+    it("returns empty stubs", async () => {
+      const plugin = createSynologyChatPlugin();
+      expect(await plugin.directory.self()).toBeNull();
+      expect(await plugin.directory.listPeers()).toEqual([]);
+      expect(await plugin.directory.listGroups()).toEqual([]);
+    });
+  });
+
+  describe("agentPrompt", () => {
+    it("returns formatting hints", () => {
+      const plugin = createSynologyChatPlugin();
+      const hints = plugin.agentPrompt.messageToolHints();
+      expect(Array.isArray(hints)).toBe(true);
+      expect(hints.length).toBeGreaterThan(5);
+      expect(hints.some((h: string) => h.includes("<URL|display text>"))).toBe(true);
     });
   });
 
