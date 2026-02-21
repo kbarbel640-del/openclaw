@@ -84,8 +84,8 @@ export function computeJobNextRunAtMs(job: CronJob, nowMs: number): number | und
             : null;
     return atMs !== null ? atMs : undefined;
   }
-return computeNextRunAtMs(job.schedule, nowMs, job.state.lastRunAtMs)}
-
+return computeNextRunAtMs(job.schedule, nowMs, job.state.lastRunAtMs);
+  }
 /** Maximum consecutive schedule errors before auto-disabling a job. */
 const MAX_SCHEDULE_ERRORS = 3;
 
