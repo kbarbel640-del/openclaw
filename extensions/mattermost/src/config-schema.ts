@@ -34,6 +34,11 @@ const MattermostAccountSchemaBase = z
         reactions: z.boolean().optional(),
       })
       .optional(),
+    interactions: z
+      .object({
+        callbackBaseUrl: z.string().optional(),
+      })
+      .optional(),
   })
   .strict();
 

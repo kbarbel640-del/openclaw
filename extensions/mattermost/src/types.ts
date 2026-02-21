@@ -54,6 +54,10 @@ export type MattermostAccountConfig = {
     /** Enable message reaction actions. Default: true. */
     reactions?: boolean;
   };
+  interactions?: {
+    /** External base URL used for Mattermost interaction callbacks. */
+    callbackBaseUrl?: string;
+  };
 };
 
 export type MattermostConfig = {
