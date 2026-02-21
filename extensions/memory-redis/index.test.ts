@@ -7,6 +7,7 @@
  * - Capture filtering logic
  */
 
+import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { describe, test, expect } from "vitest";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "test-key";
@@ -330,21 +331,16 @@ describeLive("memory-redis live tests", () => {
     indexName: `idx:openclaw:memories:test:${Date.now()}`,
   };
 
-  // Mock config for embedding provider
+  // Mock config for embedding provider - matches OpenClawConfig structure
   const mockConfig = {
-    get: (key: string) => {
-      if (key === "anthropic.apiKey") {
-        return process.env.ANTHROPIC_API_KEY;
-      }
-      if (key === "openai.apiKey") {
-        return process.env.OPENAI_API_KEY ?? OPENAI_API_KEY;
-      }
-      if (key === "gemini.apiKey") {
-        return process.env.GEMINI_API_KEY;
-      }
-      return undefined;
+    models: {
+      providers: {
+        openai: { apiKey: process.env.OPENAI_API_KEY ?? OPENAI_API_KEY },
+        anthropic: { apiKey: process.env.ANTHROPIC_API_KEY },
+        gemini: { apiKey: process.env.GEMINI_API_KEY },
+      },
     },
-  };
+  } as unknown as OpenClawConfig;
 
   const logger = {
     info: (msg: string) => console.log(`[test] ${msg}`),

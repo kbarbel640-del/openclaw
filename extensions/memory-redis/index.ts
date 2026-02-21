@@ -7,9 +7,9 @@
  * Provides seamless auto-recall and auto-capture via lifecycle hooks.
  */
 
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { Type } from "@sinclair/typebox";
 import { randomUUID } from "node:crypto";
+import { Type } from "@sinclair/typebox";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { stringEnum } from "openclaw/plugin-sdk";
 // Import embedding provider from plugin-sdk
 import { createEmbeddingProvider, type EmbeddingProvider } from "openclaw/plugin-sdk";
@@ -382,6 +382,12 @@ class Embeddings {
       fallback: this.cfg.embedding.fallback ?? "none",
       remote,
     });
+
+    if (!result.provider) {
+      throw new Error(
+        `memory-redis: no embedding provider available. ${result.providerUnavailableReason ?? "Configure an embedding provider or API key."}`,
+      );
+    }
 
     this.provider = result.provider;
     this.providerInfo = `${result.provider.id}/${result.provider.model}`;
