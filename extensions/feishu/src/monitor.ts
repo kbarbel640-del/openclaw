@@ -9,7 +9,14 @@ import {
 import { resolveFeishuAccount, listEnabledFeishuAccounts } from "./accounts.js";
 import { handleFeishuMessage, type FeishuMessageEvent, type FeishuBotAddedEvent } from "./bot.js";
 import { createFeishuWSClient, createEventDispatcher } from "./client.js";
+import {
+  setGatewayStartupTs,
+  setGatewayShutdownTs,
+  recoverMissedMessages,
+  cleanupProcessedMessages,
+} from "./history.js";
 import { probeFeishu } from "./probe.js";
+import { startTimeoutMonitor, stopTimeoutMonitor } from "./timeout-monitor.js";
 import type { ResolvedFeishuAccount } from "./types.js";
 
 export type MonitorFeishuOpts = {
@@ -337,12 +344,26 @@ export async function monitorFeishuProvider(opts: MonitorFeishuOpts = {}): Promi
 
   const log = opts.runtime?.log ?? console.log;
 
+  // Track Gateway start timestamp
+  setGatewayStartupTs();
+  cleanupProcessedMessages();
+
   // If accountId is specified, only monitor that account
   if (opts.accountId) {
     const account = resolveFeishuAccount({ cfg, accountId: opts.accountId });
     if (!account.enabled || !account.configured) {
       throw new Error(`Feishu account "${opts.accountId}" not configured or disabled`);
     }
+
+    // Try to trigger recovery for FR-002 offline messages
+    await recoverMissedMessages({
+      cfg,
+      accountId: opts.accountId,
+      chatIds: (account.config.groupAllowFrom ?? []).map(String),
+      log: opts.runtime?.log ?? console.log,
+      error: opts.runtime?.error ?? console.error,
+    });
+
     return monitorSingleAccount({
       cfg,
       account,
@@ -360,6 +381,22 @@ export async function monitorFeishuProvider(opts: MonitorFeishuOpts = {}): Promi
   log(
     `feishu: starting ${accounts.length} account(s): ${accounts.map((a) => a.accountId).join(", ")}`,
   );
+
+  // Trigger missed message recovery for all accounts before tracking active
+  for (const account of accounts) {
+    if (account.config.groupAllowFrom && account.config.groupAllowFrom.length > 0) {
+      await recoverMissedMessages({
+        cfg,
+        accountId: account.accountId,
+        chatIds: account.config.groupAllowFrom.map(String),
+        log: opts.runtime?.log ?? console.log,
+        error: opts.runtime?.error ?? console.error,
+      });
+    }
+  }
+
+  // Start the background supervisor for queued/processing messages
+  startTimeoutMonitor(cfg, log);
 
   // Start all accounts in parallel
   await Promise.all(
@@ -393,5 +430,9 @@ export function stopFeishuMonitor(accountId?: string): void {
     }
     httpServers.clear();
     botOpenIds.clear();
+    stopTimeoutMonitor();
   }
+
+  // Update Gateway shutdown time for future FR-002 recovery
+  setGatewayShutdownTs();
 }

@@ -9,9 +9,9 @@ import {
 } from "openclaw/plugin-sdk";
 import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
-import { tryRecordMessage } from "./dedup.js";
 import { maybeCreateDynamicAgent } from "./dynamic-agent.js";
 import { normalizeFeishuExternalKey } from "./external-keys.js";
+import { tryRecordMessage } from "./history.js";
 import { downloadMessageResourceFeishu } from "./media.js";
 import {
   escapeRegExp,
@@ -29,6 +29,11 @@ import { initReactionStateManager, getReactionStateManager } from "./reaction-st
 import { createFeishuReplyDispatcher } from "./reply-dispatcher.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { getMessageFeishu, sendMessageFeishu } from "./send.js";
+import {
+  registerPendingMessage,
+  markProcessingStarted,
+  removePendingMessage,
+} from "./timeout-monitor.js";
 import type { FeishuMessageContext, FeishuMediaInfo, ResolvedFeishuAccount } from "./types.js";
 import type { DynamicAgentCreationConfig } from "./types.js";
 
@@ -511,9 +516,9 @@ export async function handleFeishuMessage(params: {
   const log = runtime?.log ?? console.log;
   const error = runtime?.error ?? console.error;
 
-  // Dedup check: skip if this message was already processed
+  // Dedup check: skip if this message was already processed via history sqlite
   const messageId = event.message.message_id;
-  if (!tryRecordMessage(messageId)) {
+  if (!tryRecordMessage(messageId, event.message.chat_id)) {
     log(`feishu: skipping duplicate message ${messageId}`);
     return;
   }
@@ -530,6 +535,9 @@ export async function handleFeishuMessage(params: {
     chatId: ctx.chatId,
     accountId: account.accountId,
   });
+
+  // Track message in timeout monitor
+  registerPendingMessage(ctx.messageId, ctx.chatId, account.accountId);
 
   // Resolve sender display name (best-effort) so the agent can attribute messages correctly.
   const senderResult = await resolveFeishuSenderName({
@@ -637,6 +645,9 @@ export async function handleFeishuMessage(params: {
   try {
     // Transition from QUEUED to PROCESSING as we start agent dispatch
     await reactionManager.onProcessingStart(ctx.messageId);
+
+    // Timeout monitor: mark processing started
+    markProcessingStarted(ctx.messageId);
 
     const core = getFeishuRuntime();
     const shouldComputeCommandAuthorized = core.channel.commands.shouldComputeCommandAuthorized(
@@ -978,6 +989,9 @@ export async function handleFeishuMessage(params: {
     // Complete reaction state - remove emoji
     await reactionManager.onCompleted(ctx.messageId);
 
+    // Remove from timeout monitor queue
+    removePendingMessage(ctx.messageId);
+
     if (isGroup && historyKey && chatHistories) {
       clearHistoryEntriesIfEnabled({
         historyMap: chatHistories,
@@ -993,5 +1007,6 @@ export async function handleFeishuMessage(params: {
     error(`feishu[${account.accountId}]: failed to dispatch message: ${String(err)}`);
     // Ensure emoji is cleaned up on error
     await reactionManager.onCompleted(ctx.messageId);
+    removePendingMessage(ctx.messageId); // clean from queue
   }
 }
