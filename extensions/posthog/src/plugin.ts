@@ -89,6 +89,18 @@ export function registerPostHogHooks(api: OpenClawPluginApi, config: PostHogPlug
         runs.delete(runId);
       }
     }
+    // Evict stale session-keyed entries to prevent unbounded growth
+    for (const [key, ts] of lastOutputAt) {
+      if (now - ts > STALE_RUN_MS) {
+        lastOutputAt.delete(key);
+        lastRunId.delete(key);
+        // Only evict sessionWindows if also past the session window timeout
+        const window = sessionWindows.get(key);
+        if (window && now - window.lastOutputAt > config.sessionWindowMinutes * 60_000) {
+          sessionWindows.delete(key);
+        }
+      }
+    }
   }
 
   // Register the background service that manages the PostHog client lifecycle
@@ -209,7 +221,7 @@ export function registerPostHogHooks(api: OpenClawPluginApi, config: PostHogPlug
       }
     }
 
-    const lastAssistant = parseLastAssistant((event as Record<string, unknown>).lastAssistant);
+    const lastAssistant = parseLastAssistant(event.lastAssistant);
 
     // Accumulate token totals for the trace
     const inputTokens = event.usage?.input ?? 0;
