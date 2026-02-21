@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import {
   createReplyPrefixOptions,
+  evictOldHistoryKeys,
   logAckFailure,
   logInboundDrop,
   logTypingFailure,
@@ -1048,6 +1049,7 @@ export async function processMessage(
             limit: historyLimit,
           });
           chatHistories.set(historyKey, merged);
+          evictOldHistoryKeys(chatHistories);
           logVerbose(
             core,
             runtime,
