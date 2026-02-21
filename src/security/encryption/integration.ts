@@ -24,6 +24,7 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { logDebug } from "../../logger.js";
 import { isEncrypted } from "./crypto.js";
 import { setActiveKeys } from "./fs-middleware.js";
 import { keychainGetAll } from "./keychain.js";
@@ -105,8 +106,10 @@ async function reEncryptPlaintextFiles(
         await migrateFileToEncrypted(filePath, workspaceKey);
         reEncrypted.push(pattern);
       }
-    } catch {
-      // File doesn't exist or can't be read — skip
+    } catch (err) {
+      logDebug(
+        `encryption: skipping ${pattern}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -125,8 +128,10 @@ async function reEncryptPlaintextFiles(
           await migrateFileToEncrypted(filePath, workspaceKey);
           reEncrypted.push(`memory/${entry}`);
         }
-      } catch {
-        // Skip
+      } catch (err) {
+        logDebug(
+          `encryption: skipping memory/${entry}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
   } catch {

@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { decrypt } from "./crypto.js";
+import { decrypt, encrypt } from "./crypto.js";
 /**
  * High-level encryption setup and management orchestrator.
  *
@@ -48,8 +48,11 @@ export async function initEncryption(
   // Encrypt workspace files
   const result = await migrateWorkspaceToEncrypted(workspaceDir, keys.workspaceKey, filePatterns);
 
-  // Write metadata
+  // Write metadata with key verification token
   const meta = createEncryptionMeta(keys.salt, result.migrated);
+  const verificationPlaintext = Buffer.from("openclaw-key-verification-v1");
+  const verificationBlob = encrypt(verificationPlaintext, keys.workspaceKey);
+  meta.keyVerificationToken = Buffer.from(verificationBlob).toString("hex");
   await writeEncryptionMeta(workspaceDir, meta);
 
   return {
@@ -111,9 +114,12 @@ export async function changePassword(
     meta.encryptedPatterns,
   );
 
-  // Update metadata
+  // Update metadata with new verification token
   const newMeta = createEncryptionMeta(newKeys.salt, result.migrated);
   newMeta.createdAt = meta.createdAt; // Preserve original creation time
+  const verificationPlaintext = Buffer.from("openclaw-key-verification-v1");
+  const verificationBlob = encrypt(verificationPlaintext, newKeys.workspaceKey);
+  newMeta.keyVerificationToken = Buffer.from(verificationBlob).toString("hex");
   await writeEncryptionMeta(workspaceDir, newMeta);
 
   return {
@@ -183,9 +189,24 @@ export function unlockFromKeychain(): {
 }
 
 /**
- * Verify a key by attempting to decrypt the first available encrypted file.
+ * Verify a key by checking the key verification token stored in metadata,
+ * or by attempting to decrypt an encrypted file as a fallback.
  */
 async function verifyKey(workspaceDir: string, key: Buffer, patterns: string[]): Promise<boolean> {
+  // First, try the verification token (always works even if all files are deleted)
+  const meta = await readEncryptionMeta(workspaceDir);
+  if (meta?.keyVerificationToken) {
+    try {
+      const blob = Buffer.from(meta.keyVerificationToken, "hex");
+      const plaintext = decrypt(blob, key);
+      return plaintext.toString() === "openclaw-key-verification-v1";
+    } catch {
+      return false;
+    }
+  }
+
+  // Fallback for workspaces set up before verification token was added:
+  // try to decrypt any encrypted file
   for (const pattern of patterns) {
     const filePath = path.join(workspaceDir, pattern);
     try {
@@ -196,6 +217,7 @@ async function verifyKey(workspaceDir: string, key: Buffer, patterns: string[]):
       continue;
     }
   }
-  // No files to verify against — assume OK
-  return true;
+
+  // No verification token AND no files to verify — reject (fail secure)
+  return false;
 }

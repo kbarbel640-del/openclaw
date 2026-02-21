@@ -26,6 +26,8 @@ export interface EncryptionMeta {
   lastKeyChangeAt: string;
   /** List of file patterns that are encrypted */
   encryptedPatterns: string[];
+  /** Known plaintext encrypted with workspace key for password verification (hex-encoded) */
+  keyVerificationToken?: string;
 }
 
 /**

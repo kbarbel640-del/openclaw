@@ -11,7 +11,7 @@ import crypto from "node:crypto";
 
 /** scrypt parameters — tuned for security on modern hardware */
 const SCRYPT_PARAMS = {
-  N: 2 ** 17, // CPU/memory cost (128 KB * 131072 = 16 GB memory)
+  N: 2 ** 17, // CPU/memory cost (N=131072, uses ~128 MB memory)
   r: 8, // block size
   p: 1, // parallelization
   maxmem: 256 * 1024 * 1024, // 256 MB max memory for scrypt

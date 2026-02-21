@@ -8,7 +8,6 @@
  *   openclaw security disable       - Disable encryption and decrypt files
  */
 import crypto from "node:crypto";
-import readline from "node:readline/promises";
 import { resolveDefaultAgentWorkspaceDir } from "../agents/workspace.js";
 import {
   changePassword,
@@ -21,18 +20,48 @@ import {
 import { keychainHasKeys } from "../security/encryption/keychain.js";
 
 async function promptPassword(prompt: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stderr, // stderr so it doesn't pollute piped output
+  return new Promise((resolve, reject) => {
+    const output = process.stderr;
+    output.write(prompt);
+
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+    if (stdin.isTTY) {
+      stdin.setRawMode(true);
+    }
+    stdin.resume();
+    stdin.setEncoding("utf8");
+
+    let password = "";
+    const onData = (ch: string): void => {
+      const c = ch.toString();
+      if (c === "\n" || c === "\r" || c === "\u0004") {
+        // Enter or EOF
+        output.write("\n");
+        stdin.setRawMode(wasRaw ?? false);
+        stdin.pause();
+        stdin.removeListener("data", onData);
+        resolve(password);
+      } else if (c === "\u0003") {
+        // Ctrl-C
+        output.write("\n");
+        stdin.setRawMode(wasRaw ?? false);
+        stdin.pause();
+        stdin.removeListener("data", onData);
+        reject(new Error("Password entry cancelled"));
+      } else if (c === "\u007F" || c === "\b") {
+        // Backspace
+        if (password.length > 0) {
+          password = password.slice(0, -1);
+          output.write("\b \b");
+        }
+      } else {
+        password += c;
+        output.write("*");
+      }
+    };
+    stdin.on("data", onData);
   });
-  try {
-    // Note: readline doesn't natively hide input. For production,
-    // consider using a library like `read` for masked password input.
-    const password = await rl.question(prompt);
-    return password;
-  } finally {
-    rl.close();
-  }
 }
 
 async function promptPasswordConfirm(prompt: string): Promise<string> {
