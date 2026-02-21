@@ -237,19 +237,18 @@ export async function resolveChannelIdForBinding(params: {
       parent_id?: string;
       parentId?: string;
     };
+    const channelId = typeof channel?.id === "string" ? channel.id.trim() : "";
+    const type = channel?.type;
     const parentId =
       typeof channel?.parent_id === "string"
         ? channel.parent_id.trim()
         : typeof channel?.parentId === "string"
           ? channel.parentId.trim()
           : "";
-    if (parentId) {
+    // Only thread channels should resolve to their parent channel.
+    // Non-thread channels (text/forum/media) must keep their own ID.
+    if (parentId && isThreadChannelType(type)) {
       return parentId;
-    }
-    const channelId = typeof channel?.id === "string" ? channel.id.trim() : "";
-    const type = channel?.type;
-    if (channelId && !isThreadChannelType(type)) {
-      return channelId;
     }
     return channelId || null;
   } catch (err) {

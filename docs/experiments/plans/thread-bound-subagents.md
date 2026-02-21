@@ -115,6 +115,34 @@ Discord extension (`extensions/discord/src/subagent-hooks.ts`) implements Discor
 4. `subagent_ended`
    - cleanup and unbind signal
 
+### Account ID normalization contract
+
+Thread binding and routing state must use one canonical account id abstraction.
+
+Specification:
+
+- Introduce a shared account id module (proposed: `src/routing/account-id.ts`) and stop defining local normalizers.
+- Expose two explicit helpers:
+  - `normalizeAccountId(value): string`
+    - returns canonical, defaulted id (current default is `default`)
+    - use for map keys, manager registration and lookup, persistence keys, routing keys
+  - `normalizeOptionalAccountId(value): string | undefined`
+    - returns canonical id when present, `undefined` when absent
+    - use for inbound optional context fields and merge logic
+- Do not implement ad hoc account normalization in feature modules.
+  - This includes `trim`, `toLowerCase`, or defaulting logic in local helper functions.
+- Any map keyed by account id must only accept canonical ids from shared helpers.
+- Hook payloads and delivery context should carry raw optional account ids, and normalize at module boundaries only.
+
+Migration guardrails:
+
+- Replace duplicate normalizers in routing, reply payload, command context, and provider helpers with shared helpers.
+- Add contract tests that assert identical normalization behavior across:
+  - route resolution
+  - thread binding manager lookup
+  - reply delivery target filtering
+  - command run context merge
+
 ### Persistence and state
 
 Binding state path:
