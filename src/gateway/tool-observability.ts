@@ -121,12 +121,12 @@ export function getGatewayToolMetricsSnapshot(params?: {
 
   const tools = Array.from(totalsByTool.entries())
     .map(([tool, totals]) => toRow({ tool, ...totals }))
-    .sort((a, b) => b.calls - a.calls || b.totalLatencyMs - a.totalLatencyMs)
+    .toSorted((a, b) => b.calls - a.calls || b.totalLatencyMs - a.totalLatencyMs)
     .slice(0, topTools);
 
   const channels = Array.from(totalsByChannel.entries())
     .map(([channel, totals]) => toRow({ channel, ...totals }))
-    .sort((a, b) => b.calls - a.calls || b.totalLatencyMs - a.totalLatencyMs)
+    .toSorted((a, b) => b.calls - a.calls || b.totalLatencyMs - a.totalLatencyMs)
     .slice(0, topChannels);
 
   const byToolChannel = Array.from(totalsByToolChannel.entries())
@@ -134,10 +134,10 @@ export function getGatewayToolMetricsSnapshot(params?: {
       tool,
       channels: Array.from(channelMap.entries())
         .map(([channel, totals]) => toRow({ channel, ...totals }))
-        .sort((a, b) => b.calls - a.calls || b.totalLatencyMs - a.totalLatencyMs)
+        .toSorted((a, b) => b.calls - a.calls || b.totalLatencyMs - a.totalLatencyMs)
         .slice(0, topChannels),
     }))
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       const aCalls = a.channels.reduce((sum, row) => sum + row.calls, 0);
       const bCalls = b.channels.reduce((sum, row) => sum + row.calls, 0);
       return bCalls - aCalls;
