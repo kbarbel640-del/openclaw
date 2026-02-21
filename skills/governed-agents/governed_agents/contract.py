@@ -45,6 +45,8 @@ class TaskContract:
     verification_mode: str = "deterministic"   # "deterministic" | "council"
     council_size: int = 3                       # number of independent reviewer agents
     council_prompt: Optional[str] = None       # custom reviewer instructions (optional)
+    # Task-Type Profiles (Structural + Grounding Gates)
+    task_type: str = "custom"  # "research"|"analysis"|"strategy"|"writing"|"planning"|"custom"
 
     def to_prompt(self) -> str:
         """Convert contract to system prompt injection for the sub-agent."""
@@ -121,6 +123,7 @@ CRITICAL RULES:
             "timeout_seconds": self.timeout_seconds,
             "verification_mode": self.verification_mode,
             "council_size": self.council_size,
+            "task_type": self.task_type,
         }
 
 
