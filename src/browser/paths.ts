@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { SafeOpenError, openFileWithinRoot } from "../infra/fs-safe.js";
 import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
@@ -14,19 +15,39 @@ export function resolvePathWithinRoot(params: {
   defaultFileName?: string;
 }): { ok: true; path: string } | { ok: false; error: string } {
   const root = path.resolve(params.rootDir);
+  // Resolve symlinks in root to handle systems where /tmp is a symlink
+  // (e.g. macOS: /tmp -> /private/tmp)
+  let rootReal = root;
+  try {
+    rootReal = fs.realpathSync(root);
+  } catch {
+    // keep unresolved if dir doesn't exist yet
+  }
+
   const raw = params.requestedPath.trim();
   if (!raw) {
     if (!params.defaultFileName) {
       return { ok: false, error: "path is required" };
     }
-    return { ok: true, path: path.join(root, params.defaultFileName) };
+    return { ok: true, path: path.join(rootReal, params.defaultFileName) };
   }
-  const resolved = path.resolve(root, raw);
-  const rel = path.relative(root, resolved);
+  const resolved = path.resolve(rootReal, raw);
+
+  // Also resolve symlinks in the target path
+  let resolvedReal = resolved;
+  try {
+    resolvedReal = fs.realpathSync(resolved);
+  } catch {
+    // File might not exist yet; resolve relative to real root
+    const relFromRoot = path.relative(root, path.resolve(root, raw));
+    resolvedReal = path.resolve(rootReal, relFromRoot);
+  }
+
+  const rel = path.relative(rootReal, resolvedReal);
   if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
     return { ok: false, error: `Invalid path: must stay within ${params.scopeLabel}` };
   }
-  return { ok: true, path: resolved };
+  return { ok: true, path: resolvedReal };
 }
 
 export function resolvePathsWithinRoot(params: {
@@ -65,7 +86,12 @@ export async function resolveExistingPathsWithinRoot(params: {
       return { ok: false, error: pathResult.error };
     }
 
-    const rootDir = path.resolve(params.rootDir);
+    let rootDir = path.resolve(params.rootDir);
+    try {
+      rootDir = fs.realpathSync(rootDir);
+    } catch {
+      // keep unresolved if dir doesn't exist yet
+    }
     const relativePath = path.relative(rootDir, pathResult.path);
     let opened: Awaited<ReturnType<typeof openFileWithinRoot>> | undefined;
     try {
