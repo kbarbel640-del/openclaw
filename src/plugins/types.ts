@@ -649,4 +649,5 @@ export type PluginHookRegistration<K extends PluginHookName = PluginHookName> = 
   handler: PluginHookHandlerMap[K];
   priority?: number;
   source: string;
+  origin?: PluginOrigin;
 };

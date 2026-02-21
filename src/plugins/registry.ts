@@ -459,6 +459,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       handler,
       priority: opts?.priority,
       source: record.source,
+      origin: record.origin,
     } as TypedPluginHookRegistration);
   };
 
