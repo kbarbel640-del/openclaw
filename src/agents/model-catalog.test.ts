@@ -19,7 +19,10 @@ describe("loadModelCatalog", () => {
     expect(first).toEqual([]);
 
     const second = await loadModelCatalog({ config: cfg });
-    expect(second).toEqual([{ id: "gpt-4.1", name: "GPT-4.1", provider: "openai" }]);
+    // Use arrayContaining because fallback injection might add extra models
+    expect(second).toEqual(
+      expect.arrayContaining([{ id: "gpt-4.1", name: "GPT-4.1", provider: "openai" }]),
+    );
     expect(getCallCount()).toBe(2);
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
@@ -49,7 +52,9 @@ describe("loadModelCatalog", () => {
     );
 
     const result = await loadModelCatalog({ config: {} as OpenClawConfig });
-    expect(result).toEqual([{ id: "gpt-4.1", name: "GPT-4.1", provider: "openai" }]);
+    expect(result).toEqual(
+      expect.arrayContaining([{ id: "gpt-4.1", name: "GPT-4.1", provider: "openai" }]),
+    );
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -90,5 +95,35 @@ describe("loadModelCatalog", () => {
     const spark = result.find((entry) => entry.id === "gpt-5.3-codex-spark");
     expect(spark?.name).toBe("gpt-5.3-codex-spark");
     expect(spark?.reasoning).toBe(true);
+  });
+
+  it("adds gemini-3.1-pro-preview-customtools if not present", async () => {
+    __setModelCatalogImportForTest(
+      async () =>
+        ({
+          AuthStorage: class {},
+          ModelRegistry: class {
+            getAll() {
+              return [
+                {
+                  id: "gemini-3.1-pro-preview",
+                  provider: "google",
+                  name: "Gemini 3.1 Pro Preview",
+                },
+              ];
+            }
+          },
+        }) as unknown as PiSdkModule,
+    );
+
+    const result = await loadModelCatalog({ config: {} as OpenClawConfig });
+    expect(result).toContainEqual(
+      expect.objectContaining({
+        provider: "google",
+        id: "gemini-3.1-pro-preview-customtools",
+        name: "Gemini 3.1 Pro (Custom Tools)",
+        reasoning: true,
+      }),
+    );
   });
 });

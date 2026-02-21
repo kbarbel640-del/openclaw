@@ -65,12 +65,16 @@ export async function extractFilename(url: string): Promise<string> {
  * Check if a URL refers to a local file path.
  */
 export function isLocalPath(url: string): boolean {
+  if (path.isAbsolute(url)) {
+    return true;
+  }
   if (url.startsWith("file://") || url.startsWith("/") || url.startsWith("~")) {
     return true;
   }
 
   // Windows drive-letter absolute path (e.g. C:\foo\bar.txt or C:/foo/bar.txt)
-  if (/^[a-zA-Z]:[\\/]/.test(url)) {
+  // Also matches Windows long paths like \\?\C:\foo
+  if (/^[a-zA-Z]:[\\/]/.test(url) || url.startsWith("\\\\?\\")) {
     return true;
   }
 

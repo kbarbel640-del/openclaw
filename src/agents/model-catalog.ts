@@ -56,6 +56,41 @@ function applyOpenAICodexSparkFallback(models: ModelCatalogEntry[]): void {
   });
 }
 
+const GOOGLE_PROVIDER = "google";
+const GEMINI_31_PRO_PREVIEW_ID = "gemini-3.1-pro-preview";
+const GEMINI_31_PRO_PREVIEW_CUSTOMTOOLS_ID = "gemini-3.1-pro-preview-customtools";
+
+function applyGemini31PreviewFallback(models: ModelCatalogEntry[]): void {
+  const hasPro = models.some(
+    (entry) => entry.provider === GOOGLE_PROVIDER && entry.id === GEMINI_31_PRO_PREVIEW_ID,
+  );
+  if (!hasPro) {
+    models.push({
+      id: GEMINI_31_PRO_PREVIEW_ID,
+      name: "Gemini 3.1 Pro Preview",
+      provider: GOOGLE_PROVIDER,
+      contextWindow: 2000000,
+      reasoning: true,
+      input: ["text", "image"],
+    });
+  }
+
+  const hasCustomTools = models.some(
+    (entry) =>
+      entry.provider === GOOGLE_PROVIDER && entry.id === GEMINI_31_PRO_PREVIEW_CUSTOMTOOLS_ID,
+  );
+  if (!hasCustomTools) {
+    models.push({
+      id: GEMINI_31_PRO_PREVIEW_CUSTOMTOOLS_ID,
+      name: "Gemini 3.1 Pro (Custom Tools)",
+      provider: GOOGLE_PROVIDER,
+      contextWindow: 2000000,
+      reasoning: true,
+      input: ["text", "image"],
+    });
+  }
+}
+
 export function resetModelCatalogCacheForTest() {
   modelCatalogPromise = null;
   hasLoggedModelCatalogError = false;
@@ -140,6 +175,7 @@ export async function loadModelCatalog(params?: {
         models.push({ id, name, provider, contextWindow, reasoning, input });
       }
       applyOpenAICodexSparkFallback(models);
+      applyGemini31PreviewFallback(models);
 
       if (models.length === 0) {
         // If we found nothing, don't cache this result so we can try again.
