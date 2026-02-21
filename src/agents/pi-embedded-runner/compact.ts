@@ -56,6 +56,7 @@ import {
   resolveSkillsPromptForRun,
   type SkillSnapshot,
 } from "../skills.js";
+import { isToolResultDurationTrackingEnabled } from "../tool-result-durations.js";
 import { resolveTranscriptPolicy } from "../transcript-policy.js";
 import {
   compactWithSafetyTimeout,
@@ -528,10 +529,12 @@ export async function compactEmbeddedPiSessionDirect(
         provider,
         modelId,
       });
+      const recordToolResultDurations = isToolResultDurationTrackingEnabled(params.config);
       const sessionManager = guardSessionManager(SessionManager.open(params.sessionFile), {
         agentId: sessionAgentId,
         sessionKey: params.sessionKey,
         allowSyntheticToolResults: transcriptPolicy.allowSyntheticToolResults,
+        normalizeToolResultDurationsForTranscript: recordToolResultDurations,
       });
       trackSessionManagerAccess(params.sessionFile);
       const settingsManager = SettingsManager.create(effectiveWorkspace, agentDir);
@@ -564,6 +567,7 @@ export async function compactEmbeddedPiSessionDirect(
       const { builtInTools, customTools } = splitSdkTools({
         tools,
         sandboxEnabled: !!sandbox?.enabled,
+        recordToolResultDurations,
       });
 
       const { session } = await createAgentSession({

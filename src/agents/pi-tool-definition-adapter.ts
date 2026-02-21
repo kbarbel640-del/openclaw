@@ -86,7 +86,61 @@ function splitToolExecuteArgs(args: ToolExecuteArgsAny): {
   };
 }
 
-export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
+function asObjectRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function withToolDurationMetadata(
+  result: AgentToolResult<unknown>,
+  durationMs: number,
+): AgentToolResult<unknown> {
+  const base = asObjectRecord(result);
+  if (!base) {
+    return result;
+  }
+
+  const metadata = asObjectRecord(base.metadata) ?? {};
+  const rootDuration = asFiniteNumber(base.durationMs);
+  const metadataDuration = asFiniteNumber(metadata.durationMs);
+  const resolvedDurationMs = rootDuration ?? metadataDuration ?? durationMs;
+
+  const nextResult: Record<string, unknown> = {
+    ...base,
+    durationMs: resolvedDurationMs,
+    metadata: {
+      ...metadata,
+      durationMs: resolvedDurationMs,
+    },
+  };
+
+  const details = asObjectRecord(base.details);
+  if (details) {
+    const detailsMetadata = asObjectRecord(details.metadata) ?? {};
+    nextResult.details = {
+      ...details,
+      durationMs: resolvedDurationMs,
+      metadata: {
+        ...detailsMetadata,
+        durationMs: resolvedDurationMs,
+      },
+    };
+  }
+
+  return nextResult as unknown as AgentToolResult<unknown>;
+}
+
+export function toToolDefinitions(
+  tools: AnyAgentTool[],
+  opts?: { recordDurationMetadata?: boolean },
+): ToolDefinition[] {
+  const recordDurationMetadata = opts?.recordDurationMetadata !== false;
   return tools.map((tool) => {
     const name = tool.name || "tool";
     const normalizedName = normalizeToolName(name);
@@ -98,6 +152,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
       parameters: tool.parameters,
       execute: async (...args: ToolExecuteArgs): Promise<AgentToolResult<unknown>> => {
         const { toolCallId, params, onUpdate, signal } = splitToolExecuteArgs(args);
+        const startedAt = performance.now();
         let executeParams = params;
         try {
           if (!beforeHookWrapped) {
@@ -112,6 +167,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
             executeParams = hookOutcome.params;
           }
           const result = await tool.execute(toolCallId, executeParams, signal, onUpdate);
+          const durationMs = Math.max(0, performance.now() - startedAt);
           const afterParams = beforeHookWrapped
             ? (consumeAdjustedParamsForToolCall(toolCallId) ?? executeParams)
             : executeParams;
@@ -135,7 +191,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
             }
           }
 
-          return result;
+          return recordDurationMetadata ? withToolDurationMetadata(result, durationMs) : result;
         } catch (err) {
           if (signal?.aborted) {
             throw err;
@@ -156,6 +212,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
           }
           logError(`[tools] ${normalizedName} failed: ${described.message}`);
 
+          const durationMs = Math.max(0, performance.now() - startedAt);
           const errorResult = jsonResult({
             status: "error",
             tool: normalizedName,
@@ -181,7 +238,9 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
             }
           }
 
-          return errorResult;
+          return recordDurationMetadata
+            ? withToolDurationMetadata(errorResult, durationMs)
+            : errorResult;
         }
       },
     } satisfies ToolDefinition;
@@ -194,7 +253,9 @@ export function toClientToolDefinitions(
   tools: ClientToolDefinition[],
   onClientToolCall?: (toolName: string, params: Record<string, unknown>) => void,
   hookContext?: HookContext,
+  opts?: { recordDurationMetadata?: boolean },
 ): ToolDefinition[] {
+  const recordDurationMetadata = opts?.recordDurationMetadata !== false;
   return tools.map((tool) => {
     const func = tool.function;
     return {
@@ -203,6 +264,7 @@ export function toClientToolDefinitions(
       description: func.description ?? "",
       parameters: func.parameters as ToolDefinition["parameters"],
       execute: async (...args: ToolExecuteArgs): Promise<AgentToolResult<unknown>> => {
+        const startedAt = performance.now();
         const { toolCallId, params } = splitToolExecuteArgs(args);
         const outcome = await runBeforeToolCallHook({
           toolName: func.name,
@@ -220,11 +282,17 @@ export function toClientToolDefinitions(
           onClientToolCall(func.name, paramsRecord);
         }
         // Return a pending result - the client will execute this tool
-        return jsonResult({
+        const pendingResult: Record<string, unknown> = {
           status: "pending",
           tool: func.name,
           message: "Tool execution delegated to client",
-        });
+        };
+        if (recordDurationMetadata) {
+          pendingResult.metadata = {
+            durationMs: Math.max(0, performance.now() - startedAt),
+          };
+        }
+        return jsonResult(pendingResult);
       },
     } satisfies ToolDefinition;
   });
