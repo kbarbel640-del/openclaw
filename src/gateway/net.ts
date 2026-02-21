@@ -175,7 +175,6 @@ export function parseForwardedForClientIp(
       return normalized;
     }
   }
-
   return undefined;
 }
 
