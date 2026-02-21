@@ -51,9 +51,9 @@ async function createLargeTestJpeg(): Promise<{ buffer: Buffer; file: string }> 
 }
 
 beforeAll(async () => {
-  const preferredTmpRoot = resolvePreferredOpenClawTmpDir();
-  await fs.mkdir(preferredTmpRoot, { recursive: true });
-  fixtureRoot = await fs.mkdtemp(path.join(preferredTmpRoot, "openclaw-media-test-"));
+  fixtureRoot = await fs.mkdtemp(
+    path.join(resolvePreferredOpenClawTmpDir(), "openclaw-media-test-"),
+  );
   largeJpegBuffer = await sharp({
     create: {
       width: 400,
