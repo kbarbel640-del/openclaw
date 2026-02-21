@@ -924,7 +924,7 @@ export async function updateLastRoute(params: {
       : null;
     const resolvedUpdatedAt =
       preserveUpdatedAt && Number.isFinite(existing?.updatedAt)
-        ? (existing?.updatedAt ?? now)
+        ? existing.updatedAt
         : Math.max(existing?.updatedAt ?? 0, now);
     const basePatch: Partial<SessionEntry> = {
       updatedAt: resolvedUpdatedAt,
@@ -939,7 +939,7 @@ export async function updateLastRoute(params: {
       metaPatch ? { ...basePatch, ...metaPatch } : basePatch,
     );
     if (preserveUpdatedAt && Number.isFinite(existing?.updatedAt)) {
-      next.updatedAt = existing?.updatedAt ?? next.updatedAt;
+      next.updatedAt = existing.updatedAt;
     }
     store[sessionKey] = next;
     await saveSessionStoreUnlocked(storePath, store, { activeSessionKey: sessionKey });
