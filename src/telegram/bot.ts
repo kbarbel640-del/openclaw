@@ -1,7 +1,7 @@
-import type { ApiClientOptions } from "grammy";
 import { sequentialize } from "@grammyjs/runner";
 import { apiThrottler } from "@grammyjs/transformer-throttler";
 import { type Message, type UserFromGetMe } from "@grammyjs/types";
+import type { ApiClientOptions } from "grammy";
 import { Bot, webhookCallback } from "grammy";
 import type { OpenClawConfig, ReplyToMode } from "../config/config.js";
 import { createNonExitingRuntime, type RuntimeEnv } from "../runtime.js";
