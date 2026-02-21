@@ -802,49 +802,25 @@ export async function runEmbeddedPiAgent(
                         const allMessages = sm
                           .getBranch()
                           .filter(isMessageBranchEntry)
-                          .filter(
-                            (entry) =>
-                              "message" in entry &&
-                              (
-                                entry as {
-                                  message?: { role?: string; text?: string; content?: string };
-                                }
-                              ).message?.role !== "system",
-                          )
-                          .map((entry) => ({
-                            role:
-                              "message" in entry &&
-                              typeof (
-                                entry as {
-                                  message?: { role?: string; text?: string; content?: string };
-                                }
-                              ).message?.role === "string"
+                          .map((entry) => {
+                            const msg =
+                              "message" in entry
                                 ? (
                                     entry as {
                                       message?: { role?: string; text?: string; content?: string };
                                     }
-                                  ).message.role
-                                : undefined,
-                            text: messageTextFromUnknown(
-                              "message" in entry
-                                ? ((
-                                    entry as {
-                                      message?: { role?: string; text?: string; content?: string };
-                                    }
-                                  ).message?.text ??
-                                    (
-                                      entry as {
-                                        message?: {
-                                          role?: string;
-                                          text?: string;
-                                          content?: string;
-                                        };
-                                      }
-                                    ).message?.content)
-                                : undefined,
-                            ),
-                            timestamp: entry.timestamp,
-                          }));
+                                  ).message
+                                : undefined;
+                            return {
+                              role: typeof msg?.role === "string" ? msg.role : undefined,
+                              text: messageTextFromUnknown(msg?.text ?? msg?.content),
+                              timestamp: entry.timestamp,
+                            };
+                          })
+                          .filter(
+                            (m): m is { role: string; text: string; timestamp: string } =>
+                              typeof m.role === "string" && m.role !== "system",
+                          );
 
                         // Messages currently in LLM context (post-compaction)
                         const contextMessages =
