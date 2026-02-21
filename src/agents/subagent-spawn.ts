@@ -147,14 +147,14 @@ async function ensureThreadBindingForSubagentSpawn(params: {
       return {
         status: "error",
         error:
-          "Unable to create or bind a Discord thread for this subagent session. Session mode is unavailable for this target.",
+          "Unable to create or bind a thread for this subagent session. Session mode is unavailable for this target.",
       };
     }
     return { status: "ok" };
   } catch (err) {
     return {
       status: "error",
-      error: `Discord thread bind failed: ${summarizeError(err)}`,
+      error: `Thread bind failed: ${summarizeError(err)}`,
     };
   }
 }

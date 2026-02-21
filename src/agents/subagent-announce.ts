@@ -9,6 +9,7 @@ import {
   resolveStorePath,
 } from "../config/sessions.js";
 import { callGateway } from "../gateway/call.js";
+import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { normalizeMainKey } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
 import { extractTextFromChatContent } from "../shared/chat-content.js";
@@ -335,63 +336,43 @@ function resolveAnnounceOrigin(
   return mergeDeliveryContext(normalizedRequester, normalizedEntry);
 }
 
-async function resolveDiscordThreadCompletionOrigin(params: {
+async function resolveSubagentCompletionOrigin(params: {
   childSessionKey: string;
+  requesterSessionKey: string;
   requesterOrigin?: DeliveryContext;
+  childRunId?: string;
+  spawnMode?: SpawnSubagentMode;
+  expectsCompletionMessage: boolean;
 }): Promise<DeliveryContext | undefined> {
   const requesterOrigin = normalizeDeliveryContext(params.requesterOrigin);
-  const channel = requesterOrigin?.channel?.trim().toLowerCase();
-  if (channel !== "discord") {
+  const hookRunner = getGlobalHookRunner();
+  if (!hookRunner?.hasHooks("subagent_delivery_target")) {
     return requesterOrigin;
   }
-  const requesterAccountId = requesterOrigin?.accountId?.trim();
-  const requesterThreadId =
-    requesterOrigin?.threadId != null && requesterOrigin.threadId !== ""
-      ? String(requesterOrigin.threadId).trim()
-      : "";
   try {
-    const { getThreadBindingManager, listThreadBindingsBySessionKey } =
-      await import("../discord/monitor/thread-bindings.js");
-    const managerBindings =
-      getThreadBindingManager(requesterOrigin?.accountId)?.listBySessionKey(
-        params.childSessionKey,
-      ) ?? [];
-    const bindings =
-      managerBindings.length > 0
-        ? managerBindings
-        : listThreadBindingsBySessionKey({
-            targetSessionKey: params.childSessionKey,
-            ...(requesterAccountId ? { accountId: requesterAccountId } : {}),
-            targetKind: "subagent",
-          });
-    if (!bindings?.length) {
+    const result = await hookRunner.runSubagentDeliveryTarget(
+      {
+        childSessionKey: params.childSessionKey,
+        requesterSessionKey: params.requesterSessionKey,
+        requesterOrigin,
+        childRunId: params.childRunId,
+        spawnMode: params.spawnMode,
+        expectsCompletionMessage: params.expectsCompletionMessage,
+      },
+      {
+        runId: params.childRunId,
+        childSessionKey: params.childSessionKey,
+        requesterSessionKey: params.requesterSessionKey,
+      },
+    );
+    const hookOrigin = normalizeDeliveryContext(result?.origin);
+    if (!hookOrigin) {
       return requesterOrigin;
     }
-
-    let binding: (typeof bindings)[number] | undefined;
-    if (requesterThreadId) {
-      binding = bindings.find((entry) => {
-        if (entry.threadId !== requesterThreadId) {
-          return false;
-        }
-        if (requesterAccountId && entry.accountId !== requesterAccountId) {
-          return false;
-        }
-        return true;
-      });
-    }
-    if (!binding && bindings.length === 1) {
-      binding = bindings[0];
-    }
-    if (!binding) {
+    if (hookOrigin.channel && !isDeliverableMessageChannel(hookOrigin.channel)) {
       return requesterOrigin;
     }
-    return normalizeDeliveryContext({
-      channel: "discord",
-      accountId: binding.accountId,
-      to: `channel:${binding.threadId}`,
-      threadId: binding.threadId,
-    });
+    return mergeDeliveryContext(requesterOrigin, hookOrigin);
   } catch {
     return requesterOrigin;
   }
@@ -1070,9 +1051,13 @@ export async function runSubagentAnnounceFlow(params: {
     }
     const completionDirectOrigin =
       expectsCompletionMessage && !requesterIsSubagent
-        ? await resolveDiscordThreadCompletionOrigin({
+        ? await resolveSubagentCompletionOrigin({
             childSessionKey: params.childSessionKey,
+            requesterSessionKey: targetRequesterSessionKey,
             requesterOrigin: directOrigin,
+            childRunId: params.childRunId,
+            spawnMode: params.spawnMode,
+            expectsCompletionMessage,
           })
         : targetRequesterOrigin;
     // Use a deterministic idempotency key so the gateway dedup cache

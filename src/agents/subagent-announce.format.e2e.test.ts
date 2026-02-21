@@ -6,9 +6,13 @@ type RequesterResolution = {
   requesterSessionKey: string;
   requesterOrigin?: Record<string, unknown>;
 } | null;
-type ThreadBinding = {
-  accountId: string;
-  threadId: string;
+type SubagentDeliveryTargetResult = {
+  origin?: {
+    channel?: string;
+    accountId?: string;
+    to?: string;
+    threadId?: string | number;
+  };
 };
 
 const agentSpy = vi.fn(async (_req: AgentCallRequest) => ({ runId: "run-main", status: "ok" }));
@@ -28,23 +32,19 @@ const subagentRegistryMock = {
   countActiveDescendantRuns: vi.fn((_sessionKey: string) => 0),
   resolveRequesterForChildSession: vi.fn((_sessionKey: string): RequesterResolution => null),
 };
-const threadBindingsMock = {
-  listBySessionKey: vi.fn((_sessionKey: string): ThreadBinding[] => []),
+const subagentDeliveryTargetHookMock = vi.fn(
+  async (_event?: unknown, _ctx?: unknown): Promise<SubagentDeliveryTargetResult | undefined> =>
+    undefined,
+);
+let hasSubagentDeliveryTargetHook = false;
+const hookRunnerMock = {
+  hasHooks: vi.fn(
+    (hookName: string) => hookName === "subagent_delivery_target" && hasSubagentDeliveryTargetHook,
+  ),
+  runSubagentDeliveryTarget: vi.fn((event: unknown, ctx: unknown) =>
+    subagentDeliveryTargetHookMock(event, ctx),
+  ),
 };
-const getThreadBindingManagerMock = vi.fn(
-  (
-    _accountId?: string,
-  ): {
-    listBySessionKey: (sessionKey: string) => ThreadBinding[];
-  } | null => threadBindingsMock,
-);
-const listThreadBindingsBySessionKeyMock = vi.fn(
-  (_params: {
-    targetSessionKey: string;
-    accountId?: string;
-    targetKind?: string;
-  }): ThreadBinding[] => [],
-);
 const chatHistoryMock = vi.fn(async (_sessionKey?: string) => ({
   messages: [] as Array<unknown>,
 }));
@@ -124,13 +124,8 @@ vi.mock("../config/sessions.js", () => ({
 vi.mock("./pi-embedded.js", () => embeddedRunMock);
 
 vi.mock("./subagent-registry.js", () => subagentRegistryMock);
-vi.mock("../discord/monitor/thread-bindings.js", () => ({
-  getThreadBindingManager: (accountId?: string) => getThreadBindingManagerMock(accountId),
-  listThreadBindingsBySessionKey: (params: {
-    targetSessionKey: string;
-    accountId?: string;
-    targetKind?: string;
-  }) => listThreadBindingsBySessionKeyMock(params),
+vi.mock("../plugins/hook-runner-global.js", () => ({
+  getGlobalHookRunner: () => hookRunnerMock,
 }));
 
 vi.mock("../config/config.js", async (importOriginal) => {
@@ -153,11 +148,10 @@ describe("subagent announce formatting", () => {
     subagentRegistryMock.isSubagentSessionRunActive.mockReset().mockReturnValue(true);
     subagentRegistryMock.countActiveDescendantRuns.mockReset().mockReturnValue(0);
     subagentRegistryMock.resolveRequesterForChildSession.mockReset().mockReturnValue(null);
-    threadBindingsMock.listBySessionKey.mockReset().mockReturnValue([]);
-    getThreadBindingManagerMock.mockReset().mockImplementation((_accountId?: string) => {
-      return threadBindingsMock;
-    });
-    listThreadBindingsBySessionKeyMock.mockReset().mockReturnValue([]);
+    hasSubagentDeliveryTargetHook = false;
+    hookRunnerMock.hasHooks.mockClear();
+    hookRunnerMock.runSubagentDeliveryTarget.mockClear();
+    subagentDeliveryTargetHookMock.mockReset().mockResolvedValue(undefined);
     readLatestAssistantReplyMock.mockReset().mockResolvedValue("raw subagent reply");
     chatHistoryMock.mockReset().mockResolvedValue({ messages: [] });
     sessionStore = {};
@@ -573,14 +567,17 @@ describe("subagent announce formatting", () => {
     expect(call?.params?.threadId).toBe("99");
   });
 
-  it("uses matching bound Discord thread target for completion direct-send", async () => {
+  it("uses hook-provided thread target for completion direct-send", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
-    threadBindingsMock.listBySessionKey.mockReturnValueOnce([
-      {
+    hasSubagentDeliveryTargetHook = true;
+    subagentDeliveryTargetHookMock.mockResolvedValueOnce({
+      origin: {
+        channel: "discord",
         accountId: "acct-1",
+        to: "channel:777",
         threadId: "777",
       },
-    ]);
+    });
 
     const didAnnounce = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
@@ -599,7 +596,26 @@ describe("subagent announce formatting", () => {
     });
 
     expect(didAnnounce).toBe(true);
-    expect(getThreadBindingManagerMock).toHaveBeenCalledWith("acct-1");
+    expect(subagentDeliveryTargetHookMock).toHaveBeenCalledWith(
+      {
+        childSessionKey: "agent:main:subagent:test",
+        requesterSessionKey: "agent:main:main",
+        requesterOrigin: {
+          channel: "discord",
+          to: "channel:12345",
+          accountId: "acct-1",
+          threadId: "777",
+        },
+        childRunId: "run-direct-thread-bound",
+        spawnMode: "session",
+        expectsCompletionMessage: true,
+      },
+      {
+        runId: "run-direct-thread-bound",
+        childSessionKey: "agent:main:subagent:test",
+        requesterSessionKey: "agent:main:main",
+      },
+    );
     expect(sendSpy).toHaveBeenCalledTimes(1);
     const call = sendSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
     expect(call?.params?.channel).toBe("discord");
@@ -610,14 +626,17 @@ describe("subagent announce formatting", () => {
     expect(message).not.toContain("finished");
   });
 
-  it("uses sole bound Discord thread target when requester origin has no threadId", async () => {
+  it("uses hook-provided thread target when requester origin has no threadId", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
-    threadBindingsMock.listBySessionKey.mockReturnValueOnce([
-      {
+    hasSubagentDeliveryTargetHook = true;
+    subagentDeliveryTargetHookMock.mockResolvedValueOnce({
+      origin: {
+        channel: "discord",
         accountId: "acct-1",
+        to: "channel:777",
         threadId: "777",
       },
-    ]);
+    });
 
     const didAnnounce = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
@@ -642,15 +661,10 @@ describe("subagent announce formatting", () => {
     expect(call?.params?.threadId).toBe("777");
   });
 
-  it("uses persisted Discord thread binding when manager is unavailable", async () => {
+  it("keeps requester origin when delivery-target hook returns no override", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
-    getThreadBindingManagerMock.mockReturnValueOnce(null);
-    listThreadBindingsBySessionKeyMock.mockReturnValueOnce([
-      {
-        accountId: "acct-1",
-        threadId: "777",
-      },
-    ]);
+    hasSubagentDeliveryTargetHook = true;
+    subagentDeliveryTargetHookMock.mockResolvedValueOnce(undefined);
 
     const didAnnounce = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
@@ -668,30 +682,22 @@ describe("subagent announce formatting", () => {
     });
 
     expect(didAnnounce).toBe(true);
-    expect(listThreadBindingsBySessionKeyMock).toHaveBeenCalledWith({
-      targetSessionKey: "agent:main:subagent:test",
-      accountId: "acct-1",
-      targetKind: "subagent",
-    });
     expect(sendSpy).toHaveBeenCalledTimes(1);
     const call = sendSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
     expect(call?.params?.channel).toBe("discord");
-    expect(call?.params?.to).toBe("channel:777");
-    expect(call?.params?.threadId).toBe("777");
+    expect(call?.params?.to).toBe("channel:12345");
+    expect(call?.params?.threadId).toBeUndefined();
   });
 
-  it("keeps requester origin when multiple bound Discord threads exist and threadId is missing", async () => {
+  it("keeps requester origin when delivery-target hook returns non-deliverable channel", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
-    threadBindingsMock.listBySessionKey.mockReturnValueOnce([
-      {
-        accountId: "acct-1",
-        threadId: "777",
+    hasSubagentDeliveryTargetHook = true;
+    subagentDeliveryTargetHookMock.mockResolvedValueOnce({
+      origin: {
+        channel: "webchat",
+        to: "conversation:123",
       },
-      {
-        accountId: "acct-1",
-        threadId: "888",
-      },
-    ]);
+    });
 
     const didAnnounce = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
@@ -716,14 +722,17 @@ describe("subagent announce formatting", () => {
     expect(call?.params?.threadId).toBeUndefined();
   });
 
-  it("uses sole bound Discord thread when requester threadId does not match", async () => {
+  it("uses hook-provided thread target when requester threadId does not match", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
-    threadBindingsMock.listBySessionKey.mockReturnValueOnce([
-      {
+    hasSubagentDeliveryTargetHook = true;
+    subagentDeliveryTargetHookMock.mockResolvedValueOnce({
+      origin: {
+        channel: "discord",
         accountId: "acct-1",
+        to: "channel:777",
         threadId: "777",
       },
-    ]);
+    });
 
     const didAnnounce = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",

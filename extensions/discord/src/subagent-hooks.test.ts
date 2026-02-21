@@ -2,15 +2,22 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerDiscordSubagentHooks } from "./subagent-hooks.js";
 
+type ThreadBindingRecord = {
+  accountId: string;
+  threadId: string;
+};
+
 const hookMocks = vi.hoisted(() => ({
   autoBindSpawnedDiscordSubagent: vi.fn(
     async (): Promise<{ threadId: string } | null> => ({ threadId: "thread-1" }),
   ),
+  listThreadBindingsBySessionKey: vi.fn((_params?: unknown): ThreadBindingRecord[] => []),
   unbindThreadBindingsBySessionKey: vi.fn(() => []),
 }));
 
 vi.mock("openclaw/plugin-sdk", () => ({
   autoBindSpawnedDiscordSubagent: hookMocks.autoBindSpawnedDiscordSubagent,
+  listThreadBindingsBySessionKey: hookMocks.listThreadBindingsBySessionKey,
   unbindThreadBindingsBySessionKey: hookMocks.unbindThreadBindingsBySessionKey,
 }));
 
@@ -28,12 +35,14 @@ function registerHandlersForTest() {
 describe("discord subagent hook handlers", () => {
   beforeEach(() => {
     hookMocks.autoBindSpawnedDiscordSubagent.mockClear();
+    hookMocks.listThreadBindingsBySessionKey.mockClear();
     hookMocks.unbindThreadBindingsBySessionKey.mockClear();
   });
 
-  it("registers subagent_spawning and subagent_ended hooks", () => {
+  it("registers subagent hooks", () => {
     const handlers = registerHandlersForTest();
     expect(handlers.has("subagent_spawning")).toBe(true);
+    expect(handlers.has("subagent_delivery_target")).toBe(true);
     expect(handlers.has("subagent_spawned")).toBe(false);
     expect(handlers.has("subagent_ended")).toBe(true);
   });
@@ -157,5 +166,77 @@ describe("discord subagent hook handlers", () => {
       reason: "subagent-complete",
       sendFarewell: true,
     });
+  });
+
+  it("resolves delivery target from matching bound thread", () => {
+    hookMocks.listThreadBindingsBySessionKey.mockReturnValueOnce([
+      { accountId: "work", threadId: "777" },
+    ]);
+    const handlers = registerHandlersForTest();
+    const handler = handlers.get("subagent_delivery_target");
+    if (!handler) {
+      throw new Error("expected subagent_delivery_target hook handler");
+    }
+
+    const result = handler(
+      {
+        childSessionKey: "agent:main:subagent:child",
+        requesterSessionKey: "agent:main:main",
+        requesterOrigin: {
+          channel: "discord",
+          accountId: "work",
+          to: "channel:123",
+          threadId: "777",
+        },
+        childRunId: "run-1",
+        spawnMode: "session",
+        expectsCompletionMessage: true,
+      },
+      {},
+    );
+
+    expect(hookMocks.listThreadBindingsBySessionKey).toHaveBeenCalledWith({
+      targetSessionKey: "agent:main:subagent:child",
+      accountId: "work",
+      targetKind: "subagent",
+    });
+    expect(result).toEqual({
+      origin: {
+        channel: "discord",
+        accountId: "work",
+        to: "channel:777",
+        threadId: "777",
+      },
+    });
+  });
+
+  it("keeps original routing when delivery target is ambiguous", () => {
+    hookMocks.listThreadBindingsBySessionKey.mockReturnValueOnce([
+      { accountId: "work", threadId: "777" },
+      { accountId: "work", threadId: "888" },
+    ]);
+    const handlers = registerHandlersForTest();
+    const handler = handlers.get("subagent_delivery_target");
+    if (!handler) {
+      throw new Error("expected subagent_delivery_target hook handler");
+    }
+
+    const result = handler(
+      {
+        childSessionKey: "agent:main:subagent:child",
+        requesterSessionKey: "agent:main:main",
+        requesterOrigin: {
+          channel: "discord",
+          accountId: "work",
+          to: "channel:123",
+        },
+        childRunId: "run-1",
+        spawnMode: "session",
+        expectsCompletionMessage: true,
+      },
+      {},
+    );
+
+    expect(result).toBeUndefined();
   });
 });

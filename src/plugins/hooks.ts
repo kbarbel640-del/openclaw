@@ -37,6 +37,8 @@ import type {
   PluginHookSessionEndEvent,
   PluginHookSessionStartEvent,
   PluginHookSubagentContext,
+  PluginHookSubagentDeliveryTargetEvent,
+  PluginHookSubagentDeliveryTargetResult,
   PluginHookSubagentSpawningEvent,
   PluginHookSubagentSpawningResult,
   PluginHookSubagentEndedEvent,
@@ -82,6 +84,8 @@ export type {
   PluginHookSessionStartEvent,
   PluginHookSessionEndEvent,
   PluginHookSubagentContext,
+  PluginHookSubagentDeliveryTargetEvent,
+  PluginHookSubagentDeliveryTargetResult,
   PluginHookSubagentSpawningEvent,
   PluginHookSubagentSpawningResult,
   PluginHookSubagentSpawnedEvent,
@@ -156,6 +160,16 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
       status: "ok",
       threadBindingReady: Boolean(acc?.threadBindingReady || next.threadBindingReady),
     };
+  };
+
+  const mergeSubagentDeliveryTargetResult = (
+    acc: PluginHookSubagentDeliveryTargetResult | undefined,
+    next: PluginHookSubagentDeliveryTargetResult,
+  ): PluginHookSubagentDeliveryTargetResult => {
+    if (acc?.origin) {
+      return acc;
+    }
+    return next;
   };
 
   /**
@@ -613,6 +627,22 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
   }
 
   /**
+   * Run subagent_delivery_target hook.
+   * Runs sequentially so channel plugins can deterministically resolve routing.
+   */
+  async function runSubagentDeliveryTarget(
+    event: PluginHookSubagentDeliveryTargetEvent,
+    ctx: PluginHookSubagentContext,
+  ): Promise<PluginHookSubagentDeliveryTargetResult | undefined> {
+    return runModifyingHook<"subagent_delivery_target", PluginHookSubagentDeliveryTargetResult>(
+      "subagent_delivery_target",
+      event,
+      ctx,
+      mergeSubagentDeliveryTargetResult,
+    );
+  }
+
+  /**
    * Run subagent_spawned hook.
    * Runs in parallel (fire-and-forget).
    */
@@ -703,6 +733,7 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     runSessionStart,
     runSessionEnd,
     runSubagentSpawning,
+    runSubagentDeliveryTarget,
     runSubagentSpawned,
     runSubagentEnded,
     // Gateway hooks

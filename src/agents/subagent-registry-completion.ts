@@ -1,4 +1,3 @@
-import { unbindThreadBindingsBySessionKey } from "../discord/monitor/thread-bindings.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import type { SubagentRunOutcome } from "./subagent-announce.js";
 import {
@@ -65,13 +64,6 @@ export async function emitSubagentEndedHookOnce(params: {
 
   params.inFlightRunIds.add(runId);
   try {
-    unbindThreadBindingsBySessionKey({
-      targetSessionKey: params.entry.childSessionKey,
-      accountId: params.accountId,
-      targetKind: SUBAGENT_TARGET_KIND_SUBAGENT,
-      reason: params.reason,
-      sendFarewell: params.sendFarewell,
-    });
     const hookRunner = getGlobalHookRunner();
     if (hookRunner?.hasHooks("subagent_ended")) {
       await hookRunner.runSubagentEnded(

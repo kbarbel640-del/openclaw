@@ -68,6 +68,7 @@ export type {
 } from "../discord/monitor/thread-bindings.js";
 export {
   autoBindSpawnedDiscordSubagent,
+  listThreadBindingsBySessionKey,
   unbindThreadBindingsBySessionKey,
 } from "../discord/monitor/thread-bindings.js";
 export type {

@@ -315,6 +315,7 @@ export type PluginHookName =
   | "session_start"
   | "session_end"
   | "subagent_spawning"
+  | "subagent_delivery_target"
   | "subagent_spawned"
   | "subagent_ended"
   | "gateway_start"
@@ -584,6 +585,30 @@ export type PluginHookSubagentSpawningResult =
       error: string;
     };
 
+// subagent_delivery_target hook
+export type PluginHookSubagentDeliveryTargetEvent = {
+  childSessionKey: string;
+  requesterSessionKey: string;
+  requesterOrigin?: {
+    channel?: string;
+    accountId?: string;
+    to?: string;
+    threadId?: string | number;
+  };
+  childRunId?: string;
+  spawnMode?: "run" | "session";
+  expectsCompletionMessage: boolean;
+};
+
+export type PluginHookSubagentDeliveryTargetResult = {
+  origin?: {
+    channel?: string;
+    accountId?: string;
+    to?: string;
+    threadId?: string | number;
+  };
+};
+
 // subagent_spawned hook
 export type PluginHookSubagentSpawnedEvent = {
   runId: string;
@@ -703,6 +728,13 @@ export type PluginHookHandlerMap = {
     event: PluginHookSubagentSpawningEvent,
     ctx: PluginHookSubagentContext,
   ) => Promise<PluginHookSubagentSpawningResult | void> | PluginHookSubagentSpawningResult | void;
+  subagent_delivery_target: (
+    event: PluginHookSubagentDeliveryTargetEvent,
+    ctx: PluginHookSubagentContext,
+  ) =>
+    | Promise<PluginHookSubagentDeliveryTargetResult | void>
+    | PluginHookSubagentDeliveryTargetResult
+    | void;
   subagent_spawned: (
     event: PluginHookSubagentSpawnedEvent,
     ctx: PluginHookSubagentContext,
