@@ -15,6 +15,8 @@ const SENSITIVE_CONFIG_KEYS = new Set([
   "apiKey",
   "apiSecret",
   "token",
+  "botToken",
+  "appToken",
   "secret",
   "password",
   "accessKeyId",
@@ -61,6 +63,8 @@ export async function collectFiles(opts: {
   components?: BackupComponent[];
   stateDir?: string;
   agentDir?: string;
+  configPath?: string;
+  cronStorePath?: string;
 }): Promise<CollectedFile[]> {
   const components = opts.components ?? [...CORE_BACKUP_COMPONENTS];
   const stateDir = opts.stateDir ?? resolveStateDir();
@@ -69,13 +73,13 @@ export async function collectFiles(opts: {
   for (const component of components) {
     switch (component) {
       case "config":
-        await collectConfig(files, stateDir);
+        await collectConfig(files, stateDir, opts.configPath);
         break;
       case "workspace":
         await collectWorkspace(files, stateDir, opts.agentDir);
         break;
       case "cron":
-        await collectCron(files);
+        await collectCron(files, opts.cronStorePath);
         break;
       case "skills":
         await collectSkills(files, stateDir);
@@ -95,8 +99,13 @@ export async function collectFiles(opts: {
   return files;
 }
 
-async function collectConfig(files: CollectedFile[], stateDir: string): Promise<void> {
-  const configPath = resolveConfigPathCandidate() ?? path.join(stateDir, "openclaw.json");
+async function collectConfig(
+  files: CollectedFile[],
+  stateDir: string,
+  overrideConfigPath?: string,
+): Promise<void> {
+  const configPath =
+    overrideConfigPath ?? resolveConfigPathCandidate() ?? path.join(stateDir, "openclaw.json");
   try {
     const raw = await fs.readFile(configPath, "utf-8");
     const parsed = JSON.parse(raw);
@@ -127,12 +136,13 @@ async function collectWorkspace(
   ]);
 }
 
-async function collectCron(files: CollectedFile[]): Promise<void> {
+async function collectCron(files: CollectedFile[], overrideCronStorePath?: string): Promise<void> {
+  const cronPath = overrideCronStorePath ?? DEFAULT_CRON_STORE_PATH;
   try {
-    await fs.access(DEFAULT_CRON_STORE_PATH);
+    await fs.access(cronPath);
     files.push({
       archivePath: "cron/jobs.json",
-      sourcePath: DEFAULT_CRON_STORE_PATH,
+      sourcePath: cronPath,
     });
   } catch {
     // no cron store

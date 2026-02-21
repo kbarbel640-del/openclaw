@@ -71,6 +71,14 @@ export type ExportOptions = {
   label?: string;
   /** Encrypt with passphrase. */
   encrypt?: string;
+  /** Override state directory (for testing). */
+  stateDir?: string;
+  /** Override config path (for testing). */
+  configPath?: string;
+  /** Override cron store path (for testing). */
+  cronStorePath?: string;
+  /** Override agent directory (for testing). */
+  agentDir?: string;
 };
 
 /** Options for `backup import` / `backup restore`. */
@@ -83,6 +91,14 @@ export type ImportOptions = {
   dryRun?: boolean;
   /** Decrypt passphrase. */
   decrypt?: string;
+  /** Override state directory (for testing). */
+  stateDir?: string;
+  /** Override config path (for testing). */
+  configPath?: string;
+  /** Override cron store path (for testing). */
+  cronStorePath?: string;
+  /** Override agent directory (for testing). */
+  agentDir?: string;
 };
 
 /** Options for `backup list`. */

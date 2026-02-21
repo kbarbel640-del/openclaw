@@ -143,7 +143,12 @@ export async function createS3Storage(config: BackupStorageConfig): Promise<Stor
       await client.send(new sdk.DeleteObjectCommand({ Bucket: bucket, Key: k }));
       // Also remove sidecar
       await client
-        .send(new sdk.DeleteObjectCommand({ Bucket: bucket, Key: `${k}.manifest.json` }))
+        .send(
+          new sdk.DeleteObjectCommand({
+            Bucket: bucket,
+            Key: `${k}.manifest.json`,
+          }),
+        )
         .catch(() => undefined);
     },
 

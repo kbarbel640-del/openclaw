@@ -34,7 +34,9 @@ export function encrypt(data: Uint8Array, passphrase: string): Buffer {
   const key = deriveKey(passphrase, salt);
   const iv = crypto.randomBytes(IV_LENGTH);
 
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv, { authTagLength: TAG_LENGTH });
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv, {
+    authTagLength: TAG_LENGTH,
+  });
   const encrypted = Buffer.concat([cipher.update(Buffer.from(data)), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
@@ -57,7 +59,9 @@ export function decrypt(data: Uint8Array, passphrase: string): Buffer {
 
   const key = deriveKey(passphrase, salt);
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, { authTagLength: TAG_LENGTH });
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, {
+    authTagLength: TAG_LENGTH,
+  });
   decipher.setAuthTag(authTag);
 
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);

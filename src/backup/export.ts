@@ -41,7 +41,13 @@ export async function exportBackup(
   const components: BackupComponent[] = opts.components ?? [...CORE_BACKUP_COMPONENTS];
 
   // 1. Collect files
-  const collectedFiles = await collectFiles({ components });
+  const collectedFiles = await collectFiles({
+    components,
+    stateDir: opts.stateDir,
+    agentDir: opts.agentDir,
+    configPath: opts.configPath,
+    cronStorePath: opts.cronStorePath,
+  });
   if (collectedFiles.length === 0) {
     throw new Error("No files to backup. Check your components selection and state directory.");
   }

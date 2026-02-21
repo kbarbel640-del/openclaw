@@ -110,13 +110,14 @@ export async function importBackup(
     }
 
     // 5. Apply files to state directory
-    const stateDir = resolveStateDir();
+    const stateDir = opts.stateDir ?? resolveStateDir();
     const restoredFiles: string[] = [];
 
     // Restore config
     if (manifest.components.includes("config")) {
       const configSource = path.join(extractDir, "config", "openclaw.json");
-      const configDest = resolveConfigPathCandidate() ?? path.join(stateDir, "openclaw.json");
+      const configDest =
+        opts.configPath ?? resolveConfigPathCandidate() ?? path.join(stateDir, "openclaw.json");
       try {
         await fs.access(configSource);
         // Backup existing config before overwriting
@@ -136,7 +137,7 @@ export async function importBackup(
     // Restore cron jobs
     if (manifest.components.includes("cron")) {
       const cronSource = path.join(extractDir, "cron", "jobs.json");
-      const cronDest = DEFAULT_CRON_STORE_PATH;
+      const cronDest = opts.cronStorePath ?? DEFAULT_CRON_STORE_PATH;
       try {
         await fs.access(cronSource);
         if (opts.merge) {
@@ -152,7 +153,11 @@ export async function importBackup(
     }
 
     // Restore workspace, skills, sessions, approvals, pairing
-    const dirMappings: Array<{ component: string; archiveDir: string; destDir: string }> = [
+    const dirMappings: Array<{
+      component: string;
+      archiveDir: string;
+      destDir: string;
+    }> = [
       {
         component: "workspace",
         archiveDir: "workspace",
