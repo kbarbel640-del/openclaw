@@ -16,23 +16,14 @@ export function resolveCronSession(params: {
   const entry = store[params.sessionKey];
   const sessionId = crypto.randomUUID();
   const systemSent = false;
+
   const sessionEntry: SessionEntry = {
+    // Preserve existing per-session overrides even when rolling to a new sessionId.
+    ...entry,
+    // Always update these core fields
     sessionId,
     updatedAt: params.nowMs,
     systemSent,
-    thinkingLevel: entry?.thinkingLevel,
-    verboseLevel: entry?.verboseLevel,
-    model: entry?.model,
-    modelOverride: entry?.modelOverride,
-    providerOverride: entry?.providerOverride,
-    contextTokens: entry?.contextTokens,
-    sendPolicy: entry?.sendPolicy,
-    lastChannel: entry?.lastChannel,
-    lastTo: entry?.lastTo,
-    lastAccountId: entry?.lastAccountId,
-    label: entry?.label,
-    displayName: entry?.displayName,
-    skillsSnapshot: entry?.skillsSnapshot,
   };
   return { storePath, store, sessionEntry, systemSent, isNewSession: true };
 }
