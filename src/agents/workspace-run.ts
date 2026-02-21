@@ -8,7 +8,11 @@ import {
   parseAgentSessionKey,
 } from "../routing/session-key.js";
 import { resolveUserPath } from "../utils.js";
-import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "./agent-scope.js";
+import {
+  resolveAgentConfig,
+  resolveAgentWorkspaceDir,
+  resolveDefaultAgentId,
+} from "./agent-scope.js";
 import { sanitizeForPromptLiteral } from "./sanitize-for-prompt.js";
 
 export type WorkspaceFallbackReason = "missing" | "blank" | "invalid_type";
@@ -83,6 +87,26 @@ export function resolveRunWorkspaceDir(params: {
     agentId: params.agentId,
     config: params.config,
   });
+  // If the agent has a configured workspace, prefer it over any provided workspaceDir.
+  // This prevents subagents from inheriting the parent agent's workspace when spawned
+  // via sessions_spawn, where the parent's workspaceDir is forwarded to the child.
+  const agentConfiguredWorkspace = resolveAgentConfig(
+    params.config ?? {},
+    agentId,
+  )?.workspace?.trim();
+  if (agentConfiguredWorkspace && typeof requested === "string" && requested.trim()) {
+    const sanitized = sanitizeForPromptLiteral(agentConfiguredWorkspace);
+    if (sanitized !== agentConfiguredWorkspace) {
+      logWarn("Control/format characters stripped from workspaceDir (OC-19 hardening).");
+    }
+    return {
+      workspaceDir: resolveUserPath(sanitized),
+      usedFallback: false,
+      agentId,
+      agentIdSource,
+    };
+  }
+
   if (typeof requested === "string") {
     const trimmed = requested.trim();
     if (trimmed) {
