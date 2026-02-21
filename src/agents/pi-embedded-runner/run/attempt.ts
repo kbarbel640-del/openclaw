@@ -9,6 +9,7 @@ import { resolveChannelCapabilities } from "../../../config/channel-capabilities
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
+import type { PluginHookBeforeAgentStartResult } from "../../../plugins/types.js";
 import {
   isCronSessionKey,
   isSubagentSessionKey,
@@ -574,10 +575,8 @@ export async function runEmbeddedAttempt(
       const allCustomTools = [...customTools, ...clientToolDefs];
 
       // Run before_agent_start hooks before createAgentSession so systemPrompt injection is used by the agent.
-      // Cache result to avoid duplicate calls later .
-      let cachedBeforeAgentStartResult:
-        | Awaited<ReturnType<typeof hookRunner.runBeforeAgentStart>>
-        | undefined;
+      // Cache result to avoid duplicate calls later.
+      let cachedBeforeAgentStartResult: PluginHookBeforeAgentStartResult | undefined;
       if (hookRunner?.hasHooks("before_agent_start")) {
         try {
           const sessionContext = sessionManager.buildSessionContext();
