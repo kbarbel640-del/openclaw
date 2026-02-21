@@ -6,6 +6,28 @@ This plugin packages the extension path resolution, memory-context wiring,
 embedding upgrade probe logic, and `memoryContext` agent config schema 
 into a reusable extension.
 
+## Enabling the Plugin
+
+This plugin is **not loaded by default**. Add it to the `plugins.entries` section of your openclaw config with `enabled: true`:
+
+```jsonc
+{
+  "plugins": {
+    "entries": {
+      "runner-extensions": {
+        "enabled": true,
+        "config": {
+          "memoryContext": {
+            "enabled": true,
+            "hardCapTokens": 4000
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ## Features
 
 | Feature                        | Description                                                                                   |
