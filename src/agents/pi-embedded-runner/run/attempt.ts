@@ -574,10 +574,14 @@ export async function runEmbeddedAttempt(
       const allCustomTools = [...customTools, ...clientToolDefs];
 
       // Run before_agent_start hooks before createAgentSession so systemPrompt injection is used by the agent.
+      // Cache result to avoid duplicate calls later .
+      let cachedBeforeAgentStartResult:
+        | Awaited<ReturnType<typeof hookRunner.runBeforeAgentStart>>
+        | undefined;
       if (hookRunner?.hasHooks("before_agent_start")) {
         try {
           const sessionContext = sessionManager.buildSessionContext();
-          const hookResult = await hookRunner.runBeforeAgentStart(
+          cachedBeforeAgentStartResult = await hookRunner.runBeforeAgentStart(
             {
               prompt: params.prompt,
               messages: sessionContext?.messages ?? [],
@@ -590,16 +594,16 @@ export async function runEmbeddedAttempt(
             },
           );
           if (
-            hookResult?.systemPrompt &&
-            typeof hookResult.systemPrompt === "string" &&
-            hookResult.systemPrompt.trim()
+            cachedBeforeAgentStartResult?.systemPrompt &&
+            typeof cachedBeforeAgentStartResult.systemPrompt === "string" &&
+            cachedBeforeAgentStartResult.systemPrompt.trim()
           ) {
-            systemPromptText = `${systemPromptText}\n\n${hookResult.systemPrompt.trim()}`;
+            systemPromptText = `${systemPromptText}\n\n${cachedBeforeAgentStartResult.systemPrompt.trim()}`;
             log.debug(
-              `hooks: appended systemPrompt (${hookResult.systemPrompt.length} chars)`,
+              `hooks: appended systemPrompt (${cachedBeforeAgentStartResult.systemPrompt.length} chars)`,
             );
           }
-        } catch (hookErr) {
+        } catch (hookErr: unknown) {
           log.warn(`before_agent_start hook failed: ${String(hookErr)}`);
         }
       }
@@ -955,22 +959,8 @@ export async function runEmbeddedAttempt(
                 return undefined;
               })
           : undefined;
-        const legacyResult = hookRunner?.hasHooks("before_agent_start")
-          ? await hookRunner
-              .runBeforeAgentStart(
-                {
-                  prompt: params.prompt,
-                  messages: activeSession.messages,
-                },
-                hookCtx,
-              )
-              .catch((hookErr: unknown) => {
-                log.warn(
-                  `before_agent_start hook (legacy prompt build path) failed: ${String(hookErr)}`,
-                );
-                return undefined;
-              })
-          : undefined;
+        // Use cached result from earlier call (line 580) to avoid duplicate execution
+        const legacyResult = cachedBeforeAgentStartResult;
         const hookResult = {
           systemPrompt: promptBuildResult?.systemPrompt ?? legacyResult?.systemPrompt,
           prependContext: [promptBuildResult?.prependContext, legacyResult?.prependContext]
