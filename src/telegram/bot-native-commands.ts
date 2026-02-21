@@ -10,6 +10,7 @@ import {
   resolveCommandArgMenu,
 } from "../auto-reply/commands-registry.js";
 import { finalizeInboundContext } from "../auto-reply/reply/inbound-context.js";
+import { recordSessionMetaFromInbound, resolveStorePath } from "../config/sessions.js";
 import { dispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/reply/provider-dispatcher.js";
 import { listSkillCommandsForAgents } from "../auto-reply/skill-commands.js";
 import { resolveCommandAuthorizedFromAuthorizers } from "../channels/command-gating.js";
@@ -593,7 +594,12 @@ export const registerTelegramNativeCommands = ({
             OriginatingChannel: "telegram" as const,
             OriginatingTo: `telegram:${chatId}`,
           });
-
+void recordSessionMetaFromInbound({
+            storePath: resolveStorePath(cfg.session?.store, { agentId: route.agentId }),
+            sessionKey: `telegram:slash:${senderId || chatId}`,
+            ctx: ctxPayload,
+            createIfMissing: true,
+          }).catch(() => {});
           const disableBlockStreaming =
             typeof telegramCfg.blockStreaming === "boolean"
               ? !telegramCfg.blockStreaming
