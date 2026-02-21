@@ -256,4 +256,51 @@ describe("config form renderer", () => {
     const analysis = analyzeConfigSchema(schema);
     expect(analysis.unsupportedPaths).toContain("extra");
   });
+
+  it("does not flag map parent as unsupported when only nested children are unsupported", () => {
+    const onPatch = vi.fn();
+    const container = document.createElement("div");
+    const schema = {
+      type: "object",
+      properties: {
+        accounts: {
+          type: "object",
+          additionalProperties: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              advanced: {
+                anyOf: [{ type: "string" }, { type: "object", properties: {} }],
+              },
+            },
+          },
+        },
+      },
+    };
+    const analysis = analyzeConfigSchema(schema);
+
+    // The parent path should NOT be unsupported
+    expect(analysis.unsupportedPaths).not.toContain("accounts");
+
+    // The nested unsupported field should be flagged with wildcard path
+    expect(analysis.unsupportedPaths).toContain("accounts.*.advanced");
+
+    render(
+      renderConfigForm({
+        schema: analysis.schema,
+        uiHints: {},
+        unsupportedPaths: analysis.unsupportedPaths,
+        value: { accounts: { default: { name: "main", advanced: "test" } } },
+        onPatch,
+      }),
+      container,
+    );
+
+    // The accounts section should render, not show "Unsupported schema node"
+    expect(container.textContent).toContain("Accounts");
+    expect(container.textContent).toContain("Name");
+
+    // The unsupported nested field should show the error
+    expect(container.textContent).toContain("Unsupported schema node");
+  });
 });
