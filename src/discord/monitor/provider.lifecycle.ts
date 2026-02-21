@@ -23,10 +23,6 @@ export async function runDiscordGatewayLifecycle(params: {
   execApprovalsHandler: ExecApprovalsHandler | null;
   threadBindings: { stop: () => void };
 }) {
-  if (params.execApprovalsHandler) {
-    await params.execApprovalsHandler.start();
-  }
-
   const gateway = params.client.getPlugin<GatewayPlugin>("gateway");
   if (gateway) {
     registerGateway(params.accountId, gateway);
@@ -79,6 +75,10 @@ export async function runDiscordGatewayLifecycle(params: {
 
   let sawDisallowedIntents = false;
   try {
+    if (params.execApprovalsHandler) {
+      await params.execApprovalsHandler.start();
+    }
+
     await waitForDiscordGatewayStop({
       gateway: gateway
         ? {

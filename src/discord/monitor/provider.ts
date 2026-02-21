@@ -363,237 +363,245 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         sessionTtlMs: threadBindingSessionTtlMs,
       })
     : createNoopThreadBindingManager(account.accountId);
-  const commands: BaseCommand[] = commandSpecs.map((spec) =>
-    createDiscordNativeCommand({
-      command: spec,
-      cfg,
-      discordConfig: discordCfg,
-      accountId: account.accountId,
-      sessionPrefix,
-      ephemeralDefault,
-      threadBindings,
-    }),
-  );
-  if (nativeEnabled && voiceEnabled) {
-    commands.push(
-      createDiscordVoiceCommand({
+  let lifecycleStarted = false;
+  try {
+    const commands: BaseCommand[] = commandSpecs.map((spec) =>
+      createDiscordNativeCommand({
+        command: spec,
         cfg,
         discordConfig: discordCfg,
         accountId: account.accountId,
-        groupPolicy,
-        useAccessGroups,
-        getManager: () => voiceManagerRef.current,
+        sessionPrefix,
         ephemeralDefault,
+        threadBindings,
       }),
     );
-  }
-
-  // Initialize exec approvals handler if enabled
-  const execApprovalsConfig = discordCfg.execApprovals ?? {};
-  const execApprovalsHandler = execApprovalsConfig.enabled
-    ? new DiscordExecApprovalHandler({
-        token,
-        accountId: account.accountId,
-        config: execApprovalsConfig,
-        cfg,
-        runtime,
-      })
-    : null;
-
-  const agentComponentsConfig = discordCfg.agentComponents ?? {};
-  const agentComponentsEnabled = agentComponentsConfig.enabled ?? true;
-
-  const components: BaseMessageInteractiveComponent[] = [
-    createDiscordCommandArgFallbackButton({
-      cfg,
-      discordConfig: discordCfg,
-      accountId: account.accountId,
-      sessionPrefix,
-      threadBindings,
-    }),
-    createDiscordModelPickerFallbackButton({
-      cfg,
-      discordConfig: discordCfg,
-      accountId: account.accountId,
-      sessionPrefix,
-      threadBindings,
-    }),
-    createDiscordModelPickerFallbackSelect({
-      cfg,
-      discordConfig: discordCfg,
-      accountId: account.accountId,
-      sessionPrefix,
-      threadBindings,
-    }),
-  ];
-  const modals: Modal[] = [];
-
-  if (execApprovalsHandler) {
-    components.push(createExecApprovalButton({ handler: execApprovalsHandler }));
-  }
-
-  if (agentComponentsEnabled) {
-    const componentContext = {
-      cfg,
-      discordConfig: discordCfg,
-      accountId: account.accountId,
-      guildEntries,
-      allowFrom,
-      dmPolicy,
-      runtime,
-      token,
-    };
-    components.push(createAgentComponentButton(componentContext));
-    components.push(createAgentSelectMenu(componentContext));
-    components.push(createDiscordComponentButton(componentContext));
-    components.push(createDiscordComponentStringSelect(componentContext));
-    components.push(createDiscordComponentUserSelect(componentContext));
-    components.push(createDiscordComponentRoleSelect(componentContext));
-    components.push(createDiscordComponentMentionableSelect(componentContext));
-    components.push(createDiscordComponentChannelSelect(componentContext));
-    modals.push(createDiscordComponentModal(componentContext));
-  }
-
-  class DiscordStatusReadyListener extends ReadyListener {
-    async handle(_data: unknown, client: Client) {
-      const gateway = client.getPlugin<GatewayPlugin>("gateway");
-      if (!gateway) {
-        return;
-      }
-
-      const presence = resolveDiscordPresenceUpdate(discordCfg);
-      if (!presence) {
-        return;
-      }
-
-      gateway.updatePresence(presence);
+    if (nativeEnabled && voiceEnabled) {
+      commands.push(
+        createDiscordVoiceCommand({
+          cfg,
+          discordConfig: discordCfg,
+          accountId: account.accountId,
+          groupPolicy,
+          useAccessGroups,
+          getManager: () => voiceManagerRef.current,
+          ephemeralDefault,
+        }),
+      );
     }
-  }
 
-  const clientPlugins: Plugin[] = [
-    createDiscordGatewayPlugin({ discordConfig: discordCfg, runtime }),
-  ];
-  if (voiceEnabled) {
-    clientPlugins.push(new VoicePlugin());
-  }
-  const client = new Client(
-    {
-      baseUrl: "http://localhost",
-      deploySecret: "a",
-      clientId: applicationId,
-      publicKey: "a",
-      token,
-      autoDeploy: false,
-    },
-    {
-      commands,
-      listeners: [new DiscordStatusReadyListener()],
-      components,
-      modals,
-    },
-    clientPlugins,
-  );
+    // Initialize exec approvals handler if enabled
+    const execApprovalsConfig = discordCfg.execApprovals ?? {};
+    const execApprovalsHandler = execApprovalsConfig.enabled
+      ? new DiscordExecApprovalHandler({
+          token,
+          accountId: account.accountId,
+          config: execApprovalsConfig,
+          cfg,
+          runtime,
+        })
+      : null;
 
-  await deployDiscordCommands({ client, runtime, enabled: nativeEnabled });
+    const agentComponentsConfig = discordCfg.agentComponents ?? {};
+    const agentComponentsEnabled = agentComponentsConfig.enabled ?? true;
 
-  const logger = createSubsystemLogger("discord/monitor");
-  const guildHistories = new Map<string, HistoryEntry[]>();
-  let botUserId: string | undefined;
-  let voiceManager: DiscordVoiceManager | null = null;
+    const components: BaseMessageInteractiveComponent[] = [
+      createDiscordCommandArgFallbackButton({
+        cfg,
+        discordConfig: discordCfg,
+        accountId: account.accountId,
+        sessionPrefix,
+        threadBindings,
+      }),
+      createDiscordModelPickerFallbackButton({
+        cfg,
+        discordConfig: discordCfg,
+        accountId: account.accountId,
+        sessionPrefix,
+        threadBindings,
+      }),
+      createDiscordModelPickerFallbackSelect({
+        cfg,
+        discordConfig: discordCfg,
+        accountId: account.accountId,
+        sessionPrefix,
+        threadBindings,
+      }),
+    ];
+    const modals: Modal[] = [];
 
-  if (nativeDisabledExplicit) {
-    await clearDiscordNativeCommands({
-      client,
-      applicationId,
-      runtime,
-    });
-  }
+    if (execApprovalsHandler) {
+      components.push(createExecApprovalButton({ handler: execApprovalsHandler }));
+    }
 
-  try {
-    const botUser = await client.fetchUser("@me");
-    botUserId = botUser?.id;
-  } catch (err) {
-    runtime.error?.(danger(`discord: failed to fetch bot identity: ${String(err)}`));
-  }
+    if (agentComponentsEnabled) {
+      const componentContext = {
+        cfg,
+        discordConfig: discordCfg,
+        accountId: account.accountId,
+        guildEntries,
+        allowFrom,
+        dmPolicy,
+        runtime,
+        token,
+      };
+      components.push(createAgentComponentButton(componentContext));
+      components.push(createAgentSelectMenu(componentContext));
+      components.push(createDiscordComponentButton(componentContext));
+      components.push(createDiscordComponentStringSelect(componentContext));
+      components.push(createDiscordComponentUserSelect(componentContext));
+      components.push(createDiscordComponentRoleSelect(componentContext));
+      components.push(createDiscordComponentMentionableSelect(componentContext));
+      components.push(createDiscordComponentChannelSelect(componentContext));
+      modals.push(createDiscordComponentModal(componentContext));
+    }
 
-  if (voiceEnabled) {
-    voiceManager = new DiscordVoiceManager({
-      client,
+    class DiscordStatusReadyListener extends ReadyListener {
+      async handle(_data: unknown, client: Client) {
+        const gateway = client.getPlugin<GatewayPlugin>("gateway");
+        if (!gateway) {
+          return;
+        }
+
+        const presence = resolveDiscordPresenceUpdate(discordCfg);
+        if (!presence) {
+          return;
+        }
+
+        gateway.updatePresence(presence);
+      }
+    }
+
+    const clientPlugins: Plugin[] = [
+      createDiscordGatewayPlugin({ discordConfig: discordCfg, runtime }),
+    ];
+    if (voiceEnabled) {
+      clientPlugins.push(new VoicePlugin());
+    }
+    const client = new Client(
+      {
+        baseUrl: "http://localhost",
+        deploySecret: "a",
+        clientId: applicationId,
+        publicKey: "a",
+        token,
+        autoDeploy: false,
+      },
+      {
+        commands,
+        listeners: [new DiscordStatusReadyListener()],
+        components,
+        modals,
+      },
+      clientPlugins,
+    );
+
+    await deployDiscordCommands({ client, runtime, enabled: nativeEnabled });
+
+    const logger = createSubsystemLogger("discord/monitor");
+    const guildHistories = new Map<string, HistoryEntry[]>();
+    let botUserId: string | undefined;
+    let voiceManager: DiscordVoiceManager | null = null;
+
+    if (nativeDisabledExplicit) {
+      await clearDiscordNativeCommands({
+        client,
+        applicationId,
+        runtime,
+      });
+    }
+
+    try {
+      const botUser = await client.fetchUser("@me");
+      botUserId = botUser?.id;
+    } catch (err) {
+      runtime.error?.(danger(`discord: failed to fetch bot identity: ${String(err)}`));
+    }
+
+    if (voiceEnabled) {
+      voiceManager = new DiscordVoiceManager({
+        client,
+        cfg,
+        discordConfig: discordCfg,
+        accountId: account.accountId,
+        runtime,
+        botUserId,
+      });
+      voiceManagerRef.current = voiceManager;
+      registerDiscordListener(client.listeners, new DiscordVoiceReadyListener(voiceManager));
+    }
+
+    const messageHandler = createDiscordMessageHandler({
       cfg,
       discordConfig: discordCfg,
       accountId: account.accountId,
+      token,
       runtime,
       botUserId,
+      guildHistories,
+      historyLimit,
+      mediaMaxBytes,
+      textLimit,
+      replyToMode,
+      dmEnabled,
+      groupDmEnabled,
+      groupDmChannels,
+      allowFrom,
+      guildEntries,
+      threadBindings,
     });
-    voiceManagerRef.current = voiceManager;
-    registerDiscordListener(client.listeners, new DiscordVoiceReadyListener(voiceManager));
-  }
 
-  const messageHandler = createDiscordMessageHandler({
-    cfg,
-    discordConfig: discordCfg,
-    accountId: account.accountId,
-    token,
-    runtime,
-    botUserId,
-    guildHistories,
-    historyLimit,
-    mediaMaxBytes,
-    textLimit,
-    replyToMode,
-    dmEnabled,
-    groupDmEnabled,
-    groupDmChannels,
-    allowFrom,
-    guildEntries,
-    threadBindings,
-  });
-
-  registerDiscordListener(client.listeners, new DiscordMessageListener(messageHandler, logger));
-  registerDiscordListener(
-    client.listeners,
-    new DiscordReactionListener({
-      cfg,
-      accountId: account.accountId,
-      runtime,
-      botUserId,
-      guildEntries,
-      logger,
-    }),
-  );
-  registerDiscordListener(
-    client.listeners,
-    new DiscordReactionRemoveListener({
-      cfg,
-      accountId: account.accountId,
-      runtime,
-      botUserId,
-      guildEntries,
-      logger,
-    }),
-  );
-
-  if (discordCfg.intents?.presence) {
+    registerDiscordListener(client.listeners, new DiscordMessageListener(messageHandler, logger));
     registerDiscordListener(
       client.listeners,
-      new DiscordPresenceListener({ logger, accountId: account.accountId }),
+      new DiscordReactionListener({
+        cfg,
+        accountId: account.accountId,
+        runtime,
+        botUserId,
+        guildEntries,
+        logger,
+      }),
     );
-    runtime.log?.("discord: GuildPresences intent enabled — presence listener registered");
+    registerDiscordListener(
+      client.listeners,
+      new DiscordReactionRemoveListener({
+        cfg,
+        accountId: account.accountId,
+        runtime,
+        botUserId,
+        guildEntries,
+        logger,
+      }),
+    );
+
+    if (discordCfg.intents?.presence) {
+      registerDiscordListener(
+        client.listeners,
+        new DiscordPresenceListener({ logger, accountId: account.accountId }),
+      );
+      runtime.log?.("discord: GuildPresences intent enabled — presence listener registered");
+    }
+
+    runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
+
+    lifecycleStarted = true;
+    await runDiscordGatewayLifecycle({
+      accountId: account.accountId,
+      client,
+      runtime,
+      abortSignal: opts.abortSignal,
+      isDisallowedIntentsError: isDiscordDisallowedIntentsError,
+      voiceManager,
+      voiceManagerRef,
+      execApprovalsHandler,
+      threadBindings,
+    });
+  } finally {
+    if (!lifecycleStarted) {
+      threadBindings.stop();
+    }
   }
-
-  runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
-
-  await runDiscordGatewayLifecycle({
-    accountId: account.accountId,
-    client,
-    runtime,
-    abortSignal: opts.abortSignal,
-    isDisallowedIntentsError: isDiscordDisallowedIntentsError,
-    voiceManager,
-    voiceManagerRef,
-    execApprovalsHandler,
-    threadBindings,
-  });
 }
 
 async function clearDiscordNativeCommands(params: {
