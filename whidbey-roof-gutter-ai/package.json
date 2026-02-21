@@ -1,0 +1,60 @@
+{
+  "name": "whidbey-roof-gutter-ai-receptionist",
+  "version": "1.0.0",
+  "description": "AI-powered receptionist system for Whidbey Island Roof and Gutter Cleaning - 24/7 phone answering, smart scheduling, photo estimates",
+  "main": "ai-receptionist-engine.js",
+  "scripts": {
+    "start": "node ai-receptionist-engine.js",
+    "dev": "nodemon ai-receptionist-engine.js",
+    "test": "node test/test-conversations.js",
+    "deploy": "pm2 start ai-receptionist-engine.js --name whidbey-roof-ai",
+    "logs": "pm2 logs whidbey-roof-ai",
+    "restart": "pm2 restart whidbey-roof-ai",
+    "setup": "node setup/initial-setup.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "twilio": "^4.19.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "moment": "^2.29.4",
+    "moment-timezone": "^0.5.43",
+    "multer": "^1.4.5",
+    "sharp": "^0.32.6",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0",
+    "pm2": "^5.3.0"
+  },
+  "keywords": [
+    "ai-receptionist",
+    "roof-cleaning",
+    "gutter-cleaning", 
+    "whidbey-island",
+    "voice-ai",
+    "photo-estimates",
+    "weather-integration",
+    "small-business-automation",
+    "twilio",
+    "pacific-northwest"
+  ],
+  "author": {
+    "name": "Claw McGraw", 
+    "email": "claw@aiautomation.dev",
+    "company": "AI Business Automation"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GMTekAI/whidbey-roof-gutter-ai"
+  },
+  "bugs": {
+    "url": "https://github.com/GMTekAI/whidbey-roof-gutter-ai/issues"
+  },
+  "homepage": "https://whidbey-roof-ai.yourdomain.com"
+}
