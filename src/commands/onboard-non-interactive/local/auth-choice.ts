@@ -773,6 +773,7 @@ export async function applyNonInteractiveAuthChoice(params: {
     authChoice === "oauth" ||
     authChoice === "chutes" ||
     authChoice === "openai-codex" ||
+    authChoice === "qwen-agent" ||
     authChoice === "qwen-portal" ||
     authChoice === "minimax-portal"
   ) {

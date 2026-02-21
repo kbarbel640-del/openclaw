@@ -92,7 +92,7 @@ const AUTH_CHOICE_GROUP_DEFS: {
     value: "qwen",
     label: "Qwen",
     hint: "OAuth",
-    choices: ["qwen-portal"],
+    choices: ["qwen-agent", "qwen-portal"],
   },
   {
     value: "zai",
@@ -287,6 +287,7 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     label: "MiniMax OAuth",
     hint: "Oauth plugin for MiniMax",
   },
+  { value: "qwen-agent", label: "Qwen Agent OAuth" },
   { value: "qwen-portal", label: "Qwen OAuth" },
   {
     value: "copilot-proxy",

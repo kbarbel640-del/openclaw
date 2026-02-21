@@ -796,6 +796,78 @@ describe("applyAuthChoice", () => {
     });
   });
 
+  it("writes Qwen Agent credentials when selecting qwen-agent", async () => {
+    await setupTempState();
+
+    resolvePluginProviders.mockReturnValue([
+      {
+        id: "qwen-agent",
+        label: "Qwen Agent",
+        auth: [
+          {
+            id: "device",
+            label: "Qwen Agent OAuth",
+            kind: "device_code",
+            run: vi.fn(async () => ({
+              profiles: [
+                {
+                  profileId: "qwen-agent:default",
+                  credential: {
+                    type: "oauth",
+                    provider: "qwen-agent",
+                    access: "access",
+                    refresh: "refresh",
+                    expires: Date.now() + 60 * 60 * 1000,
+                  },
+                },
+              ],
+              configPatch: {
+                models: {
+                  providers: {
+                    "qwen-agent": {
+                      baseUrl: "https://portal.qwen.ai/v1",
+                      apiKey: "qwen-agent-oauth",
+                      api: "openai-completions",
+                      models: [],
+                    },
+                  },
+                },
+              },
+              defaultModel: "qwen-agent/coder-model",
+            })),
+          },
+        ],
+      },
+    ] as never);
+
+    const prompter = createPrompter({});
+    const runtime = createExitThrowingRuntime();
+
+    const result = await applyAuthChoice({
+      authChoice: "qwen-agent",
+      config: {},
+      prompter,
+      runtime,
+      setDefaultModel: true,
+    });
+
+    expect(result.config.auth?.profiles?.["qwen-agent:default"]).toMatchObject({
+      provider: "qwen-agent",
+      mode: "oauth",
+    });
+    expect(result.config.agents?.defaults?.model?.primary).toBe("qwen-agent/coder-model");
+    expect(result.config.models?.providers?.["qwen-agent"]).toMatchObject({
+      baseUrl: "https://portal.qwen.ai/v1",
+      apiKey: "qwen-agent-oauth",
+    });
+
+    expect(await readAuthProfile("qwen-agent:default")).toMatchObject({
+      provider: "qwen-agent",
+      access: "access",
+      refresh: "refresh",
+    });
+  });
+
   it("writes MiniMax credentials when selecting minimax-portal", async () => {
     await setupTempState();
 
@@ -878,6 +950,10 @@ describe("resolvePreferredProviderForAuthChoice", () => {
 
   it("maps qwen-portal to the provider", () => {
     expect(resolvePreferredProviderForAuthChoice("qwen-portal")).toBe("qwen-portal");
+  });
+
+  it("maps qwen-agent to the provider", () => {
+    expect(resolvePreferredProviderForAuthChoice("qwen-agent")).toBe("qwen-agent");
   });
 
   it("returns undefined for unknown choices", () => {
