@@ -83,4 +83,4 @@ Related:
 
 - [Setup](/start/setup)
 - [Gateway architecture](/concepts/architecture)
-- [Testing](/testing)
+- [Testing](/help/testing)
