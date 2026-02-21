@@ -48,6 +48,25 @@ describe("log file size cap", () => {
     expect(content).not.toContain("should-be-suppressed-2");
   });
 
+  it("respects custom maxFileBytes from config", () => {
+    // Set a tiny cap of 1 KB.
+    const customCap = 1024;
+    const fd = fs.openSync(logFile, "w");
+    fs.ftruncateSync(fd, customCap - 64);
+    fs.closeSync(fd);
+
+    setLoggerOverride({ level: "info", file: logFile, maxFileBytes: customCap });
+    const logger = getLogger();
+
+    logger.info("fits-under-custom-cap");
+    logger.info("over-custom-cap");
+
+    const content = fs.readFileSync(logFile, "utf8");
+    expect(content).toContain("fits-under-custom-cap");
+    expect(content).toContain("Log file size cap reached");
+    expect(content).not.toContain("over-custom-cap");
+  });
+
   it("writes normally when file is below cap", () => {
     setLoggerOverride({ level: "info", file: logFile });
     const logger = getLogger();

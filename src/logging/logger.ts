@@ -44,6 +44,7 @@ export type LoggerSettings = {
   file?: string;
   consoleLevel?: LogLevel;
   consoleStyle?: ConsoleStyle;
+  maxFileBytes?: number;
 };
 
 type LogObj = { date?: Date } & Record<string, unknown>;
@@ -51,6 +52,7 @@ type LogObj = { date?: Date } & Record<string, unknown>;
 type ResolvedSettings = {
   level: LogLevel;
   file: string;
+  maxFileBytes: number;
 };
 export type LoggerResolvedSettings = ResolvedSettings;
 export type LogTransportRecord = Record<string, unknown>;
@@ -90,7 +92,11 @@ function resolveSettings(): ResolvedSettings {
     process.env.VITEST === "true" && process.env.OPENCLAW_TEST_FILE_LOG !== "1" ? "silent" : "info";
   const level = normalizeLogLevel(cfg?.level, defaultLevel);
   const file = cfg?.file ?? defaultRollingPathForToday();
-  return { level, file };
+  const maxFileBytes =
+    cfg && "maxFileBytes" in cfg && typeof cfg.maxFileBytes === "number" && cfg.maxFileBytes > 0
+      ? cfg.maxFileBytes
+      : MAX_LOG_FILE_BYTES;
+  return { level, file, maxFileBytes };
 }
 
 function settingsChanged(a: ResolvedSettings | null, b: ResolvedSettings) {
@@ -134,13 +140,13 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
 
   logger.attachTransport((logObj: LogObj) => {
     try {
-      if (currentFileBytes >= MAX_LOG_FILE_BYTES) {
+      if (currentFileBytes >= settings.maxFileBytes) {
         if (!capWarningEmitted) {
           capWarningEmitted = true;
           const msg = JSON.stringify({
             _meta: "openclaw",
             level: "warn",
-            msg: `Log file size cap reached (${MAX_LOG_FILE_BYTES} bytes). Further entries will be suppressed until the next rolling log file.`,
+            msg: `Log file size cap reached (${settings.maxFileBytes} bytes). Further entries will be suppressed until the next rolling log file.`,
             time: new Date().toISOString(),
           });
           fs.appendFileSync(settings.file, `${msg}\n`, { encoding: "utf8" });
