@@ -167,6 +167,13 @@ export function registerPostHogHooks(api: OpenClawPluginApi, config: PostHogPlug
       input.push(...event.historyMessages, event.prompt);
     }
 
+    // Set generation span and active session early so after_tool_call can
+    // find them — tool hooks fire during the LLM call, before llm_output.
+    if (ctx.sessionKey) {
+      generationSpans.set(ctx.sessionKey, spanId);
+      lastActiveSessionKey = ctx.sessionKey;
+    }
+
     runs.set(event.runId, {
       traceId,
       spanId,

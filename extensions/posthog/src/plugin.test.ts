@@ -390,41 +390,28 @@ describe("registerPostHogHooks", () => {
     expect(captured.properties.$ai_parent_id).toBeTruthy();
   });
 
-  test("after_tool_call falls back to lastActiveSessionKey when ctx.sessionKey is missing", async () => {
+  test("after_tool_call works between llm_input and llm_output (real execution order)", async () => {
     const { api, hooks, services } = createMockApi();
     registerPostHogHooks(api, defaultConfig());
     await services[0]!.start();
 
-    // Set up a trace via llm_input + llm_output (sets lastActiveSessionKey)
+    // In real OpenClaw, the order is: llm_input → tool execution → llm_output.
+    // after_tool_call fires during tool execution, BEFORE llm_output.
     const llmInputHandlers = hooks.get("llm_input")!;
     await llmInputHandlers[0]!(
       {
-        runId: "run-fallback",
-        sessionId: "sess-fallback",
+        runId: "run-order",
+        sessionId: "sess-order",
         provider: "openai",
         model: "gpt-4o",
         prompt: "use a tool",
         historyMessages: [],
         imagesCount: 0,
       },
-      { sessionKey: "telegram:fallback", agentId: "agent-1", messageProvider: "telegram" },
-    );
-    const llmOutputHandlers = hooks.get("llm_output")!;
-    await llmOutputHandlers[0]!(
-      {
-        runId: "run-fallback",
-        sessionId: "sess-fallback",
-        provider: "openai",
-        model: "gpt-4o",
-        assistantTexts: ["Calling tool..."],
-        usage: { input: 10, output: 5 },
-      },
-      { sessionKey: "telegram:fallback" },
+      { sessionKey: "telegram:order", agentId: "agent-1", messageProvider: "telegram" },
     );
 
-    captureMock.mockClear();
-
-    // Fire after_tool_call WITHOUT sessionKey (simulates upstream bug)
+    // Tool fires BEFORE llm_output, with no sessionKey in ctx (upstream bug)
     const toolCallHandlers = hooks.get("after_tool_call")!;
     await toolCallHandlers[0]!(
       {
@@ -436,11 +423,13 @@ describe("registerPostHogHooks", () => {
       { toolName: "web_search" },
     );
 
+    // Span should be captured with correct parent from llm_input
     expect(captureMock).toHaveBeenCalledTimes(1);
     const captured = captureMock.mock.calls[0]![0];
     expect(captured.event).toBe("$ai_span");
     expect(captured.properties.$ai_span_name).toBe("web_search");
     expect(captured.properties.$ai_parent_id).toBeTruthy();
+    expect(captured.properties.$ai_trace_id).toBeTruthy();
   });
 
   test("diagnostic message.processed captures $ai_trace", async () => {
