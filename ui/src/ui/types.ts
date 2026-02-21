@@ -564,3 +564,302 @@ export type LogEntry = {
   message?: string | null;
   meta?: Record<string, unknown> | null;
 };
+
+export type TedRecommendation = {
+  id: string;
+  severity: "info" | "warn" | "critical";
+  message: string;
+  next_step: string;
+  decision: "pending" | "approved" | "dismissed";
+};
+
+export type TedJobCardDetail = {
+  id: string;
+  title: string;
+  family: "GOV" | "MNT" | "ING" | "LED" | "OUT";
+  operator_summary: string;
+  kpi_signals: string[];
+  path: string;
+  status: "DONE" | "BLOCKED" | "IN_PROGRESS" | "TODO_OR_UNKNOWN";
+  dependencies: string[];
+  proof_script: string | null;
+  outcome: string | null;
+  non_negotiables: string[];
+  deliverables: string[];
+  proof_evidence: string[];
+  markdown: string;
+};
+
+export type TedIntakeRecommendation = {
+  priority: string;
+  release_target: string;
+  governance_tier: string;
+  recommended_kpis: string[];
+  hard_bans: string[];
+  suggested_dependencies: string[];
+  suggested_path: string;
+  draft_markdown: string;
+};
+
+export type TedSourceDocument = {
+  key: "job_board" | "promotion_policy" | "value_friction" | "interrogation_cycle";
+  path: string;
+  content: string;
+};
+
+export type TedKpiSuggestion = {
+  id: string;
+  family: "GOV" | "MNT" | "ING" | "LED" | "OUT";
+  suggestions: string[];
+  rationale: string;
+};
+
+export type TedJobCardImpactPreview = {
+  id: string;
+  before: {
+    family: "GOV" | "MNT" | "ING" | "LED" | "OUT";
+    dependencies: string[];
+    kpi_signals: string[];
+    proof_script: string | null;
+    status: "DONE" | "BLOCKED" | "IN_PROGRESS" | "TODO_OR_UNKNOWN";
+  };
+  after: {
+    family: "GOV" | "MNT" | "ING" | "LED" | "OUT";
+    dependencies: string[];
+    kpi_signals: string[];
+    proof_script: string | null;
+    status: "DONE" | "BLOCKED" | "IN_PROGRESS" | "TODO_OR_UNKNOWN";
+  };
+  impact_summary: string[];
+  warnings: string[];
+};
+
+export type TedPolicyKey = "job_board" | "promotion_policy" | "value_friction";
+
+export type TedPolicyConfig = {
+  objective: string;
+  rollout_mode: "conservative" | "balanced" | "aggressive";
+  automation_ceiling: "draft-only" | "approval-first" | "limited-auto";
+  success_checks: string[];
+  guardrails: string[];
+  operator_notes: string;
+};
+
+export type TedPolicyDocument = {
+  key: TedPolicyKey;
+  path: string;
+  heading: string;
+  config: TedPolicyConfig;
+};
+
+export type TedPolicyImpactPreview = {
+  key: TedPolicyKey;
+  path: string;
+  impact_summary: string[];
+  warnings: string[];
+  preview_markdown: string;
+};
+
+export type TedConnectorAuthStartResponse = {
+  profile_id: "olumie" | "everest";
+  device_code?: string;
+  user_code?: string;
+  verification_uri?: string;
+  verification_uri_complete?: string;
+  expires_in?: number;
+  interval?: number;
+  message?: string;
+};
+
+export type TedConnectorAuthPollResponse = {
+  profile_id: "olumie" | "everest";
+  auth_state?: string;
+  status?: string;
+  message?: string;
+  reason_code?: string;
+  next_safe_step?: string;
+};
+
+export type TedConnectorAuthRevokeResponse = {
+  profile_id: "olumie" | "everest";
+  ok?: boolean;
+  status?: string;
+  message?: string;
+};
+
+export type TedWorkbenchSnapshot = {
+  generated_at: string;
+  data_sources: {
+    job_cards_dir: string | null;
+    job_cards_discovered: boolean;
+  };
+  operator_flow: {
+    primary_approval_surface: "ted_workbench";
+    secondary_approval_surface: "openclaw_chat";
+    draft_review_surface: "ted_run_today_and_openclaw_chat";
+    notes: string[];
+  };
+  integrations: {
+    m365_profiles: Array<{
+      profile_id: string;
+      status: "connected" | "needs_auth" | "misconfigured" | "error";
+      auth_store: string | null;
+      delegated_scopes_count: number;
+      last_error: string | null;
+      next_step: string;
+    }>;
+  };
+  sidecar: {
+    healthy: boolean;
+    status: Record<string, unknown> | null;
+    doctor: Record<string, unknown> | null;
+    error: string | null;
+  };
+  job_cards: {
+    total: number;
+    done: number;
+    blocked: number;
+    in_progress: number;
+    todo_or_unknown: number;
+    cards: Array<{
+      id: string;
+      title: string;
+      family: "GOV" | "MNT" | "ING" | "LED" | "OUT";
+      operator_summary: string;
+      kpi_signals: string[];
+      path: string;
+      status: "DONE" | "BLOCKED" | "IN_PROGRESS" | "TODO_OR_UNKNOWN";
+      dependencies: string[];
+      proof_script: string | null;
+      promotion_confidence: {
+        score: number;
+        band: "hold" | "watch" | "progressing" | "ready";
+        drivers: string[];
+        recommendation_outcomes: {
+          approved: number;
+          dismissed: number;
+        };
+      };
+    }>;
+  };
+  friction_kpis: {
+    manual_minutes_per_day_max: number;
+    approval_queue_oldest_minutes_max: number;
+    unresolved_triage_eod_max: number;
+    blocked_actions_missing_explainability_max: number;
+  };
+  threshold_controls: {
+    defaults: {
+      manual_minutes_per_day_max: number;
+      approval_queue_oldest_minutes_max: number;
+      unresolved_triage_eod_max: number;
+      blocked_actions_missing_explainability_max: number;
+    };
+    effective: {
+      manual_minutes_per_day_max: number;
+      approval_queue_oldest_minutes_max: number;
+      unresolved_triage_eod_max: number;
+      blocked_actions_missing_explainability_max: number;
+    };
+    overrides: {
+      manual_minutes_per_day_max: number | null;
+      approval_queue_oldest_minutes_max: number | null;
+      unresolved_triage_eod_max: number | null;
+      blocked_actions_missing_explainability_max: number | null;
+    };
+    relaxed: boolean;
+    warnings: string[];
+    updated_at: string | null;
+  };
+  policy_impacts: {
+    totals_by_policy: {
+      job_board: number;
+      promotion_policy: number;
+      value_friction: number;
+    };
+    recent: Array<{
+      ts: string;
+      policy_key: TedPolicyKey;
+      risk_direction: "safer" | "riskier" | "neutral";
+      changed_fields: string[];
+      linked_cards: string[];
+      rationale: string;
+      expected_kpi_effects: string[];
+    }>;
+  };
+  recommendations: TedRecommendation[];
+  recommendation_outcomes: {
+    totals: {
+      approved: number;
+      dismissed: number;
+      pending: number;
+    };
+    recent: Array<{
+      id: string;
+      decision: "approved" | "dismissed";
+      decided_at: string;
+      linked_cards: string[];
+      rationale: string;
+    }>;
+  };
+  approval_queue: Array<{
+    id: string;
+    source: "recommendation" | "job_card";
+    severity: "info" | "warn" | "critical";
+    reason_code: string;
+    summary: string;
+    next_safe_step: string;
+    status: "pending" | "approved" | "dismissed";
+  }>;
+  approval_ledger: {
+    recent: Array<{
+      id: string;
+      source: "recommendation" | "job_card";
+      recommendation_id: string | null;
+      decision: "pending" | "approved" | "dismissed";
+      reason_code: string;
+      summary: string;
+      linked_cards: string[];
+      linked_card_confidence: Array<{
+        card_id: string;
+        score: number;
+        band: "hold" | "watch" | "progressing" | "ready";
+        top_driver: string;
+      }>;
+      next_safe_step: string;
+      decided_at: string | null;
+    }>;
+  };
+  governance_timeline_preview: Array<{
+    ts: string;
+    action:
+      | "proof_run"
+      | "recommendation_decision"
+      | "threshold_update"
+      | "rolecard_validate"
+      | "intake_recommend"
+      | "jobcard_update";
+    outcome: "allowed" | "blocked";
+    reason_code: string;
+    next_safe_step: string;
+  }>;
+  kpi_history_preview: Array<{
+    ts: string;
+    manual_minutes_per_day_max: number;
+    approval_queue_oldest_minutes_max: number;
+    unresolved_triage_eod_max: number;
+    blocked_actions_missing_explainability_max: number;
+  }>;
+  eval_history_preview: Array<{
+    ts: string;
+    proof_script: string;
+    ok: boolean;
+    exit_code: number;
+  }>;
+  references: {
+    job_board: string;
+    promotion_policy: string;
+    value_friction: string;
+    interrogation_cycle: string;
+  };
+};

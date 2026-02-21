@@ -52,6 +52,7 @@ import {
   updateSkillEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
+import { loadTedWorkbench } from "./controllers/ted.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
 import { renderAgents } from "./views/agents.ts";
@@ -68,6 +69,7 @@ import { renderNodes } from "./views/nodes.ts";
 import { renderOverview } from "./views/overview.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
+import { renderTed } from "./views/ted.ts";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
@@ -227,6 +229,226 @@ export function renderApp(state: AppViewState) {
                 },
                 onConnect: () => state.connect(),
                 onRefresh: () => state.loadOverview(),
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "ted"
+            ? renderTed({
+                loading: state.tedLoading,
+                snapshot: state.tedSnapshot,
+                error: state.tedError,
+                roleCardJson: state.tedRoleCardJson,
+                roleCardBusy: state.tedRoleCardBusy,
+                roleCardResult: state.tedRoleCardResult,
+                roleCardError: state.tedRoleCardError,
+                proofBusyKey: state.tedProofBusyKey,
+                proofResult: state.tedProofResult,
+                proofError: state.tedProofError,
+                jobCardDetailLoading: state.tedJobCardDetailLoading,
+                jobCardDetail: state.tedJobCardDetail,
+                jobCardDetailError: state.tedJobCardDetailError,
+                jobCardEditorMarkdown: state.tedJobCardEditorMarkdown,
+                jobCardSaveBusy: state.tedJobCardSaveBusy,
+                jobCardSaveError: state.tedJobCardSaveError,
+                jobCardSaveResult: state.tedJobCardSaveResult,
+                jobCardPreviewBusy: state.tedJobCardPreviewBusy,
+                jobCardPreviewError: state.tedJobCardPreviewError,
+                jobCardPreview: state.tedJobCardPreview,
+                jobCardKpiSuggestBusy: state.tedJobCardKpiSuggestBusy,
+                jobCardKpiSuggestError: state.tedJobCardKpiSuggestError,
+                jobCardKpiSuggestion: state.tedJobCardKpiSuggestion,
+                recommendationBusyId: state.tedRecommendationBusyId,
+                recommendationError: state.tedRecommendationError,
+                intakeTitle: state.tedIntakeTitle,
+                intakeOutcome: state.tedIntakeOutcome,
+                intakeJobFamily: state.tedIntakeJobFamily,
+                intakeRiskLevel: state.tedIntakeRiskLevel,
+                intakeAutomationLevel: state.tedIntakeAutomationLevel,
+                intakeBusy: state.tedIntakeBusy,
+                intakeError: state.tedIntakeError,
+                intakeRecommendation: state.tedIntakeRecommendation,
+                thresholdManual: state.tedThresholdManual,
+                thresholdApprovalAge: state.tedThresholdApprovalAge,
+                thresholdTriageEod: state.tedThresholdTriageEod,
+                thresholdBlockedExplainability: state.tedThresholdBlockedExplainability,
+                thresholdAcknowledgeRisk: state.tedThresholdAcknowledgeRisk,
+                thresholdBusy: state.tedThresholdBusy,
+                thresholdError: state.tedThresholdError,
+                thresholdResult: state.tedThresholdResult,
+                sourceDocLoading: state.tedSourceDocLoading,
+                sourceDocError: state.tedSourceDocError,
+                sourceDoc: state.tedSourceDoc,
+                policyLoading: state.tedPolicyLoading,
+                policyError: state.tedPolicyError,
+                policyDoc: state.tedPolicyDoc,
+                policyPreviewBusy: state.tedPolicyPreviewBusy,
+                policyPreviewError: state.tedPolicyPreviewError,
+                policyPreview: state.tedPolicyPreview,
+                policySaveBusy: state.tedPolicySaveBusy,
+                policySaveError: state.tedPolicySaveError,
+                policySaveResult: state.tedPolicySaveResult,
+                connectorAuthBusyProfile: state.tedConnectorAuthBusyProfile,
+                connectorAuthError: state.tedConnectorAuthError,
+                connectorAuthResult: state.tedConnectorAuthResult,
+                activeSection: state.tedActiveSection,
+                onRoleCardJsonChange: (value) => (state.tedRoleCardJson = value),
+                onRoleCardValidate: () => void state.validateTedRoleCard(),
+                onRunProof: (proofScript) => void state.runTedProof(proofScript),
+                onOpenJobCard: (id) => {
+                  state.tedActiveSection = "build";
+                  void state.loadTedJobCardDetail(id);
+                  requestAnimationFrame(() => {
+                    document
+                      .getElementById("ted-job-card-detail")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  });
+                },
+                onRecommendationDecision: (id, decision) =>
+                  void state.decideTedRecommendation(id, decision),
+                onIntakeFieldChange: (field, value) => {
+                  if (field === "title") {
+                    state.tedIntakeTitle = value;
+                  }
+                  if (field === "outcome") {
+                    state.tedIntakeOutcome = value;
+                  }
+                  if (field === "job_family") {
+                    state.tedIntakeJobFamily = value;
+                  }
+                  if (field === "risk_level") {
+                    state.tedIntakeRiskLevel = value;
+                  }
+                  if (field === "automation_level") {
+                    state.tedIntakeAutomationLevel = value;
+                  }
+                },
+                onRunIntakeRecommendation: () => void state.runTedIntakeRecommendation(),
+                onApplyIntakeExample: (example) => {
+                  if (example === "ops-brief") {
+                    state.tedIntakeTitle = "Daily Ops Brief with blockers";
+                    state.tedIntakeOutcome =
+                      "Generate a 7:30am brief with top priorities, blockers, and next-safe actions.";
+                    state.tedIntakeJobFamily = "MNT";
+                    state.tedIntakeRiskLevel = "medium";
+                    state.tedIntakeAutomationLevel = "draft-only";
+                  }
+                  if (example === "deal-followup") {
+                    state.tedIntakeTitle = "Deal follow-up tracker";
+                    state.tedIntakeOutcome =
+                      "Track unresolved diligence follow-ups and draft reminders for operator review.";
+                    state.tedIntakeJobFamily = "LED";
+                    state.tedIntakeRiskLevel = "medium";
+                    state.tedIntakeAutomationLevel = "approval-first";
+                  }
+                  if (example === "governance-hardening") {
+                    state.tedIntakeTitle = "Governance hardening sweep";
+                    state.tedIntakeOutcome =
+                      "Audit blocked actions and improve explainability with reason codes and next-safe-steps.";
+                    state.tedIntakeJobFamily = "GOV";
+                    state.tedIntakeRiskLevel = "high";
+                    state.tedIntakeAutomationLevel = "approval-first";
+                  }
+                },
+                onThresholdFieldChange: (field, value) => {
+                  if (field === "manual") {
+                    state.tedThresholdManual = value;
+                  }
+                  if (field === "approval") {
+                    state.tedThresholdApprovalAge = value;
+                  }
+                  if (field === "triage") {
+                    state.tedThresholdTriageEod = value;
+                  }
+                  if (field === "blocked") {
+                    state.tedThresholdBlockedExplainability = value;
+                  }
+                  if (field === "ack") {
+                    state.tedThresholdAcknowledgeRisk = value === "true";
+                  }
+                },
+                onApplyThresholds: () => void state.applyTedThresholds(false),
+                onResetThresholds: () => void state.applyTedThresholds(true),
+                onSetSection: (section) => (state.tedActiveSection = section),
+                onJobCardEditorChange: (value) => {
+                  state.tedJobCardEditorMarkdown = value;
+                  state.tedJobCardPreview = null;
+                  state.tedJobCardPreviewError = null;
+                },
+                onSaveJobCardDetail: () => void state.saveTedJobCardDetail(),
+                onPreviewJobCardUpdate: () => void state.previewTedJobCardUpdate(),
+                onSuggestJobCardKpis: () => void state.suggestTedJobCardKpis(),
+                onApplySuggestedKpisToEditor: () => {
+                  if (!state.tedJobCardKpiSuggestion || !state.tedJobCardEditorMarkdown.trim()) {
+                    return;
+                  }
+                  const heading = "## Friction KPI Evidence";
+                  const nextBlock = `${heading}\n\n${state.tedJobCardKpiSuggestion.suggestions.map((item) => `- ${item}`).join("\n")}\n`;
+                  const existing = state.tedJobCardEditorMarkdown;
+                  const index = existing.indexOf(heading);
+                  if (index >= 0) {
+                    const nextHeading = existing.indexOf("\n## ", index + heading.length);
+                    state.tedJobCardEditorMarkdown =
+                      nextHeading >= 0
+                        ? `${existing.slice(0, index)}${nextBlock}${existing.slice(nextHeading + 1)}`
+                        : `${existing.slice(0, index)}${nextBlock}`;
+                    return;
+                  }
+                  state.tedJobCardEditorMarkdown =
+                    `${existing.trimEnd()}\n\n${nextBlock}`.trimEnd();
+                },
+                onOpenSourceDoc: (key) => {
+                  if (
+                    key === "job_board" ||
+                    key === "promotion_policy" ||
+                    key === "value_friction"
+                  ) {
+                    state.tedActiveSection = "govern";
+                    void state.loadTedPolicyDocument(key);
+                    return;
+                  }
+                  void state.loadTedSourceDocument(key);
+                },
+                onLoadPolicyDoc: (key) => void state.loadTedPolicyDocument(key),
+                onPolicyConfigChange: (field, value) => {
+                  if (!state.tedPolicyDoc) {
+                    return;
+                  }
+                  state.tedPolicyDoc = {
+                    ...state.tedPolicyDoc,
+                    config: {
+                      ...state.tedPolicyDoc.config,
+                      [field]: value,
+                    },
+                  };
+                  state.tedPolicyPreview = null;
+                  state.tedPolicyPreviewError = null;
+                },
+                onPolicyListChange: (field, value) => {
+                  if (!state.tedPolicyDoc) {
+                    return;
+                  }
+                  const list = value
+                    .split("\n")
+                    .map((line) => line.trim())
+                    .filter(Boolean);
+                  state.tedPolicyDoc = {
+                    ...state.tedPolicyDoc,
+                    config: {
+                      ...state.tedPolicyDoc.config,
+                      [field]: list,
+                    },
+                  };
+                  state.tedPolicyPreview = null;
+                  state.tedPolicyPreviewError = null;
+                },
+                onPreviewPolicyUpdate: () => void state.previewTedPolicyUpdate(),
+                onSavePolicyUpdate: () => void state.saveTedPolicyUpdate(),
+                onStartConnectorAuth: (profileId) => void state.startTedConnectorAuth(profileId),
+                onPollConnectorAuth: (profileId) => void state.pollTedConnectorAuth(profileId),
+                onRevokeConnectorAuth: (profileId) => void state.revokeTedConnectorAuth(profileId),
+                onRefresh: () => loadTedWorkbench(state),
               })
             : nothing
         }

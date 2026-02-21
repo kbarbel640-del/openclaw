@@ -21,6 +21,7 @@ import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
+import { loadTedWorkbench } from "./controllers/ted.ts";
 import {
   inferBasePathFromPathname,
   normalizeBasePath,
@@ -54,6 +55,9 @@ type SettingsHost = {
   themeMedia: MediaQueryList | null;
   themeMediaHandler: ((event: MediaQueryListEvent) => void) | null;
   pendingGatewayUrl?: string | null;
+  tedLoading?: boolean;
+  tedSnapshot?: unknown;
+  tedError?: string | null;
 };
 
 export function applySettings(host: SettingsHost, next: UiSettings) {
@@ -184,6 +188,9 @@ export async function refreshActiveTab(host: SettingsHost) {
   }
   if (host.tab === "channels") {
     await loadChannelsTab(host);
+  }
+  if (host.tab === "ted") {
+    await loadTedWorkbench(host as unknown as Parameters<typeof loadTedWorkbench>[0]);
   }
   if (host.tab === "instances") {
     await loadPresence(host as unknown as OpenClawApp);

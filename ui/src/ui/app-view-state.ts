@@ -28,6 +28,15 @@ import type {
   CostUsageSummary,
   SessionUsageTimeSeries,
   SessionsListResult,
+  TedWorkbenchSnapshot,
+  TedIntakeRecommendation,
+  TedJobCardImpactPreview,
+  TedKpiSuggestion,
+  TedPolicyDocument,
+  TedPolicyImpactPreview,
+  TedPolicyKey,
+  TedSourceDocument,
+  TedJobCardDetail,
   SkillStatusReport,
   StatusSummary,
 } from "./types.ts";
@@ -208,6 +217,64 @@ export type AppViewState = {
   debugCallParams: string;
   debugCallResult: string | null;
   debugCallError: string | null;
+  tedLoading: boolean;
+  tedSnapshot: TedWorkbenchSnapshot | null;
+  tedError: string | null;
+  tedRoleCardJson: string;
+  tedRoleCardBusy: boolean;
+  tedRoleCardResult: string | null;
+  tedRoleCardError: string | null;
+  tedProofBusyKey: string | null;
+  tedProofResult: string | null;
+  tedProofError: string | null;
+  tedJobCardDetailLoading: boolean;
+  tedJobCardDetail: TedJobCardDetail | null;
+  tedJobCardDetailError: string | null;
+  tedJobCardEditorMarkdown: string;
+  tedJobCardSaveBusy: boolean;
+  tedJobCardSaveError: string | null;
+  tedJobCardSaveResult: string | null;
+  tedJobCardPreviewBusy: boolean;
+  tedJobCardPreviewError: string | null;
+  tedJobCardPreview: TedJobCardImpactPreview | null;
+  tedJobCardKpiSuggestBusy: boolean;
+  tedJobCardKpiSuggestError: string | null;
+  tedJobCardKpiSuggestion: TedKpiSuggestion | null;
+  tedRecommendationBusyId: string | null;
+  tedRecommendationError: string | null;
+  tedIntakeTitle: string;
+  tedIntakeOutcome: string;
+  tedIntakeJobFamily: string;
+  tedIntakeRiskLevel: string;
+  tedIntakeAutomationLevel: string;
+  tedIntakeBusy: boolean;
+  tedIntakeError: string | null;
+  tedIntakeRecommendation: TedIntakeRecommendation | null;
+  tedThresholdManual: string;
+  tedThresholdApprovalAge: string;
+  tedThresholdTriageEod: string;
+  tedThresholdBlockedExplainability: string;
+  tedThresholdAcknowledgeRisk: boolean;
+  tedThresholdBusy: boolean;
+  tedThresholdError: string | null;
+  tedThresholdResult: string | null;
+  tedSourceDocLoading: boolean;
+  tedSourceDocError: string | null;
+  tedSourceDoc: TedSourceDocument | null;
+  tedPolicyLoading: boolean;
+  tedPolicyError: string | null;
+  tedPolicyDoc: TedPolicyDocument | null;
+  tedPolicyPreviewBusy: boolean;
+  tedPolicyPreviewError: string | null;
+  tedPolicyPreview: TedPolicyImpactPreview | null;
+  tedPolicySaveBusy: boolean;
+  tedPolicySaveError: string | null;
+  tedPolicySaveResult: string | null;
+  tedConnectorAuthBusyProfile: string | null;
+  tedConnectorAuthError: string | null;
+  tedConnectorAuthResult: string | null;
+  tedConnectorDeviceCodeByProfile: Record<string, string>;
+  tedActiveSection: "all" | "operate" | "build" | "govern" | "intake" | "evals";
   logsLoading: boolean;
   logsError: string | null;
   logsFile: string | null;
@@ -230,6 +297,25 @@ export type AppViewState = {
   loadOverview: () => Promise<void>;
   loadAssistantIdentity: () => Promise<void>;
   loadCron: () => Promise<void>;
+  loadTedWorkbench: () => Promise<void>;
+  validateTedRoleCard: () => Promise<void>;
+  runTedProof: (proofScript: string) => Promise<void>;
+  loadTedJobCardDetail: (id: string) => Promise<void>;
+  saveTedJobCardDetail: () => Promise<void>;
+  previewTedJobCardUpdate: () => Promise<void>;
+  suggestTedJobCardKpis: () => Promise<void>;
+  decideTedRecommendation: (id: string, decision: "approved" | "dismissed") => Promise<void>;
+  runTedIntakeRecommendation: () => Promise<void>;
+  applyTedThresholds: (reset?: boolean) => Promise<void>;
+  loadTedSourceDocument: (
+    key: "job_board" | "promotion_policy" | "value_friction" | "interrogation_cycle",
+  ) => Promise<void>;
+  loadTedPolicyDocument: (key: TedPolicyKey) => Promise<void>;
+  previewTedPolicyUpdate: () => Promise<void>;
+  saveTedPolicyUpdate: () => Promise<void>;
+  startTedConnectorAuth: (profileId: "olumie" | "everest") => Promise<void>;
+  pollTedConnectorAuth: (profileId: "olumie" | "everest") => Promise<void>;
+  revokeTedConnectorAuth: (profileId: "olumie" | "everest") => Promise<void>;
   handleWhatsAppStart: (force: boolean) => Promise<void>;
   handleWhatsAppWait: () => Promise<void>;
   handleWhatsAppLogout: () => Promise<void>;

@@ -56,6 +56,25 @@ import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
+import {
+  applyTedThresholds,
+  decideTedRecommendation,
+  loadTedPolicyDocument,
+  loadTedSourceDocument,
+  loadTedJobCardDetail,
+  loadTedWorkbench,
+  pollTedConnectorAuth,
+  previewTedPolicyUpdate,
+  previewTedJobCardUpdate,
+  revokeTedConnectorAuth,
+  runTedIntakeRecommendation,
+  runTedProof,
+  saveTedPolicyUpdate,
+  saveTedJobCardDetail,
+  startTedConnectorAuth,
+  suggestTedJobCardKpis,
+  validateTedRoleCard,
+} from "./controllers/ted.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
@@ -75,6 +94,9 @@ import type {
   PresenceEntry,
   ChannelsStatusSnapshot,
   SessionsListResult,
+  TedWorkbenchSnapshot,
+  TedIntakeRecommendation,
+  TedJobCardDetail,
   SkillStatusReport,
   StatusSummary,
   NostrProfile,
@@ -317,6 +339,65 @@ export class OpenClawApp extends LitElement {
   @state() debugCallParams = "{}";
   @state() debugCallResult: string | null = null;
   @state() debugCallError: string | null = null;
+  @state() tedLoading = false;
+  @state() tedSnapshot: TedWorkbenchSnapshot | null = null;
+  @state() tedError: string | null = null;
+  @state() tedRoleCardJson =
+    '{\n  "role_id": "sample-operator",\n  "domain": "Draft-only operator support",\n  "inputs": ["messages"],\n  "outputs": ["drafts"],\n  "definition_of_done": ["review-ready draft"],\n  "hard_bans": ["No direct send"],\n  "escalation": ["sensitive claims"]\n}';
+  @state() tedRoleCardBusy = false;
+  @state() tedRoleCardResult: string | null = null;
+  @state() tedRoleCardError: string | null = null;
+  @state() tedProofBusyKey: string | null = null;
+  @state() tedProofResult: string | null = null;
+  @state() tedProofError: string | null = null;
+  @state() tedJobCardDetailLoading = false;
+  @state() tedJobCardDetail: TedJobCardDetail | null = null;
+  @state() tedJobCardDetailError: string | null = null;
+  @state() tedJobCardEditorMarkdown = "";
+  @state() tedJobCardSaveBusy = false;
+  @state() tedJobCardSaveError: string | null = null;
+  @state() tedJobCardSaveResult: string | null = null;
+  @state() tedJobCardPreviewBusy = false;
+  @state() tedJobCardPreviewError: string | null = null;
+  @state() tedJobCardPreview: import("./types.js").TedJobCardImpactPreview | null = null;
+  @state() tedJobCardKpiSuggestBusy = false;
+  @state() tedJobCardKpiSuggestError: string | null = null;
+  @state() tedJobCardKpiSuggestion: import("./types.js").TedKpiSuggestion | null = null;
+  @state() tedRecommendationBusyId: string | null = null;
+  @state() tedRecommendationError: string | null = null;
+  @state() tedIntakeTitle = "";
+  @state() tedIntakeOutcome = "";
+  @state() tedIntakeJobFamily = "MNT";
+  @state() tedIntakeRiskLevel = "medium";
+  @state() tedIntakeAutomationLevel = "draft-only";
+  @state() tedIntakeBusy = false;
+  @state() tedIntakeError: string | null = null;
+  @state() tedIntakeRecommendation: TedIntakeRecommendation | null = null;
+  @state() tedThresholdManual = "45";
+  @state() tedThresholdApprovalAge = "120";
+  @state() tedThresholdTriageEod = "12";
+  @state() tedThresholdBlockedExplainability = "0";
+  @state() tedThresholdAcknowledgeRisk = false;
+  @state() tedThresholdBusy = false;
+  @state() tedThresholdError: string | null = null;
+  @state() tedThresholdResult: string | null = null;
+  @state() tedSourceDocLoading = false;
+  @state() tedSourceDocError: string | null = null;
+  @state() tedSourceDoc: import("./types.js").TedSourceDocument | null = null;
+  @state() tedPolicyLoading = false;
+  @state() tedPolicyError: string | null = null;
+  @state() tedPolicyDoc: import("./types.js").TedPolicyDocument | null = null;
+  @state() tedPolicyPreviewBusy = false;
+  @state() tedPolicyPreviewError: string | null = null;
+  @state() tedPolicyPreview: import("./types.js").TedPolicyImpactPreview | null = null;
+  @state() tedPolicySaveBusy = false;
+  @state() tedPolicySaveError: string | null = null;
+  @state() tedPolicySaveResult: string | null = null;
+  @state() tedConnectorAuthBusyProfile: string | null = null;
+  @state() tedConnectorAuthError: string | null = null;
+  @state() tedConnectorAuthResult: string | null = null;
+  @state() tedConnectorDeviceCodeByProfile: Record<string, string> = {};
+  @state() tedActiveSection: "all" | "operate" | "build" | "govern" | "intake" | "evals" = "all";
 
   @state() logsLoading = false;
   @state() logsError: string | null = null;
@@ -437,6 +518,76 @@ export class OpenClawApp extends LitElement {
 
   async loadCron() {
     await loadCronInternal(this as unknown as Parameters<typeof loadCronInternal>[0]);
+  }
+
+  async loadTedWorkbench() {
+    await loadTedWorkbench(this);
+  }
+
+  async validateTedRoleCard() {
+    await validateTedRoleCard(this);
+  }
+
+  async runTedProof(proofScript: string) {
+    await runTedProof(this, proofScript);
+  }
+
+  async loadTedJobCardDetail(id: string) {
+    await loadTedJobCardDetail(this, id);
+  }
+
+  async saveTedJobCardDetail() {
+    await saveTedJobCardDetail(this);
+  }
+
+  async previewTedJobCardUpdate() {
+    await previewTedJobCardUpdate(this);
+  }
+
+  async suggestTedJobCardKpis() {
+    await suggestTedJobCardKpis(this);
+  }
+
+  async decideTedRecommendation(id: string, decision: "approved" | "dismissed") {
+    await decideTedRecommendation(this, id, decision);
+  }
+
+  async runTedIntakeRecommendation() {
+    await runTedIntakeRecommendation(this);
+  }
+
+  async applyTedThresholds(reset = false) {
+    await applyTedThresholds(this, reset);
+  }
+
+  async loadTedSourceDocument(
+    key: "job_board" | "promotion_policy" | "value_friction" | "interrogation_cycle",
+  ) {
+    await loadTedSourceDocument(this, key);
+  }
+
+  async loadTedPolicyDocument(key: import("./types.js").TedPolicyKey) {
+    await loadTedPolicyDocument(this, key);
+  }
+
+  async previewTedPolicyUpdate() {
+    await previewTedPolicyUpdate(this);
+  }
+
+  async saveTedPolicyUpdate() {
+    await saveTedPolicyUpdate(this);
+  }
+
+  async startTedConnectorAuth(profileId: "olumie" | "everest") {
+    await startTedConnectorAuth(this, profileId);
+  }
+
+  async pollTedConnectorAuth(profileId: "olumie" | "everest") {
+    await pollTedConnectorAuth(this, profileId);
+  }
+
+  async revokeTedConnectorAuth(profileId: "olumie" | "everest") {
+    await revokeTedConnectorAuth(this, profileId);
   }
 
   async handleAbortChat() {
