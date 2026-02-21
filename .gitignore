@@ -99,3 +99,8 @@ package-lock.json
 
 # Local iOS signing overrides
 apps/ios/LocalSigning.xcconfig
+
+# local builds
+clawos/
+clawos-os/
+
