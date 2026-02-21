@@ -34,7 +34,7 @@ async function pollSession(
   return processTool.execute(callId, {
     action: "poll",
     sessionId,
-    ...(timeout === undefined ? {} : { timeout }),
+    ...(timeout === undefined ? {} : { timeout: Number(timeout) }),
   });
 }
 
