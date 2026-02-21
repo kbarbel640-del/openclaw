@@ -6,6 +6,26 @@ import { formatTokenCount } from "../utils/usage-format.js";
 const REPLACEMENT_CHAR_RE = /\uFFFD/g;
 const MAX_TOKEN_CHARS = 32;
 const LONG_TOKEN_RE = /\S{33,}/g;
+const INBOUND_META_PREFIXES = [
+  "Conversation info (untrusted metadata):",
+  "Sender (untrusted metadata):",
+  "Thread starter (untrusted, for context):",
+  "Replied message (untrusted, for context):",
+  "Forwarded message context (untrusted metadata):",
+  "Chat history since last reply (untrusted, for context):",
+] as const;
+
+function stripLeadingInboundMetadataOnly(text: string): string {
+  const trimmedStart = text.trimStart();
+  if (!trimmedStart) {
+    return text;
+  }
+  if (!INBOUND_META_PREFIXES.some((prefix) => trimmedStart.startsWith(prefix))) {
+    return text;
+  }
+  return stripInboundMetadata(text);
+}
+
 const LONG_TOKEN_TEST_RE = /\S{33,}/;
 const BINARY_LINE_REPLACEMENT_THRESHOLD = 12;
 const URL_PREFIX_RE = /^(https?:\/\/|file:\/\/)/i;
@@ -275,7 +295,7 @@ export function extractTextFromMessage(
   const text = extractTextBlocks(record.content, opts);
   if (text) {
     if (record.role === "user") {
-      return stripInboundMetadata(text);
+      return stripLeadingInboundMetadataOnly(text);
     }
     return text;
   }
