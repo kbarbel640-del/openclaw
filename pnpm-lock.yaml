@@ -50,6 +50,12 @@ importers:
       '@line/bot-sdk':
         specifier: ^10.6.0
         version: 10.6.0
+      '@lit-labs/signals':
+        specifier: ^0.2.0
+        version: 0.2.0
+      '@lit/context':
+        specifier: ^1.1.6
+        version: 1.1.6
       '@lydell/node-pty':
         specifier: 1.2.0-beta.3
         version: 1.2.0-beta.3
@@ -128,6 +134,9 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      lit:
+        specifier: ^3.3.2
+        version: 3.3.2
       linkedom:
         specifier: ^0.18.12
         version: 0.18.12
@@ -186,12 +195,6 @@ importers:
       '@grammyjs/types':
         specifier: ^3.24.0
         version: 3.24.0
-      '@lit-labs/signals':
-        specifier: ^0.2.0
-        version: 0.2.0
-      '@lit/context':
-        specifier: ^1.1.6
-        version: 1.1.6
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -213,9 +216,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.0.18
         version: 4.0.18(@vitest/browser@4.0.18(vite@7.3.1(@types/node@25.3.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))(vitest@4.0.18))(vitest@4.0.18)
-      lit:
-        specifier: ^3.3.2
-        version: 3.3.2
       ollama:
         specifier: ^0.6.3
         version: 0.6.3
