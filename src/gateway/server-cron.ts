@@ -7,10 +7,12 @@ import {
   resolveAgentMainSessionKey,
 } from "../config/sessions.js";
 import { resolveStorePath } from "../config/sessions/paths.js";
+import { loadSessionStore } from "../config/sessions/store.js";
 import { runCronIsolatedAgentTurn } from "../cron/isolated-agent.js";
 import { appendCronRunLog, resolveCronRunLogPath } from "../cron/run-log.js";
 import { CronService } from "../cron/service.js";
 import { resolveCronStorePath } from "../cron/store.js";
+import { resolveDreamingConfig, shouldDream } from "../infra/dreaming.js";
 import { normalizeHttpWebhookUrl } from "../cron/webhook-url.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import { runHeartbeatOnce } from "../infra/heartbeat-runner.js";
@@ -186,6 +188,20 @@ export function buildGatewayCronService(params: {
       });
     },
     runIsolatedAgentJob: async ({ job, message }) => {
+      // Skip dreaming jobs if user was recently active.
+      if (job.name?.includes("Dreaming")) {
+        const runtimeConfig = loadConfig();
+        const dreamingConfig = resolveDreamingConfig(runtimeConfig.dreaming);
+        // Use max updatedAt across all sessions as last-activity timestamp
+        // (persisted on disk — survives gateway restarts).
+        const storePath = resolveStorePath(runtimeConfig.session?.store);
+        const store = loadSessionStore(storePath);
+        const lastActivityMs =
+          Math.max(0, ...Object.values(store).map((e) => e?.updatedAt ?? 0)) || undefined;
+        if (!shouldDream(lastActivityMs, dreamingConfig.quietMinutes)) {
+          return { status: "skipped" as const, summary: "user recently active" };
+        }
+      }
       const { agentId, cfg: runtimeConfig } = resolveCronAgent(job.agentId);
       return await runCronIsolatedAgentTurn({
         cfg: runtimeConfig,
