@@ -210,13 +210,17 @@ export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
   }
 });
 
+// Discord IDs (user, channel, role, guild) are large integers that can exceed
+// Number.MAX_SAFE_INTEGER. Always treat them as strings to avoid precision loss.
+const DiscordIdSchema = z.union([z.string(), z.number()]).transform(String);
+
 export const DiscordDmSchema = z
   .object({
     enabled: z.boolean().optional(),
     policy: DmPolicySchema.optional(),
-    allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
+    allowFrom: z.array(DiscordIdSchema).optional(),
     groupEnabled: z.boolean().optional(),
-    groupChannels: z.array(z.union([z.string(), z.number()])).optional(),
+    groupChannels: z.array(DiscordIdSchema).optional(),
   })
   .strict();
 
@@ -228,8 +232,8 @@ export const DiscordGuildChannelSchema = z
     toolsBySender: ToolPolicyBySenderSchema,
     skills: z.array(z.string()).optional(),
     enabled: z.boolean().optional(),
-    users: z.array(z.union([z.string(), z.number()])).optional(),
-    roles: z.array(z.union([z.string(), z.number()])).optional(),
+    users: z.array(DiscordIdSchema).optional(),
+    roles: z.array(DiscordIdSchema).optional(),
     systemPrompt: z.string().optional(),
     includeThreadStarter: z.boolean().optional(),
     autoThread: z.boolean().optional(),
@@ -243,8 +247,8 @@ export const DiscordGuildSchema = z
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
     reactionNotifications: z.enum(["off", "own", "all", "allowlist"]).optional(),
-    users: z.array(z.union([z.string(), z.number()])).optional(),
-    roles: z.array(z.union([z.string(), z.number()])).optional(),
+    users: z.array(DiscordIdSchema).optional(),
+    roles: z.array(DiscordIdSchema).optional(),
     channels: z.record(z.string(), DiscordGuildChannelSchema.optional()).optional(),
   })
   .strict();
@@ -311,14 +315,14 @@ export const DiscordAccountSchema = z
     // Aliases for channels.discord.dm.policy / channels.discord.dm.allowFrom. Prefer these for
     // inheritance in multi-account setups (shallow merge works; nested dm object doesn't).
     dmPolicy: DmPolicySchema.optional(),
-    allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
+    allowFrom: z.array(DiscordIdSchema).optional(),
     dm: DiscordDmSchema.optional(),
     guilds: z.record(z.string(), DiscordGuildSchema.optional()).optional(),
     heartbeat: ChannelHeartbeatVisibilitySchema,
     execApprovals: z
       .object({
         enabled: z.boolean().optional(),
-        approvers: z.array(z.union([z.string(), z.number()])).optional(),
+        approvers: z.array(DiscordIdSchema).optional(),
         agentFilter: z.array(z.string()).optional(),
         sessionFilter: z.array(z.string()).optional(),
         cleanupAfterResolve: z.boolean().optional(),
