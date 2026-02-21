@@ -1,6 +1,7 @@
 import {
   buildChannelConfigSchema,
   collectStatusIssuesFromLastError,
+  createReplyPrefixOptions,
   createDefaultChannelRuntimeState,
   DEFAULT_ACCOUNT_ID,
   formatPairingApproveHint,
@@ -214,18 +215,97 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             `[${account.accountId}] DM from ${senderPubkey}: ${text.slice(0, 50)}...`,
           );
 
-          // Forward to OpenClaw's message pipeline
-          await (
-            runtime.channel.reply as { handleInboundMessage?: (params: unknown) => Promise<void> }
-          ).handleInboundMessage?.({
+          const cfg = runtime.config.loadConfig();
+          const route = runtime.channel.routing.resolveAgentRoute({
+            cfg,
             channel: "nostr",
             accountId: account.accountId,
-            senderId: senderPubkey,
-            chatType: "direct",
-            chatId: senderPubkey, // For DMs, chatId is the sender's pubkey
-            text,
-            reply: async (responseText: string) => {
-              await reply(responseText);
+            peer: { kind: "direct", id: senderPubkey },
+          });
+          const storePath = runtime.channel.session.resolveStorePath(cfg.session?.store, {
+            agentId: route.agentId,
+          });
+          const envelopeOptions = runtime.channel.reply.resolveEnvelopeFormatOptions(cfg);
+          const previousTimestamp = runtime.channel.session.readSessionUpdatedAt({
+            storePath,
+            sessionKey: route.sessionKey,
+          });
+          const body = runtime.channel.reply.formatAgentEnvelope({
+            channel: "Nostr",
+            from: senderPubkey,
+            timestamp: Date.now(),
+            previousTimestamp,
+            envelope: envelopeOptions,
+            body: text,
+          });
+
+          const ctxPayload = runtime.channel.reply.finalizeInboundContext({
+            Body: body,
+            BodyForAgent: text,
+            RawBody: text,
+            CommandBody: text,
+            From: `nostr:${senderPubkey}`,
+            To: `nostr:${account.publicKey}`,
+            SessionKey: route.sessionKey,
+            AccountId: route.accountId,
+            ChatType: "direct",
+            ConversationLabel: senderPubkey,
+            SenderName: senderPubkey,
+            SenderId: senderPubkey,
+            Provider: "nostr",
+            Surface: "nostr",
+            MessageSid: `nostr:${Date.now()}:${senderPubkey.slice(0, 12)}`,
+            Timestamp: Date.now(),
+            OriginatingChannel: "nostr",
+            OriginatingTo: `nostr:${account.publicKey}`,
+          });
+
+          await runtime.channel.session.recordInboundSession({
+            storePath,
+            sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
+            ctx: ctxPayload,
+            onRecordError: (error) => {
+              ctx.log?.error?.(
+                `[${account.accountId}] failed updating nostr session meta: ${String(error)}`,
+              );
+            },
+          });
+
+          const tableMode = runtime.channel.text.resolveMarkdownTableMode({
+            cfg,
+            channel: "nostr",
+            accountId: account.accountId,
+          });
+          const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+            cfg,
+            agentId: route.agentId,
+            channel: "nostr",
+            accountId: account.accountId,
+          });
+
+          await runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+            ctx: ctxPayload,
+            cfg,
+            dispatcherOptions: {
+              ...prefixOptions,
+              deliver: async (payload) => {
+                const responseText = runtime.channel.text.convertMarkdownTables(
+                  payload.text ?? "",
+                  tableMode,
+                );
+                if (!responseText.trim()) {
+                  return;
+                }
+                await reply(responseText);
+              },
+              onError: (error, info) => {
+                ctx.log?.error?.(
+                  `[${account.accountId}] Nostr ${info.kind} reply failed: ${String(error)}`,
+                );
+              },
+            },
+            replyOptions: {
+              onModelSelected,
             },
           });
         },
