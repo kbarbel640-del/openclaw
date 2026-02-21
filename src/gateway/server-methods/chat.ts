@@ -96,6 +96,17 @@ function truncateChatHistoryText(text: string): { text: string; truncated: boole
   };
 }
 
+/**
+ * Strip directive tags (e.g. `[[reply_to_current]]`) that should not appear in
+ * chat history served to the web UI. These match the same patterns recognised
+ * by parseInlineDirectives() in directive-tags.ts.
+ */
+const CHAT_DIRECTIVE_TAGS_RE =
+  /\[\[\s*(?:reply_to_current|reply_to\s*:\s*[^\]\n]+|audio_as_voice)\s*\]\]/gi;
+function stripChatDirectiveTags(text: string): string {
+  return text.replace(CHAT_DIRECTIVE_TAGS_RE, "").trim();
+}
+
 function sanitizeChatHistoryContentBlock(block: unknown): { block: unknown; changed: boolean } {
   if (!block || typeof block !== "object") {
     return { block, changed: false };
@@ -103,9 +114,11 @@ function sanitizeChatHistoryContentBlock(block: unknown): { block: unknown; chan
   const entry = { ...(block as Record<string, unknown>) };
   let changed = false;
   if (typeof entry.text === "string") {
-    const res = truncateChatHistoryText(entry.text);
+    const original = entry.text;
+    const stripped = stripChatDirectiveTags(original);
+    const res = truncateChatHistoryText(stripped);
     entry.text = res.text;
-    changed ||= res.truncated;
+    changed ||= stripped !== original || res.truncated;
   }
   if (typeof entry.partialJson === "string") {
     const res = truncateChatHistoryText(entry.partialJson);
