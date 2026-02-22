@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi, fail } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AuthProfileStore } from "./auth-profiles.js";
 import { saveAuthProfileStore } from "./auth-profiles.js";
@@ -993,19 +993,18 @@ describe("runWithModelFallback", () => {
 
       const run = vi.fn().mockResolvedValueOnce("should not be called");
 
-      try {
-        await runWithModelFallback({
+      await expect(
+        runWithModelFallback({
           cfg,
           provider: "anthropic",
           model: "claude-opus-4-6",
           run,
           agentDir: dir,
-        });
-        fail("Should have thrown error");
-      } catch {
-        // Auth cooldown should skip both primary and same-provider fallbacks
-        expect(run).toHaveBeenCalledTimes(0); // No attempts made
-      }
+        }),
+      ).rejects.toThrow("All models failed");
+
+      // Auth cooldown should skip both primary and same-provider fallbacks
+      expect(run).toHaveBeenCalledTimes(0); // No attempts made
     });
 
     it("does NOT attempt fallbacks during billing cooldown", async () => {
@@ -1023,19 +1022,18 @@ describe("runWithModelFallback", () => {
 
       const run = vi.fn().mockResolvedValueOnce("should not be called");
 
-      try {
-        await runWithModelFallback({
+      await expect(
+        runWithModelFallback({
           cfg,
           provider: "anthropic",
           model: "claude-opus-4-6",
           run,
           agentDir: dir,
-        });
-        fail("Should have thrown error");
-      } catch {
-        // Billing cooldown should skip both primary and same-provider fallbacks
-        expect(run).toHaveBeenCalledTimes(0); // No attempts made
-      }
+        }),
+      ).rejects.toThrow("All models failed");
+
+      // Billing cooldown should skip both primary and same-provider fallbacks
+      expect(run).toHaveBeenCalledTimes(0); // No attempts made
     });
 
     it("tries cross-provider fallbacks when same provider has rate limit", async () => {
