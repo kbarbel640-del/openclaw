@@ -430,25 +430,6 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
 
   const anyReplyDelivered = queuedFinal || (counts.block ?? 0) > 0 || (counts.final ?? 0) > 0;
 
-  if (!anyReplyDelivered) {
-    await draftStream.clear();
-    if (prepared.isRoomish) {
-      clearHistoryEntriesIfEnabled({
-        historyMap: ctx.channelHistories,
-        historyKey: prepared.historyKey,
-        limit: ctx.historyLimit,
-      });
-    }
-    return;
-  }
-
-  if (shouldLogVerbose()) {
-    const finalCount = counts.final;
-    logVerbose(
-      `slack: delivered ${finalCount} reply${finalCount === 1 ? "" : "ies"} to ${prepared.replyTarget}`,
-    );
-  }
-
   removeAckReactionAfterReply({
     removeAfterReply: ctx.removeAckAfterReply,
     ackReactionPromise: prepared.ackReactionPromise,
@@ -472,6 +453,25 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
       });
     },
   });
+
+  if (!anyReplyDelivered) {
+    await draftStream.clear();
+    if (prepared.isRoomish) {
+      clearHistoryEntriesIfEnabled({
+        historyMap: ctx.channelHistories,
+        historyKey: prepared.historyKey,
+        limit: ctx.historyLimit,
+      });
+    }
+    return;
+  }
+
+  if (shouldLogVerbose()) {
+    const finalCount = counts.final;
+    logVerbose(
+      `slack: delivered ${finalCount} reply${finalCount === 1 ? "" : "ies"} to ${prepared.replyTarget}`,
+    );
+  }
 
   if (prepared.isRoomish) {
     clearHistoryEntriesIfEnabled({

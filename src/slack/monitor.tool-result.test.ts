@@ -16,7 +16,8 @@ import {
 const { monitorSlackProvider } = await import("./monitor.js");
 
 const slackTestState = getSlackTestState();
-const { sendMock, replyMock, reactMock, upsertPairingRequestMock } = slackTestState;
+const { sendMock, replyMock, reactMock, removeReactMock, upsertPairingRequestMock } =
+  slackTestState;
 
 beforeEach(() => {
   resetInboundDedupe();
@@ -496,6 +497,42 @@ describe("monitorSlackProvider tool results", () => {
       timestamp: "456",
       name: "👀",
     });
+  });
+
+  it("removes ack reaction after silent NO_REPLY completion when enabled", async () => {
+    replyMock.mockResolvedValue({ text: "NO_REPLY" });
+    slackTestState.config = {
+      messages: {
+        responsePrefix: "PFX",
+        ackReaction: "👀",
+        ackReactionScope: "direct",
+        removeAckAfterReply: true,
+      },
+      channels: {
+        slack: {
+          dm: { enabled: true, policy: "open", allowFrom: ["*"] },
+        },
+      },
+    };
+
+    await runSlackMessageOnce(monitorSlackProvider, {
+      event: makeSlackMessageEvent({
+        ts: "999.001",
+        channel_type: "im",
+      }),
+    });
+
+    expect(reactMock).toHaveBeenCalledWith({
+      channel: "C1",
+      timestamp: "999.001",
+      name: "👀",
+    });
+    expect(removeReactMock).toHaveBeenCalledWith({
+      channel: "C1",
+      timestamp: "999.001",
+      name: "👀",
+    });
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it("replies with pairing code when dmPolicy is pairing and no allowFrom is set", async () => {
