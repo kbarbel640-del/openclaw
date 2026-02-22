@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
-import { createExecApprovalForwarder } from "./exec-approval-forwarder.js";
+import { createExecApprovalForwarder, isSafeRegexPattern } from "./exec-approval-forwarder.js";
 
 const baseRequest = {
   id: "req-1",
@@ -142,5 +142,56 @@ describe("exec approval forwarder", () => {
     });
 
     expect(getFirstDeliveryText(deliver)).toContain("Command:\n````\necho ```danger```\n````");
+  });
+});
+
+describe("isSafeRegexPattern", () => {
+  it("accepts simple literal patterns", () => {
+    expect(isSafeRegexPattern("agent:main")).toBe(true);
+    expect(isSafeRegexPattern("discord")).toBe(true);
+    expect(isSafeRegexPattern("")).toBe(true);
+  });
+
+  it("accepts safe regex patterns", () => {
+    expect(isSafeRegexPattern("^agent:main$")).toBe(true);
+    expect(isSafeRegexPattern("agent:\\w+")).toBe(true);
+    expect(isSafeRegexPattern("session-[0-9]+")).toBe(true);
+    expect(isSafeRegexPattern("(foo|bar)")).toBe(true);
+  });
+
+  it("rejects patterns longer than 200 characters", () => {
+    expect(isSafeRegexPattern("a".repeat(201))).toBe(false);
+  });
+
+  it("allows patterns of exactly 200 characters", () => {
+    expect(isSafeRegexPattern("a".repeat(200))).toBe(true);
+  });
+
+  it("rejects nested quantifiers like (a+)+", () => {
+    expect(isSafeRegexPattern("(a+)+")).toBe(false);
+  });
+
+  it("rejects nested quantifiers like (a*)*", () => {
+    expect(isSafeRegexPattern("(a*)*")).toBe(false);
+  });
+
+  it("rejects nested quantifiers like (a+)*", () => {
+    expect(isSafeRegexPattern("(a+)*")).toBe(false);
+  });
+
+  it("rejects nested quantifiers like (a{2,})+", () => {
+    expect(isSafeRegexPattern("(a{2,})+")).toBe(false);
+  });
+
+  it("rejects nested quantifiers like (a+)?", () => {
+    expect(isSafeRegexPattern("(a+)?")).toBe(false);
+  });
+
+  it("rejects nested quantifiers like (a+){2,}", () => {
+    expect(isSafeRegexPattern("(a+){2,}")).toBe(false);
+  });
+
+  it("rejects the classic ReDoS pattern (a+)+$", () => {
+    expect(isSafeRegexPattern("(a+)+$")).toBe(false);
   });
 });
