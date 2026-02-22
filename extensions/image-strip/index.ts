@@ -10,6 +10,7 @@
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import { stripImageBlocksFromSessionFile } from "./src/image-strip.js";
 
 export {
   stripImageBlocksFromMessages,
@@ -32,6 +33,17 @@ const plugin = {
           imageStripEnabled: true,
         },
       };
+    });
+
+    api.on("on_empty_response", (event) => {
+      if (!event.sessionFile) {
+        return; // no session file to strip
+      }
+      const strippedCount = stripImageBlocksFromSessionFile(event.sessionFile);
+      if (strippedCount > 0) {
+        return { retry: true };
+      }
+      // No images found — nothing to do, don't retry
     });
   },
 };
