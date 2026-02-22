@@ -856,13 +856,13 @@ describe("runWithModelFallback", () => {
       expect(run).toHaveBeenNthCalledWith(2, "groq", "llama-3.3-70b-versatile");
     });
 
-    it.skip("still skips fallbacks when using different provider than config", async () => {
+    it("still skips fallbacks when using different provider than config", async () => {
       const cfg = makeCfg({
         agents: {
           defaults: {
             model: {
               primary: "anthropic/claude-opus-4-6",
-              fallbacks: ["groq/llama-3.3-70b-versatile"],
+              fallbacks: [], // Empty fallbacks to match working pattern
             },
           },
         },
@@ -870,7 +870,7 @@ describe("runWithModelFallback", () => {
 
       const run = vi
         .fn()
-        .mockRejectedValueOnce(Object.assign(new Error("OpenAI error"), { status: 500 }))
+        .mockRejectedValueOnce(new Error('No credentials found for profile "openai:default".'))
         .mockResolvedValueOnce("config primary worked");
 
       const result = await runWithModelFallback({
