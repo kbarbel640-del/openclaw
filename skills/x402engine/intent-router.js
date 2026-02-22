@@ -39,10 +39,12 @@ const SYNONYM_MAP = {
   'historical': ['crypto-history'],
   'chart': ['crypto-history'],
 
-  // Search
-  'search': ['crypto-search'],
-  'find': ['crypto-search'],
-  'lookup': ['crypto-search'],
+  // Web search (general)
+  'search': ['search-web'],
+  'find': ['search-web'],
+  'lookup': ['search-web'],
+  'research': ['search-web'],
+  'news': ['search-web'],
 
   // Image
   'image': ['image-fast', 'image-quality', 'image-text'],
@@ -301,6 +303,17 @@ export function matchQuery(query, services) {
     }
     prompt = prompt.replace(/^.*?\b(?:ask|prompt|llm|model)\b\s*/i, '').trim();
     params.messages = [{ role: 'user', content: prompt || query }];
+  } else if (id === 'search-web') {
+    const searchQuery = query
+      .replace(/^.*?\b(?:search|find|lookup|research|news)\b\s*/i, '')
+      .replace(/\b(?:for|about|on|regarding)\b\s*/i, '')
+      .trim() || query;
+    params.query = searchQuery;
+    // Detect category keywords
+    const lower = query.toLowerCase();
+    if (/\bnews\b/.test(lower)) params.category = 'news';
+    else if (/\b(?:paper|papers|research\s+paper)\b/.test(lower)) params.category = 'research paper';
+    else if (/\bcompan(?:y|ies)\b/.test(lower)) params.category = 'company';
   } else if (id === 'web-scrape' || id === 'web-screenshot') {
     const urlMatch = query.match(/https?:\/\/[^\s]+/i);
     if (urlMatch) params.url = urlMatch[0];

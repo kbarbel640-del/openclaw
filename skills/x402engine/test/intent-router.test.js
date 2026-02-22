@@ -23,6 +23,8 @@ const SERVICES = [
   { id: 'tts-openai', name: 'Text-to-Speech', description: 'Convert text to speech TTS', price: '$0.01', path: '/api/tts/openai', method: 'POST' },
   { id: 'video-fast', name: 'Fast Video', description: 'Video generation', price: '$0.30', path: '/api/video/fast', method: 'POST' },
   { id: 'embeddings', name: 'Text Embeddings', description: 'Generate text embeddings', price: '$0.001', path: '/api/embeddings', method: 'POST' },
+  { id: 'search-web', name: 'Web Search', description: 'Neural web search with highlighted snippets find articles news research', price: '$0.010', path: '/api/search/web', method: 'POST' },
+  { id: 'search-contents', name: 'Web Content Fetch', description: 'Fetch full text content from URLs', price: '$0.005', path: '/api/search/contents', method: 'POST' },
 ];
 
 // ---- Crypto price matching ----
@@ -63,10 +65,11 @@ test('matches "trending" to crypto-trending', () => {
   assert.equal(m.service.id, 'crypto-trending');
 });
 
-test('matches "search solana" to crypto-search', () => {
+test('matches "search for solana" to search-web', () => {
   const m = matchQuery('search for solana', SERVICES);
   assert.ok(m);
-  assert.equal(m.service.id, 'crypto-search');
+  assert.equal(m.service.id, 'search-web');
+  assert.ok(m.params.query);
 });
 
 test('matches "history of eth 90d" to crypto-history', () => {
@@ -184,4 +187,36 @@ test('normalizeCoingeckoId maps common symbols', () => {
 test('scoreServices returns empty for no tokens', () => {
   const scores = scoreServices('', SERVICES);
   assert.equal(scores.length, 0);
+});
+
+// ---- Web Search ----
+
+test('matches "search for latest ethereum news" to search-web', () => {
+  const m = matchQuery('search for latest ethereum news', SERVICES);
+  assert.ok(m);
+  assert.equal(m.service.id, 'search-web');
+  assert.ok(m.params.query);
+  assert.equal(m.params.category, 'news');
+});
+
+test('matches "find research papers on LLMs" to search-web', () => {
+  const m = matchQuery('find research papers on LLMs', SERVICES);
+  assert.ok(m);
+  assert.equal(m.service.id, 'search-web');
+  assert.ok(m.params.query);
+  assert.equal(m.params.category, 'research paper');
+});
+
+test('matches "latest news about bitcoin" to search-web', () => {
+  const m = matchQuery('latest news about bitcoin', SERVICES);
+  assert.ok(m);
+  assert.equal(m.service.id, 'search-web');
+  assert.equal(m.params.category, 'news');
+});
+
+test('matches "research web3 gaming" to search-web', () => {
+  const m = matchQuery('research web3 gaming', SERVICES);
+  assert.ok(m);
+  assert.equal(m.service.id, 'search-web');
+  assert.ok(m.params.query);
 });
