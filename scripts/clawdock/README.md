@@ -32,7 +32,7 @@ Inspired by Simon Willison's [Running OpenClaw in Docker](https://til.simonwilli
 **Install:**
 
 ```bash
-mkdir -p ~/.clawdock && curl -sL https://raw.githubusercontent.com/openclaw/openclaw/main/scripts/shell-helpers/clawdock-helpers.sh -o ~/.clawdock/clawdock-helpers.sh
+mkdir -p ~/.clawdock && curl -sL https://raw.githubusercontent.com/openclaw/openclaw/main/scripts/clawdock/clawdock-helpers.sh -o ~/.clawdock/clawdock-helpers.sh
 ```
 
 ```bash
@@ -340,7 +340,7 @@ docker ps
 **Test with fresh config (mimics first-time install):**
 
 ```bash
-unset CLAWDOCK_DIR && rm -f ~/.clawdock/config && source scripts/shell-helpers/clawdock-helpers.sh
+unset CLAWDOCK_DIR && rm -f ~/.clawdock/config && source scripts/clawdock/clawdock-helpers.sh
 ```
 
 Then run any command to trigger auto-detect:

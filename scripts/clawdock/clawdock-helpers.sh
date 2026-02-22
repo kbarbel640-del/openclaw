@@ -4,7 +4,7 @@
 # https://til.simonwillison.net/llms/openclaw-docker
 #
 # Installation:
-#   mkdir -p ~/.clawdock && curl -sL https://raw.githubusercontent.com/openclaw/openclaw/main/scripts/shell-helpers/clawdock-helpers.sh -o ~/.clawdock/clawdock-helpers.sh
+#   mkdir -p ~/.clawdock && curl -sL https://raw.githubusercontent.com/openclaw/openclaw/main/scripts/clawdock/clawdock-helpers.sh -o ~/.clawdock/clawdock-helpers.sh
 #   echo 'source ~/.clawdock/clawdock-helpers.sh' >> ~/.zshrc
 #
 # Usage:
@@ -342,7 +342,8 @@ clawdock-devices() {
     echo ""
     echo -e "${_CLR_CYAN}💡 If you see token errors above:${_CLR_RESET}"
     echo -e "   1. Verify token is set: $(_cmd clawdock-token)"
-    echo "   2. Try manual config inside container:"
+    echo -e "   2. Try fixing the token automatically: $(_cmd clawdock-fix-token)"
+    echo "   3. If you still see errors, try manual config inside container:"
     echo -e "      $(_cmd clawdock-shell)"
     echo -e "      $(_cmd 'openclaw config get gateway.remote.token')"
     return 1
