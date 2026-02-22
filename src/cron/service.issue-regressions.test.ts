@@ -8,7 +8,7 @@ import { CronService } from "./service.js";
 import { createDeferred, createRunningCronServiceState } from "./service.test-harness.js";
 import { computeJobNextRunAtMs } from "./service/jobs.js";
 import { createCronServiceState, type CronEvent } from "./service/state.js";
-import { onTimer } from "./service/timer.js";
+import { onTimer, runMissedJobs } from "./service/timer.js";
 import type { CronJob, CronJobState } from "./types.js";
 
 const noopLogger = {
@@ -731,6 +731,60 @@ describe("Cron issue regressions", () => {
     expect(job?.state.lastError).toContain("timed out");
   });
 
+  it("suppresses isolated follow-up side effects after timeout", async () => {
+    vi.useRealTimers();
+    const store = await makeStorePath();
+    const scheduledAt = Date.parse("2026-02-15T13:00:00.000Z");
+    const enqueueSystemEvent = vi.fn();
+
+    const cronJob = createIsolatedRegressionJob({
+      id: "timeout-side-effects",
+      name: "timeout side effects",
+      scheduledAt,
+      schedule: { kind: "every", everyMs: 60_000, anchorMs: scheduledAt },
+      payload: { kind: "agentTurn", message: "work", timeoutSeconds: 0.01 },
+      state: { nextRunAtMs: scheduledAt },
+    });
+    await writeCronJobs(store.storePath, [cronJob]);
+
+    let now = scheduledAt;
+    const state = createCronServiceState({
+      cronEnabled: true,
+      storePath: store.storePath,
+      log: noopLogger,
+      nowMs: () => now,
+      enqueueSystemEvent,
+      requestHeartbeatNow: vi.fn(),
+      runIsolatedAgentJob: vi.fn(async (params) => {
+        const abortSignal = params.abortSignal;
+        await new Promise<void>((resolve, reject) => {
+          const onAbort = () => {
+            abortSignal?.removeEventListener("abort", onAbort);
+            now += 100;
+            reject(new Error("aborted"));
+          };
+          abortSignal?.addEventListener("abort", onAbort, { once: true });
+        });
+        return {
+          status: "ok" as const,
+          summary: "late-summary",
+          delivered: false,
+          error:
+            abortSignal?.aborted && typeof abortSignal.reason === "string"
+              ? abortSignal.reason
+              : undefined,
+        };
+      }),
+    });
+
+    await onTimer(state);
+
+    const jobAfterTimeout = state.store?.jobs.find((j) => j.id === "timeout-side-effects");
+    expect(jobAfterTimeout?.state.lastStatus).toBe("error");
+    expect(jobAfterTimeout?.state.lastError).toContain("timed out");
+    expect(enqueueSystemEvent).not.toHaveBeenCalled();
+  });
+
   it("applies timeoutSeconds to manual cron.run isolated executions", async () => {
     vi.useRealTimers();
     const store = await makeStorePath();
@@ -764,6 +818,45 @@ describe("Cron issue regressions", () => {
     expect(updated?.state.runningAtMs).toBeUndefined();
 
     cron.stop();
+  });
+
+  it("applies timeoutSeconds to startup catch-up isolated executions", async () => {
+    vi.useRealTimers();
+    const store = await makeStorePath();
+    const scheduledAt = Date.parse("2026-02-15T13:00:00.000Z");
+    const cronJob = createIsolatedRegressionJob({
+      id: "startup-timeout",
+      name: "startup timeout",
+      scheduledAt,
+      schedule: { kind: "at", at: new Date(scheduledAt).toISOString() },
+      payload: { kind: "agentTurn", message: "work", timeoutSeconds: 0.01 },
+      state: { nextRunAtMs: scheduledAt },
+    });
+    await writeCronJobs(store.storePath, [cronJob]);
+
+    let now = scheduledAt;
+    const abortAwareRunner = createAbortAwareIsolatedRunner();
+    const state = createCronServiceState({
+      cronEnabled: true,
+      storePath: store.storePath,
+      log: noopLogger,
+      nowMs: () => now,
+      enqueueSystemEvent: vi.fn(),
+      requestHeartbeatNow: vi.fn(),
+      runIsolatedAgentJob: vi.fn(async (params) => {
+        const result = await abortAwareRunner.runIsolatedAgentJob(params);
+        now += 5;
+        return result;
+      }),
+    });
+
+    await runMissedJobs(state);
+
+    expect(abortAwareRunner.getObservedAbortSignal()).toBeDefined();
+    expect(abortAwareRunner.getObservedAbortSignal()?.aborted).toBe(true);
+    const job = state.store?.jobs.find((entry) => entry.id === "startup-timeout");
+    expect(job?.state.lastStatus).toBe("error");
+    expect(job?.state.lastError).toContain("timed out");
   });
 
   it("retries cron schedule computation from the next second when the first attempt returns undefined (#17821)", () => {

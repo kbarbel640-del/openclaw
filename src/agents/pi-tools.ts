@@ -106,6 +106,7 @@ function resolveExecConfig(params: { cfg?: OpenClawConfig; agentId?: string }) {
     node: agentExec?.node ?? globalExec?.node,
     pathPrepend: agentExec?.pathPrepend ?? globalExec?.pathPrepend,
     safeBins: agentExec?.safeBins ?? globalExec?.safeBins,
+    safeBinTrustedDirs: agentExec?.safeBinTrustedDirs ?? globalExec?.safeBinTrustedDirs,
     safeBinProfiles: resolveMergedSafeBinProfileFixtures({
       global: globalExec,
       local: agentExec,
@@ -168,6 +169,7 @@ export const __testing = {
 } as const;
 
 export function createOpenClawCodingTools(options?: {
+  agentId?: string;
   exec?: ExecToolDefaults & ProcessToolDefaults;
   messageProvider?: string;
   agentAccountId?: string;
@@ -237,6 +239,7 @@ export function createOpenClawCodingTools(options?: {
   } = resolveEffectiveToolPolicy({
     config: options?.config,
     sessionKey: options?.sessionKey,
+    agentId: options?.agentId,
     modelProvider: options?.modelProvider,
     modelId: options?.modelId,
   });
@@ -373,6 +376,7 @@ export function createOpenClawCodingTools(options?: {
     node: options?.exec?.node ?? execConfig.node,
     pathPrepend: options?.exec?.pathPrepend ?? execConfig.pathPrepend,
     safeBins: options?.exec?.safeBins ?? execConfig.safeBins,
+    safeBinTrustedDirs: options?.exec?.safeBinTrustedDirs ?? execConfig.safeBinTrustedDirs,
     safeBinProfiles: options?.exec?.safeBinProfiles ?? execConfig.safeBinProfiles,
     agentId,
     cwd: workspaceRoot,
