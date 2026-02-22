@@ -93,7 +93,7 @@ export class FeishuStreamingSession {
 
     const apiBase = resolveApiBase(this.creds.domain);
     const elements: Record<string, unknown>[] = [
-      { tag: "markdown", content: "⏳ Thinking...", element_id: "content" },
+      { tag: "markdown", content: "⏳ Thinking...", element_id: "main_content" },
     ];
     if (options?.note) {
       elements.push({ tag: "hr" });
@@ -174,7 +174,7 @@ export class FeishuStreamingSession {
       this.state.currentText = text;
       this.state.sequence += 1;
       const apiBase = resolveApiBase(this.creds.domain);
-      await fetch(`${apiBase}/cardkit/v1/cards/${this.state.cardId}/elements/content/content`, {
+      await fetch(`${apiBase}/cardkit/v1/cards/${this.state.cardId}/elements/main_content/content`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${await getToken(this.creds)}`,
@@ -204,7 +204,7 @@ export class FeishuStreamingSession {
     // Only send final update if content differs from what's already displayed
     if (text && text !== this.state.currentText) {
       this.state.sequence += 1;
-      await fetch(`${apiBase}/cardkit/v1/cards/${this.state.cardId}/elements/content/content`, {
+      await fetch(`${apiBase}/cardkit/v1/cards/${this.state.cardId}/elements/main_content/content`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${await getToken(this.creds)}`,
