@@ -226,9 +226,9 @@ OpenClaw only auto-discovers models that report tool support. If your model isn'
 To add models:
 
 ```bash
-ollama list  # See what's installed
-ollama pull gpt-oss:20b  # Pull a tool-capable model
-ollama pull llama3.3     # Or another model
+ollama list                # See what's installed
+ollama pull gpt-oss:20b   # Pull a tool-capable model
+ollama pull llama3.3      # Or another model
 ```
 
 ### Connection refused
@@ -242,12 +242,6 @@ ps aux | grep ollama
 # Or restart Ollama
 ollama serve
 ```
-
-## See Also
-
-- [Model Providers](/concepts/model-providers) - Overview of all providers
-- [Model Selection](/concepts/models) - How to choose models
-- [Configuration](/gateway/configuration) - Full config reference
 
 ### VPS / remote Ollama: connection refused (ECONNREFUSED)
 
@@ -317,3 +311,8 @@ openclaw config get agents.defaults.model.primary
 # Should print: ollama/llama3.2:3b (or whichever model you pulled)
 ```
 
+## See Also
+
+- [Model Providers](/concepts/model-providers) - Overview of all providers
+- [Model Selection](/concepts/models) - How to choose models
+- [Configuration](/gateway/configuration) - Full config reference
