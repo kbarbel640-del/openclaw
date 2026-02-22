@@ -35,15 +35,11 @@ type ResizeCacheEntry = { base64: string; mimeType: string; width?: number; heig
 const resizeCache = new Map<string, ResizeCacheEntry>();
 
 function resizeCacheKey(base64: string, maxDimensionPx: number, maxBytes: number): string {
-  // Hash a prefix + length as a fast fingerprint (avoids hashing multi-MB strings fully).
-  const prefix = base64.slice(0, 2048);
-  return createHash("sha256")
-    .update(`${prefix}\0${base64.length}\0${maxDimensionPx}\0${maxBytes}`)
-    .digest("hex");
+  return createHash("sha256").update(`${base64}\0${maxDimensionPx}\0${maxBytes}`).digest("hex");
 }
 
 function evictResizeCacheIfNeeded(): void {
-  if (resizeCache.size <= RESIZE_CACHE_MAX) {
+  if (resizeCache.size < RESIZE_CACHE_MAX) {
     return;
   }
   // Delete oldest entry (first key in insertion order).
