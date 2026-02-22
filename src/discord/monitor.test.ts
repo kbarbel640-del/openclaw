@@ -82,40 +82,34 @@ describe("DiscordMessageListener", () => {
     };
   }
 
-  async function expectPending(promise: Promise<unknown>) {
-    let resolved = false;
-    void promise.then(() => {
-      resolved = true;
-    });
-    await Promise.resolve();
-    expect(resolved).toBe(false);
+  // Flush microtasks so fire-and-forget background work can settle.
+  async function flushMicrotasks(ticks = 10) {
+    for (let i = 0; i < ticks; i++) {
+      await Promise.resolve();
+    }
   }
 
-  it("awaits the handler before returning", async () => {
-    let handlerResolved = false;
+  it("does not block the event queue while handler runs", async () => {
     const deferred = createDeferred();
+    let handlerStarted = false;
     const handler = vi.fn(async () => {
+      handlerStarted = true;
       await deferred.promise;
-      handlerResolved = true;
     });
     const listener = new DiscordMessageListener(handler);
 
-    const handlePromise = listener.handle(
+    // handle() should return immediately (fire-and-forget)
+    await listener.handle(
       {} as unknown as import("./monitor/listeners.js").DiscordMessageEvent,
       {} as unknown as import("@buape/carbon").Client,
     );
 
-    // Handler should be called but not yet resolved
+    // Handler was invoked but handle() already returned
     expect(handler).toHaveBeenCalledOnce();
-    expect(handlerResolved).toBe(false);
-    await expectPending(handlePromise);
+    expect(handlerStarted).toBe(true);
 
-    // Release the handler
     deferred.resolve();
-
-    // Now await handle() - it should complete only after handler resolves
-    await handlePromise;
-    expect(handlerResolved).toBe(true);
+    await flushMicrotasks();
   });
 
   it("logs handler failures", async () => {
@@ -132,7 +126,8 @@ describe("DiscordMessageListener", () => {
       {} as unknown as import("./monitor/listeners.js").DiscordMessageEvent,
       {} as unknown as import("@buape/carbon").Client,
     );
-    await Promise.resolve();
+    // Wait for background error handler to run
+    await flushMicrotasks();
 
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("discord handler failed"));
   });
@@ -150,21 +145,18 @@ describe("DiscordMessageListener", () => {
       } as unknown as ReturnType<typeof import("../logging/subsystem.js").createSubsystemLogger>;
       const listener = new DiscordMessageListener(handler, logger);
 
-      // Start handle() but don't await yet
-      const handlePromise = listener.handle(
+      // handle() returns immediately (fire-and-forget)
+      await listener.handle(
         {} as unknown as import("./monitor/listeners.js").DiscordMessageEvent,
         {} as unknown as import("@buape/carbon").Client,
       );
-      await expectPending(handlePromise);
 
       // Advance time past the slow listener threshold
       vi.setSystemTime(31_000);
 
-      // Release the handler
+      // Release the handler so background work completes
       deferred.resolve();
-
-      // Now await handle() - it should complete and log the slow listener
-      await handlePromise;
+      await flushMicrotasks();
 
       expect(logger.warn).toHaveBeenCalled();
       const warnMock = logger.warn as unknown as { mock: { calls: unknown[][] } };

@@ -111,7 +111,11 @@ export class DiscordMessageListener extends MessageCreateListener {
   }
 
   async handle(data: DiscordMessageEvent, client: Client) {
-    await runDiscordListenerWithSlowLog({
+    // Fire-and-forget: do not block the Discord gateway event queue.
+    // Message processing (including LLM calls) runs in the background
+    // so that subsequent gateway events are handled without delay.
+    // See: https://github.com/openclaw/openclaw/issues/9238
+    void runDiscordListenerWithSlowLog({
       logger: this.logger,
       listener: this.constructor.name,
       event: this.type,
@@ -120,7 +124,7 @@ export class DiscordMessageListener extends MessageCreateListener {
         const logger = this.logger ?? discordEventQueueLog;
         logger.error(danger(`discord handler failed: ${String(err)}`));
       },
-    });
+    }).catch(() => {});
   }
 }
 
