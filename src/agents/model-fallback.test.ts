@@ -609,4 +609,240 @@ describe("runWithModelFallback", () => {
     expect(result.provider).toBe("openai");
     expect(result.model).toBe("gpt-4.1-mini");
   });
+
+  // Tests for Bug A fix: Model fallback with session overrides
+  describe("fallback behavior with session model overrides", () => {
+    it("allows fallbacks when session model differs from config within same provider", async () => {
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-opus-4-6",
+              fallbacks: ["anthropic/claude-sonnet-4-5", "google/gemini-2.5-flash"],
+            },
+          },
+        },
+      });
+
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Rate limit exceeded")) // Session model fails
+        .mockResolvedValueOnce("fallback success"); // First fallback succeeds
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic",
+        model: "claude-sonnet-4-20250514", // Different from config primary
+        run,
+      });
+
+      expect(result.result).toBe("fallback success");
+      expect(run).toHaveBeenCalledTimes(2);
+      expect(run).toHaveBeenNthCalledWith(1, "anthropic", "claude-sonnet-4-20250514");
+      expect(run).toHaveBeenNthCalledWith(2, "anthropic", "claude-sonnet-4-5"); // Fallback tried
+    });
+
+    it("allows fallbacks with model version differences within same provider", async () => {
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-opus-4-6",
+              fallbacks: ["groq/llama-3.3-70b-versatile"],
+            },
+          },
+        },
+      });
+
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Weekly quota exceeded"))
+        .mockResolvedValueOnce("groq success");
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic", 
+        model: "claude-opus-4-5", // Version difference from config
+        run,
+      });
+
+      expect(result.result).toBe("groq success");
+      expect(run).toHaveBeenCalledTimes(2);
+      expect(run).toHaveBeenNthCalledWith(2, "groq", "llama-3.3-70b-versatile");
+    });
+
+    it("still skips fallbacks when using different provider than config", async () => {
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-opus-4-6", 
+              fallbacks: ["groq/llama-3.3-70b-versatile"],
+            },
+          },
+        },
+      });
+
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("OpenAI error"))
+        .mockResolvedValueOnce("should not reach fallback");
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "openai", // Different provider
+        model: "gpt-4.1-mini",
+        run,
+      });
+
+      // Should go straight to config primary, not try fallbacks
+      expect(result.result).toBe("should not reach fallback");
+      expect(run).toHaveBeenCalledTimes(2);
+      expect(run).toHaveBeenNthCalledWith(2, "anthropic", "claude-opus-4-6"); // Config primary
+    });
+
+    it("uses fallbacks when session model exactly matches config primary", async () => {
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-opus-4-6",
+              fallbacks: ["groq/llama-3.3-70b-versatile"],
+            },
+          },
+        },
+      });
+
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Quota exceeded"))
+        .mockResolvedValueOnce("fallback worked");
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic",
+        model: "claude-opus-4-6", // Exact match
+        run,
+      });
+
+      expect(result.result).toBe("fallback worked");
+      expect(run).toHaveBeenCalledTimes(2); 
+      expect(run).toHaveBeenNthCalledWith(2, "groq", "llama-3.3-70b-versatile");
+    });
+  });
+
+  // Tests for Bug B fix: Fallback with provider-level cooldowns
+  describe("fallback behavior with provider cooldowns", () => {
+    async function makeAuthStoreWithCooldown(provider: string): Promise<{ store: AuthProfileStore; dir: string }> {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-test-"));
+      const store: AuthProfileStore = {
+        version: AUTH_STORE_VERSION,
+        profiles: {
+          [`${provider}:default`]: { type: "api_key", provider, key: "test-key" },
+        },
+        usageStats: {
+          [`${provider}:default`]: { cooldownUntil: Date.now() + 300000 }, // 5 min cooldown
+        },
+      };
+      await saveAuthProfileStore(tmpDir, store);
+      return { store, dir: tmpDir };
+    }
+
+    it("attempts fallback models from same provider even during cooldown", async () => {
+      const { dir } = await makeAuthStoreWithCooldown("anthropic");
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-opus-4-6",
+              fallbacks: ["anthropic/claude-sonnet-4-5", "groq/llama-3.3-70b-versatile"],
+            },
+          },
+        },
+      });
+
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Rate limit exceeded")) // Primary fails
+        .mockResolvedValueOnce("sonnet success"); // Same-provider fallback should work
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic",
+        model: "claude-opus-4-6",
+        run,
+        agentDir: dir,
+      });
+
+      expect(result.result).toBe("sonnet success");
+      expect(run).toHaveBeenCalledTimes(2);
+      expect(run).toHaveBeenNthCalledWith(1, "anthropic", "claude-opus-4-6");
+      expect(run).toHaveBeenNthCalledWith(2, "anthropic", "claude-sonnet-4-5"); // Should attempt despite cooldown
+    });
+
+    it("attempts different providers when same provider is in cooldown", async () => {
+      const { dir } = await makeAuthStoreWithCooldown("anthropic");
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-opus-4-6",
+              fallbacks: ["anthropic/claude-sonnet-4-5", "groq/llama-3.3-70b-versatile"],
+            },
+          },
+        },
+      });
+
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Rate limit")) // Primary fails
+        .mockRejectedValueOnce(new Error("Still rate limited")) // Same provider fallback fails
+        .mockResolvedValueOnce("groq success"); // Different provider works
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic", 
+        model: "claude-opus-4-6",
+        run,
+        agentDir: dir,
+      });
+
+      expect(result.result).toBe("groq success");
+      expect(run).toHaveBeenCalledTimes(3);
+      expect(run).toHaveBeenNthCalledWith(3, "groq", "llama-3.3-70b-versatile");
+    });
+
+    it("reproduces GitHub issue #19249 scenario", async () => {
+      const { dir } = await makeAuthStoreWithCooldown("anthropic");
+      // Reproducing the exact config from GitHub issue
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-sonnet-4-5-20250929",
+              fallbacks: ["openrouter/deepseek/deepseek-v3.2", "openrouter/moonshotai/kimi-k2.5"],
+            },
+          },
+        },
+      });
+
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Rate limit exceeded"))
+        .mockResolvedValueOnce("openrouter fallback works");
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic",
+        model: "claude-sonnet-4-5-20250929", // Exact match with primary
+        run,
+        agentDir: dir,
+      });
+
+      expect(result.result).toBe("openrouter fallback works");
+      expect(run).toHaveBeenCalledTimes(2);
+      expect(run).toHaveBeenNthCalledWith(1, "anthropic", "claude-sonnet-4-5-20250929");
+      expect(run).toHaveBeenNthCalledWith(2, "openrouter", "deepseek/deepseek-v3.2");
+    });
+  });
 });
