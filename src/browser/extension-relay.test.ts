@@ -197,6 +197,45 @@ describe("chrome extension relay server", () => {
     expect(err.message).toContain("401");
   });
 
+  it("accepts extension CORS preflight on /json/version without auth token", async () => {
+    const port = await getFreePort();
+    cdpUrl = `http://127.0.0.1:${port}`;
+    await ensureChromeExtensionRelayServer({ cdpUrl });
+
+    const origin = "chrome-extension://test-extension-id";
+    const res = await fetch(`${cdpUrl}/json/version`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: origin,
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "x-openclaw-relay-token",
+      },
+    });
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe(origin);
+    expect(String(res.headers.get("access-control-allow-methods"))).toContain("GET");
+    expect(String(res.headers.get("access-control-allow-headers")).toLowerCase()).toContain(
+      "x-openclaw-relay-token",
+    );
+  });
+
+  it("returns CORS headers on unauthorized /json responses for extension origins", async () => {
+    const port = await getFreePort();
+    cdpUrl = `http://127.0.0.1:${port}`;
+    await ensureChromeExtensionRelayServer({ cdpUrl });
+
+    const origin = "chrome-extension://test-extension-id";
+    const res = await fetch(`${cdpUrl}/json/version`, {
+      headers: {
+        Origin: origin,
+      },
+    });
+
+    expect(res.status).toBe(401);
+    expect(res.headers.get("access-control-allow-origin")).toBe(origin);
+  });
+
   it("rejects extension websocket access without relay auth token", async () => {
     const port = await getFreePort();
     cdpUrl = `http://127.0.0.1:${port}`;

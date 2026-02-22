@@ -1,4 +1,4 @@
-import type { IncomingMessage } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
@@ -81,6 +81,8 @@ type ConnectedTarget = {
 };
 
 const RELAY_AUTH_HEADER = "x-openclaw-relay-token";
+const RELAY_CORS_METHODS = "GET, PUT, HEAD, OPTIONS";
+const RELAY_EXTENSION_ORIGIN_PREFIXES = ["chrome-extension://", "moz-extension://"];
 
 function headerValue(value: string | string[] | undefined): string | undefined {
   if (!value) {
@@ -106,6 +108,43 @@ function getRelayAuthTokenFromRequest(req: IncomingMessage, url?: URL): string |
     return queryToken;
   }
   return undefined;
+}
+
+function isAllowedRelayCorsOrigin(origin: string | undefined): boolean {
+  if (!origin) {
+    return false;
+  }
+  return RELAY_EXTENSION_ORIGIN_PREFIXES.some((prefix) => origin.startsWith(prefix));
+}
+
+function resolveRelayCorsHeaders(req: IncomingMessage): Record<string, string> {
+  const origin = getHeader(req, "origin")?.trim();
+  if (!isAllowedRelayCorsOrigin(origin)) {
+    return {};
+  }
+
+  const requestedHeaders = getHeader(req, "access-control-request-headers")?.trim();
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": RELAY_CORS_METHODS,
+    "Access-Control-Allow-Headers": requestedHeaders || `${RELAY_AUTH_HEADER}, content-type`,
+    Vary: "Origin, Access-Control-Request-Headers",
+  };
+}
+
+function writeHeadWithCors(
+  res: ServerResponse,
+  statusCode: number,
+  corsHeaders: Record<string, string>,
+  headers?: Record<string, string>,
+) {
+  const merged =
+    headers && Object.keys(headers).length > 0 ? { ...corsHeaders, ...headers } : corsHeaders;
+  if (Object.keys(merged).length === 0) {
+    res.writeHead(statusCode);
+    return;
+  }
+  res.writeHead(statusCode, merged);
 }
 
 export type ChromeExtensionRelayServer = {
@@ -363,30 +402,39 @@ export async function ensureChromeExtensionRelayServer(opts: {
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", info.baseUrl);
     const path = url.pathname;
+    const corsHeaders = resolveRelayCorsHeaders(req);
+
+    if (req.method === "OPTIONS") {
+      if (path === "/" || path === "/extension/status" || path.startsWith("/json")) {
+        writeHeadWithCors(res, 204, corsHeaders);
+        res.end();
+        return;
+      }
+    }
 
     if (path.startsWith("/json")) {
       const token = getHeader(req, RELAY_AUTH_HEADER);
       if (!token || token !== relayAuthToken) {
-        res.writeHead(401);
+        writeHeadWithCors(res, 401, corsHeaders);
         res.end("Unauthorized");
         return;
       }
     }
 
     if (req.method === "HEAD" && path === "/") {
-      res.writeHead(200);
+      writeHeadWithCors(res, 200, corsHeaders);
       res.end();
       return;
     }
 
     if (path === "/") {
-      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      writeHeadWithCors(res, 200, corsHeaders, { "Content-Type": "text/plain; charset=utf-8" });
       res.end("OK");
       return;
     }
 
     if (path === "/extension/status") {
-      res.writeHead(200, { "Content-Type": "application/json" });
+      writeHeadWithCors(res, 200, corsHeaders, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ connected: extensionConnected() }));
       return;
     }
@@ -407,7 +455,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
       if (extensionConnected()) {
         payload.webSocketDebuggerUrl = cdpWsUrl;
       }
-      res.writeHead(200, { "Content-Type": "application/json" });
+      writeHeadWithCors(res, 200, corsHeaders, { "Content-Type": "application/json" });
       res.end(JSON.stringify(payload));
       return;
     }
@@ -423,7 +471,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
         webSocketDebuggerUrl: cdpWsUrl,
         devtoolsFrontendUrl: `/devtools/inspector.html?ws=${cdpWsUrl.replace("ws://", "")}`,
       }));
-      res.writeHead(200, { "Content-Type": "application/json" });
+      writeHeadWithCors(res, 200, corsHeaders, { "Content-Type": "application/json" });
       res.end(JSON.stringify(list));
       return;
     }
@@ -432,7 +480,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
     if (activateMatch && (req.method === "GET" || req.method === "PUT")) {
       const targetId = decodeURIComponent(activateMatch[1] ?? "").trim();
       if (!targetId) {
-        res.writeHead(400);
+        writeHeadWithCors(res, 400, corsHeaders);
         res.end("targetId required");
         return;
       }
@@ -447,7 +495,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
           // ignore
         }
       })();
-      res.writeHead(200);
+      writeHeadWithCors(res, 200, corsHeaders);
       res.end("OK");
       return;
     }
@@ -456,7 +504,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
     if (closeMatch && (req.method === "GET" || req.method === "PUT")) {
       const targetId = decodeURIComponent(closeMatch[1] ?? "").trim();
       if (!targetId) {
-        res.writeHead(400);
+        writeHeadWithCors(res, 400, corsHeaders);
         res.end("targetId required");
         return;
       }
@@ -471,12 +519,12 @@ export async function ensureChromeExtensionRelayServer(opts: {
           // ignore
         }
       })();
-      res.writeHead(200);
+      writeHeadWithCors(res, 200, corsHeaders);
       res.end("OK");
       return;
     }
 
-    res.writeHead(404);
+    writeHeadWithCors(res, 404, corsHeaders);
     res.end("not found");
   });
 
