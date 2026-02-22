@@ -613,13 +613,15 @@ export async function registerSlackMonitorSlashCommands(params: {
       const storePath = resolveStorePath(cfg.session?.store, {
         agentId: route.agentId,
       });
-      void recordSessionMetaFromInbound({
-        storePath,
-        sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
-        ctx: ctxPayload,
-      }).catch((err) => {
+      try {
+        await recordSessionMetaFromInbound({
+          storePath,
+          sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
+          ctx: ctxPayload,
+        });
+      } catch (err) {
         runtime.error?.(danger(`slack slash: failed updating session meta: ${String(err)}`));
-      });
+      }
 
       const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
         cfg,
