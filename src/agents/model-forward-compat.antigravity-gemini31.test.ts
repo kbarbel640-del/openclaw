@@ -1,10 +1,10 @@
-import type { Model } from "@mariozechner/pi-ai";
+import type { Api, Model } from "@mariozechner/pi-ai";
 import { describe, expect, it } from "vitest";
 import { resolveForwardCompatModel } from "./model-forward-compat.js";
 import type { ModelRegistry } from "./pi-model-discovery.js";
 
 function makeRegistry(): ModelRegistry {
-  const templates = new Map<string, Model>();
+  const templates = new Map<string, Model<Api>>();
   templates.set("google-antigravity/gemini-3-pro-high", {
     id: "gemini-3-pro-high",
     name: "Gemini 3 Pro High",
@@ -15,7 +15,7 @@ function makeRegistry(): ModelRegistry {
     contextWindow: 200000,
     maxTokens: 64000,
     reasoning: true,
-  } as Model);
+  } as Model<Api>);
   templates.set("google-antigravity/gemini-3-pro-low", {
     id: "gemini-3-pro-low",
     name: "Gemini 3 Pro Low",
@@ -26,7 +26,7 @@ function makeRegistry(): ModelRegistry {
     contextWindow: 200000,
     maxTokens: 64000,
     reasoning: true,
-  } as Model);
+  } as Model<Api>);
 
   const registry = {
     find: (provider: string, modelId: string) => templates.get(`${provider}/${modelId}`) ?? null,
