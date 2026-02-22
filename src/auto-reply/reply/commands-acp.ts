@@ -836,10 +836,7 @@ async function handleAcpSpawnAction(
     const upserted = await upsertAcpSessionMeta({
       sessionKey,
       cfg: params.cfg,
-      mutate: (_current, entry) => {
-        if (!entry) {
-          return undefined;
-        }
+      mutate: (_current) => {
         return {
           backend: handle.backend,
           agent: spawn.agentId,

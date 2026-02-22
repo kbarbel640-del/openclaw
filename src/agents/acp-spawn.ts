@@ -381,10 +381,7 @@ export async function spawnAcpDirect(
     const upserted = await upsertAcpSessionMeta({
       sessionKey,
       cfg,
-      mutate: (_current, entry) => {
-        if (!entry) {
-          return undefined;
-        }
+      mutate: (_current) => {
         // Runtime session handles are initialized lazily by dispatch in the
         // gateway process and replaced with concrete backend/runtime values.
         return {
@@ -418,10 +415,12 @@ export async function spawnAcpDirect(
     to: ctx.agentTo,
     threadId: ctx.agentThreadId,
   });
-  const hasDeliveryTarget = Boolean(requesterOrigin?.channel && requesterOrigin?.to);
   const deliveryThreadIdRaw = binding?.threadId ?? requesterOrigin?.threadId;
   const deliveryThreadId =
     deliveryThreadIdRaw != null ? String(deliveryThreadIdRaw).trim() || undefined : undefined;
+  const inferredDeliveryTo =
+    requesterOrigin?.to?.trim() || (deliveryThreadId ? `channel:${deliveryThreadId}` : undefined);
+  const hasDeliveryTarget = Boolean(requesterOrigin?.channel && inferredDeliveryTo);
   const childIdem = crypto.randomUUID();
   let childRunId: string = childIdem;
   try {
@@ -431,7 +430,7 @@ export async function spawnAcpDirect(
         message: params.task,
         sessionKey,
         channel: hasDeliveryTarget ? requesterOrigin?.channel : undefined,
-        to: hasDeliveryTarget ? (requesterOrigin?.to ?? undefined) : undefined,
+        to: hasDeliveryTarget ? inferredDeliveryTo : undefined,
         accountId: hasDeliveryTarget ? (requesterOrigin?.accountId ?? undefined) : undefined,
         threadId: hasDeliveryTarget ? deliveryThreadId : undefined,
         idempotencyKey: childIdem,

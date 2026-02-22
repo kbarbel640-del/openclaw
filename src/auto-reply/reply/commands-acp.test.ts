@@ -234,6 +234,22 @@ describe("/acp command", () => {
       }),
     );
     expect(hoisted.upsertAcpSessionMetaMock).toHaveBeenCalled();
+    const upsertArgs = hoisted.upsertAcpSessionMetaMock.mock.calls[0]?.[0] as
+      | {
+          sessionKey: string;
+          mutate: (
+            current: unknown,
+            entry: { sessionId: string; updatedAt: number } | undefined,
+          ) => {
+            backend?: string;
+            runtimeSessionName?: string;
+          };
+        }
+      | undefined;
+    expect(upsertArgs?.sessionKey).toMatch(/^agent:codex:acp:/);
+    const seededWithoutEntry = upsertArgs?.mutate(undefined, undefined);
+    expect(seededWithoutEntry?.backend).toBe("acpx");
+    expect(seededWithoutEntry?.runtimeSessionName).toContain(":runtime");
   });
 
   it("rejects thread-bound ACP spawn when spawnAcpSessions is disabled", async () => {

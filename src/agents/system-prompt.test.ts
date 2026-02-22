@@ -238,6 +238,19 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("sessions_send");
   });
 
+  it("documents ACP sessions_spawn agent targeting requirements", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      toolNames: ["sessions_spawn"],
+    });
+
+    expect(prompt).toContain("sessions_spawn");
+    expect(prompt).toContain(
+      'runtime="acp" requires `agentId` unless `acp.defaultAgent` is configured',
+    );
+    expect(prompt).toContain("not agents_list");
+  });
+
   it("preserves tool casing in the prompt", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",

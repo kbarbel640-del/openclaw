@@ -217,6 +217,14 @@ describe("spawnAcpDirect", () => {
       | undefined;
     expect(seededMeta?.backend).toBe("acpx");
     expect(seededMeta?.runtimeSessionName).toBe(upsertArgs?.sessionKey);
+    const seededWithoutEntry = upsertArgs?.mutate(undefined, undefined as never) as
+      | {
+          backend?: string;
+          runtimeSessionName?: string;
+        }
+      | undefined;
+    expect(seededWithoutEntry?.backend).toBe("acpx");
+    expect(seededWithoutEntry?.runtimeSessionName).toBe(upsertArgs?.sessionKey);
   });
 
   it("rejects disallowed ACP agents", async () => {
