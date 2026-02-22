@@ -129,6 +129,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       }),
     );
   const statusReactionsEnabled = shouldAckReaction();
+  const statusReactionTiming = {
+    ...DEFAULT_TIMING,
+    ...cfg.messages?.statusReactions?.timing,
+  };
   const discordAdapter: StatusReactionAdapter = {
     setReaction: async (emoji) => {
       await reactMessageDiscord(messageChannelId, message.id, emoji, {
@@ -145,6 +149,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     enabled: statusReactionsEnabled,
     adapter: discordAdapter,
     initialEmoji: ackReaction,
+    timing: statusReactionTiming,
     onError: (err) => {
       logAckFailure({
         log: logVerbose,
@@ -716,7 +721,9 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       }
       if (removeAckAfterReply) {
         void (async () => {
-          await sleep(dispatchError ? DEFAULT_TIMING.errorHoldMs : DEFAULT_TIMING.doneHoldMs);
+          await sleep(
+            dispatchError ? statusReactionTiming.errorHoldMs : statusReactionTiming.doneHoldMs,
+          );
           await statusReactions.clear();
         })();
       } else {

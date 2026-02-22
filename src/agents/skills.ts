@@ -24,6 +24,10 @@ export type {
   SkillsInstallPreferences,
 } from "./skills/types.js";
 export {
+  resolveAutoInvokedSkillNames,
+  resolveAutoInvokeSkillFilter,
+} from "./skills/auto-invoke.js";
+export {
   buildWorkspaceSkillSnapshot,
   buildWorkspaceSkillsPrompt,
   buildWorkspaceSkillCommandSpecs,

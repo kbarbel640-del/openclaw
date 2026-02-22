@@ -62,7 +62,8 @@ describe("transcribeDeepgramAudio", () => {
     expect(headers.get("authorization")).toBe("Token test-key");
     expect(headers.get("x-custom")).toBe("1");
     expect(headers.get("content-type")).toBe("audio/wav");
-    expect(seenInit?.body).toBeInstanceOf(Uint8Array);
+    expect(seenInit?.body).toBeInstanceOf(Buffer);
+    expect(seenInit?.body).toEqual(Buffer.from("audio-bytes"));
   });
 
   it("throws when the provider response omits transcript", async () => {

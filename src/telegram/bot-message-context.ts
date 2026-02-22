@@ -25,6 +25,7 @@ import { resolveMentionGatingWithBypass } from "../channels/mention-gating.js";
 import { recordInboundSession } from "../channels/session.js";
 import {
   createStatusReactionController,
+  DEFAULT_TIMING,
   type StatusReactionController,
 } from "../channels/status-reactions.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -538,6 +539,10 @@ export const buildTelegramMessageContext = async ({
 
   // Status Reactions controller (lifecycle reactions)
   const statusReactionsConfig = cfg.messages?.statusReactions;
+  const statusReactionTiming = {
+    ...DEFAULT_TIMING,
+    ...statusReactionsConfig?.timing,
+  };
   const statusReactionsEnabled =
     statusReactionsConfig?.enabled === true && Boolean(reactionApi) && shouldAckReaction();
   const resolvedStatusReactionEmojis = resolveTelegramStatusReactionEmojis({
@@ -585,7 +590,7 @@ export const buildTelegramMessageContext = async ({
           },
           initialEmoji: ackReaction,
           emojis: resolvedStatusReactionEmojis,
-          timing: statusReactionsConfig?.timing,
+          timing: statusReactionTiming,
           onError: (err) => {
             logVerbose(`telegram status-reaction error for chat ${chatId}: ${String(err)}`);
           },
@@ -834,6 +839,7 @@ export const buildTelegramMessageContext = async ({
     reactionApi,
     removeAckAfterReply,
     statusReactionController,
+    statusReactionDoneHoldMs: statusReactionTiming.doneHoldMs,
     accountId: account.accountId,
   };
 };
