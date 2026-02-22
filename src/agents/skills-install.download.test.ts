@@ -58,8 +58,10 @@ const TAR_GZ_TRAVERSAL_BUFFER = Buffer.from(
 );
 
 function mockArchiveResponse(buffer: Uint8Array): void {
+  const bytes = Uint8Array.from(buffer);
+  const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   fetchWithSsrFGuardMock.mockResolvedValue({
-    response: new Response(new Blob([buffer]), { status: 200 }),
+    response: new Response(new Blob([arrayBuffer]), { status: 200 }),
     release: async () => undefined,
   });
 }

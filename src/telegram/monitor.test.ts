@@ -23,9 +23,14 @@ const api = {
   setWebhook: vi.fn(),
   deleteWebhook: vi.fn(),
 };
+type RunnerHandle = {
+  task: () => Promise<void>;
+  stop: ReturnType<typeof vi.fn>;
+  isRunning: () => boolean;
+};
 const { initSpy, runSpy, loadConfig } = vi.hoisted(() => ({
   initSpy: vi.fn(async () => undefined),
-  runSpy: vi.fn(() => ({
+  runSpy: vi.fn<() => RunnerHandle>(() => ({
     task: () => Promise.resolve(),
     stop: vi.fn(),
     isRunning: () => false,
@@ -214,10 +219,12 @@ describe("monitorTelegramProvider (grammY)", () => {
       .mockImplementationOnce(() => ({
         task: () => Promise.reject(networkError),
         stop: vi.fn(),
+        isRunning: () => false,
       }))
       .mockImplementationOnce(() => ({
         task: () => Promise.resolve(),
         stop: vi.fn(),
+        isRunning: () => false,
       }));
 
     await monitorTelegramProvider({ token: "tok" });
@@ -331,6 +338,7 @@ describe("monitorTelegramProvider (grammY)", () => {
     runSpy.mockImplementationOnce(() => ({
       task: () => Promise.reject(new Error("bad token")),
       stop: vi.fn(),
+      isRunning: () => false,
     }));
 
     await expect(monitorTelegramProvider({ token: "tok" })).rejects.toThrow("bad token");

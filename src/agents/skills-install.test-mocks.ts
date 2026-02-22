@@ -1,9 +1,9 @@
-import { vi } from "vitest";
+import { vi, type Mock } from "vitest";
 
-export const runCommandWithTimeoutMock = vi.fn();
-export const scanDirectoryWithSummaryMock = vi.fn();
-export const fetchWithSsrFGuardMock = vi.fn();
-export const hasBinaryMock = vi.fn();
+export const runCommandWithTimeoutMock: Mock = vi.fn();
+export const scanDirectoryWithSummaryMock: Mock = vi.fn();
+export const fetchWithSsrFGuardMock: Mock = vi.fn();
+export const hasBinaryMock: Mock = vi.fn();
 
 export function runCommandWithTimeoutFromMock(...args: unknown[]) {
   return runCommandWithTimeoutMock(...args);
