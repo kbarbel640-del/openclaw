@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { SessionEntry } from "../config/sessions.js";
+import { maskApiKey } from "../utils/mask-api-key.js";
 import {
   ensureAuthProfileStore,
   resolveAuthProfileDisplayLabel,
@@ -8,15 +9,17 @@ import {
 import { getCustomProviderApiKey, resolveEnvApiKey } from "./model-auth.js";
 import { normalizeProviderId } from "./model-selection.js";
 
+/**
+ * Format an API key for safe display.  Delegates to the shared
+ * {@link maskApiKey} utility so all user-facing key displays use the same
+ * prefix-only masking — see openclaw/openclaw#23976.
+ */
 function formatApiKeySnippet(apiKey: string): string {
   const compact = apiKey.replace(/\s+/g, "");
   if (!compact) {
     return "unknown";
   }
-  const edge = compact.length >= 12 ? 6 : 4;
-  const head = compact.slice(0, edge);
-  const tail = compact.slice(-edge);
-  return `${head}…${tail}`;
+  return maskApiKey(compact);
 }
 
 export function resolveModelAuthLabel(params: {
