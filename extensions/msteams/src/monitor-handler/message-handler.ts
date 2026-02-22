@@ -515,7 +515,6 @@ export function createMSTeamsMessageHandler(deps: MSTeamsMessageHandlerDeps) {
       adapter,
       appId,
       conversationRef,
-      context,
       replyStyle,
       textLimit,
       onSentMessageIds: (ids) => {
