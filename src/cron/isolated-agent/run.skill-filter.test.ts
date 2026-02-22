@@ -48,6 +48,7 @@ vi.mock("../../agents/model-selection.js", async (importOriginal) => {
 });
 
 vi.mock("../../agents/model-fallback.js", () => ({
+  createModelFallbackLogger: vi.fn().mockReturnValue(vi.fn()),
   runWithModelFallback: vi.fn().mockResolvedValue({
     result: {
       payloads: [{ text: "test output" }],
