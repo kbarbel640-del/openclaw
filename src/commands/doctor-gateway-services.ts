@@ -171,7 +171,7 @@ async function cleanupLegacyLinuxUserServices(
       env: process.env,
       stdout: process.stdout,
     });
-    const removedByLabel = new Map(
+    const removedByLabel: Map<string, (typeof removedUnits)[number]> = new Map(
       removedUnits.map((unit) => [`${unit.name}.service`, unit] as const),
     );
     for (const svc of services) {
