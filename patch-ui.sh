@@ -81,13 +81,18 @@ fi
 if [ -n "$PID" ]; then
   kill "$PID" 2>/dev/null || true
   sleep 2
-  echo "  Killed PID $PID"
+  echo "  Killed PID $PID. The service manager should restart it."
 else
-  # No PID found, try openclaw gateway restart
+  echo "  No process found on :18789. Using 'openclaw gateway restart'..."
   if command -v openclaw >/dev/null 2>&1; then
-    openclaw gateway restart 2>/dev/null || echo "  Gateway restart command failed"
+    if ! openclaw gateway restart; then
+      echo "  'openclaw gateway restart' failed. Attempting to start it..."
+      if ! openclaw gateway start; then
+        echo "  'openclaw gateway start' also failed. Please start the gateway manually."
+      fi
+    fi
   else
-    echo "  No gateway running on :18789 and no openclaw command available"
+    echo "  'openclaw' command not found. Cannot restart gateway."
   fi
 fi
 
