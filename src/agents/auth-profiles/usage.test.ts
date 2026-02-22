@@ -4,6 +4,7 @@ import {
   clearAuthProfileCooldown,
   clearExpiredCooldowns,
   isProfileInCooldown,
+  markAuthProfileFailure,
   resolveProfileUnusableUntil,
 } from "./usage.js";
 
@@ -25,6 +26,16 @@ function makeStore(usageStats: AuthProfileStore["usageStats"]): AuthProfileStore
     },
     usageStats,
   };
+}
+
+function expectProfileErrorStateCleared(
+  stats: NonNullable<AuthProfileStore["usageStats"]>[string] | undefined,
+) {
+  expect(stats?.cooldownUntil).toBeUndefined();
+  expect(stats?.disabledUntil).toBeUndefined();
+  expect(stats?.disabledReason).toBeUndefined();
+  expect(stats?.errorCount).toBe(0);
+  expect(stats?.failureCounts).toBeUndefined();
 }
 
 describe("resolveProfileUnusableUntil", () => {
@@ -201,11 +212,7 @@ describe("clearExpiredCooldowns", () => {
     expect(clearExpiredCooldowns(store)).toBe(true);
 
     const stats = store.usageStats?.["anthropic:default"];
-    expect(stats?.cooldownUntil).toBeUndefined();
-    expect(stats?.disabledUntil).toBeUndefined();
-    expect(stats?.disabledReason).toBeUndefined();
-    expect(stats?.errorCount).toBe(0);
-    expect(stats?.failureCounts).toBeUndefined();
+    expectProfileErrorStateCleared(stats);
   });
 
   it("processes multiple profiles independently", () => {
@@ -313,11 +320,7 @@ describe("clearAuthProfileCooldown", () => {
     await clearAuthProfileCooldown({ store, profileId: "anthropic:default" });
 
     const stats = store.usageStats?.["anthropic:default"];
-    expect(stats?.cooldownUntil).toBeUndefined();
-    expect(stats?.disabledUntil).toBeUndefined();
-    expect(stats?.disabledReason).toBeUndefined();
-    expect(stats?.errorCount).toBe(0);
-    expect(stats?.failureCounts).toBeUndefined();
+    expectProfileErrorStateCleared(stats);
   });
 
   it("preserves lastUsed and lastFailureAt timestamps", async () => {
@@ -343,5 +346,125 @@ describe("clearAuthProfileCooldown", () => {
     const store = makeStore(undefined);
     await clearAuthProfileCooldown({ store, profileId: "nonexistent" });
     expect(store.usageStats).toBeUndefined();
+  });
+});
+
+describe("markAuthProfileFailure — active windows do not extend on retry", () => {
+  // Regression for https://github.com/openclaw/openclaw/issues/23516
+  // When all providers are at saturation backoff (60 min) and retries fire every 30 min,
+  // each retry was resetting cooldownUntil to now+60m, preventing recovery.
+
+  it("keeps an active cooldownUntil unchanged on a mid-window retry", async () => {
+    const now = 1_000_000;
+    // Profile already has 50 min remaining on its cooldown
+    const existingCooldownUntil = now + 50 * 60 * 1000;
+    const store = makeStore({
+      "anthropic:default": {
+        cooldownUntil: existingCooldownUntil,
+        errorCount: 3, // already at saturation (60-min backoff)
+        lastFailureAt: now - 10 * 60 * 1000,
+      },
+    });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      await markAuthProfileFailure({
+        store,
+        profileId: "anthropic:default",
+        reason: "rate_limit",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const stats = store.usageStats?.["anthropic:default"];
+    expect(stats?.cooldownUntil).toBe(existingCooldownUntil);
+  });
+
+  it("recomputes cooldownUntil when the previous window already expired", async () => {
+    const now = 1_000_000;
+    const expiredCooldownUntil = now - 60_000;
+    const store = makeStore({
+      "anthropic:default": {
+        cooldownUntil: expiredCooldownUntil,
+        errorCount: 3, // saturated 60-min backoff
+        lastFailureAt: now - 60_000,
+      },
+    });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      await markAuthProfileFailure({
+        store,
+        profileId: "anthropic:default",
+        reason: "rate_limit",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const stats = store.usageStats?.["anthropic:default"];
+    expect(stats?.cooldownUntil).toBe(now + 60 * 60 * 1000);
+  });
+
+  it("keeps an active disabledUntil unchanged on a billing retry", async () => {
+    const now = 1_000_000;
+    // Profile already has 20 hours remaining on a billing disable
+    const existingDisabledUntil = now + 20 * 60 * 60 * 1000;
+    const store = makeStore({
+      "anthropic:default": {
+        disabledUntil: existingDisabledUntil,
+        disabledReason: "billing",
+        errorCount: 5,
+        failureCounts: { billing: 5 },
+        lastFailureAt: now - 60_000,
+      },
+    });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      await markAuthProfileFailure({
+        store,
+        profileId: "anthropic:default",
+        reason: "billing",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const stats = store.usageStats?.["anthropic:default"];
+    expect(stats?.disabledUntil).toBe(existingDisabledUntil);
+  });
+
+  it("recomputes disabledUntil when the previous billing window already expired", async () => {
+    const now = 1_000_000;
+    const expiredDisabledUntil = now - 60_000;
+    const store = makeStore({
+      "anthropic:default": {
+        disabledUntil: expiredDisabledUntil,
+        disabledReason: "billing",
+        errorCount: 5,
+        failureCounts: { billing: 2 }, // next billing backoff: 20h
+        lastFailureAt: now - 60_000,
+      },
+    });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      await markAuthProfileFailure({
+        store,
+        profileId: "anthropic:default",
+        reason: "billing",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const stats = store.usageStats?.["anthropic:default"];
+    expect(stats?.disabledUntil).toBe(now + 20 * 60 * 60 * 1000);
   });
 });
