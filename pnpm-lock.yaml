@@ -32,9 +32,6 @@ importers:
       '@clack/prompts':
         specifier: ^1.0.1
         version: 1.0.1
-      '@discordjs/opus':
-        specifier: ^0.9.0
-        version: 0.9.0
       '@discordjs/voice':
         specifier: ^0.19.0
         version: 0.19.0(@discordjs/opus@0.9.0)(opusscript@0.0.8)
@@ -261,6 +258,10 @@ importers:
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/browser-playwright@4.0.18)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
+    optionalDependencies:
+      '@discordjs/opus':
+        specifier: ^0.9.0
+        version: 0.9.0
 
   extensions/bluebubbles:
     devDependencies:
@@ -7072,6 +7073,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+    optional: true
 
   '@discordjs/opus@0.9.0':
     dependencies:
@@ -7080,6 +7082,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+    optional: true
 
   '@discordjs/voice@0.19.0(@discordjs/opus@0.9.0)(opusscript@0.0.8)':
     dependencies:
@@ -7429,7 +7432,7 @@ snapshots:
 
   '@larksuiteoapi/node-sdk@1.59.0':
     dependencies:
-      axios: 1.13.5
+      axios: 1.13.5(debug@4.4.3)
       lodash.identity: 3.0.0
       lodash.merge: 4.6.2
       lodash.pickby: 4.6.0
@@ -7445,7 +7448,7 @@ snapshots:
     dependencies:
       '@types/node': 24.10.13
     optionalDependencies:
-      axios: 1.13.5
+      axios: 1.13.5(debug@4.4.3)
     transitivePeerDependencies:
       - debug
 
@@ -7649,7 +7652,7 @@ snapshots:
       '@azure/core-auth': 1.10.1
       '@azure/msal-node': 3.8.7
       '@microsoft/agents-activity': 1.2.3
-      axios: 1.13.5
+      axios: 1.13.5(debug@4.4.3)
       jsonwebtoken: 9.0.3
       jwks-rsa: 3.2.2
       object-path: 0.11.8
@@ -8596,7 +8599,7 @@ snapshots:
       '@slack/types': 2.20.0
       '@slack/web-api': 7.14.1
       '@types/express': 5.0.6
-      axios: 1.13.5
+      axios: 1.13.5(debug@4.4.3)
       express: 5.2.1
       path-to-regexp: 8.3.0
       raw-body: 3.0.2
@@ -8642,7 +8645,7 @@ snapshots:
       '@slack/types': 2.20.0
       '@types/node': 25.3.0
       '@types/retry': 0.12.0
-      axios: 1.13.5
+      axios: 1.13.5(debug@4.4.3)
       eventemitter3: 5.0.4
       form-data: 2.5.4
       is-electron: 2.2.2
@@ -9451,7 +9454,8 @@ snapshots:
       curve25519-js: 0.0.4
       protobufjs: 6.8.8
 
-  abbrev@1.1.1: {}
+  abbrev@1.1.1:
+    optional: true
 
   abort-controller@3.0.0:
     dependencies:
@@ -9478,6 +9482,7 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   agent-base@7.1.4: {}
 
@@ -9528,6 +9533,7 @@ snapshots:
     dependencies:
       delegates: 1.0.0
       readable-stream: 3.6.2
+    optional: true
 
   are-we-there-yet@3.0.1:
     dependencies:
@@ -9601,14 +9607,6 @@ snapshots:
   aws-sign2@0.7.0: {}
 
   aws4@1.13.2: {}
-
-  axios@1.13.5:
-    dependencies:
-      follow-redirects: 1.15.11
-      form-data: 2.5.4
-      proxy-from-env: 1.1.0
-    transitivePeerDependencies:
-      - debug
 
   axios@1.13.5(debug@4.4.3):
     dependencies:
@@ -10181,8 +10179,6 @@ snapshots:
 
   flatbuffers@24.12.23: {}
 
-  follow-redirects@1.15.11: {}
-
   follow-redirects@1.15.11(debug@4.4.3):
     optionalDependencies:
       debug: 4.4.3
@@ -10219,7 +10215,8 @@ snapshots:
       jsonfile: 6.2.0
       universalify: 2.0.1
 
-  fs.realpath@1.0.0: {}
+  fs.realpath@1.0.0:
+    optional: true
 
   fsevents@2.3.2:
     optional: true
@@ -10240,6 +10237,7 @@ snapshots:
       string-width: 4.2.3
       strip-ansi: 6.0.1
       wide-align: 1.1.5
+    optional: true
 
   gauge@4.0.4:
     dependencies:
@@ -10332,6 +10330,7 @@ snapshots:
       minimatch: 10.2.1
       once: 1.4.0
       path-is-absolute: 1.0.1
+    optional: true
 
   google-auth-library@10.5.0:
     dependencies:
@@ -10461,6 +10460,7 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   https-proxy-agent@7.0.6:
     dependencies:
@@ -10496,6 +10496,7 @@ snapshots:
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
+    optional: true
 
   inherits@2.0.4: {}
 
@@ -10862,6 +10863,7 @@ snapshots:
   make-dir@3.1.0:
     dependencies:
       semver: 6.3.1
+    optional: true
 
   make-dir@4.0.0:
     dependencies:
@@ -10984,7 +10986,8 @@ snapshots:
 
   netmask@2.0.2: {}
 
-  node-addon-api@5.1.0: {}
+  node-addon-api@5.1.0:
+    optional: true
 
   node-addon-api@8.5.0: {}
 
@@ -11072,6 +11075,7 @@ snapshots:
   nopt@5.0.0:
     dependencies:
       abbrev: 1.1.1
+    optional: true
 
   nostr-tools@2.23.1(typescript@5.9.3):
     dependencies:
@@ -11093,6 +11097,7 @@ snapshots:
       console-control-strings: 1.1.0
       gauge: 3.0.2
       set-blocking: 2.0.0
+    optional: true
 
   npmlog@6.0.2:
     dependencies:
@@ -11318,7 +11323,8 @@ snapshots:
 
   partial-json@0.1.7: {}
 
-  path-is-absolute@1.0.1: {}
+  path-is-absolute@1.0.1:
+    optional: true
 
   path-key@3.1.1: {}
 
@@ -11592,6 +11598,7 @@ snapshots:
   rimraf@3.0.2:
     dependencies:
       glob: 7.2.3
+    optional: true
 
   rimraf@5.0.10:
     dependencies:
@@ -11715,7 +11722,8 @@ snapshots:
     dependencies:
       parseley: 0.12.1
 
-  semver@6.3.1: {}
+  semver@6.3.1:
+    optional: true
 
   semver@7.7.4: {}
 
