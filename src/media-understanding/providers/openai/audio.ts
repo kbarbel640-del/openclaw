@@ -16,7 +16,7 @@ export async function transcribeOpenAiCompatibleAudio(
   const fetchFn = params.fetchFn ?? fetch;
   const baseUrl = normalizeBaseUrl(params.baseUrl, DEFAULT_OPENAI_AUDIO_BASE_URL);
   const allowPrivate = Boolean(params.baseUrl?.trim());
-  const url = `${baseUrl}/audio/transcriptions`;
+  const url = new URL(`${baseUrl}/audio/transcriptions`);
 
   const model = resolveModel(params.model);
   const form = new FormData();
@@ -33,6 +33,14 @@ export async function transcribeOpenAiCompatibleAudio(
   if (params.prompt?.trim()) {
     form.append("prompt", params.prompt.trim());
   }
+  if (params.query) {
+    for (const [key, value] of Object.entries(params.query)) {
+      if (value === undefined) {
+        continue;
+      }
+      url.searchParams.set(key, String(value));
+    }
+  }
 
   const headers = new Headers(params.headers);
   if (!headers.has("authorization")) {
@@ -40,7 +48,7 @@ export async function transcribeOpenAiCompatibleAudio(
   }
 
   const { response: res, release } = await fetchWithTimeoutGuarded(
-    url,
+    url.toString(),
     {
       method: "POST",
       headers,
