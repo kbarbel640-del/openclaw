@@ -364,7 +364,7 @@ describe("runWithModelFallback", () => {
       },
       usageStats: {
         [profileId]: {
-          cooldownUntil: Date.now() + 60_000,
+          cooldownUntil: Date.now() + 10 * 60_000,
         },
       },
     };
@@ -396,7 +396,7 @@ describe("runWithModelFallback", () => {
       expect(message).toContain(`${provider}/m1:`);
       expect(message).toContain(`${provider}/m2:`);
       expect(message).toContain(`${provider}/m3:`);
-      expect(message).toContain("skipped (provider cooldown: all auth profiles in cooldown)");
+      expect(message).toContain("is in cooldown (all profiles unavailable)");
       expect(message).toContain("(rate_limit)");
       expect(run).not.toHaveBeenCalled();
     } finally {
