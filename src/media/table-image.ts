@@ -147,7 +147,7 @@ function parseLine(line: string): string[] {
         i += bsCount; // skip past the pipe (loop increments i once more)
       } else if (nextChar === "|") {
         // Even backslashes before pipe: collapse pairs, pipe is a delimiter
-        current += "\\".repeat(bsCount / 2);
+        current += "\\".repeat(Math.floor(bsCount / 2));
         i += bsCount - 1; // position on last backslash; loop increments, then pipe hits delimiter branch
       } else {
         // Backslashes not followed by pipe: collapse pairs (GFM escape semantics)
