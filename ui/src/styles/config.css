@@ -1444,3 +1444,75 @@
     min-width: 70px;
   }
 }
+
+/* ===========================================
+   Environment Values Blur + Peek Toggle
+   =========================================== */
+
+.config-env-values--blurred .cfg-input,
+.config-env-values--blurred .cfg-number__input,
+.config-env-values--blurred textarea {
+  color: transparent;
+  text-shadow: 0 0 8px var(--text);
+}
+
+.config-env-values--blurred .cfg-input::placeholder,
+.config-env-values--blurred textarea::placeholder {
+  text-shadow: none;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.config-env-values--blurred .cfg-input:focus,
+.config-env-values--blurred .cfg-number__input:focus,
+.config-env-values--blurred textarea:focus {
+  color: transparent;
+  text-shadow: 0 0 8px var(--text);
+}
+
+.config-env-values--visible.config-env-values--blurred .cfg-input,
+.config-env-values--visible.config-env-values--blurred .cfg-number__input,
+.config-env-values--visible.config-env-values--blurred textarea {
+  color: var(--text);
+  text-shadow: none;
+}
+
+.config-env-values--visible.config-env-values--blurred .cfg-input:focus,
+.config-env-values--visible.config-env-values--blurred .cfg-number__input:focus,
+.config-env-values--visible.config-env-values--blurred textarea:focus {
+  color: var(--text);
+  text-shadow: none;
+}
+
+.config-env-peek-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.config-env-peek-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.config-env-peek-btn--active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.config-env-peek-btn svg {
+  flex-shrink: 0;
+}

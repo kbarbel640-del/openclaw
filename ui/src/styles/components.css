@@ -790,6 +790,11 @@
   container-type: inline-size;
 }
 
+.list-scroll {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
 .list-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(200px, 260px);

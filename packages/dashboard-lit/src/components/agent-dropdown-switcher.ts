@@ -175,7 +175,7 @@ export class AgentDropdownSwitcher extends LitElement {
             @click=${(e: Event) => e.stopPropagation()}
           />
         </div>
-        <div class="agent-dropdown__list">
+        <div class="agent-dropdown__list list-scroll">
           ${this.filteredAgents.map((agent) => {
             const t = getProviderTheme(agent.model);
             const color = agentColor(agent);

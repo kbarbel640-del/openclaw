@@ -2985,9 +2985,13 @@ agent-chat {
   color: var(--muted);
 }
 
+.list-scroll {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
 .agent-dropdown__list {
   flex: 1;
-  overflow-y: auto;
   padding: 4px 0;
 }
 

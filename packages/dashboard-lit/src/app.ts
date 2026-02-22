@@ -91,14 +91,14 @@ export class DashboardApp extends LitElement {
 
   @state() tab: Tab = "overview";
   @state() basePath = "";
-  @state() theme: ThemeMode = "openknot";
+  @state() theme: ThemeMode = "dark";
   @state() navCollapsed = false;
   @state() private isMobile = false;
   /** Button order — only updates when the toggle collapses, so the active
    *  button doesn't jump while the picker is still open. */
   @state() private themeOrder: ThemeMode[] = [
-    "openknot",
     "dark",
+    "openknot",
     "light",
     "fieldmanual",
     "openai",
@@ -198,7 +198,7 @@ export class DashboardApp extends LitElement {
   private initTheme(): void {
     const raw = localStorage.getItem(THEME_KEY) ?? localStorage.getItem("openclaw.dashboard.theme");
     const saved = migrateLegacyTheme(raw);
-    this.theme = saved ?? "openknot";
+    this.theme = saved ?? "dark";
     if (saved) {
       localStorage.setItem(THEME_KEY, saved);
     }
