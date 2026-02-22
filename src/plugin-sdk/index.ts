@@ -72,10 +72,30 @@ export {
   unbindThreadBindingsBySessionKey,
 } from "../discord/monitor/thread-bindings.js";
 export type {
+  AcpRuntime,
+  AcpRuntimeEnsureInput,
+  AcpRuntimeEvent,
+  AcpRuntimeHandle,
+  AcpRuntimePromptMode,
+  AcpRuntimeSessionMode,
+  AcpRuntimeTurnInput,
+} from "../acp/runtime/types.js";
+export type { AcpRuntimeBackend } from "../acp/runtime/registry.js";
+export {
+  getAcpRuntimeBackend,
+  registerAcpRuntimeBackend,
+  requireAcpRuntimeBackend,
+  unregisterAcpRuntimeBackend,
+} from "../acp/runtime/registry.js";
+export { ACP_ERROR_CODES, AcpRuntimeError } from "../acp/runtime/errors.js";
+export type { AcpRuntimeErrorCode } from "../acp/runtime/errors.js";
+export type {
   AnyAgentTool,
+  OpenClawPluginConfigSchema,
   OpenClawPluginApi,
   OpenClawPluginService,
   OpenClawPluginServiceContext,
+  PluginLogger,
   ProviderAuthContext,
   ProviderAuthResult,
 } from "../plugins/types.js";

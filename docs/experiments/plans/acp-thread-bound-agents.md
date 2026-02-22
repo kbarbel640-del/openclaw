@@ -265,6 +265,40 @@ Behavior:
 - plugin service registers backend on `start` and unregisters on `stop`
 - runtime lookups are read-only and process-local
 
+### acpx runtime plugin contract (implementation detail)
+
+For the first production backend (`extensions/acpx`), OpenClaw and acpx are
+connected with a strict command contract:
+
+- backend id: `acpx`
+- plugin service id: `acpx-runtime`
+- runtime handle encoding: `runtimeSessionName = acpx:v1:<base64url(json)>`
+- encoded payload fields:
+  - `name` (acpx named session; uses OpenClaw `sessionKey`)
+  - `agent` (acpx agent command)
+  - `cwd` (session workspace root)
+  - `mode` (`persistent | oneshot`)
+
+Command mapping:
+
+- ensure session:
+  - `acpx --format json --json-strict --cwd <cwd> <agent> sessions ensure --name <name>`
+- prompt turn:
+  - `acpx --format json --json-strict --cwd <cwd> <agent> prompt --session <name> --file -`
+- cancel:
+  - `acpx --format json --json-strict --cwd <cwd> <agent> cancel --session <name>`
+- close:
+  - `acpx --format json --json-strict --cwd <cwd> <agent> sessions close <name>`
+
+Streaming:
+
+- OpenClaw consumes ndjson events from `acpx --format json --json-strict`
+- `text` => `text_delta/output`
+- `thought` => `text_delta/thought`
+- `tool_call` => `tool_call`
+- `done` => `done`
+- `error` => `error`
+
 ### Session schema patch
 
 Patch `SessionEntry` in `src/config/sessions/types.ts`:
@@ -329,6 +363,12 @@ ACP enablement precedence:
 - global ACP gate: `acp.enabled`
 - dispatch gate: `acp.dispatch.enabled`
 - backend availability: registered backend for `acp.backend`
+
+Auto-enable behavior:
+
+- when ACP is configured (`acp.enabled=true`, `acp.dispatch.enabled=true`, or
+  `acp.backend=acpx`), plugin auto-enable marks `plugins.entries.acpx.enabled=true`
+  unless denylisted or explicitly disabled
 
 TTL effective value:
 
