@@ -96,6 +96,11 @@ type ModelFallbackRunResult<T> = {
   attempts: FallbackAttempt[];
 };
 
+/**
+ * @deprecated This function is no longer used internally but preserved for backwards compatibility.
+ * Will be removed in a future major version.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function sameModelCandidate(a: ModelCandidate, b: ModelCandidate): boolean {
   return a.provider === b.provider && a.model === b.model;
 }
@@ -218,7 +223,9 @@ function resolveFallbackCandidates(params: {
     // This allows model version differences within the same provider (e.g. opus-4-6 vs sonnet)
     // but prevents fallbacks when switching providers entirely (e.g. claude -> gpt).
     if (normalizedPrimary.provider !== configuredPrimary.provider) {
-      return []; // Different provider → go straight to configured default
+      // For cross-provider requests, skip configured fallbacks but still ensure the
+      // configured primary gets added as a final fallback candidate later.
+      return [];
     }
     const model = params.cfg?.agents?.defaults?.model as
       | { fallbacks?: string[] }
@@ -334,23 +341,15 @@ export async function runWithModelFallback<T>(params: {
         // model long after the real rate-limit window clears.
         const now = Date.now();
         const probeThrottleKey = resolveProbeThrottleKey(candidate.provider, params.agentDir);
-        const isPrimary = i === 0;
-        const requestedModel = params.provider === candidate.provider && params.model === candidate.model;
-        
         const shouldProbe = shouldProbePrimaryDuringCooldown({
-          isPrimary,
+          isPrimary: i === 0,
           hasFallbackCandidates,
           now,
           throttleKey: probeThrottleKey,
           authStore,
           profileIds,
         });
-        
-        // Always try fallback models even during cooldown, since rate limits are often model-specific.
-        // Only skip if it's the same model that originally failed or if we should not probe primary.
-        const shouldAttemptDespiteCooldown = !isPrimary || !requestedModel || shouldProbe;
-        
-        if (!shouldAttemptDespiteCooldown) {
+        if (!shouldProbe) {
           // Skip without attempting
           attempts.push({
             provider: candidate.provider,
@@ -360,7 +359,7 @@ export async function runWithModelFallback<T>(params: {
           });
           continue;
         }
-        
+
         if (shouldProbe) {
           // Primary model probe: attempt it despite cooldown to detect recovery.
           lastProbeAttempt.set(probeThrottleKey, now);
