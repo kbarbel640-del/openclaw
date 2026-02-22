@@ -4,17 +4,38 @@ import type { FeishuMessageEvent } from "./bot.js";
 import { handleFeishuMessage } from "./bot.js";
 import { setFeishuRuntime } from "./runtime.js";
 
-const { mockCreateFeishuReplyDispatcher, mockSendMessageFeishu, mockGetMessageFeishu } = vi.hoisted(
-  () => ({
-    mockCreateFeishuReplyDispatcher: vi.fn(() => ({
-      dispatcher: { waitForIdle: vi.fn().mockResolvedValue(undefined) },
-      replyOptions: {},
-      markDispatchIdle: vi.fn(),
-    })),
-    mockSendMessageFeishu: vi.fn().mockResolvedValue({ messageId: "pairing-msg", chatId: "oc-dm" }),
-    mockGetMessageFeishu: vi.fn().mockResolvedValue(null),
+const {
+  mockCreateFeishuReplyDispatcher,
+  mockSendMessageFeishu,
+  mockGetMessageFeishu,
+  mockDownloadMessageResourceFeishu,
+} = vi.hoisted(() => ({
+  mockCreateFeishuReplyDispatcher: vi.fn(() => ({
+    dispatcher: { waitForIdle: vi.fn().mockResolvedValue(undefined) },
+    replyOptions: {},
+    markDispatchIdle: vi.fn(),
+  })),
+  mockSendMessageFeishu: vi.fn().mockResolvedValue({ messageId: "pairing-msg", chatId: "oc-dm" }),
+  mockGetMessageFeishu: vi.fn().mockResolvedValue(null),
+  mockDownloadMessageResourceFeishu: vi.fn().mockResolvedValue({
+    buffer: Buffer.from("video"),
+    contentType: "video/mp4",
+    fileName: "clip.mp4",
   }),
-);
+}));
+
+vi.mock("./reply-dispatcher.js", () => ({
+  createFeishuReplyDispatcher: mockCreateFeishuReplyDispatcher,
+}));
+
+vi.mock("./send.js", () => ({
+  sendMessageFeishu: mockSendMessageFeishu,
+  getMessageFeishu: mockGetMessageFeishu,
+}));
+
+vi.mock("./media.js", () => ({
+  downloadMessageResourceFeishu: mockDownloadMessageResourceFeishu,
+}));
 
 vi.mock("./reply-dispatcher.js", () => ({
   createFeishuReplyDispatcher: mockCreateFeishuReplyDispatcher,
