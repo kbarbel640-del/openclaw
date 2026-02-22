@@ -61,7 +61,6 @@ export function renderTab(state: AppViewState, tab: Tab) {
     state.setTabVisibility(tab, !isVisible);
   };
 
-
   return html`
     <a
       href=${href}

@@ -228,7 +228,10 @@ export function renderApp(state: AppViewState) {
       </div>
 
           <nav class="sidebar-nav">
-          ${getVisibleTabsWithOverrides(state.settings.mode ?? "advanced", state.settings.tabVisibility ?? {}).map((group) => {
+          ${getVisibleTabsWithOverrides(
+            state.settings.mode ?? "advanced",
+            state.settings.tabVisibility ?? {},
+          ).map((group) => {
             const isGroupCollapsed = state.settings.navGroupsCollapsed[group.label] ?? false;
             const hasActiveTab = group.tabs.some((tab) => tab === state.tab);
             const showItems = hasActiveTab || !isGroupCollapsed;
