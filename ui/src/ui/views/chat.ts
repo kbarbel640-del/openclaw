@@ -1,6 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
+import { DeletedMessages } from "../chat/deleted-messages.ts";
 import {
   renderMessageGroup,
   renderReadingIndicatorGroup,
@@ -86,6 +87,7 @@ const FALLBACK_TOAST_DURATION_MS = 8000;
 // Persistent instances keyed by session
 const inputHistories = new Map<string, InputHistory>();
 const pinnedMessagesMap = new Map<string, PinnedMessages>();
+const deletedMessagesMap = new Map<string, DeletedMessages>();
 
 function getInputHistory(sessionKey: string): InputHistory {
   let h = inputHistories.get(sessionKey);
@@ -103,6 +105,15 @@ function getPinnedMessages(sessionKey: string): PinnedMessages {
     pinnedMessagesMap.set(sessionKey, p);
   }
   return p;
+}
+
+function getDeletedMessages(sessionKey: string): DeletedMessages {
+  let d = deletedMessagesMap.get(sessionKey);
+  if (!d) {
+    d = new DeletedMessages(sessionKey);
+    deletedMessagesMap.set(sessionKey, d);
+  }
+  return d;
 }
 
 // Module-level ephemeral UI state (reset on navigation away)
@@ -551,6 +562,7 @@ export function renderChat(props: ChatProps) {
     avatar: props.assistantAvatar ?? props.assistantAvatarUrl ?? null,
   };
   const pinned = getPinnedMessages(props.sessionKey);
+  const deleted = getDeletedMessages(props.sessionKey);
   const inputHistory = getInputHistory(props.sessionKey);
   const hasAttachments = (props.attachments?.length ?? 0) > 0;
   const tokens = tokenEstimate(props.draft);
@@ -625,11 +637,18 @@ export function renderChat(props: ChatProps) {
             );
           }
           if (item.kind === "group") {
+            if (deleted.has(item.key)) {
+              return nothing;
+            }
             return renderMessageGroup(item, {
               onOpenSidebar: props.onOpenSidebar,
               showReasoning,
               assistantName: props.assistantName,
               assistantAvatar: assistantIdentity.avatar,
+              onDelete: () => {
+                deleted.delete(item.key);
+                requestUpdate();
+              },
             });
           }
           return nothing;
