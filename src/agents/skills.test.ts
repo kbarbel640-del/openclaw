@@ -380,9 +380,22 @@ describe("applySkillEnvOverrides", () => {
       metadata: '{"openclaw":{"requires":{"env":["OPENAI_API_KEY"]}}}',
     });
 
+    // buildWorkspaceSkillSnapshot filters skills via evaluateRuntimeRequires,
+    // which checks that all requires.env vars are present.  Set a placeholder
+    // so the skill passes eligibility and is included in the snapshot.
+    const hadKey = "OPENAI_API_KEY" in process.env;
+    const prevKey = process.env.OPENAI_API_KEY;
+    if (!hadKey) {
+      process.env.OPENAI_API_KEY = "placeholder-for-eligibility";
+    }
     const snapshot = buildWorkspaceSkillSnapshot(workspaceDir, {
       managedSkillsDir: path.join(workspaceDir, ".managed"),
     });
+    if (!hadKey) {
+      delete process.env.OPENAI_API_KEY;
+    } else {
+      process.env.OPENAI_API_KEY = prevKey;
+    }
 
     withClearedEnv(["OPENAI_API_KEY"], () => {
       const restore = applySkillEnvOverridesFromSnapshot({
