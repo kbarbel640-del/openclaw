@@ -105,6 +105,8 @@ export type ChatProps = {
   onChatScroll?: (event: Event) => void;
   // Compat: upstream props not yet used in this PR's implementation
   onClearHistory?: () => void;
+  onNavigateToAgent?: () => void;
+  onSessionSelect?: (key: string) => void;
   agentsList?: unknown;
   currentAgentId?: string;
   onAgentChange?: (agentId: string) => void;
