@@ -43,33 +43,37 @@ function buildInjectedWorkspaceFiles(params: {
   const injectedByPath = new Map<string, string>();
   const injectedByBaseName = new Map<string, string>();
   for (const file of params.injectedFiles) {
-    const rawPath = typeof file.path === "string" ? file.path.trim() : "";
-    if (!rawPath) {
+    const pathValue = typeof file.path === "string" ? file.path.trim() : "";
+    if (!pathValue) {
       continue;
     }
-    injectedByPath.set(rawPath, file.content);
-    const normalizedPath = rawPath.replace(/\\/g, "/");
-    injectedByPath.set(normalizedPath, file.content);
+    if (!injectedByPath.has(pathValue)) {
+      injectedByPath.set(pathValue, file.content);
+    }
+    const normalizedPath = pathValue.replace(/\\/g, "/");
+    if (!injectedByPath.has(normalizedPath)) {
+      injectedByPath.set(normalizedPath, file.content);
+    }
     const baseName = path.posix.basename(normalizedPath);
     if (!injectedByBaseName.has(baseName)) {
       injectedByBaseName.set(baseName, file.content);
     }
   }
   return params.bootstrapFiles.map((file) => {
+    const pathValue = typeof file.path === "string" ? file.path.trim() : "";
     const rawChars = file.missing ? 0 : (file.content ?? "").trimEnd().length;
-    const filePath = typeof file.path === "string" ? file.path : "";
-    const normalizedFilePath = filePath.replace(/\\/g, "/");
+    const normalizedFilePath = pathValue.replace(/\\/g, "/");
     const fileName = typeof file.name === "string" ? file.name : "";
     const injected =
-      injectedByPath.get(filePath) ??
-      injectedByPath.get(normalizedFilePath) ??
+      (pathValue ? injectedByPath.get(pathValue) : undefined) ??
+      (normalizedFilePath ? injectedByPath.get(normalizedFilePath) : undefined) ??
       injectedByPath.get(fileName) ??
       injectedByBaseName.get(fileName);
     const injectedChars = injected ? injected.length : 0;
     const truncated = !file.missing && injectedChars < rawChars;
     return {
       name: fileName,
-      path: filePath,
+      path: pathValue || fileName,
       missing: file.missing,
       rawChars,
       injectedChars,
