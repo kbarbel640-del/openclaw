@@ -118,6 +118,58 @@ beforeEach(() => {
   createQmdManagerMock.mockClear();
 });
 
+function createQmdCfgWithFallbackNone(agentId: string): OpenClawConfig {
+  return {
+    memory: { backend: "qmd", qmd: {} },
+    agents: {
+      list: [
+        {
+          id: agentId,
+          default: true,
+          workspace: "/tmp/workspace",
+          memorySearch: { fallback: "none" },
+        },
+      ],
+    },
+  };
+}
+
+describe("getMemorySearchManager fallback=none", () => {
+  it("does not attempt builtin fallback when memorySearch.fallback='none' and qmd fails", async () => {
+    const agentId = "fallback-none-agent";
+    const cfg = createQmdCfgWithFallbackNone(agentId);
+
+    // Make QMD search fail
+    mockPrimary.search.mockRejectedValueOnce(new Error("qmd query failed"));
+
+    const result = await getMemorySearchManager({ cfg, agentId });
+    const manager = requireManager(result);
+
+    // Attempt a search - this should throw, not fall back to builtin
+    await expect(manager.search("hello")).rejects.toThrow("qmd query failed");
+
+    // Critical assertion: builtin MemoryIndexManager.get should NOT have been called
+    expect(mockMemoryIndexGet).not.toHaveBeenCalled();
+  });
+
+  it("returns error without initializing builtin when qmd creation fails and fallback='none'", async () => {
+    const agentId = "fallback-none-init-fail";
+    const cfg = createQmdCfgWithFallbackNone(agentId);
+
+    // Make QMD creation fail
+    createQmdManagerMock.mockRejectedValueOnce(new Error("qmd init failed"));
+
+    const result = await getMemorySearchManager({ cfg, agentId });
+
+    // Should return null manager with error, not fall back to builtin
+    expect(result.manager).toBeNull();
+    expect(result.error).toContain("QMD backend unavailable");
+
+    // Critical assertion: builtin MemoryIndexManager.get should NOT have been called
+    expect(mockMemoryIndexGet).not.toHaveBeenCalled();
+  });
+});
+
 describe("getMemorySearchManager caching", () => {
   it("reuses the same QMD manager instance for repeated calls", async () => {
     const cfg = createQmdCfg("main");
