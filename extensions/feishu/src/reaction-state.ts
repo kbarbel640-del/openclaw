@@ -18,7 +18,7 @@ import { addReactionFeishu, removeReactionFeishu } from "./reactions.js";
 // See: https://open.feishu.cn/document/server-docs/im-v1/message-reaction/emojis-introduce
 export const ReactionEmoji = {
   /** Message is queued, waiting to be processed */
-  QUEUED: "OneSecond", // ☝️ OneSecond - "稍等一下"
+  QUEUED: "OK", // 👌 OK - "收到排队"
   /** Agent is actively processing/thinking */
   PROCESSING: "Typing", // ⌨️ Typing - "正在输入"
 } as const;
@@ -129,59 +129,80 @@ export class ReactionStateManager {
 
   /**
    * Called when agent starts processing a message.
-   * Transitions from QUEUED (☝️) to PROCESSING (⌨️).
+   * Transitions this message from QUEUED (👌) to PROCESSING (⌨️).
+   *
+   * Also transitions all OTHER currently QUEUED messages in the same chat,
+   * because they have been collected as context for the agent's current thinking.
+   * Messages that arrive AFTER this point will get their own QUEUED state.
    */
   async onProcessingStart(messageId: string): Promise<void> {
     const state = this.states.get(messageId);
     const log = this.config.log ?? console.log;
 
     if (!state) {
-      log(`[reaction-state] No state found for ${messageId}, creating PROCESSING directly`);
-      // Create state directly in PROCESSING if not queued
+      log(`[reaction-state] No state found for ${messageId}, skipping onProcessingStart`);
       return;
     }
 
-    if (state.status !== "QUEUED") {
-      log(`[reaction-state] Message ${messageId} not in QUEUED status (${state.status}), skipping`);
-      return;
+    // Collect this message + all other QUEUED messages in the same chat
+    const toTransition: MessageReactionState[] = [];
+    if (state.status === "QUEUED") {
+      toTransition.push(state);
     }
-
-    // Remove QUEUED emoji first
-    if (state.currentReactionId) {
-      try {
-        await removeReactionFeishu({
-          cfg: this.config.cfg,
-          messageId: state.messageId,
-          reactionId: state.currentReactionId,
-          accountId: state.accountId,
-        });
-        log(`[reaction-state] Removed QUEUED emoji: messageId=${messageId}`);
-      } catch (err) {
-        log(`[reaction-state] Failed to remove QUEUED emoji for ${messageId}: ${err}`);
+    for (const [otherMsgId, otherState] of this.states) {
+      if (
+        otherMsgId !== messageId &&
+        otherState.chatId === state.chatId &&
+        otherState.status === "QUEUED"
+      ) {
+        toTransition.push(otherState);
       }
     }
 
-    // Add PROCESSING emoji
-    try {
-      const result = await addReactionFeishu({
-        cfg: this.config.cfg,
-        messageId: state.messageId,
-        emojiType: ReactionEmoji.PROCESSING,
-        accountId: state.accountId,
-      });
-      state.status = "PROCESSING";
-      state.currentEmoji = ReactionEmoji.PROCESSING;
-      state.currentReactionId = result.reactionId;
-      log(
-        `[reaction-state] PROCESSING emoji added: messageId=${messageId}, reactionId=${result.reactionId}`,
-      );
-    } catch (err) {
-      log(`[reaction-state] Failed to add PROCESSING emoji for ${messageId}: ${err}`);
-      // Still update status
-      state.status = "PROCESSING";
-      state.currentEmoji = null;
-      state.currentReactionId = null;
+    if (toTransition.length === 0) {
+      return;
     }
+
+    log(
+      `[reaction-state] Transitioning ${toTransition.length} message(s) to PROCESSING in chat ${state.chatId}`,
+    );
+
+    // Run all transitions in parallel for speed
+    await Promise.all(
+      toTransition.map(async (s) => {
+        if (s.currentReactionId) {
+          try {
+            await removeReactionFeishu({
+              cfg: this.config.cfg,
+              messageId: s.messageId,
+              reactionId: s.currentReactionId,
+              accountId: s.accountId,
+            });
+            log(`[reaction-state] Removed QUEUED emoji: messageId=${s.messageId}`);
+          } catch (err) {
+            log(`[reaction-state] Failed to remove QUEUED emoji for ${s.messageId}: ${err}`);
+          }
+        }
+
+        try {
+          const result = await addReactionFeishu({
+            cfg: this.config.cfg,
+            messageId: s.messageId,
+            emojiType: ReactionEmoji.PROCESSING,
+            accountId: s.accountId,
+          });
+          s.status = "PROCESSING";
+          s.currentEmoji = ReactionEmoji.PROCESSING;
+          s.currentReactionId = result.reactionId;
+          log(`[reaction-state] PROCESSING emoji added: messageId=${s.messageId}`);
+        } catch (err) {
+          log(`[reaction-state] Failed to add PROCESSING emoji for ${s.messageId}: ${err}`);
+          s.status = "PROCESSING";
+          s.currentEmoji = null;
+          s.currentReactionId = null;
+        }
+      }),
+    );
   }
 
   /**
@@ -253,6 +274,42 @@ export class ReactionStateManager {
     if (clearedCount > 0) {
       log(`[reaction-state] Cleared ${clearedCount} states for chat ${chatId}`);
     }
+  }
+
+  /**
+   * Clear only PROCESSING state reactions for a specific chat.
+   * Called when the main message's reply is delivered —
+   * merged messages that are in PROCESSING state should be cleaned up together,
+   * but newly QUEUED messages (arriving after processing started) should be left alone.
+   */
+  async clearProcessingForChat(chatId: string): Promise<void> {
+    const log = this.config.log ?? console.log;
+    let clearedCount = 0;
+
+    for (const [messageId, state] of this.states) {
+      if (state.chatId === chatId && state.status === "PROCESSING") {
+        await this.onCompleted(messageId);
+        clearedCount++;
+      }
+    }
+
+    if (clearedCount > 0) {
+      log(`[reaction-state] Cleared ${clearedCount} PROCESSING states for chat ${chatId}`);
+    }
+  }
+
+  /**
+   * Check if there are any messages currently in PROCESSING state for a chat.
+   * Used by bot.ts to decide whether a merged message's emoji should be kept
+   * (waiting for the main message's reply to clean it up via clearProcessingForChat).
+   */
+  hasProcessingInChat(chatId: string): boolean {
+    for (const [, state] of this.states) {
+      if (state.chatId === chatId && state.status === "PROCESSING") {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

@@ -38,20 +38,15 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   const account = resolveFeishuAccount({ cfg, accountId });
   const prefixContext = createReplyPrefixContext({ cfg, agentId });
 
-  let typingState: TypingIndicatorState | null = null;
   const typingCallbacks = createTypingCallbacks({
     start: async () => {
-      if (!replyToMessageId) {
-        return;
-      }
-      typingState = await addTypingIndicator({ cfg, messageId: replyToMessageId, accountId });
+      // NOTE: onProcessingStart is handled in onReplyStart via processingTransitionPromise.
+      // Do NOT call it here — the SDK calls start() periodically to refresh typing state,
+      // which would produce redundant API calls and "not in QUEUED status" log spam.
     },
     stop: async () => {
-      if (!typingState) {
-        return;
-      }
-      await removeTypingIndicator({ cfg, state: typingState, accountId });
-      typingState = null;
+      // Cleanup is properly handled inside deliver() and closeStreaming() for accurate timing
+      // when the message is fully sent, avoiding premature disappearance.
     },
     onStartError: (err) =>
       logTypingFailure({
@@ -82,6 +77,9 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   let lastPartial = "";
   let partialUpdateQueue: Promise<void> = Promise.resolve();
   let streamingStartPromise: Promise<void> | null = null;
+  // Promise for the QUEUED→PROCESSING transition (onProcessingStart API calls).
+  // Saved here so deliver() can await it before sending content.
+  let processingTransitionPromise: Promise<void> | null = null;
 
   const startStreaming = () => {
     if (!streamingEnabled || streamingStartPromise || streaming) {
@@ -101,11 +99,6 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
       );
       try {
         await streaming.start(chatId, resolveReceiveIdType(chatId));
-        if (replyToMessageId) {
-          getReactionStateManager()
-            .onCompleted(replyToMessageId)
-            .catch(() => {});
-        }
       } catch (error) {
         params.runtime.error?.(`feishu: streaming start failed: ${String(error)}`);
         streaming = null;
@@ -113,22 +106,49 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
     })();
   };
 
+  // Track whether onCompleted has already been called for this dispatcher lifecycle.
+  // Prevents double-cleanup from both deliver() and closeStreaming()/onIdle paths.
+  let reactionCompleted = false;
+
+  const completeReaction = () => {
+    if (reactionCompleted || !replyToMessageId) return;
+    reactionCompleted = true;
+    const mgr = getReactionStateManager();
+    // Clean up THIS message's reaction.
+    mgr.onCompleted(replyToMessageId).catch(() => {});
+    // Clean up ALL remaining reactions in this chat (merged messages).
+    // Merged messages may be in QUEUED state (arrived after onProcessingStart ran)
+    // or PROCESSING state. Either way, they were absorbed into the main message's
+    // context and will never get their own individual reply.
+    // This is safe because completeReaction only fires AFTER the actual reply is delivered
+    // (via deliver() or closeStreaming()), not on early dispatch returns.
+    mgr.clearForChat(chatId).catch(() => {});
+  };
+
   const closeStreaming = async () => {
     if (streamingStartPromise) {
       await streamingStartPromise;
     }
     await partialUpdateQueue;
-    if (streaming?.isActive()) {
+    const hadActiveStream = streaming?.isActive() ?? false;
+    if (hadActiveStream) {
       let text = streamText;
       if (mentionTargets?.length) {
         text = buildMentionedCardContent(mentionTargets, text);
       }
-      await streaming.close(text);
+      await streaming!.close(text);
     }
     streaming = null;
     streamingStartPromise = null;
     streamText = "";
     lastPartial = "";
+
+    // FR-001: "分发完成 → onCompleted()" — streaming reply fully delivered.
+    // ONLY fire when there was a real active stream that just closed (= content was delivered).
+    // Do NOT fire when closeStreaming is called from onIdle for a queued-but-not-yet-processed message.
+    if (hadActiveStream) {
+      completeReaction();
+    }
   };
 
   const { dispatcher, replyOptions, markDispatchIdle } =
@@ -140,9 +160,30 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
         if (streamingEnabled && renderMode === "card") {
           startStreaming();
         }
+        // Save the processing transition promise so deliver() can await it.
+        // onReplyStart must return void (SDK contract), so we fire-and-forget here,
+        // but capture the promise for synchronization in deliver().
+        if (replyToMessageId && !processingTransitionPromise) {
+          processingTransitionPromise = getReactionStateManager()
+            .onProcessingStart(replyToMessageId)
+            .catch((err) => {
+              params.runtime.log?.(
+                `Failed to transition reaction state for ${replyToMessageId}: ${err}`,
+              );
+            });
+        }
         void typingCallbacks.onReplyStart?.();
       },
       deliver: async (payload: ReplyPayload, info) => {
+        // FR-001: Ensure the QUEUED→PROCESSING emoji transition completes BEFORE
+        // we deliver any content. Without this await, deliver() races ahead of
+        // onProcessingStart()'s API calls and completeReaction() removes the emoji
+        // before Typing ever appears.
+        if (processingTransitionPromise) {
+          await processingTransitionPromise;
+          processingTransitionPromise = null;
+        }
+
         const text = payload.text ?? "";
         if (!text.trim()) {
           return;
@@ -200,12 +241,17 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
             first = false;
           }
         }
+
+        // FR-001: "分发完成 → onCompleted()" — non-streaming reply fully delivered
+        completeReaction();
       },
       onError: async (error, info) => {
         params.runtime.error?.(
           `feishu[${account.accountId}] ${info.kind} reply failed: ${String(error)}`,
         );
         await closeStreaming();
+        // FR-001: "异常处理 → onCompleted() (确保清理)" — design spec requires cleanup on error
+        completeReaction();
         typingCallbacks.onIdle?.();
       },
       onIdle: async () => {
@@ -214,6 +260,16 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
       },
       onCleanup: () => {
         typingCallbacks.onCleanup?.();
+        // FR-001 Fallback: call completeReaction only if reactionCompleted hasn't been
+        // called yet (i.e. deliver() was never invoked - e.g. message tool bypass path).
+        // This handles the case where the agent sends no textual reply through dispatcher.
+        // Guard: only clean up if processingTransitionPromise was actually started,
+        // meaning onProcessingStart was called (the agent did begin processing).
+        // Without this guard, completeReaction fires during markDispatchIdle for debounced
+        // messages that are still waiting in the queue (queuedFinal=true scenarios).
+        if (processingTransitionPromise !== null) {
+          completeReaction();
+        }
       },
     });
 

@@ -649,9 +649,6 @@ export async function handleFeishuMessage(params: {
   }
 
   try {
-    // Transition from QUEUED to PROCESSING as we start agent dispatch
-    await reactionManager.onProcessingStart(ctx.messageId);
-
     // Timeout monitor: mark processing started
     markProcessingStarted(ctx.messageId);
 
@@ -1006,6 +1003,16 @@ export async function handleFeishuMessage(params: {
     log(
       `feishu[${account.accountId}]: dispatch complete (queuedFinal=${queuedFinal}, replies=${counts.final})`,
     );
+
+    // FR-001 Smart Fallback Cleanup:
+    // When replies=0, this message produced no reply. Two scenarios:
+    // 1. A main message is PROCESSING in this chat → this was a merged message,
+    //    its emoji will be cleaned up by clearProcessingForChat when the main reply arrives.
+    // 2. No PROCESSING message exists → this message was truly discarded (e.g. debounce,
+    //    filters, or all messages got replies=0). Clean up now to prevent orphan emojis.
+    if (counts.final === 0 && !reactionManager.hasProcessingInChat(ctx.chatId)) {
+      await reactionManager.onCompleted(ctx.messageId);
+    }
   } catch (err) {
     error(`feishu[${account.accountId}]: failed to dispatch message: ${String(err)}`);
     // Ensure emoji is cleaned up on error
