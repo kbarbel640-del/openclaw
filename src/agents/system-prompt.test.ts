@@ -606,6 +606,7 @@ describe("buildSubagentSystemPrompt", () => {
     expect(prompt).toContain("sessions_spawn");
     expect(prompt).toContain('runtime: "acp"');
     expect(prompt).toContain("ACP harness session (codex/claudecode/gemini)");
+    expect(prompt).toContain("set `agentId` unless `acp.defaultAgent` is configured");
     expect(prompt).toContain("Do not ask users to run slash commands or CLI");
     expect(prompt).toContain("Do not use `exec` (`openclaw ...`, `acpx ...`)");
     expect(prompt).toContain("Use `subagents` only for OpenClaw subagents");

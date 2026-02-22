@@ -244,6 +244,20 @@ describe("spawnAcpDirect", () => {
     });
   });
 
+  it("requires an explicit ACP agent when no config default exists", async () => {
+    const result = await spawnAcpDirect(
+      {
+        task: "hello",
+      },
+      {
+        agentSessionKey: "agent:main:main",
+      },
+    );
+
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("set `acp.defaultAgent`");
+  });
+
   it("fails fast when Discord ACP thread spawn is disabled", async () => {
     hoisted.state.cfg = {
       ...hoisted.state.cfg,

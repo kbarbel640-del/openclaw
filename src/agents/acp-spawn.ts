@@ -13,7 +13,7 @@ import {
 } from "../discord/monitor/thread-bindings.js";
 import { parseDiscordTarget } from "../discord/targets.js";
 import { callGateway } from "../gateway/call.js";
-import { normalizeAgentId, parseAgentSessionKey } from "../routing/session-key.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import { normalizeDeliveryContext } from "../utils/delivery-context.js";
 
 export const ACP_SPAWN_MODES = ["run", "session"] as const;
@@ -70,9 +70,33 @@ function resolveAcpSessionMode(mode: SpawnAcpMode): AcpRuntimeSessionMode {
   return mode === "session" ? "persistent" : "oneshot";
 }
 
-function resolveRequesterAgentId(sessionKey?: string): string {
-  const parsed = parseAgentSessionKey(sessionKey);
-  return normalizeAgentId(parsed?.agentId ?? "main");
+function resolveTargetAcpAgentId(params: {
+  requestedAgentId?: string;
+  cfg: OpenClawConfig;
+}): { ok: true; agentId: string } | { ok: false; error: string } {
+  const requested = normalizeOptionalAgentId(params.requestedAgentId);
+  if (requested) {
+    return { ok: true, agentId: requested };
+  }
+
+  const configuredDefault = normalizeOptionalAgentId(params.cfg.acp?.defaultAgent);
+  if (configuredDefault) {
+    return { ok: true, agentId: configuredDefault };
+  }
+
+  return {
+    ok: false,
+    error:
+      "ACP target agent is not configured. Pass `agentId` in `sessions_spawn` or set `acp.defaultAgent` in config.",
+  };
+}
+
+function normalizeOptionalAgentId(value: string | undefined | null): string | undefined {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return normalizeAgentId(trimmed);
 }
 
 function isAcpEnabled(cfg: OpenClawConfig): boolean {
@@ -259,10 +283,17 @@ export async function spawnAcpDirect(
     };
   }
 
-  const requesterAgentId = resolveRequesterAgentId(ctx.agentSessionKey);
-  const targetAgentId = normalizeAgentId(
-    params.agentId || cfg.acp?.defaultAgent || requesterAgentId,
-  );
+  const targetAgentResult = resolveTargetAcpAgentId({
+    requestedAgentId: params.agentId,
+    cfg,
+  });
+  if (!targetAgentResult.ok) {
+    return {
+      status: "error",
+      error: targetAgentResult.error,
+    };
+  }
+  const targetAgentId = targetAgentResult.agentId;
   if (!isAcpAgentAllowedByPolicy(cfg, targetAgentId)) {
     return {
       status: "forbidden",
