@@ -366,3 +366,25 @@ export function asString(value: unknown, fallback = ""): string {
   }
   return fallback;
 }
+
+/**
+ * Check if a tool result contains MEDIA: file path references.
+ * The MEDIA: protocol is produced by `imageResult()` / `imageResultFromFile()`
+ * as a text content block alongside the (often sanitized) image data block.
+ */
+export function resultHasMedia(result: unknown): boolean {
+  if (!result || typeof result !== "object") {
+    return false;
+  }
+  const r = result as { content?: unknown[] };
+  if (!Array.isArray(r.content)) {
+    return false;
+  }
+  return r.content.some((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return false;
+    }
+    const e = entry as { type?: string; text?: string };
+    return e.type === "text" && typeof e.text === "string" && /^MEDIA:.+/m.test(e.text);
+  });
+}

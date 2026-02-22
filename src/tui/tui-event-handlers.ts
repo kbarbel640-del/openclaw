@@ -1,4 +1,9 @@
-import { asString, extractTextFromMessage, isCommandMessage } from "./tui-formatters.js";
+import {
+  asString,
+  extractTextFromMessage,
+  isCommandMessage,
+  resultHasMedia,
+} from "./tui-formatters.js";
 import { TuiStreamAssembler } from "./tui-stream-assembler.js";
 import type { AgentEvent, ChatEvent, TuiStateAccess } from "./tui-types.js";
 
@@ -138,7 +143,10 @@ export function createEventHandlers(context: EventHandlerContext) {
   const maybeRefreshHistoryForRun = (runId: string) => {
     if (isLocalRunId?.(runId)) {
       forgetLocalRunId?.(runId);
-      return;
+      // Continue to loadHistory so tool results (including images) are shown
+      // for locally-initiated runs. Without this, tool results from local runs
+      // are never displayed because agent-stream tool events are not sent to
+      // TUI WebSocket clients.
     }
     if (hasConcurrentActiveRun(runId)) {
       return;
@@ -249,13 +257,25 @@ export function createEventHandlers(context: EventHandlerContext) {
       const verbose = state.sessionInfo.verboseLevel ?? "off";
       const allowToolEvents = verbose !== "off";
       const allowToolOutput = verbose === "full";
-      if (!allowToolEvents) {
-        return;
-      }
       const data = evt.data ?? {};
       const phase = asString(data.phase, "");
       const toolCallId = asString(data.toolCallId, "");
       const toolName = asString(data.name, "tool");
+
+      // Bypass verbose filter for tool results containing MEDIA: image paths.
+      // Images should always render regardless of verbose level.
+      if (!allowToolEvents && phase === "result" && toolCallId && resultHasMedia(data.result)) {
+        chatLog.startTool(toolCallId, toolName, data.args ?? {});
+        chatLog.updateToolResult(toolCallId, data.result, {
+          isError: Boolean(data.isError),
+        });
+        tui.requestRender();
+        return;
+      }
+
+      if (!allowToolEvents) {
+        return;
+      }
       if (!toolCallId) {
         return;
       }

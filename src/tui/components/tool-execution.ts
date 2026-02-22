@@ -1,4 +1,5 @@
-import { Box, Container, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
+import { readFileSync } from "node:fs";
+import { Box, Container, Image as PiImage, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
 import { formatToolDetail, resolveToolDisplay } from "../../agents/tool-display.js";
 import { markdownTheme, theme } from "../theme/theme.js";
 import { sanitizeRenderableText } from "../tui-formatters.js";
@@ -17,6 +18,47 @@ type ToolResult = {
 };
 
 const PREVIEW_LINES = 12;
+
+const MIME_BY_EXT: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+
+/** Cached terminal image capability detection. */
+let _imageSupport: boolean | undefined;
+function canRenderInlineImages(): boolean {
+  if (_imageSupport === undefined) {
+    const term = process.env.TERM ?? "";
+    const tp = (process.env.TERM_PROGRAM ?? "").toLowerCase();
+    _imageSupport =
+      tp === "wezterm" ||
+      tp === "ghostty" ||
+      tp.includes("iterm") ||
+      term === "xterm-kitty" ||
+      Boolean(process.env.ITERM_SESSION_ID);
+  }
+  return _imageSupport;
+}
+
+/** Extract local file paths from MEDIA: text lines in a tool result. */
+function getMediaPaths(result?: ToolResult): string[] {
+  const paths: string[] = [];
+  for (const entry of result?.content ?? []) {
+    if (entry.type !== "text" || typeof entry.text !== "string") {
+      continue;
+    }
+    for (const line of entry.text.split("\n")) {
+      const match = line.trim().match(/^MEDIA:(.+)$/);
+      if (match) {
+        paths.push(match[1].trim());
+      }
+    }
+  }
+  return paths;
+}
 
 function formatArgs(toolName: string, args: unknown): string {
   const display = resolveToolDisplay({ name: toolName, args });
@@ -38,11 +80,25 @@ function extractText(result?: ToolResult): string {
   if (!result?.content) {
     return "";
   }
+  const hasMedia = result.content.some(
+    (e) => e.type === "text" && typeof e.text === "string" && /^MEDIA:.+/m.test(e.text),
+  );
   const lines: string[] = [];
   for (const entry of result.content) {
     if (entry.type === "text" && entry.text) {
-      lines.push(sanitizeRenderableText(entry.text));
+      // Filter out MEDIA: path lines (rendered as inline images instead)
+      const filtered = entry.text
+        .split("\n")
+        .filter((line) => !/^MEDIA:.+/.test(line.trim()))
+        .join("\n");
+      if (filtered.trim()) {
+        lines.push(sanitizeRenderableText(filtered));
+      }
     } else if (entry.type === "image") {
+      // Suppress placeholder when MEDIA paths provide the actual image
+      if (hasMedia) {
+        continue;
+      }
       const mime = entry.mimeType ?? "image";
       const size = entry.bytes ? ` ${Math.round(entry.bytes / 1024)}kb` : "";
       const omitted = entry.omitted ? " (omitted)" : "";
@@ -60,6 +116,7 @@ export class ToolExecutionComponent extends Container {
   private toolName: string;
   private args: unknown;
   private result?: ToolResult;
+  private imageChildren: PiImage[] = [];
   private expanded = false;
   private isError = false;
   private isPartial = true;
@@ -132,6 +189,29 @@ export class ToolExecutionComponent extends Container {
       this.output.setText(preview);
     } else {
       this.output.setText(text);
+    }
+
+    // Render inline images from MEDIA: file paths when terminal supports it
+    for (const img of this.imageChildren) {
+      this.removeChild(img);
+    }
+    this.imageChildren = [];
+    if (!this.isPartial && canRenderInlineImages()) {
+      for (const filePath of getMediaPaths(this.result)) {
+        try {
+          const buf = readFileSync(filePath);
+          const base64 = buf.toString("base64");
+          const ext = (filePath.split(".").pop() ?? "").toLowerCase();
+          const mime = MIME_BY_EXT[ext] ?? "image/png";
+          const img = new PiImage(base64, mime, {
+            fallbackColor: (s: string) => theme.dim(s),
+          });
+          this.addChild(img);
+          this.imageChildren.push(img);
+        } catch {
+          // File not accessible on this host; text placeholder remains
+        }
+      }
     }
   }
 }
