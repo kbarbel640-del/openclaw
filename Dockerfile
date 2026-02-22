@@ -66,16 +66,20 @@ WORKDIR /app
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 ARG OPENCLAW_INSTALL_BROWSER=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ] || [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
-  apt-get update && \
-  if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES; \
-  fi && \
-  if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb; \
-  fi && \
-  apt-get clean && \
-  rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
-  fi
+      apt-get update && \
+    if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES; \
+    fi && \
+    if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
+      mkdir -p /home/node/.cache/ms-playwright && \
+      PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
+      node /app/node_modules/playwright-core/cli.js install --with-deps chromium && \
+      chown -R node:node /home/node/.cache/ms-playwright; \
+    fi && \
+      apt-get clean && \
+      rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
+    fi
 
 # Copy the built & pruned application with correct ownership.
 # Using COPY --chown avoids a separate `chown -R` layer that would duplicate
