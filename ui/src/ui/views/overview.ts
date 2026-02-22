@@ -4,6 +4,7 @@ import { formatRelativeTimestamp, formatDurationHuman } from "../format.ts";
 import type { GatewayHelloOk } from "../gateway.ts";
 import { formatNextRun } from "../presenter.ts";
 import type { UiSettings } from "../storage.ts";
+import { shouldShowPairingHint } from "./overview-hints.ts";
 
 export type OverviewProps = {
   connected: boolean;
@@ -37,6 +38,34 @@ export function renderOverview(props: OverviewProps) {
     : t("common.na");
   const authMode = snapshot?.authMode;
   const isTrustedProxy = authMode === "trusted-proxy";
+
+  const pairingHint = (() => {
+    if (!shouldShowPairingHint(props.connected, props.lastError)) {
+      return null;
+    }
+    return html`
+      <div class="muted" style="margin-top: 8px">
+        ${t("overview.pairing.hint")}
+        <div style="margin-top: 6px">
+          <span class="mono">openclaw devices list</span><br />
+          <span class="mono">openclaw devices approve &lt;requestId&gt;</span>
+        </div>
+        <div style="margin-top: 6px; font-size: 12px;">
+          ${t("overview.pairing.mobileHint")}
+        </div>
+        <div style="margin-top: 6px">
+          <a
+            class="session-link"
+            href="https://docs.openclaw.ai/web/control-ui#device-pairing-first-connection"
+            target="_blank"
+            rel="noreferrer"
+            title="Device pairing docs (opens in new tab)"
+            >Docs: Device pairing</a
+          >
+        </div>
+      </div>
+    `;
+  })();
 
   const authHint = (() => {
     if (props.connected || !props.lastError) {
@@ -241,6 +270,7 @@ export function renderOverview(props: OverviewProps) {
           props.lastError
             ? html`<div class="callout danger" style="margin-top: 14px;">
               <div>${props.lastError}</div>
+              ${pairingHint ?? ""}
               ${authHint ?? ""}
               ${insecureContextHint ?? ""}
             </div>`
