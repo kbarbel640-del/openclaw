@@ -3,13 +3,11 @@ import { createCommandHandlers } from "./tui-command-handlers.js";
 
 describe("tui command handlers", () => {
   it("renders the sending indicator before chat.send resolves", async () => {
-    const sendState: { resolveSend: ((value: { runId: string }) => void) | null } = {
-      resolveSend: null,
-    };
+  let resolveSend: ((value: { runId: string }) => void) | null = null;
     const sendChat = vi.fn(
       () =>
         new Promise<{ runId: string }>((resolve) => {
-          sendState.resolveSend = resolve;
+          resolveSend = resolve;
         }),
     );
     const addUser = vi.fn();
