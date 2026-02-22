@@ -22,7 +22,7 @@ vi.mock("../logging/subsystem.js", () => {
   return { createSubsystemLogger: () => makeLogger() };
 });
 
-import { sanitizeContentBlocksImages } from "./tool-images.js";
+import { sanitizeContentBlocksImages, clearResizeCache } from "./tool-images.js";
 
 async function createLargePng(): Promise<Buffer> {
   const width = 2400;
@@ -39,6 +39,7 @@ describe("tool-images log context", () => {
   beforeEach(() => {
     infoMock.mockClear();
     warnMock.mockClear();
+    clearResizeCache();
   });
 
   it("includes filename from MEDIA text", async () => {

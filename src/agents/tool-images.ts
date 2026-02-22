@@ -27,6 +27,34 @@ const MAX_IMAGE_DIMENSION_PX = DEFAULT_IMAGE_MAX_DIMENSION_PX;
 const MAX_IMAGE_BYTES = DEFAULT_IMAGE_MAX_BYTES;
 const log = createSubsystemLogger("agents/tool-images");
 
+// ── Resize cache ──────────────────────────────────────────────────────────────
+// Images in session history are re-sanitized on every turn. Caching avoids
+// redundant resize operations for identical payloads (#23590).
+const RESIZE_CACHE_MAX = 64;
+
+interface ResizeCacheEntry {
+  base64: string;
+  mimeType: string;
+  resized: boolean;
+  width?: number;
+  height?: number;
+}
+
+const resizeCache = new Map<string, ResizeCacheEntry>();
+
+function resizeCacheKey(base64: string, maxDimensionPx: number, maxBytes: number): string {
+  // Use a fast hash of the first 256 chars + length + limits as the cache key.
+  // Full hashing of multi-MB base64 strings would be expensive; the prefix +
+  // length combination is sufficient to avoid collisions in practice.
+  const prefix = base64.slice(0, 256);
+  return `${prefix}|${base64.length}|${maxDimensionPx}|${maxBytes}`;
+}
+
+/** Exported for testing only. */
+export function clearResizeCache(): void {
+  resizeCache.clear();
+}
+
 function isImageBlock(block: unknown): block is ImageContentBlock {
   if (!block || typeof block !== "object") {
     return false;
@@ -145,6 +173,42 @@ function inferImageFileName(params: {
 }
 
 async function resizeImageBase64IfNeeded(params: {
+  base64: string;
+  mimeType: string;
+  maxDimensionPx: number;
+  maxBytes: number;
+  label?: string;
+  fileName?: string;
+}): Promise<{
+  base64: string;
+  mimeType: string;
+  resized: boolean;
+  width?: number;
+  height?: number;
+}> {
+  // Check cache first to avoid redundant resize operations on session
+  // history images that were already processed in a previous turn (#23590).
+  const cacheKey = resizeCacheKey(params.base64, params.maxDimensionPx, params.maxBytes);
+  const cached = resizeCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const result = await resizeImageBase64Core(params);
+
+  // Store in cache (evict oldest entries if over limit).
+  if (resizeCache.size >= RESIZE_CACHE_MAX) {
+    const firstKey = resizeCache.keys().next().value;
+    if (firstKey !== undefined) {
+      resizeCache.delete(firstKey);
+    }
+  }
+  resizeCache.set(cacheKey, result);
+
+  return result;
+}
+
+async function resizeImageBase64Core(params: {
   base64: string;
   mimeType: string;
   maxDimensionPx: number;
