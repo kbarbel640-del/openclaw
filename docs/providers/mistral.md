@@ -14,22 +14,22 @@ Source: [Mistral AI](https://mistral.ai)
 
 ## Model overview
 
-| Model | Context Window | Input Types | Best For |
-|-------|----------------|-------------|----------|
-| Mistral Large | 128K | text, image | Complex tasks, reasoning |
-| Mistral Medium | 128K | text | General-purpose |
-| Mistral Small | 128K | text | Fast, cost-effective |
-| Codestral | 256K | text | Code generation |
-| Ministral 8B | 128K | text | Edge deployment, fast |
+| Model          | Context Window | Input Types | Best For                 |
+| -------------- | -------------- | ----------- | ------------------------ |
+| Mistral Large  | 128K           | text, image | Complex tasks, reasoning |
+| Mistral Medium | 128K           | text        | General-purpose          |
+| Mistral Small  | 128K           | text        | Fast, cost-effective     |
+| Codestral      | 256K           | text        | Code generation          |
+| Ministral 8B   | 128K           | text        | Edge deployment, fast    |
 
 ## Pricing (per 1M tokens)
 
-| Model | Input | Output |
-|-------|-------|--------|
-| Mistral Large | $2.00 | $6.00 |
-| Mistral Medium | $0.40 | $1.20 |
-| Mistral Small | $0.10 | $0.30 |
-| Codestral | $0.30 | $0.90 |
+| Model          | Input | Output |
+| -------------- | ----- | ------ |
+| Mistral Large  | $2.00 | $6.00  |
+| Mistral Medium | $0.40 | $1.20  |
+| Mistral Small  | $0.10 | $0.30  |
+| Codestral      | $0.30 | $0.90  |
 
 ## Setup
 
