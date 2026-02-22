@@ -17,4 +17,4 @@ logs:
 	$(COMPOSE) logs --tail=80 openclaw-gateway
 
 health:
-	$(COMPOSE) exec openclaw-gateway sh -lc 'node dist/index.js health --token "$$OPENCLAW_GATEWAY_TOKEN"'
+	curl -fsS http://127.0.0.1:18789/health && echo
