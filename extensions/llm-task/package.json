@@ -5,8 +5,7 @@
   "description": "OpenClaw JSON-only LLM task plugin",
   "type": "module",
   "openclaw": {
-    "extensions": [
-      "./index.ts"
-    ]
+    "extensions": [ "./dist/index.js" ]
   }
 }
+

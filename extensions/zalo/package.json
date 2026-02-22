@@ -10,9 +10,7 @@
     "openclaw": "workspace:*"
   },
   "openclaw": {
-    "extensions": [
-      "./index.ts"
-    ],
+    "extensions": [ "./dist/index.js" ],
     "channel": {
       "id": "zalo",
       "label": "Zalo",
@@ -33,3 +31,4 @@
     }
   }
 }
+

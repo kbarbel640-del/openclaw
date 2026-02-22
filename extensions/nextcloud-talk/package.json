@@ -7,9 +7,7 @@
     "openclaw": "workspace:*"
   },
   "openclaw": {
-    "extensions": [
-      "./index.ts"
-    ],
+    "extensions": [ "./dist/index.js" ],
     "channel": {
       "id": "nextcloud-talk",
       "label": "Nextcloud Talk",
@@ -31,3 +29,4 @@
     }
   }
 }
+

@@ -12,9 +12,7 @@
     "openclaw": "workspace:*"
   },
   "openclaw": {
-    "extensions": [
-      "./index.ts"
-    ],
+    "extensions": [ "./dist/index.js" ],
     "channel": {
       "id": "feishu",
       "label": "Feishu",
@@ -35,3 +33,4 @@
     }
   }
 }
+

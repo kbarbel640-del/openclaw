@@ -4,8 +4,7 @@
   "description": "Lobster workflow tool plugin (typed pipelines + resumable approvals)",
   "type": "module",
   "openclaw": {
-    "extensions": [
-      "./index.ts"
-    ]
+    "extensions": [ "./dist/index.js" ]
   }
 }
+
