@@ -48,5 +48,8 @@ export async function recordInboundSession(params: {
     // Avoid leaking inbound origin metadata into a different target session.
     ctx: update.sessionKey === sessionKey ? ctx : undefined,
     groupResolution,
+    // Inbound route updates happen before initSessionState; keep the existing
+    // freshness timestamp so daily/idle reset checks still work.
+    preserveUpdatedAt: true,
   });
 }
