@@ -58,9 +58,21 @@ function mergeProviders(params: {
   explicit?: Record<string, ProviderConfig> | null;
 }): Record<string, ProviderConfig> {
   const out: Record<string, ProviderConfig> = params.implicit ? { ...params.implicit } : {};
-  for (const [key, explicit] of Object.entries(params.explicit ?? {})) {
+  const explicitEntries = Object.entries(params.explicit ?? {});
+  const canonicalExplicitKeys = new Set<string>();
+  for (const [key] of explicitEntries) {
+    const normalizedKey = key.trim();
+    if (!normalizedKey || key !== normalizedKey) {
+      continue;
+    }
+    canonicalExplicitKeys.add(normalizedKey);
+  }
+  for (const [key, explicit] of explicitEntries) {
     const providerKey = key.trim();
     if (!providerKey) {
+      continue;
+    }
+    if (canonicalExplicitKeys.has(providerKey) && key !== providerKey) {
       continue;
     }
     const implicit = out[providerKey];
