@@ -197,7 +197,7 @@ describe("resolveAnnounceTarget", () => {
   });
 
   it("hydrates Slack accountId from sessions.list when available", async () => {
-    const { resolveAnnounceTarget } = await loadResolveAnnounceTarget();
+    ({ resolveAnnounceTarget } = await import("./sessions-announce-target.js"));
     callGatewayMock.mockResolvedValueOnce({
       sessions: [
         {
