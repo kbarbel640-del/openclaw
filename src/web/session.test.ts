@@ -204,13 +204,14 @@ describe("web session", () => {
     expect(inFlight).toBe(0);
   });
 
-  it("passes proxy agent to makeWASocket when proxy is set", async () => {
+  it("passes proxy agents to makeWASocket when proxy is set", async () => {
     await createWaSocket(false, false, { proxy: "http://proxy.example.com:8080" });
     const makeWASocket = baileys.makeWASocket as ReturnType<typeof vi.fn>;
     const opts = makeWASocket.mock.calls[0][0];
     expect(opts.agent).toBeDefined();
     expect(opts.fetchAgent).toBeDefined();
-    expect(opts.agent).toBe(opts.fetchAgent);
+    // WebSocket agent (HttpsProxyAgent) and HTTP agent (undici ProxyAgent) are separate instances
+    expect(opts.agent).not.toBe(opts.fetchAgent);
   });
 
   it("does not pass agent when no proxy is set", async () => {

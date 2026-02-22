@@ -9,6 +9,7 @@ import {
 } from "@whiskeysockets/baileys";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import qrcode from "qrcode-terminal";
+import { ProxyAgent } from "undici";
 import { formatCliCommand } from "../cli/command-format.js";
 import { danger, success } from "../globals.js";
 import { getChildLogger, toPinoLikeLogger } from "../logging.js";
@@ -107,10 +108,12 @@ export async function createWaSocket(
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
   const proxyUrl = opts.proxy?.trim();
-  let proxyAgent: InstanceType<typeof HttpsProxyAgent> | undefined;
+  let wsAgent: InstanceType<typeof HttpsProxyAgent> | undefined;
+  let httpAgent: InstanceType<typeof ProxyAgent> | undefined;
   if (proxyUrl) {
     try {
-      proxyAgent = new HttpsProxyAgent(proxyUrl);
+      wsAgent = new HttpsProxyAgent(proxyUrl);
+      httpAgent = new ProxyAgent(proxyUrl);
       sessionLogger.info("WhatsApp proxy enabled");
     } catch (err) {
       sessionLogger.warn({ error: String(err) }, "Invalid proxy URL, connecting without proxy");
@@ -127,7 +130,8 @@ export async function createWaSocket(
     browser: ["openclaw", "cli", VERSION],
     syncFullHistory: false,
     markOnlineOnConnect: false,
-    ...(proxyAgent && { agent: proxyAgent, fetchAgent: proxyAgent }),
+    ...(wsAgent && { agent: wsAgent }),
+    ...(httpAgent && { fetchAgent: httpAgent }),
   });
 
   sock.ev.on("creds.update", () => enqueueSaveCreds(authDir, saveCreds, sessionLogger));
