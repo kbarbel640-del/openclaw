@@ -23,11 +23,27 @@ export async function movePathToTrash(targetPath: string): Promise<string> {
     }
   }
 
+  // On Windows, try PowerShell's Recycle Bin API.
+  if (process.platform === "win32") {
+    try {
+      const ps = [
+        "Add-Type -AssemblyName Microsoft.VisualBasic",
+        `[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${targetPath.replace(/'/g, "''")}','OnlyErrorDialogs','SendToRecycleBin')`,
+      ].join(";");
+      await runExec("powershell", ["-NoProfile", "-Command", ps], { timeoutMs: 10_000 });
+      return targetPath;
+    } catch {
+      // Ignore — fall through to manual move.
+    }
+  }
+
   // Manual fallback: move to platform-appropriate trash directory.
   const trashDir =
     process.platform === "linux"
       ? path.join(os.homedir(), ".local", "share", "Trash", "files")
-      : path.join(os.homedir(), ".Trash");
+      : process.platform === "win32"
+        ? path.join(os.homedir(), ".openclaw-trash")
+        : path.join(os.homedir(), ".Trash");
   fs.mkdirSync(trashDir, { recursive: true });
   const base = path.basename(targetPath);
   let dest = path.join(trashDir, `${base}-${Date.now()}`);
