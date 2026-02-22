@@ -341,9 +341,60 @@ export async function resolveNpmChannelTag(params: {
   return { tag: channelTag, version: channelStatus.version };
 }
 
+type ParsedComparableVersion = {
+  major: number;
+  minor: number;
+  patch: number;
+  suffixKind: "prerelease" | "release" | "build";
+  buildRevision: number;
+};
+
+const COMPARABLE_SEMVER_RE = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/;
+
+function parseComparableVersion(version: string | null): ParsedComparableVersion | null {
+  if (!version) {
+    return null;
+  }
+  const match = version.trim().match(COMPARABLE_SEMVER_RE);
+  if (!match) {
+    return null;
+  }
+  const [, majorRaw, minorRaw, patchRaw, suffixRaw] = match;
+  const major = Number.parseInt(majorRaw, 10);
+  const minor = Number.parseInt(minorRaw, 10);
+  const patch = Number.parseInt(patchRaw, 10);
+  if (![major, minor, patch].every(Number.isFinite)) {
+    return null;
+  }
+
+  if (!suffixRaw) {
+    return { major, minor, patch, suffixKind: "release", buildRevision: 0 };
+  }
+
+  if (/^\d+$/.test(suffixRaw)) {
+    return {
+      major,
+      minor,
+      patch,
+      suffixKind: "build",
+      buildRevision: Number.parseInt(suffixRaw, 10),
+    };
+  }
+
+  return { major, minor, patch, suffixKind: "prerelease", buildRevision: 0 };
+}
+
+function toReleaseVersion(version: string | null): ParsedComparableVersion | null {
+  const parsed = parseSemver(version);
+  if (!parsed) {
+    return null;
+  }
+  return { ...parsed, suffixKind: "release", buildRevision: 0 };
+}
+
 export function compareSemverStrings(a: string | null, b: string | null): number | null {
-  const pa = parseSemver(a);
-  const pb = parseSemver(b);
+  const pa = parseComparableVersion(a) ?? toReleaseVersion(a);
+  const pb = parseComparableVersion(b) ?? toReleaseVersion(b);
   if (!pa || !pb) {
     return null;
   }
@@ -356,6 +407,31 @@ export function compareSemverStrings(a: string | null, b: string | null): number
   if (pa.patch !== pb.patch) {
     return pa.patch < pb.patch ? -1 : 1;
   }
+
+  const rank = (kind: ParsedComparableVersion["suffixKind"]): number => {
+    if (kind === "prerelease") {
+      return 0;
+    }
+    if (kind === "release") {
+      return 1;
+    }
+    return 2;
+  };
+
+  const rankA = rank(pa.suffixKind);
+  const rankB = rank(pb.suffixKind);
+  if (rankA !== rankB) {
+    return rankA < rankB ? -1 : 1;
+  }
+
+  if (
+    pa.suffixKind === "build" &&
+    pb.suffixKind === "build" &&
+    pa.buildRevision !== pb.buildRevision
+  ) {
+    return pa.buildRevision < pb.buildRevision ? -1 : 1;
+  }
+
   return 0;
 }
 

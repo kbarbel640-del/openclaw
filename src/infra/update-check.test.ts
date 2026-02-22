@@ -1,5 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveNpmChannelTag } from "./update-check.js";
+import { compareSemverStrings, resolveNpmChannelTag } from "./update-check.js";
+
+describe("compareSemverStrings", () => {
+  it("treats OpenClaw numeric -N suffix as a newer build", () => {
+    expect(compareSemverStrings("2026.2.21-2", "2026.2.21")).toBe(1);
+    expect(compareSemverStrings("2026.2.21", "2026.2.21-2")).toBe(-1);
+  });
+
+  it("keeps prereleases below base release", () => {
+    expect(compareSemverStrings("1.2.3-beta.1", "1.2.3")).toBe(-1);
+    expect(compareSemverStrings("1.2.3", "1.2.3-beta.1")).toBe(1);
+  });
+});
 
 describe("resolveNpmChannelTag", () => {
   let versionByTag: Record<string, string | null>;
