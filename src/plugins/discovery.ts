@@ -13,6 +13,16 @@ import type { PluginDiagnostic, PluginOrigin } from "./types.js";
 
 const EXTENSION_EXTS = new Set([".ts", ".js", ".mts", ".cts", ".mjs", ".cjs"]);
 
+const ARCHIVED_PLUGIN_DIR_PATTERN = /\.(?:bak|backup(?:[-._].*)?|disabled(?:[-._].*)?)(?:$|\.)/i;
+
+function shouldIgnoreDiscoveredExtensionEntry(name: string): boolean {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return true;
+  }
+  return ARCHIVED_PLUGIN_DIR_PATTERN.test(trimmed);
+}
+
 export type PluginCandidate = {
   idHint: string;
   source: string;
@@ -343,6 +353,9 @@ function discoverInDirectory(params: {
 
   for (const entry of entries) {
     const fullPath = path.join(params.dir, entry.name);
+    if (entry.isDirectory() && shouldIgnoreDiscoveredExtensionEntry(entry.name)) {
+      continue;
+    }
     if (entry.isFile()) {
       if (!isExtensionFile(fullPath)) {
         continue;
