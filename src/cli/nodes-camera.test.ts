@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { withTempDir } from "../test-utils/temp-dir.js";
 import {
   cameraTempPath,
   parseCameraClipPayload,
@@ -11,15 +11,6 @@ import {
   writeUrlToFile,
 } from "./nodes-camera.js";
 import { parseScreenRecordPayload, screenRecordTempPath } from "./nodes-screen.js";
-
-async function withTempDir<T>(prefix: string, run: (dir: string) => Promise<T>): Promise<T> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
-  try {
-    return await run(dir);
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true });
-  }
-}
 
 async function withCameraTempDir<T>(run: (dir: string) => Promise<T>): Promise<T> {
   return await withTempDir("openclaw-test-", run);
@@ -142,7 +133,12 @@ describe("nodes camera helpers", () => {
   });
 
   it("rejects invalid url payload responses", async () => {
-    const cases = [
+    const cases: Array<{
+      name: string;
+      url: string;
+      response?: Response;
+      expectedMessage: RegExp;
+    }> = [
       {
         name: "non-https url",
         url: "http://example.com/x.bin",
@@ -169,7 +165,7 @@ describe("nodes camera helpers", () => {
         response: new Response(null, { status: 200 }),
         expectedMessage: /empty response body/i,
       },
-    ] as const;
+    ];
 
     for (const testCase of cases) {
       if (testCase.response) {

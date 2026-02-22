@@ -91,6 +91,44 @@ function mockProcStatRead(params: { onProcRead: () => string }) {
   });
 }
 
+async function writeLockFile(
+  env: NodeJS.ProcessEnv,
+  params: { startTime: number; createdAt?: string } = { startTime: 111 },
+) {
+  const { lockPath, configPath } = resolveLockPath(env);
+  const payload = createLockPayload({
+    configPath,
+    startTime: params.startTime,
+    createdAt: params.createdAt,
+  });
+  await fs.writeFile(lockPath, JSON.stringify(payload), "utf8");
+  return { lockPath, configPath };
+}
+
+function createEaccesProcStatSpy() {
+  return mockProcStatRead({
+    onProcRead: () => {
+      throw new Error("EACCES");
+    },
+  });
+}
+
+async function acquireStaleLinuxLock(env: NodeJS.ProcessEnv) {
+  await writeLockFile(env, {
+    startTime: 111,
+    createdAt: new Date(0).toISOString(),
+  });
+  const staleProcSpy = createEaccesProcStatSpy();
+  const lock = await acquireForTest(env, {
+    staleMs: 1,
+    platform: "linux",
+  });
+  expect(lock).not.toBeNull();
+
+  await lock?.release();
+  staleProcSpy.mockRestore();
+}
+
 describe("gateway lock", () => {
   beforeAll(async () => {
     fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gateway-lock-"));
@@ -154,15 +192,8 @@ describe("gateway lock", () => {
   it("keeps lock on linux when proc access fails unless stale", async () => {
     vi.useRealTimers();
     const env = await makeEnv();
-    const { lockPath, configPath } = resolveLockPath(env);
-    const payload = createLockPayload({ configPath, startTime: 111 });
-    await fs.writeFile(lockPath, JSON.stringify(payload), "utf8");
-
-    const spy = mockProcStatRead({
-      onProcRead: () => {
-        throw new Error("EACCES");
-      },
-    });
+    await writeLockFile(env);
+    const spy = createEaccesProcStatSpy();
 
     const pending = acquireForTest(env, {
       timeoutMs: 15,
@@ -172,28 +203,28 @@ describe("gateway lock", () => {
     await expect(pending).rejects.toBeInstanceOf(GatewayLockError);
 
     spy.mockRestore();
+    await acquireStaleLinuxLock(env);
+  });
 
-    const stalePayload = createLockPayload({
-      configPath,
-      startTime: 111,
-      createdAt: new Date(0).toISOString(),
-    });
-    await fs.writeFile(lockPath, JSON.stringify(stalePayload), "utf8");
+  it("keeps lock when fs.stat fails until payload is stale", async () => {
+    vi.useRealTimers();
+    const env = await makeEnv();
+    await writeLockFile(env);
+    const procSpy = createEaccesProcStatSpy();
+    const statSpy = vi
+      .spyOn(fs, "stat")
+      .mockRejectedValue(Object.assign(new Error("EPERM"), { code: "EPERM" }));
 
-    const staleSpy = mockProcStatRead({
-      onProcRead: () => {
-        throw new Error("EACCES");
-      },
-    });
-
-    const lock = await acquireForTest(env, {
-      staleMs: 1,
+    const pending = acquireForTest(env, {
+      timeoutMs: 20,
+      staleMs: 10_000,
       platform: "linux",
     });
-    expect(lock).not.toBeNull();
+    await expect(pending).rejects.toBeInstanceOf(GatewayLockError);
 
-    await lock?.release();
-    staleSpy.mockRestore();
+    procSpy.mockRestore();
+    await acquireStaleLinuxLock(env);
+    statSpy.mockRestore();
   });
 
   it("returns null when multi-gateway override is enabled", async () => {
