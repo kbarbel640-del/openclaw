@@ -233,7 +233,6 @@ export class OpenClawApp extends LitElement {
   @state() agentSkillsError: string | null = null;
   @state() agentSkillsReport: SkillStatusReport | null = null;
   @state() agentSkillsAgentId: string | null = null;
-  @state() agentsSidebarFilter = "";
 
   @state() sessionsLoading = false;
   @state() sessionsResult: SessionsListResult | null = null;
@@ -242,6 +241,12 @@ export class OpenClawApp extends LitElement {
   @state() sessionsFilterLimit = "120";
   @state() sessionsIncludeGlobal = true;
   @state() sessionsIncludeUnknown = false;
+  @state() sessionsSearchQuery = "";
+  @state() sessionsSortColumn: "key" | "kind" | "updated" | "tokens" = "updated";
+  @state() sessionsSortDir: "asc" | "desc" = "desc";
+  @state() sessionsPage = 0;
+  @state() sessionsPageSize = 10;
+  @state() sessionsActionsOpenKey: string | null = null;
 
   @state() usageLoading = false;
   @state() usageResult: import("./types.js").SessionsUsageResult | null = null;
@@ -469,12 +474,6 @@ export class OpenClawApp extends LitElement {
     const all = [...VALID_THEMES];
     const rest = all.filter((id) => id !== active);
     return [active, ...rest];
-  }
-
-  handleThemeToggleCollapse() {
-    setTimeout(() => {
-      this.themeOrder = this.buildThemeOrder(this.theme);
-    }, 80);
   }
 
   async loadOverview() {
