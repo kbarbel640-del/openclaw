@@ -18,6 +18,7 @@ import { getReplyFromConfig } from "../reply.js";
 import type { FinalizedMsgContext } from "../templating.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { formatAbortReplyText, tryFastAbortFromMessage } from "./abort.js";
+import { createAcpReplyProjector } from "./acp-projector.js";
 import { shouldSkipDuplicateInbound } from "./inbound-dedupe.js";
 import type { ReplyDispatcher, ReplyDispatchKind } from "./reply-dispatcher.js";
 import { shouldSuppressReasoningPayload } from "./reply-payloads.js";
@@ -25,8 +26,6 @@ import { isRoutableChannel, routeReply } from "./route-reply.js";
 
 const AUDIO_PLACEHOLDER_RE = /^<media:audio>(\s*\([^)]*\))?$/i;
 const AUDIO_HEADER_RE = /^\[Audio\b/i;
-const DEFAULT_ACP_STREAM_BATCH_MS = 350;
-const DEFAULT_ACP_STREAM_MAX_CHUNK_CHARS = 1800;
 const ACP_DISPATCH_DISABLED_MESSAGE =
   "ACP dispatch is disabled by policy. Ask an admin to enable `acp.dispatch.enabled`.";
 
@@ -83,42 +82,12 @@ const resolveSessionTtsAuto = (
   }
 };
 
-const clampPositiveInteger = (
-  value: unknown,
-  fallback: number,
-  bounds: { min: number; max: number },
-): number => {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return fallback;
-  }
-  const rounded = Math.round(value);
-  if (rounded < bounds.min) {
-    return bounds.min;
-  }
-  if (rounded > bounds.max) {
-    return bounds.max;
-  }
-  return rounded;
-};
-
 const isAcpDispatchEnabled = (cfg: OpenClawConfig): boolean => {
   if (cfg.acp?.enabled === false) {
     return false;
   }
   return cfg.acp?.dispatch?.enabled === true;
 };
-
-const resolveAcpStreamBatchMs = (cfg: OpenClawConfig): number =>
-  clampPositiveInteger(cfg.acp?.stream?.batchMs, DEFAULT_ACP_STREAM_BATCH_MS, {
-    min: 0,
-    max: 5_000,
-  });
-
-const resolveAcpStreamMaxChunkChars = (cfg: OpenClawConfig): number =>
-  clampPositiveInteger(cfg.acp?.stream?.maxChunkChars, DEFAULT_ACP_STREAM_MAX_CHUNK_CHARS, {
-    min: 50,
-    max: 4_000,
-  });
 
 const resolveAcpPromptText = (ctx: FinalizedMsgContext): string =>
   (typeof ctx.BodyForAgent === "string"
@@ -471,28 +440,11 @@ export async function dispatchReplyFromConfig(params: {
         .map((entry) => entry.trim().toLowerCase())
         .filter(Boolean);
 
-      const batchMs = resolveAcpStreamBatchMs(cfg);
-      const maxChunkChars = resolveAcpStreamMaxChunkChars(cfg);
-      let streamBuffer = "";
-      let lastFlushAt = 0;
-
-      const flushBufferedAcpText = async (force: boolean): Promise<void> => {
-        while (streamBuffer.length > 0) {
-          const now = Date.now();
-          if (!force && streamBuffer.length < maxChunkChars && now - lastFlushAt < batchMs) {
-            return;
-          }
-          const chunk = streamBuffer.slice(0, maxChunkChars);
-          streamBuffer = streamBuffer.slice(chunk.length);
-          const didDeliver = await deliverAcpPayload("block", { text: chunk });
-          if (didDeliver) {
-            lastFlushAt = Date.now();
-          }
-          if (!force && streamBuffer.length < maxChunkChars) {
-            return;
-          }
-        }
-      };
+      const projector = createAcpReplyProjector({
+        cfg,
+        shouldSendToolSummaries,
+        deliver: deliverAcpPayload,
+      });
 
       try {
         if (!isAcpDispatchEnabled(cfg)) {
@@ -517,32 +469,10 @@ export async function dispatchReplyFromConfig(params: {
           text: promptText,
           mode: "prompt",
           requestId: resolveAcpRequestId(ctx),
-          onEvent: async (event) => {
-            if (event.type === "text_delta") {
-              if (event.stream && event.stream !== "output") {
-                return;
-              }
-              if (event.text) {
-                streamBuffer += event.text;
-                await flushBufferedAcpText(false);
-              }
-              return;
-            }
-            if (event.type === "status") {
-              if (shouldSendToolSummaries && event.text) {
-                await deliverAcpPayload("tool", { text: `⚙️ ${event.text}` });
-              }
-              return;
-            }
-            if (event.type === "tool_call") {
-              if (shouldSendToolSummaries && event.text) {
-                await deliverAcpPayload("tool", { text: `🧰 ${event.text}` });
-              }
-            }
-          },
+          onEvent: async (event) => await projector.onEvent(event),
         });
 
-        await flushBufferedAcpText(true);
+        await projector.flush(true);
 
         const counts = dispatcher.getQueuedCounts();
         counts.tool += routedCounts.tool;
@@ -552,7 +482,7 @@ export async function dispatchReplyFromConfig(params: {
         markIdle("message_completed");
         return { queuedFinal, counts };
       } catch (err) {
-        await flushBufferedAcpText(true);
+        await projector.flush(true);
         const acpError = toAcpRuntimeError({
           error: err,
           fallbackCode: "ACP_TURN_FAILED",

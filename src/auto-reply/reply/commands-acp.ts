@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { getAcpSessionManager } from "../../acp/control-plane/manager.js";
+import {
+  cleanupFailedAcpSpawn,
+  isAcpAgentAllowedByPolicy,
+  isAcpEnabledByPolicy,
+  resolveDiscordAcpSpawnFlags as resolveSharedDiscordAcpSpawnFlags,
+  type AcpSpawnRuntimeCloseHandle,
+} from "../../acp/control-plane/spawn.js";
 import { AcpRuntimeError, toAcpRuntimeError } from "../../acp/runtime/errors.js";
 import { resolveSessionStorePathForAcp } from "../../acp/runtime/session-meta.js";
 import type { AcpRuntimeSessionMode } from "../../acp/runtime/types.js";
@@ -53,25 +60,11 @@ type ParsedSteerInput = {
   instruction: string;
 };
 
-type SpawnRuntimeCloseHandle = {
-  runtime: {
-    close: (params: {
-      handle: { sessionKey: string; backend: string; runtimeSessionName: string };
-      reason: string;
-    }) => Promise<void>;
-  };
-  handle: { sessionKey: string; backend: string; runtimeSessionName: string };
-};
-
 function stopWithText(text: string): CommandHandlerResult {
   return {
     shouldContinue: false,
     reply: { text },
   };
-}
-
-function isAcpEnabled(cfg: OpenClawConfig): boolean {
-  return cfg.acp?.enabled !== false;
 }
 
 function resolveAcpAction(tokens: string[]): AcpAction {
@@ -319,29 +312,12 @@ function resolveAcpDispatchPolicyNote(cfg: OpenClawConfig): string | null {
   return null;
 }
 
-function isAgentAllowedByPolicy(cfg: OpenClawConfig, agentId: string): boolean {
-  const allowed = (cfg.acp?.allowedAgents ?? [])
-    .map((entry) => normalizeAgentId(entry))
-    .filter(Boolean);
-  if (allowed.length === 0) {
-    return true;
-  }
-  const normalized = normalizeAgentId(agentId);
-  return allowed.includes(normalized);
-}
-
 function resolveDiscordAcpSpawnFlags(params: HandleCommandsParams): {
   enabled: boolean;
   spawnAcpSessions: boolean;
 } {
   const accountId = resolveDiscordAccountId(params);
-  const root = params.cfg.channels?.discord?.threadBindings;
-  const account = params.cfg.channels?.discord?.accounts?.[accountId]?.threadBindings;
-  return {
-    enabled:
-      account?.enabled ?? root?.enabled ?? params.cfg.session?.threadBindings?.enabled ?? true,
-    spawnAcpSessions: account?.spawnAcpSessions ?? root?.spawnAcpSessions ?? false,
-  };
+  return resolveSharedDiscordAcpSpawnFlags(params.cfg, accountId);
 }
 
 function resolveCommandRequestId(params: HandleCommandsParams): string {
@@ -582,61 +558,22 @@ async function cleanupFailedSpawn(params: {
   cfg: OpenClawConfig;
   sessionKey: string;
   shouldDeleteSession: boolean;
-  initializedRuntime?: SpawnRuntimeCloseHandle;
+  initializedRuntime?: AcpSpawnRuntimeCloseHandle;
 }) {
-  if (params.initializedRuntime) {
-    await params.initializedRuntime.runtime
-      .close({
-        handle: params.initializedRuntime.handle,
-        reason: "spawn-failed",
-      })
-      .catch((err) => {
-        logVerbose(`commands-acp: cleanup close failed for ${params.sessionKey}: ${String(err)}`);
-      });
-  }
-
-  const acpManager = getAcpSessionManager();
-  await acpManager
-    .closeSession({
-      cfg: params.cfg,
-      sessionKey: params.sessionKey,
-      reason: "spawn-failed",
-      allowBackendUnavailable: true,
-      requireAcpSession: false,
-    })
-    .catch((err) => {
-      logVerbose(`commands-acp: cleanup close failed for ${params.sessionKey}: ${String(err)}`);
-    });
-
-  unbindThreadBindingsBySessionKey({
-    targetSessionKey: params.sessionKey,
-    targetKind: "acp",
-    reason: "spawn-failed",
-    sendFarewell: false,
+  await cleanupFailedAcpSpawn({
+    cfg: params.cfg,
+    sessionKey: params.sessionKey,
+    shouldDeleteSession: params.shouldDeleteSession,
+    deleteTranscript: false,
+    runtimeCloseHandle: params.initializedRuntime,
   });
-
-  if (params.shouldDeleteSession) {
-    try {
-      await callGateway({
-        method: "sessions.delete",
-        params: {
-          key: params.sessionKey,
-          deleteTranscript: false,
-          emitLifecycleHooks: false,
-        },
-        timeoutMs: 10_000,
-      });
-    } catch {
-      // Best-effort cleanup only.
-    }
-  }
 }
 
 async function handleAcpSpawnAction(
   params: HandleCommandsParams,
   restTokens: string[],
 ): Promise<CommandHandlerResult> {
-  if (!isAcpEnabled(params.cfg)) {
+  if (!isAcpEnabledByPolicy(params.cfg)) {
     return stopWithText("ACP is disabled by policy (`acp.enabled=false`).");
   }
 
@@ -646,7 +583,7 @@ async function handleAcpSpawnAction(
   }
 
   const spawn = parsed.value;
-  if (!isAgentAllowedByPolicy(params.cfg, spawn.agentId)) {
+  if (!isAcpAgentAllowedByPolicy(params.cfg, spawn.agentId)) {
     return stopWithText(`⚠️ ACP agent "${spawn.agentId}" is not allowed by policy.`);
   }
 
@@ -654,7 +591,7 @@ async function handleAcpSpawnAction(
   const sessionKey = `agent:${spawn.agentId}:acp:${randomUUID()}`;
 
   let initializedBackend = "";
-  let initializedRuntime: SpawnRuntimeCloseHandle | undefined;
+  let initializedRuntime: AcpSpawnRuntimeCloseHandle | undefined;
   try {
     const initialized = await acpManager.initializeSession({
       cfg: params.cfg,
@@ -824,7 +761,7 @@ async function handleAcpSteerAction(
   params: HandleCommandsParams,
   restTokens: string[],
 ): Promise<CommandHandlerResult> {
-  if (!isAcpEnabled(params.cfg)) {
+  if (!isAcpEnabledByPolicy(params.cfg)) {
     return stopWithText("ACP is disabled by policy (`acp.enabled=false`).");
   }
 

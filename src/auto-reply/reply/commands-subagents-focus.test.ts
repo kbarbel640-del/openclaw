@@ -210,6 +210,29 @@ describe("/focus, /unfocus, /agents", () => {
     );
   });
 
+  it("/unfocus also unbinds ACP-focused thread bindings", async () => {
+    const fake = createFakeThreadBindingManager([
+      createStoredBinding({
+        targetKind: "acp",
+        targetSessionKey: "agent:codex:acp:session-1",
+        agentId: "codex",
+        label: "codex-session",
+      }),
+    ]);
+    hoisted.getThreadBindingManagerMock.mockReturnValue(fake.manager);
+
+    const params = createDiscordCommandParams("/unfocus");
+    const result = await handleSubagentsCommand(params, true);
+
+    expect(result?.reply?.text).toContain("Thread unfocused");
+    expect(fake.manager.unbindThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-1",
+        reason: "manual",
+      }),
+    );
+  });
+
   it("/focus rejects rebinding when the thread is focused by another user", async () => {
     const fake = createFakeThreadBindingManager([createStoredBinding({ boundBy: "user-2" })]);
     const { result } = await focusCodexAcpInThread(fake);

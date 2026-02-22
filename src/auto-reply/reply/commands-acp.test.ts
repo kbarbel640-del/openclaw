@@ -69,6 +69,7 @@ vi.mock("../../discord/monitor/gateway-plugin.js", () => ({
 
 const { handleAcpCommand } = await import("./commands-acp.js");
 const { buildCommandTestParams } = await import("./commands-spawn.test-harness.js");
+const { __testing: acpManagerTesting } = await import("../../acp/control-plane/manager.js");
 
 type FakeBinding = {
   accountId: string;
@@ -147,6 +148,7 @@ function createDiscordParams(commandBody: string, cfg: OpenClawConfig = baseCfg)
 
 describe("/acp command", () => {
   beforeEach(() => {
+    acpManagerTesting.resetAcpSessionManagerForTests();
     hoisted.callGatewayMock.mockReset().mockResolvedValue({ ok: true });
     hoisted.readAcpSessionEntryMock.mockReset().mockReturnValue(null);
     hoisted.upsertAcpSessionMetaMock.mockReset().mockResolvedValue({

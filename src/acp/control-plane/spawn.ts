@@ -1,0 +1,103 @@
+import type { OpenClawConfig } from "../../config/config.js";
+import { unbindThreadBindingsBySessionKey } from "../../discord/monitor/thread-bindings.js";
+import { callGateway } from "../../gateway/call.js";
+import { logVerbose } from "../../globals.js";
+import { normalizeAgentId } from "../../routing/session-key.js";
+import { getAcpSessionManager } from "./manager.js";
+
+export type AcpSpawnRuntimeCloseHandle = {
+  runtime: {
+    close: (params: {
+      handle: { sessionKey: string; backend: string; runtimeSessionName: string };
+      reason: string;
+    }) => Promise<void>;
+  };
+  handle: { sessionKey: string; backend: string; runtimeSessionName: string };
+};
+
+export function isAcpEnabledByPolicy(cfg: OpenClawConfig): boolean {
+  return cfg.acp?.enabled !== false;
+}
+
+export function isAcpAgentAllowedByPolicy(cfg: OpenClawConfig, agentId: string): boolean {
+  const allowed = (cfg.acp?.allowedAgents ?? [])
+    .map((entry) => normalizeAgentId(entry))
+    .filter(Boolean);
+  if (allowed.length === 0) {
+    return true;
+  }
+  return allowed.includes(normalizeAgentId(agentId));
+}
+
+export function resolveDiscordAcpSpawnFlags(
+  cfg: OpenClawConfig,
+  accountId: string,
+): {
+  enabled: boolean;
+  spawnAcpSessions: boolean;
+} {
+  const root = cfg.channels?.discord?.threadBindings;
+  const account = cfg.channels?.discord?.accounts?.[accountId]?.threadBindings;
+  return {
+    enabled: account?.enabled ?? root?.enabled ?? cfg.session?.threadBindings?.enabled ?? true,
+    spawnAcpSessions: account?.spawnAcpSessions ?? root?.spawnAcpSessions ?? false,
+  };
+}
+
+export async function cleanupFailedAcpSpawn(params: {
+  cfg: OpenClawConfig;
+  sessionKey: string;
+  shouldDeleteSession: boolean;
+  deleteTranscript: boolean;
+  runtimeCloseHandle?: AcpSpawnRuntimeCloseHandle;
+}): Promise<void> {
+  if (params.runtimeCloseHandle) {
+    await params.runtimeCloseHandle.runtime
+      .close({
+        handle: params.runtimeCloseHandle.handle,
+        reason: "spawn-failed",
+      })
+      .catch((err) => {
+        logVerbose(
+          `acp-spawn: runtime cleanup close failed for ${params.sessionKey}: ${String(err)}`,
+        );
+      });
+  }
+
+  const acpManager = getAcpSessionManager();
+  await acpManager
+    .closeSession({
+      cfg: params.cfg,
+      sessionKey: params.sessionKey,
+      reason: "spawn-failed",
+      allowBackendUnavailable: true,
+      requireAcpSession: false,
+    })
+    .catch((err) => {
+      logVerbose(
+        `acp-spawn: manager cleanup close failed for ${params.sessionKey}: ${String(err)}`,
+      );
+    });
+
+  unbindThreadBindingsBySessionKey({
+    targetSessionKey: params.sessionKey,
+    targetKind: "acp",
+    reason: "spawn-failed",
+    sendFarewell: false,
+  });
+
+  if (!params.shouldDeleteSession) {
+    return;
+  }
+  await callGateway({
+    method: "sessions.delete",
+    params: {
+      key: params.sessionKey,
+      deleteTranscript: params.deleteTranscript,
+      emitLifecycleHooks: false,
+    },
+    timeoutMs: 10_000,
+  }).catch(() => {
+    // Best-effort cleanup only.
+  });
+}

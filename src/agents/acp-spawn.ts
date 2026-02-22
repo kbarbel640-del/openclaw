@@ -1,5 +1,11 @@
 import crypto from "node:crypto";
 import { getAcpSessionManager } from "../acp/control-plane/manager.js";
+import {
+  cleanupFailedAcpSpawn,
+  isAcpAgentAllowedByPolicy,
+  isAcpEnabledByPolicy,
+  resolveDiscordAcpSpawnFlags,
+} from "../acp/control-plane/spawn.js";
 import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -7,7 +13,6 @@ import {
   getThreadBindingManager,
   resolveThreadBindingIntroText,
   resolveThreadBindingThreadName,
-  unbindThreadBindingsBySessionKey,
   type ThreadBindingManager,
   type ThreadBindingRecord,
 } from "../discord/monitor/thread-bindings.js";
@@ -97,35 +102,6 @@ function normalizeOptionalAgentId(value: string | undefined | null): string | un
     return undefined;
   }
   return normalizeAgentId(trimmed);
-}
-
-function isAcpEnabled(cfg: OpenClawConfig): boolean {
-  return cfg.acp?.enabled !== false;
-}
-
-function isAcpAgentAllowedByPolicy(cfg: OpenClawConfig, agentId: string): boolean {
-  const allowed = (cfg.acp?.allowedAgents ?? [])
-    .map((entry) => normalizeAgentId(entry))
-    .filter(Boolean);
-  if (allowed.length === 0) {
-    return true;
-  }
-  return allowed.includes(normalizeAgentId(agentId));
-}
-
-function resolveDiscordAcpSpawnFlags(
-  cfg: OpenClawConfig,
-  accountId: string,
-): {
-  enabled: boolean;
-  spawnAcpSessions: boolean;
-} {
-  const root = cfg.channels?.discord?.threadBindings;
-  const account = cfg.channels?.discord?.accounts?.[accountId]?.threadBindings;
-  return {
-    enabled: account?.enabled ?? root?.enabled ?? cfg.session?.threadBindings?.enabled ?? true,
-    spawnAcpSessions: account?.spawnAcpSessions ?? root?.spawnAcpSessions ?? false,
-  };
 }
 
 function summarizeError(err: unknown): string {
@@ -226,54 +202,12 @@ function prepareAcpThreadBinding(params: {
   };
 }
 
-async function cleanupFailedSpawn(params: {
-  cfg: OpenClawConfig;
-  sessionKey: string;
-  shouldDeleteSession: boolean;
-}) {
-  const acpManager = getAcpSessionManager();
-  await acpManager
-    .closeSession({
-      cfg: params.cfg,
-      sessionKey: params.sessionKey,
-      reason: "spawn-failed",
-      allowBackendUnavailable: true,
-      requireAcpSession: false,
-    })
-    .catch(() => {
-      // Best-effort cleanup only.
-    });
-
-  unbindThreadBindingsBySessionKey({
-    targetSessionKey: params.sessionKey,
-    targetKind: "acp",
-    reason: "spawn-failed",
-    sendFarewell: false,
-  });
-
-  if (params.shouldDeleteSession) {
-    try {
-      await callGateway({
-        method: "sessions.delete",
-        params: {
-          key: params.sessionKey,
-          deleteTranscript: true,
-          emitLifecycleHooks: false,
-        },
-        timeoutMs: 10_000,
-      });
-    } catch {
-      // Best-effort cleanup only.
-    }
-  }
-}
-
 export async function spawnAcpDirect(
   params: SpawnAcpParams,
   ctx: SpawnAcpContext,
 ): Promise<SpawnAcpResult> {
   const cfg = loadConfig();
-  if (!isAcpEnabled(cfg)) {
+  if (!isAcpEnabledByPolicy(cfg)) {
     return {
       status: "forbidden",
       error: "ACP is disabled by policy (`acp.enabled=false`).",
@@ -353,10 +287,11 @@ export async function spawnAcpDirect(
         }),
       });
     } catch (err) {
-      await cleanupFailedSpawn({
+      await cleanupFailedAcpSpawn({
         cfg,
         sessionKey,
         shouldDeleteSession: false,
+        deleteTranscript: true,
       });
       return {
         status: "error",
@@ -364,10 +299,11 @@ export async function spawnAcpDirect(
       };
     }
     if (!binding) {
-      await cleanupFailedSpawn({
+      await cleanupFailedAcpSpawn({
         cfg,
         sessionKey,
         shouldDeleteSession: false,
+        deleteTranscript: true,
       });
       return {
         status: "error",
@@ -396,10 +332,11 @@ export async function spawnAcpDirect(
       cwd: params.cwd,
     });
   } catch (err) {
-    await cleanupFailedSpawn({
+    await cleanupFailedAcpSpawn({
       cfg,
       sessionKey,
       shouldDeleteSession: sessionCreated,
+      deleteTranscript: true,
     });
     return {
       status: "error",
@@ -441,10 +378,11 @@ export async function spawnAcpDirect(
       childRunId = response.runId.trim();
     }
   } catch (err) {
-    await cleanupFailedSpawn({
+    await cleanupFailedAcpSpawn({
       cfg,
       sessionKey,
       shouldDeleteSession: true,
+      deleteTranscript: true,
     });
     return {
       status: "error",

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SessionAcpMeta } from "../../config/sessions/types.js";
 import { AcpRuntimeError } from "../runtime/errors.js";
 import type { AcpRuntime } from "../runtime/types.js";
 
@@ -81,6 +82,24 @@ function readySessionMeta() {
   };
 }
 
+function extractStatesFromUpserts(): SessionAcpMeta["state"][] {
+  const states: SessionAcpMeta["state"][] = [];
+  for (const [firstArg] of hoisted.upsertAcpSessionMetaMock.mock.calls) {
+    const payload = firstArg as {
+      mutate: (
+        current: SessionAcpMeta | undefined,
+        entry: { acp?: SessionAcpMeta } | undefined,
+      ) => SessionAcpMeta | null | undefined;
+    };
+    const current = readySessionMeta();
+    const next = payload.mutate(current, { acp: current });
+    if (next?.state) {
+      states.push(next.state);
+    }
+  }
+  return states;
+}
+
 describe("AcpSessionManager", () => {
   beforeEach(() => {
     hoisted.readAcpSessionEntryMock.mockReset();
@@ -149,6 +168,178 @@ describe("AcpSessionManager", () => {
 
     expect(maxInFlight).toBe(1);
     expect(runtimeState.runTurn).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs turns for different ACP sessions in parallel", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+    hoisted.readAcpSessionEntryMock.mockImplementation((paramsUnknown: unknown) => {
+      const sessionKey = (paramsUnknown as { sessionKey?: string }).sessionKey ?? "";
+      return {
+        sessionKey,
+        storeSessionKey: sessionKey,
+        acp: {
+          ...readySessionMeta(),
+          runtimeSessionName: `runtime:${sessionKey}`,
+        },
+      };
+    });
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    runtimeState.runTurn.mockImplementation(async function* () {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        yield { type: "done" as const };
+      } finally {
+        inFlight -= 1;
+      }
+    });
+
+    const manager = new AcpSessionManager();
+    await Promise.all([
+      manager.runTurn({
+        cfg: baseCfg,
+        sessionKey: "agent:codex:acp:session-a",
+        text: "first",
+        mode: "prompt",
+        requestId: "r1",
+      }),
+      manager.runTurn({
+        cfg: baseCfg,
+        sessionKey: "agent:codex:acp:session-b",
+        text: "second",
+        mode: "prompt",
+        requestId: "r2",
+      }),
+    ]);
+
+    expect(maxInFlight).toBe(2);
+  });
+
+  it("reuses runtime session handles for repeat turns in the same manager process", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:session-1",
+      storeSessionKey: "agent:codex:acp:session-1",
+      acp: readySessionMeta(),
+    });
+
+    const manager = new AcpSessionManager();
+    await manager.runTurn({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      text: "first",
+      mode: "prompt",
+      requestId: "r1",
+    });
+    await manager.runTurn({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      text: "second",
+      mode: "prompt",
+      requestId: "r2",
+    });
+
+    expect(runtimeState.ensureSession).toHaveBeenCalledTimes(1);
+    expect(runtimeState.runTurn).toHaveBeenCalledTimes(2);
+  });
+
+  it("rehydrates runtime handles after a manager restart", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:session-1",
+      storeSessionKey: "agent:codex:acp:session-1",
+      acp: readySessionMeta(),
+    });
+
+    const managerA = new AcpSessionManager();
+    await managerA.runTurn({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      text: "before restart",
+      mode: "prompt",
+      requestId: "r1",
+    });
+    const managerB = new AcpSessionManager();
+    await managerB.runTurn({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      text: "after restart",
+      mode: "prompt",
+      requestId: "r2",
+    });
+
+    expect(runtimeState.ensureSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("preempts an active turn on cancel and returns to idle state", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:session-1",
+      storeSessionKey: "agent:codex:acp:session-1",
+      acp: readySessionMeta(),
+    });
+
+    let enteredRun = false;
+    runtimeState.runTurn.mockImplementation(async function* (input: { signal?: AbortSignal }) {
+      enteredRun = true;
+      await new Promise<void>((resolve) => {
+        if (input.signal?.aborted) {
+          resolve();
+          return;
+        }
+        input.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      yield { type: "done" as const, stopReason: "cancel" };
+    });
+
+    const manager = new AcpSessionManager();
+    const runPromise = manager.runTurn({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      text: "long task",
+      mode: "prompt",
+      requestId: "run-1",
+    });
+    await vi.waitFor(() => {
+      expect(enteredRun).toBe(true);
+    });
+
+    await manager.cancelSession({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      reason: "manual-cancel",
+    });
+    await runPromise;
+
+    expect(runtimeState.cancel).toHaveBeenCalledTimes(1);
+    expect(runtimeState.cancel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "manual-cancel",
+      }),
+    );
+    const states = extractStatesFromUpserts();
+    expect(states).toContain("running");
+    expect(states).toContain("idle");
+    expect(states).not.toContain("error");
   });
 
   it("can close and clear metadata when backend is unavailable", async () => {
