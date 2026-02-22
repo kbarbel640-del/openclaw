@@ -320,11 +320,6 @@ If you want to rely on env keys (e.g. exported in your `~/.profile`), run local 
 - Test: `src/media-understanding/providers/deepgram/audio.live.test.ts`
 - Enable: `DEEPGRAM_API_KEY=... DEEPGRAM_LIVE_TEST=1 pnpm test:live src/media-understanding/providers/deepgram/audio.live.test.ts`
 
-## Mistral live (audio transcription / Voxtral)
-
-- Test: `src/media-understanding/providers/mistral/audio.live.test.ts`
-- Enable: `MISTRAL_API_KEY=... MISTRAL_LIVE_TEST=1 pnpm test:live src/media-understanding/providers/mistral/audio.live.test.ts`
-
 ## BytePlus coding plan live
 
 - Test: `src/agents/byteplus.live.test.ts`
