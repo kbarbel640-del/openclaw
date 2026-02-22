@@ -19,7 +19,7 @@ import {
   resolveGroupSessionKey,
   resolveSessionFilePath,
   resolveSessionKey,
-  resolveSessionTranscriptPath,
+  resolveSessionTranscriptPathInDir,
   resolveStorePath,
   type SessionEntry,
   type SessionScope,
@@ -125,11 +125,15 @@ function forkSessionFromParent(params: {
   agentId: string;
   sessionsDir: string;
 }): { sessionId: string; sessionFile: string } | null {
-  const parentSessionFile = resolveSessionFilePath(
-    params.parentEntry.sessionId,
-    params.parentEntry,
-    { agentId: params.agentId, sessionsDir: params.sessionsDir },
-  );
+  let parentSessionFile: string;
+  try {
+    parentSessionFile = resolveSessionFilePath(params.parentEntry.sessionId, params.parentEntry, {
+      agentId: params.agentId,
+      sessionsDir: params.sessionsDir,
+    });
+  } catch {
+    return null;
+  }
   if (!parentSessionFile || !fs.existsSync(parentSessionFile)) {
     return null;
   }
@@ -444,21 +448,39 @@ export async function initSessionState(params: {
       }
     }
   }
-  const fallbackSessionFile = !sessionEntry.sessionFile
-    ? resolveSessionTranscriptPath(sessionEntry.sessionId, agentId, ctx.MessageThreadId)
-    : undefined;
-  const resolvedSessionFile = await resolveAndPersistSessionFile({
-    sessionId: sessionEntry.sessionId,
-    sessionKey,
-    sessionStore,
-    storePath,
-    sessionEntry,
-    agentId,
-    sessionsDir: path.dirname(storePath),
-    fallbackSessionFile,
-    activeSessionKey: sessionKey,
-  });
-  sessionEntry = resolvedSessionFile.sessionEntry;
+  const sessionsDir = path.dirname(storePath);
+  const fallbackSessionFile = resolveSessionTranscriptPathInDir(
+    sessionEntry.sessionId,
+    sessionsDir,
+    ctx.MessageThreadId,
+  );
+  try {
+    const resolvedSessionFile = await resolveAndPersistSessionFile({
+      sessionId: sessionEntry.sessionId,
+      sessionKey,
+      sessionStore,
+      storePath,
+      sessionEntry,
+      agentId,
+      sessionsDir,
+      fallbackSessionFile: !sessionEntry.sessionFile ? fallbackSessionFile : undefined,
+      activeSessionKey: sessionKey,
+    });
+    sessionEntry = resolvedSessionFile.sessionEntry;
+  } catch {
+    const resolvedSessionFile = await resolveAndPersistSessionFile({
+      sessionId: sessionEntry.sessionId,
+      sessionKey,
+      sessionStore,
+      storePath,
+      sessionEntry: { ...sessionEntry, sessionFile: fallbackSessionFile },
+      agentId,
+      sessionsDir,
+      fallbackSessionFile,
+      activeSessionKey: sessionKey,
+    });
+    sessionEntry = resolvedSessionFile.sessionEntry;
+  }
   if (isNewSession) {
     sessionEntry.compactionCount = 0;
     sessionEntry.memoryFlushCompactionCount = undefined;
