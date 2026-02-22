@@ -4,7 +4,7 @@
  * Implements the 4-tier memory system:
  * - Tier 0: Local memory.md (always searched first)
  * - Tier 1: Brain MCP quick_search (<100ms)
- * - Tier 2: Brain MCP unified_search semantic (<500ms)
+ * - Tier 2: Brain MCP smart_search (vector + graph + rerank, ~200ms)
  * - Tier 3: Brain MCP unified_search full (<3000ms)
  *
  * Enforces tiered search programmatically - no LLM instruction dependency.
@@ -423,13 +423,12 @@ export class BrainTieredManager implements MemorySearchManager {
   }
 
   /**
-   * Tier 2: Brain MCP unified_search (semantic mode).
+   * Tier 2: Brain MCP smart_search (vector + graph + rerank).
    */
   private async searchTier2(query: string): Promise<InternalSearchResult[]> {
-    const response = await this.brainClient.unifiedSearch({
+    const response = await this.brainClient.smartSearch({
       query,
       workspaceId: this.config.workspaceId,
-      mode: "semantic",
       limit: 10,
     });
 
@@ -445,15 +444,14 @@ export class BrainTieredManager implements MemorySearchManager {
   }
 
   /**
-   * Tier 2 Triumph: unified_search (semantic) on shared workspace.
+   * Tier 2 Triumph: smart_search on shared workspace.
    */
   private async searchTriumphTier2(query: string): Promise<InternalSearchResult[]> {
     if (!this.config.triumphWorkspaceId) return [];
 
-    const response = await this.brainClient.unifiedSearch({
+    const response = await this.brainClient.smartSearch({
       query,
       workspaceId: this.config.triumphWorkspaceId,
-      mode: "semantic",
       limit: 10,
     });
 

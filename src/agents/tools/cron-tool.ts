@@ -296,7 +296,13 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
           if (!id) {
             throw new Error("jobId required (id accepted for backward compatibility)");
           }
-          return jsonResult(await callGatewayTool("cron.run", gatewayOpts, { id }));
+          // Use a longer timeout for run: jobs can take many minutes to complete.
+          // Caller can pass timeoutMs explicitly; otherwise default to 30 minutes.
+          const runTimeoutMs =
+            typeof params.timeoutMs === "number" ? params.timeoutMs : 30 * 60_000;
+          return jsonResult(
+            await callGatewayTool("cron.run", { ...gatewayOpts, timeoutMs: runTimeoutMs }, { id }),
+          );
         }
         case "runs": {
           const id = readStringParam(params, "jobId") ?? readStringParam(params, "id");
