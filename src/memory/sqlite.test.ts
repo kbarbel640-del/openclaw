@@ -113,4 +113,18 @@ describe("requireNodeSqlite", () => {
 
     db.close();
   });
+
+  it("should support enableLoadExtension and loadExtension methods", () => {
+    const { DatabaseSync } = requireNodeSqlite();
+    const db = new DatabaseSync(":memory:");
+
+    // Verify methods exist (for better-sqlite3 compatibility)
+    expect(typeof db.enableLoadExtension).toBe("function");
+    expect(typeof db.loadExtension).toBe("function");
+
+    // Test enableLoadExtension doesn't throw
+    expect(() => db.enableLoadExtension(true)).not.toThrow();
+
+    db.close();
+  });
 });

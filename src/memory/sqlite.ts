@@ -44,9 +44,45 @@ export function requireNodeSqlite(): typeof import("node:sqlite") {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const Database = require("better-sqlite3");
+
     // Wrap better-sqlite3 to match node:sqlite DatabaseSync API
+    class DatabaseSyncWrapper {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      private db: any;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      constructor(...args: any[]) {
+        this.db = new Database(...args);
+      }
+
+      // Proxy all database methods
+      exec(sql: string) {
+        return this.db.exec(sql);
+      }
+
+      prepare(sql: string) {
+        return this.db.prepare(sql);
+      }
+
+      close() {
+        return this.db.close();
+      }
+
+      // better-sqlite3 compatibility for sqlite-vec
+      enableLoadExtension(enabled: boolean) {
+        // better-sqlite3 uses unsafeMode for extension loading
+        if (enabled && typeof this.db.unsafeMode === "function") {
+          this.db.unsafeMode(true);
+        }
+      }
+
+      loadExtension(path: string) {
+        return this.db.loadExtension(path);
+      }
+    }
+
     return {
-      DatabaseSync: Database,
+      DatabaseSync: DatabaseSyncWrapper as never,
       SqliteError: Database.SqliteError,
       constants: {},
     } as unknown as typeof import("node:sqlite");
