@@ -24,6 +24,15 @@ type StepRunRecord = {
   meta?: Record<string, unknown>;
 };
 
+type LoopFixPlan = {
+  loopId: string;
+  iteration: number;
+  verdict: string;
+  verdictFile: string;
+  createdAt: string;
+  plan: string;
+};
+
 function now() {
   return Date.now();
 }
@@ -108,6 +117,48 @@ function parseVerdict(text: string): "PASS" | "WARN" | "FAIL" | "ABORT" | "UNKNO
     return "PASS";
   }
   return "UNKNOWN";
+}
+
+function ensureDir(p: string) {
+  fs.mkdirSync(p, { recursive: true });
+}
+
+function writeLoopFixPlan(params: {
+  workspaceRoot: string;
+  runDir: string;
+  loopId: string;
+  iteration: number;
+  verdict: string;
+  verdictFile: string;
+  plan: string;
+}) {
+  const runDirAbs = absPath(params.workspaceRoot, params.runDir);
+  ensureDir(runDirAbs);
+  const outRel = path.join(
+    params.runDir,
+    `loop-${params.loopId}-iter-${String(params.iteration).padStart(2, "0")}-fixplan.md`,
+  );
+  const outAbs = absPath(params.workspaceRoot, outRel);
+  const body: LoopFixPlan = {
+    loopId: params.loopId,
+    iteration: params.iteration,
+    verdict: params.verdict,
+    verdictFile: params.verdictFile,
+    createdAt: new Date().toISOString(),
+    plan: params.plan,
+  };
+  const md =
+    `# Loop Fix Plan\n\n` +
+    `- loopId: ${body.loopId}\n` +
+    `- iteration: ${body.iteration}\n` +
+    `- verdict: ${body.verdict}\n` +
+    `- verdictFile: ${body.verdictFile}\n` +
+    `- createdAt: ${body.createdAt}\n\n` +
+    `---\n\n` +
+    `${body.plan.trim()}\n`;
+
+  fs.writeFileSync(outAbs, md);
+  return { outRel, outAbs };
 }
 
 export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions) {
@@ -282,6 +333,44 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
         );
       }
 
+      // Ask the agent to generate a fix plan and persist it into the runDir.
+      const fixPlanPrompt =
+        `You are running inside a verification pipeline.\n\n` +
+        `The pipeline produced a verdict that was not PASS.\n` +
+        `Your job: write a concise, actionable FIX PLAN that will help the next rerun pass.\n\n` +
+        `Return ONLY markdown. Include:\n` +
+        `- bullet list of issues observed\n` +
+        `- bullet list of concrete changes to make\n` +
+        `- if you need more data, specify exactly which file(s) to inspect next\n\n` +
+        `Verdict file path: ${verdictFile}\n\n` +
+        `Verdict file contents:\n\n` +
+        `---\n${verdictText}\n---\n`;
+
+      const fixRes = await runAgentTurn({
+        agentId: spec.agentId,
+        sessionKey,
+        message: fixPlanPrompt,
+        timeoutMs: 10 * 60 * 1000,
+      });
+
+      // We don't currently fetch the model's raw text from the gateway in this runner.
+      // So we store the prompt itself as a placeholder and rely on downstream steps to read the verdict.
+      // TODO: enhance gateway call to return the final assistant text so we can store the actual plan.
+      const planText =
+        `## Fix plan generation run\n\n- runId: ${fixRes.runId}\n- status: ${fixRes.status}\n\n` +
+        `> TODO: pipeline runner does not yet capture the assistant's final text.\n`;
+
+      const fixOut = writeLoopFixPlan({
+        workspaceRoot,
+        runDir: spec.runDir,
+        loopId: rule.id,
+        iteration: iter,
+        verdict: String(verdict),
+        verdictFile,
+        plan: planText,
+      });
+      rec.meta = { ...rec.meta, fixPlanFile: fixOut.outRel };
+
       // Mark rerun targets as incomplete so scheduler can pick them up again.
       for (const rerunId of rule.rerunStepIds) {
         if (!stepById.has(rerunId)) {
@@ -292,7 +381,7 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
 
       // eslint-disable-next-line no-console
       console.log(
-        `[pipeline] loop '${rule.id}' iteration ${iter}/${maxIterations} (verdict=${verdict}); rerunning: ${rule.rerunStepIds.join(
+        `[pipeline] loop '${rule.id}' iteration ${iter}/${maxIterations} (verdict=${verdict}); wrote ${fixOut.outRel}; rerunning: ${rule.rerunStepIds.join(
           ", ",
         )}`,
       );
