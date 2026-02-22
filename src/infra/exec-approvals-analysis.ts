@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { splitShellArgs } from "../utils/shell-argv.js";
 import type { ExecAllowlistEntry } from "./exec-approvals.js";
+import { unwrapDispatchWrappersForResolution } from "./exec-wrapper-resolution.js";
 import { expandHomePrefix } from "./home-dir.js";
 
 export const DEFAULT_SAFE_BINS = ["jq", "cut", "uniq", "head", "tail", "tr", "wc"];
@@ -101,7 +102,8 @@ export function resolveCommandResolutionFromArgv(
   cwd?: string,
   env?: NodeJS.ProcessEnv,
 ): CommandResolution | null {
-  const rawExecutable = argv[0]?.trim();
+  const effectiveArgv = unwrapDispatchWrappersForResolution(argv);
+  const rawExecutable = effectiveArgv[0]?.trim();
   if (!rawExecutable) {
     return null;
   }
@@ -315,7 +317,7 @@ export type ShellChainPart = {
 };
 
 const DISALLOWED_PIPELINE_TOKENS = new Set([">", "<", "`", "\n", "\r", "(", ")"]);
-const DOUBLE_QUOTE_ESCAPES = new Set(["\\", '"', "$", "`", "\n", "\r"]);
+const DOUBLE_QUOTE_ESCAPES = new Set(["\\", '"', "$", "`"]);
 const WINDOWS_UNSUPPORTED_TOKENS = new Set([
   "&",
   "|",
@@ -332,6 +334,10 @@ const WINDOWS_UNSUPPORTED_TOKENS = new Set([
 
 function isDoubleQuoteEscape(next: string | undefined): next is string {
   return Boolean(next && DOUBLE_QUOTE_ESCAPES.has(next));
+}
+
+function isEscapedLineContinuation(next: string | undefined): next is string {
+  return next === "\n" || next === "\r";
 }
 
 function splitShellPipeline(command: string): { ok: boolean; reason?: string; segments: string[] } {
@@ -483,6 +489,9 @@ function splitShellPipeline(command: string): { ok: boolean; reason?: string; se
       continue;
     }
     if (inDouble) {
+      if (ch === "\\" && isEscapedLineContinuation(next)) {
+        return { ok: false, reason: "unsupported shell token: newline", segments: [] };
+      }
       if (ch === "\\" && isDoubleQuoteEscape(next)) {
         buf += ch;
         buf += next;
@@ -747,6 +756,10 @@ export function splitCommandChainWithOperators(command: string): ShellChainPart[
       continue;
     }
     if (inDouble) {
+      if (ch === "\\" && isEscapedLineContinuation(next)) {
+        invalidChain = true;
+        break;
+      }
       if (ch === "\\" && isDoubleQuoteEscape(next)) {
         buf += ch;
         buf += next;
