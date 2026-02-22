@@ -557,7 +557,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       const isFinal = info.kind === "final";
       if (draftStream && isFinal) {
         await flushDraft();
-        const hasMedia = Boolean(payload.mediaUrl) || (payload.mediaUrls?.length ?? 0) > 0;
+        const hasMedia =
+          Boolean(payload.mediaUrl) ||
+          (payload.mediaUrls?.length ?? 0) > 0 ||
+          tableMode === "image";
         const finalText = payload.text;
         const previewFinalText = resolvePreviewFinalText(finalText);
         const previewMessageId = draftStream.messageId();

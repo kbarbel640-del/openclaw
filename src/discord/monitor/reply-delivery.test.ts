@@ -9,11 +9,16 @@ import {
 const sendMessageDiscordMock = vi.hoisted(() => vi.fn());
 const sendVoiceMessageDiscordMock = vi.hoisted(() => vi.fn());
 const sendWebhookMessageDiscordMock = vi.hoisted(() => vi.fn());
+const renderTableImageMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../send.js", () => ({
   sendMessageDiscord: (...args: unknown[]) => sendMessageDiscordMock(...args),
   sendVoiceMessageDiscord: (...args: unknown[]) => sendVoiceMessageDiscordMock(...args),
   sendWebhookMessageDiscord: (...args: unknown[]) => sendWebhookMessageDiscordMock(...args),
+}));
+
+vi.mock("../../media/table-image.js", () => ({
+  renderTableImage: (...args: unknown[]) => renderTableImageMock(...args),
 }));
 
 describe("deliverDiscordReply", () => {
@@ -62,6 +67,7 @@ describe("deliverDiscordReply", () => {
       messageId: "webhook-1",
       channelId: "thread-1",
     });
+    renderTableImageMock.mockReset().mockResolvedValue(null);
     threadBindingTesting.resetThreadBindingsForTests();
   });
 
@@ -238,5 +244,37 @@ describe("deliverDiscordReply", () => {
       "Parent channel delivery",
       expect.objectContaining({ token: "token", accountId: "default" }),
     );
+  });
+
+  it("falls back to text when tableMode is image but renderer returns null", async () => {
+    renderTableImageMock.mockResolvedValue(null);
+
+    await deliverDiscordReply({
+      replies: [{ text: "| A | B |\n|---|---|\n| 1 | 2 |" }],
+      target: "channel:123",
+      token: "token",
+      runtime,
+      textLimit: 2000,
+      tableMode: "image",
+      rest: { post: vi.fn() } as never,
+    });
+
+    // Should fall back to code-block text delivery
+    expect(sendMessageDiscordMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips image path when no rest client is provided", async () => {
+    await deliverDiscordReply({
+      replies: [{ text: "| A | B |\n|---|---|\n| 1 | 2 |" }],
+      target: "channel:123",
+      token: "token",
+      runtime,
+      textLimit: 2000,
+      tableMode: "image",
+    });
+
+    // Without rest, image path is skipped; text is sent via standard path
+    expect(sendMessageDiscordMock).toHaveBeenCalledTimes(1);
+    expect(renderTableImageMock).not.toHaveBeenCalled();
   });
 });
