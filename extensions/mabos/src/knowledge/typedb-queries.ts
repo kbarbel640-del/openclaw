@@ -41,7 +41,9 @@ export class FactStoreQueries {
       : "";
     const ruleClause = fact.ruleId ? `, has rule_id ${JSON.stringify(fact.ruleId)}` : "";
 
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $fact isa spo_fact,
     has uid ${JSON.stringify(fact.id)},
     has subject ${JSON.stringify(fact.subject)},
@@ -51,7 +53,6 @@ export class FactStoreQueries {
     has source ${JSON.stringify(fact.source)}${validFromClause}${validUntilClause}${ruleClause},
     has created_at ${JSON.stringify(new Date().toISOString())},
     has updated_at ${JSON.stringify(new Date().toISOString())};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $fact) isa agent_owns;`;
   }
 
@@ -135,7 +136,9 @@ export class RuleStoreQueries {
   ): string {
     const domainClause = rule.domain ? `, has domain ${JSON.stringify(rule.domain)}` : "";
 
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $rule isa knowledge_rule,
     has uid ${JSON.stringify(rule.id)},
     has name ${JSON.stringify(rule.name)},
@@ -145,7 +148,6 @@ export class RuleStoreQueries {
     has confidence_factor ${rule.confidenceFactor},
     has enabled ${rule.enabled}${domainClause},
     has created_at ${JSON.stringify(new Date().toISOString())};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $rule) isa agent_owns;`;
   }
 
@@ -197,7 +199,9 @@ export class MemoryQueries {
     const tagClauses = item.tags.map((t) => `, has tag ${JSON.stringify(t)}`).join("");
     const now = new Date().toISOString();
 
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $mem isa memory_item,
     has uid ${JSON.stringify(item.id)},
     has content ${JSON.stringify(item.content)},
@@ -208,7 +212,6 @@ export class MemoryQueries {
     has access_count 0${tagClauses},
     has created_at ${JSON.stringify(now)},
     has accessed_at ${JSON.stringify(now)};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $mem) isa agent_owns;`;
   }
 
@@ -311,7 +314,9 @@ export class CBRQueries {
       domain: string;
     },
   ): string {
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $case isa cbr_case,
     has uid ${JSON.stringify(caseData.id)},
     has situation ${JSON.stringify(caseData.situation)},
@@ -319,7 +324,6 @@ export class CBRQueries {
     has outcome ${JSON.stringify(caseData.outcome)},
     has domain ${JSON.stringify(caseData.domain)},
     has created_at ${JSON.stringify(new Date().toISOString())};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $case) isa agent_owns;`;
   }
 
@@ -364,7 +368,9 @@ export class GoalStoreQueries {
       goal.parent_goal_id ? `, has parent_goal_id ${JSON.stringify(goal.parent_goal_id)}` : "",
     ].join("");
 
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $goal isa goal,
     has uid ${JSON.stringify(goal.id)},
     has name ${JSON.stringify(goal.name)},
@@ -375,7 +381,6 @@ export class GoalStoreQueries {
     has status ${JSON.stringify(goal.status || "active")}${optionals},
     has created_at ${JSON.stringify(now)},
     has updated_at ${JSON.stringify(now)};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $goal) isa agent_owns;`;
   }
 
@@ -478,7 +483,9 @@ export class DesireStoreQueries {
     },
   ): string {
     const now = new Date().toISOString();
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $desire isa desire,
     has uid ${JSON.stringify(desire.id)},
     has name ${JSON.stringify(desire.name)},
@@ -490,7 +497,6 @@ export class DesireStoreQueries {
     has status ${JSON.stringify(desire.status || "active")},
     has category ${JSON.stringify(desire.category)},
     has created_at ${JSON.stringify(now)};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $desire) isa agent_owns;`;
   }
 
@@ -531,7 +537,9 @@ export class BeliefStoreQueries {
     },
   ): string {
     const now = new Date().toISOString();
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $belief isa belief,
     has uid ${JSON.stringify(belief.id)},
     has category ${JSON.stringify(belief.category)},
@@ -541,7 +549,6 @@ export class BeliefStoreQueries {
     has source ${JSON.stringify(belief.source)},
     has created_at ${JSON.stringify(now)},
     has updated_at ${JSON.stringify(now)};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $belief) isa agent_owns;`;
   }
 
@@ -757,6 +764,7 @@ export function getBaseSchema(): string {
     owns name,
     owns description,
     owns hierarchy_level,
+    owns priority,
     owns success_criteria,
     owns deadline,
     owns progress,
