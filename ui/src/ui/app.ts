@@ -122,6 +122,8 @@ export class OpenClawApp extends LitElement {
   @state() theme: ThemeMode = this.settings.theme ?? "dark";
   @state() themeResolved: ResolvedTheme = "dark";
   @state() themeOrder: ThemeMode[] = this.buildThemeOrder(this.theme);
+  @state() mode: "basic" | "advanced" | "configure" = this.settings.mode ?? "advanced";
+  @state() tabVisibility: Record<string, boolean> = this.settings.tabVisibility ?? {};
   @state() hello: GatewayHelloOk | null = null;
   @state() lastError: string | null = null;
   @state() eventLog: EventLogEntry[] = [];
@@ -452,6 +454,11 @@ export class OpenClawApp extends LitElement {
 
   applySettings(next: UiSettings) {
     applySettingsInternal(this as unknown as Parameters<typeof applySettingsInternal>[0], next);
+  }
+
+  setTabVisibility(tab: string, visible: boolean) {
+    const next = { ...this.settings.tabVisibility, [tab]: visible };
+    this.applySettings({ ...this.settings, tabVisibility: next });
   }
 
   setTab(next: Tab) {
