@@ -1,69 +1,58 @@
 ---
 name: model-usage
-description: Use CodexBar CLI local cost usage to summarize per-model usage for Codex or Claude, including the current (most recent) model or a full model breakdown. Trigger when asked for model-level usage/cost data from codexbar, or when you need a scriptable per-model summary from codexbar cost JSON.
+description: Summarize model-level cost usage and basic observability for OpenClaw. Use when you need CodexBar per-model cost (current/all), recent failed or aborted sessions, or a combined overview report for cost + errors.
 metadata:
   {
     "openclaw":
       {
         "emoji": "📊",
-        "os": ["darwin"],
-        "requires": { "bins": ["codexbar"] },
-        "install":
-          [
-            {
-              "id": "brew-cask",
-              "kind": "brew",
-              "formula": "steipete/tap/codexbar",
-              "bins": ["codexbar"],
-              "label": "Install CodexBar (brew cask)",
-            },
-          ],
+        "os": ["darwin", "linux"],
+        "requires": { "bins": ["codexbar", "openclaw"] },
       },
   }
 ---
 
-# Model usage
+# Model usage + observability
 
 ## Overview
 
-Get per-model usage cost from CodexBar's local cost logs. Supports "current model" (most recent daily entry) or "all models" summaries for Codex or Claude.
+A unified script that provides two capabilities:
 
-TODO: add Linux CLI support guidance once CodexBar CLI install path is documented for Linux.
+1. Cost: per-model cost aggregation via CodexBar
+2. Observability: failed/aborted session scan via OpenClaw sessions + gateway log hints
 
-## Quick start
-
-1. Fetch cost JSON via CodexBar CLI or pass a JSON file.
-2. Use the bundled script to summarize by model.
+## Usage
 
 ```bash
+# Cost: current model
 python {baseDir}/scripts/model_usage.py --provider codex --mode current
-python {baseDir}/scripts/model_usage.py --provider codex --mode all
-python {baseDir}/scripts/model_usage.py --provider claude --mode all --format json --pretty
+
+# Cost: all models
+python {baseDir}/scripts/model_usage.py --provider codex --mode all --days 7
+
+# Errors: recent failed/aborted sessions
+python {baseDir}/scripts/model_usage.py --mode errors --error-limit 50
+
+# Overview: cost + errors
+python {baseDir}/scripts/model_usage.py --provider codex --mode overview --days 7 --error-limit 50
+
+# JSON output
+python {baseDir}/scripts/model_usage.py --mode overview --format json --pretty
 ```
 
-## Current model logic
+## Modes
 
-- Uses the most recent daily row with `modelBreakdowns`.
-- Picks the model with the highest cost in that row.
-- Falls back to the last entry in `modelsUsed` when breakdowns are missing.
-- Override with `--model <name>` when you need a specific model.
+- `current`: current model cost summary
+- `all`: all-model cost aggregation
+- `errors`: recent failed/aborted sessions + log hints
+- `overview`: combined cost and error report
 
-## Inputs
+## Notes
 
-- Default: runs `codexbar cost --format json --provider <codex|claude>`.
-- File or stdin:
-
-```bash
-codexbar cost --provider codex --format json > /tmp/cost.json
-python {baseDir}/scripts/model_usage.py --input /tmp/cost.json --mode all
-cat /tmp/cost.json | python {baseDir}/scripts/model_usage.py --input - --mode current
-```
-
-## Output
-
-- Text (default) or JSON (`--format json --pretty`).
-- Values are cost-only per model; tokens are not split by model in CodexBar output.
+- `current/all/overview` require `codexbar`.
+- `errors/overview` require `openclaw`.
+- Logs are read from `journalctl` first (Linux/systemd); on macOS it falls back to `~/.openclaw/logs/gateway.log`.
 
 ## References
 
-- Read `references/codexbar-cli.md` for CLI flags and cost JSON fields.
+- `references/codexbar-cli.md`
