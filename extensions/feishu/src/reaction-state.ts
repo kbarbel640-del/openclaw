@@ -313,12 +313,13 @@ export class ReactionStateManager {
   }
 
   /**
-   * Check if there are any messages in QUEUED or PROCESSING state for a chat.
-   * Used by bot.ts to decide whether a merged message should keep its emoji
-   * (because a main message is still being processed or waiting to be processed).
+   * Check if there are any OTHER messages in QUEUED or PROCESSING state for a chat.
+   * Excludes the specified messageId (the current message checking its own status).
+   * Used by bot.ts to decide whether a merged message should keep its emoji.
    */
-  hasActiveInChat(chatId: string): boolean {
-    for (const [, state] of this.states) {
+  hasActiveInChat(chatId: string, excludeMessageId?: string): boolean {
+    for (const [messageId, state] of this.states) {
+      if (messageId === excludeMessageId) continue;
       if (state.chatId === chatId && (state.status === "QUEUED" || state.status === "PROCESSING")) {
         return true;
       }

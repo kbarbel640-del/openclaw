@@ -1014,7 +1014,7 @@ export async function handleFeishuMessage(params: {
     // Note: we check hasActiveInChat (not hasProcessingInChat) because the main message
     // may still be in QUEUED state when this merged message's dispatch returns.
     if (counts.final === 0) {
-      if (reactionManager.hasActiveInChat(ctx.chatId)) {
+      if (reactionManager.hasActiveInChat(ctx.chatId, ctx.messageId)) {
         // Merged message: transition it from OK to Typing so user sees it's being processed
         await reactionManager.onProcessingStart(ctx.messageId).catch(() => {});
       } else {
