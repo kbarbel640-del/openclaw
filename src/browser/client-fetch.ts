@@ -95,6 +95,25 @@ function withLoopbackBrowserAuth(
 
 function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number): Error {
   const isLocal = !isAbsoluteHttp(url);
+  const msg = String(err);
+  const msgLower = msg.toLowerCase();
+
+  // Check if this is an HTTP validation error (4xx) from the browser service.
+  // The browser IS reachable — the request was just invalid. Don't mislead the
+  // model into thinking the browser is unavailable.
+  // See: https://github.com/openclaw/openclaw/issues/23552
+  const httpStatus =
+    err && typeof err === "object" && "httpStatus" in err
+      ? (err as { httpStatus?: number }).httpStatus
+      : undefined;
+  if (httpStatus !== undefined && httpStatus >= 400 && httpStatus < 500) {
+    return new Error(
+      `Browser tool request failed (HTTP ${httpStatus}): ${msg}. ` +
+        "Check that the tool parameters match the expected schema. " +
+        "Try a different approach or simplify the request.",
+    );
+  }
+
   // Human-facing hint for logs/diagnostics.
   const operatorHint = isLocal
     ? `Restart the OpenClaw gateway (OpenClaw.app menubar, or \`${formatCliCommand("openclaw gateway")}\`).`
@@ -104,8 +123,6 @@ function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number):
   const modelHint =
     "Do NOT retry the browser tool — it will keep failing. " +
     "Use an alternative approach or inform the user that the browser is currently unavailable.";
-  const msg = String(err);
-  const msgLower = msg.toLowerCase();
   const looksLikeTimeout =
     msgLower.includes("timed out") ||
     msgLower.includes("timeout") ||
@@ -144,7 +161,13 @@ async function fetchHttpJson<T>(
     const res = await fetch(url, { ...init, signal: ctrl.signal });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(text || `HTTP ${res.status}`);
+      const err = new Error(text || `HTTP ${res.status}`);
+      // Preserve the HTTP status so callers can distinguish validation errors (4xx)
+      // from actual connectivity failures. Without this, all errors get wrapped as
+      // "Can't reach the browser control service" which is misleading for 400s.
+      // See: https://github.com/openclaw/openclaw/issues/23552
+      (err as Error & { httpStatus?: number }).httpStatus = res.status;
+      throw err;
     }
     return (await res.json()) as T;
   } finally {
