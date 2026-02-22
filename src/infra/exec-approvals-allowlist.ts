@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import {
   DEFAULT_SAFE_BINS,
   analyzeShellCommand,
@@ -11,39 +9,14 @@ import {
   type CommandResolution,
   type ExecCommandSegment,
 } from "./exec-approvals-analysis.js";
+import type { ExecAllowlistEntry } from "./exec-approvals.js";
 import {
   SAFE_BIN_GENERIC_PROFILE,
   SAFE_BIN_PROFILES,
   type SafeBinProfile,
   validateSafeBinArgv,
 } from "./exec-safe-bin-policy.js";
-import type { ExecAllowlistEntry } from "./exec-approvals.js";
 import { isTrustedSafeBinPath } from "./exec-safe-bin-trust.js";
-
-function isPathLikeToken(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return false;
-  }
-  if (trimmed === "-") {
-    return false;
-  }
-  if (trimmed.startsWith("./") || trimmed.startsWith("../") || trimmed.startsWith("~")) {
-    return true;
-  }
-  if (trimmed.startsWith("/")) {
-    return true;
-  }
-  return /^[A-Za-z]:[\\/]/.test(trimmed);
-}
-
-function defaultFileExists(filePath: string): boolean {
-  try {
-    return fs.existsSync(filePath);
-  } catch {
-    return false;
-  }
-}
 export function normalizeSafeBins(entries?: string[]): Set<string> {
   if (!Array.isArray(entries)) {
     return new Set();
