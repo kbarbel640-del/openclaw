@@ -404,6 +404,7 @@ export function renderApp(state: AppViewState) {
                 entries: state.presenceEntries,
                 lastError: state.presenceError,
                 statusMessage: state.presenceStatus,
+                streamMode: state.streamMode,
                 onRefresh: () => loadPresence(state),
               })
             : nothing
