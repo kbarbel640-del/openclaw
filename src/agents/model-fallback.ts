@@ -358,10 +358,13 @@ export async function runWithModelFallback<T>(params: {
         // For the primary model (i === 0), probe it if the soonest cooldown
         // expiry is close or already past. This avoids staying on a fallback
         // model long after the real rate-limit window clears.
+        const isPrimary = i === 0;
+        const requestedModel =
+          params.provider === candidate.provider && params.model === candidate.model;
         const now = Date.now();
         const probeThrottleKey = resolveProbeThrottleKey(candidate.provider, params.agentDir);
         const shouldProbe = shouldProbePrimaryDuringCooldown({
-          isPrimary: i === 0,
+          isPrimary,
           hasFallbackCandidates,
           now,
           throttleKey: probeThrottleKey,
@@ -389,10 +392,11 @@ export async function runWithModelFallback<T>(params: {
           continue;
         }
 
-        if (shouldProbe) {
+        if (isPrimary && shouldProbe) {
           // Primary model probe: attempt it despite cooldown to detect recovery.
           lastProbeAttempt.set(probeThrottleKey, now);
         }
+        // For fallback models or probed primaries, continue to attempt the model
       }
     }
     try {

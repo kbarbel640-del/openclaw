@@ -917,7 +917,99 @@ describe("runWithModelFallback", () => {
     });
   });
 
-  // Bug B (provider cooldown) tests temporarily removed for simplicity
+  // Tests for Bug B fix: Fallback with provider-level cooldowns
+  describe("fallback behavior with provider cooldowns", () => {
+    async function makeAuthStoreWithCooldown(
+      provider: string,
+    ): Promise<{ store: AuthProfileStore; dir: string }> {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-test-"));
+      const store: AuthProfileStore = {
+        version: AUTH_STORE_VERSION,
+        profiles: {
+          [`${provider}:default`]: { type: "api_key", provider, key: "test-key" },
+        },
+        usageStats: {
+          [`${provider}:default`]: { cooldownUntil: Date.now() + 300000 }, // 5 min cooldown
+        },
+      };
+      saveAuthProfileStore(store, tmpDir);
+      return { store, dir: tmpDir };
+    }
+
+    it("attempts same-provider fallbacks even during cooldown", async () => {
+      const { dir } = await makeAuthStoreWithCooldown("anthropic");
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-opus-4-6",
+              fallbacks: ["anthropic/claude-sonnet-4-5", "groq/llama-3.3-70b-versatile"],
+            },
+          },
+        },
+      });
+
+      const run = vi.fn().mockResolvedValueOnce("sonnet success"); // First call (sonnet) succeeds
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic",
+        model: "claude-opus-4-6",
+        run,
+        agentDir: dir,
+      });
+
+      expect(result.result).toBe("sonnet success");
+      expect(run).toHaveBeenCalledTimes(1); // Primary skipped due to cooldown, fallback tried
+      expect(run).toHaveBeenNthCalledWith(1, "anthropic", "claude-sonnet-4-5"); // Fallback attempted despite cooldown
+    });
+
+    it("tries cross-provider fallbacks when same provider in cooldown", async () => {
+      // Create auth store with both anthropic (in cooldown) and groq (available)
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-test-"));
+      const store: AuthProfileStore = {
+        version: AUTH_STORE_VERSION,
+        profiles: {
+          "anthropic:default": { type: "api_key", provider: "anthropic", key: "test-key" },
+          "groq:default": { type: "api_key", provider: "groq", key: "test-key" },
+        },
+        usageStats: {
+          "anthropic:default": { cooldownUntil: Date.now() + 300000 }, // Anthropic in cooldown
+          // Groq NOT in cooldown
+        },
+      };
+      saveAuthProfileStore(store, tmpDir);
+
+      const cfg = makeCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-opus-4-6",
+              fallbacks: ["anthropic/claude-sonnet-4-5", "groq/llama-3.3-70b-versatile"],
+            },
+          },
+        },
+      });
+
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Still rate limited")) // Same provider fallback fails
+        .mockResolvedValueOnce("groq success"); // Different provider works
+
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic",
+        model: "claude-opus-4-6",
+        run,
+        agentDir: tmpDir,
+      });
+
+      expect(result.result).toBe("groq success");
+      expect(run).toHaveBeenCalledTimes(2); // Primary skipped, sonnet tried, groq succeeds
+      expect(run).toHaveBeenNthCalledWith(1, "anthropic", "claude-sonnet-4-5"); // Fallback attempted despite cooldown
+      expect(run).toHaveBeenNthCalledWith(2, "groq", "llama-3.3-70b-versatile");
+    });
+  });
 });
 
 describe("runWithImageModelFallback", () => {
