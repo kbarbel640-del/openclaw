@@ -25,15 +25,12 @@ if [[ ! -f "$OPENCLAW_CONFIG" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Error: env file not found: $ENV_FILE"
-  exit 1
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
 fi
-
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
 
 missing_env=0
 for key in CRITTORA_USERNAME CRITTORA_PASSWORD CRITTORA_API_KEY CRITTORA_ACCESS_KEY CRITTORA_SECRET_KEY; do
@@ -43,6 +40,9 @@ for key in CRITTORA_USERNAME CRITTORA_PASSWORD CRITTORA_API_KEY CRITTORA_ACCESS_
   fi
 done
 if [[ "$missing_env" -ne 0 ]]; then
+  if [[ ! -f "$ENV_FILE" ]]; then
+    echo "Error: env file not found: $ENV_FILE"
+  fi
   exit 1
 fi
 
