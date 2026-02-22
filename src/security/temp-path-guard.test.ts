@@ -57,7 +57,7 @@ function hasDynamicTmpdirJoin(source: string, filePath = "fixture.ts"): boolean 
     filePath,
     source,
     ts.ScriptTarget.Latest,
-    true,
+    false,
     filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   let found = false;
@@ -117,7 +117,7 @@ function parsePathList(stdout: string): Set<string> {
   return out;
 }
 
-function prefilterLikelyTmpdirJoinFiles(root: string): Set<string> | null {
+function prefilterLikelyTmpdirJoinFiles(roots: readonly string[]): Set<string> | null {
   const commonArgs = [
     "--files-with-matches",
     "--glob",
@@ -134,25 +134,43 @@ function prefilterLikelyTmpdirJoinFiles(root: string): Set<string> | null {
     "!**/*.e2e.tsx",
     "--glob",
     "!**/*.d.ts",
+    "--glob",
+    "!**/*.test-helpers.ts",
+    "--glob",
+    "!**/*.test-helpers.tsx",
+    "--glob",
+    "!**/*.test-utils.ts",
+    "--glob",
+    "!**/*.test-utils.tsx",
     "--no-messages",
   ];
-  const joined = spawnSync("rg", [...commonArgs, "path\\.join", root], { encoding: "utf8" });
-  if (joined.error || (joined.status !== 0 && joined.status !== 1)) {
+  const strictDynamicCall = spawnSync(
+    "rg",
+    [
+      ...commonArgs,
+      "-P",
+      "-U",
+      "(?s)path\\s*\\.\\s*join\\s*\\(\\s*os\\s*\\.\\s*tmpdir\\s*\\([^`]*`",
+      ...roots,
+    ],
+    { encoding: "utf8" },
+  );
+  if (
+    !strictDynamicCall.error &&
+    (strictDynamicCall.status === 0 || strictDynamicCall.status === 1)
+  ) {
+    return parsePathList(strictDynamicCall.stdout);
+  }
+
+  const candidateCall = spawnSync(
+    "rg",
+    [...commonArgs, "path\\s*\\.\\s*join\\s*\\(\\s*os\\s*\\.\\s*tmpdir\\s*\\(", ...roots],
+    { encoding: "utf8" },
+  );
+  if (candidateCall.error || (candidateCall.status !== 0 && candidateCall.status !== 1)) {
     return null;
   }
-  const tmpdir = spawnSync("rg", [...commonArgs, "os\\.tmpdir", root], { encoding: "utf8" });
-  if (tmpdir.error || (tmpdir.status !== 0 && tmpdir.status !== 1)) {
-    return null;
-  }
-  const joinMatches = parsePathList(joined.stdout);
-  const tmpdirMatches = parsePathList(tmpdir.stdout);
-  const intersection = new Set<string>();
-  for (const file of joinMatches) {
-    if (tmpdirMatches.has(file)) {
-      intersection.add(file);
-    }
-  }
-  return intersection;
+  return parsePathList(candidateCall.stdout);
 }
 
 describe("temp path guard", () => {
@@ -187,11 +205,27 @@ describe("temp path guard", () => {
   it("blocks dynamic template path.join(os.tmpdir(), ...) in runtime source files", async () => {
     const repoRoot = process.cwd();
     const offenders: string[] = [];
+    const scanRoots = RUNTIME_ROOTS.map((root) => path.join(repoRoot, root));
+    const rgPrefiltered = prefilterLikelyTmpdirJoinFiles(scanRoots);
+    const prefilteredByRoot = new Map<string, string[]>();
+    if (rgPrefiltered) {
+      for (const file of rgPrefiltered) {
+        for (const absRoot of scanRoots) {
+          if (file.startsWith(absRoot + path.sep)) {
+            const bucket = prefilteredByRoot.get(absRoot) ?? [];
+            bucket.push(file);
+            prefilteredByRoot.set(absRoot, bucket);
+            break;
+          }
+        }
+      }
+    }
 
     for (const root of RUNTIME_ROOTS) {
       const absRoot = path.join(repoRoot, root);
-      const rgPrefiltered = prefilterLikelyTmpdirJoinFiles(absRoot);
-      const files = rgPrefiltered ? [...rgPrefiltered] : await listTsFiles(absRoot);
+      const files = rgPrefiltered
+        ? (prefilteredByRoot.get(absRoot) ?? [])
+        : await listTsFiles(absRoot);
       for (const file of files) {
         const relativePath = path.relative(repoRoot, file);
         if (shouldSkip(relativePath)) {

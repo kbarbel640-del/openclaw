@@ -11,9 +11,9 @@ const defaultShell = isWin
   ? undefined
   : process.env.OPENCLAW_TEST_SHELL || resolveShellFromPath("bash") || process.env.SHELL || "sh";
 // PowerShell: Start-Sleep for delays, ; for command separation, $null for null device
-const shortDelayCmd = isWin ? "Start-Sleep -Milliseconds 15" : "sleep 0.015";
-const yieldDelayCmd = isWin ? "Start-Sleep -Milliseconds 70" : "sleep 0.07";
-const longDelayCmd = isWin ? "Start-Sleep -Milliseconds 500" : "sleep 0.5";
+const shortDelayCmd = isWin ? "Start-Sleep -Milliseconds 8" : "sleep 0.008";
+const yieldDelayCmd = isWin ? "Start-Sleep -Milliseconds 30" : "sleep 0.03";
+const longDelayCmd = isWin ? "Start-Sleep -Milliseconds 120" : "sleep 0.12";
 const POLL_INTERVAL_MS = 15;
 const TEST_EXEC_DEFAULTS = { security: "full" as const, ask: "off" as const };
 const createTestExecTool = (
@@ -149,7 +149,7 @@ describe("exec tool backgrounding", () => {
   });
 
   it("uses default timeout when timeout is omitted", async () => {
-    const customBash = createTestExecTool({ timeoutSec: 0.1, backgroundMs: 10 });
+    const customBash = createTestExecTool({ timeoutSec: 0.08, backgroundMs: 10 });
     const customProcess = createProcessTool();
 
     const result = await customBash.execute("call1", {
@@ -167,7 +167,7 @@ describe("exec tool backgrounding", () => {
           });
           return (poll.details as { status: string }).status;
         },
-        { timeout: 3000, interval: POLL_INTERVAL_MS },
+        { timeout: 1500, interval: POLL_INTERVAL_MS },
       )
       .toBe("failed");
   });
