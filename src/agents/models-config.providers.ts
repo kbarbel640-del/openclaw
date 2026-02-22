@@ -626,8 +626,6 @@ function buildGeminiCli31Model(): ProviderModelConfig {
     id: "gemini-3.1-pro-preview",
     name: "Gemini 3.1 Pro",
     api: "google-gemini-cli",
-    provider: "google-gemini-cli",
-    baseUrl: GEMINI_CLI_BASE_URL,
     reasoning: true,
     input: ["text", "image"],
     cost: GEMINI_CLI_FREE_COST,
