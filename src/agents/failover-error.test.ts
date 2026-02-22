@@ -11,9 +11,29 @@ describe("failover-error", () => {
     expect(resolveFailoverReasonFromError({ status: 402 })).toBe("billing");
     expect(resolveFailoverReasonFromError({ statusCode: "429" })).toBe("rate_limit");
     expect(resolveFailoverReasonFromError({ status: 403 })).toBe("auth");
+    expect(resolveFailoverReasonFromError({ status: 404 })).toBe("model_not_found");
     expect(resolveFailoverReasonFromError({ status: 408 })).toBe("timeout");
     expect(resolveFailoverReasonFromError({ status: 400 })).toBe("format");
     expect(resolveFailoverReasonFromError({ status: 503 })).toBe("timeout");
+  });
+
+  it("maps HTTP 404 to model_not_found for provider entity errors", () => {
+    // Google Gemini returns 404 with "Requested entity was not found" when a model
+    // is unavailable due to quota exhaustion or deprecation. The message does not
+    // contain "model", so message-based classification alone misses it.
+    const err = { status: 404, message: "Requested entity was not found." };
+    expect(resolveFailoverReasonFromError(err)).toBe("model_not_found");
+  });
+
+  it("coerces HTTP 404 provider errors into FailoverError with correct metadata", () => {
+    const err = coerceToFailoverError(
+      { status: 404, message: "Requested entity was not found." },
+      { provider: "google", model: "gemini-2.0-flash" },
+    );
+    expect(err?.reason).toBe("model_not_found");
+    expect(err?.status).toBe(404);
+    expect(err?.provider).toBe("google");
+    expect(err?.model).toBe("gemini-2.0-flash");
   });
 
   it("infers format errors from error messages", () => {

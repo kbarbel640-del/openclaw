@@ -166,6 +166,9 @@ export function resolveFailoverReasonFromError(err: unknown): FailoverReason | n
   if (status === 503) {
     return "timeout";
   }
+  if (status === 404) {
+    return "model_not_found";
+  }
   if (status === 400) {
     return "format";
   }
