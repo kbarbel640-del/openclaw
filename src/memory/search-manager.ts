@@ -16,12 +16,24 @@ export type MemorySearchManagerResult = {
   error?: string;
 };
 
+/**
+ * Resolve the memorySearch.fallback setting for an agent.
+ * Returns "none" by default when not explicitly configured.
+ */
+function resolveMemorySearchFallback(cfg: OpenClawConfig, agentId: string): string {
+  const defaults = cfg.agents?.defaults?.memorySearch;
+  const agentCfg = cfg.agents?.list?.find((a) => a.id === agentId);
+  const overrides = agentCfg?.memorySearch;
+  return overrides?.fallback ?? defaults?.fallback ?? "none";
+}
+
 export async function getMemorySearchManager(params: {
   cfg: OpenClawConfig;
   agentId: string;
   purpose?: "default" | "status";
 }): Promise<MemorySearchManagerResult> {
   const resolved = resolveMemoryBackendConfig(params);
+  const fallbackSetting = resolveMemorySearchFallback(params.cfg, params.agentId);
   if (resolved.backend === "qmd" && resolved.qmd) {
     const statusOnly = params.purpose === "status";
     const cacheKey = buildQmdCacheKey(params.agentId, resolved.qmd);
@@ -46,10 +58,14 @@ export async function getMemorySearchManager(params: {
         const wrapper = new FallbackMemoryManager(
           {
             primary,
-            fallbackFactory: async () => {
-              const { MemoryIndexManager } = await import("./manager.js");
-              return await MemoryIndexManager.get(params);
-            },
+            fallbackFactory:
+              fallbackSetting === "none"
+                ? async () => null // No fallback when explicitly disabled
+                : async () => {
+                    const { MemoryIndexManager } = await import("./manager.js");
+                    return await MemoryIndexManager.get(params);
+                  },
+            fallbackDisabled: fallbackSetting === "none",
           },
           () => QMD_MANAGER_CACHE.delete(cacheKey),
         );
@@ -58,8 +74,22 @@ export async function getMemorySearchManager(params: {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      // When fallback is "none" and QMD backend was explicitly requested, don't try builtin.
+      if (fallbackSetting === "none") {
+        log.warn(`qmd memory unavailable (fallback disabled): ${message}`);
+        return { manager: null, error: `QMD backend unavailable: ${message}` };
+      }
       log.warn(`qmd memory unavailable; falling back to builtin: ${message}`);
     }
+  }
+
+  // Skip builtin fallback if explicitly disabled via memorySearch.fallback = "none"
+  // and the backend was explicitly set to "qmd".
+  if (resolved.backend === "qmd" && fallbackSetting === "none") {
+    return {
+      manager: null,
+      error: "QMD backend configured but not available. Set memorySearch.fallback to enable builtin fallback.",
+    };
   }
 
   try {
@@ -82,6 +112,7 @@ class FallbackMemoryManager implements MemorySearchManager {
     private readonly deps: {
       primary: MemorySearchManager;
       fallbackFactory: () => Promise<MemorySearchManager | null>;
+      fallbackDisabled?: boolean;
     },
     private readonly onClose?: () => void,
   ) {}
@@ -96,11 +127,18 @@ class FallbackMemoryManager implements MemorySearchManager {
       } catch (err) {
         this.primaryFailed = true;
         this.lastError = err instanceof Error ? err.message : String(err);
-        log.warn(`qmd memory failed; switching to builtin index: ${this.lastError}`);
+        if (this.deps.fallbackDisabled) {
+          log.warn(`qmd memory failed (fallback disabled): ${this.lastError}`);
+        } else {
+          log.warn(`qmd memory failed; switching to builtin index: ${this.lastError}`);
+        }
         await this.deps.primary.close?.().catch(() => {});
         // Evict the failed wrapper so the next request can retry QMD with a fresh manager.
         this.evictCacheEntry();
       }
+    }
+    if (this.deps.fallbackDisabled) {
+      throw new Error(this.lastError ?? "QMD memory search failed (fallback disabled)");
     }
     const fallback = await this.ensureFallback();
     if (fallback) {
@@ -112,6 +150,9 @@ class FallbackMemoryManager implements MemorySearchManager {
   async readFile(params: { relPath: string; from?: number; lines?: number }) {
     if (!this.primaryFailed) {
       return await this.deps.primary.readFile(params);
+    }
+    if (this.deps.fallbackDisabled) {
+      throw new Error(this.lastError ?? "QMD memory read failed (fallback disabled)");
     }
     const fallback = await this.ensureFallback();
     if (fallback) {
