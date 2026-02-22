@@ -1,3 +1,4 @@
+import { lookup } from "node:dns/promises";
 import type { MSTeamsAttachmentLike } from "./types.js";
 
 type InlineImageCandidate =
@@ -301,4 +302,120 @@ export function isUrlAllowed(url: string, allowlist: string[]): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Returns true if the given IPv4 or IPv6 address is in a private, loopback,
+ * or link-local range that must never be reached from media downloads.
+ */
+export function isPrivateOrReservedIP(ip: string): boolean {
+  // IPv4 checks
+  const v4Parts = ip.split(".");
+  if (v4Parts.length === 4) {
+    const a = Number(v4Parts[0]);
+    const b = Number(v4Parts[1]);
+    if (a === 10) return true; // 10.0.0.0/8
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+    if (a === 192 && b === 168) return true; // 192.168.0.0/16
+    if (a === 127) return true; // 127.0.0.0/8
+    if (a === 169 && b === 254) return true; // 169.254.0.0/16
+    if (a === 0) return true; // 0.0.0.0/8
+  }
+
+  // IPv6 checks
+  const normalized = ip.toLowerCase();
+  if (normalized === "::1") return true;
+  if (normalized === "::") return true;
+  if (normalized.startsWith("fe80:") || normalized.startsWith("fe80")) return true;
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+
+  return false;
+}
+
+/**
+ * Resolve a hostname via DNS and reject private/reserved IPs.
+ * Throws if the resolved IP is private or resolution fails.
+ */
+export async function resolveAndValidateIP(
+  hostname: string,
+  resolveFn?: (hostname: string) => Promise<{ address: string }>,
+): Promise<string> {
+  const resolve = resolveFn ?? lookup;
+  let resolved: { address: string };
+  try {
+    resolved = await resolve(hostname);
+  } catch {
+    throw new Error(`DNS resolution failed for "${hostname}"`);
+  }
+  if (isPrivateOrReservedIP(resolved.address)) {
+    throw new Error(`Hostname "${hostname}" resolves to private/reserved IP (${resolved.address})`);
+  }
+  return resolved.address;
+}
+
+/** Maximum number of redirects to follow in safeFetch. */
+const MAX_SAFE_REDIRECTS = 5;
+
+/**
+ * Fetch a URL with redirect: "manual", validating each redirect target
+ * against the hostname allowlist and DNS-resolved IP (anti-SSRF).
+ *
+ * This prevents:
+ * - Auto-following redirects to non-allowlisted hosts
+ * - DNS rebinding attacks where an allowlisted domain resolves to a private IP
+ */
+export async function safeFetch(params: {
+  url: string;
+  allowHosts: string[];
+  fetchFn?: typeof fetch;
+  requestInit?: RequestInit;
+  resolveFn?: (hostname: string) => Promise<{ address: string }>;
+}): Promise<Response> {
+  const fetchFn = params.fetchFn ?? fetch;
+  const resolveFn = params.resolveFn;
+  let currentUrl = params.url;
+
+  // Validate the initial URL's resolved IP
+  try {
+    const initialHost = new URL(currentUrl).hostname;
+    await resolveAndValidateIP(initialHost, resolveFn);
+  } catch {
+    throw new Error(`Initial download URL blocked: ${currentUrl}`);
+  }
+
+  for (let i = 0; i <= MAX_SAFE_REDIRECTS; i++) {
+    const res = await fetchFn(currentUrl, {
+      ...params.requestInit,
+      redirect: "manual",
+    });
+
+    if (![301, 302, 303, 307, 308].includes(res.status)) {
+      return res;
+    }
+
+    const location = res.headers.get("location");
+    if (!location) {
+      return res;
+    }
+
+    let redirectUrl: string;
+    try {
+      redirectUrl = new URL(location, currentUrl).toString();
+    } catch {
+      throw new Error(`Invalid redirect URL: ${location}`);
+    }
+
+    // Validate redirect target against hostname allowlist
+    if (!isUrlAllowed(redirectUrl, params.allowHosts)) {
+      throw new Error(`Media redirect target blocked by allowlist: ${redirectUrl}`);
+    }
+
+    // Validate redirect target's resolved IP
+    const redirectHost = new URL(redirectUrl).hostname;
+    await resolveAndValidateIP(redirectHost, resolveFn);
+
+    currentUrl = redirectUrl;
+  }
+
+  throw new Error(`Too many redirects (>${MAX_SAFE_REDIRECTS})`);
 }
