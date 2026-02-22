@@ -124,7 +124,7 @@ export class DiscordMessageListener extends MessageCreateListener {
         const logger = this.logger ?? discordEventQueueLog;
         logger.error(danger(`discord handler failed: ${String(err)}`));
       },
-    }).catch(() => {});
+    });
   }
 }
 
