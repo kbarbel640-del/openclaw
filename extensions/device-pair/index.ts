@@ -206,7 +206,13 @@ function isTailnetIPv4(address: string): boolean {
 }
 
 function pickMatchingIPv4(predicate: (address: string) => boolean): string | null {
-  const nets = os.networkInterfaces();
+  let nets: NodeJS.Dict<os.NetworkInterfaceInfo[]>;
+  try {
+    nets = os.networkInterfaces();
+  } catch {
+    // os.networkInterfaces() throws in restricted environments (e.g. proot, some containers)
+    return null;
+  }
   for (const entries of Object.values(nets)) {
     if (!entries) {
       continue;

@@ -126,7 +126,13 @@ function pickIPv4Matching(
   networkInterfaces: () => ReturnType<typeof os.networkInterfaces>,
   matches: (address: string) => boolean,
 ): string | null {
-  const nets = networkInterfaces();
+  let nets: ReturnType<typeof os.networkInterfaces>;
+  try {
+    nets = networkInterfaces();
+  } catch {
+    // os.networkInterfaces() throws in restricted environments (e.g. proot, some containers)
+    return null;
+  }
   for (const entries of Object.values(nets)) {
     if (!entries) {
       continue;
