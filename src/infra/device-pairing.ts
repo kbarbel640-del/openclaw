@@ -90,6 +90,8 @@ function normalizePendingState(
 function normalizePairedState(
   paired: Record<string, PairedDevice> | PairedDevice[] | null,
 ): Record<string, PairedDevice> {
+  // Lazy migration: legacy paired.json arrays are normalized in-memory on load.
+  // The corrected object-map format is persisted on the next write (approve, clear, etc.).
   if (Array.isArray(paired)) {
     const byDeviceId: Record<string, PairedDevice> = {};
     for (const entry of paired) {

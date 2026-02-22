@@ -282,4 +282,15 @@ describe("device pairing tokens", () => {
     expect(Array.isArray(persisted)).toBe(false);
     expect(Object.keys(persisted)).toContain("device-legacy");
   });
+
+  test("normalizes legacy empty array without approve (read-only path)", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const devicesDir = join(baseDir, "devices");
+    await mkdir(devicesDir, { recursive: true });
+    await writeFile(join(devicesDir, "pending.json"), "{}\n", "utf8");
+    await writeFile(join(devicesDir, "paired.json"), "[]\n", "utf8");
+
+    const paired = await getPairedDevice("device-nonexistent", baseDir);
+    expect(paired).toBeNull();
+  });
 });
