@@ -70,10 +70,15 @@ export async function transcribeAzureAudio(
   }
 
   const headers = new Headers(params.headers);
-  // Azure AI uses api-key header instead of Authorization: Bearer.
-  headers.set("api-key", params.apiKey);
   // Remove any Bearer auth that may have been set by the caller.
   headers.delete("authorization");
+  // Azure Cognitive Services endpoints use Ocp-Apim-Subscription-Key,
+  // while Azure AI Foundry endpoints use api-key.
+  if (baseUrl.includes(".cognitiveservices.azure.com")) {
+    headers.set("Ocp-Apim-Subscription-Key", params.apiKey);
+  } else {
+    headers.set("api-key", params.apiKey);
+  }
 
   const { response: res, release } = await fetchWithTimeoutGuarded(
     url.toString(),
