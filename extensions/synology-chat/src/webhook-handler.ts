@@ -5,7 +5,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import * as querystring from "node:querystring";
-import { sendMessage } from "./client.js";
+import { sendMessage, resolveChatUserId } from "./client.js";
 import { validateToken, authorizeUserForDm, sanitizeInput, RateLimiter } from "./security.js";
 import type { SynologyWebhookPayload, ResolvedSynologyChatAccount } from "./types.js";
 
@@ -82,6 +82,8 @@ export interface WebhookHandlerDeps {
     chatType: string;
     sessionKey: string;
     accountId: string;
+    /** Chat API user_id for sending replies (may differ from webhook user_id) */
+    chatUserId?: string;
   }) => Promise<string | null>;
   log?: {
     info: (...args: unknown[]) => void;
@@ -179,6 +181,24 @@ export function createWebhookHandler(deps: WebhookHandlerDeps) {
     const preview = cleanText.length > 100 ? `${cleanText.slice(0, 100)}...` : cleanText;
     log?.info(`Message from ${payload.username} (${payload.user_id}): ${preview}`);
 
+    // Resolve the Chat-internal user_id for sending replies.
+    // Synology Chat outgoing webhooks use a per-integration user_id that may
+    // differ from the global Chat API user_id required by method=chatbot.
+    // We resolve via the user_list API, matching by nickname/username.
+    const chatUserId = await resolveChatUserId(
+      account.incomingUrl,
+      payload.username,
+      account.allowInsecureSsl,
+      log,
+    );
+    const replyUserId = chatUserId !== undefined ? String(chatUserId) : payload.user_id;
+
+    if (chatUserId === undefined) {
+      log?.warn(
+        `Could not resolve Chat API user_id for "${payload.username}" — falling back to webhook user_id ${payload.user_id}. Reply delivery may fail.`,
+      );
+    }
+
     // Respond 200 immediately to avoid Synology Chat timeout
     respond(res, 200, { text: "Processing..." });
 
@@ -193,6 +213,7 @@ export function createWebhookHandler(deps: WebhookHandlerDeps) {
         chatType: "direct",
         sessionKey,
         accountId: account.accountId,
+        chatUserId: replyUserId,
       });
 
       const timeoutPromise = new Promise<null>((_, reject) =>
@@ -201,11 +222,11 @@ export function createWebhookHandler(deps: WebhookHandlerDeps) {
 
       const reply = await Promise.race([deliverPromise, timeoutPromise]);
 
-      // Send reply back to Synology Chat
+      // Send reply back to Synology Chat using the resolved Chat user_id
       if (reply) {
-        await sendMessage(account.incomingUrl, reply, payload.user_id, account.allowInsecureSsl);
+        await sendMessage(account.incomingUrl, reply, replyUserId, account.allowInsecureSsl);
         const replyPreview = reply.length > 100 ? `${reply.slice(0, 100)}...` : reply;
-        log?.info(`Reply sent to ${payload.username} (${payload.user_id}): ${replyPreview}`);
+        log?.info(`Reply sent to ${payload.username} (${replyUserId}): ${replyPreview}`);
       }
     } catch (err) {
       const errMsg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
@@ -213,7 +234,7 @@ export function createWebhookHandler(deps: WebhookHandlerDeps) {
       await sendMessage(
         account.incomingUrl,
         "Sorry, an error occurred while processing your message.",
-        payload.user_id,
+        replyUserId,
         account.allowInsecureSsl,
       );
     }
