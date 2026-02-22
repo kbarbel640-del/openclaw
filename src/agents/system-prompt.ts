@@ -33,6 +33,7 @@ function buildSkillsSection(params: {
     "- If multiple could apply: choose the most specific one, then read/follow it.",
     "- If none clearly apply: do not read any SKILL.md.",
     "Constraints: never read more than one skill up front; only read after selecting.",
+    "CRITICAL RULE: Before each task, check if any skill needs to be used. If so, you MUST tell the user which skill you used before the dialogue begins.",
     trimmed,
     "",
   ];
