@@ -72,12 +72,14 @@ export function resolveSlackThreadTs(params: {
   incomingThreadTs: string | undefined;
   messageTs: string | undefined;
   hasReplied: boolean;
+  isThreadReply?: boolean;
 }): string | undefined {
   const planner = createSlackReplyReferencePlanner({
     replyToMode: params.replyToMode,
     incomingThreadTs: params.incomingThreadTs,
     messageTs: params.messageTs,
     hasReplied: params.hasReplied,
+    isThreadReply: params.isThreadReply,
   });
   return planner.use();
 }
@@ -86,6 +88,19 @@ type SlackReplyDeliveryPlan = {
   nextThreadTs: () => string | undefined;
   markSent: () => void;
 };
+
+function inferIsThreadReply(
+  incomingThreadTs: string | undefined,
+  messageTs: string | undefined,
+): boolean {
+  if (!incomingThreadTs) {
+    return false;
+  }
+  if (!messageTs) {
+    return true;
+  }
+  return incomingThreadTs !== messageTs;
+}
 
 function createSlackReplyReferencePlanner(params: {
   replyToMode: "off" | "first" | "all";
@@ -96,7 +111,9 @@ function createSlackReplyReferencePlanner(params: {
 }) {
   // Only force threading for real user thread replies. If Slack auto-populates
   // thread_ts on top-level messages, preserve the configured reply mode.
-  const effectiveMode = params.isThreadReply ? "all" : params.replyToMode;
+  const isThreadReply =
+    params.isThreadReply ?? inferIsThreadReply(params.incomingThreadTs, params.messageTs);
+  const effectiveMode = isThreadReply ? "all" : params.replyToMode;
   return createReplyReferencePlanner({
     replyToMode: effectiveMode,
     existingId: params.incomingThreadTs,
