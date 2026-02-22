@@ -113,16 +113,19 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   const completeReaction = () => {
     if (reactionCompleted || !replyToMessageId) return;
     reactionCompleted = true;
-    const mgr = getReactionStateManager();
-    // Clean up THIS message's reaction.
-    mgr.onCompleted(replyToMessageId).catch(() => {});
-    // Clean up ALL remaining reactions in this chat (merged messages).
-    // Merged messages may be in QUEUED state (arrived after onProcessingStart ran)
-    // or PROCESSING state. Either way, they were absorbed into the main message's
-    // context and will never get their own individual reply.
-    // This is safe because completeReaction only fires AFTER the actual reply is delivered
-    // (via deliver() or closeStreaming()), not on early dispatch returns.
-    mgr.clearForChat(chatId).catch(() => {});
+    // Delay emoji cleanup slightly so the user sees the reply message appear BEFORE
+    // the reaction emojis disappear. Feishu's client renders messages asynchronously,
+    // and without this delay the emoji removal API often completes before the reply
+    // message is visible to the user, creating a confusing "emoji vanishes first" effect.
+    setTimeout(() => {
+      const mgr = getReactionStateManager();
+      // Clean up THIS message's reaction.
+      mgr.onCompleted(replyToMessageId).catch(() => {});
+      // Clean up ALL remaining reactions in this chat (merged messages).
+      // Merged messages may be in QUEUED or PROCESSING state. Either way, they were
+      // absorbed into the main message's context and will never get their own reply.
+      mgr.clearForChat(chatId).catch(() => {});
+    }, 1500);
   };
 
   const closeStreaming = async () => {
