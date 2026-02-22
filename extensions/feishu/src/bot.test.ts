@@ -14,7 +14,7 @@ const { mockCreateFeishuReplyDispatcher, mockSendMessageFeishu, mockGetMessageFe
     mockSendMessageFeishu: vi.fn().mockResolvedValue({ messageId: "pairing-msg", chatId: "oc-dm" }),
     mockGetMessageFeishu: vi.fn().mockResolvedValue(null),
   }),
-}));
+);
 
 vi.mock("./reply-dispatcher.js", () => ({
   createFeishuReplyDispatcher: mockCreateFeishuReplyDispatcher,
