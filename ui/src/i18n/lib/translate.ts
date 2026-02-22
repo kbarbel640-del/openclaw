@@ -28,6 +28,8 @@ class I18nManager {
         this.locale = navLang === "zh-TW" || navLang === "zh-HK" ? "zh-TW" : "zh-CN";
       } else if (navLang.startsWith("pt")) {
         this.locale = "pt-BR";
+      } else if (navLang.startsWith("es")) {
+        this.locale = "es-ES";
       } else {
         this.locale = "en";
       }
