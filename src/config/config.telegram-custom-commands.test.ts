@@ -44,7 +44,7 @@ describe("telegram custom commands schema", () => {
     const res = OpenClawSchema.safeParse({
       channels: {
         telegram: {
-          customCommands: [{ command: "bad name!", description: "Override status" }],
+          customCommands: [{ command: "Bad-Name", description: "Override status" }],
         },
       },
     });

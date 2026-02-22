@@ -94,6 +94,21 @@ describe("bot-native-command-menu", () => {
     expect(normalizeTelegramCommandName("my-cool-command")).toBe("my_cool_command");
   });
 
+  it("detects collision between plugin and native command when native name is hyphenated", () => {
+    // Simulates existingCommands built from a normalized native name "export-session" → "export_session"
+    const existingCommands = new Set(["export_session"]);
+
+    const result = buildPluginTelegramMenuCommands({
+      specs: [{ name: "export_session", description: "Plugin export session" }],
+      existingCommands,
+    });
+
+    expect(result.commands).toHaveLength(0);
+    expect(result.issues).toContain(
+      'Plugin command "/export_session" conflicts with an existing Telegram command.',
+    );
+  });
+
   it("normalizes plugin commands with hyphens instead of rejecting them", () => {
     const existingCommands = new Set<string>();
 
