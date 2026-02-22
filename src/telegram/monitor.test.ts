@@ -34,7 +34,7 @@ const { initSpy, runSpy, loadConfig } = vi.hoisted(() => ({
   runSpy: vi.fn<() => MockRunner>(() => ({
     task: () => Promise.resolve(),
     stop: vi.fn(),
-    isRunning: () => false,
+    isRunning: (): boolean => false,
   })),
   loadConfig: vi.fn(() => ({
     agents: { defaults: { maxConcurrent: 2 } },
@@ -221,11 +221,13 @@ describe("monitorTelegramProvider (grammY)", () => {
         task: () => Promise.reject(networkError),
         stop: vi.fn(),
         isRunning: () => false,
+        isRunning: (): boolean => false,
       }))
       .mockImplementationOnce(() => ({
         task: () => Promise.resolve(),
         stop: vi.fn(),
         isRunning: () => false,
+        isRunning: (): boolean => false,
       }));
 
     await monitorTelegramProvider({ token: "tok" });
@@ -340,6 +342,7 @@ describe("monitorTelegramProvider (grammY)", () => {
       task: () => Promise.reject(new Error("bad token")),
       stop: vi.fn(),
       isRunning: () => false,
+      isRunning: (): boolean => false,
     }));
 
     await expect(monitorTelegramProvider({ token: "tok" })).rejects.toThrow("bad token");
