@@ -54,8 +54,8 @@ export async function transcribeDeepgramAudio(
     headers.set("content-type", params.mime ?? "application/octet-stream");
   }
 
-  // Use Buffer to satisfy BodyInit across Node fetch typings/environments.
-  const body = params.buffer;
+  // Convert Buffer to Uint8Array so it satisfies BodyInit across fetch typings.
+  const body = new Uint8Array(params.buffer);
   const { response: res, release } = await postTranscriptionRequest({
     url: url.toString(),
     headers,
