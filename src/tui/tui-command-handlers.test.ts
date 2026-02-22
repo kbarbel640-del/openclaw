@@ -3,11 +3,13 @@ import { createCommandHandlers } from "./tui-command-handlers.js";
 
 describe("tui command handlers", () => {
   it("renders the sending indicator before chat.send resolves", async () => {
-    let resolveSend: ((value: { runId: string }) => void) | null = null;
+    const sendState: { resolveSend: ((value: { runId: string }) => void) | null } = {
+      resolveSend: null,
+    };
     const sendChat = vi.fn(
       () =>
         new Promise<{ runId: string }>((resolve) => {
-          resolveSend = resolve;
+          sendState.resolveSend = resolve;
         }),
     );
     const addUser = vi.fn();
@@ -46,7 +48,11 @@ describe("tui command handlers", () => {
     const renderOrders = requestRender.mock.invocationCallOrder;
     expect(renderOrders.some((order) => order > sendingOrder)).toBe(true);
 
-    resolveSend?.({ runId: "r1" });
+    const resolveSend = sendState.resolveSend;
+    if (!resolveSend) {
+      throw new Error("sendChat resolver not initialized");
+    }
+    resolveSend({ runId: "r1" });
     await pending;
     expect(setActivityStatus).toHaveBeenCalledWith("waiting");
   });
