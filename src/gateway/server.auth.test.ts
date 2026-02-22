@@ -1173,6 +1173,104 @@ describe("gateway server auth/connect", () => {
     restoreGatewayToken(prevToken);
   });
 
+  test("requires pairing for local scope upgrades when auth uses device token only", async () => {
+    const { mkdtemp } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { writeJsonAtomic } = await import("../infra/json-files.js");
+    const { readJsonFile, resolvePairingPaths } = await import("../infra/pairing-files.js");
+    const { buildDeviceAuthPayload } = await import("./device-auth.js");
+    const { loadOrCreateDeviceIdentity, publicKeyRawBase64UrlFromPem, signDevicePayload } =
+      await import("../infra/device-identity.js");
+    const { getPairedDevice, listDevicePairing } = await import("../infra/device-pairing.js");
+    const { server, ws, port, prevToken } = await startServerWithClient("secret");
+    const identityDir = await mkdtemp(join(tmpdir(), "openclaw-device-scope-"));
+    const identity = loadOrCreateDeviceIdentity(join(identityDir, "device.json"));
+    const client = {
+      id: GATEWAY_CLIENT_NAMES.TEST,
+      version: "1.0.0",
+      platform: "test",
+      mode: GATEWAY_CLIENT_MODES.TEST,
+    };
+    const buildDevice = (token: string, scopes: string[], nonce: string) => {
+      const signedAtMs = Date.now();
+      const payload = buildDeviceAuthPayload({
+        deviceId: identity.deviceId,
+        clientId: client.id,
+        clientMode: client.mode,
+        role: "operator",
+        scopes,
+        signedAtMs,
+        token,
+        nonce,
+      });
+      return {
+        id: identity.deviceId,
+        publicKey: publicKeyRawBase64UrlFromPem(identity.publicKeyPem),
+        signature: signDevicePayload(identity.privateKeyPem, payload),
+        signedAt: signedAtMs,
+        nonce,
+      };
+    };
+
+    const initialNonce = await readConnectChallengeNonce(ws);
+    const initial = await connectReq(ws, {
+      token: "secret",
+      scopes: ["operator.admin"],
+      client,
+      device: buildDevice("secret", ["operator.admin"], initialNonce),
+    });
+    if (!initial.ok) {
+      await approvePendingPairingIfNeeded();
+    }
+
+    let paired = await getPairedDevice(identity.deviceId);
+    const deviceToken = paired?.tokens?.operator?.token;
+    expect(deviceToken).toBeDefined();
+    expect(paired?.scopes).toContain("operator.admin");
+
+    const { pairedPath } = resolvePairingPaths(undefined, "devices");
+    const pairedState =
+      (await readJsonFile<Record<string, Record<string, unknown>>>(pairedPath)) ?? {};
+    const pairedEntry = pairedState[identity.deviceId];
+    if (!pairedEntry) {
+      throw new Error(`Expected paired metadata for deviceId=${identity.deviceId}`);
+    }
+    pairedEntry.scopes = ["operator.read"];
+    pairedEntry.approvedScopes = ["operator.read"];
+    await writeJsonAtomic(pairedPath, pairedState);
+
+    expect(
+      (await listDevicePairing()).pending.filter((entry) => entry.deviceId === identity.deviceId),
+    ).toEqual([]);
+
+    ws.close();
+
+    const ws2 = await openWs(port);
+    const nonce2 = await readConnectChallengeNonce(ws2);
+    const upgraded = await connectReq(ws2, {
+      token: String(deviceToken ?? ""),
+      scopes: ["operator.admin"],
+      client,
+      device: buildDevice(String(deviceToken ?? ""), ["operator.admin"], nonce2),
+    });
+    expect(upgraded.ok).toBe(false);
+    expect(upgraded.error?.message ?? "").toContain("pairing required");
+
+    const pendingUpgrade = (await listDevicePairing()).pending.find(
+      (entry) => entry.deviceId === identity.deviceId,
+    );
+    expect(pendingUpgrade?.requestId).toBeDefined();
+    expect(pendingUpgrade?.scopes).toContain("operator.admin");
+
+    paired = await getPairedDevice(identity.deviceId);
+    expect(paired?.approvedScopes).not.toContain("operator.admin");
+
+    ws2.close();
+    await server.close();
+    restoreGatewayToken(prevToken);
+  });
+
   test("still requires pairing for local role upgrades", async () => {
     const { mkdtemp } = await import("node:fs/promises");
     const { tmpdir } = await import("node:os");
