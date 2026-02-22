@@ -1,0 +1,434 @@
+import crypto from "node:crypto";
+import { upsertAcpSessionMeta } from "../acp/runtime/session-meta.js";
+import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
+import { loadConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/config.js";
+import {
+  getThreadBindingManager,
+  resolveThreadBindingIntroText,
+  resolveThreadBindingThreadName,
+  unbindThreadBindingsBySessionKey,
+  type ThreadBindingManager,
+  type ThreadBindingRecord,
+} from "../discord/monitor/thread-bindings.js";
+import { parseDiscordTarget } from "../discord/targets.js";
+import { callGateway } from "../gateway/call.js";
+import { normalizeAgentId, parseAgentSessionKey } from "../routing/session-key.js";
+import { normalizeDeliveryContext } from "../utils/delivery-context.js";
+
+export const ACP_SPAWN_MODES = ["run", "session"] as const;
+export type SpawnAcpMode = (typeof ACP_SPAWN_MODES)[number];
+
+export type SpawnAcpParams = {
+  task: string;
+  label?: string;
+  agentId?: string;
+  cwd?: string;
+  mode?: SpawnAcpMode;
+  thread?: boolean;
+};
+
+export type SpawnAcpContext = {
+  agentSessionKey?: string;
+  agentChannel?: string;
+  agentAccountId?: string;
+  agentTo?: string;
+  agentThreadId?: string | number;
+};
+
+export type SpawnAcpResult = {
+  status: "accepted" | "forbidden" | "error";
+  childSessionKey?: string;
+  runId?: string;
+  mode?: SpawnAcpMode;
+  note?: string;
+  error?: string;
+};
+
+export const ACP_SPAWN_ACCEPTED_NOTE =
+  "initial ACP task queued in isolated session; follow-ups continue in the bound thread.";
+export const ACP_SPAWN_SESSION_ACCEPTED_NOTE =
+  "thread-bound ACP session stays active after this task; continue in-thread for follow-ups.";
+
+type PreparedAcpThreadBinding = {
+  manager: ThreadBindingManager;
+  channelId: string;
+};
+
+function resolveSpawnMode(params: {
+  requestedMode?: SpawnAcpMode;
+  threadRequested: boolean;
+}): SpawnAcpMode {
+  if (params.requestedMode === "run" || params.requestedMode === "session") {
+    return params.requestedMode;
+  }
+  // Thread-bound spawns should default to persistent sessions.
+  return params.threadRequested ? "session" : "run";
+}
+
+function resolveAcpSessionMode(mode: SpawnAcpMode): AcpRuntimeSessionMode {
+  return mode === "session" ? "persistent" : "oneshot";
+}
+
+function resolveRequesterAgentId(sessionKey?: string): string {
+  const parsed = parseAgentSessionKey(sessionKey);
+  return normalizeAgentId(parsed?.agentId ?? "main");
+}
+
+function isAcpEnabled(cfg: OpenClawConfig): boolean {
+  return cfg.acp?.enabled !== false;
+}
+
+function isAcpAgentAllowedByPolicy(cfg: OpenClawConfig, agentId: string): boolean {
+  const allowed = (cfg.acp?.allowedAgents ?? [])
+    .map((entry) => normalizeAgentId(entry))
+    .filter(Boolean);
+  if (allowed.length === 0) {
+    return true;
+  }
+  return allowed.includes(normalizeAgentId(agentId));
+}
+
+function resolveDiscordAcpSpawnFlags(
+  cfg: OpenClawConfig,
+  accountId: string,
+): {
+  enabled: boolean;
+  spawnAcpSessions: boolean;
+} {
+  const root = cfg.channels?.discord?.threadBindings;
+  const account = cfg.channels?.discord?.accounts?.[accountId]?.threadBindings;
+  return {
+    enabled: account?.enabled ?? root?.enabled ?? cfg.session?.threadBindings?.enabled ?? true,
+    spawnAcpSessions: account?.spawnAcpSessions ?? root?.spawnAcpSessions ?? false,
+  };
+}
+
+function summarizeError(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (typeof err === "string") {
+    return err;
+  }
+  return "error";
+}
+
+function resolveThreadChannelId(params: {
+  manager: ThreadBindingManager;
+  to?: string;
+  threadId?: string | number;
+}): string | undefined {
+  const currentThreadId = params.threadId != null ? String(params.threadId).trim() : "";
+  if (currentThreadId) {
+    const existing = params.manager.getByThreadId(currentThreadId);
+    if (existing?.channelId?.trim()) {
+      return existing.channelId.trim();
+    }
+  }
+
+  const to = params.to?.trim() || "";
+  if (!to) {
+    return undefined;
+  }
+  try {
+    const target = parseDiscordTarget(to, { defaultKind: "channel" });
+    if (target?.kind === "channel" && target.id) {
+      return target.id;
+    }
+  } catch {
+    // Keep behavior fail-closed; caller surfaces actionable error text.
+  }
+  return undefined;
+}
+
+function prepareAcpThreadBinding(params: {
+  cfg: OpenClawConfig;
+  channel?: string;
+  accountId?: string;
+  to?: string;
+  threadId?: string | number;
+}): { ok: true; binding: PreparedAcpThreadBinding } | { ok: false; error: string } {
+  const channel = params.channel?.trim().toLowerCase();
+  if (channel !== "discord") {
+    return {
+      ok: false,
+      error: "thread=true for ACP sessions is currently supported only on Discord.",
+    };
+  }
+
+  const accountId = params.accountId?.trim() || "default";
+  const flags = resolveDiscordAcpSpawnFlags(params.cfg, accountId);
+  if (!flags.enabled) {
+    return {
+      ok: false,
+      error:
+        "Discord thread bindings are disabled (set channels.discord.threadBindings.enabled=true to override for this account, or session.threadBindings.enabled=true globally).",
+    };
+  }
+  if (!flags.spawnAcpSessions) {
+    return {
+      ok: false,
+      error:
+        "Discord thread-bound ACP spawns are disabled for this account (set channels.discord.threadBindings.spawnAcpSessions=true to enable).",
+    };
+  }
+
+  const manager = getThreadBindingManager(accountId);
+  if (!manager) {
+    return {
+      ok: false,
+      error: "Discord thread bindings are unavailable for this account.",
+    };
+  }
+  const channelId = resolveThreadChannelId({
+    manager,
+    to: params.to,
+    threadId: params.threadId,
+  });
+  if (!channelId) {
+    return {
+      ok: false,
+      error: "Could not resolve a Discord channel for ACP thread spawn.",
+    };
+  }
+
+  return {
+    ok: true,
+    binding: {
+      manager,
+      channelId,
+    },
+  };
+}
+
+async function cleanupFailedSpawn(params: { sessionKey: string; shouldDeleteSession: boolean }) {
+  unbindThreadBindingsBySessionKey({
+    targetSessionKey: params.sessionKey,
+    targetKind: "acp",
+    reason: "spawn-failed",
+    sendFarewell: false,
+  });
+
+  if (params.shouldDeleteSession) {
+    try {
+      await callGateway({
+        method: "sessions.delete",
+        params: {
+          key: params.sessionKey,
+          deleteTranscript: true,
+          emitLifecycleHooks: false,
+        },
+        timeoutMs: 10_000,
+      });
+    } catch {
+      // Best-effort cleanup only.
+    }
+  }
+}
+
+function resolveConfiguredAcpBackendId(cfg: OpenClawConfig): string {
+  const backend = cfg.acp?.backend;
+  if (typeof backend !== "string") {
+    return "";
+  }
+  return backend.trim();
+}
+
+export async function spawnAcpDirect(
+  params: SpawnAcpParams,
+  ctx: SpawnAcpContext,
+): Promise<SpawnAcpResult> {
+  const cfg = loadConfig();
+  if (!isAcpEnabled(cfg)) {
+    return {
+      status: "forbidden",
+      error: "ACP is disabled by policy (`acp.enabled=false`).",
+    };
+  }
+
+  const requestThreadBinding = params.thread === true;
+  const spawnMode = resolveSpawnMode({
+    requestedMode: params.mode,
+    threadRequested: requestThreadBinding,
+  });
+  if (spawnMode === "session" && !requestThreadBinding) {
+    return {
+      status: "error",
+      error: 'mode="session" requires thread=true so the ACP session can stay bound to a thread.',
+    };
+  }
+
+  const requesterAgentId = resolveRequesterAgentId(ctx.agentSessionKey);
+  const targetAgentId = normalizeAgentId(
+    params.agentId || cfg.acp?.defaultAgent || requesterAgentId,
+  );
+  if (!isAcpAgentAllowedByPolicy(cfg, targetAgentId)) {
+    return {
+      status: "forbidden",
+      error: `ACP agent "${targetAgentId}" is not allowed by policy.`,
+    };
+  }
+
+  const sessionKey = `agent:${targetAgentId}:acp:${crypto.randomUUID()}`;
+  const runtimeMode = resolveAcpSessionMode(spawnMode);
+  const configuredBackendId = resolveConfiguredAcpBackendId(cfg);
+
+  let preparedBinding: PreparedAcpThreadBinding | null = null;
+  if (requestThreadBinding) {
+    const prepared = prepareAcpThreadBinding({
+      cfg,
+      channel: ctx.agentChannel,
+      accountId: ctx.agentAccountId,
+      to: ctx.agentTo,
+      threadId: ctx.agentThreadId,
+    });
+    if (!prepared.ok) {
+      return {
+        status: "error",
+        error: prepared.error,
+      };
+    }
+    preparedBinding = prepared.binding;
+  }
+
+  let binding: ThreadBindingRecord | null = null;
+  if (preparedBinding) {
+    try {
+      binding = await preparedBinding.manager.bindTarget({
+        channelId: preparedBinding.channelId,
+        createThread: true,
+        threadName: resolveThreadBindingThreadName({
+          agentId: targetAgentId,
+          label: params.label || targetAgentId,
+        }),
+        targetKind: "acp",
+        targetSessionKey: sessionKey,
+        agentId: targetAgentId,
+        label: params.label || undefined,
+        boundBy: "system",
+        introText: resolveThreadBindingIntroText({
+          agentId: targetAgentId,
+          label: params.label || undefined,
+          sessionTtlMs: preparedBinding.manager.getSessionTtlMs(),
+        }),
+      });
+    } catch (err) {
+      await cleanupFailedSpawn({
+        sessionKey,
+        shouldDeleteSession: false,
+      });
+      return {
+        status: "error",
+        error: `Thread bind failed: ${summarizeError(err)}`,
+      };
+    }
+    if (!binding) {
+      await cleanupFailedSpawn({
+        sessionKey,
+        shouldDeleteSession: false,
+      });
+      return {
+        status: "error",
+        error: "Failed to create and bind a Discord thread for this ACP session.",
+      };
+    }
+  }
+
+  let sessionCreated = false;
+  try {
+    await callGateway({
+      method: "sessions.patch",
+      params: {
+        key: sessionKey,
+        ...(params.label ? { label: params.label } : {}),
+      },
+      timeoutMs: 10_000,
+    });
+    sessionCreated = true;
+
+    const upserted = await upsertAcpSessionMeta({
+      sessionKey,
+      cfg,
+      mutate: (_current, entry) => {
+        if (!entry) {
+          return undefined;
+        }
+        // Runtime session handles are initialized lazily by dispatch in the
+        // gateway process and replaced with concrete backend/runtime values.
+        return {
+          backend: configuredBackendId,
+          agent: targetAgentId,
+          runtimeSessionName: sessionKey,
+          mode: runtimeMode,
+          cwd: params.cwd,
+          state: "idle",
+          lastActivityAt: Date.now(),
+        };
+      },
+    });
+    if (!upserted?.acp) {
+      throw new Error("Failed to persist ACP session metadata.");
+    }
+  } catch (err) {
+    await cleanupFailedSpawn({
+      sessionKey,
+      shouldDeleteSession: sessionCreated,
+    });
+    return {
+      status: "error",
+      error: summarizeError(err),
+    };
+  }
+
+  const requesterOrigin = normalizeDeliveryContext({
+    channel: ctx.agentChannel,
+    accountId: ctx.agentAccountId,
+    to: ctx.agentTo,
+    threadId: ctx.agentThreadId,
+  });
+  const hasDeliveryTarget = Boolean(requesterOrigin?.channel && requesterOrigin?.to);
+  const deliveryThreadIdRaw = binding?.threadId ?? requesterOrigin?.threadId;
+  const deliveryThreadId =
+    deliveryThreadIdRaw != null ? String(deliveryThreadIdRaw).trim() || undefined : undefined;
+  const childIdem = crypto.randomUUID();
+  let childRunId: string = childIdem;
+  try {
+    const response = await callGateway<{ runId?: string }>({
+      method: "agent",
+      params: {
+        message: params.task,
+        sessionKey,
+        channel: hasDeliveryTarget ? requesterOrigin?.channel : undefined,
+        to: hasDeliveryTarget ? (requesterOrigin?.to ?? undefined) : undefined,
+        accountId: hasDeliveryTarget ? (requesterOrigin?.accountId ?? undefined) : undefined,
+        threadId: hasDeliveryTarget ? deliveryThreadId : undefined,
+        idempotencyKey: childIdem,
+        deliver: hasDeliveryTarget,
+        label: params.label || undefined,
+      },
+      timeoutMs: 10_000,
+    });
+    if (typeof response?.runId === "string" && response.runId.trim()) {
+      childRunId = response.runId.trim();
+    }
+  } catch (err) {
+    await cleanupFailedSpawn({
+      sessionKey,
+      shouldDeleteSession: true,
+    });
+    return {
+      status: "error",
+      error: summarizeError(err),
+      childSessionKey: sessionKey,
+    };
+  }
+
+  return {
+    status: "accepted",
+    childSessionKey: sessionKey,
+    runId: childRunId,
+    mode: spawnMode,
+    note: spawnMode === "session" ? ACP_SPAWN_SESSION_ACCEPTED_NOTE : ACP_SPAWN_ACCEPTED_NOTE,
+  };
+}

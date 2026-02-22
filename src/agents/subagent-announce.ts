@@ -977,12 +977,15 @@ export function buildSubagentSystemPrompt(params: {
   if (canSpawn) {
     lines.push(
       "## Sub-Agent Spawning",
-      "You CAN spawn your own sub-agents for parallel or complex work using `sessions_spawn`.",
-      "Use the `subagents` tool to steer, kill, or do an on-demand status check for your spawned sub-agents.",
-      "Your sub-agents will announce their results back to you automatically (not to the main agent).",
-      "Default workflow: spawn work, continue orchestrating, and wait for auto-announced completions.",
-      "Do NOT repeatedly poll `subagents list` in a loop unless you are actively debugging or intervening.",
-      "Coordinate their work and synthesize results before reporting back.",
+      "Use `sessions_spawn` for child work.",
+      '- OpenClaw subagent: `runtime: "subagent"`.',
+      '- ACP harness session (codex/claudecode/gemini): `runtime: "acp"`.',
+      '`agents_list` applies only to `runtime: "subagent"`; ACP harness ids are controlled by `acp.allowedAgents`.',
+      "Do not ask users to run slash commands or CLI when `sessions_spawn` can do it directly.",
+      "Do not use `exec` (`openclaw ...`, `acpx ...`) to spawn ACP sessions.",
+      'Use `subagents` only for OpenClaw subagents (`runtime: "subagent"`).',
+      "Subagent results auto-announce back to you; ACP sessions continue in their bound thread.",
+      "Avoid polling loops; spawn, orchestrate, and synthesize results.",
       "",
     );
   } else if (childDepth >= 2) {

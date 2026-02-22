@@ -221,6 +221,9 @@ describe("buildAgentSystemPrompt", () => {
     );
     expect(prompt).toContain("Completion is push-based: it will auto-announce when done.");
     expect(prompt).toContain("Do not poll `subagents list` / `sessions_list` in a loop");
+    expect(prompt).toContain(
+      "When a first-class tool exists for an action, use the tool directly instead of asking the user to run equivalent CLI or slash commands.",
+    );
   });
 
   it("lists available tools when provided", () => {
@@ -599,11 +602,15 @@ describe("buildSubagentSystemPrompt", () => {
     });
 
     expect(prompt).toContain("## Sub-Agent Spawning");
-    expect(prompt).toContain("You CAN spawn your own sub-agents");
+    expect(prompt).toContain("Use `sessions_spawn` for child work.");
     expect(prompt).toContain("sessions_spawn");
-    expect(prompt).toContain("`subagents` tool");
-    expect(prompt).toContain("announce their results back to you automatically");
-    expect(prompt).toContain("Do NOT repeatedly poll `subagents list`");
+    expect(prompt).toContain('runtime: "acp"');
+    expect(prompt).toContain("ACP harness session (codex/claudecode/gemini)");
+    expect(prompt).toContain("Do not ask users to run slash commands or CLI");
+    expect(prompt).toContain("Do not use `exec` (`openclaw ...`, `acpx ...`)");
+    expect(prompt).toContain("Use `subagents` only for OpenClaw subagents");
+    expect(prompt).toContain("Subagent results auto-announce back to you");
+    expect(prompt).toContain("Avoid polling loops");
     expect(prompt).toContain("spawned by the main agent");
     expect(prompt).toContain("reported to the main agent");
     expect(prompt).toContain("[compacted: tool output removed to free context]");

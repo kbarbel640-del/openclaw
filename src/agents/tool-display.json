@@ -259,8 +259,9 @@
     },
     "sessions_spawn": {
       "emoji": "🧑‍🔧",
-      "title": "Sub-agent",
+      "title": "Session Spawn",
       "detailKeys": [
+        "runtime",
         "label",
         "task",
         "agentId",
