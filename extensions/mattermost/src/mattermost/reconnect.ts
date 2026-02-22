@@ -35,8 +35,9 @@ export async function runWithReconnect(
   const random = opts.random ?? Math.random;
   let retryDelay = initialDelayMs;
   let attempt = 0;
+  const abortSignal = opts.abortSignal;
 
-  while (!opts.abortSignal?.aborted) {
+  while (!abortSignal?.aborted) {
     let shouldIncreaseDelay = false;
     let outcome: ReconnectOutcome = "resolved";
     let error: unknown;
@@ -44,7 +45,7 @@ export async function runWithReconnect(
       await connectFn();
       retryDelay = initialDelayMs;
     } catch (err) {
-      if (opts.abortSignal?.aborted) {
+      if (abortSignal?.aborted) {
         return;
       }
       outcome = "rejected";
@@ -52,7 +53,7 @@ export async function runWithReconnect(
       opts.onError?.(err);
       shouldIncreaseDelay = true;
     }
-    if (opts.abortSignal?.aborted) {
+    if (abortSignal?.aborted) {
       return;
     }
     const delayMs = withJitter(retryDelay, jitterRatio, random);
@@ -67,7 +68,7 @@ export async function runWithReconnect(
       return;
     }
     opts.onReconnect?.(delayMs);
-    await sleepAbortable(delayMs, opts.abortSignal);
+    await sleepAbortable(delayMs, abortSignal);
     if (shouldIncreaseDelay) {
       retryDelay = Math.min(retryDelay * 2, maxDelayMs);
     }
