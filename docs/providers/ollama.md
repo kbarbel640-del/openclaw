@@ -248,3 +248,72 @@ ollama serve
 - [Model Providers](/concepts/model-providers) - Overview of all providers
 - [Model Selection](/concepts/models) - How to choose models
 - [Configuration](/gateway/configuration) - Full config reference
+
+### VPS / remote Ollama: connection refused (ECONNREFUSED)
+
+By default Ollama binds only to `127.0.0.1:11434` (localhost). If OpenClaw is
+running on a different machine, or if you're accessing Ollama via the VPS's
+public or LAN IP, all requests will fail with `ECONNREFUSED`.
+
+**Fix — expose Ollama on all interfaces:**
+
+```bash
+# Inject OLLAMA_HOST into the systemd service
+sudo sed -i 's|Environment="PATH=|Environment="OLLAMA_HOST=0.0.0.0"\nEnvironment="OLLAMA_ORIGINS=*"\nEnvironment="PATH=|' \
+  /etc/systemd/system/ollama.service
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+
+# Verify it is now bound to all interfaces (should show *:11434)
+ss -tlnp | grep 11434
+```
+
+> **Security note:** exposing port 11434 publicly without authentication is not
+> recommended for production. Firewall the port or use a reverse proxy with auth
+> if the VPS is internet-facing.
+
+### VPS / Ubuntu 22.04: intermittent DNS failures (systemd 255 + IPv6)
+
+On Ubuntu 22.04 and 24.04 with systemd 255, `systemd-resolved` can crash with:
+
+```
+Assertion 's->read_packet->family == AF_INET6' failed
+Aborting.
+```
+
+This kills DNS resolution until the service auto-restarts, causing transient
+`fetch failed` / timeout errors when Ollama pulls models or when OpenClaw makes
+any outbound HTTP request.
+
+**Fix — disable DNS-over-TLS streaming (triggers the IPv6 bug):**
+
+```bash
+sudo mkdir -p /etc/systemd/resolved.conf.d
+sudo tee /etc/systemd/resolved.conf.d/disable-dns-tcp.conf << 'EOF'
+[Resolve]
+DNSOverTLS=no
+EOF
+sudo systemctl restart systemd-resolved
+```
+
+### VPS: agents use wrong or slow model after setup
+
+If agents default to a model other than the one you pulled (or fall back to CPU
+inference causing 60–730 s responses), the active model config may not have been
+updated after setup. Set it explicitly:
+
+```bash
+openclaw config set gateway.mode local
+openclaw config set provider ollama
+openclaw config set agents.defaults.model.primary "ollama/<your-model>"
+# e.g.:
+openclaw config set agents.defaults.model.primary "ollama/llama3.2:3b"
+```
+
+Confirm with:
+
+```bash
+openclaw config get agents.defaults.model.primary
+# Should print: ollama/llama3.2:3b (or whichever model you pulled)
+```
+
