@@ -348,6 +348,20 @@ export async function monitorFeishuProvider(opts: MonitorFeishuOpts = {}): Promi
   setGatewayStartupTs();
   cleanupProcessedMessages();
 
+  // Register process exit hooks for FR-005 graceful shutdown tracking
+  // When systemctl stops the service or user presses Ctrl+C, ensure lastShutdownTs is saved.
+  const handleGracefulShutdown = () => {
+    log("[feishu] Graceful shutdown initiated. Saving state...");
+    stopFeishuMonitor();
+    process.exit(0);
+  };
+
+  // Make sure we only register these once to avoid listener leaks when re-running
+  process.removeAllListeners("SIGINT");
+  process.removeAllListeners("SIGTERM");
+  process.once("SIGINT", handleGracefulShutdown);
+  process.once("SIGTERM", handleGracefulShutdown);
+
   // If accountId is specified, only monitor that account
   if (opts.accountId) {
     const account = resolveFeishuAccount({ cfg, accountId: opts.accountId });
