@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withEnv } from "../../test-utils/env.js";
-import { __testing } from "./web-search.js";
+import { __testing, normalizeSearchLang, normalizeUiLang } from "./web-search.js";
 
 const {
   inferPerplexityBaseUrlFromApiKey,
@@ -240,5 +240,38 @@ describe("web_search grok response parsing", () => {
     } as Parameters<typeof extractGrokContent>[0]);
     expect(result.text).toBe("direct output text");
     expect(result.annotationCitations).toEqual(["https://example.com/direct"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Brave Search language parameter normalization
+// See: https://github.com/openclaw/openclaw/issues/23826
+// ---------------------------------------------------------------------------
+describe("normalizeSearchLang", () => {
+  it("passes through a short ISO code as-is", () => {
+    expect(normalizeSearchLang("tr")).toBe("tr");
+    expect(normalizeSearchLang("en")).toBe("en");
+    expect(normalizeSearchLang("de")).toBe("de");
+  });
+
+  it("extracts the language part from a locale format", () => {
+    expect(normalizeSearchLang("tr-TR")).toBe("tr");
+    expect(normalizeSearchLang("en-US")).toBe("en");
+    expect(normalizeSearchLang("pt-BR")).toBe("pt");
+  });
+});
+
+describe("normalizeUiLang", () => {
+  it("passes through a locale format as-is", () => {
+    expect(normalizeUiLang("tr-TR")).toBe("tr-TR");
+    expect(normalizeUiLang("en-US")).toBe("en-US");
+    expect(normalizeUiLang("pt-BR")).toBe("pt-BR");
+  });
+
+  it("expands a short code to locale format", () => {
+    expect(normalizeUiLang("tr")).toBe("tr-TR");
+    expect(normalizeUiLang("en")).toBe("en-EN");
+    expect(normalizeUiLang("de")).toBe("de-DE");
+    expect(normalizeUiLang("fr")).toBe("fr-FR");
   });
 });

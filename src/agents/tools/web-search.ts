@@ -5,6 +5,24 @@ import { wrapWebContent } from "../../security/external-content.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
+
+/**
+ * Normalize search_lang for the Brave Search API.
+ * Brave expects a short ISO 639-1 code (e.g. "tr", "en", "de").
+ * Models may send locale format ("tr-TR") — extract just the language part.
+ */
+export function normalizeSearchLang(lang: string): string {
+  return lang.includes("-") ? lang.split("-")[0] : lang;
+}
+
+/**
+ * Normalize ui_lang for the Brave Search API.
+ * Brave expects a locale format (e.g. "tr-TR", "en-US").
+ * Models may send just a short code ("tr") — expand to locale format.
+ */
+export function normalizeUiLang(lang: string): string {
+  return lang.includes("-") ? lang : `${lang}-${lang.toUpperCase()}`;
+}
 import {
   CacheEntry,
   DEFAULT_CACHE_TTL_MINUTES,
@@ -58,7 +76,7 @@ const WebSearchSchema = Type.Object({
   ),
   ui_lang: Type.Optional(
     Type.String({
-      description: "ISO language code for UI elements.",
+      description: "ISO language code for UI elements (e.g., 'de', 'en', 'fr').",
     }),
   ),
   freshness: Type.Optional(
@@ -672,10 +690,10 @@ async function runWebSearch(params: {
     url.searchParams.set("country", params.country);
   }
   if (params.search_lang) {
-    url.searchParams.set("search_lang", params.search_lang);
+    url.searchParams.set("search_lang", normalizeSearchLang(params.search_lang));
   }
   if (params.ui_lang) {
-    url.searchParams.set("ui_lang", params.ui_lang);
+    url.searchParams.set("ui_lang", normalizeUiLang(params.ui_lang));
   }
   if (params.freshness) {
     url.searchParams.set("freshness", params.freshness);
