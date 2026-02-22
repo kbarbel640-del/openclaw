@@ -12,6 +12,16 @@ export type TelegramAutoSelectFamilyDecision = {
   source?: string;
 };
 
+let wsl2SyncCache: boolean | undefined;
+
+function isWSL2SyncCached(): boolean {
+  if (typeof wsl2SyncCache === "boolean") {
+    return wsl2SyncCache;
+  }
+  wsl2SyncCache = isWSL2Sync();
+  return wsl2SyncCache;
+}
+
 export function resolveTelegramAutoSelectFamilyDecision(params?: {
   network?: TelegramNetworkConfig;
   env?: NodeJS.ProcessEnv;
@@ -33,11 +43,15 @@ export function resolveTelegramAutoSelectFamilyDecision(params?: {
     return { value: params.network.autoSelectFamily, source: "config" };
   }
   // WSL2 has unstable IPv6 connectivity; disable autoSelectFamily to use IPv4 directly
-  if (isWSL2Sync()) {
+  if (isWSL2SyncCached()) {
     return { value: false, source: "default-wsl2" };
   }
   if (Number.isFinite(nodeMajor) && nodeMajor >= 22) {
     return { value: true, source: "default-node22" };
   }
   return { value: null };
+}
+
+export function resetTelegramNetworkConfigStateForTests(): void {
+  wsl2SyncCache = undefined;
 }

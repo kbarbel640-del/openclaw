@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveTelegramAutoSelectFamilyDecision } from "./network-config.js";
+import {
+  resetTelegramNetworkConfigStateForTests,
+  resolveTelegramAutoSelectFamilyDecision,
+} from "./network-config.js";
 
 // Mock isWSL2Sync at the top level
 vi.mock("../infra/wsl.js", () => ({
@@ -11,6 +14,7 @@ import { isWSL2Sync } from "../infra/wsl.js";
 describe("resolveTelegramAutoSelectFamilyDecision", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    resetTelegramNetworkConfigStateForTests();
   });
 
   it("prefers env enable over env disable", () => {
@@ -114,6 +118,14 @@ describe("resolveTelegramAutoSelectFamilyDecision", () => {
       vi.mocked(isWSL2Sync).mockReturnValue(false);
       const decision = resolveTelegramAutoSelectFamilyDecision({ env: {}, nodeMajor: 22 });
       expect(decision).toEqual({ value: true, source: "default-node22" });
+    });
+
+    it("memoizes WSL2 detection across repeated defaults", () => {
+      vi.mocked(isWSL2Sync).mockReset();
+      vi.mocked(isWSL2Sync).mockReturnValue(false);
+      resolveTelegramAutoSelectFamilyDecision({ env: {}, nodeMajor: 22 });
+      resolveTelegramAutoSelectFamilyDecision({ env: {}, nodeMajor: 22 });
+      expect(isWSL2Sync).toHaveBeenCalledTimes(1);
     });
   });
 });
