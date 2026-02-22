@@ -1,8 +1,8 @@
 import type { RequestClient } from "@buape/carbon";
 import type { APIChannel, APIGuild, APIGuildMember, APIRole } from "discord-api-types/v10";
 import { ChannelType, PermissionFlagsBits, Routes } from "discord-api-types/v10";
-import type { DiscordPermissionsSummary, DiscordReactOpts } from "./send.types.js";
 import { resolveDiscordRest } from "./client.js";
+import type { DiscordPermissionsSummary, DiscordReactOpts } from "./send.types.js";
 
 const PERMISSION_ENTRIES = Object.entries(PermissionFlagsBits).filter(
   ([, value]) => typeof value === "bigint",
@@ -88,12 +88,14 @@ export async function fetchMemberGuildPermissionsDiscord(
 }
 
 /**
- * Returns true when the user has ADMINISTRATOR or any required permission bit.
+ * Returns true when the user has ADMINISTRATOR or required permission bits
+ * matching the provided predicate.
  */
-export async function hasGuildPermissionDiscord(
+async function hasGuildPermissionsDiscord(
   guildId: string,
   userId: string,
   requiredPermissions: bigint[],
+  check: (permissions: bigint, requiredPermissions: bigint[]) => boolean,
   opts: DiscordReactOpts = {},
 ): Promise<boolean> {
   const permissions = await fetchMemberGuildPermissionsDiscord(guildId, userId, opts);
@@ -103,8 +105,51 @@ export async function hasGuildPermissionDiscord(
   if (hasAdministrator(permissions)) {
     return true;
   }
-  return requiredPermissions.some((permission) => hasPermissionBit(permissions, permission));
+  return check(permissions, requiredPermissions);
 }
+
+/**
+ * Returns true when the user has ADMINISTRATOR or any required permission bit.
+ */
+export async function hasAnyGuildPermissionDiscord(
+  guildId: string,
+  userId: string,
+  requiredPermissions: bigint[],
+  opts: DiscordReactOpts = {},
+): Promise<boolean> {
+  return await hasGuildPermissionsDiscord(
+    guildId,
+    userId,
+    requiredPermissions,
+    (permissions, required) =>
+      required.some((permission) => hasPermissionBit(permissions, permission)),
+    opts,
+  );
+}
+
+/**
+ * Returns true when the user has ADMINISTRATOR or all required permission bits.
+ */
+export async function hasAllGuildPermissionsDiscord(
+  guildId: string,
+  userId: string,
+  requiredPermissions: bigint[],
+  opts: DiscordReactOpts = {},
+): Promise<boolean> {
+  return await hasGuildPermissionsDiscord(
+    guildId,
+    userId,
+    requiredPermissions,
+    (permissions, required) =>
+      required.every((permission) => hasPermissionBit(permissions, permission)),
+    opts,
+  );
+}
+
+/**
+ * @deprecated Prefer hasAnyGuildPermissionDiscord or hasAllGuildPermissionsDiscord for clarity.
+ */
+export const hasGuildPermissionDiscord = hasAnyGuildPermissionDiscord;
 
 export async function fetchChannelPermissionsDiscord(
   channelId: string,

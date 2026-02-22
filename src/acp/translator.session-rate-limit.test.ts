@@ -2,6 +2,7 @@ import type {
   AgentSideConnection,
   LoadSessionRequest,
   NewSessionRequest,
+  PromptRequest,
 } from "@agentclientprotocol/sdk";
 import { describe, expect, it, vi } from "vitest";
 import type { GatewayClient } from "../gateway/client.js";
@@ -14,9 +15,11 @@ function createConnection(): AgentSideConnection {
   } as unknown as AgentSideConnection;
 }
 
-function createGateway(): GatewayClient {
+function createGateway(
+  request: GatewayClient["request"] = vi.fn(async () => ({ ok: true })) as GatewayClient["request"],
+): GatewayClient {
   return {
-    request: vi.fn(async () => ({ ok: true })),
+    request,
   } as unknown as GatewayClient;
 }
 
@@ -35,6 +38,37 @@ function createLoadSessionRequest(sessionId: string, cwd = "/tmp"): LoadSessionR
     mcpServers: [],
     _meta: {},
   } as unknown as LoadSessionRequest;
+}
+
+function createPromptRequest(
+  sessionId: string,
+  text: string,
+  meta: Record<string, unknown> = {},
+): PromptRequest {
+  return {
+    sessionId,
+    prompt: [{ type: "text", text }],
+    _meta: meta,
+  } as unknown as PromptRequest;
+}
+
+async function expectOversizedPromptRejected(params: { sessionId: string; text: string }) {
+  const request = vi.fn(async () => ({ ok: true })) as GatewayClient["request"];
+  const sessionStore = createInMemorySessionStore();
+  const agent = new AcpGatewayAgent(createConnection(), createGateway(request), {
+    sessionStore,
+  });
+  await agent.loadSession(createLoadSessionRequest(params.sessionId));
+
+  await expect(agent.prompt(createPromptRequest(params.sessionId, params.text))).rejects.toThrow(
+    /maximum allowed size/i,
+  );
+  expect(request).not.toHaveBeenCalledWith("chat.send", expect.anything(), expect.anything());
+  const session = sessionStore.getSession(params.sessionId);
+  expect(session?.activeRunId).toBeNull();
+  expect(session?.abortController).toBeNull();
+
+  sessionStore.clearAllSessionsForTest();
 }
 
 describe("acp session creation rate limit", () => {
@@ -74,5 +108,21 @@ describe("acp session creation rate limit", () => {
     );
 
     sessionStore.clearAllSessionsForTest();
+  });
+});
+
+describe("acp prompt size hardening", () => {
+  it("rejects oversized prompt blocks without leaking active runs", async () => {
+    await expectOversizedPromptRejected({
+      sessionId: "prompt-limit-oversize",
+      text: "a".repeat(2 * 1024 * 1024 + 1),
+    });
+  });
+
+  it("rejects oversize final messages from cwd prefix without leaking active runs", async () => {
+    await expectOversizedPromptRejected({
+      sessionId: "prompt-limit-prefix",
+      text: "a".repeat(2 * 1024 * 1024),
+    });
   });
 });
