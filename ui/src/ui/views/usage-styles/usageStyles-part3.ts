@@ -2,14 +2,14 @@ export const usageStylesPart3 = `
   
   /* ===== COMPACT DAILY CHART ===== */
   .daily-chart-compact {
-    margin-bottom: 16px;
+    margin-bottom: 10px;
   }
   .daily-chart-compact .sessions-panel-title {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   .daily-chart-compact .daily-chart-bars {
     height: 100px;
-    padding-bottom: 20px;
+    padding-bottom: 18px;
   }
   
   /* ===== COMPACT COST BREAKDOWN ===== */
@@ -18,13 +18,17 @@ export const usageStylesPart3 = `
     margin: 0;
     background: transparent;
     border-top: 1px solid var(--border);
-    padding-top: 12px;
+    padding-top: 10px;
   }
   .cost-breakdown-compact .cost-breakdown-header {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   .cost-breakdown-compact .cost-breakdown-legend {
-    gap: 12px;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .cost-breakdown-compact .cost-breakdown-total {
+    margin-top: 6px;
   }
   .cost-breakdown-compact .cost-breakdown-note {
     display: none;
@@ -41,7 +45,7 @@ export const usageStylesPart3 = `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   .sessions-card-title {
     font-weight: 600;
@@ -49,16 +53,16 @@ export const usageStylesPart3 = `
   }
   .sessions-card-count {
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--muted);
   }
   .sessions-card-meta {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin: 8px 0 10px;
+    gap: 10px;
+    margin: 6px 0 8px;
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--muted);
   }
   .sessions-card-stats {
     display: inline-flex;
@@ -69,7 +73,7 @@ export const usageStylesPart3 = `
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--muted);
   }
   .sessions-sort select {
     padding: 4px 8px;
@@ -95,7 +99,7 @@ export const usageStylesPart3 = `
   }
   .sessions-card-hint {
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--muted);
     margin-bottom: 8px;
   }
   .sessions-card .session-bars {
@@ -121,7 +125,7 @@ export const usageStylesPart3 = `
   .sessions-card .session-bar-row.selected {
     border-color: var(--accent);
     background: var(--accent-subtle);
-    box-shadow: inset 0 0 0 1px rgba(255, 77, 77, 0.15);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
   }
   .sessions-card .session-bar-label {
     flex: 1 1 auto;
@@ -139,7 +143,7 @@ export const usageStylesPart3 = `
     opacity: 0.5;
   }
   .sessions-card .session-bar-fill {
-    background: rgba(255, 77, 77, 0.55);
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
   }
   .sessions-clear-btn {
     margin-left: auto;
@@ -162,7 +166,7 @@ export const usageStylesPart3 = `
   }
   .session-detail-empty-desc {
     font-size: 13px;
-    color: var(--text-muted);
+    color: var(--muted);
     margin-bottom: 16px;
     line-height: 1.5;
   }
@@ -177,7 +181,7 @@ export const usageStylesPart3 = `
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--muted);
   }
   .session-detail-empty-feature .icon {
     font-size: 16px;
@@ -232,7 +236,7 @@ export const usageStylesPart3 = `
     display: flex;
     gap: 10px;
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--muted);
   }
   .session-detail-stats strong {
     color: var(--text);
@@ -255,7 +259,7 @@ export const usageStylesPart3 = `
   }
   .session-summary-title {
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--muted);
     margin-bottom: 4px;
   }
   .session-summary-value {
@@ -264,7 +268,7 @@ export const usageStylesPart3 = `
   }
   .session-summary-meta {
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--muted);
     margin-top: 4px;
   }
   .session-detail-row {
@@ -329,7 +333,7 @@ export const usageStylesPart3 = `
   }
   .context-breakdown-more {
     font-size: 10px;
-    color: var(--text-muted);
+    color: var(--muted);
     margin-top: 4px;
   }
   .context-breakdown-header {
@@ -341,7 +345,7 @@ export const usageStylesPart3 = `
   .context-expand-btn {
     border: 1px solid var(--border);
     background: var(--bg-secondary);
-    color: var(--text-muted);
+    color: var(--muted);
     font-size: 11px;
     padding: 4px 8px;
     border-radius: 999px;
@@ -508,5 +512,44 @@ export const usageStylesPart3 = `
     .usage-hour-cell {
       height: 22px;
     }
+  }
+
+  /* ===== CHART AXIS ===== */
+  .ts-axis-label {
+    font-size: 5px;
+    fill: var(--muted);
+  }
+
+  /* ===== RANGE SELECTION HANDLES ===== */
+  .chart-handle-zone {
+    position: absolute;
+    top: 0;
+    width: 16px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 10;
+    transform: translateX(-50%);
+  }
+
+  .timeseries-chart-wrapper {
+    position: relative;
+  }
+
+  .timeseries-reset-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-left: 8px;
+  }
+
+  .timeseries-reset-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+    border-color: var(--border-strong);
   }
 `;
