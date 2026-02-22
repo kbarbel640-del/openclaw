@@ -67,13 +67,14 @@ def load_cost_payload(input_path: Optional[str], provider: str) -> Dict[str, Any
 
 
 def run_openclaw_sessions(limit: int) -> List[Dict[str, Any]]:
-    cmd = ["openclaw", "sessions", "list", "--json", "--limit", str(limit)]
+    # CLI supports `openclaw sessions --json` (no --limit flag).
+    cmd = ["openclaw", "sessions", "--json"]
     try:
         output = subprocess.check_output(cmd, text=True)
     except FileNotFoundError:
         raise RuntimeError("openclaw not found on PATH.")
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError(f"openclaw sessions list failed (exit {exc.returncode}).")
+        raise RuntimeError(f"openclaw sessions failed (exit {exc.returncode}).")
 
     try:
         data = json.loads(output)
@@ -81,9 +82,11 @@ def run_openclaw_sessions(limit: int) -> List[Dict[str, Any]]:
         raise RuntimeError(f"Failed to parse openclaw sessions JSON: {exc}")
 
     if isinstance(data, dict) and isinstance(data.get("sessions"), list):
-        return [s for s in data["sessions"] if isinstance(s, dict)]
+        sessions = [s for s in data["sessions"] if isinstance(s, dict)]
+        return sessions[:limit]
     if isinstance(data, list):
-        return [s for s in data if isinstance(s, dict)]
+        sessions = [s for s in data if isinstance(s, dict)]
+        return sessions[:limit]
     return []
 
 

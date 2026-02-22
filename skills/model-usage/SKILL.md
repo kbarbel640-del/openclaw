@@ -16,42 +16,42 @@ metadata:
 
 ## Overview
 
-统一脚本，支持两类能力：
+A unified script that provides two capabilities:
 
-1. 成本：基于 CodexBar 的 per-model cost 汇总
-2. 可观测：基于 OpenClaw sessions 的失败会话扫描 + 网关日志提示
+1. Cost: per-model cost aggregation via CodexBar
+2. Observability: failed/aborted session scan via OpenClaw sessions + gateway log hints
 
 ## Usage
 
 ```bash
-# 成本：当前模型
+# Cost: current model
 python {baseDir}/scripts/model_usage.py --provider codex --mode current
 
-# 成本：全部模型
+# Cost: all models
 python {baseDir}/scripts/model_usage.py --provider codex --mode all --days 7
 
-# 错误观测：最近失败/中止会话
+# Errors: recent failed/aborted sessions
 python {baseDir}/scripts/model_usage.py --mode errors --error-limit 50
 
-# 总览：成本 + 错误
+# Overview: cost + errors
 python {baseDir}/scripts/model_usage.py --provider codex --mode overview --days 7 --error-limit 50
 
-# JSON 输出
+# JSON output
 python {baseDir}/scripts/model_usage.py --mode overview --format json --pretty
 ```
 
 ## Modes
 
-- `current`: 当前模型成本摘要
-- `all`: 全模型成本汇总
-- `errors`: 最近失败/中止会话 + 日志提示
-- `overview`: 成本与错误合并输出
+- `current`: current model cost summary
+- `all`: all-model cost aggregation
+- `errors`: recent failed/aborted sessions + log hints
+- `overview`: combined cost and error report
 
 ## Notes
 
-- `current/all/overview` 需要 `codexbar`。
-- `errors/overview` 需要 `openclaw`。
-- 日志读取优先 `journalctl`（Linux/systemd）；在 macOS 会尝试 `~/.openclaw/logs/gateway.log`。
+- `current/all/overview` require `codexbar`.
+- `errors/overview` require `openclaw`.
+- Logs are read from `journalctl` first (Linux/systemd); on macOS it falls back to `~/.openclaw/logs/gateway.log`.
 
 ## References
 
