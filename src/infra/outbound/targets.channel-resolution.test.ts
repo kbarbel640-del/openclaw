@@ -23,10 +23,13 @@ vi.mock("../../plugins/loader.js", () => ({
   loadOpenClawPlugins: mocks.loadOpenClawPlugins,
 }));
 
+import { setActivePluginRegistry } from "../../plugins/runtime.js";
+import { createTestRegistry } from "../../test-utils/channel-plugins.js";
 import { resolveOutboundTarget } from "./targets.js";
 
 describe("resolveOutboundTarget channel resolution", () => {
   beforeEach(() => {
+    setActivePluginRegistry(createTestRegistry([]));
     mocks.getChannelPlugin.mockReset();
     mocks.loadOpenClawPlugins.mockReset();
   });

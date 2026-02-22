@@ -4,7 +4,7 @@ import type { ChannelPlugin } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { applyPluginAutoEnable } from "../../config/plugin-auto-enable.js";
 import { loadOpenClawPlugins } from "../../plugins/loader.js";
-import { getActivePluginRegistryKey } from "../../plugins/runtime.js";
+import { getActivePluginRegistry, getActivePluginRegistryKey } from "../../plugins/runtime.js";
 import {
   isDeliverableMessageChannel,
   normalizeMessageChannel,
@@ -29,6 +29,14 @@ function maybeBootstrapChannelPlugin(params: {
 }): void {
   const cfg = params.cfg;
   if (!cfg) {
+    return;
+  }
+
+  const activeRegistry = getActivePluginRegistry();
+  // Only auto-bootstrap when registry is still empty/uninitialized.
+  // If a runtime/test already installed a non-empty registry, re-loading here can
+  // clobber custom channel aliases/providers (e.g., msteams alias coverage tests).
+  if ((activeRegistry?.channels?.length ?? 0) > 0) {
     return;
   }
 

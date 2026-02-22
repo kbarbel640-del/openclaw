@@ -33,10 +33,13 @@ vi.mock("./deliver.js", () => ({
   deliverOutboundPayloads: mocks.deliverOutboundPayloads,
 }));
 
+import { setActivePluginRegistry } from "../../plugins/runtime.js";
+import { createTestRegistry } from "../../test-utils/channel-plugins.js";
 import { sendMessage } from "./message.js";
 
 describe("sendMessage", () => {
   beforeEach(() => {
+    setActivePluginRegistry(createTestRegistry([]));
     mocks.getChannelPlugin.mockClear();
     mocks.resolveOutboundTarget.mockClear();
     mocks.deliverOutboundPayloads.mockClear();
