@@ -10,6 +10,7 @@ description: TLC/TLA+ Model Checker support with comprehensive security validati
 This skill provides secure integration with the TLC (Temporal Logic Checker) model checker for TLA+ specifications. TLA+ is a formal specification language used for modeling concurrent and distributed systems.
 
 **Security Features:**
+
 - Path traversal attack prevention via strict input validation
 - Supply chain verification for downloaded JAR files (SHA256 checksums)
 - Non-root container execution
@@ -18,6 +19,7 @@ This skill provides secure integration with the TLC (Temporal Logic Checker) mod
 ## When to Use This Skill
 
 Use this skill when:
+
 - Model checking TLA+ specifications
 - Parsing and validating TLA+ syntax
 - Running TLC on PlusCal algorithms
@@ -43,6 +45,7 @@ python3 tasks.py --language tlc --target spec.tla --task check --timeout 600
 ```
 
 **Required files:**
+
 - `spec.tla` - The TLA+ specification
 - `spec.cfg` - TLC configuration file
 
@@ -68,6 +71,7 @@ RUN computed_sha256=$(sha256sum ${TLC_JAR_PATH} | cut -d' ' -f1) && \
 ```
 
 This prevents:
+
 - Man-in-the-middle attacks during download
 - Compromised JAR files from malicious mirrors
 - Supply chain poisoning attacks
@@ -118,9 +122,11 @@ NEXT Next
 ## Resources
 
 ### scripts/
+
 - `tasks.py` - Secure task runner with path traversal protection
 
 ### References
+
 - [TLA+ Home Page](https://lamport.azurewebsites.net/tla/tla.html)
 - [TLC Model Checker](https://github.com/tlaplus/tlaplus)
 - [Learning TLA+](https://learntla.com/)
