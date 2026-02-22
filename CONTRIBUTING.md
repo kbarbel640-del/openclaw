@@ -1,13 +1,13 @@
-# Contributing to OpenClaw
+# Contributing to cdog
 
-Welcome to the lobster tank! 🦞
+Welcome to the dog house! 🐶
 
 ## Quick Links
 
 - **GitHub:** https://github.com/openclaw/openclaw
 - **Vision:** [`VISION.md`](VISION.md)
 - **Discord:** https://discord.gg/qkhbAGHRBT
-- **X/Twitter:** [@steipete](https://x.com/steipete) / [@openclaw](https://x.com/openclaw)
+- **X/Twitter:** [@steipete](https://x.com/steipete) / [@cdog](https://x.com/cdog)
 
 ## Maintainers
 
@@ -50,7 +50,7 @@ Welcome to the lobster tank! 🦞
 ## How to Contribute
 
 1. **Bugs & small fixes** → Open a PR!
-2. **New features / architecture** → Start a [GitHub Discussion](https://github.com/openclaw/openclaw/discussions) or ask in Discord first
+2. **New features / architecture** → Start a [GitHub Discussion](https://github.com/cdog/cdog/discussions) or ask in Discord first
 3. **Questions** → Discord #setup-help
 
 ## Before You PR
