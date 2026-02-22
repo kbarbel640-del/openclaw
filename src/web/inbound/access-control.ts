@@ -76,6 +76,8 @@ export async function checkInboundAccessControl(params: {
     (configuredAllowFrom && configuredAllowFrom.length > 0 ? configuredAllowFrom : undefined);
   const isSamePhone = params.from === params.selfE164;
   const isSelfChat = isSelfChatMode(params.selfE164, configuredAllowFrom);
+  // Combine explicit config flag with allowFrom heuristic (ef644b836 regression fix).
+  const selfPhoneMode = (account.selfChatMode ?? false) || isSelfChat;
   const pairingGraceMs =
     typeof params.pairingGraceMs === "number" && params.pairingGraceMs > 0
       ? params.pairingGraceMs
@@ -150,8 +152,8 @@ export async function checkInboundAccessControl(params: {
 
   // DM access control (secure defaults): "pairing" (default) / "allowlist" / "open" / "disabled".
   if (!params.group) {
-    if (params.isFromMe && !isSamePhone) {
-      logVerbose("Skipping outbound DM (fromMe); no pairing reply needed.");
+    if (params.isFromMe && !isSamePhone && selfPhoneMode) {
+      logVerbose("Skipping outbound self-phone DM (fromMe); no pairing reply needed.");
       return {
         allowed: false,
         shouldMarkRead: false,
