@@ -97,17 +97,7 @@ describe("media store redirects", () => {
     mockRequest.mockImplementation((_url, opts, cb) => {
       call += 1;
       capturedHeaders.push(opts?.headers);
-      const res = new PassThrough();
-      const req = {
-        on: (event: string, handler: (...args: unknown[]) => void) => {
-          if (event === "error") {
-            res.on("error", handler);
-          }
-          return req;
-        },
-        end: () => undefined,
-        destroy: () => res.destroy(),
-      } as const;
+      const { req, res } = createMockHttpExchange();
 
       if (call === 1) {
         res.statusCode = 302;
@@ -150,17 +140,7 @@ describe("media store redirects", () => {
     mockRequest.mockImplementation((_url, opts, cb) => {
       call += 1;
       capturedHeaders.push(opts?.headers);
-      const res = new PassThrough();
-      const req = {
-        on: (event: string, handler: (...args: unknown[]) => void) => {
-          if (event === "error") {
-            res.on("error", handler);
-          }
-          return req;
-        },
-        end: () => undefined,
-        destroy: () => res.destroy(),
-      } as const;
+      const { req, res } = createMockHttpExchange();
 
       if (call === 1) {
         res.statusCode = 302;
