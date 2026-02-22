@@ -11,9 +11,7 @@ export function dedupeProfileIds(profileIds: string[]): string[] {
   return [...new Set(profileIds)];
 }
 
-function normalizeAuthProfileCredential(
-  credential: AuthProfileCredential,
-): AuthProfileCredential {
+function normalizeAuthProfileCredential(credential: AuthProfileCredential): AuthProfileCredential {
   if (credential.type === "api_key") {
     return {
       ...credential,
@@ -84,10 +82,7 @@ export async function upsertAuthProfileWithLock(params: {
   });
 }
 
-export function listProfilesForProvider(
-  store: AuthProfileStore,
-  provider: string,
-): string[] {
+export function listProfilesForProvider(store: AuthProfileStore, provider: string): string[] {
   const providerKey = normalizeProviderId(provider);
   return Object.entries(store.profiles)
     .filter(([, cred]) => normalizeProviderId(cred.provider) === providerKey)
