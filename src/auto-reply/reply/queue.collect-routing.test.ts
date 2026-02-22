@@ -284,4 +284,52 @@ describe("followup queue collect routing", () => {
     expect(calls[0]?.originatingChannel).toBe("slack");
     expect(calls[0]?.originatingTo).toBe("channel:A");
   });
+
+  it("LINE collect coalesces prompts without emitting queued-message wrapper", async () => {
+    const key = `test-collect-line-no-wrapper-${Date.now()}`;
+    const calls: FollowupRun[] = [];
+    const runFollowup = async (run: FollowupRun) => {
+      calls.push(run);
+    };
+    const settings: QueueSettings = {
+      mode: "collect",
+      debounceMs: 0,
+      cap: 50,
+      dropPolicy: "summarize",
+    };
+
+    const first = enqueueFollowupRun(
+      key,
+      createRun({
+        prompt: "line-one",
+        originatingChannel: "line",
+        originatingTo: "U123",
+      }),
+      settings,
+    );
+    expect(first).toBe(true);
+
+    const second = enqueueFollowupRun(
+      key,
+      createRun({
+        prompt: "line-two",
+        originatingChannel: "line",
+        originatingTo: "U123",
+      }),
+      settings,
+    );
+    expect(second).toBe(true);
+
+    scheduleFollowupDrain(key, runFollowup);
+    await expect.poll(() => calls.length).toBe(2);
+
+    // Whether LINE is collected or forced into individual processing, it should not emit
+    // the "Queued messages while agent was busy" wrapper.
+    expect(calls[0]?.prompt).not.toContain("[Queued messages while agent was busy]");
+    expect(calls[1]?.prompt).not.toContain("[Queued messages while agent was busy]");
+
+    const prompts = calls.map((c) => c.prompt).join("\n");
+    expect(prompts).toContain("line-one");
+    expect(prompts).toContain("line-two");
+  });
 });

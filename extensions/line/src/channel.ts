@@ -41,6 +41,13 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
     ...meta,
     quickstartAllowFrom: true,
   },
+  // LINE tends to receive short bursts ("??" / follow-ups). Debounce helps coalesce
+  // and reduces queued-message meta spam when the agent is briefly busy.
+  defaults: {
+    queue: {
+      debounceMs: 1200,
+    },
+  },
   pairing: {
     idLabel: "lineUserId",
     normalizeAllowEntry: (entry) => {

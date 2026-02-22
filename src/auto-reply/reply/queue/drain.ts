@@ -75,12 +75,18 @@ export function scheduleFollowupDrain(
             (i) => typeof i.originatingThreadId === "number",
           )?.originatingThreadId;
 
-          const prompt = buildCollectPrompt({
-            title: "[Queued messages while agent was busy]",
-            items,
-            summary,
-            renderItem: (item, idx) => `---\nQueued #${idx + 1}\n${item.prompt}`.trim(),
-          });
+          const isLineCollect = originatingChannel === "line";
+          const prompt = isLineCollect
+            ? // LINE: avoid sending noisy "Queued messages" wrapper back to the user.
+              // We already ACK quickly at the channel layer; here we just coalesce prompts.
+              items.map((item) => item.prompt).join("\n\n")
+            : buildCollectPrompt({
+                title: "[Queued messages while agent was busy]",
+                items,
+                summary,
+                renderItem: (item, idx) => `---\nQueued #${idx + 1}\n${item.prompt}`.trim(),
+              });
+
           await runFollowup({
             prompt,
             run,
