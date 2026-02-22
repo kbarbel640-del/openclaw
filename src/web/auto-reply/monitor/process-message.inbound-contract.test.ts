@@ -153,6 +153,7 @@ describe("web processMessage inbound contract", () => {
   it("defaults responsePrefix to identity name in self-chats when unset", async () => {
     capturedDispatchParams = undefined;
 
+<<<<<<< HEAD
     await processMessage(
       makeProcessMessageArgs({
         routeSessionKey: "agent:main:whatsapp:direct:+1555",
@@ -177,6 +178,19 @@ describe("web processMessage inbound contract", () => {
           selfE164: "+1555",
           chatType: "direct",
           body: "hi",
+=======
+    await processMessage({
+      // oxlint-disable-next-line typescript/no-explicit-any
+      cfg: {
+        agents: {
+          list: [
+            {
+              id: "main",
+              default: true,
+              identity: { name: "Mainbot", emoji: "🐶", theme: "space dog" },
+            },
+          ],
+>>>>>>> fa4e67d78 (变更logo，变更名称及引用)
         },
       }),
     );

@@ -5,7 +5,7 @@ read_when:
 title: "OpenClaw"
 ---
 
-# OpenClaw 🦞
+# OpenClaw 🐶
 
 <p align="center">
     <img
