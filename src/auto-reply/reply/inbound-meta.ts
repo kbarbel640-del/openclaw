@@ -1,6 +1,6 @@
+import type { TemplateContext } from "../templating.js";
 import { normalizeChatType } from "../../channels/chat-type.js";
 import { resolveSenderLabel } from "../../channels/sender-label.js";
-import type { TemplateContext } from "../templating.js";
 
 function safeTrim(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -40,6 +40,7 @@ export function buildInboundMetaSystemPrompt(ctx: TemplateContext): string {
     schema: "openclaw.inbound_meta.v1",
     chat_id: safeTrim(ctx.OriginatingTo),
     channel: channelValue,
+    account_id: safeTrim(ctx.AccountId),
     provider: safeTrim(ctx.Provider),
     surface: safeTrim(ctx.Surface),
     chat_type: chatType ?? (isDirect ? "direct" : undefined),
