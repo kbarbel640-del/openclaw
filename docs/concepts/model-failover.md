@@ -136,6 +136,33 @@ timeouts that exhausted profile rotation (other errors do not advance fallback).
 When a run starts with a model override (hooks or CLI), fallbacks still end at
 `agents.defaults.model.primary` after trying any configured fallbacks.
 
+### Fallback transition visibility
+
+OpenClaw emits lifecycle events when fallback begins:
+
+- `phase: "fallback_start"` — emitted immediately when transitioning to the next model candidate
+- `phase: "fallback"` — emitted when a run completes on a fallback model (deduped by state)
+- `phase: "fallback_cleared"` — emitted when runtime returns to the selected model
+
+Session status now also includes fallback duration (`since …`) while fallback is active.
+
+### Optional low-noise automated notices
+
+For scheduled/automated runs (heartbeat + cron), you can enable a one-time transition notice:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "modelFallbackNotifyAutomated": true
+    }
+  }
+}
+```
+
+When enabled, OpenClaw sends a single compact notice only when fallback state transitions
+(primary → fallback). It does **not** repeat the notice on every run while fallback remains active.
+
 ## Related config
 
 See [Gateway configuration](/gateway/configuration) for:
@@ -144,6 +171,7 @@ See [Gateway configuration](/gateway/configuration) for:
 - `auth.cooldowns.billingBackoffHours` / `auth.cooldowns.billingBackoffHoursByProvider`
 - `auth.cooldowns.billingMaxHours` / `auth.cooldowns.failureWindowHours`
 - `agents.defaults.model.primary` / `agents.defaults.model.fallbacks`
+- `agents.defaults.modelFallbackNotifyAutomated`
 - `agents.defaults.imageModel` routing
 
 See [Models](/concepts/models) for the broader model selection and fallback overview.

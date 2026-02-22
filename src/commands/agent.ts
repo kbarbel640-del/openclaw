@@ -568,6 +568,33 @@ export async function agentCommand(
         model,
         agentDir,
         fallbacksOverride: effectiveFallbacksOverride,
+        onTransition: async (transition) => {
+          emitAgentEvent({
+            runId,
+            sessionKey,
+            stream: "lifecycle",
+            data: {
+              phase: "fallback_start",
+              selectedProvider: provider,
+              selectedModel: model,
+              fromProvider: transition.from.provider,
+              fromModel: transition.from.model,
+              toProvider: transition.to.provider,
+              toModel: transition.to.model,
+              activeProvider: transition.to.provider,
+              activeModel: transition.to.model,
+              transition: transition.transition,
+              totalTransitions: transition.totalTransitions,
+              attempt: transition.attempt,
+              totalCandidates: transition.totalCandidates,
+              trigger: transition.trigger,
+              attempts: transition.attempts,
+            },
+          });
+          runtime.log(
+            `↪️ Model fallback started: ${transition.from.provider}/${transition.from.model} → ${transition.to.provider}/${transition.to.model}`,
+          );
+        },
         run: (providerOverride, modelOverride) => {
           const isFallbackRetry = fallbackAttemptIndex > 0;
           fallbackAttemptIndex += 1;

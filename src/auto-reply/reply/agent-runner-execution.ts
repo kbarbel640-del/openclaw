@@ -171,6 +171,30 @@ export async function runAgentTurnWithFallback(params: {
       const onToolResult = params.opts?.onToolResult;
       const fallbackResult = await runWithModelFallback({
         ...resolveModelFallbackOptions(params.followupRun.run),
+        onTransition: async (transition) => {
+          emitAgentEvent({
+            runId,
+            sessionKey: params.sessionKey,
+            stream: "lifecycle",
+            data: {
+              phase: "fallback_start",
+              selectedProvider: params.followupRun.run.provider,
+              selectedModel: params.followupRun.run.model,
+              fromProvider: transition.from.provider,
+              fromModel: transition.from.model,
+              toProvider: transition.to.provider,
+              toModel: transition.to.model,
+              activeProvider: transition.to.provider,
+              activeModel: transition.to.model,
+              transition: transition.transition,
+              totalTransitions: transition.totalTransitions,
+              attempt: transition.attempt,
+              totalCandidates: transition.totalCandidates,
+              trigger: transition.trigger,
+              attempts: transition.attempts,
+            },
+          });
+        },
         run: (provider, model) => {
           // Notify that model selection is complete (including after fallback).
           // This allows responsePrefix template interpolation with the actual model.

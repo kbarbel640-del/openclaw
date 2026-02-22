@@ -28,6 +28,7 @@ export const AgentDefaultsSchema = z
       })
       .strict()
       .optional(),
+    modelFallbackNotifyAutomated: z.boolean().optional(),
     models: z
       .record(
         z.string(),

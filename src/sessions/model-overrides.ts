@@ -69,6 +69,7 @@ export function applyModelOverrideToSessionEntry(params: {
     delete entry.fallbackNoticeSelectedModel;
     delete entry.fallbackNoticeActiveModel;
     delete entry.fallbackNoticeReason;
+    delete entry.fallbackNoticeStartedAt;
     entry.updatedAt = Date.now();
   }
 

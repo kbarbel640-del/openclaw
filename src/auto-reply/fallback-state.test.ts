@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildFallbackStartedNotice,
   resolveActiveFallbackState,
   resolveFallbackTransition,
   type FallbackNoticeState,
@@ -119,5 +120,63 @@ describe("fallback-state", () => {
     expect(resolved.nextState.selectedModel).toBeUndefined();
     expect(resolved.nextState.activeModel).toBeUndefined();
     expect(resolved.nextState.reason).toBeUndefined();
+    expect(resolved.nextState.startedAt).toBeUndefined();
+  });
+
+  it("tracks fallback start timestamp and preserves it while fallback remains active", () => {
+    const first = resolveFallbackTransition({
+      selectedProvider: "fireworks",
+      selectedModel: "fireworks/minimax-m2p5",
+      activeProvider: "deepinfra",
+      activeModel: "moonshotai/Kimi-K2.5",
+      attempts: [baseAttempt],
+      state: {},
+      nowMs: 1_000,
+    });
+
+    expect(first.nextState.startedAt).toBe(1_000);
+
+    const second = resolveFallbackTransition({
+      selectedProvider: "fireworks",
+      selectedModel: "fireworks/minimax-m2p5",
+      activeProvider: "deepinfra",
+      activeModel: "moonshotai/Kimi-K2.5",
+      attempts: [{ ...baseAttempt, reason: "timeout" }],
+      state: {
+        fallbackNoticeSelectedModel: first.nextState.selectedModel,
+        fallbackNoticeActiveModel: first.nextState.activeModel,
+        fallbackNoticeReason: first.nextState.reason,
+        fallbackNoticeStartedAt: first.nextState.startedAt,
+      },
+      nowMs: 2_000,
+    });
+
+    expect(second.fallbackTransitioned).toBe(false);
+    expect(second.nextState.startedAt).toBe(1_000);
+
+    const active = resolveActiveFallbackState({
+      selectedModelRef: "fireworks/minimax-m2p5",
+      activeModelRef: "deepinfra/moonshotai/Kimi-K2.5",
+      state: {
+        fallbackNoticeSelectedModel: second.nextState.selectedModel,
+        fallbackNoticeActiveModel: second.nextState.activeModel,
+        fallbackNoticeReason: second.nextState.reason,
+        fallbackNoticeStartedAt: second.nextState.startedAt,
+      },
+    });
+
+    expect(active.active).toBe(true);
+    expect(active.startedAt).toBe(1_000);
+  });
+
+  it("builds a compact fallback started notice", () => {
+    const notice = buildFallbackStartedNotice({
+      selectedModelRef: "openai/gpt-4.1-mini",
+      activeModelRef: "anthropic/claude-haiku-4-5",
+      reasonSummary: "rate limit",
+    });
+
+    expect(notice).toContain("Model Fallback started");
+    expect(notice).toContain("rate limit");
   });
 });
