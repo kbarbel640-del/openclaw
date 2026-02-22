@@ -1006,12 +1006,21 @@ export async function handleFeishuMessage(params: {
 
     // FR-001 Smart Fallback Cleanup:
     // When replies=0, this message produced no reply. Two scenarios:
-    // 1. A main message is PROCESSING in this chat → this was a merged message,
-    //    its emoji will be cleaned up by clearProcessingForChat when the main reply arrives.
-    // 2. No PROCESSING message exists → this message was truly discarded (e.g. debounce,
-    //    filters, or all messages got replies=0). Clean up now to prevent orphan emojis.
-    if (counts.final === 0 && !reactionManager.hasProcessingInChat(ctx.chatId)) {
-      await reactionManager.onCompleted(ctx.messageId);
+    // 1. Another message is active (QUEUED or PROCESSING) in this chat → this was a
+    //    merged message. Trigger onProcessingStart to transition it from OK to Typing,
+    //    and its emoji will be cleaned up by clearForChat when the main reply arrives.
+    // 2. No active message exists → this message was truly discarded (e.g. debounce
+    //    timeout, filters, or all messages got replies=0). Clean up now.
+    // Note: we check hasActiveInChat (not hasProcessingInChat) because the main message
+    // may still be in QUEUED state when this merged message's dispatch returns.
+    if (counts.final === 0) {
+      if (reactionManager.hasActiveInChat(ctx.chatId)) {
+        // Merged message: transition it from OK to Typing so user sees it's being processed
+        await reactionManager.onProcessingStart(ctx.messageId).catch(() => {});
+      } else {
+        // Truly discarded: clean up immediately
+        await reactionManager.onCompleted(ctx.messageId);
+      }
     }
   } catch (err) {
     error(`feishu[${account.accountId}]: failed to dispatch message: ${String(err)}`);
