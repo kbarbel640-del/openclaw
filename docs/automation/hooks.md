@@ -263,25 +263,44 @@ Triggered when session properties are modified:
 
 #### Session Event Context
 
-The `session:patch` event includes:
-
-Security note: Only privileged clients can trigger session patch events; webchat/browser clients are blocked for security. Always enforce access controls in custom automations.
+Session events include rich context about the session and changes:
 
 ```typescript
 {
-  sessionEntry: SessionEntry,  // The updated session entry
-  patch: object,               // The patch object with changes (label, thinkingLevel, etc.)
-  cfg: OpenClawConfig         // Current gateway config
+  sessionEntry: SessionEntry, // The complete updated session entry
+  patch: {                    // The patch object (only changed fields)
+    // Session identity & labeling
+    label?: string | null,           // Human-readable session label
+
+    // AI model configuration
+    model?: string | null,           // Model override (e.g., "claude-opus-4-5")
+    thinkingLevel?: string | null,   // Thinking level ("off"|"low"|"med"|"high")
+    verboseLevel?: string | null,    // Verbose output level
+    reasoningLevel?: string | null,  // Reasoning mode override
+    elevatedLevel?: string | null,   // Elevated mode override
+    responseUsage?: "off" | "tokens" | "full" | null, // Usage display mode
+
+    // Tool execution settings
+    execHost?: string | null,        // Exec host (sandbox|gateway|node)
+    execSecurity?: string | null,    // Security mode (deny|allowlist|full)
+    execAsk?: string | null,         // Approval mode (off|on-miss|always)
+    execNode?: string | null,        // Node ID for host=node
+
+    // Subagent coordination
+    spawnedBy?: string | null,       // Parent session key (for subagents)
+    spawnDepth?: number | null,      // Nesting depth (0 = root)
+
+    // Communication policies
+    sendPolicy?: "allow" | "deny" | null,          // Message send policy
+    groupActivation?: "mention" | "always" | null, // Group chat activation
+  },
+  cfg: OpenClawConfig            // Current gateway config
 }
 ```
 
-Common patch fields:
+**Security note:** Only privileged clients can trigger session patch events; WebChat Control UI clients are blocked for security (see PR #20800).
 
-- `label` - Session label (human-readable name)
-- `thinkingLevel` - Thinking level override (off/low/med/high)
-- `reasoningLevel` - Reasoning level override
-- `model` - Model override
-- `spawnedBy` - Parent session key (for subagents)
+See `SessionsPatchParamsSchema` in `src/gateway/protocol/schema/sessions.ts` for the complete type definition.
 
 #### Example: Session Patch Logger Hook
 
@@ -292,7 +311,6 @@ const handler: HookHandler = async (event) => {
   if (event.type !== "session" || event.action !== "patch") {
     return;
   }
-
   const { patch } = event.context;
   console.log(`[session-patch] Session updated: ${event.sessionKey}`);
   console.log(`[session-patch] Changes:`, patch);
