@@ -1083,7 +1083,6 @@ export async function handleFeishuReaction(params: {
       : "";
     const reactionBody = `[System Message] User ${senderOpenId} reacted with :${emojiType}:${originalPreview} (message_id: ${messageId})`;
 
-
     const envelopeOptions = core.channel.reply.resolveEnvelopeFormatOptions(cfg);
 
     const body = core.channel.reply.formatAgentEnvelope({
