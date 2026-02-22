@@ -996,3 +996,151 @@ export async function handleFeishuMessage(params: {
     error(`feishu[${account.accountId}]: failed to dispatch message: ${String(err)}`);
   }
 }
+
+// ── Reaction event handling ────────────────────────────────────────────
+
+/**
+ * Feishu reaction event payload (im.message.reaction.created_v1).
+ * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message-reaction/event/created
+ */
+export type FeishuReactionEvent = {
+  message_id: string;
+  reaction_type: { emoji_type: string };
+  operator_type: string;
+  user_id: { open_id?: string; user_id?: string; union_id?: string };
+  action_time?: string;
+};
+
+/**
+ * Handle an inbound Feishu reaction event and dispatch it to the agent session.
+ *
+ * The reaction is delivered as a lightweight system-level inbound message so the
+ * agent can see that a user reacted with an emoji.  We intentionally keep the
+ * implementation thin: resolve the route for the sender, build a minimal inbound
+ * context, and dispatch.
+ */
+export async function handleFeishuReaction(params: {
+  cfg: ClawdbotConfig;
+  event: FeishuReactionEvent;
+  botOpenId?: string;
+  runtime?: RuntimeEnv;
+  accountId?: string;
+}): Promise<void> {
+  const { cfg, event, botOpenId, runtime, accountId = "default" } = params;
+  const log = runtime?.log ?? console.log;
+  const error = runtime?.error ?? console.error;
+
+  try {
+    const account = resolveFeishuAccount({ cfg, accountId });
+    if (!account.configured || !account.enabled) return;
+
+    const senderOpenId = event.user_id?.open_id ?? "";
+    if (!senderOpenId) {
+      log(`feishu[${accountId}]: reaction event missing sender open_id, skipping`);
+      return;
+    }
+
+    // Ignore reactions from the bot itself
+    if (botOpenId && senderOpenId === botOpenId) return;
+
+    const emojiType = event.reaction_type?.emoji_type ?? "UNKNOWN";
+    const messageId = event.message_id;
+
+    // Resolve the original message to determine chat context
+    let chatId: string | undefined;
+    let isGroup = false;
+    let originalContent: string | undefined;
+
+    try {
+      const msg = await getMessageFeishu({ cfg, messageId, accountId });
+      if (msg) {
+        chatId = msg.chatId;
+        originalContent = msg.content;
+        // If chatId differs from a direct-message pattern, treat as group
+        isGroup = !!chatId && !chatId.startsWith("oc_");
+      }
+    } catch (err) {
+      log(`feishu[${accountId}]: failed to fetch reacted message ${messageId}: ${String(err)}`);
+    }
+
+    // Route to the correct session
+    const peerId = isGroup && chatId ? chatId : senderOpenId;
+    const core = getFeishuRuntime();
+
+    const route = core.channel.routing.resolveAgentRoute({
+      cfg,
+      channel: "feishu",
+      accountId: account.accountId,
+      peer: {
+        kind: isGroup ? "group" : "direct",
+        id: peerId,
+      },
+    });
+
+    // Build a human-readable reaction description
+    const originalPreview = originalContent
+      ? ` on "${originalContent.replace(/\s+/g, " ").slice(0, 80)}"`
+      : "";
+    const reactionBody = `[System Message] User ${senderOpenId} reacted with :${emojiType}:${originalPreview} (message_id: ${messageId})`;
+
+    const envelopeOptions = core.channel.reply.resolveEnvelopeFormatOptions(cfg);
+
+    const body = core.channel.reply.formatAgentEnvelope({
+      channel: "Feishu",
+      from: senderOpenId,
+      timestamp: new Date(),
+      envelope: envelopeOptions,
+      body: reactionBody,
+    });
+
+    const feishuFrom = `feishu:user:${senderOpenId}`;
+    const feishuTo = isGroup && chatId ? `feishu:chat:${chatId}` : `feishu:bot:${botOpenId ?? "unknown"}`;
+
+    const ctxPayload = core.channel.reply.finalizeInboundContext({
+      Body: body,
+      BodyForAgent: reactionBody,
+      RawBody: reactionBody,
+      CommandBody: reactionBody,
+      From: feishuFrom,
+      To: feishuTo,
+      SessionKey: route.sessionKey,
+      AccountId: route.accountId,
+      ChatType: isGroup ? "group" : "direct",
+      GroupSubject: isGroup ? chatId : undefined,
+      SenderName: senderOpenId,
+      SenderId: senderOpenId,
+      Provider: "feishu" as const,
+      Surface: "feishu" as const,
+      MessageSid: `${messageId}:reaction:${emojiType}`,
+      Timestamp: Date.now(),
+      WasMentioned: false,
+      CommandAuthorized: false,
+      OriginatingChannel: "feishu" as const,
+      OriginatingTo: feishuTo,
+    });
+
+    const { dispatcher, replyOptions, markDispatchIdle } = createFeishuReplyDispatcher({
+      cfg,
+      agentId: route.agentId,
+      runtime: runtime as RuntimeEnv,
+      chatId: chatId ?? senderOpenId,
+      replyToMessageId: messageId,
+      accountId: account.accountId,
+    });
+
+    log(`feishu[${accountId}]: dispatching reaction :${emojiType}: from ${senderOpenId} to agent (session=${route.sessionKey})`);
+
+    await core.channel.reply.dispatchReplyFromConfig({
+      ctx: ctxPayload,
+      cfg,
+      dispatcher,
+      replyOptions,
+    });
+
+    markDispatchIdle();
+
+    log(`feishu[${accountId}]: reaction dispatch complete`);
+  } catch (err) {
+    error(`feishu[${accountId}]: failed to handle reaction event: ${String(err)}`);
+  }
+}

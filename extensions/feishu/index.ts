@@ -30,6 +30,7 @@ export {
   listReactionsFeishu,
   FeishuEmoji,
 } from "./src/reactions.js";
+export type { FeishuReactionEvent } from "./src/bot.js";
 export {
   extractMentionTargets,
   extractMessageBody,

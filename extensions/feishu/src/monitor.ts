@@ -7,7 +7,7 @@ import {
   installRequestBodyLimitGuard,
 } from "openclaw/plugin-sdk";
 import { resolveFeishuAccount, listEnabledFeishuAccounts } from "./accounts.js";
-import { handleFeishuMessage, type FeishuMessageEvent, type FeishuBotAddedEvent } from "./bot.js";
+import { handleFeishuMessage, handleFeishuReaction, type FeishuMessageEvent, type FeishuBotAddedEvent, type FeishuReactionEvent } from "./bot.js";
 import { createFeishuWSClient, createEventDispatcher } from "./client.js";
 import { probeFeishu } from "./probe.js";
 import type { ResolvedFeishuAccount } from "./types.js";
@@ -140,6 +140,27 @@ function registerEventHandlers(
         log(`feishu[${accountId}]: bot removed from chat ${event.chat_id}`);
       } catch (err) {
         error(`feishu[${accountId}]: error handling bot removed event: ${String(err)}`);
+      }
+    },
+    "im.message.reaction.created_v1": async (data) => {
+      try {
+        const event = data as unknown as FeishuReactionEvent;
+        const promise = handleFeishuReaction({
+          cfg,
+          event,
+          botOpenId: botOpenIds.get(accountId),
+          runtime,
+          accountId,
+        });
+        if (fireAndForget) {
+          promise.catch((err) => {
+            error(`feishu[${accountId}]: error handling reaction: ${String(err)}`);
+          });
+        } else {
+          await promise;
+        }
+      } catch (err) {
+        error(`feishu[${accountId}]: error handling reaction: ${String(err)}`);
       }
     },
   });
