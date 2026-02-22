@@ -205,7 +205,8 @@ export class IMessageRpcClient {
       this.pending.delete(key);
 
       if (parsed.error) {
-        const baseMessage = parsed.error.message ?? "imsg rpc error";
+        const rawBase = typeof parsed.error.message === "string" ? parsed.error.message : "";
+        const baseMessage = rawBase.slice(0, 200) || "imsg rpc error";
         const details = parsed.error.data;
         const code = parsed.error.code;
         const suffixes = [] as string[];
@@ -213,8 +214,9 @@ export class IMessageRpcClient {
           suffixes.push(`code=${code}`);
         }
         if (details !== undefined) {
-          const detailText =
+          const rawDetail =
             typeof details === "string" ? details : JSON.stringify(details, null, 2);
+          const detailText = typeof rawDetail === "string" ? rawDetail.slice(0, 200) : "";
           if (detailText) {
             suffixes.push(detailText);
           }

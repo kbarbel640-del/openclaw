@@ -100,7 +100,8 @@ export async function signalRpcRequest<T = unknown>(
   const parsed = parseSignalRpcResponse<T>(text, res.status);
   if (parsed.error) {
     const code = parsed.error.code ?? "unknown";
-    const msg = parsed.error.message ?? "Signal RPC error";
+    const rawMsg = typeof parsed.error.message === "string" ? parsed.error.message : "";
+    const msg = rawMsg.slice(0, 200) || "Signal RPC error";
     throw new Error(`Signal RPC ${code}: ${msg}`);
   }
   return parsed.result as T;
