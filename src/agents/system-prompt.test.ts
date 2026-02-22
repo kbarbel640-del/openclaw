@@ -634,4 +634,50 @@ describe("buildSubagentSystemPrompt", () => {
       }
     }
   });
+
+  it("includes agent ID in first line for cache locality (fix for #23715)", () => {
+    // This test verifies the fix for issue #23715: 5x API costs due to ineffective prompt caching
+    // By including the agent ID in the first line, each user gets a unique system prompt prefix,
+    // improving cache locality when requests are routed to different machines.
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      runtimeInfo: {
+        agentId: "agent:main:main",
+        host: "test",
+        os: "linux",
+        arch: "x64",
+        node: "22",
+        model: "test-model",
+      },
+    });
+
+    expect(prompt).toMatch(
+      /^You are agent:main:main, a personal assistant running inside OpenClaw\./,
+    );
+  });
+
+  it("uses 'unknown' agent ID when runtimeInfo is not provided", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+    });
+
+    expect(prompt).toMatch(/^You are unknown, a personal assistant running inside OpenClaw\./);
+  });
+
+  it("uses unique first line in 'none' prompt mode", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      runtimeInfo: {
+        agentId: "agent:custom:123",
+        host: "test",
+        os: "linux",
+        arch: "x64",
+        node: "22",
+        model: "test-model",
+      },
+      promptMode: "none",
+    });
+
+    expect(prompt).toBe("You are agent:custom:123, a personal assistant running inside OpenClaw.");
+  });
 });
