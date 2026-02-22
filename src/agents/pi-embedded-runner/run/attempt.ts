@@ -32,7 +32,8 @@ import {
 import { validateHotStateBudget } from "../../context-budget.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
-import { buildHotState, enforceHotStateTokenCap } from "../../hot-state.js";
+import { buildExtraSystemPromptWithHotState } from "../../hot-state-injection.js";
+import { buildHotState } from "../../hot-state.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
 import { resolveDefaultModelForAgent } from "../../model-selection.js";
 import { inferOutputRole, resolveOutputBudget } from "../../output-budget.js";
@@ -384,7 +385,11 @@ export async function runEmbeddedAttempt(
       risk_level: "low",
       ...(artifactIndex.length > 0 ? { artifact_index: artifactIndex } : {}),
     });
-    const cappedHotState = enforceHotStateTokenCap({ hotState, maxTokens: 1000 });
+    const { extraSystemPrompt, capped: cappedHotState } = buildExtraSystemPromptWithHotState({
+      extraSystemPrompt: params.extraSystemPrompt,
+      hotState,
+      maxHotStateTokens: 1000,
+    });
 
     // Budget validation: fail closed if hot state violates limits.
     const budgetCheck = validateHotStateBudget(cappedHotState.hotState);
@@ -393,10 +398,6 @@ export async function runEmbeddedAttempt(
         `Hot state budget violated (${budgetCheck.violations.length} violations): ${budgetCheck.violations.map((v) => v.message).join("; ")}`,
       );
     }
-
-    const extraSystemPrompt = [params.extraSystemPrompt, cappedHotState.json]
-      .filter(Boolean)
-      .join("\n\n");
 
     const appendPrompt = buildEmbeddedSystemPrompt({
       workspaceDir: effectiveWorkspace,
