@@ -41,6 +41,8 @@ import { sanitizeTextContent, extractAssistantText } from "./tools/sessions-help
 const FAST_TEST_MODE = process.env.OPENCLAW_TEST_FAST === "1";
 const FAST_TEST_RETRY_INTERVAL_MS = 8;
 const FAST_TEST_REPLY_CHANGE_WAIT_MS = 20;
+const DEFAULT_SUBAGENT_ANNOUNCE_TIMEOUT_MS = 60_000;
+const MAX_TIMER_SAFE_TIMEOUT_MS = 2_147_000_000;
 
 type ToolResultMessage = {
   role?: unknown;
@@ -54,6 +56,14 @@ type SubagentAnnounceDeliveryResult = {
   path: SubagentDeliveryPath;
   error?: string;
 };
+
+function resolveSubagentAnnounceTimeoutMs(cfg: ReturnType<typeof loadConfig>): number {
+  const configured = cfg.agents?.defaults?.subagents?.announceTimeoutMs;
+  if (typeof configured !== "number" || !Number.isFinite(configured)) {
+    return DEFAULT_SUBAGENT_ANNOUNCE_TIMEOUT_MS;
+  }
+  return Math.min(Math.max(1, Math.floor(configured)), MAX_TIMER_SAFE_TIMEOUT_MS);
+}
 
 function buildCompletionDeliveryMessage(params: {
   findings: string;
@@ -468,6 +478,8 @@ async function resolveSubagentCompletionOrigin(params: {
 }
 
 async function sendAnnounce(item: AnnounceQueueItem) {
+  const cfg = loadConfig();
+  const announceTimeoutMs = resolveSubagentAnnounceTimeoutMs(cfg);
   const requesterDepth = getSubagentDepthFromSessionStore(item.sessionKey);
   const requesterIsSubagent = requesterDepth >= 1;
   const origin = item.origin;
@@ -494,7 +506,7 @@ async function sendAnnounce(item: AnnounceQueueItem) {
       deliver: !requesterIsSubagent,
       idempotencyKey,
     },
-    timeoutMs: 15_000,
+    timeoutMs: announceTimeoutMs,
   });
 }
 
@@ -528,6 +540,14 @@ function loadRequesterSessionEntry(requesterSessionKey: string) {
   const store = loadSessionStore(storePath);
   const entry = store[canonicalKey];
   return { cfg, entry, canonicalKey };
+}
+
+function buildAnnounceQueueKey(sessionKey: string, origin?: DeliveryContext): string {
+  const accountId = normalizeAccountId(origin?.accountId);
+  if (!accountId) {
+    return sessionKey;
+  }
+  return `${sessionKey}:acct:${accountId}`;
 }
 
 async function maybeQueueSubagentAnnounce(params: {
@@ -567,7 +587,7 @@ async function maybeQueueSubagentAnnounce(params: {
   if (isActive && (shouldFollowup || queueSettings.mode === "steer")) {
     const origin = resolveAnnounceOrigin(entry, params.requesterOrigin);
     enqueueAnnounce({
-      key: canonicalKey,
+      key: buildAnnounceQueueKey(canonicalKey, origin),
       item: {
         announceId: params.announceId,
         prompt: params.triggerMessage,
@@ -619,6 +639,7 @@ async function sendSubagentAnnounceDirectly(params: {
   requesterIsSubagent: boolean;
 }): Promise<SubagentAnnounceDeliveryResult> {
   const cfg = loadConfig();
+  const announceTimeoutMs = resolveSubagentAnnounceTimeoutMs(cfg);
   const canonicalRequesterSessionKey = resolveRequesterStoreKey(
     cfg,
     params.targetRequesterSessionKey,
@@ -681,7 +702,7 @@ async function sendSubagentAnnounceDirectly(params: {
             message: params.completionMessage,
             idempotencyKey: params.directIdempotencyKey,
           },
-          timeoutMs: 15_000,
+          timeoutMs: announceTimeoutMs,
         });
 
         return {
@@ -709,7 +730,7 @@ async function sendSubagentAnnounceDirectly(params: {
         idempotencyKey: params.directIdempotencyKey,
       },
       expectFinal: true,
-      timeoutMs: 15_000,
+      timeoutMs: announceTimeoutMs,
     });
 
     return {
