@@ -31,7 +31,7 @@ export const DEFAULT_AUDIO_MODELS: Record<string, string> = {
   groq: "whisper-large-v3-turbo",
   openai: "gpt-4o-mini-transcribe",
   deepgram: "nova-3",
-  "azure-ai": "whisper-large-v3-turbo",
+  "azure-ai": "gpt-4o-mini-transcribe",
 };
 
 export const AUTO_AUDIO_KEY_PROVIDERS = [
