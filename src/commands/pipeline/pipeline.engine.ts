@@ -351,15 +351,7 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
         throw new Error(`Loop '${rule.id}' aborted (verdict ABORT in ${verdictFile})`);
       }
 
-      if (
-        verdict !== "UNKNOWN" &&
-        verdict !== "PASS" &&
-        verdict !== "WARN" &&
-        verdict !== "FAIL" &&
-        verdict !== "ABORT"
-      ) {
-        continue;
-      }
+      // parseVerdict returns a closed union; no need to defensively filter unknown strings here.
       if (verdict !== "UNKNOWN" && !onVerdicts.includes(verdict)) {
         continue;
       }
