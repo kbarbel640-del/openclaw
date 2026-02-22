@@ -178,6 +178,7 @@ async function downloadToFile(
               sniffLen += chunk.length;
             }
             if (total > MAX_BYTES) {
+              out.destroy();
               req.destroy(new Error("Media exceeds 5MB limit"));
             }
           });
