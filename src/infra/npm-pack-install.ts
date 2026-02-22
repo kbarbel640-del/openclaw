@@ -30,47 +30,50 @@ export async function installFromNpmSpecArchive<TResult extends { ok: boolean }>
   warn?: (message: string) => void;
   installFromArchive: (params: { archivePath: string }) => Promise<TResult>;
 }): Promise<NpmSpecArchiveInstallFlowResult<TResult>> {
-  return await withTempDir(params.tempDirPrefix, async (tmpDir) => {
-    const packedResult = await packNpmSpecToArchive({
-      spec: params.spec,
-      timeoutMs: params.timeoutMs,
-      cwd: tmpDir,
-    });
-    if (!packedResult.ok) {
-      return {
-        ok: false,
-        error: packedResult.error,
+  return await withTempDir(
+    params.tempDirPrefix,
+    async (tmpDir): Promise<NpmSpecArchiveInstallFlowResult<TResult>> => {
+      const packedResult = await packNpmSpecToArchive({
+        spec: params.spec,
+        timeoutMs: params.timeoutMs,
+        cwd: tmpDir,
+      });
+      if (!packedResult.ok) {
+        return {
+          ok: false,
+          error: packedResult.error,
+        };
+      }
+
+      const npmResolution: NpmSpecResolution = {
+        ...packedResult.metadata,
+        resolvedAt: new Date().toISOString(),
       };
-    }
 
-    const npmResolution: NpmSpecResolution = {
-      ...packedResult.metadata,
-      resolvedAt: new Date().toISOString(),
-    };
+      const driftResult = await resolveNpmIntegrityDriftWithDefaultMessage({
+        spec: params.spec,
+        expectedIntegrity: params.expectedIntegrity,
+        resolution: npmResolution,
+        onIntegrityDrift: params.onIntegrityDrift,
+        warn: params.warn,
+      });
+      if (driftResult.error) {
+        return {
+          ok: false,
+          error: driftResult.error,
+        };
+      }
 
-    const driftResult = await resolveNpmIntegrityDriftWithDefaultMessage({
-      spec: params.spec,
-      expectedIntegrity: params.expectedIntegrity,
-      resolution: npmResolution,
-      onIntegrityDrift: params.onIntegrityDrift,
-      warn: params.warn,
-    });
-    if (driftResult.error) {
+      const installResult = await params.installFromArchive({
+        archivePath: packedResult.archivePath,
+      });
+
       return {
-        ok: false,
-        error: driftResult.error,
+        ok: true,
+        installResult,
+        npmResolution,
+        integrityDrift: driftResult.integrityDrift,
       };
-    }
-
-    const installResult = await params.installFromArchive({
-      archivePath: packedResult.archivePath,
-    });
-
-    return {
-      ok: true,
-      installResult,
-      npmResolution,
-      integrityDrift: driftResult.integrityDrift,
-    };
-  });
+    },
+  );
 }
