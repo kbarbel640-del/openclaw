@@ -1,12 +1,54 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+
+const { loadConfig, migrateLegacyConfig, readConfigFileSnapshot, validateConfigObject } =
+  await vi.importActual<typeof import("./config.js")>("./config.js");
 import { withTempHome } from "./test-helpers.js";
+
+async function expectLoadRejectionPreservesField(params: {
+  config: unknown;
+  readValue: (parsed: unknown) => unknown;
+  expectedValue: unknown;
+}) {
+  await withTempHome(async (home) => {
+    const configPath = path.join(home, ".openclaw", "openclaw.json");
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
+    await fs.writeFile(configPath, JSON.stringify(params.config, null, 2), "utf-8");
+
+    const snap = await readConfigFileSnapshot();
+
+    expect(snap.valid).toBe(false);
+    expect(snap.issues.length).toBeGreaterThan(0);
+
+    const parsed = JSON.parse(await fs.readFile(configPath, "utf-8")) as unknown;
+    expect(params.readValue(parsed)).toBe(params.expectedValue);
+  });
+}
+
+function expectValidConfigValue(params: {
+  config: unknown;
+  readValue: (config: unknown) => unknown;
+  expectedValue: unknown;
+}) {
+  const res = validateConfigObject(params.config);
+  expect(res.ok).toBe(true);
+  if (!res.ok) {
+    throw new Error("expected config to be valid");
+  }
+  expect(params.readValue(res.config)).toBe(params.expectedValue);
+}
+
+function expectInvalidIssuePath(config: unknown, expectedPath: string) {
+  const res = validateConfigObject(config);
+  expect(res.ok).toBe(false);
+  if (!res.ok) {
+    expect(res.issues[0]?.path).toBe(expectedPath);
+  }
+}
 
 describe("legacy config detection", () => {
   it('accepts imessage.dmPolicy="open" with allowFrom "*"', async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
     const res = validateConfigObject({
       channels: { imessage: { dmPolicy: "open", allowFrom: ["*"] } },
     });
@@ -15,54 +57,51 @@ describe("legacy config detection", () => {
       expect(res.config.channels?.imessage?.dmPolicy).toBe("open");
     }
   });
-  it("defaults imessage.dmPolicy to pairing when imessage section exists", async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
-    const res = validateConfigObject({ channels: { imessage: {} } });
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.config.channels?.imessage?.dmPolicy).toBe("pairing");
-    }
-  });
-  it("defaults imessage.groupPolicy to allowlist when imessage section exists", async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
-    const res = validateConfigObject({ channels: { imessage: {} } });
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.config.channels?.imessage?.groupPolicy).toBe("allowlist");
-    }
-  });
-  it("defaults discord.groupPolicy to allowlist when discord section exists", async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
-    const res = validateConfigObject({ channels: { discord: {} } });
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.config.channels?.discord?.groupPolicy).toBe("allowlist");
-    }
-  });
-  it("defaults slack.groupPolicy to allowlist when slack section exists", async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
-    const res = validateConfigObject({ channels: { slack: {} } });
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.config.channels?.slack?.groupPolicy).toBe("allowlist");
-    }
-  });
-  it("defaults msteams.groupPolicy to allowlist when msteams section exists", async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
-    const res = validateConfigObject({ channels: { msteams: {} } });
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.config.channels?.msteams?.groupPolicy).toBe("allowlist");
-    }
+  it.each([
+    [
+      "defaults imessage.dmPolicy to pairing when imessage section exists",
+      { channels: { imessage: {} } },
+      (config: unknown) =>
+        (config as { channels?: { imessage?: { dmPolicy?: string } } }).channels?.imessage
+          ?.dmPolicy,
+      "pairing",
+    ],
+    [
+      "defaults imessage.groupPolicy to allowlist when imessage section exists",
+      { channels: { imessage: {} } },
+      (config: unknown) =>
+        (config as { channels?: { imessage?: { groupPolicy?: string } } }).channels?.imessage
+          ?.groupPolicy,
+      "allowlist",
+    ],
+    [
+      "defaults discord.groupPolicy to allowlist when discord section exists",
+      { channels: { discord: {} } },
+      (config: unknown) =>
+        (config as { channels?: { discord?: { groupPolicy?: string } } }).channels?.discord
+          ?.groupPolicy,
+      "allowlist",
+    ],
+    [
+      "defaults slack.groupPolicy to allowlist when slack section exists",
+      { channels: { slack: {} } },
+      (config: unknown) =>
+        (config as { channels?: { slack?: { groupPolicy?: string } } }).channels?.slack
+          ?.groupPolicy,
+      "allowlist",
+    ],
+    [
+      "defaults msteams.groupPolicy to allowlist when msteams section exists",
+      { channels: { msteams: {} } },
+      (config: unknown) =>
+        (config as { channels?: { msteams?: { groupPolicy?: string } } }).channels?.msteams
+          ?.groupPolicy,
+      "allowlist",
+    ],
+  ])("defaults: %s", (_name, config, readValue, expectedValue) => {
+    expectValidConfigValue({ config, readValue, expectedValue });
   });
   it("rejects unsafe executable config values", async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
     const res = validateConfigObject({
       channels: { imessage: { cliPath: "imsg; rm -rf /" } },
       audio: { transcription: { command: ["whisper", "--model", "base"] } },
@@ -73,16 +112,12 @@ describe("legacy config detection", () => {
     }
   });
   it("accepts tools audio transcription without cli", async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
     const res = validateConfigObject({
       audio: { transcription: { command: ["whisper", "--model", "base"] } },
     });
     expect(res.ok).toBe(true);
   });
   it("accepts path-like executable values with spaces", async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
     const res = validateConfigObject({
       channels: { imessage: { cliPath: "/Applications/Imsg Tools/imsg" } },
       audio: {
@@ -93,31 +128,49 @@ describe("legacy config detection", () => {
     });
     expect(res.ok).toBe(true);
   });
-  it('rejects discord.dm.policy="open" without allowFrom "*"', async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
-    const res = validateConfigObject({
-      channels: { discord: { dm: { policy: "open", allowFrom: ["123"] } } },
-    });
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.issues[0]?.path).toBe("channels.discord.dm.allowFrom");
-    }
+  it.each([
+    [
+      'rejects discord.dm.policy="open" without allowFrom "*"',
+      { channels: { discord: { dm: { policy: "open", allowFrom: ["123"] } } } },
+      "channels.discord.dm.allowFrom",
+    ],
+    [
+      'rejects discord.dmPolicy="open" without allowFrom "*"',
+      { channels: { discord: { dmPolicy: "open", allowFrom: ["123"] } } },
+      "channels.discord.allowFrom",
+    ],
+    [
+      'rejects slack.dm.policy="open" without allowFrom "*"',
+      { channels: { slack: { dm: { policy: "open", allowFrom: ["U123"] } } } },
+      "channels.slack.dm.allowFrom",
+    ],
+    [
+      'rejects slack.dmPolicy="open" without allowFrom "*"',
+      { channels: { slack: { dmPolicy: "open", allowFrom: ["U123"] } } },
+      "channels.slack.allowFrom",
+    ],
+  ])("rejects: %s", (_name, config, expectedPath) => {
+    expectInvalidIssuePath(config, expectedPath);
   });
-  it('rejects slack.dm.policy="open" without allowFrom "*"', async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
-    const res = validateConfigObject({
-      channels: { slack: { dm: { policy: "open", allowFrom: ["U123"] } } },
-    });
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.issues[0]?.path).toBe("channels.slack.dm.allowFrom");
-    }
+
+  it.each([
+    {
+      name: 'accepts discord dm.allowFrom="*" with top-level allowFrom alias',
+      config: {
+        channels: { discord: { dm: { policy: "open", allowFrom: ["123"] }, allowFrom: ["*"] } },
+      },
+    },
+    {
+      name: 'accepts slack dm.allowFrom="*" with top-level allowFrom alias',
+      config: {
+        channels: { slack: { dm: { policy: "open", allowFrom: ["U123"] }, allowFrom: ["*"] } },
+      },
+    },
+  ])("$name", ({ config }) => {
+    const res = validateConfigObject(config);
+    expect(res.ok).toBe(true);
   });
   it("rejects legacy agent.model string", async () => {
-    vi.resetModules();
-    const { validateConfigObject } = await import("./config.js");
     const res = validateConfigObject({
       agent: { model: "anthropic/claude-opus-4-5" },
     });
@@ -127,8 +180,6 @@ describe("legacy config detection", () => {
     }
   });
   it("migrates telegram.requireMention to channels.telegram.groups.*.requireMention", async () => {
-    vi.resetModules();
-    const { migrateLegacyConfig } = await import("./config.js");
     const res = migrateLegacyConfig({
       telegram: { requireMention: false },
     });
@@ -136,11 +187,11 @@ describe("legacy config detection", () => {
       'Moved telegram.requireMention → channels.telegram.groups."*".requireMention.',
     );
     expect(res.config?.channels?.telegram?.groups?.["*"]?.requireMention).toBe(false);
-    expect(res.config?.channels?.telegram?.requireMention).toBeUndefined();
+    expect(
+      (res.config?.channels?.telegram as { requireMention?: boolean } | undefined)?.requireMention,
+    ).toBeUndefined();
   });
   it("migrates messages.tts.enabled to messages.tts.auto", async () => {
-    vi.resetModules();
-    const { migrateLegacyConfig } = await import("./config.js");
     const res = migrateLegacyConfig({
       messages: { tts: { enabled: true } },
     });
@@ -149,8 +200,6 @@ describe("legacy config detection", () => {
     expect(res.config?.messages?.tts?.enabled).toBeUndefined();
   });
   it("migrates legacy model config to agent.models + model lists", async () => {
-    vi.resetModules();
-    const { migrateLegacyConfig } = await import("./config.js");
     const res = migrateLegacyConfig({
       agent: {
         model: "anthropic/claude-opus-4-5",
@@ -172,7 +221,7 @@ describe("legacy config detection", () => {
       alias: "Opus",
     });
     expect(res.config?.agents?.defaults?.models?.["openai/gpt-4.1-mini"]).toBeTruthy();
-    expect(res.config?.agent).toBeUndefined();
+    expect((res.config as { agent?: unknown } | undefined)?.agent).toBeUndefined();
   });
   it("flags legacy config in snapshot", async () => {
     await withTempHome(async (home) => {
@@ -184,8 +233,6 @@ describe("legacy config detection", () => {
         "utf-8",
       );
 
-      vi.resetModules();
-      const { readConfigFileSnapshot } = await import("./config.js");
       const snap = await readConfigFileSnapshot();
 
       expect(snap.valid).toBe(false);
@@ -198,6 +245,22 @@ describe("legacy config detection", () => {
       };
       expect(parsed.routing?.allowFrom).toEqual(["+15555550123"]);
       expect(parsed.channels).toBeUndefined();
+    });
+  });
+  it("flags top-level memorySearch as legacy in snapshot", async () => {
+    await withTempHome(async (home) => {
+      const configPath = path.join(home, ".openclaw", "openclaw.json");
+      await fs.mkdir(path.dirname(configPath), { recursive: true });
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({ memorySearch: { provider: "local", fallback: "none" } }),
+        "utf-8",
+      );
+
+      const snap = await readConfigFileSnapshot();
+
+      expect(snap.valid).toBe(false);
+      expect(snap.legacyIssues.some((issue) => issue.path === "memorySearch")).toBe(true);
     });
   });
   it("does not auto-migrate claude-cli auth profile mode on load", async () => {
@@ -220,8 +283,6 @@ describe("legacy config detection", () => {
         "utf-8",
       );
 
-      vi.resetModules();
-      const { loadConfig } = await import("./config.js");
       const cfg = loadConfig();
       expect(cfg.auth?.profiles?.["anthropic:claude-cli"]?.mode).toBe("token");
 
@@ -242,8 +303,6 @@ describe("legacy config detection", () => {
         "utf-8",
       );
 
-      vi.resetModules();
-      const { readConfigFileSnapshot } = await import("./config.js");
       const snap = await readConfigFileSnapshot();
 
       expect(snap.valid).toBe(false);
@@ -268,8 +327,6 @@ describe("legacy config detection", () => {
         "utf-8",
       );
 
-      vi.resetModules();
-      const { readConfigFileSnapshot } = await import("./config.js");
       const snap = await readConfigFileSnapshot();
 
       expect(snap.valid).toBe(false);
@@ -285,63 +342,35 @@ describe("legacy config detection", () => {
     });
   });
   it("rejects bindings[].match.provider on load", async () => {
-    await withTempHome(async (home) => {
-      const configPath = path.join(home, ".openclaw", "openclaw.json");
-      await fs.mkdir(path.dirname(configPath), { recursive: true });
-      await fs.writeFile(
-        configPath,
-        JSON.stringify(
-          {
-            bindings: [{ agentId: "main", match: { provider: "slack" } }],
-          },
-          null,
-          2,
-        ),
-        "utf-8",
-      );
-
-      vi.resetModules();
-      const { readConfigFileSnapshot } = await import("./config.js");
-      const snap = await readConfigFileSnapshot();
-
-      expect(snap.valid).toBe(false);
-      expect(snap.issues.length).toBeGreaterThan(0);
-
-      const raw = await fs.readFile(configPath, "utf-8");
-      const parsed = JSON.parse(raw) as {
-        bindings?: Array<{ match?: { provider?: string } }>;
-      };
-      expect(parsed.bindings?.[0]?.match?.provider).toBe("slack");
+    await expectLoadRejectionPreservesField({
+      config: {
+        bindings: [{ agentId: "main", match: { provider: "slack" } }],
+      },
+      readValue: (parsed) =>
+        (parsed as { bindings?: Array<{ match?: { provider?: string } }> }).bindings?.[0]?.match
+          ?.provider,
+      expectedValue: "slack",
     });
   });
   it("rejects bindings[].match.accountID on load", async () => {
-    await withTempHome(async (home) => {
-      const configPath = path.join(home, ".openclaw", "openclaw.json");
-      await fs.mkdir(path.dirname(configPath), { recursive: true });
-      await fs.writeFile(
-        configPath,
-        JSON.stringify(
-          {
-            bindings: [{ agentId: "main", match: { channel: "telegram", accountID: "work" } }],
-          },
-          null,
-          2,
-        ),
-        "utf-8",
-      );
-
-      vi.resetModules();
-      const { readConfigFileSnapshot } = await import("./config.js");
-      const snap = await readConfigFileSnapshot();
-
-      expect(snap.valid).toBe(false);
-      expect(snap.issues.length).toBeGreaterThan(0);
-
-      const raw = await fs.readFile(configPath, "utf-8");
-      const parsed = JSON.parse(raw) as {
-        bindings?: Array<{ match?: { accountID?: string } }>;
-      };
-      expect(parsed.bindings?.[0]?.match?.accountID).toBe("work");
+    await expectLoadRejectionPreservesField({
+      config: {
+        bindings: [{ agentId: "main", match: { channel: "telegram", accountID: "work" } }],
+      },
+      readValue: (parsed) =>
+        (parsed as { bindings?: Array<{ match?: { accountID?: string } }> }).bindings?.[0]?.match
+          ?.accountID,
+      expectedValue: "work",
+    });
+  });
+  it("accepts bindings[].comment on load", () => {
+    expectValidConfigValue({
+      config: {
+        bindings: [{ agentId: "main", comment: "primary route", match: { channel: "telegram" } }],
+      },
+      readValue: (config) =>
+        (config as { bindings?: Array<{ comment?: string }> }).bindings?.[0]?.comment,
+      expectedValue: "primary route",
     });
   });
   it("rejects session.sendPolicy.rules[].match.provider on load", async () => {
@@ -364,8 +393,6 @@ describe("legacy config detection", () => {
         "utf-8",
       );
 
-      vi.resetModules();
-      const { readConfigFileSnapshot } = await import("./config.js");
       const snap = await readConfigFileSnapshot();
 
       expect(snap.valid).toBe(false);
@@ -388,8 +415,6 @@ describe("legacy config detection", () => {
         "utf-8",
       );
 
-      vi.resetModules();
-      const { readConfigFileSnapshot } = await import("./config.js");
       const snap = await readConfigFileSnapshot();
 
       expect(snap.valid).toBe(false);
