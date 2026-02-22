@@ -6,6 +6,7 @@ export type AcpSession = {
   sessionKey: string;
   cwd: string;
   createdAt: number;
+  lastTouchedAt: number;
   abortController: AbortController | null;
   activeRunId: string | null;
   pendingReset: Promise<void> | null;
@@ -20,6 +21,10 @@ export type AcpServerOptions = {
   requireExistingSession?: boolean;
   resetSession?: boolean;
   prefixCwd?: boolean;
+  sessionCreateRateLimit?: {
+    maxRequests?: number;
+    windowMs?: number;
+  };
   verbose?: boolean;
 };
 
