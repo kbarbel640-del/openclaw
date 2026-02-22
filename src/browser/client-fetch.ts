@@ -262,7 +262,9 @@ export async function fetchBrowserJson<T>(
         result.body && typeof result.body === "object" && "error" in result.body
           ? String((result.body as { error?: unknown }).error)
           : `HTTP ${result.status}`;
-      throw new Error(message);
+      const err = new Error(message);
+      (err as Error & { httpStatus?: number }).httpStatus = result.status;
+      throw err;
     }
     return result.body as T;
   } catch (err) {
