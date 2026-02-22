@@ -656,7 +656,19 @@ export async function runCronIsolatedAgentTurn(params: {
     // follows the same system-message injection path as subagent completions.
     // Keep direct outbound delivery only for structured payloads (media/channel
     // data), which cannot be represented by the shared announce flow.
-    if (deliveryPayloadHasStructuredContent) {
+    //
+    // Also use direct delivery when the target has a threadId (e.g. Telegram
+    // forum topics). The subagent announce flow triggers an agent turn in the
+    // target session where the receiving agent can respond with ANNOUNCE_SKIP
+    // or NO_REPLY, silently dropping the cron output. Forum topic sessions are
+    // especially prone to this because the announce arrives via an internal
+    // webchat-like channel, causing the target agent to treat it as a duplicate
+    // or irrelevant message. Direct delivery bypasses the intermediary agent
+    // entirely and sends the text straight to the channel with the correct
+    // threadId.
+    const useDirectDelivery =
+      deliveryPayloadHasStructuredContent || resolvedDelivery.threadId != null;
+    if (useDirectDelivery) {
       try {
         const payloadsForDelivery =
           deliveryPayloads.length > 0

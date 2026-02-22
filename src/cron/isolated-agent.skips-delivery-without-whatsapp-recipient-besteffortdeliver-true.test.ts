@@ -184,7 +184,7 @@ describe("runCronIsolatedAgentTurn", () => {
     });
   });
 
-  it("passes resolved threadId into shared subagent announce flow", async () => {
+  it("uses direct delivery instead of announce when resolved threadId is present", async () => {
     await withTempCronHome(async (home) => {
       const storePath = await writeSessionStore(home, { lastProvider: "webchat", lastTo: "" });
       await fs.writeFile(
@@ -214,13 +214,11 @@ describe("runCronIsolatedAgentTurn", () => {
       });
 
       expect(res.status).toBe("ok");
-      expect(runSubagentAnnounceFlow).toHaveBeenCalledTimes(1);
-      const announceArgs = vi.mocked(runSubagentAnnounceFlow).mock.calls[0]?.[0] as
-        | { requesterOrigin?: { threadId?: string | number; channel?: string; to?: string } }
-        | undefined;
-      expect(announceArgs?.requesterOrigin?.channel).toBe("telegram");
-      expect(announceArgs?.requesterOrigin?.to).toBe("123");
-      expect(announceArgs?.requesterOrigin?.threadId).toBe(42);
+      // With threadId present, direct delivery is used instead of announce
+      expect(runSubagentAnnounceFlow).not.toHaveBeenCalled();
+      expect(deps.sendMessageTelegram).toHaveBeenCalledTimes(1);
+      const tgCall = vi.mocked(deps.sendMessageTelegram).mock.calls[0];
+      expect(tgCall?.[2]).toMatchObject({ messageThreadId: 42 });
     });
   });
 
