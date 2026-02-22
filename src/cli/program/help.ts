@@ -109,7 +109,12 @@ export function configureProgramHelp(program: Command, ctx: ProgramContext) {
     hasFlag(process.argv, "--version") ||
     hasRootVersionAlias(process.argv)
   ) {
-    console.log(ctx.programVersion);
+    const isMabos = CLI_NAME === "mabos";
+    if (isMabos) {
+      console.log(`MABOS v${ctx.programVersion}\nYour AI workforce, orchestrated.`);
+    } else {
+      console.log(ctx.programVersion);
+    }
     process.exit(0);
   }
 
