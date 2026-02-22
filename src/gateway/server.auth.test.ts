@@ -1013,7 +1013,7 @@ describe("gateway server auth/connect", () => {
     }
   });
 
-  test("requires pairing for scope upgrades", async () => {
+  test("requires pairing for scope upgrades from non-local clients", async () => {
     const { mkdtemp } = await import("node:fs/promises");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
@@ -1066,7 +1066,7 @@ describe("gateway server auth/connect", () => {
 
     ws.close();
 
-    const ws2 = await openWs(port);
+    const ws2 = await openWs(port, { host: "gateway.example" });
     const nonce2 = await readConnectChallengeNonce(ws2);
     const res = await connectReq(ws2, {
       token: "secret",
@@ -1080,7 +1080,7 @@ describe("gateway server auth/connect", () => {
     await approvePendingPairingIfNeeded();
     ws2.close();
 
-    const ws3 = await openWs(port);
+    const ws3 = await openWs(port, { host: "gateway.example" });
     const nonce3 = await readConnectChallengeNonce(ws3);
     const approved = await connectReq(ws3, {
       token: "secret",
@@ -1093,6 +1093,157 @@ describe("gateway server auth/connect", () => {
     expect(paired?.scopes).toContain("operator.admin");
 
     ws3.close();
+    await server.close();
+    restoreGatewayToken(prevToken);
+  });
+
+  test("auto-approves local scope upgrades when shared-secret auth is valid", async () => {
+    const { mkdtemp } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { buildDeviceAuthPayload } = await import("./device-auth.js");
+    const { loadOrCreateDeviceIdentity, publicKeyRawBase64UrlFromPem, signDevicePayload } =
+      await import("../infra/device-identity.js");
+    const { getPairedDevice, listDevicePairing } = await import("../infra/device-pairing.js");
+    const { server, ws, port, prevToken } = await startServerWithClient("secret");
+    const identityDir = await mkdtemp(join(tmpdir(), "openclaw-device-scope-"));
+    const identity = loadOrCreateDeviceIdentity(join(identityDir, "device.json"));
+    const client = {
+      id: GATEWAY_CLIENT_NAMES.TEST,
+      version: "1.0.0",
+      platform: "test",
+      mode: GATEWAY_CLIENT_MODES.TEST,
+    };
+    const buildDevice = (scopes: string[], nonce: string) => {
+      const signedAtMs = Date.now();
+      const payload = buildDeviceAuthPayload({
+        deviceId: identity.deviceId,
+        clientId: client.id,
+        clientMode: client.mode,
+        role: "operator",
+        scopes,
+        signedAtMs,
+        token: "secret",
+        nonce,
+      });
+      return {
+        id: identity.deviceId,
+        publicKey: publicKeyRawBase64UrlFromPem(identity.publicKeyPem),
+        signature: signDevicePayload(identity.privateKeyPem, payload),
+        signedAt: signedAtMs,
+        nonce,
+      };
+    };
+
+    const initialNonce = await readConnectChallengeNonce(ws);
+    const initial = await connectReq(ws, {
+      token: "secret",
+      scopes: ["operator.read"],
+      client,
+      device: buildDevice(["operator.read"], initialNonce),
+    });
+    if (!initial.ok) {
+      await approvePendingPairingIfNeeded();
+    }
+
+    let paired = await getPairedDevice(identity.deviceId);
+    expect(paired?.scopes).toContain("operator.read");
+    expect(paired?.scopes ?? []).not.toContain("operator.admin");
+
+    ws.close();
+
+    const ws2 = await openWs(port);
+    const nonce2 = await readConnectChallengeNonce(ws2);
+    const upgraded = await connectReq(ws2, {
+      token: "secret",
+      scopes: ["operator.admin"],
+      client,
+      device: buildDevice(["operator.admin"], nonce2),
+    });
+    expect(upgraded.ok).toBe(true);
+    ws2.close();
+
+    paired = await getPairedDevice(identity.deviceId);
+    expect(paired?.scopes).toContain("operator.admin");
+
+    const list = await listDevicePairing();
+    expect(list.pending.filter((entry) => entry.deviceId === identity.deviceId)).toEqual([]);
+
+    await server.close();
+    restoreGatewayToken(prevToken);
+  });
+
+  test("still requires pairing for local role upgrades", async () => {
+    const { mkdtemp } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { buildDeviceAuthPayload } = await import("./device-auth.js");
+    const { loadOrCreateDeviceIdentity, publicKeyRawBase64UrlFromPem, signDevicePayload } =
+      await import("../infra/device-identity.js");
+    const { getPairedDevice } = await import("../infra/device-pairing.js");
+    const { server, ws, port, prevToken } = await startServerWithClient("secret");
+    const identityDir = await mkdtemp(join(tmpdir(), "openclaw-device-scope-"));
+    const identity = loadOrCreateDeviceIdentity(join(identityDir, "device.json"));
+    const client = {
+      id: GATEWAY_CLIENT_NAMES.TEST,
+      version: "1.0.0",
+      platform: "test",
+      mode: GATEWAY_CLIENT_MODES.TEST,
+    };
+    const buildDevice = (params: {
+      role: "operator" | "node";
+      scopes: string[];
+      nonce: string;
+    }) => {
+      const signedAtMs = Date.now();
+      const payload = buildDeviceAuthPayload({
+        deviceId: identity.deviceId,
+        clientId: client.id,
+        clientMode: client.mode,
+        role: params.role,
+        scopes: params.scopes,
+        signedAtMs,
+        token: "secret",
+        nonce: params.nonce,
+      });
+      return {
+        id: identity.deviceId,
+        publicKey: publicKeyRawBase64UrlFromPem(identity.publicKeyPem),
+        signature: signDevicePayload(identity.privateKeyPem, payload),
+        signedAt: signedAtMs,
+        nonce: params.nonce,
+      };
+    };
+
+    const initialNonce = await readConnectChallengeNonce(ws);
+    const initial = await connectReq(ws, {
+      token: "secret",
+      role: "operator",
+      scopes: ["operator.read"],
+      client,
+      device: buildDevice({ role: "operator", scopes: ["operator.read"], nonce: initialNonce }),
+    });
+    if (!initial.ok) {
+      await approvePendingPairingIfNeeded();
+    }
+    const paired = await getPairedDevice(identity.deviceId);
+    expect(paired?.roles).toEqual(expect.arrayContaining(["operator"]));
+
+    ws.close();
+
+    const ws2 = await openWs(port);
+    const nonce2 = await readConnectChallengeNonce(ws2);
+    const upgradedRole = await connectReq(ws2, {
+      token: "secret",
+      role: "node",
+      scopes: [],
+      client,
+      device: buildDevice({ role: "node", scopes: [], nonce: nonce2 }),
+    });
+    expect(upgradedRole.ok).toBe(false);
+    expect(upgradedRole.error?.message ?? "").toContain("pairing required");
+
+    ws2.close();
     await server.close();
     restoreGatewayToken(prevToken);
   });
@@ -1425,7 +1576,7 @@ describe("gateway server auth/connect", () => {
       delete legacy.scopes;
       await writeJsonAtomic(pairedPath, paired);
 
-      const wsUpgrade = await openWs(port);
+      const wsUpgrade = await openWs(port, { host: "gateway.example" });
       ws2 = wsUpgrade;
       const upgradeNonce = await readConnectChallengeNonce(wsUpgrade);
       const upgraded = await connectReq(wsUpgrade, {

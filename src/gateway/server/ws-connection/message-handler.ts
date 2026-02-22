@@ -632,6 +632,22 @@ export function attachGatewayWsMessageHandler(params: {
             scopes,
             remoteIp: reportedClientIp,
           };
+          const shouldSilentlyApprovePairing = (
+            reason: "not-paired" | "role-upgrade" | "scope-upgrade",
+          ): boolean => {
+            if (!isLocalClient) {
+              return false;
+            }
+            if (reason === "not-paired") {
+              return true;
+            }
+            // Keep role upgrades explicit; only allow scope upgrades to auto-approve
+            // when loopback + shared-secret auth already succeeded.
+            if (reason !== "scope-upgrade") {
+              return false;
+            }
+            return sharedAuthOk;
+          };
           const requirePairing = async (
             reason: "not-paired" | "role-upgrade" | "scope-upgrade",
           ) => {
@@ -639,7 +655,7 @@ export function attachGatewayWsMessageHandler(params: {
               deviceId: device.id,
               publicKey: devicePublicKey,
               ...clientAccessMetadata,
-              silent: isLocalClient && reason === "not-paired",
+              silent: shouldSilentlyApprovePairing(reason),
             });
             const context = buildRequestContext();
             if (pairing.request.silent === true) {
