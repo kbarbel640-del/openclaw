@@ -106,8 +106,8 @@ import {
   createSystemPromptOverride,
 } from "../system-prompt.js";
 import { dropThinkingBlocks } from "../thinking.js";
-import { installToolRegistrationGuard } from "../tool-registration-guard.js";
 import { collectAllowedToolNames } from "../tool-name-allowlist.js";
+import { installToolRegistrationGuard } from "../tool-registration-guard.js";
 import { installToolResultContextGuard } from "../tool-result-context-guard.js";
 import { splitSdkTools } from "../tool-split.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";

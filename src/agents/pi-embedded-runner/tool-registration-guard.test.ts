@@ -29,11 +29,11 @@ describe("installToolRegistrationGuard", () => {
     });
 
     expect(() => {
-      (agent.state.tools as unknown[]).push(makeTool("extra"));
+      agent.state.tools.push(makeTool("extra"));
     }).toThrow();
 
     expect(() => {
-      (agent.state.tools as unknown[]).length = 0;
+      agent.state.tools.length = 0;
     }).toThrow();
   });
 
@@ -119,8 +119,6 @@ describe("installToolRegistrationGuard", () => {
   it("dispose restores original setTools", () => {
     const tools = [makeTool("read")];
     const agent = makeFakeAgent(tools);
-    const originalSetTools = agent.setTools.bind(agent);
-
     const { dispose } = installToolRegistrationGuard({
       agent: agent as never,
       expectedToolNames: ["read"],
@@ -149,7 +147,7 @@ describe("installToolRegistrationGuard", () => {
     agent.setTools(newTools);
 
     expect(() => {
-      (agent.state.tools as unknown[]).push(makeTool("extra"));
+      agent.state.tools.push(makeTool("extra"));
     }).toThrow();
   });
 });

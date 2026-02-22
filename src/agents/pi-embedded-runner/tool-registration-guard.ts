@@ -1,5 +1,4 @@
 import type { Agent } from "@mariozechner/pi-agent-core";
-
 import { log } from "./logger.js";
 
 type AnyAgentLike = {
