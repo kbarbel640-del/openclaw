@@ -85,11 +85,7 @@ export async function resolveSandboxedMediaSource(params: {
   }
   let candidate = raw;
   if (/^file:\/\//i.test(candidate)) {
-    try {
-      candidate = fileURLToPath(candidate);
-    } catch {
-      throw new Error(`Invalid file:// URL for sandboxed media: ${raw}`);
-    }
+    candidate = resolveFileUrlMediaPath(raw, params.sandboxRoot);
   }
   const containerWorkspaceMapped = mapContainerWorkspacePath({
     candidate,
@@ -111,6 +107,23 @@ export async function resolveSandboxedMediaSource(params: {
     root: params.sandboxRoot,
   });
   return sandboxResult.resolved;
+}
+
+function resolveFileUrlMediaPath(rawUrl: string, sandboxRoot: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    const decodedPathname = decodeURIComponent(parsed.pathname);
+    const containerWorkspaceMapped = mapContainerWorkspacePath({
+      candidate: decodedPathname,
+      sandboxRoot,
+    });
+    if (containerWorkspaceMapped) {
+      return containerWorkspaceMapped;
+    }
+    return fileURLToPath(parsed);
+  } catch {
+    throw new Error(`Invalid file:// URL for sandboxed media: ${rawUrl}`);
+  }
 }
 
 function mapContainerWorkspacePath(params: {
