@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/bash", "-lc"]
     command:
-      - ./secure-config.sh tools.crittora && exec node dist/index.js gateway --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port 18789
+      - ./crittora-secure-config.sh tools.crittora && exec node dist/index.js gateway --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port 18789
 
   openclaw-cli:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
