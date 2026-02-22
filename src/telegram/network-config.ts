@@ -5,10 +5,17 @@ import { isTruthyEnvValue } from "../infra/env.js";
 export const TELEGRAM_DISABLE_AUTO_SELECT_FAMILY_ENV =
   "OPENCLAW_TELEGRAM_DISABLE_AUTO_SELECT_FAMILY";
 export const TELEGRAM_ENABLE_AUTO_SELECT_FAMILY_ENV = "OPENCLAW_TELEGRAM_ENABLE_AUTO_SELECT_FAMILY";
+export const TELEGRAM_FORCE_CURL_ENV = "OPENCLAW_TELEGRAM_FORCE_CURL";
+export const TELEGRAM_DISABLE_CURL_ENV = "OPENCLAW_TELEGRAM_DISABLE_CURL";
 
 export type TelegramAutoSelectFamilyDecision = {
   value: boolean | null;
   source?: string;
+};
+
+export type TelegramForceCurlDecision = {
+  value: boolean;
+  source: string;
 };
 
 export function resolveTelegramAutoSelectFamilyDecision(params?: {
@@ -35,4 +42,21 @@ export function resolveTelegramAutoSelectFamilyDecision(params?: {
     return { value: true, source: "default-node22" };
   }
   return { value: null };
+}
+
+export function resolveTelegramForceCurlDecision(params?: {
+  network?: TelegramNetworkConfig;
+  env?: NodeJS.ProcessEnv;
+}): TelegramForceCurlDecision {
+  const env = params?.env ?? process.env;
+  if (isTruthyEnvValue(env[TELEGRAM_FORCE_CURL_ENV])) {
+    return { value: true, source: `env:${TELEGRAM_FORCE_CURL_ENV}` };
+  }
+  if (isTruthyEnvValue(env[TELEGRAM_DISABLE_CURL_ENV])) {
+    return { value: false, source: `env:${TELEGRAM_DISABLE_CURL_ENV}` };
+  }
+  if (typeof params?.network?.forceCurl === "boolean") {
+    return { value: params.network.forceCurl, source: "config" };
+  }
+  return { value: false, source: "default" };
 }
