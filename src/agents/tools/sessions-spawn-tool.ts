@@ -17,6 +17,7 @@ const SessionsSpawnToolSchema = Type.Object({
   thread: Type.Optional(Type.Boolean()),
   mode: optionalStringEnum(SUBAGENT_SPAWN_MODES),
   cleanup: optionalStringEnum(["delete", "keep"] as const),
+  announce: optionalStringEnum(["user", "parent", "skip"] as const),
 });
 
 export function createSessionsSpawnTool(opts?: {
@@ -36,7 +37,7 @@ export function createSessionsSpawnTool(opts?: {
     label: "Sessions",
     name: "sessions_spawn",
     description:
-      'Spawn a sub-agent in an isolated session (mode="run" one-shot or mode="session" persistent) and route results back to the requester chat/thread.',
+      "Spawn a background sub-agent run in an isolated session and announce the result to the requester chat or parent session.",
     parameters: SessionsSpawnToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
@@ -48,6 +49,10 @@ export function createSessionsSpawnTool(opts?: {
       const mode = params.mode === "run" || params.mode === "session" ? params.mode : undefined;
       const cleanup =
         params.cleanup === "keep" || params.cleanup === "delete" ? params.cleanup : "keep";
+      const announce =
+        params.announce === "user" || params.announce === "parent" || params.announce === "skip"
+          ? params.announce
+          : undefined;
       // Back-compat: older callers used timeoutSeconds for this tool.
       const timeoutSecondsCandidate =
         typeof params.runTimeoutSeconds === "number"
@@ -72,6 +77,7 @@ export function createSessionsSpawnTool(opts?: {
           thread,
           mode,
           cleanup,
+          announce,
           expectsCompletionMessage: true,
         },
         {

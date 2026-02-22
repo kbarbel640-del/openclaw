@@ -9,7 +9,7 @@ import { normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { resolveAgentConfig } from "./agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "./lanes.js";
 import { resolveSubagentSpawnModelSelection } from "./model-selection.js";
-import { buildSubagentSystemPrompt } from "./subagent-announce.js";
+import { buildSubagentSystemPrompt, type SubagentAnnounceMode } from "./subagent-announce.js";
 import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
 import { countActiveRunsForSession, registerSubagentRun } from "./subagent-registry.js";
 import { readStringParam } from "./tools/common.js";
@@ -32,6 +32,7 @@ export type SpawnSubagentParams = {
   thread?: boolean;
   mode?: SpawnSubagentMode;
   cleanup?: "delete" | "keep";
+  announce?: SubagentAnnounceMode;
   expectsCompletionMessage?: boolean;
 };
 
@@ -180,12 +181,11 @@ export async function spawnSubagentDirect(
     };
   }
   const cleanup =
-    spawnMode === "session"
-      ? "keep"
-      : params.cleanup === "keep" || params.cleanup === "delete"
-        ? params.cleanup
-        : "keep";
-  const expectsCompletionMessage = params.expectsCompletionMessage !== false;
+    params.cleanup === "keep" || params.cleanup === "delete" ? params.cleanup : "keep";
+  const announce =
+    params.announce === "user" || params.announce === "parent" || params.announce === "skip"
+      ? params.announce
+      : undefined;
   const requesterOrigin = normalizeDeliveryContext({
     channel: ctx.agentChannel,
     accountId: ctx.agentAccountId,
@@ -480,10 +480,10 @@ export async function spawnSubagentDirect(
     requesterDisplayKey,
     task,
     cleanup,
+    announce,
     label: label || undefined,
     model: resolvedModel,
     runTimeoutSeconds,
-    expectsCompletionMessage,
     spawnMode,
   });
 

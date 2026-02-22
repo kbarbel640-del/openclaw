@@ -4,7 +4,11 @@ import { onAgentEvent } from "../infra/agent-events.js";
 import { defaultRuntime } from "../runtime.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { resetAnnounceQueuesForTests } from "./subagent-announce-queue.js";
-import { runSubagentAnnounceFlow, type SubagentRunOutcome } from "./subagent-announce.js";
+import {
+  runSubagentAnnounceFlow,
+  type SubagentAnnounceMode,
+  type SubagentRunOutcome,
+} from "./subagent-announce.js";
 import {
   SUBAGENT_ENDED_OUTCOME_KILLED,
   SUBAGENT_ENDED_REASON_COMPLETE,
@@ -35,9 +39,8 @@ import {
   restoreSubagentRunsFromDisk,
 } from "./subagent-registry-state.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
-import { resolveAgentTimeoutMs } from "./timeout.js";
-
 export type { SubagentRunRecord } from "./subagent-registry.types.js";
+import { resolveAgentTimeoutMs } from "./timeout.js";
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
 let sweeper: NodeJS.Timeout | null = null;
@@ -209,8 +212,7 @@ function startSubagentAnnounceCleanupFlow(runId: string, entry: SubagentRunRecor
     endedAt: entry.endedAt,
     label: entry.label,
     outcome: entry.outcome,
-    spawnMode: entry.spawnMode,
-    expectsCompletionMessage: entry.expectsCompletionMessage,
+    announce: entry.announce,
   }).then((didAnnounce) => {
     void finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
   });
@@ -676,6 +678,7 @@ export function registerSubagentRun(params: {
   requesterDisplayKey: string;
   task: string;
   cleanup: "delete" | "keep";
+  announce?: SubagentAnnounceMode;
   label?: string;
   model?: string;
   runTimeoutSeconds?: number;
@@ -699,6 +702,7 @@ export function registerSubagentRun(params: {
     requesterDisplayKey: params.requesterDisplayKey,
     task: params.task,
     cleanup: params.cleanup,
+    announce: params.announce,
     expectsCompletionMessage: params.expectsCompletionMessage,
     spawnMode,
     label: params.label,

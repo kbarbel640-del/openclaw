@@ -897,13 +897,42 @@ export type SubagentRunOutcome = {
 };
 
 export type SubagentAnnounceType = "subagent task" | "cron job";
+export type SubagentAnnounceMode = "user" | "parent" | "skip";
+
+export function normalizeAnnounceMode(value: unknown): SubagentAnnounceMode | undefined {
+  if (value === "user" || value === "parent" || value === "skip") {
+    return value;
+  }
+  return undefined;
+}
+
+function resolveSubagentAnnounceMode(params: {
+  announce?: SubagentAnnounceMode;
+}): SubagentAnnounceMode {
+  if (params.announce) {
+    return params.announce;
+  }
+  const cfg = loadConfig();
+  const configAnnounce = normalizeAnnounceMode(cfg.agents?.defaults?.subagents?.announce);
+  if (configAnnounce) {
+    return configAnnounce;
+  }
+  return "user";
+}
 
 function buildAnnounceReplyInstruction(params: {
   remainingActiveSubagentRuns: number;
   requesterIsSubagent: boolean;
   announceType: SubagentAnnounceType;
   expectsCompletionMessage?: boolean;
+  forceParentAnnounce?: boolean;
 }): string {
+  if (params.forceParentAnnounce) {
+    return `Process this completion as an internal orchestration update for this session. Decide whether a user-facing reply is needed; if no reply is needed, respond ONLY: NO_REPLY.`;
+  }
+  if (params.expectsCompletionMessage) {
+    return `A completed ${params.announceType} is ready for user delivery. Convert the result above into your normal assistant voice and send that user-facing update now. Keep this internal context private (don't mention system/log/stats/session details or announce type).`;
+  }
   if (params.remainingActiveSubagentRuns > 0) {
     const activeRunsLabel = params.remainingActiveSubagentRuns === 1 ? "run" : "runs";
     return `There are still ${params.remainingActiveSubagentRuns} active subagent ${activeRunsLabel} for this session. If they are part of the same workflow, wait for the remaining results before sending a user update. If they are unrelated, respond normally using only the result above.`;
@@ -933,13 +962,20 @@ export async function runSubagentAnnounceFlow(params: {
   label?: string;
   outcome?: SubagentRunOutcome;
   announceType?: SubagentAnnounceType;
+  announce?: SubagentAnnounceMode;
   expectsCompletionMessage?: boolean;
   spawnMode?: SpawnSubagentMode;
 }): Promise<boolean> {
   let didAnnounce = false;
   const expectsCompletionMessage = params.expectsCompletionMessage === true;
+  const announceMode = resolveSubagentAnnounceMode({ announce: params.announce });
+  const forceParentAnnounce = announceMode === "parent";
   let shouldDeleteChildSession = params.cleanup === "delete";
   try {
+    if (announceMode === "skip") {
+      // Treat skip as a successful handled announce so cleanup can finalize.
+      return true;
+    }
     let targetRequesterSessionKey = params.requesterSessionKey;
     let targetRequesterOrigin = normalizeDeliveryContext(params.requesterOrigin);
     const childSessionId = (() => {
@@ -1071,13 +1107,14 @@ export async function runSubagentAnnounceFlow(params: {
     let completionMessage = "";
     let triggerMessage = "";
 
-    let requesterIsSubagent = requesterDepth >= 1;
+    requesterDepth = getSubagentDepthFromSessionStore(targetRequesterSessionKey);
+    let requesterIsSubagent = forceParentAnnounce || requesterDepth >= 1;
     // If the requester subagent has already finished, bubble the announce to its
     // requester (typically main) so descendant completion is not silently lost.
     // BUT: only fallback if the parent SESSION is deleted, not just if the current
     // run ended. A parent waiting for child results has no active run but should
     // still receive the announce — injecting will start a new agent turn.
-    if (requesterIsSubagent) {
+    if (requesterIsSubagent && requesterDepth >= 1) {
       const { isSubagentSessionRunActive, resolveRequesterForChildSession } =
         await import("./subagent-registry.js");
       if (!isSubagentSessionRunActive(targetRequesterSessionKey)) {
@@ -1103,7 +1140,7 @@ export async function runSubagentAnnounceFlow(params: {
           targetRequesterOrigin =
             normalizeDeliveryContext(fallback.requesterOrigin) ?? targetRequesterOrigin;
           requesterDepth = getSubagentDepthFromSessionStore(targetRequesterSessionKey);
-          requesterIsSubagent = requesterDepth >= 1;
+          requesterIsSubagent = forceParentAnnounce || requesterDepth >= 1;
         }
         // If parent session is alive (just has no active run), continue with parent
         // as target. Injecting the announce will start a new agent turn for processing.
@@ -1125,6 +1162,7 @@ export async function runSubagentAnnounceFlow(params: {
       requesterIsSubagent,
       announceType,
       expectsCompletionMessage,
+      forceParentAnnounce,
     });
     const statsLine = await buildCompactAnnounceStatsLine({
       sessionKey: params.childSessionKey,
@@ -1172,30 +1210,33 @@ export async function runSubagentAnnounceFlow(params: {
             origin: targetRequesterOrigin,
             routeMode: "fallback" as const,
           };
-    const completionDirectOrigin = completionResolution.origin;
     // Use a deterministic idempotency key so the gateway dedup cache
     // catches duplicates if this announce is also queued by the gateway-
     // level message queue while the main session is busy (#17122).
     const directIdempotencyKey = buildAnnounceIdempotencyKey(announceId);
-    const delivery = await deliverSubagentAnnouncement({
-      requesterSessionKey: targetRequesterSessionKey,
-      announceId,
-      triggerMessage,
-      completionMessage,
-      summaryLine: taskLabel,
-      requesterOrigin:
-        expectsCompletionMessage && !requesterIsSubagent
-          ? completionDirectOrigin
-          : targetRequesterOrigin,
-      completionDirectOrigin,
-      directOrigin,
-      targetRequesterSessionKey,
-      requesterIsSubagent,
-      expectsCompletionMessage: expectsCompletionMessage,
-      completionRouteMode: completionResolution.routeMode,
-      spawnMode: params.spawnMode,
-      directIdempotencyKey,
-    });
+    const delivery = forceParentAnnounce
+      ? await sendSubagentAnnounceDirectly({
+          targetRequesterSessionKey,
+          triggerMessage,
+          directIdempotencyKey,
+          directOrigin: targetRequesterOrigin,
+          requesterIsSubagent: true,
+          expectsCompletionMessage: false,
+        })
+      : await deliverSubagentAnnouncement({
+          requesterSessionKey: targetRequesterSessionKey,
+          announceId,
+          triggerMessage,
+          completionMessage,
+          summaryLine: taskLabel,
+          requesterOrigin: targetRequesterOrigin,
+          completionDirectOrigin: completionResolution.origin,
+          directOrigin,
+          targetRequesterSessionKey,
+          requesterIsSubagent,
+          expectsCompletionMessage: expectsCompletionMessage,
+          directIdempotencyKey,
+        });
     didAnnounce = delivery.delivered;
     if (!delivery.delivered && delivery.path === "direct" && delivery.error) {
       defaultRuntime.error?.(
