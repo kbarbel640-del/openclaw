@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -144,6 +145,33 @@ function inferImageFileName(params: {
   return undefined;
 }
 
+type ResizeResult = {
+  base64: string;
+  mimeType: string;
+  resized: boolean;
+  width?: number;
+  height?: number;
+};
+
+// Cache resized images to avoid redundant re-processing of the same images
+// across successive conversation turns (see #23590).
+const resizeCache = new Map<string, ResizeResult>();
+const RESIZE_CACHE_MAX = 128;
+
+/** @internal Visible for testing only. */
+export function clearResizeCache(): void {
+  resizeCache.clear();
+}
+
+function resizeCacheKey(base64: string, maxDim: number, maxBytes: number): string {
+  // Hash the first 256 chars + length as a fast fingerprint to avoid hashing
+  // multi-MB base64 strings on every call.
+  const prefix = base64.slice(0, 256);
+  return createHash("sha1")
+    .update(`${prefix}:${base64.length}:${maxDim}:${maxBytes}`)
+    .digest("hex");
+}
+
 async function resizeImageBase64IfNeeded(params: {
   base64: string;
   mimeType: string;
@@ -151,13 +179,34 @@ async function resizeImageBase64IfNeeded(params: {
   maxBytes: number;
   label?: string;
   fileName?: string;
-}): Promise<{
+}): Promise<ResizeResult> {
+  const cacheKey = resizeCacheKey(params.base64, params.maxDimensionPx, params.maxBytes);
+  const cached = resizeCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const result = await resizeImageBase64IfNeededInner(params);
+
+  // Evict oldest entries when cache is full.
+  if (resizeCache.size >= RESIZE_CACHE_MAX) {
+    const firstKey = resizeCache.keys().next().value;
+    if (firstKey !== undefined) {
+      resizeCache.delete(firstKey);
+    }
+  }
+  resizeCache.set(cacheKey, result);
+  return result;
+}
+
+async function resizeImageBase64IfNeededInner(params: {
   base64: string;
   mimeType: string;
-  resized: boolean;
-  width?: number;
-  height?: number;
-}> {
+  maxDimensionPx: number;
+  maxBytes: number;
+  label?: string;
+  fileName?: string;
+}): Promise<ResizeResult> {
   const buf = Buffer.from(params.base64, "base64");
   const meta = await getImageMetadata(buf);
   const width = meta?.width;
