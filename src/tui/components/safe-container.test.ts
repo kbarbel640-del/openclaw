@@ -1,6 +1,14 @@
+import type { Component } from "@mariozechner/pi-tui";
 import { visibleWidth } from "@mariozechner/pi-tui";
 import { describe, expect, it } from "vitest";
 import { SafeContainer } from "./safe-container.js";
+
+function lineComponent(line: string): Component {
+  return {
+    render: () => [line],
+    invalidate: () => {},
+  };
+}
 
 describe("SafeContainer", () => {
   it("truncates lines that exceed the given width", () => {
@@ -8,12 +16,7 @@ describe("SafeContainer", () => {
     const width = 10;
 
     // Inject a line that exceeds width via a child component
-    container.addChild({
-      render: () => ["a".repeat(15)],
-      get height() {
-        return 1;
-      },
-    });
+    container.addChild(lineComponent("a".repeat(15)));
 
     const lines = container.render(width);
     expect(lines).toHaveLength(1);
@@ -25,12 +28,7 @@ describe("SafeContainer", () => {
     const width = 20;
     const text = "hello world";
 
-    container.addChild({
-      render: () => [text],
-      get height() {
-        return 1;
-      },
-    });
+    container.addChild(lineComponent(text));
 
     const lines = container.render(width);
     expect(lines).toHaveLength(1);
@@ -43,12 +41,7 @@ describe("SafeContainer", () => {
     // 9 ASCII chars + 1 CJK char (2 columns wide) = 11 visible columns
     const cjkLine = "a".repeat(9) + "\u4e16";
 
-    container.addChild({
-      render: () => [cjkLine],
-      get height() {
-        return 1;
-      },
-    });
+    container.addChild(lineComponent(cjkLine));
 
     const lines = container.render(width);
     expect(lines).toHaveLength(1);
@@ -61,15 +54,12 @@ describe("SafeContainer", () => {
     // Bold ANSI escape: \x1b[1m ... \x1b[0m
     const styledText = `\x1b[1m${"x".repeat(15)}\x1b[0m`;
 
-    container.addChild({
-      render: () => [styledText],
-      get height() {
-        return 1;
-      },
-    });
+    container.addChild(lineComponent(styledText));
 
     const lines = container.render(width);
     expect(lines).toHaveLength(1);
     expect(visibleWidth(lines[0])).toBeLessThanOrEqual(width);
+    expect(lines[0]).toContain("\x1b[0m");
+    expect(lines[0]).not.toMatch(/\x1b\[[0-9;]*$/);
   });
 });
