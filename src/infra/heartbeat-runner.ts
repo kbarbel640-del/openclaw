@@ -370,6 +370,61 @@ async function restoreHeartbeatUpdatedAt(params: {
   });
 }
 
+/**
+ * Defensive belt-and-suspenders: after a heartbeat that ran with an explicit
+ * model override, ensure the session entry's model-tracking fields still
+ * reflect the pre-heartbeat state.
+ *
+ * The primary guard is in `agent-runner.ts` (`skipModelAndContextUpdate`), but
+ * this secondary restore catches any future code path that might accidentally
+ * write the heartbeat model back to the session.
+ */
+async function restoreHeartbeatModelState(params: {
+  storePath: string;
+  sessionKey: string;
+  prevModel?: string;
+  prevModelProvider?: string;
+  prevContextTokens?: number;
+  heartbeatModel: string;
+}) {
+  const { storePath, sessionKey, heartbeatModel } = params;
+  await updateSessionStore(storePath, (nextStore) => {
+    const nextEntry = nextStore[sessionKey];
+    if (!nextEntry) {
+      return;
+    }
+    // Only restore if the entry now carries the heartbeat model — which
+    // means the primary guard did not fire and we need to clean up.
+    const currentModel = nextEntry.model?.trim() ?? "";
+    const [, hbModel] = heartbeatModel.includes("/")
+      ? heartbeatModel.split("/", 2)
+      : [undefined, heartbeatModel];
+    if (currentModel && hbModel && currentModel === hbModel) {
+      log.debug("heartbeat: restoring main session model state after model-override run", {
+        heartbeatModel,
+        restoredModel: params.prevModel ?? "(unset)",
+      });
+      const restored: typeof nextEntry = { ...nextEntry };
+      if (params.prevModel !== undefined) {
+        restored.model = params.prevModel;
+      } else {
+        delete restored.model;
+      }
+      if (params.prevModelProvider !== undefined) {
+        restored.modelProvider = params.prevModelProvider;
+      } else {
+        delete restored.modelProvider;
+      }
+      if (params.prevContextTokens !== undefined) {
+        restored.contextTokens = params.prevContextTokens;
+      } else {
+        delete restored.contextTokens;
+      }
+      nextStore[sessionKey] = restored;
+    }
+  });
+}
+
 function normalizeHeartbeatReply(
   payload: ReplyPayload,
   responsePrefix: string | undefined,
@@ -455,6 +510,11 @@ export async function runHeartbeatOnce(opts: {
 
   const { entry, sessionKey, storePath } = resolveHeartbeatSession(cfg, agentId, heartbeat);
   const previousUpdatedAt = entry?.updatedAt;
+  // Snapshot the main session's model-tracking state so it can be restored
+  // after the heartbeat if a model override caused it to be overwritten.
+  const previousModel = entry?.model;
+  const previousModelProvider = entry?.modelProvider;
+  const previousContextTokens = entry?.contextTokens;
   const delivery = resolveHeartbeatDeliveryTarget({ cfg, entry, heartbeat });
   const heartbeatAccountId = heartbeat?.accountId?.trim();
   if (delivery.reason === "unknown-account") {
@@ -547,10 +607,33 @@ export async function runHeartbeatOnce(opts: {
 
   try {
     const heartbeatModelOverride = heartbeat?.model?.trim() || undefined;
+    if (heartbeatModelOverride) {
+      log.debug("heartbeat: using model override for this run", {
+        heartbeatModel: heartbeatModelOverride,
+        sessionKey,
+      });
+    }
     const replyOpts = heartbeatModelOverride
       ? { isHeartbeat: true, heartbeatModelOverride }
       : { isHeartbeat: true };
     const replyResult = await getReplyFromConfig(ctx, replyOpts, cfg);
+
+    // Belt-and-suspenders: if the heartbeat ran with an explicit model override,
+    // restore the session's model-tracking fields to their pre-heartbeat state.
+    // The primary guard (`skipModelAndContextUpdate` in agent-runner.ts) prevents
+    // writes in the normal path, but this secondary restore ensures correctness
+    // even if the primary guard is bypassed by a future code change.
+    if (heartbeatModelOverride) {
+      await restoreHeartbeatModelState({
+        storePath,
+        sessionKey,
+        prevModel: previousModel,
+        prevModelProvider: previousModelProvider,
+        prevContextTokens: previousContextTokens,
+        heartbeatModel: heartbeatModelOverride,
+      });
+    }
+
     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
     const includeReasoning = heartbeat?.includeReasoning === true;
     const reasoningPayloads = includeReasoning

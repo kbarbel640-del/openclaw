@@ -25,6 +25,7 @@ export async function persistRunSessionUsage(params: PersistRunSessionUsageParam
     systemPromptReport: params.systemPromptReport,
     cliSessionId: params.cliSessionId,
     logLabel: params.logLabel,
+    skipModelAndContextUpdate: params.skipModelAndContextUpdate,
   });
 }
 

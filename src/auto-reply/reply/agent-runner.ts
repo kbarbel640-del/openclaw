@@ -395,6 +395,13 @@ export async function runReplyAgent(params: {
       contextTokensUsed,
       systemPromptReport: runResult.meta.systemPromptReport,
       cliSessionId,
+      // When the heartbeat runs with an explicit model override (heartbeat.model),
+      // it executes on the same session key as the main conversation but uses a
+      // different model with a different context window.  Allowing persistRunSessionUsage
+      // to write model/provider/contextTokens back to the session entry would corrupt
+      // the main session's model display and context-utilisation tracking.  Skip those
+      // fields for heartbeat runs that resolved an explicit model override.
+      skipModelAndContextUpdate: isHeartbeat && Boolean(opts?.heartbeatModelOverride),
     });
 
     // Drain any late tool/block deliveries before deciding there's "nothing to send".

@@ -29,6 +29,15 @@ export async function persistSessionUsageUpdate(params: {
   systemPromptReport?: SessionSystemPromptReport;
   cliSessionId?: string;
   logLabel?: string;
+  /**
+   * When true, do not write `model`, `modelProvider`, `contextTokens`,
+   * `totalTokens`, or `totalTokensFresh` back to the session entry.
+   *
+   * Set this for heartbeat runs that use an explicit `heartbeat.model`
+   * override so that the temporary heartbeat model cannot overwrite the main
+   * session's model tracking or context-window utilisation data.
+   */
+  skipModelAndContextUpdate?: boolean;
 }): Promise<void> {
   const { storePath, sessionKey } = params;
   if (!storePath || !sessionKey) {
@@ -65,15 +74,21 @@ export async function persistSessionUsageUpdate(params: {
           const patch: Partial<SessionEntry> = {
             inputTokens: input,
             outputTokens: output,
-            // Missing a last-call snapshot means context utilization is stale/unknown.
-            totalTokens,
-            totalTokensFresh: typeof totalTokens === "number",
-            modelProvider: params.providerUsed ?? entry.modelProvider,
-            model: params.modelUsed ?? entry.model,
-            contextTokens: resolvedContextTokens,
             systemPromptReport: params.systemPromptReport ?? entry.systemPromptReport,
             updatedAt: Date.now(),
           };
+          // Do not overwrite the session's model-tracking or context-window
+          // fields when the run used a temporary override model (e.g. a
+          // heartbeat with heartbeat.model configured).  Writing those fields
+          // would make the session appear to be using the heartbeat model and
+          // would corrupt the context-utilisation display for the main model.
+          if (!params.skipModelAndContextUpdate) {
+            patch.totalTokens = totalTokens;
+            patch.totalTokensFresh = typeof totalTokens === "number";
+            patch.modelProvider = params.providerUsed ?? entry.modelProvider;
+            patch.model = params.modelUsed ?? entry.model;
+            patch.contextTokens = resolvedContextTokens;
+          }
           const cliProvider = params.providerUsed ?? entry.modelProvider;
           if (params.cliSessionId && cliProvider) {
             const nextEntry = { ...entry, ...patch };
@@ -93,7 +108,7 @@ export async function persistSessionUsageUpdate(params: {
     return;
   }
 
-  if (params.modelUsed || params.contextTokensUsed) {
+  if (!params.skipModelAndContextUpdate && (params.modelUsed || params.contextTokensUsed)) {
     try {
       await updateSessionStoreEntry({
         storePath,
