@@ -1,6 +1,5 @@
 import type * as Lark from "@larksuiteoapi/node-sdk";
 import type { ClawdbotConfig, OpenClawPluginApi } from "openclaw/plugin-sdk";
-import type { FeishuToolsConfig, ResolvedFeishuAccount } from "../types.js";
 import {
   listEnabledFeishuAccounts,
   resolveDefaultFeishuAccountId,
@@ -8,6 +7,7 @@ import {
 } from "../accounts.js";
 import { createFeishuClient } from "../client.js";
 import { resolveToolsConfig } from "../tools-config.js";
+import type { FeishuToolsConfig, ResolvedFeishuAccount } from "../types.js";
 import { getCurrentFeishuToolContext } from "./tool-context.js";
 
 export type FeishuToolFlag = keyof Required<FeishuToolsConfig>;
