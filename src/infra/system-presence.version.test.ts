@@ -17,7 +17,7 @@ async function withPresenceModule<T>(
 }
 
 describe("system-presence version fallback", () => {
-  it("uses OPENCLAW_SERVICE_VERSION when OPENCLAW_VERSION is not set", async () => {
+  it("prefers runtime module version when OPENCLAW_VERSION is not set", async () => {
     await withPresenceModule(
       {
         OPENCLAW_SERVICE_VERSION: "2.4.6-service",
@@ -25,7 +25,8 @@ describe("system-presence version fallback", () => {
       },
       ({ listSystemPresence }) => {
         const selfEntry = listSystemPresence().find((entry) => entry.reason === "self");
-        expect(selfEntry?.version).toBe("2.4.6-service");
+        expect(selfEntry?.version).toBeDefined();
+        expect(selfEntry?.version).not.toBe("2.4.6-service");
       },
     );
   });
@@ -44,10 +45,11 @@ describe("system-presence version fallback", () => {
     );
   });
 
-  it("uses npm_package_version when OPENCLAW_VERSION and OPENCLAW_SERVICE_VERSION are blank", async () => {
+  it("falls back to npm_package_version when runtime and service versions are unavailable", async () => {
     await withPresenceModule(
       {
         OPENCLAW_VERSION: " ",
+        OPENCLAW_BUNDLED_VERSION: "0.0.0",
         OPENCLAW_SERVICE_VERSION: "\t",
         npm_package_version: "1.0.0-package",
       },

@@ -75,17 +75,29 @@ export type RuntimeVersionEnv = {
   [key: string]: string | undefined;
 };
 
+// Resolves the version to expose in runtime payloads (status/hello/presence).
+// Priority:
+// 1) OPENCLAW_VERSION explicit override
+// 2) Actual running module VERSION
+// 3) OPENCLAW_SERVICE_VERSION marker from service unit metadata
+// 4) npm_package_version
+// 5) fallback
 export function resolveRuntimeServiceVersion(
   env: RuntimeVersionEnv = process.env as RuntimeVersionEnv,
   fallback = "dev",
+  runtimeVersion = VERSION,
 ): string {
-  return (
-    firstNonEmpty(
-      env["OPENCLAW_VERSION"],
-      env["OPENCLAW_SERVICE_VERSION"],
-      env["npm_package_version"],
-    ) ?? fallback
-  );
+  const explicitVersion = firstNonEmpty(env.OPENCLAW_VERSION);
+  if (explicitVersion) {
+    return explicitVersion;
+  }
+
+  const moduleVersion = runtimeVersion?.trim();
+  if (moduleVersion && moduleVersion !== "0.0.0") {
+    return moduleVersion;
+  }
+
+  return firstNonEmpty(env.OPENCLAW_SERVICE_VERSION, env.npm_package_version) ?? fallback;
 }
 
 // Single source of truth for the current OpenClaw version.

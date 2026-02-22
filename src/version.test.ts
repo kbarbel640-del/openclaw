@@ -92,41 +92,77 @@ describe("version resolution", () => {
     expect(resolveVersionFromModuleUrl("not-a-valid-url")).toBeNull();
   });
 
-  it("prefers OPENCLAW_VERSION over service and package versions", () => {
+  it("prefers OPENCLAW_VERSION over all runtime sources", () => {
     expect(
-      resolveRuntimeServiceVersion({
-        OPENCLAW_VERSION: "9.9.9",
-        OPENCLAW_SERVICE_VERSION: "2.2.2",
-        npm_package_version: "1.1.1",
-      }),
-    ).toBe("9.9.9");
+      resolveRuntimeServiceVersion(
+        {
+          OPENCLAW_VERSION: "9.9.9-cli",
+          OPENCLAW_SERVICE_VERSION: "2.4.6-service",
+          npm_package_version: "1.0.0-package",
+        },
+        "fallback",
+        "2026.2.21-2",
+      ),
+    ).toBe("9.9.9-cli");
   });
 
-  it("uses service and package fallbacks and ignores blank env values", () => {
+  it("prefers running module version over stale service marker", () => {
     expect(
-      resolveRuntimeServiceVersion({
-        OPENCLAW_VERSION: "   ",
-        OPENCLAW_SERVICE_VERSION: "  2.0.0  ",
-        npm_package_version: "1.0.0",
-      }),
+      resolveRuntimeServiceVersion(
+        {
+          OPENCLAW_SERVICE_VERSION: "2.4.6-service",
+          npm_package_version: "1.0.0-package",
+        },
+        "fallback",
+        "2026.2.21-2",
+      ),
+    ).toBe("2026.2.21-2");
+  });
+
+  it("treats runtime sentinel 0.0.0 as unavailable and falls back", () => {
+    expect(
+      resolveRuntimeServiceVersion(
+        {
+          OPENCLAW_SERVICE_VERSION: "2.0.0-service",
+          npm_package_version: "1.0.0-package",
+        },
+        "fallback",
+        "0.0.0",
+      ),
+    ).toBe("2.0.0-service");
+  });
+
+  it("falls back to service marker then npm package version and then fallback", () => {
+    expect(
+      resolveRuntimeServiceVersion(
+        {
+          OPENCLAW_SERVICE_VERSION: " 2.0.0 ",
+          npm_package_version: "1.0.0-package",
+        },
+        "fallback",
+        "",
+      ),
     ).toBe("2.0.0");
 
     expect(
-      resolveRuntimeServiceVersion({
-        OPENCLAW_VERSION: " ",
-        OPENCLAW_SERVICE_VERSION: "\t",
-        npm_package_version: " 1.0.0-package ",
-      }),
+      resolveRuntimeServiceVersion(
+        {
+          OPENCLAW_SERVICE_VERSION: " ",
+          npm_package_version: " 1.0.0-package ",
+        },
+        "fallback",
+        "",
+      ),
     ).toBe("1.0.0-package");
 
     expect(
       resolveRuntimeServiceVersion(
         {
-          OPENCLAW_VERSION: "",
           OPENCLAW_SERVICE_VERSION: " ",
           npm_package_version: "",
         },
         "fallback",
+        "",
       ),
     ).toBe("fallback");
   });
