@@ -35,11 +35,21 @@ export const CONSENT_UPLOAD_HOST_ALLOWLIST = [
  * or link-local range that must never be reached via consent uploads.
  */
 export function isPrivateOrReservedIP(ip: string): boolean {
+  // Handle IPv4-mapped IPv6 first (e.g., ::ffff:127.0.0.1, ::ffff:10.0.0.1)
+  const ipv4MappedMatch = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  if (ipv4MappedMatch) {
+    return isPrivateOrReservedIP(ipv4MappedMatch[1]);
+  }
+
   // IPv4 checks
   const v4Parts = ip.split(".");
   if (v4Parts.length === 4) {
-    const a = Number(v4Parts[0]);
-    const b = Number(v4Parts[1]);
+    const octets = v4Parts.map(Number);
+    // Validate all octets are integers in 0-255
+    if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+      return false;
+    }
+    const [a, b] = octets;
     // 10.0.0.0/8
     if (a === 10) return true;
     // 172.16.0.0/12

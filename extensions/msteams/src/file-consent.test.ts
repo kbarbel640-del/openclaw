@@ -48,7 +48,24 @@ describe("isPrivateOrReservedIP", () => {
     ["fd12:3456::1", true],
     ["2001:0db8::1", false],
     ["2620:1ec:c11::200", false],
+    // IPv4-mapped IPv6 addresses
+    ["::ffff:127.0.0.1", true],
+    ["::ffff:10.0.0.1", true],
+    ["::ffff:192.168.1.1", true],
+    ["::ffff:169.254.169.254", true],
+    ["::ffff:8.8.8.8", false],
+    ["::ffff:13.107.136.10", false],
   ] as const)("IPv6 %s → %s", (ip, expected) => {
+    expect(isPrivateOrReservedIP(ip)).toBe(expected);
+  });
+
+  it.each([
+    ["999.999.999.999", false],
+    ["256.0.0.1", false],
+    ["10.0.0.256", false],
+    ["-1.0.0.1", false],
+    ["1.2.3.4.5", false],
+  ] as const)("malformed IPv4 %s → %s", (ip, expected) => {
     expect(isPrivateOrReservedIP(ip)).toBe(expected);
   });
 });
@@ -143,6 +160,22 @@ describe("validateConsentUploadUrl", () => {
     await expect(
       validateConsentUploadUrl("https://evil.sharepoint.com/path", {
         resolveFn: privateResolve("::1"),
+      }),
+    ).rejects.toThrow("private/reserved IP");
+  });
+
+  it("rejects when DNS resolves to IPv4-mapped IPv6 private address", async () => {
+    await expect(
+      validateConsentUploadUrl("https://evil.sharepoint.com/path", {
+        resolveFn: privateResolve("::ffff:10.0.0.1"),
+      }),
+    ).rejects.toThrow("private/reserved IP");
+  });
+
+  it("rejects when DNS resolves to IPv4-mapped IPv6 loopback", async () => {
+    await expect(
+      validateConsentUploadUrl("https://evil.sharepoint.com/path", {
+        resolveFn: privateResolve("::ffff:127.0.0.1"),
       }),
     ).rejects.toThrow("private/reserved IP");
   });
