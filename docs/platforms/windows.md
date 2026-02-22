@@ -65,7 +65,7 @@ so you may need to refresh the forwarding rule.
 Example (PowerShell **as Administrator**):
 
 ```powershell
-$Distro = "Ubuntu-24.04" ## Run wsl -l -v to verify your distro name.
+$Distro = "Ubuntu-24.04" # Run wsl -l -v to verify your distro name.
 $ListenPort = 2222
 $TargetPort = 22
 
@@ -117,11 +117,14 @@ param(
     [int]$TargetPort = 22
 )
 
-# Get current WSL IP
-$WslIp = (wsl -d $Distro -- hostname -I 2>$null).Trim().Split(" ")[0]
+# Get current WSL IPv4 (ignore IPv6 and extra addresses)
+$WslIp = (wsl -d $Distro -- hostname -I 2>$null) |
+    ForEach-Object { $_.Trim().Split(" ") } |
+    Where-Object { $_ -match '^(\d{1,3}\.){3}\d{1,3}$' } |
+    Select-Object -First 1
 
 if (-not $WslIp) {
-    Write-Warning "Could not retrieve WSL IP for distro '$Distro'. Is WSL running?"
+    Write-Warning "Could not retrieve WSL IPv4 for distro '$Distro'. Is WSL running?"
     exit 1
 }
 
@@ -147,7 +150,9 @@ if ($LASTEXITCODE -eq 0) {
 
 ### Register the Scheduled Task
 
-Run this in PowerShell **as Administrator** to create a task that runs at login and every 30 minutes:
+Run this in PowerShell **as Administrator** to create a task that runs at login and every 30 minutes.
+
+> Security note: this uses `-ExecutionPolicy Bypass` and runs as `SYSTEM` with highest privileges so the task can update `netsh portproxy` without prompts. Keep the script path trusted (for example `C:\Scripts`) and writable only by admins.
 
 ```powershell
 $TaskName = "Refresh-WSL-Portproxy"
