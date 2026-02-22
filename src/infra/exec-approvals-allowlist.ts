@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ExecAllowlistEntry } from "./exec-approvals.js";
 import {
   DEFAULT_SAFE_BINS,
   analyzeShellCommand,
@@ -18,6 +17,7 @@ import {
   type SafeBinProfile,
   validateSafeBinArgv,
 } from "./exec-safe-bin-policy.js";
+import type { ExecAllowlistEntry } from "./exec-approvals.js";
 import { isTrustedSafeBinPath } from "./exec-safe-bin-trust.js";
 
 function isPathLikeToken(value: string): boolean {

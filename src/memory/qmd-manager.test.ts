@@ -953,6 +953,44 @@ describe("QmdMemoryManager", () => {
     await manager.close();
   });
 
+  it("passes manager-scoped XDG env to mcporter commands", async () => {
+    cfg = {
+      ...cfg,
+      memory: {
+        backend: "qmd",
+        qmd: {
+          includeDefaultMemory: false,
+          update: { interval: "0s", debounceMs: 60_000, onBoot: false },
+          paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
+          mcporter: { enabled: true, serverName: "qmd", startDaemon: false },
+        },
+      },
+    } as OpenClawConfig;
+
+    spawnMock.mockImplementation((cmd: string, args: string[]) => {
+      const child = createMockChild({ autoClose: false });
+      if (cmd === "mcporter" && args[0] === "call") {
+        emitAndClose(child, "stdout", JSON.stringify({ results: [] }));
+        return child;
+      }
+      emitAndClose(child, "stdout", "[]");
+      return child;
+    });
+
+    const { manager } = await createManager();
+    await manager.search("hello", { sessionKey: "agent:main:slack:dm:u123" });
+
+    const mcporterCall = spawnMock.mock.calls.find(
+      (call: unknown[]) => call[0] === "mcporter" && (call[1] as string[])[0] === "call",
+    );
+    expect(mcporterCall).toBeDefined();
+    const spawnOpts = mcporterCall?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
+    expect(spawnOpts?.env?.XDG_CONFIG_HOME).toContain("/agents/main/qmd/xdg-config");
+    expect(spawnOpts?.env?.XDG_CACHE_HOME).toContain("/agents/main/qmd/xdg-cache");
+
+    await manager.close();
+  });
+
   it("retries mcporter daemon start after a failure", async () => {
     cfg = {
       ...cfg,

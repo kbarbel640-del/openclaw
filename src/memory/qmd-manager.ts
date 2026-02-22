@@ -937,7 +937,8 @@ export class QmdMemoryManager implements MemorySearchManager {
   ): Promise<{ stdout: string; stderr: string }> {
     return await new Promise((resolve, reject) => {
       const child = spawn("mcporter", args, {
-        env: process.env,
+        // Keep mcporter and direct qmd commands on the same agent-scoped XDG state.
+        env: this.env,
         cwd: this.workspaceDir,
       });
       let stdout = "";
