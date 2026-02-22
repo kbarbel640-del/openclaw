@@ -87,6 +87,11 @@ export function resolveImageModelConfigForTool(params: {
   // because images are auto-injected into prompts (see attempt.ts detectAndLoadPromptImages).
   // The tool description is adjusted via modelHasVision to discourage redundant usage.
 
+
+  const explicit = coerceImageModelConfig(params.cfg);
+  if (explicit.primary?.trim() || (explicit.fallbacks?.length ?? 0) > 0) {
+    return explicit;
+  }
   const mediaImageModels = params.cfg?.tools?.media?.image?.models;
 
   if (Array.isArray(mediaImageModels) && mediaImageModels.length > 0) {
@@ -101,11 +106,6 @@ export function resolveImageModelConfigForTool(params: {
         ...(refs.length > 1 ? { fallbacks: refs.slice(1) } : {}),
       };
     }
-  }
-
-  const explicit = coerceImageModelConfig(params.cfg);
-  if (explicit.primary?.trim() || (explicit.fallbacks?.length ?? 0) > 0) {
-    return explicit;
   }
 
   const primary = resolveDefaultModelRef(params.cfg);
