@@ -278,7 +278,7 @@ export const LEGACY_CONFIG_MIGRATIONS_PART_1: LegacyConfigMigration[] = [
         }
         if (typeof legacyStreaming === "boolean") {
           changes.push(
-            `Moved ${params.pathPrefix}.streaming (boolean) → ${params.pathPrefix}.nativeStreaming (${resolvedNativeStreaming}).`,
+            `Normalized ${params.pathPrefix}.streaming boolean → enum (${resolvedStreaming}); set ${params.pathPrefix}.nativeStreaming → ${resolvedNativeStreaming}.`,
           );
         } else if (typeof legacyNativeStreaming !== "boolean" && hasLegacyStreamMode) {
           changes.push(`Set ${params.pathPrefix}.nativeStreaming → ${resolvedNativeStreaming}.`);
