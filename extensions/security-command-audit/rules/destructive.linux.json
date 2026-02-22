@@ -1,0 +1,45 @@
+[
+  {
+    "rule": "medium.kill",
+    "category": "process_kill",
+    "severity": "medium",
+    "reason": "进程终止命中 (kill/pkill/killall)",
+    "platform": "linux",
+    "regex": { "pattern": "^\\s*(?:kill|pkill|killall)\\b", "flags": "i" }
+  },
+  {
+    "rule": "high.firewall",
+    "category": "network_destructive",
+    "severity": "high",
+    "reason": "防火墙命中 (iptables/nft 或 ufw disable)",
+    "platform": "linux",
+    "regex": { "pattern": "^\\s*(?:iptables|nft)\\b|ufw\\s+disable", "flags": "i" }
+  },
+  {
+    "rule": "critical.rm_rf",
+    "category": "file_delete",
+    "severity": "critical",
+    "reason": "高危删除 (rm -rf) 命中",
+    "platform": "linux",
+    "regex": {
+      "pattern": "rm\\s+.*(?:-rf|-fr|\\-r\\s+-f|\\-f\\s+-r|--recursive\\s+--force|--force\\s+--recursive)",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "critical.format_wipe",
+    "category": "system_destructive",
+    "severity": "critical",
+    "reason": "格式化/擦盘命中 (mkfs/wipefs)",
+    "platform": "linux",
+    "regex": { "pattern": "^\\s*(?:mkfs|mkfs\\.\\w+|wipefs)\\b", "flags": "i" }
+  },
+  {
+    "rule": "critical.dd_of_dev",
+    "category": "system_destructive",
+    "severity": "critical",
+    "reason": "裸设备写命中 (dd ... of=/dev/)",
+    "platform": "linux",
+    "regex": { "pattern": "dd\\s+.*of=\\/dev\\/", "flags": "i" }
+  }
+]

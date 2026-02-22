@@ -1,0 +1,101 @@
+[
+  {
+    "rule": "critical.rce",
+    "category": "system_destructive",
+    "severity": "critical",
+    "reason": "RCE注入: curl/wget pipe shell 或 eval 命中",
+    "platform": "all",
+    "regex": {
+      "pattern": "(?:curl|wget)\\s+.*?\\|\\s*(?:sh|bash)|\\beval\\b",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "critical.shutdown",
+    "category": "system_destructive",
+    "severity": "critical",
+    "reason": "系统停机命中 (shutdown/reboot/halt)",
+    "platform": "all",
+    "regex": {
+      "pattern": "^\\s*(?:shutdown|reboot|halt)\\b",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "critical.git_reset_hard",
+    "category": "git_destructive",
+    "severity": "critical",
+    "reason": "Git 硬重置命中 (git reset --hard)",
+    "platform": "all",
+    "regex": {
+      "pattern": "git\\s+reset\\s+--hard",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "critical.git_push_force",
+    "category": "git_destructive",
+    "severity": "critical",
+    "reason": "Git 强推命中 (git push -f/--force)",
+    "platform": "all",
+    "regex": {
+      "pattern": "git\\s+push\\s+.*(?:-f|--force)\\b",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "critical.docker_system_prune_af",
+    "category": "docker_destructive",
+    "severity": "critical",
+    "reason": "Docker 强清理命中 (docker system prune -a -f)",
+    "platform": "all",
+    "regex": {
+      "pattern": "docker\\s+system\\s+prune\\s+.*(?:(?:(?:-a|--all).*(?:-f|--force))|(?:(?:-f|--force).*(?:-a|--all)))",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "high.git_reset",
+    "category": "git_destructive",
+    "severity": "high",
+    "reason": "Git 重置命中 (git reset) 可能丢失未提交修改",
+    "platform": "all",
+    "regex": {
+      "pattern": "git\\s+reset\\b(?![^\\n]*--hard)",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "high.git_checkout",
+    "category": "git_destructive",
+    "severity": "high",
+    "reason": "Git checkout/restore/revert 命中，可能覆盖工作区改动",
+    "platform": "all",
+    "regex": {
+      "pattern": "git\\s+(?:checkout|restore|revert)\\b",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "high.git_clean_force",
+    "category": "git_destructive",
+    "severity": "high",
+    "reason": "Git 清理命中 (git clean -f/--force) 会永久删除未跟踪文件",
+    "platform": "all",
+    "regex": {
+      "pattern": "git\\s+clean\\b[^\\n]*(?:\\s-f\\b|--force\\b)",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "high.privilege",
+    "category": "privilege_escalation",
+    "severity": "high",
+    "reason": "提权命中 (sudo/doas/pkexec/su)",
+    "platform": "all",
+    "regex": {
+      "pattern": "^\\s*(?:sudo|doas|pkexec|su)\\b",
+      "flags": "i"
+    }
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "name": "@openclaw/security-command-audit",
+  "version": "2026.2.4",
+  "description": "OpenClaw security plugin: audit high-risk exec commands",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "install": {
+      "npmSpec": "@openclaw/security-command-audit",
+      "localPath": "extensions/security-command-audit",
+      "defaultChoice": "local"
+    }
+  }
+}

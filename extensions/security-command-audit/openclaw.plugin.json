@@ -1,0 +1,15 @@
+{
+  "id": "security-command-audit",
+  "name": "Security Command Audit",
+  "description": "Audits high-risk exec/bash commands.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "approvalsForAsk": {
+        "type": "boolean",
+        "description": "When true, enforce ask decisions via exec approvals by setting ask=always (requires host=gateway|node)."
+      }
+    }
+  }
+}

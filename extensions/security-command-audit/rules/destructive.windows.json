@@ -1,0 +1,84 @@
+[
+  {
+    "rule": "medium.taskkill",
+    "category": "process_kill",
+    "severity": "medium",
+    "reason": "进程终止命中 (taskkill)",
+    "platform": "windows",
+    "regex": { "pattern": "^\\s*taskkill\\b", "flags": "i" }
+  },
+  {
+    "rule": "critical.powershell",
+    "category": "system_destructive",
+    "severity": "critical",
+    "reason": "PowerShell: iwr/iex 或 EncodedCommand 命中",
+    "platform": "windows",
+    "regex": { "pattern": "\\b(?:iwr|iex)\\b|powershell\\s+.*-EncodedCommand", "flags": "i" }
+  },
+  {
+    "rule": "win.system_core",
+    "category": "system_destructive",
+    "severity": "critical",
+    "reason": "Windows 系统核心目录命中 (System32/SysWOW64/WinSxS/Config/Registry)",
+    "platform": "windows",
+    "regex": {
+      "pattern": "(?:^|\\s)[a-z]:\\\\(?:Windows|WinNT)\\\\(?:System32|SysWOW64|WinSxS|Config|Registry)\\b",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "win.boot_recovery",
+    "category": "system_destructive",
+    "severity": "critical",
+    "reason": "Windows 引导与恢复目录命中 (Boot/EFI/Recovery/System Volume Information/$Recycle.Bin)",
+    "platform": "windows",
+    "regex": {
+      "pattern": "(?:^|\\s)[a-z]:\\\\(?:Boot|EFI|Recovery|System Volume Information|\\$Recycle\\.Bin)\\b",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "win.root_sensitive",
+    "category": "system_destructive",
+    "severity": "critical",
+    "reason": "Windows 根目录敏感文件命中 (pagefile.sys/hiberfil.sys/swapfile.sys/bootmgr)",
+    "platform": "windows",
+    "regex": {
+      "pattern": "(?:^|\\s)[a-z]:\\\\(?:pagefile\\.sys|hiberfil\\.sys|swapfile\\.sys|bootmgr)\\b",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "win.program_files",
+    "category": "system_destructive",
+    "severity": "high",
+    "reason": "Windows 程序安装目录命中 (Program Files)",
+    "platform": "windows",
+    "regex": {
+      "pattern": "(?:^|\\s)[a-z]:\\\\(?:Program Files|Program Files \\(x86\\))\\b",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "win.user_appdata",
+    "category": "system_destructive",
+    "severity": "high",
+    "reason": "Windows 用户敏感配置命中 (AppData/Start Menu/Ntuser.dat)",
+    "platform": "windows",
+    "regex": {
+      "pattern": "(?:^|\\s)[a-z]:\\\\Users\\\\[^\\\\]+\\\\(?:AppData|Start Menu|Ntuser\\.dat)\\b",
+      "flags": "i"
+    }
+  },
+  {
+    "rule": "win.secrets",
+    "category": "system_destructive",
+    "severity": "high",
+    "reason": "Windows 密钥与凭证目录命中 (.ssh/.aws/.kube/.gitconfig)",
+    "platform": "windows",
+    "regex": {
+      "pattern": "(?:^|\\s)[a-z]:\\\\Users\\\\[^\\\\]+\\\\(?:\\.ssh|\\.aws|\\.kube|\\.gitconfig)\\b",
+      "flags": "i"
+    }
+  }
+]
