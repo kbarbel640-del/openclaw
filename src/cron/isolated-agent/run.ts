@@ -1,6 +1,7 @@
 import {
   resolveAgentConfig,
   resolveAgentDir,
+  resolveEffectiveModelRecoveryProbeIntervalMs,
   resolveAgentModelFallbacksOverride,
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
@@ -471,6 +472,10 @@ export async function runCronIsolatedAgentTurn(params: {
       provider,
       model,
       agentDir,
+      primaryRecoveryProbeIntervalMs: resolveEffectiveModelRecoveryProbeIntervalMs(
+        params.cfg,
+        agentId,
+      ),
       fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
       run: (providerOverride, modelOverride) => {
         if (params.abortSignal?.aborted) {
