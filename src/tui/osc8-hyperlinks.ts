@@ -18,15 +18,18 @@ export function wrapOsc8(url: string, text: string): string {
 export function extractUrls(markdown: string): string[] {
   const urls = new Set<string>();
 
-  // Markdown link hrefs: [text](url)
-  const mdLinkRe = /\[(?:[^\]]*)\]\((https?:\/\/[^)]+)\)/g;
+  // Markdown link hrefs: [text](url), with optional <...> and optional title.
+  const mdLinkRe = /\[(?:[^\]]*)\]\(\s*<?(https?:\/\/[^)\s>]+)>?(?:\s+["'][^"']*["'])?\s*\)/g;
   let m: RegExpExecArray | null;
   while ((m = mdLinkRe.exec(markdown)) !== null) {
     urls.add(m[1]);
   }
 
   // Bare URLs (remove markdown links first to avoid double-matching)
-  const stripped = markdown.replace(/\[(?:[^\]]*)\]\([^)]+\)/g, "");
+  const stripped = markdown.replace(
+    /\[(?:[^\]]*)\]\(\s*<?https?:\/\/[^)\s>]+>?(?:\s+["'][^"']*["'])?\s*\)/g,
+    "",
+  );
   const bareRe = /https?:\/\/[^\s)\]>]+/g;
   while ((m = bareRe.exec(stripped)) !== null) {
     urls.add(m[0]);
@@ -108,11 +111,12 @@ function findUrlRanges(
       }
     }
     if (!found) {
+      let bestLen = 0;
       for (const known of knownUrls) {
-        if (known.startsWith(fragment)) {
+        if (known.startsWith(fragment) && known.length > bestLen) {
           resolvedUrl = known;
+          bestLen = known.length;
           found = true;
-          break;
         }
       }
     }

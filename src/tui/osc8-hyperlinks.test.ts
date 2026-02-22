@@ -31,6 +31,11 @@ describe("extractUrls", () => {
     expect(urls).toEqual(["https://example.com/path"]);
   });
 
+  it("extracts markdown links with angle brackets and title text", () => {
+    const urls = extractUrls('[Click here](<https://example.com/path> "Example Title")');
+    expect(urls).toEqual(["https://example.com/path"]);
+  });
+
   it("extracts both bare URLs and markdown links", () => {
     const md = "See [docs](https://docs.example.com) and https://api.example.com";
     const urls = extractUrls(md);
@@ -122,6 +127,14 @@ describe("addOsc8Hyperlinks", () => {
     const result = addOsc8Hyperlinks(lines, [url]);
 
     expect(result).toEqual(lines);
+  });
+
+  it("prefers the longest known URL when a fragment matches multiple prefixes", () => {
+    const short = "https://example.com/api/v2/users";
+    const long = "https://example.com/api/v2/users/list";
+    const fragment = "https://example.com/api/v2/u";
+    const result = addOsc8Hyperlinks([fragment], [short, long]);
+    expect(result[0]).toContain(`\x1b]8;;${long}\x07${fragment}\x1b]8;;\x07`);
   });
 
   it("handles URL split across three lines", () => {
