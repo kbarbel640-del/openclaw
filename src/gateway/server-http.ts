@@ -58,6 +58,7 @@ import { sendGatewayAuthFailure, setDefaultSecurityHeaders } from "./http-common
 import { getBearerToken } from "./http-utils.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
+import { handleSessionsHttpRequest } from "./sessions-http.js";
 import { GATEWAY_CLIENT_MODES, normalizeGatewayClientMode } from "./protocol/client-info.js";
 import type { GatewayWsClient } from "./server/ws-types.js";
 import { handleToolsInvokeHttpRequest } from "./tools-invoke-http.js";
@@ -543,6 +544,15 @@ export function createGatewayHttpServer(opts: {
         ) {
           return;
         }
+      }
+      if (
+        await handleSessionsHttpRequest(req, res, {
+          auth: resolvedAuth,
+          trustedProxies,
+          rateLimiter,
+        })
+      ) {
+        return;
       }
       if (canvasHost) {
         if (isCanvasPath(requestPath)) {
