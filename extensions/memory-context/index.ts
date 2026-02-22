@@ -260,9 +260,6 @@ const memoryContextPlugin = {
         cachedPromptBySession.get(sessionId)?.trim() ||
         extractQueryFromRecentUserMessages(messages) ||
         event.prompt.trim();
-      if (query.length < 3) {
-        return;
-      }
 
       // Remove old recalled-context messages before processing
       const filteredMessages = messages.filter((msg) => {
@@ -273,10 +270,11 @@ const memoryContextPlugin = {
         messages.splice(0, messages.length, ...filteredMessages);
       }
 
-      // Smart-trim in plugin mode:
-      // We don't have model-resolved reserve tokens in plugin hook context,
-      // so we use configured memory budget as a conservative safe limit.
-      const trimResult = smartTrim(messages as MessageLike[], query, {
+      // Smart-trim MUST run unconditionally — it prevents session bloat even
+      // during short-prompt follow-up runs (e.g. tool-call continuations with
+      // promptChars ≈ 300).  Previously this was gated behind `query.length < 3`
+      // which caused sessions to grow to 900K+ chars without ever being trimmed.
+      const trimResult = smartTrim(messages as MessageLike[], query || "", {
         protectedRecent: 6,
         safeLimit: runtime.config.budget.maxTokens,
         estimateTokens: estimateMessageTokens,
@@ -292,6 +290,11 @@ const memoryContextPlugin = {
         console.info(
           `memory-context: trimmed ${trimResult.trimmed.length} messages (kept ${trimResult.kept.length})`,
         );
+      }
+
+      // Recall requires a meaningful query — skip if too short
+      if (query.length < 3) {
+        return;
       }
 
       try {
