@@ -104,8 +104,9 @@ export function createMattermostConnectOnce(
   const webSocketFactory = opts.webSocketFactory ?? defaultMattermostWebSocketFactory;
   return async () => {
     const ws = webSocketFactory(opts.wsUrl);
+    const abortSignal = opts.abortSignal;
     const onAbort = () => ws.terminate();
-    opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
+    abortSignal?.addEventListener("abort", onAbort, { once: true });
 
     try {
       return await new Promise<void>((resolve, reject) => {
@@ -205,7 +206,7 @@ export function createMattermostConnectOnce(
         });
       });
     } finally {
-      opts.abortSignal?.removeEventListener("abort", onAbort);
+      abortSignal?.removeEventListener("abort", onAbort);
     }
   };
 }
