@@ -96,6 +96,7 @@ final class NodePairingApprovalPrompter {
                     await MainActor.run { [weak self] in self?.handle(push: push) }
                 }
                 if Task.isCancelled { return }
+                self.logger.info("node pairing gateway stream ended; re-subscribing")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }

@@ -81,6 +81,7 @@ final class DevicePairingApprovalPrompter {
                     await MainActor.run { [weak self] in self?.handle(push: push) }
                 }
                 if Task.isCancelled { return }
+                self.logger.info("device pairing gateway stream ended; re-subscribing")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
