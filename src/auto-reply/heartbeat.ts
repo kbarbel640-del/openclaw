@@ -75,7 +75,9 @@ function stripTokenAtEdges(raw: string): { text: string; didStrip: boolean } {
 
   let didStrip = false;
   let changed = true;
-  while (changed) {
+  let iterations = 0;
+  const maxIterations = 100;
+  while (changed && iterations++ < maxIterations) {
     changed = false;
     const next = text.trim();
     if (next.startsWith(token)) {
