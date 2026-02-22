@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createCommandHandlers } from "./tui-command-handlers.js";
 
 describe("tui command handlers", () => {
-  it("forwards unknown slash commands to the gateway", async () => {
+  test("forwards unknown slash commands to the gateway", async () => {
     const sendChat = vi.fn().mockResolvedValue({ runId: "r1" });
     const addUser = vi.fn();
     const addSystem = vi.fn();
@@ -46,7 +46,7 @@ describe("tui command handlers", () => {
     expect(requestRender).toHaveBeenCalled();
   });
 
-  it("passes reset reason when handling /new and /reset", async () => {
+  test("passes reset reason when handling /new and /reset", async () => {
     const resetSession = vi.fn().mockResolvedValue({ ok: true });
     const addSystem = vi.fn();
     const requestRender = vi.fn();
