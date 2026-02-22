@@ -364,6 +364,24 @@ export async function ensureChromeExtensionRelayServer(opts: {
     const url = new URL(req.url ?? "/", info.baseUrl);
     const path = url.pathname;
 
+    // Handle CORS preflight requests from the browser extension.
+    if (req.method === "OPTIONS") {
+      const origin = getHeader(req, "origin");
+      if (origin && !origin.startsWith("chrome-extension://")) {
+        res.writeHead(403);
+        res.end("Forbidden");
+        return;
+      }
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": origin ?? "*",
+        "Access-Control-Allow-Methods": "GET, PUT, POST, OPTIONS",
+        "Access-Control-Allow-Headers": `Content-Type, ${RELAY_AUTH_HEADER}`,
+        "Access-Control-Max-Age": "86400",
+      });
+      res.end();
+      return;
+    }
+
     if (path.startsWith("/json")) {
       const token = getHeader(req, RELAY_AUTH_HEADER);
       if (!token || token !== relayAuthToken) {
