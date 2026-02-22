@@ -35,11 +35,27 @@ const TRANSIENT_NETWORK_CODES = new Set([
   "UND_ERR_BODY_TIMEOUT",
 ]);
 
+const SLACK_REQUEST_ERROR_CODE = "slack_webapi_request_error";
+const SLACK_TRANSIENT_MESSAGE_MARKERS = [
+  "client network socket disconnected",
+  "socket hang up",
+  "network is unreachable",
+  "temporary failure in name resolution",
+];
+
 function getErrorCause(err: unknown): unknown {
   if (!err || typeof err !== "object") {
     return undefined;
   }
   return (err as { cause?: unknown }).cause;
+}
+
+function getErrorMessage(err: unknown): string | undefined {
+  if (!err || typeof err !== "object") {
+    return undefined;
+  }
+  const message = (err as { message?: unknown }).message;
+  return typeof message === "string" ? message : undefined;
 }
 
 function extractErrorCodeWithCause(err: unknown): string | undefined {
@@ -92,6 +108,26 @@ export function isTransientNetworkError(err: unknown): boolean {
   const code = extractErrorCodeWithCause(err);
   if (code && TRANSIENT_NETWORK_CODES.has(code)) {
     return true;
+  }
+
+  if (extractErrorCode(err) === SLACK_REQUEST_ERROR_CODE) {
+    const original =
+      err && typeof err === "object" ? (err as { original?: unknown }).original : undefined;
+    if (original && original !== err && isTransientNetworkError(original)) {
+      return true;
+    }
+
+    const message = getErrorMessage(err)?.toLowerCase();
+    if (message) {
+      for (const transientCode of TRANSIENT_NETWORK_CODES) {
+        if (message.includes(transientCode.toLowerCase())) {
+          return true;
+        }
+      }
+      if (SLACK_TRANSIENT_MESSAGE_MARKERS.some((marker) => message.includes(marker))) {
+        return true;
+      }
+    }
   }
 
   // "fetch failed" TypeError from undici (Node's native fetch).
