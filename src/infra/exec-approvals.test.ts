@@ -18,6 +18,7 @@ import {
   normalizeSafeBins,
   requiresExecApproval,
   resolveCommandResolution,
+  resolveCommandResolutionFromArgv,
   resolveAllowAlwaysPatterns,
   resolveExecApprovals,
   resolveExecApprovalsFromFile,
@@ -28,7 +29,11 @@ import {
   type ExecAllowlistEntry,
   type ExecApprovalsFile,
 } from "./exec-approvals.js";
-import { SAFE_BIN_PROFILE_FIXTURES, SAFE_BIN_PROFILES } from "./exec-safe-bin-policy.js";
+import {
+  SAFE_BIN_PROFILE_FIXTURES,
+  SAFE_BIN_PROFILES,
+  resolveSafeBinProfiles,
+} from "./exec-safe-bin-policy.js";
 
 function makePathEnv(binDir: string): NodeJS.ProcessEnv {
   if (process.platform !== "win32") {
@@ -52,6 +57,16 @@ type ShellParserParityFixture = {
   cases: ShellParserParityFixtureCase[];
 };
 
+type WrapperResolutionParityFixtureCase = {
+  id: string;
+  argv: string[];
+  expectedRawExecutable: string | null;
+};
+
+type WrapperResolutionParityFixture = {
+  cases: WrapperResolutionParityFixtureCase[];
+};
+
 function loadShellParserParityFixtureCases(): ShellParserParityFixtureCase[] {
   const fixturePath = path.join(
     process.cwd(),
@@ -60,6 +75,19 @@ function loadShellParserParityFixtureCases(): ShellParserParityFixtureCase[] {
     "exec-allowlist-shell-parser-parity.json",
   );
   const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8")) as ShellParserParityFixture;
+  return fixture.cases;
+}
+
+function loadWrapperResolutionParityFixtureCases(): WrapperResolutionParityFixtureCase[] {
+  const fixturePath = path.join(
+    process.cwd(),
+    "test",
+    "fixtures",
+    "exec-wrapper-resolution-parity.json",
+  );
+  const fixture = JSON.parse(
+    fs.readFileSync(fixturePath, "utf8"),
+  ) as WrapperResolutionParityFixture;
   return fixture.cases;
 }
 
@@ -241,6 +269,30 @@ describe("exec approvals command resolution", () => {
       }
     }
   });
+
+  it("unwraps env wrapper argv to resolve the effective executable", () => {
+    const dir = makeTempDir();
+    const binDir = path.join(dir, "bin");
+    fs.mkdirSync(binDir, { recursive: true });
+    const exeName = process.platform === "win32" ? "rg.exe" : "rg";
+    const exe = path.join(binDir, exeName);
+    fs.writeFileSync(exe, "");
+    fs.chmodSync(exe, 0o755);
+
+    const resolution = resolveCommandResolutionFromArgv(
+      ["/usr/bin/env", "FOO=bar", "rg", "-n", "needle"],
+      undefined,
+      makePathEnv(binDir),
+    );
+    expect(resolution?.resolvedPath).toBe(exe);
+    expect(resolution?.executableName).toBe(exeName);
+  });
+
+  it("unwraps env wrapper with shell inner executable", () => {
+    const resolution = resolveCommandResolutionFromArgv(["/usr/bin/env", "bash", "-lc", "echo hi"]);
+    expect(resolution?.rawExecutable).toBe("bash");
+    expect(resolution?.executableName.toLowerCase()).toContain("bash");
+  });
 });
 
 describe("exec approvals shell parsing", () => {
@@ -418,6 +470,17 @@ describe("exec approvals shell parser parity fixture", () => {
       } else {
         expect(res.segments).toHaveLength(0);
       }
+    });
+  }
+});
+
+describe("exec approvals wrapper resolution parity fixture", () => {
+  const fixtures = loadWrapperResolutionParityFixtureCases();
+
+  for (const fixture of fixtures) {
+    it(`matches wrapper fixture: ${fixture.id}`, () => {
+      const resolution = resolveCommandResolutionFromArgv(fixture.argv);
+      expect(resolution?.rawExecutable ?? null).toBe(fixture.expectedRawExecutable);
     });
   }
 });
@@ -737,6 +800,53 @@ describe("exec approvals safe bins", () => {
     expect(defaults.has("jq")).toBe(true);
     expect(defaults.has("sort")).toBe(false);
     expect(defaults.has("grep")).toBe(false);
+  });
+
+  it("does not auto-allow unprofiled safe-bin entries", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const result = evaluateShellAllowlist({
+      command: "python3 -c \"print('owned')\"",
+      allowlist: [],
+      safeBins: normalizeSafeBins(["python3"]),
+      cwd: "/tmp",
+    });
+    expect(result.analysisOk).toBe(true);
+    expect(result.allowlistSatisfied).toBe(false);
+  });
+
+  it("allows caller-defined custom safe-bin profiles", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const safeBinProfiles = resolveSafeBinProfiles({
+      echo: {
+        maxPositional: 1,
+      },
+    });
+    const allow = isSafeBinUsage({
+      argv: ["echo", "hello"],
+      resolution: {
+        rawExecutable: "echo",
+        resolvedPath: "/bin/echo",
+        executableName: "echo",
+      },
+      safeBins: normalizeSafeBins(["echo"]),
+      safeBinProfiles,
+    });
+    const deny = isSafeBinUsage({
+      argv: ["echo", "hello", "world"],
+      resolution: {
+        rawExecutable: "echo",
+        resolvedPath: "/bin/echo",
+        executableName: "echo",
+      },
+      safeBins: normalizeSafeBins(["echo"]),
+      safeBinProfiles,
+    });
+    expect(allow).toBe(true);
+    expect(deny).toBe(false);
   });
 
   it("blocks sort output flags independent of file existence", () => {

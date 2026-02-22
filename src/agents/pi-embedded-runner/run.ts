@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
+import { generateSecureToken } from "../../infra/secure-random.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import type { PluginHookBeforeAgentStartResult } from "../../plugins/types.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
@@ -100,7 +101,7 @@ const createUsageAccumulator = (): UsageAccumulator => ({
 });
 
 function createCompactionDiagId(): string {
-  return `ovf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `ovf-${Date.now().toString(36)}-${generateSecureToken(4)}`;
 }
 
 // Defensive guard for the outer run loop across all retry branches.
@@ -499,6 +500,22 @@ export async function runEmbeddedPiAgent(
       let lastRunPromptUsage: ReturnType<typeof normalizeUsage> | undefined;
       let autoCompactionCount = 0;
       let runLoopIterations = 0;
+      const maybeMarkAuthProfileFailure = async (failure: {
+        profileId?: string;
+        reason?: Parameters<typeof markAuthProfileFailure>[0]["reason"] | null;
+      }) => {
+        const { profileId, reason } = failure;
+        if (!profileId || !reason || reason === "timeout") {
+          return;
+        }
+        await markAuthProfileFailure({
+          store: authStore,
+          profileId,
+          reason,
+          cfg: params.config,
+          agentDir,
+        });
+      };
       try {
         while (true) {
           if (runLoopIterations >= MAX_RUN_LOOP_ITERATIONS) {
@@ -868,15 +885,10 @@ export async function runEmbeddedPiAgent(
               };
             }
             const promptFailoverReason = classifyFailoverReason(errorText);
-            if (promptFailoverReason && promptFailoverReason !== "timeout" && lastProfileId) {
-              await markAuthProfileFailure({
-                store: authStore,
-                profileId: lastProfileId,
-                reason: promptFailoverReason,
-                cfg: params.config,
-                agentDir: params.agentDir,
-              });
-            }
+            await maybeMarkAuthProfileFailure({
+              profileId: lastProfileId,
+              reason: promptFailoverReason,
+            });
             if (
               isFailoverErrorMessage(errorText) &&
               promptFailoverReason !== "timeout" &&
@@ -948,8 +960,8 @@ export async function runEmbeddedPiAgent(
             );
           }
 
-          // Treat timeout as potential rate limit (Antigravity hangs on rate limit)
-          // But exclude post-prompt compaction timeouts (model succeeded; no profile issue)
+          // Rotate on timeout to try another account/model path in this turn,
+          // but exclude post-prompt compaction timeouts (model succeeded; no profile issue).
           const shouldRotate =
             (!aborted && failoverFailure) || (timedOut && !timedOutDuringCompaction);
 
@@ -959,17 +971,15 @@ export async function runEmbeddedPiAgent(
                 timedOut || assistantFailoverReason === "timeout"
                   ? "timeout"
                   : (assistantFailoverReason ?? "unknown");
-              await markAuthProfileFailure({
-                store: authStore,
+              // Skip cooldown for timeouts: a timeout is model/network-specific,
+              // not an auth issue. Marking the profile would poison fallback models
+              // on the same provider (e.g. gpt-5.3 timeout blocks gpt-5.2).
+              await maybeMarkAuthProfileFailure({
                 profileId: lastProfileId,
                 reason,
-                cfg: params.config,
-                agentDir: params.agentDir,
               });
               if (timedOut && !isProbeSession) {
-                log.warn(
-                  `Profile ${lastProfileId} timed out (possible rate limit). Trying next account...`,
-                );
+                log.warn(`Profile ${lastProfileId} timed out. Trying next account...`);
               }
               if (cloudCodeAssistFormatError) {
                 log.warn(
