@@ -3,7 +3,7 @@ import { createCommandHandlers } from "./tui-command-handlers.js";
 
 describe("tui command handlers", () => {
   it("renders the sending indicator before chat.send resolves", async () => {
-  let resolveSend: ((value: { runId: string }) => void) | null = null;
+    let resolveSend: ((value: { runId: string }) => void) | null = null;
     const sendChat = vi.fn(
       () =>
         new Promise<{ runId: string }>((resolve) => {
@@ -50,7 +50,6 @@ describe("tui command handlers", () => {
       throw new Error("expected sendChat to be pending");
     }
     (resolveSend as (value: { runId: string }) => void)({ runId: "r1" });
-
     await pending;
     expect(setActivityStatus).toHaveBeenCalledWith("waiting");
   });
