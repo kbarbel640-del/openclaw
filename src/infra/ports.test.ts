@@ -102,6 +102,10 @@ describeUnix("inspectPortUsage", () => {
     runCommandWithTimeoutMock.mockRejectedValueOnce(
       Object.assign(new Error("spawn lsof ENOENT"), { code: "ENOENT" }),
     );
+    // ss fallback also fails (not installed)
+    runCommandWithTimeoutMock.mockRejectedValueOnce(
+      Object.assign(new Error("spawn ss ENOENT"), { code: "ENOENT" }),
+    );
 
     try {
       const result = await inspectPortUsage(port);
