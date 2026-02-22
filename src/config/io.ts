@@ -36,6 +36,7 @@ import { applyConfigEnvVars } from "./env-vars.js";
 import { ConfigIncludeError, resolveConfigIncludes } from "./includes.js";
 import { findLegacyConfigIssues } from "./legacy.js";
 import { applyMergePatch } from "./merge-patch.js";
+import { normalizeExecSafeBinProfilesInConfig } from "./normalize-exec-safe-bin.js";
 import { normalizeConfigPaths } from "./normalize-paths.js";
 import { resolveConfigPath, resolveDefaultConfigCandidates, resolveStateDir } from "./paths.js";
 import { applyConfigOverrides } from "./runtime-overrides.js";
@@ -675,6 +676,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         ),
       );
       normalizeConfigPaths(cfg);
+      normalizeExecSafeBinProfilesInConfig(cfg);
 
       const duplicates = findDuplicateAgentDirs(cfg, {
         env: deps.env,
@@ -875,6 +877,16 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
 
       warnIfConfigFromFuture(validated.config, deps.logger);
+      const snapshotConfig = normalizeConfigPaths(
+        applyTalkApiKey(
+          applyModelDefaults(
+            applyAgentDefaults(
+              applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(validated.config))),
+            ),
+          ),
+        ),
+      );
+      normalizeExecSafeBinProfilesInConfig(snapshotConfig);
       return {
         snapshot: {
           path: configPath,
@@ -885,17 +897,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           // for config set/unset operations (issue #6070)
           resolved: coerceConfig(resolvedConfigRaw),
           valid: true,
-          config: normalizeConfigPaths(
-            applyTalkApiKey(
-              applyModelDefaults(
-                applyAgentDefaults(
-                  applySessionDefaults(
-                    applyLoggingDefaults(applyMessageDefaults(validated.config)),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          config: snapshotConfig,
           hash,
           issues: [],
           warnings: validated.warnings,
