@@ -73,11 +73,7 @@ function shouldSkipDir(entryName, currentDir, rootDir, includeTranslations) {
   if (EXCLUDED_DIRS.has(entryName)) {
     return true;
   }
-  if (
-    !includeTranslations &&
-    currentDir === rootDir &&
-    localeDirPattern.test(entryName)
-  ) {
+  if (!includeTranslations && currentDir === rootDir && localeDirPattern.test(entryName)) {
     return true;
   }
   return false;
