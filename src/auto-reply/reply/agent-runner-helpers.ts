@@ -31,7 +31,7 @@ export function filterInternalChannel(
   if (!channel) {
     return undefined;
   }
-  if (INTERNAL_PROVIDER_NAMES.has(channel)) {
+  if (INTERNAL_PROVIDER_NAMES.has(channel.toLowerCase())) {
     return undefined;
   }
   return channel as OriginatingChannelType;
