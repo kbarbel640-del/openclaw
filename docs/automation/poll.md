@@ -62,7 +62,7 @@ Params:
 
 ## Agent tool (Message)
 
-Use the `message` tool with `poll` action (`to`, `pollQuestion`, `pollOption`, optional `pollMulti`, `pollDurationHours`, `channel`).
+Use the `message` tool with `poll` action (`target`, `pollQuestion`, `pollOption`, optional `pollMulti`, `pollDurationHours`, `channel`; `to` is a legacy alias).
 
 Note: Discord has no “pick exactly N” mode; `pollMulti` maps to multi-select.
 Teams polls are rendered as Adaptive Cards and require the gateway to stay online

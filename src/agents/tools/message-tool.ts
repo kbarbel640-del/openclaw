@@ -43,6 +43,11 @@ function buildRoutingSchema() {
   return {
     channel: Type.Optional(Type.String()),
     target: Type.Optional(channelTargetSchema({ description: "Target channel/user id or name." })),
+    to: Type.Optional(
+      channelTargetSchema({
+        description: 'Legacy alias for target. Prefer "target".',
+      }),
+    ),
     targets: Type.Optional(channelTargetsSchema()),
     accountId: Type.Optional(Type.String()),
     dryRun: Type.Optional(Type.Boolean()),
@@ -191,6 +196,9 @@ function buildSendSchema(options: {
     path: Type.Optional(Type.String()),
     filePath: Type.Optional(Type.String()),
     replyTo: Type.Optional(Type.String()),
+    replyToId: Type.Optional(
+      Type.String({ description: 'Legacy alias for replyTo. Prefer "replyTo".' }),
+    ),
     threadId: Type.Optional(Type.String()),
     asVoice: Type.Optional(Type.Boolean()),
     silent: Type.Optional(Type.Boolean()),

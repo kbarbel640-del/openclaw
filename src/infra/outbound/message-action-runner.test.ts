@@ -169,6 +169,107 @@ describe("runMessageAction context isolation", () => {
     expect(result.kind).toBe("send");
   });
 
+  it("infers channel from provider-prefixed target", async () => {
+    const multiConfig = {
+      channels: {
+        slack: {
+          botToken: "xoxb-test",
+          appToken: "xapp-test",
+        },
+        telegram: {
+          token: "tg-test",
+        },
+      },
+    } as OpenClawConfig;
+
+    const result = await runDrySend({
+      cfg: multiConfig,
+      actionParams: {
+        target: "telegram:123456",
+        message: "hi",
+      },
+    });
+
+    expect(result.kind).toBe("send");
+    expect(result.channel).toBe("telegram");
+  });
+
+  it("rejects conflicting destination aliases with actionable error", async () => {
+    await expect(
+      runDrySend({
+        cfg: slackConfig,
+        actionParams: {
+          channel: "slack",
+          target: "channel:C12345678",
+          to: "channel:C87654321",
+          message: "hi",
+        },
+      }),
+    ).rejects.toThrow(/Conflicting destination fields/i);
+
+    await expect(
+      runDrySend({
+        cfg: slackConfig,
+        actionParams: {
+          channel: "slack",
+          target: "channel:C12345678",
+          to: "channel:C87654321",
+          message: "hi",
+        },
+      }),
+    ).rejects.toThrow(/prefer "target"/i);
+  });
+
+  it("explains that replyTo is not a destination when target is missing", async () => {
+    await expect(
+      runDrySend({
+        cfg: slackConfig,
+        actionParams: {
+          channel: "slack",
+          replyTo: "1776",
+          message: "hi",
+        },
+      }),
+    ).rejects.toThrow(/replyTo.*not the destination chat/i);
+
+    await expect(
+      runDrySend({
+        cfg: slackConfig,
+        actionParams: {
+          channel: "slack",
+          replyTo: "1776",
+          message: "hi",
+        },
+      }),
+    ).rejects.toThrow(/Add "target"/i);
+  });
+
+  it("rejects targets on non-broadcast actions with guidance", async () => {
+    await expect(
+      runDrySend({
+        cfg: slackConfig,
+        actionParams: {
+          channel: "slack",
+          target: "channel:C12345678",
+          targets: ["channel:C87654321"],
+          message: "hi",
+        },
+      }),
+    ).rejects.toThrow(/does not accept "targets"/i);
+
+    await expect(
+      runDrySend({
+        cfg: slackConfig,
+        actionParams: {
+          channel: "slack",
+          target: "channel:C12345678",
+          targets: ["channel:C87654321"],
+          message: "hi",
+        },
+      }),
+    ).rejects.toThrow(/action="broadcast"/i);
+  });
+
   it("defaults to current channel when target is omitted", async () => {
     const result = await runDrySend({
       cfg: slackConfig,
@@ -393,6 +494,63 @@ describe("runMessageAction context isolation", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(run(controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("accepts broadcast target alias for single-destination broadcasts", async () => {
+    const result = await runDryAction({
+      cfg: slackConfig,
+      action: "broadcast",
+      actionParams: {
+        channel: "slack",
+        target: "channel:C12345678",
+        message: "hi",
+      },
+    });
+
+    expect(result.kind).toBe("broadcast");
+    if (result.kind !== "broadcast") {
+      throw new Error("expected broadcast result");
+    }
+    expect(result.payload.results).toHaveLength(1);
+    expect(result.payload.results[0]).toMatchObject({
+      channel: "slack",
+      ok: true,
+    });
+  });
+
+  it("accepts broadcast legacy to alias for compatibility", async () => {
+    const result = await runDryAction({
+      cfg: slackConfig,
+      action: "broadcast",
+      actionParams: {
+        channel: "slack",
+        to: "channel:C12345678",
+        message: "hi",
+      },
+    });
+
+    expect(result.kind).toBe("broadcast");
+    if (result.kind !== "broadcast") {
+      throw new Error("expected broadcast result");
+    }
+    expect(result.payload.results).toHaveLength(1);
+    expect(result.payload.results[0]).toMatchObject({
+      channel: "slack",
+      ok: true,
+    });
+  });
+
+  it("shows a clear fix when channel contains destination-like content", async () => {
+    await expect(
+      runDrySend({
+        cfg: slackConfig,
+        actionParams: {
+          channel: "channel:C12345678",
+          target: "channel:C12345678",
+          message: "hi",
+        },
+      }),
+    ).rejects.toThrow(/looks like a destination; move it to "target"/i);
   });
 });
 

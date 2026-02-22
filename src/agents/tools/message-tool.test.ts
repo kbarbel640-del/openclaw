@@ -93,6 +93,19 @@ describe("message tool path passthrough", () => {
   });
 });
 
+describe("message tool compatibility aliases", () => {
+  it("exposes legacy to/replyToId aliases for backward compatibility", () => {
+    const tool = createMessageTool({
+      config: {} as never,
+    });
+    const properties =
+      (tool.parameters as { properties?: Record<string, unknown> }).properties ?? {};
+
+    expect(properties.to).toBeDefined();
+    expect(properties.replyToId).toBeDefined();
+  });
+});
+
 describe("message tool schema scoping", () => {
   const telegramPlugin: ChannelPlugin = {
     id: "telegram",

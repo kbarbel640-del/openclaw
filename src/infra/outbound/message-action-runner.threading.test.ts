@@ -221,4 +221,22 @@ describe("runMessageAction threading auto-injection", () => {
     expect(call?.replyToId).toBe("777");
     expect(call?.ctx?.params?.replyTo).toBe("777");
   });
+
+  it("accepts replyToId alias and normalizes to replyTo", async () => {
+    mockHandledSendAction();
+
+    const call = await runThreadingAction({
+      cfg: telegramConfig,
+      actionParams: {
+        channel: "telegram",
+        target: "telegram:123",
+        message: "hi",
+        replyToId: 778,
+      },
+      toolContext: defaultTelegramToolContext,
+    });
+
+    expect(call?.replyToId).toBe("778");
+    expect(call?.ctx?.params?.replyTo).toBe("778");
+  });
 });

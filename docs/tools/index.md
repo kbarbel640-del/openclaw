@@ -421,6 +421,8 @@ Notes:
 
 - `send` routes WhatsApp via the Gateway; other channels go direct.
 - `poll` uses the Gateway for WhatsApp and MS Teams; Discord polls go direct.
+- Prefer `target` for destination routing. `to`/`channelId` are compatibility aliases.
+- `replyTo` is a message-id/threading field, not a destination; you still need `target`.
 - When a message tool call is bound to an active chat session, sends are constrained to that session’s target to avoid cross-context leaks.
 
 ### `cron`

@@ -315,7 +315,7 @@ Example:
 {
   channel: "discord",
   action: "send",
-  to: "channel:123456789012345678",
+  target: "channel:123456789012345678",
   message: "Optional fallback text",
   components: {
     reusable: true,

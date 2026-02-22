@@ -88,6 +88,163 @@ function resolveAndApplyOutboundThreadId(
   return resolved ?? undefined;
 }
 
+type SingleDestinationField = "target" | "to" | "channelId";
+
+function readTrimmedString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function collectSingleDestinationFields(
+  params: Record<string, unknown>,
+): Array<{ field: SingleDestinationField; value: string }> {
+  const fields: SingleDestinationField[] = ["target", "to", "channelId"];
+  return fields
+    .map((field) => {
+      const value = readTrimmedString(params[field]);
+      return value ? { field, value } : undefined;
+    })
+    .filter((entry): entry is { field: SingleDestinationField; value: string } => Boolean(entry));
+}
+
+function assertSingleDestinationFieldsAgree(
+  action: ChannelMessageActionName,
+  params: Record<string, unknown>,
+): void {
+  const supplied = collectSingleDestinationFields(params);
+  if (supplied.length < 2) {
+    return;
+  }
+  const distinctValues = new Set(supplied.map(({ value }) => value.toLowerCase()));
+  if (distinctValues.size <= 1) {
+    return;
+  }
+  const details = supplied.map(({ field, value }) => `${field}="${value}"`).join(", ");
+  throw new Error(
+    `Conflicting destination fields for action "${action}": ${details}. Use one destination only (prefer "target").`,
+  );
+}
+
+function applyReplyToAliases(params: Record<string, unknown>): void {
+  if (readTrimmedString(params.replyTo)) {
+    return;
+  }
+  const aliasValue =
+    readTrimmedString(params.replyToId) ??
+    readTrimmedString(params.reply_to) ??
+    (typeof params.replyToId === "number" && Number.isFinite(params.replyToId)
+      ? String(params.replyToId)
+      : undefined);
+  if (aliasValue) {
+    params.replyTo = aliasValue;
+  }
+}
+
+function hasNonEmptyTargets(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.some((entry) => typeof entry === "string" && entry.trim().length > 0)
+  );
+}
+
+function ensureTargetsOnlyForBroadcast(
+  action: ChannelMessageActionName,
+  params: Record<string, unknown>,
+): void {
+  if (action === "broadcast") {
+    return;
+  }
+  if (!hasNonEmptyTargets(params.targets)) {
+    return;
+  }
+  throw new Error(
+    `Action "${action}" does not accept "targets". Use "target" for a single destination ("targets" is only for action="broadcast").`,
+  );
+}
+
+function normalizeBroadcastTargetAliases(params: Record<string, unknown>): void {
+  const merged = new Set<string>();
+  if (Array.isArray(params.targets)) {
+    for (const target of params.targets) {
+      if (typeof target !== "string") {
+        continue;
+      }
+      const trimmed = target.trim();
+      if (trimmed) {
+        merged.add(trimmed);
+      }
+    }
+  }
+
+  const singleFields = collectSingleDestinationFields(params);
+  const explicitSingleTargets = singleFields.filter(({ field }) => field !== "target");
+  const distinctSingleValues = new Set(singleFields.map(({ value }) => value.toLowerCase()));
+  if (explicitSingleTargets.length > 0 && distinctSingleValues.size > 1) {
+    const details = singleFields.map(({ field, value }) => `${field}="${value}"`).join(", ");
+    throw new Error(
+      `Conflicting destination fields for action "broadcast": ${details}. Use one destination field or provide multiple destinations in "targets".`,
+    );
+  }
+
+  for (const { value } of singleFields) {
+    merged.add(value);
+  }
+  if (merged.size > 0) {
+    params.targets = Array.from(merged);
+  }
+
+  // Normalize to one destination shape for downstream validation.
+  delete params.target;
+  delete params.to;
+  delete params.channelId;
+}
+
+function inferChannelFromTargetValue(value: unknown): ChannelId | undefined {
+  const target = readTrimmedString(value);
+  if (!target) {
+    return undefined;
+  }
+  const separatorIndex = target.indexOf(":");
+  if (separatorIndex <= 0) {
+    return undefined;
+  }
+  const prefix = target.slice(0, separatorIndex);
+  const candidate = normalizeMessageChannel(prefix);
+  return candidate && isDeliverableMessageChannel(candidate) ? candidate : undefined;
+}
+
+function looksLikeDestinationValue(value?: string): boolean {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const lower = trimmed.toLowerCase();
+  if (trimmed.startsWith("@") || trimmed.startsWith("+") || lower.endsWith("@g.us")) {
+    return true;
+  }
+  return ["channel:", "user:", "group:", "conversation:", "chat_id:", "chat_guid:"].some((prefix) =>
+    lower.startsWith(prefix),
+  );
+}
+
+function buildMissingTargetError(
+  action: ChannelMessageActionName,
+  params: Record<string, unknown>,
+): Error {
+  const replyToValue = readTrimmedString(params.replyTo) ?? readTrimmedString(params.replyToId);
+  if (replyToValue) {
+    return new Error(
+      `Action "${action}" is missing a destination. "replyTo" points to a message id (for threading), not the destination chat. Add "target" (preferred) or legacy "to"/"channelId".`,
+    );
+  }
+  return new Error(
+    `Action "${action}" requires a destination. Provide "target" (preferred) or legacy "to"/"channelId". If multiple channels are configured, also set "channel".`,
+  );
+}
+
 export type RunMessageActionParams = {
   cfg: OpenClawConfig;
   action: ChannelMessageActionName;
@@ -216,11 +373,26 @@ async function maybeApplyCrossContextMarker(params: {
 
 async function resolveChannel(cfg: OpenClawConfig, params: Record<string, unknown>) {
   const channelHint = readStringParam(params, "channel");
-  const selection = await resolveMessageChannelSelection({
-    cfg,
-    channel: channelHint,
-  });
-  return selection.channel;
+  try {
+    const selection = await resolveMessageChannelSelection({
+      cfg,
+      channel: channelHint,
+    });
+    return selection.channel;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (
+      channelHint &&
+      message.startsWith("Unknown channel:") &&
+      looksLikeDestinationValue(channelHint)
+    ) {
+      throw new Error(
+        `Invalid channel "${channelHint}". "channel" selects the provider (e.g., discord, telegram, whatsapp). "${channelHint}" looks like a destination; move it to "target".`,
+        { cause: err },
+      );
+    }
+    throw err;
+  }
 }
 
 async function resolveActionTarget(params: {
@@ -337,11 +509,18 @@ async function handleBroadcastAction(
         if (!resolved.ok) {
           throw resolved.error;
         }
+        const {
+          targets: _ignoredTargets,
+          target: _ignoredTarget,
+          to: _ignoredTo,
+          channelId: _ignoredChannelId,
+          ...baseParams
+        } = params;
         const sendResult = await runMessageAction({
           ...input,
           action: "send",
           params: {
-            ...params,
+            ...baseParams,
             channel: targetChannel,
             target: resolved.target.to,
           },
@@ -703,21 +882,31 @@ export async function runMessageAction(
   parseComponentsParam(params);
 
   const action = input.action;
+  applyReplyToAliases(params);
+
   if (action === "broadcast") {
+    normalizeBroadcastTargetAliases(params);
     return handleBroadcastAction(input, params);
   }
 
-  const explicitTarget = typeof params.target === "string" ? params.target.trim() : "";
-  const hasLegacyTarget =
-    (typeof params.to === "string" && params.to.trim().length > 0) ||
-    (typeof params.channelId === "string" && params.channelId.trim().length > 0);
+  ensureTargetsOnlyForBroadcast(action, params);
+  assertSingleDestinationFieldsAgree(action, params);
+
+  const explicitTarget = readTrimmedString(params.target);
+  const legacyTo = readTrimmedString(params.to);
+  const legacyChannelId = readTrimmedString(params.channelId);
+  const hasLegacyTarget = Boolean(legacyTo || legacyChannelId);
   if (explicitTarget && hasLegacyTarget) {
     delete params.to;
     delete params.channelId;
   }
+  if (!explicitTarget && actionRequiresTarget(action) && hasLegacyTarget) {
+    params.target = legacyTo ?? legacyChannelId;
+    delete params.to;
+    delete params.channelId;
+  }
   if (
-    !explicitTarget &&
-    !hasLegacyTarget &&
+    !readTrimmedString(params.target) &&
     actionRequiresTarget(action) &&
     !actionHasTarget(action, params)
   ) {
@@ -726,29 +915,24 @@ export async function runMessageAction(
       params.target = inferredTarget;
     }
   }
-  if (!explicitTarget && actionRequiresTarget(action) && hasLegacyTarget) {
-    const legacyTo = typeof params.to === "string" ? params.to.trim() : "";
-    const legacyChannelId = typeof params.channelId === "string" ? params.channelId.trim() : "";
-    const legacyTarget = legacyTo || legacyChannelId;
-    if (legacyTarget) {
-      params.target = legacyTarget;
-      delete params.to;
-      delete params.channelId;
-    }
-  }
-  const explicitChannel = typeof params.channel === "string" ? params.channel.trim() : "";
+
+  const explicitChannel = readTrimmedString(params.channel);
   if (!explicitChannel) {
     const inferredChannel = normalizeMessageChannel(input.toolContext?.currentChannelProvider);
     if (inferredChannel && isDeliverableMessageChannel(inferredChannel)) {
       params.channel = inferredChannel;
     }
   }
+  if (!readTrimmedString(params.channel)) {
+    const inferredFromTarget = inferChannelFromTargetValue(params.target);
+    if (inferredFromTarget) {
+      params.channel = inferredFromTarget;
+    }
+  }
 
   applyTargetToParams({ action, args: params });
-  if (actionRequiresTarget(action)) {
-    if (!actionHasTarget(action, params)) {
-      throw new Error(`Action ${action} requires a target.`);
-    }
+  if (actionRequiresTarget(action) && !actionHasTarget(action, params)) {
+    throw buildMissingTargetError(action, params);
   }
 
   const channel = await resolveChannel(cfg, params);

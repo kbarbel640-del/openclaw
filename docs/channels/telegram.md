@@ -358,7 +358,7 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
 {
   action: "send",
   channel: "telegram",
-  to: "123456789",
+  target: "123456789",
   message: "Choose an option:",
   buttons: [
     [
@@ -384,6 +384,7 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
     - `editMessage` (`chatId`, `messageId`, `content`)
 
     Channel message actions expose ergonomic aliases (`send`, `react`, `delete`, `edit`, `sticker`, `sticker-search`).
+    Prefer `target` for destination routing (`to` is a legacy alias).
 
     Gating controls:
 
@@ -453,7 +454,7 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
 {
   action: "send",
   channel: "telegram",
-  to: "123456789",
+  target: "123456789",
   media: "https://example.com/voice.ogg",
   asVoice: true,
 }
@@ -469,7 +470,7 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
 {
   action: "send",
   channel: "telegram",
-  to: "123456789",
+  target: "123456789",
   media: "https://example.com/video.mp4",
   asVideoNote: true,
 }
@@ -519,7 +520,7 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
 {
   action: "sticker",
   channel: "telegram",
-  to: "123456789",
+  target: "123456789",
   fileId: "CAACAgIAAxkBAAI...",
 }
 ```
