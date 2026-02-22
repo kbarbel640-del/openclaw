@@ -104,6 +104,9 @@ function resolveOpenAICodexGpt53FallbackModel(
   } as Model<Api>);
 }
 
+// Claude 4.6 models have a 1M token context window.
+const ANTHROPIC_46_CONTEXT_TOKENS = 1_000_000;
+
 function resolveAnthropic46ForwardCompatModel(params: {
   provider: string;
   modelId: string;
@@ -145,6 +148,10 @@ function resolveAnthropic46ForwardCompatModel(params: {
     trimmedModelId,
     templateIds,
     modelRegistry,
+    patch: {
+      contextWindow: ANTHROPIC_46_CONTEXT_TOKENS,
+      maxTokens: ANTHROPIC_46_CONTEXT_TOKENS,
+    },
   });
 }
 
@@ -275,6 +282,10 @@ function resolveAntigravityOpus46ForwardCompatModel(
     trimmedModelId,
     templateIds,
     modelRegistry,
+    patch: {
+      contextWindow: ANTHROPIC_46_CONTEXT_TOKENS,
+      maxTokens: ANTHROPIC_46_CONTEXT_TOKENS,
+    },
   });
 }
 
