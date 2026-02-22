@@ -3,7 +3,6 @@ import { t } from "../../i18n/index.ts";
 import { formatCost, formatTokens, formatRelativeTimestamp } from "../format.ts";
 import { icons } from "../icons.ts";
 import { formatNextRun } from "../presenter.ts";
-import { redactString } from "../redact.ts";
 import type {
   SessionsUsageResult,
   SessionsListResult,
@@ -24,7 +23,7 @@ export type OverviewCardsProps = {
 };
 
 function redact(value: string, redacted: boolean) {
-  return redacted ? redactString(value) : value;
+  return redacted ? "••••••" : value;
 }
 
 export function renderOverviewCards(props: OverviewCardsProps) {
