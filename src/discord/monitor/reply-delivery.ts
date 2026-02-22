@@ -1,13 +1,18 @@
-import type { RequestClient } from "@buape/carbon";
+import { serializePayload, type RequestClient } from "@buape/carbon";
+import { Routes } from "discord-api-types/v10";
 import { resolveAgentAvatar } from "../../agents/identity-avatar.js";
 import type { ChunkMode } from "../../auto-reply/chunk.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import { loadConfig } from "../../config/config.js";
 import type { MarkdownTableMode, ReplyToMode } from "../../config/types.base.js";
+import { logVerbose } from "../../globals.js";
+import { splitMarkdownTables } from "../../markdown/table-split.js";
 import { convertMarkdownTables } from "../../markdown/tables.js";
+import { renderTableImage } from "../../media/table-image.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import { chunkDiscordTextWithMode } from "../chunk.js";
 import { sendMessageDiscord, sendVoiceMessageDiscord, sendWebhookMessageDiscord } from "../send.js";
+import { buildDiscordMessagePayload, stripUndefinedFields } from "../send.shared.js";
 import type { ThreadBindingManager, ThreadBindingRecord } from "./thread-bindings.js";
 
 function resolveTargetChannelId(target: string): string | undefined {
@@ -100,6 +105,164 @@ async function sendDiscordChunkWithFallback(params: {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Table image helpers
+// ---------------------------------------------------------------------------
+
+/** Resolve a routed target like `channel:123456` or `discord:channel:123456` to a raw snowflake. */
+function resolveRawChannelId(target: string): string {
+  if (target.startsWith("discord:channel:")) {
+    return target.slice("discord:channel:".length);
+  }
+  if (target.startsWith("channel:")) {
+    return target.slice("channel:".length);
+  }
+  return target;
+}
+
+/**
+ * Post a raw buffer as a file attachment (bypasses loadWebMedia JPEG recompression).
+ * Uses rest.post directly — transient failures fall through to the text fallback
+ * in the caller, which is faster than retrying a file upload.
+ */
+async function sendDiscordFileBuffer(params: {
+  rest: RequestClient;
+  channelId: string;
+  fileName: string;
+  contentType: string;
+  data: Buffer;
+  replyTo?: string;
+}) {
+  const rawChannelId = resolveRawChannelId(params.channelId);
+  const arrayBuffer = new ArrayBuffer(params.data.byteLength);
+  new Uint8Array(arrayBuffer).set(params.data);
+  const blob = new Blob([arrayBuffer], { type: params.contentType });
+  const payload = buildDiscordMessagePayload({
+    text: "",
+    files: [{ data: blob, name: params.fileName }],
+  });
+  const messageReference = params.replyTo
+    ? { message_id: params.replyTo, fail_if_not_exists: false }
+    : undefined;
+
+  await params.rest.post(Routes.channelMessages(rawChannelId), {
+    body: stripUndefinedFields({
+      ...serializePayload(payload),
+      ...(messageReference ? { message_reference: messageReference } : {}),
+    }),
+  });
+}
+
+/** Send chunked text respecting webhooks/persona. */
+async function sendChunkedTextWithFallback(
+  text: string,
+  params: {
+    target: string;
+    token: string;
+    accountId?: string;
+    rest?: RequestClient;
+    replyTo?: string;
+    chunkLimit: number;
+    maxLinesPerMessage?: number;
+    chunkMode: ChunkMode;
+    binding?: ThreadBindingRecord;
+    username?: string;
+    avatarUrl?: string;
+  },
+) {
+  const chunks = chunkDiscordTextWithMode(text, {
+    maxChars: params.chunkLimit,
+    maxLines: params.maxLinesPerMessage,
+    chunkMode: params.chunkMode,
+  });
+  if (!chunks.length && text) {
+    chunks.push(text);
+  }
+  for (const chunk of chunks) {
+    const trimmed = chunk.trim();
+    if (!trimmed) {
+      continue;
+    }
+    await sendDiscordChunkWithFallback({
+      target: params.target,
+      text: trimmed,
+      token: params.token,
+      rest: params.rest,
+      accountId: params.accountId,
+      replyTo: params.replyTo,
+      binding: params.binding,
+      username: params.username,
+      avatarUrl: params.avatarUrl,
+    });
+  }
+}
+
+async function deliverWithTableImages(params: {
+  rawText: string;
+  target: string;
+  token: string;
+  accountId?: string;
+  rest?: RequestClient;
+  runtime: RuntimeEnv;
+  chunkLimit: number;
+  maxLinesPerMessage?: number;
+  replyTo?: string;
+  chunkMode: ChunkMode;
+  binding?: ThreadBindingRecord;
+  username?: string;
+  avatarUrl?: string;
+}): Promise<boolean> {
+  const { rawText, rest } = params;
+  if (!rest) {
+    return false;
+  }
+
+  const segments = splitMarkdownTables(rawText);
+  if (!segments.some((s) => s.kind === "table")) {
+    return false;
+  }
+
+  for (const segment of segments) {
+    if (segment.kind === "text") {
+      const text = convertMarkdownTables(segment.markdown, "code");
+      await sendChunkedTextWithFallback(text, params);
+    } else {
+      const png = await renderTableImage(segment.markdown);
+      if (png) {
+        try {
+          await sendDiscordFileBuffer({
+            rest,
+            channelId: params.target,
+            fileName: `table-${segment.index + 1}.png`,
+            contentType: "image/png",
+            data: png,
+            replyTo: params.replyTo,
+          });
+        } catch (err) {
+          logVerbose(
+            `discord: table image send failed, falling back to text: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          const fallback = convertMarkdownTables(segment.markdown, "code");
+          if (fallback.trim()) {
+            await sendChunkedTextWithFallback(fallback, params);
+          }
+        }
+      } else {
+        const fallback = convertMarkdownTables(segment.markdown, "code");
+        if (fallback.trim()) {
+          await sendChunkedTextWithFallback(fallback, params);
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Main delivery function
+// ---------------------------------------------------------------------------
+
 export async function deliverDiscordReply(params: {
   replies: ReplyPayload[];
   target: string;
@@ -145,7 +308,32 @@ export async function deliverDiscordReply(params: {
     const mediaList = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
     const rawText = payload.text ?? "";
     const tableMode = params.tableMode ?? "code";
-    const text = convertMarkdownTables(rawText, tableMode);
+
+    // Image table path: segment text, render tables as PNG, send text normally.
+    if (tableMode === "image" && mediaList.length === 0) {
+      const delivered = await deliverWithTableImages({
+        rawText,
+        target: params.target,
+        token: params.token,
+        accountId: params.accountId,
+        rest: params.rest,
+        runtime: params.runtime,
+        chunkLimit,
+        maxLinesPerMessage: params.maxLinesPerMessage,
+        replyTo: resolveReplyTo(),
+        chunkMode: params.chunkMode ?? "length",
+        binding,
+        username: persona.username,
+        avatarUrl: persona.avatarUrl,
+      });
+      if (delivered) {
+        continue;
+      }
+      // Fall through to standard text delivery if renderer unavailable
+    }
+
+    const effectiveTableMode = tableMode === "image" ? "code" : tableMode;
+    const text = convertMarkdownTables(rawText, effectiveTableMode);
     if (!text && mediaList.length === 0) {
       continue;
     }
