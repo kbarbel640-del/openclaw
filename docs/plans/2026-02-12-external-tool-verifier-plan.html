@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>External Tool Verifier — Implementation Plan</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-dim: #1f6feb;
+      --green: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --code-bg: #0d1117;
+      --code-border: #30363d;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 2rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    h2 {
+      font-size: 1.5rem;
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      color: var(--accent);
+    }
+    h3 {
+      font-size: 1.25rem;
+      margin-top: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    blockquote {
+      border-left: 4px solid var(--accent-dim);
+      padding: 0.5rem 1rem;
+      margin: 1rem 0;
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      color: var(--text-muted);
+    }
+    blockquote strong { color: var(--text); }
+    p { margin: 0.5rem 0; }
+    strong { color: var(--text); }
+
+    /* TOC */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0 2rem;
+    }
+    .toc-title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.8rem;
+    }
+    .toc ol { padding-left: 1.25rem; }
+    .toc li { margin: 0.35rem 0; }
+    .toc a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .toc a:hover { text-decoration: underline; }
+
+    /* Meta fields */
+    .meta {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.25rem 1rem;
+      margin: 1rem 0 1.5rem;
+    }
+    .meta-label {
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .meta-value { color: var(--text); }
+
+    /* Task cards */
+    .task {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+    .task-header {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--green);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .task-header .badge {
+      background: var(--green);
+      color: var(--bg);
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Files list */
+    .files {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.85rem;
+    }
+    .files li {
+      list-style: none;
+      margin: 0.2rem 0;
+    }
+    .file-action {
+      display: inline-block;
+      width: 60px;
+      font-weight: 600;
+    }
+    .file-action.create { color: var(--green); }
+    .file-action.modify { color: var(--orange); }
+    .file-action.test { color: var(--purple); }
+
+    /* Steps */
+    .step {
+      margin: 1rem 0;
+      padding-left: 1rem;
+      border-left: 2px solid var(--border);
+    }
+    .step-title {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    /* Code blocks */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 6px;
+      padding: 1rem;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+    code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.85em;
+    }
+    p code, li code {
+      background: var(--surface);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      font-size: 0.82em;
+    }
+
+    /* Syntax highlighting (basic) */
+    .kw { color: #ff7b72; }
+    .str { color: #a5d6ff; }
+    .cm { color: #8b949e; }
+    .fn { color: #d2a8ff; }
+    .tp { color: #79c0ff; }
+    .num { color: #79c0ff; }
+
+    /* Inline run blocks */
+    .run-block {
+      background: #1a1e24;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6rem 1rem;
+      margin: 0.5rem 0;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.82rem;
+    }
+    .run-label {
+      color: var(--green);
+      font-weight: 600;
+    }
+    .expected-label {
+      color: var(--orange);
+      font-weight: 600;
+    }
+
+    /* Note blocks */
+    .note {
+      background: #1c2128;
+      border: 1px solid #3d4450;
+      border-left: 4px solid var(--orange);
+      border-radius: 0 6px 6px 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
+
+    /* Usage guide */
+    .guide {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+    .guide h2 {
+      margin-top: 0;
+      color: var(--accent);
+    }
+    .guide h3 {
+      color: var(--text);
+      margin-top: 1.25rem;
+      margin-bottom: 0.4rem;
+      font-size: 1.1rem;
+    }
+    .guide ul, .guide ol {
+      padding-left: 1.25rem;
+      margin: 0.4rem 0;
+    }
+    .guide li { margin: 0.3rem 0; }
+    .guide-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin: 1rem 0;
+    }
+    .guide-col h4 {
+      font-size: 0.95rem;
+      color: var(--green);
+      margin-bottom: 0.4rem;
+    }
+    .flow-diagram {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.82rem;
+      line-height: 1.7;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    table.config-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0;
+      font-size: 0.88rem;
+    }
+    table.config-table th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 2px solid var(--border);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    table.config-table td {
+      padding: 0.45rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    table.config-table tr:last-child td { border-bottom: none; }
+    table.config-table code {
+      background: var(--code-bg);
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+      border: 1px solid var(--code-border);
+      font-size: 0.82em;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      body { padding: 1rem; }
+      .task { padding: 1rem; }
+      pre { font-size: 0.75rem; padding: 0.75rem; }
+      .guide-columns { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>External Tool Verifier &mdash; Implementation Plan</h1>
+
+<blockquote>
+  <strong>For Claude:</strong> REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+</blockquote>
+
+<div class="meta">
+  <span class="meta-label">Goal</span>
+  <span class="meta-value">Add an external tool verification gateway that can consult an HTTP webhook and/or a built-in Telegram approval bot before any tool call executes.</span>
+  <span class="meta-label">Architecture</span>
+  <span class="meta-value">A new <code>tools.verifier</code> config subsystem plugs into the existing <code>before_tool_call</code> hook in <code>pi-tools.before-tool-call.ts</code>. It runs after tool policy filtering and exec allowlist/safeBins checks. The verifier makes HTTP POST requests to a webhook URL and/or sends Telegram inline-keyboard approval messages, then blocks or allows based on the response.</span>
+  <span class="meta-label">Tech Stack</span>
+  <span class="meta-value">TypeScript, zod, undici, grammy, vitest</span>
+  <span class="meta-label">Design Doc</span>
+  <span class="meta-value"><code>docs/plans/2026-02-12-external-tool-verifier-design.md</code></span>
+</div>
+
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <ol start="0">
+    <li><a href="#usage-guide">Usage Guide</a></li>
+    <li><a href="#task1">Config Types</a></li>
+    <li><a href="#task2">Zod Schema Validation</a></li>
+    <li><a href="#task3">Scope Matcher</a></li>
+    <li><a href="#task4">Webhook Client</a></li>
+    <li><a href="#task5">Telegram Verifier</a></li>
+    <li><a href="#task6">Verifier Orchestrator</a></li>
+    <li><a href="#task7">Wire Into Before-Tool-Call Pipeline</a></li>
+    <li><a href="#task8">Documentation Update</a></li>
+    <li><a href="#task9">Final Integration Test</a></li>
+  </ol>
+</div>
+
+<!-- ───────────────────────── USAGE GUIDE ───────────────────────── -->
+<div class="guide" id="usage-guide">
+  <h2>Usage Guide</h2>
+  <p>Once implemented, the external tool verifier sits between OpenClaw's existing security layers and actual tool execution. Here's how to configure and use it.</p>
+
+  <h3>How It Works</h3>
+  <div class="flow-diagram">Tool call arrives
+  &darr;
+<span style="color: var(--text-muted);">Layer 1:</span> Tool Policy &mdash; allow / deny / profile filter
+  &darr;
+<span style="color: var(--text-muted);">Layer 2:</span> safeBins / allowlist &mdash; exec-only binary checks
+  &darr;
+<span style="color: var(--green);">Layer 3: Verifier (NEW)</span> &mdash; webhook + Telegram approval
+  &darr;
+Execute tool</div>
+  <p>The verifier <strong>only sees tool calls that already passed</strong> existing security. It cannot override a deny from tool policy or safeBins.</p>
+
+  <h3>Quick Start</h3>
+  <p>Add to your <code>openclaw.json</code>:</p>
+<pre><code>{
+  <span class="str">"tools"</span>: {
+    <span class="str">"verifier"</span>: {
+      <span class="str">"enabled"</span>: <span class="kw">true</span>,
+      <span class="str">"failMode"</span>: <span class="str">"deny"</span>,
+      <span class="str">"scope"</span>: {
+        <span class="str">"include"</span>: [<span class="str">"exec"</span>, <span class="str">"write"</span>, <span class="str">"edit"</span>]
+      },
+      <span class="str">"webhook"</span>: {
+        <span class="str">"url"</span>: <span class="str">"https://my-verifier.example.com/verify"</span>,
+        <span class="str">"timeout"</span>: <span class="num">30</span>,
+        <span class="str">"headers"</span>: {
+          <span class="str">"Authorization"</span>: <span class="str">"Bearer ${VERIFIER_TOKEN}"</span>
+        },
+        <span class="str">"secret"</span>: <span class="str">"${VERIFIER_HMAC_SECRET}"</span>
+      }
+    }
+  }
+}</code></pre>
+
+  <h3>Configuration Reference</h3>
+  <table class="config-table">
+    <thead>
+      <tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>enabled</code></td><td>boolean</td><td><code>true</code></td>
+        <td>Master switch for the verifier</td>
+      </tr>
+      <tr>
+        <td><code>failMode</code></td><td><code>"deny"</code> | <code>"allow"</code></td><td><code>"deny"</code></td>
+        <td>What happens when verifier is unreachable. Uses <strong>most-restrictive-wins</strong>: per-agent cannot weaken global</td>
+      </tr>
+      <tr>
+        <td><code>scope.include</code></td><td>string[]</td><td>&mdash;</td>
+        <td>Only verify these tools (supports <code>group:*</code> shorthands)</td>
+      </tr>
+      <tr>
+        <td><code>scope.exclude</code></td><td>string[]</td><td>&mdash;</td>
+        <td>Verify all tools except these (<em>mutually exclusive</em> with include)</td>
+      </tr>
+      <tr>
+        <td><code>webhook.url</code></td><td>string</td><td>&mdash;</td>
+        <td>HTTP endpoint to POST verification requests to</td>
+      </tr>
+      <tr>
+        <td><code>webhook.timeout</code></td><td>number</td><td><code>30</code></td>
+        <td>Seconds to wait for webhook response</td>
+      </tr>
+      <tr>
+        <td><code>webhook.headers</code></td><td>Record</td><td>&mdash;</td>
+        <td>Custom headers (e.g., auth tokens); supports <code>${ENV_VAR}</code> syntax</td>
+      </tr>
+      <tr>
+        <td><code>webhook.secret</code></td><td>string</td><td>&mdash;</td>
+        <td>HMAC-SHA256 secret for request signing via <code>X-OpenClaw-Signature</code></td>
+      </tr>
+      <tr>
+        <td><code>telegram.enabled</code></td><td>boolean</td><td><code>false</code></td>
+        <td>Enable Telegram inline-keyboard approval</td>
+      </tr>
+      <tr>
+        <td><code>telegram.botToken</code></td><td>string</td><td>&mdash;</td>
+        <td>Telegram Bot API token</td>
+      </tr>
+      <tr>
+        <td><code>telegram.chatId</code></td><td>string</td><td>&mdash;</td>
+        <td>Chat ID to send approval requests to</td>
+      </tr>
+      <tr>
+        <td><code>telegram.timeout</code></td><td>number</td><td><code>120</code></td>
+        <td>Seconds to wait for human tap</td>
+      </tr>
+      <tr>
+        <td><code>telegram.allowedUserIds</code></td><td>number[]</td><td>&mdash;</td>
+        <td>Only these Telegram user IDs can tap Allow/Deny. If empty, any chat member can respond</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Webhook Protocol</h3>
+  <div class="guide-columns">
+    <div class="guide-col">
+      <h4>Request (POST)</h4>
+<pre><code>{
+  <span class="str">"version"</span>: <span class="num">1</span>,
+  <span class="str">"timestamp"</span>: <span class="str">"2026-02-12T15:30:00Z"</span>,
+  <span class="str">"requestId"</span>: <span class="str">"uuid-v4"</span>,
+  <span class="str">"tool"</span>: {
+    <span class="str">"name"</span>: <span class="str">"exec"</span>,
+    <span class="str">"params"</span>: {
+      <span class="str">"command"</span>: <span class="str">"curl example.com"</span>
+    }
+  },
+  <span class="str">"context"</span>: {
+    <span class="str">"agentId"</span>: <span class="str">"main"</span>,
+    <span class="str">"sessionKey"</span>: <span class="str">"agent:main:main"</span>
+  }
+}</code></pre>
+    </div>
+    <div class="guide-col">
+      <h4>Response</h4>
+<pre><code><span class="cm">// Allow:</span>
+{ <span class="str">"decision"</span>: <span class="str">"allow"</span> }
+
+<span class="cm">// Deny:</span>
+{
+  <span class="str">"decision"</span>: <span class="str">"deny"</span>,
+  <span class="str">"reason"</span>: <span class="str">"Command not permitted"</span>
+}</code></pre>
+      <p style="margin-top: 0.75rem;">When <code>secret</code> is set, requests include an <code>X-OpenClaw-Signature</code> header with the HMAC-SHA256 hex digest of the body.</p>
+    </div>
+  </div>
+
+  <h3>Telegram Approval</h3>
+  <p>When enabled, the verifier sends an inline-keyboard message to the configured chat:</p>
+<pre><code>Tool verification request
+
+Tool: exec
+Details: curl https://example.com
+Agent: main
+Session: agent:main:main
+
+[<span style="color: var(--green);">Allow</span>]  [<span style="color: var(--red);">Deny</span>]</code></pre>
+  <p>The user taps a button; the decision is returned to the pipeline. If no response within <code>timeout</code> seconds, <code>failMode</code> applies.</p>
+
+  <h3>Decision Matrix</h3>
+  <table class="config-table">
+    <thead>
+      <tr><th>Condition</th><th>failMode: "deny"</th><th>failMode: "allow"</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Webhook returns <code>"allow"</code></td><td style="color:var(--green);">Allowed</td><td style="color:var(--green);">Allowed</td></tr>
+      <tr><td>Webhook returns <code>"deny"</code></td><td style="color:var(--red);">Blocked</td><td style="color:var(--red);">Blocked</td></tr>
+      <tr><td>Webhook timeout / unreachable</td><td style="color:var(--red);">Blocked</td><td style="color:var(--green);">Allowed</td></tr>
+      <tr><td>Non-2xx HTTP status</td><td style="color:var(--red);">Blocked</td><td style="color:var(--green);">Allowed</td></tr>
+      <tr><td>Malformed JSON response</td><td style="color:var(--red);">Blocked</td><td style="color:var(--green);">Allowed</td></tr>
+      <tr><td>Telegram timeout (no tap)</td><td style="color:var(--red);">Blocked</td><td style="color:var(--green);">Allowed</td></tr>
+    </tbody>
+  </table>
+  <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.5rem;">When both webhook and Telegram are enabled, <strong>both must approve</strong> for the tool call to proceed. Webhook runs first; if it denies, Telegram is not consulted.</p>
+
+  <h3>Security Hardening</h3>
+  <p>Based on tech lead security review, the following protections are built in:</p>
+  <table class="config-table">
+    <thead>
+      <tr><th>Protection</th><th>Details</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="white-space:nowrap;"><strong>Param redaction</strong></td>
+        <td><code>write</code>/<code>edit</code>/<code>apply_patch</code> tool params have their <code>content</code> field replaced with <code>[REDACTED: N chars]</code> before being sent to webhook or Telegram. Prevents file content and secrets from leaking to external endpoints.</td>
+      </tr>
+      <tr>
+        <td style="white-space:nowrap;"><strong>HTTPS enforcement</strong></td>
+        <td>Webhook URLs using <code>http://</code> are <strong>rejected in production</strong>. In development, a warning is logged. HTTP responses are unauthenticated &mdash; a network attacker could swap <code>"deny"</code> for <code>"allow"</code>.</td>
+      </tr>
+      <tr>
+        <td style="white-space:nowrap;"><strong>Sender validation</strong></td>
+        <td><code>telegram.allowedUserIds</code> restricts who can tap Allow/Deny. Without it, any chat member can respond. Unauthorized taps get an alert.</td>
+      </tr>
+      <tr>
+        <td style="white-space:nowrap;"><strong>No long-polling</strong></td>
+        <td>Telegram verifier uses direct API calls (<code>getUpdates</code>) instead of <code>bot.start()</code> long-polling. Avoids 409 Conflict errors, callback race conditions, and competing bot instances.</td>
+      </tr>
+      <tr>
+        <td style="white-space:nowrap;"><strong>Most-restrictive-wins</strong></td>
+        <td><code>failMode</code> uses most-restrictive-wins: per-agent <code>"allow"</code> cannot weaken global <code>"deny"</code>. Prevents misconfigured agents from silently downgrading security.</td>
+      </tr>
+      <tr>
+        <td style="white-space:nowrap;"><strong>Response limits</strong></td>
+        <td>Webhook response body capped at 64 KB. <code>reason</code> field truncated to 500 chars. Prevents memory abuse from malicious/buggy endpoints.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Per-Agent Overrides</h3>
+  <p>Override the global verifier config for specific agents:</p>
+<pre><code>{
+  <span class="str">"agents"</span>: {
+    <span class="str">"list"</span>: [{
+      <span class="str">"name"</span>: <span class="str">"deploy-bot"</span>,
+      <span class="str">"tools"</span>: {
+        <span class="str">"verifier"</span>: {
+          <span class="str">"enabled"</span>: <span class="kw">true</span>,
+          <span class="str">"failMode"</span>: <span class="str">"deny"</span>,
+          <span class="str">"scope"</span>: { <span class="str">"include"</span>: [<span class="str">"exec"</span>] },
+          <span class="str">"telegram"</span>: {
+            <span class="str">"enabled"</span>: <span class="kw">true</span>,
+            <span class="str">"botToken"</span>: <span class="str">"${TELEGRAM_BOT_TOKEN}"</span>,
+            <span class="str">"chatId"</span>: <span class="str">"123456789"</span>,
+            <span class="str">"timeout"</span>: <span class="num">60</span>
+          }
+        }
+      }
+    }]
+  }
+}</code></pre>
+  <p>Agent-level config <strong>fully replaces</strong> (does not merge with) the global verifier config.</p>
+
+  <h3>Example: LLM Safety Check</h3>
+  <p>Route tool calls to another LLM for safety analysis before execution:</p>
+<pre><code><span class="cm">// Your webhook server (e.g., Express)</span>
+app.<span class="fn">post</span>(<span class="str">"/verify"</span>, <span class="kw">async</span> (req, res) =&gt; {
+  <span class="kw">const</span> { tool, context } = req.body;
+
+  <span class="cm">// Call your safety LLM</span>
+  <span class="kw">const</span> analysis = <span class="kw">await</span> llm.<span class="fn">analyze</span>({
+    prompt: <span class="str">`Is this tool call safe?\nTool: </span>${tool.name}<span class="str">\nParams: </span>${JSON.<span class="fn">stringify</span>(tool.params)}<span class="str">`</span>,
+  });
+
+  <span class="kw">if</span> (analysis.safe) {
+    res.<span class="fn">json</span>({ decision: <span class="str">"allow"</span> });
+  } <span class="kw">else</span> {
+    res.<span class="fn">json</span>({ decision: <span class="str">"deny"</span>, reason: analysis.reason });
+  }
+});</code></pre>
+</div>
+
+<!-- ───────────────────────── TASK 1 ───────────────────────── -->
+<div class="task" id="task1">
+  <div class="task-header"><span class="badge">Task 1</span> Config Types</div>
+
+  <ul class="files">
+    <li><span class="file-action modify">Modify</span> <code>src/config/types.tools.ts:198</code></li>
+    <li><span class="file-action modify">Modify</span> <code>src/config/types.tools.ts:326</code></li>
+  </ul>
+
+  <div class="step">
+    <div class="step-title">Step 1: Add VerifierConfig types</div>
+    <p>Add these types before the <code>AgentToolsConfig</code> type (around line 196):</p>
+<pre><code><span class="kw">export type</span> <span class="tp">VerifierScopeConfig</span> = {
+  <span class="cm">/** Only verify these tools (mutually exclusive with exclude). */</span>
+  include?: <span class="tp">string</span>[];
+  <span class="cm">/** Verify all tools except these (mutually exclusive with include). */</span>
+  exclude?: <span class="tp">string</span>[];
+};
+
+<span class="kw">export type</span> <span class="tp">VerifierWebhookConfig</span> = {
+  <span class="cm">/** Webhook URL to POST verification requests to. */</span>
+  url: <span class="tp">string</span>;
+  <span class="cm">/** Timeout in seconds for the webhook request (default: 30). */</span>
+  timeout?: <span class="tp">number</span>;
+  <span class="cm">/** Optional headers to include in webhook requests. */</span>
+  headers?: <span class="tp">Record</span>&lt;<span class="tp">string</span>, <span class="tp">string</span>&gt;;
+  <span class="cm">/** Optional HMAC-SHA256 secret for request signing. */</span>
+  secret?: <span class="tp">string</span>;
+};
+
+<span class="kw">export type</span> <span class="tp">VerifierTelegramConfig</span> = {
+  <span class="cm">/** Enable Telegram approval verification. */</span>
+  enabled?: <span class="tp">boolean</span>;
+  <span class="cm">/** Telegram bot token for sending approval requests. */</span>
+  botToken: <span class="tp">string</span>;
+  <span class="cm">/** Telegram chat ID to send approval requests to. */</span>
+  chatId: <span class="tp">string</span>;
+  <span class="cm">/** Timeout in seconds to wait for user tap (default: 120). */</span>
+  timeout?: <span class="tp">number</span>;
+};
+
+<span class="kw">export type</span> <span class="tp">VerifierConfig</span> = {
+  <span class="cm">/** Enable the external verifier. */</span>
+  enabled?: <span class="tp">boolean</span>;
+  <span class="cm">/** Which tools require verification. */</span>
+  scope?: <span class="tp">VerifierScopeConfig</span>;
+  <span class="cm">/** Behavior when verifier is unreachable: "deny" (default) or "allow". */</span>
+  failMode?: <span class="str">"deny"</span> | <span class="str">"allow"</span>;
+  <span class="cm">/** HTTP webhook verifier. */</span>
+  webhook?: <span class="tp">VerifierWebhookConfig</span>;
+  <span class="cm">/** Built-in Telegram approval verifier. */</span>
+  telegram?: <span class="tp">VerifierTelegramConfig</span>;
+};</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 2: Add verifier to AgentToolsConfig</div>
+    <p>In <code>AgentToolsConfig</code> (line ~198), add after the <code>sandbox</code> field:</p>
+<pre><code>  <span class="cm">/** External tool verifier config (per-agent override). */</span>
+  verifier?: <span class="tp">VerifierConfig</span>;</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 3: Add verifier to ToolsConfig</div>
+    <p>In <code>ToolsConfig</code> (line ~326), add after the <code>sandbox</code> field:</p>
+<pre><code>  <span class="cm">/** External tool verification gateway. */</span>
+  verifier?: <span class="tp">VerifierConfig</span>;</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 4: Commit</div>
+<pre><code>git add src/config/types.tools.ts
+git commit -m <span class="str">"feat(verifier): add VerifierConfig types to ToolsConfig and AgentToolsConfig"</span></code></pre>
+  </div>
+</div>
+
+<!-- ───────────────────────── TASK 2 ───────────────────────── -->
+<div class="task" id="task2">
+  <div class="task-header"><span class="badge">Task 2</span> Zod Schema Validation</div>
+
+  <ul class="files">
+    <li><span class="file-action modify">Modify</span> <code>src/config/zod-schema.agent-runtime.ts:262</code></li>
+    <li><span class="file-action modify">Modify</span> <code>src/config/zod-schema.agent-runtime.ts:477</code></li>
+  </ul>
+
+  <div class="step">
+    <div class="step-title">Step 1: Define the VerifierSchema</div>
+    <p>Add before <code>AgentToolsSchema</code> (around line 260):</p>
+<pre><code><span class="kw">const</span> VerifierScopeSchema = z
+  .<span class="fn">object</span>({
+    include: z.<span class="fn">array</span>(z.<span class="fn">string</span>()).<span class="fn">optional</span>(),
+    exclude: z.<span class="fn">array</span>(z.<span class="fn">string</span>()).<span class="fn">optional</span>(),
+  })
+  .<span class="fn">strict</span>()
+  .<span class="fn">superRefine</span>((value, ctx) =&gt; {
+    <span class="kw">if</span> (value.include &amp;&amp; value.include.length &gt; <span class="num">0</span>
+        &amp;&amp; value.exclude &amp;&amp; value.exclude.length &gt; <span class="num">0</span>) {
+      ctx.<span class="fn">addIssue</span>({
+        code: z.ZodIssueCode.custom,
+        message: <span class="str">"verifier scope cannot set both include and exclude"</span>,
+      });
+    }
+  })
+  .<span class="fn">optional</span>();
+
+<span class="kw">const</span> VerifierWebhookSchema = z
+  .<span class="fn">object</span>({
+    url: z.<span class="fn">string</span>().<span class="fn">url</span>(),
+    timeout: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">positive</span>().<span class="fn">optional</span>(),
+    headers: z.<span class="fn">record</span>(z.<span class="fn">string</span>(), z.<span class="fn">string</span>()).<span class="fn">optional</span>(),
+    secret: z.<span class="fn">string</span>().<span class="fn">optional</span>(),
+  })
+  .<span class="fn">strict</span>()
+  .<span class="fn">optional</span>();
+
+<span class="kw">const</span> VerifierTelegramSchema = z
+  .<span class="fn">object</span>({
+    enabled: z.<span class="fn">boolean</span>().<span class="fn">optional</span>(),
+    botToken: z.<span class="fn">string</span>().<span class="fn">min</span>(<span class="num">1</span>),
+    chatId: z.<span class="fn">string</span>().<span class="fn">min</span>(<span class="num">1</span>),
+    timeout: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">positive</span>().<span class="fn">optional</span>(),
+  })
+  .<span class="fn">strict</span>()
+  .<span class="fn">optional</span>();
+
+<span class="kw">const</span> VerifierSchema = z
+  .<span class="fn">object</span>({
+    enabled: z.<span class="fn">boolean</span>().<span class="fn">optional</span>(),
+    scope: VerifierScopeSchema,
+    failMode: z.<span class="fn">enum</span>([<span class="str">"deny"</span>, <span class="str">"allow"</span>]).<span class="fn">optional</span>(),
+    webhook: VerifierWebhookSchema,
+    telegram: VerifierTelegramSchema,
+  })
+  .<span class="fn">strict</span>()
+  .<span class="fn">optional</span>();</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 2: Add to AgentToolsSchema</div>
+    <p>Add <code>verifier: VerifierSchema,</code> after the <code>sandbox</code> field in <code>AgentToolsSchema</code> (around line 304).</p>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 3: Add to ToolsSchema</div>
+    <p>Add <code>verifier: VerifierSchema,</code> after the <code>sandbox</code> field in <code>ToolsSchema</code> (around line 561).</p>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 4: Run validation tests</div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm vitest run --config vitest.unit.config.ts -- src/config<br>
+      <span class="expected-label">Expected:</span> All existing config tests pass.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 5: Commit</div>
+<pre><code>git add src/config/zod-schema.agent-runtime.ts
+git commit -m <span class="str">"feat(verifier): add zod schema validation for tools.verifier config"</span></code></pre>
+  </div>
+</div>
+
+<!-- ───────────────────────── TASK 3 ───────────────────────── -->
+<div class="task" id="task3">
+  <div class="task-header"><span class="badge">Task 3</span> Scope Matcher</div>
+
+  <ul class="files">
+    <li><span class="file-action create">Create</span> <code>src/agents/verifier/scope.ts</code></li>
+    <li><span class="file-action create">Create</span> <code>src/agents/verifier/scope.test.ts</code></li>
+  </ul>
+
+  <div class="step">
+    <div class="step-title">Step 1: Write the failing test</div>
+    <p>Create <code>src/agents/verifier/scope.test.ts</code>:</p>
+<pre><code><span class="kw">import</span> { describe, expect, it } <span class="kw">from</span> <span class="str">"vitest"</span>;
+<span class="kw">import</span> { isToolInVerifierScope } <span class="kw">from</span> <span class="str">"./scope.js"</span>;
+
+<span class="fn">describe</span>(<span class="str">"isToolInVerifierScope"</span>, () =&gt; {
+  <span class="fn">it</span>(<span class="str">"returns true for all tools when no scope configured"</span>, () =&gt; {
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"exec"</span>, <span class="kw">undefined</span>)).<span class="fn">toBe</span>(<span class="kw">true</span>);
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"write"</span>, <span class="kw">undefined</span>)).<span class="fn">toBe</span>(<span class="kw">true</span>);
+  });
+
+  <span class="fn">it</span>(<span class="str">"returns true only for included tools"</span>, () =&gt; {
+    <span class="kw">const</span> scope = { include: [<span class="str">"exec"</span>, <span class="str">"write"</span>] };
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"exec"</span>, scope)).<span class="fn">toBe</span>(<span class="kw">true</span>);
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"write"</span>, scope)).<span class="fn">toBe</span>(<span class="kw">true</span>);
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"read"</span>, scope)).<span class="fn">toBe</span>(<span class="kw">false</span>);
+  });
+
+  <span class="fn">it</span>(<span class="str">"returns false for excluded tools"</span>, () =&gt; {
+    <span class="kw">const</span> scope = { exclude: [<span class="str">"read"</span>, <span class="str">"session_status"</span>] };
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"exec"</span>, scope)).<span class="fn">toBe</span>(<span class="kw">true</span>);
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"read"</span>, scope)).<span class="fn">toBe</span>(<span class="kw">false</span>);
+  });
+
+  <span class="fn">it</span>(<span class="str">"normalizes tool names (case-insensitive)"</span>, () =&gt; {
+    <span class="kw">const</span> scope = { include: [<span class="str">"Exec"</span>, <span class="str">"WRITE"</span>] };
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"exec"</span>, scope)).<span class="fn">toBe</span>(<span class="kw">true</span>);
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"EXEC"</span>, scope)).<span class="fn">toBe</span>(<span class="kw">true</span>);
+  });
+
+  <span class="fn">it</span>(<span class="str">"expands tool groups"</span>, () =&gt; {
+    <span class="kw">const</span> scope = { include: [<span class="str">"group:runtime"</span>] };
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"exec"</span>, scope)).<span class="fn">toBe</span>(<span class="kw">true</span>);
+    <span class="fn">expect</span>(<span class="fn">isToolInVerifierScope</span>(<span class="str">"read"</span>, scope)).<span class="fn">toBe</span>(<span class="kw">false</span>);
+  });
+});</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 2: Run test to verify it fails</div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm vitest run --config vitest.unit.config.ts -- src/agents/verifier/scope.test.ts<br>
+      <span class="expected-label">Expected:</span> FAIL (module not found)
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 3: Implement scope matcher</div>
+    <p>Create <code>src/agents/verifier/scope.ts</code>:</p>
+<pre><code><span class="kw">import type</span> { <span class="tp">VerifierScopeConfig</span> } <span class="kw">from</span> <span class="str">"../../config/types.tools.js"</span>;
+<span class="kw">import</span> { expandToolGroups, normalizeToolName } <span class="kw">from</span> <span class="str">"../tool-policy.js"</span>;
+
+<span class="kw">export function</span> <span class="fn">isToolInVerifierScope</span>(
+  toolName: <span class="tp">string</span>,
+  scope: <span class="tp">VerifierScopeConfig</span> | <span class="kw">undefined</span>,
+): <span class="tp">boolean</span> {
+  <span class="kw">if</span> (!scope) <span class="kw">return true</span>;
+
+  <span class="kw">const</span> normalized = <span class="fn">normalizeToolName</span>(toolName);
+
+  <span class="kw">if</span> (scope.include &amp;&amp; scope.include.length &gt; <span class="num">0</span>) {
+    <span class="kw">const</span> expanded = <span class="fn">expandToolGroups</span>(scope.include);
+    <span class="kw">return</span> expanded.<span class="fn">includes</span>(normalized);
+  }
+  <span class="kw">if</span> (scope.exclude &amp;&amp; scope.exclude.length &gt; <span class="num">0</span>) {
+    <span class="kw">const</span> expanded = <span class="fn">expandToolGroups</span>(scope.exclude);
+    <span class="kw">return</span> !expanded.<span class="fn">includes</span>(normalized);
+  }
+  <span class="kw">return true</span>;
+}</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 4: Run test to verify it passes</div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm vitest run --config vitest.unit.config.ts -- src/agents/verifier/scope.test.ts<br>
+      <span class="expected-label">Expected:</span> PASS
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 5: Commit</div>
+<pre><code>git add src/agents/verifier/scope.ts src/agents/verifier/scope.test.ts
+git commit -m <span class="str">"feat(verifier): add scope matcher with include/exclude and group expansion"</span></code></pre>
+  </div>
+</div>
+
+<!-- ───────────────────────── TASK 4 ───────────────────────── -->
+<div class="task" id="task4">
+  <div class="task-header"><span class="badge">Task 4</span> Webhook Client</div>
+
+  <ul class="files">
+    <li><span class="file-action create">Create</span> <code>src/agents/verifier/webhook.ts</code></li>
+    <li><span class="file-action create">Create</span> <code>src/agents/verifier/webhook.test.ts</code></li>
+  </ul>
+
+  <div class="step">
+    <div class="step-title">Step 1: Write the failing test</div>
+    <p>Create <code>src/agents/verifier/webhook.test.ts</code>:</p>
+<pre><code><span class="kw">import</span> crypto <span class="kw">from</span> <span class="str">"node:crypto"</span>;
+<span class="kw">import</span> { afterAll, describe, expect, it } <span class="kw">from</span> <span class="str">"vitest"</span>;
+<span class="kw">import</span> http <span class="kw">from</span> <span class="str">"node:http"</span>;
+<span class="kw">import</span> { callWebhookVerifier, <span class="kw">type</span> <span class="tp">VerifierRequest</span> } <span class="kw">from</span> <span class="str">"./webhook.js"</span>;
+
+<span class="kw">const</span> TEST_PORT = <span class="num">19876</span>;
+
+<span class="fn">describe</span>(<span class="str">"callWebhookVerifier"</span>, () =&gt; {
+  <span class="kw">let</span> server: http.Server | <span class="kw">null</span> = <span class="kw">null</span>;
+  <span class="fn">afterAll</span>(<span class="kw">async</span> () =&gt; { <span class="kw">if</span> (server) <span class="kw">await</span> <span class="fn">closeServer</span>(server); });
+
+  <span class="fn">it</span>(<span class="str">"returns allow when webhook responds with allow"</span>, <span class="kw">async</span> () =&gt; {
+    server = <span class="kw">await</span> <span class="fn">createTestServer</span>((_req, res) =&gt; {
+      res.<span class="fn">writeHead</span>(<span class="num">200</span>, { <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span> });
+      res.<span class="fn">end</span>(JSON.<span class="fn">stringify</span>({ decision: <span class="str">"allow"</span> }));
+    });
+    <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">callWebhookVerifier</span>({ <span class="cm">/* ... */</span> });
+    <span class="fn">expect</span>(result.decision).<span class="fn">toBe</span>(<span class="str">"allow"</span>);
+  });
+
+  <span class="fn">it</span>(<span class="str">"returns deny when webhook responds with deny"</span>, <span class="kw">async</span> () =&gt; { <span class="cm">/* ... */</span> });
+  <span class="fn">it</span>(<span class="str">"returns error on timeout"</span>, <span class="kw">async</span> () =&gt; { <span class="cm">/* ... */</span> });
+  <span class="fn">it</span>(<span class="str">"includes HMAC signature when secret is configured"</span>, <span class="kw">async</span> () =&gt; { <span class="cm">/* ... */</span> });
+});</code></pre>
+    <p style="color: var(--text-muted); font-size: 0.85rem;">(Full test code in the markdown plan)</p>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 2: Run test to verify it fails</div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm vitest run --config vitest.unit.config.ts -- src/agents/verifier/webhook.test.ts<br>
+      <span class="expected-label">Expected:</span> FAIL (module not found)
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 3: Implement webhook client</div>
+    <p>Create <code>src/agents/verifier/webhook.ts</code>:</p>
+<pre><code><span class="kw">import</span> crypto <span class="kw">from</span> <span class="str">"node:crypto"</span>;
+<span class="kw">import</span> { request } <span class="kw">from</span> <span class="str">"undici"</span>;
+
+<span class="kw">export type</span> <span class="tp">VerifierRequest</span> = {
+  version: <span class="tp">number</span>;
+  timestamp: <span class="tp">string</span>;
+  requestId: <span class="tp">string</span>;
+  tool: { name: <span class="tp">string</span>; params: <span class="tp">Record</span>&lt;<span class="tp">string</span>, <span class="tp">unknown</span>&gt; };
+  context: { agentId?: <span class="tp">string</span>; sessionKey?: <span class="tp">string</span>; messageProvider?: <span class="tp">string</span> };
+};
+
+<span class="kw">export type</span> <span class="tp">VerifierDecision</span> = {
+  decision: <span class="str">"allow"</span> | <span class="str">"deny"</span> | <span class="str">"error"</span>;
+  reason?: <span class="tp">string</span>;
+};
+
+<span class="kw">export async function</span> <span class="fn">callWebhookVerifier</span>(params: {
+  url: <span class="tp">string</span>;
+  timeout: <span class="tp">number</span>;
+  headers?: <span class="tp">Record</span>&lt;<span class="tp">string</span>, <span class="tp">string</span>&gt;;
+  secret?: <span class="tp">string</span>;
+  request: <span class="tp">VerifierRequest</span>;
+}): <span class="tp">Promise</span>&lt;<span class="tp">VerifierDecision</span>&gt; {
+  <span class="kw">const</span> body = JSON.<span class="fn">stringify</span>(params.request);
+  <span class="kw">const</span> headers: <span class="tp">Record</span>&lt;<span class="tp">string</span>, <span class="tp">string</span>&gt; = {
+    <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>,
+    ...params.headers,
+  };
+
+  <span class="kw">if</span> (params.secret) {
+    <span class="kw">const</span> hmac = crypto
+      .<span class="fn">createHmac</span>(<span class="str">"sha256"</span>, params.secret)
+      .<span class="fn">update</span>(body).<span class="fn">digest</span>(<span class="str">"hex"</span>);
+    headers[<span class="str">"X-OpenClaw-Signature"</span>] = <span class="str">`sha256=</span>${hmac}<span class="str">`</span>;
+  }
+
+  <span class="kw">try</span> {
+    <span class="kw">const</span> response = <span class="kw">await</span> <span class="fn">request</span>(params.url, {
+      method: <span class="str">"POST"</span>, headers, body,
+      signal: AbortSignal.<span class="fn">timeout</span>(params.timeout * <span class="num">1000</span>),
+    });
+    <span class="cm">// Parse response, return decision...</span>
+  } <span class="kw">catch</span> (err) {
+    <span class="kw">return</span> { decision: <span class="str">"error"</span>, reason: <span class="str">`Webhook request failed: ...</span>` };
+  }
+}</code></pre>
+    <p style="color: var(--text-muted); font-size: 0.85rem;">(Full implementation in the markdown plan)</p>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 4: Run test to verify it passes</div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm vitest run --config vitest.unit.config.ts -- src/agents/verifier/webhook.test.ts<br>
+      <span class="expected-label">Expected:</span> PASS
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 5: Commit</div>
+<pre><code>git add src/agents/verifier/webhook.ts src/agents/verifier/webhook.test.ts
+git commit -m <span class="str">"feat(verifier): add HTTP webhook client with HMAC signing"</span></code></pre>
+  </div>
+</div>
+
+<!-- ───────────────────────── TASK 5 ───────────────────────── -->
+<div class="task" id="task5">
+  <div class="task-header"><span class="badge">Task 5</span> Telegram Verifier</div>
+
+  <ul class="files">
+    <li><span class="file-action create">Create</span> <code>src/agents/verifier/telegram.ts</code></li>
+    <li><span class="file-action create">Create</span> <code>src/agents/verifier/telegram.test.ts</code></li>
+  </ul>
+
+  <div class="step">
+    <div class="step-title">Step 1: Write the failing test</div>
+    <p>Create <code>src/agents/verifier/telegram.test.ts</code> (tests <code>formatTelegramApprovalMessage</code>):</p>
+<pre><code><span class="kw">import</span> { describe, expect, it } <span class="kw">from</span> <span class="str">"vitest"</span>;
+<span class="kw">import</span> { formatTelegramApprovalMessage } <span class="kw">from</span> <span class="str">"./telegram.js"</span>;
+
+<span class="fn">describe</span>(<span class="str">"formatTelegramApprovalMessage"</span>, () =&gt; {
+  <span class="fn">it</span>(<span class="str">"formats a readable approval message"</span>, () =&gt; {
+    <span class="kw">const</span> message = <span class="fn">formatTelegramApprovalMessage</span>({
+      toolName: <span class="str">"exec"</span>,
+      params: { command: <span class="str">"curl https://example.com"</span> },
+      agentId: <span class="str">"main"</span>,
+      sessionKey: <span class="str">"agent:main:main"</span>,
+    });
+    <span class="fn">expect</span>(message).<span class="fn">toContain</span>(<span class="str">"exec"</span>);
+    <span class="fn">expect</span>(message).<span class="fn">toContain</span>(<span class="str">"curl https://example.com"</span>);
+    <span class="fn">expect</span>(message).<span class="fn">toContain</span>(<span class="str">"main"</span>);
+  });
+
+  <span class="fn">it</span>(<span class="str">"truncates long commands"</span>, () =&gt; {
+    <span class="kw">const</span> longCommand = <span class="str">"a"</span>.<span class="fn">repeat</span>(<span class="num">500</span>);
+    <span class="kw">const</span> message = <span class="fn">formatTelegramApprovalMessage</span>({
+      toolName: <span class="str">"exec"</span>,
+      params: { command: longCommand },
+      agentId: <span class="str">"main"</span>,
+    });
+    <span class="fn">expect</span>(message.length).<span class="fn">toBeLessThan</span>(<span class="num">600</span>);
+  });
+});</code></pre>
+    <div class="note">The full Telegram bot integration requires a live bot token and cannot be unit tested without mocking grammy extensively. The unit test covers formatting logic; bot interaction is tested at integration/e2e level.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 2 &amp; 3: Implement Telegram verifier</div>
+    <p>Create <code>src/agents/verifier/telegram.ts</code> with <code>formatTelegramApprovalMessage</code> and <code>callTelegramVerifier</code>.</p>
+    <p>Key design: uses grammy's <code>InlineKeyboard</code> with Allow/Deny buttons, waits for callback query matching the requestId, auto-cleans up on timeout.</p>
+<pre><code><span class="kw">export function</span> <span class="fn">formatTelegramApprovalMessage</span>(params: { <span class="cm">...</span> }): <span class="tp">string</span> {
+  <span class="cm">// Formats: Tool, Details (truncated), Agent, Session</span>
+}
+
+<span class="kw">export async function</span> <span class="fn">callTelegramVerifier</span>(params: { <span class="cm">...</span> }): <span class="tp">Promise</span>&lt;<span class="tp">VerifierDecision</span>&gt; {
+  <span class="kw">const</span> { Bot, InlineKeyboard } = <span class="kw">await import</span>(<span class="str">"grammy"</span>);
+  <span class="kw">const</span> bot = <span class="kw">new</span> <span class="fn">Bot</span>(params.botToken);
+  <span class="cm">// Send message with inline keyboard [Allow] [Deny]</span>
+  <span class="cm">// Wait for callback, clean up on timeout</span>
+}</code></pre>
+    <p style="color: var(--text-muted); font-size: 0.85rem;">(Full implementation in the markdown plan)</p>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 4: Run test &amp; commit</div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm vitest run --config vitest.unit.config.ts -- src/agents/verifier/telegram.test.ts<br>
+      <span class="expected-label">Expected:</span> PASS
+    </div>
+<pre><code>git add src/agents/verifier/telegram.ts src/agents/verifier/telegram.test.ts
+git commit -m <span class="str">"feat(verifier): add built-in Telegram approval verifier"</span></code></pre>
+  </div>
+</div>
+
+<!-- ───────────────────────── TASK 6 ───────────────────────── -->
+<div class="task" id="task6">
+  <div class="task-header"><span class="badge">Task 6</span> Verifier Orchestrator</div>
+
+  <ul class="files">
+    <li><span class="file-action create">Create</span> <code>src/agents/verifier/index.ts</code></li>
+    <li><span class="file-action create">Create</span> <code>src/agents/verifier/index.test.ts</code></li>
+  </ul>
+
+  <div class="step">
+    <div class="step-title">Step 1: Write the failing test</div>
+    <p>Tests for <code>resolveVerifierConfig</code> and <code>runVerifier</code> with mocked webhook/telegram:</p>
+<pre><code><span class="fn">describe</span>(<span class="str">"resolveVerifierConfig"</span>, () =&gt; {
+  <span class="fn">it</span>(<span class="str">"returns undefined when verifier is disabled"</span>, () =&gt; { <span class="cm">...</span> });
+  <span class="fn">it</span>(<span class="str">"returns undefined when no verifier configured"</span>, () =&gt; { <span class="cm">...</span> });
+  <span class="fn">it</span>(<span class="str">"returns config when enabled with webhook"</span>, () =&gt; { <span class="cm">...</span> });
+});
+
+<span class="fn">describe</span>(<span class="str">"runVerifier"</span>, () =&gt; {
+  <span class="fn">it</span>(<span class="str">"allows when verifier is not configured"</span>, <span class="kw">async</span> () =&gt; { <span class="cm">...</span> });
+  <span class="fn">it</span>(<span class="str">"allows when tool is not in scope"</span>, <span class="kw">async</span> () =&gt; { <span class="cm">...</span> });
+  <span class="fn">it</span>(<span class="str">"blocks when failMode=deny and webhook returns error"</span>, <span class="kw">async</span> () =&gt; { <span class="cm">...</span> });
+  <span class="fn">it</span>(<span class="str">"allows when failMode=allow and webhook returns error"</span>, <span class="kw">async</span> () =&gt; { <span class="cm">...</span> });
+});</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 2 &amp; 3: Implement orchestrator</div>
+    <p>Create <code>src/agents/verifier/index.ts</code>:</p>
+    <p>Core logic: resolve config &rarr; check scope &rarr; call webhook (if configured) &rarr; call Telegram (if configured) &rarr; apply failMode on errors &rarr; return blocked/allowed.</p>
+<pre><code><span class="kw">export type</span> <span class="tp">VerifierOutcome</span> =
+  | { blocked: <span class="kw">true</span>; reason: <span class="tp">string</span> }
+  | { blocked: <span class="kw">false</span> };
+
+<span class="kw">export function</span> <span class="fn">resolveVerifierConfig</span>(config): <span class="tp">VerifierConfig</span> | <span class="kw">undefined</span> { <span class="cm">...</span> }
+
+<span class="kw">export async function</span> <span class="fn">runVerifier</span>(params): <span class="tp">Promise</span>&lt;<span class="tp">VerifierOutcome</span>&gt; {
+  <span class="cm">// 1. Resolve config (skip if disabled)</span>
+  <span class="cm">// 2. Check scope (skip if tool not in scope)</span>
+  <span class="cm">// 3. Call webhook verifier</span>
+  <span class="cm">// 4. Call Telegram verifier</span>
+  <span class="cm">// 5. Apply failMode on errors</span>
+  <span class="cm">// 6. Return outcome</span>
+}</code></pre>
+    <p style="color: var(--text-muted); font-size: 0.85rem;">(Full implementation in the markdown plan)</p>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 4: Run test &amp; commit</div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm vitest run --config vitest.unit.config.ts -- src/agents/verifier/index.test.ts<br>
+      <span class="expected-label">Expected:</span> PASS
+    </div>
+<pre><code>git add src/agents/verifier/index.ts src/agents/verifier/index.test.ts
+git commit -m <span class="str">"feat(verifier): add orchestrator that coordinates webhook + Telegram"</span></code></pre>
+  </div>
+</div>
+
+<!-- ───────────────────────── TASK 7 ───────────────────────── -->
+<div class="task" id="task7">
+  <div class="task-header"><span class="badge">Task 7</span> Wire Into Before-Tool-Call Pipeline</div>
+
+  <ul class="files">
+    <li><span class="file-action modify">Modify</span> <code>src/agents/pi-tools.before-tool-call.ts</code></li>
+    <li><span class="file-action modify">Modify</span> <code>src/agents/pi-tools.ts:442-446</code></li>
+    <li><span class="file-action create">Create</span> <code>src/agents/pi-tools.verifier.test.ts</code></li>
+  </ul>
+
+  <div class="step">
+    <div class="step-title">Step 1: Write the failing test</div>
+    <p>Tests that verify the pipeline blocks/allows based on verifier decisions.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 2: Modify pi-tools.before-tool-call.ts</div>
+    <p>Add <code>verifierConfig</code> parameter to <code>runBeforeToolCallHook</code> and <code>wrapToolWithBeforeToolCallHook</code>. Run verifier after plugin hooks, before returning.</p>
+<pre><code><span class="kw">import type</span> { <span class="tp">VerifierConfig</span> } <span class="kw">from</span> <span class="str">"../config/types.tools.js"</span>;
+<span class="kw">import</span> { runVerifier } <span class="kw">from</span> <span class="str">"./verifier/index.js"</span>;
+
+<span class="kw">export async function</span> <span class="fn">runBeforeToolCallHook</span>(args: {
+  toolName: <span class="tp">string</span>;
+  params: <span class="tp">unknown</span>;
+  toolCallId?: <span class="tp">string</span>;
+  ctx?: <span class="tp">HookContext</span>;
+  verifierConfig?: <span class="tp">VerifierConfig</span>;  <span class="cm">// NEW</span>
+}): <span class="tp">Promise</span>&lt;<span class="tp">HookOutcome</span>&gt; {
+  <span class="cm">// ... existing plugin hook logic ...</span>
+
+  <span class="cm">// NEW: Run external verifier</span>
+  <span class="kw">if</span> (args.verifierConfig) {
+    <span class="kw">const</span> verifierResult = <span class="kw">await</span> <span class="fn">runVerifier</span>({
+      config: args.verifierConfig,
+      toolName, params: normalizedParams,
+      agentId: args.ctx?.agentId,
+    });
+    <span class="kw">if</span> (verifierResult.blocked) {
+      <span class="kw">return</span> { blocked: <span class="kw">true</span>, reason: verifierResult.reason };
+    }
+  }
+}</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 3: Update pi-tools.ts to pass verifier config</div>
+<pre><code><span class="kw">const</span> verifierConfig = options?.config?.tools?.verifier
+  ?? agentConfig?.tools?.verifier;
+
+<span class="kw">const</span> withHooks = normalized.<span class="fn">map</span>((tool) =&gt;
+  <span class="fn">wrapToolWithBeforeToolCallHook</span>(tool, {
+    agentId,
+    sessionKey: options?.sessionKey,
+    verifierConfig,
+  }),
+);</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 4: Run full test suite</div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm test:fast<br>
+      <span class="expected-label">Expected:</span> All tests pass (no regressions)
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 5: Commit</div>
+<pre><code>git add src/agents/pi-tools.before-tool-call.ts src/agents/pi-tools.ts \
+  src/agents/pi-tools.verifier.test.ts
+git commit -m <span class="str">"feat(verifier): wire external verifier into before_tool_call pipeline"</span></code></pre>
+  </div>
+</div>
+
+<!-- ───────────────────────── TASK 8 ───────────────────────── -->
+<div class="task" id="task8">
+  <div class="task-header"><span class="badge">Task 8</span> Documentation Update</div>
+
+  <ul class="files">
+    <li><span class="file-action modify">Modify</span> <code>docs/gateway/sandbox-vs-tool-policy-vs-elevated.md</code></li>
+  </ul>
+
+  <div class="step">
+    <div class="step-title">Step 1: Add verifier section</div>
+    <p>Add a "Verifier: external approval gateway" section describing config, failMode, scope, and dual webhook+Telegram support.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 2: Commit</div>
+<pre><code>git add docs/gateway/sandbox-vs-tool-policy-vs-elevated.md
+git commit -m <span class="str">"docs: add verifier section to sandbox-vs-tool-policy guide"</span></code></pre>
+  </div>
+</div>
+
+<!-- ───────────────────────── TASK 9 ───────────────────────── -->
+<div class="task" id="task9">
+  <div class="task-header"><span class="badge">Task 9</span> Final Integration Test</div>
+
+  <ul class="files">
+    <li><span class="file-action create">Create</span> <code>src/agents/verifier/integration.test.ts</code></li>
+  </ul>
+
+  <div class="step">
+    <div class="step-title">Step 1: Write integration test</div>
+    <p>End-to-end tests with a real HTTP server:</p>
+<pre><code><span class="fn">describe</span>(<span class="str">"verifier integration"</span>, () =&gt; {
+  <span class="fn">it</span>(<span class="str">"end-to-end: webhook allow"</span>, <span class="kw">async</span> () =&gt; {
+    <span class="cm">// Start test server returning { decision: "allow" }</span>
+    <span class="cm">// Run verifier with webhook URL pointing to test server</span>
+    <span class="cm">// Expect result.blocked === false</span>
+  });
+
+  <span class="fn">it</span>(<span class="str">"end-to-end: webhook deny"</span>, <span class="kw">async</span> () =&gt; {
+    <span class="cm">// Start test server returning { decision: "deny", reason: "dangerous" }</span>
+    <span class="cm">// Expect result.blocked === true, reason contains "dangerous"</span>
+  });
+
+  <span class="fn">it</span>(<span class="str">"end-to-end: scope excludes tool"</span>, <span class="kw">async</span> () =&gt; {
+    <span class="cm">// Configure scope.include: ["exec"], verify "read" is not gated</span>
+    <span class="cm">// Expect result.blocked === false (webhook never called)</span>
+  });
+});</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 2: Run integration test &amp; full suite</div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm vitest run --config vitest.unit.config.ts -- src/agents/verifier/integration.test.ts<br>
+      <span class="expected-label">Expected:</span> PASS
+    </div>
+    <div class="run-block">
+      <span class="run-label">Run:</span> pnpm test:fast<br>
+      <span class="expected-label">Expected:</span> All tests pass
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">Step 3: Commit</div>
+<pre><code>git add src/agents/verifier/integration.test.ts
+git commit -m <span class="str">"test(verifier): add end-to-end integration tests"</span></code></pre>
+  </div>
+</div>
+
+<hr>
+<p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 2rem;">
+  External Tool Verifier &mdash; Implementation Plan &bull; OpenClaw &bull; 2026-02-12
+</p>
+
+</body>
+</html>

@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>External Tool Verifier — Visual Brief</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --surface-2: #1a1a24;
+      --border: #2a2a3a;
+      --text: #e4e4ef;
+      --text-muted: #8888a0;
+      --accent: #6c8cff;
+      --accent-glow: rgba(108, 140, 255, 0.15);
+      --green: #4ade80;
+      --green-dim: rgba(74, 222, 128, 0.12);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.12);
+      --orange: #fbbf24;
+      --orange-dim: rgba(251, 191, 36, 0.1);
+      --purple: #c084fc;
+      --purple-dim: rgba(192, 132, 252, 0.12);
+      --cyan: #22d3ee;
+      --cyan-dim: rgba(34, 211, 238, 0.1);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* Hero */
+    .hero {
+      padding: 4rem 2rem 3rem;
+      text-align: center;
+      background: linear-gradient(180deg, #0f0f1a 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-glow);
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      border: 1px solid rgba(108, 140, 255, 0.25);
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #e4e4ef 0%, #8888a0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    /* Container */
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    /* Section */
+    .section {
+      padding: 3rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .section:last-child { border-bottom: none; }
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+    .section h2 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      letter-spacing: -0.01em;
+    }
+    .section p {
+      color: var(--text-muted);
+      max-width: 700px;
+    }
+
+    /* Problem/Solution cards */
+    .ps-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+    .ps-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .ps-card h3 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+    .ps-card.problem h3 { color: var(--red); }
+    .ps-card.solution h3 { color: var(--green); }
+    .ps-card ul {
+      list-style: none;
+      padding: 0;
+    }
+    .ps-card li {
+      padding: 0.35rem 0;
+      padding-left: 1.2rem;
+      position: relative;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+    .ps-card.problem li::before {
+      content: "!";
+      position: absolute;
+      left: 0;
+      color: var(--red);
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+    .ps-card.solution li::before {
+      content: "\2713";
+      position: absolute;
+      left: 0;
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    /* Architecture flow */
+    .arch-flow {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin: 2rem 0;
+      position: relative;
+    }
+    .arch-layer {
+      flex: 1;
+      text-align: center;
+      padding: 1.25rem 0.75rem;
+      position: relative;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .arch-layer:first-child { border-radius: 12px 0 0 12px; }
+    .arch-layer:last-child { border-radius: 0 12px 12px 0; }
+    .arch-layer:not(:last-child) { border-right: none; }
+    .arch-layer.highlight {
+      background: var(--accent-glow);
+      border-color: rgba(108, 140, 255, 0.3);
+    }
+    .arch-layer.highlight + .arch-layer { border-left-color: rgba(108, 140, 255, 0.3); }
+    .arch-num {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.3rem;
+    }
+    .arch-layer.highlight .arch-num { color: var(--accent); }
+    .arch-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .arch-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .arch-arrow {
+      position: absolute;
+      right: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 2;
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+    .arch-layer.highlight .arch-arrow { color: var(--accent); }
+
+    /* Verifier channels */
+    .channels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+    .channel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .channel::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+    .channel.webhook::before { background: var(--accent); }
+    .channel.telegram::before { background: var(--cyan); }
+    .channel-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .channel h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+    .channel p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+    .channel-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .tag {
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      letter-spacing: 0.02em;
+    }
+    .tag.blue { background: var(--accent-glow); color: var(--accent); }
+    .tag.cyan { background: var(--cyan-dim); color: var(--cyan); }
+    .tag.green { background: var(--green-dim); color: var(--green); }
+    .tag.orange { background: var(--orange-dim); color: var(--orange); }
+    .tag.purple { background: var(--purple-dim); color: var(--purple); }
+
+    /* Decision matrix */
+    .matrix {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 1.5rem 0;
+      font-size: 0.88rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .matrix th {
+      background: var(--surface-2);
+      padding: 0.7rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .matrix td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .matrix tr:last-child td { border-bottom: none; }
+    .matrix .allow { color: var(--green); font-weight: 600; }
+    .matrix .deny { color: var(--red); font-weight: 600; }
+    .matrix code {
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 0.82em;
+      background: var(--surface-2);
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+    }
+
+    /* Security grid */
+    .sec-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .sec-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .sec-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      margin-bottom: 0.75rem;
+      font-weight: 700;
+    }
+    .sec-card:nth-child(1) .sec-icon { background: var(--red-dim); color: var(--red); }
+    .sec-card:nth-child(2) .sec-icon { background: var(--green-dim); color: var(--green); }
+    .sec-card:nth-child(3) .sec-icon { background: var(--accent-glow); color: var(--accent); }
+    .sec-card:nth-child(4) .sec-icon { background: var(--cyan-dim); color: var(--cyan); }
+    .sec-card:nth-child(5) .sec-icon { background: var(--orange-dim); color: var(--orange); }
+    .sec-card:nth-child(6) .sec-icon { background: var(--purple-dim); color: var(--purple); }
+    .sec-card h4 {
+      font-size: 0.88rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+    .sec-card p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* Form factors */
+    .ff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .ff-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      position: relative;
+    }
+    .ff-card.primary {
+      border-color: rgba(108, 140, 255, 0.3);
+      background: linear-gradient(135deg, var(--surface) 0%, rgba(108, 140, 255, 0.05) 100%);
+    }
+    .ff-card.built-in {
+      border-color: rgba(74, 222, 128, 0.25);
+      background: linear-gradient(135deg, var(--surface) 0%, rgba(74, 222, 128, 0.04) 100%);
+    }
+    .ff-status {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+    .ff-status.done { background: var(--green-dim); color: var(--green); }
+    .ff-status.candidate { background: var(--accent-glow); color: var(--accent); }
+    .ff-status.example { background: var(--surface-2); color: var(--text-muted); }
+    .ff-card h4 {
+      font-size: 0.92rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+      margin-top: 0.15rem;
+    }
+    .ff-card p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* Config preview */
+    .config-preview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-top: 1.5rem;
+      font-family: 'SF Mono', Consolas, 'Liberation Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+    .config-preview .k { color: var(--accent); }
+    .config-preview .s { color: #a5d6ff; }
+    .config-preview .n { color: #79c0ff; }
+    .config-preview .c { color: #555570; }
+    .config-preview .b { color: var(--orange); }
+
+    /* Status bar */
+    .status-bar {
+      display: flex;
+      gap: 2rem;
+      margin-top: 1.5rem;
+      padding: 1rem 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .status-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .status-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+    .status-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .hero h1 { font-size: 1.75rem; }
+      .ps-grid, .channels { grid-template-columns: 1fr; }
+      .sec-grid, .ff-grid { grid-template-columns: 1fr 1fr; }
+      .arch-flow { flex-direction: column; }
+      .arch-layer { border-radius: 0 !important; border-right: 1px solid var(--border) !important; border-bottom: none; }
+      .arch-layer:first-child { border-radius: 12px 12px 0 0 !important; }
+      .arch-layer:last-child { border-radius: 0 0 12px 12px !important; border-bottom: 1px solid var(--border); }
+      .arch-arrow { display: none; }
+      .status-bar { flex-wrap: wrap; gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── HERO ─── -->
+<div class="hero">
+  <div class="hero-badge">OpenClaw RFC</div>
+  <h1>External Tool Verifier</h1>
+  <p>A pre-execution verification gateway that consults external authorities — webhooks, LLMs, or humans — before any tool call proceeds.</p>
+  <div class="status-bar container" style="margin-top: 2rem; display: inline-flex;">
+    <div class="status-item">
+      <span class="status-label">Status</span>
+      <span class="status-value" style="color: var(--orange);">Design Complete</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Tasks</span>
+      <span class="status-value">9 TDD steps</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Security Review</span>
+      <span class="status-value" style="color: var(--green);">Passed (P0s fixed)</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">New Files</span>
+      <span class="status-value">6 modules</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ─── PROBLEM / SOLUTION ─── -->
+<div class="section">
+  <div class="section-label">Context</div>
+  <h2>Why This Exists</h2>
+  <div class="ps-grid">
+    <div class="ps-card problem">
+      <h3>The Gap</h3>
+      <ul>
+        <li>Existing layers control <em>what</em> can run and <em>where</em></li>
+        <li>No way to consult an external authority before execution</li>
+        <li>Autonomous agents run unattended with no human oversight</li>
+        <li>No integration point for enterprise policy servers</li>
+      </ul>
+    </div>
+    <div class="ps-card solution">
+      <h3>What This Adds</h3>
+      <ul>
+        <li>Route tool calls to another LLM for safety analysis</li>
+        <li>Human-in-the-loop approval via Telegram (or other channels)</li>
+        <li>Automated policy evaluation via webhook endpoints</li>
+        <li>Plugs into existing pipeline — purely additive, no breaking changes</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ─── ARCHITECTURE ─── -->
+<div class="section">
+  <div class="section-label">Architecture</div>
+  <h2>Where It Fits</h2>
+  <p>The verifier is Layer 3 in OpenClaw's security pipeline. It only sees tool calls that already passed existing checks.</p>
+
+  <div class="arch-flow">
+    <div class="arch-layer">
+      <div class="arch-num">Layer 1</div>
+      <div class="arch-name">Tool Policy</div>
+      <div class="arch-desc">allow / deny / profile</div>
+      <div class="arch-arrow">&rarr;</div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-num">Layer 2</div>
+      <div class="arch-name">safeBins</div>
+      <div class="arch-desc">exec allowlist</div>
+      <div class="arch-arrow">&rarr;</div>
+    </div>
+    <div class="arch-layer highlight">
+      <div class="arch-num">Layer 3 &mdash; New</div>
+      <div class="arch-name">Verifier</div>
+      <div class="arch-desc">webhook + Telegram</div>
+      <div class="arch-arrow">&rarr;</div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-num">Layer 4</div>
+      <div class="arch-name">Execute</div>
+      <div class="arch-desc">tool runs</div>
+    </div>
+  </div>
+
+  <p style="font-size: 0.85rem;">A compromised verifier can bypass <em>this</em> layer but not the ones below it. Defense in depth works.</p>
+</div>
+
+<!-- ─── CHANNELS ─── -->
+<div class="section">
+  <div class="section-label">Verification Channels</div>
+  <h2>Two Built-in Verifiers</h2>
+  <p>Both can run simultaneously — both must approve for a tool call to proceed.</p>
+
+  <div class="channels">
+    <div class="channel webhook">
+      <div class="channel-icon">&lbrace;&rbrace;</div>
+      <h3>HTTP Webhook</h3>
+      <p>POST tool call details to any endpoint. Use for LLM safety checks, policy engines (OPA/Cedar), audit logging, or custom approval flows.</p>
+      <div class="channel-tags">
+        <span class="tag blue">HMAC-SHA256 signing</span>
+        <span class="tag green">HTTPS enforced</span>
+        <span class="tag orange">30s default timeout</span>
+        <span class="tag purple">64KB response limit</span>
+      </div>
+    </div>
+    <div class="channel telegram">
+      <div class="channel-icon">&phone;</div>
+      <h3>Telegram Approval</h3>
+      <p>Sends an inline-keyboard message with Allow/Deny buttons. Human taps to approve. Uses direct API calls (no long-polling) to avoid race conditions.</p>
+      <div class="channel-tags">
+        <span class="tag cyan">Inline keyboard</span>
+        <span class="tag green">Sender validation</span>
+        <span class="tag orange">120s default timeout</span>
+        <span class="tag purple">Param redaction</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── DECISION MATRIX ─── -->
+<div class="section">
+  <div class="section-label">Behavior</div>
+  <h2>Decision Matrix</h2>
+  <p>What happens under every condition, for each failMode setting.</p>
+
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th>Condition</th>
+        <th>failMode: "deny"</th>
+        <th>failMode: "allow"</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Webhook returns <code>"allow"</code></td>
+        <td class="allow">Allowed</td>
+        <td class="allow">Allowed</td>
+      </tr>
+      <tr>
+        <td>Webhook returns <code>"deny"</code></td>
+        <td class="deny">Blocked</td>
+        <td class="deny">Blocked</td>
+      </tr>
+      <tr>
+        <td>Webhook timeout / unreachable</td>
+        <td class="deny">Blocked</td>
+        <td class="allow">Allowed</td>
+      </tr>
+      <tr>
+        <td>Non-2xx HTTP status</td>
+        <td class="deny">Blocked</td>
+        <td class="allow">Allowed</td>
+      </tr>
+      <tr>
+        <td>Telegram &mdash; no response within timeout</td>
+        <td class="deny">Blocked</td>
+        <td class="allow">Allowed</td>
+      </tr>
+      <tr>
+        <td>Telegram &mdash; unauthorized user taps button</td>
+        <td colspan="2" style="color: var(--text-muted); text-align: center;">Ignored (alert shown to user)</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size: 0.85rem; margin-top: 0.5rem;">Per-agent <code>failMode</code> uses <strong>most-restrictive-wins</strong>: agent <code>"allow"</code> + global <code>"deny"</code> &rarr; effective <code>"deny"</code>.</p>
+</div>
+
+<!-- ─── SECURITY ─── -->
+<div class="section">
+  <div class="section-label">Security Review</div>
+  <h2>Hardening Measures</h2>
+  <p>Identified during tech lead review. All P0/P1 issues addressed in the plan.</p>
+
+  <div class="sec-grid">
+    <div class="sec-card">
+      <div class="sec-icon">R</div>
+      <h4>Param Redaction</h4>
+      <p>File contents stripped from write/edit params before sending to external endpoints. Prevents secret leakage.</p>
+    </div>
+    <div class="sec-card">
+      <div class="sec-icon">H</div>
+      <h4>HTTPS Enforced</h4>
+      <p>Webhook URLs must use HTTPS in production. HTTP rejected at config validation time.</p>
+    </div>
+    <div class="sec-card">
+      <div class="sec-icon">A</div>
+      <h4>Sender Validation</h4>
+      <p><code>allowedUserIds</code> restricts who can tap Allow/Deny. Unauthorized taps rejected with alert.</p>
+    </div>
+    <div class="sec-card">
+      <div class="sec-icon">P</div>
+      <h4>No Long-Polling</h4>
+      <p>Telegram uses direct API calls. Avoids 409 conflicts, race conditions, and lost callbacks.</p>
+    </div>
+    <div class="sec-card">
+      <div class="sec-icon">F</div>
+      <h4>Most-Restrictive-Wins</h4>
+      <p>Per-agent failMode cannot weaken global setting. Prevents misconfigured agents from degrading security.</p>
+    </div>
+    <div class="sec-card">
+      <div class="sec-icon">L</div>
+      <h4>Response Limits</h4>
+      <p>64KB body cap, 500-char reason truncation. Prevents memory abuse from malicious endpoints.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── CONFIG ─── -->
+<div class="section">
+  <div class="section-label">Configuration</div>
+  <h2>Quick Start</h2>
+  <p>Add to <code>openclaw.json</code> — that's it. Works with existing tool policy and sandbox settings.</p>
+
+  <div class="config-preview">
+<span class="c">// openclaw.json</span>
+{
+  <span class="k">"tools"</span>: {
+    <span class="k">"verifier"</span>: {
+      <span class="k">"enabled"</span>: <span class="b">true</span>,
+      <span class="k">"failMode"</span>: <span class="s">"deny"</span>,
+      <span class="k">"scope"</span>: { <span class="k">"include"</span>: [<span class="s">"exec"</span>, <span class="s">"write"</span>, <span class="s">"edit"</span>] },
+
+      <span class="c">// Route to an LLM safety checker, policy server, or custom endpoint</span>
+      <span class="k">"webhook"</span>: {
+        <span class="k">"url"</span>: <span class="s">"https://my-verifier.example.com/verify"</span>,
+        <span class="k">"timeout"</span>: <span class="n">30</span>,
+        <span class="k">"secret"</span>: <span class="s">"${VERIFIER_HMAC_SECRET}"</span>
+      },
+
+      <span class="c">// Human-in-the-loop via Telegram</span>
+      <span class="k">"telegram"</span>: {
+        <span class="k">"enabled"</span>: <span class="b">true</span>,
+        <span class="k">"botToken"</span>: <span class="s">"${TELEGRAM_BOT_TOKEN}"</span>,
+        <span class="k">"chatId"</span>: <span class="s">"123456789"</span>,
+        <span class="k">"allowedUserIds"</span>: [<span class="n">123456789</span>]
+      }
+    }
+  }
+}
+  </div>
+</div>
+
+<!-- ─── FORM FACTORS ─── -->
+<div class="section">
+  <div class="section-label">Roadmap</div>
+  <h2>Approval Form Factors</h2>
+  <p>The webhook protocol supports any backend. Some are built-in; others ship as examples.</p>
+
+  <div class="ff-grid">
+    <div class="ff-card built-in">
+      <span class="ff-status done">Built-in</span>
+      <h4>HTTP Webhook</h4>
+      <p>Universal integration point. Connect any LLM, policy engine, or custom service.</p>
+    </div>
+    <div class="ff-card built-in">
+      <span class="ff-status done">Built-in</span>
+      <h4>Telegram Bot</h4>
+      <p>Inline keyboard with Allow/Deny. Human-in-the-loop for autonomous agents.</p>
+    </div>
+    <div class="ff-card primary">
+      <span class="ff-status candidate">Candidate</span>
+      <h4>Web Dashboard</h4>
+      <p>Local web UI with passkey auth. Rich context: syntax highlighting, diffs, agent history.</p>
+    </div>
+    <div class="ff-card">
+      <span class="ff-status example">Example</span>
+      <h4>Slack / Discord</h4>
+      <p>Workplace messaging. Richer Block Kit UIs. Ships as example webhook backend.</p>
+    </div>
+    <div class="ff-card">
+      <span class="ff-status example">Example</span>
+      <h4>OPA Policy Engine</h4>
+      <p>Automated rule evaluation. No human needed. Best for production at scale.</p>
+    </div>
+    <div class="ff-card">
+      <span class="ff-status example">Example</span>
+      <h4>Desktop Notifications</h4>
+      <p>Native OS notifications with action buttons. Zero deps, works offline.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── IMPLEMENTATION ─── -->
+<div class="section">
+  <div class="section-label">Implementation</div>
+  <h2>9-Task TDD Plan</h2>
+  <p>Each task follows write-test &rarr; see-it-fail &rarr; implement &rarr; see-it-pass &rarr; commit.</p>
+
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 1.5rem;">
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem;">
+      <div style="font-size: 0.65rem; color: var(--orange); font-weight: 700; letter-spacing: 0.06em;">TASK 1</div>
+      <div style="font-size: 0.88rem; font-weight: 600;">Config Types</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">types.tools.ts</div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem;">
+      <div style="font-size: 0.65rem; color: var(--orange); font-weight: 700; letter-spacing: 0.06em;">TASK 2</div>
+      <div style="font-size: 0.88rem; font-weight: 600;">Zod Schema</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">zod-schema.agent-runtime.ts</div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem;">
+      <div style="font-size: 0.65rem; color: var(--green); font-weight: 700; letter-spacing: 0.06em;">TASK 3</div>
+      <div style="font-size: 0.88rem; font-weight: 600;">Scope Matcher</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">verifier/scope.ts</div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem;">
+      <div style="font-size: 0.65rem; color: var(--green); font-weight: 700; letter-spacing: 0.06em;">TASK 4</div>
+      <div style="font-size: 0.88rem; font-weight: 600;">Webhook Client</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">verifier/webhook.ts</div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem;">
+      <div style="font-size: 0.65rem; color: var(--green); font-weight: 700; letter-spacing: 0.06em;">TASK 5</div>
+      <div style="font-size: 0.88rem; font-weight: 600;">Telegram Verifier</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">verifier/telegram.ts</div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem;">
+      <div style="font-size: 0.65rem; color: var(--accent); font-weight: 700; letter-spacing: 0.06em;">TASK 6</div>
+      <div style="font-size: 0.88rem; font-weight: 600;">Orchestrator</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">verifier/index.ts</div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem;">
+      <div style="font-size: 0.65rem; color: var(--accent); font-weight: 700; letter-spacing: 0.06em;">TASK 7</div>
+      <div style="font-size: 0.88rem; font-weight: 600;">Pipeline Wiring</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">pi-tools.before-tool-call.ts</div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem;">
+      <div style="font-size: 0.65rem; color: var(--purple); font-weight: 700; letter-spacing: 0.06em;">TASK 8</div>
+      <div style="font-size: 0.88rem; font-weight: 600;">Documentation</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">sandbox-vs-tool-policy.md</div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem;">
+      <div style="font-size: 0.65rem; color: var(--purple); font-weight: 700; letter-spacing: 0.06em;">TASK 9</div>
+      <div style="font-size: 0.88rem; font-weight: 600;">Integration Tests</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">verifier/integration.test.ts</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="footer">
+  External Tool Verifier &mdash; Visual Brief &bull; OpenClaw &bull; 2026-02-12
+</div>
+
+</body>
+</html>
