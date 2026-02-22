@@ -1771,6 +1771,10 @@ See [/concepts/model-providers](/concepts/model-providers) and [/environment](/h
 
 Send `/new` or `/reset` as a standalone message. See [Session management](/concepts/session).
 
+`/new` keeps the same session key and rotates to a new `sessionId`. The previous
+transcript is archived on disk (`*.jsonl.reset.*`), and the Sessions view now
+shows reset-history summary fields so this does not look like history loss.
+
 ### Do sessions reset automatically if I never send new
 
 Yes. Sessions expire after `session.idleMinutes` (default **60**). The **next**

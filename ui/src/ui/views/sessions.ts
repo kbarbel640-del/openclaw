@@ -234,8 +234,17 @@ function renderRow(
     typeof row.displayName === "string" && row.displayName.trim().length > 0
       ? row.displayName.trim()
       : null;
-  const label = typeof row.label === "string" ? row.label.trim() : "";
-  const showDisplayName = Boolean(displayName && displayName !== row.key && displayName !== label);
+  const showDisplayName = Boolean(
+    displayName &&
+    displayName !== row.key &&
+    displayName !== (typeof row.label === "string" ? row.label.trim() : ""),
+  );
+  const resetCount =
+    typeof row.resetCount === "number" ? Math.max(0, Math.floor(row.resetCount)) : 0;
+  const resetSummary =
+    resetCount > 0
+      ? `Resets ${resetCount}${row.lastResetAt ? ` (last ${formatRelativeTimestamp(row.lastResetAt)})` : ""}`
+      : null;
   const canLink = row.kind !== "global";
   const chatUrl = canLink
     ? `${pathForTab("chat", basePath)}?session=${encodeURIComponent(row.key)}`
@@ -245,7 +254,18 @@ function renderRow(
     <div class="table-row">
       <div class="mono session-key-cell">
         ${canLink ? html`<a href=${chatUrl} class="session-link">${row.key}</a>` : row.key}
-        ${showDisplayName ? html`<span class="muted session-key-display-name">${displayName}</span>` : nothing}
+        ${
+          showDisplayName
+            ? html`<span class="muted session-key-display-name">${displayName}</span>`
+            : nothing
+        }
+        ${
+          resetSummary
+            ? html`<span class="muted session-key-reset-summary" style="display: block;">
+                ${resetSummary}
+              </span>`
+            : nothing
+        }
       </div>
       <div>
         <input

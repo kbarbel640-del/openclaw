@@ -78,4 +78,27 @@ describe("sessions view", () => {
       Array.from(reasoning?.options ?? []).some((option) => option.value === "custom-mode"),
     ).toBe(true);
   });
+
+  it("renders reset history summary when session has archived resets", async () => {
+    const container = document.createElement("div");
+    render(
+      renderSessions(
+        buildProps(
+          buildResult({
+            key: "agent:main:main",
+            kind: "direct",
+            updatedAt: Date.now(),
+            resetCount: 3,
+            lastResetAt: Date.now() - 60_000,
+          }),
+        ),
+      ),
+      container,
+    );
+    await Promise.resolve();
+
+    const summary = container.querySelector(".session-key-reset-summary");
+    expect(summary?.textContent ?? "").toContain("Resets 3");
+    expect(summary?.textContent ?? "").toContain("last");
+  });
 });

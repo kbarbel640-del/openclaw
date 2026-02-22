@@ -38,6 +38,9 @@ export type GatewaySessionRow = {
   modelProvider?: string;
   model?: string;
   contextTokens?: number;
+  resetCount?: number;
+  lastResetAt?: number;
+  lastResetReason?: "new" | "reset";
   deliveryContext?: DeliveryContext;
   lastChannel?: SessionEntry["lastChannel"];
   lastTo?: string;

@@ -992,12 +992,20 @@ describe("initSessionState preserves behavior overrides across /new and /reset",
     expect(result.isNewSession).toBe(true);
     expect(result.resetTriggered).toBe(true);
     expect(result.sessionEntry.label).toBe("Briefing");
+    expect(result.sessionEntry.resetHistory).toHaveLength(1);
+    expect(result.sessionEntry.resetHistory?.[0]?.sessionId).toBe(existingSessionId);
+    expect(result.sessionEntry.resetHistory?.[0]?.reason).toBe("new");
+    expect(result.sessionEntry.resetHistory?.[0]?.label).toBe("Briefing");
+    expect(typeof result.sessionEntry.resetHistory?.[0]?.archivedAt).toBe("number");
 
     const stored = JSON.parse(await fs.readFile(storePath, "utf-8")) as Record<
       string,
       SessionEntry
     >;
     expect(stored[sessionKey]?.label).toBe("Briefing");
+    expect(stored[sessionKey]?.resetHistory).toHaveLength(1);
+    expect(stored[sessionKey]?.resetHistory?.[0]?.sessionId).toBe(existingSessionId);
+    expect(stored[sessionKey]?.resetHistory?.[0]?.reason).toBe("new");
   });
 
   it("/reset preserves thinkingLevel and reasoningLevel from previous session", async () => {
@@ -1036,6 +1044,8 @@ describe("initSessionState preserves behavior overrides across /new and /reset",
     expect(result.sessionId).not.toBe(existingSessionId);
     expect(result.sessionEntry.thinkingLevel).toBe("high");
     expect(result.sessionEntry.reasoningLevel).toBe("low");
+    expect(result.sessionEntry.resetHistory?.[0]?.sessionId).toBe(existingSessionId);
+    expect(result.sessionEntry.resetHistory?.[0]?.reason).toBe("reset");
   });
 
   it("/new preserves session label from previous session", async () => {
