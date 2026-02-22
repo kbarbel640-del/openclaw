@@ -484,7 +484,7 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
           authProfileIdSource: "auto",
           timeoutMs: 5_000,
           runId: "run:probe-timeout",
-          probeMode: true,
+          isProbeRun: true,
         }),
       ).rejects.toMatchObject({
         name: "FailoverError",
@@ -556,7 +556,7 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
         authProfileIdSource: "auto",
         timeoutMs: 5_000,
         runId: "run:probe-rotate-no-cooldown",
-        probeMode: true,
+        isProbeRun: true,
       });
 
       expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(2);
@@ -614,7 +614,7 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
         authProfileIdSource: "auto",
         timeoutMs: 5_000,
         runId: "run:probe-prompt-error",
-        probeMode: true,
+        isProbeRun: true,
       });
 
       expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(2);
@@ -752,7 +752,7 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
     }
   });
 
-  it("allows probeMode=false to disable probe-session heuristic and persist cooldown", async () => {
+  it("allows isProbeRun=false to disable probe-session heuristic and persist cooldown", async () => {
     const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
     try {
@@ -792,7 +792,7 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
           authProfileIdSource: "auto",
           timeoutMs: 5_000,
           runId: "run:probe-rate-limit-explicit-false",
-          probeMode: false,
+          isProbeRun: false,
         }),
       ).rejects.toMatchObject({
         name: "FailoverError",
