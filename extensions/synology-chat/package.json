@@ -9,7 +9,7 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "channel": {
       "id": "synology-chat",
@@ -27,3 +27,4 @@
     }
   }
 }
+

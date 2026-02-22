@@ -15,7 +15,7 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "channel": {
       "id": "googlechat",
@@ -38,3 +38,4 @@
     }
   }
 }
+
