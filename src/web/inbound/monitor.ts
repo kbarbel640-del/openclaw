@@ -296,6 +296,10 @@ export async function monitorWebInbox(options: {
             });
             if (transcript) {
               body = transcript;
+              // Clear mediaPath so the agent doesn't re-transcribe the audio
+              // via its tool pipeline. Keep mediaType so isInboundAudioContext()
+              // still detects audio for TTS.
+              mediaPath = undefined;
               logVerbose(
                 `whatsapp: transcribed voice note (${transcript.length} chars) from ${from}`,
               );
