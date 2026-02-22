@@ -30,12 +30,15 @@ ENV NODE_ENV=production
 
 # ---------------------------------------------------------------------------
 # Slim down: prune dev dependencies before handoff to the runtime stage.
-# The runtime stage uses explicit COPY directives to pick only the files it
-# needs, so we don't need to manually rm build configs here.
 # ---------------------------------------------------------------------------
 
 # Prune dev dependencies (~237MB): typescript, vitest, rolldown, oxlint, etc.
-RUN CI=true pnpm prune --prod
+# Set OPENCLAW_DOCKER_DONT_PRUNE=1 to retain dev dependencies (e.g. for
+# running the in-container test suite via test:docker:all).
+ARG OPENCLAW_DOCKER_DONT_PRUNE=""
+RUN if [ -z "$OPENCLAW_DOCKER_DONT_PRUNE" ]; then \
+  CI=true pnpm prune --prod; \
+  fi
 
 # =============================================================================
 # Stage 2: Runtime
@@ -51,37 +54,31 @@ RUN corepack enable
 
 WORKDIR /app
 
-# Copy only runtime-needed files from the builder.
-# Explicit paths are self-documenting and won't accidentally include new build
-# artifacts when upstream adds files.
-COPY --from=builder --chown=node:node /app/openclaw.mjs /app/openclaw.mjs
-COPY --from=builder --chown=node:node /app/package.json /app/package.json
-COPY --from=builder --chown=node:node /app/pnpm-lock.yaml /app/pnpm-lock.yaml
-COPY --from=builder --chown=node:node /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
-COPY --from=builder --chown=node:node /app/.npmrc /app/.npmrc
-COPY --from=builder --chown=node:node /app/dist /app/dist
-COPY --from=builder --chown=node:node /app/node_modules /app/node_modules
-COPY --from=builder --chown=node:node /app/extensions /app/extensions
+# Copy the built & pruned application with correct ownership.
+# Using COPY --chown avoids a separate `chown -R` layer that would duplicate
+# all file data. The builder's prune step already stripped dev
+# dependencies; residual source/config files add negligible size.
+COPY --from=builder --chown=node:node /app /app
 
 # Optionally install extra apt packages and/or Chromium for browser automation.
 # Build with: docker build --build-arg OPENCLAW_INSTALL_BROWSER=1 ...
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 ARG OPENCLAW_INSTALL_BROWSER=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ] || [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
-      apt-get update && \
-    if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
-      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES; \
-    fi && \
-    if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
-      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
-      mkdir -p /home/node/.cache/ms-playwright && \
-      PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
-      node /app/node_modules/playwright-core/cli.js install --with-deps chromium && \
-      chown -R node:node /home/node/.cache/ms-playwright; \
-    fi && \
-      apt-get clean && \
-      rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
-    fi
+  apt-get update && \
+  if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES; \
+  fi && \
+  if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
+  mkdir -p /home/node/.cache/ms-playwright && \
+  PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
+  node /app/node_modules/playwright-core/cli.js install --with-deps chromium && \
+  chown -R node:node /home/node/.cache/ms-playwright; \
+  fi && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
+  fi
 
 ENV NODE_ENV=production
 
