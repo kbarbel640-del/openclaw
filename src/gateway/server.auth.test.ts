@@ -1074,25 +1074,13 @@ describe("gateway server auth/connect", () => {
       client,
       device: buildDevice(["operator.admin"], nonce2),
     });
-    expect(res.ok).toBe(false);
-    expect(res.error?.message ?? "").toContain("pairing required");
+    // Loopback scope upgrades are auto-approved silently
+    expect(res.ok).toBe(true);
 
-    await approvePendingPairingIfNeeded();
-    ws2.close();
-
-    const ws3 = await openWs(port);
-    const nonce3 = await readConnectChallengeNonce(ws3);
-    const approved = await connectReq(ws3, {
-      token: "secret",
-      scopes: ["operator.admin"],
-      client,
-      device: buildDevice(["operator.admin"], nonce3),
-    });
-    expect(approved.ok).toBe(true);
     paired = await getPairedDevice(identity.deviceId);
     expect(paired?.scopes).toContain("operator.admin");
 
-    ws3.close();
+    ws2.close();
     await server.close();
     restoreGatewayToken(prevToken);
   });
@@ -1351,7 +1339,7 @@ describe("gateway server auth/connect", () => {
     }
   });
 
-  test("rejects scope escalation from legacy paired metadata", async () => {
+  test("auto-approves scope escalation from legacy paired metadata on loopback", async () => {
     const { mkdtemp } = await import("node:fs/promises");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
@@ -1434,20 +1422,103 @@ describe("gateway server auth/connect", () => {
         client,
         device: buildDevice(["operator.admin"], upgradeNonce),
       });
-      expect(upgraded.ok).toBe(false);
-      expect(upgraded.error?.message ?? "").toContain("pairing required");
-      wsUpgrade.close();
+      // Loopback scope upgrades are auto-approved silently
+      expect(upgraded.ok).toBe(true);
 
-      const pendingUpgrade = (await listDevicePairing()).pending.find(
-        (entry) => entry.deviceId === identity.deviceId,
-      );
-      expect(pendingUpgrade?.requestId).toBeDefined();
-      expect(pendingUpgrade?.scopes).toContain("operator.admin");
-      const repaired = await getPairedDevice(identity.deviceId);
-      expect(repaired?.role).toBe("operator");
-      expect(repaired?.roles).toBeUndefined();
-      expect(repaired?.scopes).toBeUndefined();
-      expect(repaired?.approvedScopes).not.toContain("operator.admin");
+      const repairedDevice = await getPairedDevice(identity.deviceId);
+      expect(repairedDevice?.scopes).toContain("operator.admin");
+    } finally {
+      ws.close();
+      ws2?.close();
+      await server.close();
+      restoreGatewayToken(prevToken);
+    }
+  });
+
+  test("auto-approves scope upgrade on loopback for legacy paired device", async () => {
+    const { mkdtemp } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { readJsonFile, resolvePairingPaths } = await import("../infra/pairing-files.js");
+    const { writeJsonAtomic } = await import("../infra/json-files.js");
+    const { buildDeviceAuthPayload } = await import("./device-auth.js");
+    const { loadOrCreateDeviceIdentity, publicKeyRawBase64UrlFromPem, signDevicePayload } =
+      await import("../infra/device-identity.js");
+    const { getPairedDevice } = await import("../infra/device-pairing.js");
+    const { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } =
+      await import("../utils/message-channel.js");
+    const { server, ws, port, prevToken } = await startServerWithClient("secret");
+    let ws2: WebSocket | undefined;
+    try {
+      const identityDir = await mkdtemp(join(tmpdir(), "openclaw-device-scope-auto-"));
+      const identity = loadOrCreateDeviceIdentity(join(identityDir, "device.json"));
+      const client = {
+        id: GATEWAY_CLIENT_NAMES.TEST,
+        version: "1.0.0",
+        platform: "test",
+        mode: GATEWAY_CLIENT_MODES.TEST,
+      };
+      const buildDevice = (scopes: string[], nonce: string) => {
+        const signedAtMs = Date.now();
+        const payload = buildDeviceAuthPayload({
+          deviceId: identity.deviceId,
+          clientId: client.id,
+          clientMode: client.mode,
+          role: "operator",
+          scopes,
+          signedAtMs,
+          token: "secret",
+          nonce,
+        });
+        return {
+          id: identity.deviceId,
+          publicKey: publicKeyRawBase64UrlFromPem(identity.publicKeyPem),
+          signature: signDevicePayload(identity.privateKeyPem, payload),
+          signedAt: signedAtMs,
+          nonce,
+        };
+      };
+
+      // Pair with operator.read initially
+      const initialNonce = await readConnectChallengeNonce(ws);
+      const initial = await connectReq(ws, {
+        token: "secret",
+        scopes: ["operator.read"],
+        client,
+        device: buildDevice(["operator.read"], initialNonce),
+      });
+      if (!initial.ok) {
+        await approvePendingPairingIfNeeded();
+      }
+      ws.close();
+
+      // Strip scopes to simulate legacy paired metadata
+      const { pairedPath } = resolvePairingPaths(undefined, "devices");
+      const paired =
+        (await readJsonFile<Record<string, Record<string, unknown>>>(pairedPath)) ?? {};
+      const legacy = paired[identity.deviceId];
+      expect(legacy).toBeTruthy();
+      if (!legacy) {
+        throw new Error(`Expected paired metadata for deviceId=${identity.deviceId}`);
+      }
+      delete legacy.scopes;
+      await writeJsonAtomic(pairedPath, paired);
+
+      // Reconnect requesting operator.write — should auto-approve on loopback
+      const wsUpgrade = await openWs(port);
+      ws2 = wsUpgrade;
+      const upgradeNonce = await readConnectChallengeNonce(wsUpgrade);
+      const upgraded = await connectReq(wsUpgrade, {
+        token: "secret",
+        scopes: ["operator.write"],
+        client,
+        device: buildDevice(["operator.write"], upgradeNonce),
+      });
+      expect(upgraded.ok).toBe(true);
+
+      // Verify scopes were persisted after auto-approval
+      const repairedDevice = await getPairedDevice(identity.deviceId);
+      expect(repairedDevice?.scopes).toContain("operator.write");
     } finally {
       ws.close();
       ws2?.close();
