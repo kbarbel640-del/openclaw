@@ -5,7 +5,10 @@ import { acquireSessionWriteLock } from "../../agents/session-write-lock.js";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import { parseByteSize } from "../../cli/parse-bytes.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
-import { archiveSessionTranscripts } from "../../gateway/session-utils.fs.js";
+import {
+  archiveSessionTranscripts,
+  cleanupArchivedSessionTranscripts,
+} from "../../gateway/session-utils.fs.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import {
   deliveryContextFromSession,
@@ -538,11 +541,22 @@ async function saveSessionStoreUnlocked(
         },
       });
       capEntryCount(store, maintenance.maxEntries);
+      const archivedDirs = new Set<string>();
       for (const [sessionId, sessionFile] of prunedSessionFiles) {
-        archiveSessionTranscripts({
+        const archived = archiveSessionTranscripts({
           sessionId,
           storePath,
           sessionFile,
+          reason: "deleted",
+        });
+        for (const archivedPath of archived) {
+          archivedDirs.add(path.dirname(archivedPath));
+        }
+      }
+      if (archivedDirs.size > 0) {
+        await cleanupArchivedSessionTranscripts({
+          directories: [...archivedDirs],
+          olderThanMs: maintenance.pruneAfterMs,
           reason: "deleted",
         });
       }
@@ -581,7 +595,7 @@ async function saveSessionStoreUnlocked(
           // Final attempt failed — skip this save.  The write lock ensures
           // the next save will retry with fresh data.  Log for diagnostics.
           if (i === 4) {
-            console.warn(`[session-store] rename failed after 5 attempts: ${storePath}`);
+            log.warn(`rename failed after 5 attempts: ${storePath}`);
           }
         }
       }
