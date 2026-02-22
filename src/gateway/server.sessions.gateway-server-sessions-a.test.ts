@@ -255,6 +255,7 @@ describe("gateway server sessions", () => {
         totalTokensFresh?: boolean;
         thinkingLevel?: string;
         verboseLevel?: string;
+        resetCount?: number;
         lastAccountId?: string;
         deliveryContext?: { channel?: string; to?: string; accountId?: string };
       }>;
@@ -269,6 +270,7 @@ describe("gateway server sessions", () => {
     expect(main?.totalTokensFresh).toBe(false);
     expect(main?.thinkingLevel).toBe("low");
     expect(main?.verboseLevel).toBe("on");
+    expect(main?.resetCount).toBeUndefined();
     expect(main?.lastAccountId).toBe("work");
     expect(main?.deliveryContext).toEqual({
       channel: "whatsapp",
@@ -451,13 +453,40 @@ describe("gateway server sessions", () => {
     const reset = await rpcReq<{
       ok: true;
       key: string;
-      entry: { sessionId: string };
+      entry: {
+        sessionId: string;
+        resetHistory?: Array<{
+          sessionId: string;
+          archivedAt: number;
+          reason?: "new" | "reset";
+        }>;
+      };
     }>(ws, "sessions.reset", { key: "agent:main:main" });
     expect(reset.ok).toBe(true);
     expect(reset.payload?.key).toBe("agent:main:main");
     expect(reset.payload?.entry.sessionId).not.toBe("sess-main");
+    expect(reset.payload?.entry.resetHistory).toHaveLength(1);
+    expect(reset.payload?.entry.resetHistory?.[0]?.sessionId).toBe("sess-main");
+    expect(reset.payload?.entry.resetHistory?.[0]?.reason).toBe("reset");
+    expect(typeof reset.payload?.entry.resetHistory?.[0]?.archivedAt).toBe("number");
     const filesAfterReset = await fs.readdir(dir);
     expect(filesAfterReset.some((f) => f.startsWith("sess-main.jsonl.reset."))).toBe(true);
+
+    const listAfterResetHistory = await rpcReq<{
+      sessions: Array<{
+        key: string;
+        resetCount?: number;
+        lastResetAt?: number;
+        lastResetReason?: "new" | "reset";
+      }>;
+    }>(ws, "sessions.list", {});
+    expect(listAfterResetHistory.ok).toBe(true);
+    const mainAfterReset = listAfterResetHistory.payload?.sessions.find(
+      (session) => session.key === "agent:main:main",
+    );
+    expect(mainAfterReset?.resetCount).toBe(1);
+    expect(mainAfterReset?.lastResetReason).toBe("reset");
+    expect(typeof mainAfterReset?.lastResetAt).toBe("number");
 
     const badThinking = await rpcReq(ws, "sessions.patch", {
       key: "agent:main:main",

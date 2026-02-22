@@ -402,6 +402,9 @@ export type GatewaySessionRow = {
   model?: string;
   modelProvider?: string;
   contextTokens?: number;
+  resetCount?: number;
+  lastResetAt?: number;
+  lastResetReason?: "new" | "reset";
 };
 
 export type SessionsListResult = {

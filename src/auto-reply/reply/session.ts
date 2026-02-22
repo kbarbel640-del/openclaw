@@ -7,6 +7,7 @@ import { normalizeChatType } from "../../channels/chat-type.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import {
   DEFAULT_RESET_TRIGGERS,
+  appendSessionResetHistory,
   deriveSessionMetaPatch,
   evaluateSessionFreshness,
   type GroupKeyResolution,
@@ -84,6 +85,11 @@ function resolveLastChannelRaw(params: {
     }
   }
   return resolved;
+}
+
+function resolveResetHistoryReason(triggerBodyNormalized: string): "new" | "reset" {
+  const command = triggerBodyNormalized.trim().split(/\s+/, 1)[0]?.toLowerCase();
+  return command === "/new" ? "new" : "reset";
 }
 
 export type SessionInitResult = {
@@ -341,6 +347,7 @@ export async function initSessionState(params: {
   const lastTo = deliveryFields.lastTo ?? lastToRaw;
   const lastAccountId = deliveryFields.lastAccountId ?? lastAccountIdRaw;
   const lastThreadId = deliveryFields.lastThreadId ?? lastThreadIdRaw;
+  const preservedLabel = baseEntry?.label ?? (resetTriggered ? entry?.label : undefined);
   sessionEntry = {
     ...baseEntry,
     sessionId,
@@ -355,7 +362,7 @@ export async function initSessionState(params: {
     responseUsage: baseEntry?.responseUsage,
     modelOverride: persistedModelOverride ?? baseEntry?.modelOverride,
     providerOverride: persistedProviderOverride ?? baseEntry?.providerOverride,
-    label: persistedLabel ?? baseEntry?.label,
+    label: persistedLabel ?? preservedLabel ?? baseEntry?.label,
     sendPolicy: baseEntry?.sendPolicy,
     queueMode: baseEntry?.queueMode,
     queueDebounceMs: baseEntry?.queueDebounceMs,
@@ -375,6 +382,18 @@ export async function initSessionState(params: {
     lastAccountId,
     lastThreadId,
   };
+  if (previousSessionEntry?.sessionId) {
+    const resetHistory = appendSessionResetHistory({
+      existing: entry?.resetHistory,
+      sessionId: previousSessionEntry.sessionId,
+      archivedAt: Date.now(),
+      reason: resolveResetHistoryReason(triggerBodyNormalized),
+      label: previousSessionEntry.label,
+    });
+    if (resetHistory?.length) {
+      sessionEntry.resetHistory = resetHistory;
+    }
+  }
   const metaPatch = deriveSessionMetaPatch({
     ctx: sessionCtxForState,
     sessionKey,

@@ -6,6 +6,7 @@ import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
 import { clearSessionQueues } from "../../auto-reply/reply/queue.js";
 import { loadConfig } from "../../config/config.js";
 import {
+  appendSessionResetHistory,
   loadSessionStore,
   snapshotSessionOrigin,
   resolveMainSessionKey,
@@ -375,6 +376,13 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       oldSessionId = entry?.sessionId;
       oldSessionFile = entry?.sessionFile;
       const now = Date.now();
+      const resetHistory = appendSessionResetHistory({
+        existing: entry?.resetHistory,
+        sessionId: entry?.sessionId,
+        archivedAt: now,
+        reason: commandReason,
+        label: entry?.label,
+      });
       const nextEntry: SessionEntry = {
         sessionId: randomUUID(),
         updatedAt: now,
@@ -398,6 +406,9 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         totalTokens: 0,
         totalTokensFresh: true,
       };
+      if (resetHistory?.length) {
+        nextEntry.resetHistory = resetHistory;
+      }
       store[primaryKey] = nextEntry;
       return nextEntry;
     });

@@ -569,4 +569,38 @@ describe("listSessionsFromStore search", () => {
     expect(missing?.totalTokens).toBeUndefined();
     expect(missing?.totalTokensFresh).toBe(false);
   });
+
+  test("surfaces reset history summary fields on session rows", () => {
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {
+      "agent:main:main": {
+        sessionId: "sess-main",
+        updatedAt: now,
+        resetHistory: [
+          {
+            sessionId: "sess-old-1",
+            archivedAt: now - 10_000,
+            reason: "new",
+          },
+          {
+            sessionId: "sess-old-2",
+            archivedAt: now - 5_000,
+            reason: "reset",
+          },
+        ],
+      } as SessionEntry,
+    };
+
+    const result = listSessionsFromStore({
+      cfg: baseCfg,
+      storePath: "/tmp/sessions.json",
+      store,
+      opts: {},
+    });
+
+    const main = result.sessions.find((row) => row.key === "agent:main:main");
+    expect(main?.resetCount).toBe(2);
+    expect(main?.lastResetAt).toBe(now - 5_000);
+    expect(main?.lastResetReason).toBe("reset");
+  });
 });

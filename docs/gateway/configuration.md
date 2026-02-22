@@ -129,6 +129,19 @@ When validation fails:
     - `agents.defaults.imageMaxDimensionPx` controls transcript/tool image downscaling (default `1200`); lower values usually reduce vision-token usage on screenshot-heavy runs.
     - See [Models CLI](/concepts/models) for switching models in chat and [Model Failover](/concepts/model-failover) for auth rotation and fallback behavior.
     - For custom/self-hosted providers, see [Custom providers](/gateway/configuration-reference#custom-providers-and-base-urls) in the reference.
+    - To configure a custom provider from CLI (non-interactive), use:
+
+    ```bash
+    openclaw onboard --non-interactive \
+      --auth-choice custom-api-key \
+      --custom-base-url "https://llm.example.com/v1" \
+      --custom-model-id "foo-large" \
+      --custom-compatibility openai \
+      --custom-api-key "$CUSTOM_API_KEY"
+    ```
+
+    `--custom-api-key` is optional. If omitted, onboarding falls back to `CUSTOM_API_KEY`.
+    See [`openclaw onboard`](/cli/onboard) for full custom provider flags.
 
   </Accordion>
 

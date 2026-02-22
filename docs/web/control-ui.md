@@ -66,7 +66,7 @@ you revoke it with `openclaw devices revoke --device <id> --role <role>`. See
 - Stream tool calls + live tool output cards in Chat (agent events)
 - Channels: WhatsApp/Telegram/Discord/Slack + plugin channels (Mattermost, etc.) status + QR login + per-channel config (`channels.status`, `web.login.*`, `config.patch`)
 - Instances: presence list + refresh (`system-presence`)
-- Sessions: list + per-session thinking/verbose overrides (`sessions.list`, `sessions.patch`)
+- Sessions: list + per-session thinking/verbose overrides + reset-history summary (`sessions.list`, `sessions.patch`)
 - Cron jobs: list/add/run/enable/disable + run history (`cron.*`)
 - Skills: status, enable/disable, install, API key updates (`skills.*`)
 - Nodes: list + caps (`node.list`)

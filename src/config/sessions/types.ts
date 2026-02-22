@@ -22,6 +22,73 @@ export type SessionOrigin = {
   threadId?: string | number;
 };
 
+export type SessionResetReason = "new" | "reset";
+
+export type SessionResetHistoryEntry = {
+  sessionId: string;
+  archivedAt: number;
+  reason?: SessionResetReason;
+  label?: string;
+};
+
+const MAX_RESET_HISTORY_ENTRIES = 64;
+
+function normalizeResetHistory(
+  entries: SessionResetHistoryEntry[] | undefined,
+): SessionResetHistoryEntry[] {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return [];
+  }
+  const normalized = entries
+    .filter((entry): entry is SessionResetHistoryEntry =>
+      Boolean(
+        entry &&
+        typeof entry.sessionId === "string" &&
+        entry.sessionId.trim().length > 0 &&
+        typeof entry.archivedAt === "number" &&
+        Number.isFinite(entry.archivedAt),
+      ),
+    )
+    .map((entry) => {
+      const label = typeof entry.label === "string" ? entry.label.trim() : "";
+      return {
+        sessionId: entry.sessionId.trim(),
+        archivedAt: Math.max(0, Math.floor(entry.archivedAt)),
+        reason: entry.reason === "new" ? "new" : entry.reason === "reset" ? "reset" : undefined,
+        label: label || undefined,
+      } satisfies SessionResetHistoryEntry;
+    })
+    .toSorted((a, b) => a.archivedAt - b.archivedAt);
+  return normalized.slice(-MAX_RESET_HISTORY_ENTRIES);
+}
+
+export function appendSessionResetHistory(params: {
+  existing?: SessionResetHistoryEntry[];
+  sessionId?: string;
+  archivedAt?: number;
+  reason?: SessionResetReason;
+  label?: string;
+}): SessionResetHistoryEntry[] | undefined {
+  const existing = normalizeResetHistory(params.existing);
+  const sessionId = typeof params.sessionId === "string" ? params.sessionId.trim() : "";
+  if (!sessionId) {
+    return existing.length > 0 ? existing : undefined;
+  }
+  const archivedAtRaw = params.archivedAt ?? Date.now();
+  const archivedAt = Number.isFinite(archivedAtRaw) ? Math.max(0, Math.floor(archivedAtRaw)) : 0;
+  const label = typeof params.label === "string" ? params.label.trim() : "";
+  const appended = [
+    ...existing,
+    {
+      sessionId,
+      archivedAt,
+      reason: params.reason,
+      label: label || undefined,
+    } satisfies SessionResetHistoryEntry,
+  ];
+  return appended.slice(-MAX_RESET_HISTORY_ENTRIES);
+}
+
 export type SessionEntry = {
   /**
    * Last delivered heartbeat payload (used to suppress duplicate heartbeat notifications).
@@ -104,6 +171,7 @@ export type SessionEntry = {
   subject?: string;
   groupChannel?: string;
   space?: string;
+  resetHistory?: SessionResetHistoryEntry[];
   origin?: SessionOrigin;
   deliveryContext?: DeliveryContext;
   lastChannel?: SessionChannelId;

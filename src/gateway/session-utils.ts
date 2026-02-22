@@ -704,6 +704,35 @@ export function resolveSessionModelRef(
   return { provider, model };
 }
 
+function summarizeSessionResetHistory(
+  entry?: SessionEntry,
+): Pick<GatewaySessionRow, "resetCount" | "lastResetAt" | "lastResetReason"> {
+  const history = Array.isArray(entry?.resetHistory) ? entry.resetHistory : [];
+  if (history.length === 0) {
+    return {};
+  }
+  const normalized = history
+    .filter((item): item is NonNullable<SessionEntry["resetHistory"]>[number] =>
+      Boolean(
+        item &&
+        typeof item.sessionId === "string" &&
+        item.sessionId.trim().length > 0 &&
+        typeof item.archivedAt === "number" &&
+        Number.isFinite(item.archivedAt),
+      ),
+    )
+    .toSorted((a, b) => a.archivedAt - b.archivedAt);
+  if (normalized.length === 0) {
+    return {};
+  }
+  const last = normalized[normalized.length - 1];
+  return {
+    resetCount: normalized.length,
+    lastResetAt: last.archivedAt,
+    lastResetReason: last.reason,
+  };
+}
+
 export function listSessionsFromStore(params: {
   cfg: OpenClawConfig;
   storePath: string;
@@ -797,6 +826,7 @@ export function listSessionsFromStore(params: {
       const resolvedModel = resolveSessionModelRef(cfg, entry, sessionAgentId);
       const modelProvider = resolvedModel.provider ?? DEFAULT_PROVIDER;
       const model = resolvedModel.model ?? DEFAULT_MODEL;
+      const resetSummary = summarizeSessionResetHistory(entry);
       return {
         key,
         entry,
@@ -826,6 +856,9 @@ export function listSessionsFromStore(params: {
         modelProvider,
         model,
         contextTokens: entry?.contextTokens,
+        resetCount: resetSummary.resetCount,
+        lastResetAt: resetSummary.lastResetAt,
+        lastResetReason: resetSummary.lastResetReason,
         deliveryContext: deliveryFields.deliveryContext,
         lastChannel: deliveryFields.lastChannel ?? entry?.lastChannel,
         lastTo: deliveryFields.lastTo ?? entry?.lastTo,
