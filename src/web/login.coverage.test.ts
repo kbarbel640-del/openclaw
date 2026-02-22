@@ -66,7 +66,8 @@ describe("loginWeb coverage", () => {
 
   it("restarts once when WhatsApp requests code 515", async () => {
     waitForWaConnectionMock
-      .mockRejectedValueOnce({ output: { statusCode: 515 } })
+      // Real Baileys lastDisconnect shape: error wraps the Boom object
+      .mockRejectedValueOnce({ error: { output: { statusCode: 515 } } })
       .mockResolvedValueOnce(undefined);
 
     const runtime = { log: vi.fn(), error: vi.fn() } as never;
@@ -81,8 +82,9 @@ describe("loginWeb coverage", () => {
   });
 
   it("clears creds and throws when logged out", async () => {
+    // Real Baileys lastDisconnect shape: error wraps the Boom object
     waitForWaConnectionMock.mockRejectedValueOnce({
-      output: { statusCode: DisconnectReason.loggedOut },
+      error: { output: { statusCode: DisconnectReason.loggedOut } },
     });
 
     await expect(loginWeb(false, waitForWaConnectionMock as never)).rejects.toThrow(

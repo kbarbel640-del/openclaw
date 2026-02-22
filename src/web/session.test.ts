@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetLogger, setLoggerOverride } from "../logging.js";
 import { baileys, getLastSocket, resetBaileysMocks, resetLoadConfigMock } from "./test-helpers.js";
 
-const { createWaSocket, formatError, logWebSelfId, waitForWaConnection } =
+const { createWaSocket, formatError, getStatusCode, logWebSelfId, waitForWaConnection } =
   await import("./session.js");
 const useMultiFileAuthStateMock = vi.mocked(baileys.useMultiFileAuthState);
 
@@ -202,6 +202,40 @@ describe("web session", () => {
     expect(saveCreds).toHaveBeenCalledTimes(2);
     expect(maxInFlight).toBe(1);
     expect(inFlight).toBe(0);
+  });
+
+  // ── getStatusCode ──────────────────────────────────────────────────────
+
+  describe("getStatusCode", () => {
+    it("extracts statusCode from direct Boom shape", () => {
+      expect(getStatusCode({ output: { statusCode: 515 } })).toBe(515);
+    });
+
+    it("extracts statusCode from Baileys lastDisconnect wrapper", () => {
+      // waitForWaConnection rejects with update.lastDisconnect which wraps
+      // the Boom error under .error — getStatusCode must unwrap it.
+      expect(getStatusCode({ error: { output: { statusCode: 515 } } })).toBe(515);
+    });
+
+    it("extracts loggedOut (401) from Baileys lastDisconnect wrapper", () => {
+      expect(getStatusCode({ error: { output: { statusCode: 401 } } })).toBe(401);
+    });
+
+    it("falls back to err.status", () => {
+      expect(getStatusCode({ status: 408 })).toBe(408);
+    });
+
+    it("returns undefined for unrecognized shapes", () => {
+      expect(getStatusCode(null)).toBeUndefined();
+      expect(getStatusCode(undefined)).toBeUndefined();
+      expect(getStatusCode({})).toBeUndefined();
+      expect(getStatusCode("string error")).toBeUndefined();
+    });
+
+    it("prefers direct output over nested error.output", () => {
+      const err = { output: { statusCode: 401 }, error: { output: { statusCode: 515 } } };
+      expect(getStatusCode(err)).toBe(401);
+    });
   });
 
   it("rotates creds backup when creds.json is valid JSON", async () => {

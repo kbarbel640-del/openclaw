@@ -52,6 +52,17 @@ export function collectWhatsAppStatusIssues(
         return;
       }
 
+      if (!running) {
+        issues.push({
+          channel: "whatsapp",
+          accountId,
+          kind: "runtime",
+          message: `Linked but channel stopped${lastError ? `: ${lastError}` : "."}`,
+          fix: `Run: ${formatCliCommand("openclaw doctor")} to restart the WhatsApp channel. If it persists, relink via channels login.`,
+        });
+        return;
+      }
+
       if (running && !connected) {
         issues.push({
           channel: "whatsapp",
