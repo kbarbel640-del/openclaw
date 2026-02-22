@@ -362,6 +362,11 @@ function createZaiImageFormatWrapper(baseStreamFn: StreamFn | undefined): Stream
                             name,
                           },
                         });
+                      } else {
+                        // FIX: Preserve malformed image_url blocks instead of dropping them
+                        // Log warning but keep the block in content for debugging
+                        log.warn(`image_url block with empty/missing URL, preserving in content`);
+                        newContent.push(block);
                       }
                     } else {
                       newContent.push(block);
