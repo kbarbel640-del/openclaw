@@ -80,12 +80,13 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
         channel: "slack",
         to: `user:${message.user}`,
         accountId: route.accountId,
+        threadId: prepared.ctxPayload.MessageThreadId,
       },
       ctx: prepared.ctxPayload,
     });
   }
 
-  const { statusThreadTs } = resolveSlackThreadTargets({
+  const { statusThreadTs, isThreadReply } = resolveSlackThreadTargets({
     message,
     replyToMode: ctx.replyToMode,
   });
@@ -102,6 +103,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     incomingThreadTs,
     messageTs,
     hasRepliedRef,
+    isThreadReply,
   });
 
   const typingTarget = statusThreadTs ? `${message.channel}/${statusThreadTs}` : message.channel;
@@ -184,6 +186,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
       runtime,
       textLimit: ctx.textLimit,
       replyThreadTs,
+      replyToMode: ctx.replyToMode,
     });
     replyPlan.markSent();
   };
