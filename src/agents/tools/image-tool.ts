@@ -91,11 +91,9 @@ export function resolveImageModelConfigForTool(params: {
 
   if (Array.isArray(mediaImageModels) && mediaImageModels.length > 0) {
     const refs = mediaImageModels
-        .filter((m) => !m?.type || m.type === "provider")
-        .map((m) =>
-          m?.provider && m?.model ? `${m.provider}/${m.model}` : null
-        )
-        .filter((v): v is string => Boolean(v));
+      .filter((m) => !m?.type || m.type === "provider")
+      .map((m) => (m?.provider && m?.model ? `${m.provider}/${m.model}` : null))
+      .filter((v): v is string => Boolean(v));
 
     if (refs.length > 0) {
       return {
