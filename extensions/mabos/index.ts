@@ -1867,17 +1867,11 @@ export default function register(api: OpenClawPluginApi) {
     path: "/mabos/dashboard",
     handler: async (_req, res) => {
       try {
-        const { readFile, access } = await import("node:fs/promises");
+        const { readFile } = await import("node:fs/promises");
         const { join } = await import("node:path");
         const { fileURLToPath } = await import("node:url");
         const thisDir = join(fileURLToPath(import.meta.url), "..");
-        // Try Vite build output first, fall back to src/dashboard/
-        let htmlPath = join(thisDir, "ui", "dist", "index.html");
-        try {
-          await access(htmlPath);
-        } catch {
-          htmlPath = join(thisDir, "src", "dashboard", "index.html");
-        }
+        const htmlPath = join(thisDir, "ui", "dist", "index.html");
         const html = await readFile(htmlPath, "utf-8");
         res.setHeader("Content-Type", "text/html");
         res.end(html);
@@ -1895,7 +1889,7 @@ export default function register(api: OpenClawPluginApi) {
     path: "/mabos/dashboard/*",
     handler: async (req, res) => {
       try {
-        const { readFile, access } = await import("node:fs/promises");
+        const { readFile } = await import("node:fs/promises");
         const path = await import("node:path");
         const { join, extname } = path;
         const { fileURLToPath } = await import("node:url");
@@ -1925,21 +1919,8 @@ export default function register(api: OpenClawPluginApi) {
 
         const ext = extname(filePath).toLowerCase();
 
-        // Try Vite build output first, then fall back to src/dashboard/
-        const vitePath = join(thisDir, "ui", "dist", filePath);
-        const legacyPath = join(thisDir, "src", "dashboard", filePath);
-
-        // Determine which base directory to use
-        let fullPath: string;
-        let baseDir: string;
-        try {
-          await access(vitePath);
-          fullPath = vitePath;
-          baseDir = path.resolve(join(thisDir, "ui", "dist"));
-        } catch {
-          fullPath = legacyPath;
-          baseDir = path.resolve(join(thisDir, "src", "dashboard"));
-        }
+        const fullPath = join(thisDir, "ui", "dist", filePath);
+        const baseDir = path.resolve(join(thisDir, "ui", "dist"));
 
         const resolved = path.resolve(fullPath);
 
