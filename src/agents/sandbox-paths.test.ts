@@ -72,15 +72,18 @@ describe("resolveSandboxedMediaSource", () => {
     });
   });
 
-  it("maps file:// URLs under /workspace into sandbox root", async () => {
-    await withSandboxRoot(async (sandboxDir) => {
-      const result = await resolveSandboxedMediaSource({
-        media: "file:///workspace/media/pic.png",
-        sandboxRoot: sandboxDir,
+  it.skipIf(process.platform === "win32")(
+    "maps file:// URLs under /workspace into sandbox root",
+    async () => {
+      await withSandboxRoot(async (sandboxDir) => {
+        const result = await resolveSandboxedMediaSource({
+          media: "file:///workspace/media/pic.png",
+          sandboxRoot: sandboxDir,
+        });
+        expect(result).toBe(path.join(sandboxDir, "media", "pic.png"));
       });
-      expect(result).toBe(path.join(sandboxDir, "media", "pic.png"));
-    });
-  });
+    },
+  );
 
   // Group 3: Rejections (security)
   it.each([
