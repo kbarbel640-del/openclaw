@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
 import type { OpenClawConfig } from "../config/config.js";
+import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
 import { normalizeProviderApi } from "./models-config.providers.js";
 
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
@@ -256,6 +256,64 @@ describe("models-config normalizes google-antigravity api", () => {
               baseUrl: "https://alias.example.com",
               apiKey: "alias-key",
               api: "google-gemini-cli",
+              models: [
+                {
+                  id: "claude-opus-4-6-thinking",
+                  name: "Claude Opus 4.6 Thinking",
+                  reasoning: true,
+                  input: ["text", "image"],
+                  contextWindow: 200000,
+                  maxTokens: 8192,
+                },
+              ],
+            },
+          },
+        },
+      } as unknown as OpenClawConfig;
+
+      await ensureOpenClawModelsJson(cfg);
+
+      const modelPath = path.join(resolveOpenClawAgentDir(), "models.json");
+      const raw = await fs.readFile(modelPath, "utf8");
+      const parsed = JSON.parse(raw) as {
+        providers: Record<string, { api?: string; apiKey?: string; baseUrl?: string }>;
+      };
+
+      expect(parsed.providers["google-antigravity"]?.api).toBe("google-antigravity");
+      expect(parsed.providers["google-antigravity"]?.apiKey).toBe("canonical-key");
+      expect(parsed.providers["google-antigravity"]?.baseUrl).toBe("https://canonical.example.com");
+      expect(parsed.providers[" google-antigravity "]).toBeUndefined();
+    });
+  });
+
+  it("prefers canonical antigravity key regardless of declaration order", async () => {
+    await withTempHome(async () => {
+      vi.resetModules();
+      const { ensureOpenClawModelsJson } = await import("./models-config.js");
+      const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
+
+      const cfg = {
+        models: {
+          providers: {
+            " google-antigravity ": {
+              baseUrl: "https://alias.example.com",
+              apiKey: "alias-key",
+              api: "google-gemini-cli",
+              models: [
+                {
+                  id: "claude-opus-4-6-thinking",
+                  name: "Claude Opus 4.6 Thinking",
+                  reasoning: true,
+                  input: ["text", "image"],
+                  contextWindow: 200000,
+                  maxTokens: 8192,
+                },
+              ],
+            },
+            "google-antigravity": {
+              baseUrl: "https://canonical.example.com",
+              apiKey: "canonical-key",
+              api: "google-antigravity",
               models: [
                 {
                   id: "claude-opus-4-6-thinking",
