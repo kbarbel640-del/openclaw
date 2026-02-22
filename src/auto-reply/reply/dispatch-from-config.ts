@@ -11,6 +11,7 @@ import {
 } from "../../logging/diagnostic.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { maybeApplyTtsToPayload, normalizeTtsAutoMode, resolveTtsConfig } from "../../tts/tts.js";
+import { PARTIAL_RESPONSE_FAILURE_MESSAGE } from "./agent-runner-execution.js";
 import { getReplyFromConfig } from "../reply.js";
 import type { FinalizedMsgContext } from "../templating.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
@@ -404,6 +405,9 @@ export async function dispatchReplyFromConfig(params: {
         inboundAudio,
         ttsAuto: sessionTtsAuto,
       });
+      if (ttsReply.text?.trim() === PARTIAL_RESPONSE_FAILURE_MESSAGE) {
+        logVerbose("dispatch-from-config: sending partial-response-failure message (transient retry skipped to avoid duplicate; ref #23159)");
+      }
       if (shouldRouteToOriginating && originatingChannel && originatingTo) {
         // Route final reply to originating channel.
         const result = await routeReply({

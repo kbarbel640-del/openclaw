@@ -75,6 +75,10 @@ export type ReplyDispatcher = {
   sendFinalReply: (payload: ReplyPayload) => boolean;
   waitForIdle: () => Promise<void>;
   getQueuedCounts: () => Record<ReplyDispatchKind, number>;
+  /**
+   * Signal that no more replies will be enqueued for this run. Must be called exactly once per
+   * logical run so that waitForIdle resolves and the session does not stall (ref #23159).
+   */
   markComplete: () => void;
 };
 
@@ -180,7 +184,7 @@ export function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDis
     if (completeCalled) {
       return;
     }
-    completeCalled = true;
+    completeCalled = true; // Exactly once per run so waitForIdle resolves (ref #23159)
     // If no replies were enqueued (pending is still 1 = just the reservation),
     // schedule clearing the reservation after current microtasks complete.
     // This gives any in-flight enqueue() calls a chance to increment pending.
