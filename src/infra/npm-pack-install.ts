@@ -66,12 +66,11 @@ export async function installFromNpmSpecArchive<TResult extends { ok: boolean }>
       archivePath: packedResult.archivePath,
     });
 
-    const wrappedResult: Extract<NpmSpecArchiveInstallFlowResult<TResult>, { ok: true }> = {
+    return {
       ok: true,
       installResult,
       npmResolution,
       integrityDrift: driftResult.integrityDrift,
     };
-    return wrappedResult;
   });
 }
