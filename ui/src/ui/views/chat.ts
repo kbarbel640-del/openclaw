@@ -75,6 +75,15 @@ export type ChatProps = {
   onAbort?: () => void;
   onQueueRemove: (id: string) => void;
   onNewSession: () => void;
+  onClearHistory: () => void;
+  agentsList: {
+    agents: Array<{ id: string; name?: string; identity?: { name?: string; avatarUrl?: string } }>;
+    defaultId?: string;
+  } | null;
+  currentAgentId: string;
+  onAgentChange: (agentId: string) => void;
+  onNavigateToAgent?: () => void;
+  onSessionSelect?: (sessionKey: string) => void;
   onOpenSidebar?: (content: string) => void;
   onCloseSidebar?: () => void;
   onSplitRatioChange?: (ratio: number) => void;
@@ -768,6 +777,8 @@ export function renderChat(props: ChatProps) {
       ${renderSearchBar(requestUpdate)}
       ${renderPinnedSection(props, pinned, requestUpdate)}
 
+      ${renderAgentBar(props)}
+
       <div class="chat-split-container ${sidebarOpen ? "chat-split-container--open" : ""}">
         <div
           class="chat-main"
@@ -934,6 +945,9 @@ export function renderChat(props: ChatProps) {
                   <button class="btn-ghost" @click=${props.onNewSession} title="New chat" ?disabled=${!props.connected || props.sending}>
                     ${icons.plus}
                   </button>
+                  <button class="btn-ghost btn-ghost--danger" @click=${props.onClearHistory} title="Clear history" ?disabled=${!props.connected || props.sending}>
+                    ${icons.trash}
+                  </button>
                 `
                 : nothing
             }
@@ -965,6 +979,83 @@ export function renderChat(props: ChatProps) {
         </div>
       </div>
     </section>
+  `;
+}
+
+function renderAgentBar(props: ChatProps) {
+  const agents = props.agentsList?.agents ?? [];
+  if (agents.length <= 1 && !props.sessions?.sessions?.length) {
+    return nothing;
+  }
+
+  // Filter sessions for current agent
+  const agentSessions = (props.sessions?.sessions ?? []).filter((s) => {
+    const key = s.key ?? "";
+    return (
+      key.includes(`:${props.currentAgentId}:`) || key.startsWith(`agent:${props.currentAgentId}:`)
+    );
+  });
+
+  return html`
+    <div class="chat-agent-bar">
+      <div class="chat-agent-bar__left">
+        ${
+          agents.length > 1
+            ? html`
+            <select
+              class="chat-agent-select"
+              .value=${props.currentAgentId}
+              @change=${(e: Event) => props.onAgentChange((e.target as HTMLSelectElement).value)}
+            >
+              ${agents.map(
+                (a) => html`
+                <option value=${a.id} ?selected=${a.id === props.currentAgentId}>
+                  ${a.identity?.name || a.name || a.id}
+                </option>
+              `,
+              )}
+            </select>
+          `
+            : html`<span class="chat-agent-bar__name">${agents[0]?.identity?.name || agents[0]?.name || props.currentAgentId}</span>`
+        }
+        ${
+          agentSessions.length > 0
+            ? html`
+            <details class="chat-sessions-panel">
+              <summary class="chat-sessions-summary">
+                ${icons.fileText}
+                <span>Sessions (${agentSessions.length})</span>
+              </summary>
+              <div class="chat-sessions-list">
+                ${agentSessions.map(
+                  (s) => html`
+                  <button
+                    class="chat-session-item ${s.key === props.sessionKey ? "chat-session-item--active" : ""}"
+                    @click=${() => props.onSessionSelect?.(s.key)}
+                  >
+                    <span class="chat-session-item__name">${s.displayName || s.label || s.key}</span>
+                    <span class="chat-session-item__meta muted">${s.model ?? ""}</span>
+                  </button>
+                `,
+                )}
+              </div>
+            </details>
+          `
+            : nothing
+        }
+      </div>
+      <div class="chat-agent-bar__right">
+        ${
+          props.onNavigateToAgent
+            ? html`
+            <button class="btn-ghost btn-ghost--sm" @click=${() => props.onNavigateToAgent?.()} title="Agent settings">
+              ${icons.settings}
+            </button>
+          `
+            : nothing
+        }
+      </div>
+    </div>
   `;
 }
 
