@@ -1,10 +1,6 @@
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
-
-import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
-import type { ChatItem, MessageGroup } from "../types/chat-types.ts";
-import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import {
   renderMessageGroup,
   renderReadingIndicatorGroup,
@@ -13,7 +9,7 @@ import {
 import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-normalizer.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
-import type { SessionsListResult } from "../types.ts";
+import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
 import type { ChatItem, MessageGroup } from "../types/chat-types.ts";
 import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
@@ -110,7 +106,6 @@ export type ChatProps = {
 };
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
-const FALLBACK_TOAST_DURATION_MS = 8000;
 
 /** Detect system-role messages that should render as dividers instead of bubbles */
 function detectSystemDivider(msg: { role: string; content: string }): string | null {
@@ -346,45 +341,6 @@ function renderCompactionIndicator(status: CompactionIndicatorStatus | null | un
   }
 
   return nothing;
-}
-
-function renderFallbackIndicator(status: FallbackIndicatorStatus | null | undefined) {
-  if (!status) {
-    return nothing;
-  }
-  const phase = status.phase ?? "active";
-  const elapsed = Date.now() - status.occurredAt;
-  if (elapsed >= FALLBACK_TOAST_DURATION_MS) {
-    return nothing;
-  }
-  const details = [
-    `Selected: ${status.selected}`,
-    phase === "cleared" ? `Active: ${status.selected}` : `Active: ${status.active}`,
-    phase === "cleared" && status.previous ? `Previous fallback: ${status.previous}` : null,
-    status.reason ? `Reason: ${status.reason}` : null,
-    status.attempts.length > 0 ? `Attempts: ${status.attempts.slice(0, 3).join(" | ")}` : null,
-  ]
-    .filter(Boolean)
-    .join(" • ");
-  const message =
-    phase === "cleared"
-      ? `Fallback cleared: ${status.selected}`
-      : `Fallback active: ${status.active}`;
-  const className =
-    phase === "cleared"
-      ? "compaction-indicator compaction-indicator--fallback-cleared"
-      : "compaction-indicator compaction-indicator--fallback";
-  const icon = phase === "cleared" ? icons.check : icons.brain;
-  return html`
-    <div
-      class=${className}
-      role="status"
-      aria-live="polite"
-      title=${details}
-    >
-      ${icon} ${message}
-    </div>
-  `;
 }
 
 function generateAttachmentId(): string {
