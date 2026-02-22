@@ -21,6 +21,7 @@ type StepRunRecord = {
   runId?: string;
   status?: string;
   error?: string;
+  meta?: Record<string, unknown>;
 };
 
 function now() {
@@ -83,6 +84,32 @@ async function runAgentTurn(params: {
   return { runId, status: wait?.status ?? "unknown" };
 }
 
+function readVerdictFromFile(workspaceRoot: string, filePath: string): string {
+  const abs = absPath(workspaceRoot, filePath);
+  if (!fs.existsSync(abs)) {
+    throw new Error(`Verdict file does not exist: ${filePath} (resolved ${abs})`);
+  }
+  return fs.readFileSync(abs, "utf8");
+}
+
+function parseVerdict(text: string): "PASS" | "WARN" | "FAIL" | "ABORT" | "UNKNOWN" {
+  const upper = text.toUpperCase();
+  if (upper.includes("ABORT")) {
+    return "ABORT";
+  }
+  // Prefer FAIL over WARN if both appear.
+  if (upper.includes("FAIL")) {
+    return "FAIL";
+  }
+  if (upper.includes("WARN")) {
+    return "WARN";
+  }
+  if (upper.includes("PASS")) {
+    return "PASS";
+  }
+  return "UNKNOWN";
+}
+
 export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions) {
   const workspaceRoot = resolveWorkspaceRoot();
 
@@ -92,13 +119,19 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
   const sessionKey = `agent:${spec.agentId ?? "flash-orchestrator"}:pipeline`;
 
   const steps = spec.steps;
+  const stepById = new Map(steps.map((s) => [s.id, s] as const));
 
   const records: StepRunRecord[] = [];
   const completed = new Set<string>();
 
-  // TODO: implement loop gating based on checkpoints/verdict parsing.
-  // const maxLoops = new Map((spec.loops ?? []).map((l) => [l.id, l.maxIterations ?? 3]));
-  // const loopCounts = new Map<string, number>();
+  const loops = spec.loops ?? [];
+  const loopsByVerdictStepId = new Map<string, (typeof loops)[number][]>();
+  for (const l of loops) {
+    const arr = loopsByVerdictStepId.get(l.verdictStepId) ?? [];
+    arr.push(l);
+    loopsByVerdictStepId.set(l.verdictStepId, arr);
+  }
+  const loopIterations = new Map<string, number>();
 
   const phases = spec.phases;
   const phaseIdx = new Map(phases.map((p, i) => [p, i] as const));
@@ -157,7 +190,7 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
   };
 
   const runOne = async (stepId: string) => {
-    const step = steps.find((s) => s.id === stepId);
+    const step = stepById.get(stepId);
     if (!step) {
       throw new Error(`Unknown step: ${stepId}`);
     }
@@ -201,6 +234,69 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
 
     rec.endedAt = now();
     completed.add(step.id);
+
+    // Loop evaluation: if this step controls any loops, parse verdict and rerun target steps.
+    const loopRules = loopsByVerdictStepId.get(step.id) ?? [];
+    for (const rule of loopRules) {
+      const iter = (loopIterations.get(rule.id) ?? 0) + 1;
+      loopIterations.set(rule.id, iter);
+
+      const onVerdicts = rule.on ?? ["WARN", "FAIL"];
+
+      const verdictFile = step.verdictFile;
+      if (!verdictFile) {
+        throw new Error(
+          `Loop '${rule.id}' references verdictStepId '${rule.verdictStepId}' but that step has no verdictFile`,
+        );
+      }
+
+      const verdictText = readVerdictFromFile(workspaceRoot, verdictFile);
+      const verdict = parseVerdict(verdictText);
+      rec.meta = { ...rec.meta, verdict, verdictFile };
+
+      if (verdict === "PASS") {
+        continue;
+      }
+
+      if (verdict === "ABORT") {
+        throw new Error(`Loop '${rule.id}' aborted (verdict ABORT in ${verdictFile})`);
+      }
+
+      if (
+        verdict !== "UNKNOWN" &&
+        verdict !== "PASS" &&
+        verdict !== "WARN" &&
+        verdict !== "FAIL" &&
+        verdict !== "ABORT"
+      ) {
+        continue;
+      }
+      if (verdict !== "UNKNOWN" && !onVerdicts.includes(verdict)) {
+        continue;
+      }
+
+      const maxIterations = rule.maxIterations ?? 3;
+      if (iter >= maxIterations) {
+        throw new Error(
+          `Loop '${rule.id}' exceeded maxIterations (${maxIterations}); last verdict=${verdict} (file ${verdictFile})`,
+        );
+      }
+
+      // Mark rerun targets as incomplete so scheduler can pick them up again.
+      for (const rerunId of rule.rerunStepIds) {
+        if (!stepById.has(rerunId)) {
+          throw new Error(`Loop '${rule.id}' rerunStepIds references unknown step '${rerunId}'`);
+        }
+        completed.delete(rerunId);
+      }
+
+      // eslint-disable-next-line no-console
+      console.log(
+        `[pipeline] loop '${rule.id}' iteration ${iter}/${maxIterations} (verdict=${verdict}); rerunning: ${rule.rerunStepIds.join(
+          ", ",
+        )}`,
+      );
+    }
   };
 
   // Simple scheduler: run by groups. Steps without group run serially.
