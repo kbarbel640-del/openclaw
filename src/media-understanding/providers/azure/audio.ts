@@ -4,11 +4,30 @@ import { assertOkOrThrowHttpError, fetchWithTimeoutGuarded, normalizeBaseUrl } f
 
 const DEFAULT_AZURE_AUDIO_BASE_URL = "https://models.inference.ai.azure.com";
 const DEFAULT_AZURE_AUDIO_MODEL = "whisper-large-v3-turbo";
-const AZURE_API_VERSION = "2024-12-01-preview";
+const DEFAULT_AZURE_API_VERSION = "2024-12-01-preview";
 
 function resolveModel(model?: string): string {
   const trimmed = model?.trim();
   return trimmed || DEFAULT_AZURE_AUDIO_MODEL;
+}
+
+/**
+ * Build the transcription URL for Azure AI.
+ *
+ * Two forms are supported:
+ *
+ * 1. **Full deployment URL** (baseUrl already contains `/openai/deployments/{name}`):
+ *    → append `/audio/transcriptions`
+ *
+ * 2. **Bare endpoint** (e.g. `https://models.inference.ai.azure.com`):
+ *    → append `/openai/deployments/{model}/audio/transcriptions`
+ */
+function buildTranscriptionUrl(baseUrl: string, model: string): URL {
+  if (/\/openai\/deployments\/[^/]+\/?$/i.test(baseUrl)) {
+    // baseUrl already points to a specific deployment.
+    return new URL(`${baseUrl.replace(/\/+$/, "")}/audio/transcriptions`);
+  }
+  return new URL(`${baseUrl}/openai/deployments/${encodeURIComponent(model)}/audio/transcriptions`);
 }
 
 export async function transcribeAzureAudio(
@@ -19,10 +38,21 @@ export async function transcribeAzureAudio(
   const allowPrivate = Boolean(params.baseUrl?.trim());
 
   const model = resolveModel(params.model);
-  const url = new URL(
-    `${baseUrl}/openai/deployments/${encodeURIComponent(model)}/audio/transcriptions`,
-  );
-  url.searchParams.set("api-version", AZURE_API_VERSION);
+  const url = buildTranscriptionUrl(baseUrl, model);
+
+  // Apply query params from providerOptions (e.g. api-version).
+  if (params.query) {
+    for (const [key, value] of Object.entries(params.query)) {
+      if (value === undefined) {
+        continue;
+      }
+      url.searchParams.set(key, String(value));
+    }
+  }
+  // Ensure api-version is always present.
+  if (!url.searchParams.has("api-version")) {
+    url.searchParams.set("api-version", DEFAULT_AZURE_API_VERSION);
+  }
 
   const form = new FormData();
   const fileName = params.fileName?.trim() || path.basename(params.fileName) || "audio";
