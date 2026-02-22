@@ -12,14 +12,14 @@
  * per session. If called too soon, returns success without sending to parent.
  */
 
-import { Type } from "@sinclair/typebox";
 import crypto from "node:crypto";
-import type { AnyAgentTool } from "./common.js";
+import { Type } from "@sinclair/typebox";
 import { loadConfig } from "../../config/config.js";
 import { resolveMainSessionKey } from "../../config/sessions.js";
 import { callGateway } from "../../gateway/call.js";
 import { isSubagentSessionKey } from "../../routing/session-key.js";
 import { findSubagentRunByChildKey } from "../subagent-registry.js";
+import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
 
 // Rate limiting: Track last-sent timestamps per session key
