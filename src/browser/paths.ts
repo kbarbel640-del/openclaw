@@ -1,3 +1,4 @@
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { SafeOpenError, openFileWithinRoot } from "../infra/fs-safe.js";
@@ -14,7 +15,13 @@ export function resolvePathWithinRoot(params: {
   scopeLabel: string;
   defaultFileName?: string;
 }): { ok: true; path: string } | { ok: false; error: string } {
-  const root = path.resolve(params.rootDir);
+  let root = path.resolve(params.rootDir);
+  // Resolve symlinks so /tmp → /private/tmp on macOS.
+  try {
+    root = fsSync.realpathSync(root);
+  } catch {
+    // Root may not exist yet; keep the unresolved path.
+  }
   const raw = params.requestedPath.trim();
   if (!raw) {
     if (!params.defaultFileName) {
@@ -22,7 +29,12 @@ export function resolvePathWithinRoot(params: {
     }
     return { ok: true, path: path.join(root, params.defaultFileName) };
   }
-  const resolved = path.resolve(root, raw);
+  let resolved = path.resolve(root, raw);
+  try {
+    resolved = fsSync.realpathSync(resolved);
+  } catch {
+    // File may not exist yet; keep the unresolved path.
+  }
   const rel = path.relative(root, resolved);
   if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
     return { ok: false, error: `Invalid path: must stay within ${params.scopeLabel}` };
