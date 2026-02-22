@@ -66,7 +66,10 @@ export function finalizeNpmSpecArchiveInstall<TResult extends { ok: boolean }>(
   if (!flowResult.installResult.ok) {
     return flowResult.installResult as Exclude<TResult, { ok: true }>;
   }
-  return {
+  const finalized: Extract<TResult, { ok: true }> & {
+    npmResolution: NpmSpecResolution;
+    integrityDrift?: NpmIntegrityDrift;
+  } = {
     ...flowResult.installResult,
     npmResolution: flowResult.npmResolution,
     integrityDrift: flowResult.integrityDrift,
@@ -74,6 +77,7 @@ export function finalizeNpmSpecArchiveInstall<TResult extends { ok: boolean }>(
     npmResolution: NpmSpecResolution;
     integrityDrift?: NpmIntegrityDrift;
   };
+  return finalized;
 }
 
 export async function installFromNpmSpecArchive<TResult extends { ok: boolean }>(params: {
