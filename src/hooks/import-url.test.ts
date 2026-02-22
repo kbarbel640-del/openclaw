@@ -26,20 +26,21 @@ describe("buildImportUrl", () => {
 
   it("appends mtime-based cache buster for workspace hooks", () => {
     const url = buildImportUrl(tmpFile, "openclaw-workspace");
-    expect(url).toMatch(/\?t=\d+/);
+    expect(url).toMatch(/\?t=[\d.]+&s=\d+/);
 
-    const { mtimeMs } = fs.statSync(tmpFile);
+    const { mtimeMs, size } = fs.statSync(tmpFile);
     expect(url).toContain(`?t=${mtimeMs}`);
+    expect(url).toContain(`&s=${size}`);
   });
 
   it("appends mtime-based cache buster for managed hooks", () => {
     const url = buildImportUrl(tmpFile, "openclaw-managed");
-    expect(url).toMatch(/\?t=\d+/);
+    expect(url).toMatch(/\?t=[\d.]+&s=\d+/);
   });
 
   it("appends mtime-based cache buster for plugin hooks", () => {
     const url = buildImportUrl(tmpFile, "openclaw-plugin");
-    expect(url).toMatch(/\?t=\d+/);
+    expect(url).toMatch(/\?t=[\d.]+&s=\d+/);
   });
 
   it("returns same URL for bundled hooks across calls (cacheable)", () => {

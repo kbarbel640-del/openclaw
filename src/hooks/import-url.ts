@@ -6,8 +6,8 @@
  * module cache across gateway restarts.
  *
  * Workspace, managed, and plugin hooks may be edited by the user between
- * restarts.  For those we append `?t=<mtime>` so the module is only
- * re-parsed when the file actually changes on disk.
+ * restarts. For those we append `?t=<mtime>&s=<size>` so the module key
+ * reflects on-disk changes while staying stable for unchanged files.
  */
 
 import fs from "node:fs";
@@ -27,10 +27,10 @@ export function buildImportUrl(handlerPath: string, source: HookSource): string 
     return base;
   }
 
-  // Use file mtime so the cache is only invalidated when the file is modified
+  // Use file metadata so the cache key only changes when the file changes
   try {
-    const { mtimeMs } = fs.statSync(handlerPath);
-    return `${base}?t=${mtimeMs}`;
+    const { mtimeMs, size } = fs.statSync(handlerPath);
+    return `${base}?t=${mtimeMs}&s=${size}`;
   } catch {
     // If stat fails (unlikely), fall back to Date.now() to guarantee freshness
     return `${base}?t=${Date.now()}`;
