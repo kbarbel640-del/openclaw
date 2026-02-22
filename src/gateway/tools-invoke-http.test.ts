@@ -272,6 +272,22 @@ describe("POST /tools/invoke", () => {
     expect(body).toHaveProperty("result");
   });
 
+  it("normalizes tool name with whitespace and casing", async () => {
+    allowAgentsListForMain();
+
+    const res = await invokeTool({
+      port: sharedPort,
+      tool: " Agents_List ",
+      action: "json",
+      headers: gatewayAuthHeaders(),
+      sessionKey: "main",
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+  });
+
   it("supports tools.alsoAllow in profile and implicit modes", async () => {
     cfg = {
       ...cfg,
