@@ -2,6 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import { createExecApprovalForwarder } from "./exec-approval-forwarder.js";
 
+vi.mock("../utils/message-channel.js", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../utils/message-channel.js")>();
+  return {
+    ...mod,
+    isDeliverableMessageChannel: vi.fn().mockReturnValue(true),
+  };
+});
+
 const baseRequest = {
   id: "req-1",
   request: {
@@ -142,5 +150,24 @@ describe("exec approval forwarder", () => {
     });
 
     expect(getFirstDeliveryText(deliver)).toContain("Command:\n````\necho ```danger```\n````");
+  });
+
+  it("formats line channels with [[buttons:]] UI directive", async () => {
+    vi.useFakeTimers();
+    const cfg = {
+      approvals: {
+        exec: { enabled: true, mode: "targets", targets: [{ channel: "line", to: "user1" }] },
+      },
+    } as OpenClawConfig;
+    const { deliver, forwarder } = createForwarder({ cfg });
+
+    await forwarder.handleRequested(baseRequest);
+    expect(deliver).toHaveBeenCalledTimes(1);
+
+    const text = getFirstDeliveryText(deliver);
+    expect(text).toContain("Command: `echo hello`");
+    expect(text).toContain("[[buttons: 🔒 Exec Approval |");
+    expect(text).toContain("🟢 Allow Once:/approve req-1 allow-once");
+    expect(text).toContain("🔴 Deny:/approve req-1 deny");
   });
 });

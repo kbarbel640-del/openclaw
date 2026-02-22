@@ -116,7 +116,7 @@ function formatApprovalCommand(command: string): { inline: boolean; text: string
   return { inline: false, text: `${fence}\n${command}\n${fence}` };
 }
 
-function buildRequestMessage(request: ExecApprovalRequest, nowMs: number) {
+function buildRequestMessage(request: ExecApprovalRequest, nowMs: number, channel?: string) {
   const lines: string[] = ["🔒 Exec approval required", `ID: ${request.id}`];
   const command = formatApprovalCommand(request.request.command);
   if (command.inline) {
@@ -142,8 +142,13 @@ function buildRequestMessage(request: ExecApprovalRequest, nowMs: number) {
   }
   const expiresIn = Math.max(0, Math.round((request.expiresAtMs - nowMs) / 1000));
   lines.push(`Expires in: ${expiresIn}s`);
-  lines.push("Reply with: /approve <id> allow-once|allow-always|deny");
-  return lines.join("\n");
+  lines.push(`Reply with: /approve ${request.id} allow-once|allow-always|deny`);
+
+  const text = lines.join("\n");
+  if (channel === "line") {
+    return `${text}\n\n[[buttons: 🔒 Exec Approval | Select an action below | 🟢 Allow Once:/approve ${request.id} allow-once, 🔴 Deny:/approve ${request.id} deny]]`;
+  }
+  return text;
 }
 
 function decisionLabel(decision: ExecApprovalDecision): string {
@@ -200,7 +205,7 @@ function defaultResolveSessionTarget(params: {
 async function deliverToTargets(params: {
   cfg: OpenClawConfig;
   targets: ForwardTarget[];
-  text: string;
+  text: string | ((channel: string) => string);
   deliver: typeof deliverOutboundPayloads;
   shouldSend?: () => boolean;
 }) {
@@ -212,6 +217,7 @@ async function deliverToTargets(params: {
     if (!isDeliverableMessageChannel(channel)) {
       return;
     }
+    const payloadText = typeof params.text === "function" ? params.text(channel) : params.text;
     try {
       await params.deliver({
         cfg: params.cfg,
@@ -219,7 +225,7 @@ async function deliverToTargets(params: {
         to: target.to,
         accountId: target.accountId,
         threadId: target.threadId,
-        payloads: [{ text: params.text }],
+        payloads: [{ text: payloadText }],
       });
     } catch (err) {
       log.error(`exec approvals: failed to deliver to ${channel}:${target.to}: ${String(err)}`);
@@ -298,11 +304,11 @@ export function createExecApprovalForwarder(
       return;
     }
 
-    const text = buildRequestMessage(request, nowMs());
+    const textBuilder = (channel: string) => buildRequestMessage(request, nowMs(), channel);
     await deliverToTargets({
       cfg,
       targets: filteredTargets,
-      text,
+      text: textBuilder,
       deliver,
       shouldSend: () => pending.get(request.id) === pendingEntry,
     });
