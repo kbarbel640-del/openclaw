@@ -8,6 +8,7 @@ const SKIP_PATTERNS = [
   /\.test\.tsx?$/,
   /\.test-helpers\.tsx?$/,
   /\.test-utils\.tsx?$/,
+  /\.test-helpers\.tsx?$/,
   /\.e2e\.tsx?$/,
   /\.d\.ts$/,
   /[\\/](?:__tests__|tests)[\\/]/,
