@@ -53,6 +53,8 @@ type SettingsHost = {
   agentsSelectedId?: string | null;
   agentsPanel?: "overview" | "files" | "tools" | "skills" | "channels" | "cron";
   pendingGatewayUrl?: string | null;
+  mode?: "basic" | "advanced" | "configure";
+  tabVisibility?: Record<string, boolean>;
 };
 
 export function applySettings(host: SettingsHost, next: UiSettings) {
@@ -65,6 +67,9 @@ export function applySettings(host: SettingsHost, next: UiSettings) {
   if (next.theme !== host.theme) {
     host.theme = next.theme;
     applyResolvedTheme(host, resolveTheme(next.theme));
+  }
+  if (next.mode !== undefined && next.mode !== host.mode) {
+    host.mode = next.mode;
   }
   host.applySessionKey = host.settings.lastActiveSessionKey;
 }

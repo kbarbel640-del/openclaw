@@ -243,6 +243,7 @@ export type AppViewState = {
   connect: () => void;
   setTab: (tab: Tab) => void;
   setTheme: (theme: ThemeMode, context?: ThemeTransitionContext) => void;
+  setTabVisibility: (tab: Tab, visible: boolean) => void;
   applySettings: (next: UiSettings) => void;
   setTabVisibility: (tab: Tab, visible: boolean) => void;
   loadOverview: () => Promise<void>;

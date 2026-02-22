@@ -91,6 +91,16 @@ export function renderTab(state: AppViewState, tab: Tab) {
     >
       <span class="nav-item__icon" aria-hidden="true">${icons[iconForTab(tab)]}</span>
       ${!collapsed ? html`<span class="nav-item__text">${titleForTab(tab)}</span>` : nothing}
+      ${
+        inConfigureMode
+          ? html`<button
+              class="nav-item__visibility-toggle"
+              @click=${handleToggleVisibility}
+              title=${!isVisible ? "Show tab" : "Hide tab"}
+              aria-label=${!isVisible ? "Show tab" : "Hide tab"}
+            >${!isVisible ? "+" : "−"}</button>`
+          : nothing
+      }
     </a>
   `;
 }
@@ -405,6 +415,31 @@ function resolveSessionOptions(
   }
 
   return options;
+}
+
+export function renderModeToggle(state: AppViewState) {
+  const modes: Array<{ value: "basic" | "advanced" | "configure"; label: string }> = [
+    { value: "basic", label: "Basic" },
+    { value: "advanced", label: "Advanced" },
+    { value: "configure", label: "Configure" },
+  ];
+
+  return html`
+    <div class="mode-toggle" role="group" aria-label="UI Mode">
+      ${modes.map(
+        ({ value, label }) => html`
+          <button
+            class="mode-toggle__button ${state.settings.mode === value ? "active" : ""}"
+            @click=${() => state.applySettings({ ...state.settings, mode: value })}
+            aria-pressed=${state.settings.mode === value}
+            title="${label} mode"
+          >
+            ${label}
+          </button>
+        `,
+      )}
+    </div>
+  `;
 }
 
 type ThemeOption = { id: ThemeMode; label: string; iconKey: keyof typeof icons };
