@@ -60,7 +60,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             "google-antigravity": {
@@ -82,7 +82,7 @@ describe("models-config normalizes google-antigravity api", () => {
         },
       };
 
-      await ensureOpenClawModelsJson(cfg);
+      await ensureOpenClawModelsJson(cfg as unknown as OpenClawConfig);
 
       const modelPath = path.join(resolveOpenClawAgentDir(), "models.json");
       const raw = await fs.readFile(modelPath, "utf8");
@@ -100,7 +100,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             "google-antigravity": {
@@ -122,7 +122,7 @@ describe("models-config normalizes google-antigravity api", () => {
         },
       };
 
-      await ensureOpenClawModelsJson(cfg);
+      await ensureOpenClawModelsJson(cfg as unknown as OpenClawConfig);
 
       const modelPath = path.join(resolveOpenClawAgentDir(), "models.json");
       const raw = await fs.readFile(modelPath, "utf8");
@@ -140,7 +140,7 @@ describe("models-config normalizes google-antigravity api", () => {
       const { ensureOpenClawModelsJson } = await import("./models-config.js");
       const { resolveOpenClawAgentDir } = await import("./agent-paths.js");
 
-      const cfg: OpenClawConfig = {
+      const cfg = {
         models: {
           providers: {
             "custom-proxy": {
@@ -162,7 +162,7 @@ describe("models-config normalizes google-antigravity api", () => {
         },
       };
 
-      await ensureOpenClawModelsJson(cfg);
+      await ensureOpenClawModelsJson(cfg as unknown as OpenClawConfig);
 
       const modelPath = path.join(resolveOpenClawAgentDir(), "models.json");
       const raw = await fs.readFile(modelPath, "utf8");
