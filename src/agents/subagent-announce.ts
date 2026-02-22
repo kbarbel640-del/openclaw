@@ -627,15 +627,21 @@ async function sendSubagentAnnounceDirectly(params: {
     // Always inject the announce into the requester's session via method:agent.
     // Never use method:send to push raw subagent output directly to the user —
     // the requester agent must process the announce and formulate its own reply.
-    // No channel hints: the gateway resolves delivery from the session's own
-    // stored channel context, so the agent's response is returned through the
-    // same channel the user originally sent from (Gmail thread, WhatsApp, etc.).
+    const directOrigin = normalizeDeliveryContext(params.directOrigin);
+    const directThreadId =
+      directOrigin?.threadId != null && directOrigin.threadId !== ""
+        ? String(directOrigin.threadId)
+        : undefined;
     await callGateway({
       method: "agent",
       params: {
         sessionKey: canonicalRequesterSessionKey,
         message: params.triggerMessage,
         deliver: !params.requesterIsSubagent,
+        channel: params.requesterIsSubagent ? undefined : directOrigin?.channel,
+        accountId: params.requesterIsSubagent ? undefined : directOrigin?.accountId,
+        to: params.requesterIsSubagent ? undefined : directOrigin?.to,
+        threadId: params.requesterIsSubagent ? undefined : directThreadId,
         idempotencyKey: params.directIdempotencyKey,
       },
       expectFinal: true,
