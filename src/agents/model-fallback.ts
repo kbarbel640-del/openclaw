@@ -353,11 +353,25 @@ export async function runWithModelFallback<T>(params: {
       });
       const isAnyProfileAvailable = profileIds.some((id) => !isProfileInCooldown(authStore, id));
 
+      if (profileIds.length === 0) {
+        // Check if there are any auth/billing issues in the auth store
+        // Only block "no profile" providers when there are persistent auth issues
+        const hasAuthIssues = Object.values(authStore.usageStats || {}).some(
+          (stats) => stats?.disabledReason === "auth" || stats?.disabledReason === "billing",
+        );
+        if (hasAuthIssues) {
+          attempts.push({
+            provider: candidate.provider,
+            model: candidate.model,
+            error: `No auth profiles configured for provider ${candidate.provider}`,
+            reason: "auth",
+          });
+          continue;
+        }
+      }
+
       if (profileIds.length > 0 && !isAnyProfileAvailable) {
         // All profiles for this provider are in cooldown.
-        // For the primary model (i === 0), probe it if the soonest cooldown
-        // expiry is close or already past. This avoids staying on a fallback
-        // model long after the real rate-limit window clears.
         const isPrimary = i === 0;
         const requestedModel =
           params.provider === candidate.provider && params.model === candidate.model;
@@ -371,10 +385,21 @@ export async function runWithModelFallback<T>(params: {
           authStore,
           profileIds,
         });
-        // Always try fallback models even during cooldown, since rate limits are often model-specific.
-        // Only skip if it's the same model that originally failed or if we should not probe primary.
-        const shouldAttemptDespiteCooldown = !isPrimary || !requestedModel || shouldProbe;
 
+        const disabledReason = authStore.usageStats?.[profileIds[0]]?.disabledReason;
+        const isPersistentIssue = disabledReason === "auth" || disabledReason === "billing";
+        if (isPersistentIssue) {
+          attempts.push({
+            provider: candidate.provider,
+            model: candidate.model,
+            error: `Provider ${candidate.provider} has ${disabledReason} issue (skipping all models)`,
+            reason: disabledReason,
+          });
+          continue;
+        }
+
+        // Always try fallback models even during cooldown, since rate limits are often model-specific.
+        const shouldAttemptDespiteCooldown = !isPrimary || !requestedModel || shouldProbe;
         if (!shouldAttemptDespiteCooldown) {
           const inferredReason =
             resolveProfilesUnavailableReason({
@@ -382,7 +407,6 @@ export async function runWithModelFallback<T>(params: {
               profileIds,
               now,
             }) ?? "rate_limit";
-          // Skip without attempting
           attempts.push({
             provider: candidate.provider,
             model: candidate.model,
@@ -391,12 +415,12 @@ export async function runWithModelFallback<T>(params: {
           });
           continue;
         }
-        // Primary model probe: attempt it despite cooldown to detect recovery.
-        // If it fails, the error is caught below and we fall through to the
-        // next candidate as usual.
-        lastProbeAttempt.set(probeThrottleKey, now);
+        if (isPrimary && shouldProbe) {
+          lastProbeAttempt.set(probeThrottleKey, now);
+        }
       }
     }
+
     try {
       const result = await params.run(candidate.provider, candidate.model);
       return {
