@@ -1083,6 +1083,7 @@ export async function handleFeishuReaction(params: {
       : "";
     const reactionBody = `[System Message] User ${senderOpenId} reacted with :${emojiType}:${originalPreview} (message_id: ${messageId})`;
 
+
     const envelopeOptions = core.channel.reply.resolveEnvelopeFormatOptions(cfg);
 
     const body = core.channel.reply.formatAgentEnvelope({
@@ -1094,7 +1095,8 @@ export async function handleFeishuReaction(params: {
     });
 
     const feishuFrom = `feishu:user:${senderOpenId}`;
-    const feishuTo = isGroup && chatId ? `feishu:chat:${chatId}` : `feishu:bot:${botOpenId ?? "unknown"}`;
+    const feishuTo =
+      isGroup && chatId ? `feishu:chat:${chatId}` : `feishu:bot:${botOpenId ?? "unknown"}`;
 
     const ctxPayload = core.channel.reply.finalizeInboundContext({
       Body: body,
@@ -1128,7 +1130,9 @@ export async function handleFeishuReaction(params: {
       accountId: account.accountId,
     });
 
-    log(`feishu[${accountId}]: dispatching reaction :${emojiType}: from ${senderOpenId} to agent (session=${route.sessionKey})`);
+    log(
+      `feishu[${accountId}]: dispatching reaction :${emojiType}: from ${senderOpenId} to agent (session=${route.sessionKey})`,
+    );
 
     await core.channel.reply.dispatchReplyFromConfig({
       ctx: ctxPayload,

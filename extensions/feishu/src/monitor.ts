@@ -7,7 +7,13 @@ import {
   installRequestBodyLimitGuard,
 } from "openclaw/plugin-sdk";
 import { resolveFeishuAccount, listEnabledFeishuAccounts } from "./accounts.js";
-import { handleFeishuMessage, handleFeishuReaction, type FeishuMessageEvent, type FeishuBotAddedEvent, type FeishuReactionEvent } from "./bot.js";
+import {
+  handleFeishuMessage,
+  handleFeishuReaction,
+  type FeishuMessageEvent,
+  type FeishuBotAddedEvent,
+  type FeishuReactionEvent,
+} from "./bot.js";
 import { createFeishuWSClient, createEventDispatcher } from "./client.js";
 import { probeFeishu } from "./probe.js";
 import type { ResolvedFeishuAccount } from "./types.js";
