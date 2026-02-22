@@ -65,6 +65,22 @@ function buildMemorySection(params: {
   return lines;
 }
 
+function buildPlanningSection(params: { availableTools: Set<string> }) {
+  if (!params.availableTools.has("plan")) {
+    return [];
+  }
+  return [
+    "## Task Planning (mandatory)",
+    "Before your first tool call on any non-trivial task, register a plan:",
+    "1. Call plan(action='set', goal='...', steps=['step1', 'step2', ...], done_when='...')",
+    "2. Execute your plan. After completing each step: plan(action='step', step=N, status='done', result='brief result')",
+    "3. If a step is blocked or unnecessary: plan(action='step', step=N, status='blocked'|'skipped', result='reason')",
+    "4. When finished: plan(action='done', summary='what was accomplished')",
+    "Skip planning for trivial tasks (quick lookups, single-reply questions, simple acknowledgments).",
+    "",
+  ];
+}
+
 function buildUserIdentitySection(ownerLine: string | undefined, isMinimal: boolean) {
   if (!ownerLine || isMinimal) {
     return [];
@@ -242,6 +258,7 @@ export function buildAgentSystemPrompt(params: {
     session_status:
       "Show a /status-equivalent status card (usage + time + Reasoning/Verbose/Elevated); use for model-use questions (📊 session_status); optional per-session model override",
     image: "Analyze an image with the configured image model",
+    plan: "Register a task plan, track step progress, and mark completion",
   };
 
   const toolOrder = [
@@ -268,6 +285,7 @@ export function buildAgentSystemPrompt(params: {
     "sessions_send",
     "session_status",
     "image",
+    "plan",
   ];
 
   const rawToolNames = (params.toolNames ?? []).map((tool) => tool.trim());
@@ -422,6 +440,7 @@ export function buildAgentSystemPrompt(params: {
     "",
     ...skillsSection,
     ...memorySection,
+    ...buildPlanningSection({ availableTools }),
     // Skip self-update for subagent/none modes
     hasGateway && !isMinimal ? "## OpenClaw Self-Update" : "",
     hasGateway && !isMinimal
