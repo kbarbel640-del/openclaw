@@ -93,7 +93,7 @@ export function resolveRuntimeServiceVersion(
   }
 
   const moduleVersion = runtimeVersion?.trim();
-  if (moduleVersion) {
+  if (moduleVersion && moduleVersion !== "0.0.0") {
     return moduleVersion;
   }
 
