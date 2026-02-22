@@ -122,6 +122,40 @@ function loadFonts(): Promise<SatoriFontEntry[] | null> {
 }
 
 // ---------------------------------------------------------------------------
+// Emoji font fallback — satori routes emoji through loadAdditionalAsset,
+// not the regular font stack.  We return the bundled NotoEmoji font so
+// emoji render as monochrome outlines without any network calls.
+// ---------------------------------------------------------------------------
+
+let _emojiFontPromise: Promise<SatoriFontEntry[] | null> | null = null;
+
+function loadEmojiFont(): Promise<SatoriFontEntry[] | null> {
+  if (_emojiFontPromise) {
+    return _emojiFontPromise;
+  }
+  _emojiFontPromise = (async () => {
+    try {
+      const data = await fs.readFile(path.join(BUNDLED_FONTS_DIR, "NotoEmoji-Regular.ttf"));
+      return [{ name: "Noto Emoji", data, weight: 400, style: "normal" }];
+    } catch {
+      _emojiFontPromise = null;
+      return null;
+    }
+  })();
+  return _emojiFontPromise;
+}
+
+async function loadAdditionalAsset(
+  code: string,
+  _segment: string,
+): Promise<string | SatoriFontEntry[]> {
+  if (code === "emoji") {
+    return (await loadEmojiFont()) ?? [];
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------------------
 // GFM table parser
 // ---------------------------------------------------------------------------
 
@@ -367,6 +401,7 @@ export async function renderTableImage(tableMarkdown: string): Promise<Buffer | 
       width: totalWidth,
       height: totalHeight,
       fonts,
+      loadAdditionalAsset,
     });
 
     const resvg = new Resvg(svg, { fitTo: { mode: "width", value: totalWidth } });

@@ -29,25 +29,67 @@ function mightContainTable(markdown: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Code-fence unwrapping
+// ---------------------------------------------------------------------------
+
+/**
+ * LLMs frequently wrap GFM tables in fenced code blocks (``` ... ```).
+ * markdown-it correctly parses those as `fence` tokens so our table
+ * detector never sees them.  This pre-processor strips the fences around
+ * blocks whose content is *exclusively* a valid pipe table (header row +
+ * separator + data rows).  Non-table code fences are left untouched.
+ */
+const FENCED_BLOCK_RE = /^(`{3,})[^\n]*\n([\s\S]*?)\n\1[^\S\n]*$/gm;
+
+function unwrapCodeFencedTables(markdown: string): string {
+  return markdown.replace(FENCED_BLOCK_RE, (_match, _ticks: string, inner: string) => {
+    const trimmed = inner.trim();
+    if (!trimmed) {
+      return _match;
+    }
+    // Quick check: every non-empty line must look like a pipe-table row or separator.
+    const lines = trimmed.split("\n");
+    if (lines.length < 2) {
+      return _match;
+    }
+    const allPipeLines = lines.every((l) => {
+      const s = l.trim();
+      return s.includes("|");
+    });
+    if (!allPipeLines) {
+      return _match;
+    }
+    // Second line must be a separator (---|--- or |:---|---:|)
+    if (!SEPARATOR_RE.test(lines[1])) {
+      return _match;
+    }
+    // Looks like a table — unwrap the fences.
+    return trimmed;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
  * Split markdown into ordered text / table segments.
  *
- * Tables inside fenced code blocks are never detected (markdown-it
- * lexes them as `fence` tokens, not `table_open`).
+ * Tables inside fenced code blocks are unwrapped first when the fenced
+ * content is exclusively a pipe table — a common LLM output pattern.
  */
 export function splitMarkdownTables(markdown: string): MarkdownSegment[] {
   if (!markdown) {
     return [];
   }
-  if (!mightContainTable(markdown)) {
+  // Unwrap code-fenced tables before parsing (LLMs often wrap tables in ```).
+  const preprocessed = unwrapCodeFencedTables(markdown);
+  if (!mightContainTable(preprocessed)) {
     return [{ kind: "text", markdown }];
   }
 
-  const tokens = md.parse(markdown, {});
-  const lines = markdown.split("\n");
+  const tokens = md.parse(preprocessed, {});
+  const lines = preprocessed.split("\n");
 
   // Collect [startLine, endLine) ranges for every top-level table.
   const tableRanges: Array<{ start: number; end: number }> = [];

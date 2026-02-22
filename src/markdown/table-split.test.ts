@@ -58,8 +58,24 @@ describe("splitMarkdownTables", () => {
     expect(tables[1]).toHaveProperty("index", 1);
   });
 
-  it("does not split tables inside fenced code blocks", () => {
-    const md = "```\n| A | B |\n|---|---|\n| 1 | 2 |\n```";
+  it("unwraps code-fenced tables (common LLM output pattern)", () => {
+    const md = "Intro:\n\n```\n| A | B |\n|---|---|\n| 1 | 2 |\n```\n\nTrailing text";
+    const result = splitMarkdownTables(md);
+    expect(result).toHaveLength(3);
+    expect(result[0]).toEqual({ kind: "text", markdown: expect.stringContaining("Intro") });
+    expect(result[1]).toHaveProperty("kind", "table");
+    expect(result[2]).toEqual({ kind: "text", markdown: expect.stringContaining("Trailing") });
+  });
+
+  it("unwraps code-fenced tables with info string (```markdown)", () => {
+    const md = "Result:\n\n```markdown\n| C1 | C2 |\n|---|---|\n| x | y |\n```\n\nEnd";
+    const result = splitMarkdownTables(md);
+    const tables = result.filter((s) => s.kind === "table");
+    expect(tables).toHaveLength(1);
+  });
+
+  it("does not unwrap code fences containing non-table code", () => {
+    const md = "Code:\n\n```js\nconsole.log('hi');\n```\n\nDone";
     const result = splitMarkdownTables(md);
     expect(result).toHaveLength(1);
     expect(result[0]).toHaveProperty("kind", "text");
