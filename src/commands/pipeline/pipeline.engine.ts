@@ -24,14 +24,7 @@ type StepRunRecord = {
   meta?: Record<string, unknown>;
 };
 
-type LoopFixPlan = {
-  loopId: string;
-  iteration: number;
-  verdict: string;
-  verdictFile: string;
-  createdAt: string;
-  plan: string;
-};
+// (intentionally no LoopFixPlan type; agent writes fixplan files directly)
 
 function now() {
   return Date.now();
@@ -119,47 +112,7 @@ function parseVerdict(text: string): "PASS" | "WARN" | "FAIL" | "ABORT" | "UNKNO
   return "UNKNOWN";
 }
 
-function ensureDir(p: string) {
-  fs.mkdirSync(p, { recursive: true });
-}
-
-function writeLoopFixPlan(params: {
-  workspaceRoot: string;
-  runDir: string;
-  loopId: string;
-  iteration: number;
-  verdict: string;
-  verdictFile: string;
-  plan: string;
-}) {
-  const runDirAbs = absPath(params.workspaceRoot, params.runDir);
-  ensureDir(runDirAbs);
-  const outRel = path.join(
-    params.runDir,
-    `loop-${params.loopId}-iter-${String(params.iteration).padStart(2, "0")}-fixplan.md`,
-  );
-  const outAbs = absPath(params.workspaceRoot, outRel);
-  const body: LoopFixPlan = {
-    loopId: params.loopId,
-    iteration: params.iteration,
-    verdict: params.verdict,
-    verdictFile: params.verdictFile,
-    createdAt: new Date().toISOString(),
-    plan: params.plan,
-  };
-  const md =
-    `# Loop Fix Plan\n\n` +
-    `- loopId: ${body.loopId}\n` +
-    `- iteration: ${body.iteration}\n` +
-    `- verdict: ${body.verdict}\n` +
-    `- verdictFile: ${body.verdictFile}\n` +
-    `- createdAt: ${body.createdAt}\n\n` +
-    `---\n\n` +
-    `${body.plan.trim()}\n`;
-
-  fs.writeFileSync(outAbs, md);
-  return { outRel, outAbs };
-}
+// NOTE: previously the runner wrote fixplan files itself. We now have the agent write them directly.
 
 export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions) {
   const workspaceRoot = resolveWorkspaceRoot();
@@ -333,15 +286,24 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
         );
       }
 
-      // Ask the agent to generate a fix plan and persist it into the runDir.
+      const fixOutRel = path.join(
+        spec.runDir,
+        `loop-${rule.id}-iter-${String(iter).padStart(2, "0")}-fixplan.md`,
+      );
+      const fixOutAbs = absPath(workspaceRoot, fixOutRel);
+
+      // Ask the agent to generate a fix plan and write it directly to the file.
       const fixPlanPrompt =
         `You are running inside a verification pipeline.\n\n` +
         `The pipeline produced a verdict that was not PASS.\n` +
         `Your job: write a concise, actionable FIX PLAN that will help the next rerun pass.\n\n` +
-        `Return ONLY markdown. Include:\n` +
+        `Write the fix plan to this exact file path (overwrite if exists):\n` +
+        `${fixOutAbs}\n\n` +
+        `The fix plan should be markdown and include:\n` +
         `- bullet list of issues observed\n` +
         `- bullet list of concrete changes to make\n` +
         `- if you need more data, specify exactly which file(s) to inspect next\n\n` +
+        `After writing the file, reply with ONLY: OK\n\n` +
         `Verdict file path: ${verdictFile}\n\n` +
         `Verdict file contents:\n\n` +
         `---\n${verdictText}\n---\n`;
@@ -353,23 +315,21 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
         timeoutMs: 10 * 60 * 1000,
       });
 
-      // We don't currently fetch the model's raw text from the gateway in this runner.
-      // So we store the prompt itself as a placeholder and rely on downstream steps to read the verdict.
-      // TODO: enhance gateway call to return the final assistant text so we can store the actual plan.
-      const planText =
-        `## Fix plan generation run\n\n- runId: ${fixRes.runId}\n- status: ${fixRes.status}\n\n` +
-        `> TODO: pipeline runner does not yet capture the assistant's final text.\n`;
+      // Gate on the file existing.
+      const startWait = now();
+      while (!fs.existsSync(fixOutAbs)) {
+        if (now() - startWait > 10 * 60 * 1000) {
+          throw new Error(`Timeout waiting for fix plan file: ${fixOutRel}`);
+        }
+        sleep(500);
+      }
 
-      const fixOut = writeLoopFixPlan({
-        workspaceRoot,
-        runDir: spec.runDir,
-        loopId: rule.id,
-        iteration: iter,
-        verdict: String(verdict),
-        verdictFile,
-        plan: planText,
-      });
-      rec.meta = { ...rec.meta, fixPlanFile: fixOut.outRel };
+      rec.meta = {
+        ...rec.meta,
+        fixPlanFile: fixOutRel,
+        fixPlanRunId: fixRes.runId,
+        fixPlanStatus: fixRes.status,
+      };
 
       // Mark rerun targets as incomplete so scheduler can pick them up again.
       for (const rerunId of rule.rerunStepIds) {
