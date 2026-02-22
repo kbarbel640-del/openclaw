@@ -6,6 +6,7 @@ import {
   resolveGatewayLaunchAgentLabel,
   resolveGatewaySystemdServiceName,
   resolveGatewayWindowsTaskName,
+  resolveNodeSystemdServiceName,
 } from "./constants.js";
 import { execSchtasks } from "./schtasks-exec.js";
 
@@ -127,8 +128,15 @@ function isIgnoredLaunchdLabel(label: string): boolean {
   return label === resolveGatewayLaunchAgentLabel();
 }
 
+// Known openclaw companion services that are not gateways
+const KNOWN_COMPANION_SYSTEMD_NAMES = new Set(["openclaw-browser"]);
+
 function isIgnoredSystemdName(name: string): boolean {
-  return name === resolveGatewaySystemdServiceName();
+  return (
+    name === resolveGatewaySystemdServiceName() ||
+    name === resolveNodeSystemdServiceName() ||
+    KNOWN_COMPANION_SYSTEMD_NAMES.has(name)
+  );
 }
 
 function isLegacyLabel(label: string): boolean {
