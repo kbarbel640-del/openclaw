@@ -122,8 +122,8 @@ describe("agents set-identity command", () => {
       path.join(workspace, "IDENTITY.md"),
       [
         "- Name: OpenClaw",
-        "- Theme: space lobster",
-        "- Emoji: :)",
+        "- Theme: space dog",
+        "- Emoji: 🐶",
         "- Avatar: avatars/openclaw.png",
         "",
       ].join("\n"),
@@ -140,7 +140,7 @@ describe("agents set-identity command", () => {
         workspace,
         fromIdentity: true,
         name: "Nova",
-        emoji: "🦞",
+        emoji: "🐶",
         avatar: "https://example.com/override.png",
       },
       runtime,
@@ -152,8 +152,9 @@ describe("agents set-identity command", () => {
     const main = written.agents?.list?.find((entry) => entry.id === "main");
     expect(main?.identity).toEqual({
       name: "Nova",
-      theme: "space lobster",
-      emoji: "🦞",
+      theme: "space dog",
+      avatar: "https://example.com/override.png",
+      emoji: "🐶",
       avatar: "https://example.com/override.png",
     });
   });

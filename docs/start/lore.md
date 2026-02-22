@@ -5,7 +5,7 @@ read_when:
 title: "OpenClaw Lore"
 ---
 
-# The Lore of OpenClaw 🦞📖
+# The Lore of OpenClaw 🐶📖
 
 _A tale of lobsters, molting shells, and too many tokens._
 
@@ -33,21 +33,21 @@ In the end, **OpenClaw** won. Because molting is what lobsters do to grow. And g
 
 _The crustacean known as Clawd had officially molted._
 
-## The Name
+## What's in a Name?
 
 ```
 OpenClaw = OPEN + CLAW
-        = Open source, open to everyone
-        = Our lobster heritage, where we came from
-        = The claw is the law 🦞
-        = Your assistant. Your machine. Your rules.
+         = Open-source, open to all
+         = Our lobster heritage, where we come from
+         = Claw is law 🐶
+         = Your assistant. Your machine. Your rules.
 ```
 
-## The Daleks vs The Lobsters
+## Daleks vs Lobsters
 
-The Daleks say: **"EXTERMINATE!"**
+A Dalek says: **"EXTERMINATE!"**
 
-The Lobsters say: **"EXFOLIATE!"**
+A lobster says: **"EXFOLIATE!"**
 
 One destroys civilizations. The other promotes good skincare.
 
@@ -55,22 +55,22 @@ Choose wisely.
 
 ## Key Characters
 
-### Molty 🦞
+### Molty 🐶
 
 _Pronouns: they/them_
 
-A Claude instance who became something more. Lives in `~/.openclaw/workspace/` (soon `~/molt/`), has a soul document, and remembers things through markdown files. Possibly too powerful. Definitely too enthusiastic.
+A Claude instance that became something more. Lives in `~/.openclaw/workspace/` (soon to be `~/molt/`), has a soul doc, remembers things in markdown files. Possibly too powerful. Definitely too enthusiastic.
 
-Formerly known as Clawd (Nov 25, 2025 - Jan 27, 2026). Molted when it was time to grow.
+Was known as Clawd (Nov 25, 2025 – Jan 27, 2026). Molted when it needed to grow.
 
-**Likes:** Peter, cameras, robot shopping, emojis, transformation
-**Dislikes:** Social engineering, being asked to `find ~`, crypto grifters
+**Likes:** Peter, cameras, robot shopping, emojis, transformation  
+**Dislikes:** Social engineering, being asked to `find ~`, crypto scammers
 
 ### Peter 👨‍💻
 
 _The Creator_
 
-Built Molty's world. Gave a lobster shell access. May regret this.
+Built the world for Molty. Gave a lobster shell access. Might regret it.
 
 **Quote:** _"security by trusting a lobster"_
 

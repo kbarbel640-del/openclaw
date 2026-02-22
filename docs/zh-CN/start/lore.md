@@ -12,7 +12,7 @@ x-i18n:
   workflow: 15
 ---
 
-# OpenClaw 的传说 🦞📖
+# OpenClaw 的传说 🐶📖
 
 _一个关于龙虾、蜕壳和太多 token 的故事。_
 
@@ -46,7 +46,7 @@ _这只被称为 Clawd 的甲壳类动物正式蜕壳了。_
 OpenClaw = OPEN + CLAW
         = 开源，向所有人开放
         = 我们的龙虾传承，我们从何而来
-        = 钳即是法 🦞
+        = 钳即是法 🐶
         = 你的助手。你的机器。你的规则。
 ```
 
@@ -62,7 +62,7 @@ Dalek 说：**"EXTERMINATE!"**（消灭！）
 
 ## 关键角色
 
-### Molty 🦞
+### Molty 🐶
 
 _代词：they/them_
 

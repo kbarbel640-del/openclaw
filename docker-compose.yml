@@ -1,46 +1,28 @@
-services:
-  openclaw-gateway:
-    image: ${OPENCLAW_IMAGE:-openclaw:local}
-    environment:
-      HOME: /home/node
-      TERM: xterm-256color
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
-      CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
-      CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
-      CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
-    volumes:
-      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
-    ports:
-      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
-      - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
-    init: true
-    restart: unless-stopped
-    command:
-      [
-        "node",
-        "dist/index.js",
-        "gateway",
-        "--bind",
-        "${OPENCLAW_GATEWAY_BIND:-lan}",
-        "--port",
-        "18789",
-      ]
+version: '3.8'
 
-  openclaw-cli:
-    image: ${OPENCLAW_IMAGE:-openclaw:local}
+services:
+  gateway:
+    image: ${CDOG_IMAGE:-cdog:local}
     environment:
-      HOME: /home/node
-      TERM: xterm-256color
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
-      BROWSER: echo
-      CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
-      CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
-      CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
+      CDOG_GATEWAY_TOKEN: ${CDOG_GATEWAY_TOKEN}
+      CDOG_GATEWAY_BIND: ${CDOG_GATEWAY_BIND:-lan}
     volumes:
-      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
-    stdin_open: true
-    tty: true
-    init: true
-    entrypoint: ["node", "dist/index.js"]
+      - ${CDOG_CONFIG_DIR}:/home/node/.cdog
+      - ${CDOG_WORKSPACE_DIR}:/home/node/.cdog/workspace
+    ports:
+      - "${CDOG_GATEWAY_PORT:-18789}:18789"
+      - "${CDOG_BRIDGE_PORT:-18790}:18790"
+    command: [
+      "node", "dist/cli/index.js", "gateway", "start",
+      "--bind", "${CDOG_GATEWAY_BIND:-lan}",
+      "--port", "${CDOG_GATEWAY_PORT:-18789}"
+    ]
+
+  bridge:
+    image: ${CDOG_IMAGE:-cdog:local}
+    environment:
+      CDOG_GATEWAY_TOKEN: ${CDOG_GATEWAY_TOKEN}
+    volumes:
+      - ${CDOG_CONFIG_DIR}:/home/node/.cdog
+      - ${CDOG_WORKSPACE_DIR}:/home/node/.cdog/workspace
+    command: ["node", "dist/cli/index.js", "bridge", "start"]
