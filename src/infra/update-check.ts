@@ -341,20 +341,46 @@ export async function resolveNpmChannelTag(params: {
   return { tag: channelTag, version: channelStatus.version };
 }
 
+/**
+ * Parse a version string that may include a build suffix (e.g., "2026.2.21-2").
+ * Returns the semver parts plus the build number (if present).
+ * Build suffixes (e.g., -2) are treated as build increments, not pre-release tags,
+ * meaning 2026.2.21-2 is considered newer than 2026.2.21.
+ */
+function parseVersionWithBuild(version: string | null): { semver: Semver; build: number } | null {
+  if (!version) {
+    return null;
+  }
+  const semver = parseSemver(version);
+  if (!semver) {
+    return null;
+  }
+  // Extract build suffix: "2026.2.21-2" -> build=2, "2026.2.21" -> build=0
+  const buildMatch = version.match(/-(\d+)(?:[+.]|$)/);
+  const build = buildMatch ? Number.parseInt(buildMatch[1], 10) : 0;
+  return { semver, build };
+}
+
 export function compareSemverStrings(a: string | null, b: string | null): number | null {
-  const pa = parseSemver(a);
-  const pb = parseSemver(b);
+  const pa = parseVersionWithBuild(a);
+  const pb = parseVersionWithBuild(b);
   if (!pa || !pb) {
     return null;
   }
-  if (pa.major !== pb.major) {
-    return pa.major < pb.major ? -1 : 1;
+  // Compare major.minor.patch first
+  if (pa.semver.major !== pb.semver.major) {
+    return pa.semver.major < pb.semver.major ? -1 : 1;
   }
-  if (pa.minor !== pb.minor) {
-    return pa.minor < pb.minor ? -1 : 1;
+  if (pa.semver.minor !== pb.semver.minor) {
+    return pa.semver.minor < pb.semver.minor ? -1 : 1;
   }
-  if (pa.patch !== pb.patch) {
-    return pa.patch < pb.patch ? -1 : 1;
+  if (pa.semver.patch !== pb.semver.patch) {
+    return pa.semver.patch < pb.semver.patch ? -1 : 1;
+  }
+  // Same semver: compare build suffix
+  // Higher build number = newer version (2026.2.21-2 > 2026.2.21-0)
+  if (pa.build !== pb.build) {
+    return pa.build < pb.build ? -1 : 1;
   }
   return 0;
 }
