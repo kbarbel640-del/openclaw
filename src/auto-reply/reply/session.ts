@@ -341,6 +341,7 @@ export async function initSessionState(params: {
   const lastTo = deliveryFields.lastTo ?? lastToRaw;
   const lastAccountId = deliveryFields.lastAccountId ?? lastAccountIdRaw;
   const lastThreadId = deliveryFields.lastThreadId ?? lastThreadIdRaw;
+  const preservedLabel = baseEntry?.label ?? (resetTriggered ? entry?.label : undefined);
   sessionEntry = {
     ...baseEntry,
     sessionId,
@@ -362,6 +363,7 @@ export async function initSessionState(params: {
     queueCap: baseEntry?.queueCap,
     queueDrop: baseEntry?.queueDrop,
     displayName: baseEntry?.displayName,
+    label: preservedLabel,
     chatType: baseEntry?.chatType,
     channel: baseEntry?.channel,
     groupId: baseEntry?.groupId,
