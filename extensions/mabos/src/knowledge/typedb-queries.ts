@@ -335,6 +335,252 @@ export class CBRQueries {
   }
 }
 
+// ── Goal Store Queries ──────────────────────────────────────────────────
+
+export class GoalStoreQueries {
+  /**
+   * Insert a goal scoped to an agent.
+   */
+  static createGoal(
+    agentId: string,
+    goal: {
+      id: string;
+      name: string;
+      description: string;
+      hierarchy_level: string;
+      success_criteria?: string;
+      deadline?: string;
+      priority: number;
+      status?: string;
+      parent_goal_id?: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    const optionals = [
+      goal.success_criteria
+        ? `, has success_criteria ${JSON.stringify(goal.success_criteria)}`
+        : "",
+      goal.deadline ? `, has deadline ${JSON.stringify(goal.deadline)}` : "",
+      goal.parent_goal_id ? `, has parent_goal_id ${JSON.stringify(goal.parent_goal_id)}` : "",
+    ].join("");
+
+    return `insert
+  $goal isa goal,
+    has uid ${JSON.stringify(goal.id)},
+    has name ${JSON.stringify(goal.name)},
+    has description ${JSON.stringify(goal.description)},
+    has hierarchy_level ${JSON.stringify(goal.hierarchy_level)},
+    has priority ${goal.priority},
+    has progress 0.0,
+    has status ${JSON.stringify(goal.status || "active")}${optionals},
+    has created_at ${JSON.stringify(now)},
+    has updated_at ${JSON.stringify(now)};
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  (owner: $agent, owned: $goal) isa agent_owns;`;
+  }
+
+  /**
+   * Link a desire to a goal via desire_motivates_goal relation.
+   */
+  static linkDesireToGoal(agentId: string, desireId: string, goalId: string): string {
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $desire isa desire, has uid ${JSON.stringify(desireId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)};
+  (owner: $agent, owned: $desire) isa agent_owns;
+  (owner: $agent, owned: $goal) isa agent_owns;
+insert
+  (motivator: $desire, motivated: $goal) isa desire_motivates_goal;`;
+  }
+
+  /**
+   * Link a goal to a plan via goal_requires_plan relation.
+   */
+  static linkGoalToPlan(agentId: string, goalId: string, planId: string): string {
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)};
+  $plan isa plan, has uid ${JSON.stringify(planId)};
+  (owner: $agent, owned: $goal) isa agent_owns;
+  (owner: $agent, owned: $plan) isa agent_owns;
+insert
+  (requiring: $goal, required: $plan) isa goal_requires_plan;`;
+  }
+
+  /**
+   * Query goals with optional filters.
+   */
+  static queryGoals(
+    agentId: string,
+    filters: { hierarchy_level?: string; status?: string; minPriority?: number },
+  ): string {
+    const clauses: string[] = [
+      `$agent isa agent, has uid ${JSON.stringify(agentId)};`,
+      `$goal isa goal, has uid $gid, has name $n, has hierarchy_level $hl, has priority $p, has status $st, has progress $pr;`,
+      `(owner: $agent, owned: $goal) isa agent_owns;`,
+    ];
+    if (filters.hierarchy_level) {
+      clauses.push(`$hl = ${JSON.stringify(filters.hierarchy_level)};`);
+    }
+    if (filters.status) {
+      clauses.push(`$st = ${JSON.stringify(filters.status)};`);
+    }
+    if (filters.minPriority !== undefined && filters.minPriority > 0) {
+      clauses.push(`$p >= ${filters.minPriority};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+
+  /**
+   * Update goal progress and optionally status.
+   */
+  static updateGoalProgress(
+    agentId: string,
+    goalId: string,
+    progress: number,
+    status?: string,
+  ): string {
+    const now = new Date().toISOString();
+    const statusDelete = status ? `\n  $goal has $old_status;` : "";
+    const statusInsert = status ? `\n  $goal has status ${JSON.stringify(status)};` : "";
+
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)}, has progress $old_progress, has updated_at $old_updated;${statusDelete}
+  (owner: $agent, owned: $goal) isa agent_owns;
+delete
+  $goal has $old_progress;
+  $goal has $old_updated;${statusDelete ? `\n  $goal has $old_status;` : ""}
+insert
+  $goal has progress ${progress};
+  $goal has updated_at ${JSON.stringify(now)};${statusInsert}`;
+  }
+}
+
+// ── Desire Store Queries ────────────────────────────────────────────────
+
+export class DesireStoreQueries {
+  /**
+   * Insert a desire scoped to an agent.
+   */
+  static createDesire(
+    agentId: string,
+    desire: {
+      id: string;
+      name: string;
+      description: string;
+      priority: number;
+      importance: number;
+      urgency: number;
+      alignment: number;
+      status?: string;
+      category: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    return `insert
+  $desire isa desire,
+    has uid ${JSON.stringify(desire.id)},
+    has name ${JSON.stringify(desire.name)},
+    has description ${JSON.stringify(desire.description)},
+    has priority ${desire.priority},
+    has importance ${desire.importance},
+    has urgency ${desire.urgency},
+    has alignment ${desire.alignment},
+    has status ${JSON.stringify(desire.status || "active")},
+    has category ${JSON.stringify(desire.category)},
+    has created_at ${JSON.stringify(now)};
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  (owner: $agent, owned: $desire) isa agent_owns;`;
+  }
+
+  /**
+   * Query desires with optional filters.
+   */
+  static queryDesires(agentId: string, filters: { category?: string; status?: string }): string {
+    const clauses: string[] = [
+      `$agent isa agent, has uid ${JSON.stringify(agentId)};`,
+      `$desire isa desire, has uid $did, has name $n, has priority $p, has category $cat, has status $st;`,
+      `(owner: $agent, owned: $desire) isa agent_owns;`,
+    ];
+    if (filters.category) {
+      clauses.push(`$cat = ${JSON.stringify(filters.category)};`);
+    }
+    if (filters.status) {
+      clauses.push(`$st = ${JSON.stringify(filters.status)};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+}
+
+// ── Belief Store Queries ────────────────────────────────────────────────
+
+export class BeliefStoreQueries {
+  /**
+   * Insert a belief scoped to an agent.
+   */
+  static createBelief(
+    agentId: string,
+    belief: {
+      id: string;
+      category: string;
+      certainty: number;
+      subject: string;
+      content: string;
+      source: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    return `insert
+  $belief isa belief,
+    has uid ${JSON.stringify(belief.id)},
+    has category ${JSON.stringify(belief.category)},
+    has certainty ${belief.certainty},
+    has subject ${JSON.stringify(belief.subject)},
+    has content ${JSON.stringify(belief.content)},
+    has source ${JSON.stringify(belief.source)},
+    has created_at ${JSON.stringify(now)},
+    has updated_at ${JSON.stringify(now)};
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  (owner: $agent, owned: $belief) isa agent_owns;`;
+  }
+
+  /**
+   * Link a belief to a goal via belief_supports_goal relation.
+   */
+  static linkBeliefToGoal(agentId: string, beliefId: string, goalId: string): string {
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $belief isa belief, has uid ${JSON.stringify(beliefId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)};
+  (owner: $agent, owned: $belief) isa agent_owns;
+  (owner: $agent, owned: $goal) isa agent_owns;
+insert
+  (believer: $belief, supported: $goal) isa belief_supports_goal;`;
+  }
+
+  /**
+   * Query beliefs with optional filters.
+   */
+  static queryBeliefs(
+    agentId: string,
+    filters: { category?: string; minCertainty?: number },
+  ): string {
+    const clauses: string[] = [
+      `$agent isa agent, has uid ${JSON.stringify(agentId)};`,
+      `$belief isa belief, has uid $bid, has category $cat, has certainty $cert, has subject $sub, has content $c;`,
+      `(owner: $agent, owned: $belief) isa agent_owns;`,
+    ];
+    if (filters.category) {
+      clauses.push(`$cat = ${JSON.stringify(filters.category)};`);
+    }
+    if (filters.minCertainty !== undefined && filters.minCertainty > 0) {
+      clauses.push(`$cert >= ${filters.minCertainty};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+}
+
 // ── Base Schema ─────────────────────────────────────────────────────────
 
 /**
