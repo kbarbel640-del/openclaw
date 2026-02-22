@@ -41,17 +41,36 @@ describe("graph-upload", () => {
     );
   });
 
-  it("uses simple upload endpoint for SharePoint uploads", async () => {
+  it("uses resumable upload session for SharePoint uploads >4MB", async () => {
     const totalBytes = 5 * 1024 * 1024 + 20;
-    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => {
-      return new Response(
-        JSON.stringify({
-          id: "item-large",
-          webUrl: "https://graph.example/items/item-large",
-          name: "large.bin",
-        }),
-        { status: 201, headers: { "content-type": "application/json" } },
-      );
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/createUploadSession")) {
+        return new Response(JSON.stringify({ uploadUrl: "https://upload.example/session" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      if (url === "https://upload.example/session") {
+        const contentRange =
+          (init?.headers as Record<string, string> | undefined)?.["Content-Range"] ?? "";
+        if (contentRange.startsWith("bytes 0-")) {
+          return new Response(JSON.stringify({ nextExpectedRanges: ["5242880-"] }), {
+            status: 202,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(
+          JSON.stringify({
+            id: "item-large",
+            webUrl: "https://graph.example/items/item-large",
+            name: "large.bin",
+          }),
+          { status: 201, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      return new Response("unexpected", { status: 500 });
     });
 
     const result = await uploadToSharePoint({
@@ -67,10 +86,16 @@ describe("graph-upload", () => {
       webUrl: "https://graph.example/items/item-large",
       name: "large.bin",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0]?.[0]).toContain(
-      "/sites/site-1/drive/root:/OpenClawShared/large.bin:/content",
+      "/sites/site-1/drive/root:/OpenClawShared/large.bin:/createUploadSession",
     );
+
+    const firstChunkHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>;
+    const secondChunkHeaders = fetchMock.mock.calls[2]?.[1]?.headers as Record<string, string>;
+
+    expect(firstChunkHeaders["Content-Range"]).toBe(`bytes 0-5242879/${totalBytes}`);
+    expect(secondChunkHeaders["Content-Range"]).toBe(`bytes 5242880-5242899/${totalBytes}`);
   });
 
   it("retries on 429 for Graph requests", async () => {
