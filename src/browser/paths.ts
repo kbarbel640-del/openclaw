@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { SafeOpenError, openFileWithinRoot } from "../infra/fs-safe.js";
 import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
@@ -24,6 +25,19 @@ export function resolvePathWithinRoot(params: {
   const resolved = path.resolve(root, raw);
   const rel = path.relative(root, resolved);
   if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
+    // Retry with realpath for symlink-heavy envs (macOS /tmp -> /private/tmp)
+    if (rel) {
+      try {
+        const rootReal = fs.realpathSync(root);
+        const resolvedReal = fs.realpathSync(resolved);
+        const relReal = path.relative(rootReal, resolvedReal);
+        if (relReal && !relReal.startsWith("..") && !path.isAbsolute(relReal)) {
+          return { ok: true, path: resolvedReal };
+        }
+      } catch {
+        // realpathSync fails if path doesn't exist — fall through to rejection
+      }
+    }
     return { ok: false, error: `Invalid path: must stay within ${params.scopeLabel}` };
   }
   return { ok: true, path: resolved };

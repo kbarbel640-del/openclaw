@@ -154,6 +154,60 @@ describe("resolvePathWithinRoot", () => {
     });
   });
 
+  it.runIf(process.platform !== "win32")(
+    "accepts paths through symlinked root directory",
+    async () => {
+      const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-symlink-"));
+      const realUploads = path.join(baseDir, "real-uploads");
+      const symlinkUploads = path.join(baseDir, "link-uploads");
+      await fs.mkdir(realUploads, { recursive: true });
+      await fs.writeFile(path.join(realUploads, "file.png"), "data", "utf8");
+      await fs.symlink(realUploads, symlinkUploads);
+      try {
+        const realFilePath = path.join(realUploads, "file.png");
+        // Root is the symlink path, but file path uses the realpath target
+        const result = resolvePathWithinRoot({
+          rootDir: symlinkUploads,
+          requestedPath: realFilePath,
+          scopeLabel: "uploads directory",
+        });
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.path).toContain("file.png");
+        }
+      } finally {
+        await fs.rm(baseDir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "accepts absolute paths using symlink alias of root",
+    async () => {
+      const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-symlink-"));
+      const realUploads = path.join(baseDir, "real-uploads");
+      const symlinkUploads = path.join(baseDir, "link-uploads");
+      await fs.mkdir(realUploads, { recursive: true });
+      await fs.writeFile(path.join(realUploads, "file.png"), "data", "utf8");
+      await fs.symlink(realUploads, symlinkUploads);
+      try {
+        const symlinkFilePath = path.join(symlinkUploads, "file.png");
+        // Root is the real path, but file path uses the symlink alias
+        const result = resolvePathWithinRoot({
+          rootDir: realUploads,
+          requestedPath: symlinkFilePath,
+          scopeLabel: "uploads directory",
+        });
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.path).toContain("file.png");
+        }
+      } finally {
+        await fs.rm(baseDir, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("rejects root-level path aliases that do not point to a file", () => {
     const result = resolvePathWithinRoot({
       rootDir: "/tmp/uploads",
