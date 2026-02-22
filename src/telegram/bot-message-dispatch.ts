@@ -643,9 +643,19 @@ export const dispatchTelegramMessage = async ({
   }
 
   if (statusReactionController) {
-    void statusReactionController.setDone().catch((err) => {
-      logVerbose(`telegram: status reaction finalize failed: ${String(err)}`);
-    });
+    void statusReactionController
+      .setDone()
+      .then(async () => {
+        if (removeAckAfterReply) {
+          const { DEFAULT_TIMING } = await import("../channels/status-reactions.js");
+          const { sleep } = await import("../utils.js");
+          await sleep(DEFAULT_TIMING.doneHoldMs);
+          await statusReactionController.clear();
+        }
+      })
+      .catch((err) => {
+        logVerbose(`telegram: status reaction finalize failed: ${String(err)}`);
+      });
   } else {
     removeAckReactionAfterReply({
       removeAfterReply: removeAckAfterReply,
