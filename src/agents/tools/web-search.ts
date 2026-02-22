@@ -35,6 +35,8 @@ const DEFAULT_GROK_MODEL = "grok-4-1-fast";
 const SEARCH_CACHE = new Map<string, CacheEntry<Record<string, unknown>>>();
 const BRAVE_FRESHNESS_SHORTCUTS = new Set(["pd", "pw", "pm", "py"]);
 const BRAVE_FRESHNESS_RANGE = /^(\d{4}-\d{2}-\d{2})to(\d{4}-\d{2}-\d{2})$/;
+const BRAVE_SEARCH_LANG_CODE = /^[a-z]{2,3}$/i;
+const BRAVE_UI_LANG_LOCALE = /^([a-z]{2,3})[-_]([a-z]{2})$/i;
 
 const WebSearchSchema = Type.Object({
   query: Type.String({ description: "Search query string." }),
@@ -53,12 +55,12 @@ const WebSearchSchema = Type.Object({
   ),
   search_lang: Type.Optional(
     Type.String({
-      description: "ISO language code for search results (e.g., 'de', 'en', 'fr').",
+      description: "ISO language code for search results (e.g., 'de', 'en', 'tr').",
     }),
   ),
   ui_lang: Type.Optional(
     Type.String({
-      description: "ISO language code for UI elements.",
+      description: "Locale code for UI language/region (e.g., 'en-US', 'tr-TR').",
     }),
   ),
   freshness: Type.Optional(
@@ -393,6 +395,68 @@ function resolveSearchCount(value: unknown, fallback: number): number {
   const parsed = typeof value === "number" && Number.isFinite(value) ? value : fallback;
   const clamped = Math.max(1, Math.min(MAX_SEARCH_COUNT, Math.floor(parsed)));
   return clamped;
+}
+
+function normalizeLanguageParam(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function parseBraveLocale(value: string): { language: string; region: string } | undefined {
+  const match = value.match(BRAVE_UI_LANG_LOCALE);
+  if (!match) {
+    return undefined;
+  }
+  const [, language, region] = match;
+  return {
+    language: language.toLowerCase(),
+    region: region.toUpperCase(),
+  };
+}
+
+function normalizeBraveLanguageParams(params: {
+  searchLang?: string;
+  uiLang?: string;
+}): {
+  searchLang?: string;
+  uiLang?: string;
+} {
+  const searchLang = normalizeLanguageParam(params.searchLang);
+  const uiLang = normalizeLanguageParam(params.uiLang);
+
+  const parsedSearchLocale = searchLang ? parseBraveLocale(searchLang) : undefined;
+  const parsedUiLocale = uiLang ? parseBraveLocale(uiLang) : undefined;
+  const normalizedSearchLang =
+    searchLang && BRAVE_SEARCH_LANG_CODE.test(searchLang) ? searchLang.toLowerCase() : undefined;
+  const normalizedUiLang =
+    uiLang && BRAVE_SEARCH_LANG_CODE.test(uiLang) ? uiLang.toLowerCase() : undefined;
+
+  // Some model/tool combinations invert ui_lang and search_lang for locale-shaped
+  // values. If both values look swapped, correct them before calling Brave.
+  if (
+    parsedSearchLocale &&
+    normalizedUiLang &&
+    parsedSearchLocale.language === normalizedUiLang
+  ) {
+    return {
+      searchLang: normalizedUiLang,
+      uiLang: `${parsedSearchLocale.language}-${parsedSearchLocale.region}`,
+    };
+  }
+
+  return {
+    searchLang:
+      parsedSearchLocale?.language ??
+      normalizedSearchLang ??
+      searchLang,
+    uiLang:
+      (parsedUiLocale ? `${parsedUiLocale.language}-${parsedUiLocale.region}` : undefined) ??
+      normalizedUiLang ??
+      uiLang,
+  };
 }
 
 function normalizeFreshness(value: string | undefined): string | undefined {
@@ -772,8 +836,15 @@ export function createWebSearchTool(options?: {
       const count =
         readNumberParam(params, "count", { integer: true }) ?? search?.maxResults ?? undefined;
       const country = readStringParam(params, "country");
-      const search_lang = readStringParam(params, "search_lang");
-      const ui_lang = readStringParam(params, "ui_lang");
+      const inputSearchLang = readStringParam(params, "search_lang");
+      const inputUiLang = readStringParam(params, "ui_lang");
+      const { searchLang: search_lang, uiLang: ui_lang } =
+        provider === "brave"
+          ? normalizeBraveLanguageParams({
+              searchLang: inputSearchLang,
+              uiLang: inputUiLang,
+            })
+          : { searchLang: inputSearchLang, uiLang: inputUiLang };
       const rawFreshness = readStringParam(params, "freshness");
       if (rawFreshness && provider !== "brave" && provider !== "perplexity") {
         return jsonResult({

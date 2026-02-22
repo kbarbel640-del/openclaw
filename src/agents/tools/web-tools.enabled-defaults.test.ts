@@ -119,6 +119,20 @@ describe("web_search country and language parameters", () => {
     expect(url.searchParams.get(key)).toBe(value);
   });
 
+  it("normalizes locale-style search_lang to language code", async () => {
+    const url = await runBraveSearchAndGetUrl({ search_lang: "tr-TR" });
+    expect(url.searchParams.get("search_lang")).toBe("tr");
+  });
+
+  it("corrects swapped search_lang/ui_lang locale values", async () => {
+    const url = await runBraveSearchAndGetUrl({
+      search_lang: "tr-TR",
+      ui_lang: "tr",
+    });
+    expect(url.searchParams.get("search_lang")).toBe("tr");
+    expect(url.searchParams.get("ui_lang")).toBe("tr-TR");
+  });
+
   it("rejects invalid freshness values", async () => {
     const mockFetch = installMockFetch({ web: { results: [] } });
     const tool = createWebSearchTool({ config: undefined, sandboxed: true });

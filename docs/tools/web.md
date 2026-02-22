@@ -173,8 +173,8 @@ Search the web using your configured provider.
 - `query` (required)
 - `count` (1–10; default from config)
 - `country` (optional): 2-letter country code for region-specific results (e.g., "DE", "US", "ALL"). If omitted, Brave chooses its default region.
-- `search_lang` (optional): ISO language code for search results (e.g., "de", "en", "fr")
-- `ui_lang` (optional): ISO language code for UI elements
+- `search_lang` (optional): ISO language code for search results (e.g., "de", "en", "tr")
+- `ui_lang` (optional): locale code for UI language/region (e.g., "de-DE", "en-US", "tr-TR")
 - `freshness` (optional): filter by discovery time
   - Brave: `pd`, `pw`, `pm`, `py`, or `YYYY-MM-DDtoYYYY-MM-DD`
   - Perplexity: `pd`, `pw`, `pm`, `py`
@@ -195,7 +195,7 @@ await web_search({
   query: "actualités",
   country: "FR",
   search_lang: "fr",
-  ui_lang: "fr",
+  ui_lang: "fr-FR",
 });
 
 // Recent results (past week)
