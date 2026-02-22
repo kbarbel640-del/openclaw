@@ -156,13 +156,15 @@ export async function runCronIsolatedAgentTurn(params: {
   job: CronJob;
   message: string;
   abortSignal?: AbortSignal;
+  signal?: AbortSignal;
   sessionKey: string;
   agentId?: string;
   lane?: string;
 }): Promise<RunCronAgentTurnResult> {
-  const isAborted = () => params.abortSignal?.aborted === true;
+  const abortSignal = params.abortSignal ?? params.signal;
+  const isAborted = () => abortSignal?.aborted === true;
   const abortReason = () => {
-    const reason = params.abortSignal?.reason;
+    const reason = abortSignal?.reason;
     return typeof reason === "string" && reason.trim()
       ? reason.trim()
       : "cron: job execution timed out";
@@ -480,8 +482,8 @@ export async function runCronIsolatedAgentTurn(params: {
       agentDir,
       fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
       run: (providerOverride, modelOverride) => {
-        if (params.abortSignal?.aborted) {
-          throw new Error("cron: isolated run aborted");
+        if (abortSignal?.aborted) {
+          throw new Error(abortReason());
         }
         if (isCliProvider(providerOverride, cfgWithAgentDefaults)) {
           const cliSessionId = getCliSessionId(cronSession.sessionEntry, providerOverride);
@@ -524,7 +526,7 @@ export async function runCronIsolatedAgentTurn(params: {
           runId: cronSession.sessionEntry.sessionId,
           requireExplicitMessageTarget: true,
           disableMessageTool: deliveryRequested,
-          abortSignal: params.abortSignal,
+          abortSignal,
         });
       },
     });
@@ -701,7 +703,7 @@ export async function runCronIsolatedAgentTurn(params: {
             identity,
             bestEffort: deliveryBestEffort,
             deps: createOutboundSendDeps(params.deps),
-            abortSignal: params.abortSignal,
+            abortSignal,
           });
           delivered = deliveryResults.length > 0;
         }
@@ -807,7 +809,7 @@ export async function runCronIsolatedAgentTurn(params: {
           endedAt: runEndedAt,
           outcome: { status: "ok" },
           announceType: "cron job",
-          signal: params.abortSignal,
+          signal: abortSignal,
         });
         if (didAnnounce) {
           delivered = true;
