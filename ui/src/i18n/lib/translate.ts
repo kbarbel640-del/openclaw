@@ -32,6 +32,7 @@ class I18nManager {
         this.locale = "en";
       }
     }
+    this.notify();
   }
 
   public getLocale(): Locale {
