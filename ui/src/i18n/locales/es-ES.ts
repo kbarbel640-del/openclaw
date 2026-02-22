@@ -86,14 +86,16 @@ export const es_ES: TranslationMap = {
       title: "Notas",
       subtitle: "Recordatorios rápidos para configuraciones de control remoto.",
       tailscaleTitle: "Tailscale serve",
-      tailscaleText: "Prefiere el modo serve para mantener la puerta de enlace en loopback con autenticación tailnet.",
+      tailscaleText:
+        "Prefiere el modo serve para mantener la puerta de enlace en loopback con autenticación tailnet.",
       sessionTitle: "Higiene de la sesión",
       sessionText: "Usa /new o sessions.patch para restablecer el contexto.",
       cronTitle: "Recordatorios de Cron",
       cronText: "Usa sesiones aisladas para ejecuciones recurrentes.",
     },
     auth: {
-      required: "Esta puerta de enlace requiere autenticación. Agrega un token o contraseña y luego haz clic en Conectar.",
+      required:
+        "Esta puerta de enlace requiere autenticación. Agrega un token o contraseña y luego haz clic en Conectar.",
       failed:
         "La autenticación ha fallado. Vuelve a copiar una URL tokenizada con {command}, o actualiza el token, luego haz clic en Conectar.",
     },
