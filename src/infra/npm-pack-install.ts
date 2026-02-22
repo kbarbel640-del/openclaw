@@ -37,10 +37,11 @@ export async function installFromNpmSpecArchive<TResult extends { ok: boolean }>
       cwd: tmpDir,
     });
     if (!packedResult.ok) {
-      return {
+      const packErrorResult: NpmSpecArchiveInstallFlowResult<TResult> = {
         ok: false,
         error: packedResult.error,
       };
+      return packErrorResult;
     }
 
     const npmResolution: NpmSpecResolution = {
@@ -56,21 +57,23 @@ export async function installFromNpmSpecArchive<TResult extends { ok: boolean }>
       warn: params.warn,
     });
     if (driftResult.error) {
-      return {
+      const driftErrorResult: NpmSpecArchiveInstallFlowResult<TResult> = {
         ok: false,
         error: driftResult.error,
       };
+      return driftErrorResult;
     }
 
     const installResult = await params.installFromArchive({
       archivePath: packedResult.archivePath,
     });
 
-    return {
+    const successResult: NpmSpecArchiveInstallFlowResult<TResult> = {
       ok: true,
       installResult,
       npmResolution,
       integrityDrift: driftResult.integrityDrift,
     };
+    return successResult;
   });
 }
