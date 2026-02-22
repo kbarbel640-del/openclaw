@@ -1973,6 +1973,89 @@ describe("createTelegramBot", () => {
       fetchSpy.mockRestore();
     }
   });
+  it("drops the media group when a non-recoverable media error occurs", async () => {
+    onSpy.mockReset();
+    replySpy.mockReset();
+
+    loadConfig.mockReturnValue({
+      channels: {
+        telegram: {
+          groupPolicy: "open",
+          groups: {
+            "-100777111222": {
+              enabled: true,
+              requireMention: false,
+            },
+          },
+        },
+      },
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), {
+          status: 200,
+          headers: { "content-type": "image/png" },
+        }),
+    );
+
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    try {
+      createTelegramBot({ token: "tok", testTimings: TELEGRAM_TEST_TIMINGS });
+      const handler = getOnHandler("channel_post") as (
+        ctx: Record<string, unknown>,
+      ) => Promise<void>;
+
+      const first = handler({
+        channelPost: {
+          chat: { id: -100777111222, type: "channel", title: "Wake Channel" },
+          message_id: 501,
+          caption: "fatal album",
+          date: 1736380800,
+          media_group_id: "fatal-album-1",
+          photo: [{ file_id: "p1" }],
+        },
+        me: { username: "openclaw_bot" },
+        getFile: async () => ({ file_path: "photos/p1.jpg" }),
+      });
+
+      const second = handler({
+        channelPost: {
+          chat: { id: -100777111222, type: "channel", title: "Wake Channel" },
+          message_id: 502,
+          date: 1736380801,
+          media_group_id: "fatal-album-1",
+          photo: [{ file_id: "p2" }],
+        },
+        me: { username: "openclaw_bot" },
+        getFile: async () => ({}),
+      });
+
+      await Promise.all([first, second]);
+      expect(replySpy).not.toHaveBeenCalled();
+
+      const flushTimerCallIndex = setTimeoutSpy.mock.calls.findLastIndex(
+        (call) => call[1] === TELEGRAM_TEST_TIMINGS.mediaGroupFlushMs,
+      );
+      const flushTimer =
+        flushTimerCallIndex >= 0
+          ? (setTimeoutSpy.mock.calls[flushTimerCallIndex]?.[0] as (() => unknown) | undefined)
+          : undefined;
+      // Cancel the real timer so it cannot fire a second time after we manually invoke it.
+      if (flushTimerCallIndex >= 0) {
+        clearTimeout(
+          setTimeoutSpy.mock.results[flushTimerCallIndex]?.value as ReturnType<typeof setTimeout>,
+        );
+      }
+      expect(flushTimer).toBeTypeOf("function");
+      await flushTimer?.();
+
+      expect(replySpy).not.toHaveBeenCalled();
+    } finally {
+      setTimeoutSpy.mockRestore();
+      fetchSpy.mockRestore();
+    }
+  });
   it("dedupes duplicate message updates by update_id", async () => {
     onSpy.mockReset();
     replySpy.mockReset();
