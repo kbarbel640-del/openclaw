@@ -13,14 +13,6 @@ RUN corepack enable
 
 WORKDIR /app
 
-ARG OPENCLAW_DOCKER_APT_PACKAGES=""
-RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
-  apt-get update && \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES && \
-  apt-get clean && \
-  rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
-  fi
-
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ui/package.json ./ui/package.json
 COPY patches ./patches
@@ -37,16 +29,13 @@ RUN pnpm ui:build
 ENV NODE_ENV=production
 
 # ---------------------------------------------------------------------------
-# Slim down: remove build-only artifacts that are not needed at runtime.
+# Slim down: prune dev dependencies before handoff to the runtime stage.
+# The runtime stage uses explicit COPY directives to pick only the files it
+# needs, so we don't need to manually rm build configs here.
 # ---------------------------------------------------------------------------
 
 # Prune dev dependencies (~237MB): typescript, vitest, rolldown, oxlint, etc.
 RUN CI=true pnpm prune --prod
-
-# Remove source, tests, build configs, and docs (runtime uses dist/ only).
-RUN rm -rf src/ test/ docs/ scripts/ patches/ \
-  tsconfig*.json tsdown.config.* vitest.*.config.* oxlintrc.json \
-  .oxfmt* .editorconfig .gitignore .gitattributes .npmignore
 
 # =============================================================================
 # Stage 2: Runtime
@@ -58,11 +47,24 @@ RUN rm -rf src/ test/ docs/ scripts/ patches/ \
 # =============================================================================
 FROM node:22-bookworm@sha256:cd7bcd2e7a1e6f72052feb023c7f6b722205d3fcab7bbcbd2d1bfdab10b1e935
 
+RUN corepack enable
+
 WORKDIR /app
 
-# Optionally install Chromium and Xvfb for browser automation.
+# Copy only runtime-needed files from the builder.
+# Explicit paths are self-documenting and won't accidentally include new build
+# artifacts when upstream adds files.
+COPY --from=builder --chown=node:node /app/openclaw.mjs /app/openclaw.mjs
+COPY --from=builder --chown=node:node /app/package.json /app/package.json
+COPY --from=builder --chown=node:node /app/pnpm-lock.yaml /app/pnpm-lock.yaml
+COPY --from=builder --chown=node:node /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
+COPY --from=builder --chown=node:node /app/.npmrc /app/.npmrc
+COPY --from=builder --chown=node:node /app/dist /app/dist
+COPY --from=builder --chown=node:node /app/node_modules /app/node_modules
+COPY --from=builder --chown=node:node /app/extensions /app/extensions
+
+# Optionally install extra apt packages and/or Chromium for browser automation.
 # Build with: docker build --build-arg OPENCLAW_INSTALL_BROWSER=1 ...
-# Adds ~300MB but eliminates the 60-90s Playwright install on every container start.
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 ARG OPENCLAW_INSTALL_BROWSER=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ] || [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
@@ -80,17 +82,6 @@ RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ] || [ -n "$OPENCLAW_INSTALL_BROWSER
       apt-get clean && \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
-
-# Copy the built & pruned application with correct ownership.
-# Using COPY --chown avoids a separate `chown -R` layer that would duplicate
-# all file data in a new layer (saves ~1.7GB).
-COPY --from=builder --chown=node:node /app /app
-
-# Install Chromium after COPY so playwright-core is available from node_modules.
-# Must run as root before USER node.
-RUN if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
-  node /app/node_modules/playwright-core/cli.js install --with-deps chromium; \
-  fi
 
 ENV NODE_ENV=production
 
