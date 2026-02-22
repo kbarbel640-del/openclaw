@@ -144,6 +144,42 @@ function inferImageFileName(params: {
   return undefined;
 }
 
+/**
+ * Cache for already-sanitized images to avoid redundant resize operations on
+ * every turn. Keyed by a short hash of the image data + sanitization params.
+ * Bounded to avoid unbounded memory growth in long sessions.
+ *
+ * @see https://github.com/openclaw/openclaw/issues/23590
+ */
+const IMAGE_SANITIZE_CACHE_MAX = 64;
+type SanitizedImageCacheEntry = {
+  base64: string;
+  mimeType: string;
+  resized: boolean;
+  width?: number;
+  height?: number;
+};
+const sanitizedImageCache = new Map<string, SanitizedImageCacheEntry>();
+
+function imageSanitizeCacheKey(base64: string, maxDimensionPx: number, maxBytes: number): string {
+  // Use first 64 chars + length + limits as a fast cache key.
+  // Full hashing would be expensive for large images; this catches identical images
+  // being re-processed across turns (same base64 = same image).
+  const prefix = base64.slice(0, 64);
+  return `${prefix}:${base64.length}:${maxDimensionPx}:${maxBytes}`;
+}
+
+function putSanitizeCache(key: string, entry: SanitizedImageCacheEntry): void {
+  // Evict oldest entry if at capacity (Map preserves insertion order)
+  if (sanitizedImageCache.size >= IMAGE_SANITIZE_CACHE_MAX) {
+    const oldest = sanitizedImageCache.keys().next().value;
+    if (oldest !== undefined) {
+      sanitizedImageCache.delete(oldest);
+    }
+  }
+  sanitizedImageCache.set(key, entry);
+}
+
 async function resizeImageBase64IfNeeded(params: {
   base64: string;
   mimeType: string;
@@ -158,6 +194,14 @@ async function resizeImageBase64IfNeeded(params: {
   width?: number;
   height?: number;
 }> {
+  // Check cache first — avoids redundant metadata reads and resizes for images
+  // already processed in previous turns of the same session.
+  const cacheKey = imageSanitizeCacheKey(params.base64, params.maxDimensionPx, params.maxBytes);
+  const cached = sanitizedImageCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const buf = Buffer.from(params.base64, "base64");
   const meta = await getImageMetadata(buf);
   const width = meta?.width;
@@ -172,13 +216,15 @@ async function resizeImageBase64IfNeeded(params: {
     width <= params.maxDimensionPx &&
     height <= params.maxDimensionPx
   ) {
-    return {
+    const result = {
       base64: params.base64,
       mimeType: params.mimeType,
       resized: false,
       width,
       height,
     };
+    putSanitizeCache(cacheKey, result);
+    return result;
   }
 
   const maxDim = hasDimensions ? Math.max(width ?? 0, height ?? 0) : params.maxDimensionPx;
@@ -229,13 +275,15 @@ async function resizeImageBase64IfNeeded(params: {
             byteReductionPct,
           },
         );
-        return {
+        const result = {
           base64: out.toString("base64"),
           mimeType: "image/jpeg",
           resized: true,
           width,
           height,
         };
+        putSanitizeCache(cacheKey, result);
+        return result;
       }
     }
   }
