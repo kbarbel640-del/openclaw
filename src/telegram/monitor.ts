@@ -170,21 +170,22 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
 
     // Use grammyjs/runner for concurrent update processing
     let restartAttempts = 0;
+    const abortSignal = opts.abortSignal;
 
-    while (!opts.abortSignal?.aborted) {
+    while (!abortSignal?.aborted) {
       const runner = run(bot, createTelegramRunnerOptions(cfg));
       const stopOnAbort = () => {
-        if (opts.abortSignal?.aborted) {
+        if (abortSignal?.aborted) {
           void runner.stop();
         }
       };
-      opts.abortSignal?.addEventListener("abort", stopOnAbort, { once: true });
+      abortSignal?.addEventListener("abort", stopOnAbort, { once: true });
       try {
         // runner.task() returns a promise that resolves when the runner stops
         await runner.task();
         return;
       } catch (err) {
-        if (opts.abortSignal?.aborted) {
+        if (abortSignal?.aborted) {
           throw err;
         }
         const isConflict = isGetUpdatesConflict(err);
@@ -200,15 +201,15 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
           `Telegram ${reason}: ${errMsg}; retrying in ${formatDurationPrecise(delayMs)}.`,
         );
         try {
-          await sleepWithAbort(delayMs, opts.abortSignal);
+          await sleepWithAbort(delayMs, abortSignal);
         } catch (sleepErr) {
-          if (opts.abortSignal?.aborted) {
+          if (abortSignal?.aborted) {
             return;
           }
           throw sleepErr;
         }
       } finally {
-        opts.abortSignal?.removeEventListener("abort", stopOnAbort);
+        abortSignal?.removeEventListener("abort", stopOnAbort);
       }
     }
   } finally {
