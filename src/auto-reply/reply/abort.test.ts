@@ -10,6 +10,7 @@ import {
   isAbortRequestText,
   isAbortTrigger,
   resetAbortMemoryForTest,
+  resolveSessionEntryForKey,
   setAbortMemory,
   tryFastAbortFromMessage,
 } from "./abort.js";
@@ -126,6 +127,18 @@ describe("abort detection", () => {
     expect(getAbortMemorySizeForTest()).toBe(2000);
     expect(getAbortMemory("session-0")).toBeUndefined();
     expect(getAbortMemory("session-2104")).toBe(true);
+  });
+
+  it("resolves session entry when key exists in store", () => {
+    const store = {
+      "session-1": { sessionId: "abc", updatedAt: 0 },
+    } as const;
+    expect(resolveSessionEntryForKey(store, "session-1")).toEqual({
+      entry: store["session-1"],
+      key: "session-1",
+    });
+    expect(resolveSessionEntryForKey(store, "session-2")).toEqual({});
+    expect(resolveSessionEntryForKey(undefined, "session-1")).toEqual({});
   });
 
   it("fast-aborts even when text commands are disabled", async () => {
@@ -324,7 +337,7 @@ describe("abort detection", () => {
   });
 
   it("cascade stop traverses ended depth-1 parents to stop active depth-2 children", async () => {
-    subagentRegistryMocks.listSubagentRunsForRequester.mockReset();
+    subagentRegistryMocks.listSubagentRunsForRequester.mockClear();
     subagentRegistryMocks.markSubagentRunTerminated.mockClear();
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-abort-"));
     const storePath = path.join(root, "sessions.json");
