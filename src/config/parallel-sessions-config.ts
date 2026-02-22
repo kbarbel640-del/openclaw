@@ -1,7 +1,7 @@
 /**
  * Configuration schema for parallel sessions
  *
- * @untested - This is a proof-of-concept implementation
+ * Defines Zod schemas and defaults for the parallel sessions feature.
  */
 
 import { z } from "zod";
@@ -56,88 +56,110 @@ export const ParallelSessionsConfigSchema = z.object({
   /**
    * Memory backend configuration
    */
-  memory: z.object({
-    /**
-     * Backend type for shared memory
-     */
-    backend: MemoryBackendType.default("sqlite"),
+  memory: z
+    .object({
+      /**
+       * Backend type for shared memory
+       */
+      backend: MemoryBackendType.default("sqlite"),
 
-    /**
-     * Path to the memory database
-     * Default: ~/.clawdbot/data/shared-memory.db
-     */
-    dbPath: z.string().optional(),
+      /**
+       * Path to the memory database
+       * Default: ~/.openclaw/data/shared-memory.db
+       */
+      dbPath: z.string().optional(),
 
-    /**
-     * Enable WAL mode for SQLite (better concurrent access)
-     */
-    enableWAL: z.boolean().default(true),
+      /**
+       * Enable WAL mode for SQLite (better concurrent access)
+       */
+      enableWAL: z.boolean().default(true),
 
-    /**
-     * Auto-promote memories with importance >= this value to global knowledge
-     */
-    autoPromoteThreshold: z.number().int().min(1).max(10).default(8),
+      /**
+       * Auto-promote memories with importance >= this value to global knowledge
+       */
+      autoPromoteThreshold: z.number().int().min(1).max(10).default(8),
 
-    /**
-     * Default TTL for memories in milliseconds (0 = no expiration)
-     */
-    defaultTTLMs: z.number().int().min(0).default(0),
-  }).default({}),
+      /**
+       * Default TTL for memories in milliseconds (0 = no expiration)
+       */
+      defaultTTLMs: z.number().int().min(0).default(0),
+    })
+    .default({
+      backend: "sqlite",
+      enableWAL: true,
+      autoPromoteThreshold: 8,
+      defaultTTLMs: 0,
+    }),
 
   /**
    * Briefing configuration
    */
-  briefing: z.object({
-    /**
-     * Always inject context briefing before processing messages
-     */
-    enabled: z.boolean().default(true),
+  briefing: z
+    .object({
+      /**
+       * Always inject context briefing before processing messages
+       */
+      enabled: z.boolean().default(true),
 
-    /**
-     * Maximum number of channel memories to include
-     */
-    maxChannelMemories: z.number().int().min(0).max(50).default(10),
+      /**
+       * Maximum number of channel memories to include
+       */
+      maxChannelMemories: z.number().int().min(0).max(50).default(10),
 
-    /**
-     * Maximum number of global knowledge entries to include
-     */
-    maxGlobalKnowledge: z.number().int().min(0).max(20).default(5),
+      /**
+       * Maximum number of global knowledge entries to include
+       */
+      maxGlobalKnowledge: z.number().int().min(0).max(20).default(5),
 
-    /**
-     * Minimum importance for memories to be included
-     */
-    minImportance: z.number().int().min(1).max(10).default(5),
+      /**
+       * Minimum importance for memories to be included
+       */
+      minImportance: z.number().int().min(1).max(10).default(5),
 
-    /**
-     * Minimum confidence for global knowledge to be included
-     */
-    minConfidence: z.number().min(0).max(1).default(0.7),
-  }).default({}),
+      /**
+       * Minimum confidence for global knowledge to be included
+       */
+      minConfidence: z.number().min(0).max(1).default(0.7),
+    })
+    .default({
+      enabled: true,
+      maxChannelMemories: 10,
+      maxGlobalKnowledge: 5,
+      minImportance: 5,
+      minConfidence: 0.7,
+    }),
 
   /**
    * Auto-save configuration
    */
-  autoSave: z.object({
-    /**
-     * Automatically save summaries after conversations
-     */
-    summaries: z.boolean().default(true),
+  autoSave: z
+    .object({
+      /**
+       * Automatically save summaries after conversations
+       */
+      summaries: z.boolean().default(true),
 
-    /**
-     * Automatically detect and save decisions
-     */
-    decisions: z.boolean().default(true),
+      /**
+       * Automatically detect and save decisions
+       */
+      decisions: z.boolean().default(true),
 
-    /**
-     * Automatically detect and save preferences
-     */
-    preferences: z.boolean().default(true),
+      /**
+       * Automatically detect and save preferences
+       */
+      preferences: z.boolean().default(true),
 
-    /**
-     * Automatically track action items
-     */
-    actionItems: z.boolean().default(true),
-  }).default({}),
+      /**
+       * Automatically track action items
+       */
+      actionItems: z.boolean().default(true),
+    })
+    .default({
+      summaries: true,
+      decisions: true,
+      preferences: true,
+      actionItems: true,
+    }),
 });
 
 export type ParallelSessionsConfig = z.infer<typeof ParallelSessionsConfigSchema>;
@@ -201,7 +223,7 @@ agent:
     # Shared memory configuration
     memory:
       backend: sqlite
-      # dbPath: ~/.clawdbot/data/shared-memory.db
+      # dbPath: ~/.openclaw/data/shared-memory.db
       enableWAL: true
       autoPromoteThreshold: 8
     
