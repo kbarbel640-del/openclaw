@@ -137,13 +137,13 @@ Safe bins also enforce explicit per-binary flag policy for options that break st
 behavior (for example `sort -o/--output/--compress-program` and grep recursive flags).
 Denied flags by safe-bin profile:
 
-{/* SAFE_BIN_DENIED_FLAGS:START  */}
+{/_ SAFE_BIN_DENIED_FLAGS:START _/}
 
 - `grep`: `--dereference-recursive`, `--directories`, `--exclude-from`, `--file`, `--recursive`, `-R`, `-d`, `-f`, `-r`
 - `jq`: `--argfile`, `--from-file`, `--library-path`, `--rawfile`, `--slurpfile`, `-L`, `-f`
 - `sort`: `--compress-program`, `--files0-from`, `--output`, `-o`
 - `wc`: `--files0-from`
-{/* SAFE_BIN_DENIED_FLAGS:END */}
+  {/_ SAFE_BIN_DENIED_FLAGS:END _/}
 
 Safe bins also force argv tokens to be treated as **literal text** at execution time (no globbing
 and no `$VARS` expansion) for stdin-only segments, so patterns like `*` or `$HOME/...` cannot be
