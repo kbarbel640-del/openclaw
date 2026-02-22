@@ -163,6 +163,25 @@ async function noteFeishuCredentialHelp(prompter: WizardPrompter): Promise<void>
   );
 }
 
+async function promptFeishuCredentials(prompter: WizardPrompter): Promise<{
+  appId: string;
+  appSecret: string;
+}> {
+  const appId = String(
+    await prompter.text({
+      message: "Enter Feishu App ID",
+      validate: (value) => (value?.trim() ? undefined : "Required"),
+    }),
+  ).trim();
+  const appSecret = String(
+    await prompter.text({
+      message: "Enter Feishu App Secret",
+      validate: (value) => (value?.trim() ? undefined : "Required"),
+    }),
+  ).trim();
+  return { appId, appSecret };
+}
+
 function setFeishuGroupPolicy(
   cfg: ClawdbotConfig,
   groupPolicy: "open" | "allowlist" | "disabled",
@@ -285,15 +304,6 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
     let next = cfg;
     let appId: string | null = null;
     let appSecret: string | null = null;
-    const appIdPrompt =
-      feishuAccountId === DEFAULT_ACCOUNT_ID
-        ? "Enter Feishu App ID"
-        : `Enter Feishu App ID for account "${accountLabel}"`;
-    const appSecretPrompt =
-      feishuAccountId === DEFAULT_ACCOUNT_ID
-        ? "Enter Feishu App Secret"
-        : `Enter Feishu App Secret for account "${accountLabel}"`;
-
     if (!resolved) {
       await noteFeishuCredentialHelp(prompter);
     }
@@ -306,18 +316,9 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
       if (keepEnv) {
         next = upsertFeishuAccountConfig(next, feishuAccountId, { enabled: true });
       } else {
-        appId = String(
-          await prompter.text({
-            message: appIdPrompt,
-            validate: (value) => (value?.trim() ? undefined : "Required"),
-          }),
-        ).trim();
-        appSecret = String(
-          await prompter.text({
-            message: appSecretPrompt,
-            validate: (value) => (value?.trim() ? undefined : "Required"),
-          }),
-        ).trim();
+        const entered = await promptFeishuCredentials(prompter);
+        appId = entered.appId;
+        appSecret = entered.appSecret;
       }
     } else if (hasConfigCreds) {
       const keep = await prompter.confirm({
@@ -325,32 +326,14 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
         initialValue: true,
       });
       if (!keep) {
-        appId = String(
-          await prompter.text({
-            message: appIdPrompt,
-            validate: (value) => (value?.trim() ? undefined : "Required"),
-          }),
-        ).trim();
-        appSecret = String(
-          await prompter.text({
-            message: appSecretPrompt,
-            validate: (value) => (value?.trim() ? undefined : "Required"),
-          }),
-        ).trim();
+        const entered = await promptFeishuCredentials(prompter);
+        appId = entered.appId;
+        appSecret = entered.appSecret;
       }
     } else {
-      appId = String(
-        await prompter.text({
-          message: appIdPrompt,
-          validate: (value) => (value?.trim() ? undefined : "Required"),
-        }),
-      ).trim();
-      appSecret = String(
-        await prompter.text({
-          message: appSecretPrompt,
-          validate: (value) => (value?.trim() ? undefined : "Required"),
-        }),
-      ).trim();
+      const entered = await promptFeishuCredentials(prompter);
+      appId = entered.appId;
+      appSecret = entered.appSecret;
     }
 
     if (appId && appSecret) {
