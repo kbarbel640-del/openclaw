@@ -1,8 +1,5 @@
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
-import type { TraceContext } from "../../observability/types.js";
-import type { RunEmbeddedPiAgentParams } from "./run/params.js";
-import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import {
   generateTraceId,
   getCurrentTraceId,
@@ -11,6 +8,7 @@ import {
   startTelemetrySession,
   completeTelemetrySession,
 } from "../../observability/index.js";
+import type { TraceContext } from "../../observability/types.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
 import { resolveOpenClawAgentDir } from "../agent-paths.js";
@@ -60,7 +58,9 @@ import { resolveGlobalLane, resolveSessionLane } from "./lanes.js";
 import { log } from "./logger.js";
 import { resolveModel } from "./model.js";
 import { runEmbeddedAttempt } from "./run/attempt.js";
+import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import { buildEmbeddedRunPayloads } from "./run/payloads.js";
+import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import { describeUnknownError } from "./utils.js";
 
 type ApiKeyInfo = ResolvedProviderAuth;
@@ -492,7 +492,7 @@ export async function runEmbeddedPiAgent(
                     },
                   ],
                   meta: {
-                    durationMs: Date.now() - started,
+                    durationMs: Date.now() - runStarted,
                     agentMeta: {
                       sessionId: sessionIdUsed,
                       provider,
@@ -515,7 +515,7 @@ export async function runEmbeddedPiAgent(
                     },
                   ],
                   meta: {
-                    durationMs: Date.now() - started,
+                    durationMs: Date.now() - runStarted,
                     agentMeta: {
                       sessionId: sessionIdUsed,
                       provider,
@@ -543,7 +543,7 @@ export async function runEmbeddedPiAgent(
                     },
                   ],
                   meta: {
-                    durationMs: Date.now() - started,
+                    durationMs: Date.now() - runStarted,
                     agentMeta: {
                       sessionId: sessionIdUsed,
                       provider,
@@ -727,9 +727,9 @@ export async function runEmbeddedPiAgent(
             const runDuration = Date.now() - runStarted;
             completeTelemetrySession(telemetrySessionId, {
               status: aborted ? "cancelled" : "success",
-              promptTokens: usage.input,
-              completionTokens: usage.output,
-              totalTokens: usage.total,
+              promptTokens: usage?.input ?? 0,
+              completionTokens: usage?.output ?? 0,
+              totalTokens: usage?.total ?? 0,
               stopReason: attempt.clientToolCall ? "tool_calls" : "completed",
             });
 

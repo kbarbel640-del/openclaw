@@ -1,11 +1,10 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 import { createArtifactRegistry } from "../../../artifacts/artifact-registry.js";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
@@ -44,6 +43,7 @@ import {
   validateGeminiTurns,
 } from "../../pi-embedded-helpers.js";
 import { subscribeEmbeddedPiSession } from "../../pi-embedded-subscribe.js";
+import { extractAssistantText } from "../../pi-embedded-utils.js";
 import {
   ensurePiCompactionReserveTokens,
   resolveCompactionReserveTokensFloor,
@@ -71,7 +71,7 @@ import { buildSystemPromptParams } from "../../system-prompt-params.js";
 import { buildSystemPromptReport } from "../../system-prompt-report.js";
 import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
-import { isAbortError } from "../abort.js";
+import { isRunnerAbortError as isAbortError } from "../abort.js";
 import { appendCacheTtlTimestamp, isCacheTtlEligibleProvider } from "../cache-ttl.js";
 import { buildEmbeddedExtensionPaths } from "../extensions.js";
 import { applyExtraParamsToAgent } from "../extra-params.js";
@@ -99,6 +99,7 @@ import {
 import { splitSdkTools } from "../tool-split.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
 import { detectAndLoadPromptImages } from "./images.js";
+import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
@@ -360,11 +361,28 @@ export async function runEmbeddedAttempt(
 
     // Hot State: dispatcher-owned JSON blob, always included (size capped).
     // Important: keep this OUT of the user prompt so transcript persistence/order tests stay stable.
+    // Build the artifact index from the registry for M1 Artifact References.
+    const hotStateArtifactRegistry = createArtifactRegistry({
+      rootDir: path.join(resolveStateDir(process.env), "artifacts"),
+    });
+    let artifactIndex: import("../../hot-state.js").ArtifactIndexEntry[] = [];
+    try {
+      const storedArtifacts = await hotStateArtifactRegistry.list();
+      artifactIndex = storedArtifacts.map((meta) => {
+        // Map mime type to ArtifactType
+        const type: import("../../hot-state.js").ArtifactType =
+          meta.mime === "text/markdown" ? "doc" : meta.mime === "application/json" ? "data" : "doc";
+        return { artifact_id: meta.id, type };
+      });
+    } catch {
+      // Non-fatal: if listing fails, continue without artifact_index
+    }
     const hotState = buildHotState({
       session_id: params.sessionId,
       session_key: params.sessionKey ?? undefined,
       run_id: params.runId,
       risk_level: "low",
+      ...(artifactIndex.length > 0 ? { artifact_index: artifactIndex } : {}),
     });
     const cappedHotState = enforceHotStateTokenCap({ hotState, maxTokens: 1000 });
 
@@ -768,12 +786,13 @@ export async function runEmbeddedAttempt(
               config: params.config,
             }).sessionAgentId;
 
+      let effectivePrompt = params.prompt;
       let promptError: unknown = null;
       try {
         const promptStartedAt = Date.now();
 
         // Run before_agent_start hooks to allow plugins to inject context
-        let effectivePrompt = params.prompt;
+        // (effectivePrompt may be mutated by hooks below)
         if (hookRunner?.hasHooks("before_agent_start")) {
           try {
             const hookResult = await hookRunner.runBeforeAgentStart(
@@ -835,8 +854,6 @@ export async function runEmbeddedAttempt(
             existingImages: params.images,
             historyMessages: activeSession.messages,
             maxBytes: MAX_IMAGE_BYTES,
-            // Enforce sandbox path restrictions when sandbox is enabled
-            sandboxRoot: sandbox?.enabled ? sandbox.workspaceDir : undefined,
           });
 
           // Inject history images into their original message positions.
@@ -870,7 +887,7 @@ export async function runEmbeddedAttempt(
           // Resolve output budget based on role (M2: output budget enforcement)
           const outputRole = inferOutputRole({
             sessionKey: params.sessionKey,
-            subagentLabel: params.subagentLabel,
+            subagentLabel: params.agentId,
           });
           const maxTokens = outputRole
             ? resolveOutputBudget({
@@ -960,16 +977,17 @@ export async function runEmbeddedAttempt(
         .find((m) => m.role === "assistant");
 
       // M2: Result validation (output budget + diff-only enforcement)
-      if (lastAssistant?.text && !promptError) {
+      const lastAssistantText = lastAssistant ? extractAssistantText(lastAssistant) : undefined;
+      if (lastAssistantText && !promptError) {
         try {
           const artifactRegistry = createArtifactRegistry({
             rootDir: path.join(resolveStateDir(process.env), "artifacts"),
           });
 
           const validationResult = await validateResult({
-            output: lastAssistant.text,
+            output: lastAssistantText,
             sessionKey: params.sessionKey,
-            subagentLabel: params.subagentLabel,
+            subagentLabel: params.agentId,
             taskDescription: effectivePrompt,
             budgetOverrides: params.config?.agents?.outputBudgets,
             artifactRegistry,
@@ -1018,6 +1036,7 @@ export async function runEmbeddedAttempt(
       return {
         aborted,
         timedOut,
+        timedOutDuringCompaction: false,
         promptError,
         sessionIdUsed,
         systemPromptReport,

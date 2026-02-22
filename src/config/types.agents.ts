@@ -68,6 +68,11 @@ export type AgentConfig = {
 export type AgentsConfig = {
   defaults?: AgentDefaultsConfig;
   list?: AgentConfig[];
+  /**
+   * Per-role output token budgets (overrides defaults).
+   * Keys are OutputRole values: "dispatcher" | "planner" | "executor" | "reasoner" | "maintenance"
+   */
+  outputBudgets?: Partial<Record<string, number>>;
 };
 
 export type AgentBinding = {

@@ -32,6 +32,8 @@ export type ArtifactRegistry = {
   }) => Promise<ArtifactMeta>;
   storeJson: (params: { value: unknown; maxBytes?: number }) => Promise<ArtifactMeta>;
   get: (id: string) => Promise<{ meta: ArtifactMeta; content: string }>;
+  /** List all stored artifact metadata, newest first. */
+  list: () => Promise<ArtifactMeta[]>;
 };
 
 const DEFAULT_MAX_BYTES = 512 * 1024; // 512KB
@@ -111,6 +113,35 @@ export function createArtifactRegistry(params: { rootDir: string }): ArtifactReg
     return { meta, content };
   };
 
+  const list: ArtifactRegistry["list"] = async () => {
+    const metas: ArtifactMeta[] = [];
+    try {
+      const shards = await fs.readdir(rootDir);
+      for (const shard of shards) {
+        const shardDir = path.join(rootDir, shard);
+        let entries: string[];
+        try {
+          entries = await fs.readdir(shardDir);
+        } catch {
+          continue;
+        }
+        for (const entry of entries) {
+          const metaPath = path.join(shardDir, entry, "meta.json");
+          try {
+            const raw = await fs.readFile(metaPath, "utf-8");
+            metas.push(JSON.parse(raw) as ArtifactMeta);
+          } catch {
+            // Skip unreadable/corrupt entries
+          }
+        }
+      }
+    } catch {
+      // rootDir doesn't exist yet — no artifacts stored
+    }
+    // Sort newest first
+    return metas.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
+  };
+
   return {
     storeText: async (params) =>
       store({
@@ -125,5 +156,6 @@ export function createArtifactRegistry(params: { rootDir: string }): ArtifactReg
         maxBytes: params.maxBytes,
       }),
     get,
+    list,
   };
 }

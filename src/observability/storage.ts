@@ -11,8 +11,8 @@ import { randomUUID } from "node:crypto";
 import fsSync from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { CallTelemetry, RoutingMetrics, RoutingScoreboard } from "./types.js";
 import { STATE_DIR } from "../config/paths.js";
+import type { CallTelemetry, RoutingMetrics, RoutingScoreboard } from "./types.js";
 
 const TELEMETRY_DB_NAME = "telemetry.db";
 
@@ -190,7 +190,7 @@ export function queryTelemetry(query: TelemetryQuery): CallTelemetry[] {
   const db = getTelemetryDb();
 
   const conditions: string[] = [];
-  const params: unknown[] = [];
+  const params: (string | number | bigint | Buffer | null)[] = [];
 
   if (query.traceId) {
     conditions.push("trace_id = ?");
@@ -401,7 +401,6 @@ export function cleanupOldTelemetry(retentionDays: number = 30): number {
 
   const stmt = db.prepare("DELETE FROM call_telemetry WHERE started_at < ?");
   const result = stmt.run(cutoff);
-  // @ts-expect-error - changes is a property of the result object
   return result.changes as number;
 }
 

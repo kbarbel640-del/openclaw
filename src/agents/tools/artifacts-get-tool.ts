@@ -1,9 +1,9 @@
-import { Type } from "@sinclair/typebox";
 import path from "node:path";
-import type { OpenClawConfig } from "../../config/config.js";
-import type { AnyAgentTool } from "./common.js";
+import { Type } from "@sinclair/typebox";
 import { createArtifactRegistry, type ArtifactMeta } from "../../artifacts/artifact-registry.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { resolveStateDir } from "../../config/paths.js";
+import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
 
 const DEFAULT_MAX_CHARS = 8000;
@@ -47,6 +47,7 @@ export function createArtifactsGetTool(options?: { config?: OpenClawConfig }): A
 
   return {
     name: "artifacts_get",
+    label: "artifacts_get",
     description:
       "Fetch a stored artifact by id (sha256). Returns metadata and bounded content text.",
     parameters: ArtifactsGetSchema,

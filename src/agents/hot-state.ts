@@ -59,10 +59,11 @@ export function formatHotStateJson(hotState: HotState): string {
 }
 
 export function estimateHotStateTokens(json: string): number {
-  const msg: AgentMessage = {
+  const msg = {
     role: "user",
     content: [{ type: "text", text: json }],
-  };
+    timestamp: 0,
+  } as unknown as AgentMessage;
   return estimateTokens(msg);
 }
 

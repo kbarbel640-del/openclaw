@@ -55,10 +55,11 @@ export function resolveOutputBudget(params: {
  * Estimate token count for an assistant output string.
  */
 export function estimateOutputTokens(text: string): number {
-  const msg: AgentMessage = {
+  const msg = {
     role: "assistant",
     content: [{ type: "text", text }],
-  };
+    timestamp: 0,
+  } as unknown as AgentMessage;
   return estimateTokens(msg);
 }
 

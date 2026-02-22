@@ -5,7 +5,6 @@ import type {
   ReactionTypeEmoji,
 } from "@grammyjs/types";
 import { type ApiClientOptions, Bot, HttpError, InputFile } from "grammy";
-import type { RetryConfig } from "../infra/retry.js";
 import { loadConfig } from "../config/config.js";
 import { resolveMarkdownTableMode } from "../config/markdown-tables.js";
 import { logVerbose } from "../globals.js";
@@ -13,6 +12,7 @@ import { recordChannelActivity } from "../infra/channel-activity.js";
 import { isDiagnosticFlagEnabled } from "../infra/diagnostic-flags.js";
 import { formatErrorMessage, formatUncaughtError } from "../infra/errors.js";
 import { createTelegramRetryRunner } from "../infra/retry-policy.js";
+import type { RetryConfig } from "../infra/retry.js";
 import { redactSensitiveText } from "../logging/redact.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { mediaKindFromMime } from "../media/constants.js";
@@ -282,7 +282,7 @@ export async function sendMessageTelegram(
     withTelegramApiErrorLogging({
       operation: label ?? "request",
       fn: () => request(fn, label),
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       logHttpError(label ?? "request", err);
       throw err;
     });
@@ -444,7 +444,7 @@ export async function sendMessageTelegram(
                 effectiveParams as Parameters<typeof api.sendAnimation>[2],
               ),
             label,
-          ).catch((err) => {
+          ).catch((err: unknown) => {
             throw wrapChatNotFound(err);
           }),
       );
@@ -453,7 +453,7 @@ export async function sendMessageTelegram(
         requestWithDiag(
           () => api.sendPhoto(chatId, file, effectiveParams as Parameters<typeof api.sendPhoto>[2]),
           label,
-        ).catch((err) => {
+        ).catch((err: unknown) => {
           throw wrapChatNotFound(err);
         }),
       );
@@ -471,7 +471,7 @@ export async function sendMessageTelegram(
                   effectiveParams as Parameters<typeof api.sendVideoNote>[2],
                 ),
               label,
-            ).catch((err) => {
+            ).catch((err: unknown) => {
               throw wrapChatNotFound(err);
             }),
         );
@@ -484,7 +484,7 @@ export async function sendMessageTelegram(
               () =>
                 api.sendVideo(chatId, file, effectiveParams as Parameters<typeof api.sendVideo>[2]),
               label,
-            ).catch((err) => {
+            ).catch((err: unknown) => {
               throw wrapChatNotFound(err);
             }),
         );
@@ -505,7 +505,7 @@ export async function sendMessageTelegram(
               () =>
                 api.sendVoice(chatId, file, effectiveParams as Parameters<typeof api.sendVoice>[2]),
               label,
-            ).catch((err) => {
+            ).catch((err: unknown) => {
               throw wrapChatNotFound(err);
             }),
         );
@@ -518,7 +518,7 @@ export async function sendMessageTelegram(
               () =>
                 api.sendAudio(chatId, file, effectiveParams as Parameters<typeof api.sendAudio>[2]),
               label,
-            ).catch((err) => {
+            ).catch((err: unknown) => {
               throw wrapChatNotFound(err);
             }),
         );
@@ -536,7 +536,7 @@ export async function sendMessageTelegram(
                 effectiveParams as Parameters<typeof api.sendDocument>[2],
               ),
             label,
-          ).catch((err) => {
+          ).catch((err: unknown) => {
             throw wrapChatNotFound(err);
           }),
       );
@@ -623,7 +623,7 @@ export async function reactMessageTelegram(
     withTelegramApiErrorLogging({
       operation: label ?? "request",
       fn: () => request(fn, label),
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       logHttpError(label ?? "request", err);
       throw err;
     });
@@ -684,7 +684,7 @@ export async function deleteMessageTelegram(
     withTelegramApiErrorLogging({
       operation: label ?? "request",
       fn: () => request(fn, label),
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       logHttpError(label ?? "request", err);
       throw err;
     });
@@ -734,7 +734,7 @@ export async function editMessageTelegram(
     withTelegramApiErrorLogging({
       operation: label ?? "request",
       fn: () => request(fn, label),
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       logHttpError(label ?? "request", err);
       throw err;
     });
@@ -866,7 +866,7 @@ export async function sendStickerTelegram(
   });
   const logHttpError = createTelegramHttpLogger(cfg);
   const requestWithDiag = <T>(fn: () => Promise<T>, label?: string) =>
-    request(fn, label).catch((err) => {
+    request(fn, label).catch((err: unknown) => {
       logHttpError(label ?? "request", err);
       throw err;
     });
@@ -998,7 +998,7 @@ export async function sendPollTelegram(
     withTelegramApiErrorLogging({
       operation: label ?? "request",
       fn: () => request(fn, label),
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       logHttpError(label ?? "request", err);
       throw err;
     });
@@ -1067,7 +1067,7 @@ export async function sendPollTelegram(
     requestWithDiag(
       () => api.sendPoll(chatId, normalizedPoll.question, pollOptions, effectiveParams),
       label,
-    ).catch((err) => {
+    ).catch((err: unknown) => {
       throw wrapChatNotFound(err);
     }),
   );

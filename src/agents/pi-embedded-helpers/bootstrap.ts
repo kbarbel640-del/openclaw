@@ -1,6 +1,6 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ArtifactRegistry } from "../../artifacts/artifact-registry.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { WorkspaceBootstrapFile } from "../workspace.js";
@@ -83,6 +83,7 @@ export function stripThoughtSignatures<T>(
 }
 
 export const DEFAULT_BOOTSTRAP_MAX_CHARS = 20_000;
+export const DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS = 100_000;
 const BOOTSTRAP_HEAD_RATIO = 0.7;
 const BOOTSTRAP_TAIL_RATIO = 0.2;
 
@@ -99,6 +100,14 @@ export function resolveBootstrapMaxChars(cfg?: OpenClawConfig): number {
     return Math.floor(raw);
   }
   return DEFAULT_BOOTSTRAP_MAX_CHARS;
+}
+
+export function resolveBootstrapTotalMaxChars(cfg?: OpenClawConfig): number {
+  const raw = cfg?.agents?.defaults?.bootstrapTotalMaxChars;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  return DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS;
 }
 
 function trimBootstrapContent(
@@ -173,7 +182,7 @@ export async function buildBootstrapContextFiles(
       maxBytes?: number;
     };
   },
-): EmbeddedContextFile[] {
+): Promise<EmbeddedContextFile[]> {
   const maxChars = opts?.maxChars ?? DEFAULT_BOOTSTRAP_MAX_CHARS;
   const result: EmbeddedContextFile[] = [];
 
