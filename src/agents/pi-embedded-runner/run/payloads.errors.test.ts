@@ -304,7 +304,8 @@ describe("buildEmbeddedRunPayloads", () => {
 
     expect(payloads).toHaveLength(1);
     expect(payloads[0]?.isError).toBe(true);
-    expect(payloads[0]?.text).toContain("emoji required");
+    expect(payloads[0]?.text).toContain("Message: react");
+    expect(payloads[0]?.text).not.toContain("emoji required");
   });
 
   it("shows mutating tool errors even when assistant output exists", () => {
