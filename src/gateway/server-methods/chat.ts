@@ -10,6 +10,7 @@ import type { MsgContext } from "../../auto-reply/templating.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
+import { parseInlineDirectives as parseDirectiveTags } from "../../utils/directive-tags.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
 import {
   abortChatRunById,
@@ -96,6 +97,19 @@ function truncateChatHistoryText(text: string): { text: string; truncated: boole
   };
 }
 
+/**
+ * Strip inline directive tags ([[reply_to_current]], [[reply_to:<id>]], [[audio_as_voice]])
+ * from text so they are never shown in the WebChat UI.
+ * Returns the original string when no tags are present to avoid unnecessary allocations.
+ */
+function stripInlineDirectiveTags(text: string): { text: string; changed: boolean } {
+  const parsed = parseDirectiveTags(text, { stripAudioTag: true, stripReplyTags: true });
+  if (!parsed.hasAudioTag && !parsed.hasReplyTag) {
+    return { text, changed: false };
+  }
+  return { text: parsed.text, changed: true };
+}
+
 function sanitizeChatHistoryContentBlock(block: unknown): { block: unknown; changed: boolean } {
   if (!block || typeof block !== "object") {
     return { block, changed: false };
@@ -143,6 +157,7 @@ function sanitizeChatHistoryMessage(message: unknown): { message: unknown; chang
   }
   const entry = { ...(message as Record<string, unknown>) };
   let changed = false;
+  const isAssistant = entry.role === "assistant";
 
   if ("details" in entry) {
     delete entry.details;
@@ -158,11 +173,34 @@ function sanitizeChatHistoryMessage(message: unknown): { message: unknown; chang
   }
 
   if (typeof entry.content === "string") {
-    const res = truncateChatHistoryText(entry.content);
+    if (isAssistant) {
+      const stripped = stripInlineDirectiveTags(entry.content);
+      if (stripped.changed) {
+        entry.content = stripped.text;
+        changed = true;
+      }
+    }
+    const res = truncateChatHistoryText(entry.content as string);
     entry.content = res.text;
     changed ||= res.truncated;
   } else if (Array.isArray(entry.content)) {
-    const updated = entry.content.map((block) => sanitizeChatHistoryContentBlock(block));
+    const updated = entry.content.map((block) => {
+      let b = block;
+      // Strip inline directive tags from assistant text content blocks.
+      if (
+        isAssistant &&
+        b &&
+        typeof b === "object" &&
+        (b as Record<string, unknown>).type === "text" &&
+        typeof (b as Record<string, unknown>).text === "string"
+      ) {
+        const stripped = stripInlineDirectiveTags((b as Record<string, unknown>).text as string);
+        if (stripped.changed) {
+          b = { ...(b as Record<string, unknown>), text: stripped.text };
+        }
+      }
+      return sanitizeChatHistoryContentBlock(b);
+    });
     if (updated.some((item) => item.changed)) {
       entry.content = updated.map((item) => item.block);
       changed = true;
@@ -170,7 +208,14 @@ function sanitizeChatHistoryMessage(message: unknown): { message: unknown; chang
   }
 
   if (typeof entry.text === "string") {
-    const res = truncateChatHistoryText(entry.text);
+    if (isAssistant) {
+      const stripped = stripInlineDirectiveTags(entry.text);
+      if (stripped.changed) {
+        entry.text = stripped.text;
+        changed = true;
+      }
+    }
+    const res = truncateChatHistoryText(entry.text as string);
     entry.text = res.text;
     changed ||= res.truncated;
   }
