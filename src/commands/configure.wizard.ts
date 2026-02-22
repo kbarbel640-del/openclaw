@@ -137,7 +137,7 @@ async function promptWebToolsConfig(
   note(
     [
       "Web search lets your agent look things up online using the `web_search` tool.",
-      "It requires a Brave Search API key (you can store it in the config or set BRAVE_API_KEY in the Gateway environment).",
+      "It supports Brave, Perplexity, Tavily, and Grok. Store API keys in config or set BRAVE_API_KEY, TAVILY_API_KEY, etc. in the Gateway environment.",
       "Docs: https://docs.openclaw.ai/tools/web",
     ].join("\n"),
     "Web search",
@@ -145,7 +145,7 @@ async function promptWebToolsConfig(
 
   const enableSearch = guardCancel(
     await confirm({
-      message: "Enable web_search (Brave Search)?",
+      message: "Enable web_search?",
       initialValue: existingSearch?.enabled ?? hasSearchKey,
     }),
     runtime,
@@ -160,9 +160,9 @@ async function promptWebToolsConfig(
     const keyInput = guardCancel(
       await text({
         message: hasSearchKey
-          ? "Brave Search API key (leave blank to keep current or use BRAVE_API_KEY)"
-          : "Brave Search API key (paste it here; leave blank to use BRAVE_API_KEY)",
-        placeholder: hasSearchKey ? "Leave blank to keep current" : "BSA...",
+          ? "Web search API key (leave blank to keep current or use BRAVE_API_KEY/TAVILY_API_KEY)"
+          : "Web search API key (Brave or Tavily; leave blank to use env vars)",
+        placeholder: hasSearchKey ? "Leave blank to keep current" : "BSA... or tvly-...",
       }),
       runtime,
     );
@@ -173,7 +173,7 @@ async function promptWebToolsConfig(
       note(
         [
           "No key stored yet, so web_search will stay unavailable.",
-          "Store a key here or set BRAVE_API_KEY in the Gateway environment.",
+          "Store a key here or set BRAVE_API_KEY or TAVILY_API_KEY in the Gateway environment.",
           "Docs: https://docs.openclaw.ai/tools/web",
         ].join("\n"),
         "Web search",
