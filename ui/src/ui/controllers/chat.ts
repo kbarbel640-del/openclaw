@@ -199,6 +199,23 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     return null;
   }
 
+  // Restore chatRunId after page refresh / reconnect.
+  // Previously only "delta" events triggered restoration, leaving the UI blank
+  // when the agent was executing tools (no delta events during tool use).
+  // Now any non-terminal event restores the run state.
+  // See https://github.com/openclaw/openclaw/issues/8328
+  if (
+    !state.chatRunId &&
+    payload.runId &&
+    payload.state !== "final" &&
+    payload.state !== "error" &&
+    payload.state !== "aborted"
+  ) {
+    state.chatRunId = payload.runId;
+    state.chatStream = "";
+    state.chatStreamStartedAt = Date.now();
+  }
+
   if (payload.state === "delta") {
     const next = extractText(payload.message);
     if (typeof next === "string") {

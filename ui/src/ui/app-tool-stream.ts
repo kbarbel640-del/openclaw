@@ -314,7 +314,16 @@ function resolveAcceptedSession(
   if (host.chatRunId && payload.runId !== host.chatRunId) {
     return { accepted: false };
   }
+  // After page refresh, chatRunId is null but the agent may still be running.
+  // If the event carries a sessionKey matching ours, restore chatRunId so
+  // tool stream events are not silently dropped. The chat-level stream state
+  // (chatStream, chatStreamStartedAt) is restored by handleChatEvent instead.
+  // See https://github.com/openclaw/openclaw/issues/8328
   if (!host.chatRunId) {
+    if (sessionKey && payload.runId) {
+      host.chatRunId = payload.runId;
+      return { accepted: true, sessionKey };
+    }
     return { accepted: false };
   }
   return { accepted: true, sessionKey };
