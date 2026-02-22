@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import { getAcpRuntimeBackend } from "../../acp/runtime/registry.js";
 import { resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { clearBootstrapSnapshot } from "../../agents/bootstrap-cache.js";
 import { abortEmbeddedPiRun, waitForEmbeddedPiRunEnd } from "../../agents/pi-embedded.js";
@@ -14,6 +15,7 @@ import {
   updateSessionStore,
 } from "../../config/sessions.js";
 import { unbindThreadBindingsBySessionKey } from "../../discord/monitor/thread-bindings.js";
+import { logVerbose } from "../../globals.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import {
@@ -202,6 +204,37 @@ async function ensureSessionRuntimeCleanup(params: {
   );
 }
 
+async function closeAcpRuntimeForSession(params: {
+  cfg: ReturnType<typeof loadConfig>;
+  sessionKey: string;
+  entry?: SessionEntry;
+  reason: "session-reset" | "session-delete";
+}) {
+  const acpMeta = params.entry?.acp;
+  if (!acpMeta?.runtimeSessionName) {
+    return;
+  }
+  const backendId = acpMeta.backend?.trim() || params.cfg.acp?.backend?.trim() || undefined;
+  const backend = getAcpRuntimeBackend(backendId);
+  if (!backend) {
+    return;
+  }
+  try {
+    await backend.runtime.close({
+      handle: {
+        sessionKey: params.sessionKey,
+        backend: backendId || backend.id,
+        runtimeSessionName: acpMeta.runtimeSessionName,
+      },
+      reason: params.reason,
+    });
+  } catch (err) {
+    logVerbose(
+      `sessions.${params.reason}: ACP runtime close failed for ${params.sessionKey}: ${String(err)}`,
+    );
+  }
+}
+
 export const sessionsHandlers: GatewayRequestHandlers = {
   "sessions.list": ({ params, respond }) => {
     if (!assertValidParams(params, validateSessionsListParams, "sessions.list", respond)) {
@@ -369,6 +402,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       respond(false, undefined, cleanupError);
       return;
     }
+    await closeAcpRuntimeForSession({
+      cfg,
+      sessionKey: target.canonicalKey ?? key,
+      entry,
+      reason: "session-reset",
+    });
     let oldSessionId: string | undefined;
     let oldSessionFile: string | undefined;
     const next = await updateSessionStore(storePath, (store) => {
@@ -453,6 +492,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       respond(false, undefined, cleanupError);
       return;
     }
+    await closeAcpRuntimeForSession({
+      cfg,
+      sessionKey: target.canonicalKey ?? key,
+      entry,
+      reason: "session-delete",
+    });
     const deleted = await updateSessionStore(storePath, (store) => {
       const { primaryKey } = migrateAndPruneSessionStoreKey({ cfg, key, store });
       const hadEntry = Boolean(store[primaryKey]);

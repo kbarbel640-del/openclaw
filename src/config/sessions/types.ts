@@ -22,6 +22,17 @@ export type SessionOrigin = {
   threadId?: string | number;
 };
 
+export type SessionAcpMeta = {
+  backend: string;
+  agent: string;
+  runtimeSessionName: string;
+  mode: "persistent" | "oneshot";
+  cwd?: string;
+  state: "idle" | "running" | "error";
+  lastActivityAt: number;
+  lastError?: string;
+};
+
 export type SessionEntry = {
   /**
    * Last delivered heartbeat payload (used to suppress duplicate heartbeat notifications).
@@ -112,6 +123,7 @@ export type SessionEntry = {
   lastThreadId?: string | number;
   skillsSnapshot?: SessionSkillSnapshot;
   systemPromptReport?: SessionSystemPromptReport;
+  acp?: SessionAcpMeta;
 };
 
 function normalizeRuntimeField(value: string | undefined): string | undefined {
