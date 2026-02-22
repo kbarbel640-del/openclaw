@@ -355,6 +355,71 @@ export async function convertHeicToJpeg(buffer: Buffer): Promise<Buffer> {
 }
 
 /**
+ * Auto-compresses an image if it exceeds the specified byte limit (default 5MB).
+ * Tries aggressive resizing (1024x1024, q80) to fit within the limit.
+ * If compression fails or the result is still too large, throws an error (or returns original if safe).
+ *
+ * @param buffer The input image buffer.
+ * @param limitBytes The size limit in bytes (default 5MB - safety margin = 4.5MB).
+ * @param mimeType The target mime type (defaults to jpeg).
+ */
+export async function autoCompressImage(
+  buffer: Buffer,
+  limitBytes: number = 4.5 * 1024 * 1024,
+  mimeType: string = "image/jpeg",
+): Promise<Buffer> {
+  if (buffer.length < limitBytes) {
+    return buffer;
+  }
+
+  // console.log(`Image size ${buffer.length} exceeds limit ${limitBytes}. Compressing...`);
+
+  // Try resizing to 1024x1024, quality 80 first (standard safe preset)
+  try {
+    let compressed: Buffer;
+    if (mimeType === "image/png") {
+      compressed = await resizeToPng({
+        buffer,
+        maxSide: 1024,
+        compressionLevel: 8,
+        withoutEnlargement: true,
+      });
+    } else {
+      // Default to JPEG
+      compressed = await resizeToJpeg({
+        buffer,
+        maxSide: 1024,
+        quality: 80,
+        withoutEnlargement: true,
+      });
+    }
+
+    if (compressed.length < limitBytes) {
+      return compressed;
+    }
+
+    // Second pass: aggressive downscale (512x512, q60) if still too big
+    if (mimeType === "image/jpeg") {
+      compressed = await resizeToJpeg({
+        buffer,
+        maxSide: 512,
+        quality: 60,
+        withoutEnlargement: true,
+      });
+      if (compressed.length < limitBytes) {
+        return compressed;
+      }
+    }
+  } catch (error) {
+    // console.error("Compression failed:", error);
+    // Fallthrough to return original (let upstream fail) or throw?
+    // Returning original preserves "best effort" behavior, upstream will catch 413.
+  }
+
+  return buffer;
+}
+
+/**
  * Checks if an image has an alpha channel (transparency).
  * Returns true if the image has alpha, false otherwise.
  */

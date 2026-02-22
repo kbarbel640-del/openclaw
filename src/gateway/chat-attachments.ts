@@ -1,4 +1,5 @@
 import { detectMime } from "../media/mime.js";
+import { autoCompressImage } from "../media/image-ops.js";
 
 export type ChatAttachment = {
   type?: string;
@@ -96,7 +97,20 @@ export async function parseMessageWithAttachments(
       throw new Error(`attachment ${label}: invalid base64 content`);
     }
     try {
-      sizeBytes = Buffer.from(b64, "base64").byteLength;
+      let buffer = Buffer.from(b64, "base64");
+      sizeBytes = buffer.byteLength;
+
+      // Auto-Heal: Compress image if it exceeds the limit
+      if (sizeBytes > maxBytes) {
+        try {
+          const targetMime = isImageMime(mime) ? mime : "image/jpeg";
+          buffer = await autoCompressImage(buffer, maxBytes, targetMime);
+          b64 = buffer.toString("base64");
+          sizeBytes = buffer.byteLength;
+        } catch (e) {
+          // If compression fails, fall through to the size check below
+        }
+      }
     } catch {
       throw new Error(`attachment ${label}: invalid base64 content`);
     }
@@ -168,7 +182,20 @@ export function buildMessageWithAttachments(
       throw new Error(`attachment ${label}: invalid base64 content`);
     }
     try {
-      sizeBytes = Buffer.from(b64, "base64").byteLength;
+      let buffer = Buffer.from(b64, "base64");
+      sizeBytes = buffer.byteLength;
+
+      // Auto-Heal: Compress image if it exceeds the limit
+      if (sizeBytes > maxBytes) {
+        try {
+          const targetMime = isImageMime(mime) ? mime : "image/jpeg";
+          buffer = await autoCompressImage(buffer, maxBytes, targetMime);
+          b64 = buffer.toString("base64");
+          sizeBytes = buffer.byteLength;
+        } catch (e) {
+          // If compression fails, fall through to the size check below
+        }
+      }
     } catch {
       throw new Error(`attachment ${label}: invalid base64 content`);
     }
