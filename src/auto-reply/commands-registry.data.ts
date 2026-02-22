@@ -312,6 +312,28 @@ function buildChatCommands(): ChatCommandDefinition[] {
       argsMenu: "auto",
     }),
     defineChatCommand({
+      key: "acp",
+      nativeName: "acp",
+      description: "Manage ACP sessions (spawn, cancel, steer, close, list).",
+      textAlias: "/acp",
+      category: "management",
+      args: [
+        {
+          name: "action",
+          description: "spawn | cancel | steer | close | sessions | help",
+          type: "string",
+          choices: ["spawn", "cancel", "steer", "close", "sessions", "help"],
+        },
+        {
+          name: "value",
+          description: "Action arguments",
+          type: "string",
+          captureRemaining: true,
+        },
+      ],
+      argsMenu: "auto",
+    }),
+    defineChatCommand({
       key: "focus",
       nativeName: "focus",
       description: "Bind this Discord thread (or a new one) to a session target.",
