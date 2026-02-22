@@ -297,7 +297,7 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
   {
     value: "claude-agent-sdk",
     label: "Claude CLI (personal use)",
-    hint: "Spawns claude CLI — personal/local only (policy: code.claude.com/docs/en/legal-and-compliance)",
+    hint: "personal/local only (policy: code.claude.com)",
   },
   {
     value: "opencode-zen",
