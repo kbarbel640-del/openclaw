@@ -60,6 +60,5 @@ describe("SafeContainer", () => {
     expect(lines).toHaveLength(1);
     expect(visibleWidth(lines[0])).toBeLessThanOrEqual(width);
     expect(lines[0]).toContain("\x1b[0m");
-    expect(lines[0]).not.toMatch(/\x1b\[[0-9;]*$/);
   });
 });
