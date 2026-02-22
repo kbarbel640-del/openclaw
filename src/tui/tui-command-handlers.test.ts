@@ -3,7 +3,8 @@ import { createCommandHandlers } from "./tui-command-handlers.js";
 
 describe("tui command handlers", () => {
   it("renders the sending indicator before chat.send resolves", async () => {
-    let resolveSend: ((value: { runId: string }) => void) | null = null;
+    let resolveSend: ((value: { runId: string }) => void) | null = null; 
+    const resolveSendFn = (v: { runId: string }) => resolveSend?.(v);
     const sendChat = vi.fn(
       () =>
         new Promise<{ runId: string }>((resolve) => {
@@ -15,15 +16,15 @@ describe("tui command handlers", () => {
     const setActivityStatus = vi.fn();
 
     const { handleCommand } = createCommandHandlers({
-      client: { sendChat } as never,
-      chatLog: { addUser, addSystem: vi.fn() } as never,
-      tui: { requestRender } as never,
+      client: { sendChat } as unknown as never,
+      chatLog: { addUser, addSystem: vi.fn() } as unknown as never,
+      tui: { requestRender } as unknown as never,
       opts: {},
       state: {
         currentSessionKey: "agent:main:main",
         activeChatRunId: null,
         sessionInfo: {},
-      } as never,
+      } as unknown as never,
       deliverDefault: false,
       openOverlay: vi.fn(),
       closeOverlay: vi.fn(),
@@ -49,7 +50,7 @@ describe("tui command handlers", () => {
     if (typeof resolveSend !== "function") {
       throw new Error("expected sendChat to be pending");
     }
-    (resolveSend as (value: { runId: string }) => void)({ runId: "r1" });
+    resolveSendFn({ runId: "r1" });
     await pending;
     expect(setActivityStatus).toHaveBeenCalledWith("waiting");
   });
@@ -62,15 +63,15 @@ describe("tui command handlers", () => {
     const setActivityStatus = vi.fn();
 
     const { handleCommand } = createCommandHandlers({
-      client: { sendChat } as never,
-      chatLog: { addUser, addSystem } as never,
-      tui: { requestRender } as never,
+      client: { sendChat } as unknown as never,
+      chatLog: { addUser, addSystem } as unknown as never,
+      tui: { requestRender } as unknown as never,
       opts: {},
       state: {
         currentSessionKey: "agent:main:main",
         activeChatRunId: null,
         sessionInfo: {},
-      } as never,
+      } as unknown as never,
       deliverDefault: false,
       openOverlay: vi.fn(),
       closeOverlay: vi.fn(),
@@ -105,15 +106,15 @@ describe("tui command handlers", () => {
     const loadHistory = vi.fn().mockResolvedValue(undefined);
 
     const { handleCommand } = createCommandHandlers({
-      client: { resetSession } as never,
-      chatLog: { addSystem } as never,
-      tui: { requestRender } as never,
+      client: { resetSession } as unknown as never,
+      chatLog: { addSystem } as unknown as never,
+      tui: { requestRender } as unknown as never,
       opts: {},
       state: {
         currentSessionKey: "agent:main:main",
         activeChatRunId: null,
         sessionInfo: {},
-      } as never,
+      } as unknown as never,
       deliverDefault: false,
       openOverlay: vi.fn(),
       closeOverlay: vi.fn(),
