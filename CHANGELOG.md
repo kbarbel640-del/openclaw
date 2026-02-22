@@ -2,6 +2,12 @@
 
 Docs: https://docs.openclaw.ai
 
+## Unreleased
+
+### Fixes
+
+- Media understanding: add Mistral Voxtral audio transcription provider wiring and default model mapping (`mistral: voxtral-mini-latest`). (#11334) Thanks @JamesEBall.
+
 ## 2026.2.6
 
 ### Changes
