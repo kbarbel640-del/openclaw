@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { WebSocket, type ClientOptions, type CertMeta } from "ws";
+import type { DeviceIdentity } from "../infra/device-identity.js";
 import {
   clearDeviceAuthToken,
   loadDeviceAuthToken,
   storeDeviceAuthToken,
 } from "../infra/device-auth-store.js";
-import type { DeviceIdentity } from "../infra/device-identity.js";
 import {
   loadOrCreateDeviceIdentity,
   publicKeyRawBase64UrlFromPem,
@@ -217,6 +217,10 @@ export class GatewayClient {
 
   stop() {
     this.closed = true;
+    if (this.connectTimer) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
     if (this.tickTimer) {
       clearInterval(this.tickTimer);
       this.tickTimer = null;

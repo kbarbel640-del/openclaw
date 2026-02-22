@@ -6,18 +6,17 @@ Inspired by Simon Willison's [Running OpenClaw in Docker](https://til.simonwilli
 
 - [Quickstart](#quickstart)
 - [Available Commands](#available-commands)
-  - [Basic Operations](#basic-operations)
+  - [Basic Docker Operations](#basic-docker-operations)
   - [Container Access](#container-access)
   - [Web UI \& Devices](#web-ui--devices)
-  - [Setup \& Configuration](#setup--configuration)
-  - [Maintenance](#maintenance)
-  - [Utilities](#utilities)
+  - [Setup \& Maintenance](#setup--maintenance)
 - [Configuration \& Secrets](#configuration--secrets)
   - [Docker Files](#docker-files)
   - [Config Files](#config-files)
   - [Initial Setup](#initial-setup)
   - [How It Works in Docker](#how-it-works-in-docker)
   - [Env Precedence](#env-precedence)
+  - [Data \& Backups](#data--backups)
 - [Common Workflows](#common-workflows)
   - [Check Status and Logs](#check-status-and-logs)
   - [Set Up WhatsApp Bot](#set-up-whatsapp-bot)
@@ -79,15 +78,16 @@ clawdock-approve <request-id>
 
 ## Available Commands
 
-### Basic Operations
+### Basic Docker Operations
 
-| Command            | Description                     |
-| ------------------ | ------------------------------- |
-| `clawdock-start`   | Start the gateway               |
-| `clawdock-stop`    | Stop the gateway                |
-| `clawdock-restart` | Restart the gateway             |
-| `clawdock-status`  | Check container status          |
-| `clawdock-logs`    | View live logs (follows output) |
+| Command            | Description                          |
+| ------------------ | ------------------------------------ |
+| `clawdock-start`   | Start the docker container           |
+| `clawdock-stop`    | Stop the docker container            |
+| `clawdock-restart` | Restart the docker container         |
+| `clawdock-status`  | Check docker container status        |
+| `clawdock-logs`    | View docker container logs (follows) |
+| `clawdock-health`  | Run docker container health check    |
 
 ### Container Access
 
@@ -105,30 +105,17 @@ clawdock-approve <request-id>
 | `clawdock-devices`      | List device pairing requests               |
 | `clawdock-approve <id>` | Approve a device pairing request           |
 
-### Setup & Configuration
+### Setup & Maintenance
 
-| Command              | Description                                       |
-| -------------------- | ------------------------------------------------- |
-| `clawdock-fix-token` | Configure gateway authentication token (run once) |
+| Command              | Description                                           |
+| -------------------- | ----------------------------------------------------- |
+| `clawdock-fix-token` | Configure gateway authentication token (run once)     |
+| `clawdock-token`     | Display the gateway authentication token              |
+| `clawdock-update`    | Pull latest, rebuild image, and restart (one command) |
+| `clawdock-rebuild`   | Rebuild the Docker image only                         |
+| `clawdock-clean`     | Remove all containers and volumes (destructive!)      |
 
-### Maintenance
-
-| Command            | Description                                           |
-| ------------------ | ----------------------------------------------------- |
-| `clawdock-update`  | Pull latest, rebuild image, and restart (one command) |
-| `clawdock-rebuild` | Rebuild the Docker image only                         |
-| `clawdock-clean`   | Remove all containers and volumes (destructive!)      |
-
-### Utilities
-
-| Command              | Description                               |
-| -------------------- | ----------------------------------------- |
-| `clawdock-health`    | Run gateway health check                  |
-| `clawdock-token`     | Display the gateway authentication token  |
-| `clawdock-cd`        | Jump to the OpenClaw project directory    |
-| `clawdock-config`    | Open the OpenClaw config directory        |
-| `clawdock-workspace` | Open the workspace directory              |
-| `clawdock-help`      | Show all available commands with examples |
+> Config files and secrets: see [Configuration & Secrets](#configuration--secrets).
 
 ## Configuration & Secrets
 
@@ -227,6 +214,27 @@ OpenClaw loads env vars in this order (highest wins, never overrides existing):
 3. **`~/.openclaw/.env`** — global secrets (API keys, bot tokens)
 4. **`openclaw.json` `env` block** — inline vars, applied only if still missing
 5. **Shell env import** — optional login-shell scrape (`OPENCLAW_LOAD_SHELL_ENV=1`)
+
+### Data & Backups
+
+The container is stateless — all user data lives on the host via bind-mounts.
+
+| Location                                    | Survives container removal? | Contents                 |
+| ------------------------------------------- | --------------------------- | ------------------------ |
+| `~/.openclaw/agents/*/sessions/`            | Yes (host)                  | Conversation history     |
+| `~/.openclaw/workspace/memory/`             | Yes (host)                  | Daily logs + `MEMORY.md` |
+| `~/.openclaw/openclaw.json`                 | Yes (host)                  | Behavior config          |
+| `~/.openclaw/credentials/`                  | Yes (host)                  | API keys & tokens        |
+| `~/.openclaw/.env`                          | Yes (host)                  | Secrets env file         |
+| `node_modules`, Playwright browsers, `/tmp` | No (container)              | Rebuilt on start         |
+
+`clawdock-clean` removes the container and volumes but **never touches `~/.openclaw/`**.
+
+**Migrate to another machine:**
+
+```bash
+scp -r ~/.openclaw/ user@new-host:~/.openclaw/
+```
 
 ## Common Workflows
 

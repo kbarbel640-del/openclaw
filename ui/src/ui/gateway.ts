@@ -97,6 +97,10 @@ export class GatewayBrowserClient {
   private connectTimer: number | null = null;
   private backoffMs = 800;
   private pendingConnectError: GatewayErrorInfo | undefined;
+  // Track last tick to detect silent stalls (half-open sockets in Docker/VPN proxies).
+  private lastTick: number | null = null;
+  private tickIntervalMs = 30_000;
+  private tickTimer: number | null = null;
 
   constructor(private opts: GatewayBrowserClientOptions) {}
 
@@ -107,6 +111,10 @@ export class GatewayBrowserClient {
 
   stop() {
     this.closed = true;
+    if (this.tickTimer !== null) {
+      window.clearInterval(this.tickTimer);
+      this.tickTimer = null;
+    }
     this.ws?.close();
     this.ws = null;
     this.pendingConnectError = undefined;
@@ -141,6 +149,10 @@ export class GatewayBrowserClient {
   private scheduleReconnect() {
     if (this.closed) {
       return;
+    }
+    if (this.tickTimer !== null) {
+      window.clearInterval(this.tickTimer);
+      this.tickTimer = null;
     }
     const delay = this.backoffMs;
     this.backoffMs = Math.min(this.backoffMs * 1.7, 15_000);
@@ -254,6 +266,10 @@ export class GatewayBrowserClient {
           });
         }
         this.backoffMs = 800;
+        this.tickIntervalMs =
+          typeof hello.policy?.tickIntervalMs === "number" ? hello.policy.tickIntervalMs : 30_000;
+        this.lastTick = Date.now();
+        this.startTickWatch();
         this.opts.onHello?.(hello);
       })
       .catch((err: unknown) => {
@@ -300,6 +316,9 @@ export class GatewayBrowserClient {
         }
         this.lastSeq = seq;
       }
+      if (evt.event === "tick") {
+        this.lastTick = Date.now();
+      }
       try {
         this.opts.onEvent?.(evt);
       } catch (err) {
@@ -341,6 +360,20 @@ export class GatewayBrowserClient {
     });
     this.ws.send(JSON.stringify(frame));
     return p;
+  }
+
+  private startTickWatch() {
+    if (this.tickTimer !== null) {
+      window.clearInterval(this.tickTimer);
+    }
+    this.tickTimer = window.setInterval(() => {
+      if (this.closed || !this.lastTick) {
+        return;
+      }
+      if (Date.now() - this.lastTick > this.tickIntervalMs * 2) {
+        this.ws?.close(4000, "tick timeout");
+      }
+    }, this.tickIntervalMs);
   }
 
   private queueConnect() {

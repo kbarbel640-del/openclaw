@@ -156,6 +156,40 @@ _clawdock_read_env_token() {
   _clawdock_trim_quotes "$raw"
 }
 
+_clawdock_read_env_image() {
+  _clawdock_ensure_dir || return 1
+  if [[ ! -f "${CLAWDOCK_DIR}/.env" ]]; then
+    echo "openclaw:local"
+    return 0
+  fi
+  local raw
+  raw=$(sed -n 's/^OPENCLAW_IMAGE=//p' "${CLAWDOCK_DIR}/.env" | head -n 1)
+  if [[ -z "$raw" ]]; then
+    echo "openclaw:local"
+    return 0
+  fi
+  _clawdock_trim_quotes "$raw"
+}
+
+# Build the Docker image directly (compose file has no build: directive)
+_clawdock_docker_build() {
+  _clawdock_ensure_dir || return 1
+  local image_name
+  image_name=$(_clawdock_read_env_image)
+  local apt_packages=""
+  if [[ -f "${CLAWDOCK_DIR}/.env" ]]; then
+    local raw_apt
+    raw_apt=$(sed -n 's/^OPENCLAW_DOCKER_APT_PACKAGES=//p' "${CLAWDOCK_DIR}/.env" | head -n 1)
+    apt_packages=$(_clawdock_trim_quotes "$raw_apt")
+  fi
+  echo "🔨 Building Docker image: ${image_name} ..."
+  docker build \
+    --build-arg "OPENCLAW_DOCKER_APT_PACKAGES=${apt_packages}" \
+    -t "$image_name" \
+    -f "${CLAWDOCK_DIR}/Dockerfile" \
+    "${CLAWDOCK_DIR}"
+}
+
 # Basic Operations
 clawdock-start() {
   _clawdock_compose up -d openclaw-gateway
@@ -177,18 +211,8 @@ clawdock-status() {
   _clawdock_compose ps
 }
 
-# Navigation
-clawdock-cd() {
-  _clawdock_ensure_dir || return 1
-  cd "${CLAWDOCK_DIR}"
-}
-
 clawdock-config() {
   cd ~/.openclaw
-}
-
-clawdock-workspace() {
-  cd ~/.openclaw/workspace
 }
 
 # Container Access
@@ -216,8 +240,7 @@ clawdock-update() {
   git -C "${CLAWDOCK_DIR}" pull || { echo "❌ git pull failed"; return 1; }
 
   echo ""
-  echo "🔨 Rebuilding Docker image (this may take a few minutes)..."
-  _clawdock_compose build openclaw-gateway || { echo "❌ Build failed"; return 1; }
+  _clawdock_docker_build || { echo "❌ Build failed"; return 1; }
 
   echo ""
   echo "♻️  Recreating container with new image..."
@@ -233,7 +256,7 @@ clawdock-update() {
 }
 
 clawdock-rebuild() {
-  _clawdock_compose build openclaw-gateway
+  _clawdock_docker_build
 }
 
 clawdock-clean() {
@@ -383,18 +406,19 @@ clawdock-approve() {
 clawdock-help() {
   echo -e "\n${_CLR_BOLD}${_CLR_CYAN}🦞 ClawDock - Docker Helpers for OpenClaw${_CLR_RESET}\n"
 
-  echo -e "${_CLR_BOLD}${_CLR_MAGENTA}⚡ Basic Operations${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-start)       ${_CLR_DIM}Start the gateway${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-stop)        ${_CLR_DIM}Stop the gateway${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-restart)     ${_CLR_DIM}Restart the gateway${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-status)      ${_CLR_DIM}Check container status${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-logs)        ${_CLR_DIM}View live logs (follows)${_CLR_RESET}"
+  echo -e "${_CLR_BOLD}${_CLR_MAGENTA}⚡ Basic Docker Operations${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-start)       ${_CLR_DIM}Start the docker container${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-stop)        ${_CLR_DIM}Stop the docker container${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-restart)     ${_CLR_DIM}Restart the docker container${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-status)      ${_CLR_DIM}Check docker container status${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-logs)        ${_CLR_DIM}View docker container logs (follows)${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-health)      ${_CLR_DIM}Run docker container health check${_CLR_RESET}"
   echo ""
 
-  echo -e "${_CLR_BOLD}${_CLR_MAGENTA}🐚 Container Access${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-shell)       ${_CLR_DIM}Shell into container (openclaw alias ready)${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-cli)         ${_CLR_DIM}Run CLI commands (e.g., clawdock-cli status)${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-exec) ${_CLR_CYAN}<cmd>${_CLR_RESET}  ${_CLR_DIM}Execute command in gateway container${_CLR_RESET}"
+  echo -e "${_CLR_BOLD}${_CLR_MAGENTA}🐚 Docker Container Access${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-shell)       ${_CLR_DIM}Shell into docker container (openclaw alias ready)${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-cli)         ${_CLR_DIM}Run CLI in docker container (e.g., clawdock-cli status)${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-exec) ${_CLR_CYAN}<cmd>${_CLR_RESET}  ${_CLR_DIM}Execute command in docker container${_CLR_RESET}"
   echo ""
 
   echo -e "${_CLR_BOLD}${_CLR_MAGENTA}🌐 Web UI & Devices${_CLR_RESET}"
@@ -405,29 +429,29 @@ clawdock-help() {
 
   echo -e "${_CLR_BOLD}${_CLR_MAGENTA}⚙️  Setup & Configuration${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-fix-token)   ${_CLR_DIM}Configure gateway token ${_CLR_CYAN}(run once)${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-token)       ${_CLR_DIM}Show gateway auth token${_CLR_RESET}"
+  echo ""
+
+  echo -e "${_CLR_BOLD}${_CLR_MAGENTA}📦 Configuration${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-config)            ${_CLR_DIM}Open config directory (~/.openclaw)${_CLR_RESET}"
+  echo -e "  ${_CLR_CYAN}~/.openclaw/.env${_CLR_RESET}           ${_CLR_DIM}Secrets (API keys, bot tokens)${_CLR_RESET}"
+  echo -e "  ${_CLR_CYAN}~/.openclaw/openclaw.json${_CLR_RESET}  ${_CLR_DIM}Behavior (models, channels, policies)${_CLR_RESET}"
   echo ""
 
   echo -e "${_CLR_BOLD}${_CLR_MAGENTA}🔧 Maintenance${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-update)      ${_CLR_DIM}Pull, rebuild, and restart ${_CLR_CYAN}(one-command update)${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-update)      ${_CLR_DIM}Pull, rebuild, and restart docker container ${_CLR_CYAN}(one-command update)${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-rebuild)     ${_CLR_DIM}Rebuild Docker image only${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-clean)       ${_CLR_RED}⚠️  Remove containers & volumes (nuclear)${_CLR_RESET}"
-  echo ""
-
-  echo -e "${_CLR_BOLD}${_CLR_MAGENTA}🛠️  Utilities${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-health)      ${_CLR_DIM}Run health check${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-token)       ${_CLR_DIM}Show gateway auth token${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-cd)          ${_CLR_DIM}Jump to openclaw project directory${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-config)      ${_CLR_DIM}Open config directory (~/.openclaw)${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-workspace)   ${_CLR_DIM}Open workspace directory${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-clean)       ${_CLR_RED}⚠️  Remove docker containers & volumes (nuclear)${_CLR_RESET}"
   echo ""
 
   echo -e "${_CLR_BOLD}${_CLR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${_CLR_RESET}"
   echo -e "${_CLR_BOLD}${_CLR_GREEN}🚀 First Time Setup${_CLR_RESET}"
-  echo -e "${_CLR_CYAN}  1.${_CLR_RESET} $(_cmd clawdock-start)          ${_CLR_DIM}# Start the gateway${_CLR_RESET}"
+  echo -e "${_CLR_CYAN}  1.${_CLR_RESET} $(_cmd clawdock-start)          ${_CLR_DIM}# Start the docker container${_CLR_RESET}"
   echo -e "${_CLR_CYAN}  2.${_CLR_RESET} $(_cmd clawdock-fix-token)      ${_CLR_DIM}# Configure token${_CLR_RESET}"
-  echo -e "${_CLR_CYAN}  3.${_CLR_RESET} $(_cmd clawdock-dashboard)      ${_CLR_DIM}# Open web UI${_CLR_RESET}"
-  echo -e "${_CLR_CYAN}  4.${_CLR_RESET} $(_cmd clawdock-devices)        ${_CLR_DIM}# If pairing needed${_CLR_RESET}"
-  echo -e "${_CLR_CYAN}  5.${_CLR_RESET} $(_cmd clawdock-approve) ${_CLR_CYAN}<id>${_CLR_RESET}   ${_CLR_DIM}# Approve pairing${_CLR_RESET}"
+  echo -e "${_CLR_CYAN}  3.${_CLR_RESET} $(_cmd 'clawdock-cli onboard')    ${_CLR_DIM}# Configure API keys & channels${_CLR_RESET}"
+  echo -e "${_CLR_CYAN}  4.${_CLR_RESET} $(_cmd clawdock-dashboard)      ${_CLR_DIM}# Open web UI${_CLR_RESET}"
+  echo -e "${_CLR_CYAN}  5.${_CLR_RESET} $(_cmd clawdock-devices)        ${_CLR_DIM}# If pairing needed${_CLR_RESET}"
+  echo -e "${_CLR_CYAN}  6.${_CLR_RESET} $(_cmd clawdock-approve) ${_CLR_CYAN}<id>${_CLR_RESET}   ${_CLR_DIM}# Approve pairing${_CLR_RESET}"
   echo ""
 
   echo -e "${_CLR_BOLD}${_CLR_GREEN}💬 WhatsApp Setup${_CLR_RESET}"
