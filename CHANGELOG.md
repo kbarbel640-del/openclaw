@@ -20,7 +20,7 @@ Docs: https://docs.openclaw.ai
 - Channels/Config: unify channel preview streaming config handling with a shared resolver and canonical migration path.
 - Gateway/Auth: unify call/probe/status/auth credential-source precedence on shared resolver helpers, with table-driven parity coverage across gateway entrypoints.
 - Gateway/Auth: refactor gateway credential resolution and websocket auth handshake paths to use shared typed auth contexts, including explicit `auth.deviceToken` support in connect frames and tests.
-- Onboarding/Media: add first-class Mistral API-key onboarding (`--mistral-api-key`, auth-choice flow + config defaults) and Mistral Voxtral audio transcription provider defaults for media understanding. Thanks @jaimegh-es and @JamesEBall.
+- Onboarding/Media: add first-class Mistral API-key onboarding (`--mistral-api-key`, auth-choice flow + config defaults) and Mistral Voxtral audio transcription provider defaults for media understanding. Thanks @jaimegh-es, @joeVenner, and @JamesEBall.
 - Skills: remove bundled `food-order` skill from this repo; manage/install it from ClawHub instead.
 - Docs/Subagents: make thread-bound session guidance channel-first instead of Discord-specific, and list thread-supporting channels explicitly. (#23589) Thanks @osolmaz.
 
@@ -99,7 +99,7 @@ Docs: https://docs.openclaw.ai
 - Control UI/WebSocket: stop and clear the browser gateway client on UI teardown so remounts cannot leave orphan websocket clients that create duplicate active connections. (#23422) Thanks @floatinggball-design.
 - Control UI/WebSocket: send a stable per-tab `instanceId` in websocket connect frames so reconnect cycles keep a consistent client identity for diagnostics and presence tracking. (#23616) Thanks @zq58855371-ui.
 - Config/Memory: allow `"mistral"` in `agents.defaults.memorySearch.provider` and `agents.defaults.memorySearch.fallback` schema validation. (#14934) Thanks @ThomsenDrake.
-- Memory/Mistral: align schema/runtime support by adding Mistral embeddings (`/v1/embeddings`, default `mistral-embed`) for memory search provider resolution/fallback/doctor checks, and refresh onboarding Mistral model metadata for `mistral-large-latest` context/output limits. Thanks @jaimegh-es and @JamesEBall.
+- Memory/Mistral: align schema/runtime support by adding Mistral embeddings (`/v1/embeddings`, default `mistral-embed`) for memory search provider resolution/fallback/doctor checks, and refresh onboarding Mistral model metadata for `mistral-large-latest` context/output limits. Thanks @jaimegh-es, @joeVenner, and @JamesEBall.
 - Security/Feishu: enforce ID-only allowlist matching for DM/group sender authorization, normalize Feishu ID prefixes during checks, and ignore mutable display names so display-name collisions cannot satisfy allowlist entries. This ships in the next npm release. Thanks @jiseoung for reporting.
 - Security/Group policy: harden `channels.*.groups.*.toolsBySender` matching by requiring explicit sender-key types (`id:`, `e164:`, `username:`, `name:`), preventing cross-identifier collisions across mutable/display-name fields while keeping legacy untyped keys on a deprecated ID-only path. This ships in the next npm release. Thanks @jiseoung for reporting.
 - Feishu/Commands: in group chats, command authorization now falls back to top-level `channels.feishu.allowFrom` when per-group `allowFrom` is not set, so `/command` no longer gets blocked by an unintended empty allowlist. (#23756)
