@@ -308,11 +308,10 @@ describe("/acp command", () => {
     const result = await handleAcpCommand(params, true);
     expect(result?.reply?.text).toContain("Cancel requested for ACP session agent:codex:acp:s1");
     expect(hoisted.cancelMock).toHaveBeenCalledWith({
-      handle: {
+      handle: expect.objectContaining({
         sessionKey: "agent:codex:acp:s1",
         backend: "acpx",
-        runtimeSessionName: "runtime-1",
-      },
+      }),
       reason: "manual-cancel",
     });
   });

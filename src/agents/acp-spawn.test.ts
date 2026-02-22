@@ -3,9 +3,10 @@ import type { OpenClawConfig } from "../config/config.js";
 
 const hoisted = vi.hoisted(() => {
   const callGatewayMock = vi.fn();
-  const upsertAcpSessionMetaMock = vi.fn();
   const getThreadBindingManagerMock = vi.fn();
   const unbindThreadBindingsBySessionKeyMock = vi.fn((_params?: unknown) => []);
+  const initializeSessionMock = vi.fn();
+  const closeSessionMock = vi.fn();
   const state = {
     cfg: {
       acp: {
@@ -29,9 +30,10 @@ const hoisted = vi.hoisted(() => {
   };
   return {
     callGatewayMock,
-    upsertAcpSessionMetaMock,
     getThreadBindingManagerMock,
     unbindThreadBindingsBySessionKeyMock,
+    initializeSessionMock,
+    closeSessionMock,
     state,
   };
 });
@@ -48,11 +50,12 @@ vi.mock("../gateway/call.js", () => ({
   callGateway: (opts: unknown) => hoisted.callGatewayMock(opts),
 }));
 
-vi.mock("../acp/runtime/session-meta.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../acp/runtime/session-meta.js")>();
+vi.mock("../acp/control-plane/manager.js", () => {
   return {
-    ...actual,
-    upsertAcpSessionMeta: (args: unknown) => hoisted.upsertAcpSessionMetaMock(args),
+    getAcpSessionManager: () => ({
+      initializeSession: (params: unknown) => hoisted.initializeSessionMock(params),
+      closeSession: (params: unknown) => hoisted.closeSessionMock(params),
+    }),
   };
 });
 
@@ -139,23 +142,35 @@ describe("spawnAcpDirect", () => {
       return {};
     });
 
-    hoisted.upsertAcpSessionMetaMock
-      .mockReset()
-      .mockImplementation(async (argsUnknown: unknown) => {
-        const args = argsUnknown as {
-          mutate: (
-            current: unknown,
-            entry: { sessionId: string; updatedAt: number },
-          ) => Record<string, unknown> | undefined;
-        };
-        const now = Date.now();
-        const acp = args.mutate(undefined, { sessionId: "session-1", updatedAt: now });
-        return {
-          sessionId: "session-1",
-          updatedAt: now,
-          acp,
-        };
-      });
+    hoisted.initializeSessionMock.mockReset().mockImplementation(async (argsUnknown: unknown) => {
+      const args = argsUnknown as {
+        sessionKey: string;
+        agent: string;
+        mode: "persistent" | "oneshot";
+      };
+      return {
+        runtime: {
+          close: vi.fn(async () => {}),
+        },
+        handle: {
+          sessionKey: args.sessionKey,
+          backend: "acpx",
+          runtimeSessionName: `${args.sessionKey}:runtime`,
+        },
+        meta: {
+          backend: "acpx",
+          agent: args.agent,
+          runtimeSessionName: `${args.sessionKey}:runtime`,
+          mode: args.mode,
+          state: "idle",
+          lastActivityAt: Date.now(),
+        },
+      };
+    });
+    hoisted.closeSessionMock.mockReset().mockResolvedValue({
+      runtimeClosed: true,
+      metaCleared: false,
+    });
 
     hoisted.getThreadBindingManagerMock.mockReset().mockReturnValue(createManager());
     hoisted.unbindThreadBindingsBySessionKeyMock.mockReset().mockReturnValue([]);
@@ -198,33 +213,13 @@ describe("spawnAcpDirect", () => {
     expect(agentCall?.params?.sessionKey).toMatch(/^agent:codex:acp:/);
     expect(agentCall?.params?.threadId).toBe("child-thread");
     expect(agentCall?.params?.deliver).toBe(true);
-
-    const upsertArgs = hoisted.upsertAcpSessionMetaMock.mock.calls[0]?.[0] as
-      | {
-          sessionKey: string;
-          mutate: (current: unknown, entry: { sessionId: string; updatedAt: number }) => unknown;
-        }
-      | undefined;
-    expect(upsertArgs?.sessionKey).toMatch(/^agent:codex:acp:/);
-    const seededMeta = upsertArgs?.mutate(undefined, {
-      sessionId: "session-1",
-      updatedAt: Date.now(),
-    }) as
-      | {
-          backend?: string;
-          runtimeSessionName?: string;
-        }
-      | undefined;
-    expect(seededMeta?.backend).toBe("acpx");
-    expect(seededMeta?.runtimeSessionName).toBe(upsertArgs?.sessionKey);
-    const seededWithoutEntry = upsertArgs?.mutate(undefined, undefined as never) as
-      | {
-          backend?: string;
-          runtimeSessionName?: string;
-        }
-      | undefined;
-    expect(seededWithoutEntry?.backend).toBe("acpx");
-    expect(seededWithoutEntry?.runtimeSessionName).toBe(upsertArgs?.sessionKey);
+    expect(hoisted.initializeSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionKey: expect.stringMatching(/^agent:codex:acp:/),
+        agent: "codex",
+        mode: "persistent",
+      }),
+    );
   });
 
   it("rejects disallowed ACP agents", async () => {

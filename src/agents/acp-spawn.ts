@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { upsertAcpSessionMeta } from "../acp/runtime/session-meta.js";
+import { getAcpSessionManager } from "../acp/control-plane/manager.js";
 import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -226,7 +226,24 @@ function prepareAcpThreadBinding(params: {
   };
 }
 
-async function cleanupFailedSpawn(params: { sessionKey: string; shouldDeleteSession: boolean }) {
+async function cleanupFailedSpawn(params: {
+  cfg: OpenClawConfig;
+  sessionKey: string;
+  shouldDeleteSession: boolean;
+}) {
+  const acpManager = getAcpSessionManager();
+  await acpManager
+    .closeSession({
+      cfg: params.cfg,
+      sessionKey: params.sessionKey,
+      reason: "spawn-failed",
+      allowBackendUnavailable: true,
+      requireAcpSession: false,
+    })
+    .catch(() => {
+      // Best-effort cleanup only.
+    });
+
   unbindThreadBindingsBySessionKey({
     targetSessionKey: params.sessionKey,
     targetKind: "acp",
@@ -249,14 +266,6 @@ async function cleanupFailedSpawn(params: { sessionKey: string; shouldDeleteSess
       // Best-effort cleanup only.
     }
   }
-}
-
-function resolveConfiguredAcpBackendId(cfg: OpenClawConfig): string {
-  const backend = cfg.acp?.backend;
-  if (typeof backend !== "string") {
-    return "";
-  }
-  return backend.trim();
 }
 
 export async function spawnAcpDirect(
@@ -303,7 +312,6 @@ export async function spawnAcpDirect(
 
   const sessionKey = `agent:${targetAgentId}:acp:${crypto.randomUUID()}`;
   const runtimeMode = resolveAcpSessionMode(spawnMode);
-  const configuredBackendId = resolveConfiguredAcpBackendId(cfg);
 
   let preparedBinding: PreparedAcpThreadBinding | null = null;
   if (requestThreadBinding) {
@@ -346,6 +354,7 @@ export async function spawnAcpDirect(
       });
     } catch (err) {
       await cleanupFailedSpawn({
+        cfg,
         sessionKey,
         shouldDeleteSession: false,
       });
@@ -356,6 +365,7 @@ export async function spawnAcpDirect(
     }
     if (!binding) {
       await cleanupFailedSpawn({
+        cfg,
         sessionKey,
         shouldDeleteSession: false,
       });
@@ -377,29 +387,17 @@ export async function spawnAcpDirect(
       timeoutMs: 10_000,
     });
     sessionCreated = true;
-
-    const upserted = await upsertAcpSessionMeta({
-      sessionKey,
+    const acpManager = getAcpSessionManager();
+    await acpManager.initializeSession({
       cfg,
-      mutate: (_current) => {
-        // Runtime session handles are initialized lazily by dispatch in the
-        // gateway process and replaced with concrete backend/runtime values.
-        return {
-          backend: configuredBackendId,
-          agent: targetAgentId,
-          runtimeSessionName: sessionKey,
-          mode: runtimeMode,
-          cwd: params.cwd,
-          state: "idle",
-          lastActivityAt: Date.now(),
-        };
-      },
+      sessionKey,
+      agent: targetAgentId,
+      mode: runtimeMode,
+      cwd: params.cwd,
     });
-    if (!upserted?.acp) {
-      throw new Error("Failed to persist ACP session metadata.");
-    }
   } catch (err) {
     await cleanupFailedSpawn({
+      cfg,
       sessionKey,
       shouldDeleteSession: sessionCreated,
     });
@@ -444,6 +442,7 @@ export async function spawnAcpDirect(
     }
   } catch (err) {
     await cleanupFailedSpawn({
+      cfg,
       sessionKey,
       shouldDeleteSession: true,
     });

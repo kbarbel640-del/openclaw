@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
-import { getAcpRuntimeBackend } from "../../acp/runtime/registry.js";
+import { getAcpSessionManager } from "../../acp/control-plane/manager.js";
 import { resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { clearBootstrapSnapshot } from "../../agents/bootstrap-cache.js";
 import { abortEmbeddedPiRun, waitForEmbeddedPiRunEnd } from "../../agents/pi-embedded.js";
@@ -210,23 +210,17 @@ async function closeAcpRuntimeForSession(params: {
   entry?: SessionEntry;
   reason: "session-reset" | "session-delete";
 }) {
-  const acpMeta = params.entry?.acp;
-  if (!acpMeta?.runtimeSessionName) {
+  if (!params.entry?.acp) {
     return;
   }
-  const backendId = acpMeta.backend?.trim() || params.cfg.acp?.backend?.trim() || undefined;
-  const backend = getAcpRuntimeBackend(backendId);
-  if (!backend) {
-    return;
-  }
+  const acpManager = getAcpSessionManager();
   try {
-    await backend.runtime.close({
-      handle: {
-        sessionKey: params.sessionKey,
-        backend: backendId || backend.id,
-        runtimeSessionName: acpMeta.runtimeSessionName,
-      },
+    await acpManager.closeSession({
+      cfg: params.cfg,
+      sessionKey: params.sessionKey,
       reason: params.reason,
+      requireAcpSession: false,
+      allowBackendUnavailable: true,
     });
   } catch (err) {
     logVerbose(

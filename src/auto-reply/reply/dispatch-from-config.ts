@@ -1,11 +1,8 @@
+import { getAcpSessionManager } from "../../acp/control-plane/manager.js";
 import { AcpRuntimeError, toAcpRuntimeError } from "../../acp/runtime/errors.js";
-import { requireAcpRuntimeBackend } from "../../acp/runtime/registry.js";
-import { readAcpSessionEntry, upsertAcpSessionMeta } from "../../acp/runtime/session-meta.js";
-import type { AcpRuntime, AcpRuntimeHandle } from "../../acp/runtime/types.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { loadSessionStore, resolveStorePath } from "../../config/sessions.js";
-import type { SessionAcpMeta } from "../../config/sessions/types.js";
 import { logVerbose } from "../../globals.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { isDiagnosticsEnabled } from "../../infra/diagnostic-events.js";
@@ -396,59 +393,21 @@ export async function dispatchReplyFromConfig(params: {
 
     const shouldSendToolSummaries = ctx.ChatType !== "group" && ctx.CommandSource !== "native";
 
-    let acpSessionMeta: SessionAcpMeta | undefined;
-    if (sessionKey) {
-      try {
-        acpSessionMeta = readAcpSessionEntry({ sessionKey, cfg })?.acp;
-      } catch (err) {
-        logVerbose(
-          `dispatch-from-config: failed reading ACP session metadata for ${sessionKey}: ${String(err)}`,
-        );
-      }
-    }
+    const acpManager = getAcpSessionManager();
+    const acpResolution = sessionKey
+      ? acpManager.resolveSession({
+          cfg,
+          sessionKey,
+        })
+      : null;
 
-    if (acpSessionMeta && sessionKey) {
+    if (acpResolution && acpResolution.kind !== "none" && sessionKey) {
       const routedCounts: Record<ReplyDispatchKind, number> = {
         tool: 0,
         block: 0,
         final: 0,
       };
       let queuedFinal = false;
-      const updateAcpMeta = async (
-        patch: Partial<SessionAcpMeta> & Pick<SessionAcpMeta, "state">,
-        opts?: { clearLastError?: boolean },
-      ) => {
-        try {
-          await upsertAcpSessionMeta({
-            sessionKey,
-            cfg,
-            mutate: (current, entry) => {
-              if (!entry) {
-                return undefined;
-              }
-              const base = current ?? acpSessionMeta;
-              if (!base) {
-                return undefined;
-              }
-              const next: SessionAcpMeta = {
-                ...base,
-                ...patch,
-                state: patch.state,
-                lastActivityAt: Date.now(),
-              };
-              if (opts?.clearLastError) {
-                delete next.lastError;
-              }
-              return next;
-            },
-          });
-        } catch (err) {
-          logVerbose(
-            `dispatch-from-config: failed updating ACP session metadata for ${sessionKey}: ${String(err)}`,
-          );
-        }
-      };
-
       const deliverAcpPayload = async (
         kind: ReplyDispatchKind,
         payload: ReplyPayload,
@@ -500,130 +459,90 @@ export async function dispatchReplyFromConfig(params: {
         return { queuedFinal: false, counts };
       }
 
-      const sessionMode = acpSessionMeta.mode ?? "persistent";
-      let acpHandle: AcpRuntimeHandle | null = null;
-      let runtime: AcpRuntime | null = null;
+      const resolvedAcpAgent =
+        acpResolution.kind === "ready"
+          ? (
+              acpResolution.meta.agent?.trim() ||
+              cfg.acp?.defaultAgent?.trim() ||
+              resolveAgentIdFromSessionKey(sessionKey)
+            ).trim()
+          : resolveAgentIdFromSessionKey(sessionKey);
+      const normalizedAllowedAgents = (cfg.acp?.allowedAgents ?? [])
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean);
+
+      const batchMs = resolveAcpStreamBatchMs(cfg);
+      const maxChunkChars = resolveAcpStreamMaxChunkChars(cfg);
+      let streamBuffer = "";
+      let lastFlushAt = 0;
+
+      const flushBufferedAcpText = async (force: boolean): Promise<void> => {
+        while (streamBuffer.length > 0) {
+          const now = Date.now();
+          if (!force && streamBuffer.length < maxChunkChars && now - lastFlushAt < batchMs) {
+            return;
+          }
+          const chunk = streamBuffer.slice(0, maxChunkChars);
+          streamBuffer = streamBuffer.slice(chunk.length);
+          const didDeliver = await deliverAcpPayload("block", { text: chunk });
+          if (didDeliver) {
+            lastFlushAt = Date.now();
+          }
+          if (!force && streamBuffer.length < maxChunkChars) {
+            return;
+          }
+        }
+      };
+
       try {
         if (!isAcpDispatchEnabled(cfg)) {
           throw new AcpRuntimeError("ACP_DISPATCH_DISABLED", ACP_DISPATCH_DISABLED_MESSAGE);
         }
-
-        const backend = requireAcpRuntimeBackend(acpSessionMeta.backend || cfg.acp?.backend);
-        runtime = backend.runtime;
-
-        const configuredAgent = acpSessionMeta.agent?.trim() || cfg.acp?.defaultAgent?.trim() || "";
-        const requestedAgent = configuredAgent || resolveAgentIdFromSessionKey(sessionKey);
-        const normalizedAllowedAgents = (cfg.acp?.allowedAgents ?? [])
-          .map((entry) => entry.trim().toLowerCase())
-          .filter(Boolean);
+        if (acpResolution.kind === "stale") {
+          throw acpResolution.error;
+        }
         if (
           normalizedAllowedAgents.length > 0 &&
-          !normalizedAllowedAgents.includes(requestedAgent.toLowerCase())
+          !normalizedAllowedAgents.includes(resolvedAcpAgent.toLowerCase())
         ) {
           throw new AcpRuntimeError(
             "ACP_SESSION_INIT_FAILED",
-            `ACP agent "${requestedAgent}" is not allowed by policy.`,
+            `ACP agent "${resolvedAcpAgent}" is not allowed by policy.`,
           );
         }
 
-        try {
-          acpHandle = await runtime.ensureSession({
-            sessionKey,
-            agent: requestedAgent,
-            mode: sessionMode,
-            cwd: acpSessionMeta.cwd,
-          });
-        } catch (err) {
-          throw toAcpRuntimeError({
-            error: err,
-            fallbackCode: "ACP_SESSION_INIT_FAILED",
-            fallbackMessage: "Could not initialize ACP session runtime.",
-          });
-        }
-
-        await updateAcpMeta(
-          {
-            backend: acpHandle.backend,
-            agent: requestedAgent,
-            runtimeSessionName: acpHandle.runtimeSessionName,
-            mode: sessionMode,
-            state: "running",
-          },
-          { clearLastError: true },
-        );
-
-        const batchMs = resolveAcpStreamBatchMs(cfg);
-        const maxChunkChars = resolveAcpStreamMaxChunkChars(cfg);
-        let streamBuffer = "";
-        let lastFlushAt = 0;
-        let streamErrorMessage: string | null = null;
-
-        const flushBufferedAcpText = async (force: boolean): Promise<void> => {
-          while (streamBuffer.length > 0) {
-            const now = Date.now();
-            if (!force && streamBuffer.length < maxChunkChars && now - lastFlushAt < batchMs) {
-              return;
-            }
-            const chunk = streamBuffer.slice(0, maxChunkChars);
-            streamBuffer = streamBuffer.slice(chunk.length);
-            const didDeliver = await deliverAcpPayload("block", { text: chunk });
-            if (didDeliver) {
-              lastFlushAt = Date.now();
-            }
-            if (!force && streamBuffer.length < maxChunkChars) {
-              return;
-            }
-          }
-        };
-
-        for await (const event of runtime.runTurn({
-          handle: acpHandle,
+        await acpManager.runTurn({
+          cfg,
+          sessionKey,
           text: promptText,
           mode: "prompt",
           requestId: resolveAcpRequestId(ctx),
-        })) {
-          if (event.type === "text_delta") {
-            if (event.stream && event.stream !== "output") {
-              continue;
+          onEvent: async (event) => {
+            if (event.type === "text_delta") {
+              if (event.stream && event.stream !== "output") {
+                return;
+              }
+              if (event.text) {
+                streamBuffer += event.text;
+                await flushBufferedAcpText(false);
+              }
+              return;
             }
-            if (event.text) {
-              streamBuffer += event.text;
-              await flushBufferedAcpText(false);
+            if (event.type === "status") {
+              if (shouldSendToolSummaries && event.text) {
+                await deliverAcpPayload("tool", { text: `⚙️ ${event.text}` });
+              }
+              return;
             }
-            continue;
-          }
-
-          if (event.type === "status") {
-            if (shouldSendToolSummaries && event.text) {
-              await deliverAcpPayload("tool", { text: `⚙️ ${event.text}` });
+            if (event.type === "tool_call") {
+              if (shouldSendToolSummaries && event.text) {
+                await deliverAcpPayload("tool", { text: `🧰 ${event.text}` });
+              }
             }
-            continue;
-          }
-
-          if (event.type === "tool_call") {
-            if (shouldSendToolSummaries && event.text) {
-              await deliverAcpPayload("tool", { text: `🧰 ${event.text}` });
-            }
-            continue;
-          }
-
-          if (event.type === "error") {
-            streamErrorMessage = event.message?.trim() || "ACP turn failed before completion.";
-            break;
-          }
-
-          if (event.type === "done") {
-            break;
-          }
-        }
+          },
+        });
 
         await flushBufferedAcpText(true);
-
-        if (streamErrorMessage) {
-          throw new AcpRuntimeError("ACP_TURN_FAILED", streamErrorMessage);
-        }
-
-        await updateAcpMeta({ state: "idle" }, { clearLastError: true });
 
         const counts = dispatcher.getQueuedCounts();
         counts.tool += routedCounts.tool;
@@ -633,14 +552,11 @@ export async function dispatchReplyFromConfig(params: {
         markIdle("message_completed");
         return { queuedFinal, counts };
       } catch (err) {
+        await flushBufferedAcpText(true);
         const acpError = toAcpRuntimeError({
           error: err,
           fallbackCode: "ACP_TURN_FAILED",
           fallbackMessage: "ACP turn failed before completion.",
-        });
-        await updateAcpMeta({
-          state: "error",
-          lastError: acpError.message,
         });
         const delivered = await deliverAcpPayload("final", {
           text: formatAcpErrorReply(acpError),
@@ -656,17 +572,6 @@ export async function dispatchReplyFromConfig(params: {
         });
         markIdle("message_completed");
         return { queuedFinal, counts };
-      } finally {
-        if (sessionMode === "oneshot" && runtime && acpHandle) {
-          try {
-            await runtime.close({
-              handle: acpHandle,
-              reason: "oneshot-complete",
-            });
-          } catch (err) {
-            logVerbose(`dispatch-from-config: ACP oneshot close failed: ${String(err)}`);
-          }
-        }
       }
     }
 

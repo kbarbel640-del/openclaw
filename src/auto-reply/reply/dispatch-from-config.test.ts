@@ -554,6 +554,34 @@ describe("dispatchReplyFromConfig", () => {
     expect(finalPayload?.text).toContain("ACP dispatch is disabled by policy");
   });
 
+  it("fails closed when ACP metadata is missing for an ACP session key", async () => {
+    setNoAbort();
+    acpMocks.readAcpSessionEntry.mockReturnValue(null);
+
+    const cfg = {
+      acp: {
+        enabled: true,
+        dispatch: { enabled: true },
+      },
+    } as OpenClawConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "discord",
+      Surface: "discord",
+      SessionKey: "agent:codex:acp:session-1",
+      BodyForAgent: "hello",
+    });
+    const replyResolver = vi.fn(async () => ({ text: "fallback" }) as ReplyPayload);
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
+
+    expect(replyResolver).not.toHaveBeenCalled();
+    expect(acpMocks.requireAcpRuntimeBackend).not.toHaveBeenCalled();
+    const finalPayload = (dispatcher.sendFinalReply as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as ReplyPayload | undefined;
+    expect(finalPayload?.text).toContain("ACP metadata is missing");
+  });
+
   it("surfaces backend-missing ACP errors in-thread without falling back", async () => {
     setNoAbort();
     acpMocks.readAcpSessionEntry.mockReturnValue({
