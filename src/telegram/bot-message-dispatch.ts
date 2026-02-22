@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import type { Bot } from "grammy";
 import { resolveAgentDir } from "../agents/agent-scope.js";
 import {
@@ -13,6 +14,7 @@ import type { ReplyPayload } from "../auto-reply/types.js";
 import { removeAckReactionAfterReply } from "../channels/ack-reactions.js";
 import { logAckFailure, logTypingFailure } from "../channels/logging.js";
 import { createReplyPrefixOptions } from "../channels/reply-prefix.js";
+import { DEFAULT_TIMING } from "../channels/status-reactions.js";
 import { createTypingCallbacks } from "../channels/typing.js";
 import { resolveMarkdownTableMode } from "../config/markdown-tables.js";
 import { loadSessionStore, resolveStorePath } from "../config/sessions.js";
@@ -118,6 +120,7 @@ export const dispatchTelegramMessage = async ({
     reactionApi,
     removeAckAfterReply,
     statusReactionController,
+    statusReactionDoneHoldMs,
   } = context;
 
   const draftMaxChars = Math.min(textLimit, 4096);
@@ -818,9 +821,18 @@ export const dispatchTelegramMessage = async ({
   }
 
   if (statusReactionController) {
-    void statusReactionController.setDone().catch((err) => {
-      logVerbose(`telegram: status reaction finalize failed: ${String(err)}`);
-    });
+    void statusReactionController
+      .setDone()
+      .then(async () => {
+        if (!removeAckAfterReply) {
+          return;
+        }
+        await sleep(statusReactionDoneHoldMs ?? DEFAULT_TIMING.doneHoldMs);
+        await statusReactionController.clear();
+      })
+      .catch((err) => {
+        logVerbose(`telegram: status reaction finalize failed: ${String(err)}`);
+      });
   } else {
     removeAckReactionAfterReply({
       removeAfterReply: removeAckAfterReply,

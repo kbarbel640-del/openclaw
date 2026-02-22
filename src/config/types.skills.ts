@@ -40,6 +40,12 @@ export type SkillsConfig = {
   allowBundled?: string[];
   load?: SkillsLoadConfig;
   install?: SkillsInstallConfig;
+  autoInvoke?: {
+    /** Enable automatic skill selection from user intent at session start. */
+    enabled?: boolean;
+    /** Minimum score required for a skill to auto-load. */
+    threshold?: number;
+  };
   limits?: SkillsLimitsConfig;
   entries?: Record<string, SkillConfig>;
 };

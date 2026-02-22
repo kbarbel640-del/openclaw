@@ -14,6 +14,13 @@ import {
   SessionSendPolicySchema,
 } from "./zod-schema.session.js";
 
+const IPv4AddressPattern =
+  /^(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+function isLegacyGatewayBindIp(value: string): boolean {
+  return IPv4AddressPattern.test(value.trim());
+}
+
 const BrowserSnapshotDefaultsSchema = z
   .object({
     mode: z.literal("efficient").optional(),
@@ -411,6 +418,10 @@ export const OpenClawSchema = z
             z.literal("loopback"),
             z.literal("custom"),
             z.literal("tailnet"),
+            z.string().regex(IPv4AddressPattern, {
+              message:
+                'bind must be one of "auto", "lan", "loopback", "custom", "tailnet", or an IPv4 address',
+            }),
           ])
           .optional(),
         customBindHost: z.string().optional(),
@@ -583,6 +594,18 @@ export const OpenClawSchema = z
           .optional(),
       })
       .strict()
+      .transform((gateway) => {
+        const bind = gateway.bind;
+        if (typeof bind !== "string" || !isLegacyGatewayBindIp(bind)) {
+          return gateway;
+        }
+
+        return {
+          ...gateway,
+          bind: "custom" as const,
+          customBindHost: bind.trim(),
+        };
+      })
       .optional(),
     memory: MemorySchema,
     skills: z
@@ -602,6 +625,13 @@ export const OpenClawSchema = z
             nodeManager: z
               .union([z.literal("npm"), z.literal("pnpm"), z.literal("yarn"), z.literal("bun")])
               .optional(),
+          })
+          .strict()
+          .optional(),
+        autoInvoke: z
+          .object({
+            enabled: z.boolean().optional(),
+            threshold: z.number().int().min(1).optional(),
           })
           .strict()
           .optional(),
