@@ -27,7 +27,9 @@ const localeDirPattern = /^[a-z]{2}-[A-Z]{2}$/;
 const EXCLUDED_DIRS = new Set(["archive", "research"]);
 
 function printHelp() {
-  console.log(`Usage: pnpm docs:list [--include-translations]\n\nOptions:\n  --include-translations  Include docs/<locale>/ directories\n  -h, --help              Show this help message`);
+  console.log(
+    `Usage: pnpm docs:list [--include-translations]\n\nOptions:\n  --include-translations  Include docs/<locale>/ directories\n  -h, --help              Show this help message`,
+  );
 }
 
 /**
