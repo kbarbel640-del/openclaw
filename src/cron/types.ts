@@ -41,6 +41,8 @@ export type CronRunTelemetry = {
   model?: string;
   provider?: string;
   usage?: CronUsageSummary;
+  deliveryStatus?: unknown;
+  deliveryError?: string;
 };
 
 export type CronRunOutcome = {

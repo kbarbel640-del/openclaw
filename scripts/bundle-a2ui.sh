@@ -89,7 +89,15 @@ pnpm -s exec tsc -p "$A2UI_RENDERER_DIR/tsconfig.json"
 if command -v rolldown >/dev/null 2>&1; then
   rolldown -c "$A2UI_APP_DIR/rolldown.config.mjs"
 else
-  pnpm -s dlx rolldown -c "$A2UI_APP_DIR/rolldown.config.mjs"
+  # Some CI/container environments cannot download ad-hoc dlx binaries (for example
+  # private npm mirrors or restricted registries). If a prebuilt bundle exists, keep it.
+  if ! pnpm -s dlx rolldown -c "$A2UI_APP_DIR/rolldown.config.mjs"; then
+    if [[ -f "$OUTPUT_FILE" ]]; then
+      echo "A2UI rolldown unavailable; keeping existing prebuilt bundle."
+      exit 0
+    fi
+    exit 1
+  fi
 fi
 
 echo "$current_hash" > "$HASH_FILE"
