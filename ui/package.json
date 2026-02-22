@@ -5,9 +5,9 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "patch": "bash ../patch-ui.sh",
     "preview": "vite preview",
-    "test": "vitest run --config vitest.config.ts",
-    "patch": "bash ../patch-ui.sh"
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@lit-labs/signals": "^0.2.0",
