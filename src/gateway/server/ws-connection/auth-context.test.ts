@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthRateLimiter } from "../../auth-rate-limit.js";
 import { resolveConnectAuthDecision, type ConnectAuthState } from "./auth-context.js";
 
+type VerifyDeviceTokenFn = Parameters<typeof resolveConnectAuthDecision>[0]["verifyDeviceToken"];
+
 function createRateLimiter(params?: { allowed?: boolean; retryAfterMs?: number }): {
   limiter: AuthRateLimiter;
   reset: ReturnType<typeof vi.fn>;
@@ -35,7 +37,7 @@ function createBaseState(overrides?: Partial<ConnectAuthState>): ConnectAuthStat
 }
 
 async function resolveDeviceTokenDecision(params: {
-  verifyDeviceToken: ReturnType<typeof vi.fn>;
+  verifyDeviceToken: VerifyDeviceTokenFn;
   stateOverrides?: Partial<ConnectAuthState>;
   rateLimiter?: AuthRateLimiter;
   clientIp?: string;
