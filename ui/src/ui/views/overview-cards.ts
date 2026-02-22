@@ -54,44 +54,52 @@ export function renderOverviewCards(props: OverviewCardsProps) {
 
   return html`
     <section class="ov-cards">
-      <div class="card ov-stat-card clickable" @click=${() => props.onNavigate("usage")}>
-        <div class="ov-stat-card__icon">${icons.barChart}</div>
-        <div class="ov-stat-card__body">
-          <div class="stat-label">${t("overview.cards.cost")}</div>
-          <div class="stat-value ${props.redacted ? "redacted" : ""}">${redact(totalCost, props.redacted)}</div>
-          <div class="muted">${redact(`${totalTokens} tokens · ${totalMessages} messages`, props.redacted)}</div>
-        </div>
-      </div>
-      <div class="card ov-stat-card clickable" @click=${() => props.onNavigate("sessions")}>
-        <div class="ov-stat-card__icon">${icons.fileText}</div>
-        <div class="ov-stat-card__body">
-          <div class="stat-label">${t("overview.stats.sessions")}</div>
-          <div class="stat-value">${sessionCount ?? t("common.na")}</div>
-          <div class="muted">${t("overview.stats.sessionsHint")}</div>
-        </div>
-      </div>
-      <div class="card ov-stat-card clickable" @click=${() => props.onNavigate("skills")}>
-        <div class="ov-stat-card__icon">${icons.zap}</div>
-        <div class="ov-stat-card__body">
-          <div class="stat-label">${t("overview.cards.skills")}</div>
-          <div class="stat-value">${enabledSkills}/${totalSkills}</div>
-          <div class="muted">${blockedSkills > 0 ? `${blockedSkills} blocked` : `${enabledSkills} active`}</div>
-        </div>
-      </div>
-      <div class="card ov-stat-card clickable" @click=${() => props.onNavigate("cron")}>
-        <div class="ov-stat-card__icon">${icons.scrollText}</div>
-        <div class="ov-stat-card__body">
-          <div class="stat-label">${t("overview.stats.cron")}</div>
-          <div class="stat-value">
-            ${cronEnabled == null ? t("common.na") : cronEnabled ? `${cronJobCount} jobs` : t("common.disabled")}
+      <div class="card ov-stat-card clickable" data-kind="cost" @click=${() => props.onNavigate("usage")}>
+        <div class="ov-stat-card__inner">
+          <div class="ov-stat-card__icon">${icons.barChart}</div>
+          <div class="ov-stat-card__body">
+            <div class="stat-label">${t("overview.cards.cost")}</div>
+            <div class="stat-value ${props.redacted ? "redacted" : ""}">${redact(totalCost, props.redacted)}</div>
+            <div class="muted">${redact(`${totalTokens} tokens · ${totalMessages} msgs`, props.redacted)}</div>
           </div>
-          <div class="muted">
-            ${
-              failedCronCount > 0
-                ? html`<span class="danger">${failedCronCount} failed</span>`
-                : nothing
-            }
-            ${cronNext ? t("overview.stats.cronNext", { time: formatNextRun(cronNext) }) : ""}
+        </div>
+      </div>
+      <div class="card ov-stat-card clickable" data-kind="sessions" @click=${() => props.onNavigate("sessions")}>
+        <div class="ov-stat-card__inner">
+          <div class="ov-stat-card__icon">${icons.fileText}</div>
+          <div class="ov-stat-card__body">
+            <div class="stat-label">${t("overview.stats.sessions")}</div>
+            <div class="stat-value">${sessionCount ?? t("common.na")}</div>
+            <div class="muted">${t("overview.stats.sessionsHint")}</div>
+          </div>
+        </div>
+      </div>
+      <div class="card ov-stat-card clickable" data-kind="skills" @click=${() => props.onNavigate("skills")}>
+        <div class="ov-stat-card__inner">
+          <div class="ov-stat-card__icon">${icons.zap}</div>
+          <div class="ov-stat-card__body">
+            <div class="stat-label">${t("overview.cards.skills")}</div>
+            <div class="stat-value">${enabledSkills}/${totalSkills}</div>
+            <div class="muted">${blockedSkills > 0 ? `${blockedSkills} blocked` : `${enabledSkills} active`}</div>
+          </div>
+        </div>
+      </div>
+      <div class="card ov-stat-card clickable" data-kind="cron" @click=${() => props.onNavigate("cron")}>
+        <div class="ov-stat-card__inner">
+          <div class="ov-stat-card__icon">${icons.scrollText}</div>
+          <div class="ov-stat-card__body">
+            <div class="stat-label">${t("overview.stats.cron")}</div>
+            <div class="stat-value">
+              ${cronEnabled == null ? t("common.na") : cronEnabled ? `${cronJobCount} jobs` : t("common.disabled")}
+            </div>
+            <div class="muted">
+              ${
+                failedCronCount > 0
+                  ? html`<span class="danger">${failedCronCount} failed</span>`
+                  : nothing
+              }
+              ${cronNext ? t("overview.stats.cronNext", { time: formatNextRun(cronNext) }) : ""}
+            </div>
           </div>
         </div>
       </div>
