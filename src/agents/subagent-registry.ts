@@ -121,7 +121,7 @@ function triggerCleanupAndAnnounce(runId: string) {
     label: entry.label,
     outcome: entry.outcome,
   }).then((didAnnounce) => {
-    finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
+    void finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
   });
 }
 
@@ -450,7 +450,7 @@ function ensureListener() {
     if (phase !== "end" && phase !== "error") {
       return;
     }
-    const endedAt = typeof evt.data?.endedAt === "number" ? evt.data.endedAt : Date.now();
+    entry.endedAt = typeof evt.data?.endedAt === "number" ? evt.data.endedAt : Date.now();
     const error = typeof evt.data?.error === "string" ? evt.data.error : undefined;
     if (phase === "error") {
       entry.outcome = { status: "error", error };
