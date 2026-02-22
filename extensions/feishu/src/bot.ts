@@ -891,6 +891,10 @@ export async function handleFeishuMessage(params: {
         replyOptions: permReplyOptions,
       });
 
+      // Wait for all queued deliveries to complete before signaling idle.
+      // This prevents closeStreaming() from racing with a pending final deliver,
+      // which would cause the streaming card and a fallback reply both to be sent.
+      await permDispatcher.waitForIdle();
       markPermIdle();
     }
 
@@ -977,6 +981,10 @@ export async function handleFeishuMessage(params: {
       replyOptions,
     });
 
+    // Wait for all queued deliveries to complete before signaling idle.
+    // This prevents closeStreaming() from racing with a pending final deliver,
+    // which would cause the streaming card and a fallback reply both to be sent.
+    await dispatcher.waitForIdle();
     markDispatchIdle();
 
     if (isGroup && historyKey && chatHistories) {

@@ -7,7 +7,7 @@ import { setFeishuRuntime } from "./runtime.js";
 const { mockCreateFeishuReplyDispatcher, mockSendMessageFeishu, mockGetMessageFeishu } = vi.hoisted(
   () => ({
     mockCreateFeishuReplyDispatcher: vi.fn(() => ({
-      dispatcher: vi.fn(),
+      dispatcher: { waitForIdle: vi.fn().mockResolvedValue(undefined) },
       replyOptions: {},
       markDispatchIdle: vi.fn(),
     })),

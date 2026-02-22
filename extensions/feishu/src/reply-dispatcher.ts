@@ -81,6 +81,10 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   let lastPartial = "";
   let partialUpdateQueue: Promise<void> = Promise.resolve();
   let streamingStartPromise: Promise<void> | null = null;
+  // Track whether a streaming card was successfully sent to the user.
+  // Used as a guard to prevent a fallback reply when streaming closes early
+  // (e.g. due to onIdle racing with a pending final deliver).
+  let streamingCardSent = false;
 
   const startStreaming = () => {
     if (!streamingEnabled || streamingStartPromise || streaming) {
@@ -100,6 +104,7 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
       );
       try {
         await streaming.start(chatId, resolveReceiveIdType(chatId));
+        streamingCardSent = true;
       } catch (error) {
         params.runtime.error?.(`feishu: streaming start failed: ${String(error)}`);
         streaming = null;
@@ -156,6 +161,13 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
             streamText = text;
             await closeStreaming();
           }
+          return;
+        }
+
+        // Guard: if the streaming card was already sent to the user but the session
+        // is no longer active (e.g. closed early by onIdle racing with this deliver),
+        // do not send a fallback reply — that would create a duplicate message.
+        if (streamingCardSent) {
           return;
         }
 

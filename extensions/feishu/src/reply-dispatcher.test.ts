@@ -113,4 +113,32 @@ describe("createFeishuReplyDispatcher streaming behavior", () => {
     expect(sendMessageFeishuMock).not.toHaveBeenCalled();
     expect(sendMarkdownCardFeishuMock).not.toHaveBeenCalled();
   });
+
+  it("does not send fallback reply when streaming card was sent but session closed early", async () => {
+    createFeishuReplyDispatcher({
+      cfg: {} as never,
+      agentId: "agent",
+      runtime: { log: vi.fn(), error: vi.fn() } as never,
+      chatId: "oc_chat",
+    });
+
+    const options = createReplyDispatcherWithTypingMock.mock.calls[0]?.[0];
+
+    // Simulate streaming starting and sending a card (streamingCardSent = true)
+    // by delivering a markdown payload first (which starts streaming)
+    await options.deliver({ text: "```ts\nconst x = 1\n```" }, { kind: "block" });
+
+    expect(streamingInstances).toHaveLength(1);
+    expect(streamingInstances[0].start).toHaveBeenCalledTimes(1);
+
+    // Simulate streaming being closed externally (e.g. by onIdle racing with final deliver)
+    streamingInstances[0].active = false;
+
+    // Now deliver the final payload — streaming is inactive but card was already sent
+    await options.deliver({ text: "```ts\nconst x = 1\n```" }, { kind: "final" });
+
+    // No fallback send should occur since streaming card was already sent to the user
+    expect(sendMessageFeishuMock).not.toHaveBeenCalled();
+    expect(sendMarkdownCardFeishuMock).not.toHaveBeenCalled();
+  });
 });
