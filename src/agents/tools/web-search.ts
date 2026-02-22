@@ -53,12 +53,14 @@ const WebSearchSchema = Type.Object({
   ),
   search_lang: Type.Optional(
     Type.String({
-      description: "ISO language code for search results (e.g., 'de', 'en', 'fr').",
+      description:
+        "Short ISO 639-1 language code for search results (e.g., 'en', 'fr', 'de', 'tr').",
     }),
   ),
   ui_lang: Type.Optional(
     Type.String({
-      description: "ISO language code for UI elements.",
+      description:
+        "BCP-47 locale code for UI elements, with region (e.g., 'en-US', 'fr-FR', 'tr-TR').",
     }),
   ),
   freshness: Type.Optional(
