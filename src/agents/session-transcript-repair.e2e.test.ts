@@ -4,6 +4,7 @@ import {
   sanitizeToolCallInputs,
   sanitizeToolUseResultPairing,
   repairToolUseResultPairing,
+  repairToolCallInputs,
 } from "./session-transcript-repair.js";
 
 describe("sanitizeToolUseResultPairing", () => {
@@ -259,5 +260,87 @@ describe("sanitizeToolCallInputs", () => {
       ? assistant.content.map((block) => (block as { type?: unknown }).type)
       : [];
     expect(types).toEqual(["text", "toolUse"]);
+  });
+
+  it("drops tool calls with corrupted names (>64 chars)", () => {
+    const corruptedName = 'toolu_01mvznfebfuuynfuoyxf895d <|tool_call_argument_begin|> {"command"';
+    const input: AgentMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "toolCall", id: "call_1", name: corruptedName, arguments: {} },
+          { type: "toolCall", id: "call_2", name: "read", arguments: {} },
+        ],
+      } as Extract<AgentMessage, { role: "assistant" }>,
+    ];
+
+    const { messages, droppedToolCalls } = repairToolCallInputs(input);
+
+    expect(droppedToolCalls).toBe(1);
+    expect(messages).toHaveLength(1);
+    const assistant = messages[0] as Extract<AgentMessage, { role: "assistant" }>;
+    expect(assistant.content).toHaveLength(1);
+    expect((assistant.content[0] as { name?: string }).name).toBe("read");
+  });
+
+  it("drops tool calls with invalid characters in name", () => {
+    const input: AgentMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "toolCall", id: "call_1", name: "tool<script>", arguments: {} },
+          { type: "toolCall", id: "call_2", name: "valid_tool-name", arguments: {} },
+        ],
+      } as Extract<AgentMessage, { role: "assistant" }>,
+    ];
+
+    const { messages, droppedToolCalls } = repairToolCallInputs(input);
+
+    expect(droppedToolCalls).toBe(1);
+    expect(messages).toHaveLength(1);
+    const assistant = messages[0] as Extract<AgentMessage, { role: "assistant" }>;
+    expect(assistant.content).toHaveLength(1);
+    expect((assistant.content[0] as { name?: string }).name).toBe("valid_tool-name");
+  });
+
+  it("keeps tool calls with valid names (alphanumeric, underscore, hyphen)", () => {
+    const input: AgentMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "toolCall", id: "call_1", name: "read", arguments: {} },
+          { type: "toolCall", id: "call_2", name: "bash_exec", arguments: {} },
+          { type: "toolCall", id: "call_3", name: "tool-name-123", arguments: {} },
+        ],
+      } as Extract<AgentMessage, { role: "assistant" }>,
+    ];
+
+    const { messages, droppedToolCalls } = repairToolCallInputs(input);
+
+    expect(droppedToolCalls).toBe(0);
+    expect(messages).toHaveLength(1);
+    const assistant = messages[0] as Extract<AgentMessage, { role: "assistant" }>;
+    expect(assistant.content).toHaveLength(3);
+  });
+
+  it("drops assistant message when all tool calls have corrupted names", () => {
+    const input: AgentMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call_1",
+            name: "x".repeat(70),
+            arguments: {},
+          },
+        ],
+      } as Extract<AgentMessage, { role: "assistant" }>,
+    ];
+
+    const { messages, droppedAssistantMessages } = repairToolCallInputs(input);
+
+    expect(droppedAssistantMessages).toBe(1);
+    expect(messages).toHaveLength(0);
   });
 });

@@ -39,6 +39,32 @@ function hasToolCallName(block: ToolCallBlock): boolean {
   return hasNonEmptyStringField(block.name);
 }
 
+/**
+ * Validate tool call name against provider constraints.
+ * Returns true if name is valid, false otherwise.
+ *
+ * Provider constraints:
+ * - OpenAI: max 64 chars
+ * - AWS Bedrock: max 64 chars + pattern [a-zA-Z0-9_-]+
+ * - General: must be non-empty string
+ */
+function isValidToolCallName(name: unknown): boolean {
+  if (typeof name !== "string" || !name.trim()) {
+    return false;
+  }
+  const trimmed = name.trim();
+  // Max length check (most restrictive provider constraint)
+  if (trimmed.length > 64) {
+    return false;
+  }
+  // Pattern check: alphanumeric, underscore, hyphen only
+  // This matches AWS Bedrock's pattern: [a-zA-Z0-9_-]+
+  if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+    return false;
+  }
+  return true;
+}
+
 function makeMissingToolResult(params: {
   toolCallId: string;
   toolName?: string;
@@ -106,10 +132,20 @@ export function repairToolCallInputs(messages: AgentMessage[]): ToolCallInputRep
     let droppedInMessage = 0;
 
     for (const block of msg.content) {
-      if (
-        isToolCallBlock(block) &&
-        (!hasToolCallInput(block) || !hasToolCallId(block) || !hasToolCallName(block))
-      ) {
+      if (!isToolCallBlock(block)) {
+        nextContent.push(block);
+        continue;
+      }
+
+      // Type assertion after type guard
+      const toolCallBlock = block as ToolCallBlock;
+      const hasInput = hasToolCallInput(toolCallBlock);
+      const hasId = hasToolCallId(toolCallBlock);
+      const hasName = hasToolCallName(toolCallBlock);
+      const validName =
+        typeof toolCallBlock.name === "string" && isValidToolCallName(toolCallBlock.name);
+
+      if (!hasInput || !hasId || !hasName || !validName) {
         droppedToolCalls += 1;
         droppedInMessage += 1;
         changed = true;
