@@ -30,7 +30,7 @@ describe("onboard auth provider config merges", () => {
       models: {
         providers: {
           custom: {
-            api: "openai-completions",
+            api: "openai-completions" as const,
             baseUrl: "https://old.example.com/v1",
             apiKey: "  test-key  ",
             models: [makeModel("model-a")],
@@ -42,7 +42,7 @@ describe("onboard auth provider config merges", () => {
     const next = applyProviderConfigWithDefaultModels(cfg, {
       agentModels,
       providerId: "custom",
-      api: "openai-completions",
+      api: "openai-completions" as const,
       baseUrl: "https://new.example.com/v1",
       defaultModels: [makeModel("model-b")],
       defaultModelId: "model-b",
@@ -61,7 +61,7 @@ describe("onboard auth provider config merges", () => {
       models: {
         providers: {
           custom: {
-            api: "openai-completions",
+            api: "openai-completions" as const,
             baseUrl: "https://example.com/v1",
             models: [makeModel("model-a")],
           },
@@ -72,7 +72,7 @@ describe("onboard auth provider config merges", () => {
     const next = applyProviderConfigWithModelCatalog(cfg, {
       agentModels,
       providerId: "custom",
-      api: "openai-completions",
+      api: "openai-completions" as const,
       baseUrl: "https://example.com/v1",
       catalogModels: [makeModel("model-a"), makeModel("model-c")],
     });
@@ -89,7 +89,7 @@ describe("onboard auth provider config merges", () => {
       {
         agentModels,
         providerId: "custom",
-        api: "openai-completions",
+        api: "openai-completions" as const,
         baseUrl: "https://example.com/v1",
         defaultModel: makeModel("model-z"),
       },

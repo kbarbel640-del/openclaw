@@ -21,15 +21,22 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
     preferMacAppExecHost: boolean;
     runViaResponse?: ExecHostResponse | null;
   }) {
-    const runCommand = vi.fn(async () => ({
-      success: true,
-      stdout: "local-ok",
-      stderr: "",
-      timedOut: false,
-      truncated: false,
-      exitCode: 0,
-      error: null,
-    }));
+    const runCommand = vi.fn(
+      async (
+        _argv: string[],
+        _cwd: string | undefined,
+        _env: Record<string, string> | undefined,
+        _timeoutMs: number | undefined,
+      ) => ({
+        success: true,
+        stdout: "local-ok",
+        stderr: "",
+        timedOut: false,
+        truncated: false,
+        exitCode: 0,
+        error: null,
+      }),
+    );
     const runViaMacAppExecHost = vi.fn(async () => params.runViaResponse ?? null);
     const sendInvokeResult = vi.fn(async () => {});
     const sendExecFinishedEvent = vi.fn(async () => {});
