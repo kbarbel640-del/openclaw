@@ -518,7 +518,11 @@ function stampConfigVersion(cfg: OpenClawConfig): OpenClawConfig {
   };
 }
 
+let hasWarnedConfigFromFuture = false;
 function warnIfConfigFromFuture(cfg: OpenClawConfig, logger: Pick<typeof console, "warn">): void {
+  if (hasWarnedConfigFromFuture) {
+    return;
+  }
   const touched = cfg.meta?.lastTouchedVersion;
   if (!touched) {
     return;
@@ -528,6 +532,7 @@ function warnIfConfigFromFuture(cfg: OpenClawConfig, logger: Pick<typeof console
     return;
   }
   if (cmp < 0) {
+    hasWarnedConfigFromFuture = true;
     logger.warn(
       `Config was last written by a newer OpenClaw (${touched}); current version is ${VERSION}.`,
     );
