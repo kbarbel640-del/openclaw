@@ -10,11 +10,7 @@ import { resolveChannelCapabilities } from "../../../config/channel-capabilities
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
-import {
-  isCronSessionKey,
-  isSubagentSessionKey,
-  normalizeAgentId,
-} from "../../../routing/session-key.js";
+import { isSubagentSessionKey, normalizeAgentId } from "../../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../../signal/reaction-level.js";
 import { resolveTelegramInlineButtonsScope } from "../../../telegram/inline-buttons.js";
 import { resolveTelegramReactionLevel } from "../../../telegram/reaction-level.js";
@@ -75,6 +71,7 @@ import {
   sanitizeAntigravityThinkingBlocks,
   sanitizeSessionHistory,
   sanitizeToolsForGoogle,
+  sanitizeToolNamesForBedrock,
 } from "../google.js";
 import { getDmHistoryLimitFromSessionKey, limitHistoryTurns } from "../history.js";
 import { log } from "../logger.js";
@@ -319,7 +316,10 @@ export async function runEmbeddedAttempt(
             params.requireExplicitMessageTarget ?? isSubagentSessionKey(params.sessionKey),
           disableMessageTool: params.disableMessageTool,
         });
-    const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
+    const tools = sanitizeToolNamesForBedrock({
+      tools: sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider }),
+      provider: params.provider,
+    });
     logToolSchemasForGoogle({ tools, provider: params.provider });
 
     const machineName = await getMachineDisplayName();
@@ -414,10 +414,10 @@ export async function runEmbeddedAttempt(
       },
     });
     const isDefaultAgent = sessionAgentId === defaultAgentId;
-    const promptMode =
-      isSubagentSessionKey(params.sessionKey) || isCronSessionKey(params.sessionKey)
-        ? "minimal"
-        : "full";
+    // Subagents use "minimal" prompt mode because they inherit context from their parent session.
+    // Cron isolated sessions are fully independent agents and need the complete prompt (including
+    // skills) to function correctly. See: https://github.com/openclaw/openclaw/issues/19795
+    const promptMode = isSubagentSessionKey(params.sessionKey) ? "minimal" : "full";
     const docsPath = await resolveOpenClawDocsPath({
       workspaceDir: effectiveWorkspace,
       argv1: process.argv[1],
