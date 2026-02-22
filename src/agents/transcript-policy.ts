@@ -90,6 +90,7 @@ export function resolveTranscriptPolicy(params: {
     !isOpenAi &&
     !OPENAI_COMPAT_TURN_MERGE_EXCLUDED_PROVIDERS.has(provider);
   const isMistral = isMistralModel({ provider, modelId });
+  const isOllama = params.modelApi === "ollama";
   const isOpenRouterGemini =
     (provider === "openrouter" || provider === "opencode" || provider === "kilocode") &&
     modelId.toLowerCase().includes("gemini");
@@ -100,9 +101,10 @@ export function resolveTranscriptPolicy(params: {
   // Drop these blocks at send-time to keep sessions usable.
   const dropThinkingBlocks = isCopilotClaude;
 
-  const needsNonImageSanitize = isGoogle || isAnthropic || isMistral || isOpenRouterGemini;
+  const needsNonImageSanitize =
+    isGoogle || isAnthropic || isMistral || isOpenRouterGemini || isOllama;
 
-  const sanitizeToolCallIds = isGoogle || isMistral || isAnthropic;
+  const sanitizeToolCallIds = isGoogle || isMistral || isAnthropic || isOllama;
   const toolCallIdMode: ToolCallIdMode | undefined = isMistral
     ? "strict9"
     : sanitizeToolCallIds
@@ -127,6 +129,6 @@ export function resolveTranscriptPolicy(params: {
     applyGoogleTurnOrdering: !isOpenAi && isGoogle,
     validateGeminiTurns: !isOpenAi && isGoogle,
     validateAnthropicTurns: !isOpenAi && (isAnthropic || isStrictOpenAiCompatible),
-    allowSyntheticToolResults: !isOpenAi && (isGoogle || isAnthropic),
+    allowSyntheticToolResults: !isOpenAi && (isGoogle || isAnthropic || isOllama),
   };
 }
