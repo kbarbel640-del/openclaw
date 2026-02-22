@@ -282,19 +282,24 @@ export async function recoverPendingDeliveries(opts: {
       recovered += 1;
       opts.log.info(`Recovered delivery ${entry.id} to ${entry.channel}:${entry.to}`);
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (isPermanentDeliveryError(errMsg)) {
+        opts.log.warn(`Delivery ${entry.id} hit permanent error — moving to failed/: ${errMsg}`);
+        try {
+          await moveToFailed(entry.id, opts.stateDir);
+        } catch (moveErr) {
+          opts.log.error(`Failed to move entry ${entry.id} to failed/: ${String(moveErr)}`);
+        }
+        failed += 1;
+        continue;
+      }
       try {
-        await failDelivery(
-          entry.id,
-          err instanceof Error ? err.message : String(err),
-          opts.stateDir,
-        );
+        await failDelivery(entry.id, errMsg, opts.stateDir);
       } catch {
         // Best-effort update.
       }
       failed += 1;
-      opts.log.warn(
-        `Retry failed for delivery ${entry.id}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      opts.log.warn(`Retry failed for delivery ${entry.id}: ${errMsg}`);
     }
   }
 
@@ -302,6 +307,30 @@ export async function recoverPendingDeliveries(opts: {
     `Delivery recovery complete: ${recovered} recovered, ${failed} failed, ${skipped} skipped (max retries)`,
   );
   return { recovered, failed, skipped };
+}
+
+/**
+ * Patterns that indicate a delivery failure is permanent and should not be
+ * retried.  These errors are structural — the target doesn't exist or the
+ * channel cannot reach it regardless of how many times we retry.
+ */
+const PERMANENT_ERROR_PATTERNS: readonly RegExp[] = [
+  /no conversation reference found/i,
+  /chat not found/i,
+  /user not found/i,
+  /bot was blocked by the user/i,
+  /forbidden: bot was kicked/i,
+  /chat_id is empty/i,
+  /recipient is not a valid/i,
+  /outbound not configured for channel/i,
+];
+
+/**
+ * Returns `true` when an error message matches a known non-recoverable
+ * pattern.  These failures will never succeed on retry.
+ */
+export function isPermanentDeliveryError(error: string): boolean {
+  return PERMANENT_ERROR_PATTERNS.some((re) => re.test(error));
 }
 
 export { MAX_RETRIES };
