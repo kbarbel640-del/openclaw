@@ -36,7 +36,7 @@ function matchKeyword(text: string, tokens: Set<string>, keyword: string): boole
   if (normalizedKeyword.includes(" ")) {
     return text.includes(normalizedKeyword);
   }
-  return tokens.has(normalizedKeyword) || text.includes(normalizedKeyword);
+  return tokens.has(normalizedKeyword);
 }
 
 function parseSkillHintList(frontmatter: Record<string, unknown>, keys: string[]): string[] {
