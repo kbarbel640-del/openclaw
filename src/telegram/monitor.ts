@@ -92,6 +92,7 @@ const isGrammyHttpError = (err: unknown): boolean => {
 export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
   const log = opts.runtime?.error ?? console.error;
   let activeRunner: ReturnType<typeof run> | undefined;
+  let activeFetchAbort: AbortController | undefined;
   let forceRestarted = false;
 
   // Register handler for Grammy HttpError unhandled rejections.
@@ -108,6 +109,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
     // polling stuck; force-stop the active runner so the loop can recover.
     if (isNetworkError && activeRunner && activeRunner.isRunning()) {
       forceRestarted = true;
+      activeFetchAbort?.abort();
       void activeRunner.stop().catch(() => {});
       log(
         `[telegram] Restarting polling after unhandled network error: ${formatErrorMessage(err)}`,
@@ -211,6 +213,13 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
     };
 
     while (!opts.abortSignal?.aborted) {
+      // Per-iteration abort controller for in-flight Telegram API fetch requests.
+      // Aborting this immediately terminates the getUpdates HTTP request, preventing
+      // the 409 Conflict that occurs when a new instance starts polling while the
+      // old long-poll request is still hanging on Telegram's servers.
+      const fetchAbortController = new AbortController();
+      activeFetchAbort = fetchAbortController;
+
       let bot;
       try {
         bot = createTelegramBot({
@@ -219,6 +228,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
           proxyFetch,
           config: cfg,
           accountId: account.accountId,
+          fetchAbortSignal: fetchAbortController.signal,
           updateOffset: {
             lastUpdateId,
             onUpdateId: persistUpdateId,
@@ -259,6 +269,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
       activeRunner = runner;
       const stopOnAbort = () => {
         if (opts.abortSignal?.aborted) {
+          fetchAbortController.abort();
           void runner.stop();
         }
       };
@@ -303,6 +314,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
           throw sleepErr;
         }
       } finally {
+        fetchAbortController.abort();
         opts.abortSignal?.removeEventListener("abort", stopOnAbort);
         try {
           await runner.stop();
