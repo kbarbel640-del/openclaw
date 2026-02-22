@@ -394,6 +394,16 @@ export const FIELD_HELP: Record<string, string> = {
   "channels.discord.activityType":
     "Discord presence activity type (0=Playing,1=Streaming,2=Listening,3=Watching,4=Custom,5=Competing).",
   "channels.discord.activityUrl": "Discord presence streaming URL (required for activityType=1).",
+  "channels.discord.streaming":
+    'Discord stream preview mode. "off" (default) disables preview. "partial" edits a single message as tokens arrive. "block" emits draft-sized chunks. "progress" is an alias for "partial".',
+  "channels.discord.streamMode":
+    'Legacy alias for streaming. "partial" and "block" enable preview; "off" disables. Prefer "streaming" key.',
+  "channels.discord.draftChunk.minChars":
+    "Minimum chars before emitting a Discord stream preview update when streaming=block (default: 200).",
+  "channels.discord.draftChunk.maxChars":
+    "Target max size for a Discord stream preview chunk when streaming=block (default: 800; clamped to channels.discord.textChunkLimit).",
+  "channels.discord.draftChunk.breakPreference":
+    'How to break stream preview chunks: "paragraph" (default) prefers paragraph breaks, "sentence" prefers sentence breaks, "none" breaks only on size.',
   "channels.slack.dm.policy":
     'Direct message access control ("pairing" recommended). "open" requires channels.slack.allowFrom=["*"] (legacy: channels.slack.dm.allowFrom).',
   "channels.slack.dmPolicy":

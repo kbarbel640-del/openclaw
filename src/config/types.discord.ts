@@ -155,6 +155,12 @@ export type DiscordAccountConfig = {
   blockStreaming?: boolean;
   /** Merge streamed block replies before sending. */
   blockStreamingCoalesce?: BlockStreamingCoalesceConfig;
+  /** Discord stream preview mode (off|partial|block|progress). Default: off. */
+  streaming?: "off" | "partial" | "block" | "progress";
+  /** Legacy alias for streaming (partial|block|off). Default: off. */
+  streamMode?: "partial" | "block" | "off";
+  /** Chunking config for Discord stream previews in streaming: "block". */
+  draftChunk?: BlockStreamingChunkConfig;
   /**
    * Soft max line count per Discord message.
    * Discord clients can clip/collapse very tall messages; splitting by lines
