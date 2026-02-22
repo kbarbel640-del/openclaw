@@ -255,6 +255,52 @@ Triggered when the gateway starts:
 
 - **`gateway:startup`**: After channels start and hooks are loaded
 
+### Session Events
+
+Triggered when session properties are modified:
+
+- **`session:patch`**: When a session is updated
+
+#### Session Event Context
+
+The `session:patch` event includes:
+
+Security note: Only privileged clients can trigger session patch events; webchat/browser clients are blocked for security. Always enforce access controls in custom automations.
+
+```typescript
+{
+  sessionEntry: SessionEntry,  // The updated session entry
+  patch: object,               // The patch object with changes (label, thinkingLevel, etc.)
+  cfg: OpenClawConfig         // Current gateway config
+}
+```
+
+Common patch fields:
+
+- `label` - Session label (human-readable name)
+- `thinkingLevel` - Thinking level override (off/low/med/high)
+- `reasoningLevel` - Reasoning level override
+- `model` - Model override
+- `spawnedBy` - Parent session key (for subagents)
+
+#### Example: Session Patch Logger Hook
+
+```typescript
+import type { HookHandler } from "../../src/hooks/hooks.js";
+
+const handler: HookHandler = async (event) => {
+  if (event.type !== "session" || event.action !== "patch") {
+    return;
+  }
+
+  const { patch } = event.context;
+  console.log(`[session-patch] Session updated: ${event.sessionKey}`);
+  console.log(`[session-patch] Changes:`, patch);
+};
+
+export default handler;
+```
+
 ### Message Events
 
 Triggered when messages are received or sent:
