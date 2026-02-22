@@ -46,7 +46,9 @@ async function resolveDeviceTokenDecision(params: {
     deviceId: "dev-1",
     role: "operator",
     scopes: ["operator.read"],
-    verifyDeviceToken: params.verifyDeviceToken,
+    verifyDeviceToken: params.verifyDeviceToken as Parameters<
+      typeof resolveConnectAuthDecision
+    >[0]["verifyDeviceToken"],
     ...(params.rateLimiter ? { rateLimiter: params.rateLimiter } : {}),
     ...(params.clientIp ? { clientIp: params.clientIp } : {}),
   });

@@ -35,10 +35,20 @@ describe("slack native streaming thread hint", () => {
     ).toBe("1000.2");
   });
 
-  it("uses the existing incoming thread regardless of replyToMode", () => {
+  it("respects replyToMode=off even with incomingThreadTs", () => {
     expect(
       resolveSlackStreamingThreadHint({
         replyToMode: "off",
+        incomingThreadTs: "2000.1",
+        messageTs: "1000.3",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("uses the existing incoming thread when replyToMode allows it", () => {
+    expect(
+      resolveSlackStreamingThreadHint({
+        replyToMode: "all",
         incomingThreadTs: "2000.1",
         messageTs: "1000.3",
       }),

@@ -46,6 +46,10 @@ describe("resolveExistingInstallPath", () => {
 });
 
 describe("withExtractedArchiveRoot", () => {
+  const mockTmpDir = "/tmp/openclaw-install-flow";
+  const mockExtractDir = path.join(mockTmpDir, "extract");
+  const mockPackageDir = path.join(mockTmpDir, "extract", "package");
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -53,11 +57,11 @@ describe("withExtractedArchiveRoot", () => {
   it("extracts archive and passes root directory to callback", async () => {
     const withTempDirSpy = vi
       .spyOn(installSource, "withTempDir")
-      .mockImplementation(async (_prefix, fn) => await fn("/tmp/openclaw-install-flow"));
+      .mockImplementation(async (_prefix, fn) => await fn(mockTmpDir));
     const extractSpy = vi.spyOn(archive, "extractArchive").mockResolvedValue(undefined);
     const resolveRootSpy = vi
       .spyOn(archive, "resolvePackedRootDir")
-      .mockResolvedValue("/tmp/openclaw-install-flow/extract/package");
+      .mockResolvedValue(mockPackageDir);
 
     const onExtracted = vi.fn(async (rootDir: string) => ({ ok: true as const, rootDir }));
     const result = await withExtractedArchiveRoot({
@@ -73,17 +77,17 @@ describe("withExtractedArchiveRoot", () => {
         archivePath: "/tmp/plugin.tgz",
       }),
     );
-    expect(resolveRootSpy).toHaveBeenCalledWith("/tmp/openclaw-install-flow/extract");
-    expect(onExtracted).toHaveBeenCalledWith("/tmp/openclaw-install-flow/extract/package");
+    expect(resolveRootSpy).toHaveBeenCalledWith(mockExtractDir);
+    expect(onExtracted).toHaveBeenCalledWith(mockPackageDir);
     expect(result).toEqual({
       ok: true,
-      rootDir: "/tmp/openclaw-install-flow/extract/package",
+      rootDir: mockPackageDir,
     });
   });
 
   it("returns extract failure when extraction throws", async () => {
     vi.spyOn(installSource, "withTempDir").mockImplementation(
-      async (_prefix, fn) => await fn("/tmp/openclaw-install-flow"),
+      async (_prefix, fn) => await fn(mockTmpDir),
     );
     vi.spyOn(archive, "extractArchive").mockRejectedValue(new Error("boom"));
 
@@ -102,7 +106,7 @@ describe("withExtractedArchiveRoot", () => {
 
   it("returns root-resolution failure when archive layout is invalid", async () => {
     vi.spyOn(installSource, "withTempDir").mockImplementation(
-      async (_prefix, fn) => await fn("/tmp/openclaw-install-flow"),
+      async (_prefix, fn) => await fn(mockTmpDir),
     );
     vi.spyOn(archive, "extractArchive").mockResolvedValue(undefined);
     vi.spyOn(archive, "resolvePackedRootDir").mockRejectedValue(new Error("invalid layout"));

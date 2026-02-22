@@ -61,19 +61,43 @@ describe("resolveSlackThreadTs", () => {
   const threadTs = "1234567890.123456";
   const messageTs = "9999999999.999999";
 
-  it("stays in incoming threads for all replyToMode values", () => {
-    for (const replyToMode of ["off", "first", "all"] as const) {
-      for (const hasReplied of [false, true]) {
-        expect(
-          resolveSlackThreadTs({
-            replyToMode,
-            incomingThreadTs: threadTs,
-            messageTs,
-            hasReplied,
-          }),
-        ).toBe(threadTs);
-      }
-    }
+  it("stays in incoming threads when replyToMode allows threading", () => {
+    // "all" always threads; "first" threads until first reply
+    expect(
+      resolveSlackThreadTs({
+        replyToMode: "all",
+        incomingThreadTs: threadTs,
+        messageTs,
+        hasReplied: false,
+      }),
+    ).toBe(threadTs);
+    expect(
+      resolveSlackThreadTs({
+        replyToMode: "all",
+        incomingThreadTs: threadTs,
+        messageTs,
+        hasReplied: true,
+      }),
+    ).toBe(threadTs);
+    expect(
+      resolveSlackThreadTs({
+        replyToMode: "first",
+        incomingThreadTs: threadTs,
+        messageTs,
+        hasReplied: false,
+      }),
+    ).toBe(threadTs);
+  });
+
+  it("respects replyToMode=off even when incomingThreadTs is present", () => {
+    expect(
+      resolveSlackThreadTs({
+        replyToMode: "off",
+        incomingThreadTs: threadTs,
+        messageTs,
+        hasReplied: false,
+      }),
+    ).toBeUndefined();
   });
 
   describe("replyToMode=off", () => {
