@@ -229,8 +229,23 @@ JOB SCHEMA (for add action):
   "payload": { ... },       // Required: what to execute
   "delivery": { ... },      // Optional: announce summary or webhook POST
   "sessionTarget": "main" | "isolated",  // Required
+  "sessionKey": "string (optional)",     // Optional: target specific conversation/thread
   "enabled": true | false   // Optional, default true
 }
+
+SESSION KEY (optional sessionKey field):
+By default, main jobs deliver to the agent's main session (resolved via agentId).
+Use sessionKey to target a specific conversation/thread instead:
+  "sessionKey": "agent:main:telegram:group:-1003707749614:topic:1053"
+
+When sessionKey is present:
+- Job delivers to that exact conversation (preserves context)
+- Useful for "remind me in 30 minutes" in current chat
+- Supports topic-specific reminders (Telegram forums, Discord threads)
+- Isolated job summaries post back to that session
+
+Get sessionKey from session_status tool or conversation metadata.
+Backward compatible: jobs without sessionKey work as before (deliver to main session).
 
 SCHEDULE TYPES (schedule.kind):
 - "at": One-shot at absolute time
