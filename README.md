@@ -135,6 +135,11 @@ Run `openclaw doctor` to surface risky/misconfigured DM policies.
 - **[Companion apps](https://docs.openclaw.ai/platforms/macos)** — macOS menu bar app + iOS/Android [nodes](https://docs.openclaw.ai/nodes).
 - **[Onboarding](https://docs.openclaw.ai/start/wizard) + [skills](https://docs.openclaw.ai/tools/skills)** — wizard-driven setup with bundled/managed/workspace skills.
 
+## Community Use Cases
+
+- **Agentic Job Search (Joey System):** Filter out noisy "whiteboard-heavy" job descriptions and automatically flag builder-friendly roles.
+- **Outreach Automation:** Draft highly contextual, personalized DMs to startup founders scaling teams for "Phoebe-lite" agent roles. 
+- **Referral Tracking:** Persistently log networking interactions, follow-ups, and interview stages across platforms using local memory.
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=openclaw/openclaw&type=date&legend=top-left)](https://www.star-history.com/#openclaw/openclaw&type=date&legend=top-left)
