@@ -143,6 +143,8 @@ export function createChatRunRegistry(): ChatRunRegistry {
 export type ChatRunState = {
   registry: ChatRunRegistry;
   buffers: Map<string, string>;
+  blockBases: Map<string, string>;
+  lastBlockTexts: Map<string, string>;
   deltaSentAt: Map<string, number>;
   abortedRuns: Map<string, number>;
   /** Delete all buffer/delta state for a run (buffers, blockBases, lastBlockTexts, deltaSentAt). */
@@ -153,6 +155,8 @@ export type ChatRunState = {
 export function createChatRunState(): ChatRunState {
   const registry = createChatRunRegistry();
   const buffers = new Map<string, string>();
+  const blockBases = new Map<string, string>();
+  const lastBlockTexts = new Map<string, string>();
   const deltaSentAt = new Map<string, number>();
   const abortedRuns = new Map<string, number>();
 
@@ -166,6 +170,8 @@ export function createChatRunState(): ChatRunState {
   const clear = () => {
     registry.clear();
     buffers.clear();
+    blockBases.clear();
+    lastBlockTexts.clear();
     deltaSentAt.clear();
     abortedRuns.clear();
   };
@@ -173,6 +179,8 @@ export function createChatRunState(): ChatRunState {
   return {
     registry,
     buffers,
+    blockBases,
+    lastBlockTexts,
     deltaSentAt,
     abortedRuns,
     deleteRunBufferState,
