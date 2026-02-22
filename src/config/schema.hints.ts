@@ -181,6 +181,24 @@ function isUnwrappable(object: unknown): object is ZodDummy {
   );
 }
 
+function getPipeSchemas(schema: z.ZodType): { input: z.ZodType; output: z.ZodType } | undefined {
+  if (!(schema instanceof z.ZodPipe)) {
+    return undefined;
+  }
+  const definition = schema.def as { in?: z.ZodType; out?: z.ZodType };
+  if (!definition.in || !definition.out) {
+    return undefined;
+  }
+  return { input: definition.in, output: definition.out };
+}
+function getLazySchema(schema: z.ZodType): z.ZodType | undefined {
+  if (!(schema instanceof z.ZodLazy)) {
+    return undefined;
+  }
+  const getter = (schema._def as { getter?: () => z.ZodType }).getter;
+  return typeof getter === "function" ? getter() : undefined;
+}
+
 export function mapSensitivePaths(
   schema: z.ZodType,
   path: string,
@@ -223,6 +241,16 @@ export function mapSensitivePaths(
   } else if (currentSchema instanceof z.ZodIntersection) {
     next = mapSensitivePaths(currentSchema._def.left as z.ZodType, path, next);
     next = mapSensitivePaths(currentSchema._def.right as z.ZodType, path, next);
+  } else {
+    const pipeSchemas = getPipeSchemas(currentSchema);
+    if (pipeSchemas) {
+      next = mapSensitivePaths(pipeSchemas.input, path, next);
+      next = mapSensitivePaths(pipeSchemas.output, path, next);
+    }
+    const lazySchema = getLazySchema(currentSchema);
+    if (lazySchema) {
+      next = mapSensitivePaths(lazySchema, path, next);
+    }
   }
 
   return next;

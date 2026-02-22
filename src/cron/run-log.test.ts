@@ -150,6 +150,8 @@ describe("cron run log", () => {
           cache_read_tokens: 2,
           cache_write_tokens: 1,
         },
+        deliveryStatus: { channel: "slack", ok: true },
+        deliveryError: "",
       });
 
       await fs.appendFile(
@@ -178,6 +180,8 @@ describe("cron run log", () => {
       });
       expect(entries[1]?.model).toBeUndefined();
       expect(entries[1]?.provider).toBeUndefined();
+      expect(entries[0]?.deliveryStatus).toEqual({ channel: "slack", ok: true });
+      expect(entries[0]?.deliveryError).toBeUndefined();
       expect(entries[1]?.usage?.input_tokens).toBeUndefined();
     });
   });

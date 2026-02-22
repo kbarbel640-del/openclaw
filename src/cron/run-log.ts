@@ -131,6 +131,12 @@ export async function readCronRunLogEntries(
       if (typeof obj.delivered === "boolean") {
         entry.delivered = obj.delivered;
       }
+      if (obj.deliveryStatus && typeof obj.deliveryStatus === "object") {
+        entry.deliveryStatus = obj.deliveryStatus as Record<string, unknown>;
+      }
+      if (typeof obj.deliveryError === "string" && obj.deliveryError.trim().length > 0) {
+        entry.deliveryError = obj.deliveryError;
+      }
       if (typeof obj.sessionId === "string" && obj.sessionId.trim().length > 0) {
         entry.sessionId = obj.sessionId;
       }
