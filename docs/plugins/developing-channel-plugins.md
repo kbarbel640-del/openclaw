@@ -316,8 +316,6 @@ status: {
 - **commands**: Custom slash commands
 - **heartbeat**: Periodic health checks
 
-See the [Channel Adapter Reference](./channel-adapters.md) for detailed documentation.
-
 ## Development Workflow
 
 ### Local Development
@@ -605,9 +603,7 @@ See the [Email Channel](https://github.com/openclaw/openclaw-email-channel) repo
 ## Resources
 
 - [Plugin Manifest Specification](./manifest.md)
-- [Channel Adapter Reference](./channel-adapters.md)
 - [Community Plugins](./community.md)
-- [OpenClaw API Documentation](../api/README.md)
 
 ## Getting Help
 
