@@ -296,6 +296,39 @@ describe("describeReplyTarget", () => {
     expect(result?.forwardedFrom?.fromType).toBe("channel");
     expect(result?.forwardedFrom?.fromMessageId).toBe(456);
   });
+
+  it("extracts forwarded context from external_reply", () => {
+    const result = describeReplyTarget({
+      message_id: 5,
+      date: 1300,
+      chat: { id: 1, type: "private" },
+      text: "Comment on forwarded message",
+      external_reply: {
+        message_id: 4,
+        date: 1200,
+        chat: { id: 1, type: "private" },
+        text: "Forwarded from elsewhere",
+        forward_origin: {
+          type: "user",
+          sender_user: {
+            id: 123,
+            first_name: "Eve",
+            last_name: "Stone",
+            username: "eve",
+            is_bot: false,
+          },
+          date: 700,
+        },
+      },
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe("4");
+    expect(result?.forwardedFrom?.from).toBe("Eve Stone (@eve)");
+    expect(result?.forwardedFrom?.fromType).toBe("user");
+    expect(result?.forwardedFrom?.fromId).toBe("123");
+    expect(result?.forwardedFrom?.date).toBe(700);
+  });
 });
 
 describe("expandTextLinks", () => {
