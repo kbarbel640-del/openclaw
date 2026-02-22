@@ -2,7 +2,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { Badge } from "@/components/ui/badge";
-import type { Project, ProjectSLA, Task } from "@/lib/types";
+import type { Project, ProjectSLA, Task, KanbanColumnConfig } from "@/lib/types";
 
 const slaConfig: Record<ProjectSLA, { label: string; color: string; bg: string }> = {
   critical: {
@@ -27,6 +27,7 @@ interface ProjectSectionProps {
   tasks: Task[];
   defaultOpen?: boolean;
   onTaskClick: (task: Task) => void;
+  columns?: KanbanColumnConfig[];
 }
 
 export function ProjectSection({
@@ -34,6 +35,7 @@ export function ProjectSection({
   tasks,
   defaultOpen = false,
   onTaskClick,
+  columns,
 }: ProjectSectionProps) {
   const [expanded, setExpanded] = useState(defaultOpen);
   const sla = slaConfig[project.sla];
@@ -87,7 +89,12 @@ export function ProjectSection({
       {/* Kanban board for this project */}
       {expanded && (
         <div className="p-4 bg-[var(--bg-primary)]">
-          <KanbanBoard tasks={tasks} isLoading={false} onTaskClick={onTaskClick} />
+          <KanbanBoard
+            tasks={tasks}
+            isLoading={false}
+            onTaskClick={onTaskClick}
+            columns={columns}
+          />
         </div>
       )}
     </div>

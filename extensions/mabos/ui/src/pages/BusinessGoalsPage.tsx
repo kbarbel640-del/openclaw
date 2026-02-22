@@ -1,9 +1,9 @@
 import { Target, AlertCircle } from "lucide-react";
 import { useState, useMemo } from "react";
 import { GoalCard } from "@/components/goals/GoalCard";
-import { GoalDetailPanel } from "@/components/goals/GoalDetailPanel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePanels } from "@/contexts/PanelContext";
 import { useGoalModel } from "@/hooks/useGoalModel";
 import type { BusinessGoal, GoalLevel, GoalType } from "@/lib/types";
 
@@ -32,17 +32,15 @@ export function BusinessGoalsPage() {
   const { data: goalModel, isLoading, error } = useGoalModel(BUSINESS_ID);
   const [levelFilter, setLevelFilter] = useState<GoalLevel | "all">("all");
   const [typeFilter, setTypeFilter] = useState<GoalType | "all">("all");
-  const [selectedGoal, setSelectedGoal] = useState<BusinessGoal | null>(null);
+  const { openDetailPanel } = usePanels();
 
   // Transform the raw goal model into BusinessGoal objects
   const goals: BusinessGoal[] = useMemo(() => {
     if (!goalModel) return [];
     const model = goalModel as any;
 
-    // Goals live inside actors[].goals (Tropos model) or at top-level .goals
     let rawGoals: any[] = model.goals || [];
     if (rawGoals.length === 0 && Array.isArray(model.actors)) {
-      // Extract goals from all actors (stakeholder has the main goals)
       for (const actor of model.actors) {
         if (Array.isArray(actor.goals)) {
           for (const g of actor.goals) {
@@ -52,7 +50,6 @@ export function BusinessGoalsPage() {
       }
     }
 
-    // Also enrich with goal_mapping data (agent assignments)
     const mapping = Array.isArray(model.goal_mapping) ? model.goal_mapping : [];
 
     return rawGoals.map((g: any, idx: number) => {
@@ -156,7 +153,7 @@ export function BusinessGoalsPage() {
                 goal={goal}
                 onSelect={(id) => {
                   const found = goals.find((g) => g.id === id);
-                  if (found) setSelectedGoal(found);
+                  if (found) openDetailPanel("goal", found.id, found);
                 }}
               />
             ))}
@@ -173,15 +170,6 @@ export function BusinessGoalsPage() {
           </p>
         </div>
       )}
-
-      {/* Goal Detail Panel */}
-      <GoalDetailPanel
-        goal={selectedGoal}
-        open={selectedGoal !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedGoal(null);
-        }}
-      />
     </div>
   );
 }

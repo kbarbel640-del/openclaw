@@ -1,11 +1,11 @@
 import { Bell, AlertCircle } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DecisionCard } from "@/components/decisions/DecisionCard";
-import { DecisionDetailPanel } from "@/components/decisions/DecisionDetailPanel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePanels } from "@/contexts/PanelContext";
 import { useDecisions } from "@/hooks/useDecisions";
-import type { Decision, DecisionUrgency } from "@/lib/types";
+import type { DecisionUrgency } from "@/lib/types";
 
 const urgencyOptions: DecisionUrgency[] = ["critical", "high", "medium", "low"];
 
@@ -30,7 +30,7 @@ function DecisionCardSkeleton() {
 
 export function DecisionsPage() {
   const { data: decisions, isLoading, error } = useDecisions();
-  const [selectedDecision, setSelectedDecision] = useState<Decision | null>(null);
+  const { openDetailPanel } = usePanels();
   const [urgencyFilter, setUrgencyFilter] = useState<DecisionUrgency | "all">("all");
   const [businessFilter, setBusinessFilter] = useState<string>("all");
 
@@ -125,7 +125,7 @@ export function DecisionsPage() {
               <DecisionCard
                 key={decision.id}
                 decision={decision}
-                onClick={() => setSelectedDecision(decision)}
+                onClick={() => openDetailPanel("decision", decision.id, decision)}
               />
             ))}
       </div>
@@ -141,15 +141,6 @@ export function DecisionsPage() {
           </p>
         </div>
       )}
-
-      {/* Detail Panel */}
-      <DecisionDetailPanel
-        decision={selectedDecision}
-        open={selectedDecision !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedDecision(null);
-        }}
-      />
     </div>
   );
 }

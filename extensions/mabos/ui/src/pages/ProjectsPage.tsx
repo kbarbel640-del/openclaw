@@ -1,8 +1,10 @@
 import { AlertCircle, FolderKanban } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { ProjectSection } from "@/components/projects/ProjectSection";
-import { TaskDetail } from "@/components/tasks/TaskDetail";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePanels } from "@/contexts/PanelContext";
 import { useTasks } from "@/hooks/useTasks";
+import { perspectives } from "@/lib/sla-perspectives";
 import type { Task, Project, ProjectSLA } from "@/lib/types";
 
 const BUSINESS_ID = "vividwalls";
@@ -25,9 +27,7 @@ function deriveSLA(tasks: Task[]): ProjectSLA {
 
 export function ProjectsPage() {
   const { data: tasks = [], isLoading, error } = useTasks(BUSINESS_ID);
-
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const { openDetailPanel } = usePanels();
 
   // Group tasks by plan_name into projects
   const projects = useMemo(() => {
@@ -62,15 +62,7 @@ export function ProjectsPage() {
   }, [tasks]);
 
   function handleTaskClick(task: Task) {
-    setSelectedTask(task);
-    setDetailOpen(true);
-  }
-
-  function handleDetailOpenChange(open: boolean) {
-    setDetailOpen(open);
-    if (!open) {
-      setTimeout(() => setSelectedTask(null), 300);
-    }
+    openDetailPanel("task", task.id, task);
   }
 
   return (
@@ -122,19 +114,39 @@ export function ProjectsPage() {
         </div>
       )}
 
-      {/* Project sections */}
+      {/* SLA Perspective Tabs + Project sections */}
       {!isLoading && projects.length > 0 && (
-        <div className="space-y-4">
-          {projects.map((entry, index) => (
-            <ProjectSection
-              key={entry.project.id}
-              project={entry.project}
-              tasks={entry.tasks}
-              defaultOpen={index === 0}
-              onTaskClick={handleTaskClick}
-            />
+        <Tabs defaultValue="status" className="w-full">
+          <div className="flex justify-center mb-4">
+            <TabsList className="bg-[var(--bg-secondary)]">
+              {perspectives.map((p) => (
+                <TabsTrigger
+                  key={p.id}
+                  value={p.id}
+                  className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
+                >
+                  {p.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+          {perspectives.map((p) => (
+            <TabsContent key={p.id} value={p.id}>
+              <div className="space-y-4">
+                {projects.map((entry, index) => (
+                  <ProjectSection
+                    key={entry.project.id}
+                    project={entry.project}
+                    tasks={entry.tasks}
+                    defaultOpen={index === 0}
+                    onTaskClick={handleTaskClick}
+                    columns={p.columns}
+                  />
+                ))}
+              </div>
+            </TabsContent>
           ))}
-        </div>
+        </Tabs>
       )}
 
       {/* Empty state */}
@@ -144,9 +156,6 @@ export function ProjectsPage() {
           <p className="text-sm text-[var(--text-secondary)]">No projects found.</p>
         </div>
       )}
-
-      {/* Task Detail Sheet */}
-      <TaskDetail task={selectedTask} open={detailOpen} onOpenChange={handleDetailOpenChange} />
     </div>
   );
 }

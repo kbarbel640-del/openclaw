@@ -1,46 +1,46 @@
 import type { ReactNode } from "react";
 import { PanelProvider, usePanels } from "@/contexts/PanelContext";
-import { ChatPanel } from "../chat/ChatPanel";
-import { PanelTriggerButton } from "./PanelTriggerButton";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { FloatingChat } from "../chat/FloatingChat";
+import { EntityDetailPanel } from "./EntityDetailPanel";
+import { MobileNav } from "./MobileNav";
 import { Sidebar } from "./Sidebar";
 
 function AppShellInner({ children }: { children: ReactNode }) {
-  const { sidebarOpen, chatOpen, closeSidebar, closeChat } = usePanels();
+  const { sidebarMode } = usePanels();
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isPhone = useMediaQuery("(max-width: 320px)");
 
-  const anyOpen = sidebarOpen || chatOpen;
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-screen bg-[var(--bg-primary)]">
+        <MobileNav compact={isPhone} />
+        <main className="flex-1 overflow-y-auto p-4">{children}</main>
+        <EntityDetailPanel />
+        <FloatingChat />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--bg-primary)]">
-      <Sidebar />
-
-      {/* Backdrop */}
-      {anyOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 transition-opacity"
-          onClick={() => {
-            closeSidebar();
-            closeChat();
-          }}
-        />
-      )}
-
-      {/* Main content with animated margins */}
-      <main
-        className="flex-1 overflow-y-auto p-6 transition-[margin] duration-300 ease-in-out"
+    <>
+      <div
+        className="grid h-screen overflow-hidden bg-[var(--bg-primary)]"
         style={{
-          marginLeft: sidebarOpen ? 280 : 0,
-          marginRight: chatOpen ? 400 : 0,
+          gridTemplateColumns: `${sidebarMode === "collapsed" ? 64 : 280}px minmax(0, 1fr)`,
+          transition: "grid-template-columns 300ms ease-in-out",
         }}
       >
-        {children}
-      </main>
+        <Sidebar />
+        <main className="overflow-y-auto p-6">{children}</main>
+      </div>
 
-      <ChatPanel />
+      {/* Right detail panel: fixed-position overlay, NOT in grid */}
+      <EntityDetailPanel />
 
-      {/* Edge trigger buttons */}
-      <PanelTriggerButton side="left" />
-      <PanelTriggerButton side="right" />
-    </div>
+      {/* Floating chat: fixed-position, z-index above everything */}
+      <FloatingChat />
+    </>
   );
 }
 

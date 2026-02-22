@@ -195,3 +195,40 @@ export type Contractor = {
 };
 
 export type ContractorsResponse = Contractor[];
+
+// --- Panel / Layout ---
+
+export type SidebarMode = "collapsed" | "expanded";
+
+export type EntityType =
+  | "decision"
+  | "goal"
+  | "project"
+  | "task"
+  | "agent"
+  | "workflow"
+  | "knowledge-graph-node"
+  | "timeline-event";
+
+export type DetailPanelState = {
+  open: boolean;
+  entityType: EntityType | null;
+  entityId: string | null;
+  entityData: unknown;
+};
+
+// --- Kanban / SLA Perspectives ---
+
+export type KanbanColumnConfig = {
+  id: string;
+  title: string;
+  color: string;
+  statuses: Task["status"][];
+};
+
+export type SLAPerspective = {
+  id: string;
+  label: string;
+  description: string;
+  columns: KanbanColumnConfig[];
+};

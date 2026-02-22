@@ -8,13 +8,13 @@ import {
   type EdgeTypes,
 } from "@xyflow/react";
 import { Network, AlertCircle } from "lucide-react";
-import { useState, useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import "@xyflow/react/dist/style.css";
 import { ActorNode } from "@/components/knowledge-graph/ActorNode";
 import { DependencyEdge } from "@/components/knowledge-graph/DependencyEdge";
 import { GoalNode } from "@/components/knowledge-graph/GoalNode";
-import { NodeDetailPanel } from "@/components/knowledge-graph/NodeDetailPanel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePanels } from "@/contexts/PanelContext";
 import { useGoalModel } from "@/hooks/useGoalModel";
 import { troposToFlowGraph } from "@/lib/graph-layout";
 
@@ -31,19 +31,23 @@ const edgeTypes: EdgeTypes = {
 
 export function KnowledgeGraphPage() {
   const { data: goalModel, isLoading, error } = useGoalModel(BUSINESS_ID);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const { openDetailPanel } = usePanels();
 
   const { nodes, edges } = useMemo(() => {
     if (!goalModel) return { nodes: [], edges: [] };
     return troposToFlowGraph(goalModel as any);
   }, [goalModel]);
 
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    setSelectedNode(node);
-  }, []);
+  const onNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      openDetailPanel("knowledge-graph-node", node.id, node);
+    },
+    [openDetailPanel],
+  );
 
   const onPaneClick = useCallback(() => {
-    setSelectedNode(null);
+    // Clicking pane doesn't need to do anything special now;
+    // the detail panel auto-closes on route change
   }, []);
 
   return (
@@ -95,7 +99,6 @@ export function KnowledgeGraphPage() {
         <div
           className="h-[600px] rounded-lg bg-[var(--bg-card)] border border-[var(--border-mabos)] relative"
           style={{
-            // Override React Flow's default styles for dark theme
             // @ts-expect-error CSS custom properties
             "--xy-background-color": "var(--bg-card)",
             "--xy-edge-stroke-default": "var(--border-hover)",
@@ -126,9 +129,6 @@ export function KnowledgeGraphPage() {
               size={1}
             />
           </ReactFlow>
-
-          {/* Node Detail Panel */}
-          <NodeDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
         </div>
       )}
 

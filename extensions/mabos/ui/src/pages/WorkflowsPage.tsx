@@ -1,11 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { GitBranch, AlertCircle } from "lucide-react";
 import { useState, useMemo } from "react";
-import { WorkflowDetailPanel } from "@/components/goals/WorkflowDetailPanel";
 import { WorkflowSteps } from "@/components/goals/WorkflowSteps";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePanels } from "@/contexts/PanelContext";
 import { useGoalModel } from "@/hooks/useGoalModel";
 import type { Workflow, WorkflowStatus } from "@/lib/types";
 
@@ -31,9 +31,7 @@ function WorkflowSkeleton() {
 export function WorkflowsPage() {
   const { data: goalModel, isLoading, error } = useGoalModel(BUSINESS_ID);
   const [statusFilter, setStatusFilter] = useState<WorkflowStatus | "all">("all");
-  const [selectedWorkflow, setSelectedWorkflow] = useState<
-    (Workflow & { goalName: string }) | null
-  >(null);
+  const { openDetailPanel } = usePanels();
 
   // Extract all workflows from goals
   const workflows: (Workflow & { goalName: string })[] = useMemo(() => {
@@ -119,7 +117,7 @@ export function WorkflowsPage() {
               <Card
                 key={workflow.id}
                 className="bg-[var(--bg-card)] border-[var(--border-mabos)] cursor-pointer hover:border-[var(--border-hover)] transition-colors"
-                onClick={() => setSelectedWorkflow(workflow)}
+                onClick={() => openDetailPanel("workflow", workflow.id, workflow)}
               >
                 <CardContent className="py-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -156,15 +154,6 @@ export function WorkflowsPage() {
           </p>
         </div>
       )}
-
-      {/* Workflow Detail Panel */}
-      <WorkflowDetailPanel
-        workflow={selectedWorkflow}
-        open={selectedWorkflow !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedWorkflow(null);
-        }}
-      />
     </div>
   );
 }

@@ -1,20 +1,15 @@
 import { useMemo } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { KanbanColumn, type ColumnStatus } from "@/components/tasks/KanbanColumn";
-import type { Task } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { Task, KanbanColumnConfig } from "@/lib/types";
 
-const COLUMN_ORDER: ColumnStatus[] = [
-  "backlog",
-  "todo",
-  "in_progress",
-  "review",
-  "done",
-];
+const DEFAULT_COLUMN_ORDER: ColumnStatus[] = ["backlog", "todo", "in_progress", "review", "done"];
 
 interface KanbanBoardProps {
   tasks: Task[];
   isLoading: boolean;
   onTaskClick: (task: Task) => void;
+  columns?: KanbanColumnConfig[];
 }
 
 function ColumnSkeleton() {
@@ -48,8 +43,18 @@ function ColumnSkeleton() {
   );
 }
 
-export function KanbanBoard({ tasks, isLoading, onTaskClick }: KanbanBoardProps) {
-  const grouped = useMemo(() => {
+export function KanbanBoard({ tasks, isLoading, onTaskClick, columns }: KanbanBoardProps) {
+  // Group tasks by configurable columns or by default status columns
+  const columnData = useMemo(() => {
+    if (columns) {
+      // Group by perspective columns
+      return columns.map((col) => ({
+        config: col,
+        tasks: tasks.filter((task) => col.statuses.includes(task.status)),
+      }));
+    }
+
+    // Default: group by status
     const map: Record<ColumnStatus, Task[]> = {
       backlog: [],
       todo: [],
@@ -62,14 +67,18 @@ export function KanbanBoard({ tasks, isLoading, onTaskClick }: KanbanBoardProps)
         map[task.status].push(task);
       }
     }
-    return map;
-  }, [tasks]);
+    return DEFAULT_COLUMN_ORDER.map((status) => ({
+      status,
+      tasks: map[status],
+    }));
+  }, [tasks, columns]);
 
   if (isLoading) {
+    const skeletonCount = columns?.length || DEFAULT_COLUMN_ORDER.length;
     return (
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {COLUMN_ORDER.map((status) => (
-          <ColumnSkeleton key={status} />
+        {Array.from({ length: skeletonCount }).map((_, i) => (
+          <ColumnSkeleton key={i} />
         ))}
       </div>
     );
@@ -77,14 +86,26 @@ export function KanbanBoard({ tasks, isLoading, onTaskClick }: KanbanBoardProps)
 
   return (
     <div className="flex gap-4 overflow-x-auto pb-4">
-      {COLUMN_ORDER.map((status) => (
-        <KanbanColumn
-          key={status}
-          status={status}
-          tasks={grouped[status]}
-          onTaskClick={onTaskClick}
-        />
-      ))}
+      {columnData.map((col) => {
+        if ("config" in col) {
+          return (
+            <KanbanColumn
+              key={col.config.id}
+              tasks={col.tasks}
+              onTaskClick={onTaskClick}
+              columnConfig={col.config}
+            />
+          );
+        }
+        return (
+          <KanbanColumn
+            key={col.status}
+            status={col.status}
+            tasks={col.tasks}
+            onTaskClick={onTaskClick}
+          />
+        );
+      })}
     </div>
   );
 }

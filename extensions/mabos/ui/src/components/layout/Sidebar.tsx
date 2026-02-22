@@ -1,142 +1,143 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import {
-  Cpu,
-  LayoutDashboard,
-  Users,
-  FolderKanban,
-  Calendar,
-  BarChart3,
-  Package,
-  DollarSign,
-  Heart,
-  Rocket,
-  Palette,
-  ChevronDown,
-  Bell,
-  Target,
-  GitBranch,
-  Network,
-  X,
-} from "lucide-react";
+import { Cpu, ChevronsRight, ChevronsLeft, ChevronDown, Palette } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePanels } from "@/contexts/PanelContext";
+import { navSections } from "@/lib/navigation";
 import { ThemeToggle } from "./ThemeToggle";
 
-type NavItem = {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  path: string;
-};
-
-const navSections: { title: string; items: NavItem[] }[] = [
-  {
-    title: "Strategy",
-    items: [
-      { icon: LayoutDashboard, label: "Overview", path: "/" },
-      { icon: BarChart3, label: "Performance", path: "/performance" },
-      { icon: Bell, label: "Decisions", path: "/decisions" },
-      { icon: Target, label: "Goals", path: "/goals" },
-    ],
-  },
-  {
-    title: "Process",
-    items: [
-      { icon: FolderKanban, label: "Projects", path: "/projects" },
-      { icon: Calendar, label: "Timeline", path: "/timeline" },
-      { icon: GitBranch, label: "Workflows", path: "/workflows" },
-    ],
-  },
-  {
-    title: "Agents",
-    items: [
-      { icon: Users, label: "Agents", path: "/agents" },
-      { icon: Network, label: "Knowledge Graph", path: "/knowledge-graph" },
-    ],
-  },
-  {
-    title: "Resources",
-    items: [
-      { icon: Package, label: "Inventory", path: "/inventory" },
-      { icon: DollarSign, label: "Accounting", path: "/accounting" },
-      { icon: Heart, label: "HR & Workforce", path: "/hr" },
-    ],
-  },
-  {
-    title: "Governance",
-    items: [{ icon: Rocket, label: "Onboarding", path: "/onboarding" }],
-  },
-];
-
 export function Sidebar() {
-  const { sidebarOpen, closeSidebar } = usePanels();
+  const { sidebarMode, toggleSidebar } = usePanels();
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
-  // Strip the basepath to get the relative route path
   const basepath = "/mabos/dashboard";
   const relativePath = currentPath.startsWith(basepath)
     ? currentPath.slice(basepath.length) || "/"
     : currentPath;
 
+  const collapsed = sidebarMode === "collapsed";
+
   return (
-    <aside
-      className={`w-[280px] h-screen bg-[var(--bg-secondary)] border-r border-[var(--border-mabos)] p-4 flex flex-col fixed left-0 top-0 z-50 transition-transform duration-300 ease-in-out ${
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      }`}
-    >
-      {/* Logo + Close */}
-      <div className="flex items-center gap-3 mb-8 px-3 text-xl font-bold">
-        <Cpu className="w-5 h-5 text-[var(--accent-green)]" />
-        <span className="flex-1">MABOS</span>
-        <button
-          onClick={closeSidebar}
-          className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
+    <aside className="h-screen bg-[var(--bg-secondary)] border-r border-[var(--border-mabos)] flex flex-col overflow-hidden">
+      {/* Logo + Toggle */}
+      <div
+        className={`flex items-center mb-6 ${collapsed ? "justify-center px-2 pt-4" : "gap-3 px-4 pt-4"}`}
+      >
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-3">
+            <Cpu className="w-6 h-6 text-[var(--accent-green)]" />
+            <button
+              onClick={toggleSidebar}
+              className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+              aria-label="Expand sidebar"
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <>
+            <Cpu className="w-5 h-5 text-[var(--accent-green)]" />
+            <span className="flex-1 text-xl font-bold text-[var(--text-primary)]">MABOS</span>
+            <button
+              onClick={toggleSidebar}
+              className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+              aria-label="Collapse sidebar"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </div>
 
-      {/* Business Switcher */}
-      <button className="flex items-center gap-3 px-3 py-2 mb-6 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-mabos)] hover:border-[var(--border-hover)] transition-colors text-sm">
-        <Palette className="w-4 h-4 text-[var(--accent-purple)]" />
-        <span className="flex-1 text-left">VividWalls</span>
-        <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
-      </button>
+      {/* Business Switcher (expanded only) */}
+      {!collapsed && (
+        <div className="px-4 mb-6">
+          <button className="flex items-center gap-3 px-3 py-2 w-full rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-mabos)] hover:border-[var(--border-hover)] transition-colors text-sm">
+            <Palette className="w-4 h-4 text-[var(--accent-purple)]" />
+            <span className="flex-1 text-left text-[var(--text-primary)]">VividWalls</span>
+            <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
+          </button>
+        </div>
+      )}
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-6 overflow-y-auto">
-        {navSections.map((section) => (
-          <div key={section.title}>
-            <div className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              {section.title}
-            </div>
-            <div className="space-y-1">
-              {section.items.map((item) => {
-                const isActive =
-                  item.path === "/" ? relativePath === "/" : relativePath.startsWith(item.path);
+      <TooltipProvider delayDuration={0}>
+        <nav
+          className={`flex-1 overflow-y-auto ${collapsed ? "space-y-2 px-2" : "space-y-6 px-4"}`}
+        >
+          {navSections.map((section) => (
+            <div key={section.title}>
+              {!collapsed && (
+                <div className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  {section.title}
+                </div>
+              )}
+              <div className={collapsed ? "space-y-1" : "space-y-1"}>
+                {section.items.map((item) => {
+                  const isActive =
+                    item.path === "/" ? relativePath === "/" : relativePath.startsWith(item.path);
 
-                return (
-                  <Link
-                    key={item.path + item.label}
-                    to={item.path}
-                    className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
-                      isActive
-                        ? "bg-[var(--accent-green)] text-[var(--bg-primary)] font-medium"
-                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                    }`}
-                  >
-                    <item.icon className="w-4 h-4 flex-shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
+                  if (collapsed) {
+                    return (
+                      <Tooltip key={item.path + item.label}>
+                        <TooltipTrigger asChild>
+                          <Link
+                            to={item.path}
+                            className={`flex items-center justify-center w-10 h-10 mx-auto rounded-lg transition-colors ${
+                              isActive
+                                ? "bg-[color-mix(in_srgb,var(--accent-green)_15%,transparent)] text-[var(--accent-green)]"
+                                : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                            }`}
+                          >
+                            <item.icon className="w-5 h-5" />
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          <p>{item.label}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={item.path + item.label}
+                      to={item.path}
+                      className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                        isActive
+                          ? "bg-[var(--accent-green)] text-[var(--bg-primary)] font-medium"
+                          : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
+          ))}
+        </nav>
+      </TooltipProvider>
 
       {/* Theme Toggle */}
-      <div className="pt-4 border-t border-[var(--border-mabos)]">
-        <ThemeToggle />
+      <div
+        className={`border-t border-[var(--border-mabos)] ${collapsed ? "px-2 py-3" : "px-4 py-3"}`}
+      >
+        {collapsed ? (
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <ThemeToggle iconOnly />
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Toggle theme</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          <ThemeToggle />
+        )}
       </div>
     </aside>
   );

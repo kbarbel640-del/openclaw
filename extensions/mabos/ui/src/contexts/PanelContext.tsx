@@ -1,68 +1,80 @@
+import { useRouterState } from "@tanstack/react-router";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import type { SidebarMode, EntityType, DetailPanelState } from "@/lib/types";
 
 type PanelState = {
-  sidebarOpen: boolean;
-  chatOpen: boolean;
+  sidebarMode: SidebarMode;
   toggleSidebar: () => void;
-  toggleChat: () => void;
-  openSidebar: () => void;
-  closeSidebar: () => void;
-  openChat: () => void;
-  closeChat: () => void;
+  setSidebarMode: (mode: SidebarMode) => void;
+  detailPanel: DetailPanelState;
+  openDetailPanel: (type: EntityType, id: string, data: unknown) => void;
+  closeDetailPanel: () => void;
 };
 
 const PanelContext = createContext<PanelState | null>(null);
 
+const defaultDetailPanel: DetailPanelState = {
+  open: false,
+  entityType: null,
+  entityId: null,
+  entityData: null,
+};
+
 export function PanelProvider({ children }: { children: ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("collapsed");
+  const [detailPanel, setDetailPanel] = useState<DetailPanelState>(defaultDetailPanel);
 
-  const openSidebar = useCallback(() => setSidebarOpen(true), []);
-  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
-  const toggleSidebar = useCallback(() => setSidebarOpen((p) => !p), []);
+  const toggleSidebar = useCallback(
+    () => setSidebarMode((m) => (m === "collapsed" ? "expanded" : "collapsed")),
+    [],
+  );
 
-  const openChat = useCallback(() => setChatOpen(true), []);
-  const closeChat = useCallback(() => setChatOpen(false), []);
-  const toggleChat = useCallback(() => setChatOpen((p) => !p), []);
+  const openDetailPanel = useCallback((type: EntityType, id: string, data: unknown) => {
+    setDetailPanel({ open: true, entityType: type, entityId: id, entityData: data });
+  }, []);
 
+  const closeDetailPanel = useCallback(() => {
+    setDetailPanel(defaultDetailPanel);
+  }, []);
+
+  // Auto-close detail panel on route change
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
+  useEffect(() => {
+    closeDetailPanel();
+  }, [currentPath, closeDetailPanel]);
+
+  // Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
-        // Only allow Escape in input fields
         if (e.key !== "Escape") return;
       }
 
       if (e.key === "b" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         toggleSidebar();
-      } else if (e.key === "j" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        toggleChat();
       } else if (e.key === "Escape") {
-        if (chatOpen) {
-          setChatOpen(false);
-        } else if (sidebarOpen) {
-          setSidebarOpen(false);
+        if (detailPanel.open) {
+          closeDetailPanel();
         }
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [sidebarOpen, chatOpen, toggleSidebar, toggleChat]);
+  }, [detailPanel.open, toggleSidebar, closeDetailPanel]);
 
   return (
     <PanelContext.Provider
       value={{
-        sidebarOpen,
-        chatOpen,
+        sidebarMode,
         toggleSidebar,
-        toggleChat,
-        openSidebar,
-        closeSidebar,
-        openChat,
-        closeChat,
+        setSidebarMode,
+        detailPanel,
+        openDetailPanel,
+        closeDetailPanel,
       }}
     >
       {children}

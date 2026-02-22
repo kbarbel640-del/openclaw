@@ -1,11 +1,11 @@
 import { AlertCircle, Users, Plus } from "lucide-react";
 import { useState } from "react";
 import { AgentCard } from "@/components/agents/AgentCard";
-import { AgentDetailPanel } from "@/components/agents/AgentDetailPanel";
 import { AgentFormDialog } from "@/components/agents/AgentFormDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePanels } from "@/contexts/PanelContext";
 import { useAgents } from "@/hooks/useAgents";
 import type { AgentListResponse } from "@/lib/types";
 
@@ -40,7 +40,7 @@ function AgentCardSkeleton() {
 export function AgentsPage() {
   const { data: agentsRaw, isLoading, error } = useAgents(BUSINESS_ID);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const { openDetailPanel } = usePanels();
 
   // The API wraps agents in { agents: [...] }
   const agentsResponse = agentsRaw as AgentListResponse | undefined;
@@ -93,7 +93,11 @@ export function AgentsPage() {
         {isLoading
           ? Array.from({ length: 8 }).map((_, i) => <AgentCardSkeleton key={i} />)
           : agents?.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} onSelect={setSelectedAgentId} />
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                onSelect={(id) => openDetailPanel("agent", id, null)}
+              />
             ))}
       </div>
 
@@ -110,15 +114,6 @@ export function AgentsPage() {
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         businessId={BUSINESS_ID}
-      />
-
-      {/* Agent Detail Side Panel */}
-      <AgentDetailPanel
-        agentId={selectedAgentId}
-        open={!!selectedAgentId}
-        onOpenChange={(open) => {
-          if (!open) setSelectedAgentId(null);
-        }}
       />
     </div>
   );

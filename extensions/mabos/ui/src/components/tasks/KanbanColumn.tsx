@@ -1,13 +1,11 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { TaskCard } from "@/components/tasks/TaskCard";
-import type { Task } from "@/lib/types";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import type { Task, KanbanColumnConfig } from "@/lib/types";
 
 export type ColumnStatus = Task["status"];
 
-const columnConfig: Record<
-  ColumnStatus,
-  { title: string; color: string }
-> = {
+// Default column config for backwards compatibility
+const defaultColumnConfig: Record<ColumnStatus, { title: string; color: string }> = {
   backlog: { title: "Backlog", color: "var(--text-muted)" },
   todo: { title: "To Do", color: "var(--accent-blue)" },
   in_progress: { title: "In Progress", color: "var(--accent-orange)" },
@@ -16,30 +14,28 @@ const columnConfig: Record<
 };
 
 interface KanbanColumnProps {
-  status: ColumnStatus;
+  status?: ColumnStatus;
   tasks: Task[];
   onTaskClick: (task: Task) => void;
+  columnConfig?: KanbanColumnConfig;
 }
 
-export function KanbanColumn({ status, tasks, onTaskClick }: KanbanColumnProps) {
-  const config = columnConfig[status];
+export function KanbanColumn({ status, tasks, onTaskClick, columnConfig }: KanbanColumnProps) {
+  const title = columnConfig?.title || (status ? defaultColumnConfig[status]?.title : "Unknown");
+  const color =
+    columnConfig?.color || (status ? defaultColumnConfig[status]?.color : "var(--text-muted)");
 
   return (
     <div className="flex flex-col min-w-[280px] max-w-[320px] w-full shrink-0">
       {/* Column header */}
       <div className="flex items-center gap-2 mb-3 px-1">
-        <div
-          className="w-2 h-2 rounded-full shrink-0"
-          style={{ backgroundColor: config.color }}
-        />
-        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          {config.title}
-        </h3>
+        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
         <span
           className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-medium"
           style={{
-            backgroundColor: `color-mix(in srgb, ${config.color} 15%, transparent)`,
-            color: config.color,
+            backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
+            color: color,
           }}
         >
           {tasks.length}
@@ -56,9 +52,7 @@ export function KanbanColumn({ status, tasks, onTaskClick }: KanbanColumnProps) 
           </div>
         ) : (
           <div className="flex items-center justify-center h-24">
-            <p className="text-xs text-[var(--text-muted)]">
-              No tasks
-            </p>
+            <p className="text-xs text-[var(--text-muted)]">No tasks</p>
           </div>
         )}
       </ScrollArea>
