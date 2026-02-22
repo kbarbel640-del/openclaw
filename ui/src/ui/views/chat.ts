@@ -844,55 +844,53 @@ export function renderChat(props: ChatProps) {
           @change=${(e: Event) => handleFileSelect(e, props)}
         />
 
-        <textarea
-          ${ref((el) => el && adjustTextareaHeight(el as HTMLTextAreaElement))}
-          .value=${props.draft}
-          dir=${detectTextDirection(props.draft)}
-          ?disabled=${!props.connected}
-          @keydown=${handleKeyDown}
-          @input=${handleInput}
-          @paste=${(e: ClipboardEvent) => handlePaste(e, props)}
-          placeholder=${placeholder}
-          rows="1"
-        ></textarea>
+        <div class="agent-chat__input-row">
+          <button
+            class="agent-chat__input-btn"
+            @click=${() => {
+              document.querySelector<HTMLInputElement>(".agent-chat__file-input")?.click();
+            }}
+            title="Attach file"
+            ?disabled=${!props.connected}
+          >
+            ${icons.paperclip}
+          </button>
 
-        <div class="agent-chat__toolbar">
-          <div class="agent-chat__toolbar-left">
-            <button
-              class="agent-chat__input-btn"
-              @click=${() => {
-                document.querySelector<HTMLInputElement>(".agent-chat__file-input")?.click();
-              }}
-              title="Attach file"
-              ?disabled=${!props.connected}
-            >
-              ${icons.paperclip}
-            </button>
+          ${
+            hasVoice
+              ? html`
+                <button
+                  class="agent-chat__input-btn ${voiceActive ? "agent-chat__input-btn--active" : ""}"
+                  @click=${() => {
+                    if (voiceActive) {
+                      stopVoice(requestUpdate);
+                    } else {
+                      startVoice(props, requestUpdate);
+                    }
+                  }}
+                  title="Voice input"
+                >
+                  ${voiceActive ? icons.micOff : icons.mic}
+                </button>
+              `
+              : nothing
+          }
 
-            ${
-              hasVoice
-                ? html`
-                  <button
-                    class="agent-chat__input-btn ${voiceActive ? "agent-chat__input-btn--active" : ""}"
-                    @click=${() => {
-                      if (voiceActive) {
-                        stopVoice(requestUpdate);
-                      } else {
-                        startVoice(props, requestUpdate);
-                      }
-                    }}
-                    title="Voice input"
-                  >
-                    ${voiceActive ? icons.micOff : icons.mic}
-                  </button>
-                `
-                : nothing
-            }
+          <textarea
+            ${ref((el) => el && adjustTextareaHeight(el as HTMLTextAreaElement))}
+            .value=${props.draft}
+            dir=${detectTextDirection(props.draft)}
+            ?disabled=${!props.connected}
+            @keydown=${handleKeyDown}
+            @input=${handleInput}
+            @paste=${(e: ClipboardEvent) => handlePaste(e, props)}
+            placeholder=${placeholder}
+            rows="1"
+          ></textarea>
 
-            ${tokens ? html`<span class="agent-chat__token-count">${tokens}</span>` : nothing}
-          </div>
+          ${tokens ? html`<span class="agent-chat__token-count">${tokens}</span>` : nothing}
 
-          <div class="agent-chat__toolbar-right">
+          <div class="agent-chat__input-actions">
             <button class="btn-ghost" @click=${() => {
               searchOpen = !searchOpen;
               if (!searchOpen) {
@@ -918,31 +916,31 @@ export function renderChat(props: ChatProps) {
                 `
                 : nothing
             }
-
-            ${
-              canAbort && isBusy
-                ? html`
-                  <button class="chat-send-btn chat-send-btn--stop" @click=${props.onAbort} title="Stop">
-                    ${icons.stop}
-                  </button>
-                `
-                : html`
-                  <button
-                    class="chat-send-btn"
-                    @click=${() => {
-                      if (props.draft.trim()) {
-                        inputHistory.push(props.draft);
-                      }
-                      props.onSend();
-                    }}
-                    ?disabled=${!props.connected || props.sending}
-                    title=${isBusy ? "Queue" : "Send"}
-                  >
-                    ${icons.send}
-                  </button>
-                `
-            }
           </div>
+
+          ${
+            canAbort && isBusy
+              ? html`
+                <button class="chat-send-btn chat-send-btn--stop" @click=${props.onAbort} title="Stop">
+                  ${icons.stop}
+                </button>
+              `
+              : html`
+                <button
+                  class="chat-send-btn"
+                  @click=${() => {
+                    if (props.draft.trim()) {
+                      inputHistory.push(props.draft);
+                    }
+                    props.onSend();
+                  }}
+                  ?disabled=${!props.connected || props.sending}
+                  title=${isBusy ? "Queue" : "Send"}
+                >
+                  ${icons.send}
+                </button>
+              `
+          }
         </div>
       </div>
     </section>
