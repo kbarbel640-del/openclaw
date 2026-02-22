@@ -272,8 +272,8 @@ export function buildMarkdownCard(
   if (options?.note) {
     elements.push({ tag: "hr" });
     elements.push({
-      tag: "note",
-      elements: [{ tag: "plain_text", content: options.note }],
+      tag: "markdown",
+      content: options.note,
     });
   }
   const card: Record<string, unknown> = {
