@@ -1,4 +1,3 @@
-import { dispatchReplyWithBufferedBlockDispatcher } from "openclaw/plugin-sdk";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { nostrPlugin } from "./channel.js";
 import { startNostrBus } from "./nostr-bus.js";
@@ -9,24 +8,20 @@ vi.mock("./nostr-bus.js", () => ({
   normalizePubkey: (k: string) => k,
 }));
 
+const { dispatchReplyWithBufferedBlockDispatcher } = vi.hoisted(() => ({
+  dispatchReplyWithBufferedBlockDispatcher: vi.fn(),
+}));
+
 vi.mock("./runtime.js", () => ({
   getNostrRuntime: () => ({
     config: { loadConfig: () => ({}) },
     channel: {
       reply: {
-        resolveReply: vi.fn(),
+        dispatchReplyWithBufferedBlockDispatcher,
       },
     },
   }),
 }));
-
-vi.mock("openclaw/plugin-sdk", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk")>();
-  return {
-    ...actual,
-    dispatchReplyWithBufferedBlockDispatcher: vi.fn(),
-  };
-});
 
 describe("nostrPlugin dispatch", () => {
   const mockBus = {

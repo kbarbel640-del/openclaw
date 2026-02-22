@@ -1,9 +1,7 @@
 import {
   buildChannelConfigSchema,
   DEFAULT_ACCOUNT_ID,
-  dispatchReplyWithBufferedBlockDispatcher,
   formatPairingApproveHint,
-  getReplyFromConfig,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
 import type { NostrProfile } from "./config-schema.js";
@@ -234,9 +232,10 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             `[${account.accountId}] DM from ${senderPubkey}: ${text.slice(0, 50)}...`,
           );
 
-          // Forward to OpenClaw's message pipeline
-          await dispatchReplyWithBufferedBlockDispatcher({
-            cfg: runtime.config.loadConfig(),
+          const core = getNostrRuntime();
+          const cfg = core.config.loadConfig();
+
+          await core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
             ctx: {
               Provider: "nostr",
               AccountId: account.accountId,
@@ -248,6 +247,7 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
               SenderId: senderPubkey,
               Timestamp: Date.now(),
             },
+            cfg,
             dispatcherOptions: {
               deliver: async (payload) => {
                 await reply(payload.text ?? "");
@@ -258,7 +258,6 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
                 );
               },
             },
-            replyResolver: getReplyFromConfig,
           });
         },
         onError: (error, context) => {
