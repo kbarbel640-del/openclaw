@@ -78,6 +78,7 @@ import {
 import { buildSystemPromptParams } from "../../system-prompt-params.js";
 import { buildSystemPromptReport } from "../../system-prompt-report.js";
 import { resolveTranscriptPolicy } from "../../transcript-policy.js";
+import { sanitizeToolCallIdsForCloudCodeAssist } from "../../tool-call-id.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
 import { isRunnerAbortError } from "../abort.js";
 import { appendCacheTtlTimestamp, isCacheTtlEligibleProvider } from "../cache-ttl.js";
@@ -759,6 +760,33 @@ export async function runEmbeddedAttempt(
             return inner(model, context, options);
           }
           const sanitized = dropThinkingBlocks(messages as unknown as AgentMessage[]) as unknown;
+          if (sanitized === messages) {
+            return inner(model, context, options);
+          }
+          const nextContext = {
+            ...(context as unknown as Record<string, unknown>),
+            messages: sanitized,
+          } as unknown;
+          return inner(model, nextContext as typeof context, options);
+        };
+      }
+
+      // Mistral requires tool call IDs to be exactly 9 alphanumeric characters.
+      // New tool results added during multi-turn runs may carry unsanitized IDs,
+      // so re-sanitize on every outbound provider call.
+      if (transcriptPolicy.sanitizeToolCallIds && transcriptPolicy.toolCallIdMode) {
+        const inner = activeSession.agent.streamFn;
+        const toolIdMode = transcriptPolicy.toolCallIdMode;
+        activeSession.agent.streamFn = (model, context, options) => {
+          const ctx = context as unknown as { messages?: unknown };
+          const messages = ctx?.messages;
+          if (!Array.isArray(messages)) {
+            return inner(model, context, options);
+          }
+          const sanitized = sanitizeToolCallIdsForCloudCodeAssist(
+            messages as unknown as AgentMessage[],
+            toolIdMode,
+          ) as unknown;
           if (sanitized === messages) {
             return inner(model, context, options);
           }
