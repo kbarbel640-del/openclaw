@@ -343,8 +343,37 @@ export function createSubagentsTool(opts?: { agentSessionKey?: string }): AnyAge
   return {
     label: "Subagents",
     name: "subagents",
-    description:
-      "List, kill, or steer spawned sub-agents for this requester session. Use this for sub-agent orchestration.",
+    description: `List, kill, or steer spawned sub-agents for this requester session. Use this for sub-agent orchestration.
+
+CRITICAL WORKFLOW - Resuming work from finished subagents:
+
+When you see "no active subagents" but have ongoing tasks:
+1. Check recent finished subagents: subagents action=list recentMinutes=120
+2. Find relevant finished subagent in "recent" section (by label, task description)
+3. Read its history: sessions_history sessionKey="<subagent-key>" limit=100
+4. Extract progress from the last messages (what was done, what's left)
+5. Continue the work yourself OR spawn a new subagent with the context
+
+Example:
+  subagents action=list recentMinutes=240  // last 4 hours
+  // Output: recent (last 240m): #1 devops [done] 1h32m (sessionKey: agent:main:subagent:abc123)
+  sessions_history sessionKey="agent:main:subagent:abc123" limit=50
+  // Read last messages to understand: task completed? blocked? needs continuation?
+
+NEVER assume work is lost if no active subagents - always check recent (up to 24h).
+Default recentMinutes=30 may be too short for long-running tasks - increase as needed.
+
+ACTIONS:
+- list: Show active and recent subagents (use recentMinutes to control time window)
+- kill: Stop a running subagent (and all its descendants)
+- steer: Send a message to a running subagent to change its direction
+
+TARGET formats (for kill/steer):
+- Index: "1", "2", etc. (from list output)
+- Label prefix: "devops", "elly2-pr-123" (unique prefix match)
+- Session key: Full "agent:main:subagent:abc123" key
+- Run ID prefix: First characters of runId
+- "all" or "*": Kill all active subagents (kill action only)`,
     parameters: SubagentsToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
