@@ -85,6 +85,9 @@ final class TalkModeManager: NSObject {
     private var noiseFloor: Double?
     private var noiseFloorReady: Bool = false
 
+    private var currentGeneration: Int = 0
+    private var currentProcessingTask: Task<Void, Never>?
+    private var currentProcessingTranscript: String = ""
     private var chatSubscribedSessionKeys = Set<String>()
     private struct PendingSegment {
         let text: String
@@ -660,6 +663,30 @@ final class TalkModeManager: NSObject {
         if ttsActive, self.interruptOnSpeech {
             if self.shouldInterrupt(with: trimmed) {
                 self.stopSpeaking()
+                // Barge-in: 진행 중인 처리를 취소하고 새 발화로 재시작 (잔여 STT는 무시)
+                if isFinal, !trimmed.isEmpty, trimmed != self.currentProcessingTranscript {
+                    self.currentProcessingTask?.cancel()
+                    self.currentProcessingTask = Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        await self.processTranscript(trimmed, restartAfter: true)
+                    }
+                }
+            }
+            return
+        }
+
+        // PROCESSING 중 (isListening=false, captureMode=.idle): 기존에는 드롭했으나
+        // 새 발화가 오면 현재 처리를 취소하고 재시작 (OpenAI Realtime 패턴)
+        // 단, STT 엔진이 같은 텍스트를 잔여 결과로 재전송하는 경우는 무시 (false cancel 방지)
+        if !self.isListening, self.captureMode == .idle, isFinal, !trimmed.isEmpty {
+            guard trimmed != self.currentProcessingTranscript else {
+                GatewayDiagnostics.log("talk: dropped residual STT transcript (same as currentProcessingTranscript)")
+                return
+            }
+            self.currentProcessingTask?.cancel()
+            self.currentProcessingTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.processTranscript(trimmed, restartAfter: true)
             }
             return
         }
@@ -679,7 +706,11 @@ final class TalkModeManager: NSObject {
                 return
             }
             if self.captureMode == .continuous, !self.isSpeechOutputActive {
-                await self.processTranscript(trimmed, restartAfter: true)
+                self.currentProcessingTask?.cancel()
+                self.currentProcessingTask = Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    await self.processTranscript(trimmed, restartAfter: true)
+                }
             }
         }
     }
@@ -689,7 +720,7 @@ final class TalkModeManager: NSObject {
         self.silenceTask = Task { [weak self] in
             guard let self else { return }
             while self.isEnabled || (self.isPushToTalkActive && self.pttAutoStopEnabled) {
-                try? await Task.sleep(nanoseconds: 200_000_000)
+                do { try await Task.sleep(nanoseconds: 200_000_000) } catch { return }
                 await self.checkSilence()
             }
         }
@@ -740,6 +771,9 @@ final class TalkModeManager: NSObject {
     }
 
     private func processTranscript(_ transcript: String, restartAfter: Bool) async {
+        let generation = self.currentGeneration + 1
+        self.currentGeneration = generation
+        self.currentProcessingTranscript = transcript
         self.isListening = false
         self.captureMode = .idle
         self.statusText = "Thinking…"
@@ -749,6 +783,10 @@ final class TalkModeManager: NSObject {
 
         GatewayDiagnostics.log("talk: process transcript chars=\(transcript.count) restartAfter=\(restartAfter)")
         await self.reloadConfig()
+        guard !Task.isCancelled else {
+            GatewayDiagnostics.log("talk: processTranscript cancelled after reloadConfig gen=\(generation)")
+            return
+        }
         let prompt = self.buildPrompt(transcript: transcript)
         guard self.gatewayConnected, let gateway else {
             self.statusText = "Gateway not connected"
@@ -764,12 +802,20 @@ final class TalkModeManager: NSObject {
             let startedAt = Date().timeIntervalSince1970
             let sessionKey = self.mainSessionKey
             await self.subscribeChatIfNeeded(sessionKey: sessionKey)
+
+            // Subscribe to events BEFORE sending chat to avoid missing fast completions
+            let eventStream = await gateway.subscribeServerEvents(bufferingNewest: 200)
+
             self.logger.info(
                 "chat.send start sessionKey=\(sessionKey, privacy: .public) chars=\(prompt.count, privacy: .public)")
             GatewayDiagnostics.log("talk: chat.send start sessionKey=\(sessionKey) chars=\(prompt.count)")
             let runId = try await self.sendChat(prompt, gateway: gateway)
             self.logger.info("chat.send ok runId=\(runId, privacy: .public)")
             GatewayDiagnostics.log("talk: chat.send ok runId=\(runId)")
+
+            // Stale guard: a newer utterance may have arrived during sendChat
+            guard self.currentGeneration == generation else { return }
+
             let shouldIncremental = self.shouldUseIncrementalTTS()
             var streamingTask: Task<Void, Never>?
             if shouldIncremental {
@@ -779,7 +825,8 @@ final class TalkModeManager: NSObject {
                     await self.streamAssistant(runId: runId, gateway: gateway)
                 }
             }
-            let completion = await self.waitForChatCompletion(runId: runId, gateway: gateway, timeoutSeconds: 120)
+            let completion = await self.waitForChatCompletion(
+                runId: runId, stream: eventStream, timeoutSeconds: 15)
             if completion == .timeout {
                 self.logger.warning(
                     "chat completion timeout runId=\(runId, privacy: .public); attempting history fallback")
@@ -802,10 +849,16 @@ final class TalkModeManager: NSObject {
                 return
             }
 
+            // Stale guard: newer utterance may have cancelled this turn
+            guard self.currentGeneration == generation else {
+                streamingTask?.cancel()
+                return
+            }
+
             var assistantText = try await self.waitForAssistantText(
                 gateway: gateway,
                 since: startedAt,
-                timeoutSeconds: completion == .final ? 12 : 25)
+                timeoutSeconds: completion == .final ? 12 : 10)
             if assistantText == nil, shouldIncremental {
                 let fallback = self.incrementalSpeechBuffer.latestText
                 if !fallback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -902,12 +955,18 @@ final class TalkModeManager: NSObject {
 
     private func waitForChatCompletion(
         runId: String,
-        gateway: GatewayNodeSession,
-        timeoutSeconds: Int = 120) async -> ChatCompletionState
+        stream: AsyncStream<EventFrame>,
+        timeoutSeconds: Int = 15) async -> ChatCompletionState
     {
-        let stream = await gateway.subscribeServerEvents(bufferingNewest: 200)
+        if Task.isCancelled {
+            GatewayDiagnostics.log("talk: waitForChatCompletion parent already cancelled")
+        }
         return await withTaskGroup(of: ChatCompletionState.self) { group in
             group.addTask { [runId] in
+                if Task.isCancelled {
+                    GatewayDiagnostics.log("talk: waitForChatCompletion child cancelled at start")
+                    return .timeout
+                }
                 for await evt in stream {
                     if Task.isCancelled { return .timeout }
                     guard evt.event == "chat", let payload = evt.payload else { continue }
@@ -924,6 +983,7 @@ final class TalkModeManager: NSObject {
                         }
                     }
                 }
+                GatewayDiagnostics.log("talk: waitForChatCompletion stream ended without match")
                 return .timeout
             }
             group.addTask {
@@ -946,7 +1006,7 @@ final class TalkModeManager: NSObject {
             if let text = try await self.fetchLatestAssistantText(gateway: gateway, since: since) {
                 return text
             }
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            try? await Task.sleep(nanoseconds: 100_000_000)
         }
         return nil
     }
