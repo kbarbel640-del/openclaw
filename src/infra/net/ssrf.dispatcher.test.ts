@@ -1,4 +1,3 @@
-import { lookup as dnsLookup } from "node:dns";
 import { describe, expect, it, vi } from "vitest";
 
 const { agentCtor } = vi.hoisted(() => ({
@@ -15,7 +14,6 @@ import { createPinnedDispatcher, type PinnedHostname } from "./ssrf.js";
 
 describe("createPinnedDispatcher", () => {
   it("enables network family auto-selection for pinned lookups", () => {
-    const lookup = dnsLookup;
     const lookup = vi.fn() as unknown as PinnedHostname["lookup"];
     const pinned: PinnedHostname = {
       hostname: "api.telegram.org",

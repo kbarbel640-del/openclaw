@@ -220,13 +220,11 @@ describe("monitorTelegramProvider (grammY)", () => {
       .mockImplementationOnce(() => ({
         task: () => Promise.reject(networkError),
         stop: vi.fn(),
-        isRunning: () => false,
         isRunning: (): boolean => false,
       }))
       .mockImplementationOnce(() => ({
         task: () => Promise.resolve(),
         stop: vi.fn(),
-        isRunning: () => false,
         isRunning: (): boolean => false,
       }));
 
@@ -341,7 +339,6 @@ describe("monitorTelegramProvider (grammY)", () => {
     runSpy.mockImplementationOnce(() => ({
       task: () => Promise.reject(new Error("bad token")),
       stop: vi.fn(),
-      isRunning: () => false,
       isRunning: (): boolean => false,
     }));
 
