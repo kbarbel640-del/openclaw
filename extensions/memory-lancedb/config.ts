@@ -59,7 +59,7 @@ function normalizeEmbeddingModelKey(model: string): string {
   if (!raw) return raw;
   // Support provider-prefixed ids, e.g. "openai/text-embedding-3-large"
   const parts = raw.split("/").filter(Boolean);
-  return (parts[parts.length - 1] || raw).trim();
+  return (parts[parts.length - 1] || raw).trim().toLowerCase();
 }
 
 function assertAllowedKeys(value: Record<string, unknown>, allowed: string[], label: string) {
