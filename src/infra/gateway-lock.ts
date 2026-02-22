@@ -117,15 +117,26 @@ function readLinuxStartTime(pid: number): number | null {
  * Returns true if nothing is listening (connection refused), false if
  * something is listening. Uses connect rather than bind so we never
  * transiently occupy the port ourselves.
+ *
+ * A 1 second timeout guards against half-open or firewalled ports that
+ * would otherwise stall the lock acquisition loop indefinitely. On timeout
+ * we conservatively treat the port as free so a stale lock is cleared rather
+ * than blocking startup forever.
  */
 function checkPortFree(port: number, host = "127.0.0.1"): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = net.createConnection({ port, host });
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(true); // timeout → treat as free (conservative: clear stale lock)
+    }, 1000);
     socket.once("connect", () => {
+      clearTimeout(timer);
       socket.destroy();
       resolve(false); // something is listening → port not free
     });
     socket.once("error", () => {
+      clearTimeout(timer);
       resolve(true); // connection refused → port free
     });
   });
