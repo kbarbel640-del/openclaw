@@ -2,6 +2,7 @@ import type { StreamFn } from "@mariozechner/pi-agent-core";
 import type { SimpleStreamOptions } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
 import type { OpenClawConfig } from "../../config/config.js";
+import type { AnthropicServerToolId } from "../../config/types.tools.js";
 import { log } from "./logger.js";
 
 const OPENROUTER_APP_HEADERS: Record<string, string> = {
@@ -289,6 +290,57 @@ function createOpenRouterHeadersWrapper(baseStreamFn: StreamFn | undefined): Str
  *
  * @see https://docs.z.ai/api-reference#streaming
  */
+/** Derive display name from Anthropic server tool type (e.g. web_search_20260209 -> web_search). */
+function serverToolTypeToName(type: AnthropicServerToolId): string {
+  if (type.startsWith("web_search_")) return "web_search";
+  if (type.startsWith("web_fetch_")) return "web_fetch";
+  if (type.startsWith("code_execution_")) return "code_execution";
+  return type;
+}
+
+/**
+ * Create a streamFn wrapper that injects Anthropic server tool definitions into the request.
+ * Server tools run on Anthropic infrastructure; no client execution. Issue #23353.
+ */
+function createAnthropicServerToolsWrapper(
+  baseStreamFn: StreamFn | undefined,
+  serverTools: AnthropicServerToolId[],
+): StreamFn {
+  const underlying = baseStreamFn ?? streamSimple;
+  const defs = serverTools.map((type) => ({
+    type,
+    name: serverToolTypeToName(type),
+  }));
+  return (model, context, options) => {
+    const originalOnPayload = options?.onPayload;
+    return underlying(model, context, {
+      ...options,
+      onPayload: (payload) => {
+        if (payload && typeof payload === "object" && defs.length > 0) {
+          const p = payload as Record<string, unknown>;
+          const existing = Array.isArray(p.tools) ? p.tools : [];
+          p.tools = [...existing, ...defs];
+        }
+        originalOnPayload?.(payload);
+      },
+    });
+  };
+}
+
+function resolveAnthropicServerTools(
+  cfg: OpenClawConfig | undefined,
+  provider: string,
+): AnthropicServerToolId[] | undefined {
+  if (provider !== "anthropic") return undefined;
+  const arr = cfg?.tools?.serverTools;
+  if (!Array.isArray(arr) || arr.length === 0) return undefined;
+  return arr.filter(
+    (t): t is AnthropicServerToolId =>
+      typeof t === "string" &&
+      /^(web_search_|web_fetch_|code_execution_)\d{8}$/.test(t),
+  );
+}
+
 function createZaiToolStreamWrapper(
   baseStreamFn: StreamFn | undefined,
   enabled: boolean,
@@ -356,6 +408,14 @@ export function applyExtraParamsToAgent(
   if (provider === "openrouter") {
     log.debug(`applying OpenRouter app attribution headers for ${provider}/${modelId}`);
     agent.streamFn = createOpenRouterHeadersWrapper(agent.streamFn);
+  }
+
+  const serverTools = resolveAnthropicServerTools(cfg, provider);
+  if (serverTools?.length) {
+    log.debug(
+      `injecting Anthropic server tools for ${provider}/${modelId}: ${serverTools.join(", ")}`,
+    );
+    agent.streamFn = createAnthropicServerToolsWrapper(agent.streamFn, serverTools);
   }
 
   // Enable Z.AI tool_stream for real-time tool call streaming.

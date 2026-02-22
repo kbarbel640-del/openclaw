@@ -376,7 +376,24 @@ export type MemorySearchConfig = {
   };
 };
 
+/**
+ * Anthropic server-side tool identifiers (run on Anthropic infrastructure).
+ * Example: web_search_20260209, web_fetch_20260209, code_execution_20260209.
+ * When set, client-side equivalents (web_search, web_fetch) are skipped for Anthropic. Issue #23353.
+ */
+export type AnthropicServerToolId =
+  | "web_search_20260209"
+  | "web_search_20250305"
+  | "web_fetch_20260209"
+  | "code_execution_20260209";
+
 export type ToolsConfig = {
+  /**
+   * Anthropic server-side tools to enable. When provider is Anthropic, these are passed
+   * in the API request; client-side web_search/web_fetch are skipped when covered.
+   * Issue #23353.
+   */
+  serverTools?: AnthropicServerToolId[];
   /** Base tool profile applied before allow/deny lists. */
   profile?: ToolProfileId;
   allow?: string[];
