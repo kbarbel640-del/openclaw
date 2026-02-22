@@ -1,4 +1,4 @@
-import { LitElement, html, nothing } from "lit";
+import { LitElement, html, nothing, render as litRender } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { AgentProfile } from "../lib/agent-profiles.js";
 import { getProviderTheme, modelTag } from "../lib/agent-theme.js";
@@ -19,9 +19,11 @@ export class AgentDropdownSwitcher extends LitElement {
   @state() private open = false;
   @state() private search = "";
 
+  private portalEl: HTMLDivElement | null = null;
+
   private onDocClick = (e: MouseEvent): void => {
     const path = e.composedPath();
-    if (!path.includes(this)) {
+    if (!path.includes(this) && (!this.portalEl || !path.includes(this.portalEl))) {
       this.open = false;
       this.search = "";
     }
@@ -43,6 +45,7 @@ export class AgentDropdownSwitcher extends LitElement {
   override disconnectedCallback(): void {
     document.removeEventListener("click", this.onDocClick, true);
     document.removeEventListener("keydown", this.onKeyDown);
+    this.removePortal();
     super.disconnectedCallback();
   }
 
@@ -65,6 +68,56 @@ export class AgentDropdownSwitcher extends LitElement {
     this.open = false;
     this.search = "";
     this.dispatchEvent(new CustomEvent("create-new", { bubbles: true, composed: true }));
+  }
+
+  override updated(changed: Map<string, unknown>): void {
+    super.updated(changed);
+    if (changed.has("open")) {
+      if (this.open && !this.compact) {
+        this.showPortal();
+      } else if (!this.open) {
+        this.removePortal();
+      }
+    } else if (
+      this.portalEl &&
+      this.open &&
+      (changed.has("search") || changed.has("agents") || changed.has("selectedId"))
+    ) {
+      this.renderPanelInto(this.portalEl);
+    }
+  }
+
+  private showPortal(): void {
+    this.removePortal();
+    const trigger = this.querySelector<HTMLElement>(".agent-dropdown__trigger");
+    if (!trigger) {
+      return;
+    }
+    const rect = trigger.getBoundingClientRect();
+
+    const portal = document.createElement("div");
+    portal.className = "agent-dropdown__portal";
+    portal.style.position = "fixed";
+    portal.style.top = `${rect.bottom + 4}px`;
+    portal.style.left = `${rect.left}px`;
+    portal.style.width = `${Math.max(rect.width, 280)}px`;
+    portal.style.zIndex = "10000";
+    this.portalEl = portal;
+
+    this.renderPanelInto(portal);
+    document.body.appendChild(portal);
+  }
+
+  private removePortal(): void {
+    if (this.portalEl) {
+      this.portalEl.remove();
+      this.portalEl = null;
+    }
+  }
+
+  /** Render the dropdown panel content into a target element (for portal mode). */
+  private renderPanelInto(container: HTMLElement): void {
+    litRender(this.renderPanel(), container);
   }
 
   private get filteredAgents(): AgentProfile[] {
@@ -103,6 +156,63 @@ export class AgentDropdownSwitcher extends LitElement {
     return nothing;
   }
 
+  private renderPanel() {
+    return html`
+      <div class="agent-dropdown__panel">
+        <div class="agent-dropdown__search-wrap">
+          ${icon("search", { className: "icon-xs" })}
+          <input
+            type="text"
+            class="agent-dropdown__search"
+            placeholder="Search agents..."
+            .value=${this.search}
+            @input=${(e: Event) => {
+              this.search = (e.target as HTMLInputElement).value;
+              if (this.portalEl) {
+                this.renderPanelInto(this.portalEl);
+              }
+            }}
+            @click=${(e: Event) => e.stopPropagation()}
+          />
+        </div>
+        <div class="agent-dropdown__list">
+          ${this.filteredAgents.map((agent) => {
+            const t = getProviderTheme(agent.model);
+            const color = agentColor(agent);
+            const isActive = agent.id === this.selectedId;
+            const mt = modelTag(agent.model);
+            return html`
+              <button
+                class="agent-dropdown__item ${isActive ? "agent-dropdown__item--active" : ""}"
+                @click=${() => this.select(agent.id)}
+              >
+                <span class="agent-dropdown__accent" style="background:${color}"></span>
+                <agent-avatar .agent=${agent} .size=${24}></agent-avatar>
+                <span class="agent-dropdown__item-name">${agent.name}</span>
+                ${this.roleBadge(agent)}
+                ${
+                  mt
+                    ? html`<span class="agent-dropdown__model" style="background:${t.badge};color:${t.text}">${mt}</span>`
+                    : nothing
+                }
+                ${
+                  agent.tools.length
+                    ? html`<span class="agent-dropdown__tool-count">${agent.tools.length}</span>`
+                    : nothing
+                }
+                ${isActive ? html`<span class="agent-dropdown__check">${icon("check", { className: "icon-xs" })}</span>` : nothing}
+              </button>
+            `;
+          })}
+        </div>
+        <button class="agent-dropdown__create" @click=${() => this.fireCreate()}>
+          ${icon("plus", { className: "icon-xs" })}
+          New agent
+        </button>
+      </div>
+    `;
+  }
+
   override render() {
     const sel = this.selected;
     const tag = sel ? modelTag(sel.model) : "";
@@ -137,61 +247,7 @@ export class AgentDropdownSwitcher extends LitElement {
           ${icon("chevronDown", { className: "icon-xs" })}
         </button>
 
-        ${
-          this.open
-            ? html`
-              <div class="agent-dropdown__panel">
-                <div class="agent-dropdown__search-wrap">
-                  ${icon("search", { className: "icon-xs" })}
-                  <input
-                    type="text"
-                    class="agent-dropdown__search"
-                    placeholder="Search agents..."
-                    .value=${this.search}
-                    @input=${(e: Event) => {
-                      this.search = (e.target as HTMLInputElement).value;
-                    }}
-                    @click=${(e: Event) => e.stopPropagation()}
-                  />
-                </div>
-                <div class="agent-dropdown__list">
-                  ${this.filteredAgents.map((agent) => {
-                    const t = getProviderTheme(agent.model);
-                    const color = agentColor(agent);
-                    const isActive = agent.id === this.selectedId;
-                    const mt = modelTag(agent.model);
-                    return html`
-                      <button
-                        class="agent-dropdown__item ${isActive ? "agent-dropdown__item--active" : ""}"
-                        @click=${() => this.select(agent.id)}
-                      >
-                        <span class="agent-dropdown__accent" style="background:${color}"></span>
-                        <agent-avatar .agent=${agent} .size=${24}></agent-avatar>
-                        <span class="agent-dropdown__item-name">${agent.name}</span>
-                        ${this.roleBadge(agent)}
-                        ${
-                          mt
-                            ? html`<span class="agent-dropdown__model" style="background:${t.badge};color:${t.text}">${mt}</span>`
-                            : nothing
-                        }
-                        ${
-                          agent.tools.length
-                            ? html`<span class="agent-dropdown__tool-count">${agent.tools.length}</span>`
-                            : nothing
-                        }
-                        ${isActive ? html`<span class="agent-dropdown__check">${icon("check", { className: "icon-xs" })}</span>` : nothing}
-                      </button>
-                    `;
-                  })}
-                </div>
-                <button class="agent-dropdown__create" @click=${() => this.fireCreate()}>
-                  ${icon("plus", { className: "icon-xs" })}
-                  New agent
-                </button>
-              </div>
-            `
-            : nothing
-        }
+        ${this.open && this.compact ? this.renderPanel() : nothing}
       </div>
     `;
   }

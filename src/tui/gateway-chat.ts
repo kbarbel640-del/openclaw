@@ -95,6 +95,13 @@ export type GatewayModelChoice = {
   reasoning?: boolean;
 };
 
+/**
+ * High-level WebSocket client for TUI ↔ Gateway communication.
+ *
+ * Wraps {@link GatewayClient} with typed methods for chat, sessions, agents,
+ * and models. Emits lifecycle callbacks (`onConnected`, `onDisconnected`,
+ * `onEvent`, `onGap`) consumed by TUI event handlers.
+ */
 export class GatewayChatClient {
   private client: GatewayClient;
   private readyPromise: Promise<void>;
@@ -161,6 +168,7 @@ export class GatewayChatClient {
     await this.readyPromise;
   }
 
+  /** Send a chat message to the Gateway and return the assigned run ID. */
   async sendChat(opts: ChatSendOptions): Promise<{ runId: string }> {
     const runId = opts.runId ?? randomUUID();
     await this.client.request("chat.send", {
@@ -174,6 +182,7 @@ export class GatewayChatClient {
     return { runId };
   }
 
+  /** Abort an active chat run. Returns whether the abort succeeded. */
   async abortChat(opts: { sessionKey: string; runId: string }) {
     return await this.client.request<{ ok: boolean; aborted: boolean }>("chat.abort", {
       sessionKey: opts.sessionKey,

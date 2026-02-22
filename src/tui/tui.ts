@@ -39,6 +39,12 @@ import { buildWaitingStatusMessage, defaultWaitingPhrases } from "./tui-waiting.
 export { resolveFinalAssistantText } from "./tui-formatters.js";
 export type { TuiOptions } from "./tui-types.js";
 
+/**
+ * Creates the submit handler for the TUI editor input.
+ *
+ * Routes input to slash command handling, local shell execution (`!` prefix),
+ * or regular message sending. Manages input history and editor clearing.
+ */
 export function createEditorSubmitHandler(params: {
   editor: {
     setText: (value: string) => void;
@@ -79,6 +85,10 @@ export function createEditorSubmitHandler(params: {
   };
 }
 
+/**
+ * Detects Windows Git Bash (MINGW/MSYS/mintty) where bracketed-paste
+ * mode is unsupported and a character-level fallback is needed.
+ */
 export function shouldEnableWindowsGitBashPasteFallback(params?: {
   platform?: string;
   env?: NodeJS.ProcessEnv;
@@ -100,6 +110,11 @@ export function shouldEnableWindowsGitBashPasteFallback(params?: {
   return termProgram.includes("mintty");
 }
 
+/**
+ * Coalesces rapid submit events (e.g. pasted multi-line text in Git Bash)
+ * into a single submit call. Waits `burstWindowMs` (default 80ms) after the
+ * last burst character before firing the combined text.
+ */
 export function createSubmitBurstCoalescer(params: {
   submit: (value: string) => void;
   enabled: boolean;
@@ -172,6 +187,10 @@ export function createSubmitBurstCoalescer(params: {
   };
 }
 
+/**
+ * Resolves a raw session key input into a fully-qualified session key
+ * (e.g. `agent:<agentId>:main`), respecting agent scope and defaults.
+ */
 export function resolveTuiSessionKey(params: {
   raw?: string;
   sessionScope: SessionScope;
@@ -197,6 +216,10 @@ export function resolveTuiSessionKey(params: {
   return `agent:${params.currentAgentId}:${trimmed}`;
 }
 
+/**
+ * Maps a Gateway disconnect reason string to user-facing status messages
+ * and an optional pairing hint for first-time disconnects.
+ */
 export function resolveGatewayDisconnectState(reason?: string): {
   connectionStatus: string;
   activityStatus: string;
@@ -217,6 +240,10 @@ export function resolveGatewayDisconnectState(reason?: string): {
   };
 }
 
+/**
+ * Deduplicates rapid backspace key events (common on some terminals)
+ * within a configurable window (default 30ms).
+ */
 export function createBackspaceDeduper(params?: { dedupeWindowMs?: number; now?: () => number }) {
   const dedupeWindowMs = Math.max(0, Math.floor(params?.dedupeWindowMs ?? 8));
   const now = params?.now ?? (() => Date.now());
@@ -235,6 +262,12 @@ export function createBackspaceDeduper(params?: { dedupeWindowMs?: number; now?:
   };
 }
 
+/**
+ * Main entry point for the TUI. Connects to the Gateway, sets up the full-screen
+ * terminal interface, wires event handlers, and blocks until the process exits.
+ *
+ * @param opts - Connection and session options (url, token, session, deliver, etc.)
+ */
 export async function runTui(opts: TuiOptions) {
   const config = loadConfig();
   const initialSessionInput = (opts.session ?? "").trim();

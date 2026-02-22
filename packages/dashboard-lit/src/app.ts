@@ -25,15 +25,21 @@ declare global {
   }
 }
 
-type ThemeMode = "landingTheme" | "light" | "dark";
+type ThemeMode = "defaultTheme" | "docsTheme" | "lightTheme";
 const THEME_KEY = "openclaw.dashboard.theme";
 
-/** Backward-compat: older localStorage entries stored "docsTheme" */
+/** Backward-compat: map legacy localStorage theme names to current values */
 const migrateLegacyTheme = (v: string | null): ThemeMode | null => {
-  if (v === "docsTheme") {
-    return "dark";
+  if (v === "dark" || v === "docsTheme") {
+    return "defaultTheme";
   }
-  if (v === "landingTheme" || v === "light" || v === "dark") {
+  if (v === "light") {
+    return "docsTheme";
+  }
+  if (v === "landingTheme") {
+    return "lightTheme";
+  }
+  if (v === "defaultTheme" || v === "lightTheme") {
     return v;
   }
   return null;
@@ -41,9 +47,9 @@ const migrateLegacyTheme = (v: string | null): ThemeMode | null => {
 
 type ThemeOption = { id: ThemeMode; label: string; icon: string };
 const THEME_OPTIONS: ThemeOption[] = [
-  { id: "landingTheme", label: "Landing", icon: "layoutGrid" },
-  { id: "light", label: "Light", icon: "sun" },
-  { id: "dark", label: "Dark", icon: "moon" },
+  { id: "defaultTheme", label: "Default", icon: "moon" },
+  { id: "lightTheme", label: "Light", icon: "sun" },
+  { id: "docsTheme", label: "Docs", icon: "layoutGrid" },
 ];
 const NAV_COLLAPSED_KEY = "openclaw.dashboard.navCollapsed";
 
@@ -74,12 +80,12 @@ export class DashboardApp extends LitElement {
 
   @state() tab: Tab = "overview";
   @state() basePath = "";
-  @state() theme: ThemeMode = "dark";
+  @state() theme: ThemeMode = "defaultTheme";
   @state() navCollapsed = false;
   @state() private isMobile = false;
   /** Button order — only updates when the toggle collapses, so the active
    *  button doesn't jump while the picker is still open. */
-  @state() private themeOrder: ThemeMode[] = ["dark", "landingTheme", "light"];
+  @state() private themeOrder: ThemeMode[] = ["defaultTheme", "lightTheme", "docsTheme"];
 
   /* ── Lifecycle ───────────────────────────────────── */
 
@@ -173,7 +179,7 @@ export class DashboardApp extends LitElement {
 
   private initTheme(): void {
     const saved = migrateLegacyTheme(localStorage.getItem(THEME_KEY));
-    this.theme = saved ?? "dark";
+    this.theme = saved ?? "defaultTheme";
     this.themeOrder = this.buildThemeOrder(this.theme);
     this.applyTheme(this.theme);
   }

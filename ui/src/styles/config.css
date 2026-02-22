@@ -420,7 +420,7 @@
 }
 
 .config-section-hero__desc {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
 }
 
@@ -587,7 +587,7 @@
 
 .config-section-card__title {
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -597,7 +597,7 @@
 
 .config-section-card__desc {
   margin: 5px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   line-height: 1.45;
 }
@@ -628,19 +628,19 @@
 }
 
 .cfg-field__label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text);
 }
 
 .cfg-field__help {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   line-height: 1.45;
 }
 
 .cfg-field__error {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--danger);
 }
 
@@ -848,7 +848,7 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition:
@@ -913,7 +913,7 @@
 
 .cfg-toggle-row__label {
   display: block;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text);
 }
@@ -921,7 +921,7 @@
 .cfg-toggle-row__help {
   display: block;
   margin-top: 3px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   line-height: 1.45;
 }

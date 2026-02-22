@@ -23,6 +23,50 @@ export class AgentPanel extends LitElement {
 
   @state() private agentTab: AgentTab = "chat";
 
+  private urlParamApplied = false;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.applyUrlAgentParam();
+  }
+
+  /**
+   * In fullpage mode, read `?agent=<id>` from the URL and select that agent.
+   * Also supports `?tab=<agentTab>` for deep-linking to a specific tab.
+   */
+  private applyUrlAgentParam(): void {
+    if (this.urlParamApplied || this.mode !== "fullpage") {
+      return;
+    }
+    this.urlParamApplied = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const agentId = params.get("agent");
+    if (agentId && this.agentStore) {
+      const match = this.agentStore.agents.find((a) => a.id === agentId);
+      if (match) {
+        this.agentStore.selectAgent(match.id);
+
+        const tab = params.get("tab") as AgentTab | null;
+        if (tab && ["chat", "settings", "tasks", "workflows", "retrospectives"].includes(tab)) {
+          this.agentTab = tab;
+        }
+
+        if (match.isRetrospective && !tab) {
+          this.agentTab = "retrospectives";
+        }
+      }
+    }
+  }
+
+  override updated(changed: Map<string, unknown>): void {
+    super.updated(changed);
+    // Retry once store becomes available (context may resolve after first render)
+    if (!this.urlParamApplied) {
+      this.applyUrlAgentParam();
+    }
+  }
+
   private handleAgentSelect(e: CustomEvent<string>): void {
     this.agentStore.selectAgent(e.detail);
     this.agentTab = "chat";

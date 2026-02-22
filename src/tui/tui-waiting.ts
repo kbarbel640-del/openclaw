@@ -17,11 +17,13 @@ export const defaultWaitingPhrases = [
   "conjuring",
 ];
 
+/** Cycle through whimsical waiting phrases based on a tick counter (changes every 10 ticks). */
 export function pickWaitingPhrase(tick: number, phrases = defaultWaitingPhrases) {
   const idx = Math.floor(tick / 10) % phrases.length;
   return phrases[idx] ?? phrases[0] ?? "waiting";
 }
 
+/** Apply a sliding shimmer highlight across text characters for a loading animation effect. */
 export function shimmerText(theme: MinimalTheme, text: string, tick: number) {
   const width = 6;
   const hi = (ch: string) => theme.bold(theme.accentSoft(ch));
@@ -38,6 +40,7 @@ export function shimmerText(theme: MinimalTheme, text: string, tick: number) {
   return out;
 }
 
+/** Build the animated waiting status line shown while the agent is processing. */
 export function buildWaitingStatusMessage(params: {
   theme: MinimalTheme;
   tick: number;

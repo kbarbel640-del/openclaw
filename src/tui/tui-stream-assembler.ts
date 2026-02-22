@@ -75,6 +75,14 @@ function isDroppedBoundaryTextBlockSubset(params: {
   return finalTextBlocks.every((block, index) => streamedTextBlocks[suffixStart + index] === block);
 }
 
+/**
+ * Accumulates streamed chat deltas into coherent display text per run.
+ *
+ * Handles thinking + content composition, protects against boundary-dropped
+ * text blocks (when non-text content blocks cause the provider to drop text
+ * blocks at message boundaries), and produces the final display string on
+ * finalization.
+ */
 export class TuiStreamAssembler {
   private runs = new Map<string, RunStreamState>();
 
@@ -134,6 +142,10 @@ export class TuiStreamAssembler {
     state.displayText = displayText;
   }
 
+  /**
+   * Ingest a streaming delta for a run. Returns updated display text,
+   * or `null` if nothing visually changed.
+   */
   ingestDelta(runId: string, message: unknown, showThinking: boolean): string | null {
     const state = this.getOrCreateRun(runId);
     const previousDisplayText = state.displayText;
@@ -146,6 +158,10 @@ export class TuiStreamAssembler {
     return state.displayText;
   }
 
+  /**
+   * Finalize a run with the final message payload. Returns the resolved
+   * display text and cleans up internal state for the run.
+   */
   finalize(runId: string, message: unknown, showThinking: boolean): string {
     const state = this.getOrCreateRun(runId);
     const streamedDisplayText = state.displayText;

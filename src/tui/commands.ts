@@ -24,6 +24,7 @@ const COMMAND_ALIASES: Record<string, string> = {
   elev: "elevated",
 };
 
+/** Parse a `/command args` string into name + args, resolving aliases. */
 export function parseCommand(input: string): ParsedCommand {
   const trimmed = input.replace(/^\//, "").trim();
   if (!trimmed) {
@@ -37,6 +38,7 @@ export function parseCommand(input: string): ParsedCommand {
   };
 }
 
+/** Build the full list of slash commands with autocomplete providers. */
 export function getSlashCommands(options: SlashCommandOptions = {}): SlashCommand[] {
   const thinkLevels = listThinkingLevelLabels(options.provider, options.model);
   const commands: SlashCommand[] = [
@@ -138,6 +140,7 @@ export function getSlashCommands(options: SlashCommandOptions = {}): SlashComman
   return commands;
 }
 
+/** Generate the `/help` output text listing all available slash commands. */
 export function helpText(options: SlashCommandOptions = {}): string {
   const thinkLevels = formatThinkingLevels(options.provider, options.model, "|");
   return [

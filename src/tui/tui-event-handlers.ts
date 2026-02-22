@@ -31,6 +31,10 @@ type EventHandlerContext = {
   clearLocalRunIds?: () => void;
 };
 
+/**
+ * Creates chat and agent event handlers that update the chat log, manage
+ * active run state, and drive TUI re-renders in response to Gateway SSE events.
+ */
 export function createEventHandlers(context: EventHandlerContext) {
   const {
     chatLog,

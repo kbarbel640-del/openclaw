@@ -206,11 +206,19 @@ export class AgentChat extends LitElement {
   // Scroll
   @state() private showScrollPill = false;
 
+  // Virtual scrolling: only render a window of messages when count > threshold
+  @state() private virtualStart = 0;
+  @state() private virtualEnd = 0;
+
   // (starter cards send immediately — no expansion state needed)
 
   private prevEventSeq = -1;
   private scrollEl: HTMLElement | null = null;
   private shouldAutoScroll = true;
+
+  private static readonly VIRTUAL_THRESHOLD = 50;
+  private static readonly VIRTUAL_OVERSCAN = 15;
+  private static readonly ESTIMATED_MSG_HEIGHT = 80;
   private inputHistory = new InputHistory();
   private pinnedMessages!: PinnedMessages;
   private streamTimer: ReturnType<typeof setInterval> | null = null;
@@ -269,6 +277,7 @@ export class AgentChat extends LitElement {
     this.handleChatEvent();
 
     if (changed.has("messages") || changed.has("streamingText")) {
+      this.updateVirtualWindow();
       this.autoScroll();
     }
   }
@@ -834,6 +843,7 @@ export class AgentChat extends LitElement {
     const atBottom = scrollHeight - scrollTop - clientHeight < 60;
     this.shouldAutoScroll = atBottom;
     this.showScrollPill = !atBottom && this.messages.length > 5;
+    this.updateVirtualWindow();
   };
 
   private scrollToBottom(): void {
@@ -842,6 +852,36 @@ export class AgentChat extends LitElement {
     }
     this.showScrollPill = false;
     this.shouldAutoScroll = true;
+  }
+
+  private get useVirtualScroll(): boolean {
+    return this.messages.length > AgentChat.VIRTUAL_THRESHOLD;
+  }
+
+  /** Recompute which slice of messages to render based on scroll position. */
+  private updateVirtualWindow(): void {
+    const msgs = this.searchOpen ? this.filteredMessages : this.messages;
+    const total = msgs.length;
+    if (total <= AgentChat.VIRTUAL_THRESHOLD) {
+      this.virtualStart = 0;
+      this.virtualEnd = total;
+      return;
+    }
+
+    const el = this.scrollEl;
+    if (!el) {
+      this.virtualStart = 0;
+      this.virtualEnd = total;
+      return;
+    }
+
+    const estHeight = AgentChat.ESTIMATED_MSG_HEIGHT;
+    const overscan = AgentChat.VIRTUAL_OVERSCAN;
+    const firstVisible = Math.floor(el.scrollTop / estHeight);
+    const visibleCount = Math.ceil(el.clientHeight / estHeight);
+
+    this.virtualStart = Math.max(0, firstVisible - overscan);
+    this.virtualEnd = Math.min(total, firstVisible + visibleCount + overscan);
   }
 
   /* ── Bubble actions ─────────────────────────────────── */
@@ -984,32 +1024,7 @@ export class AgentChat extends LitElement {
               : nothing
           }
 
-          ${displayMessages.map((msg, i) => {
-            const isHistoryMsg = i < this.historyCount;
-            const showDivider =
-              i === this.historyCount && this.historyCount > 0 && i < this.messages.length;
-            const isLastAssistant = msg.role === "assistant" && i === displayMessages.length - 1;
-
-            return html`
-              ${
-                showDivider
-                  ? html`
-                      <div class="agent-chat__divider"><span>New</span></div>
-                    `
-                  : nothing
-              }
-              <chat-bubble
-                .message=${msg}
-                .index=${i}
-                .isHistory=${isHistoryMsg}
-                .isLast=${isLastAssistant}
-                .isPinned=${this.pinnedMessages.has(i)}
-                .redacted=${this.privacy?.streamMode ?? false}
-                .modelTag=${msg.role === "assistant" ? modelTag(this.agent?.model) : ""}
-                .actions=${this.bubbleActions}
-              ></chat-bubble>
-            `;
-          })}
+          ${this.renderMessages(displayMessages)}
 
           ${isStreaming ? this.renderStreamingIndicator() : nothing}
 
@@ -1078,6 +1093,10 @@ export class AgentChat extends LitElement {
           <input type="file" accept="image/*,.pdf,.txt,.md,.json,.csv" multiple class="agent-chat__file-input" style="display:none" @change=${this.handleFileSelect} />
 
           <div class="agent-chat__input-row">
+            <span
+              class="agent-chat__conn-dot ${g.connected ? "agent-chat__conn-dot--ok" : g.connecting ? "agent-chat__conn-dot--connecting" : g.retryStalled ? "agent-chat__conn-dot--error" : "agent-chat__conn-dot--off"}"
+              title=${g.connected ? "Connected" : g.connecting ? "Connecting..." : g.retryStalled ? "Connection failed" : "Disconnected"}
+            ></span>
             <button class="agent-chat__input-btn" @click=${() => this.triggerFileInput()} title="Attach file" ?disabled=${!g.connected}>
               ${icon("paperclip", { className: "icon-sm" })}
             </button>
@@ -1151,6 +1170,57 @@ export class AgentChat extends LitElement {
           </div>
         </div>
       </div>
+    `;
+  }
+
+  /* ── Message list (with optional virtual scrolling) ── */
+
+  private renderMessages(displayMessages: ChatMessage[]) {
+    if (displayMessages.length === 0) {
+      return nothing;
+    }
+
+    const total = displayMessages.length;
+    const virtual = total > AgentChat.VIRTUAL_THRESHOLD;
+    const start = virtual ? this.virtualStart : 0;
+    const end = virtual ? Math.min(this.virtualEnd, total) : total;
+    const estH = AgentChat.ESTIMATED_MSG_HEIGHT;
+
+    const topSpacer = virtual && start > 0 ? start * estH : 0;
+    const bottomSpacer = virtual && end < total ? (total - end) * estH : 0;
+
+    const slice = displayMessages.slice(start, end);
+
+    return html`
+      ${topSpacer > 0 ? html`<div style="height:${topSpacer}px;flex-shrink:0"></div>` : nothing}
+      ${slice.map((msg, si) => {
+        const i = start + si;
+        const isHistoryMsg = i < this.historyCount;
+        const showDivider =
+          i === this.historyCount && this.historyCount > 0 && i < this.messages.length;
+        const isLastAssistant = msg.role === "assistant" && i === total - 1;
+
+        return html`
+          ${
+            showDivider
+              ? html`
+                  <div class="agent-chat__divider"><span>New</span></div>
+                `
+              : nothing
+          }
+          <chat-bubble
+            .message=${msg}
+            .index=${i}
+            .isHistory=${isHistoryMsg}
+            .isLast=${isLastAssistant}
+            .isPinned=${this.pinnedMessages.has(i)}
+            .redacted=${this.privacy?.streamMode ?? false}
+            .modelTag=${msg.role === "assistant" ? modelTag(this.agent?.model) : ""}
+            .actions=${this.bubbleActions}
+          ></chat-bubble>
+        `;
+      })}
+      ${bottomSpacer > 0 ? html`<div style="height:${bottomSpacer}px;flex-shrink:0"></div>` : nothing}
     `;
   }
 

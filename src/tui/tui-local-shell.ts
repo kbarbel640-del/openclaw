@@ -24,6 +24,13 @@ type LocalShellDeps = {
   maxOutputChars?: number;
 };
 
+/**
+ * Creates the local shell runner for `!command` execution.
+ *
+ * Gated behind a per-session approval prompt. Commands run in a child
+ * process shell; stdout/stderr are captured and appended to the chat log
+ * with a 40 KB cap.
+ */
 export function createLocalShellRunner(deps: LocalShellDeps) {
   let localExecAsked = false;
   let localExecAllowed = false;
