@@ -9,6 +9,7 @@ const deliverReplies = vi.hoisted(() => vi.fn());
 const editMessageTelegram = vi.hoisted(() => vi.fn());
 const loadSessionStore = vi.hoisted(() => vi.fn());
 const resolveStorePath = vi.hoisted(() => vi.fn(() => "/tmp/sessions.json"));
+const sleepMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock("./draft-stream.js", () => ({
   createTelegramDraftStream,
@@ -36,6 +37,11 @@ vi.mock("./sticker-cache.js", () => ({
   describeStickerImage: vi.fn(),
 }));
 
+vi.mock("../utils.js", () => ({
+  sleep: sleepMock,
+}));
+
+import { DEFAULT_TIMING } from "../channels/status-reactions.js";
 import { dispatchTelegramMessage } from "./bot-message-dispatch.js";
 
 describe("dispatchTelegramMessage draft streaming", () => {
@@ -48,6 +54,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
     editMessageTelegram.mockClear();
     loadSessionStore.mockClear();
     resolveStorePath.mockClear();
+    sleepMock.mockClear();
     resolveStorePath.mockReturnValue("/tmp/sessions.json");
     loadSessionStore.mockReturnValue({});
   });
@@ -1411,5 +1418,97 @@ describe("dispatchTelegramMessage draft streaming", () => {
 
     expect(draftA.clear).toHaveBeenCalledTimes(1);
     expect(draftB.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears done reaction after hold delay when removeAckAfterReply is true", async () => {
+    const statusReactionController = {
+      setThinking: vi.fn(),
+      setTool: vi.fn(),
+      setDone: vi.fn().mockResolvedValue(undefined),
+      setError: vi.fn().mockResolvedValue(undefined),
+      clear: vi.fn().mockResolvedValue(undefined),
+      restoreInitial: vi.fn().mockResolvedValue(undefined),
+      setQueued: vi.fn(),
+    };
+    dispatchReplyWithBufferedBlockDispatcher.mockImplementation(async ({ dispatcherOptions }) => {
+      await dispatcherOptions.deliver({ text: "Hello" }, { kind: "final" });
+      return { queuedFinal: true };
+    });
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    await dispatchWithContext({
+      context: createContext({
+        removeAckAfterReply: true,
+        statusReactionController,
+      }),
+      streamMode: "off",
+    });
+
+    // Allow the fire-and-forget async to complete
+    await vi.waitFor(() => {
+      expect(statusReactionController.setDone).toHaveBeenCalledTimes(1);
+      expect(sleepMock).toHaveBeenCalledWith(DEFAULT_TIMING.doneHoldMs);
+      expect(statusReactionController.clear).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not clear done reaction when removeAckAfterReply is false", async () => {
+    const statusReactionController = {
+      setThinking: vi.fn(),
+      setTool: vi.fn(),
+      setDone: vi.fn().mockResolvedValue(undefined),
+      setError: vi.fn().mockResolvedValue(undefined),
+      clear: vi.fn().mockResolvedValue(undefined),
+      restoreInitial: vi.fn().mockResolvedValue(undefined),
+      setQueued: vi.fn(),
+    };
+    dispatchReplyWithBufferedBlockDispatcher.mockImplementation(async ({ dispatcherOptions }) => {
+      await dispatcherOptions.deliver({ text: "Hello" }, { kind: "final" });
+      return { queuedFinal: true };
+    });
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    await dispatchWithContext({
+      context: createContext({
+        removeAckAfterReply: false,
+        statusReactionController,
+      }),
+      streamMode: "off",
+    });
+
+    // Allow any pending microtasks to flush
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(statusReactionController.setDone).toHaveBeenCalledTimes(1);
+    expect(statusReactionController.clear).not.toHaveBeenCalled();
+  });
+
+  it("clears error reaction after hold delay when removeAckAfterReply is true and no final response", async () => {
+    const statusReactionController = {
+      setThinking: vi.fn(),
+      setTool: vi.fn(),
+      setDone: vi.fn().mockResolvedValue(undefined),
+      setError: vi.fn().mockResolvedValue(undefined),
+      clear: vi.fn().mockResolvedValue(undefined),
+      restoreInitial: vi.fn().mockResolvedValue(undefined),
+      setQueued: vi.fn(),
+    };
+    dispatchReplyWithBufferedBlockDispatcher.mockResolvedValue({
+      queuedFinal: false,
+    });
+
+    await dispatchWithContext({
+      context: createContext({
+        removeAckAfterReply: true,
+        statusReactionController,
+      }),
+      streamMode: "off",
+    });
+
+    await vi.waitFor(() => {
+      expect(statusReactionController.setError).toHaveBeenCalledTimes(1);
+      expect(sleepMock).toHaveBeenCalledWith(DEFAULT_TIMING.errorHoldMs);
+      expect(statusReactionController.clear).toHaveBeenCalledTimes(1);
+    });
   });
 });

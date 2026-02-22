@@ -13,6 +13,7 @@ import type { ReplyPayload } from "../auto-reply/types.js";
 import { removeAckReactionAfterReply } from "../channels/ack-reactions.js";
 import { logAckFailure, logTypingFailure } from "../channels/logging.js";
 import { createReplyPrefixOptions } from "../channels/reply-prefix.js";
+import { DEFAULT_TIMING } from "../channels/status-reactions.js";
 import { createTypingCallbacks } from "../channels/typing.js";
 import { resolveMarkdownTableMode } from "../config/markdown-tables.js";
 import { loadSessionStore, resolveStorePath } from "../config/sessions.js";
@@ -20,6 +21,7 @@ import type { OpenClawConfig, ReplyToMode, TelegramAccountConfig } from "../conf
 import { danger, logVerbose } from "../globals.js";
 import { getAgentScopedMediaLocalRoots } from "../media/local-roots.js";
 import type { RuntimeEnv } from "../runtime.js";
+import { sleep } from "../utils.js";
 import type { TelegramMessageContext } from "./bot-message-context.js";
 import type { TelegramBotOptions } from "./bot.js";
 import { deliverReplies } from "./bot/delivery.js";
@@ -807,9 +809,17 @@ export const dispatchTelegramMessage = async ({
   const hasFinalResponse = queuedFinal || sentFallback;
 
   if (statusReactionController && !hasFinalResponse) {
-    void statusReactionController.setError().catch((err) => {
-      logVerbose(`telegram: status reaction error finalize failed: ${String(err)}`);
-    });
+    void (async () => {
+      try {
+        await statusReactionController.setError();
+        if (removeAckAfterReply) {
+          await sleep(DEFAULT_TIMING.errorHoldMs);
+          await statusReactionController.clear();
+        }
+      } catch (err) {
+        logVerbose(`telegram: status reaction error finalize failed: ${String(err)}`);
+      }
+    })();
   }
 
   if (!hasFinalResponse) {
@@ -818,9 +828,17 @@ export const dispatchTelegramMessage = async ({
   }
 
   if (statusReactionController) {
-    void statusReactionController.setDone().catch((err) => {
-      logVerbose(`telegram: status reaction finalize failed: ${String(err)}`);
-    });
+    void (async () => {
+      try {
+        await statusReactionController.setDone();
+        if (removeAckAfterReply) {
+          await sleep(DEFAULT_TIMING.doneHoldMs);
+          await statusReactionController.clear();
+        }
+      } catch (err) {
+        logVerbose(`telegram: status reaction finalize failed: ${String(err)}`);
+      }
+    })();
   } else {
     removeAckReactionAfterReply({
       removeAfterReply: removeAckAfterReply,
