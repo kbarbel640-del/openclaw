@@ -1,9 +1,14 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 let modelsListCommand: typeof import("./models/list.list-command.js").modelsListCommand;
+let loadModelRegistry: typeof import("./models/list.registry.js").loadModelRegistry;
+let toModelRow: typeof import("./models/list.registry.js").toModelRow;
 
 const loadConfig = vi.fn();
 const ensureOpenClawModelsJson = vi.fn().mockResolvedValue(undefined);
+const ensurePiAuthJsonFromAuthProfiles = vi
+  .fn()
+  .mockResolvedValue({ wrote: false, authPath: "/tmp/openclaw-agent/auth.json" });
 const resolveOpenClawAgentDir = vi.fn().mockReturnValue("/tmp/openclaw-agent");
 const ensureAuthProfileStore = vi.fn().mockReturnValue({ version: 1, profiles: {} });
 const listProfilesForProvider = vi.fn().mockReturnValue([]);
@@ -21,7 +26,7 @@ const modelRegistryState = {
   getAllError: undefined as unknown,
   getAvailableError: undefined as unknown,
 };
-let previousExitCode: number | undefined;
+let previousExitCode: typeof process.exitCode;
 
 vi.mock("../config/config.js", () => ({
   CONFIG_PATH: "/tmp/openclaw.json",
@@ -31,6 +36,10 @@ vi.mock("../config/config.js", () => ({
 
 vi.mock("../agents/models-config.js", () => ({
   ensureOpenClawModelsJson,
+}));
+
+vi.mock("../agents/pi-auth-json.js", () => ({
+  ensurePiAuthJsonFromAuthProfiles,
 }));
 
 vi.mock("../agents/agent-paths.js", () => ({
@@ -91,7 +100,19 @@ function makeRuntime() {
   return {
     log: vi.fn(),
     error: vi.fn(),
+    exit: vi.fn(),
   };
+}
+
+function expectModelRegistryUnavailable(
+  runtime: ReturnType<typeof makeRuntime>,
+  expectedDetail: string,
+) {
+  expect(runtime.error).toHaveBeenCalledTimes(1);
+  expect(runtime.error.mock.calls[0]?.[0]).toContain("Model registry unavailable:");
+  expect(runtime.error.mock.calls[0]?.[0]).toContain(expectedDetail);
+  expect(runtime.log).not.toHaveBeenCalled();
+  expect(process.exitCode).toBe(1);
 }
 
 beforeEach(() => {
@@ -100,6 +121,7 @@ beforeEach(() => {
   modelRegistryState.getAllError = undefined;
   modelRegistryState.getAvailableError = undefined;
   listProfilesForProvider.mockReturnValue([]);
+  ensurePiAuthJsonFromAuthProfiles.mockClear();
 });
 
 afterEach(() => {
@@ -249,6 +271,23 @@ describe("models list/status", () => {
     return parseJsonLog(runtime);
   }
 
+  const GOOGLE_ANTIGRAVITY_OPUS_46_CASES = [
+    {
+      name: "thinking",
+      configuredModelId: "claude-opus-4-6-thinking",
+      templateId: "claude-opus-4-5-thinking",
+      templateName: "Claude Opus 4.5 Thinking",
+      expectedKey: "google-antigravity/claude-opus-4-6-thinking",
+    },
+    {
+      name: "non-thinking",
+      configuredModelId: "claude-opus-4-6",
+      templateId: "claude-opus-4-5",
+      templateName: "Claude Opus 4.5",
+      expectedKey: "google-antigravity/claude-opus-4-6",
+    },
+  ] as const;
+
   function expectAntigravityModel(
     payload: Record<string, unknown>,
     params: { key: string; available: boolean; includesTags?: boolean },
@@ -265,6 +304,16 @@ describe("models list/status", () => {
 
   beforeAll(async () => {
     ({ modelsListCommand } = await import("./models/list.list-command.js"));
+    ({ loadModelRegistry, toModelRow } = await import("./models/list.registry.js"));
+  });
+
+  it("models list syncs auth-profiles into auth.json before availability checks", async () => {
+    setDefaultZaiRegistry();
+    const runtime = makeRuntime();
+
+    await modelsListCommand({ all: true, json: true }, runtime);
+
+    expect(ensurePiAuthJsonFromAuthProfiles).toHaveBeenCalledWith("/tmp/openclaw-agent");
   });
 
   it("models list outputs canonical zai key for configured z.ai model", async () => {
@@ -291,17 +340,12 @@ describe("models list/status", () => {
     expect(runtime.log.mock.calls[0]?.[0]).toBe("zai/glm-4.7");
   });
 
-  it("models list provider filter normalizes z.ai alias", async () => {
-    await expectZaiProviderFilter("z.ai");
-  });
-
-  it("models list provider filter normalizes Z.AI alias casing", async () => {
-    await expectZaiProviderFilter("Z.AI");
-  });
-
-  it("models list provider filter normalizes z-ai alias", async () => {
-    await expectZaiProviderFilter("z-ai");
-  });
+  it.each(["z.ai", "Z.AI", "z-ai"] as const)(
+    "models list provider filter normalizes %s alias",
+    async (provider) => {
+      await expectZaiProviderFilter(provider);
+    },
+  );
 
   it("models list marks auth as unavailable when ZAI key is missing", async () => {
     setDefaultZaiRegistry({ available: false });
@@ -313,57 +357,37 @@ describe("models list/status", () => {
     expect(payload.models[0]?.available).toBe(false);
   });
 
-  it("models list resolves antigravity opus 4.6 thinking from 4.5 template", async () => {
-    const payload = await runGoogleAntigravityListCase({
-      configuredModelId: "claude-opus-4-6-thinking",
-      templateId: "claude-opus-4-5-thinking",
-      templateName: "Claude Opus 4.5 Thinking",
-    });
-    expectAntigravityModel(payload, {
-      key: "google-antigravity/claude-opus-4-6-thinking",
-      available: false,
-      includesTags: true,
-    });
-  });
+  it.each(GOOGLE_ANTIGRAVITY_OPUS_46_CASES)(
+    "models list resolves antigravity opus 4.6 $name from 4.5 template",
+    async ({ configuredModelId, templateId, templateName, expectedKey }) => {
+      const payload = await runGoogleAntigravityListCase({
+        configuredModelId,
+        templateId,
+        templateName,
+      });
+      expectAntigravityModel(payload, {
+        key: expectedKey,
+        available: false,
+        includesTags: true,
+      });
+    },
+  );
 
-  it("models list resolves antigravity opus 4.6 (non-thinking) from 4.5 template", async () => {
-    const payload = await runGoogleAntigravityListCase({
-      configuredModelId: "claude-opus-4-6",
-      templateId: "claude-opus-4-5",
-      templateName: "Claude Opus 4.5",
-    });
-    expectAntigravityModel(payload, {
-      key: "google-antigravity/claude-opus-4-6",
-      available: false,
-      includesTags: true,
-    });
-  });
-
-  it("models list marks synthesized antigravity opus 4.6 thinking as available when template is available", async () => {
-    const payload = await runGoogleAntigravityListCase({
-      configuredModelId: "claude-opus-4-6-thinking",
-      templateId: "claude-opus-4-5-thinking",
-      templateName: "Claude Opus 4.5 Thinking",
-      available: true,
-    });
-    expectAntigravityModel(payload, {
-      key: "google-antigravity/claude-opus-4-6-thinking",
-      available: true,
-    });
-  });
-
-  it("models list marks synthesized antigravity opus 4.6 (non-thinking) as available when template is available", async () => {
-    const payload = await runGoogleAntigravityListCase({
-      configuredModelId: "claude-opus-4-6",
-      templateId: "claude-opus-4-5",
-      templateName: "Claude Opus 4.5",
-      available: true,
-    });
-    expectAntigravityModel(payload, {
-      key: "google-antigravity/claude-opus-4-6",
-      available: true,
-    });
-  });
+  it.each(GOOGLE_ANTIGRAVITY_OPUS_46_CASES)(
+    "models list marks synthesized antigravity opus 4.6 $name as available when template is available",
+    async ({ configuredModelId, templateId, templateName, expectedKey }) => {
+      const payload = await runGoogleAntigravityListCase({
+        configuredModelId,
+        templateId,
+        templateName,
+        available: true,
+      });
+      expectAntigravityModel(payload, {
+        key: expectedKey,
+        available: true,
+      });
+    },
+  );
 
   it("models list prefers registry availability over provider auth heuristics", async () => {
     const payload = await runGoogleAntigravityListCase({
@@ -419,12 +443,8 @@ describe("models list/status", () => {
     const runtime = makeRuntime();
     await modelsListCommand({ json: true }, runtime);
 
-    expect(runtime.error).toHaveBeenCalledTimes(1);
-    expect(runtime.error.mock.calls[0]?.[0]).toContain("Model registry unavailable:");
-    expect(runtime.error.mock.calls[0]?.[0]).toContain("model discovery failed");
+    expectModelRegistryUnavailable(runtime, "model discovery failed");
     expect(runtime.error.mock.calls[0]?.[0]).not.toContain("configured models may appear missing");
-    expect(runtime.log).not.toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
   });
 
   it("models list fails fast when registry model discovery is unavailable", async () => {
@@ -439,11 +459,7 @@ describe("models list/status", () => {
     modelRegistryState.available = [];
     await modelsListCommand({ json: true }, runtime);
 
-    expect(runtime.error).toHaveBeenCalledTimes(1);
-    expect(runtime.error.mock.calls[0]?.[0]).toContain("Model registry unavailable:");
-    expect(runtime.error.mock.calls[0]?.[0]).toContain("model discovery unavailable");
-    expect(runtime.log).not.toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
+    expectModelRegistryUnavailable(runtime, "model discovery unavailable");
   });
 
   it("loadModelRegistry throws when model discovery is unavailable", async () => {
@@ -454,15 +470,15 @@ describe("models list/status", () => {
       makeGoogleAntigravityTemplate("claude-opus-4-5-thinking", "Claude Opus 4.5 Thinking"),
     ];
 
-    const { loadModelRegistry } = await import("./models/list.registry.js");
     await expect(loadModelRegistry({})).rejects.toThrow("model discovery unavailable");
   });
 
   it("toModelRow does not crash without cfg/authStore when availability is undefined", async () => {
-    const { toModelRow } = await import("./models/list.registry.js");
-
     const row = toModelRow({
-      model: makeGoogleAntigravityTemplate("claude-opus-4-6-thinking", "Claude Opus 4.6 Thinking"),
+      model: makeGoogleAntigravityTemplate(
+        "claude-opus-4-6-thinking",
+        "Claude Opus 4.6 Thinking",
+      ) as never,
       key: "google-antigravity/claude-opus-4-6-thinking",
       tags: [],
       availableKeys: undefined,
