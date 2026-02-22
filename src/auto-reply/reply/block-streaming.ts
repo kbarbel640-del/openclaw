@@ -66,6 +66,7 @@ export function resolveBlockStreamingChunking(
   minChars: number;
   maxChars: number;
   breakPreference: "paragraph" | "newline" | "sentence";
+  breakFallbacks?: ("paragraph" | "newline" | "sentence")[];
   flushOnParagraph?: boolean;
 } {
   const providerKey = normalizeChunkProvider(provider);
@@ -97,6 +98,7 @@ export function resolveBlockStreamingChunking(
     minChars,
     maxChars,
     breakPreference,
+    breakFallbacks: chunkCfg?.breakFallbacks,
     flushOnParagraph: chunkMode === "newline",
   };
 }
@@ -109,6 +111,7 @@ export function resolveBlockStreamingCoalescing(
     minChars: number;
     maxChars: number;
     breakPreference: "paragraph" | "newline" | "sentence";
+    breakFallbacks?: ("paragraph" | "newline" | "sentence")[];
   },
   opts?: { chunkMode?: "length" | "newline" },
 ): BlockStreamingCoalescing | undefined {
