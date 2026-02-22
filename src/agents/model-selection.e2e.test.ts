@@ -8,6 +8,7 @@ import {
   buildModelAliasIndex,
   normalizeProviderId,
   modelKey,
+  resolveThinkingDefault,
 } from "./model-selection.js";
 
 describe("model-selection", () => {
@@ -19,6 +20,26 @@ describe("model-selection", () => {
       expect(normalizeProviderId("OpenCode-Zen")).toBe("opencode");
       expect(normalizeProviderId("qwen")).toBe("qwen-portal");
       expect(normalizeProviderId("kimi-code")).toBe("kimi-coding");
+    });
+  });
+
+  describe("resolveThinkingDefault", () => {
+    it("prefers per-agent thinkingDefault over global defaults", () => {
+      const cfg = {
+        agents: {
+          defaults: { thinkingDefault: "low" },
+          list: [{ id: "atlas", thinkingDefault: "high" }],
+        },
+      } as OpenClawConfig;
+
+      const level = resolveThinkingDefault({
+        cfg,
+        provider: "openai-codex",
+        model: "gpt-5.3-codex",
+        agentId: "atlas",
+      });
+
+      expect(level).toBe("high");
     });
   });
 
