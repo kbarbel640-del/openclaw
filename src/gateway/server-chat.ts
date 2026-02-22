@@ -342,7 +342,7 @@ export function createAgentEventHandler({
       text.length >= 2 &&
       text.length < SILENT_REPLY_TOKEN.length &&
       SILENT_REPLY_TOKEN.startsWith(text.toUpperCase()) &&
-      /^[A-Z_]+$/i.test(text);
+      /^[A-Z_]+$/.test(text);
     const shouldSuppressSilent =
       normalizedHeartbeatText.suppress || isSilentReplyText(text, SILENT_REPLY_TOKEN) || isPartialSilent;
     chatRunState.buffers.delete(clientRunId);
