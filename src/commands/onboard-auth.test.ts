@@ -572,6 +572,11 @@ describe("applyMistralProviderConfig", () => {
       "custom-model",
       "mistral-large-latest",
     ]);
+    const mistralDefault = cfg.models?.providers?.mistral?.models.find(
+      (model) => model.id === "mistral-large-latest",
+    );
+    expect(mistralDefault?.contextWindow).toBe(262144);
+    expect(mistralDefault?.maxTokens).toBe(262144);
   });
 });
 
