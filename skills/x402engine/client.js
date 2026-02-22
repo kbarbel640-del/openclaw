@@ -19,11 +19,6 @@ const {
 
 export const BASE_MAINNET_USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
-const PAYGATE_ALLOWLIST = [
-  '0x7dd5Be069f2d2eAd75eC7C3423B116fF043c2629',
-  'Gzehfseq1k9AcHFSoV7qHmDGQx92nLMw78XXdqVWQQWa',
-];
-
 // ---- Wallet management ----
 
 function normalizePrivateKey(pk) {
