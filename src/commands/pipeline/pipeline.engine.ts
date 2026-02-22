@@ -122,6 +122,36 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
   // TODO: support explicit sessionKey in spec.
   const sessionKey = `agent:${spec.agentId ?? "flash-orchestrator"}:pipeline`;
 
+  // Capability preflight: prove the agent can write to runDir.
+  const preflightRel = path.join(spec.runDir, ".pipeline-preflight.txt");
+  const preflightAbs = absPath(workspaceRoot, preflightRel);
+  if (!opts.dryRun) {
+    const preflightPrompt =
+      `Preflight check: you must write a file to prove you can write artifacts.\n\n` +
+      `Write EXACTLY this text into the following file (overwrite if exists):\n` +
+      `${preflightAbs}\n\n` +
+      `Text to write:\n` +
+      `PIPELINE_PREFLIGHT_OK\n\n` +
+      `After writing, reply with ONLY: OK`;
+
+    await runAgentTurn({
+      agentId: spec.agentId,
+      sessionKey,
+      message: preflightPrompt,
+      timeoutMs: 2 * 60 * 1000,
+    });
+
+    const startWait = now();
+    while (!fs.existsSync(preflightAbs)) {
+      if (now() - startWait > 2 * 60 * 1000) {
+        throw new Error(
+          `Pipeline preflight failed: agent did not create ${preflightRel}. Ensure the agent can write files to the workspace.`,
+        );
+      }
+      sleep(200);
+    }
+  }
+
   const steps = spec.steps;
   const stepById = new Map(steps.map((s) => [s.id, s] as const));
 
@@ -348,6 +378,35 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
     }
   };
 
+  const checkpointsByPhase = new Map((spec.checkpoints ?? []).map((c) => [c.afterPhase, c]));
+  const checkpointed = new Set<string>();
+
+  const runCheckpoint = async (afterPhase: string) => {
+    const cp = checkpointsByPhase.get(afterPhase);
+    if (!cp) {
+      return;
+    }
+    if (checkpointed.has(cp.id)) {
+      return;
+    }
+    checkpointed.add(cp.id);
+
+    if (opts.yes || cp.interactive === false) {
+      // eslint-disable-next-line no-console
+      console.log(`[pipeline] checkpoint ${cp.id} skipped (--yes)`);
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.log(`\n[pipeline] CHECKPOINT: ${cp.id}`);
+    // eslint-disable-next-line no-console
+    console.log(cp.prompt);
+    // eslint-disable-next-line no-console
+    console.log("Run again with --yes to continue past checkpoints.");
+
+    throw new Error(`Checkpoint '${cp.id}' requires confirmation (re-run with --yes)`);
+  };
+
   // Simple scheduler: run by groups. Steps without group run serially.
   while (true) {
     const ready = getReadySteps();
@@ -380,7 +439,19 @@ export async function runPipeline(spec: PipelineSpecZ, opts: PipelineRunOptions)
       await runOne(id);
     }
 
-    // TODO: checkpoints + loops based on verdict parsing.
+    // Checkpoints: if there is a checkpoint after a phase and no remaining steps exist in that phase,
+    // then fire it.
+    for (const phase of phases) {
+      if (!phaseAllowed(phase)) {
+        continue;
+      }
+      const remainingInPhase = steps.some(
+        (s) => s.phase === phase && !completed.has(s.id) && phaseAllowed(s.phase),
+      );
+      if (!remainingInPhase) {
+        await runCheckpoint(phase);
+      }
+    }
   }
 
   const summary = {
