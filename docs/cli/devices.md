@@ -59,13 +59,16 @@ openclaw devices revoke --device <deviceId> --role node
 ## Common options
 
 - `--url <url>`: Gateway WebSocket URL (defaults to `gateway.remote.url` when configured).
-- `--token <token>`: Gateway token (if required).
+- `--token <token>`: Device token used by device auth flows.
 - `--password <password>`: Gateway password (password auth).
 - `--timeout <ms>`: RPC timeout.
 - `--json`: JSON output (recommended for scripting).
 
-Note: when you set `--url`, the CLI does not fall back to config or environment credentials.
-Pass `--token` or `--password` explicitly. Missing explicit credentials is an error.
+Notes:
+
+- For local gateway operations, run `openclaw devices ...` without `--token` unless you explicitly need device auth.
+- Passing a gateway service token to `--token` can cause auth failures such as `device_token_mismatch`.
+- When you set `--url`, the CLI does not fall back to config or environment credentials. Pass explicit credentials for that remote target.
 
 ## Notes
 

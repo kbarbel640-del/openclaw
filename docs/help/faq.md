@@ -168,6 +168,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
   - [I set `gateway.bind: "tailnet"` but it can't bind / nothing listens](#i-set-gatewaybind-tailnet-but-it-cant-bind-nothing-listens)
   - [Can I run multiple Gateways on the same host?](#can-i-run-multiple-gateways-on-the-same-host)
   - [What does "invalid handshake" / code 1008 mean?](#what-does-invalid-handshake-code-1008-mean)
+  - [Why do devices commands fail with device token mismatch after passing --token?](#why-do-devices-commands-fail-with-device-token-mismatch-after-passing-token)
 - [Logging and debugging](#logging-and-debugging)
   - [Where are logs?](#where-are-logs)
   - [How do I start/stop/restart the Gateway service?](#how-do-i-startstoprestart-the-gateway-service)
@@ -2499,6 +2500,22 @@ openclaw tui --url ws://<host>:18789 --token <token>
 ```
 
 Protocol details: [Gateway protocol](/gateway/protocol).
+
+### Why do devices commands fail with device token mismatch after passing token
+
+`openclaw devices` supports device-auth flows. The `--token` flag is treated as a
+device token input, not as a gateway service token.
+
+If you pass a gateway token to `openclaw devices ... --token ...`, the handshake can fail
+with errors like `device_token_mismatch`, `unauthorized`, or `approval-request-failed`.
+
+Use this local pattern instead:
+
+```bash
+openclaw devices list --json
+```
+
+Only pass `--token` when you intentionally use a device token workflow.
 
 ## Logging and debugging
 
