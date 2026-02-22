@@ -114,3 +114,108 @@ describe("createFeishuReplyDispatcher streaming behavior", () => {
     expect(sendMarkdownCardFeishuMock).not.toHaveBeenCalled();
   });
 });
+
+describe("createFeishuReplyDispatcher raw mode filtering", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    streamingInstances.length = 0;
+
+    resolveFeishuAccountMock.mockReturnValue({
+      accountId: "main",
+      appId: "app_id",
+      appSecret: "app_secret",
+      domain: "feishu",
+      config: {
+        renderMode: "raw",
+        streaming: false,
+      },
+    });
+
+    resolveReceiveIdTypeMock.mockReturnValue("chat_id");
+    createFeishuClientMock.mockReturnValue({});
+
+    createReplyDispatcherWithTypingMock.mockImplementation((opts) => ({
+      dispatcher: {},
+      replyOptions: {},
+      markDispatchIdle: vi.fn(),
+      _opts: opts,
+    }));
+
+    getFeishuRuntimeMock.mockReturnValue({
+      channel: {
+        text: {
+          resolveTextChunkLimit: vi.fn(() => 4000),
+          resolveChunkMode: vi.fn(() => "line"),
+          resolveMarkdownTableMode: vi.fn(() => "preserve"),
+          convertMarkdownTables: vi.fn((text) => text),
+          chunkTextWithMode: vi.fn((text) => [text]),
+        },
+        reply: {
+          createReplyDispatcherWithTyping: createReplyDispatcherWithTypingMock,
+          resolveHumanDelayConfig: vi.fn(() => undefined),
+        },
+      },
+    });
+  });
+
+  it("suppresses intermediate block payloads in raw mode", async () => {
+    createFeishuReplyDispatcher({
+      cfg: {} as never,
+      agentId: "agent",
+      runtime: {} as never,
+      chatId: "oc_chat",
+    });
+
+    const options = createReplyDispatcherWithTypingMock.mock.calls[0]?.[0];
+    await options.deliver({ text: "Tool execution." }, { kind: "block" });
+    await options.deliver({ text: "internal thought..." }, { kind: "block" });
+
+    expect(sendMessageFeishuMock).not.toHaveBeenCalled();
+    expect(sendMarkdownCardFeishuMock).not.toHaveBeenCalled();
+  });
+
+  it("suppresses NO_REPLY final payloads in raw mode", async () => {
+    createFeishuReplyDispatcher({
+      cfg: {} as never,
+      agentId: "agent",
+      runtime: {} as never,
+      chatId: "oc_chat",
+    });
+
+    const options = createReplyDispatcherWithTypingMock.mock.calls[0]?.[0];
+    await options.deliver({ text: "NO_REPLY" }, { kind: "final" });
+
+    expect(sendMessageFeishuMock).not.toHaveBeenCalled();
+  });
+
+  it("suppresses HEARTBEAT final payloads in raw mode", async () => {
+    createFeishuReplyDispatcher({
+      cfg: {} as never,
+      agentId: "agent",
+      runtime: {} as never,
+      chatId: "oc_chat",
+    });
+
+    const options = createReplyDispatcherWithTypingMock.mock.calls[0]?.[0];
+    await options.deliver({ text: "HEARTBEAT_OK" }, { kind: "final" });
+
+    expect(sendMessageFeishuMock).not.toHaveBeenCalled();
+  });
+
+  it("delivers real final content as safety net in raw mode", async () => {
+    createFeishuReplyDispatcher({
+      cfg: {} as never,
+      agentId: "agent",
+      runtime: {} as never,
+      chatId: "oc_chat",
+    });
+
+    const options = createReplyDispatcherWithTypingMock.mock.calls[0]?.[0];
+    await options.deliver(
+      { text: "Agent failed to send card, here is the result" },
+      { kind: "final" },
+    );
+
+    expect(sendMessageFeishuMock).toHaveBeenCalledTimes(1);
+  });
+});

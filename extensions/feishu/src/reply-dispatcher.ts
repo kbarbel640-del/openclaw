@@ -142,6 +142,20 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
           return;
         }
 
+        // In raw mode the agent controls message delivery via direct API calls
+        // (e.g. a custom card script). Suppress intermediate chunks to prevent
+        // internal thoughts and tool-status text from leaking to the channel.
+        // Only "final" payloads with real content pass through as a safety net.
+        if (renderMode === "raw") {
+          if (info?.kind !== "final") {
+            return;
+          }
+          const trimmed = text.trim();
+          if (/^NO_REPLY$/i.test(trimmed) || /^HEARTBEAT/i.test(trimmed)) {
+            return;
+          }
+        }
+
         const useCard = renderMode === "card" || (renderMode === "auto" && shouldUseCard(text));
 
         if ((info?.kind === "block" || info?.kind === "final") && streamingEnabled && useCard) {
