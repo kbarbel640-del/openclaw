@@ -9,9 +9,9 @@ import {
 function makeAllowFrom(entries: string[], hasWildcard = false): NormalizedAllowFrom {
   return {
     entries,
-    entriesLower: entries.map((e) => e.toLowerCase()),
     hasWildcard,
     hasEntries: entries.length > 0 || hasWildcard,
+    invalidEntries: [],
   };
 }
 
