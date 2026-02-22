@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import { resolveConfigPath, resolveGatewayLockDir, resolveStateDir } from "../config/paths.js";
 import { isPidAlive } from "../shared/pid-alive.js";
@@ -29,6 +30,16 @@ export type GatewayLockOptions = {
   staleMs?: number;
   allowInTests?: boolean;
   platform?: NodeJS.Platform;
+  /**
+   * The port the gateway will bind to. When provided, port reachability is
+   * used as the primary liveness signal: if nothing is listening on the port
+   * the lock is definitionally stale, regardless of PID state.
+   *
+   * Port binding is kernel-managed and is released automatically on any form
+   * of process termination including SIGKILL, making it immune to the stale-
+   * lock problem that arises when the cleanup handler cannot run.
+   */
+  port?: number;
 };
 
 export class GatewayLockError extends Error {
@@ -100,18 +111,65 @@ function readLinuxStartTime(pid: number): number | null {
   }
 }
 
-function resolveGatewayOwnerStatus(
+/**
+ * Probe whether a TCP port is free by attempting a connection.
+ *
+ * Returns true if nothing is listening (connection refused), false if
+ * something is listening. Uses connect rather than bind so we never
+ * transiently occupy the port ourselves.
+ */
+function checkPortFree(port: number, host = "127.0.0.1"): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ port, host });
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(false); // something is listening → port not free
+    });
+    socket.once("error", () => {
+      resolve(true); // connection refused → port free
+    });
+  });
+}
+
+/**
+ * Determine whether the process that wrote the lock file is still a live
+ * gateway owner.
+ *
+ * Port binding is checked first when a port is supplied: it is kernel-managed
+ * and is released on any form of process termination (including SIGKILL),
+ * making it the most reliable liveness signal. The PID/startTime checks that
+ * follow serve as an identity guard to confirm the listening process is
+ * actually the gateway described by the lock, not an unrelated service that
+ * happened to bind the same port.
+ */
+async function resolveGatewayOwnerStatus(
   pid: number,
   payload: LockPayload | null,
   platform: NodeJS.Platform,
-): LockOwnerStatus {
+  port: number | undefined,
+): Promise<LockOwnerStatus> {
+  // Primary check: port binding is kernel-managed and survives SIGKILL.
+  // If the port is free, no gateway is running — the lock is definitionally
+  // stale regardless of what the PID or lock file says.
+  if (port != null) {
+    const portFree = await checkPortFree(port);
+    if (portFree) {
+      return "dead";
+    }
+  }
+
+  // Secondary check: confirm the PID from the lock file is still alive.
+  // isPidAlive already filters out zombie processes on Linux.
   if (!isPidAlive(pid)) {
     return "dead";
   }
+
   if (platform !== "linux") {
     return "alive";
   }
 
+  // Identity check: verify the living PID is the same process that wrote the
+  // lock (not a recycled PID) by comparing kernel-reported start times.
   const payloadStartTime = payload?.startTime;
   if (Number.isFinite(payloadStartTime)) {
     const currentStartTime = readLinuxStartTime(pid);
@@ -121,6 +179,7 @@ function resolveGatewayOwnerStatus(
     return currentStartTime === payloadStartTime ? "alive" : "dead";
   }
 
+  // Fallback: inspect argv to see if the PID looks like a gateway process.
   const args = readLinuxCmdline(pid);
   if (!args) {
     return "unknown";
@@ -178,6 +237,7 @@ export async function acquireGatewayLock(
   const pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const staleMs = opts.staleMs ?? DEFAULT_STALE_MS;
   const platform = opts.platform ?? process.platform;
+  const port = opts.port;
   const { lockPath, configPath } = resolveGatewayLockPath(env);
   await fs.mkdir(path.dirname(lockPath), { recursive: true });
 
@@ -214,7 +274,7 @@ export async function acquireGatewayLock(
       lastPayload = await readLockPayload(lockPath);
       const ownerPid = lastPayload?.pid;
       const ownerStatus = ownerPid
-        ? resolveGatewayOwnerStatus(ownerPid, lastPayload, platform)
+        ? await resolveGatewayOwnerStatus(ownerPid, lastPayload, platform, port)
         : "unknown";
       if (ownerStatus === "dead" && ownerPid) {
         await fs.rm(lockPath, { force: true });
