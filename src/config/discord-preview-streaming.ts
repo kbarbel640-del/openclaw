@@ -121,9 +121,10 @@ export function resolveSlackStreamingMode(
   if (legacyStreamMode) {
     return mapSlackLegacyDraftStreamModeToStreaming(legacyStreamMode);
   }
-  // Legacy `streaming` was a Slack native-streaming toggle; preview mode stayed replace.
+  // Legacy `streaming` was a Slack native-streaming toggle; when explicitly
+  // set to `false`, disable draft-preview streaming entirely.
   if (typeof params.streaming === "boolean") {
-    return "partial";
+    return params.streaming ? "partial" : "off";
   }
   return "partial";
 }
