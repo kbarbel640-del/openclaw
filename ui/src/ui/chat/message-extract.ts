@@ -4,7 +4,7 @@ import { stripInlineDirectiveTagsForDisplay } from "../../../../src/utils/direct
 import { stripThinkingTags } from "../format.ts";
 
 function stripAssistantDirectives(text: string): string {
-  return stripInlineDirectiveTagsForDisplay(stripThinkingTags(text)).text;
+  return stripInlineDirectiveTagsForDisplay(stripThinkingTags(text)).text.trimStart();
 }
 
 const textCache = new WeakMap<object, string | null>();
