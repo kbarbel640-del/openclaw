@@ -64,12 +64,15 @@ export function finalizeNpmSpecArchiveInstall<TResult extends { ok: boolean }>(
     return flowResult;
   }
   if (!flowResult.installResult.ok) {
-    return flowResult.installResult;
+    return flowResult.installResult as Exclude<TResult, { ok: true }>;
   }
   return {
     ...flowResult.installResult,
     npmResolution: flowResult.npmResolution,
     integrityDrift: flowResult.integrityDrift,
+  } as Extract<TResult, { ok: true }> & {
+    npmResolution: NpmSpecResolution;
+    integrityDrift?: NpmIntegrityDrift;
   };
 }
 
