@@ -97,17 +97,26 @@ function truncateChatHistoryText(text: string): { text: string; truncated: boole
   };
 }
 
-function sanitizeChatHistoryContentBlock(block: unknown): { block: unknown; changed: boolean } {
+function sanitizeChatHistoryContentBlock(
+  block: unknown,
+  isAssistant = false,
+): { block: unknown; changed: boolean } {
   if (!block || typeof block !== "object") {
     return { block, changed: false };
   }
   const entry = { ...(block as Record<string, unknown>) };
   let changed = false;
   if (typeof entry.text === "string") {
-    const stripped = stripInlineDirectiveTagsForDisplay(entry.text);
-    const res = truncateChatHistoryText(stripped.text);
-    entry.text = res.text;
-    changed ||= stripped.changed || res.truncated;
+    if (isAssistant) {
+      const stripped = stripInlineDirectiveTagsForDisplay(entry.text);
+      const res = truncateChatHistoryText(stripped.text);
+      entry.text = res.text;
+      changed ||= stripped.changed || res.truncated;
+    } else {
+      const res = truncateChatHistoryText(entry.text);
+      entry.text = res.text;
+      changed ||= res.truncated;
+    }
   }
   if (typeof entry.partialJson === "string") {
     const res = truncateChatHistoryText(entry.partialJson);
@@ -189,7 +198,7 @@ function sanitizeChatHistoryMessage(message: unknown): { message: unknown; chang
           b = { ...(b as Record<string, unknown>), text: stripped.text };
         }
       }
-      return sanitizeChatHistoryContentBlock(b);
+      return sanitizeChatHistoryContentBlock(b, isAssistant);
     });
     if (updated.some((item) => item.changed)) {
       entry.content = updated.map((item) => item.block);
