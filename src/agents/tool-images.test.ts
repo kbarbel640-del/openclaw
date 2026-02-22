@@ -1,8 +1,16 @@
 import sharp from "sharp";
-import { describe, expect, it } from "vitest";
-import { sanitizeContentBlocksImages, sanitizeImageBlocks } from "./tool-images.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  clearImageResizeCache,
+  sanitizeContentBlocksImages,
+  sanitizeImageBlocks,
+} from "./tool-images.js";
 
 describe("tool image sanitizing", () => {
+  beforeEach(() => {
+    clearImageResizeCache();
+  });
+
   const getImageBlock = (
     blocks: Awaited<ReturnType<typeof sanitizeContentBlocksImages>>,
   ): (typeof blocks)[number] & { type: "image"; data: string; mimeType?: string } => {
@@ -107,4 +115,21 @@ describe("tool image sanitizing", () => {
     const image = getImageBlock(out);
     expect(image.mimeType).toBe("image/jpeg");
   });
+
+  it("returns cached result when same oversized image is processed twice", async () => {
+    const png = await createWidePng();
+    const base64 = png.toString("base64");
+
+    const blocks = [{ type: "image" as const, data: base64, mimeType: "image/png" }];
+
+    const first = await sanitizeContentBlocksImages(blocks, "test");
+    const firstImage = getImageBlock(first);
+
+    // Second pass with identical input should return the same resized output.
+    const second = await sanitizeContentBlocksImages(blocks, "test");
+    const secondImage = getImageBlock(second);
+
+    expect(secondImage.data).toBe(firstImage.data);
+    expect(secondImage.mimeType).toBe(firstImage.mimeType);
+  }, 20_000);
 });
