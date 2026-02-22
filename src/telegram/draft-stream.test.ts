@@ -167,6 +167,44 @@ describe("createTelegramDraftStream", () => {
     }
   });
 
+  it("does not rebind to an old message when forceNewMessage races an in-flight send", async () => {
+    let resolveFirstSend: ((value: { message_id: number }) => void) | undefined;
+    const firstSend = new Promise<{ message_id: number }>((resolve) => {
+      resolveFirstSend = resolve;
+    });
+    const api = {
+      sendMessage: vi.fn().mockReturnValueOnce(firstSend).mockResolvedValueOnce({ message_id: 42 }),
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true),
+    };
+    const onSupersededPreview = vi.fn();
+    const stream = createTelegramDraftStream({
+      // oxlint-disable-next-line typescript/no-explicit-any
+      api: api as any,
+      chatId: 123,
+      onSupersededPreview,
+    });
+
+    stream.update("Message A partial");
+    await vi.waitFor(() => expect(api.sendMessage).toHaveBeenCalledTimes(1));
+
+    // Rotate to message B before message A send resolves.
+    stream.forceNewMessage();
+    stream.update("Message B partial");
+
+    resolveFirstSend?.({ message_id: 17 });
+    await stream.flush();
+
+    expect(onSupersededPreview).toHaveBeenCalledWith({
+      messageId: 17,
+      textSnapshot: "Message A partial",
+      parseMode: undefined,
+    });
+    expect(api.sendMessage).toHaveBeenCalledTimes(2);
+    expect(api.sendMessage).toHaveBeenNthCalledWith(2, 123, "Message B partial", undefined);
+    expect(api.editMessageText).not.toHaveBeenCalledWith(123, 17, "Message B partial");
+  });
+
   it("supports rendered previews with parse_mode", async () => {
     const api = createMockDraftApi();
     const stream = createTelegramDraftStream({

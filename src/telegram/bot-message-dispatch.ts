@@ -155,7 +155,9 @@ export const dispatchTelegramMessage = async ({
     lastPartialText: string;
     hasStreamedMessage: boolean;
   };
-  const createDraftLane = (enabled: boolean): DraftLaneState => {
+  type ArchivedPreview = { messageId: number; textSnapshot: string };
+  const archivedAnswerPreviews: ArchivedPreview[] = [];
+  const createDraftLane = (laneName: LaneName, enabled: boolean): DraftLaneState => {
     const stream = enabled
       ? createTelegramDraftStream({
           api: bot.api,
@@ -165,6 +167,15 @@ export const dispatchTelegramMessage = async ({
           replyToMessageId: draftReplyToMessageId,
           minInitialChars: draftMinInitialChars,
           renderText: renderDraftPreview,
+          onSupersededPreview:
+            laneName === "answer"
+              ? (preview) => {
+                  archivedAnswerPreviews.push({
+                    messageId: preview.messageId,
+                    textSnapshot: preview.textSnapshot,
+                  });
+                }
+              : undefined,
           log: logVerbose,
           warn: logVerbose,
         })
@@ -176,15 +187,13 @@ export const dispatchTelegramMessage = async ({
     };
   };
   const lanes: Record<LaneName, DraftLaneState> = {
-    answer: createDraftLane(canStreamAnswerDraft),
-    reasoning: createDraftLane(canStreamReasoningDraft),
+    answer: createDraftLane("answer", canStreamAnswerDraft),
+    reasoning: createDraftLane("reasoning", canStreamReasoningDraft),
   };
   const answerLane = lanes.answer;
   const reasoningLane = lanes.reasoning;
   let splitReasoningOnNextStream = false;
   const reasoningStepState = createTelegramReasoningStepState();
-  type ArchivedPreview = { messageId: number; textSnapshot: string };
-  const archivedAnswerPreviews: ArchivedPreview[] = [];
   type SplitLaneSegment = { lane: LaneName; text: string };
   const splitTextIntoLaneSegments = (text?: string): SplitLaneSegment[] => {
     const split = splitTelegramReasoningText(text);
