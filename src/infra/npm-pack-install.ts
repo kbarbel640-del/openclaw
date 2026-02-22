@@ -66,7 +66,7 @@ export async function installFromNpmSpecArchive<TResult extends { ok: boolean }>
       archivePath: packedResult.archivePath,
     });
 
-    const wrappedResult: NpmSpecArchiveInstallFlowResult<TResult> = {
+    const wrappedResult: Extract<NpmSpecArchiveInstallFlowResult<TResult>, { ok: true }> = {
       ok: true,
       installResult,
       npmResolution,
