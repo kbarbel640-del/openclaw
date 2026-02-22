@@ -4,7 +4,8 @@ import type { AssistantIdentity } from "../assistant-identity.ts";
 import { icons } from "../icons.ts";
 import { toSanitizedMarkdownHtml } from "../markdown.ts";
 import { detectTextDirection } from "../text-direction.ts";
-import type { MessageGroup } from "../types/chat-types.ts";
+import type { MessageGroup, ToolCard } from "../types/chat-types.ts";
+import { agentLogoUrl } from "../views/agents-utils.ts";
 import { renderCopyAsMarkdownButton } from "./copy-as-markdown.ts";
 import {
   extractTextCached,
@@ -56,10 +57,10 @@ function extractImages(message: unknown): ImageBlock[] {
   return images;
 }
 
-export function renderReadingIndicatorGroup(assistant?: AssistantIdentity) {
+export function renderReadingIndicatorGroup(assistant?: AssistantIdentity, basePath?: string) {
   return html`
     <div class="chat-group assistant">
-      ${renderAvatar("assistant", assistant)}
+      ${renderAvatar("assistant", assistant, basePath)}
       <div class="chat-group-messages">
         <div class="chat-bubble chat-reading-indicator" aria-hidden="true">
           <span class="chat-reading-indicator__dots">
@@ -76,6 +77,7 @@ export function renderStreamingGroup(
   startedAt: number,
   onOpenSidebar?: (content: string) => void,
   assistant?: AssistantIdentity,
+  basePath?: string,
 ) {
   const timestamp = new Date(startedAt).toLocaleTimeString([], {
     hour: "numeric",
@@ -85,7 +87,7 @@ export function renderStreamingGroup(
 
   return html`
     <div class="chat-group assistant">
-      ${renderAvatar("assistant", assistant)}
+      ${renderAvatar("assistant", assistant, basePath)}
       <div class="chat-group-messages">
         ${renderGroupedMessage(
           {
@@ -112,6 +114,8 @@ export function renderMessageGroup(
     showReasoning: boolean;
     assistantName?: string;
     assistantAvatar?: string | null;
+    basePath?: string;
+    onDelete?: () => void;
   },
 ) {
   const normalizedRole = normalizeRoleForGrouping(group.role);
@@ -131,10 +135,14 @@ export function renderMessageGroup(
 
   return html`
     <div class="chat-group ${roleClass}">
-      ${renderAvatar(group.role, {
-        name: assistantName,
-        avatar: opts.assistantAvatar ?? null,
-      })}
+      ${renderAvatar(
+        group.role,
+        {
+          name: assistantName,
+          avatar: opts.assistantAvatar ?? null,
+        },
+        opts.basePath,
+      )}
       <div class="chat-group-messages">
         ${group.messages.map((item, index) =>
           renderGroupedMessage(
@@ -149,13 +157,27 @@ export function renderMessageGroup(
         <div class="chat-group-footer">
           <span class="chat-sender-name">${who}</span>
           <span class="chat-group-timestamp">${timestamp}</span>
+          ${
+            opts.onDelete
+              ? html`<button
+                class="chat-group-delete"
+                @click=${opts.onDelete}
+                title="Delete"
+                aria-label="Delete message"
+              >${icons.x}</button>`
+              : nothing
+          }
         </div>
       </div>
     </div>
   `;
 }
 
-function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" | "avatar">) {
+function renderAvatar(
+  role: string,
+  assistant?: Pick<AssistantIdentity, "name" | "avatar">,
+  basePath?: string,
+) {
   const normalized = normalizeRoleForGrouping(role);
   const assistantName = assistant?.name?.trim() || "Assistant";
   const assistantAvatar = assistant?.avatar?.trim() || "";
@@ -165,7 +187,7 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
       : normalized === "assistant"
         ? assistantName.charAt(0).toUpperCase() || "A"
         : normalized === "tool"
-          ? html`<span class="icon-sm" style="width:14px;height:14px;">${icons.wrench}</span>`
+          ? "⚙"
           : "?";
   const className =
     normalized === "user"
@@ -184,7 +206,26 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
         alt="${assistantName}"
       />`;
     }
+    /* Use OpenClaw logo instead of emoji (e.g. ✨) for assistant avatar */
+    const logoUrl = basePath ? agentLogoUrl(basePath) : "";
+    if (logoUrl) {
+      return html`<img
+        class="chat-avatar ${className} chat-avatar--logo"
+        src="${logoUrl}"
+        alt="${assistantName}"
+      />`;
+    }
     return html`<div class="chat-avatar ${className}">${assistantAvatar}</div>`;
+  }
+
+  /* Assistant with no custom avatar: use logo when basePath available */
+  if (normalized === "assistant" && basePath) {
+    const logoUrl = agentLogoUrl(basePath);
+    return html`<img
+      class="chat-avatar ${className} chat-avatar--logo"
+      src="${logoUrl}"
+      alt="${assistantName}"
+    />`;
   }
 
   return html`<div class="chat-avatar ${className}">${initial}</div>`;
@@ -217,6 +258,66 @@ function renderMessageImages(images: ImageBlock[]) {
   `;
 }
 
+/** Render tool cards inside a collapsed `<details>` element. */
+function renderCollapsedToolCards(
+  toolCards: ToolCard[],
+  onOpenSidebar?: (content: string) => void,
+) {
+  const calls = toolCards.filter((c) => c.kind === "call");
+  const results = toolCards.filter((c) => c.kind === "result");
+  const totalTools = Math.max(calls.length, results.length) || toolCards.length;
+  const toolNames = [...new Set(toolCards.map((c) => c.name))];
+  const summaryLabel =
+    toolNames.length <= 3
+      ? toolNames.join(", ")
+      : `${toolNames.slice(0, 2).join(", ")} +${toolNames.length - 2} more`;
+
+  return html`
+    <details class="chat-tools-collapse">
+      <summary class="chat-tools-summary">
+        <span class="chat-tools-summary__icon">${icons.zap}</span>
+        <span class="chat-tools-summary__count">${totalTools} tool${totalTools === 1 ? "" : "s"}</span>
+        <span class="chat-tools-summary__names">${summaryLabel}</span>
+      </summary>
+      <div class="chat-tools-collapse__body">
+        ${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}
+      </div>
+    </details>
+  `;
+}
+
+/**
+ * Detect whether a trimmed string is a JSON object or array.
+ * Must start with `{`/`[` and end with `}`/`]` and parse successfully.
+ */
+function detectJson(text: string): { parsed: unknown; pretty: string } | null {
+  const t = text.trim();
+  if ((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))) {
+    try {
+      const parsed = JSON.parse(t);
+      return { parsed, pretty: JSON.stringify(parsed, null, 2) };
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Build a short summary label for collapsed JSON (type + key count or array length). */
+function jsonSummaryLabel(parsed: unknown): string {
+  if (Array.isArray(parsed)) {
+    return `Array (${parsed.length} item${parsed.length === 1 ? "" : "s"})`;
+  }
+  if (parsed && typeof parsed === "object") {
+    const keys = Object.keys(parsed as Record<string, unknown>);
+    if (keys.length <= 4) {
+      return `{ ${keys.join(", ")} }`;
+    }
+    return `Object (${keys.length} keys)`;
+  }
+  return "JSON";
+}
+
 function renderGroupedMessage(
   message: unknown,
   opts: { isStreaming: boolean; showReasoning: boolean },
@@ -244,6 +345,9 @@ function renderGroupedMessage(
   const markdown = markdownBase;
   const canCopyMarkdown = role === "assistant" && Boolean(markdown?.trim());
 
+  // Detect pure-JSON messages and render as collapsible block
+  const jsonResult = markdown && !opts.isStreaming ? detectJson(markdown) : null;
+
   const bubbleClasses = [
     "chat-bubble",
     canCopyMarkdown ? "has-copy" : "",
@@ -253,26 +357,8 @@ function renderGroupedMessage(
     .filter(Boolean)
     .join(" ");
 
-  // Tool results: show only the compact card, full output via sidebar "View"
-  if (isToolResult) {
-    // If no cards extracted, synthesise one from the message text
-    const cards = hasToolCards
-      ? toolCards
-      : [
-          {
-            kind: "result" as const,
-            name:
-              (typeof m.toolName === "string" && m.toolName) ||
-              (typeof m.tool_name === "string" && m.tool_name) ||
-              "tool",
-            text: extractedText ?? undefined,
-          },
-        ];
-    return html`${cards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}`;
-  }
-
-  if (!markdown && hasToolCards) {
-    return html`${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}`;
+  if (!markdown && hasToolCards && isToolResult) {
+    return renderCollapsedToolCards(toolCards, onOpenSidebar);
   }
 
   if (!markdown && !hasToolCards && !hasImages) {
@@ -291,11 +377,19 @@ function renderGroupedMessage(
           : nothing
       }
       ${
-        markdown
-          ? html`<div class="chat-text" dir="${detectTextDirection(markdown)}">${unsafeHTML(toSanitizedMarkdownHtml(markdown))}</div>`
-          : nothing
+        jsonResult
+          ? html`<details class="chat-json-collapse">
+              <summary class="chat-json-summary">
+                <span class="chat-json-badge">JSON</span>
+                <span class="chat-json-label">${jsonSummaryLabel(jsonResult.parsed)}</span>
+              </summary>
+              <pre class="chat-json-content"><code>${jsonResult.pretty}</code></pre>
+            </details>`
+          : markdown
+            ? html`<div class="chat-text" dir="${detectTextDirection(markdown)}">${unsafeHTML(toSanitizedMarkdownHtml(markdown))}</div>`
+            : nothing
       }
-      ${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}
+      ${hasToolCards ? renderCollapsedToolCards(toolCards, onOpenSidebar) : nothing}
     </div>
   `;
 }
