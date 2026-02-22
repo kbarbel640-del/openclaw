@@ -206,6 +206,32 @@ clawdock-cli() {
 }
 
 # Maintenance
+clawdock-update() {
+  _clawdock_ensure_dir || return 1
+
+  echo "🔄 Updating OpenClaw..."
+
+  echo ""
+  echo "📥 Pulling latest source..."
+  git -C "${CLAWDOCK_DIR}" pull || { echo "❌ git pull failed"; return 1; }
+
+  echo ""
+  echo "🔨 Rebuilding Docker image (this may take a few minutes)..."
+  _clawdock_compose build openclaw-gateway || { echo "❌ Build failed"; return 1; }
+
+  echo ""
+  echo "♻️  Recreating container with new image..."
+  _clawdock_compose down 2>&1 | _clawdock_filter_warnings
+  _clawdock_compose up -d openclaw-gateway 2>&1 | _clawdock_filter_warnings
+
+  echo ""
+  echo "⏳ Waiting for gateway to start..."
+  sleep 5
+
+  echo "✅ Update complete!"
+  echo -e "   Verify: $(_cmd clawdock-cli status)"
+}
+
 clawdock-rebuild() {
   _clawdock_compose build openclaw-gateway
 }
@@ -381,7 +407,8 @@ clawdock-help() {
   echo ""
 
   echo -e "${_CLR_BOLD}${_CLR_MAGENTA}🔧 Maintenance${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-rebuild)     ${_CLR_DIM}Rebuild Docker image${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-update)      ${_CLR_DIM}Pull, rebuild, and restart ${_CLR_CYAN}(one-command update)${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-rebuild)     ${_CLR_DIM}Rebuild Docker image only${_CLR_RESET}"
   echo -e "  $(_cmd clawdock-clean)       ${_CLR_RED}⚠️  Remove containers & volumes (nuclear)${_CLR_RESET}"
   echo ""
 
