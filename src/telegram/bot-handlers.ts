@@ -851,8 +851,7 @@ export const registerTelegramHandlers = ({
       senderLabel = senderLabel || "unknown";
 
       const messageId = msg.message_id;
-      const eventText =
-        `[Edited message] ${senderLabel} edited message ${messageId}. ` + `New content: ${text}`;
+      const eventText = `[Edited message] ${senderLabel} edited message ${messageId}. New content: ${text}`;
 
       enqueueSystemEvent(eventText, {
         sessionKey,
