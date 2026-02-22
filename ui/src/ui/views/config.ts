@@ -649,6 +649,32 @@ export function renderConfig(props: ConfigProps) {
                       : nothing
                   }
                 </div>
+                ${
+                  props.activeSection === "env"
+                    ? html`
+                      <button
+                        class="config-env-peek-btn"
+                        title="Toggle value visibility"
+                        @click=${(e: Event) => {
+                          const btn = e.currentTarget as HTMLElement;
+                          const content = btn
+                            .closest(".config-main")
+                            ?.querySelector(".config-content");
+                          if (content) {
+                            content.classList.toggle("config-env-values--visible");
+                          }
+                          btn.classList.toggle("config-env-peek-btn--active");
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        Peek
+                      </button>
+                    `
+                    : nothing
+                }
               </div>
             `
             : nothing
@@ -682,7 +708,7 @@ export function renderConfig(props: ConfigProps) {
         }
 
         <!-- Form content -->
-        <div class="config-content">
+        <div class="config-content ${props.activeSection === "env" ? "config-env-values--blurred" : ""}">
           ${
             props.formMode === "form"
               ? html`
