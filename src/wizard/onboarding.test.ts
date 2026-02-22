@@ -309,7 +309,7 @@ describe("runOnboardingWizard", () => {
     promptDefaultModel.mockClear();
     applyAuthChoice.mockClear();
 
-    const prompter = createWizardPrompter();
+    const prompter = buildWizardPrompter();
     const runtime = createRuntime({ throwsOnExit: true });
 
     await runOnboardingWizard(
