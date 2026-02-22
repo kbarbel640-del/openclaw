@@ -323,6 +323,14 @@ export async function dispatchReplyFromConfig(params: {
     const shouldSendToolSummaries = ctx.ChatType !== "group" && ctx.CommandSource !== "native";
 
     const resolveToolDeliveryPayload = (payload: ReplyPayload): ReplyPayload | null => {
+      // Never forward tool errors to the user channel — they contain internal
+      // details (file paths, stack traces, rate-limit messages) that are not
+      // user-facing and may leak sensitive information.  The error is still
+      // visible to the model so it can react/retry; we only suppress the
+      // channel-side delivery.
+      if (payload.isError) {
+        return null;
+      }
       if (shouldSendToolSummaries) {
         return payload;
       }

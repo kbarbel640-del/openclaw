@@ -263,6 +263,100 @@ describe("dispatchReplyFromConfig", () => {
     expect(dispatcher.sendFinalReply).toHaveBeenCalledTimes(1);
   });
 
+  it("suppresses tool error payloads from being delivered to the user", async () => {
+    setNoAbort();
+    const cfg = emptyConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "telegram",
+      ChatType: "direct",
+    });
+
+    const replyResolver = async (
+      _ctx: MsgContext,
+      opts?: GetReplyOptions,
+      _cfg?: OpenClawConfig,
+    ) => {
+      // Simulate a tool error result (e.g., file path not allowed, exec failed)
+      await opts?.onToolResult?.({
+        text: "Message failed: Local media path is not under an allowed directory: /tmp/file.docx",
+        isError: true,
+      });
+      return { text: "done" } satisfies ReplyPayload;
+    };
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
+
+    // Error tool result must NOT be forwarded to the user channel
+    expect(dispatcher.sendToolResult).not.toHaveBeenCalled();
+    // Final reply should still go through
+    expect(dispatcher.sendFinalReply).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses tool error payloads even when they contain media", async () => {
+    setNoAbort();
+    const cfg = emptyConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "telegram",
+      ChatType: "direct",
+    });
+
+    const replyResolver = async (
+      _ctx: MsgContext,
+      opts?: GetReplyOptions,
+      _cfg?: OpenClawConfig,
+    ) => {
+      // Error payload that also has media — should still be suppressed
+      await opts?.onToolResult?.({
+        text: "Error: rate limited",
+        isError: true,
+        mediaUrl: "https://example.com/some-media.png",
+      });
+      return { text: "done" } satisfies ReplyPayload;
+    };
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
+
+    expect(dispatcher.sendToolResult).not.toHaveBeenCalled();
+    expect(dispatcher.sendFinalReply).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses tool error payloads in group chats", async () => {
+    setNoAbort();
+    const cfg = emptyConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "telegram",
+      ChatType: "group",
+    });
+
+    const replyResolver = async (
+      _ctx: MsgContext,
+      opts?: GetReplyOptions,
+      _cfg?: OpenClawConfig,
+    ) => {
+      await opts?.onToolResult?.({
+        text: "exec failed: command not found",
+        isError: true,
+      });
+      // Non-error media tool result should still go through in groups
+      await opts?.onToolResult?.({
+        text: "NO_REPLY",
+        mediaUrls: ["https://example.com/tts.opus"],
+      });
+      return { text: "hi" } satisfies ReplyPayload;
+    };
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
+
+    // Only the media tool result should be sent, not the error
+    expect(dispatcher.sendToolResult).toHaveBeenCalledTimes(1);
+    const sent = firstToolResultPayload(dispatcher);
+    expect(sent?.mediaUrls).toEqual(["https://example.com/tts.opus"]);
+    expect(sent?.isError).toBeUndefined();
+  });
+
   it("sends tool results via dispatcher in DM sessions", async () => {
     setNoAbort();
     const cfg = emptyConfig;
