@@ -10,7 +10,6 @@ import {
   resolveRequestUrl,
   resolveAuthAllowedHosts,
   resolveAllowedHosts,
-  resolveAndValidateIP,
   safeFetch,
 } from "./shared.js";
 import type {
@@ -125,45 +124,40 @@ async function fetchWithAuthFallback(params: {
       const token = await params.tokenProvider.getAccessToken(scope);
       const authHeaders = new Headers(params.requestInit?.headers);
       authHeaders.set("Authorization", `Bearer ${token}`);
-      const res = await fetchFn(params.url, {
-        ...params.requestInit,
-        headers: authHeaders,
-        redirect: "manual",
-      });
-      if (res.ok) {
-        return res;
-      }
-      const redirectUrl = readRedirectUrl(params.url, res);
-      if (redirectUrl && isUrlAllowed(redirectUrl, params.allowHosts)) {
-        // Validate the redirect target's resolved IP before following
-        try {
-          const redirectHost = new URL(redirectUrl).hostname;
-          await resolveAndValidateIP(redirectHost, params.resolveFn);
-        } catch {
-          continue; // Skip this redirect — resolves to private IP
-        }
-        const redirectRes = await fetchFn(redirectUrl, {
+      const authAttempt = await safeFetch({
+        url: params.url,
+        allowHosts: params.allowHosts,
+        fetchFn,
+        requestInit: {
           ...params.requestInit,
-          redirect: "manual",
-        });
-        if (redirectRes.ok) {
-          return redirectRes;
-        }
-        if (
-          (redirectRes.status === 401 || redirectRes.status === 403) &&
-          isUrlAllowed(redirectUrl, params.authAllowHosts)
-        ) {
-          const redirectAuthHeaders = new Headers(params.requestInit?.headers);
-          redirectAuthHeaders.set("Authorization", `Bearer ${token}`);
-          const redirectAuthRes = await fetchFn(redirectUrl, {
-            ...params.requestInit,
-            headers: redirectAuthHeaders,
-            redirect: "manual",
-          });
-          if (redirectAuthRes.ok) {
-            return redirectAuthRes;
-          }
-        }
+          headers: authHeaders,
+        },
+        resolveFn: params.resolveFn,
+      });
+      if (authAttempt.ok) {
+        return authAttempt;
+      }
+      if (authAttempt.status !== 401 && authAttempt.status !== 403) {
+        continue;
+      }
+
+      const finalUrl =
+        typeof authAttempt.url === "string" && authAttempt.url ? authAttempt.url : "";
+      if (!finalUrl || finalUrl === params.url || !isUrlAllowed(finalUrl, params.authAllowHosts)) {
+        continue;
+      }
+      const redirectedAuthAttempt = await safeFetch({
+        url: finalUrl,
+        allowHosts: params.allowHosts,
+        fetchFn,
+        requestInit: {
+          ...params.requestInit,
+          headers: authHeaders,
+        },
+        resolveFn: params.resolveFn,
+      });
+      if (redirectedAuthAttempt.ok) {
+        return redirectedAuthAttempt;
       }
     } catch {
       // Try the next scope.
@@ -171,21 +165,6 @@ async function fetchWithAuthFallback(params: {
   }
 
   return firstAttempt;
-}
-
-function readRedirectUrl(baseUrl: string, res: Response): string | null {
-  if (![301, 302, 303, 307, 308].includes(res.status)) {
-    return null;
-  }
-  const location = res.headers.get("location");
-  if (!location) {
-    return null;
-  }
-  try {
-    return new URL(location, baseUrl).toString();
-  } catch {
-    return null;
-  }
 }
 
 /**

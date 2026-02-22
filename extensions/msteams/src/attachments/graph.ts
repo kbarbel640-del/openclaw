@@ -9,7 +9,7 @@ import {
   normalizeContentType,
   resolveRequestUrl,
   resolveAllowedHosts,
-  resolveAndValidateIP,
+  safeFetch,
 } from "./shared.js";
 import type {
   MSTeamsAccessTokenProvider,
@@ -32,25 +32,6 @@ type GraphAttachment = {
   thumbnailUrl?: string | null;
   content?: unknown;
 };
-
-function isRedirectStatus(status: number): boolean {
-  return [301, 302, 303, 307, 308].includes(status);
-}
-
-function readRedirectUrl(baseUrl: string, res: Response): string | null {
-  if (!isRedirectStatus(res.status)) {
-    return null;
-  }
-  const location = res.headers.get("location");
-  if (!location) {
-    return null;
-  }
-  try {
-    return new URL(location, baseUrl).toString();
-  } catch {
-    return null;
-  }
-}
 
 function readNestedString(value: unknown, keys: Array<string | number>): string | undefined {
   let current: unknown = value;
@@ -301,26 +282,15 @@ export async function downloadMSTeamsGraphMedia(params: {
               const requestUrl = resolveRequestUrl(input);
               const headers = new Headers(init?.headers);
               headers.set("Authorization", `Bearer ${accessToken}`);
-              const res = await fetchFn(requestUrl, {
-                ...init,
-                headers,
-                redirect: "manual",
+              return await safeFetch({
+                url: requestUrl,
+                allowHosts,
+                fetchFn,
+                requestInit: {
+                  ...init,
+                  headers,
+                },
               });
-              const redirectUrl = readRedirectUrl(requestUrl, res);
-              if (redirectUrl) {
-                if (!isUrlAllowed(redirectUrl, allowHosts)) {
-                  throw new Error(
-                    `MSTeams media redirect target blocked by allowlist: ${redirectUrl}`,
-                  );
-                }
-                // Validate the redirect target's resolved IP (anti-SSRF)
-                const redirectHost = new URL(redirectUrl).hostname;
-                await resolveAndValidateIP(redirectHost);
-
-                const redirectRes = await fetchFn(redirectUrl, { ...init, redirect: "manual" });
-                return redirectRes;
-              }
-              return res;
             },
           });
           sharePointMedia.push(media);
