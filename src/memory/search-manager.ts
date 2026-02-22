@@ -238,7 +238,11 @@ class FallbackMemoryManager implements MemorySearchManager {
     try {
       fallback = await this.deps.fallbackFactory();
       if (!fallback) {
-        log.warn("memory fallback requested but builtin index is unavailable");
+        if (this.deps.fallbackDisabled) {
+          log.info("memory fallback skipped (disabled by config)");
+        } else {
+          log.warn("memory fallback requested but builtin index is unavailable");
+        }
         return null;
       }
     } catch (err) {
