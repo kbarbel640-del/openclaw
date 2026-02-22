@@ -331,7 +331,7 @@ describe("telegram forwarded bursts", () => {
   const FORWARD_BURST_TEST_TIMEOUT_MS = process.platform === "win32" ? 45_000 : 20_000;
 
   it(
-    "coalesces forwarded text + forwarded attachment into a single processing turn",
+    "coalesces forwarded text + forwarded attachment into a single processing turn with default debounce config",
     async () => {
       const runtimeError = vi.fn();
       const { handler, replySpy } = await createBotHandlerWithOptions({ runtimeError });
