@@ -97,6 +97,11 @@ export async function transcribeAzureAudio(
       throw new Error("Azure audio transcription response missing text");
     }
     return { text, model };
+  } catch (err) {
+    console.warn(
+      `[azure-audio] Transcription failed for ${url.origin}${url.pathname}: ${String(err)}`,
+    );
+    throw err;
   } finally {
     await release();
   }
