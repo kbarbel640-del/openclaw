@@ -348,6 +348,9 @@ export function buildSandboxCreateArgs(params: {
       args.push("-v", bind);
     }
   }
+  if (params.cfg.runtime) {
+    args.push("--runtime", params.cfg.runtime);
+  }
   return args;
 }
 
