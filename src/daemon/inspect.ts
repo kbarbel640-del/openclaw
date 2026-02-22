@@ -138,7 +138,7 @@ function isIgnoredLaunchdLabel(label: string): boolean {
 
 // Known OpenClaw systemd service names that are NOT competing gateways.
 const IGNORED_NON_GATEWAY_SYSTEMD = new Set([
-  "openclaw-browser.service", // Playwright browser service
+  "openclaw-browser", // Playwright browser service
 ]);
 
 function isIgnoredSystemdName(name: string): boolean {
