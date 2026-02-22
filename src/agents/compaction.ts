@@ -1,7 +1,9 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { estimateTokens, generateSummary } from "@mariozechner/pi-coding-agent";
-import { retryAsync } from "../infra/retry.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { DEFAULT_CONTEXT_TOKENS } from "./defaults.js";
 import { repairToolUseResultPairing, stripToolResultDetails } from "./session-transcript-repair.js";
@@ -152,6 +154,149 @@ export function isOversizedForSummary(msg: AgentMessage, contextWindow: number):
   return tokens > contextWindow * 0.5;
 }
 
+/**
+ * Shared type for data passed into the compaction Worker.
+ * All fields must be structured-clone-serialisable (plain primitives / arrays / objects).
+ * Model<TApi> satisfies this — it carries no methods, only data fields.
+ */
+interface CompactionWorkerData {
+  chunk: AgentMessage[];
+  model: NonNullable<ExtensionContext["model"]>;
+  reserveTokens: number;
+  apiKey: string;
+  customInstructions: string | undefined;
+  previousSummary: string | undefined;
+}
+
+/**
+ * Resolved once at module load. Both the main bundle and compaction-worker.js
+ * land in dist/, so the sibling-relative URL is stable across installs.
+ */
+const COMPACTION_WORKER_URL = new URL("./compaction-worker.js", import.meta.url);
+
+/**
+ * True when the compiled worker bundle is present on disk (production / installed dist).
+ * False when running tests directly from TypeScript source, where compaction-worker.js
+ * has not been built yet. The fallback path calls generateSummary inline so that
+ * vi.mock("@mariozechner/pi-coding-agent") intercepts work in unit tests.
+ */
+const COMPACTION_WORKER_EXISTS = existsSync(fileURLToPath(COMPACTION_WORKER_URL));
+
+/**
+ * Spawn a worker_threads.Worker for a single chunk summarisation call.
+ *
+ * Isolation guarantees:
+ *   - Hanging LLM HTTP call → only the Worker thread stalls; gateway event loop stays free.
+ *   - Worker OOM → only the Worker dies; gateway process unaffected.
+ *   - Worker crash → rejected Promise → throw propagates to summarizeWithFallback →
+ *     compactionSafeguardExtension catch → static truncation fallback (no LLM needed).
+ *
+ * Resource management:
+ *   - A `settled` flag + `cleanup()` ensures all three event listeners (message, error,
+ *     exit) are removed as soon as any one fires, preventing handle leaks over time.
+ *   - `signal` forwarded from the caller: if the session/request is aborted, the Worker
+ *     is terminated immediately and the Promise rejects with AbortError.
+ *
+ * Exit-code correctness:
+ *   - `onExit` rejects on ANY exit (not just code !== 0) when the Promise hasn't
+ *     already been settled by a message. This covers the edge case where the Worker
+ *     crashes or `postMessage` fails and exits silently with code 0.
+ *   - The Worker itself sets `process.exitCode = 1` in its catch block so that crash
+ *     exits produce a non-zero code as a secondary diagnostic signal.
+ *
+ * The outer compactWithSafetyTimeout (300 s) remains as a belt-and-suspenders guard
+ * for the full session.compact() call.
+ */
+async function generateSummaryInWorker(
+  chunk: AgentMessage[],
+  model: NonNullable<ExtensionContext["model"]>,
+  reserveTokens: number,
+  apiKey: string,
+  customInstructions: string | undefined,
+  previousSummary: string | undefined,
+  signal: AbortSignal | null,
+): Promise<string> {
+  // Fast-path: avoid spawning a Worker for an already-aborted signal.
+  if (signal?.aborted) {
+    return Promise.reject(Object.assign(new Error("AbortError"), { name: "AbortError" }));
+  }
+
+  // When running tests from TypeScript source the compiled worker bundle does not exist.
+  // Fall back to calling generateSummary directly so vi.mock() intercepts are honoured.
+  if (!COMPACTION_WORKER_EXISTS) {
+    return generateSummary(
+      chunk,
+      model,
+      reserveTokens,
+      apiKey,
+      signal ?? undefined,
+      customInstructions,
+      previousSummary,
+    );
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const workerData: CompactionWorkerData = {
+      chunk,
+      model,
+      reserveTokens,
+      apiKey,
+      customInstructions,
+      previousSummary,
+    };
+    const worker = new Worker(COMPACTION_WORKER_URL, { workerData });
+
+    let settled = false;
+
+    /** Call exactly once; subsequent calls are no-ops. */
+    const settle = (fn: () => void): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      fn();
+    };
+
+    /** Remove all listeners so the Worker handle can be GC'd. */
+    const cleanup = (): void => {
+      worker.off("message", onMessage);
+      worker.off("error", onError);
+      worker.off("exit", onExit);
+      signal?.removeEventListener("abort", onAbort);
+    };
+
+    const onMessage = (msg: { ok: boolean; summary?: string; error?: string }): void => {
+      if (msg.ok && msg.summary != null) {
+        settle(() => resolve(msg.summary!));
+      } else {
+        settle(() => reject(new Error(`compaction worker: ${msg.error ?? "unknown error"}`)));
+      }
+    };
+
+    const onError = (err: Error): void => settle(() => reject(err));
+
+    // Reject on ANY exit when not already settled — covers both non-zero exits (crash)
+    // and code-0 exits where the Worker died before postMessage completed.
+    const onExit = (code: number): void => {
+      settle(() =>
+        reject(new Error(`compaction worker exited (code ${code}) without posting a result`)),
+      );
+    };
+
+    const onAbort = (): void => {
+      // terminate() causes the Worker to exit; onExit will fire but settle() no-ops.
+      worker.terminate().catch(() => undefined);
+      settle(() => reject(Object.assign(new Error("Compaction aborted"), { name: "AbortError" })));
+    };
+
+    worker.on("message", onMessage);
+    worker.on("error", onError);
+    worker.on("exit", onExit);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 async function summarizeChunks(params: {
   messages: AgentMessage[];
   model: NonNullable<ExtensionContext["model"]>;
@@ -172,25 +317,16 @@ async function summarizeChunks(params: {
   let summary = params.previousSummary;
 
   for (const chunk of chunks) {
-    summary = await retryAsync(
-      () =>
-        generateSummary(
-          chunk,
-          params.model,
-          params.reserveTokens,
-          params.apiKey,
-          params.signal,
-          params.customInstructions,
-          summary,
-        ),
-      {
-        attempts: 3,
-        minDelayMs: 500,
-        maxDelayMs: 5000,
-        jitter: 0.2,
-        label: "compaction/generateSummary",
-        shouldRetry: (err) => !(err instanceof Error && err.name === "AbortError"),
-      },
+    // Single attempt per chunk, no retry backoff.
+    // Worker is the isolation boundary; signal forwarded so abort cancels the Worker.
+    summary = await generateSummaryInWorker(
+      chunk,
+      params.model,
+      params.reserveTokens,
+      params.apiKey,
+      params.customInstructions,
+      summary,
+      params.signal,
     );
   }
 
