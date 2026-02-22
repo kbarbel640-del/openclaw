@@ -22,6 +22,7 @@ describe("slackPlugin actions", () => {
 
     await handleAction!({
       action: "read",
+      channel: "slack",
       accountId: "default",
       cfg: {},
       params: {

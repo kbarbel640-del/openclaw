@@ -331,8 +331,9 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount> = {
       const token = getTokenForOperation(account, "write");
       const botToken = account.botToken?.trim();
       const tokenOverride = token && token !== botToken ? token : undefined;
+      const threadTsValue = replyToId ?? threadId;
       const result = await send(to, text, {
-        threadTs: replyToId ?? threadId ?? undefined,
+        threadTs: threadTsValue != null ? String(threadTsValue) : undefined,
         accountId: accountId ?? undefined,
         ...(tokenOverride ? { token: tokenOverride } : {}),
       });
@@ -344,9 +345,10 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount> = {
       const token = getTokenForOperation(account, "write");
       const botToken = account.botToken?.trim();
       const tokenOverride = token && token !== botToken ? token : undefined;
+      const threadTsValue = replyToId ?? threadId;
       const result = await send(to, text, {
         mediaUrl,
-        threadTs: replyToId ?? threadId ?? undefined,
+        threadTs: threadTsValue != null ? String(threadTsValue) : undefined,
         accountId: accountId ?? undefined,
         ...(tokenOverride ? { token: tokenOverride } : {}),
       });
