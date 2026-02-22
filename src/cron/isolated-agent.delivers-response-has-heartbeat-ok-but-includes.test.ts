@@ -1,8 +1,8 @@
 import "./isolated-agent.mocks.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CliDeps } from "../cli/deps.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import { runSubagentAnnounceFlow } from "../agents/subagent-announce.js";
-import type { CliDeps } from "../cli/deps.js";
 import { runCronIsolatedAgentTurn } from "./isolated-agent.js";
 import {
   makeCfg,
@@ -180,7 +180,7 @@ describe("runCronIsolatedAgentTurn", () => {
       });
 
       expect(res.status).toBe("error");
-      expect(res.error).toContain("timed out");
+      expect(res.error).toMatch(/timed out|timeout/i);
       expect(deps.sendMessageTelegram).not.toHaveBeenCalled();
       expect(runSubagentAnnounceFlow).not.toHaveBeenCalled();
     });

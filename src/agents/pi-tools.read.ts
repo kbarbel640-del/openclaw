@@ -1,13 +1,13 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { createEditTool, createReadTool, createWriteTool } from "@mariozechner/pi-coding-agent";
-import { detectMime } from "../media/mime.js";
-import { sniffMimeFromBase64 } from "../media/sniff-mime-from-base64.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ImageSanitizationLimits } from "./image-sanitization.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
-import { assertSandboxPath } from "./sandbox-paths.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
+import { detectMime } from "../media/mime.js";
+import { sniffMimeFromBase64 } from "../media/sniff-mime-from-base64.js";
+import { assertSandboxPath } from "./sandbox-paths.js";
 import { sanitizeToolResultImages } from "./tool-images.js";
 
 // NOTE(steipete): Upstream read now does file-magic MIME detection; we keep the wrapper
@@ -576,14 +576,11 @@ function mapContainerPathToWorkspaceRoot(params: {
       candidate = fileURLToPath(candidate);
     } catch {
       try {
-        const parsed = new URL(candidate);
-        if (parsed.protocol !== "file:") {
+        const fileUrl = new URL(candidate);
+        if (fileUrl.protocol !== "file:" || !fileUrl.pathname) {
           return params.filePath;
         }
-        candidate = decodeURIComponent(parsed.pathname || "");
-        if (!candidate.startsWith("/")) {
-          return params.filePath;
-        }
+        candidate = decodeURIComponent(fileUrl.pathname);
       } catch {
         return params.filePath;
       }
