@@ -781,8 +781,9 @@ describe("dispatchTelegramMessage draft streaming", () => {
     await dispatchWithContext({ context: createContext(), streamMode: "partial", bot });
 
     expect(reasoningDraftParams?.onSupersededPreview).toBeTypeOf("function");
-    const deleteMessageCalls = (bot.api as { deleteMessage: { mock: { calls: unknown[][] } } })
-      .deleteMessage.mock.calls;
+    const deleteMessageCalls = (
+      bot.api as unknown as { deleteMessage: { mock: { calls: unknown[][] } } }
+    ).deleteMessage.mock.calls;
     expect(deleteMessageCalls).toContainEqual([123, 4444]);
   });
 
