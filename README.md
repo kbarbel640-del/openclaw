@@ -46,13 +46,18 @@ pnpm install
 # 3. Build
 pnpm build
 
-# 4. Run the gateway (foreground, custom port to avoid conflicts)
-node openclaw.mjs gateway run --port 18899
+# 4. Stop the live gateway first (important!)
+openclaw gateway stop
+
+# 5. Run the gateway (foreground)
+node openclaw.mjs gateway run
 
 # Or replace your global installation:
 npm install -g .
 openclaw gateway restart
 ```
+
+> ⚠️ **Important:** You must stop the live gateway before running this fork's gateway. Two gateways cannot run simultaneously — they will conflict on the same port and Slack socket connection. After testing, restore with `openclaw gateway start`.
 
 #### Verify
 
@@ -144,13 +149,18 @@ pnpm install
 # 3. 빌드
 pnpm build
 
-# 4. 게이트웨이 실행 (포그라운드, 충돌 방지를 위해 커스텀 포트)
-node openclaw.mjs gateway run --port 18899
+# 4. 기존 게이트웨이 중지 (필수!)
+openclaw gateway stop
+
+# 5. 게이트웨이 실행 (포그라운드)
+node openclaw.mjs gateway run
 
 # 또는 글로벌 설치 교체:
 npm install -g .
 openclaw gateway restart
 ```
+
+> ⚠️ **중요:** 이 포크의 게이트웨이를 실행하기 전에 기존 게이트웨이를 반드시 중지하세요. 두 게이트웨이가 동시에 실행되면 포트 및 Slack 소켓 충돌이 발생합니다. 테스트 후 `openclaw gateway start`로 원래 게이트웨이를 복원하세요.
 
 #### 확인
 
