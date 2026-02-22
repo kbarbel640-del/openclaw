@@ -1,8 +1,8 @@
 import type { Api, Model } from "@mariozechner/pi-ai";
-import type { ModelRegistry } from "./pi-model-discovery.js";
 import { DEFAULT_CONTEXT_TOKENS } from "./defaults.js";
 import { normalizeModelCompat } from "./model-compat.js";
 import { normalizeProviderId } from "./model-selection.js";
+import type { ModelRegistry } from "./pi-model-discovery.js";
 
 const OPENAI_CODEX_GPT_53_MODEL_ID = "gpt-5.3-codex";
 const OPENAI_CODEX_TEMPLATE_MODEL_IDS = ["gpt-5.2-codex"] as const;
@@ -40,10 +40,12 @@ export const ANTIGRAVITY_OPUS_46_FORWARD_COMPAT_CANDIDATES = [
       "google-antigravity/claude-opus-4-5-thinking",
       "google-antigravity/claude-opus-4.5-thinking",
     ],
+    availabilityAliasIds: [] as const,
   },
   {
     id: ANTIGRAVITY_OPUS_46_MODEL_ID,
     templatePrefixes: ["google-antigravity/claude-opus-4-5", "google-antigravity/claude-opus-4.5"],
+    availabilityAliasIds: [] as const,
   },
 ] as const;
 
@@ -51,10 +53,12 @@ export const ANTIGRAVITY_GEMINI_31_FORWARD_COMPAT_CANDIDATES = [
   {
     id: ANTIGRAVITY_GEMINI_31_PRO_HIGH_MODEL_ID,
     templatePrefixes: ["google-antigravity/gemini-3-pro-high"],
+    availabilityAliasIds: [ANTIGRAVITY_GEMINI_31_PRO_DOT_HIGH_MODEL_ID],
   },
   {
     id: ANTIGRAVITY_GEMINI_31_PRO_LOW_MODEL_ID,
     templatePrefixes: ["google-antigravity/gemini-3-pro-low"],
+    availabilityAliasIds: [ANTIGRAVITY_GEMINI_31_PRO_DOT_LOW_MODEL_ID],
   },
 ] as const;
 
