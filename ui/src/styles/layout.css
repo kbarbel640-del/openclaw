@@ -14,7 +14,7 @@
   grid-template-columns: var(--shell-nav-width) minmax(0, 1fr);
   grid-template-rows: var(--shell-topbar-height) 1fr;
   grid-template-areas:
-    "topbar topbar"
+    "nav topbar"
     "nav content";
   gap: 0;
   animation: dashboard-enter 0.4s var(--ease-out);
@@ -188,7 +188,20 @@
   margin: 0;
   padding: 10px;
   justify-content: center;
-  width: 40px;
+  width: 44px;
+  height: 44px;
+}
+
+.sidebar--collapsed .nav-item__icon {
+  width: 22px;
+  height: 22px;
+  opacity: 0.85;
+}
+
+.sidebar--collapsed .nav-item__icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.75px;
 }
 
 .sidebar--collapsed .nav-item--active {
@@ -205,7 +218,8 @@
 .sidebar--collapsed .sidebar-footer .nav-item {
   margin: 0;
   padding: 10px;
-  width: 40px;
+  width: 44px;
+  height: 44px;
 }
 
 /* Sidebar header (brand + collapse) */
