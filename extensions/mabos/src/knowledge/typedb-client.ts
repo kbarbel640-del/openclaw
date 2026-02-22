@@ -45,7 +45,7 @@ export class TypeDBClient {
     this.driverParams = {
       username: params?.username ?? "admin",
       password: params?.password ?? "password",
-      addresses: params?.addresses ?? ["localhost:8000"],
+      addresses: params?.addresses ?? ["http://localhost:8000"],
     };
   }
 
@@ -174,7 +174,9 @@ let clientInstance: TypeDBClient | null = null;
  */
 export function getTypeDBClient(serverUrl?: string): TypeDBClient {
   if (!clientInstance) {
-    const addresses = serverUrl ? [serverUrl.replace(/^https?:\/\//, "")] : undefined;
+    const addresses = serverUrl
+      ? [serverUrl.startsWith("http") ? serverUrl : `http://${serverUrl}`]
+      : undefined;
     clientInstance = new TypeDBClient(addresses ? { addresses } : undefined);
     // Fire-and-forget connection attempt
     clientInstance.connect().catch(() => {});
