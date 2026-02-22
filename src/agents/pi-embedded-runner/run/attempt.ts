@@ -1038,14 +1038,12 @@ export async function runEmbeddedAttempt(
               `hooks: prepended context to prompt (${hookResult.prependContext.length} chars)`,
             );
           }
-          if (
-            typeof hookResult?.systemPrompt === "string" &&
-            hookResult.systemPrompt.trim().length > 0
-          ) {
-            const override = hookResult.systemPrompt.trim();
-            applySystemPromptOverrideToSession(activeSession, override);
-            systemPromptText = override;
-            log.debug(`hooks: applied systemPrompt override (${override.length} chars)`);
+          const legacySystemPrompt =
+            typeof hookResult?.systemPrompt === "string" ? hookResult.systemPrompt.trim() : "";
+          if (legacySystemPrompt) {
+            applySystemPromptOverrideToSession(activeSession, legacySystemPrompt);
+            systemPromptText = legacySystemPrompt;
+            log.debug(`hooks: applied systemPrompt override (${legacySystemPrompt.length} chars)`);
           }
         }
 
