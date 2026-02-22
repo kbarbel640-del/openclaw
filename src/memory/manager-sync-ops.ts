@@ -19,6 +19,7 @@ import {
   createEmbeddingProvider,
   type EmbeddingProvider,
   type GeminiEmbeddingClient,
+  type MistralEmbeddingClient,
   type OpenAiEmbeddingClient,
   type VoyageEmbeddingClient,
 } from "./embeddings.js";
@@ -94,6 +95,7 @@ export abstract class MemoryManagerSyncOps {
   protected openAi?: OpenAiEmbeddingClient;
   protected gemini?: GeminiEmbeddingClient;
   protected voyage?: VoyageEmbeddingClient;
+  protected mistral?: MistralEmbeddingClient;
   protected abstract batch: {
     enabled: boolean;
     wait: boolean;
@@ -984,6 +986,7 @@ export abstract class MemoryManagerSyncOps {
     this.openAi = fallbackResult.openAi;
     this.gemini = fallbackResult.gemini;
     this.voyage = fallbackResult.voyage;
+    this.mistral = fallbackResult.mistral;
     this.providerKey = this.computeProviderKey();
     this.batch = this.resolveBatchConfig();
     log.warn(`memory embeddings: switched to fallback provider (${fallback})`, { reason });
