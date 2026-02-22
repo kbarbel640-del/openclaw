@@ -45,6 +45,12 @@ describe("sanitizeHtml", () => {
     expect(result).not.toContain("Invisible");
   });
 
+  it("strips color:rgba with zero decimal alpha elements", async () => {
+    const html = '<p>Visible</p><p style="color:rgba(0,0,0,0.0)">Invisible</p>';
+    const result = await sanitizeHtml(html);
+    expect(result).not.toContain("Invisible");
+  });
+
   it("strips color:hsla with zero alpha elements", async () => {
     const html = '<p>Visible</p><p style="color:hsla(0,0%,0%,0)">Invisible</p>';
     const result = await sanitizeHtml(html);
@@ -79,6 +85,18 @@ describe("sanitizeHtml", () => {
     const html = '<p>Show</p><div style="clip-path:inset(100%)">Clipped</div>';
     const result = await sanitizeHtml(html);
     expect(result).not.toContain("Clipped");
+  });
+
+  it("strips clip-path:inset(50%) elements", async () => {
+    const html = '<p>Show</p><div style="clip-path:inset(50%)">Clipped</div>';
+    const result = await sanitizeHtml(html);
+    expect(result).not.toContain("Clipped");
+  });
+
+  it("does not strip clip-path:inset(0%) elements", async () => {
+    const html = '<p>Show</p><div style="clip-path:inset(0%)">Visible</div>';
+    const result = await sanitizeHtml(html);
+    expect(result).toContain("Visible");
   });
 
   it("strips sr-only class elements", async () => {

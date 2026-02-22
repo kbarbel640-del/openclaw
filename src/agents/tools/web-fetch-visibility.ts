@@ -6,8 +6,8 @@ const HIDDEN_STYLE_PATTERNS: Array<[string, RegExp]> = [
   ["font-size", /^\s*0(px|em|rem|pt|%)?\s*$/i],
   ["text-indent", /^\s*-\d{4,}px\s*$/],
   ["color", /^\s*transparent\s*$/i],
-  ["color", /^\s*rgba\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0\s*\)\s*$/i],
-  ["color", /^\s*hsla\s*\(\s*[\d.]+\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*0\s*\)\s*$/i],
+  ["color", /^\s*rgba\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0(?:\.0+)?\s*\)\s*$/i],
+  ["color", /^\s*hsla\s*\(\s*[\d.]+\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*0(?:\.0+)?\s*\)\s*$/i],
 ];
 
 // Class names associated with visually hidden content
@@ -35,11 +35,10 @@ function isStyleHidden(style: string): boolean {
     }
   }
 
-  // clip-path: none is not hidden, but clip-path hiding patterns
+  // clip-path: none is not hidden, but positive percentage inset() clipping hides content.
   const clipPath = style.match(/(?:^|;)\s*clip-path\s*:\s*([^;]+)/i);
   if (clipPath && !/^\s*none\s*$/i.test(clipPath[1])) {
-    // inset(100%) clips everything, used to hide content
-    if (/inset\s*\(\s*100%/i.test(clipPath[1])) {
+    if (/inset\s*\(\s*(?:0*\.\d+|[1-9]\d*(?:\.\d+)?)%/i.test(clipPath[1])) {
       return true;
     }
   }
