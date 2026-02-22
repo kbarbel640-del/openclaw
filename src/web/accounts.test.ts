@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveWhatsAppAuthDir } from "./accounts.js";
+import { resolveWhatsAppAccount, resolveWhatsAppAuthDir } from "./accounts.js";
 
 describe("resolveWhatsAppAuthDir", () => {
   const stubCfg = { channels: { whatsapp: { accounts: {} } } } as Parameters<
@@ -43,5 +43,63 @@ describe("resolveWhatsAppAuthDir", () => {
       accountId: "my-account-1",
     });
     expect(authDir).toMatch(/whatsapp[/\\]my-account-1$/);
+  });
+});
+
+describe("resolveWhatsAppAccount proxy", () => {
+  it("resolves proxy from account config", () => {
+    const cfg = {
+      channels: {
+        whatsapp: {
+          accounts: {
+            default: { proxy: "http://proxy.example.com:8080" },
+          },
+        },
+      },
+    } as Parameters<typeof resolveWhatsAppAccount>[0]["cfg"];
+    const account = resolveWhatsAppAccount({ cfg, accountId: "default" });
+    expect(account.proxy).toBe("http://proxy.example.com:8080");
+  });
+
+  it("falls back to channel-level proxy when account has none", () => {
+    const cfg = {
+      channels: {
+        whatsapp: {
+          proxy: "http://channel-proxy.example.com:3128",
+          accounts: { default: {} },
+        },
+      },
+    } as Parameters<typeof resolveWhatsAppAccount>[0]["cfg"];
+    const account = resolveWhatsAppAccount({ cfg, accountId: "default" });
+    expect(account.proxy).toBe("http://channel-proxy.example.com:3128");
+  });
+
+  it("account proxy overrides channel-level proxy", () => {
+    const cfg = {
+      channels: {
+        whatsapp: {
+          proxy: "http://channel-proxy.example.com:3128",
+          accounts: {
+            default: { proxy: "http://account-proxy.example.com:8080" },
+          },
+        },
+      },
+    } as Parameters<typeof resolveWhatsAppAccount>[0]["cfg"];
+    const account = resolveWhatsAppAccount({ cfg, accountId: "default" });
+    expect(account.proxy).toBe("http://account-proxy.example.com:8080");
+  });
+
+  it("trims whitespace from proxy", () => {
+    const cfg = {
+      channels: {
+        whatsapp: {
+          accounts: {
+            default: { proxy: "  http://proxy.example.com:8080  " },
+          },
+        },
+      },
+    } as Parameters<typeof resolveWhatsAppAccount>[0]["cfg"];
+    const account = resolveWhatsAppAccount({ cfg, accountId: "default" });
+    expect(account.proxy).toBe("http://proxy.example.com:8080");
   });
 });

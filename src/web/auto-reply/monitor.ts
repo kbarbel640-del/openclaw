@@ -196,6 +196,7 @@ export async function monitorWebChannel(
       mediaMaxMb: account.mediaMaxMb,
       sendReadReceipts: account.sendReadReceipts,
       debounceMs: inboundDebounceMs,
+      proxy: account.proxy,
       shouldDebounce,
       onMessage: async (msg: WebInboundMsg) => {
         handledMessages += 1;

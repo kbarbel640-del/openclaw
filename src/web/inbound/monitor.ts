@@ -32,6 +32,8 @@ export async function monitorWebInbox(options: {
   sendReadReceipts?: boolean;
   /** Debounce window (ms) for batching rapid consecutive messages from the same sender (0 to disable). */
   debounceMs?: number;
+  /** Proxy URL for WhatsApp connections. */
+  proxy?: string;
   /** Optional debounce gating predicate. */
   shouldDebounce?: (msg: WebInboundMessage) => boolean;
 }) {
@@ -39,6 +41,7 @@ export async function monitorWebInbox(options: {
   const inboundConsoleLog = createSubsystemLogger("gateway/channels/whatsapp").child("inbound");
   const sock = await createWaSocket(false, options.verbose, {
     authDir: options.authDir,
+    proxy: options.proxy,
   });
   await waitForWaConnection(sock);
   const connectedAtMs = Date.now();

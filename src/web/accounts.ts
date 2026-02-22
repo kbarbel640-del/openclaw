@@ -28,6 +28,7 @@ export type ResolvedWhatsAppAccount = {
   ackReaction?: WhatsAppAccountConfig["ackReaction"];
   groups?: WhatsAppAccountConfig["groups"];
   debounceMs?: number;
+  proxy?: string;
 };
 
 const { listConfiguredAccountIds, listAccountIds, resolveDefaultAccountId } =
@@ -148,6 +149,7 @@ export function resolveWhatsAppAccount(params: {
     ackReaction: accountCfg?.ackReaction ?? rootCfg?.ackReaction,
     groups: accountCfg?.groups ?? rootCfg?.groups,
     debounceMs: accountCfg?.debounceMs ?? rootCfg?.debounceMs,
+    proxy: accountCfg?.proxy?.trim() ?? rootCfg?.proxy?.trim(),
   };
 }
 

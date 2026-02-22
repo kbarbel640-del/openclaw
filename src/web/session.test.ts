@@ -204,6 +204,31 @@ describe("web session", () => {
     expect(inFlight).toBe(0);
   });
 
+  it("passes proxy agent to makeWASocket when proxy is set", async () => {
+    await createWaSocket(false, false, { proxy: "http://proxy.example.com:8080" });
+    const makeWASocket = baileys.makeWASocket as ReturnType<typeof vi.fn>;
+    const opts = makeWASocket.mock.calls[0][0];
+    expect(opts.agent).toBeDefined();
+    expect(opts.fetchAgent).toBeDefined();
+    expect(opts.agent).toBe(opts.fetchAgent);
+  });
+
+  it("does not pass agent when no proxy is set", async () => {
+    await createWaSocket(false, false);
+    const makeWASocket = baileys.makeWASocket as ReturnType<typeof vi.fn>;
+    const opts = makeWASocket.mock.calls[0][0];
+    expect(opts.agent).toBeUndefined();
+    expect(opts.fetchAgent).toBeUndefined();
+  });
+
+  it("connects without proxy when proxy URL is empty or whitespace", async () => {
+    await createWaSocket(false, false, { proxy: "   " });
+    const makeWASocket = baileys.makeWASocket as ReturnType<typeof vi.fn>;
+    const opts = makeWASocket.mock.calls[0][0];
+    expect(opts.agent).toBeUndefined();
+    expect(opts.fetchAgent).toBeUndefined();
+  });
+
   it("rotates creds backup when creds.json is valid JSON", async () => {
     const creds = mockCredsJsonSpies("{}");
     const backupSuffix = path.join(
