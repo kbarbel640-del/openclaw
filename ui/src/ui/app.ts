@@ -354,6 +354,7 @@ export class OpenClawApp extends LitElement {
   @state() logsLevelFilters: Record<LogLevel, boolean> = {
     ...DEFAULT_LOG_LEVEL_FILTERS,
   };
+  @state() logsCategoryFilter: string | null = null;
   @state() logsAutoFollow = true;
   @state() logsTruncated = false;
   @state() logsCursor: number | null = null;
