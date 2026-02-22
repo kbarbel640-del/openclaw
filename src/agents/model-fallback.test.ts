@@ -2,11 +2,12 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, fail } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AuthProfileStore } from "./auth-profiles.js";
 import { saveAuthProfileStore } from "./auth-profiles.js";
 import { AUTH_STORE_VERSION } from "./auth-profiles/constants.js";
+import type { AuthProfileFailureReason } from "./auth-profiles/types.js";
 import { isAnthropicBillingError } from "./live-auth-keys.js";
 import { runWithImageModelFallback, runWithModelFallback } from "./model-fallback.js";
 import { makeModelFallbackCfg } from "./test-helpers/model-fallback-config-fixture.js";
@@ -936,12 +937,12 @@ describe("runWithModelFallback", () => {
               ? {
                   // Rate limits use cooldownUntil
                   cooldownUntil: now + 300000,
-                  disabledReason: reason as unknown,
+                  disabledReason: reason as AuthProfileFailureReason,
                 }
               : {
                   // Auth/billing issues use disabledUntil
                   disabledUntil: now + 300000,
-                  disabledReason: reason as unknown,
+                  disabledReason: reason as AuthProfileFailureReason,
                 },
         },
       };
@@ -1049,7 +1050,7 @@ describe("runWithModelFallback", () => {
         usageStats: {
           "anthropic:default": {
             cooldownUntil: Date.now() + 300000, // Rate limit uses cooldownUntil
-            disabledReason: "rate_limit" as unknown,
+            disabledReason: "rate_limit" as AuthProfileFailureReason,
           },
           // Groq not in cooldown
         },
