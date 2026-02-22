@@ -391,12 +391,10 @@ export async function runWithModelFallback<T>(params: {
           });
           continue;
         }
-
-        if (isPrimary && shouldProbe) {
-          // Primary model probe: attempt it despite cooldown to detect recovery.
-          lastProbeAttempt.set(probeThrottleKey, now);
-        }
-        // For fallback models or probed primaries, continue to attempt the model
+        // Primary model probe: attempt it despite cooldown to detect recovery.
+        // If it fails, the error is caught below and we fall through to the
+        // next candidate as usual.
+        lastProbeAttempt.set(probeThrottleKey, now);
       }
     }
     try {
