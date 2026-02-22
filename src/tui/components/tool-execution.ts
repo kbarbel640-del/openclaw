@@ -1,5 +1,14 @@
-import { readFileSync } from "node:fs";
-import { Box, Container, Image as PiImage, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
+import { readFileSync, statSync } from "node:fs";
+import { extname } from "node:path";
+import {
+  Box,
+  Container,
+  getCapabilities,
+  Image as PiImage,
+  Markdown,
+  Spacer,
+  Text,
+} from "@mariozechner/pi-tui";
 import { formatToolDetail, resolveToolDisplay } from "../../agents/tool-display.js";
 import { markdownTheme, theme } from "../theme/theme.js";
 import { sanitizeRenderableText } from "../tui-formatters.js";
@@ -18,6 +27,7 @@ type ToolResult = {
 };
 
 const PREVIEW_LINES = 12;
+const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 const MIME_BY_EXT: Record<string, string> = {
   png: "image/png",
@@ -27,20 +37,37 @@ const MIME_BY_EXT: Record<string, string> = {
   webp: "image/webp",
 };
 
-/** Cached terminal image capability detection. */
-let _imageSupport: boolean | undefined;
+const ALLOWED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+
+/** Check if the terminal supports inline image rendering via pi-tui. */
 function canRenderInlineImages(): boolean {
-  if (_imageSupport === undefined) {
-    const term = process.env.TERM ?? "";
-    const tp = (process.env.TERM_PROGRAM ?? "").toLowerCase();
-    _imageSupport =
-      tp === "wezterm" ||
-      tp === "ghostty" ||
-      tp.includes("iterm") ||
-      term === "xterm-kitty" ||
-      Boolean(process.env.ITERM_SESSION_ID);
+  return getCapabilities().images !== null;
+}
+
+/**
+ * Validate a MEDIA: file path before reading.
+ * Rejects null bytes, non-image extensions, non-regular files, and oversized files.
+ */
+function validateMediaPath(filePath: string): boolean {
+  if (filePath.includes("\0")) {
+    return false;
   }
-  return _imageSupport;
+  const ext = extname(filePath).toLowerCase();
+  if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+    return false;
+  }
+  try {
+    const stat = statSync(filePath);
+    if (!stat.isFile()) {
+      return false;
+    }
+    if (stat.size > MAX_IMAGE_FILE_SIZE || stat.size === 0) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 /** Extract local file paths from MEDIA: text lines in a tool result. */
@@ -198,14 +225,22 @@ export class ToolExecutionComponent extends Container {
     this.imageChildren = [];
     if (!this.isPartial && canRenderInlineImages()) {
       for (const filePath of getMediaPaths(this.result)) {
+        if (!validateMediaPath(filePath)) {
+          continue;
+        }
         try {
           const buf = readFileSync(filePath);
           const base64 = buf.toString("base64");
-          const ext = (filePath.split(".").pop() ?? "").toLowerCase();
+          const ext = extname(filePath).slice(1).toLowerCase();
           const mime = MIME_BY_EXT[ext] ?? "image/png";
-          const img = new PiImage(base64, mime, {
-            fallbackColor: (s: string) => theme.dim(s),
-          });
+          const img = new PiImage(
+            base64,
+            mime,
+            { fallbackColor: (s: string) => theme.dim(s) },
+            {
+              maxWidthCells: 60,
+            },
+          );
           this.addChild(img);
           this.imageChildren.push(img);
         } catch {

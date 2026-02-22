@@ -4,6 +4,7 @@ import {
   extractTextFromMessage,
   extractThinkingFromMessage,
   isCommandMessage,
+  resultHasMedia,
   sanitizeRenderableText,
 } from "./tui-formatters.js";
 
@@ -268,5 +269,49 @@ describe("sanitizeRenderableText", () => {
     const sanitized = sanitizeRenderableText(input);
 
     expect(sanitized).toBe(input);
+  });
+});
+
+describe("resultHasMedia", () => {
+  it("returns true when a text entry contains a MEDIA: line", () => {
+    expect(
+      resultHasMedia({
+        content: [{ type: "text", text: "MEDIA:/tmp/image.png" }],
+      }),
+    ).toBe(true);
+  });
+
+  it("returns true when MEDIA: is among multiple lines", () => {
+    expect(
+      resultHasMedia({
+        content: [{ type: "text", text: "some text\nMEDIA:/tmp/photo.jpg\nmore text" }],
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false for non-text entries", () => {
+    expect(
+      resultHasMedia({
+        content: [{ type: "image", data: "abc" }],
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for text without MEDIA: prefix", () => {
+    expect(
+      resultHasMedia({
+        content: [{ type: "text", text: "no media here" }],
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for null/undefined/non-object input", () => {
+    expect(resultHasMedia(null)).toBe(false);
+    expect(resultHasMedia(undefined)).toBe(false);
+    expect(resultHasMedia("string")).toBe(false);
+  });
+
+  it("returns false when content is not an array", () => {
+    expect(resultHasMedia({ content: "not-array" })).toBe(false);
   });
 });
