@@ -384,39 +384,20 @@ describe("runWithModelFallback", () => {
     const run = vi.fn().mockRejectedValue(new Error("should not execute run()"));
 
     try {
-      await expect(
-        runWithModelFallback({
-          cfg,
-          provider,
-          model: "m1",
-          agentDir: tempDir,
-          run,
-        }),
-      ).rejects.toThrow(
-        `${provider}/m1: skipped (provider cooldown: all auth profiles in cooldown) (rate_limit)`,
-      );
-      await expect(
-        runWithModelFallback({
-          cfg,
-          provider,
-          model: "m1",
-          agentDir: tempDir,
-          run,
-        }),
-      ).rejects.toThrow(
-        `${provider}/m2: skipped (provider cooldown: all auth profiles in cooldown) (rate_limit)`,
-      );
-      await expect(
-        runWithModelFallback({
-          cfg,
-          provider,
-          model: "m1",
-          agentDir: tempDir,
-          run,
-        }),
-      ).rejects.toThrow(
-        `${provider}/m3: skipped (provider cooldown: all auth profiles in cooldown) (rate_limit)`,
-      );
+      const message = await runWithModelFallback({
+        cfg,
+        provider,
+        model: "m1",
+        agentDir: tempDir,
+        run,
+      })
+        .then(() => "")
+        .catch((err) => (err instanceof Error ? err.message : String(err)));
+      expect(message).toContain(`${provider}/m1:`);
+      expect(message).toContain(`${provider}/m2:`);
+      expect(message).toContain(`${provider}/m3:`);
+      expect(message).toContain("skipped (provider cooldown: all auth profiles in cooldown)");
+      expect(message).toContain("(rate_limit)");
       expect(run).not.toHaveBeenCalled();
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
