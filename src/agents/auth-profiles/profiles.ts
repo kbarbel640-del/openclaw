@@ -15,9 +15,7 @@ function normalizeAuthProfileCredential(credential: AuthProfileCredential): Auth
   if (credential.type === "api_key") {
     return {
       ...credential,
-      ...(typeof credential.key === "string"
-        ? { key: normalizeSecretInput(credential.key) }
-        : {}),
+      ...(typeof credential.key === "string" ? { key: normalizeSecretInput(credential.key) } : {}),
     };
   }
   if (credential.type === "token") {

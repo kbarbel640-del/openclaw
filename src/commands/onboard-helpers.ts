@@ -23,8 +23,8 @@ import {
   shortenHomePath,
   sleep,
 } from "../utils.js";
-import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
+import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
 import { VERSION } from "../version.js";
 import type { NodeManagerChoice, OnboardMode, ResetScope } from "./onboard-types.js";
 

@@ -120,9 +120,7 @@ export function collectProviderApiKeys(provider: string): string[] {
   }
 
   const fromList = parseKeyList(config.listVar ? process.env[config.listVar] : undefined);
-  const primary = config.primaryVar
-    ? normalizeApiKeyValue(process.env[config.primaryVar])
-    : null;
+  const primary = config.primaryVar ? normalizeApiKeyValue(process.env[config.primaryVar]) : null;
   const fromPrefixed = config.prefixedVar ? collectEnvPrefixedKeys(config.prefixedVar) : [];
 
   const fallback = config.fallbackVars
@@ -144,7 +142,7 @@ export function collectProviderApiKeys(provider: string): string[] {
   for (const value of fromList) {
     add(value);
   }
-  add(primary);
+  add(primary ?? undefined);
   for (const value of fromPrefixed) {
     add(value);
   }
