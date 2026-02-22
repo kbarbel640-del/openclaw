@@ -9,6 +9,7 @@ import type {
 import { registerInternalHook } from "../hooks/internal-hooks.js";
 import type { HookEntry } from "../hooks/types.js";
 import { resolveUserPath } from "../utils.js";
+import { createGuardedRuntime } from "./capability-guard.js";
 import { registerPluginCommand } from "./commands.js";
 import { createPluginEnv } from "./env-sandbox.js";
 import { normalizePluginHttpPath } from "./http-path.js";
@@ -488,7 +489,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       source: record.source,
       config: params.config,
       pluginConfig: params.pluginConfig,
-      runtime: registryParams.runtime,
+      runtime: createGuardedRuntime(registryParams.runtime, record.origin),
       env: pluginEnv,
       logger: normalizeLogger(registryParams.logger),
       registerTool: (tool, opts) => registerTool(record, tool, opts),
