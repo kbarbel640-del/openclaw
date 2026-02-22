@@ -992,9 +992,6 @@ export async function handleFeishuMessage(params: {
 
     markDispatchIdle();
 
-    // Complete reaction state - remove emoji
-    await reactionManager.onCompleted(ctx.messageId);
-
     // Remove from timeout monitor queue
     removePendingMessage(ctx.messageId);
 

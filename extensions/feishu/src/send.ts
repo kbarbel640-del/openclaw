@@ -3,6 +3,7 @@ import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import type { MentionTarget } from "./mention.js";
 import { buildMentionedMessage, buildMentionedCardContent } from "./mention.js";
+import { getReactionStateManager } from "./reaction-state.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { assertFeishuMessageApiSuccess, toFeishuSendResult } from "./send-result.js";
 import { resolveReceiveIdType, normalizeFeishuTarget } from "./targets.js";
@@ -163,6 +164,9 @@ export async function sendMessageFeishu(
       },
     });
     assertFeishuMessageApiSuccess(response, "Feishu reply failed");
+    getReactionStateManager()
+      .onCompleted(replyToMessageId)
+      .catch(() => {});
     return toFeishuSendResult(response, receiveId);
   }
 
@@ -211,6 +215,9 @@ export async function sendCardFeishu(params: SendFeishuCardParams): Promise<Feis
       },
     });
     assertFeishuMessageApiSuccess(response, "Feishu card reply failed");
+    getReactionStateManager()
+      .onCompleted(replyToMessageId)
+      .catch(() => {});
     return toFeishuSendResult(response, receiveId);
   }
 

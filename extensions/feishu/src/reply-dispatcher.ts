@@ -10,6 +10,7 @@ import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import type { MentionTarget } from "./mention.js";
 import { buildMentionedCardContent } from "./mention.js";
+import { getReactionStateManager } from "./reaction-state.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { sendMarkdownCardFeishu, sendMessageFeishu } from "./send.js";
 import { FeishuStreamingSession } from "./streaming-card.js";
@@ -100,6 +101,11 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
       );
       try {
         await streaming.start(chatId, resolveReceiveIdType(chatId));
+        if (replyToMessageId) {
+          getReactionStateManager()
+            .onCompleted(replyToMessageId)
+            .catch(() => {});
+        }
       } catch (error) {
         params.runtime.error?.(`feishu: streaming start failed: ${String(error)}`);
         streaming = null;

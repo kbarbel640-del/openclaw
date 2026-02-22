@@ -18,7 +18,7 @@ import { addReactionFeishu, removeReactionFeishu } from "./reactions.js";
 // See: https://open.feishu.cn/document/server-docs/im-v1/message-reaction/emojis-introduce
 export const ReactionEmoji = {
   /** Message is queued, waiting to be processed */
-  QUEUED: "ONESECOND", // ☝️ OneSecond - "稍等一下"
+  QUEUED: "OneSecond", // ☝️ OneSecond - "稍等一下"
   /** Agent is actively processing/thinking */
   PROCESSING: "Typing", // ⌨️ Typing - "正在输入"
 } as const;
@@ -233,6 +233,26 @@ export class ReactionStateManager {
    */
   getState(messageId: string): MessageReactionState | undefined {
     return this.states.get(messageId);
+  }
+
+  /**
+   * Clear all reaction states for a specific chat/conversation.
+   * Useful when the agent sends a final reply, meaning all queued processing is done.
+   */
+  async clearForChat(chatId: string): Promise<void> {
+    const log = this.config.log ?? console.log;
+    let clearedCount = 0;
+
+    for (const [messageId, state] of this.states) {
+      if (state.chatId === chatId) {
+        await this.onCompleted(messageId);
+        clearedCount++;
+      }
+    }
+
+    if (clearedCount > 0) {
+      log(`[reaction-state] Cleared ${clearedCount} states for chat ${chatId}`);
+    }
   }
 
   /**
