@@ -422,13 +422,20 @@ export function buildAgentSystemPrompt(params: {
   });
   const workspaceNotes = (params.workspaceNotes ?? []).map((note) => note.trim()).filter(Boolean);
 
+  // Build a unique first line per agent to improve prompt cache locality.
+  // Without this, all OpenClaw users share the same system prompt prefix,
+  // causing cache misses when requests are routed to different machines.
+  // Including the agent ID makes the hash unique per user/agent.
+  const agentId = runtimeInfo?.agentId ?? "unknown";
+  const firstLine = `You are ${agentId}, a personal assistant running inside OpenClaw.`;
+
   // For "none" mode, return just the basic identity line
   if (promptMode === "none") {
-    return "You are a personal assistant running inside OpenClaw.";
+    return firstLine;
   }
 
   const lines = [
-    "You are a personal assistant running inside OpenClaw.",
+    firstLine,
     "",
     "## Tooling",
     "Tool availability (filtered by policy):",
