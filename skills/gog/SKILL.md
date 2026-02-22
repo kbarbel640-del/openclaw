@@ -108,9 +108,40 @@ Email Formatting
 
 Notes
 
-- Set `GOG_ACCOUNT=you@gmail.com` to avoid repeating `--account`.
+- Sets `GOG_ACCOUNT=you@gmail.com` to avoid repeating `--account`.
 - For scripting, prefer `--json` plus `--no-input`.
 - Sheets values can be passed via `--values-json` (recommended) or as inline rows.
 - Docs supports export/cat/copy. In-place edits require a Docs API client (not in gog).
 - Confirm before sending mail or creating events.
 - `gog gmail search` returns one row per thread; use `gog gmail messages search` when you need every individual email returned separately.
+
+### ⚠️ STRICT OVERRIDE FOR SHEETS FORMATTING ⚠️
+
+The `gog` CLI **CANNOT** format Google Sheets (no gridlines toggle, no colors, no UI manipulation).
+If the user requests ANY kind of visual formatting, aesthetic cleanup, "Product-Level Aesthetics", zebra striping, or making the table look beautiful, **DO NOT USE `gog`**.
+You MUST instead invoke the `google-sheets` skill and run the batchUpdate formatting from its SKILL.md. `gog` is strictly for raw data read/write only.
+
+### 🔴 MANDATORY 2-STEP POST-WRITE PROTOCOL
+
+Every time you write data to a Google Sheet with `gog`, you MUST execute BOTH steps:
+
+**Step 1 — Data Write** (gog)
+
+```bash
+gog sheets update --spreadsheet-id SHEET_ID --range SheetName!A1 --values-json '[...]'
+```
+
+**Step 2 — Elite Console Format** (read `google-sheets` SKILL.md section "Elite Console Dashboard Standard" and execute the batchUpdate requests there)
+
+```bash
+# Apply the batchUpdate JSON from google-sheets SKILL.md:
+# - Hide gridlines
+# - Roboto Mono for all number cells
+# - Gold KPI background for hero rows
+# - Slate fill for label column
+# - Thin slate borders
+# - Auto-resize columns
+gog sheets batchUpdate --spreadsheet-id SHEET_ID --requests-json '[...from google-sheets SKILL.md...]'
+```
+
+⛔ Stopping after Step 1 only = TASK FAILED. Both steps are required.
