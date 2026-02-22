@@ -8,6 +8,8 @@ import { normalizeE164 } from "../../../utils.js";
 import type { MentionConfig } from "../mentions.js";
 import type { WebInboundMsg } from "../types.js";
 import { maybeBroadcastMessage } from "./broadcast.js";
+import type { DmHistoryEntry } from "./dm-gating.js";
+import { applyDmGating } from "./dm-gating.js";
 import type { EchoTracker } from "./echo.js";
 import type { GroupHistoryEntry } from "./group-gating.js";
 import { applyGroupGating } from "./group-gating.js";
@@ -23,6 +25,8 @@ export function createWebOnMessageHandler(params: {
   groupHistoryLimit: number;
   groupHistories: Map<string, GroupHistoryEntry[]>;
   groupMemberNames: Map<string, Map<string, string>>;
+  dmHistoryLimit: number;
+  dmHistories: Map<string, DmHistoryEntry[]>;
   echoTracker: EchoTracker;
   backgroundTasks: Set<Promise<unknown>>;
   replyResolver: typeof getReplyFromConfig;
@@ -37,6 +41,7 @@ export function createWebOnMessageHandler(params: {
     opts?: {
       groupHistory?: GroupHistoryEntry[];
       suppressGroupHistoryClear?: boolean;
+      dmHistory?: DmHistoryEntry[];
     },
   ) =>
     processMessage({
@@ -58,6 +63,9 @@ export function createWebOnMessageHandler(params: {
       buildCombinedEchoKey: params.echoTracker.buildCombinedKey,
       groupHistory: opts?.groupHistory,
       suppressGroupHistoryClear: opts?.suppressGroupHistoryClear,
+      dmHistory: opts?.dmHistory,
+      dmHistories: params.dmHistories,
+      dmHistoryKey: groupHistoryKey,
     });
 
   return async (msg: WebInboundMsg) => {
@@ -147,6 +155,41 @@ export function createWebOnMessageHandler(params: {
       if (!msg.senderE164 && peerId && peerId.startsWith("+")) {
         msg.senderE164 = normalizeE164(peerId) ?? msg.senderE164;
       }
+
+      // DM gating: buffer outbound messages that don't mention the agent.
+      const dmGating = applyDmGating({
+        cfg: loadConfig(),
+        msg,
+        dmHistoryKey: groupHistoryKey,
+        agentId: route.agentId,
+        dmHistories: params.dmHistories,
+        dmHistoryLimit: params.dmHistoryLimit,
+        logVerbose,
+      });
+      if (!dmGating.shouldProcess) {
+        return;
+      }
+
+      // Broadcast groups: when we'd reply anyway, run multiple agents.
+      // Does not bypass group mention/activation gating above.
+      if (
+        await maybeBroadcastMessage({
+          cfg: params.cfg,
+          msg,
+          peerId,
+          route,
+          groupHistoryKey,
+          groupHistories: params.groupHistories,
+          processMessage: processForRoute,
+        })
+      ) {
+        return;
+      }
+
+      await processForRoute(msg, route, groupHistoryKey, {
+        dmHistory: dmGating.dmHistory,
+      });
+      return;
     }
 
     // Broadcast groups: when we'd reply anyway, run multiple agents.
