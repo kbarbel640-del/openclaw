@@ -10,6 +10,18 @@ function lineComponent(line: string): Component {
   };
 }
 
+function hasTrailingIncompleteAnsiEscape(value: string): boolean {
+  const escapeStart = value.lastIndexOf("\x1b[");
+  if (escapeStart < 0) {
+    return false;
+  }
+  const suffix = value.slice(escapeStart + 2);
+  if (suffix.includes("m")) {
+    return false;
+  }
+  return /^[0-9;]*$/.test(suffix);
+}
+
 describe("SafeContainer", () => {
   it("truncates lines that exceed the given width", () => {
     const container = new SafeContainer();
@@ -58,7 +70,9 @@ describe("SafeContainer", () => {
 
     const lines = container.render(width);
     expect(lines).toHaveLength(1);
-    expect(visibleWidth(lines[0])).toBeLessThanOrEqual(width);
-    expect(lines[0]).toContain("\x1b[0m");
+    const truncated = lines[0];
+    expect(visibleWidth(truncated)).toBeLessThanOrEqual(width);
+    expect(truncated).toContain("\x1b[0m");
+    expect(hasTrailingIncompleteAnsiEscape(truncated)).toBe(false);
   });
 });
