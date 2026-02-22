@@ -15,7 +15,7 @@ import {
 } from "../infra/shell-env.js";
 import { VERSION } from "../version.js";
 import { DuplicateAgentDirError, findDuplicateAgentDirs } from "./agent-dirs.js";
-import { rotateConfigBackups } from "./backup-rotation.js";
+import { CONFIG_BACKUP_COUNT, rotateConfigBackups } from "./backup-rotation.js";
 import {
   applyCompactionDefaults,
   applyContextPruningDefaults,
@@ -679,6 +679,132 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
   const configPath =
     candidatePaths.find((candidate) => deps.fs.existsSync(candidate)) ?? requestedConfigPath;
 
+  /**
+   * Extract the top-level config key from a validation issue dot-path.
+   * e.g. "gateway.port" → "gateway", "agents.list.0.model" → "agents", "" → null
+   */
+  function issuePathToTopKey(issuePath: string): string | null {
+    if (!issuePath) {
+      return null;
+    }
+    const dot = issuePath.indexOf(".");
+    return dot === -1 ? issuePath : issuePath.slice(0, dot);
+  }
+
+  /**
+   * Load a valid backup config (resolved object, not file-on-disk).
+   * Returns the first valid backup's resolved config, or null if none found.
+   */
+  function loadFirstValidBackupConfig(): Record<string, unknown> | null {
+    const backupBase = `${configPath}.bak`;
+    const candidates = [backupBase];
+    for (let i = 1; i < CONFIG_BACKUP_COUNT; i++) {
+      candidates.push(`${backupBase}.${i}`);
+    }
+    for (const candidate of candidates) {
+      try {
+        if (!deps.fs.existsSync(candidate)) {
+          continue;
+        }
+        const raw = deps.fs.readFileSync(candidate, "utf-8");
+        const parsed = deps.json5.parse(raw);
+        const { resolvedConfigRaw: resolvedConfig } = resolveConfigForRead(
+          resolveConfigIncludesForRead(parsed, candidate, deps),
+          deps.env,
+        );
+        if (typeof resolvedConfig !== "object" || resolvedConfig === null) {
+          continue;
+        }
+        const validated = validateConfigObjectWithPlugins(resolvedConfig);
+        if (!validated.ok) {
+          continue;
+        }
+        return resolvedConfig as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Attempt to repair invalid config by surgically restoring only the broken
+   * top-level keys from the nearest valid backup, leaving all other config
+   * untouched. Writes the patched config back to disk if the repair succeeds.
+   *
+   * Returns the repaired & validated OpenClawConfig, or null if repair failed.
+   */
+  function tryRepairFromBackup(
+    brokenConfig: Record<string, unknown>,
+    issues: Array<{ path: string; message: string }>,
+  ): OpenClawConfig | null {
+    const backupConfig = loadFirstValidBackupConfig();
+    if (!backupConfig) {
+      return null;
+    }
+
+    // Collect unique top-level keys that have errors.
+    const brokenKeys = new Set<string>();
+    for (const issue of issues) {
+      const key = issuePathToTopKey(issue.path);
+      if (key) {
+        brokenKeys.add(key);
+      }
+    }
+
+    if (brokenKeys.size === 0) {
+      return null;
+    }
+
+    // Patch: replace only the broken top-level keys with values from backup.
+    const patched = { ...brokenConfig };
+    const restoredKeys: string[] = [];
+    for (const key of brokenKeys) {
+      if (key in backupConfig) {
+        patched[key] = backupConfig[key];
+        restoredKeys.push(key);
+      } else {
+        // Key doesn't exist in backup — delete the offending key entirely.
+        delete patched[key];
+        restoredKeys.push(`-${key}`);
+      }
+    }
+
+    // Re-validate the patched config.
+    const validated = validateConfigObjectWithPlugins(patched);
+    if (!validated.ok) {
+      // Surgical repair insufficient — fall back to full backup restore.
+      try {
+        deps.fs.writeFileSync(
+          configPath,
+          JSON.stringify(backupConfig, null, 2).trimEnd().concat("\n"),
+          { encoding: "utf-8", mode: 0o600 },
+        );
+        deps.logger.warn(
+          `Config auto-rollback: surgical repair failed, restored full backup → ${configPath}`,
+        );
+        return null; // Signal caller to re-run loadConfig.
+      } catch {
+        return null;
+      }
+    }
+
+    // Write the surgically patched config back to disk.
+    try {
+      deps.fs.writeFileSync(configPath, JSON.stringify(patched, null, 2).trimEnd().concat("\n"), {
+        encoding: "utf-8",
+        mode: 0o600,
+      });
+    } catch {
+      // Disk write failed — return the in-memory repaired config anyway.
+    }
+
+    deps.logger.warn(
+      `Config auto-repair: restored keys [${restoredKeys.join(", ")}] from backup, other settings preserved`,
+    );
+    return validated.config;
+  }
+
   function loadConfig(): OpenClawConfig {
     try {
       maybeLoadDotEnvForConfig(deps.env);
@@ -720,6 +846,28 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           loggedInvalidConfigs.add(configPath);
           deps.logger.error(`Invalid config at ${configPath}:\\n${details}`);
         }
+
+        // Attempt surgical repair: only restore broken keys from backup.
+        const repaired = tryRepairFromBackup(
+          resolvedConfig as Record<string, unknown>,
+          validated.issues,
+        );
+        if (repaired) {
+          // Apply the same post-validation pipeline as the normal path.
+          const cfg = applyModelDefaults(
+            applyCompactionDefaults(
+              applyContextPruningDefaults(
+                applyAgentDefaults(
+                  applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(repaired))),
+                ),
+              ),
+            ),
+          );
+          normalizeConfigPaths(cfg);
+          applyConfigEnvVars(cfg, deps.env);
+          return applyConfigOverrides(cfg);
+        }
+
         const error = new Error("Invalid config");
         (error as { code?: string; details?: string }).code = "INVALID_CONFIG";
         (error as { code?: string; details?: string }).details = details;
@@ -810,8 +958,30 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
       const error = err as { code?: string };
       if (error?.code === "INVALID_CONFIG") {
+        // Validation-level repair already attempted above; no valid backup available.
+        deps.logger.error(`Invalid config and no valid backup found — starting with empty config`);
         return {};
       }
+
+      // Parse-level failure (bad JSON, missing env vars, etc.) — try full backup restore.
+      const backupConfig = loadFirstValidBackupConfig();
+      if (backupConfig) {
+        try {
+          deps.fs.writeFileSync(
+            configPath,
+            JSON.stringify(backupConfig, null, 2).trimEnd().concat("\n"),
+            { encoding: "utf-8", mode: 0o600 },
+          );
+          deps.logger.warn(
+            `Config auto-rollback: config unreadable, restored full backup → ${configPath}`,
+          );
+          loggedInvalidConfigs.delete(configPath);
+          return loadConfig();
+        } catch {
+          // Fall through
+        }
+      }
+
       deps.logger.error(`Failed to read config at ${configPath}`, err);
       return {};
     }
