@@ -55,7 +55,7 @@ describe("createGuardedRuntime", () => {
     const runtime = createMockRuntime();
     const guarded = createGuardedRuntime(runtime, "workspace");
 
-    expect(() => guarded.config.writeConfigFile("test", {})).toThrow(
+    expect(() => guarded.config.writeConfigFile({} as never, {} as never)).toThrow(
       "[plugin-sandbox] config.writeConfigFile is not available",
     );
   });
@@ -64,9 +64,9 @@ describe("createGuardedRuntime", () => {
     const runtime = createMockRuntime();
     const guarded = createGuardedRuntime(runtime, "workspace");
 
-    expect(() =>
-      guarded.system.runCommandWithTimeout("echo", ["hello"], { timeout: 1000 }),
-    ).toThrow("[plugin-sandbox] system.runCommandWithTimeout is not available");
+    expect(() => guarded.system.runCommandWithTimeout(["echo", "hello"], 1000)).toThrow(
+      "[plugin-sandbox] system.runCommandWithTimeout is not available",
+    );
   });
 
   it("allows loadConfig for workspace plugins", () => {
@@ -82,7 +82,7 @@ describe("createGuardedRuntime", () => {
     const runtime = createMockRuntime();
     const guarded = createGuardedRuntime(runtime, "workspace");
 
-    guarded.system.enqueueSystemEvent({ type: "test" } as never);
+    guarded.system.enqueueSystemEvent("test", {} as never);
     expect(runtime.system.enqueueSystemEvent).toHaveBeenCalled();
   });
 
@@ -90,17 +90,21 @@ describe("createGuardedRuntime", () => {
     const runtime = createMockRuntime();
     const guarded = createGuardedRuntime(runtime, "global");
 
-    expect(() => guarded.config.writeConfigFile("test", {})).toThrow("[plugin-sandbox]");
-    expect(() =>
-      guarded.system.runCommandWithTimeout("rm", ["-rf", "/"], { timeout: 1000 }),
-    ).toThrow("[plugin-sandbox]");
+    expect(() => guarded.config.writeConfigFile({} as never, {} as never)).toThrow(
+      "[plugin-sandbox]",
+    );
+    expect(() => guarded.system.runCommandWithTimeout(["rm", "-rf", "/"], 1000)).toThrow(
+      "[plugin-sandbox]",
+    );
   });
 
   it("blocks dangerous operations for config origin", () => {
     const runtime = createMockRuntime();
     const guarded = createGuardedRuntime(runtime, "config");
 
-    expect(() => guarded.config.writeConfigFile("test", {})).toThrow("[plugin-sandbox]");
+    expect(() => guarded.config.writeConfigFile({} as never, {} as never)).toThrow(
+      "[plugin-sandbox]",
+    );
   });
 
   it("preserves media, tts, tools, logging, and state access", () => {
