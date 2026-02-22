@@ -123,12 +123,29 @@ function tryExtractPlistLabel(contents: string): string | null {
   return match[1]?.trim() || null;
 }
 
+// Known OpenClaw service labels that are NOT competing gateways.
+const IGNORED_NON_GATEWAY_LABELS = new Set([
+  "ai.openclaw.mac", // macOS menubar companion app
+  "ai.openclaw.node", // Node host service
+]);
+
 function isIgnoredLaunchdLabel(label: string): boolean {
-  return label === resolveGatewayLaunchAgentLabel();
+  if (label === resolveGatewayLaunchAgentLabel()) {
+    return true;
+  }
+  return IGNORED_NON_GATEWAY_LABELS.has(label);
 }
 
+// Known OpenClaw systemd service names that are NOT competing gateways.
+const IGNORED_NON_GATEWAY_SYSTEMD = new Set([
+  "openclaw-browser.service", // Playwright browser service
+]);
+
 function isIgnoredSystemdName(name: string): boolean {
-  return name === resolveGatewaySystemdServiceName();
+  if (name === resolveGatewaySystemdServiceName()) {
+    return true;
+  }
+  return IGNORED_NON_GATEWAY_SYSTEMD.has(name);
 }
 
 function isLegacyLabel(label: string): boolean {
