@@ -194,6 +194,18 @@ function startSubagentAnnounceCleanupFlow(runId: string, entry: SubagentRunRecor
   if (!beginSubagentCleanup(runId)) {
     return false;
   }
+  const finalizeAnnounceCleanup = (didAnnounce: boolean) => {
+    void finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce).catch((err) => {
+      defaultRuntime.log(`[warn] subagent cleanup finalize failed (${runId}): ${String(err)}`);
+      const current = subagentRuns.get(runId);
+      if (!current || current.cleanupCompletedAt) {
+        return;
+      }
+      // Keep retries possible when finalize errors mid-cleanup.
+      current.cleanupHandled = false;
+      persistSubagentRuns();
+    });
+  };
   const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
   void runSubagentAnnounceFlow({
     childSessionKey: entry.childSessionKey,
@@ -211,9 +223,14 @@ function startSubagentAnnounceCleanupFlow(runId: string, entry: SubagentRunRecor
     outcome: entry.outcome,
     spawnMode: entry.spawnMode,
     expectsCompletionMessage: entry.expectsCompletionMessage,
-  }).then((didAnnounce) => {
-    void finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
-  });
+  })
+    .then((didAnnounce) => {
+      finalizeAnnounceCleanup(didAnnounce);
+    })
+    .catch((err) => {
+      defaultRuntime.log(`[warn] subagent announce cleanup flow failed (${runId}): ${String(err)}`);
+      finalizeAnnounceCleanup(false);
+    });
   return true;
 }
 
