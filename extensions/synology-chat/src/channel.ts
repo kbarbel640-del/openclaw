@@ -217,14 +217,14 @@ export function createSynologyChatPlugin() {
 
         if (!account.enabled) {
           log?.info?.(`Synology Chat account ${accountId} is disabled, skipping`);
-          return { stop: () => {} };
+          return new Promise<void>(() => {});
         }
 
         if (!account.token || !account.incomingUrl) {
           log?.warn?.(
             `Synology Chat account ${accountId} not fully configured (missing token or incomingUrl)`,
           );
-          return { stop: () => {} };
+          return new Promise<void>(() => {});
         }
         if (account.dmPolicy === "allowlist" && account.allowedUserIds.length === 0) {
           log?.warn?.(
@@ -304,13 +304,23 @@ export function createSynologyChatPlugin() {
 
         log?.info?.(`Registered HTTP route: ${account.webhookPath} for Synology Chat`);
 
-        return {
-          stop: () => {
+        // Keep alive until abort signal fires.
+        // The gateway expects a Promise that stays pending while the channel is running.
+        // Resolving immediately triggers a restart loop.
+        return new Promise<void>((resolve) => {
+          const cleanup = () => {
             log?.info?.(`Stopping Synology Chat channel (account: ${accountId})`);
             if (typeof unregister === "function") unregister();
             activeRouteUnregisters.delete(routeKey);
-          },
-        };
+            ctx.abortSignal?.removeEventListener("abort", cleanup);
+            resolve();
+          };
+          if (ctx.abortSignal?.aborted) {
+            cleanup();
+          } else {
+            ctx.abortSignal?.addEventListener("abort", cleanup);
+          }
+        });
       },
 
       stopAccount: async (ctx: any) => {
