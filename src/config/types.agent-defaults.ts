@@ -118,6 +118,8 @@ export type CliBackendConfig = {
 };
 
 export type AgentDefaultsConfig = {
+  /** Agent runtime: "pi-agent" (default) or "claude-sdk". */
+  runtime?: "pi-agent" | "claude-sdk";
   /** Primary model and fallbacks (provider/model). */
   model?: AgentModelListConfig;
   /** Optional image-capable model and fallbacks (provider/model). */
