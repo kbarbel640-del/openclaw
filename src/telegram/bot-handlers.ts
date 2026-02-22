@@ -722,35 +722,59 @@ export const registerTelegramHandlers = ({
       return;
     }
 
-    let media: Awaited<ReturnType<typeof resolveMedia>> = null;
-    try {
-      media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch);
-    } catch (mediaErr) {
-      if (isMediaSizeLimitError(mediaErr)) {
-        if (sendOversizeWarning) {
-          const limitMb = Math.round(mediaMaxBytes / (1024 * 1024));
-          await withTelegramApiErrorLogging({
-            operation: "sendMessage",
-            runtime,
-            fn: () =>
-              bot.api.sendMessage(chatId, `⚠️ File too large. Maximum size is ${limitMb}MB.`, {
-                reply_to_message_id: msg.message_id,
-              }),
-          }).catch(() => {});
-        }
-        logger.warn({ chatId, error: String(mediaErr) }, oversizeLogMessage);
+    // Check ignoreMediaTypes — skip download for ignored types.
+    // In groups: default to skipping video_note + video (unless bot is @mentioned).
+    // In DMs: no default filtering. Explicit config always takes precedence.
+    const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
+    const detectedMediaType = resolveTelegramMediaType(msg);
+    const botUsername = ctx.me?.username?.toLowerCase();
+    const mentionedInGroup = isGroup && botUsername ? hasBotMention(msg, botUsername) : false;
+    const effectiveIgnoreList = resolveIgnoreMediaTypes(telegramCfg.ignoreMediaTypes, isGroup);
+    const isIgnoredMediaType =
+      detectedMediaType != null &&
+      !mentionedInGroup &&
+      effectiveIgnoreList.includes(detectedMediaType);
+
+    if (isIgnoredMediaType) {
+      const hasTextContent = Boolean((msg.text ?? msg.caption ?? "").trim());
+      if (!hasTextContent) {
+        logVerbose(`telegram: skipping ${detectedMediaType} message (ignoreMediaTypes)`);
         return;
       }
-      logger.warn({ chatId, error: String(mediaErr) }, "media fetch failed");
-      await withTelegramApiErrorLogging({
-        operation: "sendMessage",
-        runtime,
-        fn: () =>
-          bot.api.sendMessage(chatId, "⚠️ Failed to download media. Please try again.", {
-            reply_to_message_id: msg.message_id,
-          }),
-      }).catch(() => {});
-      return;
+      // Has caption text — fall through but skip media download
+    }
+
+    let media: Awaited<ReturnType<typeof resolveMedia>> = null;
+    if (!isIgnoredMediaType) {
+      try {
+        media = await resolveMedia(ctx, mediaMaxBytes, opts.token, opts.proxyFetch);
+      } catch (mediaErr) {
+        if (isMediaSizeLimitError(mediaErr)) {
+          if (sendOversizeWarning) {
+            const limitMb = Math.round(mediaMaxBytes / (1024 * 1024));
+            await withTelegramApiErrorLogging({
+              operation: "sendMessage",
+              runtime,
+              fn: () =>
+                bot.api.sendMessage(chatId, `⚠️ File too large. Maximum size is ${limitMb}MB.`, {
+                  reply_to_message_id: msg.message_id,
+                }),
+            }).catch(() => {});
+          }
+          logger.warn({ chatId, error: String(mediaErr) }, oversizeLogMessage);
+          return;
+        }
+        logger.warn({ chatId, error: String(mediaErr) }, "media fetch failed");
+        await withTelegramApiErrorLogging({
+          operation: "sendMessage",
+          runtime,
+          fn: () =>
+            bot.api.sendMessage(chatId, "⚠️ Failed to download media. Please try again.", {
+              reply_to_message_id: msg.message_id,
+            }),
+        }).catch(() => {});
+        return;
+      }
     }
 
     // Skip sticker-only messages where the sticker was skipped (animated/video)
@@ -1198,64 +1222,6 @@ export const registerTelegramHandlers = ({
           topicConfig,
         })
       ) {
-        return;
-      }
-
-      // Check ignoreMediaTypes — skip download for ignored types.
-      // In groups: default to skipping video_note + video (unless bot is @mentioned).
-      // In DMs: no default filtering. Explicit config always takes precedence.
-      const detectedMediaType = resolveTelegramMediaType(event.msg);
-      const botUsername = event.ctx.me?.username?.toLowerCase();
-      const mentionedInGroup =
-        event.isGroup && botUsername ? hasBotMention(event.msg, botUsername) : false;
-      const effectiveIgnoreList = resolveIgnoreMediaTypes(
-        telegramCfg.ignoreMediaTypes,
-        event.isGroup,
-      );
-      const isIgnoredMediaType =
-        detectedMediaType != null &&
-        !mentionedInGroup &&
-        effectiveIgnoreList.includes(detectedMediaType);
-
-      if (isIgnoredMediaType) {
-        const hasTextContent = Boolean((event.msg.text ?? event.msg.caption ?? "").trim());
-        if (!hasTextContent) {
-          logVerbose(`telegram: skipping ${detectedMediaType} message (ignoreMediaTypes)`);
-          return;
-        }
-        // Has caption text — fall through but skip media download
-      }
-
-      let media: Awaited<ReturnType<typeof resolveMedia>> = null;
-      if (!isIgnoredMediaType) {
-        try {
-          media = await resolveMedia(event.ctx, mediaMaxBytes, opts.token, opts.proxyFetch);
-        } catch (mediaErr) {
-          const errMsg = String(mediaErr);
-          if (errMsg.includes("exceeds") && errMsg.includes("MB limit")) {
-            const limitMb = Math.round(mediaMaxBytes / (1024 * 1024));
-            await withTelegramApiErrorLogging({
-              operation: "sendMessage",
-              runtime,
-              fn: () =>
-                bot.api.sendMessage(
-                  event.chatId,
-                  `⚠️ File too large. Maximum size is ${limitMb}MB.`,
-                  { reply_to_message_id: event.msg.message_id },
-                ),
-            }).catch(() => {});
-            logger.warn({ chatId: event.chatId, error: errMsg }, "media exceeds size limit");
-            return;
-          }
-          throw mediaErr;
-        }
-      }
-
-      // Skip sticker-only messages where the sticker was skipped (animated/video)
-      // These have no media and no text content to process.
-      const hasText = Boolean((event.msg.text ?? event.msg.caption ?? "").trim());
-      if (event.msg.sticker && !media && !hasText) {
-        logVerbose("telegram: skipping sticker-only message (unsupported sticker type)");
         return;
       }
 
