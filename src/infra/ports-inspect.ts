@@ -98,7 +98,9 @@ function parseSsOutput(output: string, port: number): PortListener[] {
     if (localAddr?.includes(portToken)) {
       listener.address = localAddr;
     }
-    listeners.push(listener);
+    if (listener.pid || listener.address) {
+      listeners.push(listener);
+    }
   }
   return listeners;
 }
