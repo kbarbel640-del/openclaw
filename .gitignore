@@ -99,3 +99,25 @@ package-lock.json
 
 # Local iOS signing overrides
 apps/ios/LocalSigning.xcconfig
+
+# Custom workspace identity & memory files (DO NOT OVERWRITE ON SYNC)
+SOUL.md
+MEMORY.md
+VISION.md
+HEARTBEAT.md
+CLAUDE.md
+BOOTSTRAP.md
+AGENTS.md
+TOOLS.md
+DEPLOY-STRATEGY.md
+DEPLOYMENT-READY.md
+DEPLOYMENT-STATUS.md
+IMMEDIATE-DEPLOYMENT-STEPS.md
+READY-TO-DEPLOY.md
+MULTI-PLATFORM-READY.md
+SHOPIFY-BOT-STATUS.md
+ULTIMATE-RECEPTIONIST-AGENT-SPEC.md
+appcast.xml
+openclaw.json
+openclaw.json.bak*
+update-check.json
