@@ -230,6 +230,50 @@ export type FsToolsConfig = {
   workspaceOnly?: boolean;
 };
 
+export type VerifierScopeConfig = {
+  /** Only verify these tools (mutually exclusive with exclude). */
+  include?: string[];
+  /** Verify all tools except these (mutually exclusive with include). */
+  exclude?: string[];
+};
+
+export type VerifierWebhookConfig = {
+  /** Webhook URL to POST verification requests to. */
+  url: string;
+  /** Timeout in seconds for the webhook request (default: 30). */
+  timeout?: number;
+  /** Optional headers to include in webhook requests. */
+  headers?: Record<string, string>;
+  /** Optional HMAC-SHA256 secret for request signing. */
+  secret?: string;
+};
+
+export type VerifierTelegramConfig = {
+  /** Enable Telegram approval verification. */
+  enabled?: boolean;
+  /** Telegram bot token for sending approval requests. */
+  botToken: string;
+  /** Telegram chat ID to send approval requests to. */
+  chatId: string;
+  /** Timeout in seconds to wait for user tap (default: 120). */
+  timeout?: number;
+  /** Only these Telegram user IDs can approve/deny. If empty, any user in the chat can respond. */
+  allowedUserIds?: number[];
+};
+
+export type VerifierConfig = {
+  /** Enable the external verifier. */
+  enabled?: boolean;
+  /** Which tools require verification. */
+  scope?: VerifierScopeConfig;
+  /** Behavior when verifier is unreachable: "deny" (default) or "allow". */
+  failMode?: "deny" | "allow";
+  /** HTTP webhook verifier. */
+  webhook?: VerifierWebhookConfig;
+  /** Built-in Telegram approval verifier. */
+  telegram?: VerifierTelegramConfig;
+};
+
 export type AgentToolsConfig = {
   /** Base tool profile applied before allow/deny lists. */
   profile?: ToolProfileId;
@@ -258,6 +302,8 @@ export type AgentToolsConfig = {
       deny?: string[];
     };
   };
+  /** External tool verifier config (per-agent override). */
+  verifier?: VerifierConfig;
 };
 
 export type MemorySearchConfig = {
@@ -530,4 +576,6 @@ export type ToolsConfig = {
       deny?: string[];
     };
   };
+  /** External tool verification gateway. */
+  verifier?: VerifierConfig;
 };
