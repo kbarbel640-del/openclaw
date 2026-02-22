@@ -18,6 +18,8 @@ import {
   normalizeSafeBins,
   requiresExecApproval,
   resolveCommandResolution,
+  resolveCommandResolutionFromArgv,
+  resolveAllowAlwaysPatterns,
   resolveExecApprovals,
   resolveExecApprovalsFromFile,
   resolveExecApprovalsPath,
@@ -27,7 +29,11 @@ import {
   type ExecAllowlistEntry,
   type ExecApprovalsFile,
 } from "./exec-approvals.js";
-import { SAFE_BIN_PROFILE_FIXTURES, SAFE_BIN_PROFILES } from "./exec-safe-bin-policy.js";
+import {
+  SAFE_BIN_PROFILE_FIXTURES,
+  SAFE_BIN_PROFILES,
+  resolveSafeBinProfiles,
+} from "./exec-safe-bin-policy.js";
 
 function makePathEnv(binDir: string): NodeJS.ProcessEnv {
   if (process.platform !== "win32") {
@@ -51,6 +57,16 @@ type ShellParserParityFixture = {
   cases: ShellParserParityFixtureCase[];
 };
 
+type WrapperResolutionParityFixtureCase = {
+  id: string;
+  argv: string[];
+  expectedRawExecutable: string | null;
+};
+
+type WrapperResolutionParityFixture = {
+  cases: WrapperResolutionParityFixtureCase[];
+};
+
 function loadShellParserParityFixtureCases(): ShellParserParityFixtureCase[] {
   const fixturePath = path.join(
     process.cwd(),
@@ -59,6 +75,19 @@ function loadShellParserParityFixtureCases(): ShellParserParityFixtureCase[] {
     "exec-allowlist-shell-parser-parity.json",
   );
   const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8")) as ShellParserParityFixture;
+  return fixture.cases;
+}
+
+function loadWrapperResolutionParityFixtureCases(): WrapperResolutionParityFixtureCase[] {
+  const fixturePath = path.join(
+    process.cwd(),
+    "test",
+    "fixtures",
+    "exec-wrapper-resolution-parity.json",
+  );
+  const fixture = JSON.parse(
+    fs.readFileSync(fixturePath, "utf8"),
+  ) as WrapperResolutionParityFixture;
   return fixture.cases;
 }
 
@@ -166,8 +195,8 @@ describe("exec approvals safe shell command builder", () => {
     expect(res.ok).toBe(true);
     // Preserve non-safeBins segment raw (glob stays unquoted)
     expect(res.command).toContain("rg foo src/*.ts");
-    // SafeBins segment is fully quoted
-    expect(res.command).toContain("'head' '-n' '5'");
+    // SafeBins segment is fully quoted and pinned to its resolved absolute path.
+    expect(res.command).toMatch(/'[^']*\/head' '-n' '5'/);
   });
 });
 
@@ -240,6 +269,41 @@ describe("exec approvals command resolution", () => {
       }
     }
   });
+
+  it("unwraps env wrapper argv to resolve the effective executable", () => {
+    const dir = makeTempDir();
+    const binDir = path.join(dir, "bin");
+    fs.mkdirSync(binDir, { recursive: true });
+    const exeName = process.platform === "win32" ? "rg.exe" : "rg";
+    const exe = path.join(binDir, exeName);
+    fs.writeFileSync(exe, "");
+    fs.chmodSync(exe, 0o755);
+
+    const resolution = resolveCommandResolutionFromArgv(
+      ["/usr/bin/env", "FOO=bar", "rg", "-n", "needle"],
+      undefined,
+      makePathEnv(binDir),
+    );
+    expect(resolution?.resolvedPath).toBe(exe);
+    expect(resolution?.executableName).toBe(exeName);
+  });
+
+  it("unwraps env wrapper with shell inner executable", () => {
+    const resolution = resolveCommandResolutionFromArgv(["/usr/bin/env", "bash", "-lc", "echo hi"]);
+    expect(resolution?.rawExecutable).toBe("bash");
+    expect(resolution?.executableName.toLowerCase()).toContain("bash");
+  });
+
+  it("unwraps nice wrapper argv to resolve the effective executable", () => {
+    const resolution = resolveCommandResolutionFromArgv([
+      "/usr/bin/nice",
+      "bash",
+      "-lc",
+      "echo hi",
+    ]);
+    expect(resolution?.rawExecutable).toBe("bash");
+    expect(resolution?.executableName.toLowerCase()).toContain("bash");
+  });
 });
 
 describe("exec approvals shell parsing", () => {
@@ -289,6 +353,14 @@ describe("exec approvals shell parsing", () => {
       {
         command: "/usr/bin/echo first line\n/usr/bin/echo second line",
         reason: "unsupported shell token: \n",
+      },
+      {
+        command: 'echo "ok $\\\n(id -u)"',
+        reason: "unsupported shell token: newline",
+      },
+      {
+        command: 'echo "ok $\\\r\n(id -u)"',
+        reason: "unsupported shell token: newline",
       },
       {
         command: "ping 127.0.0.1 -n 1 & whoami",
@@ -421,6 +493,17 @@ describe("exec approvals shell parser parity fixture", () => {
   }
 });
 
+describe("exec approvals wrapper resolution parity fixture", () => {
+  const fixtures = loadWrapperResolutionParityFixtureCases();
+
+  for (const fixture of fixtures) {
+    it(`matches wrapper fixture: ${fixture.id}`, () => {
+      const resolution = resolveCommandResolutionFromArgv(fixture.argv);
+      expect(resolution?.rawExecutable ?? null).toBe(fixture.expectedRawExecutable);
+    });
+  }
+});
+
 describe("exec approvals shell allowlist (chained commands)", () => {
   it("evaluates chained command allowlist scenarios", () => {
     const cases: Array<{
@@ -483,6 +566,17 @@ describe("exec approvals shell allowlist (chained commands)", () => {
       expect(result.analysisOk).toBe(true);
       expect(result.allowlistSatisfied).toBe(true);
     }
+  });
+
+  it("fails allowlist analysis for shell line continuations", () => {
+    const result = evaluateShellAllowlist({
+      command: 'echo "ok $\\\n(id -u)"',
+      allowlist: [{ pattern: "/usr/bin/echo" }],
+      safeBins: new Set(),
+      cwd: "/tmp",
+    });
+    expect(result.analysisOk).toBe(false);
+    expect(result.allowlistSatisfied).toBe(false);
   });
 });
 
@@ -738,6 +832,53 @@ describe("exec approvals safe bins", () => {
     expect(defaults.has("grep")).toBe(false);
   });
 
+  it("does not auto-allow unprofiled safe-bin entries", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const result = evaluateShellAllowlist({
+      command: "python3 -c \"print('owned')\"",
+      allowlist: [],
+      safeBins: normalizeSafeBins(["python3"]),
+      cwd: "/tmp",
+    });
+    expect(result.analysisOk).toBe(true);
+    expect(result.allowlistSatisfied).toBe(false);
+  });
+
+  it("allows caller-defined custom safe-bin profiles", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const safeBinProfiles = resolveSafeBinProfiles({
+      echo: {
+        maxPositional: 1,
+      },
+    });
+    const allow = isSafeBinUsage({
+      argv: ["echo", "hello"],
+      resolution: {
+        rawExecutable: "echo",
+        resolvedPath: "/bin/echo",
+        executableName: "echo",
+      },
+      safeBins: normalizeSafeBins(["echo"]),
+      safeBinProfiles,
+    });
+    const deny = isSafeBinUsage({
+      argv: ["echo", "hello", "world"],
+      resolution: {
+        rawExecutable: "echo",
+        resolvedPath: "/bin/echo",
+        executableName: "echo",
+      },
+      safeBins: normalizeSafeBins(["echo"]),
+      safeBinProfiles,
+    });
+    expect(allow).toBe(true);
+    expect(deny).toBe(false);
+  });
+
   it("blocks sort output flags independent of file existence", () => {
     if (process.platform === "win32") {
       return;
@@ -805,6 +946,30 @@ describe("exec approvals safe bins", () => {
       cwd: "/tmp",
     });
     expect(allowed.allowlistSatisfied).toBe(true);
+  });
+
+  it("does not auto-trust PATH-shadowed safe bins without explicit trusted dirs", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const tmp = makeTempDir();
+    const fakeDir = path.join(tmp, "fake-bin");
+    fs.mkdirSync(fakeDir, { recursive: true });
+    const fakeHead = path.join(fakeDir, "head");
+    fs.writeFileSync(fakeHead, "#!/bin/sh\nexit 0\n");
+    fs.chmodSync(fakeHead, 0o755);
+
+    const result = evaluateShellAllowlist({
+      command: "head -n 1",
+      allowlist: [],
+      safeBins: normalizeSafeBins(["head"]),
+      env: makePathEnv(fakeDir),
+      cwd: tmp,
+    });
+    expect(result.analysisOk).toBe(true);
+    expect(result.allowlistSatisfied).toBe(false);
+    expect(result.segmentSatisfiedBy).toEqual([null]);
+    expect(result.segments[0]?.resolution?.resolvedPath).toBe(fakeHead);
   });
 });
 
@@ -1212,5 +1377,213 @@ describe("normalizeExecApprovals handles string allowlist entries (#9790)", () =
         expectNoSpreadStringArtifacts(entries ?? []);
       }
     }
+  });
+});
+
+describe("resolveAllowAlwaysPatterns", () => {
+  function makeExecutable(dir: string, name: string): string {
+    const fileName = process.platform === "win32" ? `${name}.exe` : name;
+    const exe = path.join(dir, fileName);
+    fs.writeFileSync(exe, "");
+    fs.chmodSync(exe, 0o755);
+    return exe;
+  }
+
+  it("returns direct executable paths for non-shell segments", () => {
+    const exe = path.join("/tmp", "openclaw-tool");
+    const patterns = resolveAllowAlwaysPatterns({
+      segments: [
+        {
+          raw: exe,
+          argv: [exe],
+          resolution: { rawExecutable: exe, resolvedPath: exe, executableName: "openclaw-tool" },
+        },
+      ],
+    });
+    expect(patterns).toEqual([exe]);
+  });
+
+  it("unwraps shell wrappers and persists the inner executable instead", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const dir = makeTempDir();
+    const whoami = makeExecutable(dir, "whoami");
+    const patterns = resolveAllowAlwaysPatterns({
+      segments: [
+        {
+          raw: "/bin/zsh -lc 'whoami'",
+          argv: ["/bin/zsh", "-lc", "whoami"],
+          resolution: {
+            rawExecutable: "/bin/zsh",
+            resolvedPath: "/bin/zsh",
+            executableName: "zsh",
+          },
+        },
+      ],
+      cwd: dir,
+      env: makePathEnv(dir),
+      platform: process.platform,
+    });
+    expect(patterns).toEqual([whoami]);
+    expect(patterns).not.toContain("/bin/zsh");
+  });
+
+  it("extracts all inner binaries from shell chains and deduplicates", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const dir = makeTempDir();
+    const whoami = makeExecutable(dir, "whoami");
+    const ls = makeExecutable(dir, "ls");
+    const patterns = resolveAllowAlwaysPatterns({
+      segments: [
+        {
+          raw: "/bin/zsh -lc 'whoami && ls && whoami'",
+          argv: ["/bin/zsh", "-lc", "whoami && ls && whoami"],
+          resolution: {
+            rawExecutable: "/bin/zsh",
+            resolvedPath: "/bin/zsh",
+            executableName: "zsh",
+          },
+        },
+      ],
+      cwd: dir,
+      env: makePathEnv(dir),
+      platform: process.platform,
+    });
+    expect(new Set(patterns)).toEqual(new Set([whoami, ls]));
+  });
+
+  it("does not persist broad shell binaries when no inner command can be derived", () => {
+    const patterns = resolveAllowAlwaysPatterns({
+      segments: [
+        {
+          raw: "/bin/zsh -s",
+          argv: ["/bin/zsh", "-s"],
+          resolution: {
+            rawExecutable: "/bin/zsh",
+            resolvedPath: "/bin/zsh",
+            executableName: "zsh",
+          },
+        },
+      ],
+      platform: process.platform,
+    });
+    expect(patterns).toEqual([]);
+  });
+
+  it("detects shell wrappers even when unresolved executableName is a full path", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const dir = makeTempDir();
+    const whoami = makeExecutable(dir, "whoami");
+    const patterns = resolveAllowAlwaysPatterns({
+      segments: [
+        {
+          raw: "/usr/local/bin/zsh -lc whoami",
+          argv: ["/usr/local/bin/zsh", "-lc", "whoami"],
+          resolution: {
+            rawExecutable: "/usr/local/bin/zsh",
+            resolvedPath: undefined,
+            executableName: "/usr/local/bin/zsh",
+          },
+        },
+      ],
+      cwd: dir,
+      env: makePathEnv(dir),
+      platform: process.platform,
+    });
+    expect(patterns).toEqual([whoami]);
+  });
+
+  it("unwraps known dispatch wrappers before shell wrappers", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const dir = makeTempDir();
+    const whoami = makeExecutable(dir, "whoami");
+    const patterns = resolveAllowAlwaysPatterns({
+      segments: [
+        {
+          raw: "/usr/bin/nice /bin/zsh -lc whoami",
+          argv: ["/usr/bin/nice", "/bin/zsh", "-lc", "whoami"],
+          resolution: {
+            rawExecutable: "/usr/bin/nice",
+            resolvedPath: "/usr/bin/nice",
+            executableName: "nice",
+          },
+        },
+      ],
+      cwd: dir,
+      env: makePathEnv(dir),
+      platform: process.platform,
+    });
+    expect(patterns).toEqual([whoami]);
+    expect(patterns).not.toContain("/usr/bin/nice");
+  });
+
+  it("fails closed for unresolved dispatch wrappers", () => {
+    const patterns = resolveAllowAlwaysPatterns({
+      segments: [
+        {
+          raw: "sudo /bin/zsh -lc whoami",
+          argv: ["sudo", "/bin/zsh", "-lc", "whoami"],
+          resolution: {
+            rawExecutable: "sudo",
+            resolvedPath: "/usr/bin/sudo",
+            executableName: "sudo",
+          },
+        },
+      ],
+      platform: process.platform,
+    });
+    expect(patterns).toEqual([]);
+  });
+
+  it("prevents allow-always bypass for dispatch-wrapper + shell-wrapper chains", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const dir = makeTempDir();
+    const echo = makeExecutable(dir, "echo");
+    makeExecutable(dir, "id");
+    const safeBins = resolveSafeBins(undefined);
+    const env = makePathEnv(dir);
+
+    const first = evaluateShellAllowlist({
+      command: "/usr/bin/nice /bin/zsh -lc 'echo warmup-ok'",
+      allowlist: [],
+      safeBins,
+      cwd: dir,
+      env,
+      platform: process.platform,
+    });
+    const persisted = resolveAllowAlwaysPatterns({
+      segments: first.segments,
+      cwd: dir,
+      env,
+      platform: process.platform,
+    });
+    expect(persisted).toEqual([echo]);
+
+    const second = evaluateShellAllowlist({
+      command: "/usr/bin/nice /bin/zsh -lc 'id > marker'",
+      allowlist: [{ pattern: echo }],
+      safeBins,
+      cwd: dir,
+      env,
+      platform: process.platform,
+    });
+    expect(second.allowlistSatisfied).toBe(false);
+    expect(
+      requiresExecApproval({
+        ask: "on-miss",
+        security: "allowlist",
+        analysisOk: second.analysisOk,
+        allowlistSatisfied: second.allowlistSatisfied,
+      }),
+    ).toBe(true);
   });
 });
