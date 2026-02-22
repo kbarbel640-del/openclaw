@@ -131,6 +131,7 @@ function createStreamFnWithExtraParams(
     return underlying(effectiveModel, context, {
       ...streamParams,
       ...options,
+      headers: { ...streamParams.headers, ...options?.headers },
     });
   };
 
