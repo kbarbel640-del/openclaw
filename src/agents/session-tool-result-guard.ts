@@ -152,7 +152,7 @@ export function installSessionToolResultGuard(
 
   const safeAppend = (
     message: Parameters<typeof originalAppend>[0],
-  ): ReturnType<typeof originalAppend> => {
+  ): ReturnType<typeof originalAppend> | undefined => {
     try {
       return originalAppend(message);
     } catch (err) {
@@ -163,7 +163,7 @@ export function installSessionToolResultGuard(
       console.error(
         `[session-guard] session write failed (${reason}); message dropped (file: ${file})`,
       );
-      return undefined as unknown as ReturnType<typeof originalAppend>;
+      return undefined;
     }
   };
 
