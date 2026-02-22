@@ -167,6 +167,21 @@ export type TelegramAccountConfig = {
    * Telegram expects unicode emoji (e.g., "👀") rather than shortcodes.
    */
   ackReaction?: string;
+  /**
+   * Agent status reactions on the trigger message (thinking, tool, done, error).
+   * When enabled, the ack reaction progresses through phases as the agent runs.
+   */
+  reactions?: TelegramReactionsConfig;
+};
+
+export type TelegramStatusReactionPhase = "thinking" | "tool" | "done" | "error";
+
+export type TelegramReactionsConfig = {
+  enabled?: boolean;
+  /** "minimal" = only done/error; "full" = all phases. Default: full. */
+  mode?: "minimal" | "full";
+  /** Override which phases to show (default from mode). */
+  phases?: TelegramStatusReactionPhase[];
 };
 
 export type TelegramTopicConfig = {

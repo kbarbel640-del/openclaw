@@ -184,6 +184,16 @@ export const TelegramAccountSchemaBase = z
     linkPreview: z.boolean().optional(),
     responsePrefix: z.string().optional(),
     ackReaction: z.string().optional(),
+    reactions: z
+      .object({
+        enabled: z.boolean().optional(),
+        mode: z.enum(["minimal", "full"]).optional(),
+        phases: z
+          .array(z.enum(["thinking", "tool", "done", "error"]))
+          .optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
