@@ -2,6 +2,8 @@ import type { GatewayClient } from "../gateway/client.js";
 import { readBool, readString } from "./meta.js";
 import type { AcpServerOptions } from "./types.js";
 
+const ACP_DEFAULT_SESSION_KEY = "acp:main";
+
 export type AcpSessionMeta = {
   sessionKey?: string;
   sessionLabel?: string;
@@ -81,7 +83,7 @@ export async function resolveSessionKey(params: {
     return resolved.key;
   }
 
-  return params.fallbackKey;
+  return ACP_DEFAULT_SESSION_KEY;
 }
 
 export async function resetSessionIfNeeded(params: {

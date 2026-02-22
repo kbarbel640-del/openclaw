@@ -469,7 +469,11 @@ export class AcpGatewayAgent implements Agent {
 
   private findPendingBySessionKey(sessionKey: string): PendingPrompt | undefined {
     for (const pending of this.pendingPrompts.values()) {
-      if (pending.sessionKey === sessionKey) {
+      if (
+        pending.sessionKey === sessionKey ||
+        sessionKey.endsWith(pending.sessionKey) ||
+        pending.sessionKey.endsWith(sessionKey)
+      ) {
         return pending;
       }
     }
