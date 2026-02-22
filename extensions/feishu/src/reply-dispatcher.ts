@@ -150,16 +150,18 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
           return;
         }
 
+        // Suppress internal control messages in all modes
+        const trimmed = text.trim();
+        if (/^NO_REPLY$/i.test(trimmed) || /^HEARTBEAT/i.test(trimmed) || /HEARTBEAT_OK/i.test(trimmed)) {
+          return;
+        }
+
         // In raw mode the agent controls message delivery via direct API calls
         // (e.g. a custom card script). Suppress intermediate chunks to prevent
         // internal thoughts and tool-status text from leaking to the channel.
         // Only "final" payloads with real content pass through as a safety net.
         if (renderMode === "raw") {
           if (info?.kind !== "final") {
-            return;
-          }
-          const trimmed = text.trim();
-          if (/^NO_REPLY$/i.test(trimmed) || /^HEARTBEAT/i.test(trimmed)) {
             return;
           }
         }
@@ -174,6 +176,18 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
         }
 
         if (streaming?.isActive()) {
+          if (info?.kind === "tool") {
+            streamText = text;
+            partialUpdateQueue = partialUpdateQueue.then(async () => {
+              if (streamingStartPromise) {
+                await streamingStartPromise;
+              }
+              if (streaming?.isActive()) {
+                await streaming.update(streamText);
+              }
+            });
+            return;
+          }
           if (info?.kind === "final") {
             streamText = text;
             await closeStreaming();
