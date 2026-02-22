@@ -94,7 +94,7 @@ export async function runClaudeSdkAttempt(
   // Detect whether an existing Claude Code session file is present.
   // If the session already exists, use `resume` for proper continuation.
   // If this is the first turn, use `sessionId` to create the session.
-  const encodedCwd = params.workspaceDir.replace(/[/.]/g, "-");
+  const encodedCwd = params.workspaceDir.replace(/\//g, "-");
   const claudeSessionFile = join(
     homedir(),
     ".claude",
@@ -133,13 +133,16 @@ export async function runClaudeSdkAttempt(
         // Pass the resolved API key via the correct env var based on auth mode.
         // OAuth/token credentials must use CLAUDE_CODE_OAUTH_TOKEN (Bearer header),
         // while API keys use ANTHROPIC_API_KEY (x-api-key header).
-        env: {
-          ...process.env,
-          ...(params.apiKeyMode === "oauth" || params.apiKeyMode === "token"
-            ? { CLAUDE_CODE_OAUTH_TOKEN: params.apiKey, ANTHROPIC_API_KEY: undefined }
-            : { ANTHROPIC_API_KEY: params.apiKey }),
-          CLAUDECODE: undefined,
-        },
+        // Filter out undefined values — Record<string, string> cannot hold undefined.
+        env: Object.fromEntries(
+          Object.entries({
+            ...process.env,
+            ...(params.apiKeyMode === "oauth" || params.apiKeyMode === "token"
+              ? { CLAUDE_CODE_OAUTH_TOKEN: params.apiKey, ANTHROPIC_API_KEY: undefined }
+              : { ANTHROPIC_API_KEY: params.apiKey }),
+            CLAUDECODE: undefined,
+          }).filter((entry): entry is [string, string] => entry[1] !== undefined),
+        ),
       },
     });
 

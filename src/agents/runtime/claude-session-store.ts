@@ -87,24 +87,13 @@ export class ClaudeSessionStore implements SessionStore {
 
 /**
  * Resolve the Claude SDK's project directory for a given working directory.
- * The SDK uses a hash of the project path.
+ * Claude Code encodes the project path by replacing "/" with "-".
+ * e.g. /Users/foo/myproject → -Users-foo-myproject
  */
 function resolveClaudeProjectDir(cwd: string): string {
   const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? "/tmp";
-  // The SDK hashes the project path — for now use a simple approach.
-  // The actual hash algorithm is internal to the SDK, but sessions
-  // are discoverable via the SDK's session management APIs.
-  const projectHash = simpleHash(cwd);
+  const projectHash = cwd.replace(/\//g, "-");
   return path.join(homeDir, ".claude", "projects", projectHash);
-}
-
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash + char) | 0;
-  }
-  return Math.abs(hash).toString(36);
 }
 
 /**

@@ -112,7 +112,12 @@ class ClaudeSdkSession implements RuntimeSession {
           thinking: this.mapThinking(this._thinkLevel),
           maxTurns: 100,
           // Unset CLAUDECODE to avoid the nesting guard when spawning the SDK subprocess.
-          env: { ...process.env, CLAUDECODE: undefined },
+          // Filter out undefined values — Record<string, string> cannot hold undefined.
+          env: Object.fromEntries(
+            Object.entries({ ...process.env, CLAUDECODE: undefined }).filter(
+              (entry): entry is [string, string] => entry[1] !== undefined,
+            ),
+          ),
         },
       });
       this._activeQuery = q;
@@ -323,8 +328,13 @@ function buildZodShapeFromJsonSchema(jsonSchema: Record<string, unknown>): Recor
     }
 
     return shape;
-  } catch {
-    // If zod is not available, return empty shape
+  } catch (err) {
+    // zod/v4 is not installed — tools will have no input validation.
+    // Install zod@^4 as a dependency to enable schema validation.
+    console.warn(
+      "[claude-sdk-runtime] zod/v4 unavailable — tool input schemas will not be validated.",
+      err,
+    );
     return {};
   }
 }
