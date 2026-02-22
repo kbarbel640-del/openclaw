@@ -1,5 +1,5 @@
 ---
-summary: "CLI reference for `openclaw agents` (list/add/delete/set identity)"
+summary: "CLI reference for `openclaw agents` (list/add/delete|remove/set identity)"
 read_when:
   - You want multiple isolated agents (workspaces + routing + auth)
 title: "agents"
@@ -22,6 +22,7 @@ openclaw agents add work --workspace ~/.openclaw/workspace-work
 openclaw agents set-identity --workspace ~/.openclaw/workspace --from-identity
 openclaw agents set-identity --agent main --avatar avatars/openclaw.png
 openclaw agents delete work
+openclaw agents remove work
 ```
 
 ## Identity files

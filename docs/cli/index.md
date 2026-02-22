@@ -542,7 +542,7 @@ Options:
 
 Binding specs use `channel[:accountId]`. When `accountId` is omitted for WhatsApp, the default account id is used.
 
-#### `agents delete <id>`
+#### `agents delete <id>` (alias: `agents remove <id>`)
 
 Delete an agent and prune its workspace + state.
 

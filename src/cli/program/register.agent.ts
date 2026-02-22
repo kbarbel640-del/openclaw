@@ -188,6 +188,7 @@ ${formatHelpExamples([
 
   agents
     .command("delete <id>")
+    .alias("remove")
     .description("Delete an agent and prune workspace/state")
     .option("--force", "Skip confirmation", false)
     .option("--json", "Output JSON summary", false)

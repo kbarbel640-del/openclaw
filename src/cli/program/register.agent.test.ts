@@ -159,6 +159,18 @@ describe("registerAgentCommands", () => {
     );
   });
 
+  it("forwards agents remove alias options", async () => {
+    await runCli(["agents", "remove", "worker-a", "--force", "--json"]);
+    expect(agentsDeleteCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "worker-a",
+        force: true,
+        json: true,
+      }),
+      runtime,
+    );
+  });
+
   it("forwards set-identity options", async () => {
     await runCli([
       "agents",
