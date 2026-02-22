@@ -47,9 +47,7 @@
     ]
   },
   "contextual": {
-    "options": [
-      "copy"
-    ]
+    "options": ["copy"]
   },
   "redirects": [
     {
