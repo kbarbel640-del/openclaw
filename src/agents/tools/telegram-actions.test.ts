@@ -13,7 +13,16 @@ const sendStickerTelegram = vi.fn(async () => ({
   chatId: "123",
 }));
 const deleteMessageTelegram = vi.fn(async () => ({ ok: true }));
+const getAgentScopedMediaLocalRoots = vi.fn(
+  () => ["/tmp/openclaw", "/home/state/agents"] as readonly string[],
+);
 let envSnapshot: ReturnType<typeof captureEnv>;
+
+vi.mock("../../media/local-roots.js", () => ({
+  getAgentScopedMediaLocalRoots: (...args: Parameters<typeof getAgentScopedMediaLocalRoots>) =>
+    getAgentScopedMediaLocalRoots(...args),
+  getDefaultMediaLocalRoots: () => ["/tmp/openclaw"] as readonly string[],
+}));
 
 vi.mock("../../telegram/send.js", () => ({
   reactMessageTelegram: (...args: Parameters<typeof reactMessageTelegram>) =>
@@ -67,6 +76,7 @@ describe("handleTelegramAction", () => {
     sendMessageTelegram.mockClear();
     sendStickerTelegram.mockClear();
     deleteMessageTelegram.mockClear();
+    getAgentScopedMediaLocalRoots.mockClear();
     process.env.TELEGRAM_BOT_TOKEN = "tok";
   });
 
