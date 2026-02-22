@@ -11,11 +11,18 @@ vi.mock("../web/media.js", () => ({
   }),
 }));
 
-function createAllowlistConfig() {
+function createAllowlistConfig(): {
+  channels: {
+    discord: {
+      groupPolicy: "allowlist";
+      guilds: Record<string, { channels: Record<string, { allow: boolean }> }>;
+    };
+  };
+} {
   return {
     channels: {
       discord: {
-        groupPolicy: "allowlist" as const,
+        groupPolicy: "allowlist",
         guilds: {
           "guild-allowed": {
             channels: {
@@ -31,7 +38,7 @@ function createAllowlistConfig() {
 let testConfig = createAllowlistConfig();
 
 vi.mock("../config/config.js", async (importOriginal) => {
-  const mod = await importOriginal();
+  const mod = await importOriginal<typeof import("../config/config.js")>();
   return {
     ...mod,
     loadConfig: vi.fn(() => testConfig),
