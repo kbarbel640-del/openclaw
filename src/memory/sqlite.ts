@@ -32,6 +32,7 @@ export function requireNodeSqlite(): typeof import("node:sqlite") {
       return nodeSqlite;
     }
     // FTS5 not supported, fall through to better-sqlite3
+    log.debug("node:sqlite lacks FTS5 support, falling back to better-sqlite3");
   } catch (err) {
     // node:sqlite not available, fall through to better-sqlite3
     const message = err instanceof Error ? err.message : String(err);
