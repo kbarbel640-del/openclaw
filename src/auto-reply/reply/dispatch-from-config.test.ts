@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../config/config.js";
+import { PluginHookExecutionError } from "../../plugins/hooks.js";
 import { createInternalHookEventPayload } from "../../test-utils/internal-hook-event-payload.js";
 import type { MsgContext } from "../templating.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import type { ReplyDispatcher } from "./reply-dispatcher.js";
-import { PluginHookExecutionError } from "../../plugins/hooks.js";
 import { buildTestCtx } from "./test-ctx.js";
 
 type AbortResult = { handled: boolean; aborted: boolean; stoppedSubagents?: number };
@@ -23,10 +23,20 @@ const diagnosticMocks = vi.hoisted(() => ({
 }));
 const hookMocks = vi.hoisted(() => ({
   runner: {
-    hasHooks: vi.fn(() => false),
-    runMessageReceived: vi.fn(async () => {}),
+    hasHooks: vi.fn<(name: string) => boolean>(() => false),
+    runMessageReceived: vi.fn<
+      (
+        _event: unknown,
+        _ctx: unknown,
+      ) => Promise<{ content?: string; cancel?: boolean } | undefined>
+    >(async () => undefined),
     runRequestPost: vi.fn(async () => {}),
-    runMessageSending: vi.fn(async () => undefined),
+    runMessageSending: vi.fn<
+      (
+        _event: unknown,
+        _ctx: unknown,
+      ) => Promise<{ content?: string; cancel?: boolean } | undefined>
+    >(async () => undefined),
     runMessageSent: vi.fn(async () => {}),
     runResponseError: vi.fn(async () => {}),
   },
@@ -698,7 +708,6 @@ describe("dispatchReplyFromConfig", () => {
       "send denied",
     );
   });
-
 
   it("emits response_error when final reply queueing fails", async () => {
     mocks.tryFastAbortFromMessage.mockResolvedValue({

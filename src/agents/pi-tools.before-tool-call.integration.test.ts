@@ -14,6 +14,7 @@ type HookRunnerMock = {
   hasHooks: ReturnType<typeof vi.fn>;
   runBeforeToolCall: ReturnType<typeof vi.fn>;
   runAfterToolCall: ReturnType<typeof vi.fn>;
+  runToolError: ReturnType<typeof vi.fn>;
 };
 
 function installMockHookRunner(params?: {
@@ -29,6 +30,7 @@ function installMockHookRunner(params?: {
       ? vi.fn(params.runBeforeToolCallImpl)
       : vi.fn(),
     runAfterToolCall: vi.fn(),
+    runToolError: vi.fn(),
   };
   // oxlint-disable-next-line typescript/no-explicit-any
   mockGetGlobalHookRunner.mockReturnValue(hookRunner as any);
@@ -171,19 +173,19 @@ describe("before_tool_call hook integration", () => {
       agentId: "main",
       sessionKey: "main",
     });
+    const [def] = toToolDefinitions([tool]);
+    const extensionContext = {} as Parameters<typeof def.execute>[4];
 
-    await tool.execute("call-6", { cmd: "pwd" }, undefined, undefined);
+    await def.execute("call-6", { cmd: "pwd" }, undefined, undefined, extensionContext);
 
     expect(hookRunner.runAfterToolCall).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: "exec",
         params: { cmd: "pwd" },
-        error: undefined,
+        result: { content: [], details: { ok: true } },
       }),
       expect.objectContaining({
         toolName: "exec",
-        agentId: "main",
-        sessionKey: "main",
       }),
     );
   });
@@ -193,9 +195,24 @@ describe("before_tool_call hook integration", () => {
     const execute = vi.fn().mockRejectedValue(new Error("tool exploded"));
     // oxlint-disable-next-line typescript/no-explicit-any
     const tool = wrapToolWithBeforeToolCallHook({ name: "exec", execute } as any);
+    const [def] = toToolDefinitions([tool]);
+    const extensionContext = {} as Parameters<typeof def.execute>[4];
 
-    await expect(tool.execute("call-7", { cmd: "pwd" }, undefined, undefined)).rejects.toThrow(
-      "tool exploded",
+    const result = await def.execute(
+      "call-7",
+      { cmd: "pwd" },
+      undefined,
+      undefined,
+      extensionContext,
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        details: expect.objectContaining({
+          status: "error",
+          tool: "exec",
+          error: "tool exploded",
+        }),
+      }),
     );
 
     expect(hookRunner.runAfterToolCall).toHaveBeenCalledWith(
@@ -208,6 +225,7 @@ describe("before_tool_call hook integration", () => {
         toolName: "exec",
       }),
     );
+    expect(hookRunner.runToolError).not.toHaveBeenCalled();
   });
 });
 

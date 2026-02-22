@@ -272,7 +272,7 @@ describe("plugin registry lifecycle mapping", () => {
 
     const api = createApi(createRecord(), { config: {} as never });
     const handler = vi.fn();
-    const condition = vi.fn(() => true);
+    const condition = vi.fn((_event: unknown, _ctx: unknown) => true);
     api.lifecycle.on("preResponse", handler, { condition });
 
     const runner = createHookRunner(registry);

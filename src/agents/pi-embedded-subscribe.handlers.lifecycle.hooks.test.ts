@@ -39,8 +39,8 @@ describe("embedded subscribe lifecycle hook wiring", () => {
     } as unknown as Parameters<typeof handleAutoCompactionStart>[0];
 
     handleAutoCompactionStart(ctx);
-    ctx.params.session.messages = [{ role: "user" }];
-    handleAutoCompactionEnd(ctx, { type: "auto_compaction_end", willRetry: false });
+    (ctx.params.session as { messages: Array<{ role: string }> }).messages = [{ role: "user" }];
+    handleAutoCompactionEnd(ctx, { type: "agent_end", willRetry: false } as never);
 
     expect(runBeforeCompaction).toHaveBeenCalledWith({ messageCount: 3 }, {});
     expect(runAfterCompaction).toHaveBeenCalledWith({ messageCount: 1, compactedCount: 2 }, {});

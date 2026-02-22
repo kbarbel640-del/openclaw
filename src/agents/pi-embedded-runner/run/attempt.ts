@@ -15,12 +15,12 @@ import type { OpenClawConfig } from "../../../config/config.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
+import { isPluginHookExecutionError } from "../../../plugins/hooks.js";
 import type {
   PluginHookAgentContext,
   PluginHookBeforeAgentStartResult,
   PluginHookBeforePromptBuildResult,
 } from "../../../plugins/types.js";
-import { isPluginHookExecutionError } from "../../../plugins/hooks.js";
 import {
   isCronSessionKey,
   isSubagentSessionKey,

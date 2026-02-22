@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { createHookRunner, type HookRunnerLogger } from "./hooks.js";
 import type { PluginRegistry } from "./registry.js";
 import type { PluginHookRegistration } from "./types.js";
-import { createHookRunner, type HookRunnerLogger } from "./hooks.js";
 
 function createRegistryWithHooks(hooks: PluginHookRegistration[]): PluginRegistry {
   return {
