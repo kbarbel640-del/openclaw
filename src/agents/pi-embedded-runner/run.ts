@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { generateSecureToken } from "../../infra/secure-random.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import type { PluginHookBeforeAgentStartResult } from "../../plugins/types.js";
@@ -503,6 +504,8 @@ export async function runEmbeddedPiAgent(
       const maybeMarkAuthProfileFailure = async (failure: {
         profileId?: string;
         reason?: Parameters<typeof markAuthProfileFailure>[0]["reason"] | null;
+        config?: OpenClawConfig;
+        agentDir?: string;
       }) => {
         const { profileId, reason } = failure;
         if (!profileId || !reason || reason === "timeout") {
