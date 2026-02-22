@@ -6,21 +6,25 @@ export const middlewareUseSpy: Mock = vi.fn();
 export const onSpy: Mock = vi.fn();
 export const stopSpy: Mock = vi.fn();
 export const sendChatActionSpy: Mock = vi.fn();
+export const sendMessageSpy: Mock = vi.fn(async () => ({ message_id: 77 }));
 
 type ApiStub = {
   config: { use: (arg: unknown) => void };
   sendChatAction: Mock;
+  sendMessage: Mock;
   setMyCommands: (commands: Array<{ command: string; description: string }>) => Promise<void>;
 };
 
 const apiStub: ApiStub = {
   config: { use: useSpy },
   sendChatAction: sendChatActionSpy,
+  sendMessage: sendMessageSpy,
   setMyCommands: vi.fn(async () => undefined),
 };
 
 beforeEach(() => {
   resetInboundDedupe();
+  sendMessageSpy.mockClear();
 });
 
 vi.mock("grammy", () => ({

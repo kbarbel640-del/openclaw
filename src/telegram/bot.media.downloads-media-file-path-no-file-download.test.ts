@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ssrf from "../infra/net/ssrf.js";
-import { onSpy, sendChatActionSpy } from "./bot.media.e2e-harness.js";
+import { onSpy, sendChatActionSpy, sendMessageSpy } from "./bot.media.e2e-harness.js";
 
 const cacheStickerSpy = vi.fn();
 const getCachedStickerSpy = vi.fn();
@@ -183,7 +183,7 @@ describe("telegram inbound media", () => {
     globalFetchSpy.mockRestore();
   });
 
-  it("logs a handler error when getFile returns no file_path", async () => {
+  it("warns users when getFile returns no file_path", async () => {
     const runtimeLog = vi.fn();
     const runtimeError = vi.fn();
     const { handler, replySpy } = await createBotHandlerWithOptions({
@@ -204,10 +204,12 @@ describe("telegram inbound media", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(replySpy).not.toHaveBeenCalled();
-    expect(runtimeError).toHaveBeenCalledTimes(1);
-    const msg = String(runtimeError.mock.calls[0]?.[0] ?? "");
-    expect(msg).toContain("handler failed:");
-    expect(msg).toContain("file_path");
+    expect(sendMessageSpy).toHaveBeenCalledWith(
+      1234,
+      "⚠️ Failed to download media. Please try again.",
+      { reply_to_message_id: 3 },
+    );
+    expect(runtimeError).not.toHaveBeenCalled();
 
     fetchSpy.mockRestore();
   });

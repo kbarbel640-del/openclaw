@@ -7,7 +7,8 @@ import {
 import { createExecTool } from "./bash-tools.exec.js";
 import { killProcessTree } from "./shell-utils.js";
 
-const BACKGROUND_HOLD_CMD = 'node -e "setTimeout(() => {}, 100)"';
+// Keep the process alive long enough to assert post-abort state on slower schedulers (notably Windows).
+const BACKGROUND_HOLD_CMD = 'node -e "setTimeout(() => {}, 5000)"';
 const ABORT_SETTLE_MS = process.platform === "win32" ? 200 : 40;
 const ABORT_WAIT_TIMEOUT_MS = process.platform === "win32" ? 1_500 : 240;
 const POLL_INTERVAL_MS = 15;
