@@ -13,6 +13,8 @@ import { recomputeNextRuns } from "./jobs.js";
 import { inferLegacyName, normalizeOptionalText } from "./normalize.js";
 import type { CronServiceState } from "./state.js";
 
+const INVALID_PERSISTED_PAYLOAD_ERROR = "invalid persisted cron job: missing or invalid payload";
+
 function buildDeliveryPatchFromLegacyPayload(payload: Record<string, unknown>) {
   const deliver = payload.deliver;
   const channelRaw =
@@ -211,6 +213,41 @@ function stripLegacyTopLevelFields(raw: Record<string, unknown>) {
   }
 }
 
+function markInvalidPersistedPayload(raw: Record<string, unknown>) {
+  let mutated = false;
+  if (raw.enabled !== false) {
+    raw.enabled = false;
+    mutated = true;
+  }
+
+  const state =
+    raw.state && typeof raw.state === "object" && !Array.isArray(raw.state)
+      ? (raw.state as Record<string, unknown>)
+      : null;
+  if (!state) {
+    return mutated;
+  }
+
+  if (state.lastStatus !== "skipped") {
+    state.lastStatus = "skipped";
+    mutated = true;
+  }
+  if (state.lastError !== INVALID_PERSISTED_PAYLOAD_ERROR) {
+    state.lastError = INVALID_PERSISTED_PAYLOAD_ERROR;
+    mutated = true;
+  }
+  if (state.nextRunAtMs !== undefined) {
+    state.nextRunAtMs = undefined;
+    mutated = true;
+  }
+  if (state.runningAtMs !== undefined) {
+    state.runningAtMs = undefined;
+    mutated = true;
+  }
+
+  return mutated;
+}
+
 async function getFileMtimeMs(path: string): Promise<number | null> {
   try {
     const stats = await fs.promises.stat(path);
@@ -309,6 +346,15 @@ export async function ensureLoaded(
         if (copyTopLevelAgentTurnFields(raw, payloadRecord)) {
           mutated = true;
         }
+      }
+    }
+
+    const payloadKind =
+      payloadRecord && typeof payloadRecord.kind === "string" ? payloadRecord.kind : "";
+    const hasValidPayloadKind = payloadKind === "agentTurn" || payloadKind === "systemEvent";
+    if (!payloadRecord || !hasValidPayloadKind) {
+      if (markInvalidPersistedPayload(raw)) {
+        mutated = true;
       }
     }
 
@@ -426,8 +472,6 @@ export async function ensureLoaded(
       mutated = true;
     }
 
-    const payloadKind =
-      payloadRecord && typeof payloadRecord.kind === "string" ? payloadRecord.kind : "";
     const sessionTarget =
       typeof raw.sessionTarget === "string" ? raw.sessionTarget.trim().toLowerCase() : "";
     const isIsolatedAgentTurn =
