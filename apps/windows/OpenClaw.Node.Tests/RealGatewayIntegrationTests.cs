@@ -278,6 +278,21 @@ namespace OpenClaw.Node.Tests
                 Assert.True(invoke.TryGetProperty("payload", out var p), JsonSerializer.Serialize(invoke));
                 Assert.True(p.TryGetProperty("devices", out var devices), JsonSerializer.Serialize(invoke));
                 Assert.Equal(JsonValueKind.Array, devices.ValueKind);
+
+                foreach (var d in devices.EnumerateArray())
+                {
+                    Assert.True(d.TryGetProperty("id", out var id), JsonSerializer.Serialize(d));
+                    Assert.Equal(JsonValueKind.String, id.ValueKind);
+
+                    Assert.True(d.TryGetProperty("name", out var name), JsonSerializer.Serialize(d));
+                    Assert.Equal(JsonValueKind.String, name.ValueKind);
+
+                    Assert.True(d.TryGetProperty("position", out var position), JsonSerializer.Serialize(d));
+                    Assert.Equal(JsonValueKind.String, position.ValueKind);
+
+                    Assert.True(d.TryGetProperty("deviceType", out var deviceType), JsonSerializer.Serialize(d));
+                    Assert.Equal(JsonValueKind.String, deviceType.ValueKind);
+                }
             }
             else
             {

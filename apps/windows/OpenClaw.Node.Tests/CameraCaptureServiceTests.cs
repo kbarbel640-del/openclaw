@@ -7,6 +7,23 @@ namespace OpenClaw.Node.Tests
     public class CameraCaptureServiceTests
     {
         [Fact]
+        public async Task ListDevicesAsync_ShouldReturnWellFormedEntries_WhenPresent()
+        {
+            var svc = new CameraCaptureService();
+            var devices = await svc.ListDevicesAsync();
+
+            Assert.NotNull(devices);
+
+            foreach (var d in devices)
+            {
+                Assert.False(string.IsNullOrWhiteSpace(d.Id));
+                Assert.False(string.IsNullOrWhiteSpace(d.Name));
+                Assert.False(string.IsNullOrWhiteSpace(d.Position));
+                Assert.False(string.IsNullOrWhiteSpace(d.DeviceType));
+            }
+        }
+
+        [Fact]
         public async Task CaptureJpegAsBase64Async_ShouldReturnPayload_OnCurrentPlatform()
         {
             var svc = new CameraCaptureService();

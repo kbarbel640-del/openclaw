@@ -78,6 +78,21 @@ namespace OpenClaw.Node.Tests
             var root = doc.RootElement;
             Assert.True(root.TryGetProperty("devices", out var devices));
             Assert.Equal(JsonValueKind.Array, devices.ValueKind);
+
+            foreach (var d in devices.EnumerateArray())
+            {
+                Assert.True(d.TryGetProperty("id", out var id));
+                Assert.Equal(JsonValueKind.String, id.ValueKind);
+
+                Assert.True(d.TryGetProperty("name", out var name));
+                Assert.Equal(JsonValueKind.String, name.ValueKind);
+
+                Assert.True(d.TryGetProperty("position", out var position));
+                Assert.Equal(JsonValueKind.String, position.ValueKind);
+
+                Assert.True(d.TryGetProperty("deviceType", out var deviceType));
+                Assert.Equal(JsonValueKind.String, deviceType.ValueKind);
+            }
         }
 
         [Fact]

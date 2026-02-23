@@ -41,7 +41,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **41 passing**
+- Current total: **42 passing**
 
 Run:
 ```bash
