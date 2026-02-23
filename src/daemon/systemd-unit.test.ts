@@ -23,4 +23,13 @@ describe("buildSystemdUnit", () => {
       }),
     ).toThrow(/CR or LF/);
   });
+
+  it("uses KillMode=mixed to avoid orphaned child processes on restart", () => {
+    const unit = buildSystemdUnit({
+      description: "OpenClaw Gateway",
+      programArguments: ["/usr/bin/openclaw", "gateway", "start"],
+      environment: {},
+    });
+    expect(unit).toContain("KillMode=mixed");
+  });
 });
