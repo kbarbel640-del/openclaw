@@ -34,6 +34,7 @@ final class TailscaleService {
     private(set) var statusError: String?
 
     private init() {
+        self.isInstalled = self.checkAppInstallation()
         Task { await self.checkTailscaleStatus() }
     }
 

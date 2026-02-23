@@ -42,6 +42,10 @@ public final class OpenClawChatViewModel {
     @ObservationIgnored
     private nonisolated(unsafe) var pendingRunTimeoutTasks: [String: Task<Void, Never>] = [:]
     private let pendingRunTimeoutMs: UInt64 = 120_000
+    @ObservationIgnored
+    private nonisolated(unsafe) var pendingRunReconcileTasks: [String: Task<Void, Never>] = [:]
+    private let pendingRunReconcileIntervalMs: UInt64 = 1_500
+    private let pendingRunReconcileMaxAttempts: Int = 20
 
     private var pendingToolCallsById: [String: OpenClawChatPendingToolCall] = [:] {
         didSet {
@@ -71,6 +75,9 @@ public final class OpenClawChatViewModel {
     deinit {
         self.eventTask?.cancel()
         for (_, task) in self.pendingRunTimeoutTasks {
+            task.cancel()
+        }
+        for (_, task) in self.pendingRunReconcileTasks {
             task.cancel()
         }
     }
@@ -202,6 +209,7 @@ public final class OpenClawChatViewModel {
         let sanitizedContent = message.content.map { content -> OpenClawChatMessageContent in
             guard let text = content.text else { return content }
             let cleaned = ChatMarkdownPreprocessor.preprocess(markdown: text).cleaned
+            let inboundMessageID = ChatMarkdownPreprocessor.inboundMessageID(markdown: text)
             return OpenClawChatMessageContent(
                 type: content.type,
                 text: cleaned,
@@ -210,7 +218,7 @@ public final class OpenClawChatViewModel {
                 mimeType: content.mimeType,
                 fileName: content.fileName,
                 content: content.content,
-                id: content.id,
+                id: content.id ?? inboundMessageID,
                 name: content.name,
                 arguments: content.arguments)
         }
@@ -309,11 +317,61 @@ public final class OpenClawChatViewModel {
     }
 
     private static func dedupeKey(for message: OpenClawChatMessage) -> String? {
+        let role = message.role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !role.isEmpty else { return nil }
+
+        if role == "user",
+           let inboundMessageID = message.content
+            .compactMap(\.id)
+            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+            .first(where: { !$0.isEmpty })
+        {
+            return "user|message_id|\(inboundMessageID)"
+        }
+
         guard let timestamp = message.timestamp else { return nil }
         let text = message.content.compactMap(\.text).joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
-        return "\(message.role)|\(timestamp)|\(text)"
+        return "\(role)|\(timestamp)|\(text)"
+    }
+
+    private static func messageText(_ message: OpenClawChatMessage) -> String {
+        message.content.compactMap(\.text).joined(separator: "\n")
+    }
+
+    private static func historyContainsAssistantReply(
+        forRunId runId: String,
+        in messages: [OpenClawChatMessage]) -> Bool
+    {
+        let runIdNormalized = runId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !runIdNormalized.isEmpty else { return false }
+
+        guard let userIndex = messages.lastIndex(where: { msg in
+            guard msg.role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "user" else {
+                return false
+            }
+
+            let messageIDMatch = msg.content.contains { part in
+                guard let messageID = part.id?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+                    return false
+                }
+                return !messageID.isEmpty && messageID == runIdNormalized
+            }
+            if messageIDMatch {
+                return true
+            }
+
+            // Backward-compatible fallback for history entries where IDs were only
+            // embedded into text and not decoded into content.id.
+            return Self.messageText(msg).lowercased().contains(runIdNormalized)
+        }) else {
+            return false
+        }
+
+        let nextIndex = messages.index(after: userIndex)
+        guard nextIndex < messages.endIndex else { return false }
+        return messages[nextIndex...].contains { $0.role.lowercased() == "assistant" }
     }
 
     private func performSend() async {
@@ -537,7 +595,13 @@ public final class OpenClawChatViewModel {
     }
 
     private func handleAgentEvent(_ evt: OpenClawAgentEventPayload) {
-        if let sessionId, evt.runId != sessionId {
+        let isOurRun = self.pendingRuns.contains(evt.runId)
+        let matchesSessionKey = evt.sessionKey.map {
+            Self.matchesCurrentSessionKey(incoming: $0, current: self.sessionKey)
+        } ?? false
+        let matchesLegacySessionID = self.sessionId.map { $0 == evt.runId } ?? false
+
+        guard isOurRun || matchesSessionKey || matchesLegacySessionID else {
             return
         }
 
@@ -561,28 +625,108 @@ public final class OpenClawChatViewModel {
             } else if phase == "result" {
                 self.pendingToolCallsById[toolCallId] = nil
             }
+        case "lifecycle":
+            guard let phase = (evt.data["phase"]?.value as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased(),
+                phase == "end" || phase == "error"
+            else {
+                return
+            }
+
+            if phase == "error",
+               let lifecycleError = Self.lifecycleErrorMessage(from: evt.data)
+            {
+                self.errorText = lifecycleError
+            }
+
+            if isOurRun {
+                self.clearPendingRun(evt.runId)
+            }
+
+            // Agent lifecycle is a safety net when a terminal chat event is missed.
+            // Keep the UI from getting stuck in a perpetual "thinking" state.
+            self.pendingToolCallsById = [:]
+            self.streamingAssistantText = nil
+            Task { await self.refreshHistoryAfterRun() }
         default:
             break
         }
     }
 
+    private static func lifecycleErrorMessage(from data: [String: AnyCodable]) -> String? {
+        if let message = data["error"]?.value as? String {
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        if let object = data["error"]?.value as? [String: AnyCodable],
+           let message = object["message"]?.value as? String
+        {
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        if let object = data["error"]?.value as? [String: Any],
+           let message = object["message"] as? String
+        {
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        return nil
+    }
+
     private func refreshHistoryAfterRun() async {
         do {
-            let payload = try await self.transport.requestHistory(sessionKey: self.sessionKey)
-            self.messages = Self.reconcileMessageIDs(
-                previous: self.messages,
-                incoming: Self.decodeMessages(payload.messages ?? []))
-            self.sessionId = payload.sessionId
-            if let level = payload.thinkingLevel, !level.isEmpty {
-                self.thinkingLevel = level
-            }
+            _ = try await self.refreshHistoryFromTransport()
         } catch {
             chatUILogger.error("refresh history failed \(error.localizedDescription, privacy: .public)")
         }
     }
 
+    private func refreshHistoryFromTransport() async throws -> [OpenClawChatMessage] {
+        let payload = try await self.transport.requestHistory(sessionKey: self.sessionKey)
+        let refreshed = Self.reconcileMessageIDs(
+            previous: self.messages,
+            incoming: Self.decodeMessages(payload.messages ?? []))
+        self.messages = refreshed
+        self.sessionId = payload.sessionId
+        if let level = payload.thinkingLevel, !level.isEmpty {
+            self.thinkingLevel = level
+        }
+        return refreshed
+    }
+
+    private func reconcilePendingRunFromHistory(runId: String) async {
+        do {
+            let refreshed = try await self.refreshHistoryFromTransport()
+            guard self.pendingRuns.contains(runId) else { return }
+            guard Self.historyContainsAssistantReply(forRunId: runId, in: refreshed) else { return }
+            self.clearPendingRun(runId)
+            self.pendingToolCallsById = [:]
+            self.streamingAssistantText = nil
+            self.errorText = nil
+        } catch {
+            chatUILogger.error("pending run reconcile failed \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     private func armPendingRunTimeout(runId: String) {
         self.pendingRunTimeoutTasks[runId]?.cancel()
+        self.pendingRunReconcileTasks[runId]?.cancel()
+        self.pendingRunReconcileTasks[runId] = Task { [weak self] in
+            let intervalMs = await MainActor.run { self?.pendingRunReconcileIntervalMs ?? 0 }
+            let maxAttempts = await MainActor.run { self?.pendingRunReconcileMaxAttempts ?? 0 }
+            guard maxAttempts > 0 else { return }
+            for _ in 0..<maxAttempts {
+                try? await Task.sleep(nanoseconds: intervalMs * 1_000_000)
+                if Task.isCancelled { return }
+                let isStillPending = await MainActor.run { self?.pendingRuns.contains(runId) ?? false }
+                guard isStillPending else { break }
+                await self?.reconcilePendingRunFromHistory(runId: runId)
+            }
+        }
         self.pendingRunTimeoutTasks[runId] = Task { [weak self] in
             let timeoutMs = await MainActor.run { self?.pendingRunTimeoutMs ?? 0 }
             try? await Task.sleep(nanoseconds: timeoutMs * 1_000_000)
@@ -599,13 +743,17 @@ public final class OpenClawChatViewModel {
         self.pendingRuns.remove(runId)
         self.pendingRunTimeoutTasks[runId]?.cancel()
         self.pendingRunTimeoutTasks[runId] = nil
+        self.pendingRunReconcileTasks[runId]?.cancel()
+        self.pendingRunReconcileTasks[runId] = nil
     }
 
     private func clearPendingRuns(reason: String?) {
         for runId in self.pendingRuns {
             self.pendingRunTimeoutTasks[runId]?.cancel()
+            self.pendingRunReconcileTasks[runId]?.cancel()
         }
         self.pendingRunTimeoutTasks.removeAll()
+        self.pendingRunReconcileTasks.removeAll()
         self.pendingRuns.removeAll()
         if let reason, !reason.isEmpty {
             self.errorText = reason

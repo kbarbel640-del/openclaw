@@ -4,13 +4,20 @@ import SwiftUI
 struct ConfigSettings: View {
     private let isPreview = ProcessInfo.processInfo.isPreview
     private let isNixMode = ProcessInfo.processInfo.isNixMode
+    @Environment(TailscaleService.self) private var tailscaleService
     @Bindable var store: ChannelsStore
+    @Bindable var appState: AppState
     @State private var hasLoaded = false
+    @State private var modelOptions = ConfigModelOptionsState()
     @State private var activeSectionKey: String?
     @State private var activeSubsection: SubsectionSelection?
 
-    init(store: ChannelsStore = .shared) {
+    init(
+        store: ChannelsStore = .shared,
+        appState: AppState = AppStateStore.shared)
+    {
         self.store = store
+        self.appState = appState
     }
 
     var body: some View {
@@ -25,10 +32,16 @@ struct ConfigSettings: View {
             self.hasLoaded = true
             await self.store.loadConfigSchema()
             await self.store.loadConfig()
+            await self.refreshModelOptions()
         }
         .onAppear { self.ensureSelection() }
         .onChange(of: self.store.configSchemaLoading) { _, loading in
             if !loading { self.ensureSelection() }
+        }
+        .onChange(of: self.apertureDraftFingerprint) { _, _ in
+            guard self.hasLoaded else { return }
+            guard self.store.configLoaded else { return }
+            Task { await self.refreshModelOptions() }
         }
     }
 }
@@ -135,6 +148,7 @@ extension ConfigSettings {
                 }
                 self.actionRow
                 self.sectionHeader(section)
+                self.modelsApertureSurface(section)
                 self.subsectionNav(section)
                 self.sectionForm(section)
                 if self.store.configDirty, !self.isNixMode {
@@ -174,15 +188,64 @@ extension ConfigSettings {
         }
     }
 
+    @ViewBuilder
+    private func modelsApertureSurface(_ section: ConfigSection) -> some View {
+        if section.key == "models" {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Aperture Routing")
+                    .font(.callout.weight(.semibold))
+                Text("Manage Tailscale Aperture model routing from Models, then verify provider rewrites below.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if self.tailscaleService.isInstalled {
+                    if self.store.configDirty {
+                        Text("Save or Reload pending Config edits before changing Aperture routing here.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ApertureIntegrationSection(
+                        connectionMode: self.appState.connectionMode,
+                        isPaused: self.appState.isPaused,
+                        onConfigChanged: {
+                            guard !self.store.configDirty else {
+                                await self.refreshModelOptions()
+                                return
+                            }
+                            await self.store.reloadConfigDraft()
+                            await self.refreshModelOptions()
+                        })
+                        .disabled(self.store.configDirty)
+                } else {
+                    Text("Install and run Tailscale in General settings to enable Aperture controls.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                self.apertureRoutingSummary
+            }
+            .padding(12)
+            .background(Color.gray.opacity(0.07))
+            .cornerRadius(12)
+        }
+    }
+
     private var actionRow: some View {
         HStack(spacing: 10) {
             Button("Reload") {
-                Task { await self.store.reloadConfigDraft() }
+                Task {
+                    await self.store.reloadConfigDraft()
+                    await self.refreshModelOptions()
+                }
             }
             .disabled(!self.store.configLoaded)
 
             Button(self.store.isSavingConfig ? "Saving…" : "Save") {
-                Task { await self.store.saveConfigDraft() }
+                Task {
+                    await self.store.saveConfigDraft()
+                    await self.refreshModelOptions()
+                }
             }
             .disabled(self.isNixMode || self.store.isSavingConfig || !self.store.configDirty)
         }
@@ -274,8 +337,108 @@ extension ConfigSettings {
             return (self.resolvedSchemaNode(section.node), defaultPath)
         }()
 
-        return ConfigSchemaForm(store: self.store, schema: resolved.0, path: resolved.1)
+        return ConfigSchemaForm(
+            store: self.store,
+            schema: resolved.0,
+            path: resolved.1,
+            modelOptions: self.modelOptions)
             .disabled(self.isNixMode)
+    }
+
+    private var apertureDraftFingerprint: String {
+        let enabledPath: ConfigPath = [.key("gateway"), .key("aperture"), .key("enabled")]
+        let hostnamePath: ConfigPath = [.key("gateway"), .key("aperture"), .key("hostname")]
+        let enabled = (self.store.configValue(at: enabledPath) as? Bool) ?? false
+        let hostname = ((self.store.configValue(at: hostnamePath) as? String) ?? "ai")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedHostname = hostname.isEmpty ? "ai" : hostname
+        return "\(enabled ? "1" : "0")|\(normalizedHostname)"
+    }
+
+    private func refreshModelOptions() async {
+        await self.modelOptions.refresh(
+            configDraft: self.store.configDraft,
+            connectionMode: self.appState.connectionMode)
+    }
+
+    private struct ApertureRouteRow: Identifiable {
+        let provider: String
+        let baseURL: String
+        let api: String?
+
+        var id: String { self.provider }
+    }
+
+    private struct ApertureDraftSummary {
+        let enabled: Bool
+        let hostname: String
+        let providers: [String]
+        let routes: [ApertureRouteRow]
+    }
+
+    private var apertureRoutingSummary: some View {
+        let summary = self.apertureDraftSummary
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Current Draft Routing")
+                .font(.callout.weight(.semibold))
+            Text("Enabled: \(summary.enabled ? "yes" : "no") · Hostname: \(summary.hostname)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if summary.providers.isEmpty {
+                Text("Providers: (none configured)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Providers: \(summary.providers.joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if summary.routes.isEmpty {
+                Text("No provider route rewrites found in the current draft.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(summary.routes) { route in
+                    Text("\(route.provider) -> \(route.api ?? "auto") @ \(route.baseURL)")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var apertureDraftSummary: ApertureDraftSummary {
+        let root = self.store.configDraft
+        let gateway = root["gateway"] as? [String: Any] ?? [:]
+        let aperture = gateway["aperture"] as? [String: Any] ?? [:]
+        let enabled = aperture["enabled"] as? Bool ?? false
+        let rawHostname = (aperture["hostname"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hostname = rawHostname.isEmpty ? "ai" : rawHostname
+
+        let configuredProviders = (aperture["providers"] as? [String] ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+
+        let models = root["models"] as? [String: Any] ?? [:]
+        let providerConfigs = models["providers"] as? [String: Any] ?? [:]
+        let routeProviders = configuredProviders.isEmpty ? providerConfigs.keys.sorted() : configuredProviders
+
+        let routes: [ApertureRouteRow] = routeProviders.compactMap { provider in
+            guard let config = providerConfigs[provider] as? [String: Any] else { return nil }
+            let baseURL = (config["baseUrl"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !baseURL.isEmpty else { return nil }
+            let api = (config["api"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedApi = (api?.isEmpty ?? true) ? nil : api
+            return ApertureRouteRow(provider: provider, baseURL: baseURL, api: normalizedApi)
+        }
+
+        return ApertureDraftSummary(
+            enabled: enabled,
+            hostname: hostname,
+            providers: configuredProviders,
+            routes: routes)
     }
 
     private func ensureSelection() {
@@ -391,5 +554,7 @@ extension ConfigSettings {
 struct ConfigSettings_Previews: PreviewProvider {
     static var previews: some View {
         ConfigSettings()
+            .environment(TailscaleService.shared)
+            .environment(ApertureService.shared)
     }
 }

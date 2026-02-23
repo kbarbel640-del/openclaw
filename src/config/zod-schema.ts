@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ToolsSchema } from "./zod-schema.agent-runtime.js";
 import { AgentsSchema, AudioSchema, BindingsSchema, BroadcastSchema } from "./zod-schema.agents.js";
 import { ApprovalsSchema } from "./zod-schema.approvals.js";
-import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
+import { HexColorSchema, ModelApiSchema, ModelsConfigSchema } from "./zod-schema.core.js";
 import { HookMappingSchema, HooksGmailSchema, InternalHooksSchema } from "./zod-schema.hooks.js";
 import { InstallRecordShape } from "./zod-schema.installs.js";
 import { ChannelsSchema } from "./zod-schema.providers.js";
@@ -404,6 +404,26 @@ export const OpenClawSchema = z
       .object({
         port: z.number().int().positive().optional(),
         mode: z.union([z.literal("local"), z.literal("remote")]).optional(),
+        aperture: z
+          .object({
+            enabled: z.boolean().optional(),
+            hostname: z.string().optional(),
+            providers: z.array(z.string()).optional(),
+            restore: z
+              .record(
+                z.string(),
+                z
+                  .object({
+                    baseUrl: z.string().optional(),
+                    apiKey: z.string().optional().register(sensitive),
+                    api: ModelApiSchema.optional(),
+                  })
+                  .strict(),
+              )
+              .optional(),
+          })
+          .strict()
+          .optional(),
         bind: z
           .union([
             z.literal("auto"),

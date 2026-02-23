@@ -148,10 +148,27 @@ stop_launch_agent() {
   launchctl bootout gui/"$UID"/ai.openclaw.mac 2>/dev/null || true
 }
 
+stop_gateway() {
+  # Kill the gateway so the app can start a fresh one with the latest dist code.
+  # Boot out both current and legacy gateway launch agents.
+  launchctl bootout gui/"$UID"/ai.openclaw.gateway 2>/dev/null || true
+  launchctl bootout gui/"$UID"/com.clawdbot.gateway 2>/dev/null || true
+  launchctl remove com.clawdbot.gateway 2>/dev/null || true
+  pkill -f "openclaw.*gateway" 2>/dev/null || true
+  pkill -f "clawdbot.*gateway" 2>/dev/null || true
+  pkill -x "clawdbot-gateway" 2>/dev/null || true
+  sleep 0.5
+}
+
 # 1) Kill all running instances first.
 log "==> Killing existing OpenClaw instances"
 kill_all_openclaw
 stop_launch_agent
+if [[ "$ATTACH_ONLY" -eq 1 ]]; then
+  log "==> Preserving gateway process (--attach-only)"
+else
+  stop_gateway
+fi
 
 # Bundle Gateway-hosted Canvas A2UI assets.
 run_step "bundle canvas a2ui" bash -lc "cd '${ROOT_DIR}' && pnpm canvas:a2ui:bundle"
@@ -209,8 +226,9 @@ choose_app_bundle() {
 
 choose_app_bundle
 
-# When signed, clear any previous launchagent override marker.
-if [[ "$NO_SIGN" -ne 1 && "$ATTACH_ONLY" -ne 1 && -f "${LAUNCHAGENT_DISABLE_MARKER}" ]]; then
+# When signed, clear any previous launchagent override marker so the app
+# can manage the gateway via launchd (even in attach-only mode).
+if [[ "$NO_SIGN" -ne 1 && -f "${LAUNCHAGENT_DISABLE_MARKER}" ]]; then
   run_step "clear launchagent disable marker" /bin/rm -f "${LAUNCHAGENT_DISABLE_MARKER}"
 fi
 
@@ -262,6 +280,17 @@ if pgrep -f "${APP_PROCESS_PATTERN}" >/dev/null 2>&1; then
   log "OK: OpenClaw is running."
 else
   fail "App exited immediately. Check ${LOG_PATH} or Console.app (User Reports)."
+fi
+
+# 6) Re-bootstrap gateway only for non-attach launches when it was stopped and
+# the app did not re-register it.
+if [[ "$ATTACH_ONLY" -ne 1 ]]; then
+  GATEWAY_PLIST="${HOME}/Library/LaunchAgents/ai.openclaw.gateway.plist"
+  if [[ -f "${GATEWAY_PLIST}" ]]; then
+    if ! launchctl list ai.openclaw.gateway >/dev/null 2>&1; then
+      run_step "re-bootstrap gateway" launchctl bootstrap gui/"$UID" "${GATEWAY_PLIST}"
+    fi
+  fi
 fi
 
 if [ "$NO_SIGN" -eq 1 ] && [ "$ATTACH_ONLY" -ne 1 ]; then

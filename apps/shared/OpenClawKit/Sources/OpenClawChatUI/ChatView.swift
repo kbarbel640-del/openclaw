@@ -225,7 +225,27 @@ public struct OpenClawChatView: View {
         } else {
             base = self.viewModel.messages
         }
-        return self.mergeToolResults(in: base)
+        return self.mergeToolResults(in: base).filter(Self.hasRenderableContent)
+    }
+
+    private static func hasRenderableContent(_ message: OpenClawChatMessage) -> Bool {
+        for content in message.content {
+            if let text = content.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+                return true
+            }
+
+            let kind = (content.type ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if ["file", "attachment", "toolcall", "tool_call", "tooluse", "tool_use", "toolresult", "tool_result"]
+                .contains(kind)
+            {
+                return true
+            }
+
+            if content.content != nil || content.arguments != nil || content.name != nil {
+                return true
+            }
+        }
+        return false
     }
 
     @ViewBuilder

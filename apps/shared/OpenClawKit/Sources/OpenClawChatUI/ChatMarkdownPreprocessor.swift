@@ -25,7 +25,8 @@ enum ChatMarkdownPreprocessor {
     }
 
     static func preprocess(markdown raw: String) -> Result {
-        let withoutContextBlocks = self.stripInboundContextBlocks(raw)
+        let withoutSystemEnvelope = self.stripLeadingSystemEnvelopeLines(raw)
+        let withoutContextBlocks = self.stripInboundContextBlocks(withoutSystemEnvelope)
         let withoutTimestamps = self.stripPrefixedTimestamps(withoutContextBlocks)
         let pattern = #"!\[([^\]]*)\]\((data:image\/[^;]+;base64,[^)]+)\)"#
         guard let re = try? NSRegularExpression(pattern: pattern) else {
@@ -60,6 +61,56 @@ enum ChatMarkdownPreprocessor {
         }
 
         return Result(cleaned: self.normalize(cleaned), images: images.reversed())
+    }
+
+    static func inboundMessageID(markdown raw: String) -> String? {
+        let normalized = raw.replacingOccurrences(of: "\r\n", with: "\n")
+        let jsonPattern = #""message_id"\s*:\s*"([^"]+)""#
+        if let match = normalized.firstRegexCapture(pattern: jsonPattern) {
+            let trimmed = match.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        let tagPattern = #"(?m)^\s*\[message_id:\s*([^\]]+)\]\s*$"#
+        if let match = normalized.firstRegexCapture(pattern: tagPattern) {
+            let trimmed = match.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        return nil
+    }
+
+    private static func stripLeadingSystemEnvelopeLines(_ raw: String) -> String {
+        let normalized = raw.replacingOccurrences(of: "\r\n", with: "\n")
+        let lines = normalized.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        guard !lines.isEmpty else { return normalized }
+
+        var index = 0
+        var removedAny = false
+        while index < lines.count {
+            let trimmed = lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                if removedAny {
+                    index += 1
+                    continue
+                }
+                break
+            }
+            guard trimmed.hasPrefix("System: [") else {
+                break
+            }
+            removedAny = true
+            index += 1
+        }
+
+        guard removedAny else { return normalized }
+        return lines[index...]
+            .joined(separator: "\n")
+            .replacingOccurrences(of: #"^\n+"#, with: "", options: .regularExpression)
     }
 
     private static func stripInboundContextBlocks(_ raw: String) -> String {
@@ -109,7 +160,7 @@ enum ChatMarkdownPreprocessor {
     }
 
     private static func stripPrefixedTimestamps(_ raw: String) -> String {
-        let pattern = #"(?m)^\[[A-Za-z]{3}\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?\s+(?:GMT|UTC)[+-]?\d{0,2}\]\s*"#
+        let pattern = #"(?m)^\[[A-Za-z]{3}\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?\s+[^\]]+\]\s*"#
         return raw.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
     }
 
@@ -119,5 +170,17 @@ enum ChatMarkdownPreprocessor {
         output = output.replacingOccurrences(of: "\n\n\n", with: "\n\n")
         output = output.replacingOccurrences(of: "\n\n\n", with: "\n\n")
         return output.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private extension String {
+    func firstRegexCapture(pattern: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let ns = self as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        guard let match = regex.firstMatch(in: self, range: range), match.numberOfRanges > 1 else {
+            return nil
+        }
+        return ns.substring(with: match.range(at: 1))
     }
 }

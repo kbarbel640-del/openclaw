@@ -133,6 +133,16 @@ done
 
 BIN_PRIMARY="$(bin_for_arch "$PRIMARY_ARCH")"
 echo "pkg: binary $BIN_PRIMARY" >&2
+
+echo "⏹  Stopping any running OpenClaw"
+killall -q OpenClaw 2>/dev/null || true
+for _ in $(seq 1 30); do
+  if ! pgrep -x OpenClaw >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.1
+done
+
 echo "🧹 Cleaning old app bundle"
 rm -rf "$APP_ROOT"
 mkdir -p "$APP_ROOT/Contents/MacOS"
@@ -251,9 +261,6 @@ else
     exit 1
   fi
 fi
-
-echo "⏹  Stopping any running OpenClaw"
-killall -q OpenClaw 2>/dev/null || true
 
 echo "🔏 Signing bundle (auto-selects signing identity if SIGN_IDENTITY is unset)"
 "$ROOT_DIR/scripts/codesign-mac-app.sh" "$APP_ROOT"

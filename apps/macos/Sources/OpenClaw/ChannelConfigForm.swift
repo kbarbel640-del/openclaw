@@ -4,6 +4,27 @@ struct ConfigSchemaForm: View {
     @Bindable var store: ChannelsStore
     let schema: ConfigSchemaNode
     let path: ConfigPath
+    let modelOptions: ConfigModelOptionsState?
+
+    init(
+        store: ChannelsStore,
+        schema: ConfigSchemaNode,
+        path: ConfigPath,
+        modelOptions: ConfigModelOptionsState? = nil)
+    {
+        self.store = store
+        self.schema = schema
+        self.path = path
+        self.modelOptions = modelOptions
+    }
+
+    private var mergedModelOptions: [ConfigModelOption] {
+        self.modelOptions?.options ?? []
+    }
+
+    private var modelOptionKeys: Set<String> {
+        Set(self.mergedModelOptions.map(\.canonicalKey))
+    }
 
     var body: some View {
         self.renderNode(self.schema, path: self.path)
@@ -15,6 +36,7 @@ struct ConfigSchemaForm: View {
         let label = hintForPath(path, hints: store.configUiHints)?.label ?? schema.title
         let help = hintForPath(path, hints: store.configUiHints)?.help ?? schema.description
         let variants = schema.anyOf.isEmpty ? schema.oneOf : schema.anyOf
+        let modelKind = configModelFieldKind(for: path)
 
         if !variants.isEmpty {
             let nonNull = variants.filter { !$0.isNullSchema }
@@ -39,7 +61,7 @@ struct ConfigSchemaForm: View {
                                 defaultValue: schema.explicitDefault))
                         {
                             Text("Select…").tag(-1)
-                            ForEach(literals.indices, id: \ .self) { index in
+                            ForEach(literals.indices, id: \.self) { index in
                                 Text(String(describing: literals[index])).tag(index)
                             }
                         }
@@ -68,7 +90,7 @@ struct ConfigSchemaForm: View {
                         if orderA != orderB { return orderA < orderB }
                         return lhs < rhs
                     }
-                    ForEach(sortedKeys, id: \ .self) { key in
+                    ForEach(sortedKeys, id: \.self) { key in
                         if let child = properties[key] {
                             self.renderNode(child, path: path + [.key(key)])
                         }
@@ -78,6 +100,9 @@ struct ConfigSchemaForm: View {
                     }
                 })
         case "array":
+            if let modelKind, modelKind.isFallbacks {
+                return AnyView(self.renderModelFallbackArray(path: path, label: label, help: help))
+            }
             return AnyView(self.renderArray(schema, path: path, value: value, label: label, help: help))
         case "boolean":
             return AnyView(
@@ -88,6 +113,15 @@ struct ConfigSchemaForm: View {
         case "number", "integer":
             return AnyView(self.renderNumberField(schema, path: path, label: label, help: help))
         case "string":
+            if let modelKind, modelKind.isPrimary {
+                return AnyView(
+                    self.renderModelPrimaryField(
+                        schema,
+                        path: path,
+                        label: label,
+                        help: help,
+                        modelKind: modelKind))
+            }
             return AnyView(self.renderStringField(schema, path: path, label: label, help: help))
         default:
             return AnyView(
@@ -121,7 +155,7 @@ struct ConfigSchemaForm: View {
             if let options = schema.enumValues {
                 Picker("", selection: self.enumBinding(path, options: options, defaultValue: schema.explicitDefault)) {
                     Text("Select…").tag(-1)
-                    ForEach(options.indices, id: \ .self) { index in
+                    ForEach(options.indices, id: \.self) { index in
                         Text(String(describing: options[index])).tag(index)
                     }
                 }
@@ -132,6 +166,193 @@ struct ConfigSchemaForm: View {
             } else {
                 TextField(placeholder, text: self.stringBinding(path, defaultValue: defaultValue))
                     .textFieldStyle(.roundedBorder)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func renderModelPrimaryField(
+        _ schema: ConfigSchemaNode,
+        path: ConfigPath,
+        label: String?,
+        help: String?,
+        modelKind: ConfigModelFieldKind) -> some View
+    {
+        let hint = hintForPath(path, hints: self.store.configUiHints)
+        let placeholder = hint?.placeholder ?? "provider/model"
+        let defaultValue = schema.explicitDefault as? String
+        let binding = self.stringBinding(path, defaultValue: defaultValue)
+        let currentValue = binding.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let customValue = self.customModelRefIfNeeded(currentValue)
+
+        VStack(alignment: .leading, spacing: 6) {
+            if let label { Text(label).font(.callout.weight(.semibold)) }
+            if let help {
+                Text(help)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                TextField(placeholder, text: binding)
+                    .textFieldStyle(.roundedBorder)
+
+                if !self.mergedModelOptions.isEmpty {
+                    self.modelSuggestionsMenu(title: "Suggestions") { modelRef in
+                        self.store.updateConfigValue(path: path, value: modelRef)
+                    }
+                    .controlSize(.small)
+                }
+            }
+
+            if self.shouldShowModelStatus(for: modelKind), let status = self.modelOptions?.statusMessage {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let customValue {
+                Text("Current: \(customValue) (custom)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func renderModelFallbackArray(
+        path: ConfigPath,
+        label: String?,
+        help: String?) -> some View
+    {
+        let values = self.modelFallbackValues(at: path)
+
+        VStack(alignment: .leading, spacing: 10) {
+            if let label { Text(label).font(.callout.weight(.semibold)) }
+            if let help {
+                Text(help)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if values.isEmpty {
+                Text("No fallback models configured.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(values.indices, id: \.self) { index in
+                HStack(alignment: .center, spacing: 8) {
+                    TextField("provider/model", text: self.modelFallbackBinding(path: path, index: index))
+                        .textFieldStyle(.roundedBorder)
+
+                    if !self.mergedModelOptions.isEmpty {
+                        self.modelSuggestionsMenu(title: "Suggest") { modelRef in
+                            var next = values
+                            guard next.indices.contains(index) else { return }
+                            next[index] = modelRef
+                            self.store.updateConfigValue(path: path, value: next)
+                        }
+                        .controlSize(.small)
+                    }
+
+                    if let custom = self.customModelRefIfNeeded(values[index]) {
+                        Text("\(custom) (custom)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Button("Remove") {
+                        var next = values
+                        guard next.indices.contains(index) else { return }
+                        next.remove(at: index)
+                        self.store.updateConfigValue(path: path, value: next)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button("Add") {
+                    var next = values
+                    next.append("")
+                    self.store.updateConfigValue(path: path, value: next)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                if !self.mergedModelOptions.isEmpty {
+                    self.modelSuggestionsMenu(title: "Add from suggestions") { modelRef in
+                        var next = values
+                        next.append(modelRef)
+                        self.store.updateConfigValue(path: path, value: next)
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private func shouldShowModelStatus(for modelKind: ConfigModelFieldKind) -> Bool {
+        modelKind.isPrimary
+    }
+
+    private func modelFallbackValues(at path: ConfigPath) -> [String] {
+        let raw = self.store.configValue(at: path) as? [Any] ?? []
+        return raw.map { value in
+            if let text = value as? String {
+                return text
+            }
+            return String(describing: value)
+        }
+    }
+
+    private func modelFallbackBinding(path: ConfigPath, index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                let values = self.modelFallbackValues(at: path)
+                guard values.indices.contains(index) else { return "" }
+                return values[index]
+            },
+            set: { newValue in
+                var values = self.modelFallbackValues(at: path)
+                guard values.indices.contains(index) else { return }
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    values.remove(at: index)
+                } else {
+                    values[index] = trimmed
+                }
+                self.store.updateConfigValue(path: path, value: values)
+            })
+    }
+
+    private func customModelRefIfNeeded(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let key = ConfigModelOption.canonicalKey(for: trimmed)
+        if let option = self.mergedModelOptions.first(where: { $0.canonicalKey == key }) {
+            let hasCatalogSource = option.sources.contains(.gatewayCatalog)
+                || option.sources.contains(.apertureCatalog)
+            return hasCatalogSource ? nil : trimmed
+        }
+
+        return self.modelOptionKeys.contains(key) ? nil : trimmed
+    }
+
+    @ViewBuilder
+    private func modelSuggestionsMenu(
+        title: String,
+        onSelect: @escaping (String) -> Void) -> some View
+    {
+        Menu(title) {
+            ForEach(self.mergedModelOptions, id: \.id) { option in
+                Button(option.modelRef) {
+                    onSelect(option.modelRef)
+                }
             }
         }
     }
@@ -179,7 +400,7 @@ struct ConfigSchemaForm: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            ForEach(items.indices, id: \ .self) { index in
+            ForEach(items.indices, id: \.self) { index in
                 HStack(alignment: .top, spacing: 8) {
                     if let itemSchema {
                         self.renderNode(itemSchema, path: path + [.index(index)])
@@ -228,7 +449,7 @@ struct ConfigSchemaForm: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(extras, id: \ .self) { key in
+                    ForEach(extras, id: \.self) { key in
                         let itemPath: ConfigPath = path + [.key(key)]
                         HStack(alignment: .top, spacing: 8) {
                             TextField("Key", text: self.mapKeyBinding(path: path, key: key))

@@ -104,4 +104,44 @@ struct ChatMarkdownPreprocessorTests {
 
         #expect(result.cleaned == "How's it going?")
     }
+
+    @Test func stripsLeadingTimestampPrefixWithLocalTimezoneAbbreviation() {
+        let markdown = """
+        [Mon 2026-02-23 08:15 MST] test gpt5 chat
+        """
+
+        let result = ChatMarkdownPreprocessor.preprocess(markdown: markdown)
+
+        #expect(result.cleaned == "test gpt5 chat")
+    }
+
+    @Test func stripsLeadingSystemEnvelopeLines() {
+        let markdown = """
+        System: [2026-02-23 07:55:13 MST] Node: MacBook Pro M3 (192.168.50.57) · app 2026.2.22-2 (14142) · mode local
+        System: [2026-02-23 08:15:44 MST] reason connect
+
+        [Mon 2026-02-23 08:15 MST] test gpt5 chat
+        """
+
+        let result = ChatMarkdownPreprocessor.preprocess(markdown: markdown)
+
+        #expect(result.cleaned == "test gpt5 chat")
+    }
+
+    @Test func extractsInboundMessageIDFromConversationMetadataBlock() {
+        let markdown = """
+        Conversation info (untrusted metadata):
+        ```json
+        {
+          "message_id": "62C5589F-225B-4340-AB24-FF361C3A071C",
+          "sender": "openclaw-macos"
+        }
+        ```
+
+        test gpt5 chat
+        """
+
+        let id = ChatMarkdownPreprocessor.inboundMessageID(markdown: markdown)
+        #expect(id == "62C5589F-225B-4340-AB24-FF361C3A071C")
+    }
 }

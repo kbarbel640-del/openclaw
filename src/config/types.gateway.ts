@@ -327,4 +327,25 @@ export type GatewayConfig = {
    * Set to 0 to disable. Default: 5.
    */
   channelHealthCheckMinutes?: number;
+  /** Tailscale Aperture AI gateway metadata (managed by macOS app). */
+  aperture?: {
+    enabled?: boolean;
+    hostname?: string;
+    providers?: string[];
+    restore?: Record<
+      string,
+      {
+        baseUrl?: string;
+        apiKey?: string;
+        api?:
+          | "openai-completions"
+          | "openai-responses"
+          | "anthropic-messages"
+          | "google-generative-ai"
+          | "github-copilot"
+          | "bedrock-converse-stream"
+          | "ollama";
+      }
+    >;
+  };
 };

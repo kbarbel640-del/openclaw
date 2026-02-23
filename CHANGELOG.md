@@ -8,6 +8,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- macOS/Config: surface Tailscale Aperture routing in `Config > Models`, add model-aware Aperture suggestions/status, and point General settings to the Models location.
 - Provider/Mistral: add support for the Mistral provider, including memory embeddings and voice support. (#23845) Thanks @vincentkoc.
 - Update/Core: add an optional built-in auto-updater for package installs (`update.auto.*`), default-off, with stable rollout delay+jitter and beta hourly cadence.
 - CLI/Update: add `openclaw update --dry-run` to preview channel/tag/target/restart actions without mutating config, installing, syncing plugins, or restarting.
@@ -34,6 +35,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- macOS/Config: prevent Aperture routing controls in Config from clobbering unsaved draft edits by requiring Save/Reload before applying routing changes.
 - Agents/Compaction: count auto-compactions only after a non-retry `auto_compaction_end`, keeping session `compactionCount` aligned to completed compactions.
 - Security/CLI: redact sensitive values in `openclaw config get` output before printing config paths, preventing credential leakage to terminal output/history. (#13683) Thanks @SleuthCo.
 - Install/Discord Voice: make `@discordjs/opus` an optional dependency so `openclaw` install/update no longer hard-fails when native Opus builds fail, while keeping `opusscript` as the runtime fallback decoder for Discord voice flows. (#23737, #23733, #23703) Thanks @jeadland, @Sheetaa, and @Breakyman.

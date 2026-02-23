@@ -7,6 +7,7 @@ import SwiftUI
 
 struct GeneralSettings: View {
     @Bindable var state: AppState
+    @State private var tailscaleService = TailscaleService.shared
     @AppStorage(cameraEnabledKey) private var cameraEnabled: Bool = false
     private let healthStore = HealthStore.shared
     private let gatewayManager = GatewayProcessManager.shared
@@ -131,6 +132,9 @@ struct GeneralSettings: View {
                 TailscaleIntegrationSection(
                     connectionMode: self.state.connectionMode,
                     isPaused: self.state.isPaused)
+                if self.tailscaleService.isInstalled {
+                    self.apertureRoutingHint
+                }
                 self.healthRow
             }
 
@@ -231,6 +235,29 @@ struct GeneralSettings: View {
         .transition(.opacity)
         .onAppear { self.gatewayDiscovery.start() }
         .onDisappear { self.gatewayDiscovery.stop() }
+    }
+
+    private var apertureRoutingHint: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "info.circle")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Aperture model routing is in Config > Models.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Button("Open Config tab") {
+                    NotificationCenter.default.post(name: .openclawSelectSettingsTab, object: SettingsTab.config)
+                }
+                .buttonStyle(.link)
+                .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .background(Color.gray.opacity(0.08))
+        .cornerRadius(10)
     }
 
     private var remoteTransportRow: some View {
@@ -701,6 +728,7 @@ struct GeneralSettings_Previews: PreviewProvider {
         GeneralSettings(state: .preview)
             .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
             .environment(TailscaleService.shared)
+            .environment(ApertureService.shared)
     }
 }
 

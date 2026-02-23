@@ -20,6 +20,7 @@ struct OpenClawApp: App {
     @State private var isMenuPresented = false
     @State private var isPanelVisible = false
     @State private var tailscaleService = TailscaleService.shared
+    @State private var apertureService = ApertureService.shared
 
     @MainActor
     private func updateStatusHighlight() {
@@ -82,6 +83,7 @@ struct OpenClawApp: App {
             SettingsRootView(state: self.state, updater: self.delegate.updaterController)
                 .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight, alignment: .topLeading)
                 .environment(self.tailscaleService)
+                .environment(self.apertureService)
         }
         .defaultSize(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
         .windowResizability(.contentSize)
