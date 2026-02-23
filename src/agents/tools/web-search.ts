@@ -668,6 +668,7 @@ async function runSerpApiSearch(params: {
     title: string;
     url: string;
     description: string;
+    published?: string;
     siteName?: string;
   }>
 > {
