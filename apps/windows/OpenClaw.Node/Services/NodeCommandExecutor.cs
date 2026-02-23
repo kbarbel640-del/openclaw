@@ -17,6 +17,7 @@ namespace OpenClaw.Node.Services
                     "system.notify" => HandleSystemNotify(request),
                     "system.which" => await HandleSystemWhichAsync(request),
                     "system.run" => await HandleSystemRunAsync(request),
+                    "screen.list" => await HandleScreenListAsync(request),
                     "screen.record" => await HandleScreenRecordAsync(request),
                     "camera.list" => await HandleCameraListAsync(request),
                     "camera.snap" => await HandleCameraSnapAsync(request),
@@ -186,6 +187,33 @@ namespace OpenClaw.Node.Services
         }
 
         
+        private async Task<BridgeInvokeResponse> HandleScreenListAsync(BridgeInvokeRequest request)
+        {
+            ScreenCaptureService.ScreenDisplayInfo[] displays;
+            try
+            {
+                var svc = new ScreenCaptureService();
+                displays = await svc.ListDisplaysAsync();
+            }
+            catch
+            {
+                // Keep command resilient in mixed environments; expose empty list instead of hard error.
+                displays = Array.Empty<ScreenCaptureService.ScreenDisplayInfo>();
+            }
+
+            var payload = new
+            {
+                displays
+            };
+
+            return new BridgeInvokeResponse
+            {
+                Id = request.Id,
+                Ok = true,
+                PayloadJSON = JsonSerializer.Serialize(payload)
+            };
+        }
+
         private async Task<BridgeInvokeResponse> HandleScreenRecordAsync(BridgeInvokeRequest request)
         {
             var root = ParseParams(request.ParamsJSON);

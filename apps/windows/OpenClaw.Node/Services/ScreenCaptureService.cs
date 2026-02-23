@@ -7,6 +7,48 @@ namespace OpenClaw.Node.Services
 {
     public class ScreenCaptureService
     {
+        public sealed class ScreenDisplayInfo
+        {
+            public int Index { get; set; }
+            public string Id { get; set; } = string.Empty;
+            public string Name { get; set; } = string.Empty;
+        }
+
+        public Task<ScreenDisplayInfo[]> ListDisplaysAsync()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return Task.FromResult(Array.Empty<ScreenDisplayInfo>());
+            }
+
+            try
+            {
+                var displays = Recorder.GetDisplays();
+                if (displays == null || displays.Count == 0)
+                {
+                    return Task.FromResult(Array.Empty<ScreenDisplayInfo>());
+                }
+
+                var result = new ScreenDisplayInfo[displays.Count];
+                for (var i = 0; i < displays.Count; i++)
+                {
+                    var name = displays[i].DeviceName ?? $"Display {i}";
+                    result[i] = new ScreenDisplayInfo
+                    {
+                        Index = i,
+                        Id = name,
+                        Name = name,
+                    };
+                }
+
+                return Task.FromResult(result);
+            }
+            catch
+            {
+                return Task.FromResult(Array.Empty<ScreenDisplayInfo>());
+            }
+        }
+
         public async Task<string> RecordScreenAsBase64Async(int durationMs, int fps, bool includeAudio, int screenIndex = 0)
         {
             if (!OperatingSystem.IsWindows())

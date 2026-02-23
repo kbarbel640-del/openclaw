@@ -25,6 +25,40 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task ScreenList_ShouldReturnDisplaysArray()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "screen-list-1",
+                Command = "screen.list"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.True(res.Ok);
+            Assert.NotNull(res.PayloadJSON);
+
+            using var doc = JsonDocument.Parse(res.PayloadJSON!);
+            var root = doc.RootElement;
+            Assert.True(root.TryGetProperty("displays", out var displays));
+            Assert.Equal(JsonValueKind.Array, displays.ValueKind);
+
+            foreach (var d in displays.EnumerateArray())
+            {
+                Assert.True(d.TryGetProperty("index", out var index));
+                Assert.Equal(JsonValueKind.Number, index.ValueKind);
+                Assert.True(index.GetInt32() >= 0);
+
+                Assert.True(d.TryGetProperty("id", out var id));
+                Assert.Equal(JsonValueKind.String, id.ValueKind);
+
+                Assert.True(d.TryGetProperty("name", out var name));
+                Assert.Equal(JsonValueKind.String, name.ValueKind);
+            }
+        }
+
+        [Fact]
         public async Task ScreenRecord_ShouldReturnExpectedResult_ForCurrentPlatform()
         {
             var executor = new NodeCommandExecutor();

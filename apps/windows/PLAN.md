@@ -13,12 +13,12 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Real Gateway handshake working against local gateway (`hello-ok` confirmed)
 - ✅ Core frame protocol aligned to gateway `req/res/event` flow
 - ✅ Method routing scaffold implemented
-- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.record`, `camera.list`, `camera.snap`)
+- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.list`, `screen.record`, `camera.list`, `camera.snap`)
 - ✅ Pairing pending state can be populated from gateway events (`device.pair.requested`, `node.pair.requested`)
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (42 total)
+- ✅ Tests passing (45 total)
 
 ---
 
@@ -49,9 +49,12 @@ Build a native Windows application that replicates the functionality of the Open
 
 ## Phase 2: System Capabilities (Media & Automation APIs) (In Progress)
 - **Screen/Capture (`Media/`)**
+  - [x] `screen.list` bridge command wired in `NodeCommandExecutor` with display metadata payload
   - [x] `screen.record` bridge command wired in `NodeCommandExecutor`
   - [x] Timed recording parameters handled: `durationMs`, `fps`, `includeAudio`, `screenIndex`
-  - [x] Returns OpenClaw-compatible payload shape: `{ format: "mp4", base64, durationMs, fps, screenIndex, hasAudio }`
+  - [x] Returns OpenClaw-compatible payload shapes:
+    - `screen.list` -> `{ displays: [{ index, id, name }] }`
+    - `screen.record` -> `{ format: "mp4", base64, durationMs, fps, screenIndex, hasAudio }`
   - [x] Initial MP4 recording implementation uses `ScreenRecorderLib` (Windows Media Foundation-backed)
   - [ ] Evaluate/iterate native implementation details (WGC vs Desktop Duplication behavior tuning)
 - **Camera (`Media/`)**
@@ -103,4 +106,5 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Added `screen.record` parameter validation coverage (duration/fps/includeAudio/screenIndex/type invalid-request paths)
 - ✅ Added `camera.list` command coverage (unit + opt-in real gateway response-shape path when a node is available)
 - ✅ Added stricter `camera.list`/device-field shape assertions (unit + real gateway when devices are present)
+- ✅ Added `screen.list` command coverage (unit + service-shape + opt-in real gateway response-shape path when a node is available)
 - ✅ Added opt-in real gateway `camera.snap` coverage using explicit `deviceId` from `camera.list` when available

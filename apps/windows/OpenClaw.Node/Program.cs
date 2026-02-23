@@ -43,7 +43,7 @@ namespace OpenClaw.Node
                 Locale = "en-US",
                 UserAgent = Environment.OSVersion.VersionString,
                 Scopes = new List<string>(),
-                Commands = new List<string> { "system.run", "system.which", "system.notify", "screen.record", "camera.list", "camera.snap" },
+                Commands = new List<string> { "system.run", "system.which", "system.notify", "screen.list", "screen.record", "camera.list", "camera.snap" },
                 Permissions = new Dictionary<string, object>()
             };
 
