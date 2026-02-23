@@ -182,4 +182,36 @@ describe("exec approvals", () => {
     await approvalSeen;
     expect(calls).toContain("exec.approval.request");
   });
+
+  it("reuses the same pending approval id for identical gateway retries", async () => {
+    let holdDecisionResolve: ((value: { decision: string }) => void) | undefined;
+    const holdDecision = new Promise<{ decision: string }>((resolve) => {
+      holdDecisionResolve = resolve;
+    });
+
+    vi.mocked(callGatewayTool).mockImplementation(async (method) => {
+      if (method === "exec.approval.request") {
+        return holdDecision;
+      }
+      return { ok: true };
+    });
+
+    const tool = createExecTool({
+      host: "gateway",
+      ask: "always",
+      security: "allowlist",
+      approvalRunningNoticeMs: 0,
+    });
+
+    const first = await tool.execute("call-gw-1", { command: "/usr/bin/printf hello" });
+    const second = await tool.execute("call-gw-2", { command: "/usr/bin/printf hello" });
+
+    expect(first.details.status).toBe("approval-pending");
+    expect(second.details.status).toBe("approval-pending");
+    expect((first.details as { approvalId?: string }).approvalId).toBe(
+      (second.details as { approvalId?: string }).approvalId,
+    );
+
+    holdDecisionResolve?.({ decision: "deny" });
+  });
 });

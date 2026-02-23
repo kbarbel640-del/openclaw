@@ -120,9 +120,18 @@ When approvals are required, the exec tool returns immediately with
 the Gateway emits system events (`Exec finished` / `Exec denied`). If the command is still
 running after `tools.exec.approvalRunningNoticeMs`, a single `Exec running` notice is emitted.
 
+If your workspace uses a separate chat policy gate (for example `GO <LEDGER_ID>`), that
+policy does not automatically resolve gateway exec approvals. Resolve the runtime approval
+request with `/approve <id> allow-once|allow-always|deny`.
+For clean operations, run one approval-gated exec at a time so approval ids are not mixed up.
+
+If `/approve` fails with `unauthorized: device token mismatch`, check gateway token source drift.
+Keep `gateway.auth.token` and service environment token values aligned; avoid multiple token-forcing
+systemd drop-ins that inject conflicting `OPENCLAW_GATEWAY_TOKEN` values.
+
 ## Allowlist + safe bins
 
-Allowlist enforcement matches **resolved binary paths only** (no basename matches). When
+Allowlist enforcement matches **resolved binary paths only** (no basename matches, no full-command-string matching). When
 `security=allowlist`, shell commands are auto-allowed only if every pipeline segment is
 allowlisted or a safe bin. Chaining (`;`, `&&`, `||`) and redirections are rejected in
 allowlist mode unless every top-level segment satisfies the allowlist (including safe bins).

@@ -508,6 +508,75 @@ describe("exec approval handlers", () => {
       vi.useRealTimers();
     }
   });
+
+  it("accepts unique approval id prefixes", async () => {
+    const { handlers, broadcasts, respond, context } = createExecApprovalFixture();
+
+    const requestPromise = requestExecApproval({
+      handlers,
+      respond,
+      context,
+      params: { id: "approval-prefix-1234", host: "gateway" },
+    });
+
+    const requested = broadcasts.find((entry) => entry.event === "exec.approval.requested");
+    const fullId = (requested?.payload as { id?: string })?.id ?? "";
+    expect(fullId).toBe("approval-prefix-1234");
+
+    const resolveRespond = vi.fn();
+    await resolveExecApproval({
+      handlers,
+      id: "approval-prefix",
+      respond: resolveRespond,
+      context,
+    });
+
+    await requestPromise;
+    expect(resolveRespond).toHaveBeenCalledWith(true, { ok: true }, undefined);
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({ id: "approval-prefix-1234", decision: "allow-once" }),
+      undefined,
+    );
+  });
+
+  it("rejects ambiguous approval id prefixes", async () => {
+    const manager = new ExecApprovalManager();
+    const handlers = createExecApprovalHandlers(manager);
+    const context = { broadcast: () => {} };
+    const respondA = vi.fn();
+    const respondB = vi.fn();
+
+    void requestExecApproval({
+      handlers,
+      respond: respondA,
+      context,
+      params: { id: "same-prefix-a", host: "gateway", twoPhase: true, timeoutMs: 50 },
+    });
+    void requestExecApproval({
+      handlers,
+      respond: respondB,
+      context,
+      params: { id: "same-prefix-b", host: "gateway", twoPhase: true, timeoutMs: 50 },
+    });
+
+    const resolveRespond = vi.fn();
+    await resolveExecApproval({
+      handlers,
+      id: "same-prefix",
+      respond: resolveRespond,
+      context,
+    });
+
+    expect(resolveRespond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        code: "INVALID_REQUEST",
+        message: "ambiguous approval id prefix",
+      }),
+    );
+  });
 });
 
 describe("gateway healthHandlers.status scope handling", () => {

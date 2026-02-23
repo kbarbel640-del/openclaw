@@ -40,6 +40,27 @@ type PendingEntry = {
 export class ExecApprovalManager {
   private pending = new Map<string, PendingEntry>();
 
+  resolvePendingId(idOrPrefix: string): { id: string | null; ambiguous: boolean } {
+    const query = idOrPrefix.trim();
+    if (!query) {
+      return { id: null, ambiguous: false };
+    }
+    if (this.pending.has(query)) {
+      return { id: query, ambiguous: false };
+    }
+    const lowered = query.toLowerCase();
+    const matches = Array.from(this.pending.keys()).filter((id) =>
+      id.toLowerCase().startsWith(lowered),
+    );
+    if (matches.length === 1) {
+      return { id: matches[0], ambiguous: false };
+    }
+    if (matches.length > 1) {
+      return { id: null, ambiguous: true };
+    }
+    return { id: null, ambiguous: false };
+  }
+
   create(
     request: ExecApprovalRequestPayload,
     timeoutMs: number,

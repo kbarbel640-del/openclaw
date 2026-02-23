@@ -172,6 +172,8 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
   - [Can I run multiple Gateways on the same host?](#can-i-run-multiple-gateways-on-the-same-host)
   - [What does "invalid handshake" / code 1008 mean?](#what-does-invalid-handshake-code-1008-mean)
   - [Why do devices commands fail with device token mismatch after passing --token?](#why-do-devices-commands-fail-with-device-token-mismatch-after-passing-token)
+  - [Why do I still get approval-request-failed after sending GO?](#why-do-i-still-get-approval-request-failed-after-sending-go)
+  - [Why does approve fail with unauthorized device token mismatch?](#why-does-approve-fail-with-unauthorized-device-token-mismatch)
 - [Logging and debugging](#logging-and-debugging)
   - [Where are logs?](#where-are-logs)
   - [How do I start/stop/restart the Gateway service?](#how-do-i-startstoprestart-the-gateway-service)
@@ -2520,6 +2522,94 @@ openclaw devices list --json
 ```
 
 Only pass `--token` when you intentionally use a device token workflow.
+
+### Why do I still get approval-request-failed after sending GO
+
+`GO <LEDGER_ID>` style messages are often used as a workspace policy gate for intent.
+Gateway exec approvals are a separate runtime gate.
+
+If exec is configured to prompt, you must approve the request id from `Exec approval required`:
+
+```text
+/approve <id> allow-once
+```
+
+Common mistakes:
+
+- Approving with `GO ...` only, without `/approve <id> ...`
+- Using a gateway/system id instead of the approval prompt `ID: ...`
+- Approving in a different chat/session than where the prompt was delivered
+- Approving after the request expires
+- Triggering multiple approval-gated execs at once and approving the wrong one
+
+Recommended operator sequence:
+
+1. Trigger one exec.
+2. Wait for `Exec approval required` and use that exact `ID: ...`.
+3. Approve in the same chat with `/approve <id> allow-once`.
+4. Wait for `Exec finished` (or explicit error) before the next exec.
+5. If it fails, retrigger once for a fresh id and approve that fresh id quickly.
+
+If prompts are easy to miss, forward to both the current session and an explicit chat target:
+
+```bash
+openclaw config set approvals.exec.enabled true
+openclaw config set approvals.exec.mode both
+openclaw config set approvals.exec.targets '[{"channel":"telegram","to":"123456789"}]'
+openclaw gateway restart
+```
+
+If issues persist, collect user-service diagnostics (Linux):
+
+```bash
+openclaw gateway status
+journalctl --user -u openclaw-gateway --no-pager -n 200
+```
+
+### Why does the approval id change on retries
+
+When an exec request requires approval, the gateway tracks a pending request id with a timeout window
+(default 120 seconds). Retriggering the same command can still produce a new id if the original request
+expired or a different request shape was submitted.
+
+Operator guidance:
+
+1. Prefer one approval-gated exec at a time.
+2. Use the latest full `ID: ...` value from the current prompt.
+3. If you approve with a short prefix, ensure it is unique; ambiguous prefixes are rejected.
+4. If you see `unknown approval id`, request a fresh prompt and approve that id immediately.
+
+### Why does approve fail with unauthorized device token mismatch
+
+This often indicates token source drift, not a true device re-pairing problem.
+
+Typical drift pattern:
+
+- `gateway.auth.token` in `openclaw.json` has one value.
+- systemd environment (`OPENCLAW_GATEWAY_TOKEN`) injects a different value via drop-ins.
+
+Because different runtime paths may read different sources, approval submission can fail with:
+
+- `Failed to submit approval`
+- `gateway closed (1008): unauthorized: device token mismatch`
+
+Checks:
+
+```bash
+openclaw config get gateway.auth.token
+systemctl --user show openclaw-gateway -p Environment -p DropInPaths --no-pager
+```
+
+Fix:
+
+1. Use one source of truth (recommended: `gateway.auth.token` in config).
+2. Disable duplicate token-forcing drop-ins.
+3. Reload + restart:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart openclaw-gateway
+```
 
 ## Logging and debugging
 

@@ -249,6 +249,23 @@ Actions:
 - **Always allow** → add to allowlist + run
 - **Deny** → block
 
+### Operator intent versus exec approval
+
+Many teams use a chat policy token (for example `GO <LEDGER_ID>`) to approve agent intent.
+That does **not** resolve gateway exec approvals by itself.
+
+For host exec, you must resolve the gateway approval request id:
+
+```
+/approve <id> allow-once
+/approve <id> allow-always
+/approve <id> deny
+```
+
+Use the `ID:` shown in the `Exec approval required` prompt. Do not use gateway event IDs
+or unrelated system IDs.
+Prefer the full `ID: ...` value. Unique id prefixes can work, but ambiguous prefixes are rejected.
+
 ## Approval forwarding to chat channels
 
 You can forward exec approval prompts to any chat channel (including plugin channels) and approve
@@ -261,8 +278,7 @@ Config:
   approvals: {
     exec: {
       enabled: true,
-      mode: "session", // "session" | "targets" | "both"
-      agentFilter: ["main"],
+      mode: "both", // "session" | "targets" | "both"
       sessionFilter: ["discord"], // substring or regex
       targets: [
         { channel: "slack", to: "U12345678" },
@@ -273,6 +289,9 @@ Config:
 }
 ```
 
+For Telegram-first operator workflows, `mode: "both"` plus an explicit Telegram `target`
+helps avoid missed prompts when session routing is ambiguous.
+
 Reply in chat:
 
 ```
@@ -280,6 +299,63 @@ Reply in chat:
 /approve <id> allow-always
 /approve <id> deny
 ```
+
+### Recommended operator runbook
+
+1. Trigger one exec request.
+2. Wait for `Exec approval required` and copy the fresh `ID: ...` from that prompt.
+3. Approve in the same chat/thread where the prompt appeared:
+   `/approve <id> allow-once`
+4. Wait for `Exec finished` or explicit error before triggering another exec.
+5. If approval fails, retrigger once to get a new id and approve that new id quickly.
+6. If it still fails, collect gateway status + logs and the exact approval id used.
+
+### Allowlist diagnostics trace
+
+For allowlist mismatch debugging on Linux hosts, enable:
+
+```bash
+export OPENCLAW_EXEC_ALLOWLIST_TRACE=1
+```
+
+Then restart the gateway and reproduce the command. Trace output is written to:
+
+`~/.openclaw/derived/exec-allowlist-trace.jsonl`
+
+Each trace entry includes:
+
+- agent key used for lookup
+- command hash + workdir
+- parsed segment metadata (`argv`, `argv0`, resolved path)
+- per-segment match result + matched pattern/pattern id (if any)
+- miss reason
+
+This trace is path/matcher metadata only; it is intended to avoid secret payload logging.
+
+Linux diagnostics (user service):
+
+```bash
+openclaw gateway status
+journalctl --user -u openclaw-gateway --no-pager -n 200
+```
+
+### Gateway token drift and approval failures
+
+If approval submission fails with `unauthorized: device token mismatch`, validate gateway token
+consistency before rotating devices.
+
+Known failure mode:
+
+- Gateway server auth resolves from `gateway.auth.token` in config.
+- Runtime approval submission may read `OPENCLAW_GATEWAY_TOKEN` from the environment.
+- If those values differ, `/approve` can fail with auth errors that look like device issues.
+
+Recommended fix:
+
+1. Check both sources.
+2. Keep one source of truth (prefer config `gateway.auth.token`).
+3. Disable duplicate token-forcing drop-ins.
+4. `systemctl --user daemon-reload && systemctl --user restart openclaw-gateway`.
 
 ### macOS IPC flow
 
