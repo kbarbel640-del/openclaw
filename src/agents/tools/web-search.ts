@@ -505,14 +505,13 @@ async function runGeminiSearch(params: {
   model: string;
   timeoutSeconds: number;
 }): Promise<{ content: string; citations: Array<{ url: string; title?: string }> }> {
-  // Gemini REST API requires the API key as a query parameter (no Bearer token alternative
-  // without Application Default Credentials). Be cautious about logging this URL.
-  const endpoint = `${GEMINI_API_BASE}/models/${params.model}:generateContent?key=${params.apiKey}`;
+  const endpoint = `${GEMINI_API_BASE}/models/${params.model}:generateContent`;
 
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-goog-api-key": params.apiKey,
     },
     body: JSON.stringify({
       contents: [
