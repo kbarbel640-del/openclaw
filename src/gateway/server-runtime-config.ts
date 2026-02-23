@@ -46,6 +46,7 @@ export async function resolveGatewayRuntimeConfig(params: {
   openResponsesEnabled?: boolean;
   auth?: GatewayAuthConfig;
   tailscale?: GatewayTailscaleConfig;
+  env?: NodeJS.ProcessEnv;
 }): Promise<GatewayRuntimeConfig> {
   const bindMode = params.bind ?? params.cfg.gateway?.bind ?? "loopback";
   const customBindHost = params.cfg.gateway?.customBindHost;
@@ -101,7 +102,7 @@ export async function resolveGatewayRuntimeConfig(params: {
   const resolvedAuth = resolveGatewayAuth({
     authConfig: params.cfg.gateway?.auth,
     authOverride: params.auth,
-    env: process.env,
+    env: params.env ?? process.env,
     tailscaleMode,
   });
   const authMode: ResolvedGatewayAuth["mode"] = resolvedAuth.mode;
