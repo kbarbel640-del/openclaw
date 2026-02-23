@@ -112,4 +112,34 @@ describe("createAcpReplyProjector", () => {
       { kind: "tool", text: "🧰 exec ls" },
     ]);
   });
+
+  it("flushes pending streamed text before tool/status updates", async () => {
+    const deliveries: Array<{ kind: string; text?: string }> = [];
+    const projector = createAcpReplyProjector({
+      cfg: createCfg({
+        acp: {
+          enabled: true,
+          stream: {
+            batchMs: 0,
+            maxChunkChars: 256,
+          },
+        },
+      }),
+      shouldSendToolSummaries: true,
+      provider: "discord",
+      deliver: async (kind, payload) => {
+        deliveries.push({ kind, text: payload.text });
+        return true;
+      },
+    });
+
+    await projector.onEvent({ type: "text_delta", text: "Hello" });
+    await projector.onEvent({ type: "text_delta", text: " world" });
+    await projector.onEvent({ type: "status", text: "running tool" });
+
+    expect(deliveries).toEqual([
+      { kind: "block", text: "Hello world" },
+      { kind: "tool", text: "⚙️ running tool" },
+    ]);
+  });
 });

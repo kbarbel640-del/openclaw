@@ -1,6 +1,8 @@
 import type { AcpRuntimeEvent } from "../../acp/runtime/types.js";
+import { EmbeddedBlockChunker } from "../../agents/pi-embedded-block-chunker.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ReplyPayload } from "../types.js";
+import { createBlockReplyPipeline } from "./block-reply-pipeline.js";
 import {
   resolveBlockStreamingChunking,
   resolveBlockStreamingCoalescing,
@@ -9,6 +11,7 @@ import type { ReplyDispatchKind } from "./reply-dispatcher.js";
 
 const DEFAULT_ACP_STREAM_BATCH_MS = 350;
 const DEFAULT_ACP_STREAM_MAX_CHUNK_CHARS = 1800;
+const ACP_BLOCK_REPLY_TIMEOUT_MS = 15_000;
 
 function clampPositiveInteger(
   value: unknown,
@@ -42,23 +45,64 @@ function resolveAcpStreamMaxChunkChars(cfg: OpenClawConfig): number {
   });
 }
 
-function resolveAcpStreamMinChunkChars(params: {
+function resolveAcpStreamingConfig(params: {
   cfg: OpenClawConfig;
   provider?: string;
   accountId?: string;
-  maxChunkChars: number;
-}): number {
-  const chunking = resolveBlockStreamingChunking(params.cfg, params.provider, params.accountId);
-  const coalescing = resolveBlockStreamingCoalescing(
+}): {
+  chunking: {
+    minChars: number;
+    maxChars: number;
+    breakPreference: "paragraph" | "newline" | "sentence";
+    flushOnParagraph?: boolean;
+  };
+  coalescing: {
+    minChars: number;
+    maxChars: number;
+    idleMs: number;
+    joiner: string;
+    flushOnEnqueue?: boolean;
+  };
+} {
+  const batchMs = resolveAcpStreamBatchMs(params.cfg);
+  const configuredMaxChars = resolveAcpStreamMaxChunkChars(params.cfg);
+  const chunkingDefaults = resolveBlockStreamingChunking(
+    params.cfg,
+    params.provider,
+    params.accountId,
+  );
+  const chunkingMax = Math.max(1, Math.min(chunkingDefaults.maxChars, configuredMaxChars));
+  const chunkingMin = Math.min(chunkingDefaults.minChars, chunkingMax);
+  const chunking = {
+    ...chunkingDefaults,
+    minChars: chunkingMin,
+    maxChars: chunkingMax,
+  };
+  const coalescingDefaults = resolveBlockStreamingCoalescing(
     params.cfg,
     params.provider,
     params.accountId,
     chunking,
   );
-  return clampPositiveInteger(coalescing?.minChars, params.maxChunkChars, {
-    min: 1,
-    max: params.maxChunkChars,
-  });
+  const coalescingMax = Math.max(
+    1,
+    Math.min(coalescingDefaults?.maxChars ?? chunking.maxChars, chunking.maxChars),
+  );
+  const coalescingMin = Math.min(coalescingDefaults?.minChars ?? chunking.minChars, coalescingMax);
+  const coalescing = {
+    minChars: coalescingMin,
+    maxChars: coalescingMax,
+    idleMs: batchMs,
+    joiner:
+      coalescingDefaults?.joiner ??
+      (chunking.breakPreference === "sentence"
+        ? " "
+        : chunking.breakPreference === "newline"
+          ? "\n"
+          : "\n\n"),
+    flushOnEnqueue: coalescingDefaults?.flushOnEnqueue ?? chunking.flushOnParagraph === true,
+  };
+  return { chunking, coalescing };
 }
 
 export type AcpReplyProjector = {
@@ -73,36 +117,41 @@ export function createAcpReplyProjector(params: {
   provider?: string;
   accountId?: string;
 }): AcpReplyProjector {
-  const batchMs = resolveAcpStreamBatchMs(params.cfg);
-  const maxChunkChars = resolveAcpStreamMaxChunkChars(params.cfg);
-  const minChunkChars = resolveAcpStreamMinChunkChars({
+  const streaming = resolveAcpStreamingConfig({
     cfg: params.cfg,
     provider: params.provider,
     accountId: params.accountId,
-    maxChunkChars,
   });
-  let streamBuffer = "";
-  let lastFlushAt = 0;
+  const blockReplyPipeline = createBlockReplyPipeline({
+    onBlockReply: async (payload) => {
+      await params.deliver("block", payload);
+    },
+    timeoutMs: ACP_BLOCK_REPLY_TIMEOUT_MS,
+    coalescing: streaming.coalescing,
+  });
+  const chunker = new EmbeddedBlockChunker(streaming.chunking);
+
+  const drainChunker = (force: boolean) => {
+    chunker.drain({
+      force,
+      emit: (chunk) => {
+        blockReplyPipeline.enqueue({ text: chunk });
+      },
+    });
+  };
 
   const flush = async (force = false): Promise<void> => {
-    while (streamBuffer.length > 0) {
-      const now = Date.now();
-      if (!force && streamBuffer.length < minChunkChars) {
-        return;
-      }
-      if (!force && streamBuffer.length < maxChunkChars && now - lastFlushAt < batchMs) {
-        return;
-      }
-      const chunk = streamBuffer.slice(0, maxChunkChars);
-      streamBuffer = streamBuffer.slice(chunk.length);
-      const didDeliver = await params.deliver("block", { text: chunk });
-      if (didDeliver) {
-        lastFlushAt = Date.now();
-      }
-      if (!force && streamBuffer.length < maxChunkChars) {
-        return;
-      }
+    drainChunker(force);
+    await blockReplyPipeline.flush({ force });
+  };
+
+  const emitToolSummary = async (prefix: string, text: string): Promise<void> => {
+    if (!params.shouldSendToolSummaries || !text) {
+      return;
     }
+    // Keep tool summaries ordered after any pending streamed text.
+    await flush(true);
+    await params.deliver("tool", { text: `${prefix} ${text}` });
   };
 
   const onEvent = async (event: AcpRuntimeEvent): Promise<void> => {
@@ -111,21 +160,21 @@ export function createAcpReplyProjector(params: {
         return;
       }
       if (event.text) {
-        streamBuffer += event.text;
-        await flush(false);
+        chunker.append(event.text);
+        drainChunker(false);
       }
       return;
     }
     if (event.type === "status") {
-      if (params.shouldSendToolSummaries && event.text) {
-        await params.deliver("tool", { text: `⚙️ ${event.text}` });
-      }
+      await emitToolSummary("⚙️", event.text);
       return;
     }
     if (event.type === "tool_call") {
-      if (params.shouldSendToolSummaries && event.text) {
-        await params.deliver("tool", { text: `🧰 ${event.text}` });
-      }
+      await emitToolSummary("🧰", event.text);
+      return;
+    }
+    if (event.type === "done" || event.type === "error") {
+      await flush(true);
     }
   };
 
