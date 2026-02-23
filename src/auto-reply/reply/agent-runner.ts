@@ -714,7 +714,7 @@ export async function runReplyAgent(params: {
           const readPaths = extractReadPaths(messages);
           const workspaceDir = process.cwd();
           const memoryBackend = cfg?.memory?.backend;
-          const requiredReads = memoryBackend === "external" ? ["WORKFLOW_AUTO.md"] : undefined;
+          const requiredReads = memoryBackend === "external" ? [] : undefined;
           const audit = auditPostCompactionReads(readPaths, workspaceDir, requiredReads);
           if (!audit.passed) {
             enqueueSystemEvent(formatAuditWarning(audit.missingPatterns), { sessionKey });
