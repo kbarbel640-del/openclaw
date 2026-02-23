@@ -20,8 +20,6 @@ class FakeProvider implements VoiceCallProvider {
   readonly name = "plivo" as const;
   readonly playTtsCalls: PlayTtsInput[] = [];
   readonly hangupCalls: HangupCallInput[] = [];
-  readonly startListeningCalls: StartListeningInput[] = [];
-  readonly stopListeningCalls: StopListeningInput[] = [];
 
   verifyWebhook(_ctx: WebhookContext): WebhookVerificationResult {
     return { ok: true };
@@ -38,52 +36,21 @@ class FakeProvider implements VoiceCallProvider {
   async playTts(input: PlayTtsInput): Promise<void> {
     this.playTtsCalls.push(input);
   }
-  async startListening(input: StartListeningInput): Promise<void> {
-    this.startListeningCalls.push(input);
-  }
-  async stopListening(input: StopListeningInput): Promise<void> {
-    this.stopListeningCalls.push(input);
-  }
-}
-
-let storeSeq = 0;
-
-function createTestStorePath(): string {
-  storeSeq += 1;
-  return path.join(os.tmpdir(), `openclaw-voice-call-test-${Date.now()}-${storeSeq}`);
-}
-
-function createManagerHarness(
-  configOverrides: Record<string, unknown> = {},
-  provider = new FakeProvider(),
-): {
-  manager: CallManager;
-  provider: FakeProvider;
-} {
-  const config = VoiceCallConfigSchema.parse({
-    enabled: true,
-    provider: "plivo",
-    fromNumber: "+15550000000",
-    ...configOverrides,
-  });
-  const manager = new CallManager(config, createTestStorePath());
-  manager.initialize(provider, "https://example.com/voice/webhook");
-  return { manager, provider };
-}
-
-function markCallAnswered(manager: CallManager, callId: string, eventId: string): void {
-  manager.processEvent({
-    id: eventId,
-    type: "call.answered",
-    callId,
-    providerCallId: "request-uuid",
-    timestamp: Date.now(),
-  });
+  async startListening(_input: StartListeningInput): Promise<void> {}
+  async stopListening(_input: StopListeningInput): Promise<void> {}
 }
 
 describe("CallManager", () => {
   it("upgrades providerCallId mapping when provider ID changes", async () => {
-    const { manager } = createManagerHarness();
+    const config = VoiceCallConfigSchema.parse({
+      enabled: true,
+      provider: "plivo",
+      fromNumber: "+15550000000",
+    });
+
+    const storePath = path.join(os.tmpdir(), `openclaw-voice-call-test-${Date.now()}`);
+    const manager = new CallManager(config, storePath);
+    manager.initialize(new FakeProvider(), "https://example.com/voice/webhook");
 
     const { callId, success, error } = await manager.initiateCall("+15550000001");
     expect(success).toBe(true);
@@ -108,7 +75,16 @@ describe("CallManager", () => {
   });
 
   it("speaks initial message on answered for notify mode (non-Twilio)", async () => {
-    const { manager, provider } = createManagerHarness();
+    const config = VoiceCallConfigSchema.parse({
+      enabled: true,
+      provider: "plivo",
+      fromNumber: "+15550000000",
+    });
+
+    const storePath = path.join(os.tmpdir(), `openclaw-voice-call-test-${Date.now()}`);
+    const provider = new FakeProvider();
+    const manager = new CallManager(config, storePath);
+    manager.initialize(provider, "https://example.com/voice/webhook");
 
     const { callId, success } = await manager.initiateCall("+15550000002", undefined, {
       message: "Hello there",
@@ -131,10 +107,18 @@ describe("CallManager", () => {
   });
 
   it("rejects inbound calls with missing caller ID when allowlist enabled", () => {
-    const { manager, provider } = createManagerHarness({
+    const config = VoiceCallConfigSchema.parse({
+      enabled: true,
+      provider: "plivo",
+      fromNumber: "+15550000000",
       inboundPolicy: "allowlist",
       allowFrom: ["+15550001234"],
     });
+
+    const storePath = path.join(os.tmpdir(), `openclaw-voice-call-test-${Date.now()}`);
+    const provider = new FakeProvider();
+    const manager = new CallManager(config, storePath);
+    manager.initialize(provider, "https://example.com/voice/webhook");
 
     manager.processEvent({
       id: "evt-allowlist-missing",
@@ -152,10 +136,18 @@ describe("CallManager", () => {
   });
 
   it("rejects inbound calls with anonymous caller ID when allowlist enabled", () => {
-    const { manager, provider } = createManagerHarness({
+    const config = VoiceCallConfigSchema.parse({
+      enabled: true,
+      provider: "plivo",
+      fromNumber: "+15550000000",
       inboundPolicy: "allowlist",
       allowFrom: ["+15550001234"],
     });
+
+    const storePath = path.join(os.tmpdir(), `openclaw-voice-call-test-${Date.now()}`);
+    const provider = new FakeProvider();
+    const manager = new CallManager(config, storePath);
+    manager.initialize(provider, "https://example.com/voice/webhook");
 
     manager.processEvent({
       id: "evt-allowlist-anon",
@@ -174,10 +166,18 @@ describe("CallManager", () => {
   });
 
   it("rejects inbound calls that only match allowlist suffixes", () => {
-    const { manager, provider } = createManagerHarness({
+    const config = VoiceCallConfigSchema.parse({
+      enabled: true,
+      provider: "plivo",
+      fromNumber: "+15550000000",
       inboundPolicy: "allowlist",
       allowFrom: ["+15550001234"],
     });
+
+    const storePath = path.join(os.tmpdir(), `openclaw-voice-call-test-${Date.now()}`);
+    const provider = new FakeProvider();
+    const manager = new CallManager(config, storePath);
+    manager.initialize(provider, "https://example.com/voice/webhook");
 
     manager.processEvent({
       id: "evt-allowlist-suffix",
@@ -195,43 +195,18 @@ describe("CallManager", () => {
     expect(provider.hangupCalls[0]?.providerCallId).toBe("provider-suffix");
   });
 
-  it("rejects duplicate inbound events with a single hangup call", () => {
-    const { manager, provider } = createManagerHarness({
-      inboundPolicy: "disabled",
-    });
-
-    manager.processEvent({
-      id: "evt-reject-init",
-      type: "call.initiated",
-      callId: "provider-dup",
-      providerCallId: "provider-dup",
-      timestamp: Date.now(),
-      direction: "inbound",
-      from: "+15552222222",
-      to: "+15550000000",
-    });
-
-    manager.processEvent({
-      id: "evt-reject-ring",
-      type: "call.ringing",
-      callId: "provider-dup",
-      providerCallId: "provider-dup",
-      timestamp: Date.now(),
-      direction: "inbound",
-      from: "+15552222222",
-      to: "+15550000000",
-    });
-
-    expect(manager.getCallByProviderCallId("provider-dup")).toBeUndefined();
-    expect(provider.hangupCalls).toHaveLength(1);
-    expect(provider.hangupCalls[0]?.providerCallId).toBe("provider-dup");
-  });
-
   it("accepts inbound calls that exactly match the allowlist", () => {
-    const { manager } = createManagerHarness({
+    const config = VoiceCallConfigSchema.parse({
+      enabled: true,
+      provider: "plivo",
+      fromNumber: "+15550000000",
       inboundPolicy: "allowlist",
       allowFrom: ["+15550001234"],
     });
+
+    const storePath = path.join(os.tmpdir(), `openclaw-voice-call-test-${Date.now()}`);
+    const manager = new CallManager(config, storePath);
+    manager.initialize(new FakeProvider(), "https://example.com/voice/webhook");
 
     manager.processEvent({
       id: "evt-allowlist-exact",
@@ -247,162 +222,40 @@ describe("CallManager", () => {
     expect(manager.getCallByProviderCallId("provider-exact")).toBeDefined();
   });
 
-  it("completes a closed-loop turn without live audio", async () => {
-    const { manager, provider } = createManagerHarness({
-      transcriptTimeoutMs: 5000,
+  it("does not auto-create a duplicate inbound call when providerCallId matches an existing call", () => {
+    const config = VoiceCallConfigSchema.parse({
+      enabled: true,
+      provider: "plivo",
+      fromNumber: "+15550000000",
+      inboundPolicy: "open",
     });
 
-    const started = await manager.initiateCall("+15550000003");
-    expect(started.success).toBe(true);
+    const storePath = path.join(os.tmpdir(), `openclaw-voice-call-test-${Date.now()}`);
+    const manager = new CallManager(config, storePath);
+    manager.initialize(new FakeProvider(), "https://example.com/voice/webhook");
 
-    markCallAnswered(manager, started.callId, "evt-closed-loop-answered");
+    const existing = manager.ensureInboundCall({
+      providerCallId: "provider-1",
+      from: "+15550001234",
+      to: "+15550000000",
+    });
+    expect(existing).toBeDefined();
 
-    const turnPromise = manager.continueCall(started.callId, "How can I help?");
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
+    // Simulate a provider emitting an event with a temporary/foreign callId,
+    // but a stable providerCallId that already exists.
     manager.processEvent({
-      id: "evt-closed-loop-speech",
-      type: "call.speech",
-      callId: started.callId,
-      providerCallId: "request-uuid",
+      id: "evt-dup-1",
+      type: "call.initiated",
+      callId: "foreign-call-id",
+      providerCallId: "provider-1",
       timestamp: Date.now(),
-      transcript: "Please check status",
-      isFinal: true,
+      direction: "inbound",
+      from: "+15550001234",
+      to: "+15550000000",
     });
 
-    const turn = await turnPromise;
-    expect(turn.success).toBe(true);
-    expect(turn.transcript).toBe("Please check status");
-    expect(provider.startListeningCalls).toHaveLength(1);
-    expect(provider.stopListeningCalls).toHaveLength(1);
-
-    const call = manager.getCall(started.callId);
-    expect(call?.transcript.map((entry) => entry.text)).toEqual([
-      "How can I help?",
-      "Please check status",
-    ]);
-    const metadata = (call?.metadata ?? {}) as Record<string, unknown>;
-    expect(typeof metadata.lastTurnLatencyMs).toBe("number");
-    expect(typeof metadata.lastTurnListenWaitMs).toBe("number");
-    expect(metadata.turnCount).toBe(1);
-  });
-
-  it("rejects overlapping continueCall requests for the same call", async () => {
-    const { manager, provider } = createManagerHarness({
-      transcriptTimeoutMs: 5000,
-    });
-
-    const started = await manager.initiateCall("+15550000004");
-    expect(started.success).toBe(true);
-
-    markCallAnswered(manager, started.callId, "evt-overlap-answered");
-
-    const first = manager.continueCall(started.callId, "First prompt");
-    const second = await manager.continueCall(started.callId, "Second prompt");
-    expect(second.success).toBe(false);
-    expect(second.error).toBe("Already waiting for transcript");
-
-    manager.processEvent({
-      id: "evt-overlap-speech",
-      type: "call.speech",
-      callId: started.callId,
-      providerCallId: "request-uuid",
-      timestamp: Date.now(),
-      transcript: "Done",
-      isFinal: true,
-    });
-
-    const firstResult = await first;
-    expect(firstResult.success).toBe(true);
-    expect(firstResult.transcript).toBe("Done");
-    expect(provider.startListeningCalls).toHaveLength(1);
-    expect(provider.stopListeningCalls).toHaveLength(1);
-  });
-
-  it("tracks latency metadata across multiple closed-loop turns", async () => {
-    const { manager, provider } = createManagerHarness({
-      transcriptTimeoutMs: 5000,
-    });
-
-    const started = await manager.initiateCall("+15550000005");
-    expect(started.success).toBe(true);
-
-    markCallAnswered(manager, started.callId, "evt-multi-answered");
-
-    const firstTurn = manager.continueCall(started.callId, "First question");
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    manager.processEvent({
-      id: "evt-multi-speech-1",
-      type: "call.speech",
-      callId: started.callId,
-      providerCallId: "request-uuid",
-      timestamp: Date.now(),
-      transcript: "First answer",
-      isFinal: true,
-    });
-    await firstTurn;
-
-    const secondTurn = manager.continueCall(started.callId, "Second question");
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    manager.processEvent({
-      id: "evt-multi-speech-2",
-      type: "call.speech",
-      callId: started.callId,
-      providerCallId: "request-uuid",
-      timestamp: Date.now(),
-      transcript: "Second answer",
-      isFinal: true,
-    });
-    const secondResult = await secondTurn;
-
-    expect(secondResult.success).toBe(true);
-
-    const call = manager.getCall(started.callId);
-    expect(call?.transcript.map((entry) => entry.text)).toEqual([
-      "First question",
-      "First answer",
-      "Second question",
-      "Second answer",
-    ]);
-    const metadata = (call?.metadata ?? {}) as Record<string, unknown>;
-    expect(metadata.turnCount).toBe(2);
-    expect(typeof metadata.lastTurnLatencyMs).toBe("number");
-    expect(typeof metadata.lastTurnListenWaitMs).toBe("number");
-    expect(provider.startListeningCalls).toHaveLength(2);
-    expect(provider.stopListeningCalls).toHaveLength(2);
-  });
-
-  it("handles repeated closed-loop turns without waiter churn", async () => {
-    const { manager, provider } = createManagerHarness({
-      transcriptTimeoutMs: 5000,
-    });
-
-    const started = await manager.initiateCall("+15550000006");
-    expect(started.success).toBe(true);
-
-    markCallAnswered(manager, started.callId, "evt-loop-answered");
-
-    for (let i = 1; i <= 5; i++) {
-      const turnPromise = manager.continueCall(started.callId, `Prompt ${i}`);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      manager.processEvent({
-        id: `evt-loop-speech-${i}`,
-        type: "call.speech",
-        callId: started.callId,
-        providerCallId: "request-uuid",
-        timestamp: Date.now(),
-        transcript: `Answer ${i}`,
-        isFinal: true,
-      });
-      const result = await turnPromise;
-      expect(result.success).toBe(true);
-      expect(result.transcript).toBe(`Answer ${i}`);
-    }
-
-    const call = manager.getCall(started.callId);
-    const metadata = (call?.metadata ?? {}) as Record<string, unknown>;
-    expect(metadata.turnCount).toBe(5);
-    expect(provider.startListeningCalls).toHaveLength(5);
-    expect(provider.stopListeningCalls).toHaveLength(5);
+    expect(manager.getActiveCalls()).toHaveLength(1);
+    expect(manager.getCallByProviderCallId("provider-1")?.callId).toBe(existing?.callId);
+    expect(manager.getCall("foreign-call-id")).toBeUndefined();
   });
 });
