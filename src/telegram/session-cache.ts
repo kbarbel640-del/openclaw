@@ -46,6 +46,6 @@ export async function clearStaleThreadIdFromSession(params: {
       log.info(`Cleared stale thread IDs for chat ${params.chatId}`);
     }
   } catch (err) {
-    log.warn(`Failed to clear stale thread ID for chat ${params.chatId}: ${err}`);
+    log.warn(`Failed to clear stale thread ID for chat ${params.chatId}: ${String(err)}`);
   }
 }
