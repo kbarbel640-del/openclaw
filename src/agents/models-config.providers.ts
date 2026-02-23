@@ -7,7 +7,6 @@ import {
 } from "../providers/github-copilot-token.js";
 import { ensureAuthProfileStore, listProfilesForProvider } from "./auth-profiles.js";
 import { discoverBedrockModels } from "./bedrock-discovery.js";
-import { discoverEternalAIModels, ETERNALAI_BASE_URL } from "./eternalai-models.js";
 import {
   buildBytePlusModelDefinition,
   BYTEPLUS_BASE_URL,
@@ -26,6 +25,7 @@ import {
   DOUBAO_CODING_BASE_URL,
   DOUBAO_CODING_MODEL_CATALOG,
 } from "./doubao-models.js";
+import { discoverEternalAIModels, ETERNALAI_BASE_URL } from "./eternalai-models.js";
 import {
   discoverHuggingfaceModels,
   HUGGINGFACE_BASE_URL,
