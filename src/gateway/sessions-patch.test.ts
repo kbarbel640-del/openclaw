@@ -314,4 +314,100 @@ describe("gateway sessions patch", () => {
     expect(entry.providerOverride).toBe("synthetic");
     expect(entry.modelOverride).toBe("hf:moonshotai/Kimi-K2.5");
   });
+
+  test("sets workspace for subagent session", async () => {
+    const store: Record<string, SessionEntry> = {};
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:subagent:child",
+      patch: { key: "agent:main:subagent:child", workspace: "/home/user/workspace-rs" },
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) {
+      return;
+    }
+    expect(res.entry.workspace).toBe("/home/user/workspace-rs");
+  });
+
+  test("trims workspace value", async () => {
+    const store: Record<string, SessionEntry> = {};
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:subagent:child",
+      patch: { key: "agent:main:subagent:child", workspace: "  /tmp/ws  " },
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) {
+      return;
+    }
+    expect(res.entry.workspace).toBe("/tmp/ws");
+  });
+
+  test("rejects empty workspace", async () => {
+    const store: Record<string, SessionEntry> = {};
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:subagent:child",
+      patch: { key: "agent:main:subagent:child", workspace: "  " },
+    });
+    expect(res.ok).toBe(false);
+    if (res.ok) {
+      return;
+    }
+    expect(res.error.message).toContain("invalid workspace: empty");
+  });
+
+  test("rejects clearing workspace once set", async () => {
+    const store: Record<string, SessionEntry> = {
+      "agent:main:subagent:child": { workspace: "/tmp/ws" } as SessionEntry,
+    };
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:subagent:child",
+      patch: { key: "agent:main:subagent:child", workspace: null },
+    });
+    expect(res.ok).toBe(false);
+    if (res.ok) {
+      return;
+    }
+    expect(res.error.message).toContain("workspace cannot be cleared once set");
+  });
+
+  test("rejects changing workspace once set", async () => {
+    const store: Record<string, SessionEntry> = {
+      "agent:main:subagent:child": { workspace: "/tmp/ws-old" } as SessionEntry,
+    };
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:subagent:child",
+      patch: { key: "agent:main:subagent:child", workspace: "/tmp/ws-new" },
+    });
+    expect(res.ok).toBe(false);
+    if (res.ok) {
+      return;
+    }
+    expect(res.error.message).toContain("workspace cannot be changed once set");
+  });
+
+  test("allows re-setting same workspace value", async () => {
+    const store: Record<string, SessionEntry> = {
+      "agent:main:subagent:child": { workspace: "/tmp/ws" } as SessionEntry,
+    };
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:subagent:child",
+      patch: { key: "agent:main:subagent:child", workspace: "/tmp/ws" },
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) {
+      return;
+    }
+    expect(res.entry.workspace).toBe("/tmp/ws");
+  });
 });
