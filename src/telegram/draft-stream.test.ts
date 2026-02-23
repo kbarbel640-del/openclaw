@@ -78,6 +78,41 @@ describe("createTelegramDraftStream", () => {
     expect(api.editMessageText).toHaveBeenCalledWith(123, 17, "Hello again");
   });
 
+  it("retries pending preview after transient send failure with the same text", async () => {
+    vi.useFakeTimers();
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(0);
+    try {
+      const api = createMockDraftApi();
+      api.sendMessage.mockRejectedValueOnce(new Error("timed out")).mockResolvedValueOnce({
+        message_id: 17,
+      });
+      const warn = vi.fn();
+      const stream = createTelegramDraftStream({
+        api: api as unknown as Bot["api"],
+        chatId: 123,
+        warn,
+      });
+
+      stream.update("Hello");
+      expect(api.sendMessage).not.toHaveBeenCalled();
+
+      await stream.flush();
+      expect(api.sendMessage).toHaveBeenCalledTimes(1);
+      expect(stream.messageId()).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("telegram stream preview failed: timed out"),
+      );
+
+      await stream.flush();
+      expect(api.sendMessage).toHaveBeenCalledTimes(2);
+      expect(api.sendMessage).toHaveBeenLastCalledWith(123, "Hello", undefined);
+      expect(stream.messageId()).toBe(17);
+    } finally {
+      nowSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("waits for in-flight updates before final flush edit", async () => {
     let resolveSend: ((value: { message_id: number }) => void) | undefined;
     const firstSend = new Promise<{ message_id: number }>((resolve) => {

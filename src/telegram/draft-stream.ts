@@ -97,8 +97,6 @@ export function createTelegramDraftStream(params: {
       }
     }
 
-    lastSentText = renderedText;
-    lastSentParseMode = renderedParseMode;
     try {
       if (typeof streamMessageId === "number") {
         if (renderedParseMode) {
@@ -108,6 +106,8 @@ export function createTelegramDraftStream(params: {
         } else {
           await params.api.editMessageText(chatId, streamMessageId, renderedText);
         }
+        lastSentText = renderedText;
+        lastSentParseMode = renderedParseMode;
         return true;
       }
       const sendParams = renderedParseMode
@@ -130,12 +130,15 @@ export function createTelegramDraftStream(params: {
           textSnapshot: renderedText,
           parseMode: renderedParseMode,
         });
+        lastSentText = renderedText;
+        lastSentParseMode = renderedParseMode;
         return true;
       }
       streamMessageId = normalizedMessageId;
+      lastSentText = renderedText;
+      lastSentParseMode = renderedParseMode;
       return true;
     } catch (err) {
-      streamState.stopped = true;
       params.warn?.(
         `telegram stream preview failed: ${err instanceof Error ? err.message : String(err)}`,
       );
