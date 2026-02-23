@@ -84,7 +84,9 @@ export async function inspectGatewayRestart(params: {
       : [];
   const running = runtime.status === "running";
   const isOwnedPid = (pid: number | undefined): boolean => {
-    if (pid == null || runtime.pid == null) return false;
+    if (pid == null || runtime.pid == null) {
+      return false;
+    }
     return pid === runtime.pid || isDescendantOf(pid, runtime.pid);
   };
   const ownsPort =
