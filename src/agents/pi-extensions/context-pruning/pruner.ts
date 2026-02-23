@@ -283,10 +283,10 @@ export function pruneContextMessages(params: {
         continue;
       }
       const filtered = content.filter((b: { type: string }) => b.type !== "thinking");
-      // Only strip if there's still meaningful content left.
-      if (filtered.length === 0) {
-        continue;
-      }
+      // Strip thinking blocks; if all content was thinking, the message gets
+      // empty content (filtered.length === 0) and its full char cost is reclaimed.
+      // We do NOT skip the all-thinking case — leaving it unmodified would mean
+      // the thinking blocks remain in context and totalChars is not reduced.
       if (!next) {
         next = messages.slice();
       }
