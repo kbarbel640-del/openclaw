@@ -352,7 +352,10 @@ export type PluginHookBeforePromptBuildEvent = {
 };
 
 export type PluginHookBeforePromptBuildResult = {
+  /** Replace the entire system prompt with this value. */
   systemPrompt?: string;
+  /** Append additional context to the base system prompt (preserves built-in instructions). */
+  systemPromptAppend?: string;
   prependContext?: string;
 };
 

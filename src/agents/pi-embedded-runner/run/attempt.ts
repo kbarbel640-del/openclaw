@@ -215,6 +215,10 @@ export async function resolvePromptBuildHookResult(params: {
       : undefined);
   return {
     systemPrompt: promptBuildResult?.systemPrompt ?? legacyResult?.systemPrompt,
+    systemPromptAppend:
+      [promptBuildResult?.systemPromptAppend, legacyResult?.systemPromptAppend]
+        .filter((value): value is string => Boolean(value))
+        .join("\n\n") || undefined,
     prependContext: [promptBuildResult?.prependContext, legacyResult?.prependContext]
       .filter((value): value is string => Boolean(value))
       .join("\n\n"),
@@ -1043,6 +1047,16 @@ export async function runEmbeddedAttempt(
             applySystemPromptOverrideToSession(activeSession, legacySystemPrompt);
             systemPromptText = legacySystemPrompt;
             log.debug(`hooks: applied systemPrompt override (${legacySystemPrompt.length} chars)`);
+          }
+          const appendSystemPrompt =
+            typeof hookResult?.systemPromptAppend === "string"
+              ? hookResult.systemPromptAppend.trim()
+              : "";
+          if (appendSystemPrompt) {
+            const augmented = `${systemPromptText}\n\n${appendSystemPrompt}`;
+            applySystemPromptOverrideToSession(activeSession, augmented);
+            systemPromptText = augmented;
+            log.debug(`hooks: appended to system prompt (+${appendSystemPrompt.length} chars)`);
           }
         }
 
