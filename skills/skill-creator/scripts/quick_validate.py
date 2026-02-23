@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-
 MAX_SKILL_NAME_LENGTH = 64
 
 
