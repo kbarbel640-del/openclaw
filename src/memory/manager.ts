@@ -40,6 +40,15 @@ const log = createSubsystemLogger("memory");
 
 const INDEX_CACHE = new Map<string, MemoryIndexManager>();
 
+function isClosedSqliteHandleError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return (
+    message.includes("database is closed") ||
+    message.includes("database is not open") ||
+    message.includes("database connection is not open")
+  );
+}
+
 export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements MemorySearchManager {
   private readonly cacheKey: string;
   protected readonly cfg: OpenClawConfig;
@@ -467,14 +476,14 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     return { text: slice.join("\n"), path: relPath };
   }
 
-  status(): MemoryProviderStatus {
+  private buildStatusFromDb(db: DatabaseSync): MemoryProviderStatus {
     const sourceFilter = this.buildSourceFilter();
-    const files = this.db
+    const files = db
       .prepare(`SELECT COUNT(*) as c FROM files WHERE 1=1${sourceFilter.sql}`)
       .get(...sourceFilter.params) as {
       c: number;
     };
-    const chunks = this.db
+    const chunks = db
       .prepare(`SELECT COUNT(*) as c FROM chunks WHERE 1=1${sourceFilter.sql}`)
       .get(...sourceFilter.params) as {
       c: number;
@@ -488,7 +497,7 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       for (const source of sources) {
         bySource.set(source, { files: 0, chunks: 0 });
       }
-      const fileRows = this.db
+      const fileRows = db
         .prepare(
           `SELECT source, COUNT(*) as c FROM files WHERE 1=1${sourceFilter.sql} GROUP BY source`,
         )
@@ -498,7 +507,7 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
         entry.files = row.c ?? 0;
         bySource.set(row.source, entry);
       }
-      const chunkRows = this.db
+      const chunkRows = db
         .prepare(
           `SELECT source, COUNT(*) as c FROM chunks WHERE 1=1${sourceFilter.sql} GROUP BY source`,
         )
@@ -535,7 +544,7 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
             enabled: true,
             entries:
               (
-                this.db.prepare(`SELECT COUNT(*) as c FROM ${EMBEDDING_CACHE_TABLE}`).get() as
+                db.prepare(`SELECT COUNT(*) as c FROM ${EMBEDDING_CACHE_TABLE}`).get() as
                   | { c: number }
                   | undefined
               )?.c ?? 0,
@@ -573,6 +582,22 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
         providerUnavailableReason: this.providerUnavailableReason,
       },
     };
+  }
+
+  status(): MemoryProviderStatus {
+    try {
+      return this.buildStatusFromDb(this.db);
+    } catch (err) {
+      if (!isClosedSqliteHandleError(err)) {
+        throw err;
+      }
+      const fallbackDb = this.openDatabase();
+      try {
+        return this.buildStatusFromDb(fallbackDb);
+      } finally {
+        fallbackDb.close();
+      }
+    }
   }
 
   async probeVectorAvailability(): Promise<boolean> {
