@@ -2028,12 +2028,19 @@ See [Plugins](/tools/plugin).
       name: "OpenClaw",
       avatar: "CB", // emoji, short text, image URL, or data URI
     },
+    user: {
+      name: "Matt",
+      avatar: "assets/matt-avatar.png", // emoji, short text, image URL, or data URI
+    },
   },
 }
 ```
 
 - `seamColor`: accent color for native app UI chrome (Talk Mode bubble tint, etc.).
 - `assistant`: Control UI identity override. Falls back to active agent identity.
+- `user`: User identity override for the Control UI. Sets the display name and avatar shown on user messages.
+- `user.name`: display name shown for user messages in the Control UI. Defaults to "You" when not set.
+- `user.avatar`: workspace-relative path, `http(s)` URL, or `data:` URI. Local files resolve relative to the default agent workspace.
 
 ---
 

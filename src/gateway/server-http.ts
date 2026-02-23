@@ -7,7 +7,7 @@ import {
 import { createServer as createHttpsServer } from "node:https";
 import type { TlsOptions } from "node:tls";
 import type { WebSocketServer } from "ws";
-import { resolveAgentAvatar } from "../agents/identity-avatar.js";
+import { resolveAgentAvatar, resolveUserAvatar } from "../agents/identity-avatar.js";
 import {
   A2UI_PATH,
   CANVAS_HOST_PATH,
@@ -560,6 +560,7 @@ export function createGatewayHttpServer(opts: {
           handleControlUiAvatarRequest(req, res, {
             basePath: controlUiBasePath,
             resolveAvatar: (agentId) => resolveAgentAvatar(configSnapshot, agentId),
+            resolveUserAvatar: () => resolveUserAvatar(configSnapshot),
           })
         ) {
           return;

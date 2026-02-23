@@ -85,6 +85,12 @@ export type OpenClawConfig = {
       /** Assistant avatar (emoji, short text, or image URL/data URI). */
       avatar?: string;
     };
+    user?: {
+      /** User display name for UI surfaces. */
+      name?: string;
+      /** User avatar (emoji, short text, or image URL/data URI). */
+      avatar?: string;
+    };
   };
   skills?: SkillsConfig;
   plugins?: PluginsConfig;

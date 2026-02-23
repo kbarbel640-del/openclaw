@@ -22,6 +22,8 @@ describe("loadControlUiBootstrapConfig", () => {
       assistantName: "Assistant",
       assistantAvatar: null,
       assistantAgentId: null,
+      userName: null as string | null,
+      userAvatar: null as string | null,
     };
 
     await loadControlUiBootstrapConfig(state);
@@ -37,6 +39,37 @@ describe("loadControlUiBootstrapConfig", () => {
     vi.unstubAllGlobals();
   });
 
+  it("loads user identity from the bootstrap endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        basePath: "",
+        assistantName: "Bot",
+        assistantAvatar: "B",
+        assistantAgentId: "main",
+        userName: "Matt",
+        userAvatar: "/avatar/__user",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const state = {
+      basePath: "",
+      assistantName: "Assistant",
+      assistantAvatar: null,
+      assistantAgentId: null,
+      userName: null as string | null,
+      userAvatar: null as string | null,
+    };
+
+    await loadControlUiBootstrapConfig(state);
+
+    expect(state.userName).toBe("Matt");
+    expect(state.userAvatar).toBe("/avatar/__user");
+
+    vi.unstubAllGlobals();
+  });
+
   it("ignores failures", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
@@ -46,6 +79,8 @@ describe("loadControlUiBootstrapConfig", () => {
       assistantName: "Assistant",
       assistantAvatar: null,
       assistantAgentId: null,
+      userName: null as string | null,
+      userAvatar: null as string | null,
     };
 
     await loadControlUiBootstrapConfig(state);
@@ -68,6 +103,8 @@ describe("loadControlUiBootstrapConfig", () => {
       assistantName: "Assistant",
       assistantAvatar: null,
       assistantAgentId: null,
+      userName: null as string | null,
+      userAvatar: null as string | null,
     };
 
     await loadControlUiBootstrapConfig(state);

@@ -73,6 +73,26 @@ function resolveLocalAvatarPath(params: {
   return { ok: true, filePath: realPath };
 }
 
+export function resolveUserAvatar(cfg: OpenClawConfig): AgentAvatarResolution {
+  const source = normalizeAvatarValue(cfg.ui?.user?.avatar);
+  if (!source) {
+    return { kind: "none", reason: "missing" };
+  }
+  if (isAvatarHttpUrl(source)) {
+    return { kind: "remote", url: source };
+  }
+  if (isAvatarDataUrl(source)) {
+    return { kind: "data", url: source };
+  }
+  // Resolve relative paths against the default agent's workspace
+  const workspaceDir = resolveAgentWorkspaceDir(cfg, "main");
+  const resolved = resolveLocalAvatarPath({ raw: source, workspaceDir });
+  if (!resolved.ok) {
+    return { kind: "none", reason: resolved.reason };
+  }
+  return { kind: "local", filePath: resolved.filePath };
+}
+
 export function resolveAgentAvatar(cfg: OpenClawConfig, agentId: string): AgentAvatarResolution {
   const source = resolveAvatarSource(cfg, agentId);
   if (!source) {

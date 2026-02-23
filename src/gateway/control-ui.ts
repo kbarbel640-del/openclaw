@@ -15,8 +15,10 @@ import { buildControlUiCspHeader } from "./control-ui-csp.js";
 import {
   buildControlUiAvatarUrl,
   CONTROL_UI_AVATAR_PREFIX,
+  CONTROL_UI_USER_AVATAR_PATH,
   normalizeControlUiBasePath,
   resolveAssistantAvatarUrl,
+  resolveUserAvatarUrl,
 } from "./control-ui-shared.js";
 
 const ROOT_PREFIX = "/";
@@ -117,7 +119,11 @@ function isValidAgentId(agentId: string): boolean {
 export function handleControlUiAvatarRequest(
   req: IncomingMessage,
   res: ServerResponse,
-  opts: { basePath?: string; resolveAvatar: (agentId: string) => ControlUiAvatarResolution },
+  opts: {
+    basePath?: string;
+    resolveAvatar: (agentId: string) => ControlUiAvatarResolution;
+    resolveUserAvatar?: () => ControlUiAvatarResolution;
+  },
 ): boolean {
   const urlRaw = req.url;
   if (!urlRaw) {
@@ -138,6 +144,39 @@ export function handleControlUiAvatarRequest(
   }
 
   applyControlUiSecurityHeaders(res);
+
+  // Handle user avatar requests (/avatar/__user)
+  const userAvatarFullPath = basePath
+    ? `${basePath}${CONTROL_UI_USER_AVATAR_PATH}`
+    : CONTROL_UI_USER_AVATAR_PATH;
+  if (pathname === userAvatarFullPath && opts.resolveUserAvatar) {
+    const resolved = opts.resolveUserAvatar();
+    if (resolved.kind !== "local") {
+      respondNotFound(res);
+      return true;
+    }
+    const safeAvatar = resolveSafeAvatarFile(resolved.filePath);
+    if (!safeAvatar) {
+      respondNotFound(res);
+      return true;
+    }
+    try {
+      if (req.method === "HEAD") {
+        res.statusCode = 200;
+        res.setHeader(
+          "Content-Type",
+          contentTypeForExt(path.extname(safeAvatar.path).toLowerCase()),
+        );
+        res.setHeader("Cache-Control", "no-cache");
+        res.end();
+        return true;
+      }
+      serveResolvedFile(res, safeAvatar.path, fs.readFileSync(safeAvatar.fd));
+      return true;
+    } finally {
+      fs.closeSync(safeAvatar.fd);
+    }
+  }
 
   const agentIdParts = pathname.slice(pathWithBase.length).split("/").filter(Boolean);
   const agentId = agentIdParts[0] ?? "";
@@ -338,12 +377,24 @@ export function handleControlUiHttpRequest(
       res.end();
       return true;
     }
-    sendJson(res, 200, {
+    const userConfig = config?.ui?.user;
+    const userAvatarValue = resolveUserAvatarUrl({
+      avatar: userConfig?.avatar,
+      basePath,
+    });
+    const bootstrapBody: ControlUiBootstrapConfig = {
       basePath,
       assistantName: identity.name,
       assistantAvatar: avatarValue ?? identity.avatar,
       assistantAgentId: identity.agentId,
-    } satisfies ControlUiBootstrapConfig);
+    };
+    if (userConfig?.name) {
+      bootstrapBody.userName = userConfig.name;
+    }
+    if (userAvatarValue) {
+      bootstrapBody.userAvatar = userAvatarValue;
+    }
+    sendJson(res, 200, bootstrapBody);
     return true;
   }
 

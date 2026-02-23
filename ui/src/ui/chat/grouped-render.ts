@@ -111,13 +111,16 @@ export function renderMessageGroup(
     showReasoning: boolean;
     assistantName?: string;
     assistantAvatar?: string | null;
+    userName?: string | null;
+    userAvatar?: string | null;
   },
 ) {
   const normalizedRole = normalizeRoleForGrouping(group.role);
   const assistantName = opts.assistantName ?? "Assistant";
+  const userName = opts.userName ?? "You";
   const who =
     normalizedRole === "user"
-      ? "You"
+      ? userName
       : normalizedRole === "assistant"
         ? assistantName
         : normalizedRole;
@@ -133,6 +136,8 @@ export function renderMessageGroup(
       ${renderAvatar(group.role, {
         name: assistantName,
         avatar: opts.assistantAvatar ?? null,
+        userName: opts.userName ?? null,
+        userAvatar: opts.userAvatar ?? null,
       })}
       <div class="chat-group-messages">
         ${group.messages.map((item, index) =>
@@ -154,13 +159,25 @@ export function renderMessageGroup(
   `;
 }
 
-function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" | "avatar">) {
+function renderAvatar(
+  role: string,
+  identity?: {
+    name?: string | null;
+    avatar?: string | null;
+    userName?: string | null;
+    userAvatar?: string | null;
+  },
+) {
   const normalized = normalizeRoleForGrouping(role);
-  const assistantName = assistant?.name?.trim() || "Assistant";
-  const assistantAvatar = assistant?.avatar?.trim() || "";
+  const assistantName = identity?.name?.trim() || "Assistant";
+  const assistantAvatar = identity?.avatar?.trim() || "";
+  const userName = identity?.userName?.trim() || "";
+  const userAvatar = identity?.userAvatar?.trim() || "";
   const initial =
     normalized === "user"
-      ? "U"
+      ? userName
+        ? userName.charAt(0).toUpperCase()
+        : "U"
       : normalized === "assistant"
         ? assistantName.charAt(0).toUpperCase() || "A"
         : normalized === "tool"
@@ -184,6 +201,17 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
       />`;
     }
     return html`<div class="chat-avatar ${className}">${assistantAvatar}</div>`;
+  }
+
+  if (userAvatar && normalized === "user") {
+    if (isAvatarUrl(userAvatar)) {
+      return html`<img
+        class="chat-avatar ${className}"
+        src="${userAvatar}"
+        alt="${userName || "You"}"
+      />`;
+    }
+    return html`<div class="chat-avatar ${className}">${userAvatar}</div>`;
   }
 
   return html`<div class="chat-avatar ${className}">${initial}</div>`;
