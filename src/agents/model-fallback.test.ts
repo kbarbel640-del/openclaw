@@ -373,6 +373,62 @@ describe("runWithModelFallback", () => {
     });
   });
 
+  it("keeps provider/model prefixes for provider-cooldown skips in final error summaries", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-auth-"));
+    const provider = `cooldown-summary-${crypto.randomUUID()}`;
+    const profileId = `${provider}:default`;
+
+    const store: AuthProfileStore = {
+      version: AUTH_STORE_VERSION,
+      profiles: {
+        [profileId]: {
+          type: "api_key",
+          provider,
+          key: "test-key",
+        },
+      },
+      usageStats: {
+        [profileId]: {
+          cooldownUntil: Date.now() + 10 * 60_000,
+        },
+      },
+    };
+
+    saveAuthProfileStore(store, tempDir);
+
+    const cfg = makeCfg({
+      agents: {
+        defaults: {
+          model: {
+            primary: `${provider}/m1`,
+            fallbacks: [`${provider}/m2`, `${provider}/m3`],
+          },
+        },
+      },
+    });
+    const run = vi.fn().mockRejectedValue(new Error("should not execute run()"));
+
+    try {
+      const message = await runWithModelFallback({
+        cfg,
+        provider,
+        model: "m1",
+        agentDir: tempDir,
+        run,
+      })
+        .then(() => "")
+        .catch((err) => (err instanceof Error ? err.message : String(err)));
+      expect(message).toContain(`${provider}/m1:`);
+      expect(message).toContain(`${provider}/m2:`);
+      expect(message).toContain(`${provider}/m3:`);
+      expect(message).toContain("is in cooldown (all profiles unavailable)");
+      expect(message).toContain("(rate_limit)");
+      expect(run).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("propagates disabled reason when all profiles are unavailable", async () => {
     const now = Date.now();
     await expectSkippedUnavailableProvider({

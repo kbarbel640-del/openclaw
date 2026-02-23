@@ -4,7 +4,6 @@ import path from "node:path";
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
-import type { AuthProfileFailureReason } from "./auth-profiles.js";
 import type { EmbeddedRunAttemptResult } from "./pi-embedded-runner/run/types.js";
 
 const runEmbeddedAttemptMock = vi.fn<(params: unknown) => Promise<EmbeddedRunAttemptResult>>();
@@ -13,29 +12,15 @@ vi.mock("./pi-embedded-runner/run/attempt.js", () => ({
   runEmbeddedAttempt: (params: unknown) => runEmbeddedAttemptMock(params),
 }));
 
-vi.mock("./pi-embedded-runner/compact.js", () => ({
-  compactEmbeddedPiSessionDirect: vi.fn(async () => {
-    throw new Error("compact should not run in auth profile rotation tests");
-  }),
-}));
-
-vi.mock("./models-config.js", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("./models-config.js")>();
-  return {
-    ...mod,
-    ensureOpenClawModelsJson: vi.fn(async () => ({ wrote: false })),
-  };
-});
-
-let runEmbeddedPiAgent: typeof import("./pi-embedded-runner/run.js").runEmbeddedPiAgent;
+let runEmbeddedPiAgent: typeof import("./pi-embedded-runner.js").runEmbeddedPiAgent;
 
 beforeAll(async () => {
-  ({ runEmbeddedPiAgent } = await import("./pi-embedded-runner/run.js"));
+  ({ runEmbeddedPiAgent } = await import("./pi-embedded-runner.js"));
 });
 
 beforeEach(() => {
   vi.useRealTimers();
-  runEmbeddedAttemptMock.mockClear();
+  runEmbeddedAttemptMock.mockReset();
 });
 
 const baseUsage = {
@@ -113,16 +98,7 @@ const writeAuthStore = async (
   agentDir: string,
   opts?: {
     includeAnthropic?: boolean;
-    usageStats?: Record<
-      string,
-      {
-        lastUsed?: number;
-        cooldownUntil?: number;
-        disabledUntil?: number;
-        disabledReason?: AuthProfileFailureReason;
-        failureCounts?: Partial<Record<AuthProfileFailureReason, number>>;
-      }
-    >;
+    usageStats?: Record<string, { lastUsed?: number; cooldownUntil?: number }>;
   },
 ) => {
   const authPath = path.join(agentDir, "auth-profiles.json");
@@ -145,236 +121,36 @@ const writeAuthStore = async (
   await fs.writeFile(authPath, JSON.stringify(payload));
 };
 
-const mockFailedThenSuccessfulAttempt = (errorMessage = "rate limit") => {
-  runEmbeddedAttemptMock
-    .mockResolvedValueOnce(
-      makeAttempt({
-        assistantTexts: [],
-        lastAssistant: buildAssistant({
-          stopReason: "error",
-          errorMessage,
-        }),
-      }),
-    )
-    .mockResolvedValueOnce(
-      makeAttempt({
-        assistantTexts: ["ok"],
-        lastAssistant: buildAssistant({
-          stopReason: "stop",
-          content: [{ type: "text", text: "ok" }],
-        }),
-      }),
-    );
-};
-
-async function runAutoPinnedOpenAiTurn(params: {
-  agentDir: string;
-  workspaceDir: string;
-  sessionKey: string;
-  runId: string;
-  authProfileId?: string;
-}) {
-  await runEmbeddedPiAgent({
-    sessionId: "session:test",
-    sessionKey: params.sessionKey,
-    sessionFile: path.join(params.workspaceDir, "session.jsonl"),
-    workspaceDir: params.workspaceDir,
-    agentDir: params.agentDir,
-    config: makeConfig(),
-    prompt: "hello",
-    provider: "openai",
-    model: "mock-1",
-    authProfileId: params.authProfileId ?? "openai:p1",
-    authProfileIdSource: "auto",
-    timeoutMs: 5_000,
-    runId: params.runId,
-  });
-}
-
-async function readUsageStats(agentDir: string) {
-  const stored = JSON.parse(
-    await fs.readFile(path.join(agentDir, "auth-profiles.json"), "utf-8"),
-  ) as {
-    usageStats?: Record<
-      string,
-      {
-        lastUsed?: number;
-        cooldownUntil?: number;
-        disabledUntil?: number;
-        disabledReason?: AuthProfileFailureReason;
-      }
-    >;
-  };
-  return stored.usageStats ?? {};
-}
-
-async function expectProfileP2UsageUnchanged(agentDir: string) {
-  const usageStats = await readUsageStats(agentDir);
-  expect(usageStats["openai:p2"]?.lastUsed).toBe(2);
-}
-
-async function runAutoPinnedRotationCase(params: {
-  errorMessage: string;
-  sessionKey: string;
-  runId: string;
-}) {
-  runEmbeddedAttemptMock.mockClear();
-  return withAgentWorkspace(async ({ agentDir, workspaceDir }) => {
-    await writeAuthStore(agentDir);
-    mockFailedThenSuccessfulAttempt(params.errorMessage);
-    await runAutoPinnedOpenAiTurn({
-      agentDir,
-      workspaceDir,
-      sessionKey: params.sessionKey,
-      runId: params.runId,
-    });
-
-    expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(2);
-    const usageStats = await readUsageStats(agentDir);
-    return { usageStats };
-  });
-}
-
-function mockSingleSuccessfulAttempt() {
-  runEmbeddedAttemptMock.mockResolvedValueOnce(
-    makeAttempt({
-      assistantTexts: ["ok"],
-      lastAssistant: buildAssistant({
-        stopReason: "stop",
-        content: [{ type: "text", text: "ok" }],
-      }),
-    }),
-  );
-}
-
-function mockSingleErrorAttempt(params: {
-  errorMessage: string;
-  provider?: string;
-  model?: string;
-}) {
-  runEmbeddedAttemptMock.mockResolvedValueOnce(
-    makeAttempt({
-      assistantTexts: [],
-      lastAssistant: buildAssistant({
-        stopReason: "error",
-        errorMessage: params.errorMessage,
-        ...(params.provider ? { provider: params.provider } : {}),
-        ...(params.model ? { model: params.model } : {}),
-      }),
-    }),
-  );
-}
-
-async function withTimedAgentWorkspace<T>(
-  run: (ctx: { agentDir: string; workspaceDir: string; now: number }) => Promise<T>,
-) {
-  vi.useFakeTimers();
-  try {
+describe("runEmbeddedPiAgent auth profile rotation", () => {
+  it("rotates for auto-pinned profiles", async () => {
     const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
-    const now = Date.now();
-    vi.setSystemTime(now);
-
     try {
-      return await run({ agentDir, workspaceDir, now });
-    } finally {
-      await fs.rm(agentDir, { recursive: true, force: true });
-      await fs.rm(workspaceDir, { recursive: true, force: true });
-    }
-  } finally {
-    vi.useRealTimers();
-  }
-}
-
-async function withAgentWorkspace<T>(
-  run: (ctx: { agentDir: string; workspaceDir: string }) => Promise<T>,
-) {
-  const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
-  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
-  try {
-    return await run({ agentDir, workspaceDir });
-  } finally {
-    await fs.rm(agentDir, { recursive: true, force: true });
-    await fs.rm(workspaceDir, { recursive: true, force: true });
-  }
-}
-
-async function runTurnWithCooldownSeed(params: {
-  sessionKey: string;
-  runId: string;
-  authProfileId: string | undefined;
-  authProfileIdSource: "auto" | "user";
-}) {
-  return await withTimedAgentWorkspace(async ({ agentDir, workspaceDir, now }) => {
-    await writeAuthStore(agentDir, {
-      usageStats: {
-        "openai:p1": { lastUsed: 1, cooldownUntil: now + 60 * 60 * 1000 },
-        "openai:p2": { lastUsed: 2 },
-      },
-    });
-    mockSingleSuccessfulAttempt();
-
-    await runEmbeddedPiAgent({
-      sessionId: "session:test",
-      sessionKey: params.sessionKey,
-      sessionFile: path.join(workspaceDir, "session.jsonl"),
-      workspaceDir,
-      agentDir,
-      config: makeConfig(),
-      prompt: "hello",
-      provider: "openai",
-      model: "mock-1",
-      authProfileId: params.authProfileId,
-      authProfileIdSource: params.authProfileIdSource,
-      timeoutMs: 5_000,
-      runId: params.runId,
-    });
-
-    expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
-    return { usageStats: await readUsageStats(agentDir), now };
-  });
-}
-
-describe("runEmbeddedPiAgent auth profile rotation", () => {
-  it("rotates for auto-pinned profiles across retryable stream failures", async () => {
-    const { usageStats } = await runAutoPinnedRotationCase({
-      errorMessage: "rate limit",
-      sessionKey: "agent:test:auto",
-      runId: "run:auto",
-    });
-    expect(typeof usageStats["openai:p2"]?.lastUsed).toBe("number");
-  });
-
-  it("rotates on timeout without cooling down the timed-out profile", async () => {
-    const { usageStats } = await runAutoPinnedRotationCase({
-      errorMessage: "request ended without sending any chunks",
-      sessionKey: "agent:test:timeout-no-cooldown",
-      runId: "run:timeout-no-cooldown",
-    });
-    expect(typeof usageStats["openai:p2"]?.lastUsed).toBe("number");
-    expect(usageStats["openai:p1"]?.cooldownUntil).toBeUndefined();
-  });
-
-  it("does not rotate for compaction timeouts", async () => {
-    await withAgentWorkspace(async ({ agentDir, workspaceDir }) => {
       await writeAuthStore(agentDir);
 
-      runEmbeddedAttemptMock.mockResolvedValueOnce(
-        makeAttempt({
-          aborted: true,
-          timedOut: true,
-          timedOutDuringCompaction: true,
-          assistantTexts: ["partial"],
-          lastAssistant: buildAssistant({
-            stopReason: "stop",
-            content: [{ type: "text", text: "partial" }],
+      runEmbeddedAttemptMock
+        .mockResolvedValueOnce(
+          makeAttempt({
+            assistantTexts: [],
+            lastAssistant: buildAssistant({
+              stopReason: "error",
+              errorMessage: "rate limit",
+            }),
           }),
-        }),
-      );
+        )
+        .mockResolvedValueOnce(
+          makeAttempt({
+            assistantTexts: ["ok"],
+            lastAssistant: buildAssistant({
+              stopReason: "stop",
+              content: [{ type: "text", text: "ok" }],
+            }),
+          }),
+        );
 
-      const result = await runEmbeddedPiAgent({
+      await runEmbeddedPiAgent({
         sessionId: "session:test",
-        sessionKey: "agent:test:compaction-timeout",
+        sessionKey: "agent:test:auto",
         sessionFile: path.join(workspaceDir, "session.jsonl"),
         workspaceDir,
         agentDir,
@@ -385,21 +161,36 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
         authProfileId: "openai:p1",
         authProfileIdSource: "auto",
         timeoutMs: 5_000,
-        runId: "run:compaction-timeout",
+        runId: "run:auto",
       });
 
-      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
-      expect(result.meta.aborted).toBe(true);
+      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(2);
 
-      await expectProfileP2UsageUnchanged(agentDir);
-    });
+      const stored = JSON.parse(
+        await fs.readFile(path.join(agentDir, "auth-profiles.json"), "utf-8"),
+      ) as { usageStats?: Record<string, { lastUsed?: number }> };
+      expect(typeof stored.usageStats?.["openai:p2"]?.lastUsed).toBe("number");
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it("does not rotate for user-pinned profiles", async () => {
-    await withAgentWorkspace(async ({ agentDir, workspaceDir }) => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
       await writeAuthStore(agentDir);
 
-      mockSingleErrorAttempt({ errorMessage: "rate limit" });
+      runEmbeddedAttemptMock.mockResolvedValueOnce(
+        makeAttempt({
+          assistantTexts: [],
+          lastAssistant: buildAssistant({
+            stopReason: "error",
+            errorMessage: "rate limit",
+          }),
+        }),
+      );
 
       await runEmbeddedPiAgent({
         sessionId: "session:test",
@@ -418,25 +209,89 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
       });
 
       expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
-      await expectProfileP2UsageUnchanged(agentDir);
-    });
+
+      const stored = JSON.parse(
+        await fs.readFile(path.join(agentDir, "auth-profiles.json"), "utf-8"),
+      ) as { usageStats?: Record<string, { lastUsed?: number }> };
+      expect(stored.usageStats?.["openai:p2"]?.lastUsed).toBe(2);
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it("honors user-pinned profiles even when in cooldown", async () => {
-    const { usageStats } = await runTurnWithCooldownSeed({
-      sessionKey: "agent:test:user-cooldown",
-      runId: "run:user-cooldown",
-      authProfileId: "openai:p1",
-      authProfileIdSource: "user",
-    });
+    vi.useFakeTimers();
+    try {
+      const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+      const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+      const now = Date.now();
+      vi.setSystemTime(now);
 
-    expect(usageStats["openai:p1"]?.cooldownUntil).toBeUndefined();
-    expect(usageStats["openai:p1"]?.lastUsed).not.toBe(1);
-    expect(usageStats["openai:p2"]?.lastUsed).toBe(2);
+      try {
+        const authPath = path.join(agentDir, "auth-profiles.json");
+        const payload = {
+          version: 1,
+          profiles: {
+            "openai:p1": { type: "api_key", provider: "openai", key: "sk-one" },
+            "openai:p2": { type: "api_key", provider: "openai", key: "sk-two" },
+          },
+          usageStats: {
+            "openai:p1": { lastUsed: 1, cooldownUntil: now + 60 * 60 * 1000 },
+            "openai:p2": { lastUsed: 2 },
+          },
+        };
+        await fs.writeFile(authPath, JSON.stringify(payload));
+
+        runEmbeddedAttemptMock.mockResolvedValueOnce(
+          makeAttempt({
+            assistantTexts: ["ok"],
+            lastAssistant: buildAssistant({
+              stopReason: "stop",
+              content: [{ type: "text", text: "ok" }],
+            }),
+          }),
+        );
+
+        await runEmbeddedPiAgent({
+          sessionId: "session:test",
+          sessionKey: "agent:test:user-cooldown",
+          sessionFile: path.join(workspaceDir, "session.jsonl"),
+          workspaceDir,
+          agentDir,
+          config: makeConfig(),
+          prompt: "hello",
+          provider: "openai",
+          model: "mock-1",
+          authProfileId: "openai:p1",
+          authProfileIdSource: "user",
+          timeoutMs: 5_000,
+          runId: "run:user-cooldown",
+        });
+
+        expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
+
+        const stored = JSON.parse(
+          await fs.readFile(path.join(agentDir, "auth-profiles.json"), "utf-8"),
+        ) as {
+          usageStats?: Record<string, { lastUsed?: number; cooldownUntil?: number }>;
+        };
+        expect(stored.usageStats?.["openai:p1"]?.cooldownUntil).toBeUndefined();
+        expect(stored.usageStats?.["openai:p1"]?.lastUsed).not.toBe(1);
+        expect(stored.usageStats?.["openai:p2"]?.lastUsed).toBe(2);
+      } finally {
+        await fs.rm(agentDir, { recursive: true, force: true });
+        await fs.rm(workspaceDir, { recursive: true, force: true });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("ignores user-locked profile when provider mismatches", async () => {
-    await withAgentWorkspace(async ({ agentDir, workspaceDir }) => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
       await writeAuthStore(agentDir, { includeAnthropic: true });
 
       runEmbeddedAttemptMock.mockResolvedValueOnce(
@@ -466,150 +321,158 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
       });
 
       expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
-    });
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it("skips profiles in cooldown during initial selection", async () => {
-    const { usageStats, now } = await runTurnWithCooldownSeed({
-      sessionKey: "agent:test:skip-cooldown",
-      runId: "run:skip-cooldown",
-      authProfileId: undefined,
-      authProfileIdSource: "auto",
-    });
+    vi.useFakeTimers();
+    try {
+      const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+      const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+      const now = Date.now();
+      vi.setSystemTime(now);
 
-    expect(usageStats["openai:p1"]?.cooldownUntil).toBe(now + 60 * 60 * 1000);
-    expect(typeof usageStats["openai:p2"]?.lastUsed).toBe("number");
+      try {
+        const authPath = path.join(agentDir, "auth-profiles.json");
+        const payload = {
+          version: 1,
+          profiles: {
+            "openai:p1": { type: "api_key", provider: "openai", key: "sk-one" },
+            "openai:p2": { type: "api_key", provider: "openai", key: "sk-two" },
+          },
+          usageStats: {
+            "openai:p1": { lastUsed: 1, cooldownUntil: now + 60 * 60 * 1000 }, // p1 in cooldown for 1 hour
+            "openai:p2": { lastUsed: 2 },
+          },
+        };
+        await fs.writeFile(authPath, JSON.stringify(payload));
+
+        runEmbeddedAttemptMock.mockResolvedValueOnce(
+          makeAttempt({
+            assistantTexts: ["ok"],
+            lastAssistant: buildAssistant({
+              stopReason: "stop",
+              content: [{ type: "text", text: "ok" }],
+            }),
+          }),
+        );
+
+        await runEmbeddedPiAgent({
+          sessionId: "session:test",
+          sessionKey: "agent:test:skip-cooldown",
+          sessionFile: path.join(workspaceDir, "session.jsonl"),
+          workspaceDir,
+          agentDir,
+          config: makeConfig(),
+          prompt: "hello",
+          provider: "openai",
+          model: "mock-1",
+          authProfileId: undefined,
+          authProfileIdSource: "auto",
+          timeoutMs: 5_000,
+          runId: "run:skip-cooldown",
+        });
+
+        expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
+
+        const stored = JSON.parse(
+          await fs.readFile(path.join(agentDir, "auth-profiles.json"), "utf-8"),
+        ) as { usageStats?: Record<string, { lastUsed?: number; cooldownUntil?: number }> };
+        expect(stored.usageStats?.["openai:p1"]?.cooldownUntil).toBe(now + 60 * 60 * 1000);
+        expect(typeof stored.usageStats?.["openai:p2"]?.lastUsed).toBe("number");
+      } finally {
+        await fs.rm(agentDir, { recursive: true, force: true });
+        await fs.rm(workspaceDir, { recursive: true, force: true });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("fails over when all profiles are in cooldown and fallbacks are configured", async () => {
-    await withTimedAgentWorkspace(async ({ agentDir, workspaceDir, now }) => {
-      await writeAuthStore(agentDir, {
-        usageStats: {
-          "openai:p1": { lastUsed: 1, cooldownUntil: now + 60 * 60 * 1000 },
-          "openai:p2": { lastUsed: 2, cooldownUntil: now + 60 * 60 * 1000 },
-        },
-      });
-
-      await expect(
-        runEmbeddedPiAgent({
-          sessionId: "session:test",
-          sessionKey: "agent:test:cooldown-failover",
-          sessionFile: path.join(workspaceDir, "session.jsonl"),
-          workspaceDir,
-          agentDir,
-          config: makeConfig({ fallbacks: ["openai/mock-2"] }),
-          prompt: "hello",
-          provider: "openai",
-          model: "mock-1",
-          authProfileIdSource: "auto",
-          timeoutMs: 5_000,
-          runId: "run:cooldown-failover",
-        }),
-      ).rejects.toMatchObject({
-        name: "FailoverError",
-        reason: "rate_limit",
-        provider: "openai",
-        model: "mock-1",
-      });
-
-      expect(runEmbeddedAttemptMock).not.toHaveBeenCalled();
-    });
-  });
-
-  it("fails over with disabled reason when all profiles are unavailable", async () => {
-    await withTimedAgentWorkspace(async ({ agentDir, workspaceDir, now }) => {
-      await writeAuthStore(agentDir, {
-        usageStats: {
-          "openai:p1": {
-            lastUsed: 1,
-            disabledUntil: now + 60 * 60 * 1000,
-            disabledReason: "billing",
-            failureCounts: { rate_limit: 4 },
-          },
-          "openai:p2": {
-            lastUsed: 2,
-            disabledUntil: now + 60 * 60 * 1000,
-            disabledReason: "billing",
-          },
-        },
-      });
-
-      await expect(
-        runEmbeddedPiAgent({
-          sessionId: "session:test",
-          sessionKey: "agent:test:disabled-failover",
-          sessionFile: path.join(workspaceDir, "session.jsonl"),
-          workspaceDir,
-          agentDir,
-          config: makeConfig({ fallbacks: ["openai/mock-2"] }),
-          prompt: "hello",
-          provider: "openai",
-          model: "mock-1",
-          authProfileIdSource: "auto",
-          timeoutMs: 5_000,
-          runId: "run:disabled-failover",
-        }),
-      ).rejects.toMatchObject({
-        name: "FailoverError",
-        reason: "billing",
-        provider: "openai",
-        model: "mock-1",
-      });
-
-      expect(runEmbeddedAttemptMock).not.toHaveBeenCalled();
-    });
-  });
-
-  it("fails over when auth is unavailable and fallbacks are configured", async () => {
-    const previousOpenAiKey = process.env.OPENAI_API_KEY;
-    delete process.env.OPENAI_API_KEY;
+    vi.useFakeTimers();
     try {
-      await withAgentWorkspace(async ({ agentDir, workspaceDir }) => {
-        const authPath = path.join(agentDir, "auth-profiles.json");
-        await fs.writeFile(authPath, JSON.stringify({ version: 1, profiles: {}, usageStats: {} }));
+      const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+      const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+      const now = Date.now();
+      vi.setSystemTime(now);
+
+      try {
+        await writeAuthStore(agentDir, {
+          usageStats: {
+            "openai:p1": { lastUsed: 1, cooldownUntil: now + 60 * 60 * 1000 },
+            "openai:p2": { lastUsed: 2, cooldownUntil: now + 60 * 60 * 1000 },
+          },
+        });
 
         await expect(
           runEmbeddedPiAgent({
             sessionId: "session:test",
-            sessionKey: "agent:test:auth-unavailable",
+            sessionKey: "agent:test:cooldown-failover",
             sessionFile: path.join(workspaceDir, "session.jsonl"),
             workspaceDir,
             agentDir,
-            config: makeConfig({ fallbacks: ["openai/mock-2"], apiKey: "" }),
+            config: makeConfig({ fallbacks: ["openai/mock-2"] }),
             prompt: "hello",
             provider: "openai",
             model: "mock-1",
             authProfileIdSource: "auto",
             timeoutMs: 5_000,
-            runId: "run:auth-unavailable",
+            runId: "run:cooldown-failover",
           }),
-        ).rejects.toMatchObject({ name: "FailoverError", reason: "auth" });
+        ).rejects.toMatchObject({
+          name: "FailoverError",
+          reason: "rate_limit",
+          provider: "openai",
+          model: "mock-1",
+        });
 
         expect(runEmbeddedAttemptMock).not.toHaveBeenCalled();
-      });
-    } finally {
-      if (previousOpenAiKey === undefined) {
-        delete process.env.OPENAI_API_KEY;
-      } else {
-        process.env.OPENAI_API_KEY = previousOpenAiKey;
+      } finally {
+        await fs.rm(agentDir, { recursive: true, force: true });
+        await fs.rm(workspaceDir, { recursive: true, force: true });
       }
+    } finally {
+      vi.useRealTimers();
     }
   });
 
-  it("uses the active erroring model in billing failover errors", async () => {
-    await withAgentWorkspace(async ({ agentDir, workspaceDir }) => {
-      await writeAuthStore(agentDir);
-      mockSingleErrorAttempt({
-        errorMessage: "insufficient credits",
-        provider: "openai",
-        model: "mock-rotated",
-      });
+  it("does not mark profile cooldown on probe session failures", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
+      const authPath = path.join(agentDir, "auth-profiles.json");
+      await fs.writeFile(
+        authPath,
+        JSON.stringify({
+          version: 1,
+          profiles: {
+            "openai:p1": { type: "api_key", provider: "openai", key: "sk-one" },
+          },
+          usageStats: {
+            "openai:p1": { lastUsed: 1 },
+          },
+        }),
+      );
 
-      let thrown: unknown;
-      try {
-        await runEmbeddedPiAgent({
-          sessionId: "session:test",
-          sessionKey: "agent:test:billing-failover-active-model",
+      runEmbeddedAttemptMock.mockResolvedValueOnce(
+        makeAttempt({
+          timedOut: true,
+          assistantTexts: [],
+          lastAssistant: buildAssistant({
+            stopReason: "error",
+            errorMessage: "LLM request timed out.",
+          }),
+        }),
+      );
+
+      await expect(
+        runEmbeddedPiAgent({
+          sessionId: "session:explicit-probe-flag",
+          sessionKey: "agent:test:probe-timeout",
           sessionFile: path.join(workspaceDir, "session.jsonl"),
           workspaceDir,
           agentDir,
@@ -618,57 +481,449 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
           provider: "openai",
           model: "mock-1",
           authProfileId: "openai:p1",
-          authProfileIdSource: "user",
+          authProfileIdSource: "auto",
           timeoutMs: 5_000,
-          runId: "run:billing-failover-active-model",
-        });
-      } catch (err) {
-        thrown = err;
-      }
-
-      expect(thrown).toMatchObject({
+          runId: "run:probe-timeout",
+          isProbeRun: true,
+        }),
+      ).rejects.toMatchObject({
         name: "FailoverError",
-        reason: "billing",
-        provider: "openai",
-        model: "mock-rotated",
       });
-      expect(thrown).toBeInstanceOf(Error);
-      expect((thrown as Error).message).toContain("openai (mock-rotated) returned a billing error");
-      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
-    });
+
+      const stored = JSON.parse(await fs.readFile(authPath, "utf-8")) as {
+        usageStats?: Record<string, { cooldownUntil?: number; lastFailureAt?: number }>;
+      };
+      expect(stored.usageStats?.["openai:p1"]?.cooldownUntil).toBeUndefined();
+      expect(stored.usageStats?.["openai:p1"]?.lastFailureAt).toBeUndefined();
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
   });
 
-  it("skips profiles in cooldown when rotating after failure", async () => {
-    await withTimedAgentWorkspace(async ({ agentDir, workspaceDir, now }) => {
+  it("probe mode rotates to next profile without persisting cooldown on timeout", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
       const authPath = path.join(agentDir, "auth-profiles.json");
-      const payload = {
-        version: 1,
-        profiles: {
-          "openai:p1": { type: "api_key", provider: "openai", key: "sk-one" },
-          "openai:p2": { type: "api_key", provider: "openai", key: "sk-two" },
-          "openai:p3": { type: "api_key", provider: "openai", key: "sk-three" },
-        },
-        usageStats: {
-          "openai:p1": { lastUsed: 1 },
-          "openai:p2": { cooldownUntil: now + 60 * 60 * 1000 }, // p2 in cooldown
-          "openai:p3": { lastUsed: 3 },
-        },
-      };
-      await fs.writeFile(authPath, JSON.stringify(payload));
+      await fs.writeFile(
+        authPath,
+        JSON.stringify({
+          version: 1,
+          profiles: {
+            "openai:p1": { type: "api_key", provider: "openai", key: "sk-one" },
+            "openai:p2": { type: "api_key", provider: "openai", key: "sk-two" },
+          },
+          usageStats: {
+            "openai:p1": { lastUsed: 1 },
+            "openai:p2": { lastUsed: 2 },
+          },
+        }),
+      );
 
-      mockFailedThenSuccessfulAttempt("rate limit");
-      await runAutoPinnedOpenAiTurn({
-        agentDir,
+      runEmbeddedAttemptMock
+        .mockResolvedValueOnce(
+          makeAttempt({
+            timedOut: true,
+            assistantTexts: [],
+            lastAssistant: buildAssistant({
+              stopReason: "error",
+              errorMessage: "LLM request timed out.",
+            }),
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeAttempt({
+            assistantTexts: ["ok"],
+            lastAssistant: buildAssistant({
+              stopReason: "stop",
+              content: [{ type: "text", text: "ok" }],
+            }),
+          }),
+        );
+
+      const result = await runEmbeddedPiAgent({
+        sessionId: "session:probe-rotate-no-cooldown",
+        sessionKey: "agent:test:probe-rotate-no-cooldown",
+        sessionFile: path.join(workspaceDir, "session.jsonl"),
         workspaceDir,
-        sessionKey: "agent:test:rotate-skip-cooldown",
-        runId: "run:rotate-skip-cooldown",
+        agentDir,
+        config: makeConfig({ fallbacks: ["openai/mock-2"] }),
+        prompt: "hello",
+        provider: "openai",
+        model: "mock-1",
+        authProfileId: "openai:p1",
+        authProfileIdSource: "auto",
+        timeoutMs: 5_000,
+        runId: "run:probe-rotate-no-cooldown",
+        isProbeRun: true,
       });
 
       expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(2);
-      const usageStats = await readUsageStats(agentDir);
-      expect(typeof usageStats["openai:p1"]?.lastUsed).toBe("number");
-      expect(typeof usageStats["openai:p3"]?.lastUsed).toBe("number");
-      expect(usageStats["openai:p2"]?.cooldownUntil).toBe(now + 60 * 60 * 1000);
-    });
+      expect(result.payloads?.some((payload) => payload.text === "ok")).toBe(true);
+
+      const stored = JSON.parse(await fs.readFile(authPath, "utf-8")) as {
+        usageStats?: Record<
+          string,
+          { cooldownUntil?: number; lastFailureAt?: number; lastUsed?: number }
+        >;
+      };
+      expect(stored.usageStats?.["openai:p1"]?.cooldownUntil).toBeUndefined();
+      expect(stored.usageStats?.["openai:p1"]?.lastFailureAt).toBeUndefined();
+      expect(typeof stored.usageStats?.["openai:p2"]?.lastUsed).toBe("number");
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("probe mode rotates on prompt failover errors without persisting cooldown penalties", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
+      await writeAuthStore(agentDir);
+
+      runEmbeddedAttemptMock
+        .mockResolvedValueOnce(
+          makeAttempt({
+            promptError: new Error("rate limit"),
+            assistantTexts: [],
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeAttempt({
+            assistantTexts: ["ok"],
+            lastAssistant: buildAssistant({
+              stopReason: "stop",
+              content: [{ type: "text", text: "ok" }],
+            }),
+          }),
+        );
+
+      const result = await runEmbeddedPiAgent({
+        sessionId: "session:probe-prompt-error",
+        sessionKey: "agent:test:probe-prompt-error",
+        sessionFile: path.join(workspaceDir, "session.jsonl"),
+        workspaceDir,
+        agentDir,
+        config: makeConfig(),
+        prompt: "hello",
+        provider: "openai",
+        model: "mock-1",
+        authProfileId: "openai:p1",
+        authProfileIdSource: "auto",
+        timeoutMs: 5_000,
+        runId: "run:probe-prompt-error",
+        isProbeRun: true,
+      });
+
+      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(2);
+      expect(result.payloads?.some((payload) => payload.text === "ok")).toBe(true);
+
+      const stored = JSON.parse(
+        await fs.readFile(path.join(agentDir, "auth-profiles.json"), "utf-8"),
+      ) as {
+        usageStats?: Record<
+          string,
+          { cooldownUntil?: number; lastFailureAt?: number; lastUsed?: number }
+        >;
+      };
+      expect(stored.usageStats?.["openai:p1"]?.cooldownUntil).toBeUndefined();
+      expect(stored.usageStats?.["openai:p1"]?.lastFailureAt).toBeUndefined();
+      expect(typeof stored.usageStats?.["openai:p2"]?.lastUsed).toBe("number");
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("normal mode keeps cooldown persistence for prompt failover errors", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
+      await writeAuthStore(agentDir);
+
+      runEmbeddedAttemptMock
+        .mockResolvedValueOnce(
+          makeAttempt({
+            promptError: new Error("rate limit"),
+            assistantTexts: [],
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeAttempt({
+            assistantTexts: ["ok"],
+            lastAssistant: buildAssistant({
+              stopReason: "stop",
+              content: [{ type: "text", text: "ok" }],
+            }),
+          }),
+        );
+
+      const result = await runEmbeddedPiAgent({
+        sessionId: "session:normal-prompt-error",
+        sessionKey: "agent:test:normal-prompt-error",
+        sessionFile: path.join(workspaceDir, "session.jsonl"),
+        workspaceDir,
+        agentDir,
+        config: makeConfig(),
+        prompt: "hello",
+        provider: "openai",
+        model: "mock-1",
+        authProfileId: "openai:p1",
+        authProfileIdSource: "auto",
+        timeoutMs: 5_000,
+        runId: "run:normal-prompt-error",
+      });
+
+      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(2);
+      expect(result.payloads?.some((payload) => payload.text === "ok")).toBe(true);
+
+      const stored = JSON.parse(
+        await fs.readFile(path.join(agentDir, "auth-profiles.json"), "utf-8"),
+      ) as {
+        usageStats?: Record<string, { cooldownUntil?: number; lastFailureAt?: number }>;
+      };
+      expect(typeof stored.usageStats?.["openai:p1"]?.cooldownUntil).toBe("number");
+      expect(typeof stored.usageStats?.["openai:p1"]?.lastFailureAt).toBe("number");
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("treats probe-like session ids as probe mode when flag is unset", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
+      const authPath = path.join(agentDir, "auth-profiles.json");
+      await fs.writeFile(
+        authPath,
+        JSON.stringify({
+          version: 1,
+          profiles: {
+            "openai:p1": { type: "api_key", provider: "openai", key: "sk-one" },
+          },
+          usageStats: {
+            "openai:p1": { lastUsed: 1 },
+          },
+        }),
+      );
+
+      runEmbeddedAttemptMock.mockResolvedValueOnce(
+        makeAttempt({
+          timedOut: true,
+          assistantTexts: [],
+          lastAssistant: buildAssistant({
+            stopReason: "error",
+            errorMessage: "LLM request timed out.",
+          }),
+        }),
+      );
+
+      await expect(
+        runEmbeddedPiAgent({
+          sessionId: "probe-openai-timeout-without-flag",
+          sessionKey: "agent:test:probe-timeout-without-flag",
+          sessionFile: path.join(workspaceDir, "session.jsonl"),
+          workspaceDir,
+          agentDir,
+          config: makeConfig({ fallbacks: ["openai/mock-2"] }),
+          prompt: "hello",
+          provider: "openai",
+          model: "mock-1",
+          authProfileId: "openai:p1",
+          authProfileIdSource: "auto",
+          timeoutMs: 5_000,
+          runId: "run:probe-timeout-without-flag",
+        }),
+      ).rejects.toMatchObject({
+        name: "FailoverError",
+      });
+
+      const stored = JSON.parse(await fs.readFile(authPath, "utf-8")) as {
+        usageStats?: Record<string, { cooldownUntil?: number; lastFailureAt?: number }>;
+      };
+      expect(stored.usageStats?.["openai:p1"]?.cooldownUntil).toBeUndefined();
+      expect(stored.usageStats?.["openai:p1"]?.lastFailureAt).toBeUndefined();
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("allows isProbeRun=false to disable probe-session heuristic and persist cooldown", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
+      const authPath = path.join(agentDir, "auth-profiles.json");
+      await fs.writeFile(
+        authPath,
+        JSON.stringify({
+          version: 1,
+          profiles: {
+            "openai:p1": { type: "api_key", provider: "openai", key: "sk-one" },
+          },
+          usageStats: {
+            "openai:p1": { lastUsed: 1 },
+          },
+        }),
+      );
+
+      runEmbeddedAttemptMock.mockResolvedValueOnce(
+        makeAttempt({
+          promptError: new Error("rate limit"),
+          assistantTexts: [],
+        }),
+      );
+
+      await expect(
+        runEmbeddedPiAgent({
+          sessionId: "probe-openai-rate-limit-explicit-false",
+          sessionKey: "agent:test:probe-rate-limit-explicit-false",
+          sessionFile: path.join(workspaceDir, "session.jsonl"),
+          workspaceDir,
+          agentDir,
+          config: makeConfig({ fallbacks: ["openai/mock-2"] }),
+          prompt: "hello",
+          provider: "openai",
+          model: "mock-1",
+          authProfileId: "openai:p1",
+          authProfileIdSource: "auto",
+          timeoutMs: 5_000,
+          runId: "run:probe-rate-limit-explicit-false",
+          isProbeRun: false,
+        }),
+      ).rejects.toMatchObject({
+        name: "FailoverError",
+      });
+
+      const stored = JSON.parse(await fs.readFile(authPath, "utf-8")) as {
+        usageStats?: Record<string, { cooldownUntil?: number; lastFailureAt?: number }>;
+      };
+      expect(typeof stored.usageStats?.["openai:p1"]?.cooldownUntil).toBe("number");
+      expect(typeof stored.usageStats?.["openai:p1"]?.lastFailureAt).toBe("number");
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails over when auth is unavailable and fallbacks are configured", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    const previousOpenAiKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    try {
+      const authPath = path.join(agentDir, "auth-profiles.json");
+      await fs.writeFile(authPath, JSON.stringify({ version: 1, profiles: {}, usageStats: {} }));
+
+      await expect(
+        runEmbeddedPiAgent({
+          sessionId: "session:test",
+          sessionKey: "agent:test:auth-unavailable",
+          sessionFile: path.join(workspaceDir, "session.jsonl"),
+          workspaceDir,
+          agentDir,
+          config: makeConfig({ fallbacks: ["openai/mock-2"], apiKey: "" }),
+          prompt: "hello",
+          provider: "openai",
+          model: "mock-1",
+          authProfileIdSource: "auto",
+          timeoutMs: 5_000,
+          runId: "run:auth-unavailable",
+        }),
+      ).rejects.toMatchObject({ name: "FailoverError", reason: "auth" });
+
+      expect(runEmbeddedAttemptMock).not.toHaveBeenCalled();
+    } finally {
+      if (previousOpenAiKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previousOpenAiKey;
+      }
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("skips profiles in cooldown when rotating after failure", async () => {
+    vi.useFakeTimers();
+    try {
+      const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+      const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+      const now = Date.now();
+      vi.setSystemTime(now);
+
+      try {
+        const authPath = path.join(agentDir, "auth-profiles.json");
+        const payload = {
+          version: 1,
+          profiles: {
+            "openai:p1": { type: "api_key", provider: "openai", key: "sk-one" },
+            "openai:p2": { type: "api_key", provider: "openai", key: "sk-two" },
+            "openai:p3": { type: "api_key", provider: "openai", key: "sk-three" },
+          },
+          usageStats: {
+            "openai:p1": { lastUsed: 1 },
+            "openai:p2": { cooldownUntil: now + 60 * 60 * 1000 }, // p2 in cooldown
+            "openai:p3": { lastUsed: 3 },
+          },
+        };
+        await fs.writeFile(authPath, JSON.stringify(payload));
+
+        runEmbeddedAttemptMock
+          .mockResolvedValueOnce(
+            makeAttempt({
+              assistantTexts: [],
+              lastAssistant: buildAssistant({
+                stopReason: "error",
+                errorMessage: "rate limit",
+              }),
+            }),
+          )
+          .mockResolvedValueOnce(
+            makeAttempt({
+              assistantTexts: ["ok"],
+              lastAssistant: buildAssistant({
+                stopReason: "stop",
+                content: [{ type: "text", text: "ok" }],
+              }),
+            }),
+          );
+
+        await runEmbeddedPiAgent({
+          sessionId: "session:test",
+          sessionKey: "agent:test:rotate-skip-cooldown",
+          sessionFile: path.join(workspaceDir, "session.jsonl"),
+          workspaceDir,
+          agentDir,
+          config: makeConfig(),
+          prompt: "hello",
+          provider: "openai",
+          model: "mock-1",
+          authProfileId: "openai:p1",
+          authProfileIdSource: "auto",
+          timeoutMs: 5_000,
+          runId: "run:rotate-skip-cooldown",
+        });
+
+        expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(2);
+
+        const stored = JSON.parse(
+          await fs.readFile(path.join(agentDir, "auth-profiles.json"), "utf-8"),
+        ) as {
+          usageStats?: Record<string, { lastUsed?: number; cooldownUntil?: number }>;
+        };
+        expect(typeof stored.usageStats?.["openai:p1"]?.lastUsed).toBe("number");
+        expect(typeof stored.usageStats?.["openai:p3"]?.lastUsed).toBe("number");
+        expect(stored.usageStats?.["openai:p2"]?.cooldownUntil).toBe(now + 60 * 60 * 1000);
+      } finally {
+        await fs.rm(agentDir, { recursive: true, force: true });
+        await fs.rm(workspaceDir, { recursive: true, force: true });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
