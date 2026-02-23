@@ -3,13 +3,10 @@ import { EmbeddedBlockChunker } from "../../agents/pi-embedded-block-chunker.js"
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ReplyPayload } from "../types.js";
 import { createBlockReplyPipeline } from "./block-reply-pipeline.js";
-import {
-  resolveBlockStreamingChunking,
-  resolveBlockStreamingCoalescing,
-} from "./block-streaming.js";
+import { resolveEffectiveBlockStreamingConfig } from "./block-streaming.js";
 import type { ReplyDispatchKind } from "./reply-dispatcher.js";
 
-const DEFAULT_ACP_STREAM_BATCH_MS = 350;
+const DEFAULT_ACP_STREAM_COALESCE_IDLE_MS = 350;
 const DEFAULT_ACP_STREAM_MAX_CHUNK_CHARS = 1800;
 const ACP_BLOCK_REPLY_TIMEOUT_MS = 15_000;
 
@@ -31,11 +28,15 @@ function clampPositiveInteger(
   return rounded;
 }
 
-function resolveAcpStreamBatchMs(cfg: OpenClawConfig): number {
-  return clampPositiveInteger(cfg.acp?.stream?.batchMs, DEFAULT_ACP_STREAM_BATCH_MS, {
-    min: 0,
-    max: 5_000,
-  });
+function resolveAcpStreamCoalesceIdleMs(cfg: OpenClawConfig): number {
+  return clampPositiveInteger(
+    cfg.acp?.stream?.coalesceIdleMs,
+    DEFAULT_ACP_STREAM_COALESCE_IDLE_MS,
+    {
+      min: 0,
+      max: 5_000,
+    },
+  );
 }
 
 function resolveAcpStreamMaxChunkChars(cfg: OpenClawConfig): number {
@@ -49,60 +50,14 @@ function resolveAcpStreamingConfig(params: {
   cfg: OpenClawConfig;
   provider?: string;
   accountId?: string;
-}): {
-  chunking: {
-    minChars: number;
-    maxChars: number;
-    breakPreference: "paragraph" | "newline" | "sentence";
-    flushOnParagraph?: boolean;
-  };
-  coalescing: {
-    minChars: number;
-    maxChars: number;
-    idleMs: number;
-    joiner: string;
-    flushOnEnqueue?: boolean;
-  };
-} {
-  const batchMs = resolveAcpStreamBatchMs(params.cfg);
-  const configuredMaxChars = resolveAcpStreamMaxChunkChars(params.cfg);
-  const chunkingDefaults = resolveBlockStreamingChunking(
-    params.cfg,
-    params.provider,
-    params.accountId,
-  );
-  const chunkingMax = Math.max(1, Math.min(chunkingDefaults.maxChars, configuredMaxChars));
-  const chunkingMin = Math.min(chunkingDefaults.minChars, chunkingMax);
-  const chunking = {
-    ...chunkingDefaults,
-    minChars: chunkingMin,
-    maxChars: chunkingMax,
-  };
-  const coalescingDefaults = resolveBlockStreamingCoalescing(
-    params.cfg,
-    params.provider,
-    params.accountId,
-    chunking,
-  );
-  const coalescingMax = Math.max(
-    1,
-    Math.min(coalescingDefaults?.maxChars ?? chunking.maxChars, chunking.maxChars),
-  );
-  const coalescingMin = Math.min(coalescingDefaults?.minChars ?? chunking.minChars, coalescingMax);
-  const coalescing = {
-    minChars: coalescingMin,
-    maxChars: coalescingMax,
-    idleMs: batchMs,
-    joiner:
-      coalescingDefaults?.joiner ??
-      (chunking.breakPreference === "sentence"
-        ? " "
-        : chunking.breakPreference === "newline"
-          ? "\n"
-          : "\n\n"),
-    flushOnEnqueue: coalescingDefaults?.flushOnEnqueue ?? chunking.flushOnParagraph === true,
-  };
-  return { chunking, coalescing };
+}) {
+  return resolveEffectiveBlockStreamingConfig({
+    cfg: params.cfg,
+    provider: params.provider,
+    accountId: params.accountId,
+    maxChunkChars: resolveAcpStreamMaxChunkChars(params.cfg),
+    coalesceIdleMs: resolveAcpStreamCoalesceIdleMs(params.cfg),
+  });
 }
 
 export type AcpReplyProjector = {

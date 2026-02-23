@@ -7,7 +7,7 @@ function createCfg(overrides?: Partial<OpenClawConfig>): OpenClawConfig {
     acp: {
       enabled: true,
       stream: {
-        batchMs: 0,
+        coalesceIdleMs: 0,
         maxChunkChars: 50,
       },
     },
@@ -53,7 +53,7 @@ describe("createAcpReplyProjector", () => {
         acp: {
           enabled: true,
           stream: {
-            batchMs: 0,
+            coalesceIdleMs: 0,
             maxChunkChars: 256,
           },
         },
@@ -120,7 +120,7 @@ describe("createAcpReplyProjector", () => {
         acp: {
           enabled: true,
           stream: {
-            batchMs: 0,
+            coalesceIdleMs: 0,
             maxChunkChars: 256,
           },
         },

@@ -331,7 +331,7 @@ export const OpenClawSchema = z
         maxConcurrentSessions: z.number().int().positive().optional(),
         stream: z
           .object({
-            batchMs: z.number().int().nonnegative().optional(),
+            coalesceIdleMs: z.number().int().nonnegative().optional(),
             maxChunkChars: z.number().int().positive().optional(),
           })
           .strict()

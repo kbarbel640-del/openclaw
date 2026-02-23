@@ -350,7 +350,7 @@ Core keys:
 - `acp.defaultAgent`
 - `acp.allowedAgents[]`
 - `acp.maxConcurrentSessions`
-- `acp.stream.batchMs`
+- `acp.stream.coalesceIdleMs`
 - `acp.stream.maxChunkChars`
 - `acp.runtime.ttlMinutes`
 - `acp.controlPlane.store` (`sqlite` default)

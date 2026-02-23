@@ -4,8 +4,8 @@ export type AcpDispatchConfig = {
 };
 
 export type AcpStreamConfig = {
-  /** Minimum delay between streamed ACP chunks in milliseconds. */
-  batchMs?: number;
+  /** Coalescer idle flush window in milliseconds for ACP streamed text. */
+  coalesceIdleMs?: number;
   /** Maximum text size per streamed chunk. */
   maxChunkChars?: number;
 };
