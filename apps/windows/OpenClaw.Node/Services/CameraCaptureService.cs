@@ -409,6 +409,36 @@ try {
         {
             var lines = output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
             var names = new List<string>();
+
+            // Pattern used by ffmpeg dshow device listing lines:
+            // "USB2.0 FHD UVC WebCam" (video)
+            var typedQuoted = new Regex("\"([^\"]+)\"\\s*\\((video|audio)\\)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+            foreach (var line in lines)
+            {
+                var mt = typedQuoted.Match(line);
+                if (mt.Success)
+                {
+                    var kind = mt.Groups[2].Value;
+                    if (!string.Equals(kind, "video", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var typedName = mt.Groups[1].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(typedName) && !names.Contains(typedName, StringComparer.OrdinalIgnoreCase))
+                    {
+                        names.Add(typedName);
+                    }
+                }
+            }
+
+            if (names.Count > 0)
+            {
+                return names.ToArray();
+            }
+
+            // Fallback to section-based parser for other ffmpeg variants.
             var inVideo = false;
             var quoted = new Regex("\"([^\"]+)\"", RegexOptions.Compiled);
 
@@ -431,8 +461,8 @@ try {
                 if (!m.Success) continue;
                 var name = m.Groups[1].Value.Trim();
                 if (string.IsNullOrWhiteSpace(name)) continue;
-                if (names.Contains(name, StringComparer.OrdinalIgnoreCase)) continue;
-                names.Add(name);
+                if (name.StartsWith("@device_", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!names.Contains(name, StringComparer.OrdinalIgnoreCase)) names.Add(name);
             }
 
             return names.ToArray();
