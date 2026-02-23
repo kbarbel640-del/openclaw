@@ -37,6 +37,8 @@ import {
   applyMoonshotProviderConfigCn,
   applyOpencodeZenConfig,
   applyOpencodeZenProviderConfig,
+  applyOvhcloudConfig,
+  applyOvhcloudProviderConfig,
   applySyntheticConfig,
   applySyntheticProviderConfig,
   applyTogetherConfig,
@@ -55,6 +57,7 @@ import {
   KIMI_CODING_MODEL_REF,
   MOONSHOT_DEFAULT_MODEL_REF,
   MISTRAL_DEFAULT_MODEL_REF,
+  OVHCLOUD_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
   VENICE_DEFAULT_MODEL_REF,
@@ -68,6 +71,7 @@ import {
   setMistralApiKey,
   setMoonshotApiKey,
   setOpencodeZenApiKey,
+  setOvhcloudApiKey,
   setSyntheticApiKey,
   setTogetherApiKey,
   setVeniceApiKey,
@@ -97,6 +101,7 @@ const API_KEY_TOKEN_PROVIDER_AUTH_CHOICE: Record<string, AuthChoice> = {
   huggingface: "huggingface-api-key",
   mistral: "mistral-api-key",
   opencode: "opencode-zen",
+  ovhcloud: "ovhcloud-api-key",
   qianfan: "qianfan-api-key",
 };
 
@@ -289,6 +294,24 @@ const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProv
     applyProviderConfig: applySyntheticProviderConfig,
     normalize: (value) => String(value ?? "").trim(),
     validate: (value) => (String(value ?? "").trim() ? undefined : "Required"),
+  },
+  "ovhcloud-api-key": {
+    provider: "ovhcloud",
+    profileId: "ovhcloud:default",
+    expectedProviders: ["ovhcloud"],
+    envLabel: "OVHCLOUD_API_KEY",
+    promptMessage: "Enter OVHcloud AI Endpoints API key",
+    setCredential: setOvhcloudApiKey,
+    defaultModel: OVHCLOUD_DEFAULT_MODEL_REF,
+    applyDefaultConfig: applyOvhcloudConfig,
+    applyProviderConfig: applyOvhcloudProviderConfig,
+    noteDefault: OVHCLOUD_DEFAULT_MODEL_REF,
+    noteMessage: [
+      "Access the control panel at https://www.ovhcloud.com/ and navigate to",
+      "Public Cloud > AI & Machine Learning > AI Endpoints > API Keys",
+      "Recommended model: gpt-oss-120b",
+    ].join("\n"),
+    noteTitle: "OVHcloud AI Endpoints",
   },
 };
 

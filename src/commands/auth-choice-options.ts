@@ -9,6 +9,7 @@ export type AuthChoiceOption = {
   label: string;
   hint?: string;
 };
+
 export type AuthChoiceGroup = {
   value: AuthChoiceGroupId;
   label: string;
@@ -173,6 +174,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["cloudflare-ai-gateway-api-key"],
   },
   {
+    value: "ovhcloud",
+    label: "OVHcloud AI Endpoints",
+    hint: "European-based with sovereignty and data privacy",
+    choices: ["ovhcloud-api-key"],
+  },
+  {
     value: "custom",
     label: "Custom Provider",
     hint: "Any OpenAI or Anthropic compatible endpoint",
@@ -300,6 +307,11 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     value: "opencode-zen",
     label: "OpenCode Zen (multi-model proxy)",
     hint: "Claude, GPT, Gemini via opencode.ai/zen",
+  },
+  {
+    value: "ovhcloud-api-key",
+    label: "OVHcloud AI Endpoints API key",
+    hint: "European-based with sovereignty and data privacy",
   },
   { value: "minimax-api", label: "MiniMax M2.5" },
   {

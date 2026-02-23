@@ -33,6 +33,7 @@ import {
 } from "./huggingface-models.js";
 import { resolveAwsSdkEnvVarName, resolveEnvApiKey } from "./model-auth.js";
 import { OLLAMA_NATIVE_BASE_URL } from "./ollama-stream.js";
+import { discoverOvhcloudModels, OVHCLOUD_BASE_URL } from "./ovhcloud-models.js";
 import {
   buildSyntheticModelDefinition,
   SYNTHETIC_BASE_URL,
@@ -764,6 +765,15 @@ export function buildNvidiaProvider(): ProviderConfig {
   };
 }
 
+async function buildOvhcloudProvider(): Promise<ProviderConfig> {
+  const models = await discoverOvhcloudModels();
+  return {
+    baseUrl: OVHCLOUD_BASE_URL,
+    api: "openai-completions",
+    models,
+  };
+}
+
 export async function resolveImplicitProviders(params: {
   agentDir: string;
   explicitProviders?: Record<string, ProviderConfig> | null;
@@ -949,6 +959,13 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "nvidia", store: authStore });
   if (nvidiaKey) {
     providers.nvidia = { ...buildNvidiaProvider(), apiKey: nvidiaKey };
+  }
+
+  const ovhcloudKey =
+    resolveEnvApiKeyVarName("ovhcloud") ??
+    resolveApiKeyFromProfiles({ provider: "ovhcloud", store: authStore });
+  if (ovhcloudKey) {
+    providers.ovhcloud = { ...(await buildOvhcloudProvider()), apiKey: ovhcloudKey };
   }
 
   return providers;

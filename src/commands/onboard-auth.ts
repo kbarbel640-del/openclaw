@@ -23,6 +23,8 @@ export {
   applyMoonshotProviderConfigCn,
   applyOpenrouterConfig,
   applyOpenrouterProviderConfig,
+  applyOvhcloudConfig,
+  applyOvhcloudProviderConfig,
   applySyntheticConfig,
   applySyntheticProviderConfig,
   applyTogetherConfig,
@@ -68,6 +70,7 @@ export {
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
+  setOvhcloudApiKey,
   setSyntheticApiKey,
   setTogetherApiKey,
   setHuggingfaceApiKey,
@@ -113,4 +116,5 @@ export {
   ZAI_CODING_GLOBAL_BASE_URL,
   ZAI_CN_BASE_URL,
   ZAI_GLOBAL_BASE_URL,
+  OVHCLOUD_DEFAULT_MODEL_REF,
 } from "./onboard-auth.models.js";

@@ -24,6 +24,7 @@ type OnboardProviderAuthOptionKey = keyof Pick<
   | "qianfanApiKey"
   | "volcengineApiKey"
   | "byteplusApiKey"
+  | "ovhcloudApiKey"
 >;
 
 export type OnboardProviderAuthFlag = {
@@ -189,5 +190,12 @@ export const ONBOARD_PROVIDER_AUTH_FLAGS: ReadonlyArray<OnboardProviderAuthFlag>
     cliFlag: "--byteplus-api-key",
     cliOption: "--byteplus-api-key <key>",
     description: "BytePlus API key",
+  },
+  {
+    optionKey: "ovhcloudApiKey",
+    authChoice: "ovhcloud-api-key",
+    cliFlag: "--ovhcloud-api-key",
+    cliOption: "--ovhcloud-api-key <key>",
+    description: "OVHcloud AI Endpoints API key",
   },
 ];
