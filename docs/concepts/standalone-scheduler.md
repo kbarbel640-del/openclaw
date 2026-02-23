@@ -119,6 +119,75 @@ Set via job configuration:
 }
 ```
 
+### Idempotency keys
+
+`at-least-once` delivery replays orphaned runs on crash recovery.
+Without idempotency, replayed jobs could double-execute side effects
+(settle a bet twice, send duplicate notifications). Idempotency keys
+give agents a deterministic way to detect "I already handled this
+exact execution."
+
+**Deterministic key generation:**
+
+- Schedule-triggered: `sha256(job_id + ":" + scheduled_time)` — same
+  cron slot always produces the same key.
+- Chain-triggered:
+  `sha256("chain:" + parent_run_id + ":" + child_job_id)` — tied to
+  parent execution.
+- Manual run-now:
+  `sha256("run_now:" + job_id + ":" + timestamp_ms)` — unique per
+  manual trigger.
+
+Keys are truncated to 32 characters of hex for collision resistance
+without unbounded growth.
+
+**Idempotency ledger** (new table `idempotency_ledger`):
+
+- Tracks which keys have been "claimed" by successful executions.
+- Separate from run history (which gets pruned) — the ledger has its
+  own expiry.
+- 7-day retention for recurring jobs, 24 hours for one-shots.
+- Prevents unbounded growth while covering any reasonable replay
+  window.
+
+**Dispatch flow:**
+
+1. Generate key from job + scheduled time.
+2. Check ledger — if key already claimed, skip (log + advance
+   schedule).
+3. Create run with key attached (`idempotency_key` column on runs).
+4. Claim key in ledger (`UNIQUE` constraint prevents race
+   conditions).
+5. On success: keep claim, store result hash.
+6. On failure: release claim (allows retry/replay to reclaim).
+
+**Agent-side awareness:**
+
+- `at-least-once` jobs get the key injected into their prompt.
+- Agents can verify they have not already processed this key.
+- A response of `IDEMPOTENT_SKIP` skips delivery (treated as
+  success).
+
+**Edge cases handled:**
+
+- Crash during dispatch: `replayOrphanedRuns()` releases crashed run
+  keys before creating replays.
+- Concurrent dispatch (`overlap=allow`): `UNIQUE` constraint catches
+  races; the second dispatch skips gracefully.
+- Manual run-now: always a unique key, never conflicts with scheduled
+  runs.
+- Schedule changes: new cron times produce new keys, no conflict with
+  old ones.
+- Clock skew: uses stored `next_run_at` from SQLite (UTC), not the
+  system clock.
+
+**Abuse prevention:**
+
+- `UNIQUE` index prevents duplicate claims at DB level.
+- Auto-expiry prevents unbounded ledger growth.
+- Key rate bounded by job count multiplied by frequency.
+- 32-character truncated SHA-256 for collision resistance.
+
 ### Flush-before-compaction hook
 
 Jobs with `job_class: "pre_compaction_flush"` receive a structured
@@ -480,14 +549,14 @@ current, reducing data loss window on crash or SIGKILL.
 
 ### Database schema
 
-Nine tables:
+Ten tables:
 
 | Table                 | Purpose                                                                  |
 | --------------------- | ------------------------------------------------------------------------ |
 | `jobs`                | Schedule, payload, delivery, overlap, backoff, chains, retry, job class, |
 |                       | delivery guarantee, approval config, context retrieval settings          |
 | `runs`                | Execution history: status, duration, heartbeat, retry lineage, context   |
-|                       | summary (JSON), replay tracking                                          |
+|                       | summary (JSON), replay tracking, idempotency key                         |
 | `messages`            | Inter-agent queue: priority, threading, read receipts, TTL, typed kinds  |
 |                       | (decision, constraint, fact, preference) with owner field                |
 | `agents`              | Registry: status, last seen, capabilities                                |
@@ -495,6 +564,7 @@ Nine tables:
 | `approvals`           | HITL approval lifecycle: pending, approved, rejected, timed out          |
 | `task_tracker`        | Task groups: expected agents, timeout, delivery config, group status     |
 | `task_tracker_agents` | Per-agent status: pending, running, completed, failed, dead              |
+| `idempotency_ledger`  | Idempotency key claims: key, job, run, result hash, expiry               |
 | `schema_migrations`   | Migration version tracking                                               |
 
 **Jobs table** includes: cron schedule with timezone, session target
@@ -513,7 +583,8 @@ context retrieval config (`context_retrieval`,
 **Runs table** tracks implicit heartbeat via `last_heartbeat`
 timestamp, chain provenance via `triggered_by_run`, retry lineage
 via `retry_of` and `retry_count`, context summary via
-`context_summary` (JSON), and crash replay tracking via `replay_of`.
+`context_summary` (JSON), crash replay tracking via `replay_of`,
+and idempotency via `idempotency_key` (links to the ledger).
 
 **Messages table** supports typed message kinds (`decision`,
 `constraint`, `fact`, `preference`) alongside the original kinds.
@@ -534,6 +605,12 @@ timed_out), `requested_at`, `resolved_at`, `resolved_by`
 group: `tracker_id`, `label`, `status` (pending/running/completed/
 failed/dead), `started_at`, `completed_at`, and `message` or
 `error`.
+
+**Idempotency ledger table** tracks claimed idempotency keys:
+`key` (UNIQUE, 32-char truncated SHA-256), `job_id`, `run_id`,
+`result_hash`, `claimed_at`, and `expires_at`. Separate from run
+history so pruning runs does not lose idempotency state. Expired
+entries are pruned automatically during the prune cycle.
 
 ### Dispatch via chat completions
 
@@ -599,6 +676,12 @@ node cli.js agents register <id> [name]  # register/update agent
 node cli.js alias list                   # list delivery aliases
 node cli.js alias add <n> <ch> <tgt>     # add alias
 node cli.js alias remove <name>          # remove alias
+
+# Idempotency
+node cli.js idem status <job-id>         # recent idempotency keys for a job
+node cli.js idem check <key>             # check if a key is claimed
+node cli.js idem release <key>           # manually release a stuck claim
+node cli.js idem prune                   # force prune expired entries
 
 # Backup (when enabled)
 node backup.js snapshot                  # ship current DB to object storage
@@ -699,6 +782,7 @@ gateway forks, no internal API dependencies.
 | Context audit       | None                    | JSON context summary per run                    |
 | Typed knowledge     | None                    | Structured message types with priority ordering |
 | Agent monitoring    | None                    | Dead-man's-switch task tracker with timeout     |
+| Replay safety       | None                    | Deterministic idempotency keys with ledger      |
 
 ## Installation
 
@@ -720,7 +804,7 @@ cd ~/.openclaw/scheduler
 npm install
 
 # Initialize the database (happens automatically on first run)
-# migrate-v5.js runs automatically on startup to apply the latest schema
+# migrate-v7.js runs automatically on startup to apply the latest schema
 node dispatcher.js
 
 # Or use the CLI to verify
@@ -730,8 +814,10 @@ node cli.js status
 Schema migrations are applied automatically. The `migrate-v5.js`
 migration adds delivery guarantee, job class, approval gates,
 context retrieval, typed messages, and the approvals table. The
-`migrate-v6.js` migration adds the task tracker tables. Migrations
-run on startup if the database is at an earlier schema version.
+`migrate-v6.js` migration adds the task tracker tables. The
+`migrate-v7.js` migration adds the idempotency ledger table and
+the `idempotency_key` column on runs. Migrations run on startup if
+the database is at an earlier schema version.
 
 ### Process management
 
@@ -846,23 +932,24 @@ node backup.js status
 ├── gateway.js          # gateway health + chat completions + delivery aliases
 ├── backup.js           # optional: object storage snapshot/rollup/restore
 ├── cli.js              # CLI interface (all management commands)
-├── test.js             # 297 assertions
+├── test.js             # 340 assertions
 ├── migrate.js          # schema migrations (runner)
 ├── migrate-v5.js       # v5 migration: delivery, approvals, retrieval, typed msgs
 ├── migrate-v6.js       # v6 migration: task tracker tables
+├── migrate-v7.js       # v7 migration: idempotency ledger table
 ├── package.json        # dependencies (better-sqlite3, croner)
 └── scheduler.db        # SQLite database (created on first run)
 ```
 
 ## Production status
 
-Working implementation deployed and stable. **297 test assertions**
+Working implementation deployed and stable. **340 test assertions**
 covering schema, cron scheduling, job CRUD, run lifecycle, messages,
 agents, workflow chaining, retry logic, cascade cancellation, resource
 pools, trigger conditions, delivery aliases, run-now, queue overlap,
 delivery semantics, flush-before-compaction, context summaries, typed
-messages, approval gates, run replay, hybrid retrieval, and task
-tracker.
+messages, approval gates, run replay, hybrid retrieval, task tracker,
+and idempotency keys.
 
 Stable with zero missed fires and zero undetected stale runs. Survived
 gateway restarts, scheduler restarts, and network blips without data
