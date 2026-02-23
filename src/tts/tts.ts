@@ -64,7 +64,7 @@ const DEFAULT_ELEVENLABS_VOICE_SETTINGS = {
   speed: 1.0,
 };
 
-const TELEGRAM_OUTPUT = {
+const OPUS_OUTPUT = {
   openai: "opus" as const,
   // ElevenLabs output formats use codec_sample_rate_bitrate naming.
   // Opus @ 48kHz/64kbps is a good voice-note tradeoff for Telegram.
@@ -481,8 +481,8 @@ export function setLastTtsAttempt(entry: TtsStatusEntry | undefined): void {
 }
 
 function resolveOutputFormat(channelId?: string | null) {
-  if (channelId === "telegram") {
-    return TELEGRAM_OUTPUT;
+  if (channelId === "telegram" || channelId === "feishu") {
+    return OPUS_OUTPUT;
   }
   return DEFAULT_OUTPUT;
 }

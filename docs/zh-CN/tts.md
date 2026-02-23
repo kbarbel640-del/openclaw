@@ -295,8 +295,8 @@ Here you go.
 
 ## 输出格式（固定）
 
-- **Telegram**：Opus 语音消息（ElevenLabs 的 `opus_48000_64`，OpenAI 的 `opus`）。
-  - 48kHz / 64kbps 是语音消息的良好权衡，圆形气泡所必需。
+- **Telegram / 飞书**：Opus 语音消息（ElevenLabs 的 `opus_48000_64`，OpenAI 的 `opus`）。
+  - 48kHz / 64kbps 是语音消息的良好权衡，Telegram 圆形气泡所必需。
 - **其他渠道**：MP3（ElevenLabs 的 `mp3_44100_128`，OpenAI 的 `mp3`）。
   - 44.1kHz / 128kbps 是语音清晰度的默认平衡。
 - **Edge TTS**：使用 `edge.outputFormat`（默认 `audio-24khz-48kbitrate-mono-mp3`）。
@@ -305,7 +305,7 @@ Here you go.
   - Telegram `sendVoice` 接受 OGG/MP3/M4A；如果你需要有保证的 Opus 语音消息，请使用 OpenAI/ElevenLabs。citeturn1search1
   - 如果配置的 Edge 输出格式失败，OpenClaw 会使用 MP3 重试。
 
-OpenAI/ElevenLabs 格式是固定的；Telegram 期望 Opus 以获得语音消息用户体验。
+OpenAI/ElevenLabs 格式是固定的；Telegram 和飞书期望 Opus 以获得语音消息用户体验。
 
 ## 自动 TTS 行为
 
