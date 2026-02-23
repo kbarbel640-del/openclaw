@@ -3,6 +3,10 @@ import { formatDiscordUserTag } from "./format.js";
 
 export function resolveDiscordSystemEvent(message: Message, location: string): string | null {
   switch (message.type) {
+    case MessageType.ChannelNameChange:
+      return buildDiscordSystemEvent(message, location, "changed channel/thread name");
+    case MessageType.ChannelIconChange:
+      return buildDiscordSystemEvent(message, location, "changed channel icon");
     case MessageType.ChannelPinnedMessage:
       return buildDiscordSystemEvent(message, location, "pinned a message");
     case MessageType.RecipientAdd:

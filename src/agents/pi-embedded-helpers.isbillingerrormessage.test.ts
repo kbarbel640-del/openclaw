@@ -50,6 +50,16 @@ describe("isBillingErrorMessage", () => {
       expect(isBillingErrorMessage(sample)).toBe(true);
     }
   });
+  it("does not match rate-limit quota errors that contain billing keywords", () => {
+    const rateLimitSamples = [
+      "429 You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.",
+      "exceeded your current quota, please check your plan and billing details",
+      "429 Too Many Requests: check your plan",
+    ];
+    for (const sample of rateLimitSamples) {
+      expect(isBillingErrorMessage(sample)).toBe(false);
+    }
+  });
   it("does not false-positive on issue IDs or text containing 402", () => {
     const falsePositives = [
       "Fixed issue CHE-402 in the latest release",
@@ -363,6 +373,13 @@ describe("classifyFailoverReason", () => {
     expect(classifyFailoverReason("You have hit your ChatGPT usage limit (plus plan)")).toBe(
       "rate_limit",
     );
+  });
+  it("classifies openai-codex 429 quota errors as rate_limit, not billing", () => {
+    expect(
+      classifyFailoverReason(
+        "429 You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.",
+      ),
+    ).toBe("rate_limit");
   });
   it("classifies provider high-demand / service-unavailable messages as rate_limit", () => {
     expect(
