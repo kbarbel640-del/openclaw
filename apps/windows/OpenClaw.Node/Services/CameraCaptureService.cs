@@ -397,6 +397,7 @@ $reader.ReadBytes($bytes)
             };
 
             psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-Sta");
             psi.ArgumentList.Add("-NonInteractive");
             psi.ArgumentList.Add("-Command");
             psi.ArgumentList.Add(script);
