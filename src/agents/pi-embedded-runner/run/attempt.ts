@@ -175,7 +175,9 @@ export async function resolvePromptBuildHookResult(params: {
   ] satisfies PluginHookPromptAction[];
   return {
     ...(actions.length > 0 ? { actions } : {}),
-    systemPrompt: promptBuildResult?.systemPrompt ?? legacyResult?.systemPrompt,
+    systemPrompt: [promptBuildResult?.systemPrompt, legacyResult?.systemPrompt]
+      .filter((value): value is string => Boolean(value))
+      .join("\n\n"),
     prependContext: [promptBuildResult?.prependContext, legacyResult?.prependContext]
       .filter((value): value is string => Boolean(value))
       .join("\n\n"),
@@ -207,17 +209,36 @@ function normalizePromptBuildHookActions(
   }
 
   const actions: PluginHookPromptAction[] = [];
+  let hasExplicitActions = false;
 
   if (Array.isArray(result.actions)) {
-    actions.push(...result.actions);
+    for (const raw of result.actions) {
+      if (!raw || typeof raw !== "object") {
+        continue;
+      }
+      const { kind, text } = raw as { kind?: unknown; text?: unknown };
+      if (kind === "prependContext" && typeof text === "string") {
+        actions.push({ kind, text });
+        hasExplicitActions = true;
+        continue;
+      }
+      if (kind === "appendSystemPrompt" && typeof text === "string") {
+        actions.push({ kind, text });
+        hasExplicitActions = true;
+        continue;
+      }
+    }
   }
 
-  // Legacy compatibility: treat legacy fields as shorthand actions.
-  if (typeof result.prependContext === "string" && result.prependContext.trim()) {
-    actions.push({ kind: "prependContext", text: result.prependContext });
-  }
-  if (typeof result.systemPrompt === "string" && result.systemPrompt.trim()) {
-    actions.push({ kind: "appendSystemPrompt", text: result.systemPrompt });
+  // Legacy compatibility: treat legacy fields as shorthand actions, but only when
+  // the hook did not return explicit actions (prevents accidental double-apply).
+  if (!hasExplicitActions) {
+    if (typeof result.prependContext === "string" && result.prependContext.trim()) {
+      actions.push({ kind: "prependContext", text: result.prependContext });
+    }
+    if (typeof result.systemPrompt === "string" && result.systemPrompt.trim()) {
+      actions.push({ kind: "appendSystemPrompt", text: result.systemPrompt });
+    }
   }
 
   return actions;
@@ -264,9 +285,10 @@ export function applyPromptBuildHookResultToSession(params: {
     }
   }
 
+  const prependContextText = prependParts.join("\n\n");
   const effectivePrompt =
-    prependParts.length > 0 ? `${prependParts.join("\n\n")}\n\n${params.prompt}` : params.prompt;
-  const prependContextChars = prependParts.reduce((sum, part) => sum + part.length, 0);
+    prependContextText.length > 0 ? `${prependContextText}\n\n${params.prompt}` : params.prompt;
+  const prependContextChars = prependContextText.length;
 
   if (systemPromptAppends.length === 0) {
     return {
@@ -1140,6 +1162,10 @@ export async function runEmbeddedAttempt(
             tools,
           });
         }
+        cacheTrace?.recordStage("prompt:hooks", {
+          prompt: effectivePrompt,
+          system: systemPromptText,
+        });
 
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
         cacheTrace?.recordStage("prompt:before", {
