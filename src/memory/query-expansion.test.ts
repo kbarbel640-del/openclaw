@@ -95,6 +95,30 @@ describe("extractKeywords", () => {
     expect(keywords).toContain("논의");
   });
 
+  it("filters colloquial Korean conversational filler words", () => {
+    const keywords = extractKeywords("응 그냥 이미 됐어");
+    expect(keywords).not.toContain("응");
+    expect(keywords).not.toContain("그냥");
+    expect(keywords).not.toContain("이미");
+    expect(keywords).not.toContain("됐어");
+  });
+
+  it("strips colloquial particles 랑/이랑 from stems", () => {
+    const keywords = extractKeywords("디스코드랑 텔레그램이랑 설정");
+    expect(keywords).toContain("디스코드");
+    expect(keywords).toContain("텔레그램");
+    expect(keywords).toContain("설정");
+  });
+
+  it("filters interjections 아/오/네 as stop words", () => {
+    const keywords = extractKeywords("아 네 오 배포 완료");
+    expect(keywords).not.toContain("아");
+    expect(keywords).not.toContain("네");
+    expect(keywords).not.toContain("오");
+    expect(keywords).toContain("배포");
+    expect(keywords).toContain("완료");
+  });
+
   it("extracts keywords from Japanese conversational query", () => {
     const keywords = extractKeywords("昨日話したデプロイ戦略");
     expect(keywords).toContain("デプロイ");

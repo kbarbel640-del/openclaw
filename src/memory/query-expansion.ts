@@ -400,6 +400,14 @@ const STOP_WORDS_KO = new Set([
   "많이",
   "너무",
   "좀",
+  "그냥",
+  "이미",
+  "이제",
+  "다시",
+  "항상",
+  "계속",
+  "먼저",
+  "안",
   // Conjunctions
   "그리고",
   "하지만",
@@ -429,6 +437,17 @@ const STOP_WORDS_KO = new Set([
   // Request words
   "제발",
   "부탁",
+  // Colloquial / conversational (구어체)
+  "응",
+  "네",
+  "아",
+  "오",
+  "뭔가",
+  "뭔지",
+  "뭔데",
+  "됐어",
+  "됐다",
+  "됐음",
 ]);
 
 // Common Korean trailing particles to strip from words for tokenization
@@ -459,6 +478,8 @@ const KO_TRAILING_PARTICLES = [
   "과",
   "도",
   "만",
+  "랑",
+  "이랑",
 ].toSorted((a, b) => b.length - a.length);
 
 function stripKoreanTrailingParticle(token: string): string | null {
