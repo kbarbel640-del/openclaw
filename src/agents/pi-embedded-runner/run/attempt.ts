@@ -7,6 +7,7 @@ import {
   DefaultResourceLoader,
   SessionManager,
   SettingsManager,
+  type AgentSession,
 } from "@mariozechner/pi-coding-agent";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
@@ -18,6 +19,7 @@ import type {
   PluginHookAgentContext,
   PluginHookBeforeAgentStartResult,
   PluginHookBeforePromptBuildResult,
+  PluginHookPromptAction,
 } from "../../../plugins/types.js";
 import { isSubagentSessionKey } from "../../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../../signal/reaction-level.js";
@@ -167,7 +169,12 @@ export async function resolvePromptBuildHookResult(params: {
             return undefined;
           })
       : undefined);
+  const actions = [
+    ...(promptBuildResult?.actions ?? []),
+    ...(legacyResult?.actions ?? []),
+  ] satisfies PluginHookPromptAction[];
   return {
+    ...(actions.length > 0 ? { actions } : {}),
     systemPrompt: promptBuildResult?.systemPrompt ?? legacyResult?.systemPrompt,
     prependContext: [promptBuildResult?.prependContext, legacyResult?.prependContext]
       .filter((value): value is string => Boolean(value))
@@ -190,6 +197,99 @@ export function resolveAttemptFsWorkspaceOnly(params: {
     cfg: params.config,
     agentId: params.sessionAgentId,
   });
+}
+
+function normalizePromptBuildHookActions(
+  result: PluginHookBeforePromptBuildResult | undefined,
+): PluginHookPromptAction[] {
+  if (!result) {
+    return [];
+  }
+
+  const actions: PluginHookPromptAction[] = [];
+
+  if (Array.isArray(result.actions)) {
+    actions.push(...result.actions);
+  }
+
+  // Legacy compatibility: treat legacy fields as shorthand actions.
+  if (typeof result.prependContext === "string" && result.prependContext.trim()) {
+    actions.push({ kind: "prependContext", text: result.prependContext });
+  }
+  if (typeof result.systemPrompt === "string" && result.systemPrompt.trim()) {
+    actions.push({ kind: "appendSystemPrompt", text: result.systemPrompt });
+  }
+
+  return actions;
+}
+
+export function applyPromptBuildHookResultToSession(params: {
+  prompt: string;
+  systemPromptText: string;
+  hookResult?: PluginHookBeforePromptBuildResult;
+  session?: AgentSession;
+}): {
+  effectivePrompt: string;
+  systemPromptText: string;
+  prependContextChars: number;
+  appendedSystemPromptChars: number;
+} {
+  const actions = normalizePromptBuildHookActions(params.hookResult);
+  if (actions.length === 0) {
+    return {
+      effectivePrompt: params.prompt,
+      systemPromptText: params.systemPromptText,
+      prependContextChars: 0,
+      appendedSystemPromptChars: 0,
+    };
+  }
+
+  const prependParts: string[] = [];
+  const systemPromptAppends: string[] = [];
+
+  for (const action of actions) {
+    if (action.kind === "prependContext") {
+      const text = action.text.trim();
+      if (text) {
+        prependParts.push(text);
+      }
+      continue;
+    }
+    if (action.kind === "appendSystemPrompt") {
+      const text = action.text.trim();
+      if (text) {
+        systemPromptAppends.push(text);
+      }
+      continue;
+    }
+  }
+
+  const effectivePrompt =
+    prependParts.length > 0 ? `${prependParts.join("\n\n")}\n\n${params.prompt}` : params.prompt;
+  const prependContextChars = prependParts.reduce((sum, part) => sum + part.length, 0);
+
+  if (systemPromptAppends.length === 0) {
+    return {
+      effectivePrompt,
+      systemPromptText: params.systemPromptText,
+      prependContextChars,
+      appendedSystemPromptChars: 0,
+    };
+  }
+
+  const appendText = systemPromptAppends.join("\n\n");
+  const base = params.systemPromptText.trimEnd();
+  const patchedSystemPrompt = `${base}\n\n${appendText}`.trim();
+  if (params.session) {
+    applySystemPromptOverrideToSession(params.session, patchedSystemPrompt);
+  }
+
+  return {
+    effectivePrompt,
+    systemPromptText: patchedSystemPrompt,
+    prependContextChars,
+    appendedSystemPromptChars: appendText.length,
+  };
 }
 
 function summarizeMessagePayload(msg: AgentMessage): { textChars: number; imageBlocks: number } {
@@ -509,7 +609,7 @@ export async function runEmbeddedAttempt(
       contextFiles,
       memoryCitationsMode: params.config?.memory?.citations,
     });
-    const systemPromptReport = buildSystemPromptReport({
+    let systemPromptReport = buildSystemPromptReport({
       source: "run",
       generatedAt: Date.now(),
       sessionId: params.sessionId,
@@ -1005,25 +1105,46 @@ export async function runEmbeddedAttempt(
           hookRunner,
           legacyBeforeAgentStartResult: params.legacyBeforeAgentStartResult,
         });
-        {
-          if (hookResult?.prependContext) {
-            effectivePrompt = `${hookResult.prependContext}\n\n${params.prompt}`;
-            log.debug(
-              `hooks: prepended context to prompt (${hookResult.prependContext.length} chars)`,
-            );
-          }
-          const legacySystemPrompt =
-            typeof hookResult?.systemPrompt === "string" ? hookResult.systemPrompt.trim() : "";
-          if (legacySystemPrompt) {
-            applySystemPromptOverrideToSession(activeSession, legacySystemPrompt);
-            systemPromptText = legacySystemPrompt;
-            log.debug(`hooks: applied systemPrompt override (${legacySystemPrompt.length} chars)`);
-          }
+        const appliedHookResult = applyPromptBuildHookResultToSession({
+          prompt: params.prompt,
+          systemPromptText,
+          hookResult,
+          session: activeSession,
+        });
+        effectivePrompt = appliedHookResult.effectivePrompt;
+        systemPromptText = appliedHookResult.systemPromptText;
+        if (appliedHookResult.prependContextChars > 0) {
+          log.debug(
+            `hooks: prepended context to prompt (${appliedHookResult.prependContextChars} chars)`,
+          );
+        }
+        if (appliedHookResult.appendedSystemPromptChars > 0) {
+          log.debug(
+            `hooks: appended system prompt (${appliedHookResult.appendedSystemPromptChars} chars)`,
+          );
+          systemPromptReport = buildSystemPromptReport({
+            source: "run",
+            generatedAt: systemPromptReport.generatedAt,
+            sessionId: params.sessionId,
+            sessionKey: params.sessionKey,
+            provider: params.provider,
+            model: params.modelId,
+            workspaceDir: effectiveWorkspace,
+            bootstrapMaxChars: resolveBootstrapMaxChars(params.config),
+            bootstrapTotalMaxChars: resolveBootstrapTotalMaxChars(params.config),
+            sandbox: systemPromptReport.sandbox,
+            systemPrompt: systemPromptText,
+            bootstrapFiles: hookAdjustedBootstrapFiles,
+            injectedFiles: contextFiles,
+            skillsPrompt,
+            tools,
+          });
         }
 
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
         cacheTrace?.recordStage("prompt:before", {
           prompt: effectivePrompt,
+          system: systemPromptText,
           messages: activeSession.messages,
         });
 
