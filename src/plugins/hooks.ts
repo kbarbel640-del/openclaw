@@ -338,7 +338,9 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
       event,
       ctx,
       (accumulated, next) => ({
-        prependContext: [accumulated?.prependContext, next?.prependContext].filter(Boolean).join("\n\n"),
+        prependContext: [accumulated?.prependContext, next?.prependContext]
+          .filter(Boolean)
+          .join("\n\n"),
       }),
     );
   }

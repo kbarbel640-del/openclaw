@@ -676,7 +676,10 @@ export type PluginHookHandlerMap = {
     event: PluginHookBeforeAgentStartEvent,
     ctx: PluginHookAgentContext,
   ) => Promise<PluginHookBeforeAgentStartResult | void> | PluginHookBeforeAgentStartResult | void;
-  llm_input: (event: PluginHookLlmInputEvent, ctx: PluginHookAgentContext) => Promise<PluginHookLlmInputResult | void> | PluginHookLlmInputResult | void;
+  llm_input: (
+    event: PluginHookLlmInputEvent,
+    ctx: PluginHookAgentContext,
+  ) => Promise<PluginHookLlmInputResult | void> | PluginHookLlmInputResult | void;
   llm_output: (
     event: PluginHookLlmOutputEvent,
     ctx: PluginHookAgentContext,
