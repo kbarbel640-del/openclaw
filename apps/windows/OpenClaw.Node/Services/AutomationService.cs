@@ -181,15 +181,15 @@ namespace OpenClaw.Node.Services
             return await RunSendKeysScriptAsync($"[System.Windows.Forms.SendKeys]::SendWait('{sendKeysToken}')");
         }
 
-        public Task<bool> ClickAsync(int x, int y, string button = "left", bool doubleClick = false)
+        public Task<bool> ClickAsync(int x, int y, string button = "primary", bool doubleClick = false)
         {
             if (!OperatingSystem.IsWindows())
             {
                 return Task.FromResult(false);
             }
 
-            var normalizedButton = (button ?? "left").Trim().ToLowerInvariant();
-            if (normalizedButton != "left" && normalizedButton != "right")
+            var normalizedButton = (button ?? "primary").Trim().ToLowerInvariant();
+            if (normalizedButton != "left" && normalizedButton != "right" && normalizedButton != "primary" && normalizedButton != "secondary")
             {
                 return Task.FromResult(false);
             }
@@ -206,8 +206,16 @@ namespace OpenClaw.Node.Services
                 return Task.FromResult(false);
             }
 
-            var down = normalizedButton == "right" ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
-            var up = normalizedButton == "right" ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
+            var swapButtons = GetSystemMetrics(SM_SWAPBUTTON) != 0;
+            var physicalButton = normalizedButton switch
+            {
+                "primary" => swapButtons ? "right" : "left",
+                "secondary" => swapButtons ? "left" : "right",
+                _ => normalizedButton,
+            };
+
+            var down = physicalButton == "right" ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
+            var up = physicalButton == "right" ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
 
             mouse_event(down, 0, 0, 0, UIntPtr.Zero);
             mouse_event(up, 0, 0, 0, UIntPtr.Zero);
@@ -359,6 +367,7 @@ namespace OpenClaw.Node.Services
         private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
         private const int SM_CXSCREEN = 0;
         private const int SM_CYSCREEN = 1;
+        private const int SM_SWAPBUTTON = 23;
         private static readonly IntPtr HWND_TOPMOST = new(-1);
         private static readonly IntPtr HWND_NOTOPMOST = new(-2);
 

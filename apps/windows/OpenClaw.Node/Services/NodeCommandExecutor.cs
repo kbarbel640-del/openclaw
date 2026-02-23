@@ -639,13 +639,15 @@ namespace OpenClaw.Node.Services
             var x = xEl.GetInt32();
             var y = yEl.GetInt32();
             var button = root.Value.TryGetProperty("button", out var bEl) && bEl.ValueKind == JsonValueKind.String
-                ? (bEl.GetString() ?? "left")
-                : "left";
+                ? (bEl.GetString() ?? "primary")
+                : "primary";
 
             if (!string.Equals(button, "left", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(button, "right", StringComparison.OrdinalIgnoreCase))
+                !string.Equals(button, "right", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(button, "primary", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(button, "secondary", StringComparison.OrdinalIgnoreCase))
             {
-                return Invalid(request.Id, "input.click params.button must be 'left' or 'right'");
+                return Invalid(request.Id, "input.click params.button must be 'primary', 'secondary', 'left', or 'right'");
             }
 
             var doubleClick = root.Value.TryGetProperty("doubleClick", out var dEl) &&

@@ -72,6 +72,8 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] `window.focus` supports `handle` or `titleContains`
   - [x] `input.type` text injection path (PowerShell + SendKeys)
   - [x] `input.key` key combo path (e.g., `ctrl+v`, `enter`, `alt+f4`)
+  - [x] `input.click` mouse click path with `button=primary|secondary|left|right` and optional `doubleClick`
+  - [x] Primary/secondary click semantics respect OS swapped-button setting (left-handed mode)
   - [ ] Replace SendKeys MVP path with lower-level SendInput/UIAutomation primitives for reliability
 - **Shell execution**
   - [x] `System.Diagnostics.Process` command executor with allowlist
