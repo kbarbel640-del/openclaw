@@ -96,11 +96,18 @@ export function createLlmTaskTool(api: OpenClawPluginApi) {
 
       const pluginCfg = (api.pluginConfig ?? {}) as PluginCfg;
 
-      const defaultsModel = api.config?.agents?.defaults?.model;
-      const primary =
-        typeof defaultsModel === "string"
-          ? defaultsModel.trim()
-          : (defaultsModel?.primary?.trim() ?? undefined);
+      const defaultsModel: unknown = api.config?.agents?.defaults?.model;
+      let primary: string | undefined;
+      if (typeof defaultsModel === "string") {
+        primary = defaultsModel.trim();
+      } else if (
+        defaultsModel &&
+        typeof defaultsModel === "object" &&
+        "primary" in defaultsModel &&
+        typeof (defaultsModel as { primary?: unknown }).primary === "string"
+      ) {
+        primary = (defaultsModel as { primary: string }).primary.trim();
+      }
       const primaryProvider = typeof primary === "string" ? primary.split("/")[0] : undefined;
       const primaryModel =
         typeof primary === "string" ? primary.split("/").slice(1).join("/") : undefined;
