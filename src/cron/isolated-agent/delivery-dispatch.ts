@@ -375,8 +375,21 @@ export async function dispatchCronDelivery(
     // Forum/topic targets should also use direct delivery. Announce flow can
     // be swallowed by ANNOUNCE_SKIP/NO_REPLY in the target agent turn, which
     // silently drops cron output for topic-bound sessions.
+    // Use direct outbound delivery when the payload contains structured content
+    // (media/channel data), targets a thread/topic, OR when the delivery target
+    // explicitly specifies both a channel and recipient. Text-only cron output
+    // with an explicit delivery target should go directly to the channel rather
+    // than routing through the announce flow (which injects into the main agent
+    // session and requires an active session to relay the message).
+    // See: https://github.com/openclaw/openclaw/issues/23969
+    const hasExplicitDeliveryTarget =
+      params.resolvedDelivery.mode === "explicit" &&
+      Boolean(params.resolvedDelivery.channel) &&
+      Boolean(params.resolvedDelivery.to);
     const useDirectDelivery =
-      params.deliveryPayloadHasStructuredContent || params.resolvedDelivery.threadId != null;
+      params.deliveryPayloadHasStructuredContent ||
+      params.resolvedDelivery.threadId != null ||
+      hasExplicitDeliveryTarget;
     if (useDirectDelivery) {
       const directResult = await deliverViaDirect(params.resolvedDelivery);
       if (directResult) {
