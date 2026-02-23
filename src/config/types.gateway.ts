@@ -119,6 +119,13 @@ export type GatewayAuthConfig = {
    * Required when mode is "trusted-proxy".
    */
   trustedProxy?: GatewayTrustedProxyConfig;
+  /**
+   * Skip device pairing for token/password-authenticated connections.
+   * Clients with valid shared auth retain declared scopes without a
+   * paired device identity. Intended for backend services on ephemeral
+   * infrastructure (e.g. k8s pods).
+   */
+  skipDevicePairing?: boolean;
 };
 
 export type GatewayAuthRateLimitConfig = {

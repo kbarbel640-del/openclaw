@@ -34,6 +34,7 @@ export type ResolvedGatewayAuth = {
   password?: string;
   allowTailscale: boolean;
   trustedProxy?: GatewayTrustedProxyConfig;
+  skipDevicePairing: boolean;
 };
 
 export type GatewayAuthResult = {
@@ -211,6 +212,9 @@ export function resolveGatewayAuth(params: {
     if (authOverride.trustedProxy !== undefined) {
       authConfig.trustedProxy = authOverride.trustedProxy;
     }
+    if (authOverride.skipDevicePairing !== undefined) {
+      authConfig.skipDevicePairing = authOverride.skipDevicePairing;
+    }
   }
   const env = params.env ?? process.env;
   const token = authConfig.token ?? env.OPENCLAW_GATEWAY_TOKEN ?? undefined;
@@ -247,6 +251,7 @@ export function resolveGatewayAuth(params: {
     password,
     allowTailscale,
     trustedProxy,
+    skipDevicePairing: authConfig.skipDevicePairing === true,
   };
 }
 
