@@ -53,7 +53,7 @@ describe("resolveApiKeyForProfile fallback to main agent", () => {
   }
 
   async function writeAuthProfilesStore(agentDir: string, store: AuthProfileStore) {
-    await saveSecureJsonFile(path.join(agentDir, "auth-profiles.json"), store);
+    saveSecureJsonFile(path.join(agentDir, "auth-profiles.json"), store);
   }
 
   function stubOAuthRefreshFailure() {
