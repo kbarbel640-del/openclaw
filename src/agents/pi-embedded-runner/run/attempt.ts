@@ -1242,6 +1242,28 @@ export async function runEmbeddedAttempt(
               });
           }
 
+          // Run transform_llm_input hook to allow plugins to modify messages before LLM call.
+          if (hookRunner?.hasHooks("transform_llm_input")) {
+            try {
+              await hookRunner.runTransformLlmInput(
+                {
+                  messages: activeSession.messages.slice(),
+                  provider: params.provider,
+                  model: params.modelId,
+                },
+                {
+                  agentId: hookAgentId,
+                  sessionKey: params.sessionKey,
+                  sessionId: params.sessionId,
+                  workspaceDir: params.workspaceDir,
+                  messageProvider: params.messageProvider ?? undefined,
+                },
+              );
+            } catch (err) {
+              log.warn(`transform_llm_input hook failed: ${String(err)}`);
+            }
+          }
+
           // Only pass images option if there are actually images to pass
           // This avoids potential issues with models that don't expect the images parameter
           if (imageResult.images.length > 0) {

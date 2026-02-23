@@ -1042,8 +1042,29 @@ export async function runEmbeddedPiAgent(
             compactionCount: autoCompactionCount > 0 ? autoCompactionCount : undefined,
           };
 
+          // Run transform_llm_output hook to allow plugins to modify assistant output.
+          let finalAssistantTexts = attempt.assistantTexts;
+          if (hookRunner?.hasHooks("transform_llm_output")) {
+            try {
+              const transformResult = await hookRunner.runTransformLlmOutput(
+                {
+                  assistantTexts: attempt.assistantTexts,
+                  lastAssistant: attempt.lastAssistant,
+                  provider: activeErrorContext.provider,
+                  model: activeErrorContext.model,
+                },
+                hookCtx,
+              );
+              if (transformResult?.assistantTexts) {
+                finalAssistantTexts = transformResult.assistantTexts;
+              }
+            } catch (err) {
+              log.warn(`transform_llm_output hook failed: ${String(err)}`);
+            }
+          }
+
           const payloads = buildEmbeddedRunPayloads({
-            assistantTexts: attempt.assistantTexts,
+            assistantTexts: finalAssistantTexts,
             toolMetas: attempt.toolMetas,
             lastAssistant: attempt.lastAssistant,
             lastToolError: attempt.lastToolError,
