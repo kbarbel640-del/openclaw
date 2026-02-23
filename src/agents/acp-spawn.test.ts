@@ -5,8 +5,9 @@ const hoisted = vi.hoisted(() => {
   const callGatewayMock = vi.fn();
   const getThreadBindingManagerMock = vi.fn();
   const unbindThreadBindingsBySessionKeyMock = vi.fn((_params?: unknown) => []);
-  const initializeSessionMock = vi.fn();
   const closeSessionMock = vi.fn();
+  const requireAcpRuntimeBackendMock = vi.fn();
+  const upsertAcpSessionMetaMock = vi.fn();
   const state = {
     cfg: {
       acp: {
@@ -32,8 +33,9 @@ const hoisted = vi.hoisted(() => {
     callGatewayMock,
     getThreadBindingManagerMock,
     unbindThreadBindingsBySessionKeyMock,
-    initializeSessionMock,
     closeSessionMock,
+    requireAcpRuntimeBackendMock,
+    upsertAcpSessionMetaMock,
     state,
   };
 });
@@ -53,11 +55,18 @@ vi.mock("../gateway/call.js", () => ({
 vi.mock("../acp/control-plane/manager.js", () => {
   return {
     getAcpSessionManager: () => ({
-      initializeSession: (params: unknown) => hoisted.initializeSessionMock(params),
       closeSession: (params: unknown) => hoisted.closeSessionMock(params),
     }),
   };
 });
+
+vi.mock("../acp/runtime/registry.js", () => ({
+  requireAcpRuntimeBackend: (backendId?: string) => hoisted.requireAcpRuntimeBackendMock(backendId),
+}));
+
+vi.mock("../acp/runtime/session-meta.js", () => ({
+  upsertAcpSessionMeta: (params: unknown) => hoisted.upsertAcpSessionMetaMock(params),
+}));
 
 vi.mock("../discord/monitor/thread-bindings.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../discord/monitor/thread-bindings.js")>();
@@ -142,35 +151,36 @@ describe("spawnAcpDirect", () => {
       return {};
     });
 
-    hoisted.initializeSessionMock.mockReset().mockImplementation(async (argsUnknown: unknown) => {
-      const args = argsUnknown as {
-        sessionKey: string;
-        agent: string;
-        mode: "persistent" | "oneshot";
-      };
-      return {
-        runtime: {
-          close: vi.fn(async () => {}),
-        },
-        handle: {
-          sessionKey: args.sessionKey,
-          backend: "acpx",
-          runtimeSessionName: `${args.sessionKey}:runtime`,
-        },
-        meta: {
-          backend: "acpx",
-          agent: args.agent,
-          runtimeSessionName: `${args.sessionKey}:runtime`,
-          mode: args.mode,
-          state: "idle",
-          lastActivityAt: Date.now(),
-        },
-      };
-    });
     hoisted.closeSessionMock.mockReset().mockResolvedValue({
       runtimeClosed: true,
       metaCleared: false,
     });
+    hoisted.requireAcpRuntimeBackendMock.mockReset().mockReturnValue({
+      id: "acpx",
+      runtime: {},
+    });
+    hoisted.upsertAcpSessionMetaMock
+      .mockReset()
+      .mockImplementation(async (argsUnknown: unknown) => {
+        const args = argsUnknown as {
+          mutate: (
+            current: unknown,
+            entry: unknown,
+          ) => {
+            backend: string;
+            agent: string;
+            runtimeSessionName: string;
+            mode: "persistent" | "oneshot";
+            state: "idle" | "running" | "error";
+            lastActivityAt: number;
+          } | null;
+        };
+        return {
+          sessionId: "session-1",
+          updatedAt: Date.now(),
+          acp: args.mutate(undefined, undefined),
+        };
+      });
 
     hoisted.getThreadBindingManagerMock.mockReset().mockReturnValue(createManager());
     hoisted.unbindThreadBindingsBySessionKeyMock.mockReset().mockReturnValue([]);
@@ -213,11 +223,11 @@ describe("spawnAcpDirect", () => {
     expect(agentCall?.params?.sessionKey).toMatch(/^agent:codex:acp:/);
     expect(agentCall?.params?.threadId).toBe("child-thread");
     expect(agentCall?.params?.deliver).toBe(true);
-    expect(hoisted.initializeSessionMock).toHaveBeenCalledWith(
+    expect(hoisted.requireAcpRuntimeBackendMock).toHaveBeenCalledWith("acpx");
+    expect(hoisted.upsertAcpSessionMetaMock).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionKey: expect.stringMatching(/^agent:codex:acp:/),
-        agent: "codex",
-        mode: "persistent",
+        mutate: expect.any(Function),
       }),
     );
   });

@@ -202,11 +202,18 @@ export class AcpSessionManager {
         state: "idle",
         lastActivityAt: Date.now(),
       };
-      await this.writeSessionMeta({
+      const persisted = await this.writeSessionMeta({
         cfg: input.cfg,
         sessionKey,
         mutate: () => meta,
+        failOnError: true,
       });
+      if (!persisted?.acp) {
+        throw new AcpRuntimeError(
+          "ACP_SESSION_INIT_FAILED",
+          `Could not persist ACP metadata for ${sessionKey}.`,
+        );
+      }
       this.setCachedRuntimeState(sessionKey, {
         runtime,
         handle,
@@ -633,17 +640,22 @@ export class AcpSessionManager {
       current: SessionAcpMeta | undefined,
       entry: SessionEntry | undefined,
     ) => SessionAcpMeta | null | undefined;
-  }): Promise<void> {
+    failOnError?: boolean;
+  }): Promise<SessionEntry | null> {
     try {
-      await this.deps.upsertSessionMeta({
+      return await this.deps.upsertSessionMeta({
         cfg: params.cfg,
         sessionKey: params.sessionKey,
         mutate: params.mutate,
       });
     } catch (error) {
+      if (params.failOnError) {
+        throw error;
+      }
       logVerbose(
         `acp-manager: failed persisting ACP metadata for ${params.sessionKey}: ${String(error)}`,
       );
+      return null;
     }
   }
 

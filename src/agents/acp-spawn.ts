@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
-import { getAcpSessionManager } from "../acp/control-plane/manager.js";
 import {
   cleanupFailedAcpSpawn,
   isAcpAgentAllowedByPolicy,
   isAcpEnabledByPolicy,
   resolveDiscordAcpSpawnFlags,
 } from "../acp/control-plane/spawn.js";
+import { requireAcpRuntimeBackend } from "../acp/runtime/registry.js";
+import { upsertAcpSessionMeta } from "../acp/runtime/session-meta.js";
 import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -323,14 +324,23 @@ export async function spawnAcpDirect(
       timeoutMs: 10_000,
     });
     sessionCreated = true;
-    const acpManager = getAcpSessionManager();
-    await acpManager.initializeSession({
+    const backend = requireAcpRuntimeBackend(cfg.acp?.backend);
+    const upserted = await upsertAcpSessionMeta({
       cfg,
       sessionKey,
-      agent: targetAgentId,
-      mode: runtimeMode,
-      cwd: params.cwd,
+      mutate: () => ({
+        backend: backend.id,
+        agent: targetAgentId,
+        runtimeSessionName: sessionKey,
+        mode: runtimeMode,
+        cwd: params.cwd,
+        state: "idle",
+        lastActivityAt: Date.now(),
+      }),
     });
+    if (!upserted?.acp) {
+      throw new Error(`Could not persist ACP metadata for ${sessionKey}.`);
+    }
   } catch (err) {
     await cleanupFailedAcpSpawn({
       cfg,
