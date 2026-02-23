@@ -43,6 +43,17 @@ Notes:
   - Credentials: `~/.openclaw/credentials/`
   - Workspace: `~/.openclaw/workspace`
 
+## Recommended update safety flow (preview-first)
+
+When updating from the CLI or via an agent, use this default sequence:
+
+1. `openclaw update --dry-run` (preview channel/tag/target/restart actions)
+2. Run the actual update (`openclaw update` or package-manager install path)
+3. `openclaw doctor --non-interactive` after restart
+4. Report/check: before version, after version, and any warnings
+
+This catches surprises early and makes self-updates safer to automate.
+
 ## Update (global install)
 
 Global install (pick one):

@@ -94,6 +94,15 @@ High-level:
 
 `openclaw --update` rewrites to `openclaw update` (useful for shells and launcher scripts).
 
+## Operational recommendation
+
+For safer automation and agent-driven updates, use a preview-first flow:
+
+1. `openclaw update --dry-run`
+2. `openclaw update` (or package-manager update for npm installs)
+3. `openclaw doctor --non-interactive`
+4. Verify/report before/after version + warnings
+
 ## See also
 
 - `openclaw doctor` (offers to run update first on git checkouts)
