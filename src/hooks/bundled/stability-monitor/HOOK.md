@@ -7,7 +7,8 @@ metadata:
     "openclaw":
       {
         "emoji": "🛡️",
-        "events": ["agent:before_turn", "agent:after_tool_call"],
+        "events": ["agent:bootstrap"],
+        "export": "handler",
         "requires": {},
         "install": [{ "id": "bundled", "kind": "bundled", "label": "Bundled with OpenClaw" }],
       },

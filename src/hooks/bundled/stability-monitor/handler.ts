@@ -9,9 +9,16 @@
  * Injects [MEMORY CONTEXT] block before each agent turn.
  */
 
+import {
+  DEFAULT_MEMORY_ALT_FILENAME,
+  type WorkspaceBootstrapFile,
+} from "../../../agents/workspace.js";
 import { createSubsystemLogger } from "../../../logging/subsystem.js";
-import type { HookHandler } from "../../hooks.js";
+import { resolveHookConfig } from "../../config.js";
+import { isAgentBootstrapEvent, type HookHandler } from "../../hooks.js";
 
+const HOOK_KEY = "stability-monitor";
+const MAX_SESSION_STATES = 1000;
 const log = createSubsystemLogger("hooks/stability-monitor");
 
 // ============================================================================
@@ -77,6 +84,37 @@ const DEFAULT_CONFIG: StabilityMonitorConfig = {
     maxNotes: 3,
   },
 };
+
+type StabilityMonitorHookConfig = Partial<StabilityMonitorConfig> & {
+  enabled?: boolean;
+};
+
+function resolveStabilityMonitorConfig(cfg: { hooks?: unknown } | undefined): StabilityMonitorConfig {
+  const hookConfig = resolveHookConfig(
+    cfg as Parameters<typeof resolveHookConfig>[0],
+    HOOK_KEY,
+  ) as StabilityMonitorHookConfig | undefined;
+
+  return {
+    ...DEFAULT_CONFIG,
+    entropy: {
+      ...DEFAULT_CONFIG.entropy,
+      ...(hookConfig?.entropy ?? {}),
+    },
+    loopDetection: {
+      ...DEFAULT_CONFIG.loopDetection,
+      ...(hookConfig?.loopDetection ?? {}),
+    },
+    topicTracking: {
+      ...DEFAULT_CONFIG.topicTracking,
+      ...(hookConfig?.topicTracking ?? {}),
+    },
+    context: {
+      ...DEFAULT_CONFIG.context,
+      ...(hookConfig?.context ?? {}),
+    },
+  };
+}
 
 // ============================================================================
 // Entropy Monitor
@@ -496,6 +534,16 @@ interface SessionState {
 
 const sessionStates = new Map<string, SessionState>();
 
+function enforceSessionStateLimit(): void {
+  while (sessionStates.size > MAX_SESSION_STATES) {
+    const oldestSessionKey = sessionStates.keys().next().value;
+    if (typeof oldestSessionKey !== "string") {
+      break;
+    }
+    sessionStates.delete(oldestSessionKey);
+  }
+}
+
 function getOrCreateSessionState(sessionKey: string, config: StabilityMonitorConfig): SessionState {
   let state = sessionStates.get(sessionKey);
   if (!state) {
@@ -508,6 +556,7 @@ function getOrCreateSessionState(sessionKey: string, config: StabilityMonitorCon
       lastLoopWarning: null,
     };
     sessionStates.set(sessionKey, state);
+    enforceSessionStateLimit();
   }
   return state;
 }
@@ -516,64 +565,64 @@ function getOrCreateSessionState(sessionKey: string, config: StabilityMonitorCon
 // Hook Handler
 // ============================================================================
 
-export const handler: HookHandler = {
-  async onAgentBootstrap(event) {
-    const config: StabilityMonitorConfig = {
-      ...DEFAULT_CONFIG,
-      ...(event.hookConfig as Partial<StabilityMonitorConfig>),
-    };
+export const handler: HookHandler = async (event) => {
+  if (!isAgentBootstrapEvent(event)) {
+    return;
+  }
 
-    const sessionKey = event.context.sessionKey || "unknown";
-    const state = getOrCreateSessionState(sessionKey, config);
+  const context = event.context;
+  const config = resolveStabilityMonitorConfig(context.cfg);
+  const sessionKey = context.sessionKey || event.sessionKey || "unknown";
+  const state = getOrCreateSessionState(sessionKey, config);
 
-    state.exchangeCount += 1;
+  state.exchangeCount += 1;
 
-    // Extract messages from bootstrap context
-    const messages = (event.context as unknown as { messages?: Message[] }).messages || [];
-    const userMessage = extractText(getLastMessageByRole(messages, "user"));
-    const assistantMessage = extractText(getLastMessageByRole(messages, "assistant"));
+  // Extract messages from bootstrap context
+  const messages = (context as unknown as { messages?: Message[] }).messages || [];
+  const userMessage = extractText(getLastMessageByRole(messages, "user"));
+  const assistantMessage = extractText(getLastMessageByRole(messages, "assistant"));
 
-    // Track topics
-    state.topicTracker.track(userMessage);
-    state.topicTracker.track(assistantMessage);
+  // Track topics
+  state.topicTracker.track(userMessage);
+  state.topicTracker.track(assistantMessage);
 
-    // Calculate entropy
-    const entropyScore = state.entropy.calculate(userMessage, assistantMessage);
-    state.entropy.updateSustained(entropyScore);
-    const entropyState = state.entropy.getState();
+  // Calculate entropy
+  const entropyScore = state.entropy.calculate(userMessage, assistantMessage);
+  state.entropy.updateSustained(entropyScore);
+  const entropyState = state.entropy.getState();
 
-    // Build context block
-    const lines = ["[MEMORY CONTEXT]"];
-    lines.push(
-      `Session: ${state.exchangeCount} exchanges | Started: ${formatDuration(Date.now() - state.sessionStartTs)} ago`,
-    );
-    lines.push(
-      `Entropy: ${entropyState.lastScore.toFixed(2)} (${state.entropy.getStatusLabel()}) | Sustained: ${entropyState.sustainedTurns} turns`,
-    );
+  // Build context block
+  const lines = ["[MEMORY CONTEXT]"];
+  lines.push(
+    `Session: ${state.exchangeCount} exchanges | Started: ${formatDuration(Date.now() - state.sessionStartTs)} ago`,
+  );
+  lines.push(
+    `Entropy: ${entropyState.lastScore.toFixed(2)} (${state.entropy.getStatusLabel()}) | Sustained: ${entropyState.sustainedTurns} turns`,
+  );
 
-    const topicSummary = state.topicTracker.formatSummary(config.context.maxTopics);
-    if (topicSummary) lines.push(topicSummary);
+  const topicSummary = state.topicTracker.formatSummary(config.context.maxTopics);
+  if (topicSummary) lines.push(topicSummary);
 
-    const topicNotes = state.topicTracker.formatNotes(config.context.maxNotes);
-    if (topicNotes) lines.push(topicNotes);
+  const topicNotes = state.topicTracker.formatNotes(config.context.maxNotes);
+  if (topicNotes) lines.push(topicNotes);
 
-    // Add loop warning if recent
-    if (state.lastLoopWarning && Date.now() - state.lastLoopWarning.timestamp < 5 * 60 * 1000) {
-      lines.push(`Loop warning: ${state.lastLoopWarning.message}`);
-    }
+  // Add loop warning if recent
+  if (state.lastLoopWarning && Date.now() - state.lastLoopWarning.timestamp < 5 * 60 * 1000) {
+    lines.push(`Loop warning: ${state.lastLoopWarning.message}`);
+  }
 
-    const contextBlock = lines.join("\n");
+  const contextBlock = lines.join("\n");
+  const stabilityContextFile: WorkspaceBootstrapFile = {
+    name: DEFAULT_MEMORY_ALT_FILENAME,
+    path: "_stability_context.memory.md",
+    content: contextBlock,
+    missing: false,
+  };
 
-    // Inject as a bootstrap file that gets prepended to user messages
-    event.context.bootstrapFiles.push({
-      path: "_stability_context",
-      content: contextBlock,
-      kind: "injected",
-    });
+  // Inject as a bootstrap file that gets prepended to user messages
+  context.bootstrapFiles.push(stabilityContextFile);
 
-    log.debug("Injected stability context", { sessionKey, entropy: entropyState.lastScore });
-  },
-
-  // Tool call tracking would require a different event hook
-  // This is a simplified version that tracks via bootstrap
+  log.debug("Injected stability context", { sessionKey, entropy: entropyState.lastScore });
 };
+
+export default handler;
