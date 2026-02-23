@@ -197,6 +197,7 @@ Search the web using your configured provider.
 - `search_lang` (optional): ISO language code for search results (e.g., "de", "en", "fr")
 - `ui_lang` (optional): ISO language code for UI elements
 - `freshness` (optional): filter by discovery time
+  - Nimble: `ph` (past hour — real-time), `pd`, `pw`, `pm`, `py`, or `YYYY-MM-DDtoYYYY-MM-DD`
   - Brave: `pd`, `pw`, `pm`, `py`, or `YYYY-MM-DDtoYYYY-MM-DD`
   - Perplexity: `pd`, `pw`, `pm`, `py`
 - `deep_search` (optional, Nimble only): enable deep search mode (default: `false`)

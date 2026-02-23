@@ -36,6 +36,7 @@ const NIMBLE_API_ENDPOINT = "https://sdk.nimbleway.com/v1/search";
 
 const SEARCH_CACHE = new Map<string, CacheEntry<Record<string, unknown>>>();
 const BRAVE_FRESHNESS_SHORTCUTS = new Set(["pd", "pw", "pm", "py"]);
+const NIMBLE_FRESHNESS_SHORTCUTS = new Set(["ph", "pd", "pw", "pm", "py"]);
 const BRAVE_FRESHNESS_RANGE = /^(\d{4}-\d{2}-\d{2})to(\d{4}-\d{2}-\d{2})$/;
 
 const WebSearchSchema = Type.Object({
@@ -66,7 +67,7 @@ const WebSearchSchema = Type.Object({
   freshness: Type.Optional(
     Type.String({
       description:
-        "Filter results by discovery time. Brave supports 'pd', 'pw', 'pm', 'py', and date range 'YYYY-MM-DDtoYYYY-MM-DD'. Perplexity supports 'pd', 'pw', 'pm', and 'py'.",
+        "Filter results by discovery time. Nimble supports 'ph' (past hour — real-time), 'pd', 'pw', 'pm', 'py', and date range 'YYYY-MM-DDtoYYYY-MM-DD'. Brave supports 'pd', 'pw', 'pm', 'py', and date range 'YYYY-MM-DDtoYYYY-MM-DD'. Perplexity supports 'pd', 'pw', 'pm', and 'py'.",
     }),
   ),
   deep_search: Type.Optional(
@@ -499,6 +500,69 @@ function freshnessToPerplexityRecency(freshness: string | undefined): string | u
   return map[freshness] ?? undefined;
 }
 
+/**
+ * Normalize freshness for Nimble — accepts ph/pd/pw/pm/py shortcuts
+ * and YYYY-MM-DDtoYYYY-MM-DD date ranges.
+ */
+function normalizeNimbleFreshness(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (NIMBLE_FRESHNESS_SHORTCUTS.has(lower)) {
+    return lower;
+  }
+
+  const match = trimmed.match(BRAVE_FRESHNESS_RANGE);
+  if (!match) {
+    return undefined;
+  }
+
+  const [, start, end] = match;
+  if (!isValidIsoDate(start) || !isValidIsoDate(end)) {
+    return undefined;
+  }
+  if (start > end) {
+    return undefined;
+  }
+
+  return `${start}to${end}`;
+}
+
+/**
+ * Convert normalized freshness to Nimble API parameters.
+ * Shortcuts map to time_range; date ranges map to start_date + end_date.
+ */
+function freshnessToNimbleParams(freshness: string | undefined): {
+  time_range?: string;
+  start_date?: string;
+  end_date?: string;
+} {
+  if (!freshness) {
+    return {};
+  }
+  const shortcutMap: Record<string, string> = {
+    ph: "hour",
+    pd: "day",
+    pw: "week",
+    pm: "month",
+    py: "year",
+  };
+  if (shortcutMap[freshness]) {
+    return { time_range: shortcutMap[freshness] };
+  }
+  const match = freshness.match(BRAVE_FRESHNESS_RANGE);
+  if (match) {
+    return { start_date: match[1], end_date: match[2] };
+  }
+  return {};
+}
+
 function isValidIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
@@ -638,8 +702,26 @@ async function runNimbleSearch(params: {
   apiKey: string;
   timeoutSeconds: number;
   deepSearch: boolean;
+  freshness?: string;
 }): Promise<NimbleSearchResult[]> {
   const endpoint = NIMBLE_API_ENDPOINT;
+  const nimbleTime = freshnessToNimbleParams(params.freshness);
+
+  const body: Record<string, unknown> = {
+    query: params.query,
+    focus: "general",
+    max_results: params.count,
+    deep_search: params.deepSearch,
+  };
+  if (nimbleTime.time_range) {
+    body.time_range = nimbleTime.time_range;
+  }
+  if (nimbleTime.start_date) {
+    body.start_date = nimbleTime.start_date;
+  }
+  if (nimbleTime.end_date) {
+    body.end_date = nimbleTime.end_date;
+  }
 
   const res = await fetch(endpoint, {
     method: "POST",
@@ -647,18 +729,12 @@ async function runNimbleSearch(params: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${params.apiKey}`,
     },
-    body: JSON.stringify({
-      query: params.query,
-      focus: "general",
-      max_results: params.count,
-      deep_search: params.deepSearch,
-    }),
+    body: JSON.stringify(body),
     signal: withTimeout(undefined, params.timeoutSeconds * 1000),
   });
 
   if (!res.ok) {
-    const detail = await readResponseText(res);
-    throw new Error(`Nimble API error (${res.status}): ${detail || res.statusText}`);
+    return throwWebSearchApiError(res, "Nimble");
   }
 
   const data = (await res.json()) as NimbleSearchResponse;
@@ -688,7 +764,7 @@ async function runWebSearch(params: {
       : params.provider === "perplexity"
         ? `${params.provider}:${params.query}:${params.perplexityBaseUrl ?? DEFAULT_PERPLEXITY_BASE_URL}:${params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL}:${params.freshness || "default"}`
         : params.provider === "nimble"
-          ? `${params.provider}:${params.query}:${params.count}:${String(params.nimbleDeepSearch ?? false)}`
+          ? `${params.provider}:${params.query}:${params.count}:${String(params.nimbleDeepSearch ?? false)}:${params.freshness || "default"}`
           : `${params.provider}:${params.query}:${params.grokModel ?? DEFAULT_GROK_MODEL}:${String(params.grokInlineCitations ?? false)}`,
   );
   const cached = readCache(SEARCH_CACHE, cacheKey);
@@ -761,6 +837,7 @@ async function runWebSearch(params: {
       apiKey: params.apiKey,
       timeoutSeconds: params.timeoutSeconds,
       deepSearch: params.nimbleDeepSearch ?? false,
+      freshness: params.freshness,
     });
 
     const mapped = results.map((entry) => {
@@ -908,19 +985,25 @@ export function createWebSearchTool(options?: {
       const search_lang = readStringParam(params, "search_lang");
       const ui_lang = readStringParam(params, "ui_lang");
       const rawFreshness = readStringParam(params, "freshness");
-      if (rawFreshness && provider !== "brave" && provider !== "perplexity") {
+      if (rawFreshness && provider !== "brave" && provider !== "perplexity" && provider !== "nimble") {
         return jsonResult({
           error: "unsupported_freshness",
-          message: "freshness is only supported by the Brave and Perplexity web_search providers.",
+          message: "freshness is only supported by the Brave, Perplexity, and Nimble web_search providers.",
           docs: "https://docs.openclaw.ai/tools/web",
         });
       }
-      const freshness = rawFreshness ? normalizeFreshness(rawFreshness) : undefined;
+      const freshness = rawFreshness
+        ? provider === "nimble"
+          ? normalizeNimbleFreshness(rawFreshness)
+          : normalizeFreshness(rawFreshness)
+        : undefined;
       if (rawFreshness && !freshness) {
         return jsonResult({
           error: "invalid_freshness",
           message:
-            "freshness must be one of pd, pw, pm, py, or a range like YYYY-MM-DDtoYYYY-MM-DD.",
+            provider === "nimble"
+              ? "freshness must be one of ph, pd, pw, pm, py, or a range like YYYY-MM-DDtoYYYY-MM-DD."
+              : "freshness must be one of pd, pw, pm, py, or a range like YYYY-MM-DDtoYYYY-MM-DD.",
           docs: "https://docs.openclaw.ai/tools/web",
         });
       }
@@ -977,4 +1060,6 @@ export const __testing = {
   resolveGrokInlineCitations,
   extractGrokContent,
   resolveNimbleApiKey,
+  normalizeNimbleFreshness,
+  freshnessToNimbleParams,
 } as const;
