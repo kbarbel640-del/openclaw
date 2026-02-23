@@ -4,6 +4,8 @@ import type { OpenClawConfig } from "../config/config.js";
 import {
   resolveAgentConfig,
   resolveAgentDir,
+  resolveAgentEffectiveModelPrimary,
+  resolveAgentExplicitModelPrimary,
   resolveEffectiveModelFallbacks,
   resolveAgentModelFallbacksOverride,
   resolveAgentModelPrimary,
@@ -59,16 +61,19 @@ describe("resolveAgentConfig", () => {
     });
   });
 
-  it("falls back to agents.defaults.model when agent has no model configured", () => {
-    const cfgWithStringDefault: OpenClawConfig = {
+  it("resolves explicit and effective model primary separately", () => {
+    const cfgWithStringDefault = {
       agents: {
         defaults: {
           model: "anthropic/claude-sonnet-4",
         },
         list: [{ id: "main" }],
       },
-    };
-    expect(resolveAgentModelPrimary(cfgWithStringDefault, "main")).toBe("anthropic/claude-sonnet-4");
+    } as unknown as OpenClawConfig;
+    expect(resolveAgentExplicitModelPrimary(cfgWithStringDefault, "main")).toBeUndefined();
+    expect(resolveAgentEffectiveModelPrimary(cfgWithStringDefault, "main")).toBe(
+      "anthropic/claude-sonnet-4",
+    );
 
     const cfgWithObjectDefault: OpenClawConfig = {
       agents: {
@@ -81,14 +86,16 @@ describe("resolveAgentConfig", () => {
         list: [{ id: "main" }],
       },
     };
-    expect(resolveAgentModelPrimary(cfgWithObjectDefault, "main")).toBe("openai/gpt-5.2");
+    expect(resolveAgentExplicitModelPrimary(cfgWithObjectDefault, "main")).toBeUndefined();
+    expect(resolveAgentEffectiveModelPrimary(cfgWithObjectDefault, "main")).toBe("openai/gpt-5.2");
 
     const cfgNoDefaults: OpenClawConfig = {
       agents: {
         list: [{ id: "main" }],
       },
     };
-    expect(resolveAgentModelPrimary(cfgNoDefaults, "main")).toBeUndefined();
+    expect(resolveAgentExplicitModelPrimary(cfgNoDefaults, "main")).toBeUndefined();
+    expect(resolveAgentEffectiveModelPrimary(cfgNoDefaults, "main")).toBeUndefined();
   });
 
   it("supports per-agent model primary+fallbacks", () => {
@@ -113,6 +120,8 @@ describe("resolveAgentConfig", () => {
     };
 
     expect(resolveAgentModelPrimary(cfg, "linus")).toBe("anthropic/claude-opus-4");
+    expect(resolveAgentExplicitModelPrimary(cfg, "linus")).toBe("anthropic/claude-opus-4");
+    expect(resolveAgentEffectiveModelPrimary(cfg, "linus")).toBe("anthropic/claude-opus-4");
     expect(resolveAgentModelFallbacksOverride(cfg, "linus")).toEqual(["openai/gpt-5.2"]);
 
     // If fallbacks isn't present, we don't override the global fallbacks.

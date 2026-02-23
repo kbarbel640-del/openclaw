@@ -142,31 +142,43 @@ export function resolveAgentSkillsFilter(
   return normalizeSkillFilter(resolveAgentConfig(cfg, agentId)?.skills);
 }
 
-export function resolveAgentModelPrimary(cfg: OpenClawConfig, agentId: string): string | undefined {
-  const raw = resolveAgentConfig(cfg, agentId)?.model;
-  if (raw) {
-    if (typeof raw === "string") {
-      const trimmed = raw.trim();
-      if (trimmed) {
-        return trimmed;
-      }
-    } else {
-      const primary = raw.primary?.trim();
-      if (primary) {
-        return primary;
-      }
-    }
+function resolveModelPrimary(raw: unknown): string | undefined {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    return trimmed || undefined;
   }
-
-  // Fallback to agents.defaults.model when agent has no model configured
-  const defaultModel = cfg.agents?.defaults?.model;
-  if (!defaultModel) {
+  if (!raw || typeof raw !== "object") {
     return undefined;
   }
-  if (typeof defaultModel === "string") {
-    return defaultModel.trim() || undefined;
+  const primary = (raw as { primary?: unknown }).primary;
+  if (typeof primary !== "string") {
+    return undefined;
   }
-  return defaultModel.primary?.trim() || undefined;
+  const trimmed = primary.trim();
+  return trimmed || undefined;
+}
+
+export function resolveAgentExplicitModelPrimary(
+  cfg: OpenClawConfig,
+  agentId: string,
+): string | undefined {
+  const raw = resolveAgentConfig(cfg, agentId)?.model;
+  return resolveModelPrimary(raw);
+}
+
+export function resolveAgentEffectiveModelPrimary(
+  cfg: OpenClawConfig,
+  agentId: string,
+): string | undefined {
+  return (
+    resolveAgentExplicitModelPrimary(cfg, agentId) ??
+    resolveModelPrimary(cfg.agents?.defaults?.model)
+  );
+}
+
+// Backward-compatible alias. Prefer explicit/effective helpers at new call sites.
+export function resolveAgentModelPrimary(cfg: OpenClawConfig, agentId: string): string | undefined {
+  return resolveAgentExplicitModelPrimary(cfg, agentId);
 }
 
 export function resolveAgentModelFallbacksOverride(
