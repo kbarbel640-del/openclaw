@@ -228,6 +228,7 @@ export function renderOverview(props: OverviewProps) {
                   <span>${t("overview.access.password")}</span>
                   <input
                     type="password"
+                    autocomplete="off"
                     .value=${props.password}
                     @input=${(e: Event) => {
                       const v = (e.target as HTMLInputElement).value;
