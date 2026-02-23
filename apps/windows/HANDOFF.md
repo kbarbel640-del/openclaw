@@ -75,6 +75,7 @@
      - State
      - Pending pairs
      - Last reconnect duration
+   - Custom tray icon asset now bundled (`openclaw-claw.ico`) and loaded at runtime (fallback to system icon if unavailable)
 9. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
    - env: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`

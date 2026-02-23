@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -285,8 +286,28 @@ namespace OpenClaw.Node.Tray
             add.Invoke(items, new[] { item });
         }
 
-        private static object? ResolveApplicationIcon()
+        private object? ResolveApplicationIcon()
         {
+            try
+            {
+                var iconPath = Path.Combine(AppContext.BaseDirectory, "openclaw-claw.ico");
+                if (File.Exists(iconPath))
+                {
+                    var iconType = Type.GetType("System.Drawing.Icon, System.Drawing")
+                        ?? Type.GetType("System.Drawing.Icon, System.Drawing.Common");
+                    var ctor = iconType?.GetConstructor(new[] { typeof(string) });
+                    if (ctor != null)
+                    {
+                        _log?.Invoke($"[TRAY] Using custom icon: {iconPath}");
+                        return ctor.Invoke(new object[] { iconPath });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _log?.Invoke($"[TRAY] Custom icon load failed: {ex.Message}");
+            }
+
             var iconsType = Type.GetType("System.Drawing.SystemIcons, System.Drawing")
                 ?? Type.GetType("System.Drawing.SystemIcons, System.Drawing.Common");
             var appProp = iconsType?.GetProperty("Application", BindingFlags.Public | BindingFlags.Static);

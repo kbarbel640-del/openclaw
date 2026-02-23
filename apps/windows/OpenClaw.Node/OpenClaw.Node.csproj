@@ -17,4 +17,11 @@
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Tray/Assets/openclaw-claw.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>openclaw-claw.ico</TargetPath>
+    </Content>
+  </ItemGroup>
+
 </Project>
