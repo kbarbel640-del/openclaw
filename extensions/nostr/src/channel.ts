@@ -215,12 +215,11 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
           ctx.log?.debug?.(
             `[${account.accountId}] DM from ${senderPubkey}: ${text.slice(0, 50)}...`,
           );
-          
-          // Forward to OpenClaw's message pipeline
-          await (
-            runtime.channel.reply as { handleInboundMessage?: (params: unknown) => Promise<void> }
-          ).handleInboundMessage?.({
 
+          // Load config and resolve agent route
+          const cfg = runtime.config.loadConfig();
+          const route = runtime.channel.routing.resolveAgentRoute({
+            cfg,
             channel: "nostr",
             accountId: account.accountId,
             peer: {
@@ -228,6 +227,47 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
               id: senderPubkey,
             },
           });
+
+          // Enforce DM policy
+          const dmPolicy = account.config.dmPolicy ?? "pairing";
+          if (dmPolicy === "disabled") {
+            ctx.log?.debug?.(`[${account.accountId}] drop DM from ${senderPubkey} (dmPolicy=disabled)`);
+            return;
+          }
+          if (dmPolicy !== "open") {
+            const configAllowFrom = (account.config.allowFrom ?? []).map((e) => String(e));
+            const storeAllowFrom = await runtime.channel.pairing
+              .readAllowFromStore("nostr")
+              .catch(() => [] as string[]);
+            const effectiveAllowFrom = [...configAllowFrom, ...storeAllowFrom].filter(Boolean);
+            const normalizedSender = senderPubkey.toLowerCase();
+            const allowed = effectiveAllowFrom.some(
+              (entry) => entry === "*" || entry.toLowerCase() === normalizedSender,
+            );
+            if (!allowed) {
+              if (dmPolicy === "pairing") {
+                const { code, created } = await runtime.channel.pairing.upsertPairingRequest({
+                  channel: "nostr",
+                  id: senderPubkey,
+                  meta: { name: senderPubkey },
+                });
+                if (created) {
+                  try {
+                    const pairingReply = runtime.channel.pairing.buildPairingReply({
+                      channel: "nostr",
+                      idLine: `Your Nostr pubkey: ${senderPubkey}`,
+                      code,
+                    });
+                    await reply(pairingReply);
+                  } catch (err) {
+                    ctx.log?.error?.(`[${account.accountId}] pairing reply failed: ${String(err)}`);
+                  }
+                }
+              }
+              ctx.log?.debug?.(`[${account.accountId}] drop DM from ${senderPubkey} (dmPolicy=${dmPolicy})`);
+              return;
+            }
+          }
 
           // Format the message body with envelope
           const rawBody = text;
