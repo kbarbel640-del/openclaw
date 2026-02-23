@@ -1,6 +1,12 @@
 import type { CronConfig } from "../../config/types.cron.js";
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
-import type { CronJob, CronJobCreate, CronJobPatch, CronStoreFile } from "../types.js";
+import type {
+  CronJob,
+  CronJobCreate,
+  CronJobPatch,
+  CronMessageChannel,
+  CronStoreFile,
+} from "../types.js";
 
 export type CronEvent = {
   jobId: string;
@@ -53,6 +59,12 @@ export type CronServiceDeps = {
      */
     delivered?: boolean;
   }>;
+  sendCronFailureAlert?: (params: {
+    job: CronJob;
+    text: string;
+    channel: CronMessageChannel;
+    to?: string;
+  }) => Promise<void>;
   onEvent?: (evt: CronEvent) => void;
 };
 

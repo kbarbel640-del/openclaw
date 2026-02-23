@@ -1,14 +1,17 @@
 import type { CliDeps } from "../cli/deps.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { createOutboundSendDeps } from "../cli/outbound-send-deps.js";
 import { loadConfig } from "../config/config.js";
 import { resolveAgentMainSessionKey } from "../config/sessions.js";
 import { resolveStorePath } from "../config/sessions/paths.js";
 import { runCronIsolatedAgentTurn } from "../cron/isolated-agent.js";
+import { resolveDeliveryTarget } from "../cron/isolated-agent/delivery-target.js";
 import { appendCronRunLog, resolveCronRunLogPath } from "../cron/run-log.js";
 import { CronService } from "../cron/service.js";
 import { resolveCronStorePath } from "../cron/store.js";
 import { runHeartbeatOnce } from "../infra/heartbeat-runner.js";
 import { requestHeartbeatNow } from "../infra/heartbeat-wake.js";
+import { deliverOutboundPayloads } from "../infra/outbound/deliver.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
 import { getChildLogger } from "../logging.js";
 import { normalizeAgentId } from "../routing/session-key.js";
@@ -87,6 +90,28 @@ export function buildGatewayCronService(params: {
         agentId,
         sessionKey: `cron:${job.id}`,
         lane: "cron",
+      });
+    },
+    sendCronFailureAlert: async ({ job, text, channel, to }) => {
+      const { agentId, cfg: runtimeConfig } = resolveCronAgent(job.agentId);
+      const target = await resolveDeliveryTarget(runtimeConfig, agentId, {
+        channel,
+        to,
+      });
+      if (target.error) {
+        throw target.error;
+      }
+      if (!target.to) {
+        throw new Error("cron failure alert target is missing");
+      }
+      await deliverOutboundPayloads({
+        cfg: runtimeConfig,
+        channel: target.channel,
+        to: target.to,
+        accountId: target.accountId,
+        threadId: target.threadId,
+        payloads: [{ text }],
+        deps: createOutboundSendDeps(params.deps),
       });
     },
     log: getChildLogger({ module: "cron", storePath }),

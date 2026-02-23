@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type {
   CronDelivery,
   CronDeliveryPatch,
+  CronFailureAlert,
   CronJob,
   CronJobCreate,
   CronJobPatch,
@@ -261,6 +262,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     wakeMode: input.wakeMode,
     payload: input.payload,
     delivery: input.delivery,
+    failureAlert: input.failureAlert,
     state: {
       ...input.state,
     },
@@ -309,6 +311,9 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   }
   if (patch.delivery) {
     job.delivery = mergeCronDelivery(job.delivery, patch.delivery);
+  }
+  if ("failureAlert" in patch) {
+    job.failureAlert = mergeCronFailureAlert(job.failureAlert, patch.failureAlert);
   }
   if (job.sessionTarget === "main" && job.delivery) {
     job.delivery = undefined;
@@ -462,6 +467,42 @@ function mergeCronDelivery(
   }
   if (typeof patch.bestEffort === "boolean") {
     next.bestEffort = patch.bestEffort;
+  }
+
+  return next;
+}
+
+function mergeCronFailureAlert(
+  existing: CronFailureAlert | false | undefined,
+  patch: CronFailureAlert | false | undefined,
+): CronFailureAlert | false | undefined {
+  if (patch === false) {
+    return false;
+  }
+  if (patch === undefined) {
+    return existing;
+  }
+  const base = existing && existing !== false ? existing : {};
+  const next: CronFailureAlert = { ...base };
+
+  if ("after" in patch) {
+    const after = typeof patch.after === "number" && Number.isFinite(patch.after) ? patch.after : 0;
+    next.after = after > 0 ? Math.floor(after) : undefined;
+  }
+  if ("channel" in patch) {
+    const channel = typeof patch.channel === "string" ? patch.channel.trim() : "";
+    next.channel = channel ? channel : undefined;
+  }
+  if ("to" in patch) {
+    const to = typeof patch.to === "string" ? patch.to.trim() : "";
+    next.to = to ? to : undefined;
+  }
+  if ("cooldownMs" in patch) {
+    const cooldownMs =
+      typeof patch.cooldownMs === "number" && Number.isFinite(patch.cooldownMs)
+        ? patch.cooldownMs
+        : -1;
+    next.cooldownMs = cooldownMs >= 0 ? Math.floor(cooldownMs) : undefined;
   }
 
   return next;

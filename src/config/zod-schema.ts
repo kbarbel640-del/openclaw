@@ -296,6 +296,14 @@ export const OpenClawSchema = z
         store: z.string().optional(),
         maxConcurrentRuns: z.number().int().positive().optional(),
         sessionRetention: z.union([z.string(), z.literal(false)]).optional(),
+        failureAlert: z
+          .object({
+            enabled: z.boolean().optional(),
+            after: z.number().int().min(1).optional(),
+            cooldownMs: z.number().int().min(0).optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict()
       .optional(),

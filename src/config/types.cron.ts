@@ -1,3 +1,9 @@
+export type CronFailureAlertConfig = {
+  enabled?: boolean;
+  after?: number;
+  cooldownMs?: number;
+};
+
 export type CronConfig = {
   enabled?: boolean;
   store?: string;
@@ -8,4 +14,5 @@ export type CronConfig = {
    * Default: "24h".
    */
   sessionRetention?: string | false;
+  failureAlert?: CronFailureAlertConfig;
 };

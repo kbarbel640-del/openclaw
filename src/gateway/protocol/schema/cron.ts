@@ -97,6 +97,16 @@ export const CronDeliveryPatchSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const CronFailureAlertSchema = Type.Object(
+  {
+    after: Type.Optional(Type.Integer({ minimum: 1 })),
+    channel: Type.Optional(Type.Union([Type.Literal("last"), NonEmptyString])),
+    to: Type.Optional(Type.String()),
+    cooldownMs: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+
 export const CronJobStateSchema = Type.Object(
   {
     nextRunAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
@@ -108,6 +118,7 @@ export const CronJobStateSchema = Type.Object(
     lastError: Type.Optional(Type.String()),
     lastDurationMs: Type.Optional(Type.Integer({ minimum: 0 })),
     consecutiveErrors: Type.Optional(Type.Integer({ minimum: 0 })),
+    lastFailureAlertAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
   },
   { additionalProperties: false },
 );
@@ -127,6 +138,7 @@ export const CronJobSchema = Type.Object(
     wakeMode: Type.Union([Type.Literal("next-heartbeat"), Type.Literal("now")]),
     payload: CronPayloadSchema,
     delivery: Type.Optional(CronDeliverySchema),
+    failureAlert: Type.Optional(Type.Union([Type.Literal(false), CronFailureAlertSchema])),
     state: CronJobStateSchema,
   },
   { additionalProperties: false },
@@ -153,6 +165,7 @@ export const CronAddParamsSchema = Type.Object(
     wakeMode: Type.Union([Type.Literal("next-heartbeat"), Type.Literal("now")]),
     payload: CronPayloadSchema,
     delivery: Type.Optional(CronDeliverySchema),
+    failureAlert: Type.Optional(Type.Union([Type.Literal(false), CronFailureAlertSchema])),
   },
   { additionalProperties: false },
 );
@@ -169,6 +182,7 @@ export const CronJobPatchSchema = Type.Object(
     wakeMode: Type.Optional(Type.Union([Type.Literal("next-heartbeat"), Type.Literal("now")])),
     payload: Type.Optional(CronPayloadPatchSchema),
     delivery: Type.Optional(CronDeliveryPatchSchema),
+    failureAlert: Type.Optional(Type.Union([Type.Literal(false), CronFailureAlertSchema])),
     state: Type.Optional(Type.Partial(CronJobStateSchema)),
   },
   { additionalProperties: false },
