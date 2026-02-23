@@ -630,6 +630,133 @@ const STOP_WORDS_ZH = new Set([
   "告诉",
 ]);
 
+const STOP_WORDS_TR = new Set([
+  // Determiners and articles
+  "bir",
+  "bu",
+  "şu",
+  "o",
+  // Pronouns
+  "ben",
+  "sen",
+  "biz",
+  "siz",
+  "onlar",
+  "benim",
+  "senin",
+  "bizim",
+  "sizin",
+  "onların",
+  "beni",
+  "seni",
+  "bizi",
+  "sizi",
+  "onları",
+  "bana",
+  "sana",
+  "bize",
+  "size",
+  "onlara",
+  "bende",
+  "sende",
+  "bizde",
+  "sizde",
+  "onlarda",
+  // Demonstratives
+  "bunu",
+  "buna",
+  "bunda",
+  "bundan",
+  "bunlar",
+  "şunu",
+  "şuna",
+  "şunda",
+  "şundan",
+  "şunlar",
+  "onu",
+  "ona",
+  "onda",
+  "ondan",
+  // Common verbs / auxiliaries
+  "olan",
+  "olarak",
+  "oldu",
+  "olur",
+  "olmuş",
+  "etti",
+  "eder",
+  "etmiş",
+  "edildi",
+  "yaptı",
+  "yapar",
+  "yapmış",
+  "var",
+  "yok",
+  "değil",
+  // Postpositions
+  "ile",
+  "için",
+  "gibi",
+  "kadar",
+  "üzerinde",
+  "altında",
+  "arasında",
+  "hakkında",
+  "karşı",
+  "göre",
+  "doğru",
+  "sonra",
+  "önce",
+  "beri",
+  // Conjunctions
+  "ve",
+  "veya",
+  "ama",
+  "fakat",
+  "ancak",
+  "çünkü",
+  "eğer",
+  "ise",
+  "ki",
+  "da",
+  "de",
+  "hem",
+  "ya",
+  "ne",
+  "bile",
+  // Question words
+  "nasıl",
+  "neden",
+  "niçin",
+  "nerede",
+  "nereye",
+  "nereden",
+  "kim",
+  "hangi",
+  "kaç",
+  // Time references (vague)
+  "dün",
+  "bugün",
+  "yarın",
+  "şimdi",
+  "henüz",
+  "hâlâ",
+  "artık",
+  "geçen",
+  "geçenlerde",
+  // Vague references
+  "şey",
+  "şeyler",
+  // Request/filler words
+  "lütfen",
+  "acaba",
+  "belki",
+  "sadece",
+  "zaten",
+  "aslında",
+  "yani",
+]);
+
 /**
  * Check if a token looks like a meaningful keyword.
  * Returns false for short tokens, numbers-only, etc.
@@ -734,7 +861,8 @@ export function extractKeywords(query: string): string[] {
       STOP_WORDS_AR.has(token) ||
       STOP_WORDS_ZH.has(token) ||
       STOP_WORDS_KO.has(token) ||
-      STOP_WORDS_JA.has(token)
+      STOP_WORDS_JA.has(token) ||
+      STOP_WORDS_TR.has(token)
     ) {
       continue;
     }
