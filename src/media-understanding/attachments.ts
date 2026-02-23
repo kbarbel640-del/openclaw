@@ -424,11 +424,6 @@ export class MediaAttachmentCache {
     }
     if (!isInboundPathAllowed({ filePath: entry.resolvedPath, roots: this.localPathRoots })) {
       entry.resolvedPath = undefined;
-      if (shouldLogVerbose()) {
-        logVerbose(
-          `Blocked attachment path outside allowed roots: ${entry.attachment.path ?? entry.attachment.url ?? "(unknown)"}`,
-        );
-      }
       return undefined;
     }
     if (entry.statSize !== undefined) {

@@ -75,7 +75,7 @@ export function resolvePreferredOpenClawTmpDir(
     if (!isSecureDirForUser(preferred)) {
       return fallback();
     }
-    return POSIX_OPENCLAW_TMP_DIR;
+    return path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
   } catch (err) {
     if (!isNodeErrorWithCode(err, "ENOENT")) {
       return fallback();
@@ -97,7 +97,7 @@ export function resolvePreferredOpenClawTmpDir(
     } catch {
       return fallback();
     }
-    return POSIX_OPENCLAW_TMP_DIR;
+    return path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
   } catch {
     return fallback();
   }
