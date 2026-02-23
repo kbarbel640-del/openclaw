@@ -1,12 +1,12 @@
 import { Readable } from "stream";
 import type * as Lark from "@larksuiteoapi/node-sdk";
 import { Type } from "@sinclair/typebox";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { listEnabledFeishuAccounts } from "./accounts.js";
+import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
+import { listEnabledFeishuAccounts, resolveFeishuAccountForToolContext } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
-import { resolveToolsConfig } from "./tools-config.js";
+import { assertToolEnabledForAccount, mergeToolsConfigs } from "./tools-config.js";
 
 // ============ Helpers ============
 
@@ -454,19 +454,14 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
     return;
   }
 
-  // Use first account's config for tools configuration
-  const firstAccount = accounts[0];
-  const toolsCfg = resolveToolsConfig(firstAccount.config.tools);
-  const mediaMaxBytes = (firstAccount.config?.mediaMaxMb ?? 30) * 1024 * 1024;
-
-  // Helper to get client for the default account
-  const getClient = () => createFeishuClient(firstAccount);
+  // Register a tool if ANY account enables it (union of all accounts' tools config)
+  const toolsCfg = mergeToolsConfigs(accounts.map((a) => a.config.tools));
   const registered: string[] = [];
 
   // Main document tool with action-based dispatch
   if (toolsCfg.doc) {
     api.registerTool(
-      {
+      (ctx: OpenClawPluginToolContext) => ({
         name: "feishu_doc",
         label: "Feishu Doc",
         description:
@@ -475,7 +470,11 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         async execute(_toolCallId, params) {
           const p = params as FeishuDocParams;
           try {
-            const client = getClient();
+            const account = resolveFeishuAccountForToolContext(accounts, ctx);
+            const gateError = assertToolEnabledForAccount(account, "doc", "feishu_doc");
+            if (gateError) return json({ error: gateError });
+            const mediaMaxBytes = (account.config?.mediaMaxMb ?? 30) * 1024 * 1024;
+            const client = createFeishuClient(account);
             switch (p.action) {
               case "read":
                 return json(await readDoc(client, p.doc_token));
@@ -501,7 +500,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
             return json({ error: err instanceof Error ? err.message : String(err) });
           }
         },
-      },
+      }),
       { name: "feishu_doc" },
     );
     registered.push("feishu_doc");
@@ -510,7 +509,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
   // Keep feishu_app_scopes as independent tool
   if (toolsCfg.scopes) {
     api.registerTool(
-      {
+      (ctx: OpenClawPluginToolContext) => ({
         name: "feishu_app_scopes",
         label: "Feishu App Scopes",
         description:
@@ -518,13 +517,16 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         parameters: Type.Object({}),
         async execute() {
           try {
-            const result = await listAppScopes(getClient());
+            const account = resolveFeishuAccountForToolContext(accounts, ctx);
+            const gateError = assertToolEnabledForAccount(account, "scopes", "feishu_app_scopes");
+            if (gateError) return json({ error: gateError });
+            const result = await listAppScopes(createFeishuClient(account));
             return json(result);
           } catch (err) {
             return json({ error: err instanceof Error ? err.message : String(err) });
           }
         },
-      },
+      }),
       { name: "feishu_app_scopes" },
     );
     registered.push("feishu_app_scopes");
