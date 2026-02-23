@@ -271,14 +271,6 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
     return { apiKey: envKey, source: "gcloud adc" };
   }
 
-  if (normalized === "google-vertex-claude" || normalized === "anthropic-vertex") {
-    const envKey = getEnvApiKey("google-vertex");
-    if (!envKey) {
-      return null;
-    }
-    return { apiKey: envKey, source: "gcloud adc" };
-  }
-
   if (normalized === "opencode") {
     return pick("OPENCODE_API_KEY") ?? pick("OPENCODE_ZEN_API_KEY");
   }

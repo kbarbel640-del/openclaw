@@ -6,7 +6,6 @@ import { resolveOpenClawAgentDir } from "./agent-paths.js";
 import {
   normalizeProviders,
   type ProviderConfig,
-  resolveImplicitGoogleVertexClaudeProvider,
   resolveImplicitBedrockProvider,
   resolveImplicitCopilotProvider,
   resolveImplicitProviders,
@@ -117,16 +116,6 @@ export async function ensureOpenClawModelsJson(
     providers["amazon-bedrock"] = existing
       ? mergeProviderModels(implicitBedrock, existing)
       : implicitBedrock;
-  }
-  const implicitGoogleVertexClaude = resolveImplicitGoogleVertexClaudeProvider({});
-  if (implicitGoogleVertexClaude) {
-    const canonical = providers["google-vertex-claude"];
-    const legacyAlias = providers["anthropic-vertex"];
-    providers["google-vertex-claude"] = canonical
-      ? mergeProviderModels(implicitGoogleVertexClaude, canonical)
-      : legacyAlias
-        ? mergeProviderModels(implicitGoogleVertexClaude, legacyAlias)
-        : implicitGoogleVertexClaude;
   }
   const implicitCopilot = await resolveImplicitCopilotProvider({ agentDir });
   if (implicitCopilot && !providers["github-copilot"]) {
