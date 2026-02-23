@@ -2074,6 +2074,7 @@ See [Plugins](/tools/plugin).
       // root: "dist/control-ui",
       // allowInsecureAuth: false,
       // dangerouslyDisableDeviceAuth: false,
+      // csp: { imgSrcExtra: ["https://cdn.example.com"], fontSrcExtra: ["https://fonts.gstatic.com"] },
     },
     remote: {
       url: "ws://gateway.tailnet:18789",
@@ -2112,6 +2113,7 @@ See [Plugins](/tools/plugin).
 - `allowRealIpFallback`: when `true`, the gateway accepts `X-Real-IP` if `X-Forwarded-For` is missing. Default `false` for fail-closed behavior.
 - `gateway.tools.deny`: extra tool names blocked for HTTP `POST /tools/invoke` (extends default deny list).
 - `gateway.tools.allow`: remove tool names from the default HTTP deny list.
+- `gateway.controlUi.csp`: optional [Content-Security-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP) extensions for the Control UI. Use per-directive arrays (`imgSrcExtra`, `fontSrcExtra`, `styleSrcExtra`, `scriptSrcExtra`, `connectSrcExtra`) to append safe origins (e.g. `https://cdn.example.com`) while keeping strict defaults. Values are validated and rejected if they contain unsafe characters.
 
 </Accordion>
 

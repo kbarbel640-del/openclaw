@@ -405,7 +405,17 @@ Save to `~/.openclaw/openclaw.json` and you can DM the bot from that number.
     mode: "local",
     port: 18789,
     bind: "loopback",
-    controlUi: { enabled: true, basePath: "/openclaw" },
+    controlUi: {
+      enabled: true,
+      basePath: "/openclaw",
+      // Optional: allow CDN/static assets in Control UI CSP
+      // csp: {
+      //   imgSrcExtra: ["https://cdn.example.com"],
+      //   fontSrcExtra: ["https://fonts.gstatic.com"],
+      //   styleSrcExtra: ["https://fonts.googleapis.com"],
+      //   connectSrcExtra: ["wss://ws.example.com"],
+      // },
+    },
     auth: {
       mode: "token",
       token: "gateway-token",
