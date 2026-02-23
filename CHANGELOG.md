@@ -7,6 +7,7 @@ Docs: https://docs.openclaw.ai
 ### Changes
 
 - Browser/Profiles: add per-profile `headless` override so individual profiles can run headed (or headless) independently of the global `browser.headless` setting. Useful for profiles that require a visible window (e.g. login setup) while keeping the rest headless.
+- Browser/Profiles: add per-profile `executablePath` override so individual profiles can launch a different browser binary independently of the global `browser.executablePath` setting. Useful for mixed-browser setups (e.g. Chrome for one profile, Chromium for another).
 - Android/Chat: improve streaming delivery handling and markdown rendering quality in the native Android chat UI, including better GitHub-flavored markdown behavior. (#26079) Thanks @obviyus.
 - Branding/Docs + Apple surfaces: replace remaining `bot.molt` launchd label, bundle-id, logging subsystem, and command examples with `ai.openclaw` across docs, iOS app surfaces, helper scripts, and CLI test fixtures.
 - Agents/Config: remind agents to call `config.schema` before config edits or config-field questions to avoid guessing. Thanks @thewilloftheshadow.
