@@ -1,3 +1,5 @@
+import { deriveRelayToken } from './background-utils.js'
+
 const DEFAULT_PORT = 18792
 
 function clampPort(value) {
@@ -13,10 +15,11 @@ function updateRelayUrl(port) {
   el.textContent = `http://127.0.0.1:${port}/`
 }
 
-function relayHeaders(token) {
+async function relayHeaders(token, port) {
   const t = String(token || '').trim()
   if (!t) return {}
-  return { 'x-openclaw-relay-token': t }
+  const derived = await deriveRelayToken(t, port)
+  return { 'x-openclaw-relay-token': derived }
 }
 
 function setStatus(kind, message) {
@@ -38,7 +41,7 @@ async function checkRelayReachable(port, token) {
   try {
     const res = await fetch(url, {
       method: 'GET',
-      headers: relayHeaders(trimmedToken),
+      headers: await relayHeaders(trimmedToken, port),
       signal: ctrl.signal,
     })
     if (res.status === 401) {
