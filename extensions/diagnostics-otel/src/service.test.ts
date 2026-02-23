@@ -315,19 +315,11 @@ describe("diagnostics-otel service", () => {
           },
         },
       },
-      logger: {
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        debug: vi.fn(),
-      },
+      logger: createLogger(),
       stateDir: "/tmp/openclaw-diagnostics-otel-test",
     };
     await service.start(ctx);
-
     expect(registeredTransports).toHaveLength(1);
-
-    // Log a message containing a sensitive API key
     registeredTransports[0]?.({
       0: "Using API key sk-1234567890abcdef1234567890abcdef",
       _meta: { logLevelName: "INFO", date: new Date() },
@@ -335,11 +327,9 @@ describe("diagnostics-otel service", () => {
 
     expect(logEmit).toHaveBeenCalled();
     const emitCall = logEmit.mock.calls[0]?.[0];
-    // The API key should be partially masked
     expect(emitCall?.body).not.toContain("sk-1234567890abcdef1234567890abcdef");
-    expect(emitCall?.body).toContain("sk-123"); // Keeps prefix
-    expect(emitCall?.body).toContain("…"); // Shows truncation
-
+    expect(emitCall?.body).toContain("sk-123");
+    expect(emitCall?.body).toContain("…");
     await service.stop?.(ctx);
   });
 
@@ -364,19 +354,11 @@ describe("diagnostics-otel service", () => {
           },
         },
       },
-      logger: {
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        debug: vi.fn(),
-      },
+      logger: createLogger(),
       stateDir: "/tmp/openclaw-diagnostics-otel-test",
     };
     await service.start(ctx);
-
     expect(registeredTransports).toHaveLength(1);
-
-    // Log with bindings containing sensitive data
     registeredTransports[0]?.({
       0: '{"token":"ghp_abcdefghijklmnopqrstuvwxyz123456"}',
       1: "auth configured",
@@ -385,13 +367,53 @@ describe("diagnostics-otel service", () => {
 
     expect(logEmit).toHaveBeenCalled();
     const emitCall = logEmit.mock.calls[0]?.[0];
-    // The GitHub token in attributes should be masked
     const tokenAttr = emitCall?.attributes?.["openclaw.token"];
     expect(tokenAttr).not.toBe("ghp_abcdefghijklmnopqrstuvwxyz123456");
     if (typeof tokenAttr === "string") {
-      expect(tokenAttr).toContain("…"); // Shows truncation
+      expect(tokenAttr).toContain("…");
     }
+    await service.stop?.(ctx);
+  });
 
+  test("redacts sensitive reason in session.state metric attributes", async () => {
+    const service = createDiagnosticsOtelService();
+    const ctx: OpenClawPluginServiceContext = {
+      config: {
+        diagnostics: {
+          enabled: true,
+          otel: {
+            enabled: true,
+            endpoint: "http://otel-collector:4318",
+            protocol: "http/protobuf",
+            metrics: true,
+            traces: false,
+            logs: false,
+          },
+        },
+      },
+      logger: createLogger(),
+      stateDir: "/tmp/openclaw-diagnostics-otel-test",
+    };
+    await service.start(ctx);
+
+    emitDiagnosticEvent({
+      type: "session.state",
+      state: "waiting",
+      reason: "token=ghp_abcdefghijklmnopqrstuvwxyz123456",
+    });
+
+    const sessionCounter = telemetryState.counters.get("openclaw.session.state");
+    expect(sessionCounter?.add).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        "openclaw.reason": expect.stringContaining("…"),
+      }),
+    );
+    const attrs = sessionCounter?.add.mock.calls[0]?.[1] as Record<string, unknown> | undefined;
+    expect(typeof attrs?.["openclaw.reason"]).toBe("string");
+    expect(String(attrs?.["openclaw.reason"])).not.toContain(
+      "ghp_abcdefghijklmnopqrstuvwxyz123456",
+    );
     await service.stop?.(ctx);
   });
 });
