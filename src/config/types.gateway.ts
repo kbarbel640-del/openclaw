@@ -350,6 +350,21 @@ export type ConfigIntegrityConfig = {
   trackedFiles?: string[];
 };
 
+export type PluginCapabilityConfig = {
+  /**
+   * Enforcement mode for plugin capability manifests.
+   * - "off": no capability checking (current behavior)
+   * - "warn": log violations but don't block (default for v1)
+   * - "enforce": block violations, return error to caller
+   * @default "warn"
+   */
+  enforcement?: "enforce" | "warn" | "off";
+  /** Require plugins to ship a capability manifest to load. @default false */
+  requireManifest?: boolean;
+  /** Plugin IDs allowed to run without a manifest even when requireManifest is true. */
+  allowUnmanifested?: string[];
+};
+
 export type SecurityConfig = {
   /** Per-sender/per-session message rate limiting. */
   messageRateLimit?: MessageRateLimitConfig;
@@ -357,6 +372,8 @@ export type SecurityConfig = {
   costBudget?: CostBudgetConfig;
   /** Cryptographic integrity verification for config files. */
   configIntegrity?: ConfigIntegrityConfig;
+  /** Plugin capability manifest enforcement. */
+  pluginCapabilities?: PluginCapabilityConfig;
 };
 
 export type GatewayConfig = {

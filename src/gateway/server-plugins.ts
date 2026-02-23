@@ -1,4 +1,6 @@
 import type { loadConfig } from "../config/config.js";
+import type { CapabilityEnforcementMode } from "../plugins/capability-enforcer.js";
+import { createGatewayHandlerWrapper } from "../plugins/capability-enforcer.js";
 import { loadOpenClawPlugins } from "../plugins/loader.js";
 import type { GatewayRequestHandler } from "./server-methods/types.js";
 
@@ -25,6 +27,24 @@ export function loadGatewayPlugins(params: {
     },
     coreGatewayHandlers: params.coreGatewayHandlers,
   });
+
+  // Wrap plugin gateway handlers with capability enforcement
+  const enforcementMode: CapabilityEnforcementMode =
+    (params.cfg.security?.pluginCapabilities?.enforcement as CapabilityEnforcementMode) ?? "warn";
+
+  for (const plugin of pluginRegistry.plugins) {
+    if (plugin.status !== "loaded" || !plugin.capabilityEnforcer) {
+      continue;
+    }
+    const wrapper = createGatewayHandlerWrapper(plugin.capabilityEnforcer, enforcementMode);
+    for (const method of plugin.gatewayMethods) {
+      const existing = pluginRegistry.gatewayHandlers[method];
+      if (existing) {
+        pluginRegistry.gatewayHandlers[method] = wrapper(existing, method);
+      }
+    }
+  }
+
   const pluginMethods = Object.keys(pluginRegistry.gatewayHandlers);
   const gatewayMethods = Array.from(new Set([...params.baseMethods, ...pluginMethods]));
   if (pluginRegistry.diagnostics.length > 0) {
