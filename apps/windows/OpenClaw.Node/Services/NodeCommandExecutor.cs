@@ -19,6 +19,9 @@ namespace OpenClaw.Node.Services
                     "system.notify" => HandleSystemNotify(request),
                     "system.which" => await HandleSystemWhichAsync(request),
                     "system.run" => await HandleSystemRunAsync(request),
+                    "system.update" => await HandleDevUpdateAsync(request),
+                    "system.restart" => await HandleDevRestartAsync(request),
+                    "system.screenshot" => await HandleDevScreenshotAsync(request),
                     "dev.update" => await HandleDevUpdateAsync(request),
                     "dev.restart" => await HandleDevRestartAsync(request),
                     "dev.screenshot" => await HandleDevScreenshotAsync(request),
@@ -215,7 +218,7 @@ namespace OpenClaw.Node.Services
 
             if (root != null && root.Value.TryGetProperty("branch", out var branchEl) && branchEl.ValueKind != JsonValueKind.String)
             {
-                return Invalid(request.Id, "dev.update params.branch must be a string when provided");
+                return Invalid(request.Id, "system.update params.branch must be a string when provided");
             }
 
             var branch = root != null && root.Value.TryGetProperty("branch", out var b) && b.ValueKind == JsonValueKind.String
@@ -225,7 +228,7 @@ namespace OpenClaw.Node.Services
             if (root != null && root.Value.TryGetProperty("build", out var buildEl) &&
                 buildEl.ValueKind != JsonValueKind.True && buildEl.ValueKind != JsonValueKind.False)
             {
-                return Invalid(request.Id, "dev.update params.build must be boolean when provided");
+                return Invalid(request.Id, "system.update params.build must be boolean when provided");
             }
 
             var doBuild = root != null && root.Value.TryGetProperty("build", out var db) &&
@@ -235,7 +238,7 @@ namespace OpenClaw.Node.Services
 
             if (!Directory.Exists(repoPath))
             {
-                return Invalid(request.Id, $"dev.update repoPath not found: {repoPath}");
+                return Invalid(request.Id, $"system.update repoPath not found: {repoPath}");
             }
 
             var steps = new System.Collections.Generic.List<object>();
@@ -264,7 +267,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.InvalidRequest,
-                        Message = "dev.update repoPath is not a git repository"
+                        Message = "system.update repoPath is not a git repository"
                     }
                 };
             }
@@ -280,7 +283,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = "dev.update git fetch failed"
+                        Message = "system.update git fetch failed"
                     }
                 };
             }
@@ -296,7 +299,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = "dev.update git checkout failed"
+                        Message = "system.update git checkout failed"
                     }
                 };
             }
@@ -312,7 +315,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = "dev.update git pull failed"
+                        Message = "system.update git pull failed"
                     }
                 };
             }
@@ -330,7 +333,7 @@ namespace OpenClaw.Node.Services
                         Error = new OpenClawNodeError
                         {
                             Code = OpenClawNodeErrorCode.Unavailable,
-                            Message = "dev.update build failed"
+                            Message = "system.update build failed"
                         }
                     };
                 }
@@ -359,7 +362,7 @@ namespace OpenClaw.Node.Services
 
             if (root != null && root.Value.TryGetProperty("delayMs", out var dEl) && dEl.ValueKind != JsonValueKind.Number)
             {
-                return Task.FromResult(Invalid(request.Id, "dev.restart params.delayMs must be a number when provided"));
+                return Task.FromResult(Invalid(request.Id, "system.restart params.delayMs must be a number when provided"));
             }
 
             var delayMs = root != null && root.Value.TryGetProperty("delayMs", out var d) && d.ValueKind == JsonValueKind.Number
@@ -377,7 +380,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = "dev.restart unavailable: unable to resolve current process path"
+                        Message = "system.restart unavailable: unable to resolve current process path"
                     }
                 });
             }
@@ -413,7 +416,7 @@ namespace OpenClaw.Node.Services
                         Error = new OpenClawNodeError
                         {
                             Code = OpenClawNodeErrorCode.Unavailable,
-                            Message = "dev.restart failed to schedule restart process"
+                            Message = "system.restart failed to schedule restart process"
                         }
                     });
                 }
@@ -443,7 +446,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = $"dev.restart scheduling failed: {ex.Message}"
+                        Message = $"system.restart scheduling failed: {ex.Message}"
                     }
                 });
             }
@@ -466,7 +469,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = "dev.screenshot is only available on Windows"
+                        Message = "system.screenshot is only available on Windows"
                     }
                 };
             }
@@ -521,7 +524,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = "dev.screenshot capture failed"
+                        Message = "system.screenshot capture failed"
                     },
                     PayloadJSON = JsonSerializer.Serialize(new
                     {

@@ -519,13 +519,13 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
-        public async Task DevUpdate_InvalidBranchType_ShouldReturnInvalidRequest()
+        public async Task SystemUpdate_InvalidBranchType_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();
             var req = new BridgeInvokeRequest
             {
-                Id = "dev-update-invalid-branch",
-                Command = "dev.update",
+                Id = "system-update-invalid-branch",
+                Command = "system.update",
                 ParamsJSON = "{\"branch\":123}"
             };
 
@@ -537,13 +537,13 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
-        public async Task DevRestart_InvalidDelayType_ShouldReturnInvalidRequest()
+        public async Task SystemRestart_InvalidDelayType_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();
             var req = new BridgeInvokeRequest
             {
-                Id = "dev-restart-invalid-delay",
-                Command = "dev.restart",
+                Id = "system-restart-invalid-delay",
+                Command = "system.restart",
                 ParamsJSON = "{\"delayMs\":\"soon\"}"
             };
 
@@ -555,13 +555,13 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
-        public async Task DevScreenshot_ShouldReturnExpectedResult_ForCurrentPlatform()
+        public async Task SystemScreenshot_ShouldReturnExpectedResult_ForCurrentPlatform()
         {
             var executor = new NodeCommandExecutor();
             var req = new BridgeInvokeRequest
             {
-                Id = "dev-screenshot-1",
-                Command = "dev.screenshot"
+                Id = "system-screenshot-1",
+                Command = "system.screenshot"
             };
 
             var res = await executor.ExecuteAsync(req);

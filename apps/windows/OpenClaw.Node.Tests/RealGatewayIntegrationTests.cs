@@ -39,7 +39,7 @@ namespace OpenClaw.Node.Tests
                     { "instanceId", Guid.NewGuid().ToString("N") },
                     { "deviceFamily", "Windows" }
                 },
-                Commands = new System.Collections.Generic.List<string> { "system.notify", "system.which", "system.run", "dev.update", "dev.restart", "dev.screenshot", "screen.list", "screen.record", "camera.list", "camera.snap", "window.list", "window.focus", "window.rect", "input.type", "input.key", "input.click", "input.scroll", "input.click.relative", "ui.find", "ui.click", "ui.type" },
+                Commands = new System.Collections.Generic.List<string> { "system.notify", "system.which", "system.run", "system.update", "system.restart", "system.screenshot", "screen.list", "screen.record", "camera.list", "camera.snap", "window.list", "window.focus", "window.rect", "input.type", "input.key", "input.click", "input.scroll", "input.click.relative", "ui.find", "ui.click", "ui.type" },
                 Scopes = new System.Collections.Generic.List<string>(),
             };
 
