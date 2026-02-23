@@ -161,8 +161,17 @@ namespace OpenClaw.Node
             {
                 if (trayHost != null)
                 {
-                    await trayHost.StartAsync(cts.Token);
-                    SetTray(NodeRuntimeState.Starting, "Starting node runtime");
+                    try
+                    {
+                        await trayHost.StartAsync(cts.Token);
+                        SetTray(NodeRuntimeState.Starting, "Starting node runtime");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[TRAY] Startup failed, continuing headless: {ex.Message}");
+                        await trayHost.StopAsync();
+                        trayHost = null;
+                    }
                 }
 
                 discovery.Start(cts.Token);

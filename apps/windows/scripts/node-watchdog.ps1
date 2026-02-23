@@ -52,13 +52,15 @@ function Get-GatewayConfig {
 
 $repoPathFull = (Resolve-Path $RepoPath).Path
 $pausePath = Join-Path $repoPathFull $PauseFile
-$exePath = Join-Path $repoPathFull "OpenClaw.Node\bin\$Platform\$Configuration\net8.0\OpenClaw.Node.exe"
+$trayExePath = Join-Path $repoPathFull "OpenClaw.Node\bin\$Platform\$Configuration\net8.0-windows\OpenClaw.Node.exe"
+$headlessExePath = Join-Path $repoPathFull "OpenClaw.Node\bin\$Platform\$Configuration\net8.0\OpenClaw.Node.exe"
 $childLogPath = Join-Path $repoPathFull "node-watchdog-child.log"
 $childErrLogPath = Join-Path $repoPathFull "node-watchdog-child.err.log"
 
 Write-Log "Watchdog starting"
 Write-Log "RepoPath=$repoPathFull"
-Write-Log "ExePath=$exePath"
+Write-Log "TrayExePath=$trayExePath"
+Write-Log "HeadlessExePath=$headlessExePath"
 Write-Log "PauseFile=$pausePath"
 Write-Log "EnableTray=$EnableTray"
 Write-Log "ChildLog=$childLogPath"
@@ -66,6 +68,17 @@ Write-Log "ChildErrLog=$childErrLogPath"
 
 while ($true) {
   try {
+    $effectiveEnableTray = $EnableTray
+    $exePath = $headlessExePath
+
+    if ($EnableTray -and (Test-Path $trayExePath)) {
+      $exePath = $trayExePath
+    }
+    elseif ($EnableTray -and -not (Test-Path $trayExePath)) {
+      Write-Log "Tray build not found yet ($trayExePath). Falling back to headless target."
+      $effectiveEnableTray = $false
+    }
+
     if (Test-Path $pausePath) {
       $running = Get-RunningNodeProcesses -ExePath $exePath
       foreach ($proc in $running) {
@@ -101,7 +114,7 @@ while ($true) {
     Add-Content -Path $childErrLogPath -Value "`n===== START $(Get-Date -Format o) ====="
 
     $args = @("--gateway-url", $gatewayUrl, "--gateway-token", $token)
-    if ($EnableTray) {
+    if ($effectiveEnableTray) {
       $args += "--tray"
     }
 
