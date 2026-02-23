@@ -273,6 +273,12 @@ export type DiscordAccountConfig = {
    * Discord supports both unicode emoji and custom emoji names.
    */
   ackReaction?: string;
+  /**
+   * Auto-join threads created by other bots in the same guild.
+   * When another bot creates a thread, this bot won't receive messages unless
+   * it explicitly joins. Default: true.
+   */
+  autoJoinBotThreads?: boolean;
   /** Bot activity status text (e.g. "Watching X"). */
   activity?: string;
   /** Bot status (online|dnd|idle|invisible). Defaults to online when presence is configured. */

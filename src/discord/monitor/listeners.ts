@@ -5,8 +5,10 @@ import {
   MessageReactionAddListener,
   MessageReactionRemoveListener,
   PresenceUpdateListener,
+  ThreadCreateListener,
   type User,
 } from "@buape/carbon";
+import { Routes } from "discord-api-types/v10";
 import { danger } from "../../globals.js";
 import { formatDurationSeconds } from "../../infra/format-time/format-duration.ts";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
@@ -422,6 +424,54 @@ async function handleDiscordReactionEvent(params: {
     emitReactionWithAuthor(message);
   } catch (err) {
     params.logger.error(danger(`discord reaction handler failed: ${String(err)}`));
+  }
+}
+
+type DiscordThreadCreateEvent = Parameters<ThreadCreateListener["handle"]>[0];
+
+type DiscordThreadCreateListenerParams = {
+  autoJoinBotThreads?: boolean;
+  logger?: Logger;
+};
+
+export class DiscordThreadCreateListener extends ThreadCreateListener {
+  constructor(private params: DiscordThreadCreateListenerParams) {
+    super();
+  }
+
+  async handle(data: DiscordThreadCreateEvent, client: Client) {
+    await runDiscordListenerWithSlowLog({
+      logger: this.params.logger,
+      listener: this.constructor.name,
+      event: this.type,
+      run: () => handleDiscordThreadCreate({ data, client, params: this.params }),
+    });
+  }
+}
+
+async function handleDiscordThreadCreate(params: {
+  data: DiscordThreadCreateEvent;
+  client: Client;
+  params: DiscordThreadCreateListenerParams;
+}): Promise<void> {
+  const { data, client } = params;
+  const { autoJoinBotThreads = true, logger } = params.params;
+
+  if (!data.newly_created) {
+    return;
+  }
+  if (!data.guild_id) {
+    return;
+  }
+  if (!autoJoinBotThreads) {
+    return;
+  }
+
+  try {
+    await client.rest.put(Routes.threadMembers(data.id, "@me"), {});
+  } catch (err) {
+    const log = logger ?? discordEventQueueLog;
+    log.warn(`discord: failed to join thread ${data.id}: ${String(err)}`);
   }
 }
 
