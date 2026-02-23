@@ -29,6 +29,7 @@ import { renderTelegramHtmlText } from "./format.js";
 import { isRecoverableTelegramNetworkError } from "./network-errors.js";
 import { makeProxyFetch } from "./proxy.js";
 import { recordSentMessage } from "./sent-message-cache.js";
+import { clearStaleThreadIdFromSession } from "./session-cache.js";
 import { maybePersistResolvedTelegramTarget } from "./target-writeback.js";
 import {
   normalizeTelegramChatId,
@@ -403,7 +404,13 @@ async function withTelegramThreadFallback<T>(
       );
     }
     const retriedParams = removeMessageThreadIdParam(params);
-    return await attempt(retriedParams, `${label}-threadless`);
+    const result = await attempt(retriedParams, `${label}-threadless`);
+    
+    // If retry succeeded, clear the stale thread ID from session cache
+    // to prevent future requests from using the same stale thread ID
+    await clearStaleThreadIdFromSession({ chatId: params?.chat_id });
+    
+    return result;
   }
 }
 
