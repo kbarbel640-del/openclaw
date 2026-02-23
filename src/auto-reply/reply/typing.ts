@@ -156,6 +156,7 @@ export function createTypingController(params: {
     typingTimer = setInterval(() => {
       void triggerTyping();
     }, typingIntervalMs);
+    typingTimer.unref?.();
   };
 
   const startTypingOnText = async (text?: string) => {
