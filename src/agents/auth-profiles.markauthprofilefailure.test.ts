@@ -6,6 +6,7 @@ import {
   calculateAuthProfileCooldownMs,
   ensureAuthProfileStore,
   markAuthProfileFailure,
+  parseRetryAfterSeconds,
 } from "./auth-profiles.js";
 
 type AuthProfileStore = ReturnType<typeof ensureAuthProfileStore>;
@@ -161,5 +162,82 @@ describe("calculateAuthProfileCooldownMs", () => {
     expect(calculateAuthProfileCooldownMs(3)).toBe(25 * 60_000);
     expect(calculateAuthProfileCooldownMs(4)).toBe(60 * 60_000);
     expect(calculateAuthProfileCooldownMs(5)).toBe(60 * 60_000);
+  });
+});
+
+describe("parseRetryAfterSeconds", () => {
+  it("parses integer seconds", () => {
+    expect(parseRetryAfterSeconds("60")).toBe(60);
+    expect(parseRetryAfterSeconds("1")).toBe(1);
+    expect(parseRetryAfterSeconds("120")).toBe(120);
+  });
+
+  it("caps at 3600 seconds", () => {
+    expect(parseRetryAfterSeconds("7200")).toBe(3600);
+    expect(parseRetryAfterSeconds("3600")).toBe(3600);
+    expect(parseRetryAfterSeconds("3601")).toBe(3600);
+  });
+
+  it("floors at 1 second", () => {
+    expect(parseRetryAfterSeconds("0")).toBeUndefined();
+    expect(parseRetryAfterSeconds("-10")).toBeUndefined();
+  });
+
+  it("parses HTTP-date format", () => {
+    const future = new Date(Date.now() + 30_000);
+    const result = parseRetryAfterSeconds(future.toUTCString());
+    expect(result).toBeGreaterThanOrEqual(1);
+    expect(result).toBeLessThanOrEqual(31);
+  });
+
+  it("returns undefined for past HTTP-date", () => {
+    const past = new Date(Date.now() - 60_000);
+    expect(parseRetryAfterSeconds(past.toUTCString())).toBeUndefined();
+  });
+
+  it("returns undefined for null/undefined/empty/garbage", () => {
+    expect(parseRetryAfterSeconds(null)).toBeUndefined();
+    expect(parseRetryAfterSeconds(undefined)).toBeUndefined();
+    expect(parseRetryAfterSeconds("")).toBeUndefined();
+    expect(parseRetryAfterSeconds("  ")).toBeUndefined();
+    expect(parseRetryAfterSeconds("not-a-date")).toBeUndefined();
+  });
+});
+
+describe("markAuthProfileFailure with retryAfterSeconds", () => {
+  it("uses Retry-After value as cooldown for rate_limit failures", async () => {
+    await withAuthProfileStore(async ({ agentDir, store }) => {
+      await markAuthProfileFailure({
+        store,
+        profileId: "anthropic:default",
+        reason: "rate_limit",
+        retryAfterSeconds: 60,
+        agentDir,
+      });
+
+      const stats = store.usageStats?.["anthropic:default"];
+      const now = Date.now();
+      // cooldownUntil should be ~now+60s (within ±2s for timing)
+      expect(stats?.cooldownUntil).toBeGreaterThan(now + 55_000);
+      expect(stats?.cooldownUntil).toBeLessThan(now + 65_000);
+    });
+  });
+
+  it("ignores retryAfterSeconds for non-rate_limit reasons", async () => {
+    await withAuthProfileStore(async ({ agentDir, store }) => {
+      await markAuthProfileFailure({
+        store,
+        profileId: "anthropic:default",
+        reason: "billing",
+        retryAfterSeconds: 60,
+        agentDir,
+      });
+
+      const stats = store.usageStats?.["anthropic:default"];
+      const now = Date.now();
+      // billing uses disabledUntil (20h), ignores retryAfterSeconds
+      expect(stats?.disabledUntil).toBeGreaterThan(now + 60 * 60_000);
+      expect(stats?.cooldownUntil).toBeUndefined();
+    });
   });
 });
