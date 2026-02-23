@@ -8,7 +8,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
-- Providers/Anthropic Vertex: add native Claude-on-Vertex provider wiring with ADC-based auth support and model/provider integration. (#23985, #6937) Thanks @sallyom and @markbooch.
+- Providers/Google Vertex Claude: add native Claude-on-Vertex provider wiring with ADC-based auth support and model/provider integration. (#23985, #6937) Thanks @sallyom and @markbooch.
 
 ### Breaking
 

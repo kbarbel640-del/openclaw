@@ -1015,9 +1015,9 @@ export async function resolveImplicitCopilotProvider(params: {
   } satisfies ProviderConfig;
 }
 
-// ── Anthropic Vertex AI (Claude models via GCP) ─────────────────────────────
+// ── Google Vertex Claude (Claude models via GCP) ────────────────────────────
 
-const ANTHROPIC_VERTEX_MODELS: ModelDefinitionConfig[] = [
+const GOOGLE_VERTEX_CLAUDE_MODELS: ModelDefinitionConfig[] = [
   {
     id: "claude-opus-4-6",
     name: "Claude Opus 4.6",
@@ -1047,7 +1047,7 @@ const ANTHROPIC_VERTEX_MODELS: ModelDefinitionConfig[] = [
   },
 ];
 
-export function resolveImplicitAnthropicVertexProvider(params: {
+export function resolveImplicitGoogleVertexClaudeProvider(params: {
   env?: NodeJS.ProcessEnv;
 }): ProviderConfig | null {
   const env = params.env ?? process.env;
@@ -1061,7 +1061,7 @@ export function resolveImplicitAnthropicVertexProvider(params: {
   return {
     baseUrl: `https://${location}-aiplatform.googleapis.com`,
     api: "anthropic-messages",
-    models: ANTHROPIC_VERTEX_MODELS,
+    models: GOOGLE_VERTEX_CLAUDE_MODELS,
   } satisfies ProviderConfig;
 }
 

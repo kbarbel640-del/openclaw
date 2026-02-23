@@ -3,10 +3,10 @@ summary: "Use Claude models on Google Vertex AI with OpenClaw"
 read_when:
   - You want to use Claude models through Google Vertex AI
   - You need GCP credential setup for Anthropic models
-title: "Anthropic Vertex AI"
+title: "Google Vertex Claude"
 ---
 
-# Anthropic Vertex AI
+# Google Vertex Claude
 
 OpenClaw can use **Claude models** via **Google Vertex AI**, billing through your
 GCP project instead of the Anthropic API directly. Auth uses **GCP Application
@@ -14,7 +14,7 @@ Default Credentials** (ADC), not an Anthropic API key.
 
 ## What OpenClaw supports
 
-- Provider: `anthropic-vertex`
+- Provider: `google-vertex-claude` (legacy alias: `anthropic-vertex`)
 - API: `anthropic-messages` (same Messages API as direct Anthropic)
 - Auth: GCP Application Default Credentials
 - Models auto-registered: Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5
@@ -38,14 +38,14 @@ Alternative env var names are also supported: `ANTHROPIC_VERTEX_PROJECT_ID`
 {
   agents: {
     defaults: {
-      model: { primary: "anthropic-vertex/claude-sonnet-4-6" },
+      model: { primary: "google-vertex-claude/claude-sonnet-4-6" },
     },
   },
 }
 ```
 
 That's it. When `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` are set,
-OpenClaw auto-registers Claude models under the `anthropic-vertex` provider.
+OpenClaw auto-registers Claude models under the `google-vertex-claude` provider.
 
 ## Available models
 
@@ -66,7 +66,7 @@ To override models or pin specific versions:
 {
   models: {
     providers: {
-      "anthropic-vertex": {
+      "google-vertex-claude": {
         baseUrl: "https://global-aiplatform.googleapis.com",
         api: "anthropic-messages",
         models: [

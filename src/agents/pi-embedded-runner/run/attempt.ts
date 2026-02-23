@@ -725,8 +725,11 @@ export async function runEmbeddedAttempt(
           typeof providerConfig?.baseUrl === "string" ? providerConfig.baseUrl.trim() : "";
         const ollamaBaseUrl = modelBaseUrl || providerBaseUrl || OLLAMA_NATIVE_BASE_URL;
         activeSession.agent.streamFn = createOllamaStreamFn(ollamaBaseUrl);
-      } else if (params.model.provider === "anthropic-vertex") {
-        // Anthropic Vertex AI: bypass SDK's streamSimple and use @anthropic-ai/vertex-sdk
+      } else if (
+        params.model.provider === "google-vertex-claude" ||
+        params.model.provider === "anthropic-vertex"
+      ) {
+        // Google Vertex Claude: bypass SDK's streamSimple and use @anthropic-ai/vertex-sdk
         // for GCP service account authentication instead of Anthropic API keys.
         const project =
           process.env.GOOGLE_CLOUD_PROJECT?.trim() ||
@@ -734,7 +737,7 @@ export async function runEmbeddedAttempt(
           "";
         if (!project) {
           throw new Error(
-            "Anthropic Vertex provider requires GOOGLE_CLOUD_PROJECT or ANTHROPIC_VERTEX_PROJECT_ID to be set.",
+            "Google Vertex Claude provider requires GOOGLE_CLOUD_PROJECT or ANTHROPIC_VERTEX_PROJECT_ID to be set.",
           );
         }
         const region =
