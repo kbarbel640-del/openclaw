@@ -73,8 +73,11 @@ export function stripReasoningTagsFromText(
     }
 
     if (!inThinking) {
-      result += cleaned.slice(lastIndex, idx);
-      if (!isClose) {
+      if (isClose) {
+        // Orphan closing tag: strip everything before it (broken thinking output)
+        result = "";
+      } else {
+        result += cleaned.slice(lastIndex, idx);
         inThinking = true;
       }
     } else if (isClose) {
