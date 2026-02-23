@@ -160,16 +160,15 @@ describe("extractKeywords", () => {
   });
 
   it("extracts keywords from Turkish conversational query", () => {
-    const keywords = extractKeywords("yapay zeka hakkında bana bir şey anlatır mısın");
-    expect(keywords).toContain("yapay");
-    expect(keywords).toContain("zeka");
-    expect(keywords).toContain("anlatır");
-    expect(keywords).toContain("mısın");
+    const keywords = extractKeywords("ben dün bir kitap okudum çok güzeldi");
+    expect(keywords).toContain("kitap");
+    expect(keywords).toContain("okudum");
+    expect(keywords).toContain("güzeldi");
     // Should not include stop words
-    expect(keywords).not.toContain("hakkında");
-    expect(keywords).not.toContain("bana");
+    expect(keywords).not.toContain("ben");
+    expect(keywords).not.toContain("dün");
     expect(keywords).not.toContain("bir");
-    expect(keywords).not.toContain("şey");
+    expect(keywords).not.toContain("çok");
   });
 
   it("filters Turkish question and filler stop words", () => {
