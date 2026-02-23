@@ -3,7 +3,7 @@ summary: "Application-layer patterns for the standalone task scheduler"
 read_when:
   - Building domain-specific pipelines on the scheduler
   - Designing event-driven workflows with job chains
-  - Implementing betting, trading, or data pipelines
+  - Implementing transaction, trading, or data pipelines
 title: "Scheduler Patterns & Recipes"
 ---
 
@@ -74,127 +74,133 @@ Each step is a job with:
 | Independent notifications  | `allow` | No shared state, safe to overlap |
 | Anything with shared state | `skip`  | Prevent race conditions          |
 
-## 2. Betting pipeline
+## 2. Transaction pipeline
 
-A complete sports betting pipeline using job chains:
+A complete transaction pipeline using job chains. This pattern
+applies to any domain where you capture data, detect an
+opportunity, assess risk, execute a transaction, verify the result,
+and generate a report:
 
 ```
-odds.capture --> edge.scan --> risk.check --> ticket.emit --> grade.settle --> report.export
+data.capture --> signal.detect --> risk.assess --> txn.execute --> txn.verify --> report.generate
 ```
 
-### odds.capture
+### data.capture
 
-Scrapes odds from sportsbook APIs. Writes to `odds.json` or a
-database table. The output includes `NEW_ODDS` when fresh lines
+Fetches data from external sources. Writes to `data/feed.json` or a
+database table. The output includes `NEW_DATA` when fresh records
 are found.
 
 ```json
 {
-  "name": "odds.capture",
+  "name": "data.capture",
   "schedule": "*/5 * * * *",
   "session": "isolated",
-  "resource_pool": "sportsbook-api",
+  "resource_pool": "data-source-api",
   "delivery_guarantee": "at-most-once",
   "overlap_policy": "skip",
-  "payload": "Fetch current odds from configured sportsbook APIs. Write results to data/odds.json. If any lines changed since last capture, include NEW_ODDS in your response. If nothing changed, respond with NO_CHANGE.",
+  "payload": "Fetch current data from configured source APIs. Write results to data/feed.json. If any records changed since last capture, include NEW_DATA in your response. If nothing changed, respond with NO_CHANGE.",
   "delivery_to": "@ops-channel"
 }
 ```
 
-- `resource_pool: "sportsbook-api"` prevents concurrent API calls
+- `resource_pool: "data-source-api"` prevents concurrent API calls
   that would trigger rate limits.
 - `overlap_policy: "skip"` because the next capture will catch
   anything missed.
 - `delivery_guarantee: "at-most-once"` because missing a single
   capture is acceptable; the next run fills the gap.
 
-### edge.scan
+### signal.detect
 
-Reads captured odds, runs the edge-detection model, identifies
-profitable opportunities. Pure computation, idempotent by nature.
+Reads captured data, runs a detection model, and identifies
+actionable opportunities. Pure computation, idempotent by nature.
 
 ```json
 {
-  "name": "edge.scan",
-  "parent_id": "<odds.capture job ID>",
+  "name": "signal.detect",
+  "parent_id": "<data.capture job ID>",
   "trigger_on": "success",
-  "trigger_condition": "contains:NEW_ODDS",
+  "trigger_condition": "contains:NEW_DATA",
   "session": "isolated",
   "delivery_guarantee": "at-most-once",
   "context_retrieval": "recent",
   "context_retrieval_limit": 3,
-  "payload": "Read data/odds.json. Run the edge model against current lines. Write identified edges to data/edges.json with timestamp, market, line, fair value, and edge percentage. If any edges exceed the threshold, include EDGE_FOUND in your response."
+  "payload": "Read data/feed.json. Run the detection model against current records. Write identified opportunities to data/signals.json with timestamp, source, signal type, confidence, and expected value. If any signals exceed the threshold, include SIGNAL_FOUND in your response."
 }
 ```
 
-- Fires only when `odds.capture` succeeds AND its output contains
-  `NEW_ODDS`.
+- Fires only when `data.capture` succeeds AND its output contains
+  `NEW_DATA`.
 - `context_retrieval: "recent"` gives the model awareness of recent
-  edge scans for trend detection.
+  signal scans for trend detection.
 
-### risk.check
+### risk.assess
 
-Validates edges against bankroll constraints, position limits, and
+Validates signals against budget constraints, position limits, and
 correlation rules. This is the decision gate.
 
 ```json
 {
-  "name": "risk.check",
-  "parent_id": "<edge.scan job ID>",
+  "name": "risk.assess",
+  "parent_id": "<signal.detect job ID>",
   "trigger_on": "success",
-  "trigger_condition": "contains:EDGE_FOUND",
+  "trigger_condition": "contains:SIGNAL_FOUND",
   "session": "isolated",
   "delivery_guarantee": "at-most-once",
-  "payload": "Read data/edges.json and data/bankroll.json. For each edge: check bankroll constraints (max bet size, daily loss limit), position limits (max correlated exposure), and correlation rules. Write approved tickets to data/tickets.json. Include TICKET_READY for each approved ticket. Use kind:decision typed messages for audit trail."
+  "payload": "Read data/signals.json and data/budget.json. For each signal: check budget constraints (max transaction size, daily loss limit), position limits (max correlated exposure), and correlation rules. Write approved transactions to data/pending-txns.json. Include TXN_READY for each approved transaction. Use kind:decision typed messages for audit trail."
 }
 ```
 
 - Decision step: the agent writes typed messages with
-  `kind: "decision"` and `owner: "risk-model"` to create an audit
+  `kind: "decision"` and `owner: "risk-engine"` to create an audit
   trail of what was approved and why.
 
-### ticket.emit
+### txn.execute
 
-Places the actual bet. This is where real money moves, so it has
-the strongest safety controls.
+Executes the approved transaction. This is where real value moves,
+so it has the strongest safety controls.
 
 - `approval_required: true` creates a HITL gate. The operator must
   explicitly approve before execution.
 - `delivery_guarantee: "at-least-once"` with idempotency keys
-  ensures the bet is never silently lost. The idempotency key
-  prevents double-betting on replay.
-- `resource_pool: "sportsbook-api"` prevents concurrent placement
+  ensures the transaction is never silently lost. The idempotency
+  key prevents double-execution on replay.
+- `resource_pool: "data-source-api"` prevents concurrent execution
   attempts.
 
-### grade.settle
+### txn.verify
 
-After the game completes, grades the bet result. Must check if the
-bet is already settled before acting (idempotent by design).
+After the transaction settles, verifies the result. Must check if
+the transaction is already verified before acting (idempotent by
+design).
 
 - `delivery_guarantee: "at-least-once"` because missing a
-  settlement means the bankroll drifts from reality.
-- The job reads game results, compares to the ticket, and updates
-  `bets.json` or the database.
+  verification means the ledger drifts from reality.
+- The job reads settlement results, compares to the pending
+  transaction, and updates `data/transactions.json` or the
+  database.
 
-### report.export
+### report.generate
 
 Optional tail job that generates a markdown summary and sends it to
 chat.
 
-- `trigger_on: "success"` from `grade.settle`.
+- `trigger_on: "success"` from `txn.verify`.
 - `delivery_guarantee: "at-most-once"` because if this fails, no
   data is lost. The source of truth is in the database, not the
   report.
 
-## 3. Trading pipeline
+## 3. Market trading pipeline
 
-A stock and options trading pipeline:
+A trading pipeline for any market (equities, commodities, crypto,
+foreign exchange, or any asset class with programmatic access):
 
 ```
 market.scan --> signal.detect --> risk.assess --> order.stage --> order.execute --> position.track
 ```
 
-Key differences from the betting pipeline:
+Key differences from the transaction pipeline:
 
 - `order.execute` needs both `approval_required: true` and
   `resource_pool: "broker-api"`.
@@ -208,21 +214,22 @@ Key differences from the betting pipeline:
 ```json
 {
   "name": "market.scan",
-  "schedule": "*/10 6-20 * * 1-5",
+  "schedule": "*/10 * * * *",
   "session": "isolated",
   "resource_pool": "market-data-api",
   "delivery_guarantee": "at-most-once",
   "overlap_policy": "skip",
-  "payload": "Fetch current market data for watchlist symbols. Write to data/market-snapshot.json. If any symbols hit scan criteria (volume spike, price breakout, IV rank change), include SCAN_HIT in your response."
+  "payload": "Fetch current market data for watchlist instruments. Write to data/market-snapshot.json. If any instruments hit scan criteria (volume spike, price breakout, volatility change), include SCAN_HIT in your response."
 }
 ```
 
-- Runs every 10 minutes during market hours (weekdays, 6 AM to
-  8 PM).
+- Runs every 10 minutes. Adjust the schedule to match your
+  market's trading hours (e.g., `*/10 6-20 * * 1-5` for weekday
+  equity markets, or `*/10 * * * *` for 24/7 crypto markets).
 - `overlap_policy: "skip"` because market data is time-sensitive;
   stale scans are worthless.
 
-### signal.detect
+### signal.detect (trading)
 
 ```json
 {
@@ -273,7 +280,7 @@ Unlike other steps, this is a standalone recurring job:
 ```json
 {
   "name": "position.track",
-  "schedule": "*/15 6-20 * * 1-5",
+  "schedule": "*/15 * * * *",
   "session": "isolated",
   "overlap_policy": "skip",
   "context_retrieval": "recent",
@@ -401,21 +408,21 @@ communication between pipeline steps. Messages are sorted by kind
 priority when injected into job prompts: constraints first, then
 decisions, then facts.
 
-### Betting domain
+### Data quality domain
 
-| Kind         | Owner          | Example                                |
-| ------------ | -------------- | -------------------------------------- |
-| `constraint` | `bankroll`     | Max bet $50, current exposure $180     |
-| `decision`   | `risk-model`   | Approved: BUF -3.5 at +105, edge 2.1%  |
-| `fact`       | `odds-capture` | Line moved: BUF -3.5 to -4.0 in 15 min |
+| Kind         | Owner            | Example                                     |
+| ------------ | ---------------- | ------------------------------------------- |
+| `constraint` | `data-quality`   | Schema requires non-null `email` field      |
+| `decision`   | `transform-step` | Dropped 12 records: missing required fields |
+| `fact`       | `ingest-step`    | Source API returned 3,400 records (up 15%)  |
 
-### Trading domain
+### Transaction domain
 
-| Kind         | Owner           | Example                                    |
-| ------------ | --------------- | ------------------------------------------ |
-| `constraint` | `risk-mgmt`     | Max position size 2% of portfolio          |
-| `decision`   | `signal-engine` | BUY AAPL 180C 03/21, IV rank 15            |
-| `fact`       | `market-data`   | AAPL earnings in 3 days, IV crush expected |
+| Kind         | Owner          | Example                                       |
+| ------------ | -------------- | --------------------------------------------- |
+| `constraint` | `budget`       | Max transaction $500, current exposure $1,800 |
+| `decision`   | `risk-engine`  | Approved: TXN-4821, confidence 94%, EV +2.1%  |
+| `fact`       | `data-capture` | Price moved from $48.20 to $46.50 in 15 min   |
 
 ### How typed messages flow through prompts
 
@@ -424,12 +431,12 @@ messages are injected in priority order:
 
 ```
 --- Messages ---
-[constraint] (owner: bankroll) Max bet $50, current exposure $180
-[constraint] (owner: risk-mgmt) No new positions in correlated markets
-[decision] (owner: risk-model) Approved: BUF -3.5 at +105, edge 2.1%
-[fact] (owner: odds-capture) Line moved: BUF -3.5 to -4.0 in 15 min
-[fact] (owner: market-data) NFL Week 12 lines are final
-[text] (owner: operator) Remember to check the weather impact model
+[constraint] (owner: budget) Max transaction $500, current exposure $1,800
+[constraint] (owner: risk-engine) No new positions in correlated assets
+[decision] (owner: risk-engine) Approved: TXN-4821, confidence 94%, EV +2.1%
+[fact] (owner: data-capture) Price moved from $48.20 to $46.50 in 15 min
+[fact] (owner: data-capture) Source data finalized for current period
+[text] (owner: operator) Remember to check the anomaly detection model
 ```
 
 Constraints appear first because they are rules that must not be
@@ -449,8 +456,8 @@ safe in the source of truth.
 ### Do not use at-least-once for non-idempotent side effects
 
 Without idempotency keys, replayed jobs will double-execute.
-Settling a bet twice or sending duplicate notifications is worse
-than missing one. Use `at-most-once` for non-idempotent jobs, or
+Settling a transaction twice or sending duplicate notifications is
+worse than missing one. Use `at-most-once` for non-idempotent jobs, or
 add idempotency keys and verify them in the job logic.
 
 ### Do not chain more than 5-7 steps deep

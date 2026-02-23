@@ -113,6 +113,7 @@ export type CronJob = {
   wakeMode: CronWakeMode;
   payload: CronPayload;
   delivery?: CronDelivery;
+  scheduler?: CronJobSchedulerExtensions;
   state: CronJobState;
 };
 
@@ -129,4 +130,83 @@ export type CronJobPatch = Partial<Omit<CronJob, "id" | "createdAtMs" | "state" 
   payload?: CronPayloadPatch;
   delivery?: CronDeliveryPatch;
   state?: Partial<CronJobState>;
+};
+
+// ── Scheduler extensions (v5+) ─────────────────────────────
+
+/** Delivery guarantee for crash recovery behavior. */
+export type CronDeliveryGuarantee = "at-most-once" | "at-least-once";
+
+/** Overlap policy when a previous run is still active. */
+export type CronOverlapPolicy = "skip" | "allow" | "queue";
+
+/** Job class for specialized dispatch behavior. */
+export type CronJobClass = "standard" | "pre_compaction_flush";
+
+/** Context retrieval mode for injecting prior run context. */
+export type CronContextRetrieval = "none" | "recent" | "hybrid";
+
+/** Run status extended with scheduler states. */
+export type CronRunStatusExtended =
+  | CronRunStatus
+  | "timeout"
+  | "crashed"
+  | "awaiting_approval"
+  | "cancelled";
+
+/** Approval gate configuration. */
+export type CronApprovalConfig = {
+  required: boolean;
+  timeoutS?: number;
+  auto?: "approve" | "reject";
+};
+
+/** Workflow chain configuration. */
+export type CronChainConfig = {
+  parentId?: string;
+  triggerOn?: "success" | "failure" | "complete";
+  triggerDelayS?: number;
+  triggerCondition?: string; // "contains:<substr>" | "regex:<pattern>"
+};
+
+/** Resource pool for cross-job concurrency control. */
+export type CronResourcePool = string;
+
+/** Task contract schema for validated pipeline events. */
+export type CronTaskContract = {
+  /** Schema name (e.g., "odds_capture", "health_check"). */
+  name: string;
+  /** JSON Schema for validating job output. */
+  outputSchema?: Record<string, unknown>;
+  /** JSON Schema for validating input from parent job. */
+  inputSchema?: Record<string, unknown>;
+  /** Required fields in the output. */
+  requiredOutputFields?: string[];
+};
+
+/** Extended job fields for scheduler features. */
+export type CronJobSchedulerExtensions = {
+  deliveryGuarantee?: CronDeliveryGuarantee;
+  overlapPolicy?: CronOverlapPolicy;
+  jobClass?: CronJobClass;
+  contextRetrieval?: CronContextRetrieval;
+  contextRetrievalLimit?: number;
+  approval?: CronApprovalConfig;
+  chain?: CronChainConfig;
+  resourcePool?: CronResourcePool;
+  maxRetries?: number;
+  runTimeoutMs?: number;
+  payloadScope?: "own" | "global";
+  taskContract?: CronTaskContract;
+  idempotencyKeyPrefix?: string;
+};
+
+/** Extended run log entry with scheduler metadata. */
+export type CronRunLogSchedulerExtensions = {
+  idempotencyKey?: string;
+  replayOf?: string;
+  contextSummary?: Record<string, unknown>;
+  chainTriggeredBy?: string;
+  approvalId?: string;
+  contractValidation?: { valid: boolean; errors?: string[] };
 };
