@@ -1,15 +1,18 @@
-import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
+import type { ToolLoopDetectionConfig, VerifierConfig } from "../config/types.tools.js";
 import type { SessionState } from "../logging/diagnostic-session-state.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { isPlainObject } from "../utils.js";
 import { normalizeToolName } from "./tool-policy.js";
 import type { AnyAgentTool } from "./tools/common.js";
+import { runVerifier } from "./verifier/index.js";
 
 export type HookContext = {
   agentId?: string;
   sessionKey?: string;
   loopDetection?: ToolLoopDetectionConfig;
+  verifierConfig?: VerifierConfig;
+  globalVerifierConfig?: VerifierConfig;
 };
 
 type HookOutcome = { blocked: true; reason: string } | { blocked: false; params: unknown };
@@ -132,44 +135,59 @@ export async function runBeforeToolCallHook(args: {
     recordToolCall(sessionState, toolName, params, args.toolCallId, args.ctx.loopDetection);
   }
 
+  // Run plugin hooks (if any)
+  let effectiveParams = params;
   const hookRunner = getGlobalHookRunner();
-  if (!hookRunner?.hasHooks("before_tool_call")) {
-    return { blocked: false, params: args.params };
-  }
+  if (hookRunner?.hasHooks("before_tool_call")) {
+    try {
+      const normalizedParams = isPlainObject(params) ? params : {};
+      const hookResult = await hookRunner.runBeforeToolCall(
+        {
+          toolName,
+          params: normalizedParams,
+        },
+        {
+          toolName,
+          agentId: args.ctx?.agentId,
+          sessionKey: args.ctx?.sessionKey,
+        },
+      );
 
-  try {
-    const normalizedParams = isPlainObject(params) ? params : {};
-    const hookResult = await hookRunner.runBeforeToolCall(
-      {
-        toolName,
-        params: normalizedParams,
-      },
-      {
-        toolName,
-        agentId: args.ctx?.agentId,
-        sessionKey: args.ctx?.sessionKey,
-      },
-    );
-
-    if (hookResult?.block) {
-      return {
-        blocked: true,
-        reason: hookResult.blockReason || "Tool call blocked by plugin hook",
-      };
-    }
-
-    if (hookResult?.params && isPlainObject(hookResult.params)) {
-      if (isPlainObject(params)) {
-        return { blocked: false, params: { ...params, ...hookResult.params } };
+      if (hookResult?.block) {
+        return {
+          blocked: true,
+          reason: hookResult.blockReason || "Tool call blocked by plugin hook",
+        };
       }
-      return { blocked: false, params: hookResult.params };
+
+      if (hookResult?.params && isPlainObject(hookResult.params)) {
+        effectiveParams = isPlainObject(params)
+          ? { ...params, ...hookResult.params }
+          : hookResult.params;
+      }
+    } catch (err) {
+      const toolCallId = args.toolCallId ? ` toolCallId=${args.toolCallId}` : "";
+      log.warn(`before_tool_call hook failed: tool=${toolName}${toolCallId} error=${String(err)}`);
     }
-  } catch (err) {
-    const toolCallId = args.toolCallId ? ` toolCallId=${args.toolCallId}` : "";
-    log.warn(`before_tool_call hook failed: tool=${toolName}${toolCallId} error=${String(err)}`);
   }
 
-  return { blocked: false, params };
+  // Run external verifier (after plugin hooks, before execution)
+  if (args.ctx?.verifierConfig) {
+    const normalizedParams = isPlainObject(effectiveParams) ? effectiveParams : {};
+    const verifierResult = await runVerifier({
+      config: args.ctx.verifierConfig,
+      globalConfig: args.ctx.globalVerifierConfig,
+      toolName,
+      params: normalizedParams,
+      agentId: args.ctx.agentId,
+      sessionKey: args.ctx.sessionKey,
+    });
+    if (verifierResult.blocked) {
+      return { blocked: true, reason: verifierResult.reason };
+    }
+  }
+
+  return { blocked: false, params: effectiveParams };
 }
 
 export function wrapToolWithBeforeToolCallHook(

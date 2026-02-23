@@ -489,11 +489,19 @@ export function createOpenClawCodingTools(options?: {
   const normalized = subagentFiltered.map((tool) =>
     normalizeToolParameters(tool, { modelProvider: options?.modelProvider }),
   );
+  // Resolve verifier config: agent-level overrides global, but failMode uses most-restrictive-wins
+  const globalVerifierConfig = options?.config?.tools?.verifier;
+  const agentVerifierConfig =
+    options?.config && agentId
+      ? resolveAgentConfig(options.config, agentId)?.tools?.verifier
+      : undefined;
   const withHooks = normalized.map((tool) =>
     wrapToolWithBeforeToolCallHook(tool, {
       agentId,
       sessionKey: options?.sessionKey,
       loopDetection: resolveToolLoopDetectionConfig({ cfg: options?.config, agentId }),
+      verifierConfig: agentVerifierConfig ?? globalVerifierConfig,
+      globalVerifierConfig,
     }),
   );
   const withAbort = options?.abortSignal
