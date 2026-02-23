@@ -262,9 +262,7 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
                     });
                     await reply(pairingReply);
                   } catch (err) {
-                    ctx.log?.error?.(
-                      `[${account.accountId}] pairing reply failed: ${String(err)}`,
-                    );
+                    ctx.log?.error?.(`[${account.accountId}] pairing reply failed: ${String(err)}`);
                   }
                 }
               }
@@ -343,10 +341,7 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
                   ctx.log?.error?.(`No text to send in reply payload`);
                   return;
                 }
-                const message = runtime.channel.text.convertMarkdownTables(
-                  payload.text,
-                  tableMode,
-                );
+                const message = runtime.channel.text.convertMarkdownTables(payload.text, tableMode);
                 await reply(message);
               },
             },
