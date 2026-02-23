@@ -16,9 +16,13 @@ describe("mediaKindFromMime", () => {
     expect(mediaKindFromMime("")).toBe("unknown");
   });
 
+  it('returns "document" for text/* MIME types', () => {
+    expect(mediaKindFromMime("text/plain")).toBe("document");
+  });
+
   it('returns "unknown" for unrecognized MIME types', () => {
-    expect(mediaKindFromMime("text/plain")).toBe("unknown");
     expect(mediaKindFromMime("model/gltf-binary")).toBe("unknown");
+    expect(mediaKindFromMime("x-conference/x-cooltalk")).toBe("unknown");
   });
 
   it('"unknown" should not be used as a truthy media placeholder', () => {
