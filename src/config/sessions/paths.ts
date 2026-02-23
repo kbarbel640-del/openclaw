@@ -153,10 +153,22 @@ function resolvePathWithinSessionsDir(
         return resolvedFromPath;
       }
       // The path structurally matches .../agents/<agentId>/sessions/...
-      // Accept it even if the root directory differs from the current env
-      // (e.g., OPENCLAW_STATE_DIR changed between session creation and resolution).
-      // The structural pattern provides sufficient containment guarantees.
-      return path.resolve(trimmed);
+      // Accept it only if the agentId normalizes cleanly and the file
+      // portion after sessions/ doesn't escape via traversal.
+      const resolved = path.resolve(trimmed);
+      const resolvedParts = resolved.split(path.sep);
+      const sessIdx = resolvedParts.lastIndexOf("sessions");
+      if (sessIdx >= 0) {
+        const sessionsRoot = resolvedParts.slice(0, sessIdx + 1).join(path.sep);
+        const relAfterSessions = path.relative(sessionsRoot, resolved);
+        if (
+          relAfterSessions &&
+          !relAfterSessions.startsWith("..") &&
+          !path.isAbsolute(relAfterSessions)
+        ) {
+          return resolved;
+        }
+      }
     }
   }
   if (!normalized || normalized.startsWith("..") || path.isAbsolute(normalized)) {
