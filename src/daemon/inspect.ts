@@ -123,8 +123,17 @@ function tryExtractPlistLabel(contents: string): string | null {
   return match[1]?.trim() || null;
 }
 
+/** Known non-gateway OpenClaw launchd services that should not trigger warnings. */
+const KNOWN_NON_GATEWAY_LABELS = new Set([
+  "ai.openclaw.mac", // macOS menubar companion app
+  "ai.openclaw.node", // Node host service
+]);
+
 function isIgnoredLaunchdLabel(label: string): boolean {
-  return label === resolveGatewayLaunchAgentLabel();
+  if (label === resolveGatewayLaunchAgentLabel()) {
+    return true;
+  }
+  return KNOWN_NON_GATEWAY_LABELS.has(label);
 }
 
 function isIgnoredSystemdName(name: string): boolean {
