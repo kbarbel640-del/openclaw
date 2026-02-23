@@ -34,6 +34,10 @@ describe("program routes", () => {
     expect(findRoutedCommand(["definitely-not-real"])).toBeNull();
   });
 
+  it("does not route sessions reset through the sessions list fast path", () => {
+    expect(findRoutedCommand(["sessions", "reset"])).toBeNull();
+  });
+
   it("returns false for config get route when path argument is missing", async () => {
     await expectRunFalse(["config", "get"], ["node", "openclaw", "config", "get", "--json"]);
   });
