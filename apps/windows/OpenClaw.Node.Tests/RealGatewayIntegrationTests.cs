@@ -126,42 +126,8 @@ namespace OpenClaw.Node.Tests
             using var client = new RealGatewayRpcClient();
 
             await client.ConnectAsOperatorAsync(cfg.Url, cfg.Token, cts.Token);
-
-            var list = await client.RequestAsync("node.list", new { }, cts.Token);
-            if (!list.TryGetProperty("ok", out var listOk) || !listOk.GetBoolean())
-            {
-                return;
-            }
-
-            if (!list.TryGetProperty("payload", out var payload) ||
-                !payload.TryGetProperty("nodes", out var nodes) ||
-                nodes.ValueKind != JsonValueKind.Array ||
-                nodes.GetArrayLength() == 0)
-            {
-                return;
-            }
-
-            string? nodeId = null;
-            foreach (var node in nodes.EnumerateArray())
-            {
-                if (!node.TryGetProperty("nodeId", out var idEl) || idEl.ValueKind != JsonValueKind.String)
-                {
-                    continue;
-                }
-
-                if (!node.TryGetProperty("connected", out var connectedEl) || connectedEl.ValueKind != JsonValueKind.True)
-                {
-                    continue;
-                }
-
-                nodeId = idEl.GetString();
-                break;
-            }
-
-            if (string.IsNullOrWhiteSpace(nodeId))
-            {
-                return;
-            }
+            var nodeId = await ResolveFirstConnectedNodeIdAsync(client, cts.Token);
+            if (string.IsNullOrWhiteSpace(nodeId)) return;
 
             var invoke = await client.RequestAsync(
                 "node.invoke",
@@ -191,6 +157,86 @@ namespace OpenClaw.Node.Tests
                 Assert.True(invoke.TryGetProperty("error", out var err), JsonSerializer.Serialize(invoke));
                 Assert.True(err.TryGetProperty("code", out _), JsonSerializer.Serialize(invoke));
             }
+        }
+
+        [Fact]
+        public async Task RealGateway_ScreenRecordCommand_ReturnsResponseShape_WhenNodeAvailable()
+        {
+            if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var cfg = LoadGatewayConfig();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+            using var client = new RealGatewayRpcClient();
+
+            await client.ConnectAsOperatorAsync(cfg.Url, cfg.Token, cts.Token);
+            var nodeId = await ResolveFirstConnectedNodeIdAsync(client, cts.Token);
+            if (string.IsNullOrWhiteSpace(nodeId)) return;
+
+            var invoke = await client.RequestAsync(
+                "node.invoke",
+                new
+                {
+                    nodeId,
+                    command = "screen.record",
+                    @params = new { durationMs = 1000, fps = 5, includeAudio = false, screenIndex = 0 },
+                    timeoutMs = 25000,
+                    idempotencyKey = "itest-screen-record"
+                },
+                cts.Token);
+
+            Assert.Equal("res", invoke.GetProperty("type").GetString());
+            Assert.True(invoke.TryGetProperty("ok", out var invokeOk));
+
+            if (invokeOk.GetBoolean())
+            {
+                Assert.True(invoke.TryGetProperty("payload", out var p), JsonSerializer.Serialize(invoke));
+                Assert.Equal("mp4", p.GetProperty("format").GetString());
+                Assert.False(string.IsNullOrWhiteSpace(p.GetProperty("base64").GetString()));
+                Assert.True(p.GetProperty("durationMs").GetInt32() > 0);
+                Assert.True(p.GetProperty("fps").GetInt32() > 0);
+            }
+            else
+            {
+                Assert.True(invoke.TryGetProperty("error", out var err), JsonSerializer.Serialize(invoke));
+                Assert.True(err.TryGetProperty("code", out _), JsonSerializer.Serialize(invoke));
+            }
+        }
+
+        private static async Task<string?> ResolveFirstConnectedNodeIdAsync(RealGatewayRpcClient client, CancellationToken ct)
+        {
+            var list = await client.RequestAsync("node.list", new { }, ct);
+            if (!list.TryGetProperty("ok", out var listOk) || !listOk.GetBoolean())
+            {
+                return null;
+            }
+
+            if (!list.TryGetProperty("payload", out var payload) ||
+                !payload.TryGetProperty("nodes", out var nodes) ||
+                nodes.ValueKind != JsonValueKind.Array ||
+                nodes.GetArrayLength() == 0)
+            {
+                return null;
+            }
+
+            foreach (var node in nodes.EnumerateArray())
+            {
+                if (!node.TryGetProperty("nodeId", out var idEl) || idEl.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                if (!node.TryGetProperty("connected", out var connectedEl) || connectedEl.ValueKind != JsonValueKind.True)
+                {
+                    continue;
+                }
+
+                return idEl.GetString();
+            }
+
+            return null;
         }
 
         private static (string Url, string Token) LoadGatewayConfig()
