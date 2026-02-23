@@ -81,11 +81,11 @@ repos:
     hooks:
       - id: skills-python-tests
         name: skills python tests
-        entry: pytest -q skills/skill-creator/scripts/test_package_skill.py
+        entry: pytest -q skills
         language: python
         additional_dependencies: [pytest>=8,<9]
         pass_filenames: false
-        files: "^skills/skill-creator/scripts/.*\\.py$"
+        files: "^skills/.*\\.py$"
 
   # Project checks (same commands as CI)
   - repo: local
