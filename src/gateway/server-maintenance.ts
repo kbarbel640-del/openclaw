@@ -70,7 +70,7 @@ export function startGatewayMaintenanceTimers(params: {
       const excess = params.dedupe.size - DEDUPE_MAX;
       for (let i = 0; i < excess; i++) {
         const oldest = params.dedupe.keys().next().value;
-        if (!oldest) {
+        if (oldest === undefined) {
           break;
         }
         params.dedupe.delete(oldest);
