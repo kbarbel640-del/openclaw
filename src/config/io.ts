@@ -1011,10 +1011,13 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
 
     const dir = path.dirname(configPath);
     await deps.fs.promises.mkdir(dir, { recursive: true, mode: 0o700 });
-    const outputConfig =
+    const outputConfigBase =
       envRefMap && changedPaths
         ? (restoreEnvRefsFromMap(cfgToWrite, "", envRefMap, changedPaths) as OpenClawConfig)
         : cfgToWrite;
+    const outputConfig = options.unsetPaths?.length
+      ? cloneUnknown(outputConfigBase)
+      : outputConfigBase;
     if (options.unsetPaths?.length) {
       for (const unsetPath of options.unsetPaths) {
         if (!Array.isArray(unsetPath) || unsetPath.length === 0) {
