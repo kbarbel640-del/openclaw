@@ -974,8 +974,8 @@ export async function runEmbeddedPiAgent(
             if (consecutiveTimeouts <= maxRetries) {
               const attemptIndex = Math.min(consecutiveTimeouts - 1, backoffMs.length - 1);
               const baseDelay = backoffMs[attemptIndex] ?? backoffMs[backoffMs.length - 1] ?? 300;
-              const jitter = Math.random() * 0.3 * baseDelay; // ±30% jitter
-              const delayMs = Math.floor(baseDelay + jitter);
+              const jitter = (Math.random() - 0.5) * 0.6 * baseDelay; // ±30% jitter
+              const delayMs = Math.max(0, Math.floor(baseDelay + jitter));
 
               if (!isProbeSession) {
                 log.warn(
