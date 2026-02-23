@@ -722,7 +722,11 @@ export async function runEmbeddedAttempt(
         const providerBaseUrl =
           typeof providerConfig?.baseUrl === "string" ? providerConfig.baseUrl.trim() : "";
         const ollamaBaseUrl = modelBaseUrl || providerBaseUrl || OLLAMA_NATIVE_BASE_URL;
-        activeSession.agent.streamFn = createOllamaStreamFn(ollamaBaseUrl);
+        const providerHeaders =
+          providerConfig?.headers && typeof providerConfig.headers === "object"
+            ? providerConfig.headers
+            : undefined;
+        activeSession.agent.streamFn = createOllamaStreamFn(ollamaBaseUrl, providerHeaders);
       } else {
         // Force a stable streamFn reference so vitest can reliably mock @mariozechner/pi-ai.
         activeSession.agent.streamFn = streamSimple;
