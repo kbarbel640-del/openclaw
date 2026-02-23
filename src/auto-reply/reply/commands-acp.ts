@@ -276,10 +276,14 @@ function parseSpawnInput(
   }
 
   const fallbackAgent = params.cfg.acp?.defaultAgent?.trim() || "";
-  const normalizedAgentId = normalizeAgentId(rawAgentId || fallbackAgent);
-  if (!normalizedAgentId) {
-    return { ok: false, error: `Missing ACP agent id. ${ACP_SPAWN_USAGE}` };
+  const selectedAgent = (rawAgentId?.trim() || fallbackAgent).trim();
+  if (!selectedAgent) {
+    return {
+      ok: false,
+      error: `ACP target agent is required. Pass an agent id or configure acp.defaultAgent. ${ACP_SPAWN_USAGE}`,
+    };
   }
+  const normalizedAgentId = normalizeAgentId(selectedAgent);
 
   return {
     ok: true,
@@ -800,7 +804,7 @@ async function handleAcpSpawnAction(
       await cleanupFailedSpawn({
         cfg: params.cfg,
         sessionKey,
-        shouldDeleteSession: false,
+        shouldDeleteSession: true,
         initializedRuntime,
       });
       return stopWithText(`⚠️ ${bound.error}`);
@@ -808,7 +812,6 @@ async function handleAcpSpawnAction(
     binding = bound.binding;
   }
 
-  let sessionCreated = false;
   try {
     await callGateway({
       method: "sessions.patch",
@@ -818,12 +821,11 @@ async function handleAcpSpawnAction(
       },
       timeoutMs: 10_000,
     });
-    sessionCreated = true;
   } catch (err) {
     await cleanupFailedSpawn({
       cfg: params.cfg,
       sessionKey,
-      shouldDeleteSession: sessionCreated,
+      shouldDeleteSession: true,
       initializedRuntime,
     });
     const message = err instanceof Error ? err.message : String(err);
@@ -933,8 +935,9 @@ async function handleAcpSteerAction(
   params: HandleCommandsParams,
   restTokens: string[],
 ): Promise<CommandHandlerResult> {
-  if (!isAcpEnabledByPolicy(params.cfg)) {
-    return stopWithText("ACP is disabled by policy (`acp.enabled=false`).");
+  const dispatchNote = resolveAcpDispatchPolicyNote(params.cfg);
+  if (dispatchNote) {
+    return stopWithText(dispatchNote);
   }
 
   const parsed = parseSteerInput(restTokens);

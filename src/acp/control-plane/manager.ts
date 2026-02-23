@@ -373,17 +373,31 @@ export class AcpSessionManager {
         state: "idle",
         lastActivityAt: Date.now(),
       };
-      const persisted = await this.writeSessionMeta({
-        cfg: input.cfg,
-        sessionKey,
-        mutate: () => meta,
-        failOnError: true,
-      });
-      if (!persisted?.acp) {
-        throw new AcpRuntimeError(
-          "ACP_SESSION_INIT_FAILED",
-          `Could not persist ACP metadata for ${sessionKey}.`,
-        );
+      try {
+        const persisted = await this.writeSessionMeta({
+          cfg: input.cfg,
+          sessionKey,
+          mutate: () => meta,
+          failOnError: true,
+        });
+        if (!persisted?.acp) {
+          throw new AcpRuntimeError(
+            "ACP_SESSION_INIT_FAILED",
+            `Could not persist ACP metadata for ${sessionKey}.`,
+          );
+        }
+      } catch (error) {
+        await runtime
+          .close({
+            handle,
+            reason: "init-meta-failed",
+          })
+          .catch((closeError) => {
+            logVerbose(
+              `acp-manager: cleanup close failed after metadata write error for ${sessionKey}: ${String(closeError)}`,
+            );
+          });
+        throw error;
       }
       this.setCachedRuntimeState(sessionKey, {
         runtime,
@@ -777,9 +791,6 @@ export class AcpSessionManager {
           if (input.onEvent) {
             await input.onEvent(event);
           }
-          if (event.type === "error" || event.type === "done") {
-            break;
-          }
         }
         if (streamError) {
           throw streamError;
@@ -960,6 +971,9 @@ export class AcpSessionManager {
           input.allowBackendUnavailable &&
           (acpError.code === "ACP_BACKEND_MISSING" || acpError.code === "ACP_BACKEND_UNAVAILABLE")
         ) {
+          // Treat unavailable backends as terminal for this cached handle so it
+          // cannot continue counting against maxConcurrentSessions.
+          this.clearCachedRuntimeState(sessionKey);
           runtimeNotice = acpError.message;
         } else {
           throw acpError;
@@ -1015,6 +1029,11 @@ export class AcpSessionManager {
       }
       this.clearCachedRuntimeState(params.sessionKey);
     }
+
+    this.enforceConcurrentSessionLimit({
+      cfg: params.cfg,
+      sessionKey: params.sessionKey,
+    });
 
     const backend = this.deps.requireRuntimeBackend(configuredBackend || undefined);
     const runtime = backend.runtime;
@@ -1115,7 +1134,28 @@ export class AcpSessionManager {
       this.clearCachedRuntimeState(params.sessionKey);
       return;
     }
-    cached.appliedControlSignature = buildRuntimeControlSignature(normalized);
+    // Persisting options does not guarantee this process pushed all controls to the runtime.
+    // Force the next turn to reconcile runtime controls from persisted metadata.
+    cached.appliedControlSignature = undefined;
+  }
+
+  private enforceConcurrentSessionLimit(params: { cfg: OpenClawConfig; sessionKey: string }): void {
+    const configuredLimit = params.cfg.acp?.maxConcurrentSessions;
+    if (typeof configuredLimit !== "number" || !Number.isFinite(configuredLimit)) {
+      return;
+    }
+    const limit = Math.max(1, Math.floor(configuredLimit));
+    const actorKey = normalizeActorKey(params.sessionKey);
+    if (this.cachedRuntimeBySession.has(actorKey)) {
+      return;
+    }
+    const activeCount = this.cachedRuntimeBySession.size;
+    if (activeCount >= limit) {
+      throw new AcpRuntimeError(
+        "ACP_SESSION_INIT_FAILED",
+        `ACP max concurrent sessions reached (${activeCount}/${limit}).`,
+      );
+    }
   }
 
   private async resolveRuntimeCapabilities(params: {
@@ -1299,14 +1339,12 @@ export class AcpSessionManager {
     const marker = new Promise<void>((resolve) => {
       release = resolve;
     });
-    this.actorTailBySession.set(
-      actorKey,
-      previous
-        .catch(() => {
-          // Keep actor queue alive after an operation failure.
-        })
-        .then(() => marker),
-    );
+    const queuedTail = previous
+      .catch(() => {
+        // Keep actor queue alive after an operation failure.
+      })
+      .then(() => marker);
+    this.actorTailBySession.set(actorKey, queuedTail);
 
     await previous.catch(() => {
       // Previous failures should not block newer commands.
@@ -1315,7 +1353,7 @@ export class AcpSessionManager {
       return await op();
     } finally {
       release();
-      if (this.actorTailBySession.get(actorKey) === marker) {
+      if (this.actorTailBySession.get(actorKey) === queuedTail) {
         this.actorTailBySession.delete(actorKey);
       }
     }

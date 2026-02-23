@@ -288,6 +288,14 @@ describe("/acp command", () => {
     expect(seededWithoutEntry?.runtimeSessionName).toContain(":runtime");
   });
 
+  it("requires explicit ACP target when acp.defaultAgent is not configured", async () => {
+    const params = createDiscordParams("/acp spawn");
+    const result = await handleAcpCommand(params, true);
+
+    expect(result?.reply?.text).toContain("ACP target agent is required");
+    expect(hoisted.ensureSessionMock).not.toHaveBeenCalled();
+  });
+
   it("rejects thread-bound ACP spawn when spawnAcpSessions is disabled", async () => {
     const cfg = {
       ...baseCfg,
@@ -306,6 +314,16 @@ describe("/acp command", () => {
 
     expect(result?.reply?.text).toContain("spawnAcpSessions=true");
     expect(hoisted.closeMock).toHaveBeenCalledTimes(1);
+    expect(hoisted.callGatewayMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "sessions.delete",
+        params: expect.objectContaining({
+          key: expect.stringMatching(/^agent:codex:acp:/),
+          deleteTranscript: false,
+          emitLifecycleHooks: false,
+        }),
+      }),
+    );
     expect(hoisted.callGatewayMock).not.toHaveBeenCalledWith(
       expect.objectContaining({ method: "sessions.patch" }),
     );
@@ -386,6 +404,20 @@ describe("/acp command", () => {
       }),
     );
     expect(result?.reply?.text).toContain("Applied steering.");
+  });
+
+  it("blocks /acp steer when ACP dispatch is disabled by policy", async () => {
+    const cfg = {
+      ...baseCfg,
+      acp: {
+        ...baseCfg.acp,
+        dispatch: { enabled: false },
+      },
+    } satisfies OpenClawConfig;
+    const params = createDiscordParams("/acp steer tighten logging", cfg);
+    const result = await handleAcpCommand(params, true);
+    expect(result?.reply?.text).toContain("ACP dispatch is disabled by policy");
+    expect(hoisted.runTurnMock).not.toHaveBeenCalled();
   });
 
   it("closes an ACP session, unbinds thread targets, and clears metadata", async () => {
