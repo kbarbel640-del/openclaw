@@ -16,7 +16,7 @@ fi
 in="${1:-}"
 shift || true
 
-model="whisper-1"
+model="whisper"
 out=""
 language=""
 prompt=""
@@ -72,7 +72,9 @@ fi
 
 mkdir -p "$(dirname "$out")"
 
-curl -sS https://api.openai.com/v1/audio/transcriptions \
+api_base="${OPENAI_BASE_URL:-https://api.openai.com}"
+
+curl -sS "${api_base}/v1/audio/transcriptions" \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Accept: application/json" \
   -F "file=@${in}" \

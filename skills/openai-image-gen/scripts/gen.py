@@ -84,7 +84,8 @@ def request_images(
     output_format: str = "",
     style: str = "",
 ) -> dict:
-    url = "https://api.openai.com/v1/images/generations"
+    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com").rstrip("/")
+    url = f"{base_url}/v1/images/generations"
     args = {
         "model": model,
         "prompt": prompt,
