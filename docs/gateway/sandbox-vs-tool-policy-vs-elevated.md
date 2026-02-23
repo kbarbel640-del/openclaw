@@ -7,11 +7,12 @@ status: active
 
 # Sandbox vs Tool Policy vs Elevated
 
-OpenClaw has three related (but different) controls:
+OpenClaw has four related (but different) controls:
 
 1. **Sandbox** (`agents.defaults.sandbox.*` / `agents.list[].sandbox.*`) decides **where tools run** (Docker vs host).
 2. **Tool policy** (`tools.*`, `tools.sandbox.tools.*`, `agents.list[].tools.*`) decides **which tools are available/allowed**.
-3. **Elevated** (`tools.elevated.*`, `agents.list[].tools.elevated.*`) is an **exec-only escape hatch** to run on the host when you’re sandboxed.
+3. **Elevated** (`tools.elevated.*`, `agents.list[].tools.elevated.*`) is an **exec-only escape hatch** to run on the host when you're sandboxed.
+4. **Verifier** (`tools.verifier.*`, `agents.list[].tools.verifier.*`) is an **external approval gateway** — consults a webhook or Telegram bot before tool execution.
 
 ## Quick debug
 
@@ -112,7 +113,37 @@ Gates:
 
 See [Elevated Mode](/tools/elevated).
 
-## Common “sandbox jail” fixes
+## Verifier: external approval gateway
+
+When configured, the verifier adds a fourth layer that calls an external HTTP webhook and/or sends Telegram approval requests before tool execution. It runs **after** tool policy and exec allowlist checks.
+
+Configuration: `tools.verifier` (global) or `agents.list[].tools.verifier` (per-agent).
+
+```json5
+{
+  tools: {
+    verifier: {
+      enabled: true,
+      failMode: "deny", // or "allow"
+      scope: { include: ["exec", "write", "edit"] },
+      webhook: { url: "https://my-verifier.example.com/verify" },
+      telegram: { enabled: true, botToken: "...", chatId: "..." },
+    },
+  },
+}
+```
+
+Key behaviors:
+
+- `failMode: "deny"`: blocks tool calls when the verifier is unreachable (safe default)
+- `failMode: "allow"`: allows tool calls when the verifier is unreachable (availability-first)
+- `scope.include`/`scope.exclude`: control which tools are gated (supports `group:*` shorthands)
+- Webhook and Telegram can both be active (both must approve)
+- Per-agent `failMode` cannot weaken the global setting (most-restrictive-wins)
+
+See the [Verifier design doc](/plans/2026-02-12-external-tool-verifier-design) for the full webhook protocol and security model.
+
+## Common "sandbox jail" fixes
 
 ### “Tool X blocked by sandbox tool policy”
 
