@@ -6,6 +6,7 @@ import { pathForTab } from "../navigation.ts";
 import { formatCronSchedule, formatNextRun } from "../presenter.ts";
 import type { ChannelUiMetaEntry, CronJob, CronRunLogEntry, CronStatus } from "../types.ts";
 import type {
+  CronDeliveryOutcomeReason,
   CronDeliveryStatus,
   CronJobsEnabledFilter,
   CronRunScope,
@@ -1433,11 +1434,42 @@ function renderRun(entry: CronRunLogEntry, basePath: string) {
         ${entry.error ? html`<div class="muted">${entry.error}</div>` : nothing}
         ${
           entry.deliveryOutcomeReason
-            ? html`<div class="muted">Delivery reason: ${entry.deliveryOutcomeReason}</div>`
+            ? html`<div class="muted">Delivery reason: ${formatDeliveryOutcomeReason(entry.deliveryOutcomeReason)}</div>`
             : nothing
         }
         ${entry.deliveryError ? html`<div class="muted">${entry.deliveryError}</div>` : nothing}
       </div>
     </div>
   `;
+}
+
+function formatDeliveryOutcomeReason(reason: CronDeliveryOutcomeReason): string {
+  switch (reason) {
+    case "not-requested":
+      return "No delivery requested";
+    case "messaging-tool-delivered":
+      return "Already delivered by messaging tool";
+    case "heartbeat-only":
+      return "Skipped heartbeat-only output";
+    case "target-resolution-failed":
+      return "Delivery target resolution failed";
+    case "target-resolution-failed-best-effort":
+      return "Best-effort target resolution failure";
+    case "direct-delivered":
+      return "Delivered via direct send";
+    case "announce-delivered":
+      return "Delivered via announce flow";
+    case "silent-reply":
+      return "Silent reply token";
+    case "interim-suppressed":
+      return "Suppressed interim subagent output";
+    case "subagent-still-running":
+      return "Subagent still running";
+    case "announce-failed":
+      return "Announce flow failed";
+    case "direct-send-failed":
+      return "Direct send failed";
+    case "no-deliverable-payload":
+      return "No deliverable payload";
+  }
 }
