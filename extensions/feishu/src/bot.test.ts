@@ -37,7 +37,6 @@ vi.mock("./media.js", () => ({
   downloadMessageResourceFeishu: mockDownloadMessageResourceFeishu,
 }));
 
-
 function createRuntimeEnv(): RuntimeEnv {
   return {
     log: vi.fn(),
