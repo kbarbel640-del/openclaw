@@ -483,6 +483,7 @@ export type CronJob = {
   schedule: CronSchedule;
   sessionTarget: CronSessionTarget;
   wakeMode: CronWakeMode;
+  sessionReuse?: boolean;
   payload: CronPayload;
   delivery?: CronDelivery;
   state?: CronJobState;

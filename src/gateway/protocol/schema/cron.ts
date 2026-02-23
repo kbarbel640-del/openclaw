@@ -60,6 +60,7 @@ const CronCommonOptionalFields = {
   description: Type.Optional(Type.String()),
   enabled: Type.Optional(Type.Boolean()),
   deleteAfterRun: Type.Optional(Type.Boolean()),
+  sessionReuse: Type.Optional(Type.Boolean()),
 };
 
 function cronIdOrJobIdParams(extraFields: Record<string, TSchema>) {
@@ -216,6 +217,7 @@ export const CronJobSchema = Type.Object(
     schedule: CronScheduleSchema,
     sessionTarget: CronSessionTargetSchema,
     wakeMode: CronWakeModeSchema,
+    sessionReuse: Type.Optional(Type.Boolean()),
     payload: CronPayloadSchema,
     delivery: Type.Optional(CronDeliverySchema),
     state: CronJobStateSchema,

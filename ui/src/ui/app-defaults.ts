@@ -28,6 +28,7 @@ export const DEFAULT_CRON_FORM: CronFormState = {
   staggerUnit: "seconds",
   sessionTarget: "isolated",
   wakeMode: "now",
+  sessionReuse: false,
   payloadKind: "agentTurn",
   payloadText: "",
   payloadModel: "",

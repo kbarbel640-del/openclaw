@@ -121,6 +121,8 @@ export type CronJob = {
   schedule: CronSchedule;
   sessionTarget: CronSessionTarget;
   wakeMode: CronWakeMode;
+  /** Reuse isolated session across runs when true (cron-only). */
+  sessionReuse?: boolean;
   payload: CronPayload;
   delivery?: CronDelivery;
   state: CronJobState;

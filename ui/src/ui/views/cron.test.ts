@@ -286,6 +286,28 @@ describe("cron view", () => {
     expect(options).toContain("Webhook POST");
     expect(options).toContain("None (internal)");
     expect(container.querySelector('input[placeholder="https://example.com/cron"]')).toBeNull();
+    expect(container.textContent).not.toContain("Session reuse");
+  });
+
+  it("shows session reuse toggle for isolated agentTurn jobs", () => {
+    const container = document.createElement("div");
+    render(
+      renderCron(
+        createProps({
+          form: {
+            ...DEFAULT_CRON_FORM,
+            sessionTarget: "isolated",
+            payloadKind: "agentTurn",
+          },
+        }),
+      ),
+      container,
+    );
+
+    const checkbox = container.querySelector("#cron-session-reuse");
+    expect(checkbox).toBeInstanceOf(HTMLInputElement);
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+    expect(container.textContent).toContain("Session reuse");
   });
 
   it("shows webhook delivery details for jobs", () => {
@@ -308,6 +330,52 @@ describe("cron view", () => {
     expect(container.textContent).toContain("Delivery");
     expect(container.textContent).toContain("webhook");
     expect(container.textContent).toContain("https://example.invalid/cron");
+  });
+
+  it("shows session reuse chip for isolated jobs opting in", () => {
+    const container = document.createElement("div");
+    const job = {
+      ...createJob("job-reuse"),
+      sessionTarget: "isolated" as const,
+      payload: { kind: "agentTurn" as const, message: "do it" },
+      sessionReuse: true,
+    };
+    render(
+      renderCron(
+        createProps({
+          jobs: [job],
+        }),
+      ),
+      container,
+    );
+
+    const chips = Array.from(container.querySelectorAll(".cron-job-chips .chip")).map((chip) =>
+      (chip.textContent ?? "").trim(),
+    );
+    expect(chips).toContain("reuse");
+  });
+
+  it("shows fresh chip for isolated jobs without reuse", () => {
+    const container = document.createElement("div");
+    const job = {
+      ...createJob("job-fresh"),
+      sessionTarget: "isolated" as const,
+      payload: { kind: "agentTurn" as const, message: "do it" },
+      sessionReuse: false,
+    };
+    render(
+      renderCron(
+        createProps({
+          jobs: [job],
+        }),
+      ),
+      container,
+    );
+
+    const chips = Array.from(container.querySelectorAll(".cron-job-chips .chip")).map((chip) =>
+      (chip.textContent ?? "").trim(),
+    );
+    expect(chips).toContain("fresh");
   });
 
   it("wires the Edit action and shows save/cancel controls when editing", () => {
