@@ -154,6 +154,7 @@ export const AgentDefaultsSchema = z
     verifier: z
       .object({
         enabled: z.boolean().optional(),
+        verifyAll: z.boolean().optional(),
         model: z.string().optional(),
         maxAttempts: z.number().int().positive().optional(),
         triggerKeywords: z.array(z.string()).optional(),

@@ -1,11 +1,15 @@
 import type { ChannelId } from "../channels/plugins/types.js";
-import type { AgentModelConfig, AgentSandboxConfig } from "./types.agents-shared.js";
 import type {
   BlockStreamingChunkConfig,
   BlockStreamingCoalesceConfig,
   HumanDelayConfig,
   TypingMode,
 } from "./types.base.js";
+import type {
+  SandboxBrowserSettings,
+  SandboxDockerSettings,
+  SandboxPruneSettings,
+} from "./types.sandbox.js";
 import type { MemorySearchConfig } from "./types.tools.js";
 
 export type AgentModelEntryConfig = {
@@ -117,11 +121,27 @@ export type CliBackendConfig = {
   };
 };
 
+/** Self-verification loop configuration for agents. */
+export type AgentVerifierConfig = {
+  /** Enable the verifier (default: false). */
+  enabled?: boolean;
+  /** Verify every response regardless of trigger keywords (default: false). */
+  verifyAll?: boolean;
+  /** Verifier model reference (e.g. "anthropic/claude-sonnet-4-5"). */
+  model?: string;
+  /** Max attempts including original (default: 3). */
+  maxAttempts?: number;
+  /** Keywords that trigger verification (default: ["done", "completed", "finished", "ready", "here you go"]). */
+  triggerKeywords?: string[];
+  /** Timeout for verification in seconds (default: 30). */
+  timeoutSeconds?: number;
+};
+
 export type AgentDefaultsConfig = {
-  /** Primary model and fallbacks (provider/model). Accepts string or {primary,fallbacks}. */
-  model?: AgentModelConfig;
-  /** Optional image-capable model and fallbacks (provider/model). Accepts string or {primary,fallbacks}. */
-  imageModel?: AgentModelConfig;
+  /** Primary model and fallbacks (provider/model). */
+  model?: AgentModelListConfig;
+  /** Optional image-capable model and fallbacks (provider/model). */
+  imageModel?: AgentModelListConfig;
   /** Model catalog with optional aliases (full provider/model keys). */
   models?: Record<string, AgentModelEntryConfig>;
   /** Agent working directory (preferred). Used as the default cwd for agent runs. */
@@ -244,14 +264,42 @@ export type AgentDefaultsConfig = {
     /** Auto-archive sub-agent sessions after N minutes (default: 60). */
     archiveAfterMinutes?: number;
     /** Default model selection for spawned sub-agents (string or {primary,fallbacks}). */
-    model?: AgentModelConfig;
+    model?: string | { primary?: string; fallbacks?: string[] };
     /** Default thinking level for spawned sub-agents (e.g. "off", "low", "medium", "high"). */
     thinking?: string;
-    /** Gateway timeout in ms for sub-agent announce delivery calls (default: 60000). */
-    announceTimeoutMs?: number;
   };
   /** Optional sandbox settings for non-main sessions. */
-  sandbox?: AgentSandboxConfig;
+  sandbox?: {
+    /** Enable sandboxing for sessions. */
+    mode?: "off" | "non-main" | "all";
+    /**
+     * Agent workspace access inside the sandbox.
+     * - "none": do not mount the agent workspace into the container; use a sandbox workspace under workspaceRoot
+     * - "ro": mount the agent workspace read-only; disables write/edit tools
+     * - "rw": mount the agent workspace read/write; enables write/edit tools
+     */
+    workspaceAccess?: "none" | "ro" | "rw";
+    /**
+     * Session tools visibility for sandboxed sessions.
+     * - "spawned": only allow session tools to target the current session and sessions spawned from it (default)
+     * - "all": allow session tools to target any session
+     */
+    sessionToolsVisibility?: "spawned" | "all";
+    /** Container/workspace scope for sandbox isolation. */
+    scope?: "session" | "agent" | "shared";
+    /** Legacy alias for scope ("session" when true, "shared" when false). */
+    perSession?: boolean;
+    /** Root directory for sandbox workspaces. */
+    workspaceRoot?: string;
+    /** Docker-specific sandbox settings. */
+    docker?: SandboxDockerSettings;
+    /** Optional sandboxed browser settings. */
+    browser?: SandboxBrowserSettings;
+    /** Auto-prune sandbox containers. */
+    prune?: SandboxPruneSettings;
+  };
+  /** Self-verification loop configuration. */
+  verifier?: AgentVerifierConfig;
 };
 
 export type AgentCompactionMode = "default" | "safeguard";
