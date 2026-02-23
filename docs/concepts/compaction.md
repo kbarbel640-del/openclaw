@@ -32,8 +32,11 @@ You’ll see:
 - `🧹 Auto-compaction complete` in verbose mode
 - `/status` showing `🧹 Compactions: <count>`
 
-Before compaction, OpenClaw can run a **silent memory flush** turn to store
-durable notes to disk. See [Memory](/concepts/memory) for details and config.
+Before compaction, OpenClaw can run a **silent memory flush** turn to prompt
+memory writes. This does **not** guarantee durable memory file updates on every
+compaction event by itself; persistence depends on your memory workflow/config
+(e.g., writing to `memory/YYYY-MM-DD.md`, `/new`/`/reset` hooks, or plugin hooks).
+See [Memory](/concepts/memory) for details and config.
 
 ## Manual compaction
 
