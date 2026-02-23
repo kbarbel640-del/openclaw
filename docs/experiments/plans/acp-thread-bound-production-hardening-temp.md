@@ -36,7 +36,6 @@ Track focused hardening work to make ACP thread-bound sessions production ready,
 
 ### Goals
 
-- Keep one streaming/coalescing shaping path for main/subagent/ACP.
 - Keep ACP-specific logic only for ACP event mapping and ACP lifecycle.
 - Reduce complexity in `dispatch-from-config` ACP branch.
 
