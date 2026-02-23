@@ -1,7 +1,7 @@
 import { getAcpSessionManager } from "../../acp/control-plane/manager.js";
-import { isAcpAgentAllowedByPolicy, resolveAcpDispatchPolicyError } from "../../acp/policy.js";
+import { resolveAcpAgentPolicyError, resolveAcpDispatchPolicyError } from "../../acp/policy.js";
 import { formatAcpRuntimeErrorText } from "../../acp/runtime/error-text.js";
-import { AcpRuntimeError, toAcpRuntimeError } from "../../acp/runtime/errors.js";
+import { toAcpRuntimeError } from "../../acp/runtime/errors.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { loadSessionStore, resolveStorePath, type SessionEntry } from "../../config/sessions.js";
@@ -502,6 +502,7 @@ export async function dispatchReplyFromConfig(params: {
         accountId: ctx.AccountId,
       });
 
+      const acpDispatchStartedAt = Date.now();
       try {
         const dispatchPolicyError = resolveAcpDispatchPolicyError(cfg);
         if (dispatchPolicyError) {
@@ -510,11 +511,9 @@ export async function dispatchReplyFromConfig(params: {
         if (acpResolution.kind === "stale") {
           throw acpResolution.error;
         }
-        if (!isAcpAgentAllowedByPolicy(cfg, resolvedAcpAgent)) {
-          throw new AcpRuntimeError(
-            "ACP_SESSION_INIT_FAILED",
-            `ACP agent "${resolvedAcpAgent}" is not allowed by policy.`,
-          );
+        const agentPolicyError = resolveAcpAgentPolicyError(cfg, resolvedAcpAgent);
+        if (agentPolicyError) {
+          throw agentPolicyError;
         }
 
         await acpManager.runTurn({
@@ -556,6 +555,10 @@ export async function dispatchReplyFromConfig(params: {
         counts.tool += routedCounts.tool;
         counts.block += routedCounts.block;
         counts.final += routedCounts.final;
+        const acpStats = acpManager.getObservabilitySnapshot(cfg);
+        logVerbose(
+          `acp-dispatch: session=${sessionKey} outcome=ok latencyMs=${Date.now() - acpDispatchStartedAt} queueDepth=${acpStats.turns.queueDepth} activeRuntimes=${acpStats.runtimeCache.activeSessions}`,
+        );
         recordProcessed("completed", { reason: "acp_dispatch" });
         markIdle("message_completed");
         return { queuedFinal, counts };
@@ -575,6 +578,10 @@ export async function dispatchReplyFromConfig(params: {
         counts.tool += routedCounts.tool;
         counts.block += routedCounts.block;
         counts.final += routedCounts.final;
+        const acpStats = acpManager.getObservabilitySnapshot(cfg);
+        logVerbose(
+          `acp-dispatch: session=${sessionKey} outcome=error code=${acpError.code} latencyMs=${Date.now() - acpDispatchStartedAt} queueDepth=${acpStats.turns.queueDepth} activeRuntimes=${acpStats.runtimeCache.activeSessions}`,
+        );
         recordProcessed("completed", {
           reason: `acp_error:${acpError.code.toLowerCase()}`,
         });

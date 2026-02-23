@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { cleanupFailedAcpSpawn, resolveDiscordAcpSpawnFlags } from "../acp/control-plane/spawn.js";
-import { isAcpAgentAllowedByPolicy, isAcpEnabledByPolicy } from "../acp/policy.js";
+import { isAcpEnabledByPolicy, resolveAcpAgentPolicyError } from "../acp/policy.js";
 import { requireAcpRuntimeBackend } from "../acp/runtime/registry.js";
 import { upsertAcpSessionMeta } from "../acp/runtime/session-meta.js";
 import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
@@ -234,10 +234,11 @@ export async function spawnAcpDirect(
     };
   }
   const targetAgentId = targetAgentResult.agentId;
-  if (!isAcpAgentAllowedByPolicy(cfg, targetAgentId)) {
+  const agentPolicyError = resolveAcpAgentPolicyError(cfg, targetAgentId);
+  if (agentPolicyError) {
     return {
       status: "forbidden",
-      error: `ACP agent "${targetAgentId}" is not allowed by policy.`,
+      error: agentPolicyError.message,
     };
   }
 

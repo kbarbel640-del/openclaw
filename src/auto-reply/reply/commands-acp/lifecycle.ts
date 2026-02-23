@@ -6,11 +6,13 @@ import {
   type AcpSpawnRuntimeCloseHandle,
 } from "../../../acp/control-plane/spawn.js";
 import {
-  isAcpAgentAllowedByPolicy,
   isAcpEnabledByPolicy,
+  resolveAcpAgentPolicyError,
+  resolveAcpDispatchPolicyError,
   resolveAcpDispatchPolicyMessage,
 } from "../../../acp/policy.js";
 import { toAcpRuntimeErrorText } from "../../../acp/runtime/error-text.js";
+import { AcpRuntimeError } from "../../../acp/runtime/errors.js";
 import type { OpenClawConfig } from "../../../config/config.js";
 import {
   getThreadBindingManager,
@@ -195,8 +197,15 @@ export async function handleAcpSpawnAction(
   }
 
   const spawn = parsed.value;
-  if (!isAcpAgentAllowedByPolicy(params.cfg, spawn.agentId)) {
-    return stopWithText(`⚠️ ACP agent "${spawn.agentId}" is not allowed by policy.`);
+  const agentPolicyError = resolveAcpAgentPolicyError(params.cfg, spawn.agentId);
+  if (agentPolicyError) {
+    return stopWithText(
+      collectAcpErrorText({
+        error: agentPolicyError,
+        fallbackCode: "ACP_SESSION_INIT_FAILED",
+        fallbackMessage: "ACP target agent is not allowed by policy.",
+      }),
+    );
   }
 
   const acpManager = getAcpSessionManager();
@@ -310,10 +319,25 @@ export async function handleAcpCancelAction(
     sessionKey: target.sessionKey,
   });
   if (resolved.kind === "none") {
-    return stopWithText(`⚠️ Session is not ACP-enabled: ${target.sessionKey}`);
+    return stopWithText(
+      collectAcpErrorText({
+        error: new AcpRuntimeError(
+          "ACP_SESSION_INIT_FAILED",
+          `Session is not ACP-enabled: ${target.sessionKey}`,
+        ),
+        fallbackCode: "ACP_SESSION_INIT_FAILED",
+        fallbackMessage: "Session is not ACP-enabled.",
+      }),
+    );
   }
   if (resolved.kind === "stale") {
-    return stopWithText(`⚠️ ${resolved.error.message}`);
+    return stopWithText(
+      collectAcpErrorText({
+        error: resolved.error,
+        fallbackCode: "ACP_SESSION_INIT_FAILED",
+        fallbackMessage: resolved.error.message,
+      }),
+    );
   }
 
   try {
@@ -371,9 +395,15 @@ export async function handleAcpSteerAction(
   params: HandleCommandsParams,
   restTokens: string[],
 ): Promise<CommandHandlerResult> {
-  const dispatchNote = resolveAcpDispatchPolicyMessage(params.cfg);
-  if (dispatchNote) {
-    return stopWithText(dispatchNote);
+  const dispatchPolicyError = resolveAcpDispatchPolicyError(params.cfg);
+  if (dispatchPolicyError) {
+    return stopWithText(
+      collectAcpErrorText({
+        error: dispatchPolicyError,
+        fallbackCode: "ACP_DISPATCH_DISABLED",
+        fallbackMessage: dispatchPolicyError.message,
+      }),
+    );
   }
 
   const parsed = parseSteerInput(restTokens);
@@ -395,10 +425,25 @@ export async function handleAcpSteerAction(
     sessionKey: target.sessionKey,
   });
   if (resolved.kind === "none") {
-    return stopWithText(`⚠️ Session is not ACP-enabled: ${target.sessionKey}`);
+    return stopWithText(
+      collectAcpErrorText({
+        error: new AcpRuntimeError(
+          "ACP_SESSION_INIT_FAILED",
+          `Session is not ACP-enabled: ${target.sessionKey}`,
+        ),
+        fallbackCode: "ACP_SESSION_INIT_FAILED",
+        fallbackMessage: "Session is not ACP-enabled.",
+      }),
+    );
   }
   if (resolved.kind === "stale") {
-    return stopWithText(`⚠️ ${resolved.error.message}`);
+    return stopWithText(
+      collectAcpErrorText({
+        error: resolved.error,
+        fallbackCode: "ACP_SESSION_INIT_FAILED",
+        fallbackMessage: resolved.error.message,
+      }),
+    );
   }
 
   try {
@@ -443,10 +488,25 @@ export async function handleAcpCloseAction(
     sessionKey: target.sessionKey,
   });
   if (resolved.kind === "none") {
-    return stopWithText(`⚠️ Session is not ACP-enabled: ${target.sessionKey}`);
+    return stopWithText(
+      collectAcpErrorText({
+        error: new AcpRuntimeError(
+          "ACP_SESSION_INIT_FAILED",
+          `Session is not ACP-enabled: ${target.sessionKey}`,
+        ),
+        fallbackCode: "ACP_SESSION_INIT_FAILED",
+        fallbackMessage: "Session is not ACP-enabled.",
+      }),
+    );
   }
   if (resolved.kind === "stale") {
-    return stopWithText(`⚠️ ${resolved.error.message}`);
+    return stopWithText(
+      collectAcpErrorText({
+        error: resolved.error,
+        fallbackCode: "ACP_SESSION_INIT_FAILED",
+        fallbackMessage: resolved.error.message,
+      }),
+    );
   }
 
   let runtimeNotice = "";

@@ -4,6 +4,7 @@ import {
   isAcpAgentAllowedByPolicy,
   isAcpDispatchEnabledByPolicy,
   isAcpEnabledByPolicy,
+  resolveAcpAgentPolicyError,
   resolveAcpDispatchPolicyError,
   resolveAcpDispatchPolicyMessage,
   resolveAcpDispatchPolicyState,
@@ -52,5 +53,7 @@ describe("acp policy", () => {
     expect(isAcpAgentAllowedByPolicy(cfg, "codex")).toBe(true);
     expect(isAcpAgentAllowedByPolicy(cfg, "claude-code")).toBe(true);
     expect(isAcpAgentAllowedByPolicy(cfg, "gemini")).toBe(false);
+    expect(resolveAcpAgentPolicyError(cfg, "gemini")?.code).toBe("ACP_SESSION_INIT_FAILED");
+    expect(resolveAcpAgentPolicyError(cfg, "codex")).toBeNull();
   });
 });

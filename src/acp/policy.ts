@@ -54,3 +54,16 @@ export function isAcpAgentAllowedByPolicy(cfg: OpenClawConfig, agentId: string):
   }
   return allowed.includes(normalizeAgentId(agentId));
 }
+
+export function resolveAcpAgentPolicyError(
+  cfg: OpenClawConfig,
+  agentId: string,
+): AcpRuntimeError | null {
+  if (isAcpAgentAllowedByPolicy(cfg, agentId)) {
+    return null;
+  }
+  return new AcpRuntimeError(
+    "ACP_SESSION_INIT_FAILED",
+    `ACP agent "${normalizeAgentId(agentId)}" is not allowed by policy.`,
+  );
+}

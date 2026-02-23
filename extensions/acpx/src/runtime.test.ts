@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { runAcpRuntimeAdapterContract } from "../../../src/acp/runtime/adapter-contract.testkit.js";
 import type { ResolvedAcpxPluginConfig } from "./config.js";
 import { AcpxRuntime, decodeAcpxRuntimeHandleState } from "./runtime.js";
 
@@ -295,6 +296,30 @@ afterEach(async () => {
 });
 
 describe("AcpxRuntime", () => {
+  it("passes the shared ACP adapter contract suite", async () => {
+    const fixture = await createMockRuntime();
+    await runAcpRuntimeAdapterContract({
+      createRuntime: async () => fixture.runtime,
+      agentId: "codex",
+      successPrompt: "contract-pass",
+      errorPrompt: "trigger-error",
+      assertSuccessEvents: (events) => {
+        expect(events.some((event) => event.type === "done")).toBe(true);
+      },
+      assertErrorOutcome: ({ events, thrown }) => {
+        expect(events.some((event) => event.type === "error") || Boolean(thrown)).toBe(true);
+      },
+    });
+
+    const logs = await readLogEntries(fixture.logPath);
+    expect(logs.some((entry) => entry.kind === "ensure")).toBe(true);
+    expect(logs.some((entry) => entry.kind === "status")).toBe(true);
+    expect(logs.some((entry) => entry.kind === "set-mode")).toBe(true);
+    expect(logs.some((entry) => entry.kind === "set")).toBe(true);
+    expect(logs.some((entry) => entry.kind === "cancel")).toBe(true);
+    expect(logs.some((entry) => entry.kind === "close")).toBe(true);
+  });
+
   it("ensures sessions and streams prompt events", async () => {
     const { runtime, logPath } = await createMockRuntime({ ttlSeconds: 180 });
 

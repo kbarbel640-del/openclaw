@@ -1,5 +1,5 @@
 import { getAcpSessionManager } from "../acp/control-plane/manager.js";
-import { isAcpAgentAllowedByPolicy, resolveAcpDispatchPolicyError } from "../acp/policy.js";
+import { resolveAcpAgentPolicyError, resolveAcpDispatchPolicyError } from "../acp/policy.js";
 import { AcpRuntimeError, toAcpRuntimeError } from "../acp/runtime/errors.js";
 import {
   listAgentIds,
@@ -345,11 +345,9 @@ export async function agentCommand(
         const acpAgent = normalizeAgentId(
           sessionEntry.acp.agent || resolveAgentIdFromSessionKey(sessionKey),
         );
-        if (!isAcpAgentAllowedByPolicy(cfg, acpAgent)) {
-          throw new AcpRuntimeError(
-            "ACP_SESSION_INIT_FAILED",
-            `ACP agent "${acpAgent}" is not allowed by policy.`,
-          );
+        const agentPolicyError = resolveAcpAgentPolicyError(cfg, acpAgent);
+        if (agentPolicyError) {
+          throw agentPolicyError;
         }
 
         await acpManager.runTurn({

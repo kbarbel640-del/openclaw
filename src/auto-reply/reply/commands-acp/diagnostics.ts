@@ -1,3 +1,4 @@
+import { getAcpSessionManager } from "../../../acp/control-plane/manager.js";
 import { formatAcpRuntimeErrorText } from "../../../acp/runtime/error-text.js";
 import { toAcpRuntimeError } from "../../../acp/runtime/errors.js";
 import { getAcpRuntimeBackend, requireAcpRuntimeBackend } from "../../../acp/runtime/registry.js";
@@ -29,7 +30,24 @@ export async function handleAcpDoctorAction(
   const backendId = resolveConfiguredAcpBackendId(params.cfg);
   const installHint = resolveAcpInstallCommandHint(params.cfg);
   const registeredBackend = getAcpRuntimeBackend(backendId);
+  const managerSnapshot = getAcpSessionManager().getObservabilitySnapshot(params.cfg);
   const lines = ["ACP doctor:", "-----", `configuredBackend: ${backendId}`];
+  lines.push(`activeRuntimeSessions: ${managerSnapshot.runtimeCache.activeSessions}`);
+  lines.push(`runtimeIdleTtlMs: ${managerSnapshot.runtimeCache.idleTtlMs}`);
+  lines.push(`evictedIdleRuntimes: ${managerSnapshot.runtimeCache.evictedTotal}`);
+  lines.push(`activeTurns: ${managerSnapshot.turns.active}`);
+  lines.push(`queueDepth: ${managerSnapshot.turns.queueDepth}`);
+  lines.push(
+    `turnLatencyMs: avg=${managerSnapshot.turns.averageLatencyMs}, max=${managerSnapshot.turns.maxLatencyMs}`,
+  );
+  lines.push(
+    `turnCounts: completed=${managerSnapshot.turns.completed}, failed=${managerSnapshot.turns.failed}`,
+  );
+  const errorStatsText =
+    Object.entries(managerSnapshot.errorsByCode)
+      .map(([code, count]) => `${code}=${count}`)
+      .join(", ") || "(none)";
+  lines.push(`errorCodes: ${errorStatsText}`);
   if (registeredBackend) {
     lines.push(`registeredBackend: ${registeredBackend.id}`);
   } else {

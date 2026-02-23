@@ -645,6 +645,76 @@ describe("/acp command", () => {
     expect(setCwd?.reply?.text).toContain("Updated ACP cwd");
   });
 
+  it("rejects non-absolute cwd values via ACP runtime option validation", async () => {
+    const manager = createThreadBindingManager({
+      getByThreadId: vi.fn(() => ({
+        accountId: "default",
+        channelId: "parent-1",
+        threadId: "thread-1",
+        targetKind: "acp",
+        targetSessionKey: "agent:codex:acp:s1",
+        agentId: "codex",
+        boundBy: "user-1",
+        boundAt: Date.now(),
+      })),
+    });
+    hoisted.getThreadBindingManagerMock.mockReturnValue(manager);
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:s1",
+      storeSessionKey: "agent:codex:acp:s1",
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime-1",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+
+    const params = createDiscordParams("/acp cwd relative/path", baseCfg);
+    params.ctx.MessageThreadId = "thread-1";
+    const result = await handleAcpCommand(params, true);
+
+    expect(result?.reply?.text).toContain("ACP error (ACP_INVALID_RUNTIME_OPTION)");
+    expect(result?.reply?.text).toContain("absolute path");
+  });
+
+  it("rejects invalid timeout values before backend config writes", async () => {
+    const manager = createThreadBindingManager({
+      getByThreadId: vi.fn(() => ({
+        accountId: "default",
+        channelId: "parent-1",
+        threadId: "thread-1",
+        targetKind: "acp",
+        targetSessionKey: "agent:codex:acp:s1",
+        agentId: "codex",
+        boundBy: "user-1",
+        boundAt: Date.now(),
+      })),
+    });
+    hoisted.getThreadBindingManagerMock.mockReturnValue(manager);
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:s1",
+      storeSessionKey: "agent:codex:acp:s1",
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime-1",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+
+    const params = createDiscordParams("/acp timeout 10s", baseCfg);
+    params.ctx.MessageThreadId = "thread-1";
+    const result = await handleAcpCommand(params, true);
+
+    expect(result?.reply?.text).toContain("ACP error (ACP_INVALID_RUNTIME_OPTION)");
+    expect(hoisted.setConfigOptionMock).not.toHaveBeenCalled();
+  });
+
   it("returns actionable doctor output when backend is missing", async () => {
     hoisted.getAcpRuntimeBackendMock.mockReturnValue(null);
     hoisted.requireAcpRuntimeBackendMock.mockImplementation(() => {

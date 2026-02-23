@@ -10,8 +10,20 @@ export type CachedRuntimeState = {
   appliedControlSignature?: string;
 };
 
+type RuntimeCacheEntry = {
+  state: CachedRuntimeState;
+  lastTouchedAt: number;
+};
+
+export type CachedRuntimeSnapshot = {
+  actorKey: string;
+  state: CachedRuntimeState;
+  lastTouchedAt: number;
+  idleMs: number;
+};
+
 export class RuntimeCache {
-  private readonly cache = new Map<string, CachedRuntimeState>();
+  private readonly cache = new Map<string, RuntimeCacheEntry>();
 
   size(): number {
     return this.cache.size;
@@ -21,15 +33,67 @@ export class RuntimeCache {
     return this.cache.has(actorKey);
   }
 
-  get(actorKey: string): CachedRuntimeState | null {
-    return this.cache.get(actorKey) ?? null;
+  get(
+    actorKey: string,
+    params: {
+      touch?: boolean;
+      now?: number;
+    } = {},
+  ): CachedRuntimeState | null {
+    const entry = this.cache.get(actorKey);
+    if (!entry) {
+      return null;
+    }
+    if (params.touch !== false) {
+      entry.lastTouchedAt = params.now ?? Date.now();
+    }
+    return entry.state;
   }
 
-  set(actorKey: string, state: CachedRuntimeState): void {
-    this.cache.set(actorKey, state);
+  peek(actorKey: string): CachedRuntimeState | null {
+    return this.get(actorKey, { touch: false });
+  }
+
+  getLastTouchedAt(actorKey: string): number | null {
+    return this.cache.get(actorKey)?.lastTouchedAt ?? null;
+  }
+
+  set(
+    actorKey: string,
+    state: CachedRuntimeState,
+    params: {
+      now?: number;
+    } = {},
+  ): void {
+    this.cache.set(actorKey, {
+      state,
+      lastTouchedAt: params.now ?? Date.now(),
+    });
   }
 
   clear(actorKey: string): void {
     this.cache.delete(actorKey);
+  }
+
+  snapshot(params: { now?: number } = {}): CachedRuntimeSnapshot[] {
+    const now = params.now ?? Date.now();
+    const entries: CachedRuntimeSnapshot[] = [];
+    for (const [actorKey, entry] of this.cache.entries()) {
+      entries.push({
+        actorKey,
+        state: entry.state,
+        lastTouchedAt: entry.lastTouchedAt,
+        idleMs: Math.max(0, now - entry.lastTouchedAt),
+      });
+    }
+    return entries;
+  }
+
+  collectIdleCandidates(params: { maxIdleMs: number; now?: number }): CachedRuntimeSnapshot[] {
+    if (!Number.isFinite(params.maxIdleMs) || params.maxIdleMs <= 0) {
+      return [];
+    }
+    const now = params.now ?? Date.now();
+    return this.snapshot({ now }).filter((entry) => entry.idleMs >= params.maxIdleMs);
   }
 }

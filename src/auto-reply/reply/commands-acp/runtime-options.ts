@@ -1,4 +1,12 @@
 import { getAcpSessionManager } from "../../../acp/control-plane/manager.js";
+import {
+  parseRuntimeTimeoutSecondsInput,
+  validateRuntimeConfigOptionInput,
+  validateRuntimeCwdInput,
+  validateRuntimeModeInput,
+  validateRuntimeModelInput,
+  validateRuntimePermissionProfileInput,
+} from "../../../acp/control-plane/runtime-options.js";
 import type { CommandHandlerResult, HandleCommandsParams } from "../commands-types.js";
 import {
   ACP_CWD_USAGE,
@@ -85,13 +93,14 @@ export async function handleAcpSetModeAction(
   }
 
   try {
+    const runtimeMode = validateRuntimeModeInput(parsed.value.value);
     const options = await getAcpSessionManager().setSessionRuntimeMode({
       cfg: params.cfg,
       sessionKey: target.sessionKey,
-      runtimeMode: parsed.value.value,
+      runtimeMode,
     });
     return stopWithText(
-      `✅ Updated ACP runtime mode for ${target.sessionKey}: ${parsed.value.value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+      `✅ Updated ACP runtime mode for ${target.sessionKey}: ${runtimeMode}. Effective options: ${formatRuntimeOptionsText(options)}`,
     );
   } catch (error) {
     return stopWithText(
@@ -125,23 +134,25 @@ export async function handleAcpSetAction(
   try {
     const lowerKey = key.toLowerCase();
     if (lowerKey === "cwd") {
+      const cwd = validateRuntimeCwdInput(value);
       const options = await getAcpSessionManager().updateSessionRuntimeOptions({
         cfg: params.cfg,
         sessionKey: target.sessionKey,
-        patch: { cwd: value },
+        patch: { cwd },
       });
       return stopWithText(
-        `✅ Updated ACP cwd for ${target.sessionKey}: ${value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+        `✅ Updated ACP cwd for ${target.sessionKey}: ${cwd}. Effective options: ${formatRuntimeOptionsText(options)}`,
       );
     }
+    const validated = validateRuntimeConfigOptionInput(key, value);
     const options = await getAcpSessionManager().setSessionConfigOption({
       cfg: params.cfg,
       sessionKey: target.sessionKey,
-      key,
-      value,
+      key: validated.key,
+      value: validated.value,
     });
     return stopWithText(
-      `✅ Updated ACP config option for ${target.sessionKey}: ${key}=${value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+      `✅ Updated ACP config option for ${target.sessionKey}: ${validated.key}=${validated.value}. Effective options: ${formatRuntimeOptionsText(options)}`,
     );
   } catch (error) {
     return stopWithText(
@@ -171,13 +182,14 @@ export async function handleAcpCwdAction(
   }
 
   try {
+    const cwd = validateRuntimeCwdInput(parsed.value.value);
     const options = await getAcpSessionManager().updateSessionRuntimeOptions({
       cfg: params.cfg,
       sessionKey: target.sessionKey,
-      patch: { cwd: parsed.value.value },
+      patch: { cwd },
     });
     return stopWithText(
-      `✅ Updated ACP cwd for ${target.sessionKey}: ${parsed.value.value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+      `✅ Updated ACP cwd for ${target.sessionKey}: ${cwd}. Effective options: ${formatRuntimeOptionsText(options)}`,
     );
   } catch (error) {
     return stopWithText(
@@ -206,14 +218,15 @@ export async function handleAcpPermissionsAction(
     return stopWithText(`⚠️ ${target.error}`);
   }
   try {
+    const permissionProfile = validateRuntimePermissionProfileInput(parsed.value.value);
     const options = await getAcpSessionManager().setSessionConfigOption({
       cfg: params.cfg,
       sessionKey: target.sessionKey,
       key: "approval_policy",
-      value: parsed.value.value,
+      value: permissionProfile,
     });
     return stopWithText(
-      `✅ Updated ACP permissions profile for ${target.sessionKey}: ${parsed.value.value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+      `✅ Updated ACP permissions profile for ${target.sessionKey}: ${permissionProfile}. Effective options: ${formatRuntimeOptionsText(options)}`,
     );
   } catch (error) {
     return stopWithText(
@@ -234,12 +247,6 @@ export async function handleAcpTimeoutAction(
   if (!parsed.ok) {
     return stopWithText(`⚠️ ${parsed.error}`);
   }
-  const timeoutSeconds = Number.parseInt(parsed.value.value, 10);
-  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
-    return stopWithText(
-      `⚠️ Invalid timeout value "${parsed.value.value}". Use a positive integer.`,
-    );
-  }
   const target = await resolveAcpTargetSessionKey({
     commandParams: params,
     token: parsed.value.sessionToken,
@@ -249,6 +256,7 @@ export async function handleAcpTimeoutAction(
   }
 
   try {
+    const timeoutSeconds = parseRuntimeTimeoutSecondsInput(parsed.value.value);
     const options = await getAcpSessionManager().setSessionConfigOption({
       cfg: params.cfg,
       sessionKey: target.sessionKey,
@@ -285,14 +293,15 @@ export async function handleAcpModelAction(
     return stopWithText(`⚠️ ${target.error}`);
   }
   try {
+    const model = validateRuntimeModelInput(parsed.value.value);
     const options = await getAcpSessionManager().setSessionConfigOption({
       cfg: params.cfg,
       sessionKey: target.sessionKey,
       key: "model",
-      value: parsed.value.value,
+      value: model,
     });
     return stopWithText(
-      `✅ Updated ACP model for ${target.sessionKey}: ${parsed.value.value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+      `✅ Updated ACP model for ${target.sessionKey}: ${model}. Effective options: ${formatRuntimeOptionsText(options)}`,
     );
   } catch (error) {
     return stopWithText(
