@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
+import { normalizeChatChannelId } from "../channels/registry.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -113,6 +114,22 @@ function validatePluginConfig(params: {
     return { ok: true, value: params.value as Record<string, unknown> | undefined };
   }
   return { ok: false, errors: result.errors };
+}
+
+function isBundledBuiltInChannelExplicitlyEnabled(params: {
+  cfg: OpenClawConfig;
+  pluginId: string;
+}): boolean {
+  const channelId = normalizeChatChannelId(params.pluginId);
+  if (!channelId) {
+    return false;
+  }
+  const channels = params.cfg.channels as Record<string, unknown> | undefined;
+  const entry = channels?.[channelId];
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    return false;
+  }
+  return (entry as { enabled?: unknown }).enabled === true;
 }
 
 function resolvePluginModuleExport(moduleExport: unknown): {
@@ -472,7 +489,14 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       continue;
     }
 
-    const enableState = resolveEnableState(pluginId, candidate.origin, normalized);
+    let enableState = resolveEnableState(pluginId, candidate.origin, normalized);
+    if (
+      !enableState.enabled &&
+      candidate.origin === "bundled" &&
+      isBundledBuiltInChannelExplicitlyEnabled({ cfg, pluginId })
+    ) {
+      enableState = { enabled: true };
+    }
     const entry = normalized.entries[pluginId];
     const record = createPluginRecord({
       id: pluginId,

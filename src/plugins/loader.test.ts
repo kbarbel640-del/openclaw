@@ -195,6 +195,51 @@ describe("loadOpenClawPlugins", () => {
     expect(registry.channels.some((entry) => entry.plugin.id === "telegram")).toBe(true);
   });
 
+  it("loads bundled telegram plugin when channels.telegram.enabled is true", () => {
+    const bundledDir = makeTempDir();
+    writePlugin({
+      id: "telegram",
+      body: `export default { id: "telegram", register(api) {
+  api.registerChannel({
+    plugin: {
+      id: "telegram",
+      meta: {
+        id: "telegram",
+        label: "Telegram",
+        selectionLabel: "Telegram",
+        docsPath: "/channels/telegram",
+        blurb: "telegram channel"
+      },
+      capabilities: { chatTypes: ["direct"] },
+      config: {
+        listAccountIds: () => [],
+        resolveAccount: () => ({ accountId: "default" })
+      },
+      outbound: { deliveryMode: "direct" }
+    }
+  });
+\t} };`,
+      dir: bundledDir,
+      filename: "telegram.js",
+    });
+    process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = bundledDir;
+
+    const registry = loadOpenClawPlugins({
+      cache: false,
+      config: {
+        channels: {
+          telegram: {
+            enabled: true,
+          },
+        },
+      },
+    });
+
+    const telegram = registry.plugins.find((entry) => entry.id === "telegram");
+    expect(telegram?.status).toBe("loaded");
+    expect(registry.channels.some((entry) => entry.plugin.id === "telegram")).toBe(true);
+  });
+
   it("enables bundled memory plugin when selected by slot", () => {
     const registry = loadBundledMemoryPluginRegistry();
 
