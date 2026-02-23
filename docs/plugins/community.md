@@ -42,3 +42,10 @@ Use this format when adding entries:
   npm: `@scope/package`
   repo: `https://github.com/org/repo`
   install: `openclaw plugins install @scope/package`
+
+## Candidate listings
+
+- **AgentSEO** — SEO and GEO research tools for OpenClaw agents (search, extraction, SERP analysis).
+  npm: `@agentseo/openclaw-plugin`
+  repo: `https://github.com/AgentSEO-dev/agentseo`
+  install: `openclaw plugins install @agentseo/openclaw-plugin --pin`
