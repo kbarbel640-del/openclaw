@@ -520,6 +520,7 @@ export const dispatchTelegramMessage = async ({
       },
       replyOptions: {
         skillFilter,
+        channelReasoningLevel: telegramCfg.reasoningLevel,
         disableBlockStreaming,
         onPartialReply:
           answerLane.stream || reasoningLane.stream

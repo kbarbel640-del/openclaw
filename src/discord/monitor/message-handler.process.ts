@@ -661,11 +661,13 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       replyOptions: {
         ...replyOptions,
         skillFilter: channelConfig?.skills,
+        channelReasoningLevel: discordConfig?.reasoningLevel,
         disableBlockStreaming:
           disableBlockStreamingForDraft ??
-          (typeof discordConfig?.blockStreaming === "boolean"
-            ? !discordConfig.blockStreaming
-            : undefined),
+          (() => {
+            const blockStreaming = discordConfig?.blockStreaming;
+            return typeof blockStreaming === "boolean" ? !blockStreaming : undefined;
+          })(),
         onPartialReply: draftStream ? (payload) => updateDraftFromPartial(payload.text) : undefined,
         onAssistantMessageStart: draftStream
           ? () => {

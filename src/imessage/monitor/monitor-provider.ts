@@ -423,6 +423,7 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       cfg,
       dispatcher,
       replyOptions: {
+        channelReasoningLevel: accountInfo.config.reasoningLevel,
         disableBlockStreaming:
           typeof accountInfo.config.blockStreaming === "boolean"
             ? !accountInfo.config.blockStreaming

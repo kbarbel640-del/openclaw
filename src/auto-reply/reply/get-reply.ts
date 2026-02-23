@@ -51,6 +51,48 @@ function mergeSkillFilters(channelFilter?: string[], agentFilter?: string[]): st
   return channel.filter((name) => agentSet.has(name));
 }
 
+type ReasoningLevelOverride = "off" | "on" | "stream";
+
+function normalizeReasoningLevel(value: unknown): ReasoningLevelOverride | undefined {
+  return value === "off" || value === "on" || value === "stream" ? value : undefined;
+}
+
+function resolveChannelReasoningLevel(
+  cfg: OpenClawConfig,
+  ctx: MsgContext,
+): ReasoningLevelOverride | undefined {
+  const providerKey =
+    (typeof ctx.Provider === "string" && ctx.Provider.trim().toLowerCase()) ||
+    (typeof ctx.OriginatingChannel === "string" && ctx.OriginatingChannel.trim().toLowerCase()) ||
+    "";
+  if (!providerKey) {
+    return undefined;
+  }
+
+  const channels = cfg.channels as
+    | Record<
+        string,
+        { reasoningLevel?: unknown; accounts?: Record<string, { reasoningLevel?: unknown }> }
+      >
+    | undefined;
+  const channelConfig = channels?.[providerKey];
+  if (!channelConfig) {
+    return undefined;
+  }
+
+  const accountId = typeof ctx.AccountId === "string" ? ctx.AccountId.trim() : "";
+  if (accountId) {
+    const accountLevel = normalizeReasoningLevel(
+      channelConfig.accounts?.[accountId]?.reasoningLevel,
+    );
+    if (accountLevel) {
+      return accountLevel;
+    }
+  }
+
+  return normalizeReasoningLevel(channelConfig.reasoningLevel);
+}
+
 export async function getReplyFromConfig(
   ctx: MsgContext,
   opts?: GetReplyOptions,
@@ -69,8 +111,18 @@ export async function getReplyFromConfig(
     opts?.skillFilter,
     resolveAgentSkillsFilter(cfg, agentId),
   );
+  const resolvedChannelReasoningLevel =
+    opts?.channelReasoningLevel ?? resolveChannelReasoningLevel(cfg, ctx);
   const resolvedOpts =
-    mergedSkillFilter !== undefined ? { ...opts, skillFilter: mergedSkillFilter } : opts;
+    mergedSkillFilter !== undefined || resolvedChannelReasoningLevel !== undefined
+      ? {
+          ...opts,
+          ...(mergedSkillFilter !== undefined ? { skillFilter: mergedSkillFilter } : {}),
+          ...(resolvedChannelReasoningLevel !== undefined
+            ? { channelReasoningLevel: resolvedChannelReasoningLevel }
+            : {}),
+        }
+      : opts;
   const agentCfg = cfg.agents?.defaults;
   const sessionCfg = cfg.session;
   const { defaultProvider, defaultModel, aliasIndex } = resolveDefaultModel({

@@ -36,6 +36,7 @@ export type WhatsAppAckReactionConfig = {
 };
 
 type WhatsAppSharedConfig = {
+  reasoningLevel?: "off" | "on" | "stream";
   /** Direct message access policy (default: pairing). */
   dmPolicy?: DmPolicy;
   /** Same-phone setup (bot uses your personal WhatsApp number). */

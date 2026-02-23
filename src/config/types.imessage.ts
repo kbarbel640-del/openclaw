@@ -17,6 +17,7 @@ export type IMessageAccountConfig = {
   markdown?: MarkdownConfig;
   /** Allow channel-initiated config writes (default: true). */
   configWrites?: boolean;
+  reasoningLevel?: "off" | "on" | "stream";
   /** If false, do not start this iMessage account. Default: true. */
   enabled?: boolean;
   /** imsg CLI binary path (default: imsg). */
