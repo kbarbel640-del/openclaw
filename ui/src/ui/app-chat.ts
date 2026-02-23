@@ -106,10 +106,10 @@ async function sendChatMessageNow(
   resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
   const runId = await sendChatMessage(host as unknown as OpenClawApp, message, opts?.attachments);
   const ok = Boolean(runId);
-  if (!ok && opts?.previousDraft != null) {
+  if (!ok && opts?.previousDraft != null && !host.chatMessage.trim()) {
     host.chatMessage = opts.previousDraft;
   }
-  if (!ok && opts?.previousAttachments) {
+  if (!ok && opts?.previousAttachments && !host.chatAttachments?.length) {
     host.chatAttachments = opts.previousAttachments;
   }
   if (ok) {

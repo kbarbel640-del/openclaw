@@ -764,6 +764,9 @@ export function renderChat(props: ChatProps) {
         if (props.draft.trim()) {
           inputHistory.push(props.draft);
         }
+        const textarea = e.target as HTMLTextAreaElement;
+        textarea.value = "";
+        adjustTextareaHeight(textarea);
         props.onSend();
       }
     }
@@ -990,9 +993,16 @@ export function renderChat(props: ChatProps) {
                 : html`
                   <button
                     class="chat-send-btn"
-                    @click=${() => {
+                    @click=${(e: Event) => {
                       if (props.draft.trim()) {
                         inputHistory.push(props.draft);
+                      }
+                      const textarea = (e.target as HTMLElement)
+                        .closest(".agent-chat__input")
+                        ?.querySelector("textarea");
+                      if (textarea) {
+                        textarea.value = "";
+                        adjustTextareaHeight(textarea);
                       }
                       props.onSend();
                     }}
