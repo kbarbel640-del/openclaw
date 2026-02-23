@@ -45,8 +45,8 @@
 | 9     | 9.2  | Hooks token security requirement                            | done        | —   | onboarding-wizard | 2026-02-20 | Hooks secured        |
 | 10    | 10.1 | Critical severity audit checks                              | done        | —   | security-audit    | 2026-02-23 | Doctor updated ✓     |
 | 10    | 10.2 | `--strict` flag for security audit                          | done        | —   | security-audit    | 2026-02-23 | --strict added ✓     |
-| 11    | 11.1 | Mandatory auth E2E tests                                    | not-started | —   | test-engineer     | —          | Depends: Phases 3-8  |
-| 11    | 11.2 | Update existing auth tests                                  | not-started | —   | test-engineer     | —          | Depends: 11.1        |
+| 11    | 11.1 | Mandatory auth E2E tests                                    | done        | —   | test-engineer     | 2026-02-23 | E2E tests pass ✓     |
+| 11    | 11.2 | Update existing auth tests                                  | done        | —   | test-engineer     | 2026-02-23 | Legacy tests fixed ✓ |
 | 12    | 12.1 | Rewrite gateway security docs                               | not-started | —   | docs-writer       | —          | Depends: Phases 1-11 |
 | 12    | 12.2 | Update configuration reference                              | not-started | —   | docs-writer       | —          | Depends: 12.1        |
 | 12    | 12.3 | Create migration guide                                      | not-started | —   | docs-writer       | —          | Depends: 12.1        |
@@ -60,10 +60,10 @@
 ## Summary
 
 - **Total Tasks**: 30
-- **Done**: 20
+- **Done**: 22
 - **In Progress**: 0
 - **Blocked**: 0
-- **Remaining**: 10
+- **Remaining**: 8
 
 ---
 
@@ -71,6 +71,7 @@
 
 | Date       | Sprint   | Action      | Details                                    |
 | ---------- | -------- | ----------- | ------------------------------------------ |
+| 2026-02-23 | Sprint 7 | Completed   | Phase 11 (E2E security tests) ✓            |
 | 2026-02-23 | Sprint 6 | Completed   | Phase 10 (Security audit tool) ✓           |
 | 2026-02-23 | Sprint 5 | Completed   | Phases 7-8 (Rate limiter + local bypass) ✓ |
 | 2026-02-20 | Sprint 4 | Completed   | Phases 4-6 (Control/Canvas/Plugin auth) ✓  |
