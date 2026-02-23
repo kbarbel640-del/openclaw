@@ -7,6 +7,8 @@ export type BrowserProfileConfig = {
   driver?: "openclaw" | "extension";
   /** Profile color (hex). Auto-assigned at creation. */
   color: string;
+  /** Override global headless setting for this profile. Useful for profiles that need a visible window (e.g. login setup). */
+  headless?: boolean;
 };
 export type BrowserSnapshotDefaults = {
   /** Default snapshot mode (applies when mode is not provided). */
