@@ -1,4 +1,20 @@
 const DEFAULT_PORT = 18792
+const RELAY_TOKEN_CONTEXT = 'openclaw-extension-relay-v1'
+
+async function deriveRelayToken(gatewayToken, port) {
+  const enc = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(gatewayToken),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(`${RELAY_TOKEN_CONTEXT}:${port}`))
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
 
 function clampPort(value) {
   const n = Number.parseInt(String(value || ''), 10)
@@ -26,19 +42,20 @@ function setStatus(kind, message) {
   status.textContent = message || ''
 }
 
-async function checkRelayReachable(port, token) {
+async function checkRelayReachable(port, gatewayToken) {
   const url = `http://127.0.0.1:${port}/json/version`
-  const trimmedToken = String(token || '').trim()
-  if (!trimmedToken) {
+  const trimmed = String(gatewayToken || '').trim()
+  if (!trimmed) {
     setStatus('error', 'Gateway token required. Save your gateway token to connect.')
     return
   }
+  const derivedToken = await deriveRelayToken(trimmed, port)
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), 1200)
   try {
     const res = await fetch(url, {
       method: 'GET',
-      headers: relayHeaders(trimmedToken),
+      headers: relayHeaders(derivedToken),
       signal: ctrl.signal,
     })
     if (res.status === 401) {

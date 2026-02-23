@@ -1,8 +1,10 @@
+import { createHmac } from "node:crypto";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 type BackgroundUtilsModule = {
-  buildRelayWsUrl: (port: number, gatewayToken: string) => string;
+  buildRelayWsUrl: (port: number, gatewayToken: string) => Promise<string>;
+  deriveRelayToken: (gatewayToken: string, port: number) => Promise<string>;
   isRetryableReconnectError: (err: unknown) => boolean;
   reconnectDelayMs: (
     attempt: number,
@@ -25,18 +27,31 @@ async function loadBackgroundUtils(): Promise<BackgroundUtilsModule> {
   }
 }
 
-const { buildRelayWsUrl, isRetryableReconnectError, reconnectDelayMs } =
+const { buildRelayWsUrl, deriveRelayToken, isRetryableReconnectError, reconnectDelayMs } =
   await loadBackgroundUtils();
 
+function expectedDerivedToken(gatewayToken: string, port: number): string {
+  return createHmac("sha256", gatewayToken)
+    .update(`openclaw-extension-relay-v1:${port}`)
+    .digest("hex");
+}
+
 describe("chrome extension background utils", () => {
-  it("builds websocket url with encoded gateway token", () => {
-    const url = buildRelayWsUrl(18792, "abc/+= token");
-    expect(url).toBe("ws://127.0.0.1:18792/extension?token=abc%2F%2B%3D%20token");
+  it("builds websocket url with derived relay token", async () => {
+    const url = await buildRelayWsUrl(18792, "abc/+= token");
+    const expected = expectedDerivedToken("abc/+= token", 18792);
+    expect(url).toBe(`ws://127.0.0.1:18792/extension?token=${expected}`);
   });
 
-  it("throws when gateway token is missing", () => {
-    expect(() => buildRelayWsUrl(18792, "")).toThrow(/Missing gatewayToken/);
-    expect(() => buildRelayWsUrl(18792, "   ")).toThrow(/Missing gatewayToken/);
+  it("throws when gateway token is missing", async () => {
+    await expect(buildRelayWsUrl(18792, "")).rejects.toThrow(/Missing gatewayToken/);
+    await expect(buildRelayWsUrl(18792, "   ")).rejects.toThrow(/Missing gatewayToken/);
+  });
+
+  it("derives relay token matching server-side HMAC", async () => {
+    const derived = await deriveRelayToken("my-secret", 18792);
+    const expected = expectedDerivedToken("my-secret", 18792);
+    expect(derived).toBe(expected);
   });
 
   it("uses exponential backoff from attempt index", () => {
