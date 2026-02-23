@@ -36,7 +36,7 @@ class I18nManager {
     // Eagerly load translations for non-en locales so the UI renders
     // in the correct language once subscribers are registered.
     if (this.locale !== "en") {
-      this.loadTranslations(this.locale).then(() => this.notify());
+      void this.loadTranslations(this.locale).then(() => this.notify());
     }
   }
 
