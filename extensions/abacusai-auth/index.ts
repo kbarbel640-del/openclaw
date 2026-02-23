@@ -278,7 +278,7 @@ function sendJsonResponse(res: ServerResponse, status: number, data: unknown) {
 }
 
 function generateChunkId(): string {
-  return `chatcmpl-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  return `chatcmpl-${crypto.randomUUID()}`;
 }
 
 /**
