@@ -732,6 +732,11 @@ export async function runEmbeddedAttempt(
           process.env.GOOGLE_CLOUD_PROJECT?.trim() ||
           process.env.ANTHROPIC_VERTEX_PROJECT_ID?.trim() ||
           "";
+        if (!project) {
+          throw new Error(
+            "Anthropic Vertex provider requires GOOGLE_CLOUD_PROJECT or ANTHROPIC_VERTEX_PROJECT_ID to be set.",
+          );
+        }
         const region =
           process.env.GOOGLE_CLOUD_LOCATION?.trim() ||
           process.env.CLOUD_ML_REGION?.trim() ||
