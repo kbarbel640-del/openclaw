@@ -631,6 +631,16 @@ export const OpenClawSchema = z
       })
       .strict()
       .optional(),
+    policy: z
+      .object({
+        enabled: z.boolean().optional(),
+        policyPath: z.string().optional(),
+        sigPath: z.string().optional(),
+        publicKey: z.string().optional(),
+        failClosed: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
     plugins: z
       .object({
         enabled: z.boolean().optional(),

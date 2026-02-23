@@ -9,6 +9,7 @@ import { stopGmailWatcher } from "../hooks/gmail-watcher.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import type { HeartbeatRunner } from "../infra/heartbeat-runner.js";
 import { resetDirectoryCache } from "../infra/outbound/target-resolver.js";
+import { refreshPolicyManager } from "../policy/policy.manager.js";
 import {
   deferGatewayRestartUntilIdle,
   emitGatewayRestart,
@@ -50,6 +51,7 @@ export function createGatewayReloadHandlers(params: {
     nextConfig: ReturnType<typeof loadConfig>,
   ) => {
     setGatewaySigusr1RestartPolicy({ allowExternal: isRestartEnabled(nextConfig) });
+    await refreshPolicyManager({ config: nextConfig });
     const state = params.getState();
     const nextState = { ...state };
 

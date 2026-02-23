@@ -43,6 +43,7 @@ import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js
 import { getGlobalHookRunner, runGlobalGatewayStopSafely } from "../plugins/hook-runner-global.js";
 import { createEmptyPluginRegistry } from "../plugins/registry.js";
 import type { PluginServicesHandle } from "../plugins/services.js";
+import { refreshPolicyManager } from "../policy/policy.manager.js";
 import { getTotalQueueSize } from "../process/command-queue.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { runOnboardingWizard } from "../wizard/onboarding.js";
@@ -251,6 +252,20 @@ export async function startGatewayServer(
       log.warn(
         "Gateway auth token was missing. Generated a runtime token for this startup without changing config; restart will generate a different token. Persist one with `openclaw config set gateway.auth.mode token` and `openclaw config set gateway.auth.token <token>`.",
       );
+    }
+  }
+  const policyState = await refreshPolicyManager({ config: cfgAtStart });
+  if (policyState.enabled) {
+    if (policyState.lockdown) {
+      log.warn(
+        `policy guardrails: lockdown mode active (${policyState.reason ?? "policy signature invalid"})`,
+      );
+    } else if (!policyState.valid) {
+      log.warn(
+        `policy guardrails: enabled but invalid policy in fail-open mode (${policyState.reason ?? "invalid policy"})`,
+      );
+    } else {
+      log.info(`policy guardrails: enabled (policy=${policyState.policyPath})`);
     }
   }
   const diagnosticsEnabled = isDiagnosticsEnabled(cfgAtStart);
