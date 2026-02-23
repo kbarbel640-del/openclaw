@@ -315,6 +315,7 @@ describe("redactConfigSnapshot", () => {
   });
 
   it("redacts env vars that look like secrets", () => {
+    const hints = mapSensitivePaths(OpenClawSchema, "", {});
     const snapshot = makeSnapshot({
       env: {
         vars: {
@@ -323,11 +324,40 @@ describe("redactConfigSnapshot", () => {
         },
       },
     });
-    const result = redactConfigSnapshot(snapshot);
+    const result = redactConfigSnapshot(snapshot, hints);
     const env = result.config.env as Record<string, Record<string, string>>;
-    // NODE_ENV is not sensitive, should be preserved
-    expect(env.vars.NODE_ENV).toBe("production");
+    // All env.vars values are sensitive and should be redacted
+    expect(env.vars.NODE_ENV).toBe(REDACTED_SENTINEL);
     expect(env.vars.OPENAI_API_KEY).toBe(REDACTED_SENTINEL);
+  });
+
+  it("redacts ALL env.vars values regardless of key name (#24786)", () => {
+    // env.vars is for user-defined secrets - all values should be redacted
+    const hints = mapSensitivePaths(OpenClawSchema, "", {});
+    const snapshot = makeSnapshot({
+      env: {
+        vars: {
+          GITHUB_PAT: "ghp_xxxxxxxxxxxx",
+          DATABASE_URL: "postgres://user:pass@host/db",
+          STRIPE_KEY: "sk_live_xxxx",
+          MY_CUSTOM_VAR: "sensitive-value",
+        },
+      },
+    });
+    const result = redactConfigSnapshot(snapshot, hints);
+    const env = result.config.env as Record<string, Record<string, string>>;
+    expect(env.vars.GITHUB_PAT).toBe(REDACTED_SENTINEL);
+    expect(env.vars.DATABASE_URL).toBe(REDACTED_SENTINEL);
+    expect(env.vars.STRIPE_KEY).toBe(REDACTED_SENTINEL);
+    expect(env.vars.MY_CUSTOM_VAR).toBe(REDACTED_SENTINEL);
+
+    // Verify round-trip restore works
+    const restored = restoreRedactedValues(result.config, snapshot.config, hints);
+    const restoredEnv = restored.env as Record<string, Record<string, string>>;
+    expect(restoredEnv.vars.GITHUB_PAT).toBe("ghp_xxxxxxxxxxxx");
+    expect(restoredEnv.vars.DATABASE_URL).toBe("postgres://user:pass@host/db");
+    expect(restoredEnv.vars.STRIPE_KEY).toBe("sk_live_xxxx");
+    expect(restoredEnv.vars.MY_CUSTOM_VAR).toBe("sensitive-value");
   });
 
   it("does NOT redact numeric 'tokens' fields (token regex fix)", () => {

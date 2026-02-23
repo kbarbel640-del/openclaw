@@ -120,7 +120,7 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
-        vars: z.record(z.string(), z.string()).optional(),
+        vars: z.record(z.string(), z.string().register(sensitive)).optional(),
       })
       .catchall(z.string())
       .optional(),
