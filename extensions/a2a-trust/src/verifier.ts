@@ -23,7 +23,7 @@ import { createHmac, createHash, timingSafeEqual as cryptoTimingSafeEqual } from
 export function verifyReleaseToken(
   releaseToken: string,
   preimage: string,
-  hmacKey: string
+  hmacKey: string,
 ): boolean {
   // Validate preimage format
   const pattern = /^KEVROSv1\|(ALLOW|CLAMP|DENY)\|\d+\|[0-9a-f]{64}\|[0-9a-f]{64}$/;
@@ -32,9 +32,7 @@ export function verifyReleaseToken(
   }
 
   const keyBytes = Buffer.from(hmacKey, "hex");
-  const computed = createHmac("sha256", keyBytes)
-    .update(preimage, "utf-8")
-    .digest("hex");
+  const computed = createHmac("sha256", keyBytes).update(preimage, "utf-8").digest("hex");
 
   return timingSafeEqual(computed, releaseToken);
 }
@@ -54,7 +52,7 @@ export function verifyChain(
     hash_prev: string;
     hash_curr: string;
     [key: string]: unknown;
-  }>
+  }>,
 ): { valid: boolean; breaks: number; mismatches: number } {
   let breaks = 0;
   let mismatches = 0;
@@ -73,9 +71,7 @@ export function verifyChain(
     // Recompute hash_curr
     const { hash_curr: _, ...recordWithoutHash } = record;
     const canonical = canonicalJson(recordWithoutHash);
-    const expected = sha256Hex(
-      record.hash_prev + "|" + canonical
-    );
+    const expected = sha256Hex(record.hash_prev + "|" + canonical);
 
     if (expected !== record.hash_curr) {
       mismatches++;
@@ -98,10 +94,7 @@ export function verifyChain(
  * @param payload - The original action payload
  * @param expectedHash - The hash from the attestation record
  */
-export function verifyPayloadHash(
-  payload: Record<string, unknown>,
-  expectedHash: string
-): boolean {
+export function verifyPayloadHash(payload: Record<string, unknown>, expectedHash: string): boolean {
   const canonical = canonicalJson(payload);
   const computed = sha256Hex(canonical);
   return timingSafeEqual(computed, expectedHash);

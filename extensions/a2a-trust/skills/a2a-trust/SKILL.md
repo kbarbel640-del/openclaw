@@ -41,9 +41,9 @@ cryptographic release token that proves the decision was made.
 ```json
 {
   "action_type": "api_call",
-  "action_payload": {"endpoint": "/deploy", "service": "api-v2"},
+  "action_payload": { "endpoint": "/deploy", "service": "api-v2" },
   "policy_context": {
-    "max_values": {"replicas": 3},
+    "max_values": { "replicas": 3 },
     "forbidden_keys": ["sudo", "force"]
   }
 }
@@ -65,8 +65,8 @@ is never stored.
 ```json
 {
   "action_description": "Deployed api-v2 with 2 replicas",
-  "action_payload": {"service": "api-v2", "replicas": 2, "status": "success"},
-  "context": {"environment": "production", "triggered_by": "scheduled"}
+  "action_payload": { "service": "api-v2", "replicas": 2, "status": "success" },
+  "context": { "environment": "production", "triggered_by": "scheduled" }
 }
 ```
 
@@ -83,8 +83,8 @@ exactly what you said you would.
 {
   "intent_type": "MAINTENANCE",
   "intent_description": "Scale api-v2 to handle traffic spike",
-  "command_payload": {"action": "scale", "service": "api-v2", "replicas": 5},
-  "goal_state": {"replicas": 5, "healthy": true}
+  "command_payload": { "action": "scale", "service": "api-v2", "replicas": 5 },
+  "goal_state": { "replicas": 5, "healthy": true }
 }
 ```
 
@@ -99,7 +99,7 @@ against what you planned.
 {
   "intent_id": "<from bind response>",
   "binding_id": "<from bind response>",
-  "actual_state": {"replicas": 5, "healthy": true},
+  "actual_state": { "replicas": 5, "healthy": true },
   "tolerance": 0.1
 }
 ```
@@ -142,6 +142,7 @@ post-quantum signatures.
 ## Trust Score
 
 Your trust score is computed from:
+
 - **Chain length** (30%) — longer history = more trustworthy
 - **Attestation density** (20%) — consistent recording = reliable
 - **Outcome success rate** (30%) — doing what you say = dependable

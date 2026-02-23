@@ -35,14 +35,14 @@ Or add to your OpenClaw config:
 
 ## Configuration
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `agentId` | Yes | — | Your agent's unique identifier |
-| `apiKey` | No | auto-signup | API key (`kvrs_...`). Omit for free tier (100 calls/month) |
-| `gatewayUrl` | No | `https://governance.taskhawktech.com` | Trust gateway URL |
-| `autoVerify` | No | `false` | Auto-verify outbound A2A messages |
-| `autoAttest` | No | `false` | Auto-attest completed tool calls |
-| `trustServerPort` | No | `18790` | Port for Agent Card discovery server |
+| Field             | Required | Default                               | Description                                                |
+| ----------------- | -------- | ------------------------------------- | ---------------------------------------------------------- |
+| `agentId`         | Yes      | —                                     | Your agent's unique identifier                             |
+| `apiKey`          | No       | auto-signup                           | API key (`kvrs_...`). Omit for free tier (100 calls/month) |
+| `gatewayUrl`      | No       | `https://governance.taskhawktech.com` | Trust gateway URL                                          |
+| `autoVerify`      | No       | `false`                               | Auto-verify outbound A2A messages                          |
+| `autoAttest`      | No       | `false`                               | Auto-attest completed tool calls                           |
+| `trustServerPort` | No       | `18790`                               | Port for Agent Card discovery server                       |
 
 ## Quick Start
 
@@ -80,23 +80,23 @@ curl http://127.0.0.1:18790/.well-known/agent.json
 
 ## Gateway Methods (for Agent Tool Calls)
 
-| Method | Description | Cost |
-|--------|-------------|------|
-| `kevros.trust.verify` | Verify action before execution | $0.01 |
-| `kevros.trust.attest` | Record completed action | $0.02 |
-| `kevros.trust.bind` | Bind intent to command | $0.02 |
-| `kevros.trust.verify-outcome` | Verify outcome of bound intent | Free |
-| `kevros.trust.bundle` | Full compliance evidence package | $0.25 |
-| `kevros.trust.reputation` | Check any agent's trust score | Free |
+| Method                        | Description                      | Cost  |
+| ----------------------------- | -------------------------------- | ----- |
+| `kevros.trust.verify`         | Verify action before execution   | $0.01 |
+| `kevros.trust.attest`         | Record completed action          | $0.02 |
+| `kevros.trust.bind`           | Bind intent to command           | $0.02 |
+| `kevros.trust.verify-outcome` | Verify outcome of bound intent   | Free  |
+| `kevros.trust.bundle`         | Full compliance evidence package | $0.25 |
+| `kevros.trust.reputation`     | Check any agent's trust score    | Free  |
 
 ## Pricing
 
-| Tier | Monthly | Included Calls | Rate Limit |
-|------|---------|----------------|------------|
-| Free | $0 | 100 | 10/min |
-| Scout | $29 | 5,000 | 600/min |
-| Sentinel | $149 | 50,000 | 600/min |
-| Sovereign | $499 | 500,000 | 600/min |
+| Tier      | Monthly | Included Calls | Rate Limit |
+| --------- | ------- | -------------- | ---------- |
+| Free      | $0      | 100            | 10/min     |
+| Scout     | $29     | 5,000          | 600/min    |
+| Sentinel  | $149    | 50,000         | 600/min    |
+| Sovereign | $499    | 500,000        | 600/min    |
 
 Upgrade: `https://governance.taskhawktech.com/stripe/checkout`
 

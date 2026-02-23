@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { TrustPluginConfig } from "./types.js";
 import { TrustClient } from "./client.js";
+import type { TrustPluginConfig } from "./types.js";
 
 /**
  * Lightweight HTTP server that exposes this agent's A2A trust surface:
@@ -50,17 +50,17 @@ export class TrustServer {
     });
   }
 
-  private async handleRequest(
-    req: IncomingMessage,
-    res: ServerResponse
-  ): Promise<void> {
+  private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url ?? "/";
     const method = req.method ?? "GET";
 
     // CORS headers for local agent communication
     res.setHeader("Access-Control-Allow-Origin", "http://localhost:*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Kevros-Release-Token, X-Kevros-Agent-Id");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, X-Kevros-Release-Token, X-Kevros-Agent-Id",
+    );
 
     if (method === "OPTIONS") {
       res.writeHead(204);
@@ -113,13 +113,15 @@ export class TrustServer {
       },
       authentication: {
         schemes: ["bearer"],
-        description: "Release tokens from Kevros trust gateway serve as bearer proof of verified decisions",
+        description:
+          "Release tokens from Kevros trust gateway serve as bearer proof of verified decisions",
       },
       skills: [
         {
           id: "trust-verify",
           name: "Verify Action Trust",
-          description: "Verify an action before execution — returns ALLOW/CLAMP/DENY with cryptographic proof",
+          description:
+            "Verify an action before execution — returns ALLOW/CLAMP/DENY with cryptographic proof",
           inputModes: ["application/json"],
           outputModes: ["application/json"],
         },
@@ -133,7 +135,8 @@ export class TrustServer {
         {
           id: "trust-bind",
           name: "Bind Intent to Action",
-          description: "Cryptographically link planned intent to command — verify outcome after execution",
+          description:
+            "Cryptographically link planned intent to command — verify outcome after execution",
           inputModes: ["application/json"],
           outputModes: ["application/json"],
         },
@@ -162,10 +165,7 @@ export class TrustServer {
    * The peer sends us their action + optional release token;
    * we verify through the gateway and return the trust decision.
    */
-  private async handleVerifyInbound(
-    req: IncomingMessage,
-    res: ServerResponse
-  ): Promise<void> {
+  private async handleVerifyInbound(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const body = await readBody(req);
     if (!body) {
       res.writeHead(400, { "Content-Type": "application/json" });
@@ -199,16 +199,14 @@ export class TrustServer {
           peer_decision: tokenCheck.decision,
           peer_epoch: tokenCheck.epoch,
           chain_found: tokenCheck.chain_found,
-        })
+        }),
       );
       return;
     }
 
     // Otherwise, verify the action through the gateway
     const actionType =
-      typeof parsed["action_type"] === "string"
-        ? parsed["action_type"]
-        : "unknown";
+      typeof parsed["action_type"] === "string" ? parsed["action_type"] : "unknown";
     const actionPayload =
       typeof parsed["action_payload"] === "object" && parsed["action_payload"]
         ? (parsed["action_payload"] as Record<string, unknown>)

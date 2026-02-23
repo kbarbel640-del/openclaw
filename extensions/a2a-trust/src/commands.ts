@@ -90,7 +90,7 @@ export function trustVerifyHandler(client: TrustClient) {
         text: [
           "Usage: `/trustverify <action_type> <json_payload>`",
           "",
-          "Example: `/trustverify motor_command {\"speed\": 5.0}`",
+          'Example: `/trustverify motor_command {"speed": 5.0}`',
         ].join("\n"),
       };
     }
@@ -118,12 +118,7 @@ export function trustVerifyHandler(client: TrustClient) {
         action_payload: payload,
       });
 
-      const emoji =
-        result.decision === "ALLOW"
-          ? ""
-          : result.decision === "CLAMP"
-            ? ""
-            : "";
+      const emoji = result.decision === "ALLOW" ? "" : result.decision === "CLAMP" ? "" : "";
 
       return {
         text: [

@@ -1,10 +1,6 @@
 import { TrustClient } from "./src/client.js";
+import { trustStatusHandler, trustCheckHandler, trustVerifyHandler } from "./src/commands.js";
 import { TrustServer } from "./src/trust-server.js";
-import {
-  trustStatusHandler,
-  trustCheckHandler,
-  trustVerifyHandler,
-} from "./src/commands.js";
 import type { TrustPluginConfig } from "./src/types.js";
 
 /**
@@ -40,7 +36,7 @@ interface PluginApi {
   config: TrustPluginConfig;
   registerGatewayMethod: (
     name: string,
-    handler: (ctx: { respond: (ok: boolean, data: unknown) => void; payload?: unknown }) => void
+    handler: (ctx: { respond: (ok: boolean, data: unknown) => void; payload?: unknown }) => void,
   ) => void;
   registerService: (svc: {
     id: string;
@@ -57,7 +53,7 @@ interface PluginApi {
   registerHook: (
     event: string,
     handler: (event: Record<string, unknown>) => Promise<void>,
-    meta?: { name: string; description: string }
+    meta?: { name: string; description: string },
   ) => void;
 }
 
@@ -91,127 +87,101 @@ export default {
     const client = new TrustClient(config);
     const server = new TrustServer(config, client);
 
-    api.logger.info(
-      `[kevros-a2a-trust] Initializing for agent: ${config.agentId}`
-    );
+    api.logger.info(`[kevros-a2a-trust] Initializing for agent: ${config.agentId}`);
 
     // ── Auto-signup if no API key ──────────────────────────────────
 
     if (!client.hasApiKey) {
-      api.logger.info(
-        "[kevros-a2a-trust] No API key configured — will auto-signup on first use"
-      );
+      api.logger.info("[kevros-a2a-trust] No API key configured — will auto-signup on first use");
     }
 
     // ── Gateway RPC methods (local agent tool calls) ───────────────
 
-    api.registerGatewayMethod(
-      "kevros.trust.verify",
-      async ({ respond, payload }) => {
-        try {
-          await ensureApiKey(client, api);
-          const req = payload as {
-            action_type: string;
-            action_payload: Record<string, unknown>;
-            policy_context?: {
-              max_values?: Record<string, number>;
-              forbidden_keys?: string[];
-            };
+    api.registerGatewayMethod("kevros.trust.verify", async ({ respond, payload }) => {
+      try {
+        await ensureApiKey(client, api);
+        const req = payload as {
+          action_type: string;
+          action_payload: Record<string, unknown>;
+          policy_context?: {
+            max_values?: Record<string, number>;
+            forbidden_keys?: string[];
           };
-          const result = await client.verify(req);
-          respond(true, result);
-        } catch (e) {
-          respond(false, { error: String(e) });
-        }
+        };
+        const result = await client.verify(req);
+        respond(true, result);
+      } catch (e) {
+        respond(false, { error: String(e) });
       }
-    );
+    });
 
-    api.registerGatewayMethod(
-      "kevros.trust.attest",
-      async ({ respond, payload }) => {
-        try {
-          await ensureApiKey(client, api);
-          const req = payload as {
-            action_description: string;
-            action_payload: Record<string, unknown>;
-            context?: Record<string, unknown>;
-          };
-          const result = await client.attest(req);
-          respond(true, result);
-        } catch (e) {
-          respond(false, { error: String(e) });
-        }
+    api.registerGatewayMethod("kevros.trust.attest", async ({ respond, payload }) => {
+      try {
+        await ensureApiKey(client, api);
+        const req = payload as {
+          action_description: string;
+          action_payload: Record<string, unknown>;
+          context?: Record<string, unknown>;
+        };
+        const result = await client.attest(req);
+        respond(true, result);
+      } catch (e) {
+        respond(false, { error: String(e) });
       }
-    );
+    });
 
-    api.registerGatewayMethod(
-      "kevros.trust.bind",
-      async ({ respond, payload }) => {
-        try {
-          await ensureApiKey(client, api);
-          const req = payload as {
-            intent_type: string;
-            intent_description: string;
-            command_payload: Record<string, unknown>;
-            goal_state?: Record<string, unknown>;
-          };
-          const result = await client.bind(
-            req as Parameters<typeof client.bind>[0]
-          );
-          respond(true, result);
-        } catch (e) {
-          respond(false, { error: String(e) });
-        }
+    api.registerGatewayMethod("kevros.trust.bind", async ({ respond, payload }) => {
+      try {
+        await ensureApiKey(client, api);
+        const req = payload as {
+          intent_type: string;
+          intent_description: string;
+          command_payload: Record<string, unknown>;
+          goal_state?: Record<string, unknown>;
+        };
+        const result = await client.bind(req as Parameters<typeof client.bind>[0]);
+        respond(true, result);
+      } catch (e) {
+        respond(false, { error: String(e) });
       }
-    );
+    });
 
-    api.registerGatewayMethod(
-      "kevros.trust.verify-outcome",
-      async ({ respond, payload }) => {
-        try {
-          await ensureApiKey(client, api);
-          const req = payload as {
-            intent_id: string;
-            binding_id: string;
-            actual_state: Record<string, unknown>;
-            tolerance?: number;
-          };
-          const result = await client.verifyOutcome(req);
-          respond(true, result);
-        } catch (e) {
-          respond(false, { error: String(e) });
-        }
+    api.registerGatewayMethod("kevros.trust.verify-outcome", async ({ respond, payload }) => {
+      try {
+        await ensureApiKey(client, api);
+        const req = payload as {
+          intent_id: string;
+          binding_id: string;
+          actual_state: Record<string, unknown>;
+          tolerance?: number;
+        };
+        const result = await client.verifyOutcome(req);
+        respond(true, result);
+      } catch (e) {
+        respond(false, { error: String(e) });
       }
-    );
+    });
 
-    api.registerGatewayMethod(
-      "kevros.trust.bundle",
-      async ({ respond, payload }) => {
-        try {
-          await ensureApiKey(client, api);
-          const req = (payload ?? {}) as Partial<
-            Parameters<typeof client.bundle>[0]
-          >;
-          const result = await client.bundle(req);
-          respond(true, result);
-        } catch (e) {
-          respond(false, { error: String(e) });
-        }
+    api.registerGatewayMethod("kevros.trust.bundle", async ({ respond, payload }) => {
+      try {
+        await ensureApiKey(client, api);
+        const req = (payload ?? {}) as Partial<Parameters<typeof client.bundle>[0]>;
+        const result = await client.bundle(req);
+        respond(true, result);
+      } catch (e) {
+        respond(false, { error: String(e) });
       }
-    );
+    });
 
-    api.registerGatewayMethod(
-      "kevros.trust.reputation",
-      async ({ respond, payload }) => {
-        try {
-          const req = payload as { agent_id: string };
-          const result = await client.reputation(req.agent_id);
-          respond(true, result);
-        } catch (e) {
-          respond(false, { error: String(e) });
-        }
+    api.registerGatewayMethod("kevros.trust.reputation", async ({ respond, payload }) => {
+      try {
+        const req = payload as { agent_id: string };
+        const result = await client.reputation(req.agent_id);
+        respond(true, result);
+      } catch (e) {
+        respond(false, { error: String(e) });
       }
-    );
+    });
 
     // ── Background trust server ─────────────────────────────────────
 
@@ -220,10 +190,10 @@ export default {
       start: async () => {
         await server.start();
         api.logger.info(
-          `[kevros-a2a-trust] Trust server listening on 127.0.0.1:${config.trustServerPort}`
+          `[kevros-a2a-trust] Trust server listening on 127.0.0.1:${config.trustServerPort}`,
         );
         api.logger.info(
-          `[kevros-a2a-trust] Agent Card: http://127.0.0.1:${config.trustServerPort}/.well-known/agent.json`
+          `[kevros-a2a-trust] Agent Card: http://127.0.0.1:${config.trustServerPort}/.well-known/agent.json`,
         );
       },
       stop: async () => {
@@ -263,9 +233,7 @@ export default {
           try {
             await ensureApiKey(client, api);
             const toolName =
-              typeof event["toolName"] === "string"
-                ? event["toolName"]
-                : "unknown_tool";
+              typeof event["toolName"] === "string" ? event["toolName"] : "unknown_tool";
             const result = event["result"] ?? {};
             await client.attest({
               action_description: `Tool call: ${toolName}`,
@@ -281,16 +249,12 @@ export default {
         {
           name: "kevros-a2a-trust.auto-attest",
           description: "Automatically attest completed tool calls to build trust history",
-        }
+        },
       );
-      api.logger.info(
-        "[kevros-a2a-trust] Auto-attest enabled — tool calls will be attested"
-      );
+      api.logger.info("[kevros-a2a-trust] Auto-attest enabled — tool calls will be attested");
     }
 
-    api.logger.info(
-      "[kevros-a2a-trust] Plugin registered. Use /trust, /trustcheck, /trustverify"
-    );
+    api.logger.info("[kevros-a2a-trust] Plugin registered. Use /trust, /trustcheck, /trustverify");
   },
 };
 
@@ -298,10 +262,7 @@ export default {
 
 let signupInFlight = false;
 
-async function ensureApiKey(
-  client: TrustClient,
-  api: PluginApi
-): Promise<void> {
+async function ensureApiKey(client: TrustClient, api: PluginApi): Promise<void> {
   if (client.hasApiKey) return;
   if (signupInFlight) {
     // Wait briefly for concurrent signup to complete
@@ -313,7 +274,7 @@ async function ensureApiKey(
   try {
     const signup = await client.signup();
     api.logger.info(
-      `[kevros-a2a-trust] Auto-signed up for free tier (${signup.monthly_limit} calls/month)`
+      `[kevros-a2a-trust] Auto-signed up for free tier (${signup.monthly_limit} calls/month)`,
     );
   } finally {
     signupInFlight = false;

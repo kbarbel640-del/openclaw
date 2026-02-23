@@ -70,9 +70,7 @@ export class TrustClient {
    * Use this after your agent completes an action. Each attestation
    * strengthens your trust score.
    */
-  async attest(
-    req: Omit<AttestRequest, "agent_id">
-  ): Promise<AttestResponse> {
+  async attest(req: Omit<AttestRequest, "agent_id">): Promise<AttestResponse> {
     return this.post<AttestResponse>("/governance/attest", {
       ...req,
       agent_id: this.agentId,
@@ -99,9 +97,7 @@ export class TrustClient {
    *
    * Free — bundled with the bind call cost.
    */
-  async verifyOutcome(
-    req: Omit<VerifyOutcomeRequest, "agent_id">
-  ): Promise<VerifyOutcomeResponse> {
+  async verifyOutcome(req: Omit<VerifyOutcomeRequest, "agent_id">): Promise<VerifyOutcomeResponse> {
     return this.post<VerifyOutcomeResponse>("/governance/verify-outcome", {
       ...req,
       agent_id: this.agentId,
@@ -113,9 +109,7 @@ export class TrustClient {
    * cryptographic trust record. Hash-chained, PQC-signed,
    * independently verifiable.
    */
-  async bundle(
-    req?: Partial<Omit<BundleRequest, "agent_id">>
-  ): Promise<BundleResponse> {
+  async bundle(req?: Partial<Omit<BundleRequest, "agent_id">>): Promise<BundleResponse> {
     return this.post<BundleResponse>("/governance/bundle", {
       ...req,
       agent_id: this.agentId,
@@ -128,22 +122,18 @@ export class TrustClient {
    * Check another agent's trust score. Public, free, no auth.
    */
   async reputation(agentId: string): Promise<ReputationResponse> {
-    return this.get<ReputationResponse>(
-      `/governance/reputation/${encodeURIComponent(agentId)}`
-    );
+    return this.get<ReputationResponse>(`/governance/reputation/${encodeURIComponent(agentId)}`);
   }
 
   /**
    * Verify a release token from another agent. Public, free, no auth.
    * Use this to confirm a counterparty's decision was real.
    */
-  async verifyToken(
-    req: VerifyTokenRequest
-  ): Promise<VerifyTokenResponse> {
+  async verifyToken(req: VerifyTokenRequest): Promise<VerifyTokenResponse> {
     return this.post<VerifyTokenResponse>(
       "/governance/verify-token",
       req as unknown as Record<string, unknown>,
-      false
+      false,
     );
   }
 
@@ -151,7 +141,7 @@ export class TrustClient {
    * Verify a compliance bundle from another agent. Public, free, no auth.
    */
   async verifyCertificate(
-    bundle: BundleResponse
+    bundle: BundleResponse,
   ): Promise<{ valid: boolean; chain_integrity: boolean; record_count: number }> {
     return this.post("/governance/verify-certificate", { bundle }, false);
   }
@@ -161,7 +151,7 @@ export class TrustClient {
   private async post<T>(
     path: string,
     body: Record<string, unknown>,
-    auth: boolean = true
+    auth: boolean = true,
   ): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -206,7 +196,7 @@ export class TrustError extends Error {
   constructor(
     public readonly status: number,
     public readonly path: string,
-    public readonly detail: string
+    public readonly detail: string,
   ) {
     super(`Trust gateway ${status} on ${path}: ${detail}`);
     this.name = "TrustError";
