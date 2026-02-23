@@ -33,7 +33,6 @@ import {
   resolveTtsConfig,
   resolveTtsPrefsPath,
 } from "../tts/tts.js";
-import { maskApiKey } from "../utils/mask-api-key.js";
 import {
   estimateUsageCost,
   formatTokenCount as formatTokenCountShared,
@@ -118,21 +117,6 @@ function normalizeAuthMode(value?: string): NormalizedAuthMode | undefined {
     return "unknown";
   }
   return undefined;
-}
-
-/** Mask secrets in auth label strings like "api-key sk-cp-abc123..." */
-function maskAuthLabelValue(raw: string | undefined): string | undefined {
-  if (!raw) {
-    return undefined;
-  }
-  const spaceIdx = raw.indexOf(" ");
-  if (spaceIdx === -1) {
-    // No secret portion — just a mode like "api-key" or "oauth"
-    return raw;
-  }
-  const mode = raw.slice(0, spaceIdx);
-  const secret = raw.slice(spaceIdx + 1);
-  return `${mode} ${maskApiKey(secret)}`;
 }
 
 function resolveRuntimeLabel(
@@ -546,12 +530,12 @@ export function buildStatusMessage(args: StatusArgs): string {
   const selectedAuthMode =
     normalizeAuthMode(args.modelAuth) ?? resolveModelAuthMode(selectedProvider, args.config);
   const selectedAuthLabelValue =
-    maskAuthLabelValue(args.modelAuth) ??
+    args.modelAuth ??
     (selectedAuthMode && selectedAuthMode !== "unknown" ? selectedAuthMode : undefined);
   const activeAuthMode =
     normalizeAuthMode(args.activeModelAuth) ?? resolveModelAuthMode(activeProvider, args.config);
   const activeAuthLabelValue =
-    maskAuthLabelValue(args.activeModelAuth) ??
+    args.activeModelAuth ??
     (activeAuthMode && activeAuthMode !== "unknown" ? activeAuthMode : undefined);
   const selectedModelLabel = modelRefs.selected.label || "unknown";
   const activeModelLabel = formatProviderModelRef(activeProvider, activeModel) || "unknown";
