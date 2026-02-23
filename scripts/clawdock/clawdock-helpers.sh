@@ -243,9 +243,9 @@ clawdock-config() {
     while IFS= read -r line || [[ -n "$line" ]]; do
       if [[ "$line" =~ ^[[:space:]]*# ]] || [[ -z "$line" ]]; then
         echo -e "${_CLR_DIM}${line}${_CLR_RESET}"
-      elif [[ "$line" =~ ^([^=]+)=(.+)$ ]]; then
-        local key="${BASH_REMATCH[1]}"
-        local val="${BASH_REMATCH[2]}"
+      elif [[ "$line" == *=* ]]; then
+        local key="${line%%=*}"
+        local val="${line#*=}"
         echo -e "${_CLR_CYAN}${key}${_CLR_RESET}=${_CLR_DIM}${val:0:8}...${_CLR_RESET}"
       else
         echo -e "${_CLR_DIM}${line}${_CLR_RESET}"
@@ -262,9 +262,9 @@ clawdock-config() {
     while IFS= read -r line || [[ -n "$line" ]]; do
       if [[ "$line" =~ ^[[:space:]]*# ]] || [[ -z "$line" ]]; then
         echo -e "${_CLR_DIM}${line}${_CLR_RESET}"
-      elif [[ "$line" =~ ^([^=]+)=(.+)$ ]]; then
-        local key="${BASH_REMATCH[1]}"
-        local val="${BASH_REMATCH[2]}"
+      elif [[ "$line" == *=* ]]; then
+        local key="${line%%=*}"
+        local val="${line#*=}"
         echo -e "${_CLR_CYAN}${key}${_CLR_RESET}=${_CLR_DIM}${val:0:8}...${_CLR_RESET}"
       else
         echo -e "${_CLR_DIM}${line}${_CLR_RESET}"
