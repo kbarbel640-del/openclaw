@@ -84,12 +84,23 @@ namespace OpenClaw.Node.Tests
                 Assert.Equal(8, root.GetProperty("fps").GetInt32());
                 Assert.Equal(0, root.GetProperty("screenIndex").GetInt32());
                 Assert.False(root.GetProperty("hasAudio").GetBoolean());
+                Assert.True(root.TryGetProperty("captureApi", out var captureApi));
+                Assert.Equal(JsonValueKind.String, captureApi.ValueKind);
+                Assert.True(root.TryGetProperty("hardwareEncoding", out var hw));
+                Assert.True(hw.ValueKind == JsonValueKind.True || hw.ValueKind == JsonValueKind.False);
+                Assert.True(root.TryGetProperty("lowLatency", out var ll));
+                Assert.True(ll.ValueKind == JsonValueKind.True || ll.ValueKind == JsonValueKind.False);
             }
             else
             {
-                Assert.False(res.Ok);
-                Assert.NotNull(res.Error);
-                Assert.Equal(OpenClawNodeErrorCode.Unavailable, res.Error!.Code);
+                // Non-Windows dev fallback keeps command path alive.
+                Assert.True(res.Ok);
+                Assert.NotNull(res.PayloadJSON);
+
+                using var doc = JsonDocument.Parse(res.PayloadJSON!);
+                var root = doc.RootElement;
+                Assert.Equal("mp4", root.GetProperty("format").GetString());
+                Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("base64").GetString()));
             }
         }
 
@@ -223,6 +234,42 @@ namespace OpenClaw.Node.Tests
                 Id = "screen-invalid-index",
                 Command = "screen.record",
                 ParamsJSON = JsonSerializer.Serialize(new { screenIndex = -1 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task ScreenRecord_InvalidCaptureApiType_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "screen-invalid-capture-api",
+                Command = "screen.record",
+                ParamsJSON = "{\"captureApi\":123}"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task ScreenRecord_InvalidLowLatencyType_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "screen-invalid-low-latency",
+                Command = "screen.record",
+                ParamsJSON = "{\"lowLatency\":\"yes\"}"
             };
 
             var res = await executor.ExecuteAsync(req);

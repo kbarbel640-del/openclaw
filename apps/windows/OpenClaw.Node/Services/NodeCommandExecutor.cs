@@ -605,6 +605,17 @@ namespace OpenClaw.Node.Services
                 return Invalid(request.Id, "screen.record params.screenIndex must be a number");
             }
 
+            if (root != null && root.Value.TryGetProperty("captureApi", out var apiEl) && apiEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "screen.record params.captureApi must be a string");
+            }
+
+            if (root != null && root.Value.TryGetProperty("lowLatency", out var lowEl) &&
+                lowEl.ValueKind != JsonValueKind.True && lowEl.ValueKind != JsonValueKind.False)
+            {
+                return Invalid(request.Id, "screen.record params.lowLatency must be a boolean");
+            }
+
             var durationMs = root != null && root.Value.TryGetProperty("durationMs", out var d) && d.ValueKind == JsonValueKind.Number
                 ? d.GetInt32()
                 : 10000;
@@ -637,19 +648,31 @@ namespace OpenClaw.Node.Services
                 return Invalid(request.Id, "screen.record params.screenIndex must be >= 0");
             }
 
+            var captureApi = root != null && root.Value.TryGetProperty("captureApi", out var api) && api.ValueKind == JsonValueKind.String
+                ? (api.GetString() ?? "auto")
+                : "auto";
+
+            var lowLatency = root != null && root.Value.TryGetProperty("lowLatency", out var ll) &&
+                             (ll.ValueKind == JsonValueKind.True || ll.ValueKind == JsonValueKind.False)
+                ? ll.GetBoolean()
+                : false;
+
             try
             {
                 var svc = new ScreenCaptureService();
-                var b64 = await svc.RecordScreenAsBase64Async(durationMs, fps, includeAudio, screenIndex);
+                var record = await svc.RecordScreenAsBase64Async(durationMs, fps, includeAudio, screenIndex, captureApi, lowLatency);
 
                 var payload = new
                 {
                     format = "mp4",
-                    base64 = b64,
+                    base64 = record.Base64,
                     durationMs,
                     fps,
                     screenIndex,
-                    hasAudio = includeAudio
+                    hasAudio = includeAudio,
+                    captureApi = record.CaptureApi,
+                    hardwareEncoding = record.HardwareEncoding,
+                    lowLatency = record.LowLatency
                 };
 
                 return new BridgeInvokeResponse

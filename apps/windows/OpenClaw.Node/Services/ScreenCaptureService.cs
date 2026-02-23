@@ -15,6 +15,14 @@ namespace OpenClaw.Node.Services
             public string Name { get; set; } = string.Empty;
         }
 
+        public sealed class ScreenRecordResult
+        {
+            public string Base64 { get; set; } = string.Empty;
+            public string CaptureApi { get; set; } = "auto";
+            public bool HardwareEncoding { get; set; }
+            public bool LowLatency { get; set; }
+        }
+
         public Task<ScreenDisplayInfo[]> ListDisplaysAsync()
         {
             if (!OperatingSystem.IsWindows())
@@ -50,17 +58,68 @@ namespace OpenClaw.Node.Services
             }
         }
 
-        public async Task<string> RecordScreenAsBase64Async(int durationMs, int fps, bool includeAudio, int screenIndex = 0)
+        public async Task<ScreenRecordResult> RecordScreenAsBase64Async(
+            int durationMs,
+            int fps,
+            bool includeAudio,
+            int screenIndex = 0,
+            string captureApi = "auto",
+            bool lowLatency = false)
         {
             if (!OperatingSystem.IsWindows())
             {
                 // Dev fallback in non-Windows environments.
-                return await TakeScreenshotFallbackAsync();
+                return new ScreenRecordResult
+                {
+                    Base64 = await TakeScreenshotFallbackAsync(),
+                    CaptureApi = "fallback",
+                    HardwareEncoding = false,
+                    LowLatency = false,
+                };
             }
 
             durationMs = Math.Clamp(durationMs, 500, 120000);
             fps = Math.Clamp(fps, 1, 60);
 
+            var attempts = new[]
+            {
+                new { Hardware = true, LowLatency = lowLatency, CaptureApi = captureApi },
+                new { Hardware = false, LowLatency = lowLatency, CaptureApi = captureApi },
+                new { Hardware = false, LowLatency = true, CaptureApi = "desktopduplication" }
+            };
+
+            Exception? lastError = null;
+            foreach (var attempt in attempts)
+            {
+                try
+                {
+                    var b64 = await RecordSingleAttemptAsync(durationMs, fps, includeAudio, screenIndex, attempt.CaptureApi, attempt.Hardware, attempt.LowLatency);
+                    return new ScreenRecordResult
+                    {
+                        Base64 = b64,
+                        CaptureApi = string.IsNullOrWhiteSpace(attempt.CaptureApi) ? "auto" : attempt.CaptureApi,
+                        HardwareEncoding = attempt.Hardware,
+                        LowLatency = attempt.LowLatency,
+                    };
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
+                }
+            }
+
+            throw new InvalidOperationException($"Screen recording failed after fallback attempts: {lastError?.Message}", lastError);
+        }
+
+        private static async Task<string> RecordSingleAttemptAsync(
+            int durationMs,
+            int fps,
+            bool includeAudio,
+            int screenIndex,
+            string captureApi,
+            bool hardwareEncoding,
+            bool lowLatency)
+        {
             var outputPath = Path.Combine(Path.GetTempPath(), $"openclaw_screen_record_{Guid.NewGuid():N}.mp4");
             var completion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -68,8 +127,10 @@ namespace OpenClaw.Node.Services
             var options = RecorderOptions.Default;
             options.VideoEncoderOptions.Framerate = fps;
             options.VideoEncoderOptions.IsFixedFramerate = true;
-            options.VideoEncoderOptions.IsHardwareEncodingEnabled = true;
+            options.VideoEncoderOptions.IsHardwareEncodingEnabled = hardwareEncoding;
             options.VideoEncoderOptions.IsMp4FastStartEnabled = true;
+            options.VideoEncoderOptions.IsLowLatencyEnabled = lowLatency;
+            options.VideoEncoderOptions.Quality = 70;
 
             options.AudioOptions.IsAudioEnabled = includeAudio;
             options.AudioOptions.IsOutputDeviceEnabled = includeAudio;
@@ -88,6 +149,8 @@ namespace OpenClaw.Node.Services
                 options.SourceOptions = SourceOptions.MainMonitor;
             }
 
+            TryApplyRecorderApi(options, captureApi);
+
             using var recorder = Recorder.CreateRecorder(options);
 
             recorder.OnRecordingComplete += (_, args) => completion.TrySetResult(args.FilePath);
@@ -104,7 +167,7 @@ namespace OpenClaw.Node.Services
 
             // Duration should count from the moment recording actually starts,
             // not from when Record(...) is requested.
-            using (var startTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            using (var startTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(6)))
             {
                 try
                 {
@@ -119,7 +182,12 @@ namespace OpenClaw.Node.Services
             await Task.Delay(durationMs);
             recorder.Stop();
 
-            var finalizedPath = await completion.Task;
+            string finalizedPath;
+            using (var completionTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(12)))
+            {
+                finalizedPath = await completion.Task.WaitAsync(completionTimeout.Token);
+            }
+
             var fileToRead = string.IsNullOrWhiteSpace(finalizedPath) ? outputPath : finalizedPath;
 
             try
@@ -133,6 +201,37 @@ namespace OpenClaw.Node.Services
                 {
                     try { File.Delete(fileToRead); } catch { }
                 }
+            }
+        }
+
+        private static void TryApplyRecorderApi(RecorderOptions options, string captureApi)
+        {
+            if (string.IsNullOrWhiteSpace(captureApi) || string.Equals(captureApi, "auto", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            try
+            {
+                var prop = options.GetType().GetProperty("RecorderApi");
+                if (prop == null)
+                {
+                    return;
+                }
+
+                var token = captureApi.Trim().ToLowerInvariant() switch
+                {
+                    "wgc" or "windowsgraphicscapture" => "WindowsGraphicsCapture",
+                    "desktopduplication" or "desktop-duplication" or "duplication" or "dda" => "DesktopDuplication",
+                    _ => captureApi.Trim(),
+                };
+
+                var enumValue = Enum.Parse(prop.PropertyType, token, ignoreCase: true);
+                prop.SetValue(options, enumValue);
+            }
+            catch
+            {
+                // Keep best-effort: invalid API token should not hard-fail recording.
             }
         }
 
