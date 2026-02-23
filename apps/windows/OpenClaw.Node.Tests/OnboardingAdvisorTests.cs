@@ -13,7 +13,7 @@ namespace OpenClaw.Node.Tests
             var configPath = CreateTempConfig();
             var result = OnboardingAdvisor.Evaluate("ws://127.0.0.1:18789", "", configPath);
             Assert.False(result.Ready);
-            Assert.Contains("Missing token", result.StatusText);
+            Assert.Contains("token", result.StatusText, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -40,7 +40,7 @@ namespace OpenClaw.Node.Tests
             var configPath = CreateTempConfig();
             var result = OnboardingAdvisor.Evaluate("ws://127.0.0.1:18789", "abc", configPath, "Unexpected token at line 1");
             Assert.False(result.Ready);
-            Assert.Contains("Config parse error", result.StatusText);
+            Assert.Contains("Config format", result.StatusText);
         }
 
         [Fact]

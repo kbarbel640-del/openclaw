@@ -122,7 +122,8 @@ Build a native Windows application that replicates the functionality of the Open
 - [x] Step 3 (MVP): tray status details surfaced (`State`, `Pending pairs`, `Last reconnect`) + quick diagnostics copy action
 - [x] Step 4 (onboarding MVP, slice 1): startup onboarding checks surfaced in tray + guided `Open Config` action
 - [x] Step 5 (onboarding MVP, slice 2): default tray startup on Windows + missing-token dialog + config-parse-aware onboarding status (auto-restart onboarding action removed per UX preference)
-- [ ] Settings/onboarding flows (remaining UX polish)
+- [x] Step 6 (onboarding MVP, wrap): auth-mismatch dialog path covered + calmer copy polish; onboarding MVP marked complete
+- [ ] Settings/onboarding flows (post-MVP polish only)
 - [ ] Overlay/HUD equivalents
 
 ---

@@ -102,7 +102,7 @@ namespace OpenClaw.Node
                     SetTray(NodeRuntimeState.Disconnected, "Authentication failed (check token)");
                     ShowUserWarningDialog(
                         "OpenClaw Authentication Failed",
-                        "Gateway authentication failed or was rejected before session setup.\n\nPlease verify gateway.auth.token in Open Config, save, then click Restart Node.");
+                        "The gateway rejected node authentication.\n\nPlease verify gateway.auth.token in Open Config, save, then click Restart Node.");
                 }
 
                 if (msg.Contains("Reconnecting in", StringComparison.OrdinalIgnoreCase))
@@ -209,12 +209,12 @@ namespace OpenClaw.Node
 
                 if (!hasGatewayToken)
                 {
-                    SetTray(NodeRuntimeState.Disconnected, "Waiting for gateway token (Open Config)");
-                    Console.WriteLine("[WARN] Missing gateway token. Tray mode running; use Open Config to set gateway.auth.token, then Restart Node.");
+                    SetTray(NodeRuntimeState.Disconnected, "Setup needed: add gateway token");
+                    Console.WriteLine("[WARN] Gateway token missing. Tray mode is active; open config, set gateway.auth.token, then restart node.");
                     var details = string.IsNullOrWhiteSpace(onboarding.Details) ? string.Empty : $"\n\nDetails: {onboarding.Details}";
                     ShowUserWarningDialog(
                         title: "OpenClaw Node Setup Required",
-                        message: $"{onboarding.StatusText}.\n\n{onboarding.ActionHint}.\n\nUse tray menu → Open Config, save, then click Restart Node.{details}");
+                        message: $"{onboarding.StatusText}.\n\n{onboarding.ActionHint}.\n\nOpen tray menu → Open Config, save your changes, then click Restart Node.{details}");
                     await WaitUntilCanceledAsync(cts.Token);
                     return;
                 }

@@ -13,7 +13,7 @@ namespace OpenClaw.Node.Tray
             {
                 return new OnboardingAssessment(
                     false,
-                    "Onboarding: Config parse error",
+                    "Onboarding: Config format issue",
                     "Open Config and fix JSON format",
                     configReadError);
             }
@@ -23,14 +23,14 @@ namespace OpenClaw.Node.Tray
                 return new OnboardingAssessment(
                     false,
                     "Onboarding: Config file missing",
-                    "Open Config to create ~/.openclaw/openclaw.json");
+                    "Open Config to create and edit ~/.openclaw/openclaw.json");
             }
 
             if (string.IsNullOrWhiteSpace(gatewayToken))
             {
                 return new OnboardingAssessment(
                     false,
-                    "Onboarding: Missing token",
+                    "Onboarding: Gateway token missing",
                     "Open Config and set gateway.auth.token");
             }
 

@@ -173,7 +173,7 @@ namespace OpenClaw.Node.Tray
 
                 var openLogsItem = Activator.CreateInstance(menuItemType, "Open Logs")
                     ?? throw new InvalidOperationException("Unable to create Open Logs item");
-                var openConfigItem = Activator.CreateInstance(menuItemType, "Open Config")
+                var openConfigItem = Activator.CreateInstance(menuItemType, "Open Config File")
                     ?? throw new InvalidOperationException("Unable to create Open Config item");
                 var copyDiagItem = Activator.CreateInstance(menuItemType, "Copy Diagnostics")
                     ?? throw new InvalidOperationException("Unable to create Copy Diagnostics item");
