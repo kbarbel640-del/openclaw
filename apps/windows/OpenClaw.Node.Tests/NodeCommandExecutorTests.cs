@@ -519,13 +519,13 @@ namespace OpenClaw.Node.Tests
         }
 
                         [Fact]
-        public async Task SystemScreenshot_ShouldReturnExpectedResult_ForCurrentPlatform()
+        public async Task ScreenCapture_ShouldReturnExpectedResult_ForCurrentPlatform()
         {
             var executor = new NodeCommandExecutor();
             var req = new BridgeInvokeRequest
             {
-                Id = "system-screenshot-1",
-                Command = "system.screenshot"
+                Id = "screen-capture-1",
+                Command = "screen.capture"
             };
 
             var res = await executor.ExecuteAsync(req);

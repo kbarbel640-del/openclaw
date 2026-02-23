@@ -23,7 +23,7 @@
    - `system.run`
    - `system.which`
    - `system.notify`
-   - `system.screenshot` (development helper: capture primary-screen jpg + focused window metadata)
+   - `screen.capture` (captures primary-screen jpg + focused window metadata)
    - `screen.list` (Phase 2: returns display metadata list `{ index, id, name }`)
    - `screen.record` (Phase 2 timed MP4 path: returns base64 mp4 with recording metadata)
    - `camera.list` (Phase 2: returns device metadata list `{ id, name, position, deviceType }`)

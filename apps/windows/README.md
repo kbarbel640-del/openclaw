@@ -68,7 +68,7 @@ This project is intended to run next to OpenClaw Gateway and be controlled by Op
   - `system.run`
   - `system.which`
   - `system.notify`
-  - `system.screenshot`
+  - `screen.capture`
 - Screen/camera:
   - `screen.list`
   - `screen.record`

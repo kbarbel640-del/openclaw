@@ -19,6 +19,7 @@ namespace OpenClaw.Node.Services
                     "system.notify" => HandleSystemNotify(request),
                     "system.which" => await HandleSystemWhichAsync(request),
                     "system.run" => await HandleSystemRunAsync(request),
+                    "screen.capture" => await HandleDevScreenshotAsync(request),
                     "system.screenshot" => await HandleDevScreenshotAsync(request),
                     "dev.screenshot" => await HandleDevScreenshotAsync(request),
                     "screen.list" => await HandleScreenListAsync(request),
@@ -212,7 +213,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = "system.screenshot is only available on Windows"
+                        Message = "screen.capture is only available on Windows"
                     }
                 };
             }
@@ -267,7 +268,7 @@ namespace OpenClaw.Node.Services
                     Error = new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = "system.screenshot capture failed"
+                        Message = "screen.capture failed"
                     },
                     PayloadJSON = JsonSerializer.Serialize(new
                     {

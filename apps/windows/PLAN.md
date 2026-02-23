@@ -149,4 +149,4 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Added opt-in real gateway `camera.snap` coverage using explicit `deviceId` from `camera.list` when available
 - ✅ Added Named Pipe IPC unit coverage (`ipc.ping` roundtrip + unknown method + auth gating)
 - ✅ Added dev workflow helper commands:
-  - `system.screenshot` (capture primary-screen jpg + focused window metadata for live debugging)
+  - `screen.capture` (capture primary-screen jpg + focused window metadata)
