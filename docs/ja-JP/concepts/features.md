@@ -12,7 +12,7 @@ title: "機能"
     統合ゲートウェイ経由の WhatsApp / Telegram / Discord / iMessage 連携。
   </Card>
   <Card title="Plugins" icon="plug">
-    Microsoft Teams などの追加を可能にするプラグイン拡張。
+    Mattermost などの追加を可能にする拡張機能。
   </Card>
   <Card title="Routing" icon="route">
     ワークスペース単位のセッション分離によるマルチエージェント・ルーティング。
@@ -33,7 +33,7 @@ title: "機能"
 - WhatsApp 連携（WhatsApp Web / Baileys）
 - Telegram 連携（ボット / grammY）
 - Discord 連携（ボット / channels.discord.js）
-- Microsoft Teams 連携（プラグイン）
+- Mattermost 連携（プラグイン）
 - iMessage 連携（macOS / ローカル `imsg` CLI）
 - Pi エージェントブリッジ（RPC モード / ツールストリーミング対応）
 - 長文応答のストリーミング配信とチャンキング
