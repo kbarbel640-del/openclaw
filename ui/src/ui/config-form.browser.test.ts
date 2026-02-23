@@ -56,6 +56,7 @@ describe("config form renderer", () => {
     if (!tokenInput) {
       return;
     }
+    expect(tokenInput.getAttribute("autocomplete")).toBe("off");
     tokenInput.value = "abc123";
     tokenInput.dispatchEvent(new Event("input", { bubbles: true }));
     expect(onPatch).toHaveBeenCalledWith(["gateway", "auth", "token"], "abc123");
