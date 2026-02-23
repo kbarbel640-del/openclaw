@@ -378,9 +378,19 @@ $reader.ReadBytes($bytes)
 
         private static async Task<bool> CommandExistsAsync(string command)
         {
-            var checker = OperatingSystem.IsWindows() ? "where" : "which";
-            var res = await RunProcessAsync(checker, command);
-            return res.ExitCode == 0;
+            try
+            {
+                var res = await RunProcessAsync(command, "-version");
+                if (res.ExitCode == 0) return true;
+
+                var text = (res.StdOut ?? string.Empty) + "\n" + (res.StdErr ?? string.Empty);
+                if (text.Contains("ffmpeg version", StringComparison.OrdinalIgnoreCase)) return true;
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static async Task<(int ExitCode, string StdOut, string StdErr)> RunPowerShellAsync(string script, IDictionary<string, string?>? env)
