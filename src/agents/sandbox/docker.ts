@@ -33,6 +33,7 @@ export function execDockerRaw(
   return new Promise<ExecDockerRawResult>((resolve, reject) => {
     const child = spawn("docker", args, {
       stdio: ["pipe", "pipe", "pipe"],
+      shell: process.platform === "win32",
     });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
