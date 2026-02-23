@@ -110,7 +110,7 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
   extractToolSend: ({ args }) => {
     return extractToolSend(args, "sendMessage");
   },
-  handleAction: async ({ action, params, cfg, accountId, mediaLocalRoots }) => {
+  handleAction: async ({ action, params, cfg, accountId, mediaLocalRoots, toolContext }) => {
     if (action === "send") {
       const sendParams = readTelegramSendParams(params);
       return await handleTelegramAction(
@@ -125,9 +125,8 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
     }
 
     if (action === "react") {
-      const messageId = readStringOrNumberParam(params, "messageId", {
-        required: true,
-      });
+      const messageId =
+        readStringOrNumberParam(params, "messageId") ?? toolContext?.currentMessageId;
       const emoji = readStringParam(params, "emoji", { allowEmpty: true });
       const remove = typeof params.remove === "boolean" ? params.remove : undefined;
       return await handleTelegramAction(
