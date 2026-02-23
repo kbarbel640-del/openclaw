@@ -1,4 +1,6 @@
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
 import { loadConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
@@ -20,6 +22,44 @@ import {
   formatTranscriptForRetry,
 } from "./subagent-transcript-summary.js";
 import { resolveAgentTimeoutMs } from "./timeout.js";
+
+/** Resolve psql path once at import time. */
+const PSQL_PATH =
+  [
+    `${process.env.HOME}/bin/psql`,
+    "/Applications/Postgres.app/Contents/Versions/14/bin/psql",
+    "/opt/homebrew/bin/psql",
+    "/usr/local/bin/psql",
+    "psql",
+  ].find((p) => p === "psql" || existsSync(p)) ?? "psql";
+
+/**
+ * Log a standalone sessions_spawn run to oms.agent_work_log.
+ * Fire-and-forget — productivity tracking is best-effort.
+ */
+function logDirectSpawnWork(entry: SubagentRunRecord): void {
+  if (!entry.startedAt || !entry.endedAt) return;
+  const durationMs = entry.endedAt - entry.startedAt;
+  if (durationMs <= 0) return;
+
+  const parsed = parseAgentSessionKey(entry.childSessionKey);
+  const agentId = parsed?.agentId;
+  if (!agentId) return;
+
+  const startIso = new Date(entry.startedAt).toISOString();
+  const endIso = new Date(entry.endedAt).toISOString();
+  const desc = (entry.originalTask ?? entry.task ?? "").slice(0, 500).replace(/'/g, "''");
+  const status = entry.outcome?.status ?? "unknown";
+
+  const sql =
+    `INSERT INTO oms.agent_work_log (agent_id, work_type, source_id, duration_ms, started_at, ended_at, status, description) ` +
+    `VALUES ('${agentId}', 'direct_spawn', '${entry.runId}', ${durationMs}, ` +
+    `'${startIso}', '${endIso}', '${status}', '${desc}') ` +
+    `ON CONFLICT (work_type, source_id) DO NOTHING;\n`;
+  const proc = spawn(PSQL_PATH, ["-d", "brain"], { stdio: ["pipe", "ignore", "ignore"] });
+  proc.stdin?.write(sql);
+  proc.stdin?.end();
+}
 
 type RunCompletionInterceptor = (runId: string, entry: SubagentRunRecord) => boolean;
 let runCompletionInterceptor: RunCompletionInterceptor | null = null;
@@ -297,6 +337,8 @@ async function executeRetry(entry: SubagentRunRecord): Promise<void> {
 /** Helper to run the normal announce flow for a completed/failed entry. */
 function announceSubagentResult(runId: string, entry: SubagentRunRecord) {
   if (!beginSubagentCleanup(runId)) return;
+  // Log standalone spawn duration for productivity tracking (fire-and-forget)
+  logDirectSpawnWork(entry);
   const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
   void runSubagentAnnounceFlow({
     childSessionKey: entry.childSessionKey,

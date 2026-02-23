@@ -751,6 +751,68 @@ function advanceMission(mission: MissionRecord) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Log a completed subtask spawn to oms.agent_work_log for productivity tracking.
+ * Fire-and-forget — best-effort, never blocks mission flow.
+ */
+/**
+ * Log Luna's orchestration time for a completed mission.
+ * Duration = first subtask start → last subtask end (the window Luna was actively managing).
+ */
+function logMissionOrchestration(mission: MissionRecord): void {
+  let earliest = Infinity;
+  let latest = 0;
+  let subtaskCount = 0;
+
+  for (const subtask of mission.subtasks.values()) {
+    if (subtask.startedAt && subtask.endedAt) {
+      earliest = Math.min(earliest, subtask.startedAt);
+      latest = Math.max(latest, subtask.endedAt);
+      subtaskCount++;
+    }
+  }
+
+  if (subtaskCount === 0 || earliest >= latest) return;
+  const durationMs = latest - earliest;
+
+  const startIso = new Date(earliest).toISOString();
+  const endIso = new Date(latest).toISOString();
+  const desc = `Orchestrated ${subtaskCount} subtask(s): ${mission.label}`
+    .slice(0, 500)
+    .replace(/'/g, "''");
+
+  const sql =
+    `INSERT INTO oms.agent_work_log (agent_id, work_type, source_id, duration_ms, started_at, ended_at, status, description, mission_id) ` +
+    `VALUES ('luna', 'mission_orchestration', '${mission.missionId}', ${durationMs}, ` +
+    `'${startIso}', '${endIso}', '${mission.status}', '${desc}', '${mission.missionId}') ` +
+    `ON CONFLICT (work_type, source_id) DO NOTHING;\n`;
+  const proc = spawn(PSQL_PATH, ["-d", "brain"], { stdio: ["pipe", "ignore", "ignore"] });
+  proc.stdin?.write(sql);
+  proc.stdin?.end();
+}
+
+function logSubtaskWork(missionId: string, subtask: SubtaskRecord): void {
+  if (!subtask.startedAt || !subtask.endedAt) return;
+  const durationMs = subtask.endedAt - subtask.startedAt;
+  if (durationMs <= 0) return;
+
+  const sourceId = `${missionId}:${subtask.id}`;
+  const startIso = new Date(subtask.startedAt).toISOString();
+  const endIso = new Date(subtask.endedAt).toISOString();
+  const desc = (subtask.originalTask ?? "").slice(0, 500).replace(/'/g, "''");
+  const status = subtask.status ?? "unknown";
+
+  const sql =
+    `INSERT INTO oms.agent_work_log (agent_id, work_type, source_id, duration_ms, started_at, ended_at, status, description, mission_id) ` +
+    `VALUES ('${subtask.agentId}', 'mission_subtask', '${sourceId}', ${durationMs}, ` +
+    `'${startIso}', '${endIso}', '${status}', '${desc}', '${missionId}') ` +
+    `ON CONFLICT (work_type, source_id) DO UPDATE SET ` +
+    `duration_ms = EXCLUDED.duration_ms, ended_at = EXCLUDED.ended_at, status = EXCLUDED.status;\n`;
+  const proc = spawn(PSQL_PATH, ["-d", "brain"], { stdio: ["pipe", "ignore", "ignore"] });
+  proc.stdin?.write(sql);
+  proc.stdin?.end();
+}
+
+/**
  * Update OMS backlog rows for this mission to reflect final status.
  * Fire-and-forget — OMS logging is best-effort.
  */
@@ -791,6 +853,9 @@ function checkMissionCompletion(mission: MissionRecord) {
   markTaskByMission(mission.missionId, mission.status);
 
   updateMissionStatusInOms(mission.missionId, mission.status);
+
+  // Log Luna's orchestration time for this mission (fire-and-forget)
+  logMissionOrchestration(mission);
 
   // Append mission summary to requester agent's tier 0 daily note
   void (async () => {
@@ -948,6 +1013,9 @@ async function handleSubtaskCompletion(
 
   subtask.endedAt = entry.endedAt ?? Date.now();
   subtask.outcome = entry.outcome;
+
+  // Log spawn duration to work_log for productivity tracking (fire-and-forget)
+  logSubtaskWork(missionId, subtask);
 
   if (entry.outcome?.status === "ok") {
     // Read the result

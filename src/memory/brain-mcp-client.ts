@@ -84,8 +84,8 @@ export class BrainMcpClient {
 
     try {
       const args = [
-        `query="${this.escapeArg(params.query)}"`,
-        `workspace_id="${params.workspaceId}"`,
+        `query=${this.shellEscape(params.query)}`,
+        `workspace_id=${this.shellEscape(params.workspaceId)}`,
         `limit:${params.limit ?? 5}`,
       ];
 
@@ -125,7 +125,10 @@ export class BrainMcpClient {
         similarity_threshold: params.similarityThreshold ?? 0.7,
       });
 
-      const args = [`query="${this.escapeArg(params.query)}"`, `search_request='${searchRequest}'`];
+      const args = [
+        `query=${this.shellEscape(params.query)}`,
+        `search_request=${this.shellEscape(searchRequest)}`,
+      ];
 
       const result = await this.callTool("brain.unified_search", args);
       const duration = Date.now() - startTime;
@@ -152,8 +155,8 @@ export class BrainMcpClient {
 
     try {
       const args = [
-        `query="${this.escapeArg(params.query)}"`,
-        `workspace_id="${params.workspaceId}"`,
+        `query=${this.shellEscape(params.query)}`,
+        `workspace_id=${this.shellEscape(params.workspaceId)}`,
         `limit:${params.limit ?? 5}`,
       ];
 
@@ -192,9 +195,7 @@ export class BrainMcpClient {
         metadata,
       },
     ]);
-    // Escape any single quotes in the JSON for shell-safe embedding
-    const escaped = memories.replace(/'/g, "'\\''");
-    await this.callTool("brain.create_memories", [`memories='${escaped}'`]);
+    await this.callTool("brain.create_memories", [`memories=${this.shellEscape(memories)}`]);
   }
 
   /**
@@ -214,6 +215,7 @@ export class BrainMcpClient {
 
   /**
    * Call a Brain MCP tool via mcporter.
+   * Uses single-quote shell escaping to prevent injection.
    */
   private async callTool(selector: string, args: string[]): Promise<string> {
     const command = `${this.mcporterPath} call ${selector} ${args.join(" ")}`;
@@ -238,11 +240,13 @@ export class BrainMcpClient {
   }
 
   /**
-   * Escape argument for shell command.
+   * Shell-safe single-quote escaping.
+   * Wraps value in single quotes, escaping any embedded single quotes.
+   * Single-quoted strings in sh/bash prevent ALL shell interpretation
+   * ($, backticks, pipes, semicolons, etc.).
    */
-  private escapeArg(arg: string): string {
-    // Escape double quotes and backslashes
-    return arg.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  private shellEscape(value: string): string {
+    return `'${value.replace(/'/g, "'\\''")}'`;
   }
 
   /**
