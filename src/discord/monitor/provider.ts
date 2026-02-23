@@ -467,6 +467,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         publicKey: "a",
         token,
         autoDeploy: false,
+        // Extend listener timeout to 120 s (default 30 s) to accommodate slow
+        // operations like audio transcription and agent dispatch under load.
+        eventQueue: { listenerTimeout: 120_000 },
       },
       {
         commands,
