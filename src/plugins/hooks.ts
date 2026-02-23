@@ -51,6 +51,10 @@ import type {
   PluginHookBeforeMessageWriteResult,
   PluginHookBeforeContextSendEvent,
   PluginHookBeforeContextSendResult,
+  PluginHookTransformLlmInputEvent,
+  PluginHookTransformLlmInputResult,
+  PluginHookTransformLlmOutputEvent,
+  PluginHookTransformLlmOutputResult,
 } from "./types.js";
 
 // Re-export types for consumers
@@ -97,6 +101,10 @@ export type {
   PluginHookGatewayContext,
   PluginHookGatewayStartEvent,
   PluginHookGatewayStopEvent,
+  PluginHookTransformLlmInputEvent,
+  PluginHookTransformLlmInputResult,
+  PluginHookTransformLlmOutputEvent,
+  PluginHookTransformLlmOutputResult,
 };
 
 export type HookRunnerLogger = {
@@ -662,6 +670,102 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
   }
 
   // =========================================================================
+  // LLM Transform Hooks
+  // =========================================================================
+
+  /**
+   * Run transform_llm_input hook.
+   * Allows plugins to modify the messages array before it is sent to the LLM.
+   * Handlers are executed sequentially; each receives the previous handler's output.
+   */
+  async function runTransformLlmInput(
+    event: PluginHookTransformLlmInputEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<PluginHookTransformLlmInputResult | undefined> {
+    const hooks = getHooksForName(registry, "transform_llm_input");
+    if (hooks.length === 0) {
+      return undefined;
+    }
+
+    logger?.debug?.(`[hooks] running transform_llm_input (${hooks.length} handlers, sequential)`);
+
+    let currentMessages = event.messages;
+
+    for (const hook of hooks) {
+      try {
+        const result = await (
+          hook.handler as (
+            event: PluginHookTransformLlmInputEvent,
+            ctx: PluginHookAgentContext,
+          ) => Promise<PluginHookTransformLlmInputResult | void>
+        )({ ...event, messages: currentMessages }, ctx);
+
+        if (result?.messages) {
+          currentMessages = result.messages;
+        }
+      } catch (err) {
+        const msg = `[hooks] transform_llm_input handler from ${hook.pluginId} failed: ${String(err)}`;
+        if (catchErrors) {
+          logger?.error(msg);
+        } else {
+          throw new Error(msg, { cause: err });
+        }
+      }
+    }
+
+    if (currentMessages !== event.messages) {
+      return { messages: currentMessages };
+    }
+    return undefined;
+  }
+
+  /**
+   * Run transform_llm_output hook.
+   * Allows plugins to modify the assistant response after it is returned by the LLM.
+   * Handlers are executed sequentially; each receives the previous handler's output.
+   */
+  async function runTransformLlmOutput(
+    event: PluginHookTransformLlmOutputEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<PluginHookTransformLlmOutputResult | undefined> {
+    const hooks = getHooksForName(registry, "transform_llm_output");
+    if (hooks.length === 0) {
+      return undefined;
+    }
+
+    logger?.debug?.(`[hooks] running transform_llm_output (${hooks.length} handlers, sequential)`);
+
+    let currentTexts = event.assistantTexts;
+
+    for (const hook of hooks) {
+      try {
+        const result = await (
+          hook.handler as (
+            event: PluginHookTransformLlmOutputEvent,
+            ctx: PluginHookAgentContext,
+          ) => Promise<PluginHookTransformLlmOutputResult | void>
+        )({ ...event, assistantTexts: currentTexts }, ctx);
+
+        if (result?.assistantTexts) {
+          currentTexts = result.assistantTexts;
+        }
+      } catch (err) {
+        const msg = `[hooks] transform_llm_output handler from ${hook.pluginId} failed: ${String(err)}`;
+        if (catchErrors) {
+          logger?.error(msg);
+        } else {
+          throw new Error(msg, { cause: err });
+        }
+      }
+    }
+
+    if (currentTexts !== event.assistantTexts) {
+      return { assistantTexts: currentTexts };
+    }
+    return undefined;
+  }
+
+  // =========================================================================
   // Session Hooks
   // =========================================================================
 
@@ -808,6 +912,9 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     runBeforeMessageWrite,
     // Context hooks
     runBeforeContextSend,
+    // LLM transform hooks
+    runTransformLlmInput,
+    runTransformLlmOutput,
     // Session hooks
     runSessionStart,
     runSessionEnd,

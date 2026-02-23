@@ -320,7 +320,9 @@ export type PluginHookName =
   | "subagent_spawned"
   | "subagent_ended"
   | "gateway_start"
-  | "gateway_stop";
+  | "gateway_stop"
+  | "transform_llm_input"
+  | "transform_llm_output";
 
 // Agent context shared across agent hooks
 export type PluginHookAgentContext = {
@@ -673,6 +675,29 @@ export type PluginHookGatewayStopEvent = {
   reason?: string;
 };
 
+// transform_llm_input hook
+export type PluginHookTransformLlmInputEvent = {
+  messages: AgentMessage[];
+  provider: string;
+  model: string;
+};
+
+export type PluginHookTransformLlmInputResult = {
+  messages: AgentMessage[];
+};
+
+// transform_llm_output hook
+export type PluginHookTransformLlmOutputEvent = {
+  assistantTexts: string[];
+  lastAssistant?: unknown;
+  provider: string;
+  model: string;
+};
+
+export type PluginHookTransformLlmOutputResult = {
+  assistantTexts?: string[];
+};
+
 // Hook handler types mapped by hook name
 export type PluginHookHandlerMap = {
   before_model_resolve: (
@@ -775,6 +800,17 @@ export type PluginHookHandlerMap = {
     event: PluginHookGatewayStopEvent,
     ctx: PluginHookGatewayContext,
   ) => Promise<void> | void;
+  transform_llm_input: (
+    event: PluginHookTransformLlmInputEvent,
+    ctx: PluginHookAgentContext,
+  ) => Promise<PluginHookTransformLlmInputResult | void> | PluginHookTransformLlmInputResult | void;
+  transform_llm_output: (
+    event: PluginHookTransformLlmOutputEvent,
+    ctx: PluginHookAgentContext,
+  ) =>
+    | Promise<PluginHookTransformLlmOutputResult | void>
+    | PluginHookTransformLlmOutputResult
+    | void;
 };
 
 export type PluginHookRegistration<K extends PluginHookName = PluginHookName> = {
