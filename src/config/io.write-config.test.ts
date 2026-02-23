@@ -218,6 +218,36 @@ describe("config io write", () => {
     });
   });
 
+  it("ignores blocked prototype-key unset path segments", async () => {
+    await withTempHome("openclaw-config-io-", async (home) => {
+      const { configPath, io } = await writeConfigAndCreateIo({
+        home,
+        initialConfig: {
+          gateway: { mode: "local" },
+          commands: { ownerDisplay: "hash" },
+        },
+      });
+
+      const input: Record<string, unknown> = {
+        gateway: { mode: "local" },
+        commands: { ownerDisplay: "hash" },
+      };
+      await io.writeConfigFile(input, {
+        unsetPaths: [
+          ["commands", "__proto__"],
+          ["commands", "constructor"],
+          ["commands", "prototype"],
+        ],
+      });
+
+      expect((input.commands as Record<string, unknown>).ownerDisplay).toBe("hash");
+      const persisted = JSON.parse(await fs.readFile(configPath, "utf-8")) as {
+        commands?: Record<string, unknown>;
+      };
+      expect(persisted.commands?.ownerDisplay).toBe("hash");
+    });
+  });
+
   it("preserves env var references when writing", async () => {
     await withTempHome("openclaw-config-io-", async (home) => {
       const { configPath, io, snapshot } = await writeConfigAndCreateIo({

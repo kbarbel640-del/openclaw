@@ -39,6 +39,7 @@ import { applyMergePatch } from "./merge-patch.js";
 import { normalizeExecSafeBinProfilesInConfig } from "./normalize-exec-safe-bin.js";
 import { normalizeConfigPaths } from "./normalize-paths.js";
 import { resolveConfigPath, resolveDefaultConfigCandidates, resolveStateDir } from "./paths.js";
+import { isBlockedObjectKey } from "./prototype-keys.js";
 import { applyConfigOverrides } from "./runtime-overrides.js";
 import type { OpenClawConfig, ConfigFileSnapshot, LegacyConfigIssue } from "./types.js";
 import {
@@ -143,6 +144,10 @@ function isWritePlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function hasOwnObjectKey(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
 const WRITE_PRUNED_OBJECT = Symbol("write-pruned-object");
 
 type UnsetPathWriteResult = {
@@ -187,7 +192,11 @@ function unsetPathForWriteAt(
     return { changed: true, value: next };
   }
 
-  if (!isWritePlainObject(value) || !(segment in value)) {
+  if (
+    isBlockedObjectKey(segment) ||
+    !isWritePlainObject(value) ||
+    !hasOwnObjectKey(value, segment)
+  ) {
     return { changed: false, value };
   }
   if (isLeaf) {
@@ -216,9 +225,9 @@ function unsetPathForWriteAt(
 }
 
 function unsetPathForWrite(
-  root: Record<string, unknown>,
+  root: OpenClawConfig,
   pathSegments: string[],
-): { changed: boolean; next: Record<string, unknown> } {
+): { changed: boolean; next: OpenClawConfig } {
   if (pathSegments.length === 0) {
     return { changed: false, next: root };
   }
@@ -230,7 +239,7 @@ function unsetPathForWrite(
     return { changed: true, next: {} };
   }
   if (isWritePlainObject(result.value)) {
-    return { changed: true, next: result.value };
+    return { changed: true, next: coerceConfig(result.value) };
   }
   return { changed: false, next: root };
 }
@@ -1041,9 +1050,9 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         if (!Array.isArray(unsetPath) || unsetPath.length === 0) {
           continue;
         }
-        const unsetResult = unsetPathForWrite(outputConfig as Record<string, unknown>, unsetPath);
+        const unsetResult = unsetPathForWrite(outputConfig, unsetPath);
         if (unsetResult.changed) {
-          outputConfig = unsetResult.next as OpenClawConfig;
+          outputConfig = unsetResult.next;
         }
       }
     }
