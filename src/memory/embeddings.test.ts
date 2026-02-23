@@ -30,6 +30,7 @@ const createGeminiFetchMock = () =>
 afterEach(() => {
   vi.resetAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 function requireProvider(result: Awaited<ReturnType<typeof createEmbeddingProvider>>) {
@@ -312,6 +313,7 @@ describe("embedding provider auto selection", () => {
   });
 
   it("uses mistral when openai/gemini/voyage are missing", async () => {
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "");
     const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
     vi.mocked(authModule.resolveApiKeyForProvider).mockImplementation(async ({ provider }) => {
@@ -470,6 +472,7 @@ describe("local embedding normalization", () => {
 
 describe("FTS-only fallback when no provider available", () => {
   it("returns null provider with reason when auto mode finds no providers", async () => {
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "");
     vi.mocked(authModule.resolveApiKeyForProvider).mockRejectedValue(
       new Error('No API key found for provider "openai"'),
     );
