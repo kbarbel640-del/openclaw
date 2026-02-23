@@ -45,6 +45,8 @@ function formatFileLogLine(logObj: LogObj): string {
       const parsed = JSON.parse(meta.name) as Record<string, unknown>;
       if (typeof parsed.subsystem === "string") {
         subsystem = parsed.subsystem;
+      } else if (typeof parsed.module === "string") {
+        subsystem = parsed.module;
       }
     } catch {
       // keep main
@@ -162,7 +164,10 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
             _meta: { logLevelName: "WARN", name: '{"subsystem":"logging"}' },
             0: `log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}`,
           });
-          appendLogLine(settings.file, `${warningLine}\n`);
+          const warningPayload = `${warningLine}\n`;
+          if (appendLogLine(settings.file, warningPayload)) {
+            currentFileBytes += Buffer.byteLength(warningPayload, "utf8");
+          }
           process.stderr.write(
             `[openclaw] log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}\n`,
           );
