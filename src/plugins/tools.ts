@@ -70,6 +70,15 @@ export function resolvePluginTools(params: {
   const blockedPlugins = new Set<string>();
 
   for (const entry of registry.tools) {
+    // Filter by allowedAgents if configured
+    const entryConfig = normalized.entries[entry.pluginId];
+    if (entryConfig?.allowedAgents && entryConfig.allowedAgents.length > 0) {
+      const currentAgentId = params.context.agentId;
+      if (!currentAgentId || !entryConfig.allowedAgents.includes(currentAgentId)) {
+        continue;
+      }
+    }
+
     if (blockedPlugins.has(entry.pluginId)) {
       continue;
     }
