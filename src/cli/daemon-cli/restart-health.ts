@@ -61,11 +61,10 @@ export async function inspectGatewayRestart(params: {
         )
       : [];
   const running = runtime.status === "running";
+  const runtimePid = runtime.pid;
   const ownsPort =
-    runtime.pid != null
-      ? portUsage.listeners.some((listener) =>
-          listenerOwnedByRuntimePid({ listener, runtimePid: runtime.pid }),
-        )
+    runtimePid != null
+      ? portUsage.listeners.some((listener) => listenerOwnedByRuntimePid({ listener, runtimePid }))
       : gatewayListeners.length > 0 ||
         (portUsage.status === "busy" && portUsage.listeners.length === 0);
   const healthy = running && ownsPort;
@@ -77,10 +76,10 @@ export async function inspectGatewayRestart(params: {
           if (!running) {
             return true;
           }
-          if (runtime.pid == null) {
+          if (runtimePid == null) {
             return true;
           }
-          return !listenerOwnedByRuntimePid({ listener, runtimePid: runtime.pid });
+          return !listenerOwnedByRuntimePid({ listener, runtimePid });
         })
         .map((listener) => listener.pid as number),
     ),

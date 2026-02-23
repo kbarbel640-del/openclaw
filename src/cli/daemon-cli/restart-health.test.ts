@@ -1,18 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GatewayService } from "../../daemon/service.js";
+import type { PortListenerKind, PortUsage } from "../../infra/ports.js";
 
-const inspectPortUsage = vi.hoisted(() => vi.fn());
-const classifyPortListener = vi.hoisted(() => vi.fn(() => "gateway"));
+const inspectPortUsage = vi.hoisted(() => vi.fn<(port: number) => Promise<PortUsage>>());
+const classifyPortListener = vi.hoisted(() =>
+  vi.fn<(_listener: unknown, _port: number) => PortListenerKind>(() => "gateway"),
+);
 
 vi.mock("../../infra/ports.js", () => ({
-  classifyPortListener: (...args: unknown[]) => classifyPortListener(...args),
+  classifyPortListener: (listener: unknown, port: number) => classifyPortListener(listener, port),
   formatPortDiagnostics: vi.fn(() => []),
-  inspectPortUsage: (...args: unknown[]) => inspectPortUsage(...args),
+  inspectPortUsage: (port: number) => inspectPortUsage(port),
 }));
 
 describe("inspectGatewayRestart", () => {
   beforeEach(() => {
     inspectPortUsage.mockReset();
+    inspectPortUsage.mockResolvedValue({
+      port: 0,
+      status: "free",
+      listeners: [],
+      hints: [],
+    });
     classifyPortListener.mockReset();
     classifyPortListener.mockReturnValue("gateway");
   });
