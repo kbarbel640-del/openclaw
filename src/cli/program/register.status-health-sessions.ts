@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { healthCommand } from "../../commands/health.js";
+import { sessionsResetCommand } from "../../commands/sessions-reset.js";
 import { sessionsCommand } from "../../commands/sessions.js";
 import { statusCommand } from "../../commands/status.js";
 import { setVerbose } from "../../globals.js";
@@ -111,9 +112,9 @@ export function registerStatusHealthSessionsCommands(program: Command) {
       });
     });
 
-  program
+  const sessions = program
     .command("sessions")
-    .description("List stored conversation sessions")
+    .description("List and manage stored conversation sessions")
     .option("--json", "Output as JSON", false)
     .option("--verbose", "Verbose logging", false)
     .option("--store <path>", "Path to session store (default: resolved from config)")
@@ -142,6 +143,49 @@ export function registerStatusHealthSessionsCommands(program: Command) {
           json: Boolean(opts.json),
           store: opts.store as string | undefined,
           active: opts.active as string | undefined,
+        },
+        defaultRuntime,
+      );
+    });
+
+  sessions
+    .command("reset")
+    .description("Reset sticky session model/provider/auth overrides")
+    .requiredOption("--key <sessionKey>", "Session key to reset")
+    .option("--agent <agentId>", "Agent id (default: main)", "main")
+    .option(
+      "--model",
+      "Clear provider/model overrides and auth profile overrides for this session",
+      false,
+    )
+    .option(
+      "--auth",
+      "Clear only auth profile overrides (authProfileOverride*) for this session",
+      false,
+    )
+    .option("--all", "Clear both model/provider and auth profile overrides", false)
+    .option("--json", "Output as JSON", false)
+    .addHelpText(
+      "after",
+      () =>
+        `\n${theme.muted(
+          "Removes sticky session overrides so the session falls back to default configured model/provider/auth profile behavior.",
+        )}`,
+    )
+    .action(async (opts) => {
+      // Commander may bind `--json` to the parent `sessions` command (list) option.
+      // Merge both to preserve expected UX: `openclaw sessions reset --json`.
+      const parentJson = Boolean((sessions.opts?.() as { json?: unknown } | undefined)?.json);
+      const json = Boolean(opts.json) || parentJson;
+
+      await sessionsResetCommand(
+        {
+          key: opts.key as string | undefined,
+          agent: opts.agent as string | undefined,
+          model: Boolean(opts.model),
+          auth: Boolean(opts.auth),
+          all: Boolean(opts.all),
+          json,
         },
         defaultRuntime,
       );
