@@ -22,6 +22,12 @@ const ANTHROPIC_MODEL_ALIASES: Record<string, string> = {
   "sonnet-4.6": "claude-sonnet-4-6",
   "sonnet-4.5": "claude-sonnet-4-5",
 };
+const ANTIGRAVITY_MODEL_ALIASES: Record<string, string> = {
+  "gemini-3-pro": "gemini-3-pro-high",
+  "gemini-3.1-pro": "gemini-3-pro-high",
+  "gemini-3.1-pro-high": "gemini-3-pro-high",
+  "gemini-3.1-pro-low": "gemini-3-pro-low",
+};
 const OPENAI_CODEX_OAUTH_MODEL_PREFIXES = ["gpt-5.3-codex"] as const;
 
 function normalizeAliasKey(value: string): string {
@@ -97,12 +103,24 @@ function normalizeAnthropicModelId(model: string): string {
   return ANTHROPIC_MODEL_ALIASES[lower] ?? trimmed;
 }
 
+function normalizeAntigravityModelId(model: string): string {
+  const trimmed = model.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+  const lower = trimmed.toLowerCase();
+  return ANTIGRAVITY_MODEL_ALIASES[lower] ?? trimmed;
+}
+
 function normalizeProviderModelId(provider: string, model: string): string {
   if (provider === "anthropic") {
     return normalizeAnthropicModelId(model);
   }
   if (provider === "google") {
     return normalizeGoogleModelId(model);
+  }
+  if (provider === "google-antigravity") {
+    return normalizeAntigravityModelId(model);
   }
   return model;
 }
