@@ -2915,6 +2915,23 @@ to `on` in config.
 
 Docs: [Thinking and verbose](/tools/thinking), [Security](/gateway/security#reasoning--verbose-output-in-groups).
 
+### I get 400 Only one of reasoning and reasoning_effort may be provided
+
+This means your upstream provider rejected a payload that included two reasoning control formats in the same request.
+
+Quick recovery:
+
+```bash
+/think off
+/reasoning off
+```
+
+Then retry the same message.
+
+If it persists, update OpenClaw to a build that avoids injecting `reasoning.effort` when `reasoning_effort` already exists in the payload.
+
+Docs: [OpenRouter](/providers/openrouter), [Thinking and verbose](/tools/thinking).
+
 ### How do I stopcancel a running task
 
 Send any of these **as a standalone message** (no slash):

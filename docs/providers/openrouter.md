@@ -35,3 +35,10 @@ openclaw onboard --auth-choice apiKey --token-provider openrouter --token "$OPEN
 - Model refs are `openrouter/<provider>/<model>`.
 - For more model/provider options, see [/concepts/model-providers](/concepts/model-providers).
 - OpenRouter uses a Bearer token with your API key under the hood.
+
+## Troubleshooting
+
+- Error: `400 Only one of "reasoning" and "reasoning_effort" may be provided`
+  - Cause: request payload includes both the nested OpenRouter format (`reasoning.effort`) and flat OpenAI format (`reasoning_effort`).
+  - Fix: send exactly one reasoning control format per request. Current OpenClaw builds avoid injecting `reasoning.effort` when `reasoning_effort` is already present.
+  - Immediate session workaround: send `/think off` and `/reasoning off`, then retry.
