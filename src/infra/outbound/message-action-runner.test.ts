@@ -354,8 +354,7 @@ describe("runMessageAction context isolation", () => {
         cfg: slackConfig,
         actionParams: {
           channel: "telegram",
-          // Use a valid-looking telegram id so the failure is from policy, not target parsing.
-          target: "123456789",
+          target: "@opsbot",
           message: "hi",
         },
         toolContext: { currentChannelId: "C12345678", currentChannelProvider: "slack" },
