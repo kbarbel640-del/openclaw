@@ -128,8 +128,12 @@ export const api = {
   onboard: (body: unknown) => post<unknown>("/onboard", body),
 
   // Chat
-  sendChatMessage: (body: { agentId: string; message: string; businessId: string }) =>
-    post<{ ok: boolean; messageId: string; message: string }>("/chat", body),
+  sendChatMessage: (body: {
+    agentId: string;
+    message: string;
+    businessId: string;
+    pageContext?: { page: string; capabilities: string[] };
+  }) => post<{ ok: boolean; messageId: string; message: string }>("/chat", body),
 
   // BDI
   triggerBdiCycle: (businessId: string, agentId: string) =>

@@ -45,7 +45,7 @@ export class TypeDBClient {
     this.driverParams = {
       username: params?.username ?? "admin",
       password: params?.password ?? "password",
-      addresses: params?.addresses ?? ["http://localhost:8729"],
+      addresses: params?.addresses ?? [process.env.TYPEDB_URL || "http://157.230.13.13:8729"],
     };
   }
 

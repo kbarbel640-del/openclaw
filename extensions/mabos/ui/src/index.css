@@ -168,3 +168,29 @@ body {
 /* Hide scrollbar for mobile horizontal nav */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Tab content fade-in animation */
+[data-slot="tabs-content"] {
+  animation: tabFadeIn 300ms ease-in-out;
+}
+
+@keyframes tabFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduced motion: disable tab animation and blur overlay */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="tabs-content"] {
+    animation: none;
+  }
+
+  .chat-blur-overlay > div {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: linear-gradient(to bottom, transparent 0%,
+      color-mix(in srgb, var(--bg-primary) 85%, transparent) 40%);
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+  }
+}

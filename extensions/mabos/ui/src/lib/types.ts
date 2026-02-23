@@ -18,6 +18,7 @@ export type ChatMessage = {
   content: string;
   timestamp: Date;
   streaming?: boolean;
+  actions?: ChatAction[];
 };
 
 export type Business = {
@@ -222,6 +223,24 @@ export type DetailPanelState = {
   entityData: unknown;
 };
 
+// --- Cron / Scheduling ---
+
+export type CronJobStatus = "active" | "paused" | "error";
+
+export type CronJob = {
+  id: string;
+  name: string;
+  schedule: string; // cron expression
+  agentId: string;
+  action: string; // tool name or workflow ID to execute
+  enabled: boolean;
+  lastRun?: string; // ISO timestamp
+  nextRun?: string; // ISO timestamp
+  status: CronJobStatus;
+};
+
+export type CronJobsResponse = { jobs: CronJob[] };
+
 // --- Kanban / SLA Perspectives ---
 
 export type KanbanColumnConfig = {
@@ -236,4 +255,21 @@ export type SLAPerspective = {
   label: string;
   description: string;
   columns: KanbanColumnConfig[];
+};
+
+// --- Chat Actions ---
+
+export type ChatActionType = "invalidate_query" | "mutate_data" | "navigate" | "open_detail";
+
+export type ChatAction = {
+  type: ChatActionType;
+  payload: {
+    queryKeys?: string[][];
+    mutationFn?: string;
+    mutationData?: Record<string, unknown>;
+    route?: string;
+    entityType?: EntityType;
+    entityId?: string;
+    entityData?: unknown;
+  };
 };

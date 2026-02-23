@@ -14,6 +14,7 @@ import type { OpenClawPluginApi, AnyAgentTool } from "openclaw/plugin-sdk";
 import { getTypeDBClient } from "../knowledge/typedb-client.js";
 import { MemoryQueries } from "../knowledge/typedb-queries.js";
 import { textResult, resolveWorkspaceDir } from "./common.js";
+import { materializeMemoryItems } from "./memory-materializer.js";
 
 async function readJson(p: string) {
   try {
@@ -36,6 +37,80 @@ async function readMd(p: string) {
 async function writeMd(p: string, c: string) {
   await mkdir(dirname(p), { recursive: true });
   await writeFile(p, c, "utf-8");
+}
+
+// ── Semantic recall via OpenClaw's hybrid search ──
+
+type SemanticResult = { id: string; content: string; score: number; source: string };
+
+async function semanticRecall(
+  api: OpenClawPluginApi,
+  agentId: string,
+  query: string,
+  limit: number,
+): Promise<SemanticResult[] | null> {
+  try {
+    // Dynamic import path kept as a variable so TypeScript doesn't resolve
+    // the file statically (it lives outside this extension's rootDir).
+    const SEARCH_MANAGER_PATH = "../../../../src/memory/search-manager.js";
+    const mod = await import(/* webpackIgnore: true */ SEARCH_MANAGER_PATH);
+    const getMemorySearchManager = mod.getMemorySearchManager as (params: {
+      cfg: any;
+      agentId: string;
+    }) => Promise<{ manager: any | null; error?: string }>;
+
+    const { manager } = await getMemorySearchManager({
+      cfg: api.config,
+      agentId,
+    });
+    if (!manager) return null;
+
+    const results = await manager.search(query, { maxResults: limit, minScore: 0.3 });
+    return (results as any[]).map((r: any) => ({
+      id: r.path,
+      content: r.snippet,
+      score: r.score,
+      source: r.path,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+// ── TypeDB result parsing ──
+
+function parseTypeDBMemoryResults(response: any): Array<MemoryItem & { _store: string }> {
+  try {
+    if (!response || response.answerType !== "conceptRows" || !Array.isArray(response.answers)) {
+      return [];
+    }
+    const items: Array<MemoryItem & { _store: string }> = [];
+    for (const answer of response.answers) {
+      const row = answer.data;
+      if (!row) continue;
+      const uid = row.$mid?.value ?? row.mid?.value;
+      const content = row.$c?.value ?? row.c?.value;
+      const memoryType = row.$t?.value ?? row.t?.value;
+      const importance = row.$imp?.value ?? row.imp?.value;
+      const storeName = row.$sn?.value ?? row.sn?.value;
+      if (!uid || !content) continue;
+      items.push({
+        id: String(uid),
+        content: String(content),
+        type: (memoryType as MemoryItem["type"]) || "observation",
+        importance: typeof importance === "number" ? importance : 0.5,
+        source: "typedb",
+        tags: [],
+        created_at: new Date().toISOString(),
+        accessed_at: new Date().toISOString(),
+        access_count: 0,
+        _store: String(storeName || "long_term"),
+      });
+    }
+    return items;
+  } catch {
+    return [];
+  }
 }
 
 // ── Native OpenClaw memory bridge ──
@@ -270,6 +345,9 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
           // TypeDB unavailable — JSON + Markdown are source of truth
         }
 
+        // Materialize to indexed Markdown for OpenClaw semantic search
+        materializeMemoryItems(api, params.agent_id).catch(() => {});
+
         return textResult(
           `Memory ${item.id} stored in ${targetStore} (importance: ${params.importance}, type: ${params.type})`,
         );
@@ -282,28 +360,12 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
       description: "Search across memory stores for relevant items by query, type, or importance.",
       parameters: MemoryRecallParams,
       async execute(_id: string, params: Static<typeof MemoryRecallParams>) {
-        // Try TypeDB first (exercise connection), fall back to JSON
-        try {
-          const client = getTypeDBClient();
-          if (client.isAvailable()) {
-            const typeql = MemoryQueries.recallItems(params.agent_id, {
-              query: params.query,
-              type: params.type,
-              store: params.store,
-              minImportance: params.min_importance,
-            });
-            await client.matchQuery(typeql, `mabos_${params.agent_id.split("/")[0] || "default"}`);
-          }
-        } catch {
-          // Fall through to JSON
-        }
-
         const mem = await loadMemory(api, params.agent_id);
         const searchStore = params.store || "all";
         const limit = params.limit || 20;
         const minImp = params.min_importance || 0;
 
-        // Collect items from requested stores
+        // ── Step A: Collect items from JSON stores ──
         let items: Array<MemoryItem & { _store: string }> = [];
         if (searchStore === "all" || searchStore === "working") {
           items.push(...mem.working.map((i) => ({ ...i, _store: "working" as string })));
@@ -316,35 +378,145 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
           items.push(...mem.long_term.map((i) => ({ ...i, _store: "long_term" as string })));
         }
 
-        // Filter
-        if (params.type) items = items.filter((i) => i.type === params.type);
-        if (minImp > 0) items = items.filter((i) => i.importance >= minImp);
-        if (params.query) {
-          const q = params.query.toLowerCase();
-          items = items.filter(
-            (i) =>
-              i.content.toLowerCase().includes(q) ||
-              i.tags.some((t) => t.toLowerCase().includes(q)),
-          );
+        // ── Step B: Merge TypeDB results (previously discarded) ──
+        try {
+          const client = getTypeDBClient();
+          if (client.isAvailable()) {
+            const typeql = MemoryQueries.recallItems(params.agent_id, {
+              query: params.query,
+              type: params.type,
+              store: params.store,
+              minImportance: params.min_importance,
+            });
+            const typedbResponse = await client.matchQuery(
+              typeql,
+              `mabos_${params.agent_id.split("/")[0] || "default"}`,
+            );
+            const typedbItems = parseTypeDBMemoryResults(typedbResponse);
+            // Merge: add TypeDB items not already in JSON (deduplicate by ID)
+            const existingIds = new Set(items.map((i) => i.id));
+            for (const tItem of typedbItems) {
+              if (!existingIds.has(tItem.id)) {
+                items.push(tItem);
+                existingIds.add(tItem.id);
+              }
+            }
+          }
+        } catch {
+          // TypeDB unavailable — continue with JSON items only
         }
 
-        // Sort by importance × recency
-        items.sort((a, b) => {
-          const scoreA =
-            a.importance * 0.6 +
-            (1 - (Date.now() - new Date(a.created_at).getTime()) / (24 * 60 * 60 * 1000)) * 0.4;
-          const scoreB =
-            b.importance * 0.6 +
-            (1 - (Date.now() - new Date(b.created_at).getTime()) / (24 * 60 * 60 * 1000)) * 0.4;
-          return scoreB - scoreA;
-        });
+        // ── Step C: Filter by type and importance ──
+        if (params.type) items = items.filter((i) => i.type === params.type);
+        if (minImp > 0) items = items.filter((i) => i.importance >= minImp);
 
-        items = items.slice(0, limit);
+        // ── Step D: Semantic search re-scoring + enrichment ──
+        let usedSemantic = false;
+        if (params.query) {
+          const semanticResults = await semanticRecall(
+            api,
+            params.agent_id,
+            params.query,
+            limit * 2,
+          );
 
-        // Update access counts
+          if (semanticResults && semanticResults.length > 0) {
+            usedSemantic = true;
+            // Build a map of semantic scores by content snippet for fuzzy matching
+            const semanticScoreMap = new Map<string, number>();
+            for (const sr of semanticResults) {
+              semanticScoreMap.set(sr.content.toLowerCase().trim(), sr.score);
+            }
+
+            // Re-score JSON items: if content matches a semantic result, boost with hybrid score
+            type ScoredItem = MemoryItem & { _store: string; _score: number };
+            const scored: ScoredItem[] = items.map((item) => {
+              const contentKey = item.content.toLowerCase().trim();
+              const semanticScore = semanticScoreMap.get(contentKey);
+              if (semanticScore !== undefined) {
+                // Blend: semantic score (0-1 range) weighted heavily + importance
+                return { ...item, _score: semanticScore * 0.7 + item.importance * 0.3 };
+              }
+              // Check for partial content overlap
+              let bestPartialScore = 0;
+              for (const [snippet, score] of semanticScoreMap) {
+                if (contentKey.includes(snippet) || snippet.includes(contentKey)) {
+                  bestPartialScore = Math.max(bestPartialScore, score * 0.5);
+                }
+              }
+              if (bestPartialScore > 0) {
+                return { ...item, _score: bestPartialScore * 0.7 + item.importance * 0.3 };
+              }
+              // No semantic match — use original importance × recency score
+              const recency =
+                1 - (Date.now() - new Date(item.created_at).getTime()) / (24 * 60 * 60 * 1000);
+              return { ...item, _score: item.importance * 0.6 + recency * 0.4 };
+            });
+
+            // Also include semantic-only results (from materialized files) that don't match JSON items
+            const jsonContents = new Set(items.map((i) => i.content.toLowerCase().trim()));
+            for (const sr of semanticResults) {
+              const srKey = sr.content.toLowerCase().trim();
+              if (!jsonContents.has(srKey) && sr.content.trim()) {
+                scored.push({
+                  id: sr.id,
+                  content: sr.content,
+                  type: "observation" as const,
+                  importance: sr.score,
+                  source: sr.source,
+                  tags: [],
+                  created_at: new Date().toISOString(),
+                  accessed_at: new Date().toISOString(),
+                  access_count: 0,
+                  _store: "semantic",
+                  _score: sr.score,
+                });
+              }
+            }
+
+            scored.sort((a, b) => b._score - a._score);
+            items = scored.slice(0, limit);
+          } else {
+            // Semantic search unavailable or returned nothing — fall back to substring
+            const q = params.query.toLowerCase();
+            items = items.filter(
+              (i) =>
+                i.content.toLowerCase().includes(q) ||
+                i.tags.some((t) => t.toLowerCase().includes(q)),
+            );
+            // Sort by importance × recency
+            items.sort((a, b) => {
+              const scoreA =
+                a.importance * 0.6 +
+                (1 - (Date.now() - new Date(a.created_at).getTime()) / (24 * 60 * 60 * 1000)) * 0.4;
+              const scoreB =
+                b.importance * 0.6 +
+                (1 - (Date.now() - new Date(b.created_at).getTime()) / (24 * 60 * 60 * 1000)) * 0.4;
+              return scoreB - scoreA;
+            });
+            items = items.slice(0, limit);
+          }
+        } else {
+          // No query — sort by importance × recency
+          items.sort((a, b) => {
+            const scoreA =
+              a.importance * 0.6 +
+              (1 - (Date.now() - new Date(a.created_at).getTime()) / (24 * 60 * 60 * 1000)) * 0.4;
+            const scoreB =
+              b.importance * 0.6 +
+              (1 - (Date.now() - new Date(b.created_at).getTime()) / (24 * 60 * 60 * 1000)) * 0.4;
+            return scoreB - scoreA;
+          });
+          items = items.slice(0, limit);
+        }
+
+        // ── Step E: Update access counts for JSON-backed items ──
         for (const item of items) {
+          if (item._store === "semantic") continue; // Not a JSON store
           const storeKey = item._store as keyof MemoryStore;
-          const original = (mem[storeKey] as MemoryItem[]).find((i) => i.id === item.id);
+          const original = (mem[storeKey] as MemoryItem[] | undefined)?.find(
+            (i) => i.id === item.id,
+          );
           if (original) {
             original.accessed_at = new Date().toISOString();
             original.access_count++;
@@ -361,8 +533,9 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
           )
           .join("\n");
 
+        const searchMethod = usedSemantic ? " (semantic)" : "";
         return textResult(
-          `## Memory Recall — ${params.agent_id}\n\nFound ${items.length} items:\n\n${output}`,
+          `## Memory Recall — ${params.agent_id}${searchMethod}\n\nFound ${items.length} items:\n\n${output}`,
         );
       },
     },
@@ -453,6 +626,9 @@ ${allCandidates.map((i) => `- ${i.id}: [${i.type}] ${i.content.slice(0, 80)}... 
         } catch {
           // TypeDB unavailable
         }
+
+        // Materialize to indexed Markdown for OpenClaw semantic search
+        materializeMemoryItems(api, params.agent_id).catch(() => {});
 
         return textResult(`## Memory Consolidated — ${params.agent_id}
 

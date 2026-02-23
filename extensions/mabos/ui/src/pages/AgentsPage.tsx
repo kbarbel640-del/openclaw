@@ -2,6 +2,8 @@ import { AlertCircle, Users, Plus } from "lucide-react";
 import { useState } from "react";
 import { AgentCard } from "@/components/agents/AgentCard";
 import { AgentFormDialog } from "@/components/agents/AgentFormDialog";
+import { AgentViewSwitcher } from "@/components/agents/AgentViewSwitcher";
+import { ChatBlurOverlay } from "@/components/agents/ChatBlurOverlay";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,7 +49,7 @@ export function AgentsPage() {
   const agents = agentsResponse?.agents;
 
   return (
-    <div className="space-y-6">
+    <div className="relative z-10 space-y-6 pb-[255px] max-md:pb-[180px]">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -88,26 +90,36 @@ export function AgentsPage() {
         </div>
       )}
 
-      {/* Agent Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {isLoading
-          ? Array.from({ length: 8 }).map((_, i) => <AgentCardSkeleton key={i} />)
-          : agents?.map((agent) => (
-              <AgentCard
-                key={agent.id}
-                agent={agent}
-                onSelect={(id) => openDetailPanel("agent", id, null)}
-              />
-            ))}
-      </div>
+      {/* View Switcher with Tabs */}
+      <AgentViewSwitcher
+        agents={agents}
+        isLoading={isLoading}
+        onSelectAgent={(id) => openDetailPanel("agent", id, null)}
+      >
+        {/* Grid tab content */}
+        <>
+          {/* Agent Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {isLoading
+              ? Array.from({ length: 8 }).map((_, i) => <AgentCardSkeleton key={i} />)
+              : agents?.map((agent) => (
+                  <AgentCard
+                    key={agent.id}
+                    agent={agent}
+                    onSelect={(id) => openDetailPanel("agent", id, null)}
+                  />
+                ))}
+          </div>
 
-      {/* Empty state */}
-      {!isLoading && !error && agents && agents.length === 0 && (
-        <div className="text-center py-12">
-          <Users className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
-          <p className="text-sm text-[var(--text-secondary)]">No agents configured yet.</p>
-        </div>
-      )}
+          {/* Empty state */}
+          {!isLoading && !error && agents && agents.length === 0 && (
+            <div className="text-center py-12">
+              <Users className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
+              <p className="text-sm text-[var(--text-secondary)]">No agents configured yet.</p>
+            </div>
+          )}
+        </>
+      </AgentViewSwitcher>
 
       {/* Create Dialog */}
       <AgentFormDialog
@@ -115,6 +127,9 @@ export function AgentsPage() {
         onOpenChange={setShowCreateDialog}
         businessId={BUSINESS_ID}
       />
+
+      {/* Blur overlay between grid and chat */}
+      <ChatBlurOverlay />
     </div>
   );
 }

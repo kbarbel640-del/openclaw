@@ -41,7 +41,9 @@ export class FactStoreQueries {
       : "";
     const ruleClause = fact.ruleId ? `, has rule_id ${JSON.stringify(fact.ruleId)}` : "";
 
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $fact isa spo_fact,
     has uid ${JSON.stringify(fact.id)},
     has subject ${JSON.stringify(fact.subject)},
@@ -51,7 +53,6 @@ export class FactStoreQueries {
     has source ${JSON.stringify(fact.source)}${validFromClause}${validUntilClause}${ruleClause},
     has created_at ${JSON.stringify(new Date().toISOString())},
     has updated_at ${JSON.stringify(new Date().toISOString())};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $fact) isa agent_owns;`;
   }
 
@@ -135,7 +136,9 @@ export class RuleStoreQueries {
   ): string {
     const domainClause = rule.domain ? `, has domain ${JSON.stringify(rule.domain)}` : "";
 
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $rule isa knowledge_rule,
     has uid ${JSON.stringify(rule.id)},
     has name ${JSON.stringify(rule.name)},
@@ -145,7 +148,6 @@ export class RuleStoreQueries {
     has confidence_factor ${rule.confidenceFactor},
     has enabled ${rule.enabled}${domainClause},
     has created_at ${JSON.stringify(new Date().toISOString())};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $rule) isa agent_owns;`;
   }
 
@@ -197,7 +199,9 @@ export class MemoryQueries {
     const tagClauses = item.tags.map((t) => `, has tag ${JSON.stringify(t)}`).join("");
     const now = new Date().toISOString();
 
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $mem isa memory_item,
     has uid ${JSON.stringify(item.id)},
     has content ${JSON.stringify(item.content)},
@@ -208,7 +212,6 @@ export class MemoryQueries {
     has access_count 0${tagClauses},
     has created_at ${JSON.stringify(now)},
     has accessed_at ${JSON.stringify(now)};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $mem) isa agent_owns;`;
   }
 
@@ -311,7 +314,9 @@ export class CBRQueries {
       domain: string;
     },
   ): string {
-    return `insert
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
   $case isa cbr_case,
     has uid ${JSON.stringify(caseData.id)},
     has situation ${JSON.stringify(caseData.situation)},
@@ -319,7 +324,6 @@ export class CBRQueries {
     has outcome ${JSON.stringify(caseData.outcome)},
     has domain ${JSON.stringify(caseData.domain)},
     has created_at ${JSON.stringify(new Date().toISOString())};
-  $agent isa agent, has uid ${JSON.stringify(agentId)};
   (owner: $agent, owned: $case) isa agent_owns;`;
   }
 
@@ -332,6 +336,556 @@ export class CBRQueries {
   $case isa cbr_case, has uid $cid, has situation $sit, has solution $sol,
     has outcome $out, has domain ${JSON.stringify(domain)};
   (owner: $agent, owned: $case) isa agent_owns;`;
+  }
+}
+
+// ── Goal Store Queries ──────────────────────────────────────────────────
+
+export class GoalStoreQueries {
+  /**
+   * Insert a goal scoped to an agent.
+   */
+  static createGoal(
+    agentId: string,
+    goal: {
+      id: string;
+      name: string;
+      description: string;
+      hierarchy_level: string;
+      success_criteria?: string;
+      deadline?: string;
+      priority: number;
+      status?: string;
+      parent_goal_id?: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    const optionals = [
+      goal.success_criteria
+        ? `, has success_criteria ${JSON.stringify(goal.success_criteria)}`
+        : "",
+      goal.deadline ? `, has deadline ${JSON.stringify(goal.deadline)}` : "",
+      goal.parent_goal_id ? `, has parent_goal_id ${JSON.stringify(goal.parent_goal_id)}` : "",
+    ].join("");
+
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
+  $goal isa goal,
+    has uid ${JSON.stringify(goal.id)},
+    has name ${JSON.stringify(goal.name)},
+    has description ${JSON.stringify(goal.description)},
+    has hierarchy_level ${JSON.stringify(goal.hierarchy_level)},
+    has priority ${goal.priority},
+    has progress 0.0,
+    has status ${JSON.stringify(goal.status || "active")}${optionals},
+    has created_at ${JSON.stringify(now)},
+    has updated_at ${JSON.stringify(now)};
+  (owner: $agent, owned: $goal) isa agent_owns;`;
+  }
+
+  /**
+   * Link a desire to a goal via desire_motivates_goal relation.
+   */
+  static linkDesireToGoal(agentId: string, desireId: string, goalId: string): string {
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $desire isa desire, has uid ${JSON.stringify(desireId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)};
+  (owner: $agent, owned: $desire) isa agent_owns;
+  (owner: $agent, owned: $goal) isa agent_owns;
+insert
+  (motivator: $desire, motivated: $goal) isa desire_motivates_goal;`;
+  }
+
+  /**
+   * Link a goal to a plan via goal_requires_plan relation.
+   */
+  static linkGoalToPlan(agentId: string, goalId: string, planId: string): string {
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)};
+  $plan isa plan, has uid ${JSON.stringify(planId)};
+  (owner: $agent, owned: $goal) isa agent_owns;
+  (owner: $agent, owned: $plan) isa agent_owns;
+insert
+  (requiring: $goal, required: $plan) isa goal_requires_plan;`;
+  }
+
+  /**
+   * Query goals with optional filters.
+   */
+  static queryGoals(
+    agentId: string,
+    filters: { hierarchy_level?: string; status?: string; minPriority?: number },
+  ): string {
+    const clauses: string[] = [
+      `$agent isa agent, has uid ${JSON.stringify(agentId)};`,
+      `$goal isa goal, has uid $gid, has name $n, has hierarchy_level $hl, has priority $p, has status $st, has progress $pr;`,
+      `(owner: $agent, owned: $goal) isa agent_owns;`,
+    ];
+    if (filters.hierarchy_level) {
+      clauses.push(`$hl = ${JSON.stringify(filters.hierarchy_level)};`);
+    }
+    if (filters.status) {
+      clauses.push(`$st = ${JSON.stringify(filters.status)};`);
+    }
+    if (filters.minPriority !== undefined && filters.minPriority > 0) {
+      clauses.push(`$p >= ${filters.minPriority};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+
+  /**
+   * Update goal progress and optionally status.
+   */
+  static updateGoalProgress(
+    agentId: string,
+    goalId: string,
+    progress: number,
+    status?: string,
+  ): string {
+    const now = new Date().toISOString();
+    const statusDelete = status ? `\n  $goal has $old_status;` : "";
+    const statusInsert = status ? `\n  $goal has status ${JSON.stringify(status)};` : "";
+
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)}, has progress $old_progress, has updated_at $old_updated;${statusDelete}
+  (owner: $agent, owned: $goal) isa agent_owns;
+delete
+  $goal has $old_progress;
+  $goal has $old_updated;${statusDelete ? `\n  $goal has $old_status;` : ""}
+insert
+  $goal has progress ${progress};
+  $goal has updated_at ${JSON.stringify(now)};${statusInsert}`;
+  }
+}
+
+// ── Desire Store Queries ────────────────────────────────────────────────
+
+export class DesireStoreQueries {
+  /**
+   * Insert a desire scoped to an agent.
+   */
+  static createDesire(
+    agentId: string,
+    desire: {
+      id: string;
+      name: string;
+      description: string;
+      priority: number;
+      importance: number;
+      urgency: number;
+      alignment: number;
+      status?: string;
+      category: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
+  $desire isa desire,
+    has uid ${JSON.stringify(desire.id)},
+    has name ${JSON.stringify(desire.name)},
+    has description ${JSON.stringify(desire.description)},
+    has priority ${desire.priority},
+    has importance ${desire.importance},
+    has urgency ${desire.urgency},
+    has alignment ${desire.alignment},
+    has status ${JSON.stringify(desire.status || "active")},
+    has category ${JSON.stringify(desire.category)},
+    has created_at ${JSON.stringify(now)};
+  (owner: $agent, owned: $desire) isa agent_owns;`;
+  }
+
+  /**
+   * Query desires with optional filters.
+   */
+  static queryDesires(agentId: string, filters: { category?: string; status?: string }): string {
+    const clauses: string[] = [
+      `$agent isa agent, has uid ${JSON.stringify(agentId)};`,
+      `$desire isa desire, has uid $did, has name $n, has priority $p, has category $cat, has status $st;`,
+      `(owner: $agent, owned: $desire) isa agent_owns;`,
+    ];
+    if (filters.category) {
+      clauses.push(`$cat = ${JSON.stringify(filters.category)};`);
+    }
+    if (filters.status) {
+      clauses.push(`$st = ${JSON.stringify(filters.status)};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+}
+
+// ── Belief Store Queries ────────────────────────────────────────────────
+
+export class BeliefStoreQueries {
+  /**
+   * Insert a belief scoped to an agent.
+   */
+  static createBelief(
+    agentId: string,
+    belief: {
+      id: string;
+      category: string;
+      certainty: number;
+      subject: string;
+      content: string;
+      source: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
+  $belief isa belief,
+    has uid ${JSON.stringify(belief.id)},
+    has category ${JSON.stringify(belief.category)},
+    has certainty ${belief.certainty},
+    has subject ${JSON.stringify(belief.subject)},
+    has content ${JSON.stringify(belief.content)},
+    has source ${JSON.stringify(belief.source)},
+    has created_at ${JSON.stringify(now)},
+    has updated_at ${JSON.stringify(now)};
+  (owner: $agent, owned: $belief) isa agent_owns;`;
+  }
+
+  /**
+   * Link a belief to a goal via belief_supports_goal relation.
+   */
+  static linkBeliefToGoal(agentId: string, beliefId: string, goalId: string): string {
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $belief isa belief, has uid ${JSON.stringify(beliefId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)};
+  (owner: $agent, owned: $belief) isa agent_owns;
+  (owner: $agent, owned: $goal) isa agent_owns;
+insert
+  (believer: $belief, supported: $goal) isa belief_supports_goal;`;
+  }
+
+  /**
+   * Query beliefs with optional filters.
+   */
+  static queryBeliefs(
+    agentId: string,
+    filters: { category?: string; minCertainty?: number },
+  ): string {
+    const clauses: string[] = [
+      `$agent isa agent, has uid ${JSON.stringify(agentId)};`,
+      `$belief isa belief, has uid $bid, has category $cat, has certainty $cert, has subject $sub, has content $c;`,
+      `(owner: $agent, owned: $belief) isa agent_owns;`,
+    ];
+    if (filters.category) {
+      clauses.push(`$cat = ${JSON.stringify(filters.category)};`);
+    }
+    if (filters.minCertainty !== undefined && filters.minCertainty > 0) {
+      clauses.push(`$cert >= ${filters.minCertainty};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+}
+
+// ── Decision Store Queries ───────────────────────────────────────────
+
+export class DecisionStoreQueries {
+  /**
+   * Insert a decision scoped to an agent.
+   */
+  static createDecision(
+    agentId: string,
+    decision: {
+      id: string;
+      name: string;
+      description: string;
+      urgency: string;
+      options: string; // JSON string of DecisionOption[]
+      recommendation?: string;
+      status?: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    const recClause = decision.recommendation
+      ? `, has recommendation ${JSON.stringify(decision.recommendation)}`
+      : "";
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
+  $decision isa decision,
+    has uid ${JSON.stringify(decision.id)},
+    has name ${JSON.stringify(decision.name)},
+    has description ${JSON.stringify(decision.description)},
+    has urgency_level ${JSON.stringify(decision.urgency)},
+    has status ${JSON.stringify(decision.status || "pending")},
+    has options_json ${JSON.stringify(decision.options)}${recClause},
+    has created_at ${JSON.stringify(now)},
+    has updated_at ${JSON.stringify(now)};
+  (owner: $agent, owned: $decision) isa agent_owns;`;
+  }
+
+  /**
+   * Resolve a decision by updating its status and chosen option.
+   */
+  static resolveDecision(uid: string, resolution: string): string {
+    const now = new Date().toISOString();
+    return `match
+  $d isa decision, has uid ${JSON.stringify(uid)}, has status $old_status, has updated_at $old_updated;
+delete
+  $d has $old_status;
+  $d has $old_updated;
+insert
+  $d has status ${JSON.stringify(resolution)};
+  $d has updated_at ${JSON.stringify(now)};`;
+  }
+
+  /**
+   * Query decisions with optional filters.
+   */
+  static queryDecisions(agentId?: string, status?: string): string {
+    const clauses: string[] = [];
+    if (agentId) {
+      clauses.push(`$agent isa agent, has uid ${JSON.stringify(agentId)};`);
+      clauses.push(
+        `$d isa decision, has uid $did, has name $n, has description $desc, has urgency_level $urg, has status $st, has options_json $opts, has created_at $ca;`,
+      );
+      clauses.push(`(owner: $agent, owned: $d) isa agent_owns;`);
+    } else {
+      clauses.push(
+        `$d isa decision, has uid $did, has name $n, has description $desc, has urgency_level $urg, has status $st, has options_json $opts, has created_at $ca;`,
+      );
+    }
+    if (status) {
+      clauses.push(`$st = ${JSON.stringify(status)};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+
+  /**
+   * Link a decision to a goal it resolves.
+   */
+  static linkDecisionToGoal(decisionId: string, goalId: string): string {
+    return `match
+  $d isa decision, has uid ${JSON.stringify(decisionId)};
+  $g isa goal, has uid ${JSON.stringify(goalId)};
+insert
+  (resolver: $d, resolved_goal: $g) isa decision_resolves_goal;`;
+  }
+}
+
+// ── Workflow Store Queries ───────────────────────────────────────────
+
+export class WorkflowStoreQueries {
+  /**
+   * Insert a workflow scoped to an agent.
+   */
+  static createWorkflow(
+    agentId: string,
+    workflow: {
+      id: string;
+      name: string;
+      workflowType: string;
+      trigger: string;
+      status?: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
+  $wf isa workflow,
+    has uid ${JSON.stringify(workflow.id)},
+    has name ${JSON.stringify(workflow.name)},
+    has workflow_type ${JSON.stringify(workflow.workflowType)},
+    has trigger ${JSON.stringify(workflow.trigger)},
+    has status ${JSON.stringify(workflow.status || "active")},
+    has created_at ${JSON.stringify(now)},
+    has updated_at ${JSON.stringify(now)};
+  (owner: $agent, owned: $wf) isa agent_owns;`;
+  }
+
+  /**
+   * Query workflows with optional filters.
+   */
+  static queryWorkflows(agentId?: string, status?: string): string {
+    const clauses: string[] = [];
+    if (agentId) {
+      clauses.push(`$agent isa agent, has uid ${JSON.stringify(agentId)};`);
+      clauses.push(
+        `$wf isa workflow, has uid $wid, has name $n, has workflow_type $wt, has trigger $tr, has status $st, has created_at $ca;`,
+      );
+      clauses.push(`(owner: $agent, owned: $wf) isa agent_owns;`);
+    } else {
+      clauses.push(
+        `$wf isa workflow, has uid $wid, has name $n, has workflow_type $wt, has trigger $tr, has status $st, has created_at $ca;`,
+      );
+    }
+    if (status) {
+      clauses.push(`$st = ${JSON.stringify(status)};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+}
+
+// ── Task Store Queries ──────────────────────────────────────────────
+
+export class TaskStoreQueries {
+  /**
+   * Insert a task scoped to an agent.
+   */
+  static createTask(
+    agentId: string,
+    task: {
+      id: string;
+      name: string;
+      description: string;
+      taskType: string;
+      assignedAgentId?: string;
+      status?: string;
+      priority?: number;
+      estimatedDuration?: string;
+      dependsOnIds?: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    const optionals = [
+      task.assignedAgentId ? `, has assigned_agent_id ${JSON.stringify(task.assignedAgentId)}` : "",
+      task.priority !== undefined ? `, has priority ${task.priority}` : "",
+      task.estimatedDuration
+        ? `, has estimated_duration ${JSON.stringify(task.estimatedDuration)}`
+        : "",
+      task.dependsOnIds ? `, has depends_on_ids ${JSON.stringify(task.dependsOnIds)}` : "",
+    ].join("");
+
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
+  $task isa task,
+    has uid ${JSON.stringify(task.id)},
+    has name ${JSON.stringify(task.name)},
+    has description ${JSON.stringify(task.description)},
+    has task_type ${JSON.stringify(task.taskType)},
+    has status ${JSON.stringify(task.status || "proposed")}${optionals},
+    has created_at ${JSON.stringify(now)},
+    has updated_at ${JSON.stringify(now)};
+  (owner: $agent, owned: $task) isa agent_owns;`;
+  }
+
+  /**
+   * Query tasks with optional filters.
+   */
+  static queryTasks(agentId?: string, status?: string): string {
+    const clauses: string[] = [];
+    if (agentId) {
+      clauses.push(`$agent isa agent, has uid ${JSON.stringify(agentId)};`);
+      clauses.push(
+        `$t isa task, has uid $tid, has name $n, has description $desc, has task_type $tt, has status $st, has created_at $ca;`,
+      );
+      clauses.push(`(owner: $agent, owned: $t) isa agent_owns;`);
+    } else {
+      clauses.push(
+        `$t isa task, has uid $tid, has name $n, has description $desc, has task_type $tt, has status $st, has created_at $ca;`,
+      );
+    }
+    if (status) {
+      clauses.push(`$st = ${JSON.stringify(status)};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+
+  /**
+   * Update a task's status.
+   */
+  static updateTaskStatus(uid: string, status: string): string {
+    const now = new Date().toISOString();
+    return `match
+  $t isa task, has uid ${JSON.stringify(uid)}, has status $old_status, has updated_at $old_updated;
+delete
+  $t has $old_status;
+  $t has $old_updated;
+insert
+  $t has status ${JSON.stringify(status)};
+  $t has updated_at ${JSON.stringify(now)};`;
+  }
+}
+
+// ── Intention Store Queries ─────────────────────────────────────────
+
+export class IntentionStoreQueries {
+  /**
+   * Insert an intention scoped to an agent.
+   */
+  static createIntention(
+    agentId: string,
+    intention: {
+      id: string;
+      name: string;
+      description: string;
+      status?: string;
+      commitmentStrategy?: string;
+      planRef?: string;
+      deadline?: string;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    const optionals = [
+      intention.commitmentStrategy
+        ? `, has commitment_strategy ${JSON.stringify(intention.commitmentStrategy)}`
+        : "",
+      intention.planRef ? `, has plan_ref ${JSON.stringify(intention.planRef)}` : "",
+      intention.deadline ? `, has deadline ${JSON.stringify(intention.deadline)}` : "",
+    ].join("");
+
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+insert
+  $int isa intention,
+    has uid ${JSON.stringify(intention.id)},
+    has name ${JSON.stringify(intention.name)},
+    has description ${JSON.stringify(intention.description)},
+    has status ${JSON.stringify(intention.status || "active")},
+    has committed_at ${JSON.stringify(now)}${optionals},
+    has created_at ${JSON.stringify(now)},
+    has updated_at ${JSON.stringify(now)};
+  (owner: $agent, owned: $int) isa agent_owns;`;
+  }
+
+  /**
+   * Query intentions with optional filters.
+   */
+  static queryIntentions(agentId?: string, status?: string): string {
+    const clauses: string[] = [];
+    if (agentId) {
+      clauses.push(`$agent isa agent, has uid ${JSON.stringify(agentId)};`);
+      clauses.push(
+        `$int isa intention, has uid $iid, has name $n, has status $st, has created_at $ca;`,
+      );
+      clauses.push(`(owner: $agent, owned: $int) isa agent_owns;`);
+    } else {
+      clauses.push(
+        `$int isa intention, has uid $iid, has name $n, has status $st, has created_at $ca;`,
+      );
+    }
+    if (status) {
+      clauses.push(`$st = ${JSON.stringify(status)};`);
+    }
+    return `match\n  ${clauses.join("\n  ")}`;
+  }
+
+  /**
+   * Update an intention's status.
+   */
+  static updateIntentionStatus(uid: string, status: string): string {
+    const now = new Date().toISOString();
+    return `match
+  $int isa intention, has uid ${JSON.stringify(uid)}, has status $old_status, has updated_at $old_updated;
+delete
+  $int has $old_status;
+  $int has $old_updated;
+insert
+  $int has status ${JSON.stringify(status)};
+  $int has updated_at ${JSON.stringify(now)};`;
   }
 }
 
@@ -431,6 +985,9 @@ export function getBaseSchema(): string {
   attribute impact_level, value string;
   attribute urgency_level, value string;
   attribute resolved, value boolean;
+  attribute options_json, value string;
+  attribute recommendation, value string;
+  attribute committed_at, value string;
 
   # ── Core Entities ────────────────────────────────────────────────────
   entity agent,
@@ -511,6 +1068,7 @@ export function getBaseSchema(): string {
     owns name,
     owns description,
     owns hierarchy_level,
+    owns priority,
     owns success_criteria,
     owns deadline,
     owns progress,
@@ -522,10 +1080,12 @@ export function getBaseSchema(): string {
   entity intention,
     owns uid @key,
     owns name,
+    owns description,
     owns commitment_strategy,
     owns status,
     owns plan_ref,
     owns deadline,
+    owns committed_at,
     owns created_at,
     owns updated_at;
 
@@ -622,12 +1182,16 @@ export function getBaseSchema(): string {
   entity decision,
     owns uid @key,
     owns name,
+    owns description,
+    owns status,
     owns decision_type,
     owns options_count,
     owns chosen_option,
     owns impact_level,
     owns urgency_level,
     owns resolved,
+    owns options_json,
+    owns recommendation,
     owns created_at,
     owns updated_at;
 

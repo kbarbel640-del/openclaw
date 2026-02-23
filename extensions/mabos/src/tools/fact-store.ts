@@ -16,6 +16,7 @@ import type { OpenClawPluginApi, AnyAgentTool } from "openclaw/plugin-sdk";
 import { getTypeDBClient, TypeDBUnavailableError } from "../knowledge/typedb-client.js";
 import { FactStoreQueries } from "../knowledge/typedb-queries.js";
 import { textResult, resolveWorkspaceDir } from "./common.js";
+import { materializeFacts } from "./memory-materializer.js";
 
 async function readJson(p: string) {
   try {
@@ -174,6 +175,9 @@ export function createFactStoreTools(api: OpenClawPluginApi): AnyAgentTool[] {
         } catch {
           // TypeDB unavailable — JSON file is the source of truth
         }
+
+        // Materialize to indexed Markdown for OpenClaw semantic search
+        materializeFacts(api, params.agent_id).catch(() => {});
 
         return textResult(
           `Fact ${factId} ${existing !== -1 ? "updated" : "asserted"}: (${params.subject}, ${params.predicate}, ${params.object}) [confidence: ${params.confidence}]`,

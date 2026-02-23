@@ -59,6 +59,39 @@ async function httpRequest(
   }
 }
 
+async function refreshGoogleToken(integration: IntegrationConfig): Promise<string | null> {
+  const meta = (integration.metadata || {}) as Record<string, unknown>;
+  const refreshToken = typeof meta.refresh_token === "string" ? meta.refresh_token : null;
+  const clientId = typeof meta.oauth_client_id === "string" ? meta.oauth_client_id : null;
+  const clientSecret =
+    typeof meta.oauth_client_secret === "string" ? meta.oauth_client_secret : null;
+  if (!refreshToken || !clientId || !clientSecret) return null;
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+    grant_type: "refresh_token",
+  });
+
+  try {
+    const resp = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+    const data = await resp.json();
+    if (data.access_token) {
+      meta.access_token = data.access_token;
+      meta.expires_in = data.expires_in ?? 3600;
+      return data.access_token;
+    }
+  } catch {
+    /* refresh failed */
+  }
+  return null;
+}
+
 const IntegrationSetupParams = Type.Object({
   business_id: Type.String({ description: "Business ID" }),
   integration_id: Type.String({ description: "Integration ID (e.g., 'stripe-main')" }),
@@ -260,17 +293,35 @@ After receiving data, use \`fact_assert\` to store facts and \`metrics_record\` 
         const method = params.method || "GET";
         const headers: Record<string, string> = {};
 
-        if (integration.api_key) {
-          if (integration.type === "stripe") {
-            headers["Authorization"] = `Bearer ${integration.api_key}`;
-          } else if (integration.type === "salesforce") {
-            headers["Authorization"] = `Bearer ${integration.api_key}`;
+        // Resolve the best auth token: prefer OAuth2 access_token from metadata,
+        // then fall back to api_key.
+        const meta = (integration.metadata || {}) as Record<string, unknown>;
+        const oauthToken = typeof meta.access_token === "string" ? meta.access_token : null;
+        const authToken = oauthToken || integration.api_key;
+
+        if (authToken) {
+          if (integration.type === "google-workspace" && oauthToken) {
+            // Google APIs need the OAuth2 access token, and may need refresh.
+            headers["Authorization"] = `Bearer ${oauthToken}`;
+          } else if (integration.type === "shopify") {
+            headers["X-Shopify-Access-Token"] = authToken;
           } else {
-            headers["Authorization"] = `Bearer ${integration.api_key}`;
+            headers["Authorization"] = `Bearer ${authToken}`;
           }
         }
 
-        const result = await httpRequest(url, method, headers, params.params);
+        let result = await httpRequest(url, method, headers, params.params);
+
+        // Auto-refresh Google OAuth2 token on 401 and retry once.
+        if (result.status === 401 && integration.type === "google-workspace") {
+          const newToken = await refreshGoogleToken(integration);
+          if (newToken) {
+            headers["Authorization"] = `Bearer ${newToken}`;
+            result = await httpRequest(url, method, headers, params.params);
+            // Persist the refreshed token
+            await writeJson(integrationsPath(api, params.business_id), store);
+          }
+        }
 
         return textResult(`## API Response: ${method} ${params.endpoint}
 
@@ -350,6 +401,7 @@ function getDefaultBaseUrl(type: string): string {
     xero: "https://api.xero.com",
     shopify: "", // Requires store URL
     github: "https://api.github.com",
+    "google-workspace": "https://www.googleapis.com",
   };
   return urls[type] || "";
 }
@@ -371,6 +423,12 @@ function getSyncInstructions(type: string, entity?: string): string {
 - /admin/api/2024-01/orders.json
 - /admin/api/2024-01/products.json
 - /admin/api/2024-01/customers.json`,
+    "google-workspace": `Use integration_call with:
+- /drive/v3/files — list Drive files
+- /drive/v3/files/{fileId} — get file metadata
+- /drive/v3/files/{fileId}/export — export Google Docs/Sheets
+- /v4/spreadsheets/{id} — read spreadsheet
+- /gmail/v1/users/me/messages — list emails`,
   };
   return instructions[type] || "Use integration_call to fetch data from the configured endpoint.";
 }
