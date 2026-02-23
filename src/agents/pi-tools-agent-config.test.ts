@@ -597,7 +597,6 @@ describe("Agent-specific tool filtering", () => {
 
     const result = await execTool?.execute("call1", {
       command: "echo done",
-      // Windows CI can need more than 10ms before the process settles.
       yieldMs: 1000,
     });
 
