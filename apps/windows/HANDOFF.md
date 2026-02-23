@@ -67,7 +67,8 @@
    - Added `NoOpTrayHost` fallback and `WindowsNotifyIconTrayHost` concrete implementation
    - `--tray` startup flag now enables tray mode with Windows menu actions:
      - Open Logs (opens `~/.openclaw`)
-     - Copy Diagnostics (clipboard snapshot: state, pending pairs, reconnect timing, uptime, pid)
+     - Open Config (opens/creates `~/.openclaw/openclaw.json`)
+     - Copy Diagnostics (clipboard snapshot: state, onboarding status, pending pairs, reconnect timing, uptime, pid)
      - Restart Node (graceful cancel + relaunch schedule)
      - Exit
    - Tray status text follows gateway lifecycle/log events
@@ -75,6 +76,8 @@
      - State
      - Pending pairs
      - Last reconnect duration
+     - Onboarding status
+   - Onboarding MVP (slice 1): startup checks for token/url/config-file now feed tray onboarding status (`OnboardingAdvisor`)
    - Custom tray icon asset now bundled (`openclaw-claw.ico`) and loaded at runtime (fallback to system icon if unavailable)
 9. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
@@ -94,7 +97,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **94 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **98 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash

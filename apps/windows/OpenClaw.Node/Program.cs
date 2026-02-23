@@ -18,6 +18,7 @@ namespace OpenClaw.Node
             var startedAtUtc = DateTimeOffset.UtcNow;
             Console.WriteLine("OpenClaw Node for Windows starting...");
 
+            var configPath = GetOpenClawConfigPath();
             string url = ResolveGatewayUrl(args);
             string token = ResolveGatewayToken(args);
             if (string.IsNullOrWhiteSpace(token))
@@ -62,10 +63,11 @@ namespace OpenClaw.Node
             var trayStatus = new TrayStatusBroadcaster();
             var reconnectStartedAtUtc = (DateTimeOffset?)null;
             long? lastReconnectMs = null;
+            var onboarding = OnboardingAdvisor.Evaluate(url, token, configPath);
 
             void SetTray(NodeRuntimeState state, string message)
             {
-                trayStatus.Set(state, message, core.PendingPairCount, lastReconnectMs);
+                trayStatus.Set(state, message, core.PendingPairCount, lastReconnectMs, onboarding.StatusText);
             }
 
             ITrayHost? trayHost = null;
@@ -76,6 +78,7 @@ namespace OpenClaw.Node
                     ? new WindowsNotifyIconTrayHost(
                         log: msg => Console.WriteLine(msg),
                         onOpenLogs: () => OpenLogsFolder(),
+                        onOpenConfig: () => OpenConfigFile(configPath),
                         onRestart: () => { restartRequested = true; cts.Cancel(); },
                         onExit: () => cts.Cancel(),
                         onCopyDiagnostics: () => CopyDiagnosticsToClipboard(BuildDiagnostics(startedAtUtc, url, trayStatus.Current, core.PendingPairCount, lastReconnectMs)))
@@ -228,6 +231,12 @@ namespace OpenClaw.Node
             return TryReadGatewayTokenFromOpenClawConfig() ?? string.Empty;
         }
 
+        private static string GetOpenClawConfigPath()
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Path.Combine(home, ".openclaw", "openclaw.json");
+        }
+
         private static void OpenLogsFolder()
         {
             try
@@ -250,6 +259,33 @@ namespace OpenClaw.Node
             }
         }
 
+        private static void OpenConfigFile(string configPath)
+        {
+            try
+            {
+                var parent = Path.GetDirectoryName(configPath) ?? Directory.GetCurrentDirectory();
+                if (!Directory.Exists(parent)) Directory.CreateDirectory(parent);
+
+                if (!File.Exists(configPath))
+                {
+                    File.WriteAllText(configPath,
+                        "{\n  \"gateway\": {\n    \"port\": 18789,\n    \"auth\": {\n      \"token\": \"\"\n    }\n  }\n}\n");
+                }
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "notepad.exe",
+                    Arguments = QuoteForCmd(configPath),
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TRAY] Open config failed: {ex.Message}");
+            }
+        }
+
         private static string BuildDiagnostics(DateTimeOffset startedAtUtc, string gatewayUrl, TrayStatusSnapshot snapshot, int pendingPairs, long? lastReconnectMs)
         {
             var uptime = (long)(DateTimeOffset.UtcNow - startedAtUtc).TotalSeconds;
@@ -263,6 +299,7 @@ namespace OpenClaw.Node
                 $"state: {snapshot.State}",
                 $"message: {snapshot.Message}",
                 $"pendingPairs: {pendingPairs}",
+                $"onboarding: {snapshot.OnboardingStatus}",
                 $"lastReconnect: {reconnectText}",
                 $"uptimeSeconds: {uptime}",
                 $"pid: {Environment.ProcessId}"
@@ -356,7 +393,7 @@ namespace OpenClaw.Node
 
         private static string? TryReadGatewayUrlFromOpenClawConfig()
         {
-            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".openclaw", "openclaw.json");
+            var path = GetOpenClawConfigPath();
             if (!File.Exists(path)) return null;
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
             if (!doc.RootElement.TryGetProperty("gateway", out var gateway)) return null;
@@ -367,7 +404,7 @@ namespace OpenClaw.Node
 
         private static string? TryReadGatewayTokenFromOpenClawConfig()
         {
-            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".openclaw", "openclaw.json");
+            var path = GetOpenClawConfigPath();
             if (!File.Exists(path)) return null;
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
             if (!doc.RootElement.TryGetProperty("gateway", out var gateway)) return null;

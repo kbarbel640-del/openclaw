@@ -11,6 +11,7 @@ namespace OpenClaw.Node.Tray
     {
         private readonly Action<string>? _log;
         private readonly Action? _onOpenLogs;
+        private readonly Action? _onOpenConfig;
         private readonly Action? _onRestart;
         private readonly Action? _onExit;
         private readonly Action? _onCopyDiagnostics;
@@ -26,11 +27,13 @@ namespace OpenClaw.Node.Tray
         private object? _stateItem;
         private object? _pairsItem;
         private object? _reconnectItem;
+        private object? _onboardingItem;
 
-        public WindowsNotifyIconTrayHost(Action<string>? log = null, Action? onOpenLogs = null, Action? onRestart = null, Action? onExit = null, Action? onCopyDiagnostics = null)
+        public WindowsNotifyIconTrayHost(Action<string>? log = null, Action? onOpenLogs = null, Action? onOpenConfig = null, Action? onRestart = null, Action? onExit = null, Action? onCopyDiagnostics = null)
         {
             _log = log;
             _onOpenLogs = onOpenLogs;
+            _onOpenConfig = onOpenConfig;
             _onRestart = onRestart;
             _onExit = onExit;
             _onCopyDiagnostics = onCopyDiagnostics;
@@ -75,6 +78,10 @@ namespace OpenClaw.Node.Tray
                             ? $"Last reconnect: {snapshot.LastReconnectMs.Value}ms"
                             : "Last reconnect: n/a";
                         SetProperty(_reconnectItem, "Text", reconnectText);
+                    }
+                    if (_onboardingItem != null)
+                    {
+                        SetProperty(_onboardingItem, "Text", snapshot.OnboardingStatus);
                     }
                 }
                 catch (Exception ex)
@@ -157,12 +164,17 @@ namespace OpenClaw.Node.Tray
                     ?? throw new InvalidOperationException("Unable to create Pair item");
                 _reconnectItem = Activator.CreateInstance(menuItemType, "Last reconnect: n/a")
                     ?? throw new InvalidOperationException("Unable to create Reconnect item");
+                _onboardingItem = Activator.CreateInstance(menuItemType, "Onboarding: Ready")
+                    ?? throw new InvalidOperationException("Unable to create Onboarding item");
                 SetProperty(_stateItem, "Enabled", false);
                 SetProperty(_pairsItem, "Enabled", false);
                 SetProperty(_reconnectItem, "Enabled", false);
+                SetProperty(_onboardingItem, "Enabled", false);
 
                 var openLogsItem = Activator.CreateInstance(menuItemType, "Open Logs")
                     ?? throw new InvalidOperationException("Unable to create Open Logs item");
+                var openConfigItem = Activator.CreateInstance(menuItemType, "Open Config")
+                    ?? throw new InvalidOperationException("Unable to create Open Config item");
                 var copyDiagItem = Activator.CreateInstance(menuItemType, "Copy Diagnostics")
                     ?? throw new InvalidOperationException("Unable to create Copy Diagnostics item");
                 var restartItem = Activator.CreateInstance(menuItemType, "Restart Node")
@@ -174,6 +186,11 @@ namespace OpenClaw.Node.Tray
                 {
                     try { _onOpenLogs?.Invoke(); }
                     catch (Exception ex) { _log?.Invoke($"[TRAY] Open Logs action failed: {ex.Message}"); }
+                });
+                AddClickHandler(openConfigItem, () =>
+                {
+                    try { _onOpenConfig?.Invoke(); }
+                    catch (Exception ex) { _log?.Invoke($"[TRAY] Open Config action failed: {ex.Message}"); }
                 });
                 AddClickHandler(copyDiagItem, () =>
                 {
@@ -194,8 +211,10 @@ namespace OpenClaw.Node.Tray
                 AddMenuItem(menu, _stateItem);
                 AddMenuItem(menu, _pairsItem);
                 AddMenuItem(menu, _reconnectItem);
+                AddMenuItem(menu, _onboardingItem);
                 if (separatorType != null && Activator.CreateInstance(separatorType) is object separator1) AddMenuItem(menu, separator1);
                 AddMenuItem(menu, openLogsItem);
+                AddMenuItem(menu, openConfigItem);
                 AddMenuItem(menu, copyDiagItem);
                 AddMenuItem(menu, restartItem);
                 if (separatorType != null && Activator.CreateInstance(separatorType) is object separator2) AddMenuItem(menu, separator2);

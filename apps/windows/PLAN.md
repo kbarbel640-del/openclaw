@@ -24,7 +24,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Phase 3 discovery MVP added: UDP multicast beacon announcer (`openclaw.node.discovery.v1`) with immediate+periodic broadcasts and gateway/capabilities metadata payload
 - ✅ Phase 3 discovery step 2 added: listener/index for discovered nodes, stale-entry expiry, reconnect/network-change reannounce policy, and announce throttle/jitter behavior
 - ✅ Phase 3 IPC hardening pass added: per-request timeout handling (`TIMEOUT`), cancellation propagation into process execution, and concurrent client stability coverage
-- ✅ Tests passing (94 total) (including discovery beacon shape/timer coverage + stale-expiry/throttle coverage, IPC timeout/concurrency coverage, new tray-status broadcaster coverage, pairing persistence tests + device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite previously validated)
+- ✅ Tests passing (98 total) (including onboarding advisor checks, discovery beacon shape/timer coverage + stale-expiry/throttle coverage, IPC timeout/concurrency coverage, tray-status broadcaster coverage, pairing persistence tests + device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite previously validated)
 - ✅ Removed `MediaFoundation.Net` NU1701 warning path from build by moving camera stack off framework-only package
 
 ---
@@ -120,7 +120,8 @@ Build a native Windows application that replicates the functionality of the Open
 - [x] Step 1 scaffold: tray-status runtime wiring added (`TrayStatusBroadcaster` + `ITrayHost` + `NoOpTrayHost`) with `--tray` flag and state transitions (Starting/Connected/Reconnecting/Disconnected/Stopped)
 - [x] Step 2: concrete Windows `NotifyIcon` tray host added (`WindowsNotifyIconTrayHost`) with menu actions (Open Logs / Restart Node / Exit) and lifecycle status text updates
 - [x] Step 3 (MVP): tray status details surfaced (`State`, `Pending pairs`, `Last reconnect`) + quick diagnostics copy action
-- [ ] Settings/onboarding flows
+- [x] Step 4 (onboarding MVP, slice 1): startup onboarding checks surfaced in tray + guided `Open Config` action
+- [ ] Settings/onboarding flows (remaining UX polish)
 - [ ] Overlay/HUD equivalents
 
 ---
