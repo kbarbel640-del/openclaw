@@ -32,6 +32,38 @@ capabilities to the agent as a node.
   The app starts the local **node host service** so the remote Gateway can reach this Mac.
   The app does not spawn the Gateway as a child process.
 
+## Tailscale Aperture model routing
+
+The macOS app can manage Tailscale Aperture model routing from **Config > Models**.
+
+Prerequisites:
+
+- macOS app is connected in **Local** mode.
+- Tailscale app is installed on the Mac.
+- Tailscale is running when you enable Aperture routing.
+
+What the app writes:
+
+- `gateway.aperture` metadata (`enabled`, `hostname`, `providers`, optional `restore` snapshot fields).
+- Provider rewrites in `models.providers.*` so model traffic is routed through the Aperture host.
+- Default model updates in `agents.defaults.model.primary`.
+- Ensure-selected model entry in `agents.defaults.models[provider/model]` for `/model` allowlist compatibility.
+
+When Aperture is reachable:
+
+- Config model pickers merge Aperture model options with gateway catalog and configured values.
+- The Models section shows status and routing summary.
+
+When Aperture is unreachable:
+
+- Config model pickers still show configured values plus gateway catalog values.
+- The UI surfaces a warning state and keeps manual model entry available.
+
+Disable behavior:
+
+- Turning Aperture off removes `gateway.aperture`.
+- If `gateway.aperture.restore` exists, provider fields are restored from that snapshot.
+
 ## Launchd control
 
 The app manages a per‑user LaunchAgent labeled `bot.molt.gateway`

@@ -2062,6 +2062,18 @@ See [Plugins](/tools/plugin).
       mode: "off", // off | serve | funnel
       resetOnExit: false,
     },
+    aperture: {
+      enabled: true,
+      hostname: "ai",
+      providers: ["openai", "anthropic", "google"],
+      restore: {
+        openai: {
+          baseUrl: "https://api.openai.com/v1",
+          apiKey: "${OPENAI_API_KEY}",
+          api: "openai-responses",
+        },
+      },
+    },
     controlUi: {
       enabled: true,
       basePath: "/openclaw",
@@ -2100,6 +2112,7 @@ See [Plugins](/tools/plugin).
 - `auth.rateLimit`: optional failed-auth limiter. Applies per client IP and per auth scope (shared-secret and device-token are tracked independently). Blocked attempts return `429` + `Retry-After`.
   - `auth.rateLimit.exemptLoopback` defaults to `true`; set `false` when you intentionally want localhost traffic rate-limited too (for test setups or strict proxy deployments).
 - `tailscale.mode`: `serve` (tailnet only, loopback bind) or `funnel` (public, requires auth).
+- `aperture`: optional metadata block managed by the macOS app to track Tailscale Aperture routing state.
 - `remote.transport`: `ssh` (default) or `direct` (ws/wss). For `direct`, `remote.url` must be `ws://` or `wss://`.
 - `gateway.remote.token` is for remote CLI calls only; does not enable local gateway auth.
 - `trustedProxies`: reverse proxy IPs that terminate TLS. Only list proxies you control.
@@ -2108,6 +2121,35 @@ See [Plugins](/tools/plugin).
 - `gateway.tools.allow`: remove tool names from the default HTTP deny list.
 
 </Accordion>
+
+### Gateway aperture
+
+`gateway.aperture` is metadata for the macOS app Aperture workflow.
+
+```json5
+{
+  gateway: {
+    aperture: {
+      enabled: true,
+      hostname: "ai",
+      providers: ["openai", "anthropic", "google"],
+      restore: {
+        openai: {
+          baseUrl: "https://api.openai.com/v1",
+          apiKey: "${OPENAI_API_KEY}",
+          api: "openai-responses",
+        },
+      },
+    },
+  },
+}
+```
+
+- This block is managed by OpenClaw.app from **Config > Models** when using Tailscale Aperture.
+- Runtime routing still comes from `models.providers.*` plus `agents.defaults.model.*`; `gateway.aperture` alone does not route model traffic.
+- `restore` stores provider snapshot fields used to restore `models.providers.<provider>` when Aperture is disabled.
+- You can omit `gateway.aperture` entirely when not using the macOS Aperture workflow.
+- For app-side behavior, see [macOS App](/platforms/macos#tailscale-aperture-model-routing).
 
 ### OpenAI-compatible endpoints
 
