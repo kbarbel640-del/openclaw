@@ -153,10 +153,57 @@ Node resolves gateway connection values in this order:
 }
 ```
 
+### Gateway node command allowlist example (recommended)
+
+Use Gateway-side command policy to explicitly allow only the node commands you want exposed.
+
+```json
+{
+  "gateway": {
+    "port": 18789,
+    "auth": {
+      "token": "REPLACE_WITH_REAL_TOKEN"
+    },
+    "nodes": {
+      "allowCommands": [
+        "system.notify",
+        "system.which",
+        "system.run",
+        "screen.capture",
+        "screen.list",
+        "screen.record",
+        "camera.list",
+        "camera.snap",
+        "window.list",
+        "window.focus",
+        "window.rect",
+        "input.type",
+        "input.key",
+        "input.click",
+        "input.scroll",
+        "input.click.relative",
+        "ui.find",
+        "ui.click",
+        "ui.type"
+      ],
+      "denyCommands": [
+        "contacts.*",
+        "calendar.*",
+        "sms.*"
+      ]
+    }
+  }
+}
+```
+
+> If your gateway version uses a slightly different schema, keep the same intent: explicit allowlist for node commands and explicit denylist for high-risk surfaces.
+
 ### Notes on config fields
 
 - `gateway.port`: local WebSocket port used by node (`ws://127.0.0.1:<port>/`)
 - `gateway.auth.token`: shared auth token for gateway connect
+- `gateway.nodes.allowCommands`: explicit list of node command names the gateway will permit
+- `gateway.nodes.denyCommands`: deny patterns for commands you want blocked even if broadly allowed
 
 If token/config are missing/invalid in tray mode, app stays alive and guides recovery (dialog + tray onboarding status + Open Config menu action).
 
