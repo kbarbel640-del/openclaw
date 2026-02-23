@@ -19,6 +19,14 @@ function getLastExtraSystemPrompt() {
   return getRunEmbeddedPiAgentMock().mock.calls.at(-1)?.[0]?.extraSystemPrompt ?? "";
 }
 
+function parseInboundMetaPayload(text: string): Record<string, unknown> {
+  const match = text.match(/```json\n([\s\S]*?)\n```/);
+  if (!match?.[1]) {
+    throw new Error("missing inbound meta json block");
+  }
+  return JSON.parse(match[1]) as Record<string, unknown>;
+}
+
 describe("group intro prompts", () => {
   const groupParticipationNote =
     "Be a good group participant: mostly lurk and follow the conversation; reply only when directly addressed or you can add clear value. Emoji reactions are welcome when available. Write like a human. Avoid Markdown tables. Don't type literal \\n sequences; use real line breaks sparingly.";
@@ -43,7 +51,8 @@ describe("group intro prompts", () => {
 
       expect(getRunEmbeddedPiAgentMock()).toHaveBeenCalledOnce();
       const extraSystemPrompt = getLastExtraSystemPrompt();
-      expect(extraSystemPrompt).toContain('"channel": "discord"');
+      const inboundMeta = parseInboundMetaPayload(extraSystemPrompt);
+      expect(inboundMeta["channel"]).toBe("discord");
       expect(extraSystemPrompt).toContain(
         `You are in the Discord group chat "Release Squad". Participants: Alice, Bob.`,
       );
@@ -71,7 +80,8 @@ describe("group intro prompts", () => {
 
       expect(getRunEmbeddedPiAgentMock()).toHaveBeenCalledOnce();
       const extraSystemPrompt = getLastExtraSystemPrompt();
-      expect(extraSystemPrompt).toContain('"channel": "whatsapp"');
+      const inboundMeta = parseInboundMetaPayload(extraSystemPrompt);
+      expect(inboundMeta["channel"]).toBe("whatsapp");
       expect(extraSystemPrompt).toContain(`You are in the WhatsApp group chat "Ops".`);
       expect(extraSystemPrompt).toContain(
         `WhatsApp IDs: SenderId is the participant JID (group participant id).`,
@@ -100,7 +110,8 @@ describe("group intro prompts", () => {
 
       expect(getRunEmbeddedPiAgentMock()).toHaveBeenCalledOnce();
       const extraSystemPrompt = getLastExtraSystemPrompt();
-      expect(extraSystemPrompt).toContain('"channel": "telegram"');
+      const inboundMeta = parseInboundMetaPayload(extraSystemPrompt);
+      expect(inboundMeta["channel"]).toBe("telegram");
       expect(extraSystemPrompt).toContain(`You are in the Telegram group chat "Dev Chat".`);
       expect(extraSystemPrompt).toContain(
         `Activation: trigger-only (you are invoked only when explicitly mentioned; recent context may be included). ${groupParticipationNote} Address the specific sender noted in the message context.`,
