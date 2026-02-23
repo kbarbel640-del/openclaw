@@ -123,6 +123,18 @@ export type GatewayAuthConfig = {
    * Required when mode is "trusted-proxy".
    */
   trustedProxy?: GatewayTrustedProxyConfig;
+  /**
+   * Maximum allowed clock skew (in milliseconds) between the client and the gateway
+   * when verifying device connection signatures. Connections whose `signedAt` timestamp
+   * differs from the gateway clock by more than this value are rejected with
+   * `device signature expired`.
+   *
+   * Increase this if clients operate in environments where NTP sync is restricted
+   * (e.g. locked-down corporate networks or VMs) and clock drift is unavoidable.
+   *
+   * @default 120000 (2 minutes)
+   */
+  deviceSignatureSkewMs?: number;
 };
 
 export type GatewayAuthRateLimitConfig = {
