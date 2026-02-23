@@ -26,7 +26,8 @@
   "dependencies": {
     "imap": "^0.8.19",
     "mailparser": "^3.6.9",
-    "nodemailer": "^6.9.13"
+    "nodemailer": "^6.9.13",
+    "utf7": "^1.0.2"
   },
   "devDependencies": {
     "@types/node": "^25.2.1",

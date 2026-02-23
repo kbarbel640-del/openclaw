@@ -3,8 +3,13 @@
  * Uses official Plugin SDK - no SDK modifications required
  */
 
-import type { ChannelPlugin, OpenClawConfig, ChannelGatewayAdapter } from "openclaw/plugin-sdk";
-import { buildChannelConfigSchema } from "openclaw/plugin-sdk";
+import type {
+  ChannelPlugin,
+  OpenClawConfig,
+  ChannelGatewayAdapter,
+  ChannelSecurityContext,
+  ChannelSecurityDmPolicy,
+} from "openclaw/plugin-sdk";
 import { startEmail, stopEmail, sendEmail, type EmailAttachment } from "./runtime.js";
 
 // Email account configuration
@@ -202,14 +207,15 @@ const emailPlugin: ChannelPlugin<EmailAccount> = {
     docsPath: "/channels/email",
     blurb: "Send and receive email via IMAP/SMTP servers.",
     aliases: ["mail", "smtp"],
-    discovery: {
-      category: "email",
-      keywords: ["email", "imap", "smtp", "messaging"],
-      maturity: "experimental",
-      docsLink:
-        "https://github.com/guxiaobo/openclaw/tree/feature/email-channel/extensions/email-channel",
-      author: "OpenClaw Community",
-    },
+    // Note: discovery metadata available if using enhanced SDK (PR #24087)
+    // Uncomment the following if PR is merged:
+    // discovery: {
+    //   category: "email",
+    //   keywords: ["email", "imap", "smtp", "messaging"],
+    //   maturity: "experimental",
+    //   docsLink: "https://github.com/guxiaobo/openclaw/tree/feature/email-channel/extensions/email-channel",
+    //   author: "OpenClaw Community",
+    // },
   },
 
   capabilities: {
@@ -222,7 +228,7 @@ const emailPlugin: ChannelPlugin<EmailAccount> = {
       return accounts ? Object.keys(accounts) : [];
     },
 
-    resolveAccount: (cfg: OpenClawConfig, accountId?: string) => {
+    resolveAccount: (cfg: OpenClawConfig, accountId?: string | null) => {
       const accounts = cfg.channels?.email?.accounts;
       const account = accounts?.[accountId || "default"] || accounts?.default || {};
       return {
@@ -246,94 +252,16 @@ const emailPlugin: ChannelPlugin<EmailAccount> = {
     },
   },
 
-  // Use standard config schema builder from SDK
-  configSchema: buildChannelConfigSchema({
-    properties: {
-      imap: {
-        type: "object",
-        description: "IMAP server configuration",
-        properties: {
-          host: { type: "string", description: "IMAP server hostname" },
-          port: { type: "number", description: "IMAP server port" },
-          secure: { type: "boolean", description: "Use TLS", default: true },
-          user: { type: "string", description: "Email address/username" },
-          password: {
-            type: "string",
-            description: "Email password or app password",
-            sensitive: true,
-          },
-        },
-        required: ["host", "port", "user", "password"],
-      },
-      smtp: {
-        type: "object",
-        description: "SMTP server configuration",
-        properties: {
-          host: { type: "string", description: "SMTP server hostname" },
-          port: { type: "number", description: "SMTP server port" },
-          secure: { type: "boolean", description: "Use SSL/TLS", default: true },
-          user: { type: "string", description: "Email address/username" },
-          password: {
-            type: "string",
-            description: "Email password or app password",
-            sensitive: true,
-          },
-        },
-        required: ["host", "port", "user", "password"],
-      },
-      allowedSenders: {
-        type: "array",
-        description: "Whitelist of allowed email addresses (Note: From header can be forged)",
-        items: { type: "string" },
-        default: [],
-      },
-      maxAttachmentSize: {
-        type: "number",
-        description: "Maximum attachment size in bytes (default: 10MB)",
-        default: 10485760,
-      },
-      checkInterval: {
-        type: "number",
-        description: "Email check interval in seconds (default: 30)",
-        default: 30,
-      },
-    },
-    required: ["imap", "smtp"],
-  }),
+  // Config schema is optional - channel uses config directly
+  // TODO: Add Zod schema for config validation
+  // configSchema: buildChannelConfigSchema(...),
 
   gateway: emailGatewayAdapter,
 
-  security: {
-    resolveDmPolicy: (context, _sender) => {
-      const { account } = context;
-      const allowedSenders = account.allowedSenders ?? [];
-
-      if (allowedSenders.length === 0) {
-        context.log?.warn?.("No allowed senders configured, accepting all emails");
-        return { decision: "allowed" };
-      }
-
-      const senderEmail = _sender.toLowerCase();
-      const isAllowed = allowedSenders.some((pattern: string) => {
-        const p = pattern.toLowerCase();
-        if (p.startsWith("*@")) {
-          const domain = p.slice(2);
-          return senderEmail.endsWith(domain);
-        }
-        return senderEmail === p;
-      });
-
-      if (isAllowed) {
-        return { decision: "allowed" };
-      }
-
-      context.log?.info?.("Sender not in allowed list", {
-        sender: _sender,
-        allowedSenders,
-      });
-      return { decision: "blocked", reason: "not_in_allowed_senders" };
-    },
-  },
+  // TODO: Implement proper security adapter
+  // security: {
+  //   resolveDmPolicy: ...
+  // },
 
   outbound: {
     deliveryMode: "direct",
