@@ -968,7 +968,7 @@ export const registerTelegramHandlers = ({
           return;
         }
 
-        const modelData = await buildModelsProviderData(cfg);
+        const modelData = await buildModelsProviderData(cfg, { filterByAvailability: true });
         const modelSet = modelData.byProvider.get(provider);
         if (!modelSet || modelSet.size === 0) {
           return;
@@ -1013,7 +1013,7 @@ export const registerTelegramHandlers = ({
       // Model selection callback handler (mdl_prov, mdl_list_*, mdl_sel_*, mdl_back)
       const modelCallback = parseModelCallbackData(data);
       if (modelCallback) {
-        const modelData = await buildModelsProviderData(cfg);
+        const modelData = await buildModelsProviderData(cfg, { filterByAvailability: true });
         const { byProvider, providers } = modelData;
 
         const editMessageWithButtons = async (

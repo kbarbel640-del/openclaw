@@ -149,6 +149,16 @@ describe("runWithModelFallback", () => {
     });
   });
 
+  it("falls back when the primary model is no longer available", async () => {
+    await expectFallsBackToHaiku({
+      provider: "google-antigravity",
+      model: "gemini-3-pro-high",
+      firstError: new Error(
+        "Gemini 3 Pro is no longer available. Please switch to Gemini 3.1 Pro in the latest version of Antigravity.",
+      ),
+    });
+  });
+
   it("falls back on 402 payment required", async () => {
     await expectFallsBackToHaiku({
       provider: "openai",

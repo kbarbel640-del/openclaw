@@ -3,6 +3,7 @@ import { loadModelCatalog } from "../../agents/model-catalog.js";
 import {
   buildAllowedModelSet,
   buildModelAliasIndex,
+  modelKey,
   normalizeProviderId,
   resolveConfiguredModelRef,
   resolveModelRefFromString,
@@ -27,11 +28,18 @@ export type ModelsProviderData = {
   resolvedDefault: { provider: string; model: string };
 };
 
+type BuildModelsProviderDataOptions = {
+  filterByAvailability?: boolean;
+};
+
 /**
  * Build provider/model data from config and catalog.
  * Exported for reuse by callback handlers.
  */
-export async function buildModelsProviderData(cfg: OpenClawConfig): Promise<ModelsProviderData> {
+export async function buildModelsProviderData(
+  cfg: OpenClawConfig,
+  options?: BuildModelsProviderDataOptions,
+): Promise<ModelsProviderData> {
   const resolvedDefault = resolveConfiguredModelRef({
     cfg,
     defaultProvider: DEFAULT_PROVIDER,
@@ -110,6 +118,29 @@ export async function buildModelsProviderData(cfg: OpenClawConfig): Promise<Mode
   // curated catalog doesn't know about them (custom providers, dev builds, etc.).
   add(resolvedDefault.provider, resolvedDefault.model);
   addModelConfigEntries();
+
+  if (options?.filterByAvailability) {
+    // Prefer model-level availability when registry data is obtainable so we
+    // don't present non-runnable options in interactive pickers.
+    try {
+      const { loadModelRegistry } = await import("../../commands/models/list.registry.js");
+      const loaded = await loadModelRegistry(cfg);
+      if (loaded.availableKeys) {
+        for (const [provider, models] of byProvider) {
+          const availableModels = new Set(
+            [...models].filter((modelId) => loaded.availableKeys?.has(modelKey(provider, modelId))),
+          );
+          if (availableModels.size > 0) {
+            byProvider.set(provider, availableModels);
+          } else {
+            byProvider.delete(provider);
+          }
+        }
+      }
+    } catch {
+      // Keep existing allowlist-based behavior if availability probing fails.
+    }
+  }
 
   const providers = [...byProvider.keys()].toSorted();
 

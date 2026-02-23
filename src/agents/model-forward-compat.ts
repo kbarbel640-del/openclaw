@@ -26,10 +26,6 @@ const ANTIGRAVITY_OPUS_THINKING_TEMPLATE_MODEL_IDS = [
   "claude-opus-4-5-thinking",
   "claude-opus-4.5-thinking",
 ] as const;
-const ANTIGRAVITY_GEMINI_31_HIGH_MODEL_ID = "gemini-3.1-pro-high";
-const ANTIGRAVITY_GEMINI_31_LOW_MODEL_ID = "gemini-3.1-pro-low";
-const ANTIGRAVITY_GEMINI_3_HIGH_MODEL_ID = "gemini-3-pro-high";
-const ANTIGRAVITY_GEMINI_3_LOW_MODEL_ID = "gemini-3-pro-low";
 
 export const ANTIGRAVITY_OPUS_46_FORWARD_COMPAT_CANDIDATES = [
   {
@@ -282,42 +278,6 @@ function resolveAntigravityOpus46ForwardCompatModel(
   });
 }
 
-function resolveAntigravityGemini31ForwardCompatModel(
-  provider: string,
-  modelId: string,
-  modelRegistry: ModelRegistry,
-): Model<Api> | undefined {
-  const normalizedProvider = normalizeProviderId(provider);
-  if (normalizedProvider !== "google-antigravity") {
-    return undefined;
-  }
-
-  const trimmedModelId = modelId.trim();
-  const lower = trimmedModelId.toLowerCase();
-  const compatPairs: Array<{ target: string; template: string }> = [
-    // Prefer 3.1 IDs but preserve reverse compat if catalogs only expose one side.
-    { target: ANTIGRAVITY_GEMINI_31_HIGH_MODEL_ID, template: ANTIGRAVITY_GEMINI_3_HIGH_MODEL_ID },
-    { target: ANTIGRAVITY_GEMINI_31_LOW_MODEL_ID, template: ANTIGRAVITY_GEMINI_3_LOW_MODEL_ID },
-    { target: ANTIGRAVITY_GEMINI_3_HIGH_MODEL_ID, template: ANTIGRAVITY_GEMINI_31_HIGH_MODEL_ID },
-    { target: ANTIGRAVITY_GEMINI_3_LOW_MODEL_ID, template: ANTIGRAVITY_GEMINI_31_LOW_MODEL_ID },
-  ];
-
-  for (const pair of compatPairs) {
-    if (!(lower === pair.target || lower.startsWith(`${pair.target}-`))) {
-      continue;
-    }
-    const templateIds = [lower.replace(pair.target, pair.template), pair.template];
-    return cloneFirstTemplateModel({
-      normalizedProvider,
-      trimmedModelId,
-      templateIds,
-      modelRegistry,
-    });
-  }
-
-  return undefined;
-}
-
 export function resolveForwardCompatModel(
   provider: string,
   modelId: string,
@@ -328,7 +288,6 @@ export function resolveForwardCompatModel(
     resolveAnthropicOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveAnthropicSonnet46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry) ??
-    resolveAntigravityGemini31ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveAntigravityOpus46ForwardCompatModel(provider, modelId, modelRegistry)
   );
 }

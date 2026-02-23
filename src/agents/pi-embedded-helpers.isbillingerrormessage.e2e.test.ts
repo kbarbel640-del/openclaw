@@ -287,6 +287,17 @@ describe("isFailoverErrorMessage", () => {
       expect(isFailoverErrorMessage(sample)).toBe(true);
     }
   });
+
+  it("matches model unavailable/version mismatch errors", () => {
+    const samples = [
+      "Gemini 3 Pro is no longer available. Please switch to Gemini 3.1 Pro in the latest version of Antigravity.",
+      "Gemini 3.1 Pro is not available on this version. Please upgrade to the latest version.",
+      "Model gpt-foo-bar not found",
+    ];
+    for (const sample of samples) {
+      expect(isFailoverErrorMessage(sample)).toBe(true);
+    }
+  });
 });
 
 describe("parseImageSizeError", () => {
@@ -347,5 +358,18 @@ describe("classifyFailoverReason", () => {
     expect(classifyFailoverReason("You have hit your ChatGPT usage limit (plus plan)")).toBe(
       "rate_limit",
     );
+  });
+
+  it("classifies model unavailable/version mismatch errors as unknown failover", () => {
+    expect(
+      classifyFailoverReason(
+        "Gemini 3 Pro is no longer available. Please switch to Gemini 3.1 Pro in the latest version of Antigravity.",
+      ),
+    ).toBe("unknown");
+    expect(
+      classifyFailoverReason(
+        "Gemini 3.1 Pro is not available on this version. Please upgrade to the latest version.",
+      ),
+    ).toBe("unknown");
   });
 });

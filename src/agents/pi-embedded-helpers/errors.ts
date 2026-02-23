@@ -582,6 +582,13 @@ const ERROR_PATTERNS = {
     "quota exceeded",
     "resource_exhausted",
     "usage limit",
+    "usage limit reached",
+    "daily limit reached",
+    "token limit reached",
+    "token quota exceeded",
+    "tokens per minute",
+    "tokens per day",
+    /\b(?:tpd|tpm|rpm|rpd)\b/,
   ],
   overloaded: [/overloaded_error|"type"\s*:\s*"overloaded_error"/i, "overloaded"],
   timeout: [
@@ -625,6 +632,21 @@ const ERROR_PATTERNS = {
     "tool_use_id",
     "messages.1.content.1.tool_use.id",
     "invalid request format",
+  ],
+  modelUnavailable: [
+    "is no longer available",
+    "no longer available",
+    "model is no longer available",
+    "model is not available",
+    "not available on this version",
+    "please switch to",
+    "please upgrade to the latest version",
+    "model not found",
+    /model\b[\s\S]{0,80}\bnot found\b/i,
+    "unknown model",
+    "unsupported model",
+    "has been deprecated",
+    "has been sunset",
   ],
 } as const;
 
@@ -691,6 +713,10 @@ export function isBillingAssistantError(msg: AssistantMessage | undefined): bool
 
 export function isAuthErrorMessage(raw: string): boolean {
   return matchesErrorPatterns(raw, ERROR_PATTERNS.auth);
+}
+
+export function isModelUnavailableErrorMessage(raw: string): boolean {
+  return matchesErrorPatterns(raw, ERROR_PATTERNS.modelUnavailable);
 }
 
 export function isOverloadedErrorMessage(raw: string): boolean {
@@ -788,6 +814,11 @@ export function classifyFailoverReason(raw: string): FailoverReason | null {
   }
   if (isAuthErrorMessage(raw)) {
     return "auth";
+  }
+  if (isModelUnavailableErrorMessage(raw)) {
+    // Treat model lifecycle/versioning errors as failover-eligible.
+    // Another configured fallback model can usually continue the turn.
+    return "unknown";
   }
   return null;
 }
