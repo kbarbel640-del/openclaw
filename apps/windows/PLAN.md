@@ -24,7 +24,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Phase 3 discovery MVP added: UDP multicast beacon announcer (`openclaw.node.discovery.v1`) with immediate+periodic broadcasts and gateway/capabilities metadata payload
 - ✅ Phase 3 discovery step 2 added: listener/index for discovered nodes, stale-entry expiry, reconnect/network-change reannounce policy, and announce throttle/jitter behavior
 - ✅ Phase 3 IPC hardening pass added: per-request timeout handling (`TIMEOUT`), cancellation propagation into process execution, and concurrent client stability coverage
-- ✅ Tests passing (92 total) (including discovery beacon shape/timer coverage + stale-expiry/throttle coverage, IPC timeout/concurrency coverage, pairing persistence tests + device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite previously validated)
+- ✅ Tests passing (94 total) (including discovery beacon shape/timer coverage + stale-expiry/throttle coverage, IPC timeout/concurrency coverage, new tray-status broadcaster coverage, pairing persistence tests + device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite previously validated)
 - ✅ Removed `MediaFoundation.Net` NU1701 warning path from build by moving camera stack off framework-only package
 
 ---
@@ -117,9 +117,10 @@ Build a native Windows application that replicates the functionality of the Open
 ---
 
 ## Phase 4: UI / Tray / Onboarding
-- System tray app (`NotifyIcon`)
-- Settings/onboarding flows
-- Overlay/HUD equivalents
+- [x] Step 1 scaffold: tray-status runtime wiring added (`TrayStatusBroadcaster` + `ITrayHost` + `NoOpTrayHost`) with `--tray` flag and state transitions (Starting/Connected/Reconnecting/Disconnected/Stopped)
+- [ ] System tray app (`NotifyIcon`) concrete Windows host implementation
+- [ ] Settings/onboarding flows
+- [ ] Overlay/HUD equivalents
 
 ---
 

@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using OpenClaw.Node.Protocol;
 using OpenClaw.Node.Services;
+using OpenClaw.Node.Tray;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -23,6 +24,8 @@ namespace OpenClaw.Node
                 Console.WriteLine("[FATAL] Missing gateway token. Set OPENCLAW_GATEWAY_TOKEN or pass --gateway-token <token>.");
                 return;
             }
+
+            var trayEnabled = HasArg(args, "--tray");
 
             var connectParams = new ConnectParams
             {
@@ -52,14 +55,28 @@ namespace OpenClaw.Node
             using var ipc = new IpcPipeServerService(version: "dev", authToken: token);
             using var connection = new GatewayConnection(url, token, connectParams);
             using var discovery = new DiscoveryService(connectParams, url);
+            var trayStatus = new TrayStatusBroadcaster();
+            ITrayHost? trayHost = trayEnabled ? new NoOpTrayHost(msg => Console.WriteLine(msg)) : null;
 
-            connection.OnLog += msg => Console.WriteLine(msg);
+            connection.OnLog += msg =>
+            {
+                Console.WriteLine(msg);
+                if (msg.Contains("Reconnecting in", StringComparison.OrdinalIgnoreCase))
+                {
+                    trayStatus.Set(NodeRuntimeState.Reconnecting, msg);
+                }
+            };
             connection.OnConnected += () =>
             {
                 Console.WriteLine("[INFO] Connected to Gateway.");
+                trayStatus.Set(NodeRuntimeState.Connected, "Connected to Gateway");
                 _ = discovery.TriggerAnnounceAsync("gateway-connected", CancellationToken.None);
             };
-            connection.OnDisconnected += () => Console.WriteLine("[INFO] Disconnected from Gateway.");
+            connection.OnDisconnected += () =>
+            {
+                Console.WriteLine("[INFO] Disconnected from Gateway.");
+                trayStatus.Set(NodeRuntimeState.Disconnected, "Disconnected from Gateway");
+            };
             ipc.OnLog += msg => Console.WriteLine(msg);
             discovery.OnLog += msg => Console.WriteLine(msg);
             connection.OnEventReceived += evt =>
@@ -94,7 +111,15 @@ namespace OpenClaw.Node
             connection.RegisterMethodHandler("device.pair.reject", core.HandleDevicePairRejectAsync);
 
             using var cts = new CancellationTokenSource();
-            
+
+            if (trayHost != null)
+            {
+                trayStatus.OnStatusChanged += snapshot =>
+                {
+                    _ = trayHost.UpdateAsync(snapshot, CancellationToken.None);
+                };
+            }
+
             Console.CancelKeyPress += (s, e) =>
             {
                 Console.WriteLine("Shutting down...");
@@ -104,6 +129,12 @@ namespace OpenClaw.Node
 
             try
             {
+                if (trayHost != null)
+                {
+                    await trayHost.StartAsync(cts.Token);
+                    trayStatus.Set(NodeRuntimeState.Starting, "Starting node runtime");
+                }
+
                 discovery.Start(cts.Token);
                 ipc.Start(cts.Token);
                 var runTask = connection.StartAsync(cts.Token);
@@ -119,6 +150,12 @@ namespace OpenClaw.Node
                 connection.Stop();
                 await discovery.StopAsync();
                 await ipc.StopAsync();
+
+                if (trayHost != null)
+                {
+                    trayStatus.Set(NodeRuntimeState.Stopped, "Node runtime stopped");
+                    await trayHost.StopAsync();
+                }
             }
         }
 
@@ -145,6 +182,15 @@ namespace OpenClaw.Node
             if (!string.IsNullOrWhiteSpace(fromEnv)) return fromEnv;
 
             return TryReadGatewayTokenFromOpenClawConfig() ?? string.Empty;
+        }
+
+        private static bool HasArg(string[] args, string key)
+        {
+            for (var i = 0; i < args.Length; i++)
+            {
+                if (args[i].Equals(key, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
         }
 
         private static string? GetArgValue(string[] args, string key)
