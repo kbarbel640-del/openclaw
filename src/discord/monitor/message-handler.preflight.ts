@@ -486,18 +486,14 @@ export async function preflightDiscordMessage(
     isBoundThreadSession,
   });
 
-  // Preflight audio transcription for mention detection in guilds
-  // This allows voice notes to be checked for mentions before being dropped
+  // Preflight audio transcription: used for mention detection in guilds and
+  // to replace <media:audio> placeholder with spoken text so the agent can
+  // understand voice messages (mirrors Telegram behaviour).
   let preflightTranscript: string | undefined;
   const hasAudioAttachment = message.attachments?.some((att: { contentType?: string }) =>
     att.contentType?.startsWith("audio/"),
   );
-  const needsPreflightTranscription =
-    !isDirectMessage &&
-    shouldRequireMention &&
-    hasAudioAttachment &&
-    !baseText &&
-    mentionRegexes.length > 0;
+  const needsPreflightTranscription = hasAudioAttachment && !baseText;
 
   if (needsPreflightTranscription) {
     try {
@@ -724,6 +720,7 @@ export async function preflightDiscordMessage(
     shouldBypassMention: mentionGate.shouldBypassMention,
     effectiveWasMentioned,
     canDetectMention,
+    preflightTranscript,
     historyEntry,
     threadBindings: params.threadBindings,
   };

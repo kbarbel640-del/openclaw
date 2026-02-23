@@ -33,6 +33,7 @@ import { truncateUtf16Safe } from "../../utils.js";
 import { chunkDiscordTextWithMode } from "../chunk.js";
 import { resolveDiscordDraftStreamingChunking } from "../draft-chunking.js";
 import { createDiscordDraftStream } from "../draft-stream.js";
+import { splitDiscordReasoningText } from "../reasoning-split.js";
 import { reactMessageDiscord, removeReactionDiscord } from "../send.js";
 import { editMessageDiscord } from "../send.messages.js";
 import { normalizeDiscordSlug, resolveDiscordOwnerAllowFrom } from "./allow-list.js";
@@ -104,7 +105,12 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   const mediaList = await resolveMediaList(message, mediaMaxBytes);
   const forwardedMediaList = await resolveForwardedMediaList(message, mediaMaxBytes);
   mediaList.push(...forwardedMediaList);
-  const text = messageText;
+  // Replace audio placeholder with transcript when preflight transcription
+  // succeeded, so the agent sees the spoken text instead of "<media:audio>".
+  let text = messageText;
+  if (text === "<media:audio>" && ctx.preflightTranscript) {
+    text = ctx.preflightTranscript;
+  }
   if (!text) {
     logVerbose(`discord: drop message ${message.id} (empty content)`);
     return;
@@ -444,6 +450,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   const shouldSplitPreviewMessages = discordStreamMode === "block";
   const draftChunker = draftChunking ? new EmbeddedBlockChunker(draftChunking) : undefined;
   let lastPartialText = "";
+  let lastDisplayText = "";
   let draftText = "";
   let hasStreamedMessage = false;
   let finalizedViaPreviewMessage = false;
@@ -486,35 +493,44 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     if (text === lastPartialText) {
       return;
     }
+    lastPartialText = text;
     hasStreamedMessage = true;
+
+    // Split reasoning from answer so they display in separate messages.
+    // During the thinking phase, show formatted reasoning. After
+    // onReasoningEnd fires (which calls forceNewMessage), only the answer
+    // portion flows into the new draft message.
+    const split = splitDiscordReasoningText(text);
+    const displayText = split.answerText ?? split.reasoningText ?? text;
+
     if (discordStreamMode === "partial") {
       // Keep the longer preview to avoid visible punctuation flicker.
       if (
-        lastPartialText &&
-        lastPartialText.startsWith(text) &&
-        text.length < lastPartialText.length
+        lastDisplayText &&
+        lastDisplayText.startsWith(displayText) &&
+        displayText.length < lastDisplayText.length
       ) {
         return;
       }
-      lastPartialText = text;
-      draftStream.update(text);
+      lastDisplayText = displayText;
+      draftStream.update(displayText);
       return;
     }
 
-    let delta = text;
-    if (text.startsWith(lastPartialText)) {
-      delta = text.slice(lastPartialText.length);
+    let delta = displayText;
+    if (displayText.startsWith(lastDisplayText)) {
+      delta = displayText.slice(lastDisplayText.length);
     } else {
       // Streaming buffer reset (or non-monotonic stream). Start fresh.
       draftChunker?.reset();
       draftText = "";
     }
-    lastPartialText = text;
+    lastDisplayText = displayText;
     if (!delta) {
       return;
     }
     if (!draftChunker) {
-      draftText = text;
+      draftText = displayText;
       draftStream.update(draftText);
       return;
     }
@@ -674,6 +690,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
                 draftStream.forceNewMessage();
               }
               lastPartialText = "";
+              lastDisplayText = "";
               draftText = "";
               draftChunker?.reset();
             }
@@ -685,6 +702,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
                 draftStream.forceNewMessage();
               }
               lastPartialText = "";
+              lastDisplayText = "";
               draftText = "";
               draftChunker?.reset();
             }

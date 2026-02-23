@@ -70,6 +70,8 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
     threads: true,
     media: true,
     nativeCommands: true,
+    edit: true,
+    blockStreaming: true,
   },
   streaming: {
     blockStreamingCoalesceDefaults: { minChars: 1500, idleMs: 1000 },
@@ -170,6 +172,9 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
   agentPrompt: {
     messageToolHints: () => [
       "- Discord components: set `components` when sending messages to include buttons, selects, or v2 containers.",
+      "- Use media galleries (components with mediaGallery items) when sharing multiple images — they display as a grid.",
+      "- Use containers with accent colors for warnings (red), info (blue), or success (green) messages.",
+      "- Use sections with thumbnails for search results or item listings.",
       "- Forms: add `components.modal` (title, fields). OpenClaw adds a trigger button and routes submissions as new messages.",
     ],
   },

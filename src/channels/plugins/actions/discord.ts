@@ -97,8 +97,17 @@ export const discordMessageActions: ChannelMessageActionAdapter = {
     }
     if (isEnabled("presence", false)) {
       actions.add("set-presence");
+      actions.add("list-presence");
     }
     return Array.from(actions);
+  },
+  supportsButtons: ({ cfg }) => {
+    const accounts = listTokenSourcedAccounts(listEnabledDiscordAccounts(cfg));
+    return accounts.length > 0;
+  },
+  supportsCards: ({ cfg }) => {
+    const accounts = listTokenSourcedAccounts(listEnabledDiscordAccounts(cfg));
+    return accounts.length > 0;
   },
   extractToolSend: ({ args }) => {
     const action = typeof args.action === "string" ? args.action.trim() : "";

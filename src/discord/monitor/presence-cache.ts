@@ -51,6 +51,29 @@ export function clearPresences(accountId?: string): void {
   presenceCache.clear();
 }
 
+/** List cached presence entries, optionally filtered by status. */
+export function listPresences(
+  accountId?: string,
+  filter?: { status?: string; limit?: number },
+): Array<{ userId: string; data: GatewayPresenceUpdate }> {
+  const accountCache = presenceCache.get(resolveAccountKey(accountId));
+  if (!accountCache) {
+    return [];
+  }
+  const limit = filter?.limit ?? 50;
+  const results: Array<{ userId: string; data: GatewayPresenceUpdate }> = [];
+  for (const [userId, data] of accountCache) {
+    if (filter?.status && String(data.status) !== filter.status) {
+      continue;
+    }
+    results.push({ userId, data });
+    if (results.length >= limit) {
+      break;
+    }
+  }
+  return results;
+}
+
 /** Get the number of cached presence entries. */
 export function presenceCacheSize(): number {
   let total = 0;
