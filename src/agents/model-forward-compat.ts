@@ -1,8 +1,8 @@
 import type { Api, Model } from "@mariozechner/pi-ai";
+import type { ModelRegistry } from "./pi-model-discovery.js";
 import { DEFAULT_CONTEXT_TOKENS } from "./defaults.js";
 import { normalizeModelCompat } from "./model-compat.js";
 import { normalizeProviderId } from "./model-selection.js";
-import type { ModelRegistry } from "./pi-model-discovery.js";
 
 const OPENAI_CODEX_GPT_53_MODEL_ID = "gpt-5.3-codex";
 const OPENAI_CODEX_TEMPLATE_MODEL_IDS = ["gpt-5.2-codex"] as const;
@@ -13,6 +13,16 @@ const ANTHROPIC_OPUS_TEMPLATE_MODEL_IDS = ["claude-opus-4-5", "claude-opus-4.5"]
 const ANTHROPIC_SONNET_46_MODEL_ID = "claude-sonnet-4-6";
 const ANTHROPIC_SONNET_46_DOT_MODEL_ID = "claude-sonnet-4.6";
 const ANTHROPIC_SONNET_TEMPLATE_MODEL_IDS = ["claude-sonnet-4-5", "claude-sonnet-4.5"] as const;
+
+const ANTIGRAVITY_OPUS_46_MODEL_ID = "claude-opus-4-6";
+const ANTIGRAVITY_OPUS_46_DOT_MODEL_ID = "claude-opus-4.6";
+const ANTIGRAVITY_OPUS_TEMPLATE_MODEL_IDS = ["claude-opus-4-5", "claude-opus-4.5"] as const;
+const ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID = "claude-opus-4-6-thinking";
+const ANTIGRAVITY_OPUS_46_DOT_THINKING_MODEL_ID = "claude-opus-4.6-thinking";
+const ANTIGRAVITY_OPUS_THINKING_TEMPLATE_MODEL_IDS = [
+  "claude-opus-4-5-thinking",
+  "claude-opus-4.5-thinking",
+] as const;
 
 const ZAI_GLM5_MODEL_ID = "glm-5";
 const ZAI_GLM5_TEMPLATE_MODEL_IDS = ["glm-4.7"] as const;
@@ -264,6 +274,7 @@ export function resolveForwardCompatModel(
     resolveOpenAICodexGpt53FallbackModel(provider, modelId, modelRegistry) ??
     resolveAnthropicOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveAnthropicSonnet46ForwardCompatModel(provider, modelId, modelRegistry) ??
+    resolveAntigravityOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry)
   );
 }
