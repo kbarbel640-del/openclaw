@@ -1,12 +1,12 @@
 import { type RunOptions, run } from "@grammyjs/runner";
-import { resolveAgentMaxConcurrent } from "../config/agent-limits.js";
 import type { OpenClawConfig } from "../config/config.js";
+import type { RuntimeEnv } from "../runtime.js";
+import { resolveAgentMaxConcurrent } from "../config/agent-limits.js";
 import { loadConfig } from "../config/config.js";
 import { computeBackoff, sleepWithAbort } from "../infra/backoff.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import { formatDurationPrecise } from "../infra/format-time/format-duration.ts";
 import { registerUnhandledRejectionHandler } from "../infra/unhandled-rejections.js";
-import type { RuntimeEnv } from "../runtime.js";
 import { resolveTelegramAccount } from "./accounts.js";
 import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
@@ -257,9 +257,13 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
 
       const runner = run(bot, runnerOptions);
       activeRunner = runner;
+      // Track the stop promise so the finally block can await it directly,
+      // preventing a new polling loop from starting before the old runner
+      // has fully stopped (avoids 409 conflicts on config hot-reload).
+      let stopPromise: Promise<void> | null = null;
       const stopOnAbort = () => {
         if (opts.abortSignal?.aborted) {
-          void runner.stop();
+          stopPromise = runner.stop();
         }
       };
       opts.abortSignal?.addEventListener("abort", stopOnAbort, { once: true });
@@ -305,7 +309,10 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
       } finally {
         opts.abortSignal?.removeEventListener("abort", stopOnAbort);
         try {
-          await runner.stop();
+          // Await the existing stop promise (set by stopOnAbort) if available,
+          // otherwise stop now. This ensures the runner is fully stopped before
+          // the next iteration or caller can start a new one.
+          await (stopPromise ?? runner.stop());
         } catch {
           // Runner may already be stopped by abort/retry paths.
         }
