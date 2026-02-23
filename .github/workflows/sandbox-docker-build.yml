@@ -1,0 +1,181 @@
+name: Sandbox Docker Build
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile.sandbox*'
+      - 'scripts/sandbox-browser-entrypoint.sh'
+      - 'docker-compose.yml'
+      - '.github/workflows/sandbox-docker-build.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile.sandbox*'
+      - 'scripts/sandbox-browser-entrypoint.sh'
+
+concurrency:
+  group: sandbox-docker-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-sandbox
+
+jobs:
+  build-sandbox-all:
+    name: Build All Sandbox Variants
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    permissions:
+      packages: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: bookworm-slim
+            dockerfile: Dockerfile.sandbox
+            tag-suffix: bookworm-slim
+          - name: browser
+            dockerfile: Dockerfile.sandbox-browser
+            tag-suffix: browser
+          - name: common
+            dockerfile: Dockerfile.sandbox-common
+            tag-suffix: common
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.name }} sandbox
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          tags: openclaw-sandbox:${{ matrix.tag-suffix }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+          outputs: type=docker
+
+      - name: Test ${{ matrix.name }} sandbox image
+        run: |
+          set -euo pipefail
+          docker image ls openclaw-sandbox:${{ matrix.tag-suffix }}
+          
+          # Test basic commands are available
+          docker run --rm openclaw-sandbox:${{ matrix.tag-suffix }} bash -c "which bash && which curl && which git"
+          
+          if [[ "${{ matrix.name }}" == "browser" ]]; then
+            echo "Testing browser sandbox..."
+            docker run --rm openclaw-sandbox:${{ matrix.tag-suffix }} which chromium
+          fi
+          
+          if [[ "${{ matrix.name }}" == "common" ]]; then
+            echo "Testing common sandbox..."
+            docker run --rm openclaw-sandbox:${{ matrix.tag-suffix }} which node
+            docker run --rm openclaw-sandbox:${{ matrix.tag-suffix }} which npm
+          fi
+
+  push-pr-sandbox:
+    name: Push Sandbox PR Images
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    permissions:
+      packages: write
+      contents: read
+    if: github.event_name == 'pull_request'
+    needs: [build-sandbox-all]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push sandbox images (PR)
+        strategy:
+          matrix:
+            include:
+              - name: bookworm-slim
+                dockerfile: Dockerfile.sandbox
+              - name: browser
+                dockerfile: Dockerfile.sandbox-browser
+              - name: common
+                dockerfile: Dockerfile.sandbox-common
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${PR_NUMBER}-${{ matrix.name }}"
+          
+          docker buildx build -f ${{ matrix.dockerfile }} \
+            -t "$IMAGE_TAG" \
+            --cache-from=type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-cache:${{ matrix.name }} \
+            --cache-to=type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-cache:${{ matrix.name }},mode=max \
+            --push \
+            .
+
+  sandbox-smoke-test:
+    name: Sandbox Smoke Test
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build bookworm-slim sandbox
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.sandbox
+          platforms: linux/amd64
+          tags: openclaw-sandbox:test
+          load: true
+
+      - name: Test sandbox basic tools
+        run: |
+          set -euo pipefail
+          echo "Testing sandbox image tools..."
+          
+          tools=("bash" "curl" "git" "jq" "python3" "rg")
+          for tool in "${tools[@]}"; do
+            if docker run --rm openclaw-sandbox:test which "$tool" > /dev/null; then
+              echo "✅ $tool available"
+            else
+              echo "❌ $tool NOT found"
+              exit 1
+            fi
+          done
+
+      - name: Test sandbox user permissions
+        run: |
+          set -euo pipefail
+          echo "Testing sandbox non-root user..."
+          
+          USER_ID=$(docker run --rm openclaw-sandbox:test id -u)
+          if [ "$USER_ID" != "0" ]; then
+            echo "✅ Running as non-root user (UID: $USER_ID)"
+          else
+            echo "❌ Running as root! Security issue."
+            exit 1
+          fi

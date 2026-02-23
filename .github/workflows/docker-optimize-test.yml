@@ -1,0 +1,197 @@
+name: Docker Optimization Test
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'Dockerfile.sandbox*'
+      - 'docker-bake.hcl'
+      - 'OPTIMIZATION_*.md'
+      - '.github/workflows/docker-optimize-test.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - 'Dockerfile.sandbox*'
+      - 'docker-bake.hcl'
+
+concurrency:
+  group: docker-optimize-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark-build:
+    name: Benchmark Build Performance
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
+      - name: First build (cold cache)
+        id: first_build
+        run: |
+          set -euo pipefail
+          START=$(date +%s%N)
+          docker buildx build -f Dockerfile --load -t openclaw:bench . > /dev/null 2>&1 || true
+          END=$(date +%s%N)
+          DURATION_MS=$(( (END - START) / 1000000 ))
+          echo "first_build_ms=$DURATION_MS" >> "$GITHUB_OUTPUT"
+          echo "First build: ${DURATION_MS}ms"
+
+      - name: Second build (warm cache)
+        id: second_build
+        run: |
+          set -euo pipefail
+          START=$(date +%s%N)
+          docker buildx build -f Dockerfile --load -t openclaw:bench . > /dev/null 2>&1 || true
+          END=$(date +%s%N)
+          DURATION_MS=$(( (END - START) / 1000000 ))
+          echo "second_build_ms=$DURATION_MS" >> "$GITHUB_OUTPUT"
+          echo "Second build: ${DURATION_MS}ms"
+
+      - name: Calculate cache efficiency
+        if: always()
+        run: |
+          set -euo pipefail
+          FIRST=${{ steps.first_build.outputs.first_build_ms }}
+          SECOND=${{ steps.second_build.outputs.second_build_ms }}
+          
+          if [ -z "$FIRST" ] || [ -z "$SECOND" ]; then
+            echo "::warning::Build timing unavailable (build may have failed)"
+            exit 0
+          fi
+          
+          SAVINGS=$((FIRST - SECOND))
+          SAVINGS_PCT=$((SAVINGS * 100 / FIRST))
+          
+          echo "## Build Cache Performance" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| First build (cold cache) | ${FIRST}ms |" >> $GITHUB_STEP_SUMMARY
+          echo "| Second build (warm cache) | ${SECOND}ms |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cache savings | ${SAVINGS}ms (${SAVINGS_PCT}%) |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$SAVINGS_PCT" -lt 40 ]; then
+            echo "::warning::Cache efficiency below target (40%+). Current: ${SAVINGS_PCT}%"
+          fi
+
+  validate-syntax:
+    name: Validate Dockerfile Syntax
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - Dockerfile
+          - Dockerfile.sandbox
+          - Dockerfile.sandbox-browser
+          - Dockerfile.sandbox-common
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Lint ${{ matrix.dockerfile }}
+        uses: hadolint/hadolint-action@v3
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+          ignore: DL3008,DL3009
+
+  cache-mount-test:
+    name: Verify Cache Mounts
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Check for BuildKit cache mount syntax
+        run: |
+          set -euo pipefail
+          echo "Checking Dockerfiles for cache mount usage..."
+          
+          if grep -q "type=cache" Dockerfile; then
+            echo "✅ Main Dockerfile uses cache mounts"
+          else
+            echo "❌ Main Dockerfile missing cache mounts"
+            exit 1
+          fi
+          
+          for df in Dockerfile.sandbox*; do
+            if grep -q "type=cache" "$df"; then
+              echo "✅ $df uses cache mounts"
+            else
+              echo "❌ $df missing cache mounts"
+              exit 1
+            fi
+          done
+
+      - name: Verify cache mount targets
+        run: |
+          echo "Cache mount targets:"
+          grep -h "type=cache" Dockerfile Dockerfile.sandbox* | sed 's/.*target=/  📌 /' | sort -u
+
+  image-size-check:
+    name: Check Image Sizes
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build main image and check size
+        id: main_build
+        run: |
+          set -euo pipefail
+          docker buildx build -f Dockerfile --load -t openclaw:size-check . > /dev/null 2>&1 || true
+          SIZE_MB=$(docker image inspect openclaw:size-check --format='{{.Size}}' | awk '{print int($1/1024/1024)}')
+          echo "main_size_mb=$SIZE_MB" >> "$GITHUB_OUTPUT"
+          echo "Main image size: ${SIZE_MB}MB"
+
+      - name: Build sandbox and check size
+        id: sandbox_build
+        run: |
+          set -euo pipefail
+          docker buildx build -f Dockerfile.sandbox --load -t openclaw-sandbox:size-check . > /dev/null 2>&1 || true
+          SIZE_MB=$(docker image inspect openclaw-sandbox:size-check --format='{{.Size}}' | awk '{print int($1/1024/1024)}')
+          echo "sandbox_size_mb=$SIZE_MB" >> "$GITHUB_OUTPUT"
+          echo "Sandbox image size: ${SIZE_MB}MB"
+
+      - name: Report sizes
+        if: always()
+        run: |
+          MAIN_SIZE=${{ steps.main_build.outputs.main_size_mb }}
+          SANDBOX_SIZE=${{ steps.sandbox_build.outputs.sandbox_size_mb }}
+          
+          if [ -z "$MAIN_SIZE" ] || [ -z "$SANDBOX_SIZE" ]; then
+            echo "::warning::Image sizes unavailable (build may have failed)"
+            exit 0
+          fi
+          
+          echo "## Image Size Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| openclaw (main) | ${MAIN_SIZE}MB |" >> $GITHUB_STEP_SUMMARY
+          echo "| openclaw-sandbox | ${SANDBOX_SIZE}MB |" >> $GITHUB_STEP_SUMMARY

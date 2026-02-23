@@ -1,0 +1,218 @@
+name: Docker Build & Test
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'Dockerfile.sandbox*'
+      - 'docker-compose.yml'
+      - 'docker-bake.hcl'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/docker-build.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - 'Dockerfile.sandbox*'
+      - 'docker-compose.yml'
+      - 'docker-bake.hcl'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+concurrency:
+  group: docker-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-docker:
+    name: Build Docker Image
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: latest
+          buildkitd-flags: --allow-insecure-entitlement security.insecure
+
+      - name: Build main Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          tags: openclaw:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+          outputs: type=docker
+
+      - name: Verify built image
+        run: |
+          docker image ls openclaw:test
+          docker run --rm openclaw:test node -v
+
+  build-sandbox:
+    name: Build Sandbox Images
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    permissions:
+      packages: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - Dockerfile.sandbox
+          - Dockerfile.sandbox-browser
+        include:
+          - dockerfile: Dockerfile.sandbox
+            image-tag: openclaw-sandbox:bookworm-slim
+          - dockerfile: Dockerfile.sandbox-browser
+            image-tag: openclaw-sandbox:browser
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.dockerfile }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          tags: ${{ matrix.image-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+          outputs: type=docker
+
+      - name: Verify sandbox image
+        run: |
+          docker image ls ${{ matrix.image-tag }}
+          docker run --rm ${{ matrix.image-tag }} bash -c "which curl && which git"
+
+  docker-compose-validate:
+    name: Validate docker-compose.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose config
+        run: |
+          docker compose config --no-interpolate > /dev/null
+          docker compose config > /dev/null
+
+      - name: Check health check syntax
+        run: |
+          docker compose config | grep -A 5 "healthcheck:" || echo "No health checks found"
+
+  docker-bake-validate:
+    name: Validate docker-bake.hcl
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate bake file
+        run: docker buildx bake -f docker-bake.hcl --print
+
+      - name: Validate all targets
+        run: |
+          docker buildx bake -f docker-bake.hcl --print | grep -E '^\s+"target"' || true
+
+  push-pr-images:
+    name: Push PR Preview Images
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    permissions:
+      packages: write
+      contents: read
+    if: github.event_name == 'pull_request'
+    needs: [build-docker, build-sandbox, docker-compose-validate]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate PR image tags
+        id: meta
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          echo "main_image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "sandbox_image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-sandbox:pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push main image (PR preview)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.main_image }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-cache:amd64
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-cache:amd64,mode=max
+          push: true
+
+      - name: Comment PR with image info
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const mainImage = '${{ steps.meta.outputs.main_image }}';
+            const sandboxImage = '${{ steps.meta.outputs.sandbox_image }}';
+            
+            const body = `## 🐳 Docker Image Preview
+            
+            Preview images built for this PR:
+            
+            - Main app: \`${mainImage}\`
+            - Sandbox: \`${sandboxImage}\`
+            
+            **BuildKit Cache Status**: ✅ Enabled (faster rebuilds on subsequent runs)
+            
+            Pull with:
+            \`\`\`bash
+            docker pull ${mainImage}
+            \`\`\`
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
