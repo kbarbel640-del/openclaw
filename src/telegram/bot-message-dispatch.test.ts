@@ -42,12 +42,12 @@ describe("dispatchTelegramMessage draft streaming", () => {
   type TelegramMessageContext = Parameters<typeof dispatchTelegramMessage>[0]["context"];
 
   beforeEach(() => {
-    createTelegramDraftStream.mockReset();
-    dispatchReplyWithBufferedBlockDispatcher.mockReset();
-    deliverReplies.mockReset();
-    editMessageTelegram.mockReset();
-    loadSessionStore.mockReset();
-    resolveStorePath.mockReset();
+    createTelegramDraftStream.mockClear();
+    dispatchReplyWithBufferedBlockDispatcher.mockClear();
+    deliverReplies.mockClear();
+    editMessageTelegram.mockClear();
+    loadSessionStore.mockClear();
+    resolveStorePath.mockClear();
     resolveStorePath.mockReturnValue("/tmp/sessions.json");
     loadSessionStore.mockReturnValue({});
   });
@@ -395,6 +395,37 @@ describe("dispatchTelegramMessage draft streaming", () => {
       "Primary result",
       expect.any(Object),
     );
+    expect(deliverReplies).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replies: [expect.objectContaining({ text: "⚠️ Recovered tool error details" })],
+      }),
+    );
+    expect(draftStream.clear).not.toHaveBeenCalled();
+    expect(draftStream.stop).toHaveBeenCalled();
+  });
+
+  it("keeps streamed preview visible when final text regresses after a tool warning", async () => {
+    const draftStream = createDraftStream(999);
+    createTelegramDraftStream.mockReturnValue(draftStream);
+    dispatchReplyWithBufferedBlockDispatcher.mockImplementation(
+      async ({ dispatcherOptions, replyOptions }) => {
+        await replyOptions?.onPartialReply?.({ text: "Recovered final answer." });
+        await dispatcherOptions.deliver(
+          { text: "⚠️ Recovered tool error details", isError: true },
+          { kind: "tool" },
+        );
+        await dispatcherOptions.deliver({ text: "Recovered final answer" }, { kind: "final" });
+        return { queuedFinal: true };
+      },
+    );
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    await dispatchWithContext({ context: createContext(), streamMode: "partial" });
+
+    // Regressive final ("answer." -> "answer") should keep the preview instead
+    // of clearing it and leaving only the tool warning visible.
+    expect(editMessageTelegram).not.toHaveBeenCalled();
+    expect(deliverReplies).toHaveBeenCalledTimes(1);
     expect(deliverReplies).toHaveBeenCalledWith(
       expect.objectContaining({
         replies: [expect.objectContaining({ text: "⚠️ Recovered tool error details" })],
