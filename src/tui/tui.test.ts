@@ -82,6 +82,16 @@ describe("resolveGatewayDisconnectState", () => {
     expect(state.pairingHint).toContain("openclaw devices list");
   });
 
+  it("surfaces requestId-specific pairing recovery guidance when available", () => {
+    const state = resolveGatewayDisconnectState(
+      "gateway closed (1008): pairing required (requestId: req-123)",
+    );
+    expect(state.connectionStatus).toContain("requestId: req-123");
+    expect(state.activityStatus).toBe("pairing required: run openclaw devices approve req-123");
+    expect(state.pairingHint).toContain("openclaw devices approve req-123");
+    expect(state.pairingHint).toContain("openclaw devices list");
+  });
+
   it("falls back to idle for generic disconnect reasons", () => {
     const state = resolveGatewayDisconnectState("network timeout");
     expect(state.connectionStatus).toBe("gateway disconnected: network timeout");

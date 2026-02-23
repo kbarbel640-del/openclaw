@@ -648,7 +648,7 @@ export function attachGatewayWsMessageHandler(params: {
                   },
                 }),
               });
-              close(1008, "pairing required");
+              close(1008, `pairing required (requestId: ${pairing.request.requestId})`);
               return false;
             }
             return true;

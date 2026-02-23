@@ -865,6 +865,9 @@ describe("gateway server auth/connect", () => {
             "x-forwarded-for": "203.0.113.10",
           },
         });
+        const closeInfoPromise = new Promise<{ code: number; reason: string }>((resolve) => {
+          ws.once("close", (code, reason) => resolve({ code, reason: reason.toString() }));
+        });
         const challengePromise = onceMessage<{
           type?: string;
           event?: string;
@@ -902,10 +905,14 @@ describe("gateway server auth/connect", () => {
         });
         expect(res.ok).toBe(false);
         expect(res.error?.message ?? "").toContain("pairing required");
-        expect((res.error?.details as { code?: string } | undefined)?.code).toBe(
-          ConnectErrorDetailCodes.PAIRING_REQUIRED,
-        );
-        ws.close();
+        const details = res.error?.details as { code?: string; requestId?: string } | undefined;
+        expect(details?.code).toBe(ConnectErrorDetailCodes.PAIRING_REQUIRED);
+        expect(typeof details?.requestId).toBe("string");
+        expect((details?.requestId ?? "").length).toBeGreaterThan(0);
+        const closeInfo = await closeInfoPromise;
+        expect(closeInfo.code).toBe(1008);
+        expect(closeInfo.reason).toContain("pairing required");
+        expect(closeInfo.reason).toContain(`requestId: ${details?.requestId ?? ""}`);
       });
     } finally {
       restoreGatewayToken(prevToken);

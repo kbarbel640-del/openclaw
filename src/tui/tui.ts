@@ -215,6 +215,15 @@ export function resolveGatewayDisconnectState(reason?: string): {
 } {
   const reasonLabel = reason?.trim() ? reason.trim() : "closed";
   if (/pairing required/i.test(reasonLabel)) {
+    const requestIdMatch = reasonLabel.match(/requestId:\s*([^\s)]+)/i);
+    const requestId = requestIdMatch && requestIdMatch[1] ? requestIdMatch[1].trim() : "";
+    if (requestId) {
+      return {
+        connectionStatus: `gateway disconnected: ${reasonLabel}`,
+        activityStatus: `pairing required: run openclaw devices approve ${requestId}`,
+        pairingHint: `Pairing required. Run \`openclaw devices approve ${requestId}\` (or \`openclaw devices approve --latest\`), then verify with \`openclaw devices list\` and reconnect.`,
+      };
+    }
     return {
       connectionStatus: `gateway disconnected: ${reasonLabel}`,
       activityStatus: "pairing required: run openclaw devices list",
