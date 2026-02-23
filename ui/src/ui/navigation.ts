@@ -26,6 +26,8 @@ export type Tab =
   | "debug"
   | "logs";
 
+export type AppMode = "basic" | "advanced" | "configure";
+
 const TAB_PATHS: Record<Tab, string> = {
   agents: "/agents",
   overview: "/overview",
