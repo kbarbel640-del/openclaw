@@ -219,6 +219,7 @@ namespace OpenClaw.Node.Services
                 string repoPath = string.Empty;
                 string branch = "windows_companion_app";
                 var doBuild = true;
+                var dryRun = false;
 
                 if (p.ValueKind == JsonValueKind.Object)
                 {
@@ -234,6 +235,10 @@ namespace OpenClaw.Node.Services
                     {
                         doBuild = b.GetBoolean();
                     }
+                    if (p.TryGetProperty("dryRun", out var dr) && (dr.ValueKind == JsonValueKind.True || dr.ValueKind == JsonValueKind.False))
+                    {
+                        dryRun = dr.GetBoolean();
+                    }
                 }
 
                 if (string.IsNullOrWhiteSpace(repoPath))
@@ -248,6 +253,16 @@ namespace OpenClaw.Node.Services
                         Id = req.Id ?? string.Empty,
                         Ok = false,
                         Error = new IpcError { Code = "BAD_REQUEST", Message = $"repoPath not found: {repoPath}" }
+                    };
+                }
+
+                if (dryRun)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = true,
+                        Payload = new { ok = true, repoPath, branch, built = false, dryRun = true, steps = Array.Empty<object>() }
                     };
                 }
 
@@ -304,9 +319,14 @@ namespace OpenClaw.Node.Services
             {
                 var p = req.Params ?? default;
                 var delayMs = 1500;
+                var dryRun = false;
                 if (p.ValueKind == JsonValueKind.Object && p.TryGetProperty("delayMs", out var d) && d.ValueKind == JsonValueKind.Number)
                 {
                     delayMs = d.GetInt32();
+                }
+                if (p.ValueKind == JsonValueKind.Object && p.TryGetProperty("dryRun", out var dr) && (dr.ValueKind == JsonValueKind.True || dr.ValueKind == JsonValueKind.False))
+                {
+                    dryRun = dr.GetBoolean();
                 }
                 delayMs = Math.Clamp(delayMs, 250, 15000);
 
@@ -330,6 +350,17 @@ namespace OpenClaw.Node.Services
                 }
 
                 var pid = Environment.ProcessId;
+
+                if (dryRun)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = true,
+                        Payload = new { ok = true, scheduled = false, dryRun = true, delayMs, pid, processPath }
+                    };
+                }
+
                 var sec = Math.Max(1, (int)Math.Ceiling(delayMs / 1000.0));
                 var cmd = $"/c timeout /t {sec} /nobreak >nul && start \"\" {QuoteForCmd(processPath)} {argBuilder} && taskkill /PID {pid} /F";
 

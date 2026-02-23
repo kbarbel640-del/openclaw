@@ -38,6 +38,9 @@
    - `input.click` (Automation MVP: mouse click at `{ x, y }` with `button=primary|secondary|left|right` + optional `doubleClick`; primary/secondary respect OS swapped-button setting)
    - `input.scroll` (Automation MVP: vertical wheel scroll with `deltaY` and optional coordinate targeting `{ x, y }`)
    - `input.click.relative` (Automation MVP: click at window-relative offsets `{ offsetX, offsetY }` using `handle` or `titleContains`)
+   - `ui.find` (Automation v2: selector-based element lookup by `name` / `automationId` / `controlType`)
+   - `ui.click` (Automation v2: selector-based element click)
+   - `ui.type` (Automation v2: selector-based element focus+type)
 6. Local IPC named-pipe server is running on Windows (`\\.\pipe\openclaw.node.ipc`) with auth + methods:
    - `ipc.ping`
    - `ipc.window.list`
@@ -48,8 +51,8 @@
    - `ipc.input.click`
    - `ipc.input.scroll`
    - `ipc.input.click.relative`
-   - `ipc.dev.update`
-   - `ipc.dev.restart`
+   - `ipc.dev.update` (supports `dryRun=true` for non-destructive validation)
+   - `ipc.dev.restart` (supports `dryRun=true` for non-destructive validation)
    - auth token required when configured (Program currently uses gateway token as shared secret)
 7. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
@@ -67,7 +70,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **74 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **82 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash
@@ -88,5 +91,4 @@ dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token
 1. Keep running `RUN_REAL_GATEWAY_INTEGRATION=1 dotnet test --filter "FullyQualifiedName~RealGatewayIntegrationTests" -p:Platform=x64` before major merges (now with signed device-auth handshake on connect; suite covers node-connect/status plus screen.list/camera.list/window.list/window.rect response-shape paths, screen.record generic + explicit screenIndex path, and camera.snap generic + explicit deviceId/front-back shape paths when available).
 2. On Windows hosts, ensure camera prerequisites are explicit in onboarding/docs: Camera privacy toggles enabled for desktop apps.
 3. Extend camera validation on true multi-camera hardware (distinct front/back/external) to tune device-selection heuristics beyond single-camera semantics.
-4. Add IPC integration tests that invoke the new dev helper methods in a non-destructive mode.
-5. If needed later, persist pairing pending cache to disk (currently in-memory only).
+4. If needed later, persist pairing pending cache to disk (currently in-memory only).

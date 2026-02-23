@@ -77,7 +77,7 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] `input.click` mouse click path with `button=primary|secondary|left|right` and optional `doubleClick`
   - [x] `input.scroll` wheel path with required `deltaY` and optional `{ x, y }` targeting
   - [x] Primary/secondary click semantics respect OS swapped-button setting (left-handed mode)
-  - [ ] Add richer UIAutomation element-level actions (selectors, element click/type) beyond coordinate/keystroke MVP
+  - [x] Added richer UIAutomation element-level actions (`ui.find`, `ui.click`, `ui.type`) beyond coordinate/keystroke MVP
 - **Shell execution**
   - [x] `System.Diagnostics.Process` command executor with allowlist
 
@@ -96,6 +96,9 @@ Build a native Windows application that replicates the functionality of the Open
     - `ipc.dev.update`
     - `ipc.dev.restart`
   - [x] Unit tests added for pipe roundtrip + unknown-method + auth gating + bad-request validation paths
+  - [x] Added non-destructive IPC integration coverage for dev helpers via `dryRun`:
+    - `ipc.dev.update` (`dryRun=true`)
+    - `ipc.dev.restart` (`dryRun=true`)
 
 ---
 
