@@ -1,7 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
-import { resolveAgentModelPrimaryValue, toAgentModelListLike } from "../config/model-input.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
-import { resolveAgentConfig, resolveAgentEffectiveModelPrimary } from "./agent-scope.js";
+import { resolveAgentConfig, resolveAgentModelPrimary } from "./agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
 import type { ModelCatalogEntry } from "./model-catalog.js";
 import { normalizeGoogleModelId } from "./models-config.providers.js";
@@ -260,7 +259,13 @@ export function resolveConfiguredModelRef(params: {
   defaultProvider: string;
   defaultModel: string;
 }): ModelRef {
-  const rawModel = resolveAgentModelPrimaryValue(params.cfg.agents?.defaults?.model) ?? "";
+  const rawModel = (() => {
+    const raw = params.cfg.agents?.defaults?.model as { primary?: string } | string | undefined;
+    if (typeof raw === "string") {
+      return raw.trim();
+    }
+    return raw?.primary?.trim() ?? "";
+  })();
   if (rawModel) {
     const trimmed = rawModel.trim();
     const aliasIndex = buildModelAliasIndex({
@@ -298,7 +303,7 @@ export function resolveDefaultModelForAgent(params: {
   agentId?: string;
 }): ModelRef {
   const agentModelOverride = params.agentId
-    ? resolveAgentEffectiveModelPrimary(params.cfg, params.agentId)
+    ? resolveAgentModelPrimary(params.cfg, params.agentId)
     : undefined;
   const cfg =
     agentModelOverride && agentModelOverride.length > 0
@@ -309,7 +314,9 @@ export function resolveDefaultModelForAgent(params: {
             defaults: {
               ...params.cfg.agents?.defaults,
               model: {
-                ...toAgentModelListLike(params.cfg.agents?.defaults?.model),
+                ...(typeof params.cfg.agents?.defaults?.model === "object"
+                  ? params.cfg.agents.defaults.model
+                  : undefined),
                 primary: agentModelOverride,
               },
             },
@@ -350,7 +357,7 @@ export function resolveSubagentSpawnModelSelection(params: {
       cfg: params.cfg,
       agentId: params.agentId,
     }) ??
-    normalizeModelSelection(resolveAgentModelPrimaryValue(params.cfg.agents?.defaults?.model)) ??
+    normalizeModelSelection(params.cfg.agents?.defaults?.model?.primary) ??
     `${runtimeDefault.provider}/${runtimeDefault.model}`
   );
 }
@@ -509,16 +516,37 @@ export function resolveThinkingDefault(params: {
   model: string;
   catalog?: ModelCatalogEntry[];
 }): ThinkLevel {
+  // 1. Per-model thinkingDefault (highest priority)
+  // Normalize config keys via parseModelRef (consistent with buildModelAliasIndex,
+  // buildAllowedModelSet, etc.) so aliases like "anthropic/opus-4.6" resolve correctly.
+  const configModels = params.cfg.agents?.defaults?.models ?? {};
+  for (const [rawKey, entry] of Object.entries(configModels)) {
+    const parsed = parseModelRef(rawKey, params.provider);
+    if (
+      parsed &&
+      parsed.provider === params.provider &&
+      parsed.model === params.model &&
+      entry?.thinkingDefault
+    ) {
+      return entry.thinkingDefault as ThinkLevel;
+    }
+  }
+
+  // 2. Global thinkingDefault
   const configured = params.cfg.agents?.defaults?.thinkingDefault;
   if (configured) {
     return configured;
   }
+
+  // 3. Auto-detect from model catalog (reasoning-capable → "low")
   const candidate = params.catalog?.find(
     (entry) => entry.provider === params.provider && entry.id === params.model,
   );
   if (candidate?.reasoning) {
     return "low";
   }
+
+  // 4. Default
   return "off";
 }
 
