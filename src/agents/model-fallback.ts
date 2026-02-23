@@ -332,12 +332,18 @@ export async function runWithModelFallback<T>(params: {
           profileIds,
         });
         if (!shouldProbe) {
+          // Derive the actual cooldown reason from stored profile stats so the
+          // error surface reflects the real failure (e.g. "timeout", "auth")
+          // rather than the hardcoded "rate_limit" sentinel.
+          const storedReason = profileIds
+            .map((id) => authStore.usageStats?.[id]?.cooldownReason)
+            .find((r) => r != null);
           // Skip without attempting
           attempts.push({
             provider: candidate.provider,
             model: candidate.model,
             error: `Provider ${candidate.provider} is in cooldown (all profiles unavailable)`,
-            reason: "rate_limit",
+            reason: storedReason ?? "rate_limit",
           });
           continue;
         }

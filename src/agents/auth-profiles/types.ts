@@ -44,6 +44,8 @@ export type AuthProfileFailureReason =
 export type ProfileUsageStats = {
   lastUsed?: number;
   cooldownUntil?: number;
+  /** The failure reason that triggered the active cooldown window. */
+  cooldownReason?: AuthProfileFailureReason;
   disabledUntil?: number;
   disabledReason?: AuthProfileFailureReason;
   errorCount?: number;

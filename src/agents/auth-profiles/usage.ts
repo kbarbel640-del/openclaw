@@ -292,6 +292,7 @@ function computeNextProfileUsageStats(params: {
   } else {
     const backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);
     updatedStats.cooldownUntil = params.now + backoffMs;
+    updatedStats.cooldownReason = params.reason;
   }
 
   return updatedStats;
