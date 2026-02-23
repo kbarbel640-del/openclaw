@@ -115,7 +115,7 @@ export async function readMatrixMessages(
         (event) =>
           event.type === EventType.RoomMessage ||
           // Polls (MSC3381): include so clients/agents can read poll questions + responses
-          POLL_EVENT_TYPES.includes(event.type),
+          POLL_EVENT_TYPES.includes(event.type as (typeof POLL_EVENT_TYPES)[number]),
       )
       .filter((event) => !event.unsigned?.redacted_because)
       .map(summarizeMatrixRawEvent);

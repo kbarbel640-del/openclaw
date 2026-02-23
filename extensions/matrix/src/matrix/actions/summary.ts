@@ -74,7 +74,7 @@ export function summarizeMatrixRawEvent(event: MatrixRawEvent): MatrixMessageSum
     };
   }
 
-  if (POLL_RESPONSE_TYPES.includes(event.type)) {
+  if (POLL_RESPONSE_TYPES.includes(event.type as (typeof POLL_RESPONSE_TYPES)[number])) {
     const summarized = summarizePollResponse(event);
     return {
       eventId: event.event_id,
@@ -86,7 +86,7 @@ export function summarizeMatrixRawEvent(event: MatrixRawEvent): MatrixMessageSum
     };
   }
 
-  if (POLL_END_TYPES.includes(event.type)) {
+  if (POLL_END_TYPES.includes(event.type as (typeof POLL_END_TYPES)[number])) {
     return {
       eventId: event.event_id,
       sender: event.sender,
