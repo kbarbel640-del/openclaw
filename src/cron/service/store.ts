@@ -91,6 +91,16 @@ function normalizePayloadKind(payload: Record<string, unknown>) {
   return false;
 }
 
+function hasRequiredPayloadFields(payload: Record<string, unknown>, payloadKind: string) {
+  if (payloadKind === "agentTurn") {
+    return typeof payload.message === "string" && payload.message.trim().length > 0;
+  }
+  if (payloadKind === "systemEvent") {
+    return typeof payload.text === "string" && payload.text.trim().length > 0;
+  }
+  return false;
+}
+
 function inferPayloadIfMissing(raw: Record<string, unknown>) {
   const message = typeof raw.message === "string" ? raw.message.trim() : "";
   const text = typeof raw.text === "string" ? raw.text.trim() : "";
@@ -352,7 +362,10 @@ export async function ensureLoaded(
     const payloadKind =
       payloadRecord && typeof payloadRecord.kind === "string" ? payloadRecord.kind : "";
     const hasValidPayloadKind = payloadKind === "agentTurn" || payloadKind === "systemEvent";
-    if (!payloadRecord || !hasValidPayloadKind) {
+    const hasRequiredFields = payloadRecord
+      ? hasRequiredPayloadFields(payloadRecord, payloadKind)
+      : false;
+    if (!payloadRecord || !hasValidPayloadKind || !hasRequiredFields) {
       if (markInvalidPersistedPayload(raw)) {
         mutated = true;
       }
