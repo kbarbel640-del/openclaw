@@ -7,13 +7,19 @@ export function resolveCronSession(params: {
   sessionKey: string;
   nowMs: number;
   agentId: string;
+  /** When true, ignore any existing session entry (fresh slate). Default: true. */
+  freshSession?: boolean;
 }) {
   const sessionCfg = params.cfg.session;
   const storePath = resolveStorePath(sessionCfg?.store, {
     agentId: params.agentId,
   });
   const store = loadSessionStore(storePath);
-  const entry = store[params.sessionKey];
+  // When freshSession is true (default), skip the existing entry so
+  // the run starts with a clean session — no carried-over model overrides,
+  // thinking levels, or other state from previous runs (#20092).
+  const fresh = params.freshSession !== false;
+  const entry = fresh ? undefined : store[params.sessionKey];
   const sessionId = crypto.randomUUID();
   const systemSent = false;
   const sessionEntry: SessionEntry = {

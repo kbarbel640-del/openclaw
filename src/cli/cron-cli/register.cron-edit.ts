@@ -33,6 +33,8 @@ export function registerCronEditCommand(cron: Command) {
       .option("--disable", "Disable job", false)
       .option("--delete-after-run", "Delete one-shot job after it succeeds", false)
       .option("--keep-after-run", "Keep one-shot job after it succeeds", false)
+      .option("--fresh-session", "Start each run with a clean session (no history carry-over)")
+      .option("--no-fresh-session", "Reuse session state across runs")
       .option("--session <target>", "Session target (main|isolated)")
       .option("--agent <id>", "Set agent id")
       .option("--clear-agent", "Unset agent and use default", false)
@@ -96,6 +98,11 @@ export function registerCronEditCommand(cron: Command) {
           }
           if (opts.keepAfterRun) {
             patch.deleteAfterRun = false;
+          }
+          if (opts.freshSession === true) {
+            patch.freshSession = true;
+          } else if (opts.freshSession === false) {
+            patch.freshSession = false;
           }
           if (typeof opts.session === "string") {
             patch.sessionTarget = opts.session;

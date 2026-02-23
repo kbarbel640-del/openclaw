@@ -334,6 +334,21 @@ export function normalizeCronJobInput(
     }
   }
 
+  if ("freshSession" in base) {
+    if (typeof base.freshSession === "boolean") {
+      next.freshSession = base.freshSession;
+    } else if (typeof base.freshSession === "string") {
+      const trimmed = base.freshSession.trim().toLowerCase();
+      if (trimmed === "true") {
+        next.freshSession = true;
+      } else if (trimmed === "false") {
+        next.freshSession = false;
+      }
+    } else {
+      delete next.freshSession;
+    }
+  }
+
   if (isRecord(base.schedule)) {
     next.schedule = coerceSchedule(base.schedule);
   }

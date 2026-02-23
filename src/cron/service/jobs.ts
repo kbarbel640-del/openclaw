@@ -257,6 +257,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     description: normalizeOptionalText(input.description),
     enabled,
     deleteAfterRun,
+    freshSession: typeof input.freshSession === "boolean" ? input.freshSession : undefined,
     createdAtMs: now,
     updatedAtMs: now,
     schedule,
@@ -286,6 +287,9 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   }
   if (typeof patch.deleteAfterRun === "boolean") {
     job.deleteAfterRun = patch.deleteAfterRun;
+  }
+  if (typeof patch.freshSession === "boolean") {
+    job.freshSession = patch.freshSession;
   }
   if (patch.schedule) {
     job.schedule = patch.schedule;

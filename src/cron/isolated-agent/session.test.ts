@@ -10,7 +10,7 @@ import { loadSessionStore } from "../../config/sessions.js";
 import { resolveCronSession } from "./session.js";
 
 describe("resolveCronSession", () => {
-  it("preserves modelOverride and providerOverride from existing session entry", () => {
+  it("preserves modelOverride and providerOverride when freshSession is false", () => {
     vi.mocked(loadSessionStore).mockReturnValue({
       "agent:main:cron:test-job": {
         sessionId: "old-session-id",
@@ -27,6 +27,7 @@ describe("resolveCronSession", () => {
       sessionKey: "agent:main:cron:test-job",
       agentId: "main",
       nowMs: Date.now(),
+      freshSession: false,
     });
 
     expect(result.sessionEntry.modelOverride).toBe("deepseek-v3-4bit-mlx");
@@ -36,7 +37,33 @@ describe("resolveCronSession", () => {
     expect(result.sessionEntry.model).toBe("k2p5");
   });
 
-  it("handles missing modelOverride gracefully", () => {
+  it("ignores existing session entry when freshSession is true (default)", () => {
+    vi.mocked(loadSessionStore).mockReturnValue({
+      "agent:main:cron:test-job": {
+        sessionId: "old-session-id",
+        updatedAt: 1000,
+        modelOverride: "deepseek-v3-4bit-mlx",
+        providerOverride: "inferencer",
+        thinkingLevel: "high",
+        model: "k2p5",
+      },
+    });
+
+    const result = resolveCronSession({
+      cfg: {} as OpenClawConfig,
+      sessionKey: "agent:main:cron:test-job",
+      agentId: "main",
+      nowMs: Date.now(),
+      // freshSession defaults to true
+    });
+
+    expect(result.sessionEntry.modelOverride).toBeUndefined();
+    expect(result.sessionEntry.providerOverride).toBeUndefined();
+    expect(result.sessionEntry.thinkingLevel).toBeUndefined();
+    expect(result.sessionEntry.model).toBeUndefined();
+  });
+
+  it("handles missing modelOverride gracefully when reusing session", () => {
     vi.mocked(loadSessionStore).mockReturnValue({
       "agent:main:cron:test-job": {
         sessionId: "old-session-id",
@@ -50,10 +77,12 @@ describe("resolveCronSession", () => {
       sessionKey: "agent:main:cron:test-job",
       agentId: "main",
       nowMs: Date.now(),
+      freshSession: false,
     });
 
     expect(result.sessionEntry.modelOverride).toBeUndefined();
     expect(result.sessionEntry.providerOverride).toBeUndefined();
+    expect(result.sessionEntry.model).toBe("claude-opus-4-5");
   });
 
   it("handles no existing session entry", () => {

@@ -72,6 +72,14 @@ export type CronJob = {
   description?: string;
   enabled: boolean;
   deleteAfterRun?: boolean;
+  /**
+   * When true, each cron run gets a completely fresh session with no
+   * carry-over from previous runs (no history, no model/thinking overrides).
+   * When false, the session entry is reused across runs, preserving
+   * model overrides, thinking level, and other session state.
+   * Default: true (fresh session per run).
+   */
+  freshSession?: boolean;
   createdAtMs: number;
   updatedAtMs: number;
   schedule: CronSchedule;

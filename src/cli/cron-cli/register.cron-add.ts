@@ -69,6 +69,8 @@ export function registerCronAddCommand(cron: Command) {
       .option("--disabled", "Create job disabled", false)
       .option("--delete-after-run", "Delete one-shot job after it succeeds", false)
       .option("--keep-after-run", "Keep one-shot job after it succeeds", false)
+      .option("--fresh-session", "Start each run with a clean session (no history carry-over)")
+      .option("--no-fresh-session", "Reuse session state across runs (model overrides, etc.)")
       .option("--agent <id>", "Agent id for this job")
       .option("--session <target>", "Session target (main|isolated)")
       .option("--wake <mode>", "Wake mode (now|next-heartbeat)", "now")
@@ -220,6 +222,8 @@ export function registerCronAddCommand(cron: Command) {
             description,
             enabled: !opts.disabled,
             deleteAfterRun: opts.deleteAfterRun ? true : opts.keepAfterRun ? false : undefined,
+            freshSession:
+              opts.freshSession === true ? true : opts.freshSession === false ? false : undefined,
             agentId,
             schedule,
             sessionTarget,
