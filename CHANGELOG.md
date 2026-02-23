@@ -22,6 +22,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Android/Invoke: add iOS invoke command parity — device status/info, contacts search/add, calendar events/add, photos latest, and motion pedometer; per-handler runtime permission checks and a `photosEnabled` privacy toggle mirroring `cameraEnabled`. (#24239)
 - Control UI/Agents: make the Tools panel data-driven from runtime `tools.catalog`, add per-tool provenance labels (`core` / `plugin:<id>` + optional marker), and keep a static fallback list when the runtime catalog is unavailable.
 - Control UI/Cron: add full web cron edit parity (including clone and richer validation/help text), plus all-jobs run history with pagination/search/sort/multi-filter controls and improved cron page layout for cleaner scheduling and failure triage workflows.
 - Provider/Mistral: add support for the Mistral provider, including memory embeddings and voice support. (#23845) Thanks @vincentkoc.
