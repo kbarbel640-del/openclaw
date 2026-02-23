@@ -21,7 +21,10 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ `screen.record` resilient native capture tuning added (`captureApi`, `lowLatency`, and fallback attempts: requested API hardware-on -> requested API hardware-off -> desktop-duplication low-latency)
 - ✅ Real-host camera validation completed (`camera.snap` generic + explicit `deviceId`; front/back semantics tolerate single-camera hosts; `maxWidth`/`quality` verified)
 - ✅ Pending pairing cache now persisted on disk (`~/.openclaw/identity/pending-pairs.json`) and reloaded on restart
-- ✅ Tests passing (86 total) (including pairing persistence tests + device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite previously validated)
+- ✅ Phase 3 discovery MVP added: UDP multicast beacon announcer (`openclaw.node.discovery.v1`) with immediate+periodic broadcasts and gateway/capabilities metadata payload
+- ✅ Phase 3 discovery step 2 added: listener/index for discovered nodes, stale-entry expiry, reconnect/network-change reannounce policy, and announce throttle/jitter behavior
+- ✅ Phase 3 IPC hardening pass added: per-request timeout handling (`TIMEOUT`), cancellation propagation into process execution, and concurrent client stability coverage
+- ✅ Tests passing (92 total) (including discovery beacon shape/timer coverage + stale-expiry/throttle coverage, IPC timeout/concurrency coverage, pairing persistence tests + device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite previously validated)
 - ✅ Removed `MediaFoundation.Net` NU1701 warning path from build by moving camera stack off framework-only package
 
 ---
@@ -86,7 +89,11 @@ Build a native Windows application that replicates the functionality of the Open
 ---
 
 ## Phase 3: Discovery + IPC
-- **Discovery**: mDNS/zeroconf equivalent for Windows
+- **Discovery**
+  - [x] MVP announcer implemented: UDP multicast beacon (`openclaw.node.discovery.v1`) with immediate + periodic broadcasts
+  - [x] Beacon payload includes node identity, version, commands, capabilities, and gateway endpoint metadata
+  - [x] Discovery listener/index + stale-entry expiry model
+  - [x] Re-announce policy on reconnect/network changes + jitter/backoff tuning
 - **IPC**: Named Pipes bridge replacing macOS XPC
   - [x] Named pipe server lifecycle integrated into app start/stop
   - [x] IPC auth token support added (shared secret on request envelope)
@@ -97,10 +104,15 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] IPC dev helpers added:
     - `ipc.dev.update`
     - `ipc.dev.restart`
+  - [x] Per-request timeout model added (`params.timeoutMs`, clamped) with explicit `TIMEOUT` error responses
+  - [x] Cancellation propagation into process-exec path (`RunProcessAsync` kill-on-cancel best effort)
   - [x] Unit tests added for pipe roundtrip + unknown-method + auth gating + bad-request validation paths
   - [x] Added non-destructive IPC integration coverage for dev helpers via `dryRun`:
     - `ipc.dev.update` (`dryRun=true`)
     - `ipc.dev.restart` (`dryRun=true`)
+  - [x] Added IPC hardening tests:
+    - timeout behavior on slow method
+    - concurrent client ping load
 
 ---
 

@@ -53,8 +53,15 @@
    - `ipc.input.click.relative`
    - `ipc.dev.update` (supports `dryRun=true` for non-destructive validation)
    - `ipc.dev.restart` (supports `dryRun=true` for non-destructive validation)
+   - per-request timeout support via `params.timeoutMs` (clamped); timeout returns `TIMEOUT`
    - auth token required when configured (Program currently uses gateway token as shared secret)
-7. Gateway URL/token resolution works from:
+7. Phase 3 discovery is active:
+   - `DiscoveryService` sends UDP multicast node beacons to `239.255.77.77:18791`
+   - schema: `openclaw.node.discovery.v1`
+   - payload includes node id/display name/platform/version/instanceId + gateway host/port/scheme + advertised commands/capabilities
+   - lifecycle: immediate beacon on service start, periodic beacons every 30s (+ jitter), and reannounce on gateway connect/network-change (throttled)
+   - listener/index enabled: consumes discovery beacons, tracks remote nodes in-memory, and purges stale entries (default stale window ~95s)
+8. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
    - env: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`
    - config fallback: `~/.openclaw/openclaw.json`
@@ -72,7 +79,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **86 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **92 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash

@@ -20,6 +20,9 @@ namespace OpenClaw.Node.Services
         private CancellationTokenSource? _cts;
         private Task? _acceptLoop;
         private int _clientSeq;
+        private const int DefaultRequestTimeoutMs = 15000;
+        private const int MinRequestTimeoutMs = 100;
+        private const int MaxRequestTimeoutMs = 120000;
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -170,7 +173,8 @@ namespace OpenClaw.Node.Services
                         continue;
                     }
 
-                    var res = await DispatchAsync(req);
+                    var timeoutMs = ResolveRequestTimeoutMs(req);
+                    var res = await DispatchWithTimeoutAsync(req, timeoutMs, ct);
                     await writer.WriteLineAsync(JsonSerializer.Serialize(res, JsonOptions));
                 }
             }
@@ -194,9 +198,61 @@ namespace OpenClaw.Node.Services
             return string.Equals(req.AuthToken, _authToken, StringComparison.Ordinal);
         }
 
-        private async Task<IpcResponse> DispatchAsync(IpcRequest req)
+        private static int ResolveRequestTimeoutMs(IpcRequest req)
         {
+            var timeoutMs = DefaultRequestTimeoutMs;
+            var p = req.Params ?? default;
+            if (p.ValueKind == JsonValueKind.Object && p.TryGetProperty("timeoutMs", out var t) && t.ValueKind == JsonValueKind.Number)
+            {
+                timeoutMs = t.GetInt32();
+            }
+
+            return Math.Clamp(timeoutMs, MinRequestTimeoutMs, MaxRequestTimeoutMs);
+        }
+
+        private async Task<IpcResponse> DispatchWithTimeoutAsync(IpcRequest req, int timeoutMs, CancellationToken serverToken)
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(serverToken);
+            linked.CancelAfter(timeoutMs);
+
+            try
+            {
+                return await DispatchAsync(req, linked.Token);
+            }
+            catch (OperationCanceledException) when (!serverToken.IsCancellationRequested)
+            {
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = false,
+                    Error = new IpcError { Code = "TIMEOUT", Message = $"IPC method timed out after {timeoutMs}ms" }
+                };
+            }
+        }
+
+        private async Task<IpcResponse> DispatchAsync(IpcRequest req, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
             var method = req.Method?.Trim() ?? string.Empty;
+            if (string.Equals(method, "ipc.test.sleep", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = req.Params ?? default;
+                var sleepMs = 250;
+                if (p.ValueKind == JsonValueKind.Object && p.TryGetProperty("sleepMs", out var s) && s.ValueKind == JsonValueKind.Number)
+                {
+                    sleepMs = Math.Clamp(s.GetInt32(), 1, 60000);
+                }
+
+                await Task.Delay(sleepMs, ct);
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = true,
+                    Payload = new { ok = true, sleptMs = sleepMs }
+                };
+            }
+
             if (string.Equals(method, "ipc.ping", StringComparison.OrdinalIgnoreCase))
             {
                 var payload = new
@@ -269,7 +325,7 @@ namespace OpenClaw.Node.Services
                 var steps = new List<object>();
                 async Task<(int ExitCode, string StdOut, string StdErr)> Run(string name, string file, params string[] args)
                 {
-                    var r = await RunProcessAsync(file, args, repoPath);
+                    var r = await RunProcessAsync(file, args, repoPath, ct);
                     steps.Add(new { name, exitCode = r.ExitCode, stdout = r.StdOut, stderr = r.StdErr });
                     return r;
                 }
@@ -811,7 +867,7 @@ namespace OpenClaw.Node.Services
             public IpcError? Error { get; set; }
         }
 
-        private static async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessAsync(string fileName, string[] args, string? workingDirectory = null)
+        private static async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessAsync(string fileName, string[] args, string? workingDirectory = null, CancellationToken cancellationToken = default)
         {
             var psi = new ProcessStartInfo
             {
@@ -831,9 +887,33 @@ namespace OpenClaw.Node.Services
 
             using var proc = new Process { StartInfo = psi };
             proc.Start();
-            var so = await proc.StandardOutput.ReadToEndAsync();
-            var se = await proc.StandardError.ReadToEndAsync();
-            await proc.WaitForExitAsync();
+
+            var soTask = proc.StandardOutput.ReadToEndAsync();
+            var seTask = proc.StandardError.ReadToEndAsync();
+
+            try
+            {
+                await proc.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                try
+                {
+                    if (!proc.HasExited)
+                    {
+                        proc.Kill(entireProcessTree: true);
+                    }
+                }
+                catch
+                {
+                    // best effort kill on timeout/cancel
+                }
+
+                throw;
+            }
+
+            var so = await soTask;
+            var se = await seTask;
 
             return (proc.ExitCode, so ?? string.Empty, se ?? string.Empty);
         }

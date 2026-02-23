@@ -455,5 +455,80 @@ namespace OpenClaw.Node.Tests
             cts.Cancel();
             await svc.StopAsync();
         }
+
+        [Fact]
+        public async Task IpcRequestTimeout_ShouldReturnTimeoutError_ForSlowMethod()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var pipeName = "openclaw.node.test." + Guid.NewGuid().ToString("N");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var svc = new IpcPipeServerService(pipeName, version: "test-ver");
+            svc.Start(cts.Token);
+
+            await using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            await client.ConnectAsync(5000, cts.Token);
+
+            using var reader = new StreamReader(client, Encoding.UTF8, false, 4096, leaveOpen: true);
+            await using var writer = new StreamWriter(client, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
+
+            await writer.WriteLineAsync("{\"id\":\"15\",\"method\":\"ipc.test.sleep\",\"params\":{\"sleepMs\":400,\"timeoutMs\":120}}");
+            var line = await reader.ReadLineAsync(cts.Token);
+
+            Assert.False(string.IsNullOrWhiteSpace(line));
+            using var doc = JsonDocument.Parse(line!);
+            var root = doc.RootElement;
+            Assert.False(root.GetProperty("ok").GetBoolean());
+            Assert.Equal("TIMEOUT", root.GetProperty("error").GetProperty("code").GetString());
+
+            cts.Cancel();
+            await svc.StopAsync();
+        }
+
+        [Fact]
+        public async Task IpcPing_ShouldHandleConcurrentClients()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var pipeName = "openclaw.node.test." + Guid.NewGuid().ToString("N");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var svc = new IpcPipeServerService(pipeName, version: "test-ver");
+            svc.Start(cts.Token);
+
+            const int clients = 8;
+            var tasks = new Task[clients];
+            for (var i = 0; i < clients; i++)
+            {
+                var id = i;
+                tasks[i] = Task.Run(async () =>
+                {
+                    await using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+                    await client.ConnectAsync(5000, cts.Token);
+
+                    using var reader = new StreamReader(client, Encoding.UTF8, false, 4096, leaveOpen: true);
+                    await using var writer = new StreamWriter(client, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
+
+                    await writer.WriteLineAsync($"{{\"id\":\"c{id}\",\"method\":\"ipc.ping\",\"params\":{{}}}}");
+                    var line = await reader.ReadLineAsync(cts.Token);
+
+                    Assert.False(string.IsNullOrWhiteSpace(line));
+                    using var doc = JsonDocument.Parse(line!);
+                    var root = doc.RootElement;
+                    Assert.True(root.GetProperty("ok").GetBoolean());
+                    Assert.Equal($"c{id}", root.GetProperty("id").GetString());
+                }, cts.Token);
+            }
+
+            await Task.WhenAll(tasks);
+
+            cts.Cancel();
+            await svc.StopAsync();
+        }
     }
 }
