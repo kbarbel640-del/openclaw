@@ -319,6 +319,16 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     hint: "Faster, higher output cost",
   },
   { value: "custom-api-key", label: "Custom Provider" },
+  {
+    value: "google-antigravity",
+    label: "Google Antigravity OAuth",
+    hint: "Uses the bundled Antigravity auth plugin",
+  },
+  {
+    value: "abacusai",
+    label: "AbacusAI (Code Mode)",
+    hint: "API key or auto-detect from AbacusAI Code Mode",
+  },
 ];
 
 export function formatAuthChoiceChoicesForCli(params?: {
@@ -376,11 +386,6 @@ export function buildAuthChoiceOptions(params: {
   });
   options.push({ value: "gemini-api-key", label: "Google Gemini API key" });
   options.push({
-    value: "google-antigravity",
-    label: "Google Antigravity OAuth",
-    hint: "Uses the bundled Antigravity auth plugin",
-  });
-  options.push({
     value: "google-gemini-cli",
     label: "Google Gemini CLI OAuth",
     hint: "Uses the bundled Gemini CLI auth plugin",
@@ -413,11 +418,6 @@ export function buildAuthChoiceOptions(params: {
     value: "minimax-api-lightning",
     label: "MiniMax M2.1 Lightning",
     hint: "Faster, higher output cost",
-  });
-  options.push({
-    value: "abacusai",
-    label: "AbacusAI (Code Mode)",
-    hint: "API key or auto-detect from AbacusAI Code Mode",
   });
   if (params.includeSkip) {
     options.push({ value: "skip", label: "Skip for now" });
