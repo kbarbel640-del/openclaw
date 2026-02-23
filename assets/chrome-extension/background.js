@@ -1,4 +1,4 @@
-import { buildRelayWsUrl, isRetryableReconnectError, reconnectDelayMs } from './background-utils.js'
+import { buildRelayWsUrl, deriveRelayToken, isRetryableReconnectError, reconnectDelayMs } from './background-utils.js'
 
 const DEFAULT_PORT = 18792
 
@@ -128,7 +128,7 @@ async function ensureRelayConnection() {
     const port = await getRelayPort()
     const gatewayToken = await getGatewayToken()
     const httpBase = `http://127.0.0.1:${port}`
-    const wsUrl = buildRelayWsUrl(port, gatewayToken)
+    const wsUrl = await buildRelayWsUrl(port, gatewayToken)
 
     // Fast preflight: is the relay server up?
     try {

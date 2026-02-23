@@ -11,14 +11,35 @@ export function reconnectDelayMs(
   return backoff + Math.max(0, jitterMs) * random();
 }
 
-export function buildRelayWsUrl(port, gatewayToken) {
+export async function deriveRelayToken(gatewayToken, port) {
+  const context = "openclaw-extension-relay-v1";
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(gatewayToken),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(`${context}:${port}`),
+  );
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export async function buildRelayWsUrl(port, gatewayToken) {
   const token = String(gatewayToken || "").trim();
   if (!token) {
     throw new Error(
       "Missing gatewayToken in extension settings (chrome.storage.local.gatewayToken)",
     );
   }
-  return `ws://127.0.0.1:${port}/extension?token=${encodeURIComponent(token)}`;
+  const derived = await deriveRelayToken(token, port);
+  return `ws://127.0.0.1:${port}/extension?token=${encodeURIComponent(derived)}`;
 }
 
 export function isRetryableReconnectError(err) {

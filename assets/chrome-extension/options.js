@@ -13,10 +13,27 @@ function updateRelayUrl(port) {
   el.textContent = `http://127.0.0.1:${port}/`
 }
 
-function relayHeaders(token) {
+async function deriveRelayToken(gatewayToken, port) {
+  const context = 'openclaw-extension-relay-v1'
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(gatewayToken),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(`${context}:${port}`))
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+async function relayHeaders(token, port) {
   const t = String(token || '').trim()
   if (!t) return {}
-  return { 'x-openclaw-relay-token': t }
+  const derived = await deriveRelayToken(t, port)
+  return { 'x-openclaw-relay-token': derived }
 }
 
 function setStatus(kind, message) {
@@ -38,7 +55,7 @@ async function checkRelayReachable(port, token) {
   try {
     const res = await fetch(url, {
       method: 'GET',
-      headers: relayHeaders(trimmedToken),
+      headers: await relayHeaders(trimmedToken, port),
       signal: ctrl.signal,
     })
     if (res.status === 401) {
