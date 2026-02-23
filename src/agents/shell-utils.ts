@@ -3,6 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 
 function resolvePowerShellPath(): string {
+  // Prefer PowerShell 7+ (pwsh) when available — it's faster, cross-platform,
+  // and avoids deprecation warnings that legacy powershell.exe emits.
+  // Use PATH lookup to cover all install methods (MSI, Scoop, Chocolatey, winget,
+  // dotnet tool, Windows Store) and future major versions.
+  const pwsh = resolveShellFromPath("pwsh.exe") ?? resolveShellFromPath("pwsh");
+  if (pwsh) {
+    return pwsh;
+  }
+  // Fall back to legacy Windows PowerShell 5.x.
   const systemRoot = process.env.SystemRoot || process.env.WINDIR;
   if (systemRoot) {
     const candidate = path.join(
