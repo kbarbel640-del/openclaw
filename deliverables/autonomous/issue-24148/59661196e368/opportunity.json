@@ -1,0 +1,18 @@
+{
+  "headline": "GitHub[openclaw/openclaw]: [Bug]: Cross-channel reply context leak — Teams DM overwrites session reply target, causing heartbeat responses to route to wrong user",
+  "url": "https://github.com/openclaw/openclaw/issues/24148",
+  "expected_usd": 2471.0,
+  "strategy": "锁定明码 bounty；交付代码+run_log+sample_data，并准备自动交割链接。",
+  "raw_expected": "2471.00 USD",
+  "bounty_literal": "$2,471",
+  "source_line": "## 🚨 发现新商机：GitHub[openclaw/openclaw]: [Bug]: Cross-channel reply context leak — Teams DM overwrites session reply target, causing heartbeat responses to route to wrong user",
+  "kind": "generic_automation",
+  "difficulty": 1.0,
+  "score": 2471.0,
+  "oid": "39afe64eeeb00c3112e1951de402b091aeff73af587fcbce606eb97fc2eba813",
+  "payout": {
+    "asset": "USDT",
+    "chain": "EVM",
+    "wallet": "0xF57503F99fA20b912200ed90D26d945093136ef5"
+  }
+}

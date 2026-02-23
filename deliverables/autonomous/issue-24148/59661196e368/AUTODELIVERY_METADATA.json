@@ -1,0 +1,8 @@
+{
+  "generated_at": "2026-02-23T19:27:45Z",
+  "source_url": "https://github.com/openclaw/openclaw/issues/24148",
+  "headline": "GitHub[openclaw/openclaw]: [Bug]: Cross-channel reply context leak — Teams DM overwrites session reply target, causing heartbeat responses to route to wrong user",
+  "bounty_literal": "$2,471",
+  "payout_wallet": "0xF57503F99fA20b912200ed90D26d945093136ef5",
+  "dispatcher_build": "v22-github-pr-pipeline"
+}
