@@ -46,6 +46,21 @@ function respondWithDownloadResult(res: BrowserResponse, targetId: string, resul
   res.json({ ok: true, targetId, download: result });
 }
 
+function isStaleRefError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('Unknown ref "') || message.includes("not found or not visible");
+}
+
+function normalizeFormValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return "";
+}
+
 export function registerBrowserAgentActRoutes(
   app: BrowserRouteRegistrar,
   ctx: BrowserRouteContext,
@@ -132,7 +147,58 @@ export function registerBrowserAgentActRoutes(
             if (timeoutMs) {
               typeRequest.timeoutMs = timeoutMs;
             }
-            await pw.typeViaPlaywright(typeRequest);
+            try {
+              await pw.typeViaPlaywright(typeRequest);
+            } catch (error) {
+              if (!isStaleRefError(error)) {
+                throw error;
+              }
+              await pw
+                .snapshotRoleViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  refsMode: "aria",
+                  options: {},
+                })
+                .catch(() => {});
+              try {
+                await pw.typeViaPlaywright(typeRequest);
+              } catch (retryError) {
+                if (!isStaleRefError(retryError)) {
+                  throw retryError;
+                }
+                await pw.evaluateViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  fn: `() => {
+                    const el = document.activeElement;
+                    if (!el) throw new Error("No active element for fallback type");
+                    const next = ${JSON.stringify(text)};
+                    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                      el.focus();
+                      el.value = next;
+                      el.dispatchEvent(new Event("input", { bubbles: true }));
+                      el.dispatchEvent(new Event("change", { bubbles: true }));
+                      return true;
+                    }
+                    if (el instanceof HTMLElement && el.isContentEditable) {
+                      el.focus();
+                      el.textContent = next;
+                      el.dispatchEvent(new InputEvent("input", { bubbles: true, data: next, inputType: "insertText" }));
+                      return true;
+                    }
+                    throw new Error("Active element is not editable for fallback type");
+                  }`,
+                });
+                if (submit) {
+                  await pw.pressKeyViaPlaywright({
+                    cdpUrl,
+                    targetId: tab.targetId,
+                    key: "Enter",
+                  });
+                }
+              }
+            }
             return res.json({ ok: true, targetId: tab.targetId });
           }
           case "press": {
@@ -213,7 +279,29 @@ export function registerBrowserAgentActRoutes(
             return res.json({ ok: true, targetId: tab.targetId });
           }
           case "fill": {
-            const rawFields = Array.isArray(body.fields) ? body.fields : [];
+            const compatSingleField = (() => {
+              const ref = toStringOrEmpty(body.ref);
+              if (!ref) {
+                return null;
+              }
+              const value =
+                typeof body.value === "string" ||
+                typeof body.value === "number" ||
+                typeof body.value === "boolean"
+                  ? body.value
+                  : typeof body.text === "string"
+                    ? body.text
+                    : undefined;
+              return value === undefined
+                ? ({ ref, type: "text" } satisfies BrowserFormField)
+                : ({ ref, type: "text", value } satisfies BrowserFormField);
+            })();
+
+            const rawFields = Array.isArray(body.fields)
+              ? body.fields
+              : compatSingleField
+                ? [compatSingleField]
+                : [];
             const fields = rawFields
               .map((field) => {
                 if (!field || typeof field !== "object") {
@@ -221,8 +309,8 @@ export function registerBrowserAgentActRoutes(
                 }
                 const rec = field as Record<string, unknown>;
                 const ref = toStringOrEmpty(rec.ref);
-                const type = toStringOrEmpty(rec.type);
-                if (!ref || !type) {
+                const type = toStringOrEmpty(rec.type) || "text";
+                if (!ref) {
                   return null;
                 }
                 const value =
@@ -240,12 +328,62 @@ export function registerBrowserAgentActRoutes(
               return jsonError(res, 400, "fields are required");
             }
             const timeoutMs = toNumber(body.timeoutMs);
-            await pw.fillFormViaPlaywright({
+            const fillRequest: Parameters<typeof pw.fillFormViaPlaywright>[0] = {
               cdpUrl,
               targetId: tab.targetId,
               fields,
               timeoutMs: timeoutMs ?? undefined,
-            });
+            };
+            try {
+              await pw.fillFormViaPlaywright(fillRequest);
+            } catch (error) {
+              if (!isStaleRefError(error)) {
+                throw error;
+              }
+              await pw
+                .snapshotRoleViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  refsMode: "aria",
+                  options: {},
+                })
+                .catch(() => {});
+              try {
+                await pw.fillFormViaPlaywright(fillRequest);
+              } catch (retryError) {
+                const onlyField = fields.length === 1 ? fields[0] : null;
+                const onlyFieldType = toStringOrEmpty(onlyField?.type) || "text";
+                const canFallbackActiveFill =
+                  !!onlyField && (onlyFieldType === "text" || onlyFieldType === "textarea");
+                if (!isStaleRefError(retryError) || !canFallbackActiveFill) {
+                  throw retryError;
+                }
+                const fallbackValue = normalizeFormValue(onlyField.value);
+                await pw.evaluateViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  fn: `() => {
+                    const el = document.activeElement;
+                    if (!el) throw new Error("No active element for fallback fill");
+                    const next = ${JSON.stringify(fallbackValue)};
+                    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                      el.focus();
+                      el.value = next;
+                      el.dispatchEvent(new Event("input", { bubbles: true }));
+                      el.dispatchEvent(new Event("change", { bubbles: true }));
+                      return true;
+                    }
+                    if (el instanceof HTMLElement && el.isContentEditable) {
+                      el.focus();
+                      el.textContent = next;
+                      el.dispatchEvent(new InputEvent("input", { bubbles: true, data: next, inputType: "insertText" }));
+                      return true;
+                    }
+                    throw new Error("Active element is not editable for fallback fill");
+                  }`,
+                });
+              }
+            }
             return res.json({ ok: true, targetId: tab.targetId });
           }
           case "resize": {
