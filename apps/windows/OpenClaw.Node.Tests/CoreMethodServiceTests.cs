@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
 using OpenClaw.Node.Protocol;
@@ -207,6 +208,61 @@ namespace OpenClaw.Node.Tests
 
             Assert.Contains("\"ok\":false", json);
             Assert.Contains("node.pair.reject requires requestId", json);
+        }
+
+        [Fact]
+        public async Task PendingPairRequests_ShouldPersistAndReloadFromDisk()
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "openclaw-core-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            var cachePath = Path.Combine(tempDir, "pending-pairs.json");
+
+            try
+            {
+                var svc1 = new CoreMethodService(DateTimeOffset.UtcNow, cachePath);
+                svc1.AddPendingPairRequest("persist-1", "Pixel", "device");
+
+                var svc2 = new CoreMethodService(DateTimeOffset.UtcNow, cachePath);
+                var listRes = await svc2.HandleDevicePairListAsync(new RequestFrame());
+                var json = JsonSerializer.Serialize(listRes);
+
+                Assert.Contains("persist-1", json);
+                Assert.Contains("Pixel", json);
+            }
+            finally
+            {
+                try { Directory.Delete(tempDir, recursive: true); } catch { }
+            }
+        }
+
+        [Fact]
+        public async Task PairResolve_ShouldPersistRemovalToDisk()
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "openclaw-core-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            var cachePath = Path.Combine(tempDir, "pending-pairs.json");
+
+            try
+            {
+                var svc1 = new CoreMethodService(DateTimeOffset.UtcNow, cachePath);
+                svc1.AddPendingPairRequest("persist-2", "DeviceX", "device");
+
+                var resolveReq = new RequestFrame
+                {
+                    Params = JsonSerializer.Deserialize<JsonElement>("{\"requestId\":\"persist-2\"}")
+                };
+                _ = await svc1.HandleDevicePairApproveAsync(resolveReq);
+
+                var svc2 = new CoreMethodService(DateTimeOffset.UtcNow, cachePath);
+                var listRes = await svc2.HandleDevicePairListAsync(new RequestFrame());
+                var json = JsonSerializer.Serialize(listRes);
+
+                Assert.DoesNotContain("persist-2", json);
+            }
+            finally
+            {
+                try { Directory.Delete(tempDir, recursive: true); } catch { }
+            }
         }
     }
 }

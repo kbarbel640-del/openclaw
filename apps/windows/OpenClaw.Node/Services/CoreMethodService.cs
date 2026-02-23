@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -11,12 +12,15 @@ namespace OpenClaw.Node.Services
     {
         private readonly DateTimeOffset _startedAtUtc;
         private readonly Dictionary<string, PairRequest> _pendingPairRequests = new();
+        private readonly string _pendingPairCachePath;
 
         public bool HeartbeatsEnabled { get; private set; } = true;
 
-        public CoreMethodService(DateTimeOffset startedAtUtc)
+        public CoreMethodService(DateTimeOffset startedAtUtc, string? pendingPairCachePath = null)
         {
             _startedAtUtc = startedAtUtc;
+            _pendingPairCachePath = ResolvePendingPairCachePath(pendingPairCachePath);
+            LoadPendingPairRequests();
         }
 
         public Task<object?> HandleStatusAsync(RequestFrame _)
@@ -169,7 +173,10 @@ namespace OpenClaw.Node.Services
                 var requestId = TryGetString(payload, "requestId");
                 if (!string.IsNullOrWhiteSpace(requestId))
                 {
-                    _pendingPairRequests.Remove(requestId!);
+                    if (_pendingPairRequests.Remove(requestId!))
+                    {
+                        PersistPendingPairRequests();
+                    }
                     return true;
                 }
                 return false;
@@ -188,6 +195,7 @@ namespace OpenClaw.Node.Services
                 Kind = string.IsNullOrWhiteSpace(kind) ? "device" : kind,
                 RequestedAt = DateTimeOffset.UtcNow
             };
+            PersistPendingPairRequests();
         }
 
         public Task<object?> HandleDevicePairListAsync(RequestFrame _)
@@ -247,6 +255,10 @@ namespace OpenClaw.Node.Services
             }
 
             var existed = _pendingPairRequests.Remove(requestId);
+            if (existed)
+            {
+                PersistPendingPairRequests();
+            }
             return Task.FromResult<object?>(new
             {
                 ok = existed,
@@ -254,6 +266,67 @@ namespace OpenClaw.Node.Services
                 approved,
                 status = existed ? "resolved" : "not-found"
             });
+        }
+
+        private void LoadPendingPairRequests()
+        {
+            try
+            {
+                if (!File.Exists(_pendingPairCachePath))
+                {
+                    return;
+                }
+
+                var json = File.ReadAllText(_pendingPairCachePath);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    return;
+                }
+
+                var items = JsonSerializer.Deserialize<PairRequest[]>(json);
+                if (items == null)
+                {
+                    return;
+                }
+
+                foreach (var item in items)
+                {
+                    if (item == null || string.IsNullOrWhiteSpace(item.RequestId))
+                    {
+                        continue;
+                    }
+
+                    _pendingPairRequests[item.RequestId] = item;
+                }
+            }
+            catch
+            {
+                // best-effort cache load; ignore corrupt/non-readable cache
+            }
+        }
+
+        private void PersistPendingPairRequests()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_pendingPairCachePath)!);
+                var items = _pendingPairRequests.Values
+                    .OrderByDescending(x => x.RequestedAt)
+                    .ToArray();
+                var json = JsonSerializer.Serialize(items, new JsonSerializerOptions { WriteIndented = true }) + "\n";
+                File.WriteAllText(_pendingPairCachePath, json);
+            }
+            catch
+            {
+                // best-effort cache persist
+            }
+        }
+
+        private static string ResolvePendingPairCachePath(string? explicitPath)
+        {
+            if (!string.IsNullOrWhiteSpace(explicitPath)) return explicitPath;
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Path.Combine(home, ".openclaw", "identity", "pending-pairs.json");
         }
 
         private static bool? TryGetBool(object? rawParams, string key)

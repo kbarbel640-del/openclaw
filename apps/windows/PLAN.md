@@ -18,8 +18,10 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
+- ✅ `screen.record` resilient native capture tuning added (`captureApi`, `lowLatency`, and fallback attempts: requested API hardware-on -> requested API hardware-off -> desktop-duplication low-latency)
 - ✅ Real-host camera validation completed (`camera.snap` generic + explicit `deviceId`; front/back semantics tolerate single-camera hosts; `maxWidth`/`quality` verified)
-- ✅ Tests passing (74 total) (including device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite: 10 passing)
+- ✅ Pending pairing cache now persisted on disk (`~/.openclaw/identity/pending-pairs.json`) and reloaded on restart
+- ✅ Tests passing (86 total) (including pairing persistence tests + device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite previously validated)
 - ✅ Removed `MediaFoundation.Net` NU1701 warning path from build by moving camera stack off framework-only package
 
 ---
@@ -45,7 +47,7 @@ Build a native Windows application that replicates the functionality of the Open
 4. ✅ `system-event`
 5. ✅ `channels.status`
 6. ✅ `config.get` / `config.set` / `config.patch` / `config.schema`
-7. ✅ `node.pair.*` + `device.pair.*` implemented as in-memory Phase 1 flow (list/approve/reject over pending request set)
+7. ✅ `node.pair.*` + `device.pair.*` implemented with pending request cache (list/approve/reject over pending request set, now persisted to disk)
 
 ---
 
@@ -120,7 +122,7 @@ Build a native Windows application that replicates the functionality of the Open
   - real hello-ok connect path
   - real `status` command response path
 - ✅ Added pairing event-ingestion tests (`device.pair.requested`, `node.pair.requested`, `*.pair.resolved`)
-- ✅ Added platform-aware `screen.record` command test coverage (Windows success shape + non-Windows unavailable)
+- ✅ Added platform-aware `screen.record` command test coverage (Windows success shape + non-Windows success fallback)
 - ✅ Added `camera.snap` payload-shape test coverage
 - ✅ Added `CameraCaptureService` coverage for baseline capture contract output
 - ✅ Added opt-in real gateway integration coverage for `camera.snap` response-shape path when a connected node is available

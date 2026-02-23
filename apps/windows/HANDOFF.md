@@ -66,12 +66,13 @@
 - Real-host camera validation is complete for current hardware (single USB webcam): `camera.snap` works in generic and explicit `deviceId` modes; `facing=front/back` may map to the same physical camera semantics on single-camera hosts; `maxWidth` and `quality` controls are verified.
 - Camera path no longer depends on `MediaFoundation.Net`; this removes the `NU1701` framework-compat warning path for `net8.0` builds.
 - Build/test currently require x64 platform selection when running commands from CLI in this environment (e.g. `-p:Platform=x64`) because `ScreenRecorderLib` does not support AnyCPU.
-- Pairing pending state is currently in-memory and filled from broadcast events (`device.pair.requested`, `node.pair.requested`) and cleared on `*.pair.resolved` via `CoreMethodService.HandleGatewayEvent`; not persisted locally.
+- Pairing pending state is filled from broadcast events (`device.pair.requested`, `node.pair.requested`) and cleared on `*.pair.resolved` via `CoreMethodService.HandleGatewayEvent`.
+- Pairing pending cache is now persisted locally at `~/.openclaw/identity/pending-pairs.json` and reloaded on process start (best-effort load/persist).
 - Reconnect loop now uses exponential backoff (up to 30s) and a background monitor correctly tracks `tick` frames from the server, closing to trigger reconnect if a tick is missed by >5s tolerance.
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **82 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **86 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash
