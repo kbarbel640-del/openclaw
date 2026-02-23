@@ -1,9 +1,9 @@
-import { intro, outro, spinner } from "@clack/prompts";
 import fs from "node:fs";
-import type { RuntimeEnv } from "../runtime.js";
+import { intro, outro, spinner } from "@clack/prompts";
 import { resolveStateDir } from "../config/paths.js";
 import { findSessionFiles } from "../gateway/session-utils.fs.js";
 import { redactSensitiveText } from "../logging/redact.js";
+import type { RuntimeEnv } from "../runtime.js";
 import { stylePromptTitle } from "../terminal/prompt-style.js";
 import { theme } from "../terminal/theme.js";
 

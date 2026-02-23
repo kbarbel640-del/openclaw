@@ -1,6 +1,6 @@
 import fs from "node:fs";
-import type { OpenClawConfig } from "../config/config.js";
 import { formatCliCommand } from "../cli/command-format.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { resolveStateDir } from "../config/paths.js";
 import { findSessionFiles } from "../gateway/session-utils.fs.js";
 import { getDefaultRedactPatterns, parsePattern } from "../logging/redact.js";
