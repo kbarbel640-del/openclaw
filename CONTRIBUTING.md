@@ -5,6 +5,7 @@ Welcome to the lobster tank! 🦞
 ## Quick Links
 
 - **GitHub:** https://github.com/openclaw/openclaw
+- **Vision:** [`VISION.md`](VISION.md)
 - **Discord:** https://discord.gg/qkhbAGHRBT
 - **X/Twitter:** [@steipete](https://x.com/steipete) / [@openclaw](https://x.com/openclaw)
 
@@ -31,6 +32,9 @@ Welcome to the lobster tank! 🦞
 - **Mariano Belinky** - iOS app, Security
   - GitHub: [@mbelinky](https://github.com/mbelinky) · X: [@belimad](https://x.com/belimad)
 
+- **Vincent Koc** - Agents, Telemetry, Hooks, Security
+  - GitHub: [@vincentkoc](https://github.com/vincentkoc) · X: [@vincent_koc](https://x.com/vincent_koc)
+
 - **Seb Slight** - Docs, Agent Reliability, Runtime Hardening
   - GitHub: [@sebslight](https://github.com/sebslight) · X: [@sebslig](https://x.com/sebslig)
 
@@ -39,6 +43,9 @@ Welcome to the lobster tank! 🦞
 
 - **Gustavo Madeira Santana** - Multi-agents, CLI, web UI
   - GitHub: [@gumadeiras](https://github.com/gumadeiras) · X: [@gumadeiras](https://x.com/gumadeiras)
+
+- **Onur Solmaz** - Agents, dev workflows, ACP integrations, MS Teams
+  - GitHub: [@onutc](https://github.com/onutc), [@osolmaz](https://github.com/osolmaz) · X: [@onusoz](https://x.com/onusoz)
 
 ## How to Contribute
 
@@ -51,7 +58,7 @@ Welcome to the lobster tank! 🦞
 - Test locally with your OpenClaw instance
 - Run tests: `pnpm build && pnpm check && pnpm test`
 - Ensure CI checks pass
-- Keep PRs focused (one thing per PR)
+- Keep PRs focused (one thing per PR; do not mix unrelated concerns)
 - Describe what & why
 
 ## Control UI Decorators
