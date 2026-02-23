@@ -10,16 +10,26 @@ const hoisted = vi.hoisted(() => {
   const callGatewayMock = vi.fn();
   const getThreadBindingManagerMock = vi.fn();
   const resolveThreadBindingThreadNameMock = vi.fn(() => "🤖 codex");
+  const readAcpSessionEntryMock = vi.fn();
   return {
     callGatewayMock,
     getThreadBindingManagerMock,
     resolveThreadBindingThreadNameMock,
+    readAcpSessionEntryMock,
   };
 });
 
 vi.mock("../../gateway/call.js", () => ({
   callGateway: hoisted.callGatewayMock,
 }));
+
+vi.mock("../../acp/runtime/session-meta.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../acp/runtime/session-meta.js")>();
+  return {
+    ...actual,
+    readAcpSessionEntry: (params: unknown) => hoisted.readAcpSessionEntryMock(params),
+  };
+});
 
 vi.mock("../../discord/monitor/thread-bindings.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../discord/monitor/thread-bindings.js")>();
@@ -175,6 +185,7 @@ describe("/focus, /unfocus, /agents", () => {
     hoisted.callGatewayMock.mockClear();
     hoisted.getThreadBindingManagerMock.mockClear().mockReturnValue(null);
     hoisted.resolveThreadBindingThreadNameMock.mockClear().mockReturnValue("🤖 codex");
+    hoisted.readAcpSessionEntryMock.mockReset().mockReturnValue(null);
   });
 
   it("/focus resolves ACP sessions and binds the current Discord thread", async () => {
@@ -190,6 +201,37 @@ describe("/focus, /unfocus, /agents", () => {
         targetSessionKey: "agent:codex-acp:session-1",
         introText:
           "🤖 codex-acp session active (auto-unfocus in 24h). Messages here go directly to this session.",
+      }),
+    );
+  });
+
+  it("/focus includes ACP session identifiers in intro text when available", async () => {
+    const fake = createFakeThreadBindingManager();
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex-acp:session-1",
+      storeSessionKey: "agent:codex-acp:session-1",
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime-1",
+        runtimeSessionId: "codex-123",
+        backendSessionId: "acpx-456",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+    const { result } = await focusCodexAcpInThread(fake);
+
+    expect(result?.reply?.text).toContain("bound this thread");
+    expect(fake.manager.bindTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        introText: expect.stringContaining("inner session id: codex-123"),
+      }),
+    );
+    expect(fake.manager.bindTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        introText: expect.stringContaining("acpx session id: acpx-456"),
       }),
     );
   });

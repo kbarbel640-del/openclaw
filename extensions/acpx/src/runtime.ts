@@ -63,13 +63,22 @@ export function decodeAcpxRuntimeHandleState(runtimeSessionName: string): AcpxHa
     const agent = asTrimmedString(parsed.agent);
     const cwd = asTrimmedString(parsed.cwd);
     const mode = asTrimmedString(parsed.mode);
+    const backendSessionId = asOptionalString(parsed.backendSessionId);
+    const runtimeSessionId = asOptionalString(parsed.runtimeSessionId);
     if (!name || !agent || !cwd) {
       return null;
     }
     if (mode !== "persistent" && mode !== "oneshot") {
       return null;
     }
-    return { name, agent, cwd, mode };
+    return {
+      name,
+      agent,
+      cwd,
+      mode,
+      ...(backendSessionId ? { backendSessionId } : {}),
+      ...(runtimeSessionId ? { runtimeSessionId } : {}),
+    };
   } catch {
     return null;
   }
@@ -121,7 +130,7 @@ export class AcpxRuntime implements AcpRuntime {
     const cwd = asTrimmedString(input.cwd) || this.config.cwd;
     const mode = input.mode;
 
-    await this.runControlCommand({
+    const events = await this.runControlCommand({
       args: this.buildControlArgs({
         cwd,
         command: [agent, "sessions", "ensure", "--name", sessionName],
@@ -129,6 +138,11 @@ export class AcpxRuntime implements AcpRuntime {
       cwd,
       fallbackCode: "ACP_SESSION_INIT_FAILED",
     });
+    const ensuredEvent = events.find(
+      (event) => asOptionalString(event.sessionId) || asOptionalString(event.id),
+    );
+    const runtimeSessionId = ensuredEvent ? asOptionalString(ensuredEvent.sessionId) : undefined;
+    const backendSessionId = ensuredEvent ? asOptionalString(ensuredEvent.id) : undefined;
 
     return {
       sessionKey: input.sessionKey,
@@ -138,7 +152,11 @@ export class AcpxRuntime implements AcpRuntime {
         agent,
         cwd,
         mode,
+        ...(backendSessionId ? { backendSessionId } : {}),
+        ...(runtimeSessionId ? { runtimeSessionId } : {}),
       }),
+      ...(backendSessionId ? { backendSessionId } : {}),
+      ...(runtimeSessionId ? { runtimeSessionId } : {}),
     };
   }
 

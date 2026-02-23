@@ -329,6 +329,11 @@ describe("AcpxRuntime", () => {
       mode: "persistent",
     });
     expect(handle.backend).toBe("acpx");
+    expect(handle.runtimeSessionId).toBe("sid-agent:codex:acp:123");
+    expect(handle.backendSessionId).toBe("rec-agent:codex:acp:123");
+    const decoded = decodeAcpxRuntimeHandleState(handle.runtimeSessionName);
+    expect(decoded?.runtimeSessionId).toBe("sid-agent:codex:acp:123");
+    expect(decoded?.backendSessionId).toBe("rec-agent:codex:acp:123");
 
     const events = [];
     for await (const event of runtime.runTurn({

@@ -1,8 +1,12 @@
 import crypto from "node:crypto";
-import { cleanupFailedAcpSpawn, resolveDiscordAcpSpawnFlags } from "../acp/control-plane/spawn.js";
+import { getAcpSessionManager } from "../acp/control-plane/manager.js";
+import {
+  cleanupFailedAcpSpawn,
+  resolveDiscordAcpSpawnFlags,
+  type AcpSpawnRuntimeCloseHandle,
+} from "../acp/control-plane/spawn.js";
 import { isAcpEnabledByPolicy, resolveAcpAgentPolicyError } from "../acp/policy.js";
-import { requireAcpRuntimeBackend } from "../acp/runtime/registry.js";
-import { upsertAcpSessionMeta } from "../acp/runtime/session-meta.js";
+import { resolveAcpSessionIdentifierLines } from "../acp/runtime/session-identifiers.js";
 import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -263,9 +267,34 @@ export async function spawnAcpDirect(
     preparedBinding = prepared.binding;
   }
 
+  const acpManager = getAcpSessionManager();
   let binding: ThreadBindingRecord | null = null;
-  if (preparedBinding) {
-    try {
+  let sessionCreated = false;
+  let initializedRuntime: AcpSpawnRuntimeCloseHandle | undefined;
+  try {
+    await callGateway({
+      method: "sessions.patch",
+      params: {
+        key: sessionKey,
+        ...(params.label ? { label: params.label } : {}),
+      },
+      timeoutMs: 10_000,
+    });
+    sessionCreated = true;
+    const initialized = await acpManager.initializeSession({
+      cfg,
+      sessionKey,
+      agent: targetAgentId,
+      mode: runtimeMode,
+      cwd: params.cwd,
+      backendId: cfg.acp?.backend,
+    });
+    initializedRuntime = {
+      runtime: initialized.runtime,
+      handle: initialized.handle,
+    };
+
+    if (preparedBinding) {
       binding = await preparedBinding.manager.bindTarget({
         channelId: preparedBinding.channelId,
         createThread: true,
@@ -282,61 +311,15 @@ export async function spawnAcpDirect(
           agentId: targetAgentId,
           label: params.label || undefined,
           sessionTtlMs: preparedBinding.manager.getSessionTtlMs(),
+          sessionDetails: resolveAcpSessionIdentifierLines({
+            sessionKey,
+            meta: initialized.meta,
+          }),
         }),
       });
-    } catch (err) {
-      await cleanupFailedAcpSpawn({
-        cfg,
-        sessionKey,
-        shouldDeleteSession: false,
-        deleteTranscript: true,
-      });
-      return {
-        status: "error",
-        error: `Thread bind failed: ${summarizeError(err)}`,
-      };
-    }
-    if (!binding) {
-      await cleanupFailedAcpSpawn({
-        cfg,
-        sessionKey,
-        shouldDeleteSession: false,
-        deleteTranscript: true,
-      });
-      return {
-        status: "error",
-        error: "Failed to create and bind a Discord thread for this ACP session.",
-      };
-    }
-  }
-
-  let sessionCreated = false;
-  try {
-    await callGateway({
-      method: "sessions.patch",
-      params: {
-        key: sessionKey,
-        ...(params.label ? { label: params.label } : {}),
-      },
-      timeoutMs: 10_000,
-    });
-    sessionCreated = true;
-    const backend = requireAcpRuntimeBackend(cfg.acp?.backend);
-    const upserted = await upsertAcpSessionMeta({
-      cfg,
-      sessionKey,
-      mutate: () => ({
-        backend: backend.id,
-        agent: targetAgentId,
-        runtimeSessionName: sessionKey,
-        mode: runtimeMode,
-        cwd: params.cwd,
-        state: "idle",
-        lastActivityAt: Date.now(),
-      }),
-    });
-    if (!upserted?.acp) {
-      throw new Error(`Could not persist ACP metadata for ${sessionKey}.`);
+      if (!binding) {
+        throw new Error("Failed to create and bind a Discord thread for this ACP session.");
+      }
     }
   } catch (err) {
     await cleanupFailedAcpSpawn({
@@ -344,6 +327,7 @@ export async function spawnAcpDirect(
       sessionKey,
       shouldDeleteSession: sessionCreated,
       deleteTranscript: true,
+      runtimeCloseHandle: initializedRuntime,
     });
     return {
       status: "error",

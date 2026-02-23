@@ -89,6 +89,8 @@ export type AcpSessionStatus = {
   sessionKey: string;
   backend: string;
   agent: string;
+  backendSessionId?: string;
+  runtimeSessionId?: string;
   state: SessionAcpMeta["state"];
   mode: AcpRuntimeSessionMode;
   runtimeOptions: AcpSessionRuntimeOptions;
@@ -303,6 +305,8 @@ export class AcpSessionManager {
         backend: handle.backend || backend.id,
         agent,
         runtimeSessionName: handle.runtimeSessionName,
+        ...(handle.backendSessionId ? { backendSessionId: handle.backendSessionId } : {}),
+        ...(handle.runtimeSessionId ? { runtimeSessionId: handle.runtimeSessionId } : {}),
         mode: input.mode,
         ...(Object.keys(initialRuntimeOptions).length > 0
           ? { runtimeOptions: initialRuntimeOptions }
@@ -398,6 +402,8 @@ export class AcpSessionManager {
         sessionKey,
         backend: handle.backend || meta.backend,
         agent: meta.agent,
+        backendSessionId: meta.backendSessionId,
+        runtimeSessionId: meta.runtimeSessionId,
         state: meta.state,
         mode: meta.mode,
         runtimeOptions: resolveRuntimeOptionsFromMeta(meta),
@@ -1005,6 +1011,8 @@ export class AcpSessionManager {
       ...params.meta,
       backend: ensured.backend || backend.id,
       runtimeSessionName: ensured.runtimeSessionName,
+      backendSessionId: ensured.backendSessionId,
+      runtimeSessionId: ensured.runtimeSessionId,
       agent,
       runtimeOptions,
       cwd,
@@ -1014,6 +1022,8 @@ export class AcpSessionManager {
     const shouldPersistMeta =
       previousMeta.backend !== nextMeta.backend ||
       previousMeta.runtimeSessionName !== nextMeta.runtimeSessionName ||
+      previousMeta.backendSessionId !== nextMeta.backendSessionId ||
+      previousMeta.runtimeSessionId !== nextMeta.runtimeSessionId ||
       previousMeta.agent !== nextMeta.agent ||
       previousMeta.cwd !== nextMeta.cwd ||
       !runtimeOptionsEqual(previousMeta.runtimeOptions, nextMeta.runtimeOptions);

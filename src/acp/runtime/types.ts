@@ -8,6 +8,10 @@ export type AcpRuntimeHandle = {
   sessionKey: string;
   backend: string;
   runtimeSessionName: string;
+  /** Backend-level ACP session identifier, if exposed by adapter/runtime. */
+  backendSessionId?: string;
+  /** Upstream harness session identifier, if exposed by adapter/runtime. */
+  runtimeSessionId?: string;
 };
 
 export type AcpRuntimeEnsureInput = {

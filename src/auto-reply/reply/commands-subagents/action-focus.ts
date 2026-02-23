@@ -1,3 +1,5 @@
+import { resolveAcpSessionIdentifierLines } from "../../../acp/runtime/session-identifiers.js";
+import { readAcpSessionEntry } from "../../../acp/runtime/session-meta.js";
 import {
   getThreadBindingManager,
   resolveThreadBindingIntroText,
@@ -59,6 +61,13 @@ export async function handleSubagentsFocusAction(
   }
 
   const label = focusTarget.label || token;
+  const acpMeta =
+    focusTarget.targetKind === "acp"
+      ? readAcpSessionEntry({
+          cfg: params.cfg,
+          sessionKey: focusTarget.targetSessionKey,
+        })?.acp
+      : undefined;
   const binding = await threadBindings.bindTarget({
     threadId: currentThreadId || undefined,
     channelId: parentChannelId,
@@ -76,6 +85,13 @@ export async function handleSubagentsFocusAction(
       agentId: focusTarget.agentId,
       label,
       sessionTtlMs: threadBindings.getSessionTtlMs(),
+      sessionDetails:
+        focusTarget.targetKind === "acp"
+          ? resolveAcpSessionIdentifierLines({
+              sessionKey: focusTarget.targetSessionKey,
+              meta: acpMeta,
+            })
+          : [],
     }),
   });
 

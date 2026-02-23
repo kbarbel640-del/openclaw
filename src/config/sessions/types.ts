@@ -26,6 +26,10 @@ export type SessionAcpMeta = {
   backend: string;
   agent: string;
   runtimeSessionName: string;
+  /** Backend-level ACP session identifier, if exposed by the runtime adapter. */
+  backendSessionId?: string;
+  /** Upstream harness session identifier (for example Codex/Claude session id), if exposed. */
+  runtimeSessionId?: string;
   mode: "persistent" | "oneshot";
   runtimeOptions?: AcpSessionRuntimeOptions;
   cwd?: string;

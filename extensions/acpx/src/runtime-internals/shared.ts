@@ -5,6 +5,8 @@ export type AcpxHandleState = {
   agent: string;
   cwd: string;
   mode: "persistent" | "oneshot";
+  backendSessionId?: string;
+  runtimeSessionId?: string;
 };
 
 export type AcpxJsonObject = Record<string, unknown>;

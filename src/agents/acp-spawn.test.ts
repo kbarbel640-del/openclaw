@@ -6,8 +6,7 @@ const hoisted = vi.hoisted(() => {
   const getThreadBindingManagerMock = vi.fn();
   const unbindThreadBindingsBySessionKeyMock = vi.fn((_params?: unknown) => []);
   const closeSessionMock = vi.fn();
-  const requireAcpRuntimeBackendMock = vi.fn();
-  const upsertAcpSessionMetaMock = vi.fn();
+  const initializeSessionMock = vi.fn();
   const state = {
     cfg: {
       acp: {
@@ -34,8 +33,7 @@ const hoisted = vi.hoisted(() => {
     getThreadBindingManagerMock,
     unbindThreadBindingsBySessionKeyMock,
     closeSessionMock,
-    requireAcpRuntimeBackendMock,
-    upsertAcpSessionMetaMock,
+    initializeSessionMock,
     state,
   };
 });
@@ -55,18 +53,11 @@ vi.mock("../gateway/call.js", () => ({
 vi.mock("../acp/control-plane/manager.js", () => {
   return {
     getAcpSessionManager: () => ({
+      initializeSession: (params: unknown) => hoisted.initializeSessionMock(params),
       closeSession: (params: unknown) => hoisted.closeSessionMock(params),
     }),
   };
 });
-
-vi.mock("../acp/runtime/registry.js", () => ({
-  requireAcpRuntimeBackend: (backendId?: string) => hoisted.requireAcpRuntimeBackendMock(backendId),
-}));
-
-vi.mock("../acp/runtime/session-meta.js", () => ({
-  upsertAcpSessionMeta: (params: unknown) => hoisted.upsertAcpSessionMetaMock(params),
-}));
 
 vi.mock("../discord/monitor/thread-bindings.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../discord/monitor/thread-bindings.js")>();
@@ -74,7 +65,6 @@ vi.mock("../discord/monitor/thread-bindings.js", async (importOriginal) => {
     ...actual,
     getThreadBindingManager: (accountId?: string) => hoisted.getThreadBindingManagerMock(accountId),
     resolveThreadBindingThreadName: () => "codex-session",
-    resolveThreadBindingIntroText: () => "intro",
     unbindThreadBindingsBySessionKey: (params: unknown) =>
       hoisted.unbindThreadBindingsBySessionKeyMock(params),
   };
@@ -155,32 +145,36 @@ describe("spawnAcpDirect", () => {
       runtimeClosed: true,
       metaCleared: false,
     });
-    hoisted.requireAcpRuntimeBackendMock.mockReset().mockReturnValue({
-      id: "acpx",
-      runtime: {},
+    hoisted.initializeSessionMock.mockReset().mockImplementation(async (argsUnknown: unknown) => {
+      const args = argsUnknown as {
+        sessionKey: string;
+        agent: string;
+        mode: "persistent" | "oneshot";
+      };
+      const runtimeSessionName = `${args.sessionKey}:runtime`;
+      return {
+        runtime: {
+          close: vi.fn().mockResolvedValue(undefined),
+        },
+        handle: {
+          sessionKey: args.sessionKey,
+          backend: "acpx",
+          runtimeSessionName,
+          runtimeSessionId: "codex-inner-1",
+          backendSessionId: "acpx-1",
+        },
+        meta: {
+          backend: "acpx",
+          agent: args.agent,
+          runtimeSessionName,
+          runtimeSessionId: "codex-inner-1",
+          backendSessionId: "acpx-1",
+          mode: args.mode,
+          state: "idle",
+          lastActivityAt: Date.now(),
+        },
+      };
     });
-    hoisted.upsertAcpSessionMetaMock
-      .mockReset()
-      .mockImplementation(async (argsUnknown: unknown) => {
-        const args = argsUnknown as {
-          mutate: (
-            current: unknown,
-            entry: unknown,
-          ) => {
-            backend: string;
-            agent: string;
-            runtimeSessionName: string;
-            mode: "persistent" | "oneshot";
-            state: "idle" | "running" | "error";
-            lastActivityAt: number;
-          } | null;
-        };
-        return {
-          sessionId: "session-1",
-          updatedAt: Date.now(),
-          acp: args.mutate(undefined, undefined),
-        };
-      });
 
     hoisted.getThreadBindingManagerMock.mockReset().mockReturnValue(createManager());
     hoisted.unbindThreadBindingsBySessionKeyMock.mockReset().mockReturnValue([]);
@@ -216,6 +210,16 @@ describe("spawnAcpDirect", () => {
         targetKind: "acp",
       }),
     );
+    expect(manager.bindTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        introText: expect.stringContaining("inner session id: codex-inner-1"),
+      }),
+    );
+    expect(manager.bindTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        introText: expect.stringContaining("acpx session id: acpx-1"),
+      }),
+    );
 
     const agentCall = hoisted.callGatewayMock.mock.calls
       .map((call: unknown[]) => call[0] as { method?: string; params?: Record<string, unknown> })
@@ -223,11 +227,11 @@ describe("spawnAcpDirect", () => {
     expect(agentCall?.params?.sessionKey).toMatch(/^agent:codex:acp:/);
     expect(agentCall?.params?.threadId).toBe("child-thread");
     expect(agentCall?.params?.deliver).toBe(true);
-    expect(hoisted.requireAcpRuntimeBackendMock).toHaveBeenCalledWith("acpx");
-    expect(hoisted.upsertAcpSessionMetaMock).toHaveBeenCalledWith(
+    expect(hoisted.initializeSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionKey: expect.stringMatching(/^agent:codex:acp:/),
-        mutate: expect.any(Function),
+        agent: "codex",
+        mode: "persistent",
       }),
     );
   });

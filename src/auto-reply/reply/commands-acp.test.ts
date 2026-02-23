@@ -245,6 +245,13 @@ describe("/acp command", () => {
   it("spawns an ACP session and binds a Discord thread", async () => {
     const manager = createThreadBindingManager();
     hoisted.getThreadBindingManagerMock.mockReturnValue(manager);
+    hoisted.ensureSessionMock.mockResolvedValueOnce({
+      sessionKey: "agent:codex:acp:s1",
+      backend: "acpx",
+      runtimeSessionName: "agent:codex:acp:s1:runtime",
+      runtimeSessionId: "codex-inner-1",
+      backendSessionId: "acpx-1",
+    });
 
     const params = createDiscordParams("/acp spawn codex");
     const result = await handleAcpCommand(params, true);
@@ -262,6 +269,14 @@ describe("/acp command", () => {
       expect.objectContaining({
         targetKind: "acp",
         createThread: true,
+        introText: expect.stringContaining("inner session id: codex-inner-1"),
+      }),
+    );
+    expect(manager.bindTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetKind: "acp",
+        createThread: true,
+        introText: expect.stringContaining("acpx session id: acpx-1"),
       }),
     );
     expect(hoisted.callGatewayMock).toHaveBeenCalledWith(

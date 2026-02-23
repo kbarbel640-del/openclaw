@@ -13,7 +13,9 @@ import {
 } from "../../../acp/policy.js";
 import { toAcpRuntimeErrorText } from "../../../acp/runtime/error-text.js";
 import { AcpRuntimeError } from "../../../acp/runtime/errors.js";
+import { resolveAcpSessionIdentifierLines } from "../../../acp/runtime/session-identifiers.js";
 import type { OpenClawConfig } from "../../../config/config.js";
+import type { SessionAcpMeta } from "../../../config/sessions/types.js";
 import {
   getThreadBindingManager,
   resolveThreadBindingIntroText,
@@ -53,6 +55,7 @@ async function bindSpawnedAcpSessionToDiscordThread(params: {
   agentId: string;
   label?: string;
   threadMode: AcpSpawnThreadMode;
+  sessionMeta?: SessionAcpMeta;
 }): Promise<{ ok: true; binding: ThreadBindingRecord } | { ok: false; error: string }> {
   const { commandParams, threadMode } = params;
   if (threadMode === "off") {
@@ -152,6 +155,10 @@ async function bindSpawnedAcpSessionToDiscordThread(params: {
       agentId: params.agentId,
       label,
       sessionTtlMs: manager.getSessionTtlMs(),
+      sessionDetails: resolveAcpSessionIdentifierLines({
+        sessionKey: params.sessionKey,
+        meta: params.sessionMeta,
+      }),
     }),
   });
 
@@ -212,6 +219,7 @@ export async function handleAcpSpawnAction(
   const sessionKey = `agent:${spawn.agentId}:acp:${randomUUID()}`;
 
   let initializedBackend = "";
+  let initializedMeta: SessionAcpMeta | undefined;
   let initializedRuntime: AcpSpawnRuntimeCloseHandle | undefined;
   try {
     const initialized = await acpManager.initializeSession({
@@ -226,6 +234,7 @@ export async function handleAcpSpawnAction(
       handle: initialized.handle,
     };
     initializedBackend = initialized.handle.backend || initialized.meta.backend;
+    initializedMeta = initialized.meta;
   } catch (err) {
     return stopWithText(
       collectAcpErrorText({
@@ -244,6 +253,7 @@ export async function handleAcpSpawnAction(
       agentId: spawn.agentId,
       label: spawn.label,
       threadMode: spawn.thread,
+      sessionMeta: initializedMeta,
     });
     if (!bound.ok) {
       await cleanupFailedSpawn({
