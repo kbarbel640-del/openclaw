@@ -430,6 +430,14 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       );
       return "grok";
     }
+    // 6. Linkup
+    const linkupAutoConfig = resolveLinkupConfig(search);
+    if (resolveLinkupApiKey(linkupAutoConfig)) {
+      defaultRuntime.log(
+        'web_search: no provider configured, auto-detected "linkup" from available API keys',
+      );
+      return "linkup";
+    }
   }
 
   return "brave";
