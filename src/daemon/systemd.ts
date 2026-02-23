@@ -27,6 +27,7 @@ import {
   buildSystemdUnit,
   parseSystemdEnvAssignment,
   parseSystemdExecStart,
+  renderExecStart,
 } from "./systemd-unit.js";
 
 function resolveSystemdUnitPathForName(env: GatewayServiceEnv, name: string): string {
@@ -54,6 +55,37 @@ export { enableSystemdUserLinger, readSystemdUserLingerStatus };
 export type { SystemdUserLingerStatus };
 
 // Unit file parsing/rendering: see systemd-unit.ts
+
+/**
+ * If the user wrapped ExecStart with a prefix command (e.g. proxychains4),
+ * preserve their wrapper when regenerating the unit file during updates.
+ * Returns the existing ExecStart string if it ends with the new command,
+ * meaning the user prepended a wrapper. Returns undefined otherwise.
+ */
+async function resolveExecStartOverride(
+  unitPath: string,
+  newExecStart: string,
+): Promise<string | undefined> {
+  let content: string;
+  try {
+    content = await fs.readFile(unitPath, "utf8");
+  } catch {
+    return undefined;
+  }
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.trim();
+    if (!line.startsWith("ExecStart=")) {
+      continue;
+    }
+    const existing = line.slice("ExecStart=".length).trim();
+    // Preserve if the user prepended a wrapper (existing is longer and ends with the new command).
+    if (existing.length > newExecStart.length && existing.endsWith(newExecStart)) {
+      return existing;
+    }
+    break;
+  }
+  return undefined;
+}
 
 export async function readSystemdServiceExecStart(
   env: GatewayServiceEnv,
@@ -194,11 +226,14 @@ export async function installSystemdService({
   const unitPath = resolveSystemdUnitPath(env);
   await fs.mkdir(path.dirname(unitPath), { recursive: true });
   const serviceDescription = resolveGatewayServiceDescription({ env, environment, description });
+  const newExecStart = renderExecStart(programArguments);
+  const execStartOverride = await resolveExecStartOverride(unitPath, newExecStart);
   const unit = buildSystemdUnit({
     description: serviceDescription,
     programArguments,
     workingDirectory,
     environment,
+    execStartOverride,
   });
   await fs.writeFile(unitPath, unit, "utf8");
 

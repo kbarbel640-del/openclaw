@@ -40,8 +40,9 @@ export function buildSystemdUnit({
   programArguments,
   workingDirectory,
   environment,
-}: GatewayServiceRenderArgs): string {
-  const execStart = programArguments.map(systemdEscapeArg).join(" ");
+  execStartOverride,
+}: GatewayServiceRenderArgs & { execStartOverride?: string }): string {
+  const execStart = execStartOverride ?? programArguments.map(systemdEscapeArg).join(" ");
   const descriptionValue = description?.trim() || "OpenClaw Gateway";
   assertNoSystemdLineBreaks(descriptionValue, "Systemd Description");
   const descriptionLine = `Description=${descriptionValue}`;
@@ -72,6 +73,10 @@ export function buildSystemdUnit({
   ]
     .filter((line) => line !== null)
     .join("\n");
+}
+
+export function renderExecStart(programArguments: string[]): string {
+  return programArguments.map(systemdEscapeArg).join(" ");
 }
 
 export function parseSystemdExecStart(value: string): string[] {

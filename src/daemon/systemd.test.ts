@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const execFileMock = vi.hoisted(() => vi.fn());
 
@@ -9,6 +12,7 @@ vi.mock("node:child_process", () => ({
 import { splitArgsPreservingQuotes } from "./arg-split.js";
 import { parseSystemdExecStart } from "./systemd-unit.js";
 import {
+  installSystemdService,
   isSystemdUserServiceAvailable,
   parseSystemdShow,
   restartSystemdService,
@@ -201,5 +205,96 @@ describe("systemd service control", () => {
         env: {},
       }),
     ).rejects.toThrow("systemctl stop failed: permission denied");
+  });
+});
+
+describe("installSystemdService preserves ExecStart wrapper (#24350)", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    execFileMock.mockClear();
+    // All systemctl calls succeed.
+    execFileMock.mockImplementation((_cmd, _args, _opts, cb) => cb(null, "", ""));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "systemd-test-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  function unitPath() {
+    return path.join(tmpDir, ".config", "systemd", "user", "openclaw-gateway.service");
+  }
+
+  const baseArgs = {
+    programArguments: [
+      "/usr/bin/node",
+      "/home/user/.npm-global/lib/node_modules/openclaw/dist/entry.js",
+      "gateway",
+      "--port",
+      "18789",
+    ],
+    description: "OpenClaw Gateway",
+    environment: {},
+  };
+
+  it("preserves user ExecStart wrapper (e.g. proxychains4) on reinstall", async () => {
+    const stdout = { write: vi.fn() } as unknown as NodeJS.WritableStream;
+    const env = { HOME: tmpDir };
+
+    // First install: creates the service file normally.
+    await installSystemdService({ ...baseArgs, env, stdout });
+    const firstContent = await fs.readFile(unitPath(), "utf8");
+    const generatedExecStart =
+      "ExecStart=/usr/bin/node /home/user/.npm-global/lib/node_modules/openclaw/dist/entry.js gateway --port 18789";
+    expect(firstContent).toContain(generatedExecStart);
+
+    // User customizes ExecStart with a proxychains4 wrapper.
+    const wrappedExecStart =
+      "ExecStart=/usr/bin/proxychains4 -f /home/user/proxy.conf /usr/bin/node /home/user/.npm-global/lib/node_modules/openclaw/dist/entry.js gateway --port 18789";
+    const customized = firstContent.replace(/^ExecStart=.*/m, wrappedExecStart);
+    await fs.writeFile(unitPath(), customized, "utf8");
+
+    // Second install (simulates `openclaw update`): should preserve the wrapper.
+    await installSystemdService({ ...baseArgs, env, stdout });
+    const afterUpdate = await fs.readFile(unitPath(), "utf8");
+    expect(afterUpdate).toContain(wrappedExecStart);
+  });
+
+  it("overwrites ExecStart when there is no user wrapper", async () => {
+    const stdout = { write: vi.fn() } as unknown as NodeJS.WritableStream;
+    const env = { HOME: tmpDir };
+
+    // First install.
+    await installSystemdService({ ...baseArgs, env, stdout });
+
+    // Second install with same args: ExecStart should remain unchanged.
+    await installSystemdService({ ...baseArgs, env, stdout });
+    const content = await fs.readFile(unitPath(), "utf8");
+    expect(content).toContain(
+      "ExecStart=/usr/bin/node /home/user/.npm-global/lib/node_modules/openclaw/dist/entry.js gateway --port 18789",
+    );
+    expect(content).not.toContain("proxychains");
+  });
+
+  it("does not preserve wrapper when ExecStart is completely different", async () => {
+    const stdout = { write: vi.fn() } as unknown as NodeJS.WritableStream;
+    const env = { HOME: tmpDir };
+
+    // First install.
+    await installSystemdService({ ...baseArgs, env, stdout });
+
+    // User replaces ExecStart entirely with something unrelated.
+    const content = await fs.readFile(unitPath(), "utf8");
+    const customized = content.replace(/^ExecStart=.*/m, "ExecStart=/usr/bin/something-else");
+    await fs.writeFile(unitPath(), customized, "utf8");
+
+    // Second install: should use the new generated ExecStart, not the user's.
+    await installSystemdService({ ...baseArgs, env, stdout });
+    const afterUpdate = await fs.readFile(unitPath(), "utf8");
+    expect(afterUpdate).toContain(
+      "ExecStart=/usr/bin/node /home/user/.npm-global/lib/node_modules/openclaw/dist/entry.js gateway --port 18789",
+    );
+    expect(afterUpdate).not.toContain("something-else");
   });
 });
