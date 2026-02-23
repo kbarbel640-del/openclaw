@@ -55,6 +55,13 @@ const parseForwardedProto = (value: HostSource | HostSource[]) => {
 };
 
 export function resolveCanvasHostUrl(params: CanvasHostUrlParams) {
+  // Allow operators behind reverse proxies (Railway, Cloudflare Tunnel, nginx, etc.)
+  // to override the advertised canvas URL entirely via environment variable.
+  const envOverride = process.env.OPENCLAW_CANVAS_HOST_URL?.trim();
+  if (envOverride) {
+    return envOverride;
+  }
+
   const port = params.canvasPort;
   if (!port) {
     return undefined;
@@ -74,11 +81,12 @@ export function resolveCanvasHostUrl(params: CanvasHostUrlParams) {
     return undefined;
   }
 
-  // When the websocket is proxied over HTTPS (for example Tailscale Serve), the gateway's
-  // internal listener still runs on 18789. In that case, expose the public port instead of
-  // advertising the internal one back to clients.
+  // When the websocket is proxied (for example Tailscale Serve, Railway, Cloudflare Tunnel),
+  // the gateway's internal listener runs on a private port (18789 gateway, 18793 canvas host).
+  // In that case, expose the public port instead of advertising the internal one back to clients.
+  const INTERNAL_PORTS = new Set([18789, 18793]);
   let exposedPort = port;
-  if (!override && requestHost && port === 18789) {
+  if (!override && requestHost && INTERNAL_PORTS.has(port)) {
     if (parsedRequestHost.port && parsedRequestHost.port > 0) {
       exposedPort = parsedRequestHost.port;
     } else if (scheme === "https") {
