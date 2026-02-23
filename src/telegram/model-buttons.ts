@@ -33,6 +33,8 @@ export type ModelsKeyboardParams = {
 const MODELS_PAGE_SIZE = 8;
 const MAX_CALLBACK_DATA_BYTES = 64;
 const MODEL_BUTTON_LABELS: Record<string, string> = {
+  "gemini-3.1-pro-high": "Gemini 3.1 Pro",
+  "gemini-3.1-pro-low": "Gemini 3.1 Pro (Low)",
   "gemini-3-pro-high": "Gemini 3.1 Pro",
   "gemini-3-pro-low": "Gemini 3.1 Pro (Low)",
 };

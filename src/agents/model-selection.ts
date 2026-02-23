@@ -23,10 +23,12 @@ const ANTHROPIC_MODEL_ALIASES: Record<string, string> = {
   "sonnet-4.5": "claude-sonnet-4-5",
 };
 const ANTIGRAVITY_MODEL_ALIASES: Record<string, string> = {
-  "gemini-3-pro": "gemini-3-pro-high",
-  "gemini-3.1-pro": "gemini-3-pro-high",
-  "gemini-3.1-pro-high": "gemini-3-pro-high",
-  "gemini-3.1-pro-low": "gemini-3-pro-low",
+  "gemini-3-pro": "gemini-3.1-pro-high",
+  "gemini-3-pro-high": "gemini-3.1-pro-high",
+  "gemini-3-pro-low": "gemini-3.1-pro-low",
+  "gemini-3.1-pro": "gemini-3.1-pro-high",
+  "gemini-3.1-pro-high": "gemini-3.1-pro-high",
+  "gemini-3.1-pro-low": "gemini-3.1-pro-low",
 };
 const OPENAI_CODEX_OAUTH_MODEL_PREFIXES = ["gpt-5.3-codex"] as const;
 
