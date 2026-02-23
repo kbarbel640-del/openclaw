@@ -189,13 +189,44 @@ namespace OpenClaw.Node.Services
         {
             var root = ParseParams(request.ParamsJSON);
 
+            if (root != null && root.Value.TryGetProperty("durationMs", out var durationEl) && durationEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "screen.record params.durationMs must be a number");
+            }
+
+            if (root != null && root.Value.TryGetProperty("fps", out var fpsEl) && fpsEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "screen.record params.fps must be a number");
+            }
+
+            if (root != null && root.Value.TryGetProperty("includeAudio", out var audioEl) &&
+                audioEl.ValueKind != JsonValueKind.True && audioEl.ValueKind != JsonValueKind.False)
+            {
+                return Invalid(request.Id, "screen.record params.includeAudio must be a boolean");
+            }
+
+            if (root != null && root.Value.TryGetProperty("screenIndex", out var screenEl) && screenEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "screen.record params.screenIndex must be a number");
+            }
+
             var durationMs = root != null && root.Value.TryGetProperty("durationMs", out var d) && d.ValueKind == JsonValueKind.Number
                 ? d.GetInt32()
                 : 10000;
 
+            if (durationMs <= 0)
+            {
+                return Invalid(request.Id, "screen.record params.durationMs must be > 0");
+            }
+
             var fps = root != null && root.Value.TryGetProperty("fps", out var f) && f.ValueKind == JsonValueKind.Number
                 ? f.GetInt32()
                 : 10;
+
+            if (fps <= 0)
+            {
+                return Invalid(request.Id, "screen.record params.fps must be > 0");
+            }
 
             var includeAudio = root != null && root.Value.TryGetProperty("includeAudio", out var a) &&
                                (a.ValueKind == JsonValueKind.True || a.ValueKind == JsonValueKind.False)
@@ -205,6 +236,11 @@ namespace OpenClaw.Node.Services
             var screenIndex = root != null && root.Value.TryGetProperty("screenIndex", out var sIdx) && sIdx.ValueKind == JsonValueKind.Number
                 ? sIdx.GetInt32()
                 : 0;
+
+            if (screenIndex < 0)
+            {
+                return Invalid(request.Id, "screen.record params.screenIndex must be >= 0");
+            }
 
             try
             {

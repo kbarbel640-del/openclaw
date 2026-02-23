@@ -84,6 +84,60 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task ScreenRecord_InvalidDuration_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "screen-invalid-duration",
+                Command = "screen.record",
+                ParamsJSON = JsonSerializer.Serialize(new { durationMs = 0 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task ScreenRecord_InvalidFps_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "screen-invalid-fps",
+                Command = "screen.record",
+                ParamsJSON = JsonSerializer.Serialize(new { fps = -1 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task ScreenRecord_InvalidIncludeAudioType_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "screen-invalid-audio",
+                Command = "screen.record",
+                ParamsJSON = "{\"includeAudio\":\"yes\"}"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
         public async Task CameraSnap_InvalidFacing_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();
