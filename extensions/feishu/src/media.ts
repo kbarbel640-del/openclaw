@@ -416,23 +416,15 @@ export async function sendMediaFeishu(params: {
     buffer = mediaBuffer;
     name = fileName ?? "file";
   } else if (mediaUrl) {
-    const looksRemote = /^https?:\/\//i.test(mediaUrl) || mediaUrl.startsWith("data:");
-    if (looksRemote) {
-      const loaded = await getFeishuRuntime().media.loadWebMedia(mediaUrl, {
-        maxBytes: mediaMaxBytes,
-        optimizeImages: false,
-      });
-      buffer = loaded.buffer;
-      name = fileName ?? loaded.fileName ?? "file";
-    } else {
-      const localPath = mediaUrl.startsWith("file://") ? fileURLToPath(mediaUrl) : mediaUrl;
-      const stat = await fs.promises.stat(localPath);
-      if (stat.size > mediaMaxBytes) {
-        throw new Error(`Media too large: ${stat.size} bytes > max ${mediaMaxBytes} bytes`);
-      }
-      buffer = await fs.promises.readFile(localPath);
-      name = fileName ?? path.basename(localPath) ?? "file";
-    }
+    // Delegate all URL/path loading (including local paths) to the shared loader,
+    // which enforces localRoots/sandbox rules to prevent file exfiltration.
+    const normalizedUrl = mediaUrl.startsWith("file://") ? fileURLToPath(mediaUrl) : mediaUrl;
+    const loaded = await getFeishuRuntime().media.loadWebMedia(normalizedUrl, {
+      maxBytes: mediaMaxBytes,
+      optimizeImages: false,
+    });
+    buffer = loaded.buffer;
+    name = fileName ?? loaded.fileName ?? "file";
   } else {
     throw new Error("Either mediaUrl or mediaBuffer must be provided");
   }

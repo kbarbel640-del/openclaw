@@ -108,11 +108,18 @@ describe("sendMediaFeishu msg_type routing", () => {
     messageResourceGetMock.mockResolvedValue(Buffer.from("resource-bytes"));
   });
 
-  it("loads local file paths without routing through loadWebMedia", async () => {
+  it("loads local file paths via loadWebMedia so localRoots validation applies", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-media-"));
     try {
       const localPath = path.join(tmpDir, "local.mp4");
       await fs.writeFile(localPath, Buffer.from("local-video-bytes"));
+
+      loadWebMediaMock.mockResolvedValueOnce({
+        buffer: Buffer.from("local-video-bytes"),
+        fileName: "local.mp4",
+        kind: "video",
+        contentType: "video/mp4",
+      });
 
       await sendMediaFeishu({
         cfg: {} as any,
@@ -120,7 +127,7 @@ describe("sendMediaFeishu msg_type routing", () => {
         mediaUrl: localPath,
       });
 
-      expect(loadWebMediaMock).not.toHaveBeenCalled();
+      expect(loadWebMediaMock).toHaveBeenCalled();
       expect(fileCreateMock).toHaveBeenCalled();
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
