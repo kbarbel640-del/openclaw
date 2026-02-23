@@ -13,8 +13,11 @@ const mockWriteConfigFile = vi.fn<
   (cfg: OpenClawConfig, options?: { unsetPaths?: string[][] }) => Promise<void>
 >(async () => {});
 
+const mockResolveConfigPath = vi.fn(() => "/home/user/.openclaw/openclaw.json");
+
 vi.mock("../config/config.js", () => ({
   readConfigFileSnapshot: () => mockReadConfigFileSnapshot(),
+  resolveConfigPath: () => mockResolveConfigPath(),
   writeConfigFile: (cfg: OpenClawConfig, options?: { unsetPaths?: string[][] }) =>
     mockWriteConfigFile(cfg, options),
 }));
@@ -201,6 +204,31 @@ describe("config cli", () => {
       expect(helpText).toContain("--strict-json");
       expect(helpText).toContain("--json");
       expect(helpText).toContain("Legacy alias for --strict-json");
+    });
+  });
+
+  describe("config path", () => {
+    it("prints shortened config path by default", async () => {
+      mockResolveConfigPath.mockReturnValue("/home/user/.openclaw/openclaw.json");
+
+      await runConfigCommand(["config", "path"]);
+
+      expect(mockResolveConfigPath).toHaveBeenCalledTimes(1);
+      expect(mockLog).toHaveBeenCalledTimes(1);
+      expect(mockLog).toHaveBeenCalledWith(expect.any(String));
+      // shortenHomePath replaces homedir prefix with ~
+      const out = mockLog.mock.calls[0]?.[0] as string;
+      expect(out).toContain("openclaw.json");
+    });
+
+    it("prints absolute path when --absolute is set", async () => {
+      const absolutePath = "/home/user/.openclaw/openclaw.json";
+      mockResolveConfigPath.mockReturnValue(absolutePath);
+
+      await runConfigCommand(["config", "path", "--absolute"]);
+
+      expect(mockResolveConfigPath).toHaveBeenCalledTimes(1);
+      expect(mockLog).toHaveBeenCalledWith(absolutePath);
     });
   });
 
