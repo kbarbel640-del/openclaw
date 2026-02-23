@@ -100,6 +100,7 @@ describe("doctor config flow", () => {
       mode: "token",
       token: "ok",
     });
+    expect(result.shouldWriteConfig).toBe(true);
   });
 
   it("preserves discord streaming intent while stripping unsupported keys on repair", async () => {
