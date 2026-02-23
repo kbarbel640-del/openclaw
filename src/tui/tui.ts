@@ -518,14 +518,7 @@ export async function runTui(opts: TuiOptions) {
     const sessionLabel = formatSessionKey(currentSessionKey);
     const agentLabel = formatAgentLabel(currentAgentId);
     const headerLine = `openclaw tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`;
-    const contextBar = formatContextBar(
-      sessionInfo.totalTokens ?? null,
-      sessionInfo.contextTokens ?? null,
-      10,
-      { green: theme.success, yellow: theme.accent, red: theme.error },
-    );
-    const headerText = contextBar ? `${headerLine}\n${contextBar}` : headerLine;
-    header.setText(theme.header(headerText));
+    header.setText(theme.header(headerLine));
   };
 
   const busyStates = new Set(["sending", "waiting", "streaming", "running"]);
@@ -667,8 +660,17 @@ export async function runTui(opts: TuiOptions) {
       statusLoader?.stop();
       statusLoader = null;
       ensureStatusText();
-      const text = activityStatus ? `${connectionStatus} | ${activityStatus}` : connectionStatus;
-      statusText?.setText(theme.dim(text));
+      const statusLine = activityStatus
+        ? `${connectionStatus} | ${activityStatus}`
+        : connectionStatus;
+      const contextBar = formatContextBar(
+        sessionInfo.totalTokens ?? null,
+        sessionInfo.contextTokens ?? null,
+        10,
+        { green: theme.success, yellow: theme.accent, red: theme.error },
+      );
+      const statusWithContext = contextBar ? `${statusLine}\n${contextBar}` : statusLine;
+      statusText?.setText(theme.dim(statusWithContext));
     }
     lastActivityStatus = activityStatus;
   };
