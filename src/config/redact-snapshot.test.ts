@@ -656,7 +656,7 @@ describe("redactConfigSnapshot", () => {
     expectGatewayAuthFieldValue(result, "token", "not-actually-secret-value");
   });
 
-  it("does not redact paths absent from uiHints (schema is single source of truth)", () => {
+  it("redacts sensitive-looking paths even when absent from uiHints (defense in depth)", () => {
     const hints: ConfigUiHints = {
       "some.other.path": { sensitive: true },
     };
@@ -664,7 +664,9 @@ describe("redactConfigSnapshot", () => {
       gateway: { auth: { password: "not-in-hints-value" } },
     });
     const result = redactConfigSnapshot(snapshot, hints);
-    expectGatewayAuthFieldValue(result, "password", "not-in-hints-value");
+    // Pattern-based fallback catches sensitive keys that the schema
+    // hints missed (e.g. dynamic catchall fields, new config keys).
+    expectGatewayAuthFieldValue(result, "password", REDACTED_SENTINEL);
   });
 
   it("uses wildcard hints for array items", () => {
