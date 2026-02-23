@@ -301,7 +301,10 @@ $out | ConvertTo-Json -Compress
 
             try
             {
-                var dto = JsonSerializer.Deserialize<UiElementPowerShellDto>(jsonLine);
+                var dto = JsonSerializer.Deserialize<UiElementPowerShellDto>(jsonLine, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
                 if (dto == null)
                 {
                     return null;
