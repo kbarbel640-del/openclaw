@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { withEnv } from "../../test-utils/env.js";
 import { __testing } from "./web-search.js";
 
 const {
@@ -7,6 +8,7 @@ const {
   isDirectPerplexityBaseUrl,
   resolvePerplexityRequestModel,
   normalizeFreshness,
+  freshnessToPerplexityRecency,
   resolveGrokApiKey,
   resolveGrokModel,
   resolveGrokInlineCitations,
@@ -104,24 +106,34 @@ describe("web_search freshness normalization", () => {
   });
 });
 
+describe("freshnessToPerplexityRecency", () => {
+  it("maps Brave shortcuts to Perplexity recency values", () => {
+    expect(freshnessToPerplexityRecency("pd")).toBe("day");
+    expect(freshnessToPerplexityRecency("pw")).toBe("week");
+    expect(freshnessToPerplexityRecency("pm")).toBe("month");
+    expect(freshnessToPerplexityRecency("py")).toBe("year");
+  });
+
+  it("returns undefined for date ranges (not supported by Perplexity)", () => {
+    expect(freshnessToPerplexityRecency("2024-01-01to2024-01-31")).toBeUndefined();
+  });
+
+  it("returns undefined for undefined/empty input", () => {
+    expect(freshnessToPerplexityRecency(undefined)).toBeUndefined();
+    expect(freshnessToPerplexityRecency("")).toBeUndefined();
+  });
+});
+
 describe("web_search grok config resolution", () => {
   it("uses config apiKey when provided", () => {
     expect(resolveGrokApiKey({ apiKey: "xai-test-key" })).toBe("xai-test-key");
   });
 
   it("returns undefined when no apiKey is available", () => {
-    const previous = process.env.XAI_API_KEY;
-    try {
-      delete process.env.XAI_API_KEY;
+    withEnv({ XAI_API_KEY: undefined }, () => {
       expect(resolveGrokApiKey({})).toBeUndefined();
       expect(resolveGrokApiKey(undefined)).toBeUndefined();
-    } finally {
-      if (previous === undefined) {
-        delete process.env.XAI_API_KEY;
-      } else {
-        process.env.XAI_API_KEY = previous;
-      }
-    }
+    });
   });
 
   it("uses default model when not specified", () => {
@@ -206,5 +218,27 @@ describe("web_search grok response parsing", () => {
     const result = extractGrokContent({});
     expect(result.text).toBeUndefined();
     expect(result.annotationCitations).toEqual([]);
+  });
+
+  it("extracts output_text blocks directly in output array (no message wrapper)", () => {
+    const result = extractGrokContent({
+      output: [
+        { type: "web_search_call" },
+        {
+          type: "output_text",
+          text: "direct output text",
+          annotations: [
+            {
+              type: "url_citation",
+              url: "https://example.com/direct",
+              start_index: 0,
+              end_index: 5,
+            },
+          ],
+        },
+      ],
+    } as Parameters<typeof extractGrokContent>[0]);
+    expect(result.text).toBe("direct output text");
+    expect(result.annotationCitations).toEqual(["https://example.com/direct"]);
   });
 });
