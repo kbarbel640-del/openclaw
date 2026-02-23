@@ -100,7 +100,19 @@ namespace OpenClaw.Node.Protocol
             _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {_token}");
             
             OnLog?.Invoke($"[Gateway] Connecting to {_serverUri}...");
-            await _webSocket.ConnectAsync(_serverUri, cancellationToken);
+            try
+            {
+                await _webSocket.ConnectAsync(_serverUri, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                var lowered = ex.Message.ToLowerInvariant();
+                if (lowered.Contains("401") || lowered.Contains("403") || lowered.Contains("unauthorized") || lowered.Contains("forbidden") || lowered.Contains("auth"))
+                {
+                    OnConnectRejected?.Invoke($"connect-failed: {ex.Message}");
+                }
+                throw;
+            }
             
             var buffer = new byte[16384];
             while (_webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
@@ -109,6 +121,14 @@ namespace OpenClaw.Node.Protocol
                 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
+                    var code = result.CloseStatus?.ToString() ?? "n/a";
+                    var reason = result.CloseStatusDescription ?? "n/a";
+                    OnLog?.Invoke($"[Gateway] Socket closed by server. code={code} reason={reason}");
+                    if (!_connected)
+                    {
+                        OnConnectRejected?.Invoke($"pre-connect-close code={code} reason={reason}");
+                    }
+
                     await DisconnectAsync();
                     break;
                 }

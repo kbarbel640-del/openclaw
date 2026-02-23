@@ -93,6 +93,18 @@ namespace OpenClaw.Node
             connection.OnLog += msg =>
             {
                 Console.WriteLine(msg);
+
+                var lowered = msg.ToLowerInvariant();
+                var isAuthSignal = lowered.Contains("connect rejected") || lowered.Contains("unauthorized") || lowered.Contains("forbidden") || lowered.Contains("auth") || lowered.Contains("token") || lowered.Contains("pre-connect-close");
+                if (isAuthSignal && !authDialogShown && hasGatewayToken)
+                {
+                    authDialogShown = true;
+                    SetTray(NodeRuntimeState.Disconnected, "Authentication failed (check token)");
+                    ShowUserWarningDialog(
+                        "OpenClaw Authentication Failed",
+                        "Gateway authentication failed or was rejected before session setup.\n\nPlease verify gateway.auth.token in Open Config, save, then click Restart Node.");
+                }
+
                 if (msg.Contains("Reconnecting in", StringComparison.OrdinalIgnoreCase))
                 {
                     reconnectStartedAtUtc ??= DateTimeOffset.UtcNow;
