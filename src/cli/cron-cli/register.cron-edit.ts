@@ -54,6 +54,10 @@ export function registerCronEditCommand(cron: Command) {
         "--to <dest>",
         "Delivery destination (E.164, Telegram chatId, or Discord channel/user)",
       )
+      .option(
+        "--account-id <id>",
+        "Bot account ID for delivery (required when multiple bot accounts share the same channel)",
+      )
       .option("--best-effort-deliver", "Do not fail job if delivery fails")
       .option("--no-best-effort-deliver", "Fail job when delivery fails")
       .action(async (id, opts) => {
@@ -149,8 +153,12 @@ export function registerCronEditCommand(cron: Command) {
             : undefined;
           const hasTimeoutSeconds = Boolean(timeoutSeconds && Number.isFinite(timeoutSeconds));
           const hasDeliveryModeFlag = opts.announce || typeof opts.deliver === "boolean";
-          const hasDeliveryTarget = typeof opts.channel === "string" || typeof opts.to === "string";
+          const hasDeliveryTarget =
+            typeof opts.channel === "string" ||
+            typeof opts.to === "string" ||
+            typeof opts.accountId === "string";
           const hasBestEffort = typeof opts.bestEffortDeliver === "boolean";
+          const hasAccountIdPatch = typeof opts.accountId === "string";
           const hasAgentTurnPatch =
             typeof opts.message === "string" ||
             Boolean(model) ||
@@ -158,7 +166,8 @@ export function registerCronEditCommand(cron: Command) {
             hasTimeoutSeconds ||
             hasDeliveryModeFlag ||
             hasDeliveryTarget ||
-            hasBestEffort;
+            hasBestEffort ||
+            hasAccountIdPatch;
           if (hasSystemEventPatch && hasAgentTurnPatch) {
             throw new Error("Choose at most one payload change");
           }
@@ -191,6 +200,10 @@ export function registerCronEditCommand(cron: Command) {
             if (typeof opts.to === "string") {
               const to = opts.to.trim();
               delivery.to = to ? to : undefined;
+            }
+            if (typeof opts.accountId === "string") {
+              const accountId = opts.accountId.trim();
+              delivery.accountId = accountId ? accountId : undefined;
             }
             if (typeof opts.bestEffortDeliver === "boolean") {
               delivery.bestEffort = opts.bestEffortDeliver;

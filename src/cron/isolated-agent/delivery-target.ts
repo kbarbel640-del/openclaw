@@ -19,6 +19,11 @@ export async function resolveDeliveryTarget(
   jobPayload: {
     channel?: "last" | ChannelId;
     to?: string;
+    /** Explicit account ID from the job delivery config. When set, overrides the
+     * session-derived accountId so delivery always uses the specified bot account
+     * (important for multi-account setups where the session may not record
+     * the correct lastAccountId). */
+    accountId?: string;
   },
 ): Promise<{
   channel: Exclude<OutboundChannel, "none">;
@@ -30,6 +35,11 @@ export async function resolveDeliveryTarget(
 }> {
   const requestedChannel = typeof jobPayload.channel === "string" ? jobPayload.channel : "last";
   const explicitTo = typeof jobPayload.to === "string" ? jobPayload.to : undefined;
+  // Explicit accountId from the job delivery config takes precedence over the session-derived one.
+  const explicitAccountId =
+    typeof jobPayload.accountId === "string" && jobPayload.accountId.trim()
+      ? jobPayload.accountId.trim()
+      : undefined;
   const allowMismatchedLastTo = requestedChannel === "last";
 
   const sessionCfg = cfg.session;
@@ -79,11 +89,16 @@ export async function resolveDeliveryTarget(
       ? resolved.threadId
       : undefined;
 
+  // Prefer explicit accountId from the job delivery config over the session-derived one.
+  // This is important for multi-account channel setups (e.g. two Discord bots) where the
+  // session may not have recorded a lastAccountId at all, or may have recorded the wrong one.
+  const effectiveAccountId = explicitAccountId ?? resolved.accountId;
+
   if (!toCandidate) {
     return {
       channel,
       to: undefined,
-      accountId: resolved.accountId,
+      accountId: effectiveAccountId,
       threadId,
       mode,
     };
@@ -93,13 +108,13 @@ export async function resolveDeliveryTarget(
     channel,
     to: toCandidate,
     cfg,
-    accountId: resolved.accountId,
+    accountId: effectiveAccountId,
     mode,
   });
   return {
     channel,
     to: docked.ok ? docked.to : undefined,
-    accountId: resolved.accountId,
+    accountId: effectiveAccountId,
     threadId,
     mode,
     error: docked.ok ? undefined : docked.error,

@@ -16,6 +16,10 @@ export type CronDelivery = {
   mode: CronDeliveryMode;
   channel?: CronMessageChannel;
   to?: string;
+  /** Explicit account ID to use for delivery. Required when multiple bot accounts are configured
+   * for the target channel (e.g. two Discord bots) and the gateway cannot infer the correct one
+   * from the session's lastAccountId. */
+  accountId?: string;
   bestEffort?: boolean;
 };
 

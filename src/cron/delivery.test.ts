@@ -42,4 +42,34 @@ describe("resolveCronDeliveryPlan", () => {
     expect(plan.mode).toBe("none");
     expect(plan.requested).toBe(false);
   });
+
+  it("propagates accountId from delivery config", () => {
+    const plan = resolveCronDeliveryPlan(
+      makeJob({
+        delivery: { mode: "announce", channel: "discord", to: "user:12345", accountId: "bot1" },
+      }),
+    );
+    expect(plan.accountId).toBe("bot1");
+    expect(plan.channel).toBe("discord");
+    expect(plan.to).toBe("user:12345");
+  });
+
+  it("returns undefined accountId when not set in delivery config", () => {
+    const plan = resolveCronDeliveryPlan(
+      makeJob({
+        delivery: { mode: "announce", channel: "discord", to: "user:12345" },
+      }),
+    );
+    expect(plan.accountId).toBeUndefined();
+  });
+
+  it("returns undefined accountId for legacy payload jobs", () => {
+    const plan = resolveCronDeliveryPlan(
+      makeJob({
+        delivery: undefined,
+        payload: { kind: "agentTurn", message: "hello", deliver: true, to: "user:12345" },
+      }),
+    );
+    expect(plan.accountId).toBeUndefined();
+  });
 });
