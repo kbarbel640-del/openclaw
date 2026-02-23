@@ -57,34 +57,39 @@ export function logMessage(params: {
   const id = randomUUID();
   const mediaUrlsJson = params.mediaUrls?.length ? JSON.stringify(params.mediaUrls) : null;
 
-  params.db
-    .prepare(
-      `INSERT INTO message_log
-       (id, session_key, direction, role, channel, account_id, sender_id, sender_name,
-        recipient, body, media_url, media_type, media_urls, chat_type, group_subject,
-        thread_id, reply_to_id, message_sid, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-    )
-    .run(
-      id,
-      params.sessionKey,
-      params.direction,
-      params.role,
-      params.channel ?? null,
-      params.accountId ?? null,
-      params.senderId ?? null,
-      params.senderName ?? null,
-      params.recipient ?? null,
-      params.body ?? null,
-      params.mediaUrl ?? null,
-      params.mediaType ?? null,
-      mediaUrlsJson,
-      params.chatType ?? null,
-      params.groupSubject ?? null,
-      params.threadId ?? null,
-      params.replyToId ?? null,
-      params.messageSid ?? null,
-    );
+  try {
+    params.db
+      .prepare(
+        `INSERT INTO message_log
+         (id, session_key, direction, role, channel, account_id, sender_id, sender_name,
+          recipient, body, media_url, media_type, media_urls, chat_type, group_subject,
+          thread_id, reply_to_id, message_sid, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      )
+      .run(
+        id,
+        params.sessionKey,
+        params.direction,
+        params.role,
+        params.channel ?? null,
+        params.accountId ?? null,
+        params.senderId ?? null,
+        params.senderName ?? null,
+        params.recipient ?? null,
+        params.body ?? null,
+        params.mediaUrl ?? null,
+        params.mediaType ?? null,
+        mediaUrlsJson,
+        params.chatType ?? null,
+        params.groupSubject ?? null,
+        params.threadId ?? null,
+        params.replyToId ?? null,
+        params.messageSid ?? null,
+      );
+  } catch {
+    // Non-fatal: message logging is fire-and-forget.
+    return;
+  }
 
   // Also insert into FTS if the table exists and there's body text.
   if (params.body) {
