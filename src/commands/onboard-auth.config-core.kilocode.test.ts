@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveApiKeyForProvider, resolveEnvApiKey } from "../agents/model-auth.js";
 import type { OpenClawConfig } from "../config/config.js";
+import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
 import { captureEnv } from "../test-utils/env.js";
 import {
   applyKilocodeProviderConfig,
@@ -98,14 +99,16 @@ describe("Kilo Gateway provider config", () => {
         },
       };
       const result = applyKilocodeProviderConfig(cfg);
-      expect(result.agents?.defaults?.model?.primary).toBe("openai/gpt-5");
+      expect(resolveAgentModelPrimaryValue(result.agents?.defaults?.model)).toBe("openai/gpt-5");
     });
   });
 
   describe("applyKilocodeConfig", () => {
     it("sets kilocode as the default model", () => {
       const result = applyKilocodeConfig(emptyCfg);
-      expect(result.agents?.defaults?.model?.primary).toBe(KILOCODE_DEFAULT_MODEL_REF);
+      expect(resolveAgentModelPrimaryValue(result.agents?.defaults?.model)).toBe(
+        KILOCODE_DEFAULT_MODEL_REF,
+      );
     });
 
     it("also registers the provider", () => {
