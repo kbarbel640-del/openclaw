@@ -296,6 +296,26 @@ describe("channel-health-monitor", () => {
     monitor.stop();
   });
 
+  it("backs off checks when managed channels remain healthy", async () => {
+    const manager = createSnapshotManager({
+      slack: {
+        default: { running: true, connected: true, enabled: true, configured: true },
+      },
+    });
+    const monitor = startDefaultMonitor(manager, { checkIntervalMs: 1_000 });
+
+    await vi.advanceTimersByTimeAsync(1_001);
+    expect(manager.getRuntimeSnapshot).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1_001);
+    expect(manager.getRuntimeSnapshot).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(manager.getRuntimeSnapshot).toHaveBeenCalledTimes(2);
+
+    monitor.stop();
+  });
+
   it("treats running channels without a connected field as healthy", async () => {
     const manager = createSnapshotManager({
       slack: {

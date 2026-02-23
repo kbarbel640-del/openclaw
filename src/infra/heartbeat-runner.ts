@@ -968,6 +968,9 @@ export function startHeartbeatRunner(opts: {
     stopped: false,
   };
   let initialized = false;
+  const MIN_TIMER_DELAY_MS = 250;
+  const MAX_SCHEDULE_JITTER_MS =
+    process.env.VITEST || process.env.NODE_ENV === "test" ? 0 : 250;
 
   const resolveNextDue = (now: number, intervalMs: number, prevState?: HeartbeatAgentState) => {
     if (typeof prevState?.lastRunMs === "number") {
@@ -982,6 +985,14 @@ export function startHeartbeatRunner(opts: {
   const advanceAgentSchedule = (agent: HeartbeatAgentState, now: number) => {
     agent.lastRunMs = now;
     agent.nextDueMs = now + agent.intervalMs;
+  };
+
+  const addTimerJitter = (delayMs: number) => {
+    if (MAX_SCHEDULE_JITTER_MS <= 0 || delayMs <= 1_000) {
+      return delayMs;
+    }
+    const jitterCap = Math.min(MAX_SCHEDULE_JITTER_MS, Math.max(1, Math.floor(delayMs * 0.05)));
+    return delayMs + Math.floor(Math.random() * jitterCap);
   };
 
   const scheduleNext = () => {
@@ -1005,7 +1016,8 @@ export function startHeartbeatRunner(opts: {
     if (!Number.isFinite(nextDue)) {
       return;
     }
-    const delay = Math.max(0, nextDue - now);
+    const delayRaw = Math.max(0, nextDue - now);
+    const delay = addTimerJitter(delayRaw <= 0 ? MIN_TIMER_DELAY_MS : delayRaw);
     state.timer = setTimeout(() => {
       state.timer = null;
       requestHeartbeatNow({ reason: "interval", coalesceMs: 0 });
@@ -1147,7 +1159,7 @@ export function startHeartbeatRunner(opts: {
         scheduleNext();
         return res;
       }
-      if (res.status !== "skipped" || res.reason !== "disabled") {
+      if (res.status !== "skipped" || res.reason !== "disabled" || isInterval) {
         advanceAgentSchedule(agent, now);
       }
       if (res.status === "ran") {

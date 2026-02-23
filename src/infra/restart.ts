@@ -194,6 +194,7 @@ export function deferGatewayRestartUntilIdle(opts: {
 }): void {
   const pollMsRaw = opts.pollMs ?? DEFAULT_DEFERRAL_POLL_MS;
   const pollMs = Math.max(10, Math.floor(pollMsRaw));
+  const maxPollMs = Math.max(pollMs, Math.min(5_000, pollMs * 8));
   const maxWaitMsRaw = opts.maxWaitMs ?? DEFAULT_DEFERRAL_MAX_WAIT_MS;
   const maxWaitMs = Math.max(pollMs, Math.floor(maxWaitMsRaw));
 
@@ -213,29 +214,55 @@ export function deferGatewayRestartUntilIdle(opts: {
 
   opts.hooks?.onDeferring?.(pending);
   const startedAt = Date.now();
-  const poll = setInterval(() => {
+  let nextPollMs = pollMs;
+  let lastPending = pending;
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearPollTimer = () => {
+    if (!pollTimer) {
+      return;
+    }
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  };
+
+  const scheduleNextPoll = () => {
+    pollTimer = setTimeout(checkPending, nextPollMs);
+    pollTimer.unref?.();
+    nextPollMs = Math.min(maxPollMs, Math.floor(nextPollMs * 1.5));
+  };
+
+  const checkPending = () => {
     let current: number;
     try {
       current = opts.getPendingCount();
     } catch (err) {
-      clearInterval(poll);
+      clearPollTimer();
       opts.hooks?.onCheckError?.(err);
       emitGatewayRestart();
       return;
     }
     if (current <= 0) {
-      clearInterval(poll);
+      clearPollTimer();
       opts.hooks?.onReady?.();
       emitGatewayRestart();
       return;
     }
+    if (current !== lastPending) {
+      lastPending = current;
+      opts.hooks?.onDeferring?.(current);
+    }
     const elapsedMs = Date.now() - startedAt;
     if (elapsedMs >= maxWaitMs) {
-      clearInterval(poll);
+      clearPollTimer();
       opts.hooks?.onTimeout?.(current, elapsedMs);
       emitGatewayRestart();
+      return;
     }
-  }, pollMs);
+    scheduleNextPoll();
+  };
+
+  scheduleNextPoll();
 }
 
 function formatSpawnDetail(result: {

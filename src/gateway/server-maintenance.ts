@@ -52,27 +52,13 @@ export function startGatewayMaintenanceTimers(params: {
     params.nodeSendToAllSubscribed("health", snap);
   });
 
-  // periodic keepalive
-  const tickInterval = setInterval(() => {
-    const payload = { ts: Date.now() };
-    params.broadcast("tick", payload, { dropIfSlow: true });
-    params.nodeSendToAllSubscribed("tick", payload);
-  }, TICK_INTERVAL_MS);
-
-  // periodic health refresh to keep cached snapshot warm
-  const healthInterval = setInterval(() => {
+  const runHealthRefresh = () => {
     void params
       .refreshGatewayHealthSnapshot({ probe: true })
       .catch((err) => params.logHealth.error(`refresh failed: ${formatError(err)}`));
-  }, HEALTH_REFRESH_INTERVAL_MS);
+  };
 
-  // Prime cache so first client gets a snapshot without waiting.
-  void params
-    .refreshGatewayHealthSnapshot({ probe: true })
-    .catch((err) => params.logHealth.error(`initial refresh failed: ${formatError(err)}`));
-
-  // dedupe cache cleanup
-  const dedupeCleanup = setInterval(() => {
+  const runCleanup = () => {
     const AGENT_RUN_SEQ_MAX = 10_000;
     const now = Date.now();
     for (const [k, v] of params.dedupe) {
@@ -81,9 +67,13 @@ export function startGatewayMaintenanceTimers(params: {
       }
     }
     if (params.dedupe.size > DEDUPE_MAX) {
-      const entries = [...params.dedupe.entries()].toSorted((a, b) => a[1].ts - b[1].ts);
-      for (let i = 0; i < params.dedupe.size - DEDUPE_MAX; i++) {
-        params.dedupe.delete(entries[i][0]);
+      const excess = params.dedupe.size - DEDUPE_MAX;
+      for (let i = 0; i < excess; i++) {
+        const oldest = params.dedupe.keys().next().value;
+        if (!oldest) {
+          break;
+        }
+        params.dedupe.delete(oldest);
       }
     }
 
@@ -127,7 +117,32 @@ export function startGatewayMaintenanceTimers(params: {
       params.chatRunBuffers.delete(runId);
       params.chatDeltaSentAt.delete(runId);
     }
-  }, 60_000);
+  };
 
-  return { tickInterval, healthInterval, dedupeCleanup };
+  let lastHealthRefreshAt = 0;
+  let lastCleanupAt = 0;
+  const CLEANUP_INTERVAL_MS = 60_000;
+
+  // consolidated maintenance tick
+  const tickInterval = setInterval(() => {
+    const payload = { ts: Date.now() };
+    params.broadcast("tick", payload, { dropIfSlow: true });
+    params.nodeSendToAllSubscribed("tick", payload);
+    const now = Date.now();
+    if (now - lastHealthRefreshAt >= HEALTH_REFRESH_INTERVAL_MS) {
+      lastHealthRefreshAt = now;
+      runHealthRefresh();
+    }
+    if (now - lastCleanupAt >= CLEANUP_INTERVAL_MS) {
+      lastCleanupAt = now;
+      runCleanup();
+    }
+  }, TICK_INTERVAL_MS);
+  tickInterval.unref?.();
+
+  // Prime cache so first client gets a snapshot without waiting.
+  runHealthRefresh();
+  runCleanup();
+  // Keep API compatibility with existing close path expecting three interval handles.
+  return { tickInterval, healthInterval: tickInterval, dedupeCleanup: tickInterval };
 }
