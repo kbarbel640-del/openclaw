@@ -45,25 +45,53 @@ function createProvider(overrides: Partial<VoiceCallProvider> = {}): VoiceCallPr
   };
 }
 
+function createInboundDisabledConfig() {
+  return VoiceCallConfigSchema.parse({
+    enabled: true,
+    provider: "plivo",
+    fromNumber: "+15550000000",
+    inboundPolicy: "disabled",
+  });
+}
+
+function createInboundInitiatedEvent(params: {
+  id: string;
+  providerCallId: string;
+  from: string;
+}): NormalizedEvent {
+  return {
+    id: params.id,
+    type: "call.initiated",
+    callId: params.providerCallId,
+    providerCallId: params.providerCallId,
+    timestamp: Date.now(),
+    direction: "inbound",
+    from: params.from,
+    to: "+15550000000",
+  };
+}
+
+function createRejectingInboundContext(): {
+  ctx: CallManagerContext;
+  hangupCalls: HangupCallInput[];
+} {
+  const hangupCalls: HangupCallInput[] = [];
+  const provider = createProvider({
+    hangupCall: async (input: HangupCallInput): Promise<void> => {
+      hangupCalls.push(input);
+    },
+  });
+  const ctx = createContext({
+    config: createInboundDisabledConfig(),
+    provider,
+  });
+  return { ctx, hangupCalls };
+}
+
 describe("processEvent (functional)", () => {
   it("calls provider hangup when rejecting inbound call", () => {
-    const hangupCalls: HangupCallInput[] = [];
-    const provider = createProvider({
-      hangupCall: async (input: HangupCallInput): Promise<void> => {
-        hangupCalls.push(input);
-      },
-    });
-
-    const ctx = createContext({
-      config: VoiceCallConfigSchema.parse({
-        enabled: true,
-        provider: "plivo",
-        fromNumber: "+15550000000",
-        inboundPolicy: "disabled",
-      }),
-      provider,
-    });
-    const event: NormalizedEvent = {
+    const { ctx, hangupCalls } = createRejectingInboundContext();
+    const event = createInboundInitiatedEvent({
       id: "evt-1",
       type: "call.initiated",
       callId: "prov-1",
@@ -112,22 +140,8 @@ describe("processEvent (functional)", () => {
   });
 
   it("calls hangup only once for duplicate events for same rejected call", () => {
-    const hangupCalls: HangupCallInput[] = [];
-    const provider = createProvider({
-      hangupCall: async (input: HangupCallInput): Promise<void> => {
-        hangupCalls.push(input);
-      },
-    });
-    const ctx = createContext({
-      config: VoiceCallConfigSchema.parse({
-        enabled: true,
-        provider: "plivo",
-        fromNumber: "+15550000000",
-        inboundPolicy: "disabled",
-      }),
-      provider,
-    });
-    const event1: NormalizedEvent = {
+    const { ctx, hangupCalls } = createRejectingInboundContext();
+    const event1 = createInboundInitiatedEvent({
       id: "evt-init",
       type: "call.initiated",
       callId: "prov-dup",

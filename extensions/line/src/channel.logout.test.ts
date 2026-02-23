@@ -1,10 +1,6 @@
-import type {
-  OpenClawConfig,
-  PluginRuntime,
-  ResolvedLineAccount,
-  RuntimeEnv,
-} from "openclaw/plugin-sdk";
+import type { OpenClawConfig, PluginRuntime, ResolvedLineAccount } from "openclaw/plugin-sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createRuntimeEnv } from "../../test-utils/runtime-env.js";
 import { linePlugin } from "./channel.js";
 import { setLineRuntime } from "./runtime.js";
 
@@ -45,6 +41,34 @@ function createRuntime(): { runtime: PluginRuntime; mocks: LineRuntimeMocks } {
   } as unknown as PluginRuntime;
 
   return { runtime, mocks: { writeConfigFile, resolveLineAccount } };
+}
+
+function resolveAccount(
+  resolveLineAccount: LineRuntimeMocks["resolveLineAccount"],
+  cfg: OpenClawConfig,
+  accountId: string,
+): ResolvedLineAccount {
+  const resolver = resolveLineAccount as unknown as (params: {
+    cfg: OpenClawConfig;
+    accountId?: string;
+  }) => ResolvedLineAccount;
+  return resolver({ cfg, accountId });
+}
+
+async function runLogoutScenario(params: { cfg: OpenClawConfig; accountId: string }): Promise<{
+  result: Awaited<ReturnType<NonNullable<NonNullable<typeof linePlugin.gateway>["logoutAccount"]>>>;
+  mocks: LineRuntimeMocks;
+}> {
+  const { runtime, mocks } = createRuntime();
+  setLineRuntime(runtime);
+  const account = resolveAccount(mocks.resolveLineAccount, params.cfg, params.accountId);
+  const result = await linePlugin.gateway!.logoutAccount!({
+    accountId: params.accountId,
+    cfg: params.cfg,
+    account,
+    runtime: createRuntimeEnv(),
+  });
+  return { result, mocks };
 }
 
 describe("linePlugin gateway.logoutAccount", () => {
