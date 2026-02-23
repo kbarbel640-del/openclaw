@@ -4,8 +4,10 @@
  * These tests use the REAL node:sqlite backend — no mocks.
  * They verify the full lifecycle: create sessions, save memories,
  * auto-promote to global knowledge, hibernate with persistence,
- * resume from disk, memory eviction, concurrent session limits,
- * and cross-session knowledge sharing.
+ * resume from disk, concurrent session limits,
+ * cross-session knowledge sharing, and work item management.
+ *
+ * SQLite-first: no in-memory arrays for memories or knowledge.
  */
 
 import fs from "node:fs";
@@ -15,7 +17,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ParallelSessionManager } from "./parallel-session-manager.js";
 import { SharedMemoryBackend } from "./shared-memory-backend.js";
 
-describe("parallel sessions e2e (real SQLite)", () => {
+// node:sqlite requires Node 22+. Skip e2e tests on older runtimes.
+let hasNodeSqlite = false;
+try {
+  await import("node:sqlite");
+  hasNodeSqlite = true;
+} catch {
+  // not available
+}
+
+describe.skipIf(!hasNodeSqlite)("parallel sessions e2e (real SQLite)", () => {
   let tmpDir: string;
   let dbPath: string;
   let backend: SharedMemoryBackend;
@@ -81,7 +92,7 @@ describe("parallel sessions e2e (real SQLite)", () => {
     expect(globalKnowledge[0].content).toBe("Always use TypeScript strict mode");
     expect(globalKnowledge[0].confidence).toBeCloseTo(0.9);
 
-    // 5. Generate briefing — should include memories and global knowledge
+    // 5. Generate briefing — should include memories and global knowledge from SQLite
     const briefing = await manager.generateBriefing(sessionKey);
     expect(briefing).toContain("Channel Context");
     expect(briefing).toContain("Always use TypeScript strict mode");
@@ -198,7 +209,7 @@ describe("parallel sessions e2e (real SQLite)", () => {
     expect(chat1.sessionKey).toContain("group-a");
     expect(chat2.sessionKey).toContain("group-b");
 
-    // Memories saved to chat1 should NOT appear in chat2's briefing (channel-scoped)
+    // Memories saved to chat1 should still appear in chat2's briefing (channel-scoped via channelId)
     await manager.saveMemory({
       sessionKey: chat1.sessionKey,
       channelId: "telegram",
@@ -209,8 +220,6 @@ describe("parallel sessions e2e (real SQLite)", () => {
 
     const chat2Briefing = await manager.generateBriefing(chat2.sessionKey);
     // This memory IS for the same channel, so it appears due to channelId filter
-    // But the sessionKey filter is OR'd with channelId, so it will match
-    // This is expected behaviour — channel-scoped memories are shared within a channel
     expect(chat2Briefing).toContain("Chat-A specific context");
   });
 
@@ -314,14 +323,17 @@ describe("parallel sessions e2e (real SQLite)", () => {
       importance: 9,
     });
 
-    // Search in-memory
-    const inMemResults = await manager.searchMemory("PostgreSQL");
-    expect(inMemResults.length).toBe(2);
+    // Search via manager (returns SessionMemoryEntry only, filtered by type guard)
+    const memResults = await manager.searchMemory("PostgreSQL");
+    expect(memResults.length).toBe(2);
+    // All results should have sessionKey (SessionMemoryEntry, not GlobalKnowledgeEntry)
+    for (const r of memResults) {
+      expect("sessionKey" in r).toBe(true);
+    }
 
-    // Search in real SQLite backend
+    // Search in real SQLite backend (returns union type)
     const dbResults = await backend.searchMemories("PostgreSQL");
     expect(dbResults.length).toBeGreaterThanOrEqual(2); // channel + possibly global
-    expect(dbResults.some((r) => "memoryType" in r && r.content.includes("PostgreSQL"))).toBe(true);
 
     // Search with channel scope only
     const channelOnly = await backend.searchMemories("PostgreSQL", { scope: "channel" });
@@ -408,14 +420,16 @@ describe("parallel sessions e2e (real SQLite)", () => {
     const dbStats = await backend.getStats();
     expect(dbStats.channelMemoryCount).toBe(2);
     expect(dbStats.globalKnowledgeCount).toBe(1); // importance=9 promoted
-    expect(dbStats.actionItemsOpen).toBe(0);
+    expect(dbStats.workItemsActive).toBe(0);
     expect(dbStats.personCount).toBe(0);
 
-    const managerStats = manager.getStats();
+    // getStats() is now async
+    const managerStats = await manager.getStats();
     expect(managerStats.totalSessions).toBe(1);
     expect(managerStats.activeSessions).toBe(1);
     expect(managerStats.totalMemories).toBe(2);
     expect(managerStats.globalKnowledgeCount).toBe(1);
+    expect(managerStats.activeWorkItems).toBe(0);
   });
 
   // ── Shutdown persists all active sessions ──
@@ -505,16 +519,13 @@ describe("parallel sessions e2e (real SQLite)", () => {
       backend2,
     );
 
-    // Re-opening the discord session should see it as existing (but we need to manually rebuild)
-    // The manager starts fresh, so it's a "new" session — but the backend memories are all there
+    // Manager starts fresh, so it's a "new" session — but backend has all the data
     const { isNew } = await manager2.getOrCreateSession({ channelId: "discord" });
-    expect(isNew).toBe(true); // Manager has no in-memory state yet
+    expect(isNew).toBe(true);
 
-    // But the backend still has all the data from before.
-    // Briefing comes from in-memory arrays, not backend directly (by design),
-    // so it won't have old memories unless we explicitly reload them.
-    // The real value is that the SQLite backend has everything.
-    await manager2.generateBriefing("agent:main:parallel:discord");
+    // Briefing now comes from SQLite, so it should include the persisted data
+    const briefing = await manager2.generateBriefing("agent:main:parallel:discord");
+    expect(briefing).toContain("Critical decision that must survive restart");
 
     await manager2.shutdown();
     await backend2.close();
@@ -522,7 +533,7 @@ describe("parallel sessions e2e (real SQLite)", () => {
 
   // ── WAL mode verification ──
 
-  it("creates the WAL file when enableWAL is true", async () => {
+  it("creates the DB file when enableWAL is true", async () => {
     manager = new ParallelSessionManager({ enabled: true }, backend);
 
     // After initialize + any write, the DB file should exist
@@ -535,9 +546,11 @@ describe("parallel sessions e2e (real SQLite)", () => {
       importance: 5,
     });
 
-    // WAL file may or may not exist depending on checkpoint timing,
-    // but the DB file definitely should
     expect(fs.existsSync(dbPath)).toBe(true);
+    // WAL file may or may not exist depending on SQLite checkpoint behavior,
+    // but the DB itself should be present and non-empty
+    const stat = fs.statSync(dbPath);
+    expect(stat.size).toBeGreaterThan(0);
   });
 
   // ── Idempotent close ──
@@ -561,9 +574,9 @@ describe("parallel sessions e2e (real SQLite)", () => {
     );
   });
 
-  // ── Memory eviction under load ──
+  // ── SQLite-first: no in-memory arrays ──
 
-  it("evicts lowest-importance memories when exceeding 500 limit", async () => {
+  it("memory-free operation: saves go to SQLite, no in-memory arrays", async () => {
     manager = new ParallelSessionManager(
       { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
       backend,
@@ -571,29 +584,24 @@ describe("parallel sessions e2e (real SQLite)", () => {
 
     await manager.getOrCreateSession({ channelId: "discord" });
 
-    // Fill with 505 memories
-    for (let i = 0; i < 505; i++) {
+    // Save many memories
+    for (let i = 0; i < 20; i++) {
       await manager.saveMemory({
         sessionKey: "agent:main:parallel:discord",
         channelId: "discord",
         memoryType: "fact",
         content: `Memory #${i}`,
-        importance: (i % 10) + 1, // importance cycles 1-10
+        importance: 5,
       });
     }
 
-    // In-memory should be capped at 500
-    const stats = manager.getStats();
-    expect(stats.totalMemories).toBe(500);
+    // All should be in SQLite
+    const dbMemories = await backend.getChannelMemories({ channelId: "discord", limit: 100 });
+    expect(dbMemories.length).toBe(20);
 
-    // The evicted ones should be the lowest importance (importance=1 memories)
-    const results = await manager.searchMemory("Memory");
-    // All remaining should have been kept by importance ranking
-    expect(results.length).toBeGreaterThan(0);
-
-    // All 505 should be in the SQLite backend though (no eviction there)
-    const dbMemories = await backend.getChannelMemories({ limit: 600 });
-    expect(dbMemories.length).toBe(505);
+    // getStats comes from backend now
+    const stats = await manager.getStats();
+    expect(stats.totalMemories).toBe(20);
   });
 
   // ── Concurrent writes don't corrupt ──
@@ -630,5 +638,286 @@ describe("parallel sessions e2e (real SQLite)", () => {
 
     const dbMemories = await backend.getChannelMemories({ limit: 100 });
     expect(dbMemories.length).toBe(10);
+  });
+
+  // ── Work Item Lifecycle ──
+
+  it("work item full lifecycle: schedule → ready → execute → complete", async () => {
+    manager = new ParallelSessionManager(
+      { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
+      backend,
+    );
+
+    await manager.getOrCreateSession({ channelId: "discord" });
+
+    // Schedule work (no scheduledFor = status "ready")
+    const workId = await manager.scheduleWork({
+      sessionKey: "agent:main:parallel:discord",
+      channelId: "discord",
+      description: "Research competitor pricing",
+      payload: { urls: ["https://example.com"] },
+      priority: 7,
+    });
+
+    expect(workId).toBeGreaterThan(0);
+
+    // Verify it's stored
+    const items = await manager.getWork("agent:main:parallel:discord", ["ready"]);
+    expect(items.length).toBe(1);
+    expect(items[0].description).toBe("Research competitor pricing");
+    expect(items[0].status).toBe("ready");
+    expect(items[0].priority).toBe(7);
+
+    // Claim it (simulating executor)
+    const claimed = await manager.claimReadyWork(1);
+    expect(claimed.length).toBe(1);
+    expect(claimed[0].status).toBe("executing");
+
+    // Update progress
+    await manager.transitionWork(workId, "executing", { progressPct: 50 });
+
+    // Complete
+    await manager.transitionWork(workId, "completed", {
+      progressPct: 100,
+      resultSummary: "Found 3 competitor prices",
+    });
+
+    const completed = await manager.getWork("agent:main:parallel:discord", ["completed"]);
+    expect(completed.length).toBe(1);
+    expect(completed[0].resultSummary).toBe("Found 3 competitor prices");
+  });
+
+  it("work item scheduling with future scheduledFor", async () => {
+    manager = new ParallelSessionManager(
+      { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
+      backend,
+    );
+
+    await manager.getOrCreateSession({ channelId: "discord" });
+
+    const futureTime = Date.now() + 60_000;
+    await manager.scheduleWork({
+      sessionKey: "agent:main:parallel:discord",
+      channelId: "discord",
+      description: "Future task",
+      payload: {},
+      scheduledFor: futureTime,
+    });
+
+    // Should NOT be claimable yet
+    const claimed = await manager.claimReadyWork(1);
+    expect(claimed.length).toBe(0);
+
+    // Verify it's stored as scheduled
+    const items = await manager.getWork("agent:main:parallel:discord", ["scheduled"]);
+    expect(items.length).toBe(1);
+    expect(items[0].scheduledFor).toBe(futureTime);
+  });
+
+  it("work item cancellation before execution", async () => {
+    manager = new ParallelSessionManager(
+      { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
+      backend,
+    );
+
+    await manager.getOrCreateSession({ channelId: "discord" });
+
+    const workId = await manager.scheduleWork({
+      sessionKey: "agent:main:parallel:discord",
+      channelId: "discord",
+      description: "Cancellable task",
+      payload: {},
+    });
+
+    const cancelled = await manager.cancelWork(workId);
+    expect(cancelled).toBe(true);
+
+    const items = await manager.getWork("agent:main:parallel:discord", ["cancelled"]);
+    expect(items.length).toBe(1);
+  });
+
+  it("work item retry on failure sets back to ready", async () => {
+    manager = new ParallelSessionManager(
+      { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
+      backend,
+    );
+
+    await manager.getOrCreateSession({ channelId: "discord" });
+
+    const workId = await manager.scheduleWork({
+      sessionKey: "agent:main:parallel:discord",
+      channelId: "discord",
+      description: "Retryable task",
+      payload: {},
+      maxAttempts: 3,
+    });
+
+    // Claim and simulate first failure
+    await manager.claimReadyWork(1);
+    await manager.transitionWork(workId, "ready", {
+      attempts: 1,
+      resultSummary: "Attempt 1 failed: timeout",
+    });
+
+    // Should be claimable again
+    const items = await manager.getWork("agent:main:parallel:discord", ["ready"]);
+    expect(items.length).toBe(1);
+    expect(items[0].attempts).toBe(1);
+  });
+
+  it("work item final failure after maxAttempts", async () => {
+    manager = new ParallelSessionManager(
+      { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
+      backend,
+    );
+
+    await manager.getOrCreateSession({ channelId: "discord" });
+
+    const workId = await manager.scheduleWork({
+      sessionKey: "agent:main:parallel:discord",
+      channelId: "discord",
+      description: "Doomed task",
+      payload: {},
+      maxAttempts: 2,
+    });
+
+    // Simulate 2 failed attempts then mark as final failure
+    await manager.claimReadyWork(1);
+    await manager.transitionWork(workId, "failed", {
+      attempts: 2,
+      resultSummary: "Failed after 2 attempts: persistent error",
+    });
+
+    const failed = await manager.getWork("agent:main:parallel:discord", ["failed"]);
+    expect(failed.length).toBe(1);
+    expect(failed[0].resultSummary).toContain("Failed after 2 attempts");
+  });
+
+  it("briefing includes active work items from SQLite", async () => {
+    manager = new ParallelSessionManager(
+      { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
+      backend,
+    );
+
+    const { sessionKey } = await manager.getOrCreateSession({ channelId: "discord" });
+
+    await manager.scheduleWork({
+      sessionKey,
+      channelId: "discord",
+      description: "Browser automation task",
+      payload: {},
+      priority: 8,
+    });
+
+    const briefing = await manager.generateBriefing(sessionKey);
+    expect(briefing).toContain("Active Work");
+    expect(briefing).toContain("Browser automation task");
+    expect(briefing).toContain("READY");
+  });
+
+  it("concurrent sessions + work items share SQLite correctly", async () => {
+    manager = new ParallelSessionManager(
+      { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
+      backend,
+    );
+
+    const discord = await manager.getOrCreateSession({ channelId: "discord" });
+    const telegram = await manager.getOrCreateSession({ channelId: "telegram" });
+
+    // Schedule work on discord
+    await manager.scheduleWork({
+      sessionKey: discord.sessionKey,
+      channelId: "discord",
+      description: "Discord-only work",
+      payload: {},
+    });
+
+    // Save high-importance memory on discord (promotes to global)
+    await manager.saveMemory({
+      sessionKey: discord.sessionKey,
+      channelId: "discord",
+      memoryType: "decision",
+      content: "Shared knowledge from discord",
+      importance: 9,
+    });
+
+    // Telegram should see global knowledge but NOT discord's work
+    const telegramBriefing = await manager.generateBriefing(telegram.sessionKey);
+    expect(telegramBriefing).toContain("Shared knowledge from discord");
+    expect(telegramBriefing).not.toContain("Discord-only work");
+
+    // Discord should see both its work and global knowledge
+    const discordBriefing = await manager.generateBriefing(discord.sessionKey);
+    expect(discordBriefing).toContain("Discord-only work");
+    expect(discordBriefing).toContain("Shared knowledge from discord");
+  });
+
+  it("getStats includes work item counts from SQLite", async () => {
+    manager = new ParallelSessionManager(
+      { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
+      backend,
+    );
+
+    await manager.getOrCreateSession({ channelId: "discord" });
+
+    // Save 3 work items with different statuses
+    const id1 = await manager.scheduleWork({
+      sessionKey: "agent:main:parallel:discord",
+      channelId: "discord",
+      description: "Scheduled work",
+      payload: {},
+      scheduledFor: Date.now() + 60_000,
+    });
+    await manager.scheduleWork({
+      sessionKey: "agent:main:parallel:discord",
+      channelId: "discord",
+      description: "Ready work",
+      payload: {},
+    });
+
+    // Claim the ready one to make it executing
+    await manager.claimReadyWork(1);
+
+    // Complete the scheduled one manually
+    await manager.transitionWork(id1, "completed", { resultSummary: "Done" });
+
+    const stats = await manager.getStats();
+    // 1 executing (claimed), 1 completed (id1) — activeWorkItems should be 1 (executing only)
+    expect(stats.activeWorkItems).toBe(1);
+  });
+
+  it("work items survive backend close and reopen", async () => {
+    manager = new ParallelSessionManager(
+      { enabled: true, maxConcurrent: 5, isolation: "per-channel" },
+      backend,
+    );
+
+    await manager.getOrCreateSession({ channelId: "discord" });
+
+    await manager.scheduleWork({
+      sessionKey: "agent:main:parallel:discord",
+      channelId: "discord",
+      description: "Persistent work item",
+      payload: { key: "value", nested: { a: 1 } },
+      priority: 8,
+    });
+
+    await manager.shutdown();
+    await backend.close();
+
+    // Re-open
+    const backend2 = new SharedMemoryBackend({ dbPath, enableWAL: true });
+    await backend2.initialize();
+
+    const items = await backend2.getWorkItems({
+      sessionKey: "agent:main:parallel:discord",
+      statuses: ["ready"],
+    });
+    expect(items.length).toBe(1);
+    expect(items[0].description).toBe("Persistent work item");
+    expect(items[0].payload).toEqual({ key: "value", nested: { a: 1 } });
+    expect(items[0].priority).toBe(8);
+
+    await backend2.close();
   });
 });

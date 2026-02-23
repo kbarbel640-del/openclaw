@@ -14,6 +14,7 @@ import type {
   SessionMemoryEntry,
   GlobalKnowledgeEntry,
   SessionState,
+  WorkItem,
 } from "./parallel-session-manager.js";
 
 export interface SharedMemoryConfig {
@@ -109,22 +110,40 @@ export class SharedMemoryBackend {
       "CREATE INDEX IF NOT EXISTS idx_global_knowledge_confidence ON global_knowledge(confidence DESC)",
     );
 
+    // work_items table — replaces the old unused action_items table
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS action_items (
+      CREATE TABLE IF NOT EXISTS work_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_key TEXT,
         channel_id TEXT,
         description TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'completed', 'cancelled')),
-        priority INTEGER NOT NULL DEFAULT 5 CHECK (priority >= 1 AND priority <= 10),
-        due_at INTEGER,
+        payload TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'scheduled'
+          CHECK (status IN ('scheduled', 'ready', 'executing', 'completed', 'failed', 'cancelled')),
+        priority INTEGER NOT NULL DEFAULT 5
+          CHECK (priority >= 1 AND priority <= 10),
+        scheduled_for INTEGER,
         created_at INTEGER NOT NULL,
-        completed_at INTEGER
+        started_at INTEGER,
+        completed_at INTEGER,
+        progress_pct INTEGER DEFAULT 0,
+        result_summary TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3
       )
     `);
 
-    this.db.exec("CREATE INDEX IF NOT EXISTS idx_action_items_status ON action_items(status)");
-    this.db.exec("CREATE INDEX IF NOT EXISTS idx_action_items_channel ON action_items(channel_id)");
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_work_items_status ON work_items(status)");
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_work_items_session ON work_items(session_key)");
+    this.db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_work_items_scheduled ON work_items(status, scheduled_for)",
+    );
+    this.db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_work_items_priority ON work_items(status, priority DESC)",
+    );
+
+    // Drop orphaned action_items table if it exists from a previous schema
+    this.db.exec("DROP TABLE IF EXISTS action_items");
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS person_context (
@@ -221,8 +240,10 @@ export class SharedMemoryBackend {
     const values: (string | number)[] = [];
 
     if (params.sessionKey) {
-      conditions.push("session_key = ?");
-      values.push(params.sessionKey);
+      conditions.push(
+        "(session_key = ? OR channel_id = (SELECT channel_id FROM channel_memory WHERE session_key = ? LIMIT 1))",
+      );
+      values.push(params.sessionKey, params.sessionKey);
     }
 
     if (params.channelId) {
@@ -519,13 +540,201 @@ export class SharedMemoryBackend {
     this.db!.prepare("DELETE FROM session_state WHERE session_key = ?").run(sessionKey);
   }
 
+  // ── Work Item CRUD ──
+
+  /**
+   * Save a work item
+   */
+  async saveWorkItem(item: Omit<WorkItem, "id">): Promise<number> {
+    this.ensureInitialized();
+
+    const result = this.db!.prepare(`
+      INSERT INTO work_items (
+        session_key, channel_id, description, payload, status, priority,
+        scheduled_for, created_at, started_at, completed_at,
+        progress_pct, result_summary, attempts, max_attempts
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      item.sessionKey,
+      item.channelId,
+      item.description,
+      JSON.stringify(item.payload),
+      item.status,
+      item.priority,
+      item.scheduledFor ?? null,
+      item.createdAt,
+      item.startedAt ?? null,
+      item.completedAt ?? null,
+      item.progressPct ?? 0,
+      item.resultSummary ?? null,
+      item.attempts,
+      item.maxAttempts,
+    );
+
+    return Number(result.lastInsertRowid);
+  }
+
+  /**
+   * Get work items filtered by status and/or session
+   */
+  async getWorkItems(options: {
+    sessionKey?: string;
+    channelId?: string;
+    statuses?: WorkItem["status"][];
+    limit?: number;
+  }): Promise<WorkItem[]> {
+    this.ensureInitialized();
+
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (options.sessionKey) {
+      conditions.push("session_key = ?");
+      params.push(options.sessionKey);
+    }
+    if (options.channelId) {
+      conditions.push("channel_id = ?");
+      params.push(options.channelId);
+    }
+    if (options.statuses && options.statuses.length > 0) {
+      const placeholders = options.statuses.map(() => "?").join(", ");
+      conditions.push(`status IN (${placeholders})`);
+      params.push(...options.statuses);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const limit = options.limit ?? 20;
+    params.push(limit);
+
+    const rows = this.db!.prepare(
+      `SELECT * FROM work_items ${where} ORDER BY priority DESC, created_at ASC LIMIT ?`,
+    ).all(...params) as Record<string, unknown>[];
+
+    return rows.map((row) => this.rowToWorkItem(row));
+  }
+
+  /**
+   * Atomically claim work items that are ready to execute.
+   *
+   * Uses BEGIN IMMEDIATE transaction to prevent TOCTOU race conditions —
+   * if two tick() calls overlap, the second one's transaction blocks until
+   * the first commits, then sees the updated status.
+   */
+  async claimReadyWork(limit: number = 1): Promise<WorkItem[]> {
+    this.ensureInitialized();
+    const now = Date.now();
+
+    this.db!.exec("BEGIN IMMEDIATE");
+    try {
+      const rows = this.db!.prepare(`
+        SELECT * FROM work_items
+        WHERE (status = 'ready')
+           OR (status = 'scheduled' AND scheduled_for IS NOT NULL AND scheduled_for <= ?)
+        ORDER BY priority DESC, created_at ASC
+        LIMIT ?
+      `).all(now, limit) as Record<string, unknown>[];
+
+      for (const row of rows) {
+        this.db!.prepare(
+          "UPDATE work_items SET status = 'executing', started_at = ? WHERE id = ?",
+        ).run(now, row.id as number);
+      }
+
+      this.db!.exec("COMMIT");
+      return rows.map((row) => ({
+        ...this.rowToWorkItem(row),
+        status: "executing" as const,
+        startedAt: now,
+      }));
+    } catch (err) {
+      this.db!.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  /**
+   * Transition a work item to a new status
+   */
+  async transitionWork(
+    id: number,
+    status: WorkItem["status"],
+    update?: Partial<Pick<WorkItem, "progressPct" | "resultSummary" | "attempts">>,
+  ): Promise<void> {
+    this.ensureInitialized();
+
+    const sets = ["status = ?"];
+    const params: (string | number)[] = [status];
+
+    if (status === "executing") {
+      sets.push("started_at = ?");
+      params.push(Date.now());
+    }
+    if (status === "completed" || status === "failed") {
+      sets.push("completed_at = ?");
+      params.push(Date.now());
+    }
+    if (update?.progressPct !== undefined) {
+      sets.push("progress_pct = ?");
+      params.push(update.progressPct);
+    }
+    if (update?.resultSummary !== undefined) {
+      sets.push("result_summary = ?");
+      params.push(update.resultSummary);
+    }
+    if (update?.attempts !== undefined) {
+      sets.push("attempts = ?");
+      params.push(update.attempts);
+    }
+
+    params.push(id);
+    this.db!.prepare(`UPDATE work_items SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+  }
+
+  /**
+   * Cancel a work item (only if not already executing or completed)
+   */
+  async cancelWork(id: number): Promise<boolean> {
+    this.ensureInitialized();
+
+    const result = this.db!.prepare(`
+      UPDATE work_items SET status = 'cancelled', completed_at = ?
+      WHERE id = ? AND status IN ('scheduled', 'ready')
+    `).run(Date.now(), id);
+
+    return Number(result.changes) > 0;
+  }
+
+  /**
+   * Convert a database row to a WorkItem
+   */
+  private rowToWorkItem(row: Record<string, unknown>): WorkItem {
+    return {
+      id: row.id as number,
+      sessionKey: row.session_key as string,
+      channelId: row.channel_id as string,
+      description: row.description as string,
+      payload: JSON.parse((row.payload as string) || "{}"),
+      status: row.status as WorkItem["status"],
+      priority: row.priority as number,
+      scheduledFor: row.scheduled_for as number | undefined,
+      createdAt: row.created_at as number,
+      startedAt: row.started_at as number | undefined,
+      completedAt: row.completed_at as number | undefined,
+      progressPct: row.progress_pct as number | undefined,
+      resultSummary: row.result_summary as string | undefined,
+      attempts: row.attempts as number,
+      maxAttempts: row.max_attempts as number,
+    };
+  }
+
   /**
    * Get statistics
    */
   async getStats(): Promise<{
     channelMemoryCount: number;
     globalKnowledgeCount: number;
-    actionItemsOpen: number;
+    workItemsActive: number;
     personCount: number;
   }> {
     this.ensureInitialized();
@@ -536,8 +745,8 @@ export class SharedMemoryBackend {
     const globalCount = this.db!.prepare("SELECT COUNT(*) as c FROM global_knowledge").get() as {
       c: number;
     };
-    const actionsCount = this.db!.prepare(
-      "SELECT COUNT(*) as c FROM action_items WHERE status = 'open'",
+    const workCount = this.db!.prepare(
+      "SELECT COUNT(*) as c FROM work_items WHERE status IN ('scheduled', 'ready', 'executing')",
     ).get() as { c: number };
     const personCount = this.db!.prepare("SELECT COUNT(*) as c FROM person_context").get() as {
       c: number;
@@ -546,7 +755,7 @@ export class SharedMemoryBackend {
     return {
       channelMemoryCount: channelCount.c,
       globalKnowledgeCount: globalCount.c,
-      actionItemsOpen: actionsCount.c,
+      workItemsActive: workCount.c,
       personCount: personCount.c,
     };
   }

@@ -46,6 +46,12 @@ describe("ParallelSessionsConfigSchema", () => {
         preferences: true,
         actionItems: false,
       },
+      workExecutor: {
+        enabled: true,
+        pollIntervalMs: 2000,
+        maxConcurrent: 3,
+        executionTimeoutMs: 60000,
+      },
     };
 
     const result = ParallelSessionsConfigSchema.parse(input);
@@ -56,6 +62,9 @@ describe("ParallelSessionsConfigSchema", () => {
     expect(result.memory.autoPromoteThreshold).toBe(6);
     expect(result.briefing.enabled).toBe(false);
     expect(result.autoSave.summaries).toBe(false);
+    expect(result.workExecutor.enabled).toBe(true);
+    expect(result.workExecutor.pollIntervalMs).toBe(2000);
+    expect(result.workExecutor.maxConcurrent).toBe(3);
   });
 
   it("rejects maxConcurrent above 50", () => {
@@ -91,5 +100,48 @@ describe("ParallelSessionsConfigSchema", () => {
   it("default paths reference ~/.openclaw, not ~/.clawdbot", () => {
     // The dbPath comment / docs should not reference the old product name
     expect(DEFAULT_PARALLEL_SESSIONS_CONFIG.memory.dbPath).toBeUndefined();
+  });
+
+  // ── Work Executor Config ──
+
+  it("workExecutor defaults applied", () => {
+    const result = ParallelSessionsConfigSchema.parse({});
+    expect(result.workExecutor.enabled).toBe(false);
+    expect(result.workExecutor.pollIntervalMs).toBe(5000);
+    expect(result.workExecutor.maxConcurrent).toBe(1);
+    expect(result.workExecutor.executionTimeoutMs).toBe(300000);
+  });
+
+  it("workExecutor custom config parsed", () => {
+    const result = ParallelSessionsConfigSchema.parse({
+      workExecutor: {
+        enabled: true,
+        pollIntervalMs: 10000,
+        maxConcurrent: 5,
+        executionTimeoutMs: 600000,
+      },
+    });
+    expect(result.workExecutor.enabled).toBe(true);
+    expect(result.workExecutor.pollIntervalMs).toBe(10000);
+    expect(result.workExecutor.maxConcurrent).toBe(5);
+    expect(result.workExecutor.executionTimeoutMs).toBe(600000);
+  });
+
+  it("workExecutor rejects pollIntervalMs below 1000", () => {
+    expect(() =>
+      ParallelSessionsConfigSchema.parse({ workExecutor: { pollIntervalMs: 500 } }),
+    ).toThrow();
+  });
+
+  it("workExecutor rejects maxConcurrent above 10", () => {
+    expect(() =>
+      ParallelSessionsConfigSchema.parse({ workExecutor: { maxConcurrent: 11 } }),
+    ).toThrow();
+  });
+
+  it("DEFAULT_PARALLEL_SESSIONS_CONFIG includes workExecutor", () => {
+    expect(DEFAULT_PARALLEL_SESSIONS_CONFIG.workExecutor).toBeDefined();
+    expect(DEFAULT_PARALLEL_SESSIONS_CONFIG.workExecutor.enabled).toBe(false);
+    expect(DEFAULT_PARALLEL_SESSIONS_CONFIG.workExecutor.pollIntervalMs).toBe(5000);
   });
 });

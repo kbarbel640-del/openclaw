@@ -4,6 +4,9 @@
  * Manages concurrent agent sessions with shared memory backend.
  * Each channel/chat can have its own isolated session context while
  * sharing a common knowledge base.
+ *
+ * SQLite-first architecture: no in-memory arrays for memories or knowledge.
+ * SQLite is the sole source of truth. Sessions use a bounded LRU cache.
  */
 
 import { EventEmitter } from "node:events";
@@ -45,20 +48,38 @@ export interface GlobalKnowledgeEntry {
   updatedAt: number;
 }
 
-/** Maximum in-memory session memories before eviction */
-const MAX_SESSION_MEMORIES = 500;
-
-/** Maximum in-memory global knowledge before eviction */
-const MAX_GLOBAL_KNOWLEDGE = 100;
+export interface WorkItem {
+  id?: number;
+  sessionKey: string;
+  channelId: string;
+  description: string;
+  /** What the executor should do — structured payload */
+  payload: Record<string, unknown>;
+  status: "scheduled" | "ready" | "executing" | "completed" | "failed" | "cancelled";
+  priority: number; // 1-10
+  /** When to start (epoch ms). null = immediately ready */
+  scheduledFor?: number;
+  createdAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  /** Progress percentage 0-100, updated by executor */
+  progressPct?: number;
+  /** Summary of result or error */
+  resultSummary?: string;
+  /** How many times execution has been attempted */
+  attempts: number;
+  /** Max retry attempts before marking failed */
+  maxAttempts: number;
+}
 
 /**
- * Manages parallel agent sessions with shared memory
+ * Manages parallel agent sessions with shared memory.
+ * SQLite-first: no in-memory arrays for memories or knowledge.
  */
 export class ParallelSessionManager extends EventEmitter {
   private config: ParallelSessionsConfig;
   private sessions: Map<string, SessionState> = new Map();
-  private sessionMemory: SessionMemoryEntry[] = [];
-  private globalKnowledge: GlobalKnowledgeEntry[] = [];
+  // sessionMemory and globalKnowledge arrays REMOVED — SQLite is source of truth
   private idleCheckInterval?: ReturnType<typeof setInterval>;
   private backend: SharedMemoryBackend | null;
 
@@ -151,7 +172,8 @@ export class ParallelSessionManager extends EventEmitter {
   }
 
   /**
-   * Generate context briefing for a session
+   * Generate context briefing for a session.
+   * Queries SQLite directly — no in-memory arrays.
    */
   async generateBriefing(sessionKey: string): Promise<string> {
     const session = this.sessions.get(sessionKey);
@@ -165,31 +187,50 @@ export class ParallelSessionManager extends EventEmitter {
     const minImportance = this.config.briefing.minImportance;
     const minConfidence = this.config.briefing.minConfidence;
 
-    // Get channel-specific memories
-    const channelMemories = this.sessionMemory
-      .filter((m) => m.sessionKey === sessionKey || m.channelId === session.channelId)
-      .filter((m) => !m.expiresAt || m.expiresAt > Date.now())
-      .filter((m) => m.importance >= minImportance)
-      .toSorted((a, b) => b.importance - a.importance)
-      .slice(0, maxChannel);
+    // Query channel memories from SQLite instead of in-memory array
+    if (this.backend) {
+      const channelMemories = await this.backend.getChannelMemories({
+        channelId: session.channelId,
+        minImportance,
+        excludeExpired: true,
+        limit: maxChannel,
+      });
 
-    if (channelMemories.length > 0) {
-      lines.push("## Channel Context");
-      for (const mem of channelMemories) {
-        lines.push(`- [${mem.memoryType}] ${mem.content}`);
+      if (channelMemories.length > 0) {
+        lines.push("## Channel Context");
+        for (const mem of channelMemories) {
+          lines.push(`- [${mem.memoryType}] ${mem.content}`);
+        }
       }
-    }
 
-    // Get relevant global knowledge
-    const globalEntries = this.globalKnowledge
-      .filter((g) => g.confidence >= minConfidence)
-      .toSorted((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, maxGlobal);
+      const globalEntries = await this.backend.getGlobalKnowledge({
+        minConfidence,
+        limit: maxGlobal,
+      });
 
-    if (globalEntries.length > 0) {
-      lines.push("\n## Global Knowledge");
-      for (const entry of globalEntries) {
-        lines.push(`- [${entry.category}] ${entry.content}`);
+      if (globalEntries.length > 0) {
+        lines.push("\n## Global Knowledge");
+        for (const entry of globalEntries) {
+          lines.push(`- [${entry.category}] ${entry.content}`);
+        }
+      }
+
+      // Include active work items in briefing
+      const activeWork = await this.backend.getWorkItems({
+        sessionKey,
+        statuses: ["scheduled", "ready", "executing"],
+        limit: 5,
+      });
+
+      if (activeWork.length > 0) {
+        lines.push("\n## Active Work");
+        for (const item of activeWork) {
+          const status =
+            item.status === "executing"
+              ? `RUNNING (${item.progressPct ?? 0}%)`
+              : item.status.toUpperCase();
+          lines.push(`- [${status}] ${item.description}`);
+        }
       }
     }
 
@@ -197,7 +238,8 @@ export class ParallelSessionManager extends EventEmitter {
   }
 
   /**
-   * Save memory entry for a session
+   * Save memory entry for a session.
+   * Persists directly to SQLite — no in-memory copy.
    */
   async saveMemory(
     entry: Omit<SessionMemoryEntry, "id" | "createdAt" | "promotedToGlobal">,
@@ -208,14 +250,12 @@ export class ParallelSessionManager extends EventEmitter {
       promotedToGlobal: false,
     };
 
-    this.sessionMemory.push(memoryEntry);
-    this.evictIfNeeded();
-    this.emit("memory:saved", memoryEntry);
-
-    // Persist to backend if available
+    // Persist directly to SQLite — no in-memory copy
     if (this.backend) {
       await this.backend.saveChannelMemory(memoryEntry);
     }
+
+    this.emit("memory:saved", memoryEntry);
 
     // Auto-promote high-importance entries to global knowledge
     if (entry.importance >= this.config.memory.autoPromoteThreshold) {
@@ -224,7 +264,8 @@ export class ParallelSessionManager extends EventEmitter {
   }
 
   /**
-   * Promote a memory entry to global knowledge
+   * Promote a memory entry to global knowledge.
+   * Persists directly to SQLite — no in-memory copy.
    */
   async promoteToGlobal(entry: SessionMemoryEntry): Promise<void> {
     const globalEntry: GlobalKnowledgeEntry = {
@@ -237,19 +278,18 @@ export class ParallelSessionManager extends EventEmitter {
       updatedAt: Date.now(),
     };
 
-    this.globalKnowledge.push(globalEntry);
-    this.evictGlobalIfNeeded();
-    entry.promotedToGlobal = true;
-    this.emit("knowledge:promoted", globalEntry);
-
-    // Persist to backend if available
+    // Persist directly to SQLite — no in-memory copy
     if (this.backend) {
       await this.backend.saveGlobalKnowledge(globalEntry);
     }
+
+    entry.promotedToGlobal = true;
+    this.emit("knowledge:promoted", globalEntry);
   }
 
   /**
-   * Search across all memories
+   * Search across all memories.
+   * Delegates to SQLite backend with type guard filter.
    */
   async searchMemory(
     query: string,
@@ -260,27 +300,19 @@ export class ParallelSessionManager extends EventEmitter {
       limit?: number;
     },
   ): Promise<SessionMemoryEntry[]> {
-    const lowerQuery = query.toLowerCase();
-    const limit = options?.limit ?? 10;
+    if (!this.backend) {
+      return [];
+    }
 
-    return this.sessionMemory
-      .filter((m) => {
-        if (options?.sessionKey && m.sessionKey !== options.sessionKey) {
-          return false;
-        }
-        if (options?.channelId && m.channelId !== options.channelId) {
-          return false;
-        }
-        if (options?.types && !options.types.includes(m.memoryType)) {
-          return false;
-        }
-        if (m.expiresAt && m.expiresAt < Date.now()) {
-          return false;
-        }
-        return m.content.toLowerCase().includes(lowerQuery);
-      })
-      .toSorted((a, b) => b.importance - a.importance)
-      .slice(0, limit);
+    const results = await this.backend.searchMemories(query, {
+      scope: options?.channelId ? "channel" : "all",
+      channelId: options?.channelId,
+      limit: options?.limit ?? 10,
+    });
+
+    // Filter to SessionMemoryEntry only (they have sessionKey field)
+    // This preserves the original API contract — callers expect SessionMemoryEntry[]
+    return results.filter((r): r is SessionMemoryEntry => "sessionKey" in r);
   }
 
   /**
@@ -333,23 +365,120 @@ export class ParallelSessionManager extends EventEmitter {
   }
 
   /**
-   * Get session statistics
+   * Get session statistics.
+   * Async — queries SQLite for memory/work counts.
    */
-  getStats(): {
+  async getStats(): Promise<{
     totalSessions: number;
     activeSessions: number;
     hibernatedSessions: number;
     totalMemories: number;
     globalKnowledgeCount: number;
-  } {
+    activeWorkItems: number;
+  }> {
     const sessions = Array.from(this.sessions.values());
+    const backendStats = this.backend ? await this.backend.getStats() : null;
+
     return {
       totalSessions: sessions.length,
       activeSessions: sessions.filter((s) => s.status === "active").length,
       hibernatedSessions: sessions.filter((s) => s.status === "hibernated").length,
-      totalMemories: this.sessionMemory.length,
-      globalKnowledgeCount: this.globalKnowledge.length,
+      totalMemories: backendStats?.channelMemoryCount ?? 0,
+      globalKnowledgeCount: backendStats?.globalKnowledgeCount ?? 0,
+      activeWorkItems: backendStats?.workItemsActive ?? 0,
     };
+  }
+
+  // ── Work Management API ──
+
+  /**
+   * Schedule a work item for background execution
+   */
+  async scheduleWork(params: {
+    sessionKey: string;
+    channelId: string;
+    description: string;
+    payload: Record<string, unknown>;
+    priority?: number;
+    scheduledFor?: number;
+    maxAttempts?: number;
+  }): Promise<number> {
+    if (!this.backend) {
+      throw new Error("Backend required for work scheduling");
+    }
+
+    const status: WorkItem["status"] = params.scheduledFor ? "scheduled" : "ready";
+    const id = await this.backend.saveWorkItem({
+      sessionKey: params.sessionKey,
+      channelId: params.channelId,
+      description: params.description,
+      payload: params.payload,
+      status,
+      priority: params.priority ?? 5,
+      scheduledFor: params.scheduledFor,
+      createdAt: Date.now(),
+      attempts: 0,
+      maxAttempts: params.maxAttempts ?? 3,
+    });
+
+    this.emit("work:scheduled", { id, ...params });
+    return id;
+  }
+
+  /**
+   * Cancel a scheduled or ready work item
+   */
+  async cancelWork(workId: number): Promise<boolean> {
+    if (!this.backend) {
+      return false;
+    }
+
+    const cancelled = await this.backend.cancelWork(workId);
+    if (cancelled) {
+      this.emit("work:cancelled", { id: workId });
+    }
+    return cancelled;
+  }
+
+  /**
+   * Get work items for a session (for status reporting)
+   */
+  async getWork(sessionKey: string, statuses?: WorkItem["status"][]): Promise<WorkItem[]> {
+    if (!this.backend) {
+      return [];
+    }
+
+    return this.backend.getWorkItems({
+      sessionKey,
+      statuses,
+    });
+  }
+
+  /**
+   * Atomically claim work items ready to execute (delegates to backend.claimReadyWork)
+   */
+  async claimReadyWork(limit: number = 1): Promise<WorkItem[]> {
+    if (!this.backend) {
+      return [];
+    }
+
+    return this.backend.claimReadyWork(limit);
+  }
+
+  /**
+   * Transition a work item status (used by executor)
+   */
+  async transitionWork(
+    id: number,
+    status: WorkItem["status"],
+    update?: Partial<Pick<WorkItem, "progressPct" | "resultSummary" | "attempts">>,
+  ): Promise<void> {
+    if (!this.backend) {
+      return;
+    }
+
+    await this.backend.transitionWork(id, status, update);
+    this.emit("work:transitioned", { id, status, ...update });
   }
 
   /**
@@ -387,27 +516,7 @@ export class ParallelSessionManager extends EventEmitter {
     }, 60_000); // Check every minute
   }
 
-  /**
-   * Evict lowest-importance session memories when array exceeds limit
-   */
-  private evictIfNeeded(): void {
-    if (this.sessionMemory.length > MAX_SESSION_MEMORIES) {
-      // Sort by importance ascending (lowest first) then by age (oldest first)
-      this.sessionMemory.sort((a, b) => a.importance - b.importance || a.createdAt - b.createdAt);
-      // Remove the excess from the front (lowest importance / oldest)
-      this.sessionMemory.splice(0, this.sessionMemory.length - MAX_SESSION_MEMORIES);
-    }
-  }
-
-  /**
-   * Evict lowest-confidence global knowledge when array exceeds limit
-   */
-  private evictGlobalIfNeeded(): void {
-    if (this.globalKnowledge.length > MAX_GLOBAL_KNOWLEDGE) {
-      this.globalKnowledge.sort((a, b) => a.confidence - b.confidence || a.updatedAt - b.updatedAt);
-      this.globalKnowledge.splice(0, this.globalKnowledge.length - MAX_GLOBAL_KNOWLEDGE);
-    }
-  }
+  // evictIfNeeded() and evictGlobalIfNeeded() REMOVED — SQLite handles all storage
 
   /**
    * Cleanup and shutdown

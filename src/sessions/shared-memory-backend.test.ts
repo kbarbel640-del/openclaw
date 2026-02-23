@@ -101,8 +101,13 @@ describe("SharedMemoryBackend", () => {
     expect(calls.some((s: string) => s.includes("channel_memory"))).toBe(true);
     expect(calls.some((s: string) => s.includes("global_knowledge"))).toBe(true);
     expect(calls.some((s: string) => s.includes("session_state"))).toBe(true);
-    expect(calls.some((s: string) => s.includes("action_items"))).toBe(true);
+    expect(calls.some((s: string) => s.includes("work_items"))).toBe(true);
     expect(calls.some((s: string) => s.includes("person_context"))).toBe(true);
+  });
+
+  it("drops orphaned action_items table on initialize", async () => {
+    const calls = mockDb.exec.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(calls.some((s: string) => s.includes("DROP TABLE IF EXISTS action_items"))).toBe(true);
   });
 
   it("enables WAL mode by default", async () => {
@@ -117,14 +122,15 @@ describe("SharedMemoryBackend", () => {
     expect(mockDb.exec.mock.calls.length).toBe(callCount);
   });
 
-  it("saveChannelMemory calls prepare/run and returns id", async () => {
+  it("saveChannelMemory calls prepare/run with correct params", async () => {
+    const now = Date.now();
     const entry: Omit<SessionMemoryEntry, "id"> = {
       sessionKey: "agent:main:parallel:discord",
       channelId: "discord",
       memoryType: "fact",
       content: "user likes TypeScript",
       importance: 7,
-      createdAt: Date.now(),
+      createdAt: now,
       promotedToGlobal: false,
     };
     const id = await backend.saveChannelMemory(entry);
@@ -133,6 +139,15 @@ describe("SharedMemoryBackend", () => {
     expect(mockDb.prepare).toHaveBeenCalledWith(
       expect.stringContaining("INSERT INTO channel_memory"),
     );
+    // Verify the run() call received the actual field values
+    const prepareCalls = mockDb.prepare.mock.results;
+    const lastStmt = prepareCalls[prepareCalls.length - 1].value;
+    const runArgs = lastStmt.run.mock.calls[0];
+    expect(runArgs).toContain("agent:main:parallel:discord");
+    expect(runArgs).toContain("discord");
+    expect(runArgs).toContain("fact");
+    expect(runArgs).toContain("user likes TypeScript");
+    expect(runArgs).toContain(7);
   });
 
   it("getChannelMemories calls prepare/all", async () => {
@@ -212,7 +227,7 @@ describe("SharedMemoryBackend", () => {
     expect(stats).toEqual({
       channelMemoryCount: 0,
       globalKnowledgeCount: 0,
-      actionItemsOpen: 0,
+      workItemsActive: 0,
       personCount: 0,
     });
   });
@@ -244,5 +259,128 @@ describe("SharedMemoryBackend", () => {
         promotedToGlobal: false,
       }),
     ).rejects.toThrow("not initialized");
+  });
+
+  // ── Work Item CRUD ──
+
+  describe("saveWorkItem", () => {
+    it("inserts and returns id", async () => {
+      const id = await backend.saveWorkItem({
+        sessionKey: "agent:main:parallel:discord",
+        channelId: "discord",
+        description: "Research competitors",
+        payload: { url: "https://example.com" },
+        status: "ready",
+        priority: 7,
+        createdAt: Date.now(),
+        attempts: 0,
+        maxAttempts: 3,
+      });
+      expect(typeof id).toBe("number");
+      expect(id).toBeGreaterThan(0);
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        expect.stringContaining("INSERT INTO work_items"),
+      );
+    });
+
+    it("serializes payload as JSON in run() params", async () => {
+      const payload = { key: "value", nested: { a: 1 } };
+      await backend.saveWorkItem({
+        sessionKey: "s",
+        channelId: "c",
+        description: "d",
+        payload,
+        status: "ready",
+        priority: 5,
+        createdAt: Date.now(),
+        attempts: 0,
+        maxAttempts: 3,
+      });
+      // Verify the run() params contain the JSON-serialized payload
+      const prepareCalls = mockDb.prepare.mock.results;
+      const lastStmt = prepareCalls[prepareCalls.length - 1].value;
+      const runArgs = lastStmt.run.mock.calls[0];
+      expect(runArgs).toContain(JSON.stringify(payload));
+    });
+  });
+
+  describe("getWorkItems", () => {
+    it("filters by sessionKey", async () => {
+      await backend.getWorkItems({ sessionKey: "agent:main:parallel:discord" });
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        expect.stringContaining("SELECT * FROM work_items"),
+      );
+    });
+
+    it("filters by statuses", async () => {
+      await backend.getWorkItems({ statuses: ["ready", "executing"] });
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        expect.stringContaining("SELECT * FROM work_items"),
+      );
+    });
+  });
+
+  describe("claimReadyWork", () => {
+    it("uses BEGIN IMMEDIATE transaction", async () => {
+      await backend.claimReadyWork(1);
+      expect(mockDb.exec).toHaveBeenCalledWith("BEGIN IMMEDIATE");
+      expect(mockDb.exec).toHaveBeenCalledWith("COMMIT");
+    });
+
+    it("rolls back on error", async () => {
+      // Make the SELECT throw
+      mockDb.prepare.mockImplementationOnce(() => {
+        throw new Error("SQL error");
+      });
+      await expect(backend.claimReadyWork(1)).rejects.toThrow("SQL error");
+      expect(mockDb.exec).toHaveBeenCalledWith("ROLLBACK");
+    });
+  });
+
+  describe("transitionWork", () => {
+    it("updates status", async () => {
+      await backend.transitionWork(1, "completed", { resultSummary: "Done" });
+      expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining("UPDATE work_items SET"));
+    });
+
+    it("sets started_at on executing", async () => {
+      await backend.transitionWork(1, "executing");
+      const prepareCalls = mockDb.prepare.mock.calls.map((c: unknown[]) => String(c[0]));
+      const updateCall = prepareCalls.find((s: string) => s.includes("UPDATE work_items"));
+      expect(updateCall).toContain("started_at");
+    });
+
+    it("sets completed_at on completed", async () => {
+      await backend.transitionWork(1, "completed");
+      const prepareCalls = mockDb.prepare.mock.calls.map((c: unknown[]) => String(c[0]));
+      const updateCall = prepareCalls.find((s: string) => s.includes("UPDATE work_items"));
+      expect(updateCall).toContain("completed_at");
+    });
+
+    it("sets completed_at on failed", async () => {
+      await backend.transitionWork(1, "failed", { resultSummary: "Error" });
+      const prepareCalls = mockDb.prepare.mock.calls.map((c: unknown[]) => String(c[0]));
+      const updateCall = prepareCalls.find((s: string) => s.includes("UPDATE work_items"));
+      expect(updateCall).toContain("completed_at");
+    });
+
+    it("updates progressPct", async () => {
+      await backend.transitionWork(1, "executing", { progressPct: 50 });
+      const prepareCalls = mockDb.prepare.mock.calls.map((c: unknown[]) => String(c[0]));
+      const updateCall = prepareCalls.find((s: string) => s.includes("UPDATE work_items"));
+      expect(updateCall).toContain("progress_pct");
+    });
+  });
+
+  describe("cancelWork", () => {
+    it("calls UPDATE with correct status filter and guards", async () => {
+      await backend.cancelWork(42);
+      const prepareCalls = mockDb.prepare.mock.calls.map((c: unknown[]) => String(c[0]));
+      const cancelQuery = prepareCalls.find((s: string) => s.includes("status = 'cancelled'"));
+      expect(cancelQuery).toBeDefined();
+      // Must only cancel items that are still scheduled or ready (not executing/completed)
+      expect(cancelQuery).toContain("scheduled");
+      expect(cancelQuery).toContain("ready");
+    });
   });
 });

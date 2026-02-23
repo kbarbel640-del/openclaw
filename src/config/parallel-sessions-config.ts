@@ -160,6 +160,30 @@ export const ParallelSessionsConfigSchema = z.object({
       preferences: true,
       actionItems: true,
     }),
+
+  /**
+   * Background work executor configuration
+   */
+  workExecutor: z
+    .object({
+      /** Enable the background work executor */
+      enabled: z.boolean().default(false),
+
+      /** Poll interval for ready work items (ms) */
+      pollIntervalMs: z.number().int().min(1000).max(60000).default(5000),
+
+      /** Max concurrent work items executing */
+      maxConcurrent: z.number().int().min(1).max(10).default(1),
+
+      /** Max execution time per work item (ms) */
+      executionTimeoutMs: z.number().int().min(10000).max(3600000).default(300000),
+    })
+    .default({
+      enabled: false,
+      pollIntervalMs: 5000,
+      maxConcurrent: 1,
+      executionTimeoutMs: 300000,
+    }),
 });
 
 export type ParallelSessionsConfig = z.infer<typeof ParallelSessionsConfigSchema>;
@@ -190,6 +214,12 @@ export const DEFAULT_PARALLEL_SESSIONS_CONFIG: ParallelSessionsConfig = {
     decisions: true,
     preferences: true,
     actionItems: true,
+  },
+  workExecutor: {
+    enabled: false,
+    pollIntervalMs: 5000,
+    maxConcurrent: 1,
+    executionTimeoutMs: 300000,
   },
 };
 
@@ -240,4 +270,11 @@ agent:
       decisions: true
       preferences: true
       actionItems: true
+
+    # Background work executor
+    workExecutor:
+      enabled: true
+      pollIntervalMs: 5000
+      maxConcurrent: 1
+      executionTimeoutMs: 300000
 `;
