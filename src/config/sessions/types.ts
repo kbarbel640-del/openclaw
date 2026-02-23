@@ -119,7 +119,11 @@ export function mergeSessionEntry(
   patch: Partial<SessionEntry>,
 ): SessionEntry {
   const sessionId = patch.sessionId ?? existing?.sessionId ?? crypto.randomUUID();
-  const updatedAt = Math.max(existing?.updatedAt ?? 0, patch.updatedAt ?? 0, Date.now());
+  // When the caller explicitly provides updatedAt (e.g. preserving an existing
+  // timestamp for route-only updates), respect it.  Only fall back to Date.now()
+  // when neither the patch nor the existing entry supplies a value.
+  const updatedAt =
+    patch.updatedAt != null ? patch.updatedAt : Math.max(existing?.updatedAt ?? 0, Date.now());
   if (!existing) {
     return { ...patch, sessionId, updatedAt };
   }
