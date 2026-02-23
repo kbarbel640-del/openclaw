@@ -410,6 +410,24 @@ function createOpenRouterWrapper(
 }
 
 /**
+ * Sarvam AI uses api-subscription-key header instead of Authorization: Bearer.
+ * Wrap the streamFn to send the key in that header and omit apiKey so the client
+ * does not add Bearer.
+ */
+function createSarvamHeadersWrapper(baseStreamFn: StreamFn | undefined): StreamFn {
+  const underlying = baseStreamFn ?? streamSimple;
+  return (model, context, options) =>
+    underlying(model, context, {
+      ...options,
+      apiKey: undefined,
+      headers: {
+        ...options?.headers,
+        "api-subscription-key": typeof options?.apiKey === "string" ? options.apiKey : "",
+      },
+    });
+}
+
+/**
  * Create a streamFn wrapper that injects tool_stream=true for Z.AI providers.
  *
  * Z.AI's API supports the `tool_stream` parameter to enable real-time streaming
@@ -487,6 +505,11 @@ export function applyExtraParamsToAgent(
     log.debug(`applying OpenRouter app attribution headers for ${provider}/${modelId}`);
     agent.streamFn = createOpenRouterWrapper(agent.streamFn, thinkingLevel);
     agent.streamFn = createOpenRouterSystemCacheWrapper(agent.streamFn);
+  }
+
+  if (provider === "sarvam") {
+    log.debug(`applying Sarvam api-subscription-key header for ${provider}/${modelId}`);
+    agent.streamFn = createSarvamHeadersWrapper(agent.streamFn);
   }
 
   // Enable Z.AI tool_stream for real-time tool call streaming.
