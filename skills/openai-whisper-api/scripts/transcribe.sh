@@ -16,7 +16,7 @@ fi
 in="${1:-}"
 shift || true
 
-model="whisper"
+model="whisper-1"
 out=""
 language=""
 prompt=""
