@@ -71,6 +71,8 @@ export const DEFAULT_APPROVAL_TIMEOUT_MS = 120_000;
 export const DEFAULT_APPROVAL_REQUEST_TIMEOUT_MS = 130_000;
 const DEFAULT_APPROVAL_RUNNING_NOTICE_MS = 10_000;
 const APPROVAL_SLUG_LENGTH = 8;
+const COMMAND_NOT_FOUND_OUTPUT_RE =
+  /\bcommand not found\b|not recognized as (?:an internal or external command|the name of a cmdlet)|CommandNotFoundException/i;
 
 export const execSchema = Type.Object({
   command: Type.String({ description: "Shell command to execute" }),
@@ -483,12 +485,17 @@ export async function runExecProcess(opts: {
       const durationMs = Date.now() - startedAt;
       const isNormalExit = exit.reason === "exit";
       const exitCode = exit.exitCode ?? 0;
+      const aggregated = session.aggregated.trim();
+      const commandNotFoundFromOutput =
+        isNormalExit && exitCode === 1 && COMMAND_NOT_FOUND_OUTPUT_RE.test(aggregated);
       const criticalExitFailureReason =
         isNormalExit && exitCode === 127
           ? "Command not found"
           : isNormalExit && exitCode === 126
             ? "Command not executable"
-            : null;
+            : commandNotFoundFromOutput
+              ? "Command not found"
+              : null;
       const status: "completed" | "failed" =
         isNormalExit && !criticalExitFailureReason ? "completed" : "failed";
 
@@ -497,7 +504,6 @@ export async function runExecProcess(opts: {
       if (!session.child && session.stdin) {
         session.stdin.destroyed = true;
       }
-      const aggregated = session.aggregated.trim();
       if (status === "completed") {
         const exitMsg = exitCode !== 0 ? `\n\n(Command exited with code ${exitCode})` : "";
         return {
