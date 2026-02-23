@@ -341,7 +341,7 @@ jobs:
         run: python -m ruff check skills
 
       - name: Test skill Python scripts
-        run: python -m pytest -q skills/skill-creator/scripts/test_package_skill.py
+        run: python -m pytest -q skills
 
   secrets:
     runs-on: blacksmith-16vcpu-ubuntu-2404
