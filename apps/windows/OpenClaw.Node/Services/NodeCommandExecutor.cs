@@ -404,6 +404,20 @@ namespace OpenClaw.Node.Services
                 var svc = new CameraCaptureService();
                 var (base64, width, height) = await svc.CaptureJpegAsBase64Async(facing.ToLowerInvariant(), maxWidth, quality, delayMs, deviceId);
 
+                if (OperatingSystem.IsWindows() && width <= 1 && height <= 1)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "Camera capture unavailable. Check Windows Settings > Privacy & security > Camera, enable 'Camera access' and 'Let desktop apps access your camera'. If using ffmpeg fallback, ensure ffmpeg is installed and on PATH."
+                        }
+                    };
+                }
+
                 var payload = new
                 {
                     format = "jpg",

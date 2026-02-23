@@ -142,15 +142,22 @@ namespace OpenClaw.Node.Tests
 
             var res = await executor.ExecuteAsync(req);
 
-            Assert.True(res.Ok);
-            Assert.NotNull(res.PayloadJSON);
+            if (res.Ok)
+            {
+                Assert.NotNull(res.PayloadJSON);
 
-            using var doc = JsonDocument.Parse(res.PayloadJSON!);
-            var root = doc.RootElement;
-            Assert.Equal("jpg", root.GetProperty("format").GetString());
-            Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("base64").GetString()));
-            Assert.True(root.GetProperty("width").GetInt32() > 0);
-            Assert.True(root.GetProperty("height").GetInt32() > 0);
+                using var doc = JsonDocument.Parse(res.PayloadJSON!);
+                var root = doc.RootElement;
+                Assert.Equal("jpg", root.GetProperty("format").GetString());
+                Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("base64").GetString()));
+                Assert.True(root.GetProperty("width").GetInt32() > 0);
+                Assert.True(root.GetProperty("height").GetInt32() > 0);
+            }
+            else
+            {
+                Assert.NotNull(res.Error);
+                Assert.Equal(OpenClawNodeErrorCode.Unavailable, res.Error!.Code);
+            }
         }
 
         [Fact]
