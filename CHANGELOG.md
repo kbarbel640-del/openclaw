@@ -2,10 +2,16 @@
 
 Docs: https://docs.openclaw.ai
 
-## 2026.2.16 (Unreleased)
+## 2026.2.23
 
 ### Changes
 
+- **BREAKING — Security/Gateway**: gateway now refuses to start without explicit security configuration. Missing `gateway.auth.mode`, auth credentials, or `gateway.securityConfigured: true` causes a hard startup failure with actionable remediation output. Run `openclaw onboard` or `openclaw configure` to set required fields before upgrading.
+- Security/Gateway: `openclaw onboard` and `openclaw configure` now require completing an auth setup step before finishing; configuring with no authentication is no longer possible through the wizard.
+- Security/Gateway: all gateway endpoints — Control UI HTTP routes, canvas, plugin routes, WebSocket connections, and loopback/localhost requests — now require Bearer token authentication. Previously exempt localhost and IP-based canvas paths have been removed.
+- Security/Gateway: `exemptLoopback` in the rate limiter now defaults to `false`; loopback and localhost clients are no longer exempt from rate limiting.
+- Security/Gateway: removed `allowInsecureAuth` and `dangerouslyDisableDeviceAuth` bypass flags; the Control UI unconditionally requires Bearer token auth.
+- Security/Gateway: add `--strict` flag to `openclaw security audit`; exits non-zero on any violation for use as a CI enforcement gate.
 - Discord: unlock rich interactive agent prompts with Components v2 (buttons, selects, modals, and attachment-backed file blocks) so for native interaction through Discord. Thanks @thewilloftheshadow.
 - Discord: components v2 UI + embeds passthrough + exec approval UX refinements (CV2 containers, button layout, Discord-forwarding skip). Thanks @thewilloftheshadow.
 - Plugins: expose `llm_input` and `llm_output` hook payloads so extensions can observe prompt/input context and model output usage details. (#16724) Thanks @SecondThread.
