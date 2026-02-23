@@ -18,7 +18,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (60 total) (including device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite: 10 passing)
+- ✅ Tests passing (62 total) (including device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite: 10 passing)
 - ✅ Removed `MediaFoundation.Net` NU1701 warning path from build by moving camera stack off framework-only package
 
 ---
@@ -85,6 +85,9 @@ Build a native Windows application that replicates the functionality of the Open
 ## Phase 3: Discovery + IPC
 - **Discovery**: mDNS/zeroconf equivalent for Windows
 - **IPC**: Named Pipes bridge replacing macOS XPC
+  - [x] Named pipe server lifecycle integrated into app start/stop
+  - [x] First IPC method implemented: `ipc.ping` (health/version timestamp response)
+  - [x] Unit tests added for pipe roundtrip + unknown-method handling
 
 ---
 
@@ -120,3 +123,4 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Added automation MVP coverage (`window.list`, `window.focus`, `window.rect`, `input.type`, `input.key`, `input.click`, `input.scroll`, `input.click.relative`) with unit validation + opt-in real gateway `window.list/window.rect` response-shape paths
 - ✅ Added signed device-identity handshake on `connect.challenge` (`device.id/publicKey/signature/signedAt/nonce`) so node role can enter real pairing flow
 - ✅ Added opt-in real gateway `camera.snap` coverage using explicit `deviceId` from `camera.list` when available
+- ✅ Added Named Pipe IPC unit coverage (`ipc.ping` roundtrip + unknown method)

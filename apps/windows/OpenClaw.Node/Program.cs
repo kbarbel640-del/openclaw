@@ -49,11 +49,13 @@ namespace OpenClaw.Node
 
             var executor = new NodeCommandExecutor();
             var core = new CoreMethodService(startedAtUtc);
+            using var ipc = new IpcPipeServerService(version: "dev");
             using var connection = new GatewayConnection(url, token, connectParams);
 
             connection.OnLog += msg => Console.WriteLine(msg);
             connection.OnConnected += () => Console.WriteLine("[INFO] Connected to Gateway.");
             connection.OnDisconnected += () => Console.WriteLine("[INFO] Disconnected from Gateway.");
+            ipc.OnLog += msg => Console.WriteLine(msg);
             connection.OnEventReceived += evt =>
             {
                 if (core.HandleGatewayEvent(evt))
@@ -96,6 +98,7 @@ namespace OpenClaw.Node
 
             try
             {
+                ipc.Start(cts.Token);
                 var runTask = connection.StartAsync(cts.Token);
                 await runTask;
             }
@@ -107,6 +110,7 @@ namespace OpenClaw.Node
             finally
             {
                 connection.Stop();
+                await ipc.StopAsync();
             }
         }
 

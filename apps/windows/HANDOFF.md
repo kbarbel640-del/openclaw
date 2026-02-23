@@ -35,7 +35,9 @@
    - `input.click` (Automation MVP: mouse click at `{ x, y }` with `button=primary|secondary|left|right` + optional `doubleClick`; primary/secondary respect OS swapped-button setting)
    - `input.scroll` (Automation MVP: vertical wheel scroll with `deltaY` and optional coordinate targeting `{ x, y }`)
    - `input.click.relative` (Automation MVP: click at window-relative offsets `{ offsetX, offsetY }` using `handle` or `titleContains`)
-6. Gateway URL/token resolution works from:
+6. Local IPC named-pipe server is running on Windows (`\\.\pipe\openclaw.node.ipc`) with first method:
+   - `ipc.ping`
+7. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
    - env: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`
    - config fallback: `~/.openclaw/openclaw.json`
@@ -50,7 +52,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **60 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **62 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash
@@ -72,4 +74,5 @@ dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token
 2. Run real-gateway end-to-end validation for `camera.snap` on a physical Windows host (front/back selection, deviceId routing, and payload dimensions).
 3. Keep running `RUN_REAL_GATEWAY_INTEGRATION=1 dotnet test --filter "FullyQualifiedName~RealGatewayIntegrationTests" -p:Platform=x64` before major merges (now with signed device-auth handshake on connect; suite currently 10 passing and covers node-connect/status plus screen.list/camera.list/window.list/window.rect response-shape paths, screen.record generic + explicit screenIndex path, and camera.snap generic + explicit deviceId path when available).
 4. On Windows hosts, ensure camera prerequisites are explicit in onboarding/docs: Camera privacy toggles enabled for desktop apps.
-5. If needed later, persist pairing pending cache to disk (currently in-memory only).
+5. Expand IPC beyond `ipc.ping` with authenticated local methods needed by the Windows app shell.
+6. If needed later, persist pairing pending cache to disk (currently in-memory only).
