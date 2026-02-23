@@ -358,6 +358,90 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task RealGateway_ScreenRecordCommand_WithDisplayIndex_ReturnsResponseShape_WhenDisplayAvailable()
+        {
+            if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var cfg = LoadGatewayConfig();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            using var client = new RealGatewayRpcClient();
+
+            await client.ConnectAsOperatorAsync(cfg.Url, cfg.Token, cts.Token);
+            var nodeId = await ResolveFirstConnectedNodeIdAsync(client, cts.Token);
+            if (string.IsNullOrWhiteSpace(nodeId)) return;
+
+            var listInvoke = await client.RequestAsync(
+                "node.invoke",
+                new
+                {
+                    nodeId,
+                    command = "screen.list",
+                    @params = new { },
+                    timeoutMs = 15000,
+                    idempotencyKey = "itest-screen-list-for-record"
+                },
+                cts.Token);
+
+            if (!listInvoke.TryGetProperty("ok", out var listOk) || !listOk.GetBoolean())
+            {
+                return;
+            }
+
+            if (!listInvoke.TryGetProperty("payload", out var listPayload) ||
+                !listPayload.TryGetProperty("displays", out var displays) ||
+                displays.ValueKind != JsonValueKind.Array ||
+                displays.GetArrayLength() == 0)
+            {
+                return;
+            }
+
+            int? screenIndex = null;
+            foreach (var d in displays.EnumerateArray())
+            {
+                if (d.TryGetProperty("index", out var indexEl) && indexEl.ValueKind == JsonValueKind.Number)
+                {
+                    screenIndex = indexEl.GetInt32();
+                    break;
+                }
+            }
+
+            if (!screenIndex.HasValue) return;
+
+            var invoke = await client.RequestAsync(
+                "node.invoke",
+                new
+                {
+                    nodeId,
+                    command = "screen.record",
+                    @params = new { durationMs = 1000, fps = 5, includeAudio = false, screenIndex = screenIndex.Value },
+                    timeoutMs = 25000,
+                    idempotencyKey = "itest-screen-record-display-index"
+                },
+                cts.Token);
+
+            Assert.Equal("res", invoke.GetProperty("type").GetString());
+            Assert.True(invoke.TryGetProperty("ok", out var invokeOk));
+
+            if (invokeOk.GetBoolean())
+            {
+                Assert.True(invoke.TryGetProperty("payload", out var p), JsonSerializer.Serialize(invoke));
+                Assert.Equal("mp4", p.GetProperty("format").GetString());
+                Assert.False(string.IsNullOrWhiteSpace(p.GetProperty("base64").GetString()));
+                Assert.True(p.GetProperty("durationMs").GetInt32() > 0);
+                Assert.True(p.GetProperty("fps").GetInt32() > 0);
+                Assert.True(p.GetProperty("screenIndex").GetInt32() >= 0);
+            }
+            else
+            {
+                Assert.True(invoke.TryGetProperty("error", out var err), JsonSerializer.Serialize(invoke));
+                Assert.True(err.TryGetProperty("code", out _), JsonSerializer.Serialize(invoke));
+            }
+        }
+
+        [Fact]
         public async Task RealGateway_ScreenRecordCommand_ReturnsResponseShape_WhenNodeAvailable()
         {
             if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))

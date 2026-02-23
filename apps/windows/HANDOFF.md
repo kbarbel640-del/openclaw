@@ -42,7 +42,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **45 passing**
+- Current total: **46 passing**
 
 Run:
 ```bash
@@ -62,5 +62,5 @@ dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token
 ## Immediate next steps
 1. Run real-gateway validation of `screen.record` end-to-end from the OpenClaw CLI path and tune source selection/audio defaults as needed.
 2. Run real-gateway end-to-end validation for `camera.snap` on a physical Windows host (front/back selection, deviceId routing, and payload dimensions).
-3. Keep running `RUN_REAL_GATEWAY_INTEGRATION=1 dotnet test --filter "FullyQualifiedName~RealGatewayIntegrationTests" -p:Platform=x64` before major merges (currently covers node-connect outcome path, status response path, screen.list/camera.list/screen.record response-shape paths, and camera.snap shape both generic + explicit deviceId path when available).
+3. Keep running `RUN_REAL_GATEWAY_INTEGRATION=1 dotnet test --filter "FullyQualifiedName~RealGatewayIntegrationTests" -p:Platform=x64` before major merges (currently covers node-connect outcome path, status response path, screen.list/camera.list response-shape paths, screen.record generic + explicit screenIndex path, and camera.snap generic + explicit deviceId path when available).
 4. If needed later, persist pairing pending cache to disk (currently in-memory only).
