@@ -25,22 +25,21 @@ export function base58Decode(encoded: string): Uint8Array {
     }
   }
 
-  // Decode base58 to big integer via repeated multiply-and-add
+  // Decode base58 to big integer via repeated multiply-and-add.
+  // Process every byte on each input character to propagate the 58x
+  // multiplication through all positions, not just those with carry.
   const size = Math.ceil((encoded.length * Math.log(58)) / Math.log(256));
   const bytes = new Uint8Array(size);
 
   for (const ch of encoded) {
-    const carry = alphabetMap.get(ch);
+    let carry = alphabetMap.get(ch);
     if (carry === undefined) {
       throw new Error(`Invalid Base58 character: ${ch}`);
     }
-    let j = size - 1;
-    let acc = carry;
-    while (j >= 0 && (acc > 0 || j >= size - 1)) {
-      acc += 58 * (bytes[j] ?? 0);
-      bytes[j] = acc & 0xff;
-      acc >>= 8;
-      j--;
+    for (let j = size - 1; j >= 0; j--) {
+      carry += 58 * (bytes[j] ?? 0);
+      bytes[j] = carry & 0xff;
+      carry >>>= 8;
     }
   }
 
