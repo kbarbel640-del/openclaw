@@ -48,7 +48,10 @@ import {
 import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.schema.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
-import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
+import {
+  getSpawnToolPolicyFromSessionStore,
+  getSubagentDepthFromSessionStore,
+} from "./subagent-depth.js";
 import {
   applyToolPolicyPipeline,
   buildDefaultToolPolicyPipelineSteps,
@@ -276,6 +279,7 @@ export function createOpenClawCodingTools(options?: {
       ? resolveSubagentToolPolicy(
           options.config,
           getSubagentDepthFromSessionStore(options.sessionKey, { cfg: options.config }),
+          getSpawnToolPolicyFromSessionStore(options.sessionKey, { cfg: options.config }),
         )
       : undefined;
   const allowBackground = isToolAllowedByPolicies("process", [
