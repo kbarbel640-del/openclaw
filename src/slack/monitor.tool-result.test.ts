@@ -6,6 +6,7 @@ import {
   defaultSlackTestConfig,
   getSlackTestState,
   getSlackClient,
+  getSlackSocketClient,
   getSlackHandlerOrThrow,
   resetSlackTestState,
   runSlackMessageOnce,
@@ -152,6 +153,21 @@ describe("monitorSlackProvider tool results", () => {
 
     expect(sendMock).not.toHaveBeenCalled();
     expect(replyMock).not.toHaveBeenCalled();
+  });
+
+  it("fails fast when socket mode disconnects", async () => {
+    const socketClient = getSlackSocketClient();
+    if (!socketClient) {
+      throw new Error("Slack socket client not registered");
+    }
+
+    const { run } = startSlackMonitor(monitorSlackProvider);
+    await vi.waitFor(() => {
+      expect(socketClient.on).toHaveBeenCalledWith("disconnected", expect.any(Function));
+    });
+
+    socketClient.emit("disconnected");
+    await expect(run).rejects.toThrow("slack socket mode disconnected (disconnected)");
   });
 
   it("does not derive responsePrefix from routed agent identity when unset", async () => {

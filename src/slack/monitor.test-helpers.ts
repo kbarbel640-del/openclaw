@@ -6,6 +6,13 @@ type SlackProviderMonitor = (params: {
   appToken: string;
   abortSignal: AbortSignal;
 }) => Promise<unknown>;
+type SlackSocketLifecycleHandler = (...args: unknown[]) => void;
+
+type SlackSocketClient = {
+  on: Mock<(event: string, handler: SlackSocketLifecycleHandler) => unknown>;
+  off: Mock<(event: string, handler: SlackSocketLifecycleHandler) => unknown>;
+  emit: (event: string, ...args: unknown[]) => void;
+};
 
 type SlackTestState = {
   config: Record<string, unknown>;
@@ -57,6 +64,8 @@ export const getSlackHandlers = () =>
   ).__slackHandlers;
 
 export const getSlackClient = () => (globalThis as { __slackClient?: SlackClient }).__slackClient;
+export const getSlackSocketClient = () =>
+  (globalThis as { __slackSocketClient?: SlackSocketClient }).__slackSocketClient;
 
 export const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -146,6 +155,12 @@ export function resetSlackTestState(config: Record<string, unknown> = defaultSla
     created: true,
   });
   getSlackHandlers()?.clear();
+  const socketClient = getSlackSocketClient();
+  socketClient?.on.mockClear();
+  socketClient?.off.mockClear();
+  (
+    globalThis as { __slackSocketClientHandlers?: Map<string, Set<SlackSocketLifecycleHandler>> }
+  ).__slackSocketClientHandlers?.clear();
 }
 
 vi.mock("../config/config.js", async (importOriginal) => {
@@ -190,7 +205,37 @@ vi.mock("../config/sessions.js", () => ({
 
 vi.mock("@slack/bolt", () => {
   const handlers = new Map<string, SlackHandler>();
+  const socketHandlers = new Map<string, Set<SlackSocketLifecycleHandler>>();
   (globalThis as { __slackHandlers?: typeof handlers }).__slackHandlers = handlers;
+  (
+    globalThis as { __slackSocketClientHandlers?: typeof socketHandlers }
+  ).__slackSocketClientHandlers = socketHandlers;
+  const socketClient: SlackSocketClient = {
+    on: vi.fn((event: string, handler: SlackSocketLifecycleHandler) => {
+      const bucket = socketHandlers.get(event) ?? new Set<SlackSocketLifecycleHandler>();
+      bucket.add(handler);
+      socketHandlers.set(event, bucket);
+      return socketClient;
+    }),
+    off: vi.fn((event: string, handler: SlackSocketLifecycleHandler) => {
+      const bucket = socketHandlers.get(event);
+      bucket?.delete(handler);
+      if (bucket && bucket.size === 0) {
+        socketHandlers.delete(event);
+      }
+      return socketClient;
+    }),
+    emit: (event: string, ...args: unknown[]) => {
+      const bucket = socketHandlers.get(event);
+      if (!bucket) {
+        return;
+      }
+      for (const handler of bucket) {
+        handler(...args);
+      }
+    },
+  };
+  (globalThis as { __slackSocketClient?: SlackSocketClient }).__slackSocketClient = socketClient;
   const client = {
     auth: { test: vi.fn().mockResolvedValue({ user_id: "bot-user" }) },
     conversations: {
@@ -217,6 +262,7 @@ vi.mock("@slack/bolt", () => {
   (globalThis as { __slackClient?: typeof client }).__slackClient = client;
   class App {
     client = client;
+    receiver = { client: socketClient };
     event(name: string, handler: SlackHandler) {
       handlers.set(name, handler);
     }
