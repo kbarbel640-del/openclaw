@@ -2,9 +2,9 @@
  * Stability Monitor hook handler
  *
  * Provides real-time session health monitoring through:
- * - Entropy tracking (conversation instability detection)
- * - Loop detection (repetitive tool calls)
- * - Topic fixation tracking (perseveration warnings)
+ * - Session metadata tracking (exchange count + elapsed duration)
+ * - Entropy tracking (conversation instability detection; plugin event required)
+ * - Topic fixation tracking (perseveration warnings; plugin event required)
  *
  * Injects [MEMORY CONTEXT] block before each agent turn.
  */
@@ -32,13 +32,6 @@ interface EntropyConfig {
   historySize: number;
 }
 
-interface LoopDetectionConfig {
-  consecutiveToolThreshold: number;
-  fileRereadThreshold: number;
-  outputRepetitionThreshold: number;
-  historySize: number;
-}
-
 interface TopicTrackingConfig {
   enabled: boolean;
   windowSize: number;
@@ -54,7 +47,6 @@ interface ContextConfig {
 
 interface StabilityMonitorConfig {
   entropy: EntropyConfig;
-  loopDetection: LoopDetectionConfig;
   topicTracking: TopicTrackingConfig;
   context: ContextConfig;
 }
@@ -65,12 +57,6 @@ const DEFAULT_CONFIG: StabilityMonitorConfig = {
     criticalThreshold: 1.0,
     sustainedMinutes: 45,
     historySize: 6,
-  },
-  loopDetection: {
-    consecutiveToolThreshold: 5,
-    fileRereadThreshold: 3,
-    outputRepetitionThreshold: 3,
-    historySize: 20,
   },
   topicTracking: {
     enabled: true,
@@ -100,10 +86,6 @@ function resolveStabilityMonitorConfig(cfg: { hooks?: unknown } | undefined): St
     entropy: {
       ...DEFAULT_CONFIG.entropy,
       ...(hookConfig?.entropy ?? {}),
-    },
-    loopDetection: {
-      ...DEFAULT_CONFIG.loopDetection,
-      ...(hookConfig?.loopDetection ?? {}),
     },
     topicTracking: {
       ...DEFAULT_CONFIG.topicTracking,
@@ -231,125 +213,6 @@ class EntropyMonitor {
 }
 
 // ============================================================================
-// Loop Detector
-// ============================================================================
-
-interface ToolHistoryEntry {
-  toolName: string;
-  hash: number;
-  timestamp: number;
-}
-
-interface LoopResult {
-  loopDetected: boolean;
-  loopType?: string;
-  message?: string;
-}
-
-class LoopDetector {
-  private config: LoopDetectionConfig;
-  private toolHistory: ToolHistoryEntry[] = [];
-  private fileReadCounts = new Map<string, number>();
-
-  constructor(config: Partial<LoopDetectionConfig>) {
-    this.config = { ...DEFAULT_CONFIG.loopDetection, ...config };
-  }
-
-  recordAndCheck(
-    toolName: string,
-    output: string = "",
-    params: Record<string, unknown> = {},
-  ): LoopResult {
-    const hash = this.djb2Hash(output || "");
-
-    this.toolHistory.push({
-      toolName: toolName || "unknown",
-      hash,
-      timestamp: Date.now(),
-    });
-
-    if (this.toolHistory.length > this.config.historySize) {
-      this.toolHistory.shift();
-    }
-
-    // Track file reads
-    const filePath = (params.file_path || params.path || params.filePath) as string | undefined;
-    if (filePath && this.isReadTool(toolName)) {
-      this.fileReadCounts.set(filePath, (this.fileReadCounts.get(filePath) || 0) + 1);
-    }
-
-    // Check for loop patterns
-    const consecutive = this.checkConsecutive();
-    if (consecutive) return consecutive;
-
-    const reread = this.checkFileReread(filePath);
-    if (reread) return reread;
-
-    const repeatedOutput = this.checkOutputRepetition();
-    if (repeatedOutput) return repeatedOutput;
-
-    return { loopDetected: false };
-  }
-
-  reset() {
-    this.toolHistory = [];
-    this.fileReadCounts.clear();
-  }
-
-  private checkConsecutive(): LoopResult | null {
-    const recent = this.toolHistory.slice(-this.config.consecutiveToolThreshold);
-    if (recent.length < this.config.consecutiveToolThreshold) return null;
-
-    const sameTool = recent.every((entry) => entry.toolName === recent[0].toolName);
-    if (!sameTool) return null;
-
-    return {
-      loopDetected: true,
-      loopType: "consecutive_tool",
-      message: `You called '${recent[0].toolName}' ${this.config.consecutiveToolThreshold} times in a row. Step back and reassess.`,
-    };
-  }
-
-  private checkFileReread(filePath: string | undefined): LoopResult | null {
-    if (!filePath) return null;
-    const count = this.fileReadCounts.get(filePath) || 0;
-    if (count < this.config.fileRereadThreshold) return null;
-
-    return {
-      loopDetected: true,
-      loopType: "file_reread",
-      message: `You re-read '${filePath}' ${count} times. Use the info you already extracted.`,
-    };
-  }
-
-  private checkOutputRepetition(): LoopResult | null {
-    const recent = this.toolHistory.slice(-this.config.outputRepetitionThreshold);
-    if (recent.length < this.config.outputRepetitionThreshold) return null;
-
-    const sameHash = recent.every((entry) => entry.hash === recent[0].hash);
-    if (!sameHash || recent[0].hash === 0) return null;
-
-    return {
-      loopDetected: true,
-      loopType: "output_repetition",
-      message: `The last ${this.config.outputRepetitionThreshold} tool calls returned identical output. You may be in a loop.`,
-    };
-  }
-
-  private isReadTool(toolName: string = ""): boolean {
-    return ["read_file", "cat", "head", "tail", "read"].includes(toolName);
-  }
-
-  private djb2Hash(value: string): number {
-    let hash = 5381;
-    for (let i = 0; i < value.length; i++) {
-      hash = ((hash << 5) + hash + value.charCodeAt(i)) & 0xffffffff;
-    }
-    return hash;
-  }
-}
-
-// ============================================================================
 // Topic Tracker
 // ============================================================================
 
@@ -381,11 +244,13 @@ class TopicTracker {
     this.stopWords = new Set([...(this.config.stopWords || []), ...DEFAULT_STOPWORDS]);
   }
 
-  track(text: string) {
-    if (!this.config.enabled || !text) return;
-
+  incrementExchange() {
     this.exchangeIndex += 1;
     this.pruneWindow();
+  }
+
+  track(text: string) {
+    if (!this.config.enabled || !text) return;
 
     const tokens = this.extractTopics(text);
     for (const token of tokens) {
@@ -474,7 +339,7 @@ class TopicTracker {
   }
 
   private pruneWindow() {
-    const minWindow = this.exchangeIndex - this.config.windowSize * 2;
+    const minWindow = this.exchangeIndex - this.config.windowSize;
     for (const [topic, data] of this.topics) {
       if (data.lastSeen < minWindow) {
         this.topics.delete(topic);
@@ -495,41 +360,15 @@ function formatDuration(ms: number): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
-interface Message {
-  role: string;
-  content: string | Array<{ type: string; text?: string }>;
-}
-
-function getLastMessageByRole(messages: Message[], role: string): Message | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === role) return messages[i];
-  }
-  return null;
-}
-
-function extractText(message: Message | null): string {
-  if (!message) return "";
-  if (typeof message.content === "string") return message.content;
-  if (Array.isArray(message.content)) {
-    return message.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text || "")
-      .join("\n");
-  }
-  return "";
-}
-
 // ============================================================================
 // Session State (per-session instances)
 // ============================================================================
 
 interface SessionState {
   entropy: EntropyMonitor;
-  loopDetector: LoopDetector;
   topicTracker: TopicTracker;
   sessionStartTs: number;
   exchangeCount: number;
-  lastLoopWarning: { message: string; timestamp: number } | null;
 }
 
 const sessionStates = new Map<string, SessionState>();
@@ -549,11 +388,9 @@ function getOrCreateSessionState(sessionKey: string, config: StabilityMonitorCon
   if (!state) {
     state = {
       entropy: new EntropyMonitor(config.entropy),
-      loopDetector: new LoopDetector(config.loopDetection),
       topicTracker: new TopicTracker(config.topicTracking),
       sessionStartTs: Date.now(),
       exchangeCount: 0,
-      lastLoopWarning: null,
     };
     sessionStates.set(sessionKey, state);
     enforceSessionStateLimit();
@@ -576,28 +413,15 @@ export const handler: HookHandler = async (event) => {
   const state = getOrCreateSessionState(sessionKey, config);
 
   state.exchangeCount += 1;
+  state.topicTracker.incrementExchange();
 
-  // Extract messages from bootstrap context
-  const messages = (context as unknown as { messages?: Message[] }).messages || [];
-  const userMessage = extractText(getLastMessageByRole(messages, "user"));
-  const assistantMessage = extractText(getLastMessageByRole(messages, "assistant"));
-
-  // Track topics
-  state.topicTracker.track(userMessage);
-  state.topicTracker.track(assistantMessage);
-
-  // Calculate entropy
-  const entropyScore = state.entropy.calculate(userMessage, assistantMessage);
-  state.entropy.updateSustained(entropyScore);
-  const entropyState = state.entropy.getState();
+  // TODO: Full entropy and topic tracking requires plugin hooks with message access.
+  // Note: Loop detection requires plugin hooks (after_tool_call event).
 
   // Build context block
   const lines = ["[MEMORY CONTEXT]"];
   lines.push(
     `Session: ${state.exchangeCount} exchanges | Started: ${formatDuration(Date.now() - state.sessionStartTs)} ago`,
-  );
-  lines.push(
-    `Entropy: ${entropyState.lastScore.toFixed(2)} (${state.entropy.getStatusLabel()}) | Sustained: ${entropyState.sustainedTurns} turns`,
   );
 
   const topicSummary = state.topicTracker.formatSummary(config.context.maxTopics);
@@ -605,11 +429,6 @@ export const handler: HookHandler = async (event) => {
 
   const topicNotes = state.topicTracker.formatNotes(config.context.maxNotes);
   if (topicNotes) lines.push(topicNotes);
-
-  // Add loop warning if recent
-  if (state.lastLoopWarning && Date.now() - state.lastLoopWarning.timestamp < 5 * 60 * 1000) {
-    lines.push(`Loop warning: ${state.lastLoopWarning.message}`);
-  }
 
   const contextBlock = lines.join("\n");
   const stabilityContextFile: WorkspaceBootstrapFile = {
@@ -622,7 +441,7 @@ export const handler: HookHandler = async (event) => {
   // Inject as a bootstrap file that gets prepended to user messages
   context.bootstrapFiles.push(stabilityContextFile);
 
-  log.debug("Injected stability context", { sessionKey, entropy: entropyState.lastScore });
+  log.debug("Injected stability context", { sessionKey, exchangeCount: state.exchangeCount });
 };
 
 export default handler;
