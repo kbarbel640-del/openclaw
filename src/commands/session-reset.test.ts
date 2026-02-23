@@ -58,7 +58,10 @@ describe("sessionResetCommand", () => {
   it("writes JSON output when --json is enabled", async () => {
     resetSession.mockResolvedValueOnce({ ok: true, key: "agent:work:main" });
 
-    await sessionResetCommand({ sessionKey: "agent:work:main", reason: "reset", json: true }, runtime);
+    await sessionResetCommand(
+      { sessionKey: "agent:work:main", reason: "reset", json: true },
+      runtime,
+    );
 
     const payload = runtime.log.mock.calls[0]?.[0];
     const parsed = JSON.parse(String(payload)) as { ok: boolean; key: string; reason: string };

@@ -46,7 +46,10 @@ describe("program routes", () => {
   });
 
   it("returns false for session reset route when --reason value is missing", async () => {
-    await expectRunFalse(["session", "reset"], ["node", "openclaw", "session", "reset", "--reason"]);
+    await expectRunFalse(
+      ["session", "reset"],
+      ["node", "openclaw", "session", "reset", "--reason"],
+    );
   });
 
   it("does not match unknown routes", () => {
