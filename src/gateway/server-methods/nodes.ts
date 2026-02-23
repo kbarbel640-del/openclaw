@@ -687,12 +687,20 @@ export const nodeHandlers: GatewayRequestHandlers = {
         allowlist,
       });
       if (!allowed.ok) {
+        const hint =
+          allowed.reason === "command not declared by node"
+            ? `. '${command}' is not supported by this node — check the node's platform and capabilities with 'openclaw nodes describe'`
+            : "";
         respond(
           false,
           undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "node command not allowed", {
-            details: { reason: allowed.reason, command },
-          }),
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `node command not allowed: ${allowed.reason}${hint}`,
+            {
+              details: { reason: allowed.reason, command },
+            },
+          ),
         );
         return;
       }

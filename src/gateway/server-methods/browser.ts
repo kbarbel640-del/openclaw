@@ -172,9 +172,13 @@ export const browserHandlers: GatewayRequestHandlers = {
         respond(
           false,
           undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "node command not allowed", {
-            details: { reason: allowed.reason, command: "browser.proxy" },
-          }),
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `node command not allowed: ${allowed.reason}`,
+            {
+              details: { reason: allowed.reason, command: "browser.proxy" },
+            },
+          ),
         );
         return;
       }
