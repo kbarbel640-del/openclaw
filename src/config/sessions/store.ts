@@ -20,6 +20,8 @@ import {
 import { getFileMtimeMs, isCacheEnabled, resolveCacheTtlMs } from "../cache-utils.js";
 import { loadConfig } from "../config.js";
 import type { SessionMaintenanceConfig, SessionMaintenanceMode } from "../types.base.js";
+import { FilesystemSessionStoreAdapter } from "./adapter-fs.js";
+import type { SessionStoreAdapter } from "./adapter.js";
 import { deriveSessionMetaPatch } from "./metadata.js";
 import { mergeSessionEntry, type SessionEntry } from "./types.js";
 
@@ -931,4 +933,21 @@ export async function updateLastRoute(params: {
     await saveSessionStoreUnlocked(storePath, store, { activeSessionKey: sessionKey });
     return next;
   });
+}
+
+/**
+ * Factory: create a {@link SessionStoreAdapter} based on the configured
+ * adapter type.  Returns the built-in filesystem adapter by default.
+ */
+export function createSessionStoreAdapter(
+  storePath: string,
+  adapterType?: "filesystem" | "external",
+): SessionStoreAdapter {
+  if (adapterType === "external") {
+    throw new Error(
+      "External session store adapter is not configured. " +
+        "Register an adapter via the plugin system before calling createSessionStoreAdapter.",
+    );
+  }
+  return new FilesystemSessionStoreAdapter(storePath);
 }
