@@ -35,6 +35,15 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public void Evaluate_ShouldFail_WhenConfigHasParseError()
+        {
+            var configPath = CreateTempConfig();
+            var result = OnboardingAdvisor.Evaluate("ws://127.0.0.1:18789", "abc", configPath, "Unexpected token at line 1");
+            Assert.False(result.Ready);
+            Assert.Contains("Config parse error", result.StatusText);
+        }
+
+        [Fact]
         public void Evaluate_ShouldPass_WhenAllChecksGood()
         {
             var configPath = CreateTempConfig();

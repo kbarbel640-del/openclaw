@@ -22,8 +22,9 @@ namespace OpenClaw.Node
             var forceTray = HasArg(args, "--tray");
             var disableTray = HasArg(args, "--no-tray");
             var trayEnabled = !disableTray && (forceTray || OperatingSystem.IsWindows());
-            string url = ResolveGatewayUrl(args);
-            string token = ResolveGatewayToken(args);
+            string url = ResolveGatewayUrl(args, out var configReadErrorUrl);
+            string token = ResolveGatewayToken(args, out var configReadErrorToken);
+            var configReadError = configReadErrorUrl ?? configReadErrorToken;
             var hasGatewayToken = !string.IsNullOrWhiteSpace(token);
 
             if (!hasGatewayToken && !trayEnabled)
@@ -66,7 +67,7 @@ namespace OpenClaw.Node
             var trayStatus = new TrayStatusBroadcaster();
             var reconnectStartedAtUtc = (DateTimeOffset?)null;
             long? lastReconnectMs = null;
-            var onboarding = OnboardingAdvisor.Evaluate(url, token, configPath);
+            var onboarding = OnboardingAdvisor.Evaluate(url, token, configPath, configReadError);
 
             void SetTray(NodeRuntimeState state, string message)
             {
@@ -82,6 +83,7 @@ namespace OpenClaw.Node
                         log: msg => Console.WriteLine(msg),
                         onOpenLogs: () => OpenLogsFolder(),
                         onOpenConfig: () => OpenConfigFile(configPath),
+                        onOpenConfigAndRestart: () => OpenConfigAndScheduleRestart(configPath, delaySeconds: 20),
                         onRestart: () => { restartRequested = true; cts.Cancel(); },
                         onExit: () => cts.Cancel(),
                         onCopyDiagnostics: () => CopyDiagnosticsToClipboard(BuildDiagnostics(startedAtUtc, url, trayStatus.Current, core.PendingPairCount, lastReconnectMs)))
@@ -184,9 +186,10 @@ namespace OpenClaw.Node
                 {
                     SetTray(NodeRuntimeState.Disconnected, "Waiting for gateway token (Open Config)");
                     Console.WriteLine("[WARN] Missing gateway token. Tray mode running; use Open Config to set gateway.auth.token, then Restart Node.");
+                    var details = string.IsNullOrWhiteSpace(onboarding.Details) ? string.Empty : $"\n\nDetails: {onboarding.Details}";
                     ShowUserWarningDialog(
                         title: "OpenClaw Node Setup Required",
-                        message: "Gateway token is missing.\n\nUse tray menu → Open Config, set gateway.auth.token, save, then click Restart Node.");
+                        message: $"{onboarding.StatusText}.\n\n{onboarding.ActionHint}.\n\nUse tray menu → Open Config, save, then click Restart Node.{details}");
                     await WaitUntilCanceledAsync(cts.Token);
                     return;
                 }
@@ -232,29 +235,33 @@ namespace OpenClaw.Node
             }
         }
 
-        private static string ResolveGatewayUrl(string[] args)
+        private static string ResolveGatewayUrl(string[] args, out string? configReadError)
         {
+            configReadError = null;
+
             var fromArgs = GetArgValue(args, "--gateway-url");
             if (!string.IsNullOrWhiteSpace(fromArgs)) return fromArgs;
 
             var fromEnv = Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_URL");
             if (!string.IsNullOrWhiteSpace(fromEnv)) return fromEnv;
 
-            var fromConfig = TryReadGatewayUrlFromOpenClawConfig();
+            var fromConfig = TryReadGatewayUrlFromOpenClawConfig(out configReadError);
             if (!string.IsNullOrWhiteSpace(fromConfig)) return fromConfig;
 
             return "ws://127.0.0.1:18789";
         }
 
-        private static string ResolveGatewayToken(string[] args)
+        private static string ResolveGatewayToken(string[] args, out string? configReadError)
         {
+            configReadError = null;
+
             var fromArgs = GetArgValue(args, "--gateway-token");
             if (!string.IsNullOrWhiteSpace(fromArgs)) return fromArgs;
 
             var fromEnv = Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_TOKEN");
             if (!string.IsNullOrWhiteSpace(fromEnv)) return fromEnv;
 
-            return TryReadGatewayTokenFromOpenClawConfig() ?? string.Empty;
+            return TryReadGatewayTokenFromOpenClawConfig(out configReadError) ?? string.Empty;
         }
 
         private static string GetOpenClawConfigPath()
@@ -310,6 +317,15 @@ namespace OpenClaw.Node
             {
                 Console.WriteLine($"[TRAY] Open config failed: {ex.Message}");
             }
+        }
+
+        private static void OpenConfigAndScheduleRestart(string configPath, int delaySeconds)
+        {
+            OpenConfigFile(configPath);
+            ShowUserWarningDialog(
+                "OpenClaw Node",
+                $"Config opened. Save your changes now.\n\nNode restart is scheduled in {delaySeconds}s.");
+            TryScheduleSelfRestart(delaySeconds);
         }
 
         private static void ShowUserWarningDialog(string title, string message)
@@ -380,7 +396,7 @@ namespace OpenClaw.Node
             }
         }
 
-        private static void TryScheduleSelfRestart()
+        private static void TryScheduleSelfRestart(int delaySeconds = 1)
         {
             try
             {
@@ -390,6 +406,8 @@ namespace OpenClaw.Node
                     Console.WriteLine("[TRAY] Restart requested but process path is unavailable.");
                     return;
                 }
+
+                delaySeconds = Math.Clamp(delaySeconds, 1, 120);
 
                 var args = Environment.GetCommandLineArgs();
                 var argBuilder = new System.Text.StringBuilder();
@@ -402,12 +420,12 @@ namespace OpenClaw.Node
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = $"/c timeout /t 1 /nobreak >nul && start \"\" {QuoteForCmd(processPath)} {argBuilder}",
+                    Arguments = $"/c timeout /t {delaySeconds} /nobreak >nul && start \"\" {QuoteForCmd(processPath)} {argBuilder} && taskkill /PID {Environment.ProcessId} /F",
                     UseShellExecute = false,
                     CreateNoWindow = true
                 });
 
-                Console.WriteLine("[TRAY] Restart requested by tray menu.");
+                Console.WriteLine($"[TRAY] Restart scheduled in {delaySeconds}s.");
             }
             catch (Exception ex)
             {
@@ -439,26 +457,81 @@ namespace OpenClaw.Node
             return null;
         }
 
-        private static string? TryReadGatewayUrlFromOpenClawConfig()
+        private static string? TryReadGatewayUrlFromOpenClawConfig(out string? error)
         {
-            var path = GetOpenClawConfigPath();
-            if (!File.Exists(path)) return null;
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (!doc.RootElement.TryGetProperty("gateway", out var gateway)) return null;
+            error = null;
 
-            var port = gateway.TryGetProperty("port", out var portEl) ? portEl.GetInt32() : 18789;
+            if (!TryReadGatewaySection(out var gateway, out error)) return null;
+
+            if (!gateway.TryGetProperty("port", out var portEl))
+            {
+                return "ws://127.0.0.1:18789";
+            }
+
+            if (portEl.ValueKind != JsonValueKind.Number)
+            {
+                error = "gateway.port must be numeric";
+                return null;
+            }
+
+            var port = portEl.GetInt32();
             return $"ws://127.0.0.1:{port}";
         }
 
-        private static string? TryReadGatewayTokenFromOpenClawConfig()
+        private static string? TryReadGatewayTokenFromOpenClawConfig(out string? error)
         {
-            var path = GetOpenClawConfigPath();
-            if (!File.Exists(path)) return null;
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (!doc.RootElement.TryGetProperty("gateway", out var gateway)) return null;
-            if (!gateway.TryGetProperty("auth", out var auth)) return null;
-            if (!auth.TryGetProperty("token", out var tokenEl)) return null;
+            error = null;
+
+            if (!TryReadGatewaySection(out var gateway, out error)) return null;
+            if (!gateway.TryGetProperty("auth", out var auth))
+            {
+                error = "gateway.auth section missing";
+                return null;
+            }
+
+            if (!auth.TryGetProperty("token", out var tokenEl))
+            {
+                error = "gateway.auth.token missing";
+                return null;
+            }
+
+            if (tokenEl.ValueKind != JsonValueKind.String)
+            {
+                error = "gateway.auth.token must be a string";
+                return null;
+            }
+
             return tokenEl.GetString();
+        }
+
+        private static bool TryReadGatewaySection(out JsonElement gateway, out string? error)
+        {
+            gateway = default;
+            error = null;
+
+            var path = GetOpenClawConfigPath();
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                if (!doc.RootElement.TryGetProperty("gateway", out var gw))
+                {
+                    error = "gateway section missing";
+                    return false;
+                }
+
+                gateway = gw.Clone();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
         }
     }
 }
