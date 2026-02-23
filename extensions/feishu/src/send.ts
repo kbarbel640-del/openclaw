@@ -161,7 +161,7 @@ export async function sendMessageFeishu(
         content,
         msg_type: msgType,
         reply_in_thread: true,
-      } as any,
+      } satisfies { content: string; msg_type: string; reply_in_thread: boolean },
     });
     assertFeishuMessageApiSuccess(response, "Feishu reply failed");
     return toFeishuSendResult(response, receiveId);
@@ -210,7 +210,7 @@ export async function sendCardFeishu(params: SendFeishuCardParams): Promise<Feis
         content,
         msg_type: "interactive",
         reply_in_thread: true,
-      } as any,
+      } satisfies { content: string; msg_type: string; reply_in_thread: boolean },
     });
     assertFeishuMessageApiSuccess(response, "Feishu card reply failed");
     return toFeishuSendResult(response, receiveId);
