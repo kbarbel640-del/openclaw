@@ -39,7 +39,15 @@ export type LoggerResolvedSettings = ResolvedSettings;
 export type LogTransportRecord = Record<string, unknown>;
 export type LogTransport = (logObj: LogTransportRecord) => void;
 
-const externalTransports = new Set<LogTransport>();
+const externalTransports: Set<LogTransport> = (() => {
+  const store = globalThis as typeof globalThis & {
+    __openclawExternalLogTransports?: Set<LogTransport>;
+  };
+  if (!store.__openclawExternalLogTransports) {
+    store.__openclawExternalLogTransports = new Set<LogTransport>();
+  }
+  return store.__openclawExternalLogTransports;
+})();
 
 function attachExternalTransport(logger: TsLogger<LogObj>, transport: LogTransport): void {
   logger.attachTransport((logObj: LogObj) => {
