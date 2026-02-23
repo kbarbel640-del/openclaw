@@ -223,6 +223,93 @@ namespace OpenClaw.Node.Services
                 };
             }
 
+            if (string.Equals(method, "ipc.window.focus", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = req.Params ?? default;
+                long? handle = null;
+                string? titleContains = null;
+
+                if (p.ValueKind == JsonValueKind.Object)
+                {
+                    if (p.TryGetProperty("handle", out var h) && h.ValueKind == JsonValueKind.Number)
+                    {
+                        handle = h.GetInt64();
+                    }
+                    if (p.TryGetProperty("titleContains", out var t) && t.ValueKind == JsonValueKind.String)
+                    {
+                        titleContains = t.GetString();
+                    }
+                }
+
+                if ((!handle.HasValue || handle.Value == 0) && string.IsNullOrWhiteSpace(titleContains))
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.window.focus requires handle or titleContains" }
+                    };
+                }
+
+                var svc = new AutomationService();
+                var focused = await svc.FocusWindowAsync(handle, titleContains);
+                if (!focused)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "UNAVAILABLE", Message = "Unable to focus requested window" }
+                    };
+                }
+
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = true,
+                    Payload = new { ok = true }
+                };
+            }
+
+            if (string.Equals(method, "ipc.input.type", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = req.Params ?? default;
+                string? text = null;
+                if (p.ValueKind == JsonValueKind.Object && p.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String)
+                {
+                    text = t.GetString();
+                }
+
+                if (string.IsNullOrEmpty(text))
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.type requires text" }
+                    };
+                }
+
+                var svc = new AutomationService();
+                var ok = await svc.TypeTextAsync(text);
+                if (!ok)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "UNAVAILABLE", Message = "Typing input failed" }
+                    };
+                }
+
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = true,
+                    Payload = new { ok = true }
+                };
+            }
+
             return new IpcResponse
             {
                 Id = req.Id ?? string.Empty,

@@ -39,6 +39,8 @@
 6. Local IPC named-pipe server is running on Windows (`\\.\pipe\openclaw.node.ipc`) with auth + methods:
    - `ipc.ping`
    - `ipc.window.list`
+   - `ipc.window.focus`
+   - `ipc.input.type`
    - auth token required when configured (Program currently uses gateway token as shared secret)
 7. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
@@ -55,7 +57,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **65 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **67 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash
