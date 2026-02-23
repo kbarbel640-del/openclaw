@@ -339,10 +339,10 @@ clawdock-dashboard() {
   fi
 
   if [[ -n "$url" ]]; then
-    echo "✅ Opening: $url"
-    open "$url" 2>/dev/null || xdg-open "$url" 2>/dev/null || echo "   Please open manually: $url"
+    echo -e "✅ Opening: ${_CLR_CYAN}${url}${_CLR_RESET}"
+    open "$url" 2>/dev/null || xdg-open "$url" 2>/dev/null || echo -e "   Please open manually: ${_CLR_CYAN}${url}${_CLR_RESET}"
     echo ""
-    echo -e "${_CLR_CYAN}💡 If you see 'pairing required' error:${_CLR_RESET}"
+    echo -e "${_CLR_CYAN}💡 If you see ${_CLR_RED}'pairing required'${_CLR_CYAN} error:${_CLR_RESET}"
     echo -e "   1. Run: $(_cmd clawdock-devices)"
     echo "   2. Copy the Request ID from the Pending table"
     echo -e "   3. Run: $(_cmd 'clawdock-approve <request-id>')"
