@@ -20,6 +20,7 @@ import {
   type GatewayConnectionState,
   type GatewayEvent,
 } from "@/lib/hooks/use-gateway-events";
+import { PageDescriptionBanner } from "@/components/guide/page-description-banner";
 
 // --- Types ---
 
@@ -30,6 +31,10 @@ interface UsageData {
   normalizedPeriod?: string;
   supportsHistoricalBreakdown?: boolean;
   fetchedAt?: string;
+  /** Gateway usage.status has no period params; always current. */
+  usagePeriodSupported?: boolean;
+  /** Gateway usage.cost supports days/startDate/endDate; period applies. */
+  costPeriodSupported?: boolean;
 }
 
 interface DailyEntry {
@@ -716,7 +721,8 @@ export function CostDashboard() {
   const refreshBusy = loading || chatAnalyticsLoading;
 
   return (
-    <div className="flex-1 overflow-auto p-6">
+    <div className="flex-1 overflow-auto p-6 space-y-4">
+      <PageDescriptionBanner pageId="usage" />
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -757,12 +763,34 @@ export function CostDashboard() {
         </div>
       </div>
 
-      <div className="mb-4 text-xs text-muted-foreground flex items-center gap-2">
-        <Clock3 className="w-3.5 h-3.5" />
+      <div className="mb-4 text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Clock3 className="w-3.5 h-3.5 shrink-0" />
         <span>As of {formatTimestamp(data?.fetchedAt)}</span>
         <span>&bull;</span>
-        <span>Period: {(data?.period || period).toUpperCase()}</span>
+        <span>
+          Cost: {(data?.period || period).toUpperCase()}
+          {data?.costPeriodSupported === false && " (gateway unavailable)"}
+        </span>
+        {data?.usagePeriodSupported === false && data?.costPeriodSupported !== false && (
+          <>
+            <span>&bull;</span>
+            <span>Usage: current (period filtering not supported by gateway)</span>
+          </>
+        )}
       </div>
+
+      {data?.usagePeriodSupported === false && data?.costPeriodSupported !== false && (
+        <div
+          className="mb-4 rounded border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 flex items-start gap-2"
+          role="status"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            Cost data is filtered by the selected period. Provider usage and active sessions are
+            always current—period filtering is not supported by the gateway for those metrics.
+          </span>
+        </div>
+      )}
 
       {hasAnalyticsWarning && (
         <div className="mb-4 rounded border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">

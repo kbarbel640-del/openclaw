@@ -42,6 +42,8 @@ import {
   type GatewayConnectionState,
   type GatewayEvent,
 } from "@/lib/hooks/use-gateway-events";
+import { SPECIALIZED_AGENTS } from "@/lib/agent-registry";
+import { PageDescriptionBanner } from "@/components/guide/page-description-banner";
 
 // --- Types ---
 
@@ -277,10 +279,11 @@ export function Orchestrator({ workspaceId }: OrchestratorProps) {
       .catch(() => { });
   }, []);
 
-  // Poll orchestrator status
+  // Poll orchestrator status (workspace-scoped)
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/orchestrator");
+      const params = new URLSearchParams({ workspace_id: workspaceId });
+      const res = await fetch(`/api/orchestrator?${params.toString()}`);
       const data = await res.json();
       setActiveTasks(data.active || []);
       setCompletedTasks(data.completed || []);
@@ -288,7 +291,7 @@ export function Orchestrator({ workspaceId }: OrchestratorProps) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [workspaceId]);
 
   const scheduleRefresh = useCallback(() => {
     if (refreshTimerRef.current) { return; }
@@ -358,7 +361,7 @@ export function Orchestrator({ workspaceId }: OrchestratorProps) {
         title: "",
         description: "",
         priority: "medium",
-        agentId: agents[0]?.id || "",
+        agentId: agents[0]?.id || SPECIALIZED_AGENTS[0]?.id || "",
       },
     ]);
   };
@@ -381,7 +384,7 @@ export function Orchestrator({ workspaceId }: OrchestratorProps) {
 
   // Load a template
   const loadTemplate = (template: (typeof TEMPLATES)[number]) => {
-    const defaultAgent = agents[0]?.id || "";
+    const defaultAgent = agents[0]?.id || SPECIALIZED_AGENTS[0]?.id || "";
     const newTasks: TaskDef[] = template.tasks.map((t) => ({
       id: `local-${nextLocalId++}`,
       title: t.title,
@@ -420,16 +423,26 @@ export function Orchestrator({ workspaceId }: OrchestratorProps) {
         throw new Error(data?.error || `HTTP ${res.status}`);
       }
       setLastBatch(data);
-      setTaskDefs([]); // Clear the queue
+      // Only clear queue when all tasks dispatched successfully (WP-03: preserve queue on failed launch)
+      if (data.dispatched === data.total && data.total > 0) {
+        setTaskDefs([]);
+      }
       await fetchStatus(); // Refresh status immediately
-    } catch {
+    } catch (err) {
       setLastBatch({
         batchId: "error",
-        total: 0,
+        total: valid.length,
         dispatched: 0,
         failed: valid.length,
-        results: [],
+        results: valid.map((t) => ({
+          taskId: t.id,
+          title: t.title,
+          agentId: t.agentId,
+          status: "failed" as const,
+          error: String(err),
+        })),
       });
+      // Do NOT clear queue on failed launch — preserve queued items
     }
     setLaunching(false);
   };
@@ -474,6 +487,9 @@ export function Orchestrator({ workspaceId }: OrchestratorProps) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="shrink-0 px-6 py-4 border-b border-border/50">
+        <PageDescriptionBanner pageId="orchestrate" />
+      </div>
       {/* Header */}
       <div className="shrink-0 px-6 py-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -646,11 +662,29 @@ export function Orchestrator({ workspaceId }: OrchestratorProps) {
                             <SelectValue placeholder="Agent..." />
                           </SelectTrigger>
                           <SelectContent>
+                            {agents.length > 0 && (
+                              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                                Gateway Agents
+                              </div>
+                            )}
                             {agents.map((a) => (
                               <SelectItem key={a.id} value={a.id}>
                                 <span className="flex items-center gap-1.5">
                                   <Bot className="w-3 h-3" />
                                   {a.name || a.id}
+                                </span>
+                              </SelectItem>
+                            ))}
+                            {SPECIALIZED_AGENTS.length > 0 && (
+                              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1 pt-1">
+                                AI Specialists
+                              </div>
+                            )}
+                            {SPECIALIZED_AGENTS.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                <span className="flex items-center gap-1.5">
+                                  <Bot className="w-3 h-3" />
+                                  {s.name}
                                 </span>
                               </SelectItem>
                             ))}
