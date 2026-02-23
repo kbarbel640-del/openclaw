@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const piCodingAgentMocks = vi.hoisted(() => ({
   generateSummary: vi.fn(async () => "summary"),
-  estimateTokens: vi.fn(() => 1),
+  estimateTokens: vi.fn((_message: unknown) => 1),
 }));
 
 vi.mock("@mariozechner/pi-coding-agent", async () => {
