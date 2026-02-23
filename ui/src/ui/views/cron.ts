@@ -3,7 +3,7 @@ import { ifDefined } from "lit/directives/if-defined.js";
 import type { CronFieldErrors, CronFieldKey } from "../controllers/cron.ts";
 import { formatRelativeTimestamp, formatMs } from "../format.ts";
 import { pathForTab } from "../navigation.ts";
-import { formatCronSchedule, formatNextRun } from "../presenter.ts";
+import { formatCronSchedule, formatCronNextRunBrisbane, formatCronScheduleHuman, formatNextRun } from "../presenter.ts";
 import type { ChannelUiMetaEntry, CronJob, CronRunLogEntry, CronStatus } from "../types.ts";
 import type {
   CronDeliveryStatus,
@@ -450,7 +450,7 @@ export function renderCron(props: CronProps) {
                   <div class="muted" style="margin-top: 12px">No matching jobs.</div>
                 `
               : html`
-                  <div class="list" style="margin-top: 12px;">
+                  <div class="cron-jobs-grid" style="margin-top: 12px;">
                     ${props.jobs.map((job) => renderJob(job, props))}
                   </div>
                 `
@@ -1215,92 +1215,114 @@ function renderFieldError(message?: string, id?: string) {
 
 function renderJob(job: CronJob, props: CronProps) {
   const isSelected = props.runsJobId === job.id;
-  const itemClass = `list-item list-item-clickable cron-job${isSelected ? " list-item-selected" : ""}`;
+  const status = job.state?.lastStatus ?? "idle";
+  const isRunning = status === "running";
+  const nextBrisbane = formatCronNextRunBrisbane(job);
+  const scheduleHuman = formatCronScheduleHuman(job);
+  const isEvery = job.schedule.kind === "every";
+  const isCron = job.schedule.kind === "cron";
+  const nextRelative = formatStateRelative(job.state?.nextRunAtMs);
+  const lastRelative = formatStateRelative(job.state?.lastRunAtMs);
+  const lastMs = formatMs(job.state?.lastRunAtMs);
+  const lastDuration = job.state?.lastDurationMs;
+
+  const statusClass =
+    status === "ok"
+      ? "cron-job-status-ok"
+      : status === "error"
+        ? "cron-job-status-error"
+        : status === "running"
+          ? "cron-job-status-running"
+          : status === "skipped"
+            ? "cron-job-status-skipped"
+            : "cron-job-status-na";
+
+  const cardClass = `cron-job-card${isSelected ? " cron-job-card--selected" : ""}${!job.enabled ? " cron-job-card--disabled" : ""}${status === "error" ? " cron-job-card--error" : ""}`;
+
   const selectAnd = (action: () => void) => {
     props.onLoadRuns(job.id);
     action();
   };
+
+  // Schedule / time block
+  const timeBlock = html`
+    <div class="cron-job-card__time">
+      <div class="cron-job-card__time-col cron-job-card__time-col--grow">
+        <div class="cron-job-card__time-label">
+          ${isEvery ? "Interval" : "Schedule (AEST)"}
+        </div>
+        ${isEvery
+          ? html`<div class="cron-job-card__freq-pill">↻ ${scheduleHuman}</div>`
+          : html`<div class="cron-job-card__time-value">${scheduleHuman}</div>
+                 ${isCron ? html`<code class="cron-job-card__expr">${(job.schedule as { expr: string }).expr}</code>` : nothing}`
+        }
+      </div>
+      <div class="cron-job-card__time-divider"></div>
+      <div class="cron-job-card__time-col">
+        <div class="cron-job-card__time-label">Next run</div>
+        <div class="cron-job-card__time-next" title=${nextBrisbane}>
+          ${nextRelative}
+        </div>
+        <div class="cron-job-card__time-sub">${nextBrisbane}</div>
+      </div>
+    </div>
+  `;
+
+  const deliveryBadge = (() => {
+    const d = job.delivery;
+    if (!d || d.mode === "none") return html`<span class="chip">no delivery</span>`;
+    if (d.mode === "announce") return html`<span class="chip chip-ok">📤 ${d.channel ?? "last"}</span>`;
+    if (d.mode === "webhook") return html`<span class="chip">🌐 webhook</span>`;
+    return nothing;
+  })();
+
+  const modelBadge = job.payload.kind === "agentTurn" && job.payload.model
+    ? html`<span class="chip">${job.payload.model.includes("/") ? job.payload.model.split("/")[1] : job.payload.model}</span>`
+    : nothing;
+
   return html`
-    <div class=${itemClass} @click=${() => props.onLoadRuns(job.id)}>
-      <div class="list-main">
-        <div class="list-title">${job.name}</div>
-        <div class="list-sub">${formatCronSchedule(job)}</div>
-        ${renderJobPayload(job)}
-        ${job.agentId ? html`<div class="muted cron-job-agent">Agent: ${job.agentId}</div>` : nothing}
-      </div>
-      <div class="list-meta">
-        ${renderJobState(job)}
-      </div>
-      <div class="cron-job-footer">
-        <div class="chip-row cron-job-chips">
-          <span class=${`chip ${job.enabled ? "chip-ok" : "chip-danger"}`}>
-            ${job.enabled ? "enabled" : "disabled"}
-          </span>
-          <span class="chip">${job.sessionTarget}</span>
-          <span class="chip">${job.wakeMode}</span>
+    <div class=${cardClass} @click=${() => props.onLoadRuns(job.id)}>
+      <div class="cron-job-card__top">
+        <div class="cron-job-card__head">
+          <div class="cron-job-card__name">${job.name}</div>
+          ${job.description ? html`<div class="cron-job-card__desc">${job.description}</div>` : nothing}
         </div>
-        <div class="row cron-job-actions">
-          <button
-            class="btn"
-            ?disabled=${props.busy}
-            @click=${(event: Event) => {
-              event.stopPropagation();
-              selectAnd(() => props.onEdit(job));
-            }}
-          >
-            Edit
-          </button>
-          <button
-            class="btn"
-            ?disabled=${props.busy}
-            @click=${(event: Event) => {
-              event.stopPropagation();
-              selectAnd(() => props.onClone(job));
-            }}
-          >
-            Clone
-          </button>
-          <button
-            class="btn"
-            ?disabled=${props.busy}
-            @click=${(event: Event) => {
-              event.stopPropagation();
-              selectAnd(() => props.onToggle(job, !job.enabled));
-            }}
-          >
-            ${job.enabled ? "Disable" : "Enable"}
-          </button>
-          <button
-            class="btn"
-            ?disabled=${props.busy}
-            @click=${(event: Event) => {
-              event.stopPropagation();
-              selectAnd(() => props.onRun(job));
-            }}
-          >
-            Run
-          </button>
-          <button
-            class="btn"
-            ?disabled=${props.busy}
-            @click=${(event: Event) => {
-              event.stopPropagation();
-              selectAnd(() => props.onLoadRuns(job.id));
-            }}
-          >
-            History
-          </button>
-          <button
-            class="btn danger"
-            ?disabled=${props.busy}
-            @click=${(event: Event) => {
-              event.stopPropagation();
-              selectAnd(() => props.onRemove(job));
-            }}
-          >
-            Remove
-          </button>
+        <div class="cron-job-card__badge-wrap">
+          <span class=${`cron-job-status-pill ${statusClass}`}>${isRunning ? "▶ running" : status}</span>
         </div>
+      </div>
+
+      ${timeBlock}
+
+      <div class="chip-row cron-job-card__chips">
+        <span class=${`chip ${job.enabled ? "chip-ok" : "chip-danger"}`}>
+          ${job.enabled ? "enabled" : "disabled"}
+        </span>
+        <span class="chip">${job.sessionTarget}</span>
+        <span class="chip">${job.wakeMode}</span>
+        ${deliveryBadge}
+        ${modelBadge}
+        ${job.agentId ? html`<span class="chip">agent: ${job.agentId}</span>` : nothing}
+      </div>
+
+      ${lastRelative !== "n/a"
+        ? html`<div class="cron-job-card__last">
+            Last: <span title=${lastMs}>${lastRelative}</span>
+            ${lastDuration ? html` (${(lastDuration / 1000).toFixed(1)}s)` : nothing}
+          </div>`
+        : nothing}
+
+      <div class="cron-job-card__divider"></div>
+
+      <div class="row cron-job-actions" @click=${(e: Event) => e.stopPropagation()}>
+        <button class="btn" ?disabled=${props.busy} @click=${() => selectAnd(() => props.onEdit(job))}>Edit</button>
+        <button class="btn" ?disabled=${props.busy} @click=${() => selectAnd(() => props.onClone(job))}>Clone</button>
+        <button class="btn" ?disabled=${props.busy} @click=${() => selectAnd(() => props.onToggle(job, !job.enabled))}>
+          ${job.enabled ? "Disable" : "Enable"}
+        </button>
+        <button class="btn" ?disabled=${props.busy} @click=${() => selectAnd(() => props.onRun(job))}>Run</button>
+        <button class="btn" ?disabled=${props.busy} @click=${() => selectAnd(() => props.onLoadRuns(job.id))}>History</button>
+        <button class="btn danger" ?disabled=${props.busy} @click=${() => selectAnd(() => props.onRemove(job))}>Remove</button>
       </div>
     </div>
   `;

@@ -63,6 +63,47 @@ export function formatCronSchedule(job: CronJob) {
   return `Cron ${s.expr}${s.tz ? ` (${s.tz})` : ""}`;
 }
 
+const BRISBANE_TZ = "Australia/Brisbane";
+
+export function formatCronNextRunBrisbane(job: CronJob): string {
+  const ms = job.state?.nextRunAtMs;
+  if (typeof ms !== "number" || !Number.isFinite(ms)) {
+    return "—";
+  }
+  return new Date(ms).toLocaleString("en-AU", {
+    timeZone: BRISBANE_TZ,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+export function formatCronScheduleHuman(job: CronJob): string {
+  const s = job.schedule;
+  if (s.kind === "every") {
+    return `Every ${formatDurationHuman(s.everyMs)}`;
+  }
+  if (s.kind === "at") {
+    const atMs = Date.parse(s.at);
+    return `Once: ${Number.isFinite(atMs) ? new Date(atMs).toLocaleString("en-AU", { timeZone: BRISBANE_TZ, weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }) : s.at}`;
+  }
+  if (s.kind === "cron") {
+    const [min, hour, dom, month, dow] = s.expr.trim().split(" ");
+    const days: Record<string, string> = { "0": "Sun", "1": "Mon", "2": "Tue", "3": "Wed", "4": "Thu", "5": "Fri", "6": "Sat" };
+    if (dom === "*" && month === "*" && dow !== "*" && days[dow]) {
+      return `${days[dow]}s at ${hour.padStart(2, "0")}:${min.padStart(2, "0")} AEST`;
+    }
+    if (dom === "*" && month === "*" && dow === "*") {
+      return `Daily at ${hour.padStart(2, "0")}:${min.padStart(2, "0")} AEST`;
+    }
+    return s.expr;
+  }
+  return "—";
+}
+
 export function formatCronPayload(job: CronJob) {
   const p = job.payload;
   if (p.kind === "systemEvent") {
