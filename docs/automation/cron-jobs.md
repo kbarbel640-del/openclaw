@@ -176,6 +176,8 @@ Common `agentTurn` fields:
 - `message`: required text prompt.
 - `model` / `thinking`: optional overrides (see below).
 - `timeoutSeconds`: optional timeout override.
+- `criticSpec`: optional evaluation spec used by the critic loop gate.
+- `criticThreshold`: optional pass threshold override (`0..1`) for the critic loop gate.
 
 Delivery config:
 
@@ -362,6 +364,11 @@ Notes:
     maxConcurrentRuns: 1, // default 1
     webhook: "https://example.invalid/legacy", // deprecated fallback for stored notify:true jobs
     webhookToken: "replace-with-dedicated-webhook-token", // optional bearer token for webhook mode
+    criticLoop: {
+      enabled: false, // default false (feature flag)
+      minScore: 0.7, // default threshold (0..1)
+      defaultSpec: "Include risks, rollback, and verification steps", // optional
+    },
   },
 }
 ```
@@ -379,6 +386,10 @@ Disable cron entirely:
 
 - `cron.enabled: false` (config)
 - `OPENCLAW_SKIP_CRON=1` (env)
+
+Critic loop kill switch (when enabled in config):
+
+- `OPENCLAW_CRITIC_LOOP_DISABLED=1` disables critic scoring + gating globally.
 
 ## CLI quickstart
 

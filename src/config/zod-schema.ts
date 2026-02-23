@@ -324,6 +324,14 @@ export const OpenClawSchema = z
         webhook: HttpUrlSchema.optional(),
         webhookToken: z.string().optional().register(sensitive),
         sessionRetention: z.union([z.string(), z.literal(false)]).optional(),
+        criticLoop: z
+          .object({
+            enabled: z.boolean().optional(),
+            minScore: z.number().min(0).max(1).optional(),
+            defaultSpec: z.string().optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict()
       .optional(),

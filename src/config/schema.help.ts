@@ -997,6 +997,14 @@ export const FIELD_HELP: Record<string, string> = {
     "Bearer token attached to cron webhook POST deliveries when webhook mode is used. Prefer secret/env substitution and rotate this token regularly if shared webhook endpoints are internet-reachable.",
   "cron.sessionRetention":
     "Controls how long completed cron run sessions are kept before pruning (`24h`, `7d`, `1h30m`, or `false` to disable pruning; default: `24h`). Use shorter retention to reduce storage growth on high-frequency schedules.",
+  "cron.criticLoop":
+    "Configures an optional deterministic critic loop that scores isolated executor output against a spec and can trigger a `needs_replan` outcome when quality is below threshold. Keep disabled by default and enable per rollout.",
+  "cron.criticLoop.enabled":
+    "Feature flag for cron critic-loop scoring and gating. Default is off; when disabled, jobs keep existing behavior with no critic evaluation.",
+  "cron.criticLoop.minScore":
+    "Default pass threshold between 0 and 1 for critic-loop scoring (for example `0.7`). Jobs can override this via payload.criticThreshold when finer control is needed.",
+  "cron.criticLoop.defaultSpec":
+    "Default evaluation spec text used when a job does not provide payload.criticSpec. Use concise acceptance criteria so deterministic scoring stays stable.",
   hooks:
     "Inbound webhook automation surface for mapping external events into wake or agent actions in OpenClaw. Keep this locked down with explicit token/session/agent controls before exposing it beyond trusted networks.",
   "hooks.enabled":

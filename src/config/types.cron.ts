@@ -1,3 +1,12 @@
+export type CronCriticLoopConfig = {
+  /** Feature flag for deterministic executor-output critic scoring. */
+  enabled?: boolean;
+  /** Default pass threshold (0..1). Jobs may override via payload.criticThreshold. */
+  minScore?: number;
+  /** Optional default spec text to evaluate against when job payload omits criticSpec. */
+  defaultSpec?: string;
+};
+
 export type CronConfig = {
   enabled?: boolean;
   store?: string;
@@ -15,4 +24,9 @@ export type CronConfig = {
    * Default: "24h".
    */
   sessionRetention?: string | false;
+  /**
+   * Optional deterministic critic-loop gate for isolated executor outputs.
+   * Disabled by default.
+   */
+  criticLoop?: CronCriticLoopConfig;
 };

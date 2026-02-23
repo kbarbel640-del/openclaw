@@ -44,12 +44,32 @@ export type CronRunTelemetry = {
   usage?: CronUsageSummary;
 };
 
+export type CronCriticScore = {
+  key: "spec_coverage" | "completeness" | "actionability";
+  score: number;
+  weight: number;
+  weighted: number;
+  note: string;
+};
+
+export type CronCriticEvaluation = {
+  version: "v1";
+  spec: string;
+  threshold: number;
+  score: number;
+  passed: boolean;
+  outcome: "completed" | "needs_replan";
+  scores: CronCriticScore[];
+};
+
 export type CronRunOutcome = {
   status: CronRunStatus;
   error?: string;
   /** Optional classifier for execution errors to guide fallback behavior. */
   errorKind?: "delivery-target";
   summary?: string;
+  outcome?: "completed" | "needs_replan";
+  critic?: CronCriticEvaluation;
   sessionId?: string;
   sessionKey?: string;
 };
@@ -64,6 +84,10 @@ export type CronPayload =
       thinking?: string;
       timeoutSeconds?: number;
       allowUnsafeExternalContent?: boolean;
+      /** Optional per-job spec used by critic-loop evaluation. */
+      criticSpec?: string;
+      /** Optional per-job threshold override (0..1) for critic-loop gating. */
+      criticThreshold?: number;
       deliver?: boolean;
       channel?: CronMessageChannel;
       to?: string;
@@ -79,6 +103,8 @@ export type CronPayloadPatch =
       thinking?: string;
       timeoutSeconds?: number;
       allowUnsafeExternalContent?: boolean;
+      criticSpec?: string;
+      criticThreshold?: number;
       deliver?: boolean;
       channel?: CronMessageChannel;
       to?: string;
