@@ -1,9 +1,10 @@
+import { isMessagingToolDuplicate } from "../../agents/pi-embedded-helpers.js";
 import type { MessagingToolSend } from "../../agents/pi-embedded-runner.js";
 import type { ReplyToMode } from "../../config/types.js";
+import { normalizeTargetForProvider } from "../../infra/outbound/target-normalization.js";
+import { stripExternalContentFromOutput } from "../../security/external-content.js";
 import type { OriginatingChannelType } from "../templating.js";
 import type { ReplyPayload } from "../types.js";
-import { isMessagingToolDuplicate } from "../../agents/pi-embedded-helpers.js";
-import { normalizeTargetForProvider } from "../../infra/outbound/target-normalization.js";
 import { extractReplyToTag } from "./reply-tags.js";
 import { createReplyToModeFilterForChannel } from "./reply-threading.js";
 
@@ -80,6 +81,17 @@ export function applyReplyThreading(params: {
     .map((payload) =>
       resolveReplyThreadingForPayload({ payload, implicitReplyToId, currentMessageId }),
     )
+    .map((payload) => {
+      // Strip any external content security markers that leaked from tool output
+      // into the assistant's reply text (e.g., browser snapshot ARIA trees).
+      if (typeof payload.text === "string") {
+        const stripped = stripExternalContentFromOutput(payload.text);
+        if (stripped !== payload.text) {
+          return { ...payload, text: stripped || undefined };
+        }
+      }
+      return payload;
+    })
     .filter(isRenderablePayload)
     .map(applyReplyToMode);
 }
