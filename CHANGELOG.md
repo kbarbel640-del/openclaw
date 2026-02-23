@@ -12,7 +12,11 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+<<<<<<< fix/transient_failures
+
+- # Cron: add retry policy for one-shot jobs on transient errors (rate limit 429, network timeout, 5xx). Jobs retry up to 3 times with exponential backoff before permanent disable; permanent errors (e.g. auth) still disable immediately. Configurable via `cron.retry` (maxAttempts, backoffMs, retryOn). (#24355)
 - Agents/Reasoning: when model-default thinking is active (for example `thinking=low`), keep auto-reasoning disabled unless explicitly enabled, preventing `Reasoning:` thinking-block leakage in channel replies. (#24335, #24290) thanks @Kay-051.
+  > > > > > > > main
 - Auto-reply/Inbound metadata: hide direct-chat `message_id`/`message_id_full` and sender metadata only from normalized chat type (not sender-id sentinels), preserving group metadata visibility and preventing sender-id spoofed direct-mode classification. (#24373) thanks @jd316.
 - Security/Exec: detect obfuscated commands before exec allowlist decisions and require explicit approval for obfuscation patterns. (#8592) Thanks @CornBrother0x and @vincentkoc.
 - Agents/Compaction: pass `agentDir` into manual `/compact` command runs so compaction auth/profile resolution stays scoped to the active agent. (#24133) thanks @Glucksberg.
