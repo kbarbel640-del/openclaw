@@ -97,6 +97,17 @@ describe("model-selection", () => {
       });
     });
 
+    it("normalizes Vercel Claude shorthand to anthropic-prefixed model ids", () => {
+      expect(parseModelRef("vercel-ai-gateway/claude-opus-4.6", "openai")).toEqual({
+        provider: "vercel-ai-gateway",
+        model: "anthropic/claude-opus-4.6",
+      });
+      expect(parseModelRef("vercel-ai-gateway/opus-4.6", "openai")).toEqual({
+        provider: "vercel-ai-gateway",
+        model: "anthropic/claude-opus-4-6",
+      });
+    });
+
     it("should handle invalid slash usage", () => {
       expect(parseModelRef("/", "anthropic")).toBeNull();
       expect(parseModelRef("anthropic/", "anthropic")).toBeNull();
