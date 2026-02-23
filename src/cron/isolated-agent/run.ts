@@ -790,12 +790,14 @@ export async function runCronIsolatedAgentTurn(params: {
           childSessionKey: agentSessionKey,
           childRunId: `${params.job.id}:${runSessionId}`,
           requesterSessionKey: announceSessionKey,
-          requesterOrigin: {
-            channel: resolvedDelivery.channel,
-            to: resolvedDelivery.to,
-            accountId: resolvedDelivery.accountId,
-            threadId: resolvedDelivery.threadId,
-          },
+          requesterOrigin: resolvedDelivery.to
+            ? {
+                channel: resolvedDelivery.channel,
+                to: resolvedDelivery.to,
+                accountId: resolvedDelivery.accountId,
+                threadId: resolvedDelivery.threadId,
+              }
+            : undefined,
           requesterDisplayKey: announceSessionKey,
           task: taskLabel,
           timeoutMs,

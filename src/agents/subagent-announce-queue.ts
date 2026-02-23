@@ -28,6 +28,8 @@ export type AnnounceQueueItem = {
   sessionKey: string;
   origin?: DeliveryContext;
   originKey?: string;
+  /** @internal Number of send attempts for this item (set by drain loop). */
+  _sendAttempts?: number;
 };
 
 export type AnnounceQueueSettings = {
@@ -49,6 +51,8 @@ type AnnounceQueueState = {
   summaryLines: string[];
   send: (item: AnnounceQueueItem) => Promise<void>;
 };
+
+const MAX_SEND_ATTEMPTS_PER_ITEM = 5;
 
 const ANNOUNCE_QUEUES = new Map<string, AnnounceQueueState>();
 
@@ -175,9 +179,23 @@ function scheduleAnnounceDrain(key: string) {
         }
       }
     } catch (err) {
-      // Keep items in queue and retry after debounce; avoid hot-loop retries.
-      queue.lastEnqueuedAt = Date.now();
-      defaultRuntime.error?.(`announce queue drain failed for ${key}: ${String(err)}`);
+      const failedItem = queue.items[0];
+      if (failedItem) {
+        failedItem._sendAttempts = (failedItem._sendAttempts ?? 0) + 1;
+        if (failedItem._sendAttempts >= MAX_SEND_ATTEMPTS_PER_ITEM) {
+          queue.items.shift();
+          defaultRuntime.error?.(
+            `announce queue item dropped after ${failedItem._sendAttempts} failed attempts for ${key}: ${String(err)}`,
+          );
+        } else {
+          queue.lastEnqueuedAt = Date.now();
+          defaultRuntime.error?.(
+            `announce queue drain failed for ${key} (attempt ${failedItem._sendAttempts}/${MAX_SEND_ATTEMPTS_PER_ITEM}): ${String(err)}`,
+          );
+        }
+      } else {
+        defaultRuntime.error?.(`announce queue drain failed for ${key}: ${String(err)}`);
+      }
     } finally {
       queue.draining = false;
       if (queue.items.length === 0 && queue.droppedCount === 0) {
