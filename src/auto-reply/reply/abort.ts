@@ -1,3 +1,5 @@
+import type { OpenClawConfig } from "../../config/config.js";
+import type { FinalizedMsgContext, MsgContext } from "../templating.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { abortEmbeddedPiRun } from "../../agents/pi-embedded.js";
 import {
@@ -8,7 +10,6 @@ import {
   resolveInternalSessionKey,
   resolveMainSessionAlias,
 } from "../../agents/tools/sessions-helpers.js";
-import type { OpenClawConfig } from "../../config/config.js";
 import {
   loadSessionStore,
   resolveStorePath,
@@ -19,11 +20,22 @@ import { logVerbose } from "../../globals.js";
 import { parseAgentSessionKey } from "../../routing/session-key.js";
 import { resolveCommandAuthorization } from "../command-auth.js";
 import { normalizeCommandBody, type CommandNormalizeOptions } from "../commands-registry.js";
-import type { FinalizedMsgContext, MsgContext } from "../templating.js";
 import { stripMentions, stripStructuralPrefixes } from "./mentions.js";
 import { clearSessionQueues } from "./queue.js";
 
 const ABORT_TRIGGERS = new Set(["stop", "esc", "abort", "wait", "exit", "interrupt"]);
+/**
+ * Subset of triggers that also match when they appear as the **first word** of
+ * a short message (≤ {@link ABORT_PREFIX_MAX_LEN} chars).  This covers natural
+ * phrasings such as "stop openclaw", "STOP don't do anything", or
+ * "abort immediately" that users send in a panic.
+ *
+ * We intentionally exclude the weaker/ambiguous words ("esc", "wait", "exit")
+ * from prefix matching to avoid false positives on messages like
+ * "wait for me to check" or "exit poll results".
+ */
+const ABORT_PREFIX_TRIGGERS = new Set(["stop", "abort", "interrupt"]);
+const ABORT_PREFIX_MAX_LEN = 80;
 const ABORT_MEMORY = new Map<string, boolean>();
 const ABORT_MEMORY_MAX = 2000;
 
@@ -32,7 +44,18 @@ export function isAbortTrigger(text?: string): boolean {
     return false;
   }
   const normalized = text.trim().toLowerCase();
-  return ABORT_TRIGGERS.has(normalized);
+  if (ABORT_TRIGGERS.has(normalized)) {
+    return true;
+  }
+  // Allow short messages whose first word is a strong abort trigger,
+  // e.g. "stop openclaw", "STOP don't do anything", "abort now".
+  if (normalized.length <= ABORT_PREFIX_MAX_LEN) {
+    const firstWord = normalized.split(/[\s.,!?;:]+/, 1)[0];
+    if (firstWord && ABORT_PREFIX_TRIGGERS.has(firstWord)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function isAbortRequestText(text?: string, options?: CommandNormalizeOptions): boolean {

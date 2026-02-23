@@ -1,7 +1,7 @@
-import fs from "node:fs";
-import path from "node:path";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ExtensionAPI, FileOperations } from "@mariozechner/pi-coding-agent";
+import fs from "node:fs";
+import path from "node:path";
 import { extractSections } from "../../auto-reply/reply/post-compaction-context.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import {
@@ -26,6 +26,21 @@ const missedModelWarningSessions = new WeakSet<object>();
 const TURN_PREFIX_INSTRUCTIONS =
   "This summary covers the prefix of a split turn. Focus on the original request," +
   " early progress, and any details needed to understand the retained suffix.";
+/**
+ * Safety-critical instruction appended to every compaction summary request.
+ *
+ * Users often set constraints like "confirm before acting" or "don't delete
+ * anything until I approve" in natural language during a session.  If the
+ * summariser drops these, the agent may take destructive actions post-compaction
+ * that the user explicitly forbade.  This instruction makes preservation of such
+ * constraints a hard requirement rather than best-effort.
+ */
+const SAFETY_CONSTRAINT_INSTRUCTIONS =
+  "CRITICAL: If the user gave ANY safety directives — such as 'confirm before acting'," +
+  " 'don't do X until I say so', 'ask me first', or similar approval/confirmation" +
+  " requirements — you MUST preserve them verbatim in the Constraints & Preferences" +
+  " section.  Losing a safety constraint can cause the agent to take irreversible" +
+  " destructive actions that the user explicitly prohibited.";
 const MAX_TOOL_FAILURES = 8;
 const MAX_TOOL_FAILURE_CHARS = 240;
 
@@ -190,7 +205,12 @@ async function readWorkspaceContextForSummary(): Promise<string> {
 
 export default function compactionSafeguardExtension(api: ExtensionAPI): void {
   api.on("session_before_compact", async (event, ctx) => {
-    const { preparation, customInstructions, signal } = event;
+    const { preparation, signal } = event;
+    // Prepend safety constraint instructions to ensure user-specified
+    // confirmation/approval requirements survive compaction.
+    const customInstructions = event.customInstructions
+      ? `${SAFETY_CONSTRAINT_INSTRUCTIONS}\n\n${event.customInstructions}`
+      : SAFETY_CONSTRAINT_INSTRUCTIONS;
     const { readFiles, modifiedFiles } = computeFileLists(preparation.fileOps);
     const fileOpsSummary = formatFileOperations(readFiles, modifiedFiles);
     const toolFailures = collectToolFailures([

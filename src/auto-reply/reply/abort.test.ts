@@ -134,13 +134,35 @@ describe("abort detection", () => {
     expect(isAbortTrigger("/stop")).toBe(false);
   });
 
+  it("isAbortTrigger matches short messages starting with a strong trigger word", () => {
+    // Strong prefix triggers: stop, abort, interrupt
+    expect(isAbortTrigger("stop openclaw")).toBe(true);
+    expect(isAbortTrigger("STOP don't do anything")).toBe(true);
+    expect(isAbortTrigger("stop immediately")).toBe(true);
+    expect(isAbortTrigger("Stop!")).toBe(true);
+    expect(isAbortTrigger("abort now")).toBe(true);
+    expect(isAbortTrigger("interrupt the process")).toBe(true);
+
+    // Weak triggers should NOT prefix-match (too ambiguous)
+    expect(isAbortTrigger("wait for me to check")).toBe(false);
+    expect(isAbortTrigger("exit poll results")).toBe(false);
+    expect(isAbortTrigger("esc key is broken")).toBe(false);
+
+    // Long messages should NOT match even with strong trigger
+    expect(isAbortTrigger("stop " + "x".repeat(80))).toBe(false);
+
+    // Non-trigger first word should not match
+    expect(isAbortTrigger("please stop")).toBe(false);
+    expect(isAbortTrigger("do not do that")).toBe(false);
+  });
+
   it("isAbortRequestText aligns abort command semantics", () => {
     expect(isAbortRequestText("/stop")).toBe(true);
     expect(isAbortRequestText("stop")).toBe(true);
     expect(isAbortRequestText("/stop@openclaw_bot", { botUsername: "openclaw_bot" })).toBe(true);
+    expect(isAbortRequestText("stop please")).toBe(true);
 
     expect(isAbortRequestText("/status")).toBe(false);
-    expect(isAbortRequestText("stop please")).toBe(false);
     expect(isAbortRequestText("/abort")).toBe(false);
   });
 
