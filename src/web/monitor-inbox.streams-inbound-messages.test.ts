@@ -166,7 +166,7 @@ describe("web monitor inbox", () => {
     sock.ev.emit("messages.upsert", upsert);
     await tick();
 
-    const inbound = (onMessage.mock.calls[0]?.[0] ?? null) as {
+    const inbound = (onMessage.mock.calls.at(0)?.at(0) ?? null) as {
       reply: (text: string) => Promise<void>;
       sendMedia: (payload: Record<string, unknown>) => Promise<void>;
       sendComposing: () => Promise<void>;
@@ -223,7 +223,7 @@ describe("web monitor inbox", () => {
     sock.ev.emit("messages.upsert", upsert);
     await tick();
 
-    const inbound = (onMessage.mock.calls[0]?.[0] ?? null) as {
+    const inbound = (onMessage.mock.calls.at(0)?.at(0) ?? null) as {
       reply: (text: string) => Promise<void>;
       sendMedia: (payload: Record<string, unknown>) => Promise<void>;
       sendComposing: () => Promise<void>;
