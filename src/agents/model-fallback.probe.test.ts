@@ -179,8 +179,9 @@ describe("runWithModelFallback – probe logic", () => {
     // Override: ALL providers in cooldown for this test
     mockedIsProfileInCooldown.mockReturnValue(true);
 
-    // All profiles in cooldown, cooldown just about to expire
-    const almostExpired = NOW + 30 * 1000; // 30s remaining
+    // All profiles in cooldown; set beyond the 90s wait-and-retry threshold
+    // so the test exercises the immediate-skip path without blocking on real timers.
+    const almostExpired = NOW + 120 * 1000;
     mockedGetSoonestCooldownExpiry.mockReturnValue(almostExpired);
 
     // Primary probe fails with 429

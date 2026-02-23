@@ -25,5 +25,10 @@ export type AuthConfig = {
      * this window, counters reset. Default: 24.
      */
     failureWindowHours?: number;
+    /**
+     * Max seconds to wait when all auth profiles are rate-limited before
+     * retrying. Set to 0 to disable. Default: 90.
+     */
+    rateLimitWaitSeconds?: number;
   };
 };
