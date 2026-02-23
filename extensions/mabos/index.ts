@@ -11,12 +11,15 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { createCronBridgeService } from "./src/cron-bridge.js";
 import { createBdiTools } from "./src/tools/bdi-tools.js";
 import { createBusinessTools } from "./src/tools/business-tools.js";
 import { createCbrTools } from "./src/tools/cbr-tools.js";
 import { resolveWorkspaceDir, getPluginConfig } from "./src/tools/common.js";
 import { createCommunicationTools } from "./src/tools/communication-tools.js";
+import { createCrmTools } from "./src/tools/crm-tools.js";
 import { createDesireTools } from "./src/tools/desire-tools.js";
+import { createEmailTools } from "./src/tools/email-tools.js";
 import { createFactStoreTools } from "./src/tools/fact-store.js";
 import { createInferenceTools } from "./src/tools/inference-tools.js";
 import { createIntegrationTools } from "./src/tools/integration-tools.js";
@@ -30,6 +33,7 @@ import { createPlanningTools } from "./src/tools/planning-tools.js";
 import { createReasoningTools } from "./src/tools/reasoning-tools.js";
 import { createReportingTools } from "./src/tools/reporting-tools.js";
 import { createRuleEngineTools } from "./src/tools/rule-engine.js";
+import { createSeoAnalyticsTools } from "./src/tools/seo-analytics-tools.js";
 import { createSetupWizardTools } from "./src/tools/setup-wizard-tools.js";
 import { createStakeholderTools } from "./src/tools/stakeholder-tools.js";
 import { createTypeDBTools } from "./src/tools/typedb-tools.js";
@@ -61,6 +65,9 @@ export default function register(api: OpenClawPluginApi) {
     createIntegrationTools,
     createReportingTools,
     createMarketingTools,
+    createCrmTools,
+    createEmailTools,
+    createSeoAnalyticsTools,
     createOntologyManagementTools,
     createSetupWizardTools,
     createTypeDBTools,
@@ -111,7 +118,18 @@ export default function register(api: OpenClawPluginApi) {
             const { join } = await import("node:path");
             const agentDir = join(workspaceDir, "agents", agentId);
             const state = await readAgentCognitiveState(agentDir, agentId);
-            await runMaintenanceCycle(state);
+            const cycleResult = await runMaintenanceCycle(state);
+
+            // Fire-and-forget: write BDI cycle results to TypeDB
+            import("./src/knowledge/typedb-dashboard.js")
+              .then(({ writeBdiCycleResultToTypeDB }) =>
+                writeBdiCycleResultToTypeDB(agentId, "mabos", {
+                  newIntentions: cycleResult?.newIntentions,
+                  newBeliefs: cycleResult?.newBeliefs,
+                  updatedGoals: cycleResult?.updatedGoals,
+                }),
+              )
+              .catch(() => {});
           }
         } catch (err) {
           api.logger.warn?.(
@@ -140,6 +158,9 @@ export default function register(api: OpenClawPluginApi) {
       api.logger.info("[mabos-bdi] Heartbeat stopped");
     },
   });
+
+  // ── 2b. Cron Bridge Service ──────────────────────────────────
+  api.registerService(createCronBridgeService(api));
 
   // ── 3. CLI Subcommands ────────────────────────────────────────
   api.registerCli(
@@ -375,6 +396,23 @@ export default function register(api: OpenClawPluginApi) {
         const businessDir = join(workspaceDir, "businesses");
         const businesses = await readdir(businessDir).catch(() => []);
 
+        // Overlay TypeDB intention counts onto agent summaries
+        try {
+          const { queryAgentListFromTypeDB } = await import("./src/knowledge/typedb-dashboard.js");
+          const typedbAgents = await queryAgentListFromTypeDB("mabos");
+          if (typedbAgents && typedbAgents.length > 0) {
+            const typedbMap = new Map(typedbAgents.map((a: any) => [a.id, a]));
+            for (const agent of agents) {
+              const tdb = typedbMap.get(agent.agentId);
+              if (tdb) {
+                agent.intentionCount = tdb.intentions;
+              }
+            }
+          }
+        } catch {
+          /* TypeDB unavailable */
+        }
+
         res.setHeader("Content-Type", "application/json");
         res.end(
           JSON.stringify({
@@ -400,6 +438,19 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/decisions",
     handler: async (_req, res) => {
+      // Try TypeDB first
+      try {
+        const { queryDecisionsFromTypeDB } = await import("./src/knowledge/typedb-dashboard.js");
+        const decisions = await queryDecisionsFromTypeDB("mabos");
+        if (decisions && decisions.length > 0) {
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ decisions }));
+          return;
+        }
+      } catch {
+        /* fall through to filesystem */
+      }
+
       try {
         const { readdir, stat: fsStat } = await import("node:fs/promises");
         const { join } = await import("node:path");
@@ -564,6 +615,19 @@ export default function register(api: OpenClawPluginApi) {
         res.end(JSON.stringify({ error: "Invalid agent ID" }));
         return;
       }
+      // Try TypeDB first
+      try {
+        const { queryAgentDetailFromTypeDB } = await import("./src/knowledge/typedb-dashboard.js");
+        const detail = await queryAgentDetailFromTypeDB(agentId, `mabos`);
+        if (detail) {
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify(detail));
+          return;
+        }
+      } catch {
+        /* fall through to filesystem */
+      }
+
       const agentDir = join(workspaceDir, "agents", agentId);
 
       const beliefs = await readMdLines(join(agentDir, "Beliefs.md"));
@@ -585,6 +649,42 @@ export default function register(api: OpenClawPluginApi) {
           desires,
         }),
       );
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // API: Agent knowledge stats
+  registerParamRoute("/mabos/api/agents/:id/knowledge", async (req, res) => {
+    try {
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      // agents/:id/knowledge → id is at index -2 from "knowledge"
+      const knowledgeIdx = segments.indexOf("knowledge");
+      const rawId = knowledgeIdx > 0 ? segments[knowledgeIdx - 1] : "";
+      const agentId = sanitizeId(rawId);
+      if (!agentId) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Invalid agent ID" }));
+        return;
+      }
+
+      try {
+        const { queryKnowledgeStatsFromTypeDB } =
+          await import("./src/knowledge/typedb-dashboard.js");
+        const stats = await queryKnowledgeStatsFromTypeDB(agentId, "mabos");
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(stats ?? { facts: 0, rules: 0, memories: 0, cases: 0 }));
+        return;
+      } catch {
+        /* fall through */
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ facts: 0, rules: 0, memories: 0, cases: 0 }));
     } catch (err) {
       res.setHeader("Content-Type", "application/json");
       res.statusCode = 500;
@@ -1287,6 +1387,19 @@ export default function register(api: OpenClawPluginApi) {
       }
 
       // GET: Read goal model
+      // Try TypeDB first
+      try {
+        const { queryGoalModelFromTypeDB } = await import("./src/knowledge/typedb-dashboard.js");
+        const model = await queryGoalModelFromTypeDB(`mabos`);
+        if (model) {
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify(model));
+          return;
+        }
+      } catch {
+        /* fall through to filesystem */
+      }
+
       const troposPath = join(bizDir, "tropos-goal-model.json");
       let goalModel = await readJsonSafe(troposPath);
 
@@ -1331,6 +1444,19 @@ export default function register(api: OpenClawPluginApi) {
 
   // API: Get tasks for a business (parsed from agent Plans.md)
   registerParamRoute("/mabos/api/businesses/:id/tasks", async (req, res) => {
+    // Try TypeDB first
+    try {
+      const { queryTasksFromTypeDB } = await import("./src/knowledge/typedb-dashboard.js");
+      const tasks = await queryTasksFromTypeDB("mabos");
+      if (tasks && tasks.length > 0) {
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ tasks }));
+        return;
+      }
+    } catch {
+      /* fall through to filesystem */
+    }
+
     try {
       const { readFile, readdir } = await import("node:fs/promises");
       const { join } = await import("node:path");
@@ -1619,6 +1745,7 @@ export default function register(api: OpenClawPluginApi) {
       }
 
       // GET: List agents
+      // Build from filesystem first (all agents), then overlay TypeDB BDI counts
       const manifest = await readJsonSafe(join(bizDir, "manifest.json"));
       const agentEntries = await readdir(agentsDir).catch(() => []);
       const agents: any[] = [];
@@ -1657,6 +1784,27 @@ export default function register(api: OpenClawPluginApi) {
           autonomy_level: config?.autonomy_level || "medium",
           approval_threshold_usd: config?.approval_threshold_usd || 100,
         });
+      }
+
+      // Overlay TypeDB BDI counts (richer data for agents in knowledge graph)
+      try {
+        const { queryAgentListFromTypeDB } = await import("./src/knowledge/typedb-dashboard.js");
+        const typedbAgents = await queryAgentListFromTypeDB(`mabos`);
+        if (typedbAgents && typedbAgents.length > 0) {
+          const typedbMap = new Map(typedbAgents.map((a: any) => [a.id, a]));
+          for (const agent of agents) {
+            const tdb = typedbMap.get(agent.id);
+            if (tdb) {
+              agent.name = tdb.name;
+              agent.beliefs = tdb.beliefs;
+              agent.goals = tdb.goals;
+              agent.intentions = tdb.intentions;
+              agent.desires = tdb.desires;
+            }
+          }
+        }
+      } catch {
+        /* TypeDB unavailable, filesystem counts remain */
       }
 
       res.setHeader("Content-Type", "application/json");
@@ -1827,6 +1975,187 @@ export default function register(api: OpenClawPluginApi) {
 
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ ok: true, config }));
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // API: Cron jobs for a business
+  registerParamRoute("/mabos/api/businesses/:id/cron", async (req, res) => {
+    try {
+      const { readFile, writeFile, mkdir } = await import("node:fs/promises");
+      const { join, dirname } = await import("node:path");
+
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const bizIdx = segments.indexOf("businesses");
+      const rawBizId = segments[bizIdx + 1] || "";
+      const businessId = sanitizeId(rawBizId);
+      if (!businessId) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Invalid business ID" }));
+        return;
+      }
+      const bizDir = join(workspaceDir, "businesses", businessId);
+      const cronPath = join(bizDir, "cron-jobs.json");
+
+      if (req.method === "POST") {
+        let body = "";
+        for await (const chunk of req as any) body += chunk;
+        let params: any;
+        try {
+          params = JSON.parse(body);
+        } catch {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+          return;
+        }
+
+        const jobs = (await readJsonSafe(cronPath)) || [];
+        const newJob: Record<string, unknown> = {
+          id: `CRON-${Date.now()}`,
+          name: params.name || "Unnamed Job",
+          schedule: params.schedule || "0 */6 * * *",
+          agentId: params.agentId || "",
+          action: params.action || "",
+          enabled: params.enabled !== false,
+          status: "active",
+          createdAt: new Date().toISOString(),
+        };
+        if (params.workflowId) newJob.workflowId = params.workflowId;
+        if (params.stepId) newJob.stepId = params.stepId;
+        jobs.push(newJob);
+        await mkdir(dirname(cronPath), { recursive: true });
+        await writeFile(cronPath, JSON.stringify(jobs, null, 2), "utf-8");
+
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true, job: newJob }));
+        return;
+      }
+
+      // GET: List cron jobs
+      let jobs = await readJsonSafe(cronPath);
+      if (!jobs || !Array.isArray(jobs)) {
+        // Seed default cron jobs
+        jobs = [
+          {
+            id: "CRON-heartbeat",
+            name: "BDI Heartbeat Cycle",
+            schedule: `*/${bdiIntervalMinutes} * * * *`,
+            agentId: "system",
+            action: "bdi_cycle",
+            enabled: true,
+            status: "active",
+            lastRun: new Date().toISOString(),
+            nextRun: new Date(Date.now() + bdiIntervalMinutes * 60 * 1000).toISOString(),
+          },
+          {
+            id: "CRON-knowledge",
+            name: "Knowledge Consolidation",
+            schedule: "0 2 * * *",
+            agentId: "vw-knowledge",
+            action: "memory_consolidate",
+            enabled: true,
+            status: "active",
+          },
+          {
+            id: "CRON-decisions",
+            name: "Decision Queue Review",
+            schedule: "0 */6 * * *",
+            agentId: "vw-ceo",
+            action: "decision_review",
+            enabled: true,
+            status: "active",
+          },
+        ];
+        await mkdir(dirname(cronPath), { recursive: true });
+        await writeFile(cronPath, JSON.stringify(jobs, null, 2), "utf-8");
+      }
+
+      // Update heartbeat job with actual last/next run times
+      const heartbeatJob = jobs.find((j: any) => j.id === "CRON-heartbeat");
+      if (heartbeatJob) {
+        heartbeatJob.lastRun = new Date().toISOString();
+        heartbeatJob.nextRun = new Date(Date.now() + bdiIntervalMinutes * 60 * 1000).toISOString();
+      }
+
+      // Filter by workflowId if query param provided
+      const filterWorkflowId = url.searchParams.get("workflowId");
+      const filteredJobs = filterWorkflowId
+        ? jobs.filter((j: any) => j.workflowId === filterWorkflowId)
+        : jobs;
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ jobs: filteredJobs }));
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // API: Update/toggle a cron job
+  registerParamRoute("/mabos/api/businesses/:id/cron/:jobId", async (req, res) => {
+    if (req.method !== "PUT" && req.method !== "POST") {
+      res.statusCode = 405;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: "Method not allowed" }));
+      return;
+    }
+    try {
+      const { readFile, writeFile, mkdir } = await import("node:fs/promises");
+      const { join, dirname } = await import("node:path");
+
+      let body = "";
+      for await (const chunk of req as any) body += chunk;
+      let params: any;
+      try {
+        params = JSON.parse(body);
+      } catch {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Invalid JSON" }));
+        return;
+      }
+
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const bizIdx = segments.indexOf("businesses");
+      const rawBizId = segments[bizIdx + 1] || "";
+      const businessId = sanitizeId(rawBizId);
+      const jobId = segments[segments.length - 1] || "";
+      if (!businessId) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Invalid business ID" }));
+        return;
+      }
+
+      const cronPath = join(workspaceDir, "businesses", businessId, "cron-jobs.json");
+      const jobs = (await readJsonSafe(cronPath)) || [];
+      const idx = jobs.findIndex((j: any) => j.id === jobId);
+      if (idx === -1) {
+        res.statusCode = 404;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Cron job not found" }));
+        return;
+      }
+
+      if (params.enabled !== undefined) jobs[idx].enabled = params.enabled;
+      if (params.schedule !== undefined) jobs[idx].schedule = params.schedule;
+      if (params.name !== undefined) jobs[idx].name = params.name;
+      if (params.status !== undefined) jobs[idx].status = params.status;
+      jobs[idx].updatedAt = new Date().toISOString();
+
+      await mkdir(dirname(cronPath), { recursive: true });
+      await writeFile(cronPath, JSON.stringify(jobs, null, 2), "utf-8");
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ ok: true, job: jobs[idx] }));
     } catch (err) {
       res.setHeader("Content-Type", "application/json");
       res.statusCode = 500;

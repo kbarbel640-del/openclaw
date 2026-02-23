@@ -18,6 +18,10 @@ import {
   GoalStoreQueries,
   DesireStoreQueries,
   BeliefStoreQueries,
+  DecisionStoreQueries,
+  WorkflowStoreQueries,
+  TaskStoreQueries,
+  IntentionStoreQueries,
 } from "../knowledge/typedb-queries.js";
 import { textResult } from "./common.js";
 
@@ -875,6 +879,1431 @@ const BELIEFS: BeliefSeed[] = [
   },
 ];
 
+// ── Decision Seed Data ───────────────────────────────────────────────────
+
+interface DecisionSeed {
+  id: string;
+  agentId: string;
+  name: string;
+  description: string;
+  urgency: string;
+  options: any[];
+  recommendation?: string;
+  goalIds: string[]; // goals this decision resolves
+}
+
+const DECISIONS: DecisionSeed[] = [
+  {
+    id: "DEC-001",
+    agentId: "vw-ceo",
+    name: "Expand to European Market",
+    description:
+      "Evaluate whether to enter the EU market in Year 2 or wait until Year 3 for stronger US foundation",
+    urgency: "high",
+    options: [
+      {
+        id: "opt-1",
+        label: "Enter EU Year 2",
+        description: "Aggressive expansion targeting UK, Germany, France",
+        recommended: true,
+      },
+      {
+        id: "opt-2",
+        label: "Defer to Year 3",
+        description: "Focus on US market dominance first",
+        recommended: false,
+      },
+      {
+        id: "opt-3",
+        label: "EU Partnership Model",
+        description: "License to EU partner rather than direct entry",
+        recommended: false,
+      },
+    ],
+    recommendation:
+      "Enter EU Year 2 — our brand positioning is strong enough and first-mover advantage in premium abstract art is critical",
+    goalIds: ["G-S008"],
+  },
+  {
+    id: "DEC-002",
+    agentId: "vw-cfo",
+    name: "Select Payment Processor",
+    description: "Choose between Stripe, Square, or PayPal Commerce for primary payment processing",
+    urgency: "medium",
+    options: [
+      {
+        id: "opt-1",
+        label: "Stripe",
+        description: "2.9% + $0.30, best API, supports subscriptions",
+        recommended: true,
+      },
+      {
+        id: "opt-2",
+        label: "Square",
+        description: "2.6% + $0.10, good for POS if showroom opens",
+        recommended: false,
+      },
+      {
+        id: "opt-3",
+        label: "PayPal Commerce",
+        description: "2.59% + $0.49, highest buyer trust",
+        recommended: false,
+      },
+    ],
+    recommendation:
+      "Stripe — best developer experience and supports our subscription/LE pre-order model",
+    goalIds: ["G-T001"],
+  },
+  {
+    id: "DEC-003",
+    agentId: "vw-cto",
+    name: "Cloud Provider Migration",
+    description:
+      "Current hosting on shared infrastructure; need to decide on dedicated cloud provider for scaling",
+    urgency: "high",
+    options: [
+      {
+        id: "opt-1",
+        label: "AWS",
+        description: "Most services, best for e-commerce, CDN via CloudFront",
+        recommended: true,
+      },
+      {
+        id: "opt-2",
+        label: "Vercel + Cloudflare",
+        description: "Simpler deployment, edge-first",
+        recommended: false,
+      },
+      {
+        id: "opt-3",
+        label: "GCP",
+        description: "Better AI/ML integration for future features",
+        recommended: false,
+      },
+    ],
+    recommendation:
+      "AWS — mature e-commerce tooling (S3 for art storage, CloudFront CDN, Lambda for image processing)",
+    goalIds: ["G-S009", "G-S010"],
+  },
+  {
+    id: "DEC-004",
+    agentId: "vw-cmo",
+    name: "Limited Edition Launch Strategy",
+    description: "Choose the go-to-market strategy for our first 3 limited edition collections",
+    urgency: "high",
+    options: [
+      {
+        id: "opt-1",
+        label: "Waitlist + Drop Model",
+        description: "Build anticipation with waitlist, then timed drops",
+        recommended: true,
+      },
+      {
+        id: "opt-2",
+        label: "Auction Model",
+        description: "Let market set prices through auctions",
+        recommended: false,
+      },
+      {
+        id: "opt-3",
+        label: "First-Come-First-Served",
+        description: "Simple launch, whoever buys first gets it",
+        recommended: false,
+      },
+    ],
+    recommendation:
+      "Waitlist + Drop Model — creates FOMO, builds email list, and allows pre-demand estimation",
+    goalIds: ["G-T008", "G-T009"],
+  },
+  {
+    id: "DEC-005",
+    agentId: "vw-coo",
+    name: "Print Production Partner",
+    description: "Select primary print-on-demand partner or bring printing in-house",
+    urgency: "medium",
+    options: [
+      {
+        id: "opt-1",
+        label: "In-House Production",
+        description: "Buy printers, hire staff, full quality control",
+        recommended: false,
+      },
+      {
+        id: "opt-2",
+        label: "Printful White-Label",
+        description: "Outsource to Printful with custom quality specs",
+        recommended: true,
+      },
+      {
+        id: "opt-3",
+        label: "Hybrid Model",
+        description: "In-house for LE, outsource standard prints",
+        recommended: false,
+      },
+    ],
+    recommendation:
+      "Printful White-Label for Year 1, then transition LE production in-house by Year 2",
+    goalIds: ["G-T004", "G-T014"],
+  },
+];
+
+// ── Workflow / Task Seed Data ────────────────────────────────────────────
+
+interface WorkflowSeed {
+  id: string;
+  agentId: string;
+  name: string;
+  workflowType: string;
+  trigger: string;
+  planId: string;
+  planName: string;
+  goalId: string; // goal this workflow serves
+  schedule?: string; // cron expression for workflow-level schedule
+  scheduleTimezone?: string;
+  steps: Array<{
+    id: string;
+    name: string;
+    stepType: string;
+    order: number;
+    estimatedDuration: string;
+    schedule?: string; // cron expression for step-level schedule
+    action?: string; // tool name mapped to this step
+  }>;
+  tasks: Array<{
+    id: string;
+    name: string;
+    description: string;
+    taskType: string;
+    assignedAgentId: string;
+    priority: number;
+    estimatedDuration: string;
+    dependsOnIds?: string;
+  }>;
+}
+
+const WORKFLOWS: WorkflowSeed[] = [
+  {
+    id: "WF-001",
+    agentId: "vw-cmo",
+    name: "Market Research Pipeline",
+    workflowType: "research",
+    trigger: "quarterly",
+    planId: "PLAN-MR-001",
+    planName: "Q1 Market Research Plan",
+    goalId: "G-T011",
+    steps: [
+      {
+        id: "PS-MR-001",
+        name: "Competitor Analysis",
+        stepType: "research",
+        order: 1,
+        estimatedDuration: "3d",
+      },
+      {
+        id: "PS-MR-002",
+        name: "Customer Segmentation Update",
+        stepType: "analysis",
+        order: 2,
+        estimatedDuration: "2d",
+      },
+      {
+        id: "PS-MR-003",
+        name: "Pricing Strategy Review",
+        stepType: "review",
+        order: 3,
+        estimatedDuration: "1d",
+      },
+      {
+        id: "PS-MR-004",
+        name: "Campaign Planning",
+        stepType: "planning",
+        order: 4,
+        estimatedDuration: "2d",
+      },
+      {
+        id: "PS-MR-005",
+        name: "Report & Recommendations",
+        stepType: "deliverable",
+        order: 5,
+        estimatedDuration: "1d",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-MR-001",
+        name: "Analyze competitor pricing",
+        description: "Review top 5 competitor pricing strategies and market positioning",
+        taskType: "research",
+        assignedAgentId: "vw-cmo",
+        priority: 0.85,
+        estimatedDuration: "2d",
+      },
+      {
+        id: "T-MR-002",
+        name: "Survey customer preferences",
+        description: "Run customer preference survey on art styles and price sensitivity",
+        taskType: "research",
+        assignedAgentId: "vw-cmo",
+        priority: 0.8,
+        estimatedDuration: "3d",
+      },
+      {
+        id: "T-MR-003",
+        name: "Update buyer personas",
+        description: "Refresh buyer personas based on Q4 data",
+        taskType: "analysis",
+        assignedAgentId: "vw-cmo",
+        priority: 0.75,
+        estimatedDuration: "1d",
+        dependsOnIds: "T-MR-002",
+      },
+      {
+        id: "T-MR-004",
+        name: "A/B test ad creatives",
+        description: "Test 3 ad creative variants across Facebook and Instagram",
+        taskType: "execution",
+        assignedAgentId: "vw-cmo",
+        priority: 0.8,
+        estimatedDuration: "5d",
+      },
+      {
+        id: "T-MR-005",
+        name: "Evaluate SEO performance",
+        description: "Audit organic search rankings and optimize content strategy",
+        taskType: "analysis",
+        assignedAgentId: "vw-cmo",
+        priority: 0.7,
+        estimatedDuration: "2d",
+      },
+      {
+        id: "T-MR-006",
+        name: "Draft marketing report",
+        description: "Compile research findings into quarterly marketing report",
+        taskType: "deliverable",
+        assignedAgentId: "vw-cmo",
+        priority: 0.9,
+        estimatedDuration: "1d",
+        dependsOnIds: "T-MR-001,T-MR-003,T-MR-005",
+      },
+    ],
+  },
+  {
+    id: "WF-002",
+    agentId: "vw-cfo",
+    name: "Revenue Optimization Workflow",
+    workflowType: "optimization",
+    trigger: "monthly",
+    planId: "PLAN-RO-001",
+    planName: "Revenue Optimization Plan",
+    goalId: "G-T001",
+    steps: [
+      {
+        id: "PS-RO-001",
+        name: "Revenue Dashboard Review",
+        stepType: "review",
+        order: 1,
+        estimatedDuration: "1d",
+      },
+      {
+        id: "PS-RO-002",
+        name: "Margin Analysis",
+        stepType: "analysis",
+        order: 2,
+        estimatedDuration: "2d",
+      },
+      {
+        id: "PS-RO-003",
+        name: "Pricing Adjustments",
+        stepType: "action",
+        order: 3,
+        estimatedDuration: "1d",
+      },
+      {
+        id: "PS-RO-004",
+        name: "Cost Reduction Initiatives",
+        stepType: "action",
+        order: 4,
+        estimatedDuration: "3d",
+      },
+      {
+        id: "PS-RO-005",
+        name: "Financial Forecast Update",
+        stepType: "deliverable",
+        order: 5,
+        estimatedDuration: "1d",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-RO-001",
+        name: "Generate monthly P&L",
+        description: "Pull revenue, COGS, and expense data for monthly P&L statement",
+        taskType: "reporting",
+        assignedAgentId: "vw-cfo",
+        priority: 0.9,
+        estimatedDuration: "1d",
+      },
+      {
+        id: "T-RO-002",
+        name: "Analyze product margins",
+        description: "Calculate margin by product category (standard, premium, LE)",
+        taskType: "analysis",
+        assignedAgentId: "vw-cfo",
+        priority: 0.85,
+        estimatedDuration: "1d",
+      },
+      {
+        id: "T-RO-003",
+        name: "Review supplier costs",
+        description: "Compare current supplier costs against market rates",
+        taskType: "analysis",
+        assignedAgentId: "vw-coo",
+        priority: 0.75,
+        estimatedDuration: "2d",
+      },
+      {
+        id: "T-RO-004",
+        name: "Adjust pricing tiers",
+        description: "Recommend pricing changes based on margin analysis",
+        taskType: "action",
+        assignedAgentId: "vw-cfo",
+        priority: 0.8,
+        estimatedDuration: "1d",
+        dependsOnIds: "T-RO-002",
+      },
+      {
+        id: "T-RO-005",
+        name: "Update financial model",
+        description: "Refresh 5-year financial model with actual vs projected",
+        taskType: "modeling",
+        assignedAgentId: "vw-cfo",
+        priority: 0.85,
+        estimatedDuration: "2d",
+        dependsOnIds: "T-RO-001,T-RO-002",
+      },
+      {
+        id: "T-RO-006",
+        name: "Investor-ready report",
+        description: "Prepare financial summary for stakeholder review",
+        taskType: "deliverable",
+        assignedAgentId: "vw-cfo",
+        priority: 0.9,
+        estimatedDuration: "1d",
+        dependsOnIds: "T-RO-005",
+      },
+    ],
+  },
+  {
+    id: "WF-003",
+    agentId: "vw-cto",
+    name: "Tech Infrastructure Setup",
+    workflowType: "infrastructure",
+    trigger: "milestone",
+    planId: "PLAN-TI-001",
+    planName: "Platform Infrastructure Plan",
+    goalId: "G-S009",
+    steps: [
+      {
+        id: "PS-TI-001",
+        name: "Architecture Design",
+        stepType: "planning",
+        order: 1,
+        estimatedDuration: "5d",
+      },
+      {
+        id: "PS-TI-002",
+        name: "Cloud Environment Setup",
+        stepType: "infrastructure",
+        order: 2,
+        estimatedDuration: "3d",
+      },
+      {
+        id: "PS-TI-003",
+        name: "CI/CD Pipeline",
+        stepType: "infrastructure",
+        order: 3,
+        estimatedDuration: "2d",
+      },
+      {
+        id: "PS-TI-004",
+        name: "Monitoring & Alerting",
+        stepType: "infrastructure",
+        order: 4,
+        estimatedDuration: "2d",
+      },
+      {
+        id: "PS-TI-005",
+        name: "Security Hardening",
+        stepType: "security",
+        order: 5,
+        estimatedDuration: "3d",
+      },
+      {
+        id: "PS-TI-006",
+        name: "Performance Testing",
+        stepType: "testing",
+        order: 6,
+        estimatedDuration: "2d",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-TI-001",
+        name: "Design system architecture",
+        description:
+          "Create architecture diagram for e-commerce platform with CDN, image processing, and payment integration",
+        taskType: "planning",
+        assignedAgentId: "vw-cto",
+        priority: 0.95,
+        estimatedDuration: "3d",
+      },
+      {
+        id: "T-TI-002",
+        name: "Set up cloud infrastructure",
+        description:
+          "Provision AWS resources: S3 buckets, CloudFront distributions, Lambda functions, RDS",
+        taskType: "infrastructure",
+        assignedAgentId: "vw-cto",
+        priority: 0.9,
+        estimatedDuration: "3d",
+        dependsOnIds: "T-TI-001",
+      },
+      {
+        id: "T-TI-003",
+        name: "Configure CDN for art delivery",
+        description:
+          "Set up CloudFront with image optimization for high-res art delivery worldwide",
+        taskType: "infrastructure",
+        assignedAgentId: "vw-cto",
+        priority: 0.85,
+        estimatedDuration: "2d",
+        dependsOnIds: "T-TI-002",
+      },
+      {
+        id: "T-TI-004",
+        name: "Build image processing pipeline",
+        description:
+          "Create Lambda-based pipeline for art resizing, watermarking, and format conversion",
+        taskType: "development",
+        assignedAgentId: "vw-cto",
+        priority: 0.85,
+        estimatedDuration: "5d",
+        dependsOnIds: "T-TI-002",
+      },
+      {
+        id: "T-TI-005",
+        name: "Implement monitoring",
+        description:
+          "Set up DataDog/CloudWatch monitoring with uptime alerts and performance dashboards",
+        taskType: "infrastructure",
+        assignedAgentId: "vw-cto",
+        priority: 0.8,
+        estimatedDuration: "2d",
+        dependsOnIds: "T-TI-002",
+      },
+      {
+        id: "T-TI-006",
+        name: "Run load tests",
+        description:
+          "Load test platform to verify it handles 500+ concurrent users and 1000 orders/day",
+        taskType: "testing",
+        assignedAgentId: "vw-cto",
+        priority: 0.8,
+        estimatedDuration: "2d",
+        dependsOnIds: "T-TI-003,T-TI-004",
+      },
+    ],
+  },
+
+  // ── Marketing Workflow System (WF-100 → WF-110) ────────────────────────
+
+  {
+    id: "WF-100",
+    agentId: "vw-cmo",
+    name: "Lead Generation Pipeline",
+    workflowType: "marketing",
+    trigger: "scheduled",
+    planId: "PLAN-LG-100",
+    planName: "Lead Generation Plan",
+    goalId: "G-T007",
+    schedule: "0 8 * * MON-FRI",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-LG-001",
+        name: "Lead Capture",
+        stepType: "automation",
+        order: 1,
+        estimatedDuration: "ongoing",
+        schedule: "0 */4 * * *",
+        action: "lead_scoring",
+      },
+      {
+        id: "PS-LG-002",
+        name: "Qualification",
+        stepType: "analysis",
+        order: 2,
+        estimatedDuration: "1d",
+        schedule: "0 9 * * MON-FRI",
+        action: "crm_pipeline",
+      },
+      {
+        id: "PS-LG-003",
+        name: "Nurture Trigger",
+        stepType: "automation",
+        order: 3,
+        estimatedDuration: "ongoing",
+        schedule: "0 10 * * 1,3,5",
+        action: "email_campaign",
+      },
+      {
+        id: "PS-LG-004",
+        name: "Conversion Tracking",
+        stepType: "monitoring",
+        order: 4,
+        estimatedDuration: "ongoing",
+        schedule: "0 18 * * *",
+        action: "conversion_tracker",
+      },
+      {
+        id: "PS-LG-005",
+        name: "Source Analysis",
+        stepType: "reporting",
+        order: 5,
+        estimatedDuration: "1d",
+        schedule: "0 9 * * MON",
+        action: "analytics_dashboard",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-LG-001",
+        name: "Configure lead scoring rules",
+        description:
+          "Set up scoring weights for engagement, company size, industry, budget, and recency",
+        taskType: "configuration",
+        assignedAgentId: "vw-cmo",
+        priority: 0.9,
+        estimatedDuration: "1d",
+      },
+      {
+        id: "T-LG-002",
+        name: "Build nurture email sequence",
+        description: "Create 5-email drip sequence for qualified leads",
+        taskType: "content",
+        assignedAgentId: "vw-cmo",
+        priority: 0.85,
+        estimatedDuration: "3d",
+      },
+      {
+        id: "T-LG-003",
+        name: "Set up conversion funnels",
+        description: "Configure visit->view->cart->checkout->purchase funnel tracking",
+        taskType: "configuration",
+        assignedAgentId: "vw-cmo",
+        priority: 0.8,
+        estimatedDuration: "1d",
+      },
+    ],
+  },
+  {
+    id: "WF-101",
+    agentId: "vw-cmo",
+    name: "Social Media Management",
+    workflowType: "marketing",
+    trigger: "scheduled",
+    planId: "PLAN-SM-101",
+    planName: "Social Media Management Plan",
+    goalId: "G-O012",
+    schedule: "0 7 * * *",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-SM-001",
+        name: "Calendar Review",
+        stepType: "review",
+        order: 1,
+        estimatedDuration: "1h",
+        schedule: "0 7 * * MON",
+        action: "content_publish",
+      },
+      {
+        id: "PS-SM-002",
+        name: "Post Scheduling",
+        stepType: "execution",
+        order: 2,
+        estimatedDuration: "1h",
+        schedule: "0 8 * * MON-FRI",
+        action: "content_publish",
+      },
+      {
+        id: "PS-SM-003",
+        name: "Engagement Monitor",
+        stepType: "monitoring",
+        order: 3,
+        estimatedDuration: "ongoing",
+        schedule: "0 */3 * * *",
+        action: "ad_analytics",
+      },
+      {
+        id: "PS-SM-004",
+        name: "Analytics",
+        stepType: "reporting",
+        order: 4,
+        estimatedDuration: "1h",
+        schedule: "0 17 * * *",
+        action: "analytics_dashboard",
+      },
+      {
+        id: "PS-SM-005",
+        name: "Trend Research",
+        stepType: "research",
+        order: 5,
+        estimatedDuration: "2h",
+        schedule: "0 9 * * WED",
+        action: "seo_audit",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-SM-001",
+        name: "Plan weekly content calendar",
+        description:
+          "Draft social media content calendar for the upcoming week across all platforms",
+        taskType: "planning",
+        assignedAgentId: "vw-cmo",
+        priority: 0.85,
+        estimatedDuration: "2h",
+      },
+      {
+        id: "T-SM-002",
+        name: "Create platform-specific posts",
+        description: "Adapt content for Facebook, Instagram, Pinterest, and LinkedIn formats",
+        taskType: "content",
+        assignedAgentId: "vw-cmo",
+        priority: 0.8,
+        estimatedDuration: "3h",
+      },
+    ],
+  },
+  {
+    id: "WF-102",
+    agentId: "vw-cmo",
+    name: "Email Marketing Lifecycle",
+    workflowType: "marketing",
+    trigger: "scheduled",
+    planId: "PLAN-EM-102",
+    planName: "Email Marketing Lifecycle Plan",
+    goalId: "G-O004",
+    schedule: "0 6 1 * *",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-EM-001",
+        name: "List Segmentation",
+        stepType: "analysis",
+        order: 1,
+        estimatedDuration: "2h",
+        schedule: "0 6 1 * *",
+        action: "email_list_segment",
+      },
+      {
+        id: "PS-EM-002",
+        name: "Template Design",
+        stepType: "creation",
+        order: 2,
+        estimatedDuration: "3d",
+        schedule: "0 9 2-5 * *",
+        action: "email_campaign",
+      },
+      {
+        id: "PS-EM-003",
+        name: "A/B Split",
+        stepType: "testing",
+        order: 3,
+        estimatedDuration: "1d",
+        schedule: "0 10 5 * *",
+        action: "email_campaign",
+      },
+      {
+        id: "PS-EM-004",
+        name: "Campaign Send",
+        stepType: "execution",
+        order: 4,
+        estimatedDuration: "1h",
+        schedule: "0 10 7 * *",
+        action: "email_campaign",
+      },
+      {
+        id: "PS-EM-005",
+        name: "Analysis",
+        stepType: "reporting",
+        order: 5,
+        estimatedDuration: "2h",
+        schedule: "0 9 10 * *",
+        action: "analytics_dashboard",
+      },
+      {
+        id: "PS-EM-006",
+        name: "Bounce Cleanup",
+        stepType: "maintenance",
+        order: 6,
+        estimatedDuration: "1h",
+        schedule: "0 3 15 * *",
+        action: "email_list_segment",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-EM-001",
+        name: "Segment subscriber lists",
+        description: "Create segments based on purchase history, engagement, and location",
+        taskType: "analysis",
+        assignedAgentId: "vw-cmo",
+        priority: 0.85,
+        estimatedDuration: "2h",
+      },
+      {
+        id: "T-EM-002",
+        name: "Design email templates",
+        description: "Create responsive HTML templates for monthly campaign",
+        taskType: "design",
+        assignedAgentId: "vw-cmo",
+        priority: 0.8,
+        estimatedDuration: "2d",
+      },
+      {
+        id: "T-EM-003",
+        name: "Configure A/B test",
+        description: "Set up subject line and CTA variations for split testing",
+        taskType: "configuration",
+        assignedAgentId: "vw-cmo",
+        priority: 0.75,
+        estimatedDuration: "1h",
+      },
+    ],
+  },
+  {
+    id: "WF-103",
+    agentId: "vw-cmo",
+    name: "SEO & Content Optimization",
+    workflowType: "marketing",
+    trigger: "scheduled",
+    planId: "PLAN-SEO-103",
+    planName: "SEO & Content Optimization Plan",
+    goalId: "G-O005",
+    schedule: "0 8 * * MON",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-SEO-001",
+        name: "Rank Tracking",
+        stepType: "monitoring",
+        order: 1,
+        estimatedDuration: "30m",
+        schedule: "0 5 * * *",
+        action: "keyword_tracker",
+      },
+      {
+        id: "PS-SEO-002",
+        name: "Gap Analysis",
+        stepType: "analysis",
+        order: 2,
+        estimatedDuration: "2h",
+        schedule: "0 9 * * MON",
+        action: "seo_audit",
+      },
+      {
+        id: "PS-SEO-003",
+        name: "On-Page Optimization",
+        stepType: "execution",
+        order: 3,
+        estimatedDuration: "3h",
+        schedule: "0 10 * * TUE,THU",
+        action: "seo_audit",
+      },
+      {
+        id: "PS-SEO-004",
+        name: "Backlink Monitor",
+        stepType: "monitoring",
+        order: 4,
+        estimatedDuration: "1h",
+        schedule: "0 8 * * WED",
+        action: "keyword_tracker",
+      },
+      {
+        id: "PS-SEO-005",
+        name: "Tech Audit",
+        stepType: "audit",
+        order: 5,
+        estimatedDuration: "4h",
+        schedule: "0 3 1 * *",
+        action: "seo_audit",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-SEO-001",
+        name: "Add target keywords",
+        description: "Add primary and long-tail keywords for abstract wall art niche",
+        taskType: "configuration",
+        assignedAgentId: "vw-cmo",
+        priority: 0.85,
+        estimatedDuration: "1h",
+      },
+      {
+        id: "T-SEO-002",
+        name: "Fix critical SEO issues",
+        description: "Address missing schema markup and meta description issues from audit",
+        taskType: "execution",
+        assignedAgentId: "vw-cto",
+        priority: 0.9,
+        estimatedDuration: "2d",
+      },
+    ],
+  },
+  {
+    id: "WF-104",
+    agentId: "vw-cmo",
+    name: "Customer Journey Orchestration",
+    workflowType: "marketing",
+    trigger: "scheduled",
+    planId: "PLAN-CJ-104",
+    planName: "Customer Journey Orchestration Plan",
+    goalId: "G-T006",
+    schedule: "0 */6 * * *",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-CJ-001",
+        name: "Touchpoint Tracking",
+        stepType: "monitoring",
+        order: 1,
+        estimatedDuration: "ongoing",
+        schedule: "*/30 * * * *",
+        action: "conversion_tracker",
+      },
+      {
+        id: "PS-CJ-002",
+        name: "Behavior Analysis",
+        stepType: "analysis",
+        order: 2,
+        estimatedDuration: "1h",
+        schedule: "0 9 * * *",
+        action: "analytics_dashboard",
+      },
+      {
+        id: "PS-CJ-003",
+        name: "Personalization Update",
+        stepType: "automation",
+        order: 3,
+        estimatedDuration: "30m",
+        schedule: "0 2 * * *",
+        action: "email_list_segment",
+      },
+      {
+        id: "PS-CJ-004",
+        name: "Retention Eval",
+        stepType: "analysis",
+        order: 4,
+        estimatedDuration: "1h",
+        schedule: "0 */4 * * *",
+        action: "crm_pipeline",
+      },
+      {
+        id: "PS-CJ-005",
+        name: "Churn Prediction",
+        stepType: "analysis",
+        order: 5,
+        estimatedDuration: "2h",
+        schedule: "0 6 * * MON",
+        action: "lead_scoring",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-CJ-001",
+        name: "Configure funnel tracking",
+        description: "Set up multi-stage conversion funnel from visit through purchase",
+        taskType: "configuration",
+        assignedAgentId: "vw-cmo",
+        priority: 0.85,
+        estimatedDuration: "1h",
+      },
+      {
+        id: "T-CJ-002",
+        name: "Build retention segments",
+        description: "Create segments for at-risk, loyal, and new customers",
+        taskType: "analysis",
+        assignedAgentId: "vw-cmo",
+        priority: 0.8,
+        estimatedDuration: "2h",
+      },
+    ],
+  },
+  {
+    id: "WF-105",
+    agentId: "vw-legal",
+    name: "Compliance & Brand Safety",
+    workflowType: "compliance",
+    trigger: "scheduled",
+    planId: "PLAN-CB-105",
+    planName: "Compliance & Brand Safety Plan",
+    goalId: "G-O005",
+    schedule: "0 7 * * *",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-CB-001",
+        name: "Ad Review",
+        stepType: "review",
+        order: 1,
+        estimatedDuration: "1h",
+        schedule: "0 7 * * *",
+        action: "ad_analytics",
+      },
+      {
+        id: "PS-CB-002",
+        name: "FTC/GDPR Check",
+        stepType: "compliance",
+        order: 2,
+        estimatedDuration: "2h",
+        schedule: "0 8 * * MON",
+        action: "seo_audit",
+      },
+      {
+        id: "PS-CB-003",
+        name: "Brand Mentions",
+        stepType: "monitoring",
+        order: 3,
+        estimatedDuration: "ongoing",
+        schedule: "0 */2 * * *",
+        action: "ad_analytics",
+      },
+      {
+        id: "PS-CB-004",
+        name: "Negative Scan",
+        stepType: "monitoring",
+        order: 4,
+        estimatedDuration: "30m",
+        schedule: "0 6 * * *",
+        action: "ad_analytics",
+      },
+      {
+        id: "PS-CB-005",
+        name: "Report",
+        stepType: "reporting",
+        order: 5,
+        estimatedDuration: "2h",
+        schedule: "0 9 1 * *",
+        action: "analytics_dashboard",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-CB-001",
+        name: "Review active ad creatives",
+        description: "Check all running ads for FTC compliance and brand guideline adherence",
+        taskType: "review",
+        assignedAgentId: "vw-legal",
+        priority: 0.9,
+        estimatedDuration: "2h",
+      },
+    ],
+  },
+  {
+    id: "WF-106",
+    agentId: "vw-cmo",
+    name: "Content Lifecycle Management",
+    workflowType: "marketing",
+    trigger: "scheduled",
+    planId: "PLAN-CL-106",
+    planName: "Content Lifecycle Management Plan",
+    goalId: "G-O012",
+    schedule: "0 9 * * MON",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-CL-001",
+        name: "Ideation",
+        stepType: "research",
+        order: 1,
+        estimatedDuration: "2h",
+        schedule: "0 9 * * MON",
+        action: "keyword_tracker",
+      },
+      {
+        id: "PS-CL-002",
+        name: "Creation",
+        stepType: "creation",
+        order: 2,
+        estimatedDuration: "4h",
+        schedule: "0 10 * * MON-FRI",
+        action: "content_publish",
+      },
+      {
+        id: "PS-CL-003",
+        name: "Review",
+        stepType: "review",
+        order: 3,
+        estimatedDuration: "1h",
+        schedule: "0 14 * * WED,FRI",
+        action: "seo_audit",
+      },
+      {
+        id: "PS-CL-004",
+        name: "Publishing",
+        stepType: "execution",
+        order: 4,
+        estimatedDuration: "30m",
+        schedule: "0 9 * * TUE,THU",
+        action: "content_publish",
+      },
+      {
+        id: "PS-CL-005",
+        name: "Tracking",
+        stepType: "monitoring",
+        order: 5,
+        estimatedDuration: "30m",
+        schedule: "0 17 * * *",
+        action: "analytics_dashboard",
+      },
+      {
+        id: "PS-CL-006",
+        name: "Archive",
+        stepType: "maintenance",
+        order: 6,
+        estimatedDuration: "1h",
+        schedule: "0 3 1 * *",
+        action: "analytics_dashboard",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-CL-001",
+        name: "Research trending topics",
+        description: "Identify trending keywords and content gaps using keyword tracker",
+        taskType: "research",
+        assignedAgentId: "vw-cmo",
+        priority: 0.8,
+        estimatedDuration: "2h",
+      },
+      {
+        id: "T-CL-002",
+        name: "Create content calendar",
+        description: "Plan monthly content across blog, social, and email channels",
+        taskType: "planning",
+        assignedAgentId: "vw-cmo",
+        priority: 0.85,
+        estimatedDuration: "3h",
+      },
+    ],
+  },
+  {
+    id: "WF-107",
+    agentId: "vw-cfo",
+    name: "Marketing Budget Optimization",
+    workflowType: "finance",
+    trigger: "scheduled",
+    planId: "PLAN-MB-107",
+    planName: "Marketing Budget Optimization Plan",
+    goalId: "G-T007",
+    schedule: "0 8 * * MON",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-MB-001",
+        name: "Spend Aggregation",
+        stepType: "data_collection",
+        order: 1,
+        estimatedDuration: "1h",
+        schedule: "0 6 * * *",
+        action: "ad_analytics",
+      },
+      {
+        id: "PS-MB-002",
+        name: "ROAS Analysis",
+        stepType: "analysis",
+        order: 2,
+        estimatedDuration: "2h",
+        schedule: "0 8 * * MON",
+        action: "analytics_dashboard",
+      },
+      {
+        id: "PS-MB-003",
+        name: "Reallocation",
+        stepType: "action",
+        order: 3,
+        estimatedDuration: "1h",
+        schedule: "0 10 * * MON",
+        action: "ad_campaign_manage",
+      },
+      {
+        id: "PS-MB-004",
+        name: "Forecast vs Actual",
+        stepType: "reporting",
+        order: 4,
+        estimatedDuration: "2h",
+        schedule: "0 9 1 * *",
+        action: "analytics_dashboard",
+      },
+      {
+        id: "PS-MB-005",
+        name: "CFO Report",
+        stepType: "deliverable",
+        order: 5,
+        estimatedDuration: "2h",
+        schedule: "0 14 1 * *",
+        action: "analytics_dashboard",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-MB-001",
+        name: "Aggregate cross-platform spend",
+        description: "Pull ad spend data from all platforms and calculate blended ROAS",
+        taskType: "reporting",
+        assignedAgentId: "vw-cfo",
+        priority: 0.9,
+        estimatedDuration: "1h",
+      },
+      {
+        id: "T-MB-002",
+        name: "Reallocate underperforming budgets",
+        description: "Shift budget from low-ROAS to high-ROAS channels",
+        taskType: "action",
+        assignedAgentId: "vw-cfo",
+        priority: 0.85,
+        estimatedDuration: "1h",
+      },
+    ],
+  },
+  {
+    id: "WF-108",
+    agentId: "vw-cmo",
+    name: "A/B Testing Framework",
+    workflowType: "marketing",
+    trigger: "scheduled",
+    planId: "PLAN-AB-108",
+    planName: "A/B Testing Framework Plan",
+    goalId: "G-O005",
+    schedule: "0 9 * * MON",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-AB-001",
+        name: "Hypothesis",
+        stepType: "research",
+        order: 1,
+        estimatedDuration: "1h",
+        schedule: "0 9 * * MON",
+        action: "analytics_dashboard",
+      },
+      {
+        id: "PS-AB-002",
+        name: "Test Setup",
+        stepType: "configuration",
+        order: 2,
+        estimatedDuration: "2h",
+        schedule: "0 10 * * TUE",
+        action: "email_campaign",
+      },
+      {
+        id: "PS-AB-003",
+        name: "Traffic Monitor",
+        stepType: "monitoring",
+        order: 3,
+        estimatedDuration: "ongoing",
+        schedule: "0 */6 * * *",
+        action: "conversion_tracker",
+      },
+      {
+        id: "PS-AB-004",
+        name: "Significance Check",
+        stepType: "analysis",
+        order: 4,
+        estimatedDuration: "1h",
+        schedule: "0 9 * * FRI",
+        action: "analytics_dashboard",
+      },
+      {
+        id: "PS-AB-005",
+        name: "Winner Deploy",
+        stepType: "execution",
+        order: 5,
+        estimatedDuration: "1h",
+        schedule: "0 10 * * MON",
+        action: "ad_campaign_manage",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-AB-001",
+        name: "Define test hypotheses",
+        description:
+          "Identify highest-impact variables to test across landing pages, ads, and emails",
+        taskType: "research",
+        assignedAgentId: "vw-cmo",
+        priority: 0.8,
+        estimatedDuration: "1h",
+      },
+      {
+        id: "T-AB-002",
+        name: "Create test variants",
+        description: "Build A and B variants for the current test cycle",
+        taskType: "creation",
+        assignedAgentId: "vw-cmo",
+        priority: 0.75,
+        estimatedDuration: "2h",
+      },
+    ],
+  },
+  {
+    id: "WF-109",
+    agentId: "vw-ceo",
+    name: "Crisis Management",
+    workflowType: "operations",
+    trigger: "scheduled",
+    planId: "PLAN-CR-109",
+    planName: "Crisis Management Plan",
+    goalId: "G-O009",
+    schedule: "*/15 * * * *",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-CR-001",
+        name: "Sentiment Monitor",
+        stepType: "monitoring",
+        order: 1,
+        estimatedDuration: "ongoing",
+        schedule: "*/15 * * * *",
+        action: "ad_analytics",
+      },
+      {
+        id: "PS-CR-002",
+        name: "Alert Triage",
+        stepType: "analysis",
+        order: 2,
+        estimatedDuration: "event-driven",
+      },
+      {
+        id: "PS-CR-003",
+        name: "Response Draft",
+        stepType: "creation",
+        order: 3,
+        estimatedDuration: "event-driven",
+      },
+      {
+        id: "PS-CR-004",
+        name: "Stakeholder Notify",
+        stepType: "communication",
+        order: 4,
+        estimatedDuration: "event-driven",
+      },
+      {
+        id: "PS-CR-005",
+        name: "Post-Crisis Review",
+        stepType: "review",
+        order: 5,
+        estimatedDuration: "2h",
+        schedule: "0 9 * * MON",
+        action: "analytics_dashboard",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-CR-001",
+        name: "Set up sentiment monitoring",
+        description: "Configure brand mention and sentiment tracking across social platforms",
+        taskType: "configuration",
+        assignedAgentId: "vw-ceo",
+        priority: 0.95,
+        estimatedDuration: "1h",
+      },
+    ],
+  },
+  {
+    id: "WF-110",
+    agentId: "vw-coo",
+    name: "Vendor & Partner Management",
+    workflowType: "operations",
+    trigger: "scheduled",
+    planId: "PLAN-VP-110",
+    planName: "Vendor & Partner Management Plan",
+    goalId: "G-T014",
+    schedule: "0 9 * * MON",
+    scheduleTimezone: "America/New_York",
+    steps: [
+      {
+        id: "PS-VP-001",
+        name: "Pipeline Review",
+        stepType: "review",
+        order: 1,
+        estimatedDuration: "1h",
+        schedule: "0 9 * * MON",
+        action: "crm_pipeline",
+      },
+      {
+        id: "PS-VP-002",
+        name: "Onboarding Check",
+        stepType: "review",
+        order: 2,
+        estimatedDuration: "1h",
+        schedule: "0 10 * * WED",
+        action: "crm_pipeline",
+      },
+      {
+        id: "PS-VP-003",
+        name: "Scorecard",
+        stepType: "reporting",
+        order: 3,
+        estimatedDuration: "2h",
+        schedule: "0 9 1 * *",
+        action: "analytics_dashboard",
+      },
+      {
+        id: "PS-VP-004",
+        name: "Renewal Alerts",
+        stepType: "monitoring",
+        order: 4,
+        estimatedDuration: "30m",
+        schedule: "0 8 1 * *",
+        action: "crm_pipeline",
+      },
+      {
+        id: "PS-VP-005",
+        name: "Integration Health",
+        stepType: "monitoring",
+        order: 5,
+        estimatedDuration: "30m",
+        schedule: "0 3 * * *",
+        action: "integration_sync",
+      },
+    ],
+    tasks: [
+      {
+        id: "T-VP-001",
+        name: "Review vendor pipeline",
+        description:
+          "Assess current vendor relationships and identify new partnership opportunities",
+        taskType: "review",
+        assignedAgentId: "vw-coo",
+        priority: 0.8,
+        estimatedDuration: "1h",
+      },
+      {
+        id: "T-VP-002",
+        name: "Check integration health",
+        description: "Verify all vendor integrations are syncing correctly",
+        taskType: "monitoring",
+        assignedAgentId: "vw-coo",
+        priority: 0.75,
+        estimatedDuration: "30m",
+      },
+    ],
+  },
+];
+
 // ── Tool Parameters ─────────────────────────────────────────────────────
 
 const GoalSeedParams = Type.Object({
@@ -1024,6 +2453,145 @@ export function createGoalSeedTools(_api: OpenClawPluginApi): AnyAgentTool[] {
           }
         }
 
+        // 7. Insert decisions
+        let decisionCount = 0;
+        let decisionGoalLinks = 0;
+        for (const d of DECISIONS) {
+          try {
+            const typeql = DecisionStoreQueries.createDecision(d.agentId, {
+              id: d.id,
+              name: d.name,
+              description: d.description,
+              urgency: d.urgency,
+              options: JSON.stringify(d.options),
+              recommendation: d.recommendation,
+            });
+            await client.insertData(typeql, dbName);
+            decisionCount++;
+          } catch (e) {
+            counts.errors.push(`Decision ${d.id}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+
+          // Link decisions to goals
+          for (const goalId of d.goalIds) {
+            try {
+              const typeql = DecisionStoreQueries.linkDecisionToGoal(d.id, goalId);
+              await client.insertData(typeql, dbName);
+              decisionGoalLinks++;
+            } catch (e) {
+              counts.errors.push(
+                `Link DEC ${d.id}→${goalId}: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            }
+          }
+        }
+
+        // 8. Insert workflows, plans, plan steps, and tasks
+        let workflowCount = 0;
+        let planCount = 0;
+        let planStepCount = 0;
+        let taskCount = 0;
+        let goalPlanLinks = 0;
+        let planStepLinks = 0;
+
+        for (const wf of WORKFLOWS) {
+          // Insert workflow
+          try {
+            const typeql = WorkflowStoreQueries.createWorkflow(wf.agentId, {
+              id: wf.id,
+              name: wf.name,
+              workflowType: wf.workflowType,
+              trigger: wf.trigger,
+              cronExpression: wf.schedule,
+              cronEnabled: wf.schedule ? true : undefined,
+              cronTimezone: wf.scheduleTimezone,
+            });
+            await client.insertData(typeql, dbName);
+            workflowCount++;
+          } catch (e) {
+            counts.errors.push(`Workflow ${wf.id}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+
+          // Insert plan
+          try {
+            const now = new Date().toISOString();
+            await client.insertData(
+              `match $agent isa agent, has uid ${JSON.stringify(wf.agentId)};
+insert $plan isa plan, has uid ${JSON.stringify(wf.planId)}, has name ${JSON.stringify(wf.planName)}, has description ${JSON.stringify(`Plan for ${wf.name}`)}, has plan_source "seed", has step_count ${wf.steps.length}, has confidence 0.8, has status "active", has created_at ${JSON.stringify(now)}, has updated_at ${JSON.stringify(now)}; (owner: $agent, owned: $plan) isa agent_owns;`,
+              dbName,
+            );
+            planCount++;
+          } catch (e) {
+            counts.errors.push(`Plan ${wf.planId}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+
+          // Link goal → plan
+          try {
+            const typeql = GoalStoreQueries.linkGoalToPlan(wf.agentId, wf.goalId, wf.planId);
+            await client.insertData(typeql, dbName);
+            goalPlanLinks++;
+          } catch (e) {
+            counts.errors.push(
+              `Link ${wf.goalId}→${wf.planId}: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+
+          // Insert plan steps
+          for (const step of wf.steps) {
+            try {
+              const now = new Date().toISOString();
+              const cronClause = step.schedule
+                ? `, has cron_expression ${JSON.stringify(step.schedule)}, has cron_enabled true`
+                : "";
+              const toolClause = step.action
+                ? `, has tool_binding ${JSON.stringify(step.action)}`
+                : "";
+              await client.insertData(
+                `match $agent isa agent, has uid ${JSON.stringify(wf.agentId)};
+insert $ps isa plan_step, has uid ${JSON.stringify(step.id)}, has name ${JSON.stringify(step.name)}, has step_type ${JSON.stringify(step.stepType)}, has estimated_duration ${JSON.stringify(step.estimatedDuration)}, has status "proposed", has sequence_order ${step.order}${cronClause}${toolClause}, has created_at ${JSON.stringify(now)}; (owner: $agent, owned: $ps) isa agent_owns;`,
+                dbName,
+              );
+              planStepCount++;
+            } catch (e) {
+              counts.errors.push(`Step ${step.id}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+
+            // Link plan → step
+            try {
+              await client.insertData(
+                `match $plan isa plan, has uid ${JSON.stringify(wf.planId)}; $step isa plan_step, has uid ${JSON.stringify(step.id)};
+insert (container: $plan, contained: $step) isa plan_contains_step;`,
+                dbName,
+              );
+              planStepLinks++;
+            } catch (e) {
+              counts.errors.push(
+                `Link ${wf.planId}→${step.id}: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            }
+          }
+
+          // Insert tasks
+          for (const task of wf.tasks) {
+            try {
+              const typeql = TaskStoreQueries.createTask(wf.agentId, {
+                id: task.id,
+                name: task.name,
+                description: task.description,
+                taskType: task.taskType,
+                assignedAgentId: task.assignedAgentId,
+                priority: task.priority,
+                estimatedDuration: task.estimatedDuration,
+                dependsOnIds: task.dependsOnIds,
+              });
+              await client.insertData(typeql, dbName);
+              taskCount++;
+            } catch (e) {
+              counts.errors.push(`Task ${task.id}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+          }
+        }
+
         const errorSummary =
           counts.errors.length > 0
             ? `\n\n### Errors (${counts.errors.length})\n${counts.errors
@@ -1044,10 +2612,18 @@ export function createGoalSeedTools(_api: OpenClawPluginApi): AnyAgentTool[] {
 - Desires: ${counts.desires}/${DESIRES.length}
 - Goals: ${counts.goals}/${GOALS.length} (${GOALS.filter((g) => g.hierarchy_level === "strategic").length} strategic, ${GOALS.filter((g) => g.hierarchy_level === "tactical").length} tactical, ${GOALS.filter((g) => g.hierarchy_level === "operational").length} operational)
 - Beliefs: ${counts.beliefs}/${BELIEFS.length}
+- Decisions: ${decisionCount}/${DECISIONS.length}
+- Workflows: ${workflowCount}/${WORKFLOWS.length}
+- Plans: ${planCount}/${WORKFLOWS.length}
+- Plan Steps: ${planStepCount}/${WORKFLOWS.reduce((a, w) => a + w.steps.length, 0)}
+- Tasks: ${taskCount}/${WORKFLOWS.reduce((a, w) => a + w.tasks.length, 0)}
 
 ### Relations Created
 - desire_motivates_goal: ${counts.desire_goal_links}
-- belief_supports_goal: ${counts.belief_goal_links}${errorSummary}`);
+- belief_supports_goal: ${counts.belief_goal_links}
+- decision_resolves_goal: ${decisionGoalLinks}
+- goal_requires_plan: ${goalPlanLinks}
+- plan_contains_step: ${planStepLinks}${errorSummary}`);
       },
     },
   ];
