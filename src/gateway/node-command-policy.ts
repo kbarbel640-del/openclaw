@@ -150,6 +150,33 @@ export function resolveNodeCommandAllowlist(
   return allow;
 }
 
+/** Platform-specific commands that are only available on certain platforms. */
+const PLATFORM_ONLY_COMMANDS: Record<string, string[]> = {
+  "system.notify": ["macos", "ios"],
+};
+
+/**
+ * Build a descriptive error message when a node command is not allowed.
+ * Includes platform-specific hints when a command is unavailable on the node's OS.
+ */
+export function buildNodeCommandNotAllowedHint(
+  command: string,
+  reason: string,
+  platform: string,
+): string {
+  const normalizedPlatform = normalizePlatformId(platform);
+  const supportedPlatforms = PLATFORM_ONLY_COMMANDS[command];
+  if (
+    supportedPlatforms &&
+    !supportedPlatforms.includes(normalizedPlatform) &&
+    (reason === "command not declared by node" || reason === "command not allowlisted")
+  ) {
+    const supported = supportedPlatforms.join(", ");
+    return `\`${command}\` is not supported on ${normalizedPlatform} nodes (supported: ${supported}). Tip: use \`openclaw message send\` as a cross-platform alternative for notifications.`;
+  }
+  return `node command not allowed: ${reason} (${command})`;
+}
+
 export function isNodeCommandAllowed(params: {
   command: string;
   declaredCommands?: string[];

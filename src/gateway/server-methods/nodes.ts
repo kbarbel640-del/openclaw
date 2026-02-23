@@ -14,7 +14,11 @@ import {
   sendApnsAlert,
   sendApnsBackgroundWake,
 } from "../../infra/push-apns.js";
-import { isNodeCommandAllowed, resolveNodeCommandAllowlist } from "../node-command-policy.js";
+import {
+  buildNodeCommandNotAllowedHint,
+  isNodeCommandAllowed,
+  resolveNodeCommandAllowlist,
+} from "../node-command-policy.js";
 import { sanitizeNodeInvokeParamsForForwarding } from "../node-invoke-sanitize.js";
 import {
   ErrorCodes,
@@ -687,11 +691,13 @@ export const nodeHandlers: GatewayRequestHandlers = {
         allowlist,
       });
       if (!allowed.ok) {
+        const platform = nodeSession.platform ?? "unknown";
+        const hint = buildNodeCommandNotAllowedHint(command, allowed.reason, platform);
         respond(
           false,
           undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "node command not allowed", {
-            details: { reason: allowed.reason, command },
+          errorShape(ErrorCodes.INVALID_REQUEST, hint, {
+            details: { reason: allowed.reason, command, platform },
           }),
         );
         return;
