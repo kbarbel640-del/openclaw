@@ -130,4 +130,27 @@ describe("runDaemonRestart health checks", () => {
     expect(terminateStaleGatewayPids).not.toHaveBeenCalled();
     expect(renderRestartDiagnostics).toHaveBeenCalledTimes(1);
   });
+
+  it("timeout hints do not reference removed --probe flag", async () => {
+    const unhealthy: RestartHealthSnapshot = {
+      healthy: false,
+      staleGatewayPids: [],
+      runtime: { status: "stopped" },
+      portUsage: { port: 18789, status: "free", listeners: [], hints: [] },
+    };
+    waitForGatewayHealthyRestart.mockResolvedValue(unhealthy);
+
+    const { runDaemonRestart } = await import("./lifecycle.js");
+
+    try {
+      await runDaemonRestart({ json: true });
+    } catch (err: unknown) {
+      const error = err as { hints?: string[] };
+      if (error.hints) {
+        for (const hint of error.hints) {
+          expect(hint).not.toContain("--probe");
+        }
+      }
+    }
+  });
 });
