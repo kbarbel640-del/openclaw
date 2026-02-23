@@ -1,14 +1,17 @@
 import type { ExecToolDefaults } from "../../agents/bash-tools.js";
 import type { ModelAliasIndex } from "../../agents/model-selection.js";
-import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
 import type { SkillCommandSpec } from "../../agents/skills.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
-import { listChatCommands, shouldHandleTextCommands } from "../commands-registry.js";
-import { listSkillCommandsForWorkspace } from "../skill-commands.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
+import type { TypingController } from "./typing.js";
+import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
+import { resolveSessionFilePath } from "../../config/sessions.js";
+import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { listChatCommands, shouldHandleTextCommands } from "../commands-registry.js";
+import { listSkillCommandsForWorkspace } from "../skill-commands.js";
 import { resolveBlockStreamingChunking } from "./block-streaming.js";
 import { buildCommandContext } from "./commands.js";
 import { type InlineDirectives, parseInlineDirectives } from "./directive-handling.js";
@@ -16,10 +19,13 @@ import { applyInlineDirectiveOverrides } from "./get-reply-directives-apply.js";
 import { clearExecInlineDirectives, clearInlineDirectives } from "./get-reply-directives-utils.js";
 import { defaultGroupActivation, resolveGroupRequireMention } from "./groups.js";
 import { CURRENT_MESSAGE_MARKER, stripMentions, stripStructuralPrefixes } from "./mentions.js";
+import { resolveRoutingConfig, routeModel, type RoutingResult } from "./model-router.js";
 import { createModelSelectionState, resolveContextTokens } from "./model-selection.js";
+import { loadRecentSessionContext } from "./recent-context.js";
 import { formatElevatedUnavailableMessage, resolveElevatedPermissions } from "./reply-elevated.js";
 import { stripInlineStatus } from "./reply-inline.js";
-import type { TypingController } from "./typing.js";
+
+const routingLog = createSubsystemLogger("auto-reply/routing");
 
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 type ExecOverrides = Pick<ExecToolDefaults, "host" | "security" | "ask" | "node">;
@@ -61,6 +67,7 @@ export type ReplyDirectiveContinuation = {
     cap?: number;
     dropPolicy?: InlineDirectives["dropPolicy"];
   };
+  routingResult?: RoutingResult;
 };
 
 function resolveExecOverrides(params: {
@@ -414,7 +421,48 @@ export async function resolveReplyDirectives(params: {
   const isModelListAlias =
     directives.hasModelDirective &&
     ["status", "list"].includes(directives.rawModelDirective?.trim().toLowerCase() ?? "");
-  const effectiveModelDirective = isModelListAlias ? undefined : directives.rawModelDirective;
+  let effectiveModelDirective = isModelListAlias ? undefined : directives.rawModelDirective;
+
+  // Dynamic model routing: run the configured strategy to potentially override the model.
+  let routingResult: RoutingResult | undefined;
+  const routingConfig = resolveRoutingConfig(cfg);
+  if (routingConfig) {
+    const bypassExplicit = routingConfig.bypass?.onExplicitModel !== false;
+    const bypassHeartbeat = routingConfig.bypass?.onHeartbeat !== false;
+    const hasExplicitOverride =
+      directives.hasModelDirective || Boolean(sessionEntry?.modelOverride);
+    const shouldBypass =
+      (bypassExplicit && hasExplicitOverride) || (bypassHeartbeat && opts?.isHeartbeat === true);
+
+    if (!shouldBypass) {
+      const classifierOpts = (routingConfig.options?.classifier ?? {}) as Record<string, unknown>;
+      const sessionFile = resolveSessionFilePath(sessionEntry.sessionId, sessionEntry, {
+        agentId,
+      });
+      const recentContext = await loadRecentSessionContext({
+        sessionFile,
+        messageCount: (classifierOpts.contextMessages as number | undefined) ?? undefined,
+        truncateChars: (classifierOpts.contextChars as number | undefined) ?? undefined,
+      });
+
+      routingResult = await routeModel({
+        ctx: sessionCtx,
+        config: cfg,
+        routing: routingConfig,
+        primaryProvider: provider,
+        primaryModel: model,
+        recentContext,
+      });
+      if (!effectiveModelDirective) {
+        effectiveModelDirective = `${routingResult.provider}/${routingResult.model}`;
+        provider = routingResult.provider;
+        model = routingResult.model;
+      }
+    } else {
+      const bypassReason = opts?.isHeartbeat ? "heartbeat" : "explicit-model-override";
+      routingLog.debug(`routing bypassed: reason=${bypassReason} model=${provider}/${model}`);
+    }
+  }
 
   const inlineStatusRequested = hasInlineStatus && allowTextCommands && command.isAuthorizedSender;
 
@@ -491,6 +539,7 @@ export async function resolveReplyDirectives(params: {
       directiveAck,
       perMessageQueueMode,
       perMessageQueueOptions,
+      routingResult,
     },
   };
 }

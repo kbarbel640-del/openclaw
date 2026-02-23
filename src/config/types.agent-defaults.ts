@@ -16,9 +16,24 @@ export type AgentModelEntryConfig = {
   streaming?: boolean;
 };
 
+export type AgentModelRoutingConfig = {
+  /** Name of the routing strategy (e.g., "passthrough", "dynamic-tiered"). */
+  strategy: string;
+  /** Strategy-specific options (opaque to the core — passed through to the strategy). */
+  options?: Record<string, unknown>;
+  bypass?: {
+    /** Skip routing when user has an explicit /model override (default: true). */
+    onExplicitModel?: boolean;
+    /** Skip routing for heartbeat runs (default: true). */
+    onHeartbeat?: boolean;
+  };
+};
+
 export type AgentModelListConfig = {
   primary?: string;
   fallbacks?: string[];
+  /** Dynamic model routing: select a strategy to route messages to different models. */
+  routing?: AgentModelRoutingConfig;
 };
 
 export type AgentContextPruningConfig = {
