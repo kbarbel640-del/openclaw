@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Diagnostics;
 
@@ -36,8 +37,28 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
             }
 
             var (devices, error) = await TryListDevicesWithWinRtAsync();
+            if (devices.Length > 0)
+            {
+                LastError = null;
+                return devices;
+            }
+
+            var ffmpeg = ResolveBundledFfmpegPath();
+            if (!string.IsNullOrWhiteSpace(ffmpeg))
+            {
+                var (fallbackDevices, ffErr) = await TryListDevicesWithFfmpegAsync(ffmpeg);
+                if (fallbackDevices.Length > 0)
+                {
+                    LastError = null;
+                    return fallbackDevices;
+                }
+
+                LastError = string.Join(" | ", new[] { error, ffErr }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                return Array.Empty<CameraDeviceInfo>();
+            }
+
             LastError = error;
-            return devices;
+            return Array.Empty<CameraDeviceInfo>();
         }
 
         public async Task<(string Base64, int Width, int Height)> CaptureJpegAsBase64Async(
@@ -62,20 +83,31 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
             }
 
             var (bytes, error) = await TryCaptureWithWinRtAsync(deviceId);
+            if (bytes != null && bytes.Length > 0 && IsLikelyJpeg(bytes))
+            {
+                LastError = null;
+                var (w, h) = TryReadJpegDimensions(bytes);
+                return (Convert.ToBase64String(bytes), Math.Max(w, 1), Math.Max(h, 1));
+            }
+
+            // Optional shipped fallback: bundled ffmpeg binary (no user install required).
+            var ffmpeg = ResolveBundledFfmpegPath();
+            if (!string.IsNullOrWhiteSpace(ffmpeg))
+            {
+                var (ffBytes, ffErr) = await TryCaptureWithFfmpegAsync(ffmpeg, facing, maxWidth, quality, deviceId);
+                if (ffBytes != null && ffBytes.Length > 0 && IsLikelyJpeg(ffBytes))
+                {
+                    LastError = null;
+                    var (fw, fh) = TryReadJpegDimensions(ffBytes);
+                    return (Convert.ToBase64String(ffBytes), Math.Max(fw, 1), Math.Max(fh, 1));
+                }
+
+                LastError = string.Join(" | ", new[] { error, ffErr }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                return (PlaceholderJpegBase64, 1, 1);
+            }
+
             LastError = error;
-            if (bytes == null || bytes.Length == 0)
-            {
-                return (PlaceholderJpegBase64, 1, 1);
-            }
-
-            if (!IsLikelyJpeg(bytes))
-            {
-                LastError = "native camera capture returned non-JPEG frame";
-                return (PlaceholderJpegBase64, 1, 1);
-            }
-
-            var (w, h) = TryReadJpegDimensions(bytes);
-            return (Convert.ToBase64String(bytes), Math.Max(w, 1), Math.Max(h, 1));
+            return (PlaceholderJpegBase64, 1, 1);
         }
 
         private static async Task<(CameraDeviceInfo[] Devices, string? Error)> TryListDevicesWithWinRtAsync()
@@ -220,6 +252,164 @@ try {
             }
         }
 
+        private static string? ResolveBundledFfmpegPath()
+        {
+            var env = Environment.GetEnvironmentVariable("OPENCLAW_FFMPEG_PATH");
+            if (!string.IsNullOrWhiteSpace(env) && File.Exists(env)) return env;
+
+            var baseDir = AppContext.BaseDirectory;
+            var candidates = new[]
+            {
+                Path.Combine(baseDir, "tools", "ffmpeg", "ffmpeg.exe"),
+                Path.Combine(baseDir, "ffmpeg", "ffmpeg.exe"),
+                Path.Combine(baseDir, "ffmpeg.exe"),
+                Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "tools", "ffmpeg", "ffmpeg.exe")),
+            };
+
+            foreach (var c in candidates)
+            {
+                try
+                {
+                    if (File.Exists(c)) return c;
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
+        private static async Task<(CameraDeviceInfo[] Devices, string? Error)> TryListDevicesWithFfmpegAsync(string ffmpegPath)
+        {
+            var res = await RunProcessAsync(ffmpegPath, "-hide_banner", "-f", "dshow", "-list_devices", "true", "-i", "dummy");
+            var text = (res.StdErr ?? string.Empty) + "\n" + (res.StdOut ?? string.Empty);
+            var names = ParseDshowVideoDeviceNames(text);
+            if (names.Length == 0)
+            {
+                var err = string.IsNullOrWhiteSpace(res.StdErr) ? "ffmpeg device list returned no video devices" : res.StdErr.Trim();
+                return (Array.Empty<CameraDeviceInfo>(), err);
+            }
+
+            var list = names.Select(name =>
+            {
+                var lower = name.ToLowerInvariant();
+                var position = (lower.Contains("back") || lower.Contains("rear")) ? "back" : "front";
+                var deviceType = (lower.Contains("usb") || lower.Contains("external")) ? "external" : "integrated";
+                return new CameraDeviceInfo
+                {
+                    Id = name,
+                    Name = name,
+                    Position = position,
+                    DeviceType = deviceType,
+                };
+            }).ToArray();
+
+            return (list, null);
+        }
+
+        private static async Task<(byte[]? Bytes, string? Error)> TryCaptureWithFfmpegAsync(
+            string ffmpegPath,
+            string facing,
+            int? maxWidth,
+            double? quality,
+            string? deviceId)
+        {
+            var (devices, listErr) = await TryListDevicesWithFfmpegAsync(ffmpegPath);
+            if (devices.Length == 0)
+            {
+                return (null, listErr ?? "ffmpeg camera device enumeration failed");
+            }
+
+            CameraDeviceInfo? selected = null;
+            if (!string.IsNullOrWhiteSpace(deviceId))
+            {
+                selected = devices.FirstOrDefault(d => string.Equals(d.Id, deviceId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (selected == null)
+            {
+                var desiredFacing = string.Equals(facing, "back", StringComparison.OrdinalIgnoreCase) ? "back" : "front";
+                selected = devices.FirstOrDefault(d => string.Equals(d.Position, desiredFacing, StringComparison.OrdinalIgnoreCase)) ?? devices[0];
+            }
+
+            var q = quality ?? 0.85;
+            q = Math.Clamp(q, 0.0, 1.0);
+            var qv = (int)Math.Round(31 - (q * 29));
+
+            var tempFile = Path.Combine(Path.GetTempPath(), $"openclaw_cam_ff_{Guid.NewGuid():N}.jpg");
+            try
+            {
+                var args = new List<string>
+                {
+                    "-hide_banner",
+                    "-loglevel", "error",
+                    "-y",
+                    "-f", "dshow",
+                    "-i", $"video={selected.Name}",
+                    "-frames:v", "1",
+                    "-q:v", qv.ToString()
+                };
+
+                if (maxWidth.HasValue && maxWidth.Value > 0)
+                {
+                    args.Add("-vf");
+                    args.Add($"scale='min({maxWidth.Value},iw)':-2");
+                }
+
+                args.Add(tempFile);
+                var res = await RunProcessAsync(ffmpegPath, args.ToArray());
+                if (res.ExitCode != 0 || !File.Exists(tempFile))
+                {
+                    var err = string.IsNullOrWhiteSpace(res.StdErr) ? "ffmpeg capture command failed" : res.StdErr.Trim();
+                    return (null, err);
+                }
+
+                var bytes = await File.ReadAllBytesAsync(tempFile);
+                if (!IsLikelyJpeg(bytes))
+                {
+                    return (null, "ffmpeg capture produced non-JPEG output");
+                }
+
+                return (bytes, null);
+            }
+            finally
+            {
+                try { if (File.Exists(tempFile)) File.Delete(tempFile); } catch { }
+            }
+        }
+
+        private static string[] ParseDshowVideoDeviceNames(string output)
+        {
+            var lines = output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            var names = new List<string>();
+            var inVideo = false;
+            var quoted = new Regex("\"([^\"]+)\"", RegexOptions.Compiled);
+
+            foreach (var line in lines)
+            {
+                if (line.Contains("DirectShow video devices", StringComparison.OrdinalIgnoreCase))
+                {
+                    inVideo = true;
+                    continue;
+                }
+
+                if (inVideo && line.Contains("DirectShow audio devices", StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                if (!inVideo) continue;
+
+                var m = quoted.Match(line);
+                if (!m.Success) continue;
+                var name = m.Groups[1].Value.Trim();
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                if (names.Contains(name, StringComparer.OrdinalIgnoreCase)) continue;
+                names.Add(name);
+            }
+
+            return names.ToArray();
+        }
+
         private static string? ExtractMarkedError(string output)
         {
             const string mark = "__OC_ERR__";
@@ -266,6 +456,29 @@ try {
             }
 
             return (0, 0);
+        }
+
+        private static async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessAsync(string fileName, params string[] args)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = fileName,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+            };
+
+            foreach (var arg in args) psi.ArgumentList.Add(arg);
+
+            using var p = new Process { StartInfo = psi };
+            p.Start();
+            var so = await p.StandardOutput.ReadToEndAsync();
+            var se = await p.StandardError.ReadToEndAsync();
+            await p.WaitForExitAsync();
+            return (p.ExitCode, so, se);
         }
 
         private static async Task<(int ExitCode, string StdOut, string StdErr)> RunPowerShellAsync(string script, IDictionary<string, string?>? env)
