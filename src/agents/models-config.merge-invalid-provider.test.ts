@@ -74,7 +74,7 @@ describe("models-config", () => {
 
         expect(parsed.providers["test-aperture"]?.apiKey).toBe("-");
 
-        const authStorage = new AuthStorage(path.join(agentDir, "auth.json"));
+        const authStorage = AuthStorage.create(path.join(agentDir, "auth.json"));
         const modelRegistry = new ModelRegistry(authStorage, modelPath);
 
         expect(modelRegistry.getError()).toBeUndefined();
