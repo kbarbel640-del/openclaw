@@ -56,6 +56,8 @@ export type CostUsageSummary = {
   days: number;
   daily: CostUsageDailyEntry[];
   totals: CostUsageTotals;
+  /** Warning message if cost data includes deleted sessions */
+  warning?: string;
 };
 
 export type SessionDailyUsage = {
