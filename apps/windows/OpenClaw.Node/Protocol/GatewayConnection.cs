@@ -248,6 +248,31 @@ namespace OpenClaw.Node.Protocol
             await SendRawAsync(connectJson, cancellationToken);
         }
 
+        private string ResolveNodeIdForInvokeResult()
+        {
+            if (_connectParams.Device != null &&
+                _connectParams.Device.TryGetValue("id", out var idObj) &&
+                idObj != null)
+            {
+                var id = idObj.ToString();
+                if (!string.IsNullOrWhiteSpace(id))
+                {
+                    return id;
+                }
+            }
+
+            if (_connectParams.Client.TryGetValue("id", out var clientIdObj) && clientIdObj != null)
+            {
+                var clientId = clientIdObj.ToString();
+                if (!string.IsNullOrWhiteSpace(clientId))
+                {
+                    return clientId;
+                }
+            }
+
+            return "node-host";
+        }
+
         private static string? ExtractNonce(object? payload)
         {
             try
@@ -334,13 +359,24 @@ namespace OpenClaw.Node.Protocol
                 OnLog?.Invoke($"[Gateway] Executing node.invoke.request id={req.Id} command={req.Command}");
                 var response = await OnNodeInvoke(req);
                 
-                await SendEventAsync("node.invoke.result", new
+                var nodeId = ResolveNodeIdForInvokeResult();
+                var invokeResultReq = new RequestFrame
                 {
-                    id = req.Id,
-                    ok = response.Ok,
-                    payloadJSON = response.PayloadJSON,
-                    error = response.Error
-                }, cancellationToken);
+                    Type = "req",
+                    Id = Guid.NewGuid().ToString(),
+                    Method = "node.invoke.result",
+                    Params = new
+                    {
+                        id = req.Id,
+                        nodeId,
+                        ok = response.Ok,
+                        payloadJSON = response.PayloadJSON,
+                        error = response.Error
+                    }
+                };
+
+                var invokeResultJson = JsonSerializer.Serialize(invokeResultReq, JsonOptions);
+                await SendRawAsync(invokeResultJson, cancellationToken);
             }
             catch (Exception ex)
             {

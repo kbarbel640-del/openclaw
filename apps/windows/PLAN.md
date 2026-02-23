@@ -18,7 +18,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (51 total) (including device-auth connect assertions)
+- ✅ Tests passing (52 total) (including device-auth connect assertions + node.invoke.result request-path assertion)
 
 ---
 

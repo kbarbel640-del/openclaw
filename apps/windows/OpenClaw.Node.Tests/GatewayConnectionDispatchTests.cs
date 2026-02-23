@@ -85,6 +85,76 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task GatewayConnection_ShouldSendNodeInvokeResultAsRequest()
+        {
+            var port = GetFreePort();
+            await using var server = new MockGatewayServer(port);
+            await server.StartAsync();
+
+            var connectParams = new ConnectParams
+            {
+                MinProtocol = Constants.GatewayProtocolVersion,
+                MaxProtocol = Constants.GatewayProtocolVersion,
+                Role = "node",
+                Client = new System.Collections.Generic.Dictionary<string, object>
+                {
+                    { "id", "node-host" },
+                    { "platform", "windows" },
+                    { "mode", "node" },
+                    { "version", "dev" }
+                }
+            };
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var connection = new GatewayConnection($"ws://127.0.0.1:{port}/", "test-token", connectParams);
+            connection.OnNodeInvoke += req =>
+                Task.FromResult(new BridgeInvokeResponse
+                {
+                    Id = req.Id,
+                    Ok = true,
+                    PayloadJSON = "{\"ok\":true}"
+                });
+
+            var runTask = connection.StartAsync(cts.Token);
+
+            // connect handshake
+            var connectReq = await server.ReceiveJsonAsync(cts.Token);
+            var connectId = connectReq.RootElement.GetProperty("id").GetString()!;
+            await server.SendJsonAsync(new
+            {
+                type = "res",
+                id = connectId,
+                ok = true,
+                payload = new { policy = new { tickIntervalMs = 30000 } }
+            }, cts.Token);
+
+            // send invoke request event from gateway
+            await server.SendJsonAsync(new
+            {
+                type = "event",
+                @event = "node.invoke.request",
+                payload = new
+                {
+                    id = "invoke-1",
+                    command = "system.which",
+                    paramsJSON = "{\"command\":\"dotnet\"}"
+                }
+            }, cts.Token);
+
+            var invokeResultReq = await server.ReceiveJsonAsync(cts.Token);
+            Assert.Equal("req", invokeResultReq.RootElement.GetProperty("type").GetString());
+            Assert.Equal("node.invoke.result", invokeResultReq.RootElement.GetProperty("method").GetString());
+            var p = invokeResultReq.RootElement.GetProperty("params");
+            Assert.Equal("invoke-1", p.GetProperty("id").GetString());
+            Assert.True(p.GetProperty("ok").GetBoolean());
+            Assert.True(p.TryGetProperty("nodeId", out var nodeIdEl));
+            Assert.False(string.IsNullOrWhiteSpace(nodeIdEl.GetString()));
+
+            cts.Cancel();
+            await runTask;
+        }
+
+        [Fact]
         public async Task GatewayConnection_ShouldReturnErrorForUnhandledMethod()
         {
             var port = GetFreePort();

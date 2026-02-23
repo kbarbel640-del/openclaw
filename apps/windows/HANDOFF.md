@@ -46,7 +46,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **51 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **52 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash
