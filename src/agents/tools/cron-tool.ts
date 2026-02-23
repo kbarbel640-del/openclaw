@@ -61,6 +61,50 @@ type ChatMessage = {
   content?: unknown;
 };
 
+function formatEpochMsAsIsoUtc(value: unknown): string | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return undefined;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date.toISOString();
+}
+
+function enrichCronListForDeterministicTimestamps(value: unknown): unknown {
+  if (!isRecord(value)) {
+    return value;
+  }
+  const jobs = Array.isArray(value.jobs) ? value.jobs : undefined;
+  if (!jobs) {
+    return value;
+  }
+
+  return {
+    ...value,
+    jobs: jobs.map((job) => {
+      if (!isRecord(job)) {
+        return job;
+      }
+      const state = isRecord(job.state) ? job.state : undefined;
+      if (!state) {
+        return job;
+      }
+
+      return {
+        ...job,
+        state: {
+          ...state,
+          lastRunIsoUtc: formatEpochMsAsIsoUtc(state.lastRunAtMs),
+          nextRunIsoUtc: formatEpochMsAsIsoUtc(state.nextRunAtMs),
+          runningIsoUtc: formatEpochMsAsIsoUtc(state.runningAtMs),
+        },
+      };
+    }),
+  };
+}
+
 function stripExistingContext(text: string) {
   const index = text.indexOf(REMINDER_CONTEXT_MARKER);
   if (index === -1) {
@@ -281,12 +325,12 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
       switch (action) {
         case "status":
           return jsonResult(await callGateway("cron.status", gatewayOpts, {}));
-        case "list":
-          return jsonResult(
-            await callGateway("cron.list", gatewayOpts, {
-              includeDisabled: Boolean(params.includeDisabled),
-            }),
-          );
+        case "list": {
+          const listResult = await callGateway("cron.list", gatewayOpts, {
+            includeDisabled: Boolean(params.includeDisabled),
+          });
+          return jsonResult(enrichCronListForDeterministicTimestamps(listResult));
+        }
         case "add": {
           // Flat-params recovery: non-frontier models (e.g. Grok) sometimes flatten
           // job properties to the top level alongside `action` instead of nesting

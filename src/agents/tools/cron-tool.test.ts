@@ -151,6 +151,38 @@ describe("cron tool", () => {
     expect(call?.params).toEqual({ id: "job-due", mode: "due" });
   });
 
+  it("adds deterministic ISO UTC timestamps to cron.list state fields", async () => {
+    callGatewayMock.mockResolvedValueOnce({
+      jobs: [
+        {
+          id: "job-1",
+          state: {
+            lastRunAtMs: 1771815403490,
+            nextRunAtMs: 1771815600000,
+            runningAtMs: 1771815500000,
+          },
+        },
+      ],
+    });
+
+    const tool = createCronTool();
+    const result = await tool.execute("call-list", { action: "list" });
+
+    const details = result.details as {
+      jobs?: Array<{
+        state?: {
+          lastRunIsoUtc?: string;
+          nextRunIsoUtc?: string;
+          runningIsoUtc?: string;
+        };
+      }>;
+    };
+
+    expect(details.jobs?.[0]?.state?.lastRunIsoUtc).toBe(new Date(1771815403490).toISOString());
+    expect(details.jobs?.[0]?.state?.nextRunIsoUtc).toBe(new Date(1771815600000).toISOString());
+    expect(details.jobs?.[0]?.state?.runningIsoUtc).toBe(new Date(1771815500000).toISOString());
+  });
+
   it("normalizes cron.add job payloads", async () => {
     const tool = createCronTool();
     await tool.execute("call2", {
