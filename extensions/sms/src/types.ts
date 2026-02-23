@@ -71,8 +71,8 @@ export function resolveSmsAccount(params: {
   const providerRaw = firstString(merged.provider, process.env.SMS_PROVIDER)?.toLowerCase();
   const provider: SmsProvider = providerRaw === "tencent" ? "tencent" : "aliyun";
 
-  const aliyun = ((merged.aliyun ?? {}) as Record<string, unknown>) ?? {};
-  const tencent = ((merged.tencent ?? {}) as Record<string, unknown>) ?? {};
+  const aliyun = (merged.aliyun ?? {}) as Record<string, unknown>;
+  const tencent = (merged.tencent ?? {}) as Record<string, unknown>;
 
   const resolved: SmsResolvedAccount = {
     accountId,
