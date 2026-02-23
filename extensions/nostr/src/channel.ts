@@ -231,7 +231,9 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
           // Enforce DM policy
           const dmPolicy = account.config.dmPolicy ?? "pairing";
           if (dmPolicy === "disabled") {
-            ctx.log?.debug?.(`[${account.accountId}] drop DM from ${senderPubkey} (dmPolicy=disabled)`);
+            ctx.log?.debug?.(
+              `[${account.accountId}] drop DM from ${senderPubkey} (dmPolicy=disabled)`,
+            );
             return;
           }
           if (dmPolicy !== "open") {
@@ -260,11 +262,15 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
                     });
                     await reply(pairingReply);
                   } catch (err) {
-                    ctx.log?.error?.(`[${account.accountId}] pairing reply failed: ${String(err)}`);
+                    ctx.log?.error?.(
+                      `[${account.accountId}] pairing reply failed: ${String(err)}`,
+                    );
                   }
                 }
               }
-              ctx.log?.debug?.(`[${account.accountId}] drop DM from ${senderPubkey} (dmPolicy=${dmPolicy})`);
+              ctx.log?.debug?.(
+                `[${account.accountId}] drop DM from ${senderPubkey} (dmPolicy=${dmPolicy})`,
+              );
               return;
             }
           }
