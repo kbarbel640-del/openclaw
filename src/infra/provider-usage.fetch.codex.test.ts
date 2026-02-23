@@ -54,4 +54,24 @@ describe("fetchCodexUsage", () => {
       { label: "Day", usedPercent: 75, resetAt: 1_700_050_000_000 },
     ]);
   });
+
+  it("labels long secondary windows as Week", async () => {
+    const mockFetch = createProviderUsageFetch(async () =>
+      makeResponse(200, {
+        rate_limit: {
+          secondary_window: {
+            limit_window_seconds: 7 * 24 * 3600,
+            used_percent: 40,
+            reset_at: 1_700_060_000,
+          },
+        },
+      }),
+    );
+
+    const result = await fetchCodexUsage("token", undefined, 5000, mockFetch);
+
+    expect(result.windows).toEqual([
+      { label: "Week", usedPercent: 40, resetAt: 1_700_060_000_000 },
+    ]);
+  });
 });
