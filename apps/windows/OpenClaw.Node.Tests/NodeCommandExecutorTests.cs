@@ -84,6 +84,60 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task CameraSnap_InvalidFacing_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "camera-invalid-facing",
+                Command = "camera.snap",
+                ParamsJSON = JsonSerializer.Serialize(new { facing = "side" })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task CameraSnap_InvalidFormat_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "camera-invalid-format",
+                Command = "camera.snap",
+                ParamsJSON = JsonSerializer.Serialize(new { format = "png" })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task CameraSnap_InvalidQuality_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "camera-invalid-quality",
+                Command = "camera.snap",
+                ParamsJSON = JsonSerializer.Serialize(new { quality = 1.5 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
         public async Task UnknownCommand_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();

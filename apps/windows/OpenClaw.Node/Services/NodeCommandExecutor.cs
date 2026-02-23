@@ -251,13 +251,38 @@ namespace OpenClaw.Node.Services
                 ? (f.GetString() ?? "front")
                 : "front";
 
+            if (!string.Equals(facing, "front", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(facing, "back", StringComparison.OrdinalIgnoreCase))
+            {
+                return Invalid(request.Id, "camera.snap params.facing must be 'front' or 'back'");
+            }
+
+            if (root != null && root.Value.TryGetProperty("format", out var formatEl) && formatEl.ValueKind == JsonValueKind.String)
+            {
+                var format = formatEl.GetString();
+                if (!string.IsNullOrWhiteSpace(format) && !string.Equals(format, "jpg", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Invalid(request.Id, "camera.snap params.format must be 'jpg'");
+                }
+            }
+
             var maxWidth = root != null && root.Value.TryGetProperty("maxWidth", out var w) && w.ValueKind == JsonValueKind.Number
                 ? w.GetInt32()
                 : (int?)null;
 
+            if (maxWidth.HasValue && maxWidth.Value <= 0)
+            {
+                return Invalid(request.Id, "camera.snap params.maxWidth must be > 0");
+            }
+
             var quality = root != null && root.Value.TryGetProperty("quality", out var q) && q.ValueKind == JsonValueKind.Number
                 ? q.GetDouble()
                 : (double?)null;
+
+            if (quality.HasValue && (quality.Value < 0 || quality.Value > 1))
+            {
+                return Invalid(request.Id, "camera.snap params.quality must be between 0 and 1");
+            }
 
             var delayMs = root != null && root.Value.TryGetProperty("delayMs", out var d) && d.ValueKind == JsonValueKind.Number
                 ? d.GetInt32()
@@ -270,7 +295,7 @@ namespace OpenClaw.Node.Services
             try
             {
                 var svc = new CameraCaptureService();
-                var (base64, width, height) = await svc.CaptureJpegAsBase64Async(facing, maxWidth, quality, delayMs, deviceId);
+                var (base64, width, height) = await svc.CaptureJpegAsBase64Async(facing.ToLowerInvariant(), maxWidth, quality, delayMs, deviceId);
 
                 var payload = new
                 {
