@@ -47,16 +47,18 @@ Scheduler (configurable tick loop, default 10s)
   1. Gateway health check
   2. Find due jobs (SQLite: next_run_at <= now, enabled=1)
   3. Resource pool concurrency check
-  4. Dispatch:
+  4. Check approval gates (timeout + auto-resolve)
+  5. Dispatch:
      - main session → system event injection
      - isolated    → POST /v1/chat/completions
-  5. Implicit heartbeat (session activity monitoring)
-  6. Deliver pending inter-agent messages
-  7. Process spawn messages (dynamic child job creation)
-  8. Evaluate trigger conditions and fire child chains
-  9. Object storage backup (optional, configurable)
-  10. Prune old runs, expired messages, orphaned jobs
-  11. WAL checkpoint (hourly + on shutdown)
+  6. Implicit heartbeat (session activity monitoring)
+  7. Deliver pending inter-agent messages (typed priority ordering)
+  8. Process spawn messages (dynamic child job creation)
+  9. Evaluate trigger conditions and fire child chains
+  10. Build and record context summaries for each run
+  11. Object storage backup (optional, configurable)
+  12. Prune old runs, expired messages, orphaned jobs, resolved approvals
+  13. WAL checkpoint (hourly + on shutdown)
 ```
 
 All state in a single SQLite database (WAL mode, foreign keys
@@ -67,8 +69,9 @@ event-triggered.
 ### Core features
 
 **Run history.** Every execution tracked: status (`ok`, `error`,
-`timeout`, `skipped`, `cancelled`), duration, agent response summary,
-error detail. Queryable via CLI or SQL.
+`timeout`, `skipped`, `cancelled`, `awaiting_approval`), duration,
+agent response summary, error detail, context summary. Queryable via
+CLI or SQL.
 
 **Implicit heartbeat.** Monitors whether an agent's session is still
 active via `sessions_list` instead of using a flat timeout. If session
@@ -89,6 +92,106 @@ on success.
 
 **One-shot jobs.** `delete_after_run` flag for fire-once scheduling.
 Cleaned up automatically after execution.
+
+### Delivery semantics contract
+
+Jobs declare an explicit `delivery_guarantee` per job:
+
+- **`at-most-once`** (default): Current behavior. On crash, orphaned
+  runs are marked `crashed` and rescheduled. No replay. The job may
+  miss a run but will never double-fire.
+- **`at-least-once`**: On crash recovery (dispatcher restart),
+  orphaned runs are replayed automatically. The job may fire twice
+  but will never silently miss a run.
+
+Operators choose the contract that matches their job's semantics.
+Idempotent jobs (monitoring, audits) benefit from `at-least-once`.
+Side-effecting jobs (notifications, deployments) should use the
+default `at-most-once`.
+
+Set via job configuration:
+
+```json
+{
+  "name": "nightly-audit",
+  "delivery_guarantee": "at-least-once",
+  "schedule": "0 2 * * *"
+}
+```
+
+### Flush-before-compaction hook
+
+Jobs with `job_class: "pre_compaction_flush"` receive a structured
+prompt before context compaction, forcing agents to write down
+decisions, constraints, task owners, and open questions.
+
+The injected system prompt:
+
+```
+[SYSTEM: Pre-compaction flush required]
+Write a structured summary of: active decisions, constraints,
+task owners, open questions. Format as labeled sections.
+If nothing needs flushing, respond with exactly: NO_FLUSH
+[END SYSTEM]
+```
+
+If the agent responds with exactly `NO_FLUSH`, delivery is skipped
+and the run is logged as "nothing to flush." This prevents the
+"agent forgot after compaction" class of bugs — critical context is
+captured in structured form before the context window is compressed.
+
+### Context summary and memory observability
+
+Every run records a `context_summary` (JSON) capturing the full
+context that was available to the job at execution time:
+
+```json
+{
+  "messages_injected": 3,
+  "scope": "own",
+  "aliases_resolved": ["@ops-channel"],
+  "job_class": "standard",
+  "delivery_guarantee": "at-most-once",
+  "context_retrieval": "hybrid",
+  "retrieval_results": 5
+}
+```
+
+Queryable via CLI (`runs list`, `runs get`). Operators can audit
+exactly what each job saw when it ran — which messages were injected,
+what scope was active, which aliases resolved, and how many retrieval
+results were included. Eliminates "what did the agent see?" debugging.
+
+### Typed message contract
+
+The inter-agent message system supports structured message types
+beyond plain text. Each typed message carries an `owner` field
+identifying the originator:
+
+| Kind         | Priority | Description                       |
+| ------------ | -------- | --------------------------------- |
+| `constraint` | 1 (high) | Rules that must not be violated   |
+| `decision`   | 2        | Resolved choices with rationale   |
+| `fact`       | 3        | Verified information              |
+| `task`       | 4        | Work assignments                  |
+| `preference` | 5        | Soft preferences (not hard rules) |
+| `text`       | 6 (low)  | Unstructured plain text           |
+| `result`     | 6        | Task completion results           |
+| `status`     | 6        | Status updates                    |
+| `system`     | 6        | System-generated messages         |
+| `spawn`      | 6        | Dynamic job spawn requests        |
+
+Retrieval prioritizes constraints over decisions over facts in prompt
+injection. When messages are injected into a job prompt, typed
+messages are displayed with their kind and owner:
+
+```
+[constraint] (owner: ops-agent) Never deploy during business hours
+[decision] (owner: lead-agent) Use blue-green deployment strategy
+```
+
+Structured knowledge beats noise — agents see the most important
+context first.
 
 ### Workflow chaining
 
@@ -190,6 +293,106 @@ This enables agents to dynamically schedule follow-up work without
 CLI access — useful for research pipelines, monitoring escalation,
 and adaptive workflows.
 
+### HITL approval gates
+
+Jobs with `approval_required: true` pause after chain trigger and
+wait for operator approval before executing. This adds a
+human-in-the-loop checkpoint for sensitive or high-impact workflows.
+
+**Flow:**
+
+1. A chain-triggered job with `approval_required` fires.
+2. The dispatcher creates a run with status `awaiting_approval` and
+   an approval record in the `approvals` table.
+3. A notification is sent: "Job 'deploy-prod' requires approval."
+4. The job waits for operator action via CLI.
+5. On approval, the run proceeds to dispatch. On rejection, the run
+   is marked `cancelled`.
+
+**Configuration fields:**
+
+- `approval_required` (boolean): Enable the gate. Default `false`.
+- `approval_timeout_s` (integer): Seconds before auto-resolve.
+  Default `3600` (1 hour).
+- `approval_auto` (`"approve"` or `"reject"`): Policy applied when
+  the timeout expires. Default `"reject"`.
+
+**Example:**
+
+```json
+{
+  "name": "deploy-prod",
+  "parent_id": "build-job-id",
+  "trigger_on": "success",
+  "approval_required": true,
+  "approval_timeout_s": 1800,
+  "approval_auto": "reject"
+}
+```
+
+The `approvals` table tracks the full lifecycle: `pending`,
+`approved`, `rejected`, `timed_out`. Each record includes
+`resolved_by` (operator, timeout, or API) and optional notes.
+
+### Run replay on startup
+
+On dispatcher boot, orphaned runs (status still `running` from a
+previous crash) are handled according to each job's delivery
+guarantee:
+
+- **`at-least-once` jobs:** The orphaned run is marked `crashed` and
+  a new run is created with `replay_of` set to the original run ID.
+  The replayed run is queued for immediate dispatch.
+- **`at-most-once` jobs:** The orphaned run is marked `crashed` and
+  the job's schedule is advanced to the next cron interval. No
+  replay occurs.
+
+This closes the crash-recovery gap. Before this feature, a scheduler
+crash during job execution meant the run was silently lost. Now,
+operators get explicit crash status on all orphaned runs and
+automatic recovery for jobs that opt into `at-least-once` delivery.
+
+All replay actions are logged at startup for operator visibility.
+
+### Hybrid retrieval for job context
+
+Jobs can opt into receiving prior run summaries as additional context
+in their prompt. This gives agents continuity across runs without
+requiring external memory systems.
+
+**Retrieval modes:**
+
+- **`none`** (default): No prior context injected.
+- **`recent`**: The last N run summaries (by time) are injected.
+  Simple and predictable.
+- **`hybrid`**: Summaries are ranked by relevance using TF-IDF
+  scoring combined with substring matching. The top N results are
+  injected. Better for jobs where recent runs may not be the most
+  relevant.
+
+**Configuration:**
+
+- `context_retrieval`: `"none"`, `"recent"`, or `"hybrid"`.
+- `context_retrieval_limit`: Maximum summaries to inject (default 5).
+
+**Example:**
+
+```json
+{
+  "name": "weekly-report",
+  "context_retrieval": "hybrid",
+  "context_retrieval_limit": 10
+}
+```
+
+Injected context appears in the prompt as:
+
+```
+--- Prior Run Context ---
+[2025-01-15 02:00] Summary of previous execution...
+[2025-01-08 02:00] Summary of earlier execution...
+```
+
 ### Inter-agent messaging
 
 SQLite-backed message queue for agent coordination.
@@ -197,7 +400,11 @@ SQLite-backed message queue for agent coordination.
 - **Priority levels:** 0 (normal), 1 (high), 2 (urgent).
 - **Threading:** `reply_to` for conversation chains.
 - **Message kinds:** `text`, `task`, `result`, `status`, `system`,
-  `spawn`.
+  `spawn`, `decision`, `constraint`, `fact`, `preference`.
+- **Typed priority:** Messages are sorted by kind priority
+  (constraints first) when injected into job prompts.
+- **Owner tracking:** Typed messages carry an `owner` field
+  identifying the originator.
 - **Read receipts:** `delivered_at` and `read_at` tracking.
 - **TTL:** Optional `expires_at` with automatic expiration.
 - **Inline delivery:** Pending messages are injected into job prompts,
@@ -230,28 +437,48 @@ current, reducing data loss window on crash or SIGKILL.
 
 ### Database schema
 
-Six tables:
+Seven tables:
 
-| Table               | Purpose                                                       |
-| ------------------- | ------------------------------------------------------------- |
-| `jobs`              | Schedule, payload, delivery, overlap, backoff, chains, retry  |
-| `runs`              | Execution history: status, duration, heartbeat, retry lineage |
-| `messages`          | Inter-agent queue: priority, threading, read receipts, TTL    |
-| `agents`            | Registry: status, last seen, capabilities                     |
-| `delivery_aliases`  | Named delivery targets: alias to channel + target             |
-| `schema_migrations` | Migration version tracking                                    |
+| Table               | Purpose                                                                  |
+| ------------------- | ------------------------------------------------------------------------ |
+| `jobs`              | Schedule, payload, delivery, overlap, backoff, chains, retry, job class, |
+|                     | delivery guarantee, approval config, context retrieval settings          |
+| `runs`              | Execution history: status, duration, heartbeat, retry lineage, context   |
+|                     | summary (JSON), replay tracking                                          |
+| `messages`          | Inter-agent queue: priority, threading, read receipts, TTL, typed kinds  |
+|                     | (decision, constraint, fact, preference) with owner field                |
+| `agents`            | Registry: status, last seen, capabilities                                |
+| `delivery_aliases`  | Named delivery targets: alias to channel + target                        |
+| `approvals`         | HITL approval lifecycle: pending, approved, rejected, timed out          |
+| `schema_migrations` | Migration version tracking                                               |
 
 **Jobs table** includes: cron schedule with timezone, session target
 (main/isolated), agent ID, model override, thinking mode, timeout,
 delivery channel + alias support, chain config (`parent_id`,
 `trigger_on`, `trigger_delay_s`, `trigger_condition`), retry config
 (`max_retries`), overlap policy + queue count, payload scope
-(own/global), resource pool, and denormalized scheduling state
+(own/global), resource pool, delivery guarantee
+(`at-most-once`/`at-least-once`), job class
+(`standard`/`pre_compaction_flush`), approval gate config
+(`approval_required`, `approval_timeout_s`, `approval_auto`),
+context retrieval config (`context_retrieval`,
+`context_retrieval_limit`), and denormalized scheduling state
 (`next_run_at`, `last_run_at`, `last_status`, `consecutive_errors`).
 
 **Runs table** tracks implicit heartbeat via `last_heartbeat`
-timestamp, chain provenance via `triggered_by_run`, and retry lineage
-via `retry_of` and `retry_count`.
+timestamp, chain provenance via `triggered_by_run`, retry lineage
+via `retry_of` and `retry_count`, context summary via
+`context_summary` (JSON), and crash replay tracking via `replay_of`.
+
+**Messages table** supports typed message kinds (`decision`,
+`constraint`, `fact`, `preference`) alongside the original kinds.
+Each typed message carries an `owner` field. Retrieval sorts by
+kind priority (constraints first).
+
+**Approvals table** tracks the HITL approval lifecycle for gated
+jobs: `job_id`, `run_id`, `status` (pending/approved/rejected/
+timed_out), `requested_at`, `resolved_at`, `resolved_by`
+(operator/timeout/API), and optional `notes`.
 
 ### Dispatch via chat completions
 
@@ -281,15 +508,21 @@ node cli.js jobs disable <id>            # disable a job
 node cli.js jobs delete <id>             # delete a job
 node cli.js jobs cancel <id>             # cancel job + cascade to children
 node cli.js jobs run <id>                # trigger immediate run
+node cli.js jobs approve <id>            # approve a pending approval gate
+node cli.js jobs reject <id> [reason]    # reject a pending approval gate
 
 # Runs
-node cli.js runs list <job-id> [limit]   # run history
+node cli.js runs list <job-id> [limit]   # run history (includes context summary)
 node cli.js runs running                 # currently executing
 node cli.js runs stale [threshold-s]     # stuck runs
 
+# Approvals
+node cli.js approvals list               # all approval records
+node cli.js approvals pending            # pending approvals only
+
 # Messages
 node cli.js msg send <from> <to> <body>  # send inter-agent message
-node cli.js msg inbox <agent> [limit]    # unread messages
+node cli.js msg inbox <agent> [limit]    # unread messages (typed priority order)
 node cli.js msg outbox <agent> [limit]   # sent messages
 node cli.js msg thread <message-id>      # conversation thread
 node cli.js msg read <message-id>        # mark read
@@ -338,6 +571,27 @@ defaults are provided for every option.
 | `SCHEDULER_BACKUP_RETENTION_H`  | `24`                     | Snapshot retention in hours                     |
 | `SCHEDULER_BACKUP_ROLLUP_DAYS`  | `7`                      | Rollup retention in days                        |
 
+### Per-job configuration fields
+
+In addition to the environment variables above, each job supports
+the following configuration fields set via `jobs add` or
+`jobs update`:
+
+- `delivery_guarantee`: `"at-most-once"` (default) or
+  `"at-least-once"`. Controls crash recovery behavior.
+- `job_class`: `"standard"` (default) or
+  `"pre_compaction_flush"`. Enables the flush-before-compaction
+  hook.
+- `approval_required`: `true` or `false` (default). Enables HITL
+  approval gates for chain-triggered jobs.
+- `approval_timeout_s`: Seconds before auto-resolve (default 3600).
+- `approval_auto`: `"approve"` or `"reject"` (default). Policy
+  applied on timeout.
+- `context_retrieval`: `"none"` (default), `"recent"`, or
+  `"hybrid"`. Controls prior run context injection.
+- `context_retrieval_limit`: Maximum summaries to inject
+  (default 5).
+
 ### Gateway requirement
 
 One gateway config change is needed:
@@ -359,24 +613,30 @@ gateway forks, no internal API dependencies.
 
 ## What this replaces
 
-| Feature             | Before (built-in)       | After (standalone)                            |
-| ------------------- | ----------------------- | --------------------------------------------- |
-| Job storage         | `jobs.json` (flat file) | SQLite (ACID, queryable, WAL mode)            |
-| Run history         | None                    | Full history with status, duration, summary   |
-| Stale detection     | None                    | Implicit heartbeat (configurable threshold)   |
-| Overlap control     | None                    | skip / allow / queue per job                  |
-| Failure recovery    | None                    | Exponential backoff + configurable retry      |
-| Job chains          | None                    | Parent/child with depth limits + conditions   |
-| Output triggers     | None                    | contains/regex matchers on parent output      |
-| Resource pools      | None                    | Cross-job concurrency control                 |
-| Inter-agent comms   | None                    | Priority message queue with threading         |
-| Delivery aliases    | None                    | Named targets decoupled from job config       |
-| Cross-session scope | None                    | Global sub-agent visibility for ops jobs      |
-| Immediate execution | None                    | Run-now without changing cron schedule        |
-| Dynamic spawning    | None                    | Agents create child jobs at runtime           |
-| Backup              | None                    | Optional S3-compatible object storage backups |
-| WAL safety          | None                    | Hourly checkpoint + shutdown checkpoint       |
-| Heartbeat           | Fixed-interval turn     | Replaced by job-driven scheduling             |
+| Feature             | Before (built-in)       | After (standalone)                              |
+| ------------------- | ----------------------- | ----------------------------------------------- |
+| Job storage         | `jobs.json` (flat file) | SQLite (ACID, queryable, WAL mode)              |
+| Run history         | None                    | Full history with status, duration, summary     |
+| Stale detection     | None                    | Implicit heartbeat (configurable threshold)     |
+| Overlap control     | None                    | skip / allow / queue per job                    |
+| Failure recovery    | None                    | Exponential backoff + configurable retry        |
+| Job chains          | None                    | Parent/child with depth limits + conditions     |
+| Output triggers     | None                    | contains/regex matchers on parent output        |
+| Resource pools      | None                    | Cross-job concurrency control                   |
+| Inter-agent comms   | None                    | Priority message queue with threading           |
+| Delivery aliases    | None                    | Named targets decoupled from job config         |
+| Cross-session scope | None                    | Global sub-agent visibility for ops jobs        |
+| Immediate execution | None                    | Run-now without changing cron schedule          |
+| Dynamic spawning    | None                    | Agents create child jobs at runtime             |
+| Backup              | None                    | Optional S3-compatible object storage backups   |
+| WAL safety          | None                    | Hourly checkpoint + shutdown checkpoint         |
+| Heartbeat           | Fixed-interval turn     | Replaced by job-driven scheduling               |
+| Delivery contract   | None                    | Explicit at-most-once / at-least-once per job   |
+| Crash recovery      | None                    | Automatic replay for at-least-once jobs         |
+| Approval gates      | None                    | HITL approval with timeout + auto-resolve       |
+| Compaction safety   | None                    | Pre-compaction flush hook                       |
+| Context audit       | None                    | JSON context summary per run                    |
+| Typed knowledge     | None                    | Structured message types with priority ordering |
 
 ## Installation
 
@@ -398,11 +658,17 @@ cd ~/.openclaw/scheduler
 npm install
 
 # Initialize the database (happens automatically on first run)
+# migrate-v5.js runs automatically on startup to apply the latest schema
 node dispatcher.js
 
 # Or use the CLI to verify
 node cli.js status
 ```
+
+Schema migrations are applied automatically. The `migrate-v5.js`
+migration adds delivery guarantee, job class, approval gates,
+context retrieval, typed messages, and the approvals table. It runs
+on startup if the database is at an earlier schema version.
 
 ### Process management
 
@@ -504,29 +770,33 @@ node backup.js status
 
 ```
 ~/.openclaw/scheduler/
-├── dispatcher.js       # main process: tick loop, dispatch, health checks
+├── dispatcher.js       # main process: tick loop, dispatch, health checks, replay
 ├── db.js               # SQLite connection (WAL mode, foreign keys, checkpoint)
 ├── schema.sql          # table definitions
 ├── jobs.js             # job CRUD, scheduling, chains, retry, resource pools
-├── runs.js             # run lifecycle, stale/timeout, heartbeat
-├── messages.js         # inter-agent message queue
+├── runs.js             # run lifecycle, stale/timeout, heartbeat, context summary
+├── messages.js         # inter-agent message queue (typed kinds, owner, priority)
 ├── agents.js           # agent registry
+├── approval.js         # HITL approval gates: create, resolve, timeout, prune
+├── retrieval.js        # hybrid retrieval: recent summaries, TF-IDF + substring
 ├── gateway.js          # gateway health + chat completions + delivery aliases
 ├── backup.js           # optional: object storage snapshot/rollup/restore
 ├── cli.js              # CLI interface (all management commands)
-├── test.js             # 220 assertions
-├── migrate.js          # schema migrations
+├── test.js             # 281 assertions
+├── migrate.js          # schema migrations (runner)
+├── migrate-v5.js       # v5 migration: delivery, approvals, retrieval, typed msgs
 ├── package.json        # dependencies (better-sqlite3, croner)
 └── scheduler.db        # SQLite database (created on first run)
 ```
 
 ## Production status
 
-Working implementation deployed and stable. **220 test assertions**
+Working implementation deployed and stable. **281 test assertions**
 covering schema, cron scheduling, job CRUD, run lifecycle, messages,
 agents, workflow chaining, retry logic, cascade cancellation, resource
-pools, trigger conditions, delivery aliases, run-now, and queue
-overlap.
+pools, trigger conditions, delivery aliases, run-now, queue overlap,
+delivery semantics, flush-before-compaction, context summaries, typed
+messages, approval gates, run replay, and hybrid retrieval.
 
 Stable with zero missed fires and zero undetected stale runs. Survived
 gateway restarts, scheduler restarts, and network blips without data
