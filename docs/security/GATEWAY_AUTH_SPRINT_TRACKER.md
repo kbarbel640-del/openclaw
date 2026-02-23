@@ -37,10 +37,10 @@
 | 5     | 5.2  | Remove local direct request canvas bypass                   | done        | —   | auth-hardening    | 2026-02-20 | Local bypass gone ✓  |
 | 6     | 6.1  | Add auth to all plugin routes                               | done        | —   | auth-hardening    | 2026-02-20 | All routes auth ✓    |
 | 6     | 6.2  | Update plugin documentation                                 | not-started | —   | docs-writer       | —          | Depends: 6.1         |
-| 7     | 7.1  | Change `exemptLoopback` default to `false`                  | not-started | —   | auth-hardening    | —          | Depends: Phase 3     |
-| 7     | 7.2  | Remove explicit `exemptLoopback: true` overrides            | not-started | —   | auth-hardening    | —          | Depends: 7.1         |
-| 8     | 8.1  | Remove `isLocalDirectRequest` auth bypass usage             | not-started | —   | auth-hardening    | —          | Depends: Phase 5     |
-| 8     | 8.2  | Update `authorizeGatewayConnect` local bypass               | not-started | —   | auth-hardening    | —          | Depends: 8.1         |
+| 7     | 7.1  | Change `exemptLoopback` default to `false`                  | done        | —   | auth-hardening    | 2026-02-20 | 410 tests pass ✓     |
+| 7     | 7.2  | Remove explicit `exemptLoopback: true` overrides            | done        | —   | auth-hardening    | 2026-02-20 | No overrides found   |
+| 8     | 8.1  | Remove `isLocalDirectRequest` auth bypass usage             | done        | —   | auth-hardening    | 2026-02-20 | Bypass removed ✓     |
+| 8     | 8.2  | Update `authorizeGatewayConnect` local bypass               | done        | —   | auth-hardening    | 2026-02-20 | localDirect removed  |
 | 9     | 9.1  | Hooks token startup validation                              | done        | —   | onboarding-wizard | 2026-02-20 | Hooks secured        |
 | 9     | 9.2  | Hooks token security requirement                            | done        | —   | onboarding-wizard | 2026-02-20 | Hooks secured        |
 | 10    | 10.1 | Critical severity audit checks                              | not-started | —   | security-audit    | —          | Depends: Phases 1-9  |
