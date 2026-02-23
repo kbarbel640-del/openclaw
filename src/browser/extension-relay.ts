@@ -335,11 +335,17 @@ export async function ensureChromeExtensionRelayServer(opts: {
         const first = Array.from(connectedTargets.values())[0];
         return { targetInfo: first?.targetInfo };
       }
-      case "Target.attachToTarget": {
+      case "Target.attachToTarget":
+      case "Target.attachToBrowserTarget": {
         const params = (cmd.params ?? {}) as { targetId?: string };
         const targetId = typeof params.targetId === "string" ? params.targetId : undefined;
         if (!targetId) {
-          throw new Error("targetId required");
+          // attachToBrowserTarget without targetId: return the first connected target
+          const first = Array.from(connectedTargets.values())[0];
+          if (first) {
+            return { sessionId: first.sessionId };
+          }
+          throw new Error("no targets connected");
         }
         for (const t of connectedTargets.values()) {
           if (t.targetId === targetId) {
