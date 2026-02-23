@@ -32,10 +32,39 @@ class I18nManager {
         this.locale = "en";
       }
     }
+
+    // Eagerly load translations for non-en locales so the UI renders
+    // in the correct language once subscribers are registered.
+    if (this.locale !== "en") {
+      this.loadTranslations(this.locale).then(() => this.notify());
+    }
   }
 
   public getLocale(): Locale {
     return this.locale;
+  }
+
+  private async loadTranslations(locale: Locale): Promise<boolean> {
+    if (this.translations[locale]) {
+      return true;
+    }
+    try {
+      let module: Record<string, TranslationMap>;
+      if (locale === "zh-CN") {
+        module = await import("../locales/zh-CN.ts");
+      } else if (locale === "zh-TW") {
+        module = await import("../locales/zh-TW.ts");
+      } else if (locale === "pt-BR") {
+        module = await import("../locales/pt-BR.ts");
+      } else {
+        return false;
+      }
+      this.translations[locale] = module[locale.replace("-", "_")];
+      return true;
+    } catch (e) {
+      console.error(`Failed to load locale: ${locale}`, e);
+      return false;
+    }
   }
 
   public async setLocale(locale: Locale) {
@@ -43,26 +72,10 @@ class I18nManager {
       return;
     }
 
-    // Lazy load translations if needed
-    if (!this.translations[locale]) {
-      try {
-        let module: Record<string, TranslationMap>;
-        if (locale === "zh-CN") {
-          module = await import("../locales/zh-CN.ts");
-        } else if (locale === "zh-TW") {
-          module = await import("../locales/zh-TW.ts");
-        } else if (locale === "pt-BR") {
-          module = await import("../locales/pt-BR.ts");
-        } else {
-          return;
-        }
-        this.translations[locale] = module[locale.replace("-", "_")];
-      } catch (e) {
-        console.error(`Failed to load locale: ${locale}`, e);
-        return;
-      }
+    const loaded = await this.loadTranslations(locale);
+    if (!loaded && locale !== "en") {
+      return;
     }
-
     this.locale = locale;
     localStorage.setItem("openclaw.i18n.locale", locale);
     this.notify();
