@@ -19,6 +19,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
 - ✅ Tests passing (60 total) (including device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite: 10 passing)
+- ✅ Removed `MediaFoundation.Net` NU1701 warning path from build by moving camera stack off framework-only package
 
 ---
 
@@ -63,8 +64,8 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] Returns OpenClaw-compatible payload shapes:
     - `camera.list` -> `{ devices: [{ id, name, position, deviceType }] }`
     - `camera.snap` -> `{ format: "jpg", base64, width, height }`
-  - [x] Replaced ffmpeg bridge with native Media Foundation capture path (device enumeration + source reader + MJPG sample extraction)
-  - [x] Added graceful fallback path (placeholder frame) when native camera stack/device capture unavailable
+  - [x] Replaced MediaFoundation.Net camera path with ffmpeg DirectShow capture/list for net8 compatibility
+  - [x] Added actionable unavailable error when camera frame cannot be produced (privacy/PATH guidance)
   - [ ] Validate on real Windows host with physical cameras and tune device-selection heuristics
 - **Automation (`Automation/`)**
   - [x] MVP command set wired (`window.list`, `window.focus`, `window.rect`, `input.type`, `input.key`, `input.click`, `input.scroll`, `input.click.relative`)
