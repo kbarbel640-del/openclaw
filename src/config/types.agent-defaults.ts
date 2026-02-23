@@ -1,5 +1,9 @@
 import type { ChannelId } from "../channels/plugins/types.js";
-import type { AgentModelConfig, AgentSandboxConfig } from "./types.agents-shared.js";
+import type {
+  AgentModelConfig,
+  AgentModelRoutingConfig,
+  AgentSandboxConfig,
+} from "./types.agents-shared.js";
 import type {
   BlockStreamingChunkConfig,
   BlockStreamingCoalesceConfig,
@@ -16,10 +20,10 @@ export type AgentModelEntryConfig = {
   streaming?: boolean;
 };
 
-export type AgentModelListConfig = {
-  primary?: string;
-  fallbacks?: string[];
-};
+export type { AgentModelRoutingConfig } from "./types.agents-shared.js";
+
+/** The object form of AgentModelConfig (non-string branch of the union). */
+export type AgentModelListConfig = Exclude<AgentModelConfig, string>;
 
 export type AgentContextPruningConfig = {
   mode?: "off" | "cache-ttl";

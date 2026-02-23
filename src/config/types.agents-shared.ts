@@ -4,6 +4,19 @@ import type {
   SandboxPruneSettings,
 } from "./types.sandbox.js";
 
+export type AgentModelRoutingConfig = {
+  /** Name of the routing strategy (e.g., "passthrough", "dynamic-tiered"). */
+  strategy: string;
+  /** Strategy-specific options (opaque to the core — passed through to the strategy). */
+  options?: Record<string, unknown>;
+  bypass?: {
+    /** Skip routing when user has an explicit /model override (default: true). */
+    onExplicitModel?: boolean;
+    /** Skip routing for heartbeat runs (default: true). */
+    onHeartbeat?: boolean;
+  };
+};
+
 export type AgentModelConfig =
   | string
   | {
@@ -11,6 +24,8 @@ export type AgentModelConfig =
       primary?: string;
       /** Per-agent model fallbacks (provider/model). */
       fallbacks?: string[];
+      /** Dynamic model routing: select a strategy to route messages to different models. */
+      routing?: AgentModelRoutingConfig;
     };
 
 export type AgentSandboxConfig = {
