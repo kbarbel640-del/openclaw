@@ -14,6 +14,14 @@ beforeAll(async () => {
 
 installTriggerHandlingE2eTestHooks();
 
+function parseInboundMetaPayload(text: string): Record<string, unknown> {
+  const match = text.match(/```json\n([\s\S]*?)\n```/);
+  if (!match?.[1]) {
+    throw new Error("missing inbound meta json block");
+  }
+  return JSON.parse(match[1]) as Record<string, unknown>;
+}
+
 describe("trigger handling", () => {
   it("allows /activation from allowFrom in groups", async () => {
     await withTempHome(async (home) => {
@@ -76,7 +84,8 @@ describe("trigger handling", () => {
       expect(text).toBe("ok");
       expect(getRunEmbeddedPiAgentMock()).toHaveBeenCalledOnce();
       const extra = getRunEmbeddedPiAgentMock().mock.calls[0]?.[0]?.extraSystemPrompt ?? "";
-      expect(extra).toContain('"chat_type": "group"');
+      const inboundMeta = parseInboundMetaPayload(extra);
+      expect(inboundMeta["chat_type"]).toBe("group");
       expect(extra).toContain("Activation: always-on");
     });
   });
