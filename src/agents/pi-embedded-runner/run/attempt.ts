@@ -1265,6 +1265,7 @@ export async function runEmbeddedAttempt(
         // Run agent_end hooks to allow plugins to analyze the conversation
         // This is fire-and-forget, so we don't await
         // Run even on compaction timeout so plugins can log/cleanup
+        const usage = getUsageTotals?.();
         if (hookRunner?.hasHooks("agent_end")) {
           hookRunner
             .runAgentEnd(
@@ -1273,6 +1274,7 @@ export async function runEmbeddedAttempt(
                 success: !aborted && !promptError,
                 error: promptError ? describeUnknownError(promptError) : undefined,
                 durationMs: Date.now() - promptStartedAt,
+                tokenUsage: usage,
               },
               {
                 agentId: hookAgentId,

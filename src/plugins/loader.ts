@@ -39,6 +39,7 @@ export type PluginLoadOptions = {
   coreGatewayHandlers?: Record<string, GatewayRequestHandler>;
   cache?: boolean;
   mode?: "full" | "validate";
+  agentId?: string;
 };
 
 const registryCache = new Map<string, PluginRegistry>();
@@ -474,6 +475,11 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
 
     const enableState = resolveEnableState(pluginId, candidate.origin, normalized);
     const entry = normalized.entries[pluginId];
+    // Note: allowedAgents check is performed at runtime (not at registration time).
+    // This is because:
+    // 1. At registration time, there's no agent context (agentId is unknown)
+    // 2. Plugins are loaded globally at Gateway startup, not per-agent
+    // 3. The actual check happens in before_agent_start when agentId is known
     const record = createPluginRecord({
       id: pluginId,
       name: manifestRecord.name ?? pluginId,

@@ -36,14 +36,16 @@ export function resolveSkillConfig(
 }
 
 function normalizeAllowlist(input: unknown): string[] | undefined {
-  if (!input) {
+  if (input === undefined || input === null) {
     return undefined;
   }
   if (!Array.isArray(input)) {
     return undefined;
   }
   const normalized = input.map((entry) => String(entry).trim()).filter(Boolean);
-  return normalized.length > 0 ? normalized : undefined;
+  // Key: if user explicitly configured array (including empty array), return it
+  // This way allowedAgents: [] will be correctly interpreted as "no agents allowed"
+  return normalized;
 }
 
 const BUNDLED_SOURCES = new Set(["openclaw-bundled"]);
@@ -80,6 +82,11 @@ export function shouldIncludeSkill(params: {
   if (skillConfig?.enabled === false) {
     return false;
   }
+  // Note: allowedAgents check is performed at runtime (not at registration time).
+  // This is because:
+  // 1. At resolution time, agentId may be unknown
+  // 2. Skills are resolved per-agent at runtime when needed
+  // 3. The check happens in shouldIncludeSkill when agentId is known
   if (!isBundledSkillAllowed(entry, allowBundled)) {
     return false;
   }

@@ -12,6 +12,7 @@ import { buildAgentSystemPrompt } from "../../agents/system-prompt.js";
 import { buildToolSummaryMap } from "../../agents/tool-summaries.js";
 import type { WorkspaceBootstrapFile } from "../../agents/workspace.js";
 import { getRemoteSkillEligibility } from "../../infra/skills-remote.js";
+import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { buildTtsSystemPromptHint } from "../../tts/tts.js";
 import type { HandleCommandsParams } from "./commands-types.js";
 
@@ -36,9 +37,12 @@ export async function resolveCommandsSystemPromptBundle(
   });
   const skillsSnapshot = (() => {
     try {
+      const agentId = params.sessionKey
+        ? resolveAgentIdFromSessionKey(params.sessionKey)
+        : undefined;
       return buildWorkspaceSkillSnapshot(workspaceDir, {
         config: params.cfg,
-        eligibility: { remote: getRemoteSkillEligibility() },
+        eligibility: { agentId, remote: getRemoteSkillEligibility() },
         snapshotVersion: getSkillsSnapshotVersion(workspaceDir),
       });
     } catch {

@@ -1,5 +1,4 @@
 import { html, nothing } from "lit";
-import { normalizeToolName } from "../../../../src/agents/tool-policy-shared.js";
 import type { SkillStatusEntry, SkillStatusReport } from "../types.ts";
 import {
   isAllowedByPolicy,
@@ -16,6 +15,7 @@ import {
   computeSkillReasons,
   renderSkillStatusChips,
 } from "./skills-shared.ts";
+import { normalizeToolName } from "./tool-policy.js";
 
 export function renderAgentTools(params: {
   agentId: string;
