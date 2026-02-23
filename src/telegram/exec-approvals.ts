@@ -180,10 +180,13 @@ export class TelegramExecApprovalHandler {
         return false;
       }
       const matches = config.sessionFilter.some((p) => {
+        if (session.includes(p)) {
+          return true;
+        }
         try {
-          return session.includes(p) || new RegExp(p).test(session);
+          return new RegExp(p).test(session);
         } catch {
-          return session.includes(p);
+          return false;
         }
       });
       if (!matches) {
