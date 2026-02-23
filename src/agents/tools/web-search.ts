@@ -985,10 +985,16 @@ export function createWebSearchTool(options?: {
       const search_lang = readStringParam(params, "search_lang");
       const ui_lang = readStringParam(params, "ui_lang");
       const rawFreshness = readStringParam(params, "freshness");
-      if (rawFreshness && provider !== "brave" && provider !== "perplexity" && provider !== "nimble") {
+      if (
+        rawFreshness &&
+        provider !== "brave" &&
+        provider !== "perplexity" &&
+        provider !== "nimble"
+      ) {
         return jsonResult({
           error: "unsupported_freshness",
-          message: "freshness is only supported by the Brave, Perplexity, and Nimble web_search providers.",
+          message:
+            "freshness is only supported by the Brave, Perplexity, and Nimble web_search providers.",
           docs: "https://docs.openclaw.ai/tools/web",
         });
       }
