@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
+import type { SessionBindingRecord } from "../infra/outbound/session-binding-service.js";
 
 const hoisted = vi.hoisted(() => {
   const callGatewayMock = vi.fn();
-  const getThreadBindingManagerMock = vi.fn();
-  const unbindThreadBindingsBySessionKeyMock = vi.fn((_params?: unknown) => []);
+  const sessionBindingCapabilitiesMock = vi.fn();
+  const sessionBindingBindMock = vi.fn();
+  const sessionBindingUnbindMock = vi.fn();
+  const sessionBindingResolveByConversationMock = vi.fn();
+  const sessionBindingListBySessionMock = vi.fn();
   const closeSessionMock = vi.fn();
   const initializeSessionMock = vi.fn();
   const state = {
@@ -30,8 +34,11 @@ const hoisted = vi.hoisted(() => {
   };
   return {
     callGatewayMock,
-    getThreadBindingManagerMock,
-    unbindThreadBindingsBySessionKeyMock,
+    sessionBindingCapabilitiesMock,
+    sessionBindingBindMock,
+    sessionBindingUnbindMock,
+    sessionBindingResolveByConversationMock,
+    sessionBindingListBySessionMock,
     closeSessionMock,
     initializeSessionMock,
     state,
@@ -59,49 +66,43 @@ vi.mock("../acp/control-plane/manager.js", () => {
   };
 });
 
-vi.mock("../discord/monitor/thread-bindings.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../discord/monitor/thread-bindings.js")>();
+vi.mock("../infra/outbound/session-binding-service.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../infra/outbound/session-binding-service.js")>();
   return {
     ...actual,
-    getThreadBindingManager: (accountId?: string) => hoisted.getThreadBindingManagerMock(accountId),
-    resolveThreadBindingThreadName: () => "codex-session",
-    unbindThreadBindingsBySessionKey: (params: unknown) =>
-      hoisted.unbindThreadBindingsBySessionKeyMock(params),
+    getSessionBindingService: () => ({
+      bind: (input: unknown) => hoisted.sessionBindingBindMock(input),
+      getCapabilities: (params: unknown) => hoisted.sessionBindingCapabilitiesMock(params),
+      listBySession: (targetSessionKey: string) =>
+        hoisted.sessionBindingListBySessionMock(targetSessionKey),
+      resolveByConversation: (ref: unknown) => hoisted.sessionBindingResolveByConversationMock(ref),
+      touch: vi.fn(),
+      unbind: (input: unknown) => hoisted.sessionBindingUnbindMock(input),
+    }),
   };
 });
 
 const { spawnAcpDirect } = await import("./acp-spawn.js");
 
-function createManager() {
+function createSessionBinding(overrides?: Partial<SessionBindingRecord>): SessionBindingRecord {
   return {
-    accountId: "default",
-    getSessionTtlMs: vi.fn(() => 24 * 60 * 60 * 1000),
-    getByThreadId: vi.fn(() => ({
+    bindingId: "default:child-thread",
+    targetSessionKey: "agent:codex:acp:s1",
+    targetKind: "session",
+    conversation: {
+      channel: "discord",
       accountId: "default",
-      channelId: "parent-channel",
-      threadId: "requester-thread",
-      targetKind: "subagent",
-      targetSessionKey: "agent:main:subagent:1",
-      agentId: "main",
-      boundBy: "user-1",
-      boundAt: Date.now(),
-    })),
-    getBySessionKey: vi.fn(() => undefined),
-    listBySessionKey: vi.fn(() => []),
-    listBindings: vi.fn(() => []),
-    bindTarget: vi.fn(async (params: { targetSessionKey: string; agentId?: string }) => ({
-      accountId: "default",
-      channelId: "parent-channel",
-      threadId: "child-thread",
-      targetKind: "acp",
-      targetSessionKey: params.targetSessionKey,
-      agentId: params.agentId ?? "codex",
+      conversationId: "child-thread",
+      parentConversationId: "parent-channel",
+    },
+    status: "active",
+    boundAt: Date.now(),
+    metadata: {
+      agentId: "codex",
       boundBy: "system",
-      boundAt: Date.now(),
-    })),
-    unbindThread: vi.fn(() => null),
-    unbindBySessionKey: vi.fn(() => []),
-    stop: vi.fn(),
+    },
+    ...overrides,
   };
 }
 
@@ -176,14 +177,42 @@ describe("spawnAcpDirect", () => {
       };
     });
 
-    hoisted.getThreadBindingManagerMock.mockReset().mockReturnValue(createManager());
-    hoisted.unbindThreadBindingsBySessionKeyMock.mockReset().mockReturnValue([]);
+    hoisted.sessionBindingCapabilitiesMock.mockReset().mockReturnValue({
+      adapterAvailable: true,
+      bindSupported: true,
+      unbindSupported: true,
+      placements: ["current", "child"],
+    });
+    hoisted.sessionBindingBindMock
+      .mockReset()
+      .mockImplementation(
+        async (input: {
+          targetSessionKey: string;
+          conversation: { accountId: string };
+          metadata?: Record<string, unknown>;
+        }) =>
+          createSessionBinding({
+            targetSessionKey: input.targetSessionKey,
+            conversation: {
+              channel: "discord",
+              accountId: input.conversation.accountId,
+              conversationId: "child-thread",
+              parentConversationId: "parent-channel",
+            },
+            metadata: {
+              boundBy:
+                typeof input.metadata?.boundBy === "string" ? input.metadata.boundBy : "system",
+              agentId: "codex",
+              webhookId: "wh-1",
+            },
+          }),
+      );
+    hoisted.sessionBindingResolveByConversationMock.mockReset().mockReturnValue(null);
+    hoisted.sessionBindingListBySessionMock.mockReset().mockReturnValue([]);
+    hoisted.sessionBindingUnbindMock.mockReset().mockResolvedValue([]);
   });
 
   it("spawns ACP session, binds a new thread, and dispatches initial task", async () => {
-    const manager = createManager();
-    hoisted.getThreadBindingManagerMock.mockReturnValue(manager);
-
     const result = await spawnAcpDirect(
       {
         task: "Investigate flaky tests",
@@ -204,20 +233,24 @@ describe("spawnAcpDirect", () => {
     expect(result.childSessionKey).toMatch(/^agent:codex:acp:/);
     expect(result.runId).toBe("run-1");
     expect(result.mode).toBe("session");
-    expect(manager.bindTarget).toHaveBeenCalledWith(
+    expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        createThread: true,
-        targetKind: "acp",
+        targetKind: "session",
+        placement: "child",
       }),
     );
-    expect(manager.bindTarget).toHaveBeenCalledWith(
+    expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        introText: expect.stringContaining("inner session id: codex-inner-1"),
+        metadata: expect.objectContaining({
+          introText: expect.stringContaining("inner session id: codex-inner-1"),
+        }),
       }),
     );
-    expect(manager.bindTarget).toHaveBeenCalledWith(
+    expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        introText: expect.stringContaining("acpx session id: acpx-1"),
+        metadata: expect.objectContaining({
+          introText: expect.stringContaining("acpx session id: acpx-1"),
+        }),
       }),
     );
 

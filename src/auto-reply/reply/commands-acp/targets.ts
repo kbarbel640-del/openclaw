@@ -1,8 +1,5 @@
-import {
-  getThreadBindingManager,
-  type ThreadBindingRecord,
-} from "../../../discord/monitor/thread-bindings.js";
 import { callGateway } from "../../../gateway/call.js";
+import { getSessionBindingService } from "../../../infra/outbound/session-binding-service.js";
 import {
   isDiscordSurface,
   resolveDiscordAccountId,
@@ -49,9 +46,12 @@ export function resolveBoundAcpThreadSessionKey(params: HandleCommandsParams): s
   if (!threadId) {
     return undefined;
   }
-  const manager = getThreadBindingManager(resolveDiscordAccountId(params));
-  const binding = manager?.getByThreadId(threadId);
-  if (!binding || binding.targetKind !== "acp") {
+  const binding = getSessionBindingService().resolveByConversation({
+    channel: "discord",
+    accountId: resolveDiscordAccountId(params),
+    conversationId: threadId,
+  });
+  if (!binding || binding.targetKind !== "session") {
     return undefined;
   }
   return binding.targetSessionKey.trim() || undefined;
@@ -95,24 +95,3 @@ export async function resolveAcpTargetSessionKey(params: {
     sessionKey: fallback,
   };
 }
-
-export function resolveDiscordBoundThread(params: HandleCommandsParams): {
-  manager: ReturnType<typeof getThreadBindingManager> | null;
-  threadId?: string;
-  accountId?: string;
-} {
-  if (!isDiscordSurface(params)) {
-    return { manager: null };
-  }
-  const accountId = resolveDiscordAccountId(params);
-  const manager = getThreadBindingManager(accountId);
-  const threadId =
-    params.ctx.MessageThreadId != null ? String(params.ctx.MessageThreadId).trim() : "";
-  return {
-    manager,
-    ...(threadId ? { threadId } : {}),
-    accountId,
-  };
-}
-
-export type { ThreadBindingRecord };

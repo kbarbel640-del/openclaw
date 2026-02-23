@@ -10,6 +10,12 @@ export {
   resolveThreadBindingThreadName,
 } from "./thread-bindings.messages.js";
 
+export {
+  resolveDiscordThreadBindingSessionTtlMs,
+  resolveThreadBindingSessionTtlMs,
+  resolveThreadBindingsEnabled,
+} from "./thread-bindings.config.js";
+
 export { isRecentlyUnboundThreadWebhookMessage } from "./thread-bindings.state.js";
 
 export {

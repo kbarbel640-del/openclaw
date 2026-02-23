@@ -5,7 +5,7 @@ import { getAcpRuntimeBackend, requireAcpRuntimeBackend } from "../../../acp/run
 import { resolveSessionStorePathForAcp } from "../../../acp/runtime/session-meta.js";
 import { loadSessionStore } from "../../../config/sessions.js";
 import type { SessionEntry } from "../../../config/sessions/types.js";
-import { getThreadBindingManager } from "../../../discord/monitor/thread-bindings.js";
+import { getSessionBindingService } from "../../../infra/outbound/session-binding-service.js";
 import { isDiscordSurface, resolveDiscordAccountId } from "../commands-subagents/shared.js";
 import type { CommandHandlerResult, HandleCommandsParams } from "../commands-types.js";
 import {
@@ -170,14 +170,20 @@ export function handleAcpSessionsAction(
   }
 
   const accountId = isDiscordSurface(params) ? resolveDiscordAccountId(params) : undefined;
-  const threadBindings = accountId ? getThreadBindingManager(accountId) : null;
+  const bindingService = getSessionBindingService();
 
   const rows = Object.entries(store)
     .filter(([, entry]) => Boolean(entry?.acp))
     .toSorted(([, a], [, b]) => (b?.updatedAt ?? 0) - (a?.updatedAt ?? 0))
     .slice(0, 20)
     .map(([key, entry]) => {
-      const bindingThreadId = threadBindings?.listBySessionKey(key)[0]?.threadId;
+      const bindingThreadId = bindingService
+        .listBySession(key)
+        .find(
+          (binding) =>
+            binding.conversation.channel === "discord" &&
+            (!accountId || binding.conversation.accountId === accountId),
+        )?.conversation.conversationId;
       return formatAcpSessionLine({
         key,
         entry,

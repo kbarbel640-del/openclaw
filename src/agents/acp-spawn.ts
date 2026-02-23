@@ -11,14 +11,16 @@ import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/config.js";
 import {
-  getThreadBindingManager,
+  resolveDiscordThreadBindingSessionTtlMs,
   resolveThreadBindingIntroText,
   resolveThreadBindingThreadName,
-  type ThreadBindingManager,
-  type ThreadBindingRecord,
 } from "../discord/monitor/thread-bindings.js";
-import { parseDiscordTarget } from "../discord/targets.js";
 import { callGateway } from "../gateway/call.js";
+import {
+  getSessionBindingService,
+  isSessionBindingError,
+  type SessionBindingRecord,
+} from "../infra/outbound/session-binding-service.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { normalizeDeliveryContext } from "../utils/delivery-context.js";
 
@@ -57,8 +59,8 @@ export const ACP_SPAWN_SESSION_ACCEPTED_NOTE =
   "thread-bound ACP session stays active after this task; continue in-thread for follow-ups.";
 
 type PreparedAcpThreadBinding = {
-  manager: ThreadBindingManager;
-  channelId: string;
+  accountId: string;
+  conversationId: string;
 };
 
 function resolveSpawnMode(params: {
@@ -115,30 +117,29 @@ function summarizeError(err: unknown): string {
   return "error";
 }
 
-function resolveThreadChannelId(params: {
-  manager: ThreadBindingManager;
+function resolveConversationIdForDiscordThreadBinding(params: {
   to?: string;
   threadId?: string | number;
 }): string | undefined {
-  const currentThreadId = params.threadId != null ? String(params.threadId).trim() : "";
-  if (currentThreadId) {
-    const existing = params.manager.getByThreadId(currentThreadId);
-    if (existing?.channelId?.trim()) {
-      return existing.channelId.trim();
-    }
+  const threadId = params.threadId != null ? String(params.threadId).trim() : "";
+  if (threadId) {
+    return threadId;
   }
-
-  const to = params.to?.trim() || "";
+  const to = params.to?.trim();
   if (!to) {
     return undefined;
   }
-  try {
-    const target = parseDiscordTarget(to, { defaultKind: "channel" });
-    if (target?.kind === "channel" && target.id) {
-      return target.id;
-    }
-  } catch {
-    // Keep behavior fail-closed; caller surfaces actionable error text.
+  if (to.startsWith("channel:")) {
+    const channelId = to.slice("channel:".length).trim();
+    return channelId || undefined;
+  }
+  const mentionMatch = to.match(/^<#(\d+)>$/);
+  if (mentionMatch?.[1]) {
+    return mentionMatch[1];
+  }
+  // Fallback for already-normalized raw channel ids.
+  if (/^\d{6,}$/.test(to)) {
+    return to;
   }
   return undefined;
 }
@@ -174,20 +175,28 @@ function prepareAcpThreadBinding(params: {
         "Discord thread-bound ACP spawns are disabled for this account (set channels.discord.threadBindings.spawnAcpSessions=true to enable).",
     };
   }
-
-  const manager = getThreadBindingManager(accountId);
-  if (!manager) {
+  const bindingService = getSessionBindingService();
+  const capabilities = bindingService.getCapabilities({
+    channel: "discord",
+    accountId,
+  });
+  if (!capabilities.adapterAvailable) {
     return {
       ok: false,
       error: "Discord thread bindings are unavailable for this account.",
     };
   }
-  const channelId = resolveThreadChannelId({
-    manager,
+  if (!capabilities.bindSupported || !capabilities.placements.includes("child")) {
+    return {
+      ok: false,
+      error: "Discord thread bindings do not support ACP thread spawn for this account.",
+    };
+  }
+  const conversationId = resolveConversationIdForDiscordThreadBinding({
     to: params.to,
     threadId: params.threadId,
   });
-  if (!channelId) {
+  if (!conversationId) {
     return {
       ok: false,
       error: "Could not resolve a Discord channel for ACP thread spawn.",
@@ -197,8 +206,8 @@ function prepareAcpThreadBinding(params: {
   return {
     ok: true,
     binding: {
-      manager,
-      channelId,
+      accountId,
+      conversationId,
     },
   };
 }
@@ -268,7 +277,8 @@ export async function spawnAcpDirect(
   }
 
   const acpManager = getAcpSessionManager();
-  let binding: ThreadBindingRecord | null = null;
+  const bindingService = getSessionBindingService();
+  let binding: SessionBindingRecord | null = null;
   let sessionCreated = false;
   let initializedRuntime: AcpSpawnRuntimeCloseHandle | undefined;
   try {
@@ -295,29 +305,38 @@ export async function spawnAcpDirect(
     };
 
     if (preparedBinding) {
-      binding = await preparedBinding.manager.bindTarget({
-        channelId: preparedBinding.channelId,
-        createThread: true,
-        threadName: resolveThreadBindingThreadName({
-          agentId: targetAgentId,
-          label: params.label || targetAgentId,
-        }),
-        targetKind: "acp",
+      binding = await bindingService.bind({
         targetSessionKey: sessionKey,
-        agentId: targetAgentId,
-        label: params.label || undefined,
-        boundBy: "system",
-        introText: resolveThreadBindingIntroText({
+        targetKind: "session",
+        conversation: {
+          channel: "discord",
+          accountId: preparedBinding.accountId,
+          conversationId: preparedBinding.conversationId,
+        },
+        placement: "child",
+        metadata: {
+          threadName: resolveThreadBindingThreadName({
+            agentId: targetAgentId,
+            label: params.label || targetAgentId,
+          }),
           agentId: targetAgentId,
           label: params.label || undefined,
-          sessionTtlMs: preparedBinding.manager.getSessionTtlMs(),
-          sessionDetails: resolveAcpSessionIdentifierLines({
-            sessionKey,
-            meta: initialized.meta,
+          boundBy: "system",
+          introText: resolveThreadBindingIntroText({
+            agentId: targetAgentId,
+            label: params.label || undefined,
+            sessionTtlMs: resolveDiscordThreadBindingSessionTtlMs({
+              cfg,
+              accountId: preparedBinding.accountId,
+            }),
+            sessionDetails: resolveAcpSessionIdentifierLines({
+              sessionKey,
+              meta: initialized.meta,
+            }),
           }),
-        }),
+        },
       });
-      if (!binding) {
+      if (!binding?.conversation.conversationId) {
         throw new Error("Failed to create and bind a Discord thread for this ACP session.");
       }
     }
@@ -331,7 +350,7 @@ export async function spawnAcpDirect(
     });
     return {
       status: "error",
-      error: summarizeError(err),
+      error: isSessionBindingError(err) ? err.message : summarizeError(err),
     };
   }
 
@@ -341,7 +360,7 @@ export async function spawnAcpDirect(
     to: ctx.agentTo,
     threadId: ctx.agentThreadId,
   });
-  const deliveryThreadIdRaw = binding?.threadId ?? requesterOrigin?.threadId;
+  const deliveryThreadIdRaw = binding?.conversation.conversationId ?? requesterOrigin?.threadId;
   const deliveryThreadId =
     deliveryThreadIdRaw != null ? String(deliveryThreadIdRaw).trim() || undefined : undefined;
   const inferredDeliveryTo =

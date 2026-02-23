@@ -1,7 +1,7 @@
 import type { OpenClawConfig } from "../../config/config.js";
-import { unbindThreadBindingsBySessionKey } from "../../discord/monitor/thread-bindings.js";
 import { callGateway } from "../../gateway/call.js";
 import { logVerbose } from "../../globals.js";
+import { getSessionBindingService } from "../../infra/outbound/session-binding-service.js";
 import { getAcpSessionManager } from "./manager.js";
 
 export type AcpSpawnRuntimeCloseHandle = {
@@ -64,12 +64,16 @@ export async function cleanupFailedAcpSpawn(params: {
       );
     });
 
-  unbindThreadBindingsBySessionKey({
-    targetSessionKey: params.sessionKey,
-    targetKind: "acp",
-    reason: "spawn-failed",
-    sendFarewell: false,
-  });
+  await getSessionBindingService()
+    .unbind({
+      targetSessionKey: params.sessionKey,
+      reason: "spawn-failed",
+    })
+    .catch((err) => {
+      logVerbose(
+        `acp-spawn: binding cleanup unbind failed for ${params.sessionKey}: ${String(err)}`,
+      );
+    });
 
   if (!params.shouldDeleteSession) {
     return;

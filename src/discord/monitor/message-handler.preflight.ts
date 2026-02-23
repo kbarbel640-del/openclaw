@@ -17,6 +17,10 @@ import { loadConfig } from "../../config/config.js";
 import { isDangerousNameMatchingEnabled } from "../../config/dangerous-name-matching.js";
 import { logVerbose, shouldLogVerbose } from "../../globals.js";
 import { recordChannelActivity } from "../../infra/channel-activity.js";
+import {
+  getSessionBindingService,
+  type SessionBindingRecord,
+} from "../../infra/outbound/session-binding-service.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import { logDebug } from "../../logger.js";
 import { getChildLogger } from "../../logging.js";
@@ -82,13 +86,16 @@ export function shouldIgnoreBoundThreadWebhookMessage(params: {
   accountId?: string;
   threadId?: string;
   webhookId?: string | null;
-  threadBinding?: ThreadBindingRecord;
+  threadBinding?: SessionBindingRecord;
 }): boolean {
   const webhookId = params.webhookId?.trim() || "";
   if (!webhookId) {
     return false;
   }
-  const boundWebhookId = params.threadBinding?.webhookId?.trim() || "";
+  const boundWebhookId =
+    typeof params.threadBinding?.metadata?.webhookId === "string"
+      ? params.threadBinding.metadata.webhookId.trim()
+      : "";
   if (!boundWebhookId) {
     const threadId = params.threadId?.trim() || "";
     if (!threadId) {
@@ -101,6 +108,30 @@ export function shouldIgnoreBoundThreadWebhookMessage(params: {
     });
   }
   return webhookId === boundWebhookId;
+}
+
+function toSessionBindingRecordFallback(record: ThreadBindingRecord): SessionBindingRecord {
+  return {
+    bindingId: `${record.accountId}:${record.threadId}`,
+    targetSessionKey: record.targetSessionKey,
+    targetKind: record.targetKind === "subagent" ? "subagent" : "session",
+    conversation: {
+      channel: "discord",
+      accountId: record.accountId,
+      conversationId: record.threadId,
+      parentConversationId: record.channelId,
+    },
+    status: "active",
+    boundAt: record.boundAt,
+    expiresAt: record.expiresAt,
+    metadata: {
+      agentId: record.agentId,
+      label: record.label,
+      webhookId: record.webhookId,
+      webhookToken: record.webhookToken,
+      boundBy: record.boundBy,
+    },
+  };
 }
 
 export async function preflightDiscordMessage(
@@ -296,9 +327,21 @@ export async function preflightDiscordMessage(
     // Pass parent peer for thread binding inheritance
     parentPeer: earlyThreadParentId ? { kind: "channel", id: earlyThreadParentId } : undefined,
   });
-  const threadBinding = earlyThreadChannel
-    ? params.threadBindings.getByThreadId(messageChannelId)
-    : undefined;
+  let threadBinding: SessionBindingRecord | undefined;
+  if (earlyThreadChannel) {
+    threadBinding =
+      getSessionBindingService().resolveByConversation({
+        channel: "discord",
+        accountId: params.accountId,
+        conversationId: messageChannelId,
+      }) ?? undefined;
+    if (!threadBinding) {
+      const fallbackBinding = params.threadBindings.getByThreadId(messageChannelId);
+      if (fallbackBinding) {
+        threadBinding = toSessionBindingRecordFallback(fallbackBinding);
+      }
+    }
+  }
   if (
     shouldIgnoreBoundThreadWebhookMessage({
       accountId: params.accountId,
