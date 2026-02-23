@@ -3,7 +3,6 @@ import path from "node:path";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { fetchWithTimeout } from "../utils/fetch-timeout.js";
 import { detectPackageManager as detectPackageManagerImpl } from "./detect-package-manager.js";
-import { parseSemver } from "./runtime-guard.js";
 import { channelToNpmTag, type UpdateChannel } from "./update-channels.js";
 
 export type PackageManager = "pnpm" | "bun" | "npm" | "unknown";
@@ -48,6 +47,128 @@ export type UpdateCheckResult = {
   deps?: DepsStatus;
   registry?: RegistryStatus;
 };
+
+type UpdateVersionSuffix =
+  | { kind: "none" }
+  | { kind: "numeric-build"; value: number }
+  | { kind: "prerelease"; identifiers: string[] };
+
+type ParsedUpdateVersion = {
+  major: number;
+  minor: number;
+  patch: number;
+  suffix: UpdateVersionSuffix;
+};
+
+const UPDATE_VERSION_RE = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+const NUMERIC_IDENTIFIER_RE = /^\d+$/;
+
+function compareIntegers(a: number, b: number): number {
+  if (a === b) {
+    return 0;
+  }
+  return a < b ? -1 : 1;
+}
+
+function parseUpdateVersion(version: string | null): ParsedUpdateVersion | null {
+  if (!version) {
+    return null;
+  }
+  const match = version.trim().match(UPDATE_VERSION_RE);
+  if (!match) {
+    return null;
+  }
+
+  const [, majorRaw, minorRaw, patchRaw, suffixRaw] = match;
+  const major = Number.parseInt(majorRaw, 10);
+  const minor = Number.parseInt(minorRaw, 10);
+  const patch = Number.parseInt(patchRaw, 10);
+
+  if (!Number.isFinite(major) || !Number.isFinite(minor) || !Number.isFinite(patch)) {
+    return null;
+  }
+
+  if (!suffixRaw) {
+    return { major, minor, patch, suffix: { kind: "none" } };
+  }
+
+  if (NUMERIC_IDENTIFIER_RE.test(suffixRaw)) {
+    return {
+      major,
+      minor,
+      patch,
+      suffix: { kind: "numeric-build", value: Number.parseInt(suffixRaw, 10) },
+    };
+  }
+
+  const identifiers = suffixRaw.split(".");
+  if (identifiers.some((part) => part.length === 0)) {
+    return null;
+  }
+
+  return {
+    major,
+    minor,
+    patch,
+    suffix: { kind: "prerelease", identifiers },
+  };
+}
+
+function comparePrereleaseIdentifiers(a: string[], b: string[]): number {
+  const max = Math.max(a.length, b.length);
+  for (let idx = 0; idx < max; idx += 1) {
+    const left = a[idx];
+    const right = b[idx];
+    if (left == null) {
+      return -1;
+    }
+    if (right == null) {
+      return 1;
+    }
+    const leftNumeric = NUMERIC_IDENTIFIER_RE.test(left);
+    const rightNumeric = NUMERIC_IDENTIFIER_RE.test(right);
+    if (leftNumeric && rightNumeric) {
+      const cmp = compareIntegers(Number.parseInt(left, 10), Number.parseInt(right, 10));
+      if (cmp !== 0) {
+        return cmp;
+      }
+      continue;
+    }
+    if (leftNumeric !== rightNumeric) {
+      return leftNumeric ? -1 : 1;
+    }
+    if (left !== right) {
+      return left < right ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+function suffixRank(suffix: UpdateVersionSuffix): number {
+  switch (suffix.kind) {
+    case "prerelease":
+      return 0;
+    case "none":
+      return 1;
+    case "numeric-build":
+      return 2;
+  }
+}
+
+function compareVersionSuffix(a: UpdateVersionSuffix, b: UpdateVersionSuffix): number {
+  if (a.kind === b.kind) {
+    if (a.kind === "none") {
+      return 0;
+    }
+    if (a.kind === "numeric-build" && b.kind === "numeric-build") {
+      return compareIntegers(a.value, b.value);
+    }
+    if (a.kind === "prerelease" && b.kind === "prerelease") {
+      return comparePrereleaseIdentifiers(a.identifiers, b.identifiers);
+    }
+  }
+  return compareIntegers(suffixRank(a), suffixRank(b));
+}
 
 export function formatGitInstallLabel(update: UpdateCheckResult): string | null {
   if (update.installKind !== "git") {
@@ -342,21 +463,24 @@ export async function resolveNpmChannelTag(params: {
 }
 
 export function compareSemverStrings(a: string | null, b: string | null): number | null {
-  const pa = parseSemver(a);
-  const pb = parseSemver(b);
+  const pa = parseUpdateVersion(a);
+  const pb = parseUpdateVersion(b);
   if (!pa || !pb) {
     return null;
   }
-  if (pa.major !== pb.major) {
-    return pa.major < pb.major ? -1 : 1;
+  const majorCmp = compareIntegers(pa.major, pb.major);
+  if (majorCmp !== 0) {
+    return majorCmp;
   }
-  if (pa.minor !== pb.minor) {
-    return pa.minor < pb.minor ? -1 : 1;
+  const minorCmp = compareIntegers(pa.minor, pb.minor);
+  if (minorCmp !== 0) {
+    return minorCmp;
   }
-  if (pa.patch !== pb.patch) {
-    return pa.patch < pb.patch ? -1 : 1;
+  const patchCmp = compareIntegers(pa.patch, pb.patch);
+  if (patchCmp !== 0) {
+    return patchCmp;
   }
-  return 0;
+  return compareVersionSuffix(pa.suffix, pb.suffix);
 }
 
 export async function checkUpdateStatus(params: {
