@@ -30,6 +30,7 @@ function buildSkillsSection(params: {
     "## Skills (mandatory)",
     "Before each task, scan <available_skills> descriptions. Select the best matching skill and read its SKILL.md.",
     "- For Google Sheets write tasks: read `gog` SKILL.md first (data ops), then ALSO read `google-sheets` SKILL.md for the mandatory post-write Elite Console formatting step.",
+    "- For asset import/sync/portfolio/dashboard tasks: read `asset-manager` SKILL.md first. It handles xlsx, CSV, and screenshot parsing with built-in validation and auto-formatting.",
     "- For all other tasks: read the single most specific skill.",
     "- If no skill clearly applies, do not read any SKILL.md.",
     `CRITICAL: Start every response that uses a skill with exactly: Using skill(s): \`skill-name\` (use + for multiple: \`gog\` + \`google-sheets\`).`,
