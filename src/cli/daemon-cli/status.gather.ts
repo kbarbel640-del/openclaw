@@ -13,6 +13,7 @@ import { auditGatewayServiceConfig } from "../../daemon/service-audit.js";
 import { resolveGatewayService } from "../../daemon/service.js";
 import { resolveGatewayBindHost } from "../../gateway/net.js";
 import {
+  classifyPortListener,
   formatPortDiagnostics,
   inspectPortUsage,
   type PortListener,
@@ -95,12 +96,26 @@ export type DaemonStatus = {
   extraServices: Array<{ label: string; detail: string; scope: string }>;
 };
 
-function shouldReportPortUsage(status: PortUsageStatus | undefined, rpcOk?: boolean) {
-  if (status !== "busy") {
+function shouldReportPortUsage(daemonStatus: DaemonStatus, rpcOk?: boolean) {
+  const portInfo = daemonStatus.port;
+  if (portInfo?.status !== "busy") {
     return false;
   }
   if (rpcOk === true) {
     return false;
+  }
+  // When the service is running, suppress the port conflict if the port is
+  // occupied by our own gateway process. This avoids false positives when the
+  // gateway is managed by systemd (where the runtime PID from the service
+  // manager differs from the actual listener PID).
+  const runtime = daemonStatus.service.runtime;
+  if (runtime?.status === "running" && portInfo.listeners.length > 0) {
+    const allGateway = portInfo.listeners.every(
+      (l) => classifyPortListener(l, portInfo.port) === "gateway",
+    );
+    if (allGateway) {
+      return false;
+    }
   }
   return true;
 }
@@ -275,7 +290,7 @@ export async function gatherDaemonStatus(
 }
 
 export function renderPortDiagnosticsForCli(status: DaemonStatus, rpcOk?: boolean): string[] {
-  if (!status.port || !shouldReportPortUsage(status.port.status, rpcOk)) {
+  if (!status.port || !shouldReportPortUsage(status, rpcOk)) {
     return [];
   }
   return formatPortDiagnostics({
