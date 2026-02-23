@@ -30,6 +30,37 @@ export type CronDeliveryPatch = Partial<CronDelivery>;
 export type CronRunStatus = "ok" | "error" | "skipped";
 export type CronDeliveryStatus = "delivered" | "not-delivered" | "unknown" | "not-requested";
 
+export type CronFailureType =
+  | "tool_validation"
+  | "runtime_validation"
+  | "timeout"
+  | "delivery"
+  | "unknown";
+
+export type CronFailureStage =
+  | "input_validation"
+  | "model_selection"
+  | "execution"
+  | "delivery"
+  | "scheduler";
+
+export type CronFailureSeverity = "low" | "medium" | "high" | "critical";
+
+export type CronFailureTaxonomy = {
+  type: CronFailureType;
+  stage: CronFailureStage;
+  rootCause: string;
+  severity: CronFailureSeverity;
+  retriable: boolean;
+  metadata?: Record<string, unknown>;
+};
+
+export type CronRunErrorKind =
+  | "delivery-target"
+  | "tool-validation"
+  | "runtime-validation"
+  | "timeout";
+
 export type CronUsageSummary = {
   input_tokens?: number;
   output_tokens?: number;
@@ -48,7 +79,9 @@ export type CronRunOutcome = {
   status: CronRunStatus;
   error?: string;
   /** Optional classifier for execution errors to guide fallback behavior. */
-  errorKind?: "delivery-target";
+  errorKind?: CronRunErrorKind;
+  /** Structured failure classification for autonomous/isolated runs (feature-gated). */
+  failure?: CronFailureTaxonomy;
   summary?: string;
   sessionId?: string;
   sessionKey?: string;

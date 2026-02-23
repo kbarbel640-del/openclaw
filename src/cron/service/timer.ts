@@ -1,6 +1,11 @@
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
 import { DEFAULT_AGENT_ID } from "../../routing/session-key.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
+import {
+  attachCronFailureClassification,
+  buildCronFailureClassification,
+  inferCronFailureClassificationFromError,
+} from "../failure-taxonomy.js";
 import { sweepCronRunSessions } from "../session-reaper.js";
 import type {
   CronDeliveryStatus,
@@ -100,6 +105,27 @@ function isAbortError(err: unknown): boolean {
     return false;
   }
   return err.name === "AbortError" || err.message === timeoutErrorMessage();
+}
+
+function maybeAttachFailureClassification<T extends CronRunOutcome>(
+  state: CronServiceState,
+  outcome: T,
+  classification: ReturnType<typeof inferCronFailureClassificationFromError> | undefined,
+): T {
+  return attachCronFailureClassification({
+    enabled: state.deps.failureTaxonomyEnabled === true,
+    outcome,
+    classification,
+  });
+}
+
+function timeoutClassification(metadata?: Record<string, unknown>) {
+  return buildCronFailureClassification({
+    kind: "timeout",
+    stage: "execution",
+    rootCause: "job-execution-timeout",
+    metadata,
+  });
 }
 /**
  * Exponential backoff delays (in ms) indexed by consecutive error count.
@@ -364,15 +390,25 @@ export async function onTimer(state: CronServiceState) {
         const result = await executeJobCoreWithTimeout(state, job);
         return { jobId: id, ...result, startedAt, endedAt: state.deps.nowMs() };
       } catch (err) {
-        const errorText = isAbortError(err) ? timeoutErrorMessage() : String(err);
+        const timedOut = isAbortError(err);
+        const errorText = timedOut ? timeoutErrorMessage() : String(err);
         state.deps.log.warn(
           { jobId: id, jobName: job.name, timeoutMs: jobTimeoutMs ?? null },
           `cron: job failed: ${errorText}`,
         );
+        const classified = maybeAttachFailureClassification(
+          state,
+          {
+            status: "error" as const,
+            error: errorText,
+          },
+          timedOut
+            ? timeoutClassification({ source: "onTimer", timeoutMs: jobTimeoutMs ?? null })
+            : inferCronFailureClassificationFromError(errorText),
+        );
         return {
           jobId: id,
-          status: "error",
-          error: errorText,
+          ...classified,
           startedAt,
           endedAt: state.deps.nowMs(),
         };
@@ -552,6 +588,8 @@ export async function runMissedJobs(
         jobId: candidate.jobId,
         status: result.status,
         error: result.error,
+        ...(result.errorKind ? { errorKind: result.errorKind } : {}),
+        ...(result.failure ? { failure: result.failure } : {}),
         summary: result.summary,
         delivered: result.delivered,
         sessionId: result.sessionId,
@@ -563,10 +601,18 @@ export async function runMissedJobs(
         endedAt: state.deps.nowMs(),
       });
     } catch (err) {
+      const errorText = String(err);
+      const classified = maybeAttachFailureClassification(
+        state,
+        {
+          status: "error" as const,
+          error: errorText,
+        },
+        inferCronFailureClassificationFromError(errorText),
+      );
       outcomes.push({
         jobId: candidate.jobId,
-        status: "error",
-        error: String(err),
+        ...classified,
         startedAt,
         endedAt: state.deps.nowMs(),
       });
@@ -607,10 +653,15 @@ export async function executeJobCore(
   job: CronJob,
   abortSignal?: AbortSignal,
 ): Promise<CronRunOutcome & CronRunTelemetry & { delivered?: boolean }> {
-  const resolveAbortError = () => ({
-    status: "error" as const,
-    error: timeoutErrorMessage(),
-  });
+  const resolveAbortError = () =>
+    maybeAttachFailureClassification(
+      state,
+      {
+        status: "error" as const,
+        error: timeoutErrorMessage(),
+      },
+      timeoutClassification({ source: "executeJobCore" }),
+    );
   const waitWithAbort = async (ms: number) => {
     if (!abortSignal) {
       await new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -640,13 +691,23 @@ export async function executeJobCore(
     const text = resolveJobPayloadTextForMain(job);
     if (!text) {
       const kind = job.payload.kind;
-      return {
-        status: "skipped",
-        error:
-          kind === "systemEvent"
-            ? "main job requires non-empty systemEvent text"
-            : 'main job requires payload.kind="systemEvent"',
-      };
+      const error =
+        kind === "systemEvent"
+          ? "main job requires non-empty systemEvent text"
+          : 'main job requires payload.kind="systemEvent"';
+      return maybeAttachFailureClassification(
+        state,
+        {
+          status: "skipped",
+          error,
+        },
+        buildCronFailureClassification({
+          kind: "runtime-validation",
+          stage: "input_validation",
+          rootCause: "main-job-payload-invalid",
+          metadata: { payloadKind: kind },
+        }),
+      );
     }
     state.deps.enqueueSystemEvent(text, {
       agentId: job.agentId,
@@ -713,7 +774,16 @@ export async function executeJobCore(
   }
 
   if (job.payload.kind !== "agentTurn") {
-    return { status: "skipped", error: "isolated job requires payload.kind=agentTurn" };
+    return maybeAttachFailureClassification(
+      state,
+      { status: "skipped", error: "isolated job requires payload.kind=agentTurn" },
+      buildCronFailureClassification({
+        kind: "runtime-validation",
+        stage: "input_validation",
+        rootCause: "isolated-job-payload-invalid",
+        metadata: { payloadKind: job.payload.kind },
+      }),
+    );
   }
   if (abortSignal?.aborted) {
     return resolveAbortError();
@@ -726,7 +796,11 @@ export async function executeJobCore(
   });
 
   if (abortSignal?.aborted) {
-    return { status: "error", error: timeoutErrorMessage() };
+    return maybeAttachFailureClassification(
+      state,
+      { status: "error", error: timeoutErrorMessage() },
+      timeoutClassification({ source: "executeJobCore.postIsolatedRun" }),
+    );
   }
 
   // Post a short summary back to the main session — but only when the
@@ -760,6 +834,8 @@ export async function executeJobCore(
   return {
     status: res.status,
     error: res.error,
+    ...(res.errorKind ? { errorKind: res.errorKind } : {}),
+    ...(res.failure ? { failure: res.failure } : {}),
     summary: res.summary,
     delivered: res.delivered,
     sessionId: res.sessionId,
@@ -796,7 +872,12 @@ export async function executeJob(
   try {
     coreResult = await executeJobCore(state, job);
   } catch (err) {
-    coreResult = { status: "error", error: String(err) };
+    const errorText = String(err);
+    coreResult = maybeAttachFailureClassification(
+      state,
+      { status: "error", error: errorText },
+      inferCronFailureClassificationFromError(errorText),
+    );
   }
 
   const endedAt = state.deps.nowMs();
@@ -835,6 +916,7 @@ function emitJobFinished(
     delivered: result.delivered,
     deliveryStatus: job.state.lastDeliveryStatus,
     deliveryError: job.state.lastDeliveryError,
+    ...(result.failure ? { failure: result.failure } : {}),
     sessionId: result.sessionId,
     sessionKey: result.sessionKey,
     runAtMs,

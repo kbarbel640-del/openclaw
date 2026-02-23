@@ -154,6 +154,56 @@ describe("cron run log", () => {
     });
   });
 
+  it("parses structured failure taxonomy fields when present", async () => {
+    await withRunLogDir("openclaw-cron-log-failure-taxonomy-", async (dir) => {
+      const logPath = path.join(dir, "runs", "job-1.jsonl");
+      await fs.mkdir(path.dirname(logPath), { recursive: true });
+      await fs.writeFile(
+        logPath,
+        [
+          JSON.stringify({
+            ts: 1,
+            jobId: "job-1",
+            action: "finished",
+            status: "error",
+            error: "cron: job execution timed out",
+            failure: {
+              type: "timeout",
+              stage: "execution",
+              rootCause: "job-execution-timeout",
+              severity: "high",
+              retriable: true,
+              metadata: { source: "unit-test" },
+            },
+          }),
+          JSON.stringify({
+            ts: 2,
+            jobId: "job-1",
+            action: "finished",
+            status: "error",
+            error: "broken",
+            failure: {
+              type: "not-a-real-type",
+            },
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+
+      const entries = await readCronRunLogEntries(logPath, { limit: 10, jobId: "job-1" });
+      expect(entries).toHaveLength(2);
+      expect(entries[0]?.failure).toEqual({
+        type: "timeout",
+        stage: "execution",
+        rootCause: "job-execution-timeout",
+        severity: "high",
+        retriable: true,
+        metadata: { source: "unit-test" },
+      });
+      expect(entries[1]?.failure).toBeUndefined();
+    });
+  });
+
   it("reads telemetry fields", async () => {
     await withRunLogDir("openclaw-cron-log-telemetry-", async (dir) => {
       const logPath = path.join(dir, "runs", "job-1.jsonl");

@@ -55,6 +55,12 @@ import {
   isExternalHookSession,
 } from "../../security/external-content.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
+import {
+  attachCronFailureClassification,
+  buildCronFailureClassification,
+  inferCronFailureClassificationFromError,
+  isCronFailureTaxonomyEnabled,
+} from "../failure-taxonomy.js";
 import type { CronJob, CronRunOutcome, CronRunTelemetry } from "../types.js";
 import { resolveDeliveryTarget } from "./delivery-target.js";
 import {
@@ -204,6 +210,7 @@ export async function runCronIsolatedAgentTurn(params: {
     ...params.cfg,
     agents: Object.assign({}, params.cfg.agents, { defaults: agentCfg }),
   };
+  const failureTaxonomyEnabled = isCronFailureTaxonomyEnabled(cfgWithAgentDefaults);
 
   const baseSessionKey = (params.sessionKey?.trim() || `cron:${params.job.id}`).trim();
   const agentSessionKey = buildAgentMainSessionKey({
@@ -268,7 +275,15 @@ export async function runCronIsolatedAgentTurn(params: {
       defaultModel: resolvedDefault.model,
     });
     if ("error" in resolvedOverride) {
-      return { status: "error", error: resolvedOverride.error };
+      return withClassifiedRunSession(
+        { status: "error", error: resolvedOverride.error },
+        buildCronFailureClassification({
+          kind: "runtime-validation",
+          stage: "model_selection",
+          rootCause: "runtime-model-validation-failed",
+          metadata: { modelOverride },
+        }),
+      );
     }
     provider = resolvedOverride.ref.provider;
     model = resolvedOverride.ref.model;
@@ -308,6 +323,17 @@ export async function runCronIsolatedAgentTurn(params: {
     sessionId: runSessionId,
     sessionKey: runSessionKey,
   });
+  const withClassifiedRunSession = (
+    result: Omit<RunCronAgentTurnResult, "sessionId" | "sessionKey">,
+    classification?: ReturnType<typeof inferCronFailureClassificationFromError>,
+  ): RunCronAgentTurnResult =>
+    withRunSession(
+      attachCronFailureClassification({
+        enabled: failureTaxonomyEnabled,
+        outcome: result,
+        classification,
+      }),
+    );
   if (!cronSession.sessionEntry.label?.trim() && baseSessionKey.startsWith("cron:")) {
     const labelSuffix =
       typeof params.job.name === "string" && params.job.name.trim()
@@ -535,11 +561,23 @@ export async function runCronIsolatedAgentTurn(params: {
     fallbackModel = fallbackResult.model;
     runEndedAt = Date.now();
   } catch (err) {
-    return withRunSession({ status: "error", error: String(err) });
+    const errorText = String(err);
+    return withClassifiedRunSession(
+      { status: "error", error: errorText },
+      inferCronFailureClassificationFromError(errorText),
+    );
   }
 
   if (isAborted()) {
-    return withRunSession({ status: "error", error: abortReason() });
+    return withClassifiedRunSession(
+      { status: "error", error: abortReason() },
+      buildCronFailureClassification({
+        kind: "timeout",
+        stage: "execution",
+        rootCause: "job-execution-timeout",
+        metadata: { source: "runCronIsolatedAgentTurn:postRun" },
+      }),
+    );
   }
 
   const payloads = runResult.payloads ?? [];
@@ -599,7 +637,15 @@ export async function runCronIsolatedAgentTurn(params: {
   }
 
   if (isAborted()) {
-    return withRunSession({ status: "error", error: abortReason(), ...telemetry });
+    return withClassifiedRunSession(
+      { status: "error", error: abortReason(), ...telemetry },
+      buildCronFailureClassification({
+        kind: "timeout",
+        stage: "execution",
+        rootCause: "job-execution-timeout",
+        metadata: { source: "runCronIsolatedAgentTurn:postPersist" },
+      }),
+    );
   }
   const firstText = payloads[0]?.text ?? "";
   let summary = pickSummaryFromPayloads(payloads) ?? pickSummaryFromOutput(firstText);
@@ -636,14 +682,25 @@ export async function runCronIsolatedAgentTurn(params: {
   // Keep this strict so timer fallback can safely decide whether to wake main.
   let delivered = skipMessagingToolDelivery;
   const failDeliveryTarget = (error: string) =>
-    withRunSession({
-      status: "error",
-      error,
-      errorKind: "delivery-target",
-      summary,
-      outputText,
-      ...telemetry,
-    });
+    withRunSession(
+      attachCronFailureClassification({
+        enabled: failureTaxonomyEnabled,
+        outcome: {
+          status: "error",
+          error,
+          errorKind: "delivery-target",
+          summary,
+          outputText,
+          ...telemetry,
+        },
+        classification: buildCronFailureClassification({
+          kind: "runtime-validation",
+          stage: "delivery",
+          rootCause: "delivery-target-invalid",
+          metadata: { message: error },
+        }),
+      }),
+    );
   if (deliveryRequested && !skipHeartbeatDelivery && !skipMessagingToolDelivery) {
     if (resolvedDelivery.error) {
       if (!deliveryBestEffort) {
@@ -687,7 +744,15 @@ export async function runCronIsolatedAgentTurn(params: {
               : [];
         if (payloadsForDelivery.length > 0) {
           if (isAborted()) {
-            return withRunSession({ status: "error", error: abortReason(), ...telemetry });
+            return withClassifiedRunSession(
+              { status: "error", error: abortReason(), ...telemetry },
+              buildCronFailureClassification({
+                kind: "timeout",
+                stage: "delivery",
+                rootCause: "delivery-timeout",
+                metadata: { source: "direct-delivery" },
+              }),
+            );
           }
           const deliveryResults = await deliverOutboundPayloads({
             cfg: cfgWithAgentDefaults,
@@ -706,13 +771,17 @@ export async function runCronIsolatedAgentTurn(params: {
         }
       } catch (err) {
         if (!deliveryBestEffort) {
-          return withRunSession({
-            status: "error",
-            summary,
-            outputText,
-            error: String(err),
-            ...telemetry,
-          });
+          const errorText = String(err);
+          return withClassifiedRunSession(
+            {
+              status: "error",
+              summary,
+              outputText,
+              error: errorText,
+              ...telemetry,
+            },
+            inferCronFailureClassificationFromError(errorText),
+          );
         }
       }
     } else if (synthesizedText) {
@@ -784,7 +853,15 @@ export async function runCronIsolatedAgentTurn(params: {
       }
       try {
         if (isAborted()) {
-          return withRunSession({ status: "error", error: abortReason(), ...telemetry });
+          return withClassifiedRunSession(
+            { status: "error", error: abortReason(), ...telemetry },
+            buildCronFailureClassification({
+              kind: "timeout",
+              stage: "delivery",
+              rootCause: "announce-timeout",
+              metadata: { source: "announce-flow" },
+            }),
+          );
         }
         const didAnnounce = await runSubagentAnnounceFlow({
           childSessionKey: agentSessionKey,
@@ -816,25 +893,37 @@ export async function runCronIsolatedAgentTurn(params: {
         } else {
           const message = "cron announce delivery failed";
           if (!deliveryBestEffort) {
-            return withRunSession({
-              status: "error",
-              summary,
-              outputText,
-              error: message,
-              ...telemetry,
-            });
+            return withClassifiedRunSession(
+              {
+                status: "error",
+                summary,
+                outputText,
+                error: message,
+                ...telemetry,
+              },
+              buildCronFailureClassification({
+                kind: "runtime-validation",
+                stage: "delivery",
+                rootCause: "announce-delivery-failed",
+                metadata: { message },
+              }),
+            );
           }
           logWarn(`[cron:${params.job.id}] ${message}`);
         }
       } catch (err) {
         if (!deliveryBestEffort) {
-          return withRunSession({
-            status: "error",
-            summary,
-            outputText,
-            error: String(err),
-            ...telemetry,
-          });
+          const errorText = String(err);
+          return withClassifiedRunSession(
+            {
+              status: "error",
+              summary,
+              outputText,
+              error: errorText,
+              ...telemetry,
+            },
+            inferCronFailureClassificationFromError(errorText),
+          );
         }
         logWarn(`[cron:${params.job.id}] ${String(err)}`);
       }

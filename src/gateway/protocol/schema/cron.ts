@@ -54,6 +54,37 @@ const CronDeliveryStatusSchema = Type.Union([
   Type.Literal("unknown"),
   Type.Literal("not-requested"),
 ]);
+const CronFailureTypeSchema = Type.Union([
+  Type.Literal("tool_validation"),
+  Type.Literal("runtime_validation"),
+  Type.Literal("timeout"),
+  Type.Literal("delivery"),
+  Type.Literal("unknown"),
+]);
+const CronFailureStageSchema = Type.Union([
+  Type.Literal("input_validation"),
+  Type.Literal("model_selection"),
+  Type.Literal("execution"),
+  Type.Literal("delivery"),
+  Type.Literal("scheduler"),
+]);
+const CronFailureSeveritySchema = Type.Union([
+  Type.Literal("low"),
+  Type.Literal("medium"),
+  Type.Literal("high"),
+  Type.Literal("critical"),
+]);
+const CronFailureTaxonomySchema = Type.Object(
+  {
+    type: CronFailureTypeSchema,
+    stage: CronFailureStageSchema,
+    rootCause: NonEmptyString,
+    severity: CronFailureSeveritySchema,
+    retriable: Type.Boolean(),
+    metadata: Type.Optional(Type.Object({}, { additionalProperties: true })),
+  },
+  { additionalProperties: false },
+);
 const CronCommonOptionalFields = {
   agentId: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
   sessionKey: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
@@ -305,6 +336,7 @@ export const CronRunLogEntrySchema = Type.Object(
     delivered: Type.Optional(Type.Boolean()),
     deliveryStatus: Type.Optional(CronDeliveryStatusSchema),
     deliveryError: Type.Optional(Type.String()),
+    failure: Type.Optional(CronFailureTaxonomySchema),
     sessionId: Type.Optional(NonEmptyString),
     sessionKey: Type.Optional(NonEmptyString),
     runAtMs: Type.Optional(Type.Integer({ minimum: 0 })),

@@ -501,6 +501,18 @@ Run history:
 openclaw cron runs --id <jobId> --limit 50
 ```
 
+Structured failure taxonomy (opt-in for autonomous/isolated runs):
+
+- Enable with `diagnostics.flags: ["cron.failure-taxonomy"]` (or `OPENCLAW_DIAGNOSTICS=cron.failure-taxonomy`).
+- When enabled, each failed run log entry may include a `failure` object with:
+  - `type`
+  - `stage`
+  - `rootCause`
+  - `severity`
+  - `retriable`
+  - `metadata`
+- Guardrail mappings are deterministic for top classes (`tool validation`, `runtime validation`, `timeout`) so automation can route retries/escalations without parsing free-form error strings.
+
 Immediate system event without creating a job:
 
 ```bash
