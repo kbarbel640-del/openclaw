@@ -771,7 +771,7 @@ async function collectVaultFindings(
   env: NodeJS.ProcessEnv,
 ): Promise<SecurityAuditFinding[]> {
   const findings: SecurityAuditFinding[] = [];
-  const vaultCfg = cfg.vault;
+  const vaultCfg = cfg.security?.vault;
 
   if (vaultCfg?.enabled === false) {
     findings.push({

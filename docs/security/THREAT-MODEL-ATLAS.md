@@ -193,15 +193,15 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-ACCESS-003: Token Theft
 
-| Attribute               | Value                                                       |
-| ----------------------- | ----------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0040 - AI Model Inference API Access                   |
-| **Description**         | Attacker steals authentication tokens from config files     |
-| **Attack Vector**       | Malware, unauthorized device access, config backup exposure |
-| **Affected Components** | ~/.openclaw/credentials/, config storage                    |
-| **Current Mitigations** | File permissions                                            |
-| **Residual Risk**       | High - Tokens stored in plaintext                           |
-| **Recommendations**     | Implement token encryption at rest, add token rotation      |
+| Attribute               | Value                                                                     |
+| ----------------------- | ------------------------------------------------------------------------- |
+| **ATLAS ID**            | AML.T0040 - AI Model Inference API Access                                 |
+| **Description**         | Attacker steals authentication tokens from config files                   |
+| **Attack Vector**       | Malware, unauthorized device access, config backup exposure               |
+| **Affected Components** | ~/.openclaw/credentials/, config storage                                  |
+| **Current Mitigations** | File permissions, AES-256-GCM vault encryption at rest (`security.vault`) |
+| **Residual Risk**       | Medium - Mitigated when vault is enabled; plaintext if vault is off       |
+| **Recommendations**     | Enable vault encryption, add token rotation                               |
 
 ---
 
@@ -261,15 +261,15 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-PERSIST-001: Malicious Skill Installation
 
-| Attribute               | Value                                                                    |
-| ----------------------- | ------------------------------------------------------------------------ |
-| **ATLAS ID**            | AML.T0010.001 - Supply Chain Compromise: AI Software                     |
-| **Description**         | Attacker publishes malicious skill to ClawHub                            |
-| **Attack Vector**       | Create account, publish skill with hidden malicious code                 |
-| **Affected Components** | ClawHub, skill loading, agent execution                                  |
-| **Current Mitigations** | GitHub account age verification, pattern-based moderation flags          |
-| **Residual Risk**       | Critical - No sandboxing, limited review                                 |
-| **Recommendations**     | VirusTotal integration (in progress), skill sandboxing, community review |
+| Attribute               | Value                                                                                                                        |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **ATLAS ID**            | AML.T0010.001 - Supply Chain Compromise: AI Software                                                                         |
+| **Description**         | Attacker publishes malicious skill to ClawHub                                                                                |
+| **Attack Vector**       | Create account, publish skill with hidden malicious code                                                                     |
+| **Affected Components** | ClawHub, skill loading, agent execution                                                                                      |
+| **Current Mitigations** | GitHub account age verification, pattern-based moderation flags, plugin capability manifests (`security.pluginCapabilities`) |
+| **Residual Risk**       | High - Manifests enforce declared capabilities but do not fully sandbox plugin code                                          |
+| **Recommendations**     | VirusTotal integration (in progress), skill sandboxing, community review, require manifests for all plugins                  |
 
 #### T-PERSIST-002: Skill Update Poisoning
 
@@ -285,15 +285,15 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-PERSIST-003: Agent Configuration Tampering
 
-| Attribute               | Value                                                           |
-| ----------------------- | --------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0010.002 - Supply Chain Compromise: Data                   |
-| **Description**         | Attacker modifies agent configuration to persist access         |
-| **Attack Vector**       | Config file modification, settings injection                    |
-| **Affected Components** | Agent config, tool policies                                     |
-| **Current Mitigations** | File permissions                                                |
-| **Residual Risk**       | Medium - Requires local access                                  |
-| **Recommendations**     | Config integrity verification, audit logging for config changes |
+| Attribute               | Value                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **ATLAS ID**            | AML.T0010.002 - Supply Chain Compromise: Data                                                                      |
+| **Description**         | Attacker modifies agent configuration to persist access                                                            |
+| **Attack Vector**       | Config file modification, settings injection                                                                       |
+| **Affected Components** | Agent config, tool policies                                                                                        |
+| **Current Mitigations** | File permissions, SHA-256 config integrity verification (`security.configIntegrity`), audit log for config changes |
+| **Residual Risk**       | Low - Tamper detection on startup when integrity verification is enabled                                           |
+| **Recommendations**     | Enable config integrity verification, keep `warnOnly: false` to block startup on tamper detection                  |
 
 ---
 
@@ -409,15 +409,15 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-IMPACT-002: Resource Exhaustion (DoS)
 
-| Attribute               | Value                                              |
-| ----------------------- | -------------------------------------------------- |
-| **ATLAS ID**            | AML.T0031 - Erode AI Model Integrity               |
-| **Description**         | Attacker exhausts API credits or compute resources |
-| **Attack Vector**       | Automated message flooding, expensive tool calls   |
-| **Affected Components** | Gateway, agent sessions, API provider              |
-| **Current Mitigations** | None                                               |
-| **Residual Risk**       | High - No rate limiting                            |
-| **Recommendations**     | Implement per-sender rate limits, cost budgets     |
+| Attribute               | Value                                                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **ATLAS ID**            | AML.T0031 - Erode AI Model Integrity                                                                                   |
+| **Description**         | Attacker exhausts API credits or compute resources                                                                     |
+| **Attack Vector**       | Automated message flooding, expensive tool calls                                                                       |
+| **Affected Components** | Gateway, agent sessions, API provider                                                                                  |
+| **Current Mitigations** | Per-sender sliding-window rate limiting (`security.messageRateLimit`), per-sender cost budgets (`security.costBudget`) |
+| **Residual Risk**       | Low - Mitigated when rate limiting is enabled                                                                          |
+| **Recommendations**     | Enable rate limiting, tune per-minute/per-hour/burst limits per deployment                                             |
 
 #### T-IMPACT-003: Reputation Damage
 
@@ -486,21 +486,22 @@ Current patterns in `moderation.ts`:
 
 ### 5.1 Likelihood vs Impact
 
-| Threat ID     | Likelihood | Impact   | Risk Level   | Priority |
-| ------------- | ---------- | -------- | ------------ | -------- |
-| T-EXEC-001    | High       | Critical | **Critical** | P0       |
-| T-PERSIST-001 | High       | Critical | **Critical** | P0       |
-| T-EXFIL-003   | Medium     | Critical | **Critical** | P0       |
-| T-IMPACT-001  | Medium     | Critical | **High**     | P1       |
-| T-EXEC-002    | High       | High     | **High**     | P1       |
-| T-EXEC-004    | Medium     | High     | **High**     | P1       |
-| T-ACCESS-003  | Medium     | High     | **High**     | P1       |
-| T-EXFIL-001   | Medium     | High     | **High**     | P1       |
-| T-IMPACT-002  | High       | Medium   | **High**     | P1       |
-| T-EVADE-001   | High       | Medium   | **Medium**   | P2       |
-| T-ACCESS-001  | Low        | High     | **Medium**   | P2       |
-| T-ACCESS-002  | Low        | High     | **Medium**   | P2       |
-| T-PERSIST-002 | Low        | High     | **Medium**   | P2       |
+| Threat ID     | Likelihood | Impact   | Risk Level   | Priority                      |
+| ------------- | ---------- | -------- | ------------ | ----------------------------- |
+| T-EXEC-001    | High       | Critical | **Critical** | P0                            |
+| T-PERSIST-001 | High       | Critical | **Critical** | P0                            |
+| T-EXFIL-003   | Medium     | Critical | **Critical** | P0                            |
+| T-IMPACT-001  | Medium     | Critical | **High**     | P1                            |
+| T-EXEC-002    | High       | High     | **High**     | P1                            |
+| T-EXEC-004    | Medium     | High     | **High**     | P1                            |
+| T-ACCESS-003  | Medium     | High     | **Medium**   | P1 (mitigated: vault)         |
+| T-EXFIL-001   | Medium     | High     | **High**     | P1                            |
+| T-IMPACT-002  | High       | Medium   | **Medium**   | P1 (mitigated: rate limiting) |
+| T-EVADE-001   | High       | Medium   | **Medium**   | P2                            |
+| T-ACCESS-001  | Low        | High     | **Medium**   | P2                            |
+| T-ACCESS-002  | Low        | High     | **Medium**   | P2                            |
+| T-PERSIST-002 | Low        | High     | **Medium**   | P2                            |
+| T-PERSIST-003 | Low        | Medium   | **Low**      | P2 (mitigated: integrity)     |
 
 ### 5.2 Critical Path Attack Chains
 
@@ -539,20 +540,20 @@ T-EXEC-002 → T-EXFIL-001 → External exfiltration
 
 ### 6.2 Short-term (P1)
 
-| ID    | Recommendation                           | Addresses    |
-| ----- | ---------------------------------------- | ------------ |
-| R-004 | Implement rate limiting                  | T-IMPACT-002 |
-| R-005 | Add token encryption at rest             | T-ACCESS-003 |
-| R-006 | Improve exec approval UX and validation  | T-EXEC-004   |
-| R-007 | Implement URL allowlisting for web_fetch | T-EXFIL-001  |
+| ID    | Recommendation                           | Addresses    | Status                                    |
+| ----- | ---------------------------------------- | ------------ | ----------------------------------------- |
+| R-004 | Implement rate limiting                  | T-IMPACT-002 | **Done** — `security.messageRateLimit`    |
+| R-005 | Add token encryption at rest             | T-ACCESS-003 | **Done** — `security.vault` (AES-256-GCM) |
+| R-006 | Improve exec approval UX and validation  | T-EXEC-004   | Open                                      |
+| R-007 | Implement URL allowlisting for web_fetch | T-EXFIL-001  | Open                                      |
 
 ### 6.3 Medium-term (P2)
 
-| ID    | Recommendation                                        | Addresses     |
-| ----- | ----------------------------------------------------- | ------------- |
-| R-008 | Add cryptographic channel verification where possible | T-ACCESS-002  |
-| R-009 | Implement config integrity verification               | T-PERSIST-003 |
-| R-010 | Add update signing and version pinning                | T-PERSIST-002 |
+| ID    | Recommendation                                        | Addresses     | Status                                          |
+| ----- | ----------------------------------------------------- | ------------- | ----------------------------------------------- |
+| R-008 | Add cryptographic channel verification where possible | T-ACCESS-002  | Open                                            |
+| R-009 | Implement config integrity verification               | T-PERSIST-003 | **Done** — `security.configIntegrity` (SHA-256) |
+| R-010 | Add update signing and version pinning                | T-PERSIST-002 | Open                                            |
 
 ---
 

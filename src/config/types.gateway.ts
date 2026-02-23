@@ -366,6 +366,8 @@ export type PluginCapabilityConfig = {
 };
 
 export type SecurityConfig = {
+  /** AES-256-GCM encryption at rest for stored credentials. */
+  vault?: VaultConfig;
   /** Per-sender/per-session message rate limiting. */
   messageRateLimit?: MessageRateLimitConfig;
   /** Optional per-sender daily cost budget (off by default). */
