@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { GatewayServiceRuntime } from "../../daemon/service-runtime.js";
 import type { GatewayService } from "../../daemon/service.js";
 import {
@@ -7,6 +8,34 @@ import {
   type PortUsage,
 } from "../../infra/ports.js";
 import { sleep } from "../../utils.js";
+
+/**
+ * Check whether `childPid` is a descendant of `ancestorPid` by walking the
+ * process tree via `/proc/<pid>/status`.  Returns `false` on any read error
+ * (non-Linux, permission denied, process already exited, etc.) so the caller
+ * falls back to the previous direct-PID comparison.
+ */
+export function isDescendantOf(childPid: number, ancestorPid: number): boolean {
+  let current = childPid;
+  const visited = new Set<number>();
+  while (current !== ancestorPid) {
+    if (current <= 1 || visited.has(current)) {
+      return false;
+    }
+    visited.add(current);
+    try {
+      const status = readFileSync(`/proc/${current}/status`, "utf-8");
+      const match = /^PPid:\s+(\d+)/m.exec(status);
+      if (!match) {
+        return false;
+      }
+      current = Number(match[1]);
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
 
 export const DEFAULT_RESTART_HEALTH_TIMEOUT_MS = 60_000;
 export const DEFAULT_RESTART_HEALTH_DELAY_MS = 500;
@@ -54,9 +83,13 @@ export async function inspectGatewayRestart(params: {
         )
       : [];
   const running = runtime.status === "running";
+  const isOwnedPid = (pid: number | undefined): boolean => {
+    if (pid == null || runtime.pid == null) return false;
+    return pid === runtime.pid || isDescendantOf(pid, runtime.pid);
+  };
   const ownsPort =
     runtime.pid != null
-      ? portUsage.listeners.some((listener) => listener.pid === runtime.pid)
+      ? portUsage.listeners.some((listener) => isOwnedPid(listener.pid))
       : gatewayListeners.length > 0 ||
         (portUsage.status === "busy" && portUsage.listeners.length === 0);
   const healthy = running && ownsPort;
@@ -65,7 +98,7 @@ export async function inspectGatewayRestart(params: {
       gatewayListeners
         .map((listener) => listener.pid)
         .filter((pid): pid is number => Number.isFinite(pid))
-        .filter((pid) => runtime.pid == null || pid !== runtime.pid || !running),
+        .filter((pid) => runtime.pid == null || !isOwnedPid(pid) || !running),
     ),
   );
 
