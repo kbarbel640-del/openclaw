@@ -1,0 +1,73 @@
+{
+  "name": "@guxiaobo/openclaw-email-channel",
+  "version": "1.0.0",
+  "description": "Email channel plugin for OpenClaw with IMAP/SMTP support",
+  "keywords": [
+    "channel",
+    "email",
+    "imap",
+    "messaging",
+    "openclaw",
+    "smtp"
+  ],
+  "bugs": {
+    "url": "https://github.com/guxiaobo/openclaw/issues"
+  },
+  "license": "MIT",
+  "author": "Your Name <you@example.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/guxiaobo/openclaw.git",
+    "directory": "extensions/email-channel"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsc --watch",
+    "prepublishOnly": "pnpm run clean && pnpm run build"
+  },
+  "dependencies": {
+    "imap": "^0.8.19",
+    "mailparser": "^3.6.9",
+    "nodemailer": "^6.9.13"
+  },
+  "devDependencies": {
+    "@types/imap": "^0.8.42",
+    "@types/mailparser": "^3.4.5",
+    "@types/node": "^22.0.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.0.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "channel": {
+      "id": "email",
+      "label": "Email (IMAP/SMTP)",
+      "category": "email",
+      "keywords": [
+        "email",
+        "imap",
+        "smtp",
+        "messaging"
+      ],
+      "maturity": "experimental",
+      "docsLink": "https://github.com/guxiaobo/openclaw/tree/feature/email-channel/extensions/email-channel#readme"
+    }
+  }
+}
