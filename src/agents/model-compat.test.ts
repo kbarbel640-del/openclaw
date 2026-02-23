@@ -149,6 +149,19 @@ describe("normalizeModelCompat", () => {
     ).toBe(false);
   });
 
+  it("forces supportsDeveloperRole off for bailian provider", () => {
+    const model = {
+      ...baseModel(),
+      provider: "bailian",
+      baseUrl: "https://coding.dashscope.aliyuncs.com/v1",
+    };
+    delete (model as { compat?: unknown }).compat;
+    const normalized = normalizeModelCompat(model);
+    expect(
+      (normalized.compat as { supportsDeveloperRole?: boolean } | undefined)?.supportsDeveloperRole,
+    ).toBe(false);
+  });
+
   it("forces supportsDeveloperRole off for DashScope-compatible endpoints", () => {
     const model = {
       ...baseModel(),
