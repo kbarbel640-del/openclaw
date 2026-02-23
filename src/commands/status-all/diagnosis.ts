@@ -1,6 +1,7 @@
 import type { ProgressReporter } from "../../cli/progress.js";
 import { resolveGatewayLogPaths } from "../../daemon/launchd.js";
-import { formatPortDiagnostics } from "../../infra/ports.js";
+import { classifyPortListener, formatPortDiagnostics } from "../../infra/ports.js";
+import type { PortListener } from "../../infra/ports.js";
 import {
   type RestartSentinelPayload,
   summarizeRestartSentinel,
@@ -17,7 +18,7 @@ type ConfigSnapshotLike = {
   issues?: ConfigIssueLike[] | null;
 };
 
-type PortUsageLike = { listeners: unknown[] };
+type PortUsageLike = { listeners: PortListener[] };
 
 type TailscaleStatusLike = {
   backendState: string | null;
@@ -121,7 +122,17 @@ export async function appendStatusAllDiagnosis(params: {
   }
 
   if (params.portUsage) {
-    const portOk = params.portUsage.listeners.length === 0;
+    // A port with listeners is only a genuine conflict if those listeners are NOT
+    // the gateway itself. When the gateway is managed by systemd/launchd/schtasks and
+    // is healthy, it will appear as a listener on its own port — that is expected.
+    const allListenersAreGateway =
+      params.portUsage.listeners.length > 0 &&
+      params.portUsage.listeners.every(
+        (l) => classifyPortListener(l, params.port) === "gateway",
+      );
+    const portOk =
+      params.portUsage.listeners.length === 0 ||
+      (allListenersAreGateway && params.gatewayReachable);
     emitCheck(`Port ${params.port}`, portOk ? "ok" : "warn");
     if (!portOk) {
       for (const line of formatPortDiagnostics(params.portUsage as never)) {
