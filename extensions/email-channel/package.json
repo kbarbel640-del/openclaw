@@ -1,73 +1,44 @@
 {
-  "name": "@guxiaobo/openclaw-email-channel",
+  "name": "@openclaw/email",
   "version": "1.0.0",
-  "description": "Email channel plugin for OpenClaw with IMAP/SMTP support",
+  "private": true,
+  "description": "OpenClaw Email channel plugin - Send and receive messages via IMAP/SMTP",
   "keywords": [
     "channel",
     "email",
     "imap",
-    "messaging",
     "openclaw",
+    "plugin",
     "smtp"
   ],
   "bugs": {
-    "url": "https://github.com/guxiaobo/openclaw/issues"
+    "url": "https://github.com/openclaw/openclaw/issues"
   },
   "license": "MIT",
-  "author": "Your Name <you@example.com>",
+  "author": "OpenClaw Contributors",
   "repository": {
     "type": "git",
-    "url": "https://github.com/guxiaobo/openclaw.git",
+    "url": "https://github.com/openclaw/openclaw",
     "directory": "extensions/email-channel"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc",
-    "clean": "rm -rf dist",
-    "dev": "tsc --watch",
-    "prepublishOnly": "pnpm run clean && pnpm run build"
-  },
+  "main": "index.ts",
   "dependencies": {
     "imap": "^0.8.19",
     "mailparser": "^3.6.9",
     "nodemailer": "^6.9.13"
   },
   "devDependencies": {
-    "@types/imap": "^0.8.42",
-    "@types/mailparser": "^3.4.5",
-    "@types/node": "^22.0.0"
+    "@types/node": "^25.2.1",
+    "openclaw": "workspace:*",
+    "typescript": "^5.9.3"
   },
-  "peerDependencies": {
-    "openclaw": ">=2026.0.0"
+  "engines": {
+    "node": ">=18.0.0"
   },
   "openclaw": {
     "extensions": [
-      "./dist/index.js"
-    ],
-    "channel": {
-      "id": "email",
-      "label": "Email (IMAP/SMTP)",
-      "category": "email",
-      "keywords": [
-        "email",
-        "imap",
-        "smtp",
-        "messaging"
-      ],
-      "maturity": "experimental",
-      "docsLink": "https://github.com/guxiaobo/openclaw/tree/feature/email-channel/extensions/email-channel#readme"
-    }
+      "./index.ts"
+    ]
   }
 }
