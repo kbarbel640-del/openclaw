@@ -201,11 +201,14 @@ export type NextcloudTalkMonitorOptions = {
   abortSignal?: AbortSignal;
   onMessage?: (message: NextcloudTalkInboundMessage) => void | Promise<void>;
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
+  /** Called once the HTTP server is bound and listening.
+   *  Useful in tests that need to send requests before the function blocks. */
+  onReady?: (server: Server, stop: () => void) => void;
 };
 
 export async function monitorNextcloudTalkProvider(
   opts: NextcloudTalkMonitorOptions,
-): Promise<{ stop: () => void }> {
+): Promise<void> {
   const core = getNextcloudTalkRuntime();
   const cfg = opts.config ?? (core.config.loadConfig() as CoreConfig);
   const account = resolveNextcloudTalkAccount({
@@ -233,7 +236,7 @@ export async function monitorNextcloudTalkProvider(
     accountId: account.accountId,
   });
 
-  const { start, stop } = createNextcloudTalkWebhookServer({
+  const { server, start, stop } = createNextcloudTalkWebhookServer({
     port,
     host,
     path,
@@ -270,5 +273,21 @@ export async function monitorNextcloudTalkProvider(
     `http://${host === "0.0.0.0" ? "localhost" : host}:${port}${path}`;
   logger.info(`[nextcloud-talk:${account.accountId}] webhook listening on ${publicUrl}`);
 
-  return { stop };
+  // Notify callers (e.g. tests) that the server is ready before we block.
+  opts.onReady?.(server, stop);
+
+  // Block until the server closes so the gateway lifecycle manager sees this
+  // function as "still running" while the webhook is active. Without this,
+  // monitorNextcloudTalkProvider returns immediately after server.listen()
+  // resolves; the framework treats the resolved promise as "account exited"
+  // and schedules an auto-restart 5 s later. The restart tries to bind the
+  // same port while the first server is still listening → EADDRINUSE crash loop.
+  await new Promise<void>((resolve) => {
+    server.on("close", resolve);
+    // Guard against the race where abortSignal fires and stop() is called
+    // before the close listener is registered.
+    if (opts.abortSignal?.aborted) {
+      stop();
+    }
+  });
 }
