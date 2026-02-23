@@ -30,6 +30,9 @@ coverage
 *.log
 tmp
 **/tmp
+data/
+**/.openclaw/
+**/SingletonCookie
 
 # build artifacts
 dist
