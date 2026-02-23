@@ -44,7 +44,7 @@ describe("AriClient", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const calledUrl = new URL(fetchMock.mock.calls[0]?.[0] as string);
+    const calledUrl = new URL(fetchMock.mock.calls[0]![0] as string);
     expect(calledUrl.pathname).toBe("/ari/channels/externalMedia");
     expect(calledUrl.searchParams.get("app")).toBe("openclaw");
     expect(calledUrl.searchParams.get("external_host")).toBe("127.0.0.1:12000");
@@ -67,8 +67,8 @@ describe("AriClient", () => {
     await client.safeHangupChannel("chan-1");
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const firstUrl = new URL(fetchMock.mock.calls[0]?.[0] as string);
-    const secondUrl = new URL(fetchMock.mock.calls[1]?.[0] as string);
+    const firstUrl = new URL(fetchMock.mock.calls[0]![0] as string);
+    const secondUrl = new URL(fetchMock.mock.calls[1]![0] as string);
     expect(firstUrl.pathname).toBe("/ari/channels/chan-1/hangup");
     expect(secondUrl.pathname).toBe("/ari/channels/chan-1");
   });
@@ -85,7 +85,7 @@ describe("AriClient", () => {
     await client.safeHangupChannel("chan-404");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const firstUrl = new URL(fetchMock.mock.calls[0]?.[0] as string);
+    const firstUrl = new URL(fetchMock.mock.calls[0]![0] as string);
     expect(firstUrl.pathname).toBe("/ari/channels/chan-404/hangup");
     expect(warnSpy).not.toHaveBeenCalled();
   });

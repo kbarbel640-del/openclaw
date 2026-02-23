@@ -60,10 +60,8 @@ function resolveProvider(
           publicKey: config.telnyx?.publicKey,
         },
         {
-          // Preserve upstream behavior: allow unsigned webhooks only when inbound is effectively off.
-          // (Inbound allowlist/pairing requires telnyx.publicKey; see validateProviderConfig.)
-          allowUnsignedWebhooks:
-            config.inboundPolicy === "open" || config.inboundPolicy === "disabled",
+          // Preserve previous behavior: effectively skip verification only when inbound is off/open.
+          skipVerification: config.inboundPolicy === "open" || config.inboundPolicy === "disabled",
         },
       );
     case "twilio":
