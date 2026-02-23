@@ -31,27 +31,49 @@ export default {
   id: "kevros-a2a-trust",
   name: "Kevros A2A Trust",
   configSchema: {
-    type: "object" as const,
-    additionalProperties: false,
-    properties: {
-      gatewayUrl: { type: "string", default: "https://governance.taskhawktech.com" },
-      apiKey: { type: "string" },
-      agentId: { type: "string" },
-      autoVerify: { type: "boolean", default: false },
-      autoAttest: { type: "boolean", default: false },
-      trustServerPort: { type: "number", default: 18790 },
+    safeParse(value: unknown) {
+      if (value === undefined) {
+        return { success: true as const, data: undefined };
+      }
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return {
+          success: false as const,
+          error: { issues: [{ path: [] as string[], message: "expected config object" }] },
+        };
+      }
+      const cfg = value as Record<string, unknown>;
+      if (typeof cfg.agentId !== "string" || !cfg.agentId) {
+        return {
+          success: false as const,
+          error: { issues: [{ path: ["agentId"], message: "agentId is required" }] },
+        };
+      }
+      return { success: true as const, data: value };
     },
-    required: ["agentId"],
+    jsonSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        gatewayUrl: { type: "string", default: "https://governance.taskhawktech.com" },
+        apiKey: { type: "string" },
+        agentId: { type: "string" },
+        autoVerify: { type: "boolean", default: false },
+        autoAttest: { type: "boolean", default: false },
+        trustServerPort: { type: "number", default: 18790 },
+      },
+      required: ["agentId"],
+    },
   },
 
   register(api: OpenClawPluginApi) {
+    const pluginCfg = api.pluginConfig ?? {};
     const config: TrustPluginConfig = {
-      gatewayUrl: api.config.gatewayUrl ?? "https://governance.taskhawktech.com",
-      apiKey: api.config.apiKey,
-      agentId: api.config.agentId,
-      autoVerify: api.config.autoVerify ?? false,
-      autoAttest: api.config.autoAttest ?? false,
-      trustServerPort: api.config.trustServerPort ?? 18790,
+      gatewayUrl: (pluginCfg.gatewayUrl as string) ?? "https://governance.taskhawktech.com",
+      apiKey: pluginCfg.apiKey as string | undefined,
+      agentId: pluginCfg.agentId as string,
+      autoVerify: (pluginCfg.autoVerify as boolean) ?? false,
+      autoAttest: (pluginCfg.autoAttest as boolean) ?? false,
+      trustServerPort: (pluginCfg.trustServerPort as number) ?? 18790,
     };
 
     const client = new TrustClient(config);
@@ -67,10 +89,10 @@ export default {
 
     // ── Gateway RPC methods (local agent tool calls) ───────────────
 
-    api.registerGatewayMethod("kevros.trust.verify", async ({ respond, payload }) => {
+    api.registerGatewayMethod("kevros.trust.verify", async ({ respond, params }) => {
       try {
         await ensureApiKey(client, api);
-        const req = payload as {
+        const req = params as {
           action_type: string;
           action_payload: Record<string, unknown>;
           policy_context?: {
@@ -85,10 +107,10 @@ export default {
       }
     });
 
-    api.registerGatewayMethod("kevros.trust.attest", async ({ respond, payload }) => {
+    api.registerGatewayMethod("kevros.trust.attest", async ({ respond, params }) => {
       try {
         await ensureApiKey(client, api);
-        const req = payload as {
+        const req = params as {
           action_description: string;
           action_payload: Record<string, unknown>;
           context?: Record<string, unknown>;
@@ -100,10 +122,10 @@ export default {
       }
     });
 
-    api.registerGatewayMethod("kevros.trust.bind", async ({ respond, payload }) => {
+    api.registerGatewayMethod("kevros.trust.bind", async ({ respond, params }) => {
       try {
         await ensureApiKey(client, api);
-        const req = payload as {
+        const req = params as {
           intent_type: string;
           intent_description: string;
           command_payload: Record<string, unknown>;
@@ -116,10 +138,10 @@ export default {
       }
     });
 
-    api.registerGatewayMethod("kevros.trust.verify-outcome", async ({ respond, payload }) => {
+    api.registerGatewayMethod("kevros.trust.verify-outcome", async ({ respond, params }) => {
       try {
         await ensureApiKey(client, api);
-        const req = payload as {
+        const req = params as {
           intent_id: string;
           binding_id: string;
           actual_state: Record<string, unknown>;
@@ -132,10 +154,10 @@ export default {
       }
     });
 
-    api.registerGatewayMethod("kevros.trust.bundle", async ({ respond, payload }) => {
+    api.registerGatewayMethod("kevros.trust.bundle", async ({ respond, params }) => {
       try {
         await ensureApiKey(client, api);
-        const req = (payload ?? {}) as Partial<Parameters<typeof client.bundle>[0]>;
+        const req = (params ?? {}) as Partial<Parameters<typeof client.bundle>[0]>;
         const result = await client.bundle(req);
         respond(true, result);
       } catch (e) {
@@ -143,9 +165,9 @@ export default {
       }
     });
 
-    api.registerGatewayMethod("kevros.trust.reputation", async ({ respond, payload }) => {
+    api.registerGatewayMethod("kevros.trust.reputation", async ({ respond, params }) => {
       try {
-        const req = payload as { agent_id: string };
+        const req = params as { agent_id: string };
         const result = await client.reputation(req.agent_id);
         respond(true, result);
       } catch (e) {
@@ -157,7 +179,7 @@ export default {
 
     api.registerService({
       id: "kevros-trust-server",
-      start: async () => {
+      start: async (_ctx) => {
         await server.start();
         api.logger.info(
           `[kevros-a2a-trust] Trust server listening on 127.0.0.1:${config.trustServerPort}`,
@@ -166,7 +188,7 @@ export default {
           `[kevros-a2a-trust] Agent Card: http://127.0.0.1:${config.trustServerPort}/.well-known/agent.json`,
         );
       },
-      stop: async () => {
+      stop: async (_ctx) => {
         await server.stop();
         api.logger.info("[kevros-a2a-trust] Trust server stopped");
       },
@@ -203,8 +225,10 @@ export default {
           try {
             await ensureApiKey(client, api);
             const toolName =
-              typeof event["toolName"] === "string" ? event["toolName"] : "unknown_tool";
-            const result = event["result"] ?? {};
+              typeof event.context.toolName === "string"
+                ? (event.context.toolName as string)
+                : "unknown_tool";
+            const result = event.context.result ?? {};
             await client.attest({
               action_description: `Tool call: ${toolName}`,
               action_payload:
