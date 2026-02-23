@@ -166,6 +166,11 @@ export async function isSystemdUserServiceAvailable(): Promise<boolean> {
   if (detail.includes("not supported")) {
     return false;
   }
+  // `systemctl --user status` returns a non-zero exit code when the user
+  // manager is degraded, but the manager is still reachable/usable.
+  if (detail.includes("degraded")) {
+    return true;
+  }
   return false;
 }
 
