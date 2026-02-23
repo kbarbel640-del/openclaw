@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using OpenClaw.Node.Services;
 
 namespace OpenClaw.Node.Protocol
 {
@@ -18,7 +19,9 @@ namespace OpenClaw.Node.Protocol
         private readonly ConnectParams _connectParams;
         private CancellationTokenSource _cts = new();
         private string? _pendingConnectRequestId;
-        
+        private readonly DeviceIdentityService _deviceIdentityService = new();
+        private DeviceIdentityService.DeviceIdentity? _deviceIdentity;
+
         // Resilience
         private int _backoffMs = 500;
         private DateTime _lastTickTime;
@@ -195,20 +198,85 @@ namespace OpenClaw.Node.Protocol
         private async Task HandleConnectChallengeAsync(EventFrame evt, CancellationToken cancellationToken)
         {
             OnLog?.Invoke("[Gateway] Received connect.challenge. Sending connect request...");
-            
+
+            var nonce = ExtractNonce(evt.Payload);
+            if (string.IsNullOrWhiteSpace(nonce))
+            {
+                OnLog?.Invoke("[Gateway] connect.challenge missing nonce; cannot sign device identity.");
+                await DisconnectAsync();
+                return;
+            }
+
             _connectParams.Auth = new Dictionary<string, object> { { "token", _token } };
-            
-            var connectReq = new RequestFrame 
-            { 
-                Type = "req", 
-                Id = Guid.NewGuid().ToString(), 
-                Method = "connect", 
-                Params = _connectParams 
+
+            _deviceIdentity ??= _deviceIdentityService.LoadOrCreate();
+            var clientId = _connectParams.Client.TryGetValue("id", out var idObj) ? (idObj?.ToString() ?? "node-host") : "node-host";
+            var clientMode = _connectParams.Client.TryGetValue("mode", out var modeObj) ? (modeObj?.ToString() ?? "node") : "node";
+            var role = _connectParams.Role ?? "node";
+            var scopes = (_connectParams.Scopes ?? new List<string>()).ToArray();
+            var signedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var payload = _deviceIdentityService.BuildDeviceAuthPayload(
+                _deviceIdentity.DeviceId,
+                clientId,
+                clientMode,
+                role,
+                scopes,
+                signedAt,
+                _token,
+                nonce);
+            var signature = _deviceIdentityService.SignPayloadBase64Url(_deviceIdentity.PrivateKeyBase64Url, payload);
+
+            _connectParams.Device = new Dictionary<string, object>
+            {
+                { "id", _deviceIdentity.DeviceId },
+                { "publicKey", _deviceIdentity.PublicKeyBase64Url },
+                { "signature", signature },
+                { "signedAt", signedAt },
+                { "nonce", nonce }
             };
-            
+
+            var connectReq = new RequestFrame
+            {
+                Type = "req",
+                Id = Guid.NewGuid().ToString(),
+                Method = "connect",
+                Params = _connectParams
+            };
+
             _pendingConnectRequestId = connectReq.Id;
             var connectJson = JsonSerializer.Serialize(connectReq, JsonOptions);
             await SendRawAsync(connectJson, cancellationToken);
+        }
+
+        private static string? ExtractNonce(object? payload)
+        {
+            try
+            {
+                if (payload is JsonElement el &&
+                    el.ValueKind == JsonValueKind.Object &&
+                    el.TryGetProperty("nonce", out var nEl) &&
+                    nEl.ValueKind == JsonValueKind.String)
+                {
+                    return nEl.GetString()?.Trim();
+                }
+
+                if (payload != null)
+                {
+                    using var doc = JsonDocument.Parse(JsonSerializer.Serialize(payload, JsonOptions));
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                        doc.RootElement.TryGetProperty("nonce", out var n) &&
+                        n.ValueKind == JsonValueKind.String)
+                    {
+                        return n.GetString()?.Trim();
+                    }
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            return null;
         }
 
         private Task HandleResponseAsync(ResponseFrame res)

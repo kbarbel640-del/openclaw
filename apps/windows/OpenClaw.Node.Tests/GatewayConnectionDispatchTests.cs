@@ -48,6 +48,13 @@ namespace OpenClaw.Node.Tests
             Assert.Equal("connect", connectReq.RootElement.GetProperty("method").GetString());
             var connectId = connectReq.RootElement.GetProperty("id").GetString()!;
 
+            var p = connectReq.RootElement.GetProperty("params");
+            Assert.True(p.TryGetProperty("device", out var device));
+            Assert.Equal("n", device.GetProperty("nonce").GetString());
+            Assert.False(string.IsNullOrWhiteSpace(device.GetProperty("id").GetString()));
+            Assert.False(string.IsNullOrWhiteSpace(device.GetProperty("publicKey").GetString()));
+            Assert.False(string.IsNullOrWhiteSpace(device.GetProperty("signature").GetString()));
+
             // 2) server responds hello-ok
             await server.SendJsonAsync(new
             {

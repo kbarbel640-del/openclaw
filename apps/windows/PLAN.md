@@ -18,7 +18,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (51 total)
+- ✅ Tests passing (51 total) (including device-auth connect assertions)
 
 ---
 
@@ -114,4 +114,5 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Added `screen.list` command coverage (unit + service-shape + opt-in real gateway response-shape path when a node is available)
 - ✅ Added opt-in real gateway `screen.record` coverage using explicit `screenIndex` from `screen.list` when available
 - ✅ Added automation MVP coverage (`window.list`, `window.focus`, `input.type`, `input.key`) with unit validation + opt-in real gateway `window.list` response-shape path
+- ✅ Added signed device-identity handshake on `connect.challenge` (`device.id/publicKey/signature/signedAt/nonce`) so node role can enter real pairing flow
 - ✅ Added opt-in real gateway `camera.snap` coverage using explicit `deviceId` from `camera.list` when available
