@@ -1,6 +1,7 @@
 import type { CronConfig } from "../../config/types.cron.js";
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
 import type {
+  CronDeliveryOutcomeReason,
   CronDeliveryStatus,
   CronJob,
   CronJobCreate,
@@ -21,6 +22,7 @@ export type CronEvent = {
   summary?: string;
   delivered?: boolean;
   deliveryStatus?: CronDeliveryStatus;
+  deliveryOutcomeReason?: CronDeliveryOutcomeReason;
   deliveryError?: string;
   sessionId?: string;
   sessionKey?: string;
@@ -80,6 +82,7 @@ export type CronServiceDeps = {
        * https://github.com/openclaw/openclaw/issues/15692
        */
       delivered?: boolean;
+      deliveryOutcomeReason?: CronDeliveryOutcomeReason;
     } & CronRunOutcome &
       CronRunTelemetry
   >;
