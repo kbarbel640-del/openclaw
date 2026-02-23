@@ -4,6 +4,7 @@ import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import { formatThinkingLevels, normalizeThinkLevel } from "../../auto-reply/thinking.js";
 import { loadConfig } from "../../config/config.js";
+import { resolveAgentModelPrimaryValue } from "../../config/model-input.js";
 import { callGateway } from "../../gateway/call.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-key.js";
@@ -366,7 +367,7 @@ export function createSessionsSpawnTool(opts?: {
         normalizeModelSelection(modelOverride) ??
         normalizeModelSelection(targetAgentConfig?.subagents?.model) ??
         normalizeModelSelection(cfg.agents?.defaults?.subagents?.model) ??
-        normalizeModelSelection(cfg.agents?.defaults?.model?.primary) ??
+        normalizeModelSelection(resolveAgentModelPrimaryValue(cfg.agents?.defaults?.model)) ??
         normalizeModelSelection(`${runtimeDefaultModel.provider}/${runtimeDefaultModel.model}`);
 
       const resolvedThinkingDefaultRaw =
