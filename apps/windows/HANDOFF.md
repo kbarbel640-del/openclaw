@@ -35,8 +35,10 @@
    - `input.click` (Automation MVP: mouse click at `{ x, y }` with `button=primary|secondary|left|right` + optional `doubleClick`; primary/secondary respect OS swapped-button setting)
    - `input.scroll` (Automation MVP: vertical wheel scroll with `deltaY` and optional coordinate targeting `{ x, y }`)
    - `input.click.relative` (Automation MVP: click at window-relative offsets `{ offsetX, offsetY }` using `handle` or `titleContains`)
-6. Local IPC named-pipe server is running on Windows (`\\.\pipe\openclaw.node.ipc`) with first method:
+6. Local IPC named-pipe server is running on Windows (`\\.\pipe\openclaw.node.ipc`) with auth + methods:
    - `ipc.ping`
+   - `ipc.window.list`
+   - auth token required when configured (Program currently uses gateway token as shared secret)
 7. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
    - env: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`
@@ -52,7 +54,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **62 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **64 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash

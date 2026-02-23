@@ -49,7 +49,7 @@ namespace OpenClaw.Node
 
             var executor = new NodeCommandExecutor();
             var core = new CoreMethodService(startedAtUtc);
-            using var ipc = new IpcPipeServerService(version: "dev");
+            using var ipc = new IpcPipeServerService(version: "dev", authToken: token);
             using var connection = new GatewayConnection(url, token, connectParams);
 
             connection.OnLog += msg => Console.WriteLine(msg);

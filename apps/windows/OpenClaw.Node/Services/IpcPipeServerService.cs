@@ -13,6 +13,7 @@ namespace OpenClaw.Node.Services
     {
         private readonly string _pipeName;
         private readonly string _version;
+        private readonly string? _authToken;
         private readonly ConcurrentDictionary<int, Task> _clients = new();
         private CancellationTokenSource? _cts;
         private Task? _acceptLoop;
@@ -26,10 +27,11 @@ namespace OpenClaw.Node.Services
 
         public Action<string>? OnLog { get; set; }
 
-        public IpcPipeServerService(string? pipeName = null, string version = "dev")
+        public IpcPipeServerService(string? pipeName = null, string version = "dev", string? authToken = null)
         {
             _pipeName = string.IsNullOrWhiteSpace(pipeName) ? "openclaw.node.ipc" : pipeName;
             _version = version;
+            _authToken = string.IsNullOrWhiteSpace(authToken) ? null : authToken;
         }
 
         public string PipeName => _pipeName;
@@ -155,6 +157,17 @@ namespace OpenClaw.Node.Services
                         continue;
                     }
 
+                    if (!IsAuthorized(req))
+                    {
+                        await writer.WriteLineAsync(JsonSerializer.Serialize(new IpcResponse
+                        {
+                            Id = req.Id ?? string.Empty,
+                            Ok = false,
+                            Error = new IpcError { Code = "UNAUTHORIZED", Message = "Missing or invalid IPC auth token" }
+                        }, JsonOptions));
+                        continue;
+                    }
+
                     var res = await DispatchAsync(req);
                     await writer.WriteLineAsync(JsonSerializer.Serialize(res, JsonOptions));
                 }
@@ -173,7 +186,13 @@ namespace OpenClaw.Node.Services
             }
         }
 
-        private Task<IpcResponse> DispatchAsync(IpcRequest req)
+        private bool IsAuthorized(IpcRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(_authToken)) return true;
+            return string.Equals(req.AuthToken, _authToken, StringComparison.Ordinal);
+        }
+
+        private async Task<IpcResponse> DispatchAsync(IpcRequest req)
         {
             var method = req.Method?.Trim() ?? string.Empty;
             if (string.Equals(method, "ipc.ping", StringComparison.OrdinalIgnoreCase))
@@ -184,15 +203,27 @@ namespace OpenClaw.Node.Services
                     version = _version,
                     nowUtc = DateTimeOffset.UtcNow.ToString("O")
                 };
-                return Task.FromResult(new IpcResponse
+                return new IpcResponse
                 {
                     Id = req.Id ?? string.Empty,
                     Ok = true,
                     Payload = payload,
-                });
+                };
             }
 
-            return Task.FromResult(new IpcResponse
+            if (string.Equals(method, "ipc.window.list", StringComparison.OrdinalIgnoreCase))
+            {
+                var svc = new AutomationService();
+                var windows = await svc.ListWindowsAsync();
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = true,
+                    Payload = new { windows }
+                };
+            }
+
+            return new IpcResponse
             {
                 Id = req.Id ?? string.Empty,
                 Ok = false,
@@ -201,7 +232,7 @@ namespace OpenClaw.Node.Services
                     Code = "METHOD_NOT_FOUND",
                     Message = $"Unknown IPC method: {method}"
                 }
-            });
+            };
         }
 
         public void Dispose()
@@ -220,6 +251,7 @@ namespace OpenClaw.Node.Services
         {
             public string? Id { get; set; }
             public string? Method { get; set; }
+            public string? AuthToken { get; set; }
             public JsonElement? Params { get; set; }
         }
 

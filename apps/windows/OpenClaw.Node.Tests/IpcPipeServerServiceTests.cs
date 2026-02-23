@@ -81,5 +81,82 @@ namespace OpenClaw.Node.Tests
             cts.Cancel();
             await svc.StopAsync();
         }
+
+        [Fact]
+        public async Task IpcPing_WithAuthEnabled_RequiresToken()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var pipeName = "openclaw.node.test." + Guid.NewGuid().ToString("N");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var svc = new IpcPipeServerService(pipeName, version: "test-ver", authToken: "secret");
+            svc.Start(cts.Token);
+
+            await using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            await client.ConnectAsync(5000, cts.Token);
+
+            using var reader = new StreamReader(client, Encoding.UTF8, false, 4096, leaveOpen: true);
+            await using var writer = new StreamWriter(client, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
+
+            await writer.WriteLineAsync("{\"id\":\"3\",\"method\":\"ipc.ping\",\"params\":{}}");
+            var badLine = await reader.ReadLineAsync(cts.Token);
+            Assert.False(string.IsNullOrWhiteSpace(badLine));
+            using (var badDoc = JsonDocument.Parse(badLine!))
+            {
+                var root = badDoc.RootElement;
+                Assert.False(root.GetProperty("ok").GetBoolean());
+                Assert.Equal("UNAUTHORIZED", root.GetProperty("error").GetProperty("code").GetString());
+            }
+
+            await writer.WriteLineAsync("{\"id\":\"4\",\"method\":\"ipc.ping\",\"authToken\":\"secret\",\"params\":{}}");
+            var goodLine = await reader.ReadLineAsync(cts.Token);
+            Assert.False(string.IsNullOrWhiteSpace(goodLine));
+            using (var goodDoc = JsonDocument.Parse(goodLine!))
+            {
+                var root = goodDoc.RootElement;
+                Assert.True(root.GetProperty("ok").GetBoolean());
+                Assert.Equal("4", root.GetProperty("id").GetString());
+            }
+
+            cts.Cancel();
+            await svc.StopAsync();
+        }
+
+        [Fact]
+        public async Task IpcWindowList_ShouldReturnWindowsArray()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var pipeName = "openclaw.node.test." + Guid.NewGuid().ToString("N");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var svc = new IpcPipeServerService(pipeName, version: "test-ver");
+            svc.Start(cts.Token);
+
+            await using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            await client.ConnectAsync(5000, cts.Token);
+
+            using var reader = new StreamReader(client, Encoding.UTF8, false, 4096, leaveOpen: true);
+            await using var writer = new StreamWriter(client, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
+
+            await writer.WriteLineAsync("{\"id\":\"5\",\"method\":\"ipc.window.list\",\"params\":{}}");
+            var line = await reader.ReadLineAsync(cts.Token);
+
+            Assert.False(string.IsNullOrWhiteSpace(line));
+            using var doc = JsonDocument.Parse(line!);
+            var root = doc.RootElement;
+            Assert.True(root.GetProperty("ok").GetBoolean());
+            var payload = root.GetProperty("payload");
+            Assert.True(payload.TryGetProperty("windows", out var windows));
+            Assert.Equal(JsonValueKind.Array, windows.ValueKind);
+
+            cts.Cancel();
+            await svc.StopAsync();
+        }
     }
 }
