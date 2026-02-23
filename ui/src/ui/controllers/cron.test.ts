@@ -15,7 +15,6 @@ import {
 
 function createState(overrides: Partial<CronState> = {}): CronState {
   return {
-    cronEditingId: null,
     client: null,
     connected: true,
     cronLoading: false,

@@ -63,9 +63,6 @@ export type CronProps = {
   onRun: (job: CronJob) => void;
   onRemove: (job: CronJob) => void;
   onLoadRuns: (jobId: string) => void;
-  editingJobId?: string | null;
-  onEdit?: (job: CronJob) => void;
-  onCancelEdit?: () => void;
   onLoadMoreJobs: () => void;
   onJobsFiltersChange: (patch: {
     cronJobsQuery?: string;

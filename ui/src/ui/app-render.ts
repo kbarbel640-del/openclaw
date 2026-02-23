@@ -28,8 +28,6 @@ import {
   runCronJob,
   removeCronJob,
   addCronJob,
-  openEditCron,
-  cancelEditCron,
   startCronEdit,
   startCronClone,
   cancelCronEdit,
@@ -440,7 +438,7 @@ export function renderApp(state: AppViewState) {
                 form: state.cronForm,
                 fieldErrors: state.cronFieldErrors,
                 canSubmit: !hasCronFormErrors(state.cronFieldErrors),
-                editingJobId: state.cronEditingJobId,
+                editingJobId: state.cronEditingJobId ?? null,
                 channels: state.channelsSnapshot?.channelMeta?.length
                   ? state.channelsSnapshot.channelMeta.map((entry) => entry.id)
                   : (state.channelsSnapshot?.channelOrder ?? []),
@@ -474,10 +472,6 @@ export function renderApp(state: AppViewState) {
                 onToggle: (job, enabled) => toggleCronJob(state, job, enabled),
                 onRun: (job) => runCronJob(state, job),
                 onRemove: (job) => removeCronJob(state, job),
-                onLoadRuns: (jobId) => loadCronRuns(state, jobId),
-                editingJobId: state.cronEditingId,
-                onEdit: (job) => openEditCron(state, job),
-                onCancelEdit: () => cancelEditCron(state),
                 onLoadRuns: async (jobId) => {
                   updateCronRunsFilter(state, { cronRunsScope: "job" });
                   await loadCronRuns(state, jobId);
