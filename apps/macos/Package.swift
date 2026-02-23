@@ -5,10 +5,14 @@ import PackageDescription
 
 let package = Package(
     name: "OpenClaw",
-    // This package is macOS-only. Do not build for iOS.
+    // This package targets macOS only and does not produce any iOS builds.
+    // .iOS(.v18) is listed here solely for shared dependency compatibility:
+    // OpenClawKit (../shared/OpenClawKit) supports both platforms, and SPM
+    // requires every platform declared by a dependency to also be declared by
+    // the consuming package.  Removing it causes a build-time diagnostic.
     platforms: [
         .macOS(.v15),
-        .iOS(.v18),
+        .iOS(.v18), // required for OpenClawKit shared-dependency resolution only
     ],
     products: [
         .library(name: "OpenClawIPC", targets: ["OpenClawIPC"]),
