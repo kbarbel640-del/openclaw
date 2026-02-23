@@ -260,13 +260,7 @@ export function resolveConfiguredModelRef(params: {
   defaultProvider: string;
   defaultModel: string;
 }): ModelRef {
-  const rawModel = (() => {
-    const raw = params.cfg.agents?.defaults?.model as { primary?: string } | string | undefined;
-    if (typeof raw === "string") {
-      return raw.trim();
-    }
-    return raw?.primary?.trim() ?? "";
-  })();
+  const rawModel = resolveAgentModelPrimaryValue(params.cfg.agents?.defaults?.model) ?? "";
   if (rawModel) {
     const trimmed = rawModel.trim();
     const aliasIndex = buildModelAliasIndex({
