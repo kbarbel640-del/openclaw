@@ -41,6 +41,9 @@ node openclaw.mjs config set agents.defaults.sandbox.mode all
 node openclaw.mjs config set agents.defaults.sandbox.scope session
 node openclaw.mjs config set agents.defaults.sandbox.workspaceAccess none
 
+# HTTP API — enable OpenAI-compatible chat completions endpoint.
+node openclaw.mjs config set gateway.http.endpoints.chatCompletions.enabled true
+
 # Headless server — disable control UI and device auth.
 node openclaw.mjs config set gateway.controlUi.enabled false
 node openclaw.mjs config set gateway.controlUi.dangerouslyDisableDeviceAuth true
