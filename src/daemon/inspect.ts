@@ -123,8 +123,17 @@ function tryExtractPlistLabel(contents: string): string | null {
   return match[1]?.trim() || null;
 }
 
+// Known non-gateway OpenClaw launchd services that should never be flagged as
+// competing gateway instances.  The macOS menubar app (`ai.openclaw.mac`) and
+// the node host service (`ai.openclaw.node`) connect TO the gateway as clients;
+// they are not gateway processes themselves (#23846).
+const IGNORED_NON_GATEWAY_LABELS = new Set(["ai.openclaw.mac", "ai.openclaw.node"]);
+
 function isIgnoredLaunchdLabel(label: string): boolean {
-  return label === resolveGatewayLaunchAgentLabel();
+  if (label === resolveGatewayLaunchAgentLabel()) {
+    return true;
+  }
+  return IGNORED_NON_GATEWAY_LABELS.has(label);
 }
 
 function isIgnoredSystemdName(name: string): boolean {
