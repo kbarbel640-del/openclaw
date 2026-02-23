@@ -28,9 +28,13 @@ vi.mock("../config/config.js", async (importOriginal) => {
   };
 });
 
-vi.mock("../infra/tailnet.js", () => ({
-  pickPrimaryTailnetIPv4,
-}));
+vi.mock("../infra/tailnet.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../infra/tailnet.js")>();
+  return {
+    ...actual,
+    pickPrimaryTailnetIPv4,
+  };
+});
 
 vi.mock("./net.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./net.js")>();
@@ -135,18 +139,18 @@ describe("callGateway url resolution", () => {
 
   it.each([
     {
-      label: "tailnet with TLS",
+      label: "tailnet with TLS uses tailnet IP",
       gateway: { mode: "local", bind: "tailnet", tls: { enabled: true } },
       tailnetIp: "100.64.0.1",
       lanIp: undefined,
-      expectedUrl: "wss://127.0.0.1:18800",
+      expectedUrl: "wss://100.64.0.1:18800",
     },
     {
-      label: "tailnet without TLS",
+      label: "tailnet without TLS uses tailnet IP",
       gateway: { mode: "local", bind: "tailnet" },
       tailnetIp: "100.64.0.1",
       lanIp: undefined,
-      expectedUrl: "ws://127.0.0.1:18800",
+      expectedUrl: "ws://100.64.0.1:18800",
     },
     {
       label: "lan with TLS",
@@ -169,7 +173,7 @@ describe("callGateway url resolution", () => {
       lanIp: undefined,
       expectedUrl: "ws://127.0.0.1:18800",
     },
-  ])("uses loopback for $label", async ({ gateway, tailnetIp, lanIp, expectedUrl }) => {
+  ])("resolves correct URL for $label", async ({ gateway, tailnetIp, lanIp, expectedUrl }) => {
     loadConfig.mockReturnValue({ gateway });
     resolveGatewayPort.mockReturnValue(18800);
     pickPrimaryTailnetIPv4.mockReturnValue(tailnetIp);
@@ -344,6 +348,28 @@ describe("buildGatewayConnectionDetails", () => {
     const details = buildGatewayConnectionDetails();
 
     expect(details.url).toBe("ws://127.0.0.1:18789");
+  });
+
+  it("uses tailnet IP for self-connections when bind=tailnet", () => {
+    loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "tailnet" } });
+    resolveGatewayPort.mockReturnValue(18800);
+    pickPrimaryTailnetIPv4.mockReturnValue("100.64.0.9");
+
+    const details = buildGatewayConnectionDetails();
+
+    expect(details.url).toBe("ws://100.64.0.9:18800");
+    expect(details.urlSource).toBe("local loopback");
+    expect(details.bindDetail).toBe("Bind: tailnet");
+  });
+
+  it("falls back to loopback when bind=tailnet but no tailnet IP available", () => {
+    loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "tailnet" } });
+    resolveGatewayPort.mockReturnValue(18800);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+
+    const details = buildGatewayConnectionDetails();
+
+    expect(details.url).toBe("ws://127.0.0.1:18800");
   });
 });
 
