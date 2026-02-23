@@ -41,7 +41,8 @@ function encryptSecret(
 
 describe("decryptSecret", () => {
   const recoveryKey = crypto.randomBytes(32);
-  const secretName = "m.secret_storage.key.test_key_id";
+  // HKDF info must be the secret's event type (e.g. m.cross_signing.master), not the key ID
+  const secretName = "m.cross_signing.master";
 
   it("round-trips: encrypt then decrypt returns original plaintext", () => {
     const plaintext = Buffer.from("my secret cross-signing key material");

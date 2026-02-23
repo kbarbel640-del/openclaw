@@ -145,8 +145,8 @@ export async function fetchCrossSigningKeys(
       throw new Error(`Could not find encrypted ${label} key in account data`);
     }
 
-    const secretName = `m.secret_storage.key.${keyId}`;
-    const decryptedBytes = decryptSecret(encrypted, recoveryKey, secretName);
+    // HKDF info must be the secret's own event type, not the storage key name
+    const decryptedBytes = decryptSecret(encrypted, recoveryKey, eventType);
 
     // The decrypted value is base64-encoded
     const decoded = Buffer.from(Buffer.from(decryptedBytes).toString("utf-8"), "base64");

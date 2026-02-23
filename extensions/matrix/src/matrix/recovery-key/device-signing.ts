@@ -33,15 +33,11 @@ export function getCurrentDeviceKeys(client: MatrixClient): {
     throw new Error("Could not determine user ID from client");
   }
 
-  // Device keys are usually available from the crypto client's own device keys
+  // CryptoClient exposes clientDeviceEd25519 (public getter) and stores
+  // deviceEd25519/deviceCurve25519 as private fields (accessible via `as any`).
   const ed25519Key: string | undefined =
-    cryptoClient.deviceEd25519Key ??
-    cryptoClient.olmDevice?.deviceEd25519Key ??
-    cryptoClient.deviceKeys?.ed25519;
-  const curve25519Key: string | undefined =
-    cryptoClient.deviceCurve25519Key ??
-    cryptoClient.olmDevice?.deviceCurve25519Key ??
-    cryptoClient.deviceKeys?.curve25519;
+    cryptoClient.clientDeviceEd25519 ?? cryptoClient.deviceEd25519;
+  const curve25519Key: string | undefined = cryptoClient.deviceCurve25519;
 
   if (!ed25519Key || !curve25519Key) {
     throw new Error("Could not extract device keys from crypto client");

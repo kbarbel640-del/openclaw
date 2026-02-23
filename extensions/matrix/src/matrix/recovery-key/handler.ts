@@ -58,8 +58,9 @@ export class RecoveryKeyHandler {
       let deviceKeys;
       try {
         deviceKeys = getCurrentDeviceKeys(this.client);
-      } catch {
-        return { success: false, error: ERROR_MESSAGES.noCryptoClient };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { success: false, error: `${ERROR_MESSAGES.noCryptoClient}: ${msg}` };
       }
 
       // Step 3: Check replay protection

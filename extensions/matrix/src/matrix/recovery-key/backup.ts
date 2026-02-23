@@ -39,8 +39,8 @@ export function getBackupDecryptionKey(
     return null;
   }
 
-  const secretName = `m.secret_storage.key.${keyId}`;
-  const decryptedBytes = decryptSecret(encrypted, recoveryKey, secretName);
+  // HKDF info must be the secret's own event type, not the storage key name
+  const decryptedBytes = decryptSecret(encrypted, recoveryKey, ACCOUNT_DATA_TYPES.megolmBackup);
 
   // The decrypted value is base64-encoded
   return Buffer.from(Buffer.from(decryptedBytes).toString("utf-8"), "base64");
