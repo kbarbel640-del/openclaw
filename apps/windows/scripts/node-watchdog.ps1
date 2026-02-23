@@ -19,6 +19,18 @@ function Write-Log {
   }
 }
 
+function Get-RunningNodeProcesses {
+  param([string]$ExePath)
+
+  $target = $ExePath.ToLowerInvariant()
+  return @(Get-CimInstance Win32_Process | Where-Object {
+    $_.Name -eq "OpenClaw.Node.exe" -and (
+      ($_.ExecutablePath -and $_.ExecutablePath.ToLowerInvariant() -eq $target) -or
+      ($_.CommandLine -and $_.CommandLine -like "*$ExePath*")
+    )
+  })
+}
+
 function Get-GatewayConfig {
   $candidates = @(
     "$env:USERPROFILE\.openclaw\openclaw.json",
@@ -41,17 +53,19 @@ function Get-GatewayConfig {
 $repoPathFull = (Resolve-Path $RepoPath).Path
 $pausePath = Join-Path $repoPathFull $PauseFile
 $exePath = Join-Path $repoPathFull "OpenClaw.Node\bin\$Platform\$Configuration\net8.0\OpenClaw.Node.exe"
+$childLogPath = Join-Path $repoPathFull "node-watchdog-child.log"
 
 Write-Log "Watchdog starting"
 Write-Log "RepoPath=$repoPathFull"
 Write-Log "ExePath=$exePath"
 Write-Log "PauseFile=$pausePath"
 Write-Log "EnableTray=$EnableTray"
+Write-Log "ChildLog=$childLogPath"
 
 while ($true) {
   try {
     if (Test-Path $pausePath) {
-      $running = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "OpenClaw.Node.exe" -and $_.CommandLine -like "*$exePath*" }
+      $running = Get-RunningNodeProcesses -ExePath $exePath
       foreach ($proc in $running) {
         Write-Log "Pause active. Stopping PID=$($proc.ProcessId)"
         Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
@@ -66,7 +80,7 @@ while ($true) {
       continue
     }
 
-    $running = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "OpenClaw.Node.exe" -and $_.CommandLine -like "*$exePath*" }
+    $running = Get-RunningNodeProcesses -ExePath $exePath
     if ($running) {
       Start-Sleep -Milliseconds $PollMs
       continue
@@ -81,13 +95,21 @@ while ($true) {
     }
 
     Write-Log "Starting OpenClaw.Node"
+    Add-Content -Path $childLogPath -Value "`n===== START $(Get-Date -Format o) ====="
+
     $args = @("--gateway-url", $gatewayUrl, "--gateway-token", $token)
     if ($EnableTray) {
       $args += "--tray"
     }
 
-    $proc = Start-Process -FilePath $exePath -ArgumentList $args -PassThru
+    $proc = Start-Process -FilePath $exePath -ArgumentList $args -PassThru -RedirectStandardOutput $childLogPath -RedirectStandardError $childLogPath
     Write-Log "Started PID=$($proc.Id) Args=$($args -join ' ')"
+
+    Start-Sleep -Milliseconds 400
+    $proc.Refresh()
+    if ($proc.HasExited) {
+      Write-Log "Node exited immediately. ExitCode=$($proc.ExitCode). See child log: $childLogPath"
+    }
   }
   catch {
     Write-Log "Watchdog loop error: $($_.Exception.Message)"
