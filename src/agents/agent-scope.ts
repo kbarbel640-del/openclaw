@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
+import { resolveAgentModelFallbackValues } from "../config/model-input.js";
 import { resolveStateDir } from "../config/paths.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
@@ -205,10 +206,7 @@ export function resolveEffectiveModelFallbacks(params: {
   if (!params.hasSessionModelOverride) {
     return agentFallbacksOverride;
   }
-  const defaultFallbacks =
-    typeof params.cfg.agents?.defaults?.model === "object"
-      ? (params.cfg.agents.defaults.model.fallbacks ?? [])
-      : [];
+  const defaultFallbacks = resolveAgentModelFallbackValues(params.cfg.agents?.defaults?.model);
   return agentFallbacksOverride ?? defaultFallbacks;
 }
 

@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
-import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
+import { resolveAgentModelPrimaryValue, toAgentModelListLike } from "../config/model-input.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveAgentConfig, resolveAgentEffectiveModelPrimary } from "./agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
@@ -309,9 +309,7 @@ export function resolveDefaultModelForAgent(params: {
             defaults: {
               ...params.cfg.agents?.defaults,
               model: {
-                ...(typeof params.cfg.agents?.defaults?.model === "object"
-                  ? params.cfg.agents.defaults.model
-                  : undefined),
+                ...toAgentModelListLike(params.cfg.agents?.defaults?.model),
                 primary: agentModelOverride,
               },
             },
