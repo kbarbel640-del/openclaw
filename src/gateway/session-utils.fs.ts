@@ -164,6 +164,15 @@ export function resolveSessionTranscriptCandidates(
 
 export type ArchiveFileReason = SessionArchiveReason;
 
+function canonicalizePathForComparison(filePath: string): string {
+  const resolved = path.resolve(filePath);
+  try {
+    return fs.realpathSync(resolved);
+  } catch {
+    return resolved;
+  }
+}
+
 export function archiveFileOnDisk(filePath: string, reason: ArchiveFileReason): string {
   const ts = formatSessionArchiveTimestamp();
   const archived = `${filePath}.${reason}.${ts}`;
@@ -189,24 +198,27 @@ export function archiveSessionTranscripts(opts: {
 }): string[] {
   const archived: string[] = [];
   const storeDir =
-    opts.restrictToStoreDir && opts.storePath ? path.resolve(path.dirname(opts.storePath)) : null;
+    opts.restrictToStoreDir && opts.storePath
+      ? canonicalizePathForComparison(path.dirname(opts.storePath))
+      : null;
   for (const candidate of resolveSessionTranscriptCandidates(
     opts.sessionId,
     opts.storePath,
     opts.sessionFile,
     opts.agentId,
   )) {
+    const candidatePath = canonicalizePathForComparison(candidate);
     if (storeDir) {
-      const relative = path.relative(storeDir, path.resolve(candidate));
+      const relative = path.relative(storeDir, candidatePath);
       if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
         continue;
       }
     }
-    if (!fs.existsSync(candidate)) {
+    if (!fs.existsSync(candidatePath)) {
       continue;
     }
     try {
-      archived.push(archiveFileOnDisk(candidate, opts.reason));
+      archived.push(archiveFileOnDisk(candidatePath, opts.reason));
     } catch {
       // Best-effort.
     }

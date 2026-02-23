@@ -32,10 +32,20 @@ const NOOP_LOGGER: SessionDiskBudgetLogger = {
 
 type SessionsDirFileStat = {
   path: string;
+  canonicalPath: string;
   name: string;
   size: number;
   mtimeMs: number;
 };
+
+function canonicalizePathForComparison(filePath: string): string {
+  const resolved = path.resolve(filePath);
+  try {
+    return fs.realpathSync(resolved);
+  } catch {
+    return resolved;
+  }
+}
 
 function measureStoreBytes(store: Record<string, SessionEntry>): number {
   return Buffer.byteLength(JSON.stringify(store, null, 2), "utf-8");
@@ -89,12 +99,13 @@ function resolveSessionTranscriptPathForEntry(params: {
     const resolved = resolveSessionFilePath(params.entry.sessionId, params.entry, {
       sessionsDir: params.sessionsDir,
     });
-    const resolvedSessionsDir = path.resolve(params.sessionsDir);
-    const relative = path.relative(resolvedSessionsDir, path.resolve(resolved));
+    const resolvedSessionsDir = canonicalizePathForComparison(params.sessionsDir);
+    const resolvedPath = canonicalizePathForComparison(resolved);
+    const relative = path.relative(resolvedSessionsDir, resolvedPath);
     if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
       return null;
     }
-    return resolved;
+    return resolvedPath;
   } catch {
     return null;
   }
@@ -111,7 +122,7 @@ function resolveReferencedSessionTranscriptPaths(params: {
       entry,
     });
     if (resolved) {
-      referenced.add(resolved);
+      referenced.add(canonicalizePathForComparison(resolved));
     }
   }
   return referenced;
@@ -133,6 +144,7 @@ async function readSessionsDirFiles(sessionsDir: string): Promise<SessionsDirFil
     }
     files.push({
       path: filePath,
+      canonicalPath: canonicalizePathForComparison(filePath),
       name: dirent.name,
       size: stat.size,
       mtimeMs: stat.mtimeMs,
@@ -152,20 +164,22 @@ async function removeFileIfExists(filePath: string): Promise<number> {
 
 async function removeFileForBudget(params: {
   filePath: string;
+  canonicalPath?: string;
   dryRun: boolean;
   fileSizesByPath: Map<string, number>;
   simulatedRemovedPaths: Set<string>;
 }): Promise<number> {
   const resolvedPath = path.resolve(params.filePath);
+  const canonicalPath = params.canonicalPath ?? canonicalizePathForComparison(resolvedPath);
   if (params.dryRun) {
-    if (params.simulatedRemovedPaths.has(resolvedPath)) {
+    if (params.simulatedRemovedPaths.has(canonicalPath)) {
       return 0;
     }
-    const size = params.fileSizesByPath.get(resolvedPath) ?? 0;
+    const size = params.fileSizesByPath.get(canonicalPath) ?? 0;
     if (size <= 0) {
       return 0;
     }
-    params.simulatedRemovedPaths.add(resolvedPath);
+    params.simulatedRemovedPaths.add(canonicalPath);
     return size;
   }
   return removeFileIfExists(resolvedPath);
@@ -189,10 +203,10 @@ export async function enforceSessionDiskBudget(params: {
   const dryRun = params.dryRun === true;
   const sessionsDir = path.dirname(params.storePath);
   const files = await readSessionsDirFiles(sessionsDir);
-  const fileSizesByPath = new Map(files.map((file) => [path.resolve(file.path), file.size]));
+  const fileSizesByPath = new Map(files.map((file) => [file.canonicalPath, file.size]));
   const simulatedRemovedPaths = new Set<string>();
-  const resolvedStorePath = path.resolve(params.storePath);
-  const storeFile = files.find((file) => path.resolve(file.path) === resolvedStorePath);
+  const resolvedStorePath = canonicalizePathForComparison(params.storePath);
+  const storeFile = files.find((file) => file.canonicalPath === resolvedStorePath);
   let projectedStoreBytes = measureStoreBytes(params.store);
   let total =
     files.reduce((sum, file) => sum + file.size, 0) - (storeFile?.size ?? 0) + projectedStoreBytes;
@@ -241,7 +255,7 @@ export async function enforceSessionDiskBudget(params: {
     .filter(
       (file) =>
         isSessionArchiveArtifactName(file.name) ||
-        (isPrimarySessionTranscriptFileName(file.name) && !referencedPaths.has(file.path)),
+        (isPrimarySessionTranscriptFileName(file.name) && !referencedPaths.has(file.canonicalPath)),
     )
     .toSorted((a, b) => a.mtimeMs - b.mtimeMs);
   for (const file of removableFileQueue) {
@@ -250,6 +264,7 @@ export async function enforceSessionDiskBudget(params: {
     }
     const deletedBytes = await removeFileForBudget({
       filePath: file.path,
+      canonicalPath: file.canonicalPath,
       dryRun,
       fileSizesByPath,
       simulatedRemovedPaths,
