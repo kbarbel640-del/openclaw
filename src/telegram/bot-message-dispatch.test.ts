@@ -1214,7 +1214,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
     );
   });
 
-  it("clears preview for error-only finals", async () => {
+  it("clears preview for error-only finals when no streaming content was shown", async () => {
     const draftStream = createDraftStream(999);
     createTelegramDraftStream.mockReturnValue(draftStream);
     dispatchReplyWithBufferedBlockDispatcher.mockImplementation(async ({ dispatcherOptions }) => {
@@ -1226,8 +1226,43 @@ describe("dispatchTelegramMessage draft streaming", () => {
 
     await dispatchWithContext({ context: createContext() });
 
-    // Error payloads skip preview finalization — preview must be cleaned up
+    // No streaming content was shown → preview can safely be cleared
     expect(draftStream.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves streaming preview when error is the only final payload", async () => {
+    // Regression test for https://github.com/openclaw/openclaw/issues/23781
+    //
+    // When a tool error occurs after the agent has streamed a partial response,
+    // the streaming preview must be preserved so the user can still read the
+    // agent's answer. Previously the post-dispatch cleanup unconditionally
+    // cleared the preview, destroying the streamed content.
+    const draftStream = createDraftStream(999);
+    createTelegramDraftStream.mockReturnValue(draftStream);
+    dispatchReplyWithBufferedBlockDispatcher.mockImplementation(
+      async ({ dispatcherOptions, replyOptions }) => {
+        // Agent streams a partial response — user can already read it
+        await replyOptions?.onPartialReply?.({ text: "Here is the result: ..." });
+        // Tool error fires as the sole final payload
+        await dispatcherOptions.deliver(
+          { text: "⚠️ 🛠️ Exec failed: exit 1", isError: true },
+          { kind: "final" },
+        );
+        return { queuedFinal: true };
+      },
+    );
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    await dispatchWithContext({ context: createContext() });
+
+    // Streaming preview must NOT be cleared — user still needs to read it
+    expect(draftStream.clear).not.toHaveBeenCalled();
+    // Error should still be delivered as a separate message
+    expect(deliverReplies).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replies: [expect.objectContaining({ text: expect.stringContaining("⚠️") })],
+      }),
+    );
   });
 
   it("clears preview after media final delivery", async () => {

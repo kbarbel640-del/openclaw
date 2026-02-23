@@ -258,6 +258,12 @@ export function createLaneTextDeliverer(params: CreateLaneTextDelivererParams) {
         params.log(
           `telegram: preview final too long for edit (${text.length} > ${params.draftMaxChars}); falling back to standard send`,
         );
+      } else if (payload.isError && lane.hasStreamedMessage) {
+        // Error-only final delivery: the user already read the streamed content in
+        // the preview. Mark the lane finalized so the post-dispatch cleanup does NOT
+        // delete the preview message. The error will be sent as a separate message
+        // below, preserving both the streaming response and the warning.
+        params.finalizedPreviewByLane[laneName] = true;
       }
       await params.stopDraftLane(lane);
       const delivered = await params.sendPayload(params.applyTextToPayload(payload, text));
