@@ -1,3 +1,5 @@
+import { deriveRelayToken } from './background-utils.js'
+
 const DEFAULT_PORT = 18792
 
 function clampPort(value) {
@@ -33,12 +35,13 @@ async function checkRelayReachable(port, token) {
     setStatus('error', 'Gateway token required. Save your gateway token to connect.')
     return
   }
+  const relayToken = await deriveRelayToken(trimmedToken, port)
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), 1200)
   try {
     const res = await fetch(url, {
       method: 'GET',
-      headers: relayHeaders(trimmedToken),
+      headers: relayHeaders(relayToken),
       signal: ctrl.signal,
     })
     if (res.status === 401) {
