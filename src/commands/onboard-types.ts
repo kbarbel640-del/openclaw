@@ -49,6 +49,7 @@ export type AuthChoice =
   | "byteplus-api-key"
   | "qianfan-api-key"
   | "custom-api-key"
+  | "google-antigravity"
   | "abacusai"
   | "skip";
 export type AuthChoiceGroupId =
