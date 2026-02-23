@@ -19,7 +19,9 @@ namespace OpenClaw.Node
             Console.WriteLine("OpenClaw Node for Windows starting...");
 
             var configPath = GetOpenClawConfigPath();
-            var trayEnabled = HasArg(args, "--tray");
+            var forceTray = HasArg(args, "--tray");
+            var disableTray = HasArg(args, "--no-tray");
+            var trayEnabled = !disableTray && (forceTray || OperatingSystem.IsWindows());
             string url = ResolveGatewayUrl(args);
             string token = ResolveGatewayToken(args);
             var hasGatewayToken = !string.IsNullOrWhiteSpace(token);
