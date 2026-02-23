@@ -459,7 +459,7 @@ export const dispatchTelegramMessage = async ({
               payload,
               infoKind: info.kind,
               previewButtons,
-              allowPreviewUpdateForNonFinal: segment.lane === "reasoning",
+              allowPreviewUpdateForNonFinal: true,
             });
             if (segment.lane === "reasoning") {
               if (result !== "skipped") {
