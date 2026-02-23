@@ -1,4 +1,5 @@
 import { getAcpSessionManager } from "../acp/control-plane/manager.js";
+import { isAcpAgentAllowedByPolicy, resolveAcpDispatchPolicyError } from "../acp/policy.js";
 import { AcpRuntimeError, toAcpRuntimeError } from "../acp/runtime/errors.js";
 import {
   listAgentIds,
@@ -92,32 +93,6 @@ function resolveFallbackRetryPrompt(params: { body: string; isFallbackRetry: boo
     return params.body;
   }
   return "Continue where you left off. The previous model attempt failed or timed out.";
-}
-
-function isAcpAgentAllowedByPolicy(cfg: ReturnType<typeof loadConfig>, agentId: string): boolean {
-  const allowed = (cfg.acp?.allowedAgents ?? [])
-    .map((entry) => normalizeAgentId(entry))
-    .filter(Boolean);
-  if (allowed.length === 0) {
-    return true;
-  }
-  return allowed.includes(normalizeAgentId(agentId));
-}
-
-function resolveAcpDispatchPolicyError(cfg: ReturnType<typeof loadConfig>): AcpRuntimeError | null {
-  if (cfg.acp?.enabled === false) {
-    return new AcpRuntimeError(
-      "ACP_DISPATCH_DISABLED",
-      "ACP dispatch is disabled by policy (`acp.enabled=false`).",
-    );
-  }
-  if (cfg.acp?.dispatch?.enabled !== true) {
-    return new AcpRuntimeError(
-      "ACP_DISPATCH_DISABLED",
-      "ACP dispatch is disabled by policy (`acp.dispatch.enabled=false`).",
-    );
-  }
-  return null;
 }
 
 function runAgentAttempt(params: {

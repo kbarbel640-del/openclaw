@@ -19,6 +19,18 @@ import type {
   AcpRuntimeSessionMode,
   AcpRuntimeStatus,
 } from "../runtime/types.js";
+import { CachedRuntimeState, RuntimeCache } from "./runtime-cache.js";
+import {
+  buildRuntimeConfigOptionPairs,
+  buildRuntimeControlSignature,
+  inferRuntimeOptionPatchFromConfigOption,
+  mergeRuntimeOptions,
+  normalizeRuntimeOptions,
+  normalizeText,
+  resolveRuntimeOptionsFromMeta,
+  runtimeOptionsEqual,
+} from "./runtime-options.js";
+import { SessionActorQueue } from "./session-actor-queue.js";
 
 export type AcpSessionResolution =
   | {
@@ -83,16 +95,6 @@ export type AcpSessionStatus = {
   lastError?: string;
 };
 
-type CachedRuntimeState = {
-  runtime: AcpRuntime;
-  handle: AcpRuntimeHandle;
-  backend: string;
-  agent: string;
-  mode: AcpRuntimeSessionMode;
-  cwd?: string;
-  appliedControlSignature?: string;
-};
-
 type ActiveTurnState = {
   runtime: AcpRuntime;
   handle: AcpRuntimeHandle;
@@ -145,143 +147,6 @@ function normalizeAcpErrorCode(code: string | undefined): AcpRuntimeError["code"
   return "ACP_TURN_FAILED";
 }
 
-function normalizeText(value: unknown): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed || undefined;
-}
-
-function normalizeRuntimeOptions(
-  options: AcpSessionRuntimeOptions | undefined,
-): AcpSessionRuntimeOptions {
-  const runtimeMode = normalizeText(options?.runtimeMode);
-  const model = normalizeText(options?.model);
-  const cwd = normalizeText(options?.cwd);
-  const permissionProfile = normalizeText(options?.permissionProfile);
-  let timeoutSeconds: number | undefined;
-  if (typeof options?.timeoutSeconds === "number" && Number.isFinite(options.timeoutSeconds)) {
-    const rounded = Math.round(options.timeoutSeconds);
-    if (rounded > 0) {
-      timeoutSeconds = rounded;
-    }
-  }
-  const backendExtrasEntries = Object.entries(options?.backendExtras ?? {})
-    .map(([key, value]) => [normalizeText(key), normalizeText(value)] as const)
-    .filter(([key, value]) => Boolean(key && value)) as Array<[string, string]>;
-  const backendExtras =
-    backendExtrasEntries.length > 0 ? Object.fromEntries(backendExtrasEntries) : undefined;
-  return {
-    ...(runtimeMode ? { runtimeMode } : {}),
-    ...(model ? { model } : {}),
-    ...(cwd ? { cwd } : {}),
-    ...(permissionProfile ? { permissionProfile } : {}),
-    ...(typeof timeoutSeconds === "number" ? { timeoutSeconds } : {}),
-    ...(backendExtras ? { backendExtras } : {}),
-  };
-}
-
-function mergeRuntimeOptions(params: {
-  current?: AcpSessionRuntimeOptions;
-  patch?: Partial<AcpSessionRuntimeOptions>;
-}): AcpSessionRuntimeOptions {
-  const current = normalizeRuntimeOptions(params.current);
-  const patch = normalizeRuntimeOptions(params.patch as AcpSessionRuntimeOptions | undefined);
-  const mergedExtras = {
-    ...current.backendExtras,
-    ...patch.backendExtras,
-  };
-  return normalizeRuntimeOptions({
-    ...current,
-    ...patch,
-    ...(Object.keys(mergedExtras).length > 0 ? { backendExtras: mergedExtras } : {}),
-  });
-}
-
-function resolveRuntimeOptionsFromMeta(meta: SessionAcpMeta): AcpSessionRuntimeOptions {
-  const normalized = normalizeRuntimeOptions(meta.runtimeOptions);
-  if (normalized.cwd || !meta.cwd) {
-    return normalized;
-  }
-  return normalizeRuntimeOptions({
-    ...normalized,
-    cwd: meta.cwd,
-  });
-}
-
-function runtimeOptionsEqual(
-  a: AcpSessionRuntimeOptions | undefined,
-  b: AcpSessionRuntimeOptions | undefined,
-): boolean {
-  return JSON.stringify(normalizeRuntimeOptions(a)) === JSON.stringify(normalizeRuntimeOptions(b));
-}
-
-function buildRuntimeControlSignature(options: AcpSessionRuntimeOptions): string {
-  const normalized = normalizeRuntimeOptions(options);
-  const extras = Object.entries(normalized.backendExtras ?? {}).toSorted(([a], [b]) =>
-    a.localeCompare(b),
-  );
-  return JSON.stringify({
-    runtimeMode: normalized.runtimeMode ?? null,
-    model: normalized.model ?? null,
-    permissionProfile: normalized.permissionProfile ?? null,
-    timeoutSeconds: normalized.timeoutSeconds ?? null,
-    backendExtras: extras,
-  });
-}
-
-function buildRuntimeConfigOptionPairs(options: AcpSessionRuntimeOptions): Array<[string, string]> {
-  const normalized = normalizeRuntimeOptions(options);
-  const pairs = new Map<string, string>();
-  if (normalized.model) {
-    pairs.set("model", normalized.model);
-  }
-  if (normalized.permissionProfile) {
-    pairs.set("approval_policy", normalized.permissionProfile);
-  }
-  if (typeof normalized.timeoutSeconds === "number") {
-    pairs.set("timeout", String(normalized.timeoutSeconds));
-  }
-  for (const [key, value] of Object.entries(normalized.backendExtras ?? {})) {
-    if (!pairs.has(key)) {
-      pairs.set(key, value);
-    }
-  }
-  return [...pairs.entries()];
-}
-
-function inferRuntimeOptionPatchFromConfigOption(
-  key: string,
-  value: string,
-): Partial<AcpSessionRuntimeOptions> {
-  const normalizedKey = key.trim().toLowerCase();
-  if (normalizedKey === "model") {
-    return { model: value };
-  }
-  if (
-    normalizedKey === "approval_policy" ||
-    normalizedKey === "permission_profile" ||
-    normalizedKey === "permissions"
-  ) {
-    return { permissionProfile: value };
-  }
-  if (normalizedKey === "timeout" || normalizedKey === "timeout_seconds") {
-    const asNumber = Number.parseInt(value, 10);
-    if (Number.isFinite(asNumber) && asNumber > 0) {
-      return { timeoutSeconds: asNumber };
-    }
-  }
-  if (normalizedKey === "cwd") {
-    return { cwd: value };
-  }
-  return {
-    backendExtras: {
-      [key]: value,
-    },
-  };
-}
-
 function createUnsupportedControlError(params: {
   backend: string;
   control: string;
@@ -293,8 +158,9 @@ function createUnsupportedControlError(params: {
 }
 
 export class AcpSessionManager {
-  private readonly actorTailBySession = new Map<string, Promise<void>>();
-  private readonly cachedRuntimeBySession = new Map<string, CachedRuntimeState>();
+  private readonly actorQueue = new SessionActorQueue();
+  private readonly actorTailBySession = this.actorQueue.getTailMapForTesting();
+  private readonly runtimeCache = new RuntimeCache();
   private readonly activeTurnBySession = new Map<string, ActiveTurnState>();
 
   constructor(private readonly deps: AcpSessionManagerDeps = DEFAULT_DEPS) {}
@@ -1146,10 +1012,10 @@ export class AcpSessionManager {
     }
     const limit = Math.max(1, Math.floor(configuredLimit));
     const actorKey = normalizeActorKey(params.sessionKey);
-    if (this.cachedRuntimeBySession.has(actorKey)) {
+    if (this.runtimeCache.has(actorKey)) {
       return;
     }
-    const activeCount = this.cachedRuntimeBySession.size;
+    const activeCount = this.runtimeCache.size();
     if (activeCount >= limit) {
       throw new AcpRuntimeError(
         "ACP_SESSION_INIT_FAILED",
@@ -1334,41 +1200,19 @@ export class AcpSessionManager {
 
   private async withSessionActor<T>(sessionKey: string, op: () => Promise<T>): Promise<T> {
     const actorKey = normalizeActorKey(sessionKey);
-    const previous = this.actorTailBySession.get(actorKey) ?? Promise.resolve();
-    let release: () => void = () => {};
-    const marker = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const queuedTail = previous
-      .catch(() => {
-        // Keep actor queue alive after an operation failure.
-      })
-      .then(() => marker);
-    this.actorTailBySession.set(actorKey, queuedTail);
-
-    await previous.catch(() => {
-      // Previous failures should not block newer commands.
-    });
-    try {
-      return await op();
-    } finally {
-      release();
-      if (this.actorTailBySession.get(actorKey) === queuedTail) {
-        this.actorTailBySession.delete(actorKey);
-      }
-    }
+    return await this.actorQueue.run(actorKey, op);
   }
 
   private getCachedRuntimeState(sessionKey: string): CachedRuntimeState | null {
-    return this.cachedRuntimeBySession.get(normalizeActorKey(sessionKey)) ?? null;
+    return this.runtimeCache.get(normalizeActorKey(sessionKey));
   }
 
   private setCachedRuntimeState(sessionKey: string, state: CachedRuntimeState): void {
-    this.cachedRuntimeBySession.set(normalizeActorKey(sessionKey), state);
+    this.runtimeCache.set(normalizeActorKey(sessionKey), state);
   }
 
   private clearCachedRuntimeState(sessionKey: string): void {
-    this.cachedRuntimeBySession.delete(normalizeActorKey(sessionKey));
+    this.runtimeCache.clear(normalizeActorKey(sessionKey));
   }
 }
 

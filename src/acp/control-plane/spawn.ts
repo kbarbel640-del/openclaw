@@ -2,7 +2,6 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { unbindThreadBindingsBySessionKey } from "../../discord/monitor/thread-bindings.js";
 import { callGateway } from "../../gateway/call.js";
 import { logVerbose } from "../../globals.js";
-import { normalizeAgentId } from "../../routing/session-key.js";
 import { getAcpSessionManager } from "./manager.js";
 
 export type AcpSpawnRuntimeCloseHandle = {
@@ -14,20 +13,6 @@ export type AcpSpawnRuntimeCloseHandle = {
   };
   handle: { sessionKey: string; backend: string; runtimeSessionName: string };
 };
-
-export function isAcpEnabledByPolicy(cfg: OpenClawConfig): boolean {
-  return cfg.acp?.enabled !== false;
-}
-
-export function isAcpAgentAllowedByPolicy(cfg: OpenClawConfig, agentId: string): boolean {
-  const allowed = (cfg.acp?.allowedAgents ?? [])
-    .map((entry) => normalizeAgentId(entry))
-    .filter(Boolean);
-  if (allowed.length === 0) {
-    return true;
-  }
-  return allowed.includes(normalizeAgentId(agentId));
-}
 
 export function resolveDiscordAcpSpawnFlags(
   cfg: OpenClawConfig,

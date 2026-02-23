@@ -764,3 +764,36 @@ Gateway e2e tests:
 - stale bindings are detected and surfaced explicitly (with optional safe auto-clean)
 - control-plane metrics and diagnostics are available for operators
 - new unit, integration, and e2e coverage passes
+
+## Addendum: targeted refactors for current implementation
+
+These are non-blocking follow-ups to keep the ACP path maintainable after the current feature set lands.
+
+### 1) Centralize ACP dispatch policy evaluation
+
+- current checks are duplicated across command and routing paths, which can drift over time
+- extract one shared ACP policy helper that returns a typed allow/deny result plus user-facing reason
+- use the same helper from ACP slash commands and automatic dispatch routing
+
+### 2) Split ACP command handler by subcommand domain
+
+- `src/auto-reply/reply/commands-acp.ts` currently mixes spawn/cancel/steer/close/status/options/doctor/install/sessions in one large module
+- split into focused modules (for example: lifecycle, control, diagnostics, options) plus a thin command router
+- keep response formatting helpers shared so command UX stays consistent
+
+### 3) Split ACP session manager by responsibility
+
+- `src/acp/control-plane/manager.ts` currently combines actor queueing, runtime handle lifecycle, control reconciliation, and persistence transitions
+- extract dedicated modules for:
+- actor serialization + queue ownership
+- runtime handle acquisition/supervision
+- control-plane state transitions and persistence
+- this reduces regression risk when adding new ACP backends or lifecycle states
+
+### 4) Optional acpx runtime adapter cleanup
+
+- `extensions/acpx/src/runtime.ts` can be split into:
+- process execution/supervision
+- ndjson event parsing/normalization
+- runtime API surface (`submit`, `cancel`, `close`, etc.)
+- improves testability and makes backend behavior easier to audit

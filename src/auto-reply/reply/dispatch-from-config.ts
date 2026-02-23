@@ -1,4 +1,5 @@
 import { getAcpSessionManager } from "../../acp/control-plane/manager.js";
+import { isAcpAgentAllowedByPolicy, resolveAcpDispatchPolicyError } from "../../acp/policy.js";
 import { formatAcpRuntimeErrorText } from "../../acp/runtime/error-text.js";
 import { AcpRuntimeError, toAcpRuntimeError } from "../../acp/runtime/errors.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
@@ -29,9 +30,6 @@ import { isRoutableChannel, routeReply } from "./route-reply.js";
 
 const AUDIO_PLACEHOLDER_RE = /^<media:audio>(\s*\([^)]*\))?$/i;
 const AUDIO_HEADER_RE = /^\[Audio\b/i;
-const ACP_DISPATCH_DISABLED_MESSAGE =
-  "ACP dispatch is disabled by policy. Ask an admin to enable `acp.dispatch.enabled`.";
-
 const normalizeMediaType = (value: string): string => value.split(";")[0]?.trim().toLowerCase();
 
 const isInboundAudioContext = (ctx: FinalizedMsgContext): boolean => {
@@ -90,13 +88,6 @@ const resolveSessionStoreEntry = (
       sessionKey,
     };
   }
-};
-
-const isAcpDispatchEnabled = (cfg: OpenClawConfig): boolean => {
-  if (cfg.acp?.enabled === false) {
-    return false;
-  }
-  return cfg.acp?.dispatch?.enabled === true;
 };
 
 const resolveAcpPromptText = (ctx: FinalizedMsgContext): string =>
@@ -503,10 +494,6 @@ export async function dispatchReplyFromConfig(params: {
               resolveAgentIdFromSessionKey(sessionKey)
             ).trim()
           : resolveAgentIdFromSessionKey(sessionKey);
-      const normalizedAllowedAgents = (cfg.acp?.allowedAgents ?? [])
-        .map((entry) => entry.trim().toLowerCase())
-        .filter(Boolean);
-
       const projector = createAcpReplyProjector({
         cfg,
         shouldSendToolSummaries,
@@ -516,16 +503,14 @@ export async function dispatchReplyFromConfig(params: {
       });
 
       try {
-        if (!isAcpDispatchEnabled(cfg)) {
-          throw new AcpRuntimeError("ACP_DISPATCH_DISABLED", ACP_DISPATCH_DISABLED_MESSAGE);
+        const dispatchPolicyError = resolveAcpDispatchPolicyError(cfg);
+        if (dispatchPolicyError) {
+          throw dispatchPolicyError;
         }
         if (acpResolution.kind === "stale") {
           throw acpResolution.error;
         }
-        if (
-          normalizedAllowedAgents.length > 0 &&
-          !normalizedAllowedAgents.includes(resolvedAcpAgent.toLowerCase())
-        ) {
+        if (!isAcpAgentAllowedByPolicy(cfg, resolvedAcpAgent)) {
           throw new AcpRuntimeError(
             "ACP_SESSION_INIT_FAILED",
             `ACP agent "${resolvedAcpAgent}" is not allowed by policy.`,

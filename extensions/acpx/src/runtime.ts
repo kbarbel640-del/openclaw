@@ -1,5 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import type {
   AcpRuntimeCapabilities,
@@ -15,6 +14,21 @@ import type {
 } from "openclaw/plugin-sdk";
 import { AcpRuntimeError } from "openclaw/plugin-sdk";
 import type { ResolvedAcpxPluginConfig } from "./config.js";
+import {
+  parseJsonLines,
+  parsePromptEventLine,
+  toAcpxErrorEvent,
+} from "./runtime-internals/events.js";
+import { resolveSpawnFailure, spawnAndCollect, waitForExit } from "./runtime-internals/process.js";
+import {
+  asOptionalString,
+  asTrimmedString,
+  buildPermissionArgs,
+  deriveAgentFromSessionKey,
+  isRecord,
+  type AcpxHandleState,
+  type AcpxJsonObject,
+} from "./runtime-internals/shared.js";
 
 export const ACPX_BACKEND_ID = "acpx";
 
@@ -24,97 +38,6 @@ const ACPX_INSTALL_COMMAND_HINT = "npm install -g acpx";
 const ACPX_CAPABILITIES: AcpRuntimeCapabilities = {
   controls: ["session/set_mode", "session/set_config_option", "session/status"],
 };
-
-type AcpxHandleState = {
-  name: string;
-  agent: string;
-  cwd: string;
-  mode: "persistent" | "oneshot";
-};
-
-type AcpxJsonObject = Record<string, unknown>;
-
-type AcpxErrorEvent = {
-  message: string;
-  code?: string;
-  retryable?: boolean;
-};
-
-type SpawnExit = {
-  code: number | null;
-  signal: NodeJS.Signals | null;
-  error: Error | null;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function asTrimmedString(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function asOptionalString(value: unknown): string | undefined {
-  const text = asTrimmedString(value);
-  return text || undefined;
-}
-
-function asOptionalBoolean(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
-}
-
-function deriveAgentFromSessionKey(sessionKey: string): string {
-  const match = sessionKey.match(/^agent:([^:]+):/i);
-  const candidate = match?.[1] ? asTrimmedString(match[1]) : "";
-  return candidate || DEFAULT_AGENT_FALLBACK;
-}
-
-function toAcpxErrorEvent(value: unknown): AcpxErrorEvent | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-  if (asTrimmedString(value.type) !== "error") {
-    return null;
-  }
-  return {
-    message: asTrimmedString(value.message) || "acpx reported an error",
-    code: asOptionalString(value.code),
-    retryable: asOptionalBoolean(value.retryable),
-  };
-}
-
-function parseJsonLines(value: string): AcpxJsonObject[] {
-  const events: AcpxJsonObject[] = [];
-  for (const line of value.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-    try {
-      const parsed = JSON.parse(trimmed) as unknown;
-      if (isRecord(parsed)) {
-        events.push(parsed);
-      }
-    } catch {
-      // Ignore malformed lines; callers handle missing typed events via exit code.
-    }
-  }
-  return events;
-}
-
-function buildPermissionArgs(mode: ResolvedAcpxPluginConfig["permissionMode"]): string[] {
-  if (mode === "approve-all") {
-    return ["--approve-all"];
-  }
-  if (mode === "deny-all") {
-    return ["--deny-all"];
-  }
-  return ["--approve-reads"];
-}
 
 export function encodeAcpxRuntimeHandleState(state: AcpxHandleState): string {
   const payload = Buffer.from(JSON.stringify(state), "utf8").toString("base64url");
@@ -175,7 +98,8 @@ export class AcpxRuntime implements AcpRuntime {
   async probeAvailability(): Promise<void> {
     try {
       const args = [...this.config.commandArgs, "--help"];
-      const result = await this.spawnAndCollect({
+      const result = await spawnAndCollect({
+        command: this.config.command,
         args,
         cwd: this.config.cwd,
       });
@@ -264,7 +188,7 @@ export class AcpxRuntime implements AcpRuntime {
     const lines = createInterface({ input: child.stdout });
     try {
       for await (const line of lines) {
-        const parsed = this.parsePromptEventLine(line);
+        const parsed = parsePromptEventLine(line);
         if (!parsed) {
           continue;
         }
@@ -277,9 +201,9 @@ export class AcpxRuntime implements AcpRuntime {
         yield parsed;
       }
 
-      const exit = await this.waitForExit(child);
+      const exit = await waitForExit(child);
       if (exit.error) {
-        const spawnFailure = this.resolveSpawnFailure(exit.error, state.cwd);
+        const spawnFailure = resolveSpawnFailure(exit.error, state.cwd);
         if (spawnFailure === "missing-command") {
           this.healthy = false;
           throw new AcpRuntimeError(
@@ -394,12 +318,13 @@ export class AcpxRuntime implements AcpRuntime {
   async doctor(): Promise<AcpRuntimeDoctorReport> {
     try {
       const args = [...this.config.commandArgs, "--help"];
-      const result = await this.spawnAndCollect({
+      const result = await spawnAndCollect({
+        command: this.config.command,
         args,
         cwd: this.config.cwd,
       });
       if (result.error) {
-        const spawnFailure = this.resolveSpawnFailure(result.error, this.config.cwd);
+        const spawnFailure = resolveSpawnFailure(result.error, this.config.cwd);
         if (spawnFailure === "missing-command") {
           this.healthy = false;
           return {
@@ -490,7 +415,7 @@ export class AcpxRuntime implements AcpRuntime {
 
     return {
       name: legacyName,
-      agent: deriveAgentFromSessionKey(handle.sessionKey),
+      agent: deriveAgentFromSessionKey(handle.sessionKey, DEFAULT_AGENT_FALLBACK),
       cwd: this.config.cwd,
       mode: "persistent",
     };
@@ -536,13 +461,14 @@ export class AcpxRuntime implements AcpRuntime {
     fallbackCode: AcpRuntimeErrorCode;
     ignoreNoSession?: boolean;
   }): Promise<AcpxJsonObject[]> {
-    const result = await this.spawnAndCollect({
+    const result = await spawnAndCollect({
+      command: this.config.command,
       args: params.args,
       cwd: params.cwd,
     });
 
     if (result.error) {
-      const spawnFailure = this.resolveSpawnFailure(result.error, params.cwd);
+      const spawnFailure = resolveSpawnFailure(result.error, params.cwd);
       if (spawnFailure === "missing-command") {
         this.healthy = false;
         throw new AcpRuntimeError(
@@ -580,178 +506,5 @@ export class AcpxRuntime implements AcpRuntime {
       );
     }
     return events;
-  }
-
-  private async spawnAndCollect(params: { args: string[]; cwd: string }): Promise<{
-    stdout: string;
-    stderr: string;
-    code: number | null;
-    error: Error | null;
-  }> {
-    const child = spawn(this.config.command, params.args, {
-      cwd: params.cwd,
-      env: process.env,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    child.stdin.end();
-
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    const exit = await this.waitForExit(child);
-    return {
-      stdout,
-      stderr,
-      code: exit.code,
-      error: exit.error,
-    };
-  }
-
-  private async waitForExit(child: ChildProcessWithoutNullStreams): Promise<SpawnExit> {
-    return await new Promise<SpawnExit>((resolve) => {
-      let settled = false;
-      const finish = (result: SpawnExit) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        resolve(result);
-      };
-
-      child.once("error", (err) => {
-        finish({ code: null, signal: null, error: err });
-      });
-
-      child.once("close", (code, signal) => {
-        finish({ code, signal, error: null });
-      });
-    });
-  }
-
-  private parsePromptEventLine(line: string): AcpRuntimeEvent | null {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      return null;
-    }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      return {
-        type: "status",
-        text: trimmed,
-      };
-    }
-
-    if (!isRecord(parsed)) {
-      return null;
-    }
-
-    const type = asTrimmedString(parsed.type);
-    switch (type) {
-      case "text": {
-        const content = asString(parsed.content);
-        if (content == null || content.length === 0) {
-          return null;
-        }
-        return {
-          type: "text_delta",
-          text: content,
-          stream: "output",
-        };
-      }
-      case "thought": {
-        const content = asString(parsed.content);
-        if (content == null || content.length === 0) {
-          return null;
-        }
-        return {
-          type: "text_delta",
-          text: content,
-          stream: "thought",
-        };
-      }
-      case "tool_call": {
-        const title = asTrimmedString(parsed.title) || asTrimmedString(parsed.toolCallId) || "tool";
-        const status = asTrimmedString(parsed.status);
-        return {
-          type: "tool_call",
-          text: status ? `${title} (${status})` : title,
-        };
-      }
-      case "client_operation": {
-        const method = asTrimmedString(parsed.method) || "operation";
-        const status = asTrimmedString(parsed.status);
-        const summary = asTrimmedString(parsed.summary);
-        const text = [method, status, summary].filter(Boolean).join(" ");
-        if (!text) {
-          return null;
-        }
-        return { type: "status", text };
-      }
-      case "plan": {
-        const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
-        const first = entries.find((entry) => isRecord(entry)) as
-          | Record<string, unknown>
-          | undefined;
-        const content = asTrimmedString(first?.content);
-        if (!content) {
-          return null;
-        }
-        return { type: "status", text: `plan: ${content}` };
-      }
-      case "update": {
-        const update = asTrimmedString(parsed.update);
-        if (!update) {
-          return null;
-        }
-        return { type: "status", text: update };
-      }
-      case "done": {
-        return {
-          type: "done",
-          stopReason: asOptionalString(parsed.stopReason),
-        };
-      }
-      case "error": {
-        const message = asTrimmedString(parsed.message) || "acpx runtime error";
-        return {
-          type: "error",
-          message,
-          code: asOptionalString(parsed.code),
-          retryable: asOptionalBoolean(parsed.retryable),
-        };
-      }
-      default:
-        return null;
-    }
-  }
-
-  private resolveSpawnFailure(err: unknown, cwd: string): "missing-command" | "missing-cwd" | null {
-    if (!err || typeof err !== "object") {
-      return null;
-    }
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT") {
-      return null;
-    }
-    return this.directoryExists(cwd) ? "missing-command" : "missing-cwd";
-  }
-
-  private directoryExists(cwd: string): boolean {
-    if (!cwd) {
-      return false;
-    }
-    try {
-      return existsSync(cwd);
-    } catch {
-      return false;
-    }
   }
 }

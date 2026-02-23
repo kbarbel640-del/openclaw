@@ -1,10 +1,6 @@
 import crypto from "node:crypto";
-import {
-  cleanupFailedAcpSpawn,
-  isAcpAgentAllowedByPolicy,
-  isAcpEnabledByPolicy,
-  resolveDiscordAcpSpawnFlags,
-} from "../acp/control-plane/spawn.js";
+import { cleanupFailedAcpSpawn, resolveDiscordAcpSpawnFlags } from "../acp/control-plane/spawn.js";
+import { isAcpAgentAllowedByPolicy, isAcpEnabledByPolicy } from "../acp/policy.js";
 import { requireAcpRuntimeBackend } from "../acp/runtime/registry.js";
 import { upsertAcpSessionMeta } from "../acp/runtime/session-meta.js";
 import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
