@@ -10,7 +10,7 @@ import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ThemeMode } from "./theme.ts";
-import type { SessionsListResult } from "./types.ts";
+import type { GatewayAgentRow, SessionsListResult } from "./types.ts";
 
 type SessionDefaultsSnapshot = {
   mainSessionKey?: string;
@@ -88,6 +88,7 @@ export function renderChatControls(state: AppViewState) {
     state.sessionKey,
     state.sessionsResult,
     mainSessionKey,
+    state.agentsList?.agents,
   );
   const disableThinkingToggle = state.onboarding;
   const disableFocusToggle = state.onboarding;
@@ -327,6 +328,7 @@ export function parseSessionKey(key: string): SessionKeyInfo {
 export function resolveSessionDisplayName(
   key: string,
   row?: SessionsListResult["sessions"][number],
+  agents?: GatewayAgentRow[],
 ): string {
   const label = row?.label?.trim() || "";
   const displayName = row?.displayName?.trim() || "";
@@ -346,6 +348,19 @@ export function resolveSessionDisplayName(
   if (displayName && displayName !== key) {
     return applyTypedPrefix(displayName);
   }
+
+  // Try to resolve agent name from the agents list
+  if (agents?.length) {
+    const agentMatch = key.match(/^agent:([^:]+):/);
+    if (agentMatch) {
+      const agent = agents.find((a) => a.id === agentMatch[1]);
+      const agentName = agent?.name?.trim() || agent?.identity?.name?.trim();
+      if (agentName) {
+        return applyTypedPrefix(agentName);
+      }
+    }
+  }
+
   return fallbackName;
 }
 
@@ -353,6 +368,7 @@ function resolveSessionOptions(
   sessionKey: string,
   sessions: SessionsListResult | null,
   mainSessionKey?: string | null,
+  agents?: GatewayAgentRow[],
 ) {
   const seen = new Set<string>();
   const options: Array<{ key: string; displayName?: string }> = [];
@@ -365,7 +381,7 @@ function resolveSessionOptions(
     seen.add(mainSessionKey);
     options.push({
       key: mainSessionKey,
-      displayName: resolveSessionDisplayName(mainSessionKey, resolvedMain || undefined),
+      displayName: resolveSessionDisplayName(mainSessionKey, resolvedMain || undefined, agents),
     });
   }
 
@@ -374,7 +390,7 @@ function resolveSessionOptions(
     seen.add(sessionKey);
     options.push({
       key: sessionKey,
-      displayName: resolveSessionDisplayName(sessionKey, resolvedCurrent),
+      displayName: resolveSessionDisplayName(sessionKey, resolvedCurrent, agents),
     });
   }
 
@@ -385,7 +401,7 @@ function resolveSessionOptions(
         seen.add(s.key);
         options.push({
           key: s.key,
-          displayName: resolveSessionDisplayName(s.key, s),
+          displayName: resolveSessionDisplayName(s.key, s, agents),
         });
       }
     }
