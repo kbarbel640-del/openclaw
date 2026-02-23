@@ -100,15 +100,17 @@ export function decryptSecret(
  * Returns the base64-unpadded public key.
  */
 function deriveEd25519PublicKey(seed: Uint8Array): string {
-  const keyObj = crypto.createPrivateKey({
+  const privKey = crypto.createPrivateKey({
     key: buildEd25519Pkcs8(seed),
     format: "der",
     type: "pkcs8",
   });
-  const pubRaw = keyObj.export({ type: "spki", format: "der" });
+  // Derive the public key object, then export as SPKI DER
+  const pubKey = crypto.createPublicKey(privKey);
+  const pubRaw = pubKey.export({ type: "spki", format: "der" });
   // Ed25519 SPKI DER: 12-byte header + 32-byte public key
-  const pubKey = new Uint8Array(pubRaw).slice(-32);
-  return Buffer.from(pubKey).toString("base64").replace(/=+$/, "");
+  const pubBytes = new Uint8Array(pubRaw).slice(-32);
+  return Buffer.from(pubBytes).toString("base64").replace(/=+$/, "");
 }
 
 /**
