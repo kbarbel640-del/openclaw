@@ -474,7 +474,7 @@ export function createAgentEventHandler({
               timestamp: Date.now(),
             },
           };
-          if (!shouldSuppressHeartbeatBroadcast(clientRunId)) {
+          if (!shouldHideHeartbeatChatOutput(clientRunId)) {
             broadcast("chat", payload);
           }
           nodeSendToSession(sessionKey, "chat", payload);
