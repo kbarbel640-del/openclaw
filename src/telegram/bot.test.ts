@@ -72,7 +72,9 @@ describe("createTelegramBot", () => {
       description: string;
     }>;
     const skillCommands = resolveSkillCommands(config);
-    const native = listNativeCommandSpecsForConfig(config, { skillCommands }).map((command) => ({
+    const native = listNativeCommandSpecsForConfig(config, {
+      skillCommands,
+    }).map((command) => ({
       command: normalizeTelegramCommandName(command.name),
       description: command.description,
     }));
@@ -113,14 +115,22 @@ describe("createTelegramBot", () => {
       description: string;
     }>;
     const skillCommands = resolveSkillCommands(config);
-    const native = listNativeCommandSpecsForConfig(config, { skillCommands }).map((command) => ({
+    const native = listNativeCommandSpecsForConfig(config, {
+      skillCommands,
+    }).map((command) => ({
       command: normalizeTelegramCommandName(command.name),
       description: command.description,
     }));
     const nativeStatus = native.find((command) => command.command === "status");
     expect(nativeStatus).toBeDefined();
-    expect(registered).toContainEqual({ command: "custom_backup", description: "Git backup" });
-    expect(registered).not.toContainEqual({ command: "status", description: "Custom status" });
+    expect(registered).toContainEqual({
+      command: "custom_backup",
+      description: "Git backup",
+    });
+    expect(registered).not.toContainEqual({
+      command: "status",
+      description: "Custom status",
+    });
     expect(registered.filter((command) => command.command === "status")).toEqual([nativeStatus]);
     expect(errorSpy).toHaveBeenCalled();
   });
@@ -409,7 +419,6 @@ describe("createTelegramBot", () => {
           from: { first_name: "Ada" },
           quote: {
             text: "summarize this",
-
           },
         },
       },
