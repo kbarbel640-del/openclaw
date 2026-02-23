@@ -415,7 +415,7 @@ export class MediaAttachmentCache {
     if (!rawPath) {
       return undefined;
     }
-    return path.isAbsolute(rawPath) ? rawPath : path.resolve(rawPath);
+    return path.resolve(rawPath);
   }
 
   private async ensureLocalStat(entry: AttachmentCacheEntry): Promise<number | undefined> {

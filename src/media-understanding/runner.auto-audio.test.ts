@@ -19,7 +19,9 @@ async function withAudioFixture(
   }) => Promise<void>,
 ) {
   const originalPath = process.env.PATH;
-  process.env.PATH = "/usr/bin:/bin";
+  if (process.platform !== "win32") {
+    process.env.PATH = "/usr/bin:/bin";
+  }
   const tmpPath = path.join(os.tmpdir(), `openclaw-auto-audio-${Date.now()}.wav`);
   await fs.writeFile(tmpPath, Buffer.from("RIFF"));
   const ctx: MsgContext = { MediaPath: tmpPath, MediaType: "audio/wav" };
