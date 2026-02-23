@@ -14,6 +14,16 @@ export type SessionStoreTarget = {
   storePath: string;
 };
 
+function dedupeTargetsByStorePath(targets: SessionStoreTarget[]): SessionStoreTarget[] {
+  const deduped = new Map<string, SessionStoreTarget>();
+  for (const target of targets) {
+    if (!deduped.has(target.storePath)) {
+      deduped.set(target.storePath, target);
+    }
+  }
+  return [...deduped.values()];
+}
+
 export function resolveSessionStoreTargets(
   cfg: OpenClawConfig,
   opts: SessionStoreSelectionOptions,
@@ -38,10 +48,11 @@ export function resolveSessionStoreTargets(
   }
 
   if (allAgents) {
-    return listAgentIds(cfg).map((agentId) => ({
+    const targets = listAgentIds(cfg).map((agentId) => ({
       agentId,
       storePath: resolveStorePath(cfg.session?.store, { agentId }),
     }));
+    return dedupeTargetsByStorePath(targets);
   }
 
   if (hasAgent) {

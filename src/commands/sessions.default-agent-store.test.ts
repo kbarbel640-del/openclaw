@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeEnv } from "../runtime.js";
 
 const loadConfigMock = vi.hoisted(() =>
@@ -59,6 +59,16 @@ function createRuntime(): { runtime: RuntimeEnv; logs: string[] } {
 }
 
 describe("sessionsCommand default store agent selection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveStorePathMock.mockImplementation(
+      (_store: string | undefined, opts?: { agentId?: string }) => {
+        return `/tmp/sessions-${opts?.agentId ?? "missing"}.json`;
+      },
+    );
+    loadSessionStoreMock.mockImplementation(() => ({}));
+  });
+
   it("includes agentId on sessions rows for --all-agents JSON output", async () => {
     resolveStorePathMock.mockClear();
     loadSessionStoreMock.mockReset();
@@ -80,6 +90,34 @@ describe("sessionsCommand default store agent selection", () => {
     expect(payload.allAgents).toBe(true);
     expect(payload.sessions?.map((session) => session.agentId)).toContain("main");
     expect(payload.sessions?.map((session) => session.agentId)).toContain("voice");
+  });
+
+  it("avoids duplicate rows when --all-agents resolves to a shared store path", async () => {
+    resolveStorePathMock.mockReset();
+    resolveStorePathMock.mockReturnValue("/tmp/shared-sessions.json");
+    loadSessionStoreMock.mockReset();
+    loadSessionStoreMock.mockReturnValue({
+      "agent:main:room": { sessionId: "s1", updatedAt: Date.now() - 60_000, model: "pi:opus" },
+      "agent:voice:room": { sessionId: "s2", updatedAt: Date.now() - 30_000, model: "pi:opus" },
+    });
+    const { runtime, logs } = createRuntime();
+
+    await sessionsCommand({ allAgents: true, json: true }, runtime);
+
+    const payload = JSON.parse(logs[0] ?? "{}") as {
+      count?: number;
+      stores?: Array<{ agentId: string; path: string }>;
+      allAgents?: boolean;
+      sessions?: Array<{ key: string; agentId?: string }>;
+    };
+    expect(payload.count).toBe(2);
+    expect(payload.allAgents).toBe(true);
+    expect(payload.stores).toEqual([{ agentId: "main", path: "/tmp/shared-sessions.json" }]);
+    expect(payload.sessions?.map((session) => session.agentId).toSorted()).toEqual([
+      "main",
+      "voice",
+    ]);
+    expect(loadSessionStoreMock).toHaveBeenCalledTimes(1);
   });
 
   it("uses configured default agent id when resolving implicit session store path", async () => {

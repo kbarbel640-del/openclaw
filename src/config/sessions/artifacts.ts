@@ -1,11 +1,26 @@
 export type SessionArchiveReason = "bak" | "reset" | "deleted";
 
+const ARCHIVE_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}(?:\.\d{3})?Z$/;
+const LEGACY_STORE_BACKUP_RE = /^sessions\.json\.bak\.\d+$/;
+
+function hasArchiveSuffix(fileName: string, reason: SessionArchiveReason): boolean {
+  const marker = `.${reason}.`;
+  const index = fileName.lastIndexOf(marker);
+  if (index < 0) {
+    return false;
+  }
+  const raw = fileName.slice(index + marker.length);
+  return ARCHIVE_TIMESTAMP_RE.test(raw);
+}
+
 export function isSessionArchiveArtifactName(fileName: string): boolean {
+  if (LEGACY_STORE_BACKUP_RE.test(fileName)) {
+    return true;
+  }
   return (
-    fileName.includes(".deleted.") ||
-    fileName.includes(".reset.") ||
-    fileName.includes(".bak.") ||
-    fileName.startsWith("sessions.json.bak.")
+    hasArchiveSuffix(fileName, "deleted") ||
+    hasArchiveSuffix(fileName, "reset") ||
+    hasArchiveSuffix(fileName, "bak")
   );
 }
 
@@ -42,6 +57,9 @@ export function parseSessionArchiveTimestamp(
   }
   const raw = fileName.slice(index + marker.length);
   if (!raw) {
+    return null;
+  }
+  if (!ARCHIVE_TIMESTAMP_RE.test(raw)) {
     return null;
   }
   const timestamp = Date.parse(restoreSessionArchiveTimestamp(raw));

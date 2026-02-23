@@ -4,6 +4,7 @@ import { loadConfig } from "../config/config.js";
 import { loadSessionStore, resolveFreshSessionTotalTokens } from "../config/sessions.js";
 import { classifySessionKey } from "../gateway/session-utils.js";
 import { info } from "../globals.js";
+import { parseAgentSessionKey } from "../routing/session-key.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { isRich, theme } from "../terminal/theme.js";
 import { resolveSessionStoreTargets } from "./session-store-targets.js";
@@ -87,6 +88,7 @@ export async function sessionsCommand(
   opts: { json?: boolean; store?: string; active?: string; agent?: string; allAgents?: boolean },
   runtime: RuntimeEnv,
 ) {
+  const aggregateAgents = opts.allAgents === true;
   const cfg = loadConfig();
   const displayDefaults = resolveSessionDisplayDefaults(cfg);
   const configContextTokens =
@@ -122,7 +124,7 @@ export async function sessionsCommand(
       const store = loadSessionStore(target.storePath);
       return toSessionDisplayRows(store).map((row) => ({
         ...row,
-        agentId: target.agentId,
+        agentId: parseAgentSessionKey(row.key)?.agentId ?? target.agentId,
         kind: classifySessionKey(row.key, store[row.key]),
       }));
     })
@@ -139,17 +141,18 @@ export async function sessionsCommand(
 
   if (opts.json) {
     const multi = targets.length > 1;
+    const aggregate = aggregateAgents || multi;
     runtime.log(
       JSON.stringify(
         {
-          path: multi ? null : (targets[0]?.storePath ?? null),
-          stores: multi
+          path: aggregate ? null : (targets[0]?.storePath ?? null),
+          stores: aggregate
             ? targets.map((target) => ({
                 agentId: target.agentId,
                 path: target.storePath,
               }))
             : undefined,
-          allAgents: multi ? true : undefined,
+          allAgents: aggregateAgents ? true : undefined,
           count: rows.length,
           activeMinutes: activeMinutes ?? null,
           sessions: rows.map((r) => {
@@ -172,7 +175,7 @@ export async function sessionsCommand(
     return;
   }
 
-  if (targets.length === 1) {
+  if (targets.length === 1 && !aggregateAgents) {
     runtime.log(info(`Session store: ${targets[0]?.storePath}`));
   } else {
     runtime.log(
@@ -189,7 +192,7 @@ export async function sessionsCommand(
   }
 
   const rich = isRich();
-  const showAgentColumn = targets.length > 1;
+  const showAgentColumn = aggregateAgents || targets.length > 1;
   const header = [
     ...(showAgentColumn ? ["Agent".padEnd(AGENT_PAD)] : []),
     "Kind".padEnd(KIND_PAD),

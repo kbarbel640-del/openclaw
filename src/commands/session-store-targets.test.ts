@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveSessionStoreTargets } from "./session-store-targets.js";
 
 const resolveStorePathMock = vi.hoisted(() => vi.fn());
@@ -15,6 +15,10 @@ vi.mock("../agents/agent-scope.js", () => ({
 }));
 
 describe("resolveSessionStoreTargets", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("resolves the default agent store when no selector is provided", () => {
     resolveDefaultAgentIdMock.mockReturnValue("main");
     resolveStorePathMock.mockReturnValue("/tmp/main-sessions.json");
@@ -42,6 +46,21 @@ describe("resolveSessionStoreTargets", () => {
       { agentId: "main", storePath: "/tmp/main-sessions.json" },
       { agentId: "work", storePath: "/tmp/work-sessions.json" },
     ]);
+  });
+
+  it("dedupes shared store paths for --all-agents", () => {
+    listAgentIdsMock.mockReturnValue(["main", "work"]);
+    resolveStorePathMock.mockReturnValue("/tmp/shared-sessions.json");
+
+    const targets = resolveSessionStoreTargets(
+      {
+        session: { store: "/tmp/shared-sessions.json" },
+      },
+      { allAgents: true },
+    );
+
+    expect(targets).toEqual([{ agentId: "main", storePath: "/tmp/shared-sessions.json" }]);
+    expect(resolveStorePathMock).toHaveBeenCalledTimes(2);
   });
 
   it("rejects unknown agent ids", () => {
