@@ -9,6 +9,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { resolveDefaultAgentWorkspaceDir } from "../agents/workspace.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { requireValidConfig } from "./agents.command-shared.js";
@@ -181,7 +182,7 @@ export async function sharedListCommand(
     return;
   }
 
-  const workspacePath = cfg.workspaceDir ?? process.cwd();
+  const workspacePath = resolveDefaultAgentWorkspaceDir(process.env) ?? process.cwd();
   const summary = buildSharedSummary(workspacePath);
 
   if (opts.json) {
@@ -206,7 +207,7 @@ export async function sharedSyncCommand(runtime: RuntimeEnv = defaultRuntime) {
     return;
   }
 
-  const workspacePath = cfg.workspaceDir ?? process.cwd();
+  const workspacePath = resolveDefaultAgentWorkspaceDir(process.env) ?? process.cwd();
   const agentsDir = path.join(workspacePath, "agents");
 
   if (!fs.existsSync(agentsDir)) {
