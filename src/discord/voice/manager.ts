@@ -433,6 +433,12 @@ export class DiscordVoiceManager {
         logger.warn(`discord voice: capture failed: ${formatErrorMessage(err)}`);
       });
     };
+    const clearSessionIfCurrent = () => {
+      const active = this.sessions.get(guildId);
+      if (active?.connection === connection) {
+        this.sessions.delete(guildId);
+      }
+    };
 
     connection.receiver.speaking.on("start", speakingHandler);
     connection.on(VoiceConnectionStatus.Disconnected, async () => {
@@ -442,12 +448,12 @@ export class DiscordVoiceManager {
           entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
         ]);
       } catch {
-        this.sessions.delete(guildId);
+        clearSessionIfCurrent();
         connection.destroy();
       }
     });
     connection.on(VoiceConnectionStatus.Destroyed, () => {
-      this.sessions.delete(guildId);
+      clearSessionIfCurrent();
     });
 
     player.on("error", (err) => {
