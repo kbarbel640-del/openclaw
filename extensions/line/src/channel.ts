@@ -402,14 +402,15 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
           });
         }
 
-        if (lineData.templateMessage) {
-          const template = buildTemplate(lineData.templateMessage);
-          if (template) {
-            lastResult = await sendTemplate(to, template, {
-              verbose: false,
-              accountId: accountId ?? undefined,
-            });
-          }
+        // Send processed flex messages (tables/code blocks) before template so
+        // detail content appears above pagination/buttons (#17308).
+        for (const flexMsg of processed.flexMessages) {
+          // LINE SDK expects FlexContainer but we receive contents as unknown
+          const flexContents = flexMsg.contents as Parameters<typeof sendFlex>[2];
+          lastResult = await sendFlex(to, flexMsg.altText, flexContents, {
+            verbose: false,
+            accountId: accountId ?? undefined,
+          });
         }
 
         if (lineData.location) {
@@ -419,13 +420,14 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
           });
         }
 
-        for (const flexMsg of processed.flexMessages) {
-          // LINE SDK expects FlexContainer but we receive contents as unknown
-          const flexContents = flexMsg.contents as Parameters<typeof sendFlex>[2];
-          lastResult = await sendFlex(to, flexMsg.altText, flexContents, {
-            verbose: false,
-            accountId: accountId ?? undefined,
-          });
+        if (lineData.templateMessage) {
+          const template = buildTemplate(lineData.templateMessage);
+          if (template) {
+            lastResult = await sendTemplate(to, template, {
+              verbose: false,
+              accountId: accountId ?? undefined,
+            });
+          }
         }
       }
 
@@ -464,11 +466,14 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
             contents: lineData.flexMessage.contents,
           });
         }
-        if (lineData.templateMessage) {
-          const template = buildTemplate(lineData.templateMessage);
-          if (template) {
-            quickReplyMessages.push(template);
-          }
+        // Processed flex messages (tables/code blocks) before template so
+        // detail content appears above pagination/buttons (#17308).
+        for (const flexMsg of processed.flexMessages) {
+          quickReplyMessages.push({
+            type: "flex",
+            altText: flexMsg.altText.slice(0, 400),
+            contents: flexMsg.contents,
+          });
         }
         if (lineData.location) {
           quickReplyMessages.push({
@@ -479,12 +484,11 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
             longitude: lineData.location.longitude,
           });
         }
-        for (const flexMsg of processed.flexMessages) {
-          quickReplyMessages.push({
-            type: "flex",
-            altText: flexMsg.altText.slice(0, 400),
-            contents: flexMsg.contents,
-          });
+        if (lineData.templateMessage) {
+          const template = buildTemplate(lineData.templateMessage);
+          if (template) {
+            quickReplyMessages.push(template);
+          }
         }
         for (const url of mediaUrls) {
           const trimmed = url?.trim();
