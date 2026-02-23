@@ -47,6 +47,8 @@
    - `ipc.input.click`
    - `ipc.input.scroll`
    - `ipc.input.click.relative`
+   - `ipc.dev.update`
+   - `ipc.dev.restart`
    - auth token required when configured (Program currently uses gateway token as shared secret)
 7. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
@@ -85,5 +87,5 @@ dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token
 2. Run real-gateway end-to-end validation for `camera.snap` on a physical Windows host (front/back selection, deviceId routing, and payload dimensions).
 3. Keep running `RUN_REAL_GATEWAY_INTEGRATION=1 dotnet test --filter "FullyQualifiedName~RealGatewayIntegrationTests" -p:Platform=x64` before major merges (now with signed device-auth handshake on connect; suite currently 10 passing and covers node-connect/status plus screen.list/camera.list/window.list/window.rect response-shape paths, screen.record generic + explicit screenIndex path, and camera.snap generic + explicit deviceId path when available).
 4. On Windows hosts, ensure camera prerequisites are explicit in onboarding/docs: Camera privacy toggles enabled for desktop apps.
-5. Expand IPC beyond `ipc.ping` with authenticated local methods needed by the Windows app shell.
+5. Add IPC integration tests that invoke the new dev helper methods in a non-destructive mode.
 6. If needed later, persist pairing pending cache to disk (currently in-memory only).

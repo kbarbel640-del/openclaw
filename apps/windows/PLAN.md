@@ -91,6 +91,9 @@ Build a native Windows application that replicates the functionality of the Open
     - `ipc.ping`
     - `ipc.window.list`, `ipc.window.focus`, `ipc.window.rect`
     - `ipc.input.type`, `ipc.input.key`, `ipc.input.click`, `ipc.input.scroll`, `ipc.input.click.relative`
+  - [x] IPC dev helpers added:
+    - `ipc.dev.update`
+    - `ipc.dev.restart`
   - [x] Unit tests added for pipe roundtrip + unknown-method + auth gating + bad-request validation paths
 
 ---
