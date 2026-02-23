@@ -7,6 +7,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.23 (Unreleased)
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 ### Breaking
 
@@ -269,6 +270,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.21
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Models/Google: add Gemini 3.1 support (`google/gemini-3.1-pro-preview`).
 - Providers/Onboarding: add Volcano Engine (Doubao) and BytePlus providers/models (including coding variants), wire onboarding auth choices for interactive + non-interactive flows, and align docs to `volcengine-api-key`. (#7967) Thanks @funmore123.
@@ -416,6 +418,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.19
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - iOS/Watch: add an Apple Watch companion MVP with watch inbox UI, watch notification relay handling, and gateway command surfaces for watch status/send flows. (#20054) Thanks @mbelinky.
 - iOS/Gateway: wake disconnected iOS nodes via APNs before `nodes.invoke` and auto-reconnect gateway sessions on silent push wake to reduce invoke failures while the app is backgrounded. (#20332) Thanks @mbelinky.
@@ -509,6 +512,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.17
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Agents/Anthropic: add opt-in 1M context beta header support for Opus/Sonnet via model `params.context1m: true` (maps to `anthropic-beta: context-1m-2025-08-07`).
 - Agents/Models: support Anthropic Sonnet 4.6 (`anthropic/claude-sonnet-4-6`) across aliases/defaults with forward-compat fallback when upstream catalogs still only expose Sonnet 4.5.
@@ -687,6 +691,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.15
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Discord: unlock rich interactive agent prompts with Components v2 (buttons, selects, modals, and attachment-backed file blocks) so for native interaction through Discord. Thanks @thewilloftheshadow.
 - Discord: components v2 UI + embeds passthrough + exec approval UX refinements (CV2 containers, button layout, Discord-forwarding skip). Thanks @thewilloftheshadow.
@@ -755,6 +760,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.14
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Telegram: add poll sending via `openclaw message poll` (duration seconds, silent delivery, anonymity controls). (#16209) Thanks @robbyczgw-cla.
 - Slack/Discord: add `dmPolicy` + `allowFrom` config aliases for DM access control; legacy `dm.policy` + `dm.allowFrom` keys remain supported and `openclaw doctor --fix` can migrate them.
@@ -904,6 +910,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.13
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Install: add optional Podman-based setup: `setup-podman.sh` for one-time host setup (openclaw user, image, launch script, systemd quadlet), `run-openclaw-podman.sh launch` / `launch setup`; systemd Quadlet unit for openclaw user service; docs for rootless container, openclaw user (subuid/subgid), and quadlet (troubleshooting). (#16273) Thanks @DarwinsBuddy.
 - Discord: send voice messages with waveform previews from local audio files (including silent delivery). (#7253) Thanks @nyanjou.
@@ -1024,6 +1031,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.12
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - CLI/Plugins: add `openclaw plugins uninstall <id>` with `--dry-run`, `--force`, and `--keep-files` options, including safe uninstall path handling and plugin uninstall docs. (#5985) Thanks @JustasMonkev.
 - CLI: add `openclaw logs --local-time` to display log timestamps in local timezone. (#13818) Thanks @xialonglee.
@@ -1208,6 +1216,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.6
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Cron: default `wakeMode` is now `"now"` for new jobs (was `"next-heartbeat"`). (#10776) Thanks @tyler6204.
 - Cron: `cron run` defaults to force execution; use `--due` to restrict to due-only. (#10776) Thanks @tyler6204.
@@ -1249,6 +1258,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.3
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Telegram: remove last `@ts-nocheck` from `bot-handlers.ts`, use Grammy types directly, deduplicate `StickerMetadata`. Zero `@ts-nocheck` remaining in `src/telegram/`. (#9206)
 - Telegram: remove `@ts-nocheck` from `bot-message.ts`, type deps via `Omit<BuildTelegramMessageContextParams>`, widen `allMedia` to `TelegramMediaRef[]`. (#9180)
@@ -1309,6 +1319,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.2-2
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Docs: promote BlueBubbles as the recommended iMessage integration; mark imsg channel as legacy. (#8415) Thanks @tyler6204.
 
@@ -1325,6 +1336,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.2
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Feishu: add Feishu/Lark plugin support + docs. (#7313) Thanks @jiulingyun (openclaw-cn).
 - Web UI: add Agents dashboard for managing agent files, tools, skills, models, channels, and cron jobs.
@@ -1365,6 +1377,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.1
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Docs: onboarding/install/i18n/exec-approvals/Control UI/exe.dev/cacheRetention updates + misc nav/typos. (#3050, #3461, #4064, #4675, #4729, #4763, #5003, #5402, #5446, #5474, #5663, #5689, #5694, #5967, #6270, #6300, #6311, #6416, #6487, #6550, #6789)
 - Telegram: use shared pairing store. (#6127) Thanks @obviyus.
@@ -1424,6 +1437,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.31
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Docs: onboarding/install/i18n/exec-approvals/Control UI/exe.dev/cacheRetention updates + misc nav/typos. (#3050, #3461, #4064, #4675, #4729, #4763, #5003, #5402, #5446, #5474, #5663, #5689, #5694, #5967, #6270, #6300, #6311, #6416, #6487, #6550, #6789)
 - Telegram: use shared pairing store. (#6127) Thanks @obviyus.
@@ -1483,6 +1497,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.30
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - CLI: add `completion` command (Zsh/Bash/PowerShell/Fish) and auto-setup during postinstall/onboarding.
 - CLI: add per-agent `models status` (`--agent` filter). (#4780) Thanks @jlowin.
@@ -1519,6 +1534,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.29
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Rebrand: rename the npm package/CLI to `openclaw`, add a `openclaw` compatibility shim, and move extensions to the `@openclaw/*` scope.
 - Onboarding: strengthen security warning copy for beta + access control expectations.
@@ -1670,6 +1686,7 @@ Docs: https://docs.openclaw.ai
 - Telegram: DM topics as separate sessions + outbound link preview toggle. (#1597, #1700) Thanks @rohannagpal, @zerone0x. https://docs.openclaw.ai/channels/telegram
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Channels: add LINE plugin (Messaging API) with rich replies, quick replies, and plugin HTTP registry. (#1630) Thanks @plum-dawg.
 - TTS: add Edge TTS provider fallback, defaulting to keyless Edge with MP3 retry on format failures. (#1668) Thanks @steipete. https://docs.openclaw.ai/tts
@@ -1747,6 +1764,7 @@ Docs: https://docs.openclaw.ai
 - Channels: add Tlon/Urbit channel plugin (DMs, group mentions, thread replies). (#1544) Thanks @wca4a. https://docs.openclaw.ai/channels/tlon
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Channels: allow per-group tool allow/deny policies across built-in + plugin channels. (#1546) Thanks @adam91holt. https://docs.openclaw.ai/multi-agent-sandbox-tools
 - Agents: add Bedrock auto-discovery defaults + config overrides. (#1553) Thanks @fal3. https://docs.openclaw.ai/bedrock
@@ -1801,6 +1819,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.22
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Highlight: Compaction safeguard now uses adaptive chunking, progressive fallback, and UI status + retries. (#1466) Thanks @dlauer.
 - Providers: add Antigravity usage tracking to status output. (#1490) Thanks @patelhiren.
@@ -1847,6 +1866,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.21
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Highlight: Lobster optional plugin tool for typed workflows + approval gates. https://docs.openclaw.ai/tools/lobster
 - Lobster: allow workflow file args via `argsJson` in the plugin tool. https://docs.openclaw.ai/tools/lobster
@@ -1898,6 +1918,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.20
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Control UI: add copy-as-markdown with error feedback. (#1345) https://docs.openclaw.ai/web/control-ui
 - Control UI: drop the legacy list view. (#1345) https://docs.openclaw.ai/web/control-ui
@@ -2081,6 +2102,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 ## 2026.1.16-2
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - CLI: stamp build commit into dist metadata so banners show the commit in npm installs.
 - CLI: close memory manager after memory commands to avoid hanging processes. (#1127) — thanks @NicholasSpisak.
@@ -2106,6 +2128,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - **BREAKING:** `openclaw plugins install <path>` now copies into `~/.openclaw/extensions` (use `--link` to keep path-based loading).
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Plugins: ship bundled plugins disabled by default and allow overrides by installed versions. (#1066) — thanks @ItzR3NO.
 - Plugins: add bundled Antigravity + Gemini CLI OAuth + Copilot Proxy provider plugins. (#1066) — thanks @ItzR3NO.
@@ -2212,6 +2235,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - **BREAKING:** Channel auth now prefers config over env for Discord/Telegram/Matrix (env is fallback only). (#1040) — thanks @thewilloftheshadow.
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - UI/Apps: move channel/config settings to schema-driven forms and rename Connections → Channels. (#1040) — thanks @thewilloftheshadow.
 - CLI: set process titles to `openclaw-<command>` for clearer process listings.
@@ -2295,6 +2319,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Security: expanded `openclaw security audit` (+ `--fix`), detect-secrets CI scan, and a `SECURITY.md` reporting policy.
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Docs: clarify per-agent auth stores, sandboxed skill binaries, and elevated semantics.
 - Docs: add FAQ entries for missing provider auth after adding agents and Gemini thinking signature errors.
@@ -2334,6 +2359,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 ## 2026.1.14
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Usage: add MiniMax coding plan usage tracking.
 - Auth: label Claude Code CLI auth options. (#915) — thanks @SeanZoR.
@@ -2472,6 +2498,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Agents: automatic pre-compaction memory flush turn to store durable memories before compaction.
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - CLI/Onboarding: simplify MiniMax auth choice to a single M2.1 option.
 - CLI: configure section selection now loops until Continue.
@@ -2564,6 +2591,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Gateway: add OpenAI-compatible `/v1/chat/completions` HTTP endpoint (auth, SSE streaming, per-agent routing). (#680).
 
 ### Changes
+- Android/TalkMode: rewrite ElevenLabs TTS audio pipeline — deferred AudioTrack.play() until first PCM chunk, USAGE_MEDIA routing for OxygenOS speaker output, file-based MP3 fallback, and ElevenLabs API key/voice ID settings in the Voice screen with encrypted storage. (#24232)
 
 - Onboarding/Models: add first-class Z.AI (GLM) auth choice (`zai-api-key`) + `--zai-api-key` flag.
 - CLI/Onboarding: add OpenRouter API key auth option in configure/onboard. (#703) — thanks @mteam88.
