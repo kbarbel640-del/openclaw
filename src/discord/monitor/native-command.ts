@@ -49,6 +49,7 @@ import {
   readChannelAllowFromStore,
   upsertChannelPairingRequest,
 } from "../../pairing/pairing-store.js";
+import { executePluginCommand, matchPluginCommand } from "../../plugins/commands.js";
 import { resolveAgentRoute } from "../../routing/resolve-route.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { buildUntrustedChannelMetadata } from "../../security/channel-metadata.js";
@@ -211,6 +212,19 @@ function isDiscordUnknownInteraction(error: unknown): boolean {
     return true;
   }
   if (/Unknown interaction/i.test(err.rawBody?.message ?? "")) {
+    return true;
+  }
+  return false;
+}
+
+function hasRenderableReplyPayload(payload: ReplyPayload): boolean {
+  if ((payload.text ?? "").trim()) {
+    return true;
+  }
+  if ((payload.mediaUrl ?? "").trim()) {
+    return true;
+  }
+  if (payload.mediaUrls?.some((entry) => entry.trim())) {
     return true;
   }
   return false;
@@ -1459,6 +1473,46 @@ async function dispatchDiscordCommandInteraction(params: {
         ephemeral: true,
       }),
     );
+    return;
+  }
+
+  const pluginMatch = matchPluginCommand(prompt);
+  if (pluginMatch) {
+    if (suppressReplies) {
+      return;
+    }
+    const channelId = rawChannelId || "unknown";
+    const pluginReply = await executePluginCommand({
+      command: pluginMatch.command,
+      args: pluginMatch.args,
+      senderId: sender.id,
+      channel: "discord",
+      channelId,
+      isAuthorizedSender: commandAuthorized,
+      commandBody: prompt,
+      config: cfg,
+      from: isDirectMessage
+        ? `discord:${user.id}`
+        : isGroupDm
+          ? `discord:group:${channelId}`
+          : `discord:channel:${channelId}`,
+      to: `slash:${user.id}`,
+      accountId,
+    });
+    if (!hasRenderableReplyPayload(pluginReply)) {
+      await respond("Done.");
+      return;
+    }
+    await deliverDiscordInteractionReply({
+      interaction,
+      payload: pluginReply,
+      textLimit: resolveTextChunkLimit(cfg, "discord", accountId, {
+        fallbackLimit: 2000,
+      }),
+      maxLinesPerMessage: discordConfig?.maxLinesPerMessage,
+      preferFollowUp,
+      chunkMode: resolveChunkMode(cfg, "discord", accountId),
+    });
     return;
   }
 
