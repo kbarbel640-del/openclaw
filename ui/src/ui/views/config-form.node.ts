@@ -568,6 +568,7 @@ function renderTextInput(params: {
           placeholder=${placeholder}
           .value=${displayValue == null ? "" : String(displayValue)}
           ?disabled=${disabled}
+          autocomplete=${isSensitive ? "off" : nothing}
           @input=${(e: Event) => {
             const raw = (e.target as HTMLInputElement).value;
             if (inputType === "number") {
