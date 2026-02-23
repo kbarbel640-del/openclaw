@@ -625,7 +625,7 @@ describe("renameStaleLegacyConfigs", () => {
       await fs.writeFile(path.join(root, "clawdbot.json"), "{}", "utf-8");
       await fs.writeFile(path.join(root, "moltbot.json"), "{}", "utf-8");
 
-      const changes = await renameStaleLegacyConfigs(root);
+      const changes = await renameStaleLegacyConfigs(process.env, root);
       expect(changes).toHaveLength(2);
       expect(changes[0]).toContain("clawdbot.json");
       expect(changes[1]).toContain("moltbot.json");
@@ -646,7 +646,7 @@ describe("renameStaleLegacyConfigs", () => {
     try {
       await fs.writeFile(path.join(root, "clawdbot.json"), "{}", "utf-8");
 
-      const changes = await renameStaleLegacyConfigs(root);
+      const changes = await renameStaleLegacyConfigs(process.env, root);
       expect(changes).toHaveLength(0);
 
       const files = await fs.readdir(root);
@@ -661,7 +661,7 @@ describe("renameStaleLegacyConfigs", () => {
     try {
       await fs.writeFile(path.join(root, "openclaw.json"), "{}", "utf-8");
 
-      const changes = await renameStaleLegacyConfigs(root);
+      const changes = await renameStaleLegacyConfigs(process.env, root);
       expect(changes).toHaveLength(0);
     } finally {
       await fs.rm(root, { recursive: true, force: true });
@@ -700,7 +700,7 @@ describe("renameStaleLegacyConfigs", () => {
       await fs.writeFile(path.join(root, "clawdbot.json"), '{"new": true}', "utf-8");
       await fs.writeFile(path.join(root, "clawdbot.json.migrated"), '{"old": true}', "utf-8");
 
-      const changes = await renameStaleLegacyConfigs(root);
+      const changes = await renameStaleLegacyConfigs(process.env, root);
       expect(changes).toHaveLength(1);
 
       // .migrated should contain the new content (overwritten)

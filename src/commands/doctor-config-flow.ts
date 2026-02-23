@@ -1702,17 +1702,7 @@ export async function renameStaleLegacyConfigs(
     } catch {
       continue;
     }
-    let migratedPath = `${legacyPath}.migrated`;
-
-    // Check for collision and append timestamp if needed
-    try {
-      await fs.access(migratedPath);
-      // .migrated already exists — append timestamp to avoid collision
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      migratedPath = `${legacyPath}.migrated.${timestamp}`;
-    } catch {
-      // .migrated doesn't exist — proceed with standard naming
-    }
+    const migratedPath = `${legacyPath}.migrated`;
 
     try {
       await fs.rename(legacyPath, migratedPath);
