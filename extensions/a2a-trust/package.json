@@ -1,0 +1,18 @@
+{
+  "name": "@openclaw/a2a-trust",
+  "version": "2026.2.23",
+  "private": true,
+  "description": "A2A decision trust protocol — cryptographic trust verification, provenance attestation, and intent binding between agents",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

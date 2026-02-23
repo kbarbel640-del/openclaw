@@ -1,0 +1,52 @@
+{
+  "id": "kevros-a2a-trust",
+  "name": "Kevros A2A Trust",
+  "description": "Cryptographic decision trust for agent-to-agent communication. Verify actions before execution, attest provenance, bind intent to outcome, and build verifiable trust history — all without centralized identity.",
+  "version": "0.1.0",
+  "kind": "security",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "gatewayUrl": {
+        "type": "string",
+        "default": "https://governance.taskhawktech.com",
+        "description": "Kevros trust gateway URL"
+      },
+      "apiKey": {
+        "type": "string",
+        "description": "API key (kvrs_...). Leave empty to auto-signup for free tier (100 calls/month)."
+      },
+      "agentId": {
+        "type": "string",
+        "description": "Your agent's unique identifier. Used to build trust history."
+      },
+      "autoVerify": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically verify trust before outbound A2A messages"
+      },
+      "autoAttest": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically attest completed tool calls to build trust history"
+      },
+      "trustServerPort": {
+        "type": "number",
+        "default": 18790,
+        "description": "Port for the A2A trust server (serves /.well-known/agent.json)"
+      }
+    },
+    "required": ["agentId"]
+  },
+  "skills": ["skills/a2a-trust"],
+  "uiHints": {
+    "apiKey": {
+      "inputType": "password",
+      "helpText": "Get one free at https://governance.taskhawktech.com/signup"
+    },
+    "gatewayUrl": {
+      "inputType": "url"
+    }
+  }
+}
