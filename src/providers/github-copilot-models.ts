@@ -13,10 +13,10 @@ const MODEL_OVERRIDES: Record<
   string,
   { api: ModelApi; contextWindow: number; reasoning?: boolean }
 > = {
-  "claude-opus-4.6": { api: "openai-completions", contextWindow: 128_000, reasoning: true },
-  "claude-opus-4.5": { api: "openai-completions", contextWindow: 128_000, reasoning: true },
-  "claude-sonnet-4.6": { api: "openai-completions", contextWindow: 128_000 },
-  "claude-sonnet-4.5": { api: "openai-completions", contextWindow: 128_000 },
+  "claude-opus-4.6": { api: "anthropic-messages", contextWindow: 128_000, reasoning: true },
+  "claude-opus-4.5": { api: "anthropic-messages", contextWindow: 128_000, reasoning: true },
+  "claude-sonnet-4.6": { api: "anthropic-messages", contextWindow: 128_000 },
+  "claude-sonnet-4.5": { api: "anthropic-messages", contextWindow: 128_000 },
   "gpt-5.3-codex": { api: "openai-responses", contextWindow: 128_000 },
   "gpt-5.2-codex": { api: "openai-responses", contextWindow: 128_000 },
 };

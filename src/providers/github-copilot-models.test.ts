@@ -23,7 +23,7 @@ describe("github-copilot-models", () => {
     it("builds a valid definition for claude-sonnet-4.6", () => {
       const def = buildCopilotModelDefinition("claude-sonnet-4.6");
       expect(def.id).toBe("claude-sonnet-4.6");
-      expect(def.api).toBe("openai-completions");
+      expect(def.api).toBe("anthropic-messages");
     });
 
     it("trims whitespace from model id", () => {
@@ -36,16 +36,16 @@ describe("github-copilot-models", () => {
       expect(() => buildCopilotModelDefinition("  ")).toThrow("Model id required");
     });
 
-    it("claude-opus-4.6 uses openai-completions and 128k context", () => {
+    it("claude-opus-4.6 uses anthropic-messages and 128k context", () => {
       const def = buildCopilotModelDefinition("claude-opus-4.6");
-      expect(def.api).toBe("openai-completions");
+      expect(def.api).toBe("anthropic-messages");
       expect(def.contextWindow).toBe(128_000);
       expect(def.reasoning).toBe(true);
     });
 
-    it("claude-sonnet-4.5 uses openai-completions and 128k context", () => {
+    it("claude-sonnet-4.5 uses anthropic-messages and 128k context", () => {
       const def = buildCopilotModelDefinition("claude-sonnet-4.5");
-      expect(def.api).toBe("openai-completions");
+      expect(def.api).toBe("anthropic-messages");
       expect(def.contextWindow).toBe(128_000);
     });
 
@@ -70,7 +70,7 @@ describe("github-copilot-models", () => {
 
     it("model id lookup is case-insensitive", () => {
       const def = buildCopilotModelDefinition("Claude-Opus-4.6");
-      expect(def.api).toBe("openai-completions");
+      expect(def.api).toBe("anthropic-messages");
       expect(def.contextWindow).toBe(128_000);
       // id preserves original casing
       expect(def.id).toBe("Claude-Opus-4.6");
