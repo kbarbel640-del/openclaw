@@ -90,7 +90,9 @@ async function runAutoAudioCase(params: {
     }
   });
   if (!runResult) {
-    throw new Error(`Expected auto audio case result for ${params.cfgExtra ? JSON.stringify(params.cfgExtra) : "default"}`);
+    throw new Error(
+      `Expected auto audio case result for ${params.cfgExtra ? JSON.stringify(params.cfgExtra) : "default"}`,
+    );
   }
   return runResult;
 }

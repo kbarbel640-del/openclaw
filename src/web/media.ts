@@ -97,7 +97,7 @@ async function assertLocalMediaAllowed(
   }
 
   if (isWin) {
-    // Force absolute path for comparisons. On Windows, path.resolve("/tmp/x") 
+    // Force absolute path for comparisons. On Windows, path.resolve("/tmp/x")
     // resolves to the current drive root, e.g. "D:\tmp\x".
     // We want to ensure we compare normalized, absolute paths.
     resolved = path.resolve(resolved).toLowerCase();
