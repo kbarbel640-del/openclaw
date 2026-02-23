@@ -2,9 +2,11 @@ import {
   buildChannelConfigSchema,
   collectStatusIssuesFromLastError,
   createDefaultChannelRuntimeState,
+  createReplyPrefixOptions,
   DEFAULT_ACCOUNT_ID,
   formatPairingApproveHint,
   type ChannelPlugin,
+  type ReplyPayload,
 } from "openclaw/plugin-sdk";
 import type { NostrProfile } from "./config-schema.js";
 import { NostrConfigSchema } from "./config-schema.js";
@@ -214,19 +216,95 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             `[${account.accountId}] DM from ${senderPubkey}: ${text.slice(0, 50)}...`,
           );
 
-          // Forward to OpenClaw's message pipeline
-          // TODO: Replace with proper dispatchReplyWithBufferedBlockDispatcher call
-          await (
-            runtime.channel.reply as { handleInboundMessage?: (params: unknown) => Promise<void> }
-          ).handleInboundMessage?.({
+          // Load config and resolve agent route
+          const cfg = runtime.config.loadConfig();
+          const route = runtime.channel.routing.resolveAgentRoute({
+            cfg,
             channel: "nostr",
             accountId: account.accountId,
-            senderId: senderPubkey,
-            chatType: "direct",
-            chatId: senderPubkey, // For DMs, chatId is the sender's pubkey
-            text,
-            reply: async (responseText: string) => {
-              await reply(responseText);
+            peer: {
+              kind: "user",
+              id: senderPubkey,
+            },
+          });
+
+          // Format the message body with envelope
+          const rawBody = text;
+          const body = runtime.channel.reply.formatAgentEnvelope({
+            channel: "Nostr",
+            from: senderPubkey,
+            timestamp: Date.now(),
+            envelope: runtime.channel.reply.resolveEnvelopeFormatOptions(cfg),
+            body: rawBody,
+          });
+
+          // Construct inbound context
+          const ctxPayload = runtime.channel.reply.finalizeInboundContext({
+            Body: body,
+            BodyForAgent: rawBody,
+            RawBody: rawBody,
+            CommandBody: rawBody,
+            From: `nostr:${senderPubkey}`,
+            To: `nostr:${account.publicKey}`,
+            SessionKey: route.sessionKey,
+            AccountId: route.accountId,
+            ChatType: "direct",
+            ConversationLabel: senderPubkey,
+            SenderName: senderPubkey,
+            SenderId: senderPubkey,
+            Provider: "nostr",
+            Surface: "nostr",
+            MessageSid: `${Date.now()}`,
+            OriginatingChannel: "nostr",
+            OriginatingTo: `nostr:${account.publicKey}`,
+          });
+
+          // Record session
+          const storePath = runtime.channel.session.resolveStorePath(cfg.session?.store, {
+            agentId: route.agentId,
+          });
+          await runtime.channel.session.recordInboundSession({
+            storePath,
+            sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
+            ctx: ctxPayload,
+            onRecordError: (err) => {
+              ctx.log?.error?.(`Failed updating session meta: ${String(err)}`);
+            },
+          });
+
+          // Resolve table mode and reply prefix options
+          const tableMode = runtime.channel.text.resolveMarkdownTableMode({
+            cfg,
+            channel: "nostr",
+            accountId: account.accountId,
+          });
+          const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+            cfg,
+            agentId: route.agentId,
+            channel: "nostr",
+            accountId: account.accountId,
+          });
+
+          // Dispatch reply with buffered block dispatcher
+          await runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+            ctx: ctxPayload,
+            cfg,
+            dispatcherOptions: {
+              ...prefixOptions,
+              deliver: async (payload: ReplyPayload) => {
+                if (!payload.text) {
+                  ctx.log?.error?.(`No text to send in reply payload`);
+                  return;
+                }
+                const message = runtime.channel.text.convertMarkdownTables(
+                  payload.text,
+                  tableMode,
+                );
+                await reply(message);
+              },
+            },
+            replyOptions: {
+              onModelSelected,
             },
           });
         },
