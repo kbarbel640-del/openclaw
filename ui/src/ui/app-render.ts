@@ -135,6 +135,34 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   return identity?.avatarUrl;
 }
 
+function formatGatewayVersionLabel(raw: string | null | undefined): string {
+  const value = raw?.trim();
+  if (!value || /^unknown$/i.test(value)) {
+    return "VERSION UNKNOWN";
+  }
+
+  const withWrappedHash = value.match(/^(.+?)\s*\(([0-9a-f]{7,40})\)$/i);
+  if (withWrappedHash) {
+    return `${withWrappedHash[1].trim()} (${withWrappedHash[2].slice(0, 7)})`;
+  }
+
+  const withInlineHash = value.match(/^(.+?)(?:\+|@|#|\s)([0-9a-f]{7,40})$/i);
+  if (withInlineHash) {
+    return `${withInlineHash[1].trim()} (${withInlineHash[2].slice(0, 7)})`;
+  }
+
+  const fullHash = value.match(/\b([0-9a-f]{40})\b/i)?.[1];
+  if (fullHash) {
+    const withoutHash = value
+      .replace(fullHash, "")
+      .replace(/[\s()+-]+$/g, "")
+      .trim();
+    return `${withoutHash} (${fullHash.slice(0, 7)})`;
+  }
+
+  return value;
+}
+
 export function renderApp(state: AppViewState) {
   const presenceCount = state.presenceEntries.length;
   const sessionsCount = state.sessionsResult?.count ?? null;
@@ -143,7 +171,8 @@ export function renderApp(state: AppViewState) {
     state.updateAvailable?.currentVersion ??
     state.presenceEntries.find((entry) => typeof entry.version === "string" && entry.version.trim())
       ?.version ??
-    "unknown";
+    null;
+  const gatewayVersionLabel = formatGatewayVersionLabel(gatewayVersion);
   const chatDisabledReason = state.connected ? null : t("chat.disconnected");
   const isChat = state.tab === "chat";
   const chatFocus = isChat && (state.settings.chatFocusMode || state.onboarding);
@@ -231,7 +260,7 @@ export function renderApp(state: AppViewState) {
             </div>
             <div class="brand-text">
               <div class="brand-title">OPENCLAW</div>
-              <div class="brand-sub">Gateway Dashboard · v${gatewayVersion}</div>
+              <div class="brand-sub">Gateway Dashboard · ${gatewayVersionLabel}</div>
             </div>
           </div>
         </div>
