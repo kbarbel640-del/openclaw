@@ -24,6 +24,7 @@ import type { OpenClawConfig, ConfigFileSnapshot } from "../config/config.js";
 import { createConfigIO } from "../config/config.js";
 import { collectIncludePathsRecursive } from "../config/includes-scan.js";
 import { resolveOAuthDir } from "../config/paths.js";
+import { detectJsonFileEncryption } from "../infra/crypto-store.js";
 import type { AgentToolsConfig } from "../config/types.tools.js";
 import { normalizePluginsConfig } from "../plugins/config-state.js";
 import { normalizeAgentId } from "../routing/session-key.js";
@@ -891,6 +892,18 @@ export async function collectStateDeepFilesystemFindings(params: {
           }),
         });
       }
+    }
+
+    const authEncryption = detectJsonFileEncryption(authPath);
+    if (authEncryption === "plaintext") {
+      findings.push({
+        checkId: "fs.auth_profiles.plaintext",
+        severity: "warn",
+        title: "auth-profiles.json is stored in plaintext",
+        detail: `${authPath} appears to be unencrypted; migrate to encrypted credentials at rest.`,
+        remediation:
+          "Re-run OpenClaw to migrate credentials or delete the file to re-create it encrypted.",
+      });
     }
 
     const storePath = path.join(params.stateDir, "agents", agentId, "sessions", "sessions.json");
