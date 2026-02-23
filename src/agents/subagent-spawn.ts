@@ -287,7 +287,7 @@ export async function spawnSubagentDirect(
   try {
     await callGateway({
       method: "sessions.patch",
-      params: { key: childSessionKey, spawnDepth: childDepth },
+      params: { key: childSessionKey, spawnDepth: childDepth, workspace: targetAgentConfig?.workspace },
       timeoutMs: 10_000,
     });
   } catch (err) {
