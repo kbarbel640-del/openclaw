@@ -1,9 +1,9 @@
 import type * as Lark from "@larksuiteoapi/node-sdk";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { listEnabledFeishuAccounts } from "./accounts.js";
+import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
+import { listEnabledFeishuAccounts, resolveFeishuAccountForToolContext } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuDriveSchema, type FeishuDriveParams } from "./drive-schema.js";
-import { resolveToolsConfig } from "./tools-config.js";
+import { assertToolEnabledForAccount, mergeToolsConfigs } from "./tools-config.js";
 
 // ============ Helpers ============
 
@@ -180,17 +180,14 @@ export function registerFeishuDriveTools(api: OpenClawPluginApi) {
     return;
   }
 
-  const firstAccount = accounts[0];
-  const toolsCfg = resolveToolsConfig(firstAccount.config.tools);
+  const toolsCfg = mergeToolsConfigs(accounts.map((a) => a.config.tools));
   if (!toolsCfg.drive) {
     api.logger.debug?.("feishu_drive: drive tool disabled in config");
     return;
   }
 
-  const getClient = () => createFeishuClient(firstAccount);
-
   api.registerTool(
-    {
+    (ctx: OpenClawPluginToolContext) => ({
       name: "feishu_drive",
       label: "Feishu Drive",
       description:
@@ -199,7 +196,10 @@ export function registerFeishuDriveTools(api: OpenClawPluginApi) {
       async execute(_toolCallId, params) {
         const p = params as FeishuDriveParams;
         try {
-          const client = getClient();
+          const account = resolveFeishuAccountForToolContext(accounts, ctx);
+          const gateError = assertToolEnabledForAccount(account, "drive", "feishu_drive");
+          if (gateError) return json({ error: gateError });
+          const client = createFeishuClient(account);
           switch (p.action) {
             case "list":
               return json(await listFolder(client, p.folder_token));
@@ -219,7 +219,7 @@ export function registerFeishuDriveTools(api: OpenClawPluginApi) {
           return json({ error: err instanceof Error ? err.message : String(err) });
         }
       },
-    },
+    }),
     { name: "feishu_drive" },
   );
 
