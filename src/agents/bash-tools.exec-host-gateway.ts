@@ -19,6 +19,7 @@ import {
   resolveAllowAlwaysPatterns,
   resolveExecApprovals,
 } from "../infra/exec-approvals.js";
+import type { CommandResolution } from "../infra/exec-command-resolution.js";
 import type { SafeBinProfile } from "../infra/exec-safe-bin-policy.js";
 import { markBackgrounded, tail } from "./bash-process-registry.js";
 import { requestExecApprovalDecision } from "./bash-tools.exec-approval-request.js";
@@ -68,7 +69,7 @@ function findAllowlistMissDetails(params: {
   allowlistSatisfied: boolean;
   segments: ReadonlyArray<{
     argv: string[];
-    resolution: { rawExecutable: string; resolvedPath?: string } | null;
+    resolution: CommandResolution | null;
   }>;
   segmentSatisfiedBy: ReadonlyArray<"allowlist" | "safeBins" | "skills" | null>;
 }): string | null {
@@ -114,7 +115,7 @@ function buildSegmentTrace(params: {
   allowlist: ReadonlyArray<ExecAllowlistEntry>;
   segments: ReadonlyArray<{
     argv: string[];
-    resolution: { rawExecutable: string; resolvedPath?: string } | null;
+    resolution: CommandResolution | null;
   }>;
   segmentSatisfiedBy: ReadonlyArray<"allowlist" | "safeBins" | "skills" | null>;
   cwd: string;
