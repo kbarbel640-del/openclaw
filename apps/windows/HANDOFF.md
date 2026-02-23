@@ -61,11 +61,15 @@
    - payload includes node id/display name/platform/version/instanceId + gateway host/port/scheme + advertised commands/capabilities
    - lifecycle: immediate beacon on service start, periodic beacons every 30s (+ jitter), and reannounce on gateway connect/network-change (throttled)
    - listener/index enabled: consumes discovery beacons, tracks remote nodes in-memory, and purges stale entries (default stale window ~95s)
-8. Phase 4 tray scaffold started:
+8. Phase 4 tray implementation started:
    - Added tray runtime state model (`Starting/Connected/Reconnecting/Disconnected/Stopped`)
    - Added `TrayStatusBroadcaster` and `ITrayHost` abstraction
-   - Added `NoOpTrayHost` and `--tray` startup flag wiring in `Program.cs`
-   - Tray status now follows gateway lifecycle/log events while keeping runtime behavior unchanged
+   - Added `NoOpTrayHost` fallback and `WindowsNotifyIconTrayHost` concrete implementation
+   - `--tray` startup flag now enables tray mode with Windows menu actions:
+     - Open Logs (opens `~/.openclaw`)
+     - Restart Node (graceful cancel + relaunch schedule)
+     - Exit
+   - Tray status text follows gateway lifecycle/log events
 9. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
    - env: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`

@@ -6,6 +6,7 @@ using OpenClaw.Node.Services;
 using OpenClaw.Node.Tray;
 using System.Collections.Generic;
 using System.IO;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace OpenClaw.Node
@@ -50,13 +51,27 @@ namespace OpenClaw.Node
                 Permissions = new Dictionary<string, object>()
             };
 
+            using var cts = new CancellationTokenSource();
+            var restartRequested = false;
+
             var executor = new NodeCommandExecutor();
             var core = new CoreMethodService(startedAtUtc);
             using var ipc = new IpcPipeServerService(version: "dev", authToken: token);
             using var connection = new GatewayConnection(url, token, connectParams);
             using var discovery = new DiscoveryService(connectParams, url);
             var trayStatus = new TrayStatusBroadcaster();
-            ITrayHost? trayHost = trayEnabled ? new NoOpTrayHost(msg => Console.WriteLine(msg)) : null;
+            ITrayHost? trayHost = null;
+
+            if (trayEnabled)
+            {
+                trayHost = OperatingSystem.IsWindows()
+                    ? new WindowsNotifyIconTrayHost(
+                        log: msg => Console.WriteLine(msg),
+                        onOpenLogs: () => OpenLogsFolder(),
+                        onRestart: () => { restartRequested = true; cts.Cancel(); },
+                        onExit: () => cts.Cancel())
+                    : new NoOpTrayHost(msg => Console.WriteLine(msg));
+            }
 
             connection.OnLog += msg =>
             {
@@ -110,8 +125,6 @@ namespace OpenClaw.Node
             connection.RegisterMethodHandler("device.pair.approve", core.HandleDevicePairApproveAsync);
             connection.RegisterMethodHandler("device.pair.reject", core.HandleDevicePairRejectAsync);
 
-            using var cts = new CancellationTokenSource();
-
             if (trayHost != null)
             {
                 trayStatus.OnStatusChanged += snapshot =>
@@ -156,6 +169,11 @@ namespace OpenClaw.Node
                     trayStatus.Set(NodeRuntimeState.Stopped, "Node runtime stopped");
                     await trayHost.StopAsync();
                 }
+
+                if (restartRequested)
+                {
+                    TryScheduleSelfRestart();
+                }
             }
         }
 
@@ -182,6 +200,69 @@ namespace OpenClaw.Node
             if (!string.IsNullOrWhiteSpace(fromEnv)) return fromEnv;
 
             return TryReadGatewayTokenFromOpenClawConfig() ?? string.Empty;
+        }
+
+        private static void OpenLogsFolder()
+        {
+            try
+            {
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var dir = Path.Combine(home, ".openclaw");
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = QuoteForCmd(dir),
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TRAY] Open logs folder failed: {ex.Message}");
+            }
+        }
+
+        private static void TryScheduleSelfRestart()
+        {
+            try
+            {
+                var processPath = Environment.ProcessPath;
+                if (string.IsNullOrWhiteSpace(processPath))
+                {
+                    Console.WriteLine("[TRAY] Restart requested but process path is unavailable.");
+                    return;
+                }
+
+                var args = Environment.GetCommandLineArgs();
+                var argBuilder = new System.Text.StringBuilder();
+                for (var i = 1; i < args.Length; i++)
+                {
+                    if (argBuilder.Length > 0) argBuilder.Append(' ');
+                    argBuilder.Append(QuoteForCmd(args[i]));
+                }
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c timeout /t 1 /nobreak >nul && start \"\" {QuoteForCmd(processPath)} {argBuilder}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+
+                Console.WriteLine("[TRAY] Restart requested by tray menu.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TRAY] Failed to schedule restart: {ex.Message}");
+            }
+        }
+
+        private static string QuoteForCmd(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "\"\"";
+            return "\"" + value.Replace("\"", "\\\"") + "\"";
         }
 
         private static bool HasArg(string[] args, string key)
