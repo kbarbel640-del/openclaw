@@ -83,4 +83,17 @@ describe("acp runtime registry", () => {
     unregisterAcpRuntimeBackend("acpx");
     expect(getAcpRuntimeBackend("acpx")).toBeNull();
   });
+
+  it("keeps backend state on a global registry for cross-loader access", () => {
+    const runtime = createRuntimeStub();
+    const sharedState = __testing.getAcpRuntimeRegistryGlobalStateForTests();
+
+    sharedState.backendsById.set("acpx", {
+      id: "acpx",
+      runtime,
+    });
+
+    const backend = getAcpRuntimeBackend("acpx");
+    expect(backend?.runtime).toBe(runtime);
+  });
 });

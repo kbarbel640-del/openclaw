@@ -7,7 +7,29 @@ export type AcpRuntimeBackend = {
   healthy?: () => boolean;
 };
 
-const ACP_BACKENDS_BY_ID = new Map<string, AcpRuntimeBackend>();
+type AcpRuntimeRegistryGlobalState = {
+  backendsById: Map<string, AcpRuntimeBackend>;
+};
+
+const ACP_RUNTIME_REGISTRY_STATE_KEY = Symbol.for("openclaw.acpRuntimeRegistryState");
+
+function createAcpRuntimeRegistryGlobalState(): AcpRuntimeRegistryGlobalState {
+  return {
+    backendsById: new Map<string, AcpRuntimeBackend>(),
+  };
+}
+
+function resolveAcpRuntimeRegistryGlobalState(): AcpRuntimeRegistryGlobalState {
+  const runtimeGlobal = globalThis as typeof globalThis & {
+    [ACP_RUNTIME_REGISTRY_STATE_KEY]?: AcpRuntimeRegistryGlobalState;
+  };
+  if (!runtimeGlobal[ACP_RUNTIME_REGISTRY_STATE_KEY]) {
+    runtimeGlobal[ACP_RUNTIME_REGISTRY_STATE_KEY] = createAcpRuntimeRegistryGlobalState();
+  }
+  return runtimeGlobal[ACP_RUNTIME_REGISTRY_STATE_KEY];
+}
+
+const ACP_BACKENDS_BY_ID = resolveAcpRuntimeRegistryGlobalState().backendsById;
 
 function normalizeBackendId(id: string | undefined): string {
   return id?.trim().toLowerCase() || "";
@@ -89,5 +111,8 @@ export function requireAcpRuntimeBackend(id?: string): AcpRuntimeBackend {
 export const __testing = {
   resetAcpRuntimeBackendsForTests() {
     ACP_BACKENDS_BY_ID.clear();
+  },
+  getAcpRuntimeRegistryGlobalStateForTests() {
+    return resolveAcpRuntimeRegistryGlobalState();
   },
 };
