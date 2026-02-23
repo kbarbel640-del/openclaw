@@ -443,6 +443,29 @@ function createZaiToolStreamWrapper(
 }
 
 /**
+ * Prevent sending both `reasoning` and `reasoning_effort` in the same payload.
+ * Some model APIs (Gemini, OpenAI o-series) return 400 when both are present.
+ */
+function createDeduplicateReasoningWrapper(baseStreamFn: StreamFn | undefined): StreamFn {
+  const underlying = baseStreamFn ?? streamSimple;
+  return (model, context, options) => {
+    const originalOnPayload = options?.onPayload;
+    return underlying(model, context, {
+      ...options,
+      onPayload: (payload) => {
+        if (payload && typeof payload === "object") {
+          const obj = payload as Record<string, unknown>;
+          if ("reasoning" in obj && "reasoning_effort" in obj) {
+            delete obj.reasoning_effort;
+          }
+        }
+        originalOnPayload?.(payload);
+      },
+    });
+  };
+}
+
+/**
  * Apply extra params (like temperature) to an agent's streamFn.
  * Also adds OpenRouter app attribution headers when using the OpenRouter provider.
  *
@@ -503,4 +526,11 @@ export function applyExtraParamsToAgent(
   // Force `store=true` for direct OpenAI/OpenAI Codex providers so multi-turn
   // server-side conversation state is preserved.
   agent.streamFn = createOpenAIResponsesStoreWrapper(agent.streamFn);
+
+  // Guard against payloads that contain both top-level `reasoning` and
+  // `reasoning_effort`. Some models (Gemini, OpenAI o-series) reject the
+  // combination with a 400. pi-ai may inject `reasoning_effort` alongside a
+  // nested `reasoning` object set by other wrappers. When both are present,
+  // drop the flat `reasoning_effort` so only the nested form is sent.
+  agent.streamFn = createDeduplicateReasoningWrapper(agent.streamFn);
 }
