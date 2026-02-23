@@ -14,12 +14,15 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { resolveGatewayAuth, type ResolvedGatewayAuth } from "../../src/gateway/auth.js";
 import { authorizeGatewayBearerRequestOrReply } from "../../src/gateway/http-auth-helpers.js";
 import { onAgentEvent, type AgentEventPayload } from "../../src/infra/agent-events.js";
+import { createCronBridgeService } from "./src/cron-bridge.js";
 import { createBdiTools } from "./src/tools/bdi-tools.js";
 import { createBusinessTools } from "./src/tools/business-tools.js";
 import { createCbrTools } from "./src/tools/cbr-tools.js";
 import { resolveWorkspaceDir, getPluginConfig } from "./src/tools/common.js";
 import { createCommunicationTools } from "./src/tools/communication-tools.js";
+import { createCrmTools } from "./src/tools/crm-tools.js";
 import { createDesireTools } from "./src/tools/desire-tools.js";
+import { createEmailTools } from "./src/tools/email-tools.js";
 import { createFactStoreTools } from "./src/tools/fact-store.js";
 import { createInferenceTools } from "./src/tools/inference-tools.js";
 import { createIntegrationTools } from "./src/tools/integration-tools.js";
@@ -33,6 +36,7 @@ import { createPlanningTools } from "./src/tools/planning-tools.js";
 import { createReasoningTools } from "./src/tools/reasoning-tools.js";
 import { createReportingTools } from "./src/tools/reporting-tools.js";
 import { createRuleEngineTools } from "./src/tools/rule-engine.js";
+import { createSeoAnalyticsTools } from "./src/tools/seo-analytics-tools.js";
 import { createSetupWizardTools } from "./src/tools/setup-wizard-tools.js";
 import { createStakeholderTools } from "./src/tools/stakeholder-tools.js";
 import { createTypeDBTools } from "./src/tools/typedb-tools.js";
@@ -64,6 +68,9 @@ export default function register(api: OpenClawPluginApi) {
     createIntegrationTools,
     createReportingTools,
     createMarketingTools,
+    createCrmTools,
+    createEmailTools,
+    createSeoAnalyticsTools,
     createOntologyManagementTools,
     createSetupWizardTools,
     createTypeDBTools,
@@ -169,6 +176,9 @@ export default function register(api: OpenClawPluginApi) {
       api.logger.info("[mabos-bdi] Heartbeat stopped");
     },
   });
+
+  // ── 2b. Cron Bridge Service ──────────────────────────────────
+  api.registerService(createCronBridgeService(api));
 
   // ── 3. CLI Subcommands ────────────────────────────────────────
   api.registerCli(
@@ -2156,7 +2166,7 @@ export default function register(api: OpenClawPluginApi) {
         }
 
         const jobs = (await readJsonSafe(cronPath)) || [];
-        const newJob = {
+        const newJob: Record<string, unknown> = {
           id: `CRON-${Date.now()}`,
           name: params.name || "Unnamed Job",
           schedule: params.schedule || "0 */6 * * *",
@@ -2166,6 +2176,8 @@ export default function register(api: OpenClawPluginApi) {
           status: "active",
           createdAt: new Date().toISOString(),
         };
+        if (params.workflowId) newJob.workflowId = params.workflowId;
+        if (params.stepId) newJob.stepId = params.stepId;
         jobs.push(newJob);
         await mkdir(dirname(cronPath), { recursive: true });
         await writeFile(cronPath, JSON.stringify(jobs, null, 2), "utf-8");
@@ -2221,8 +2233,14 @@ export default function register(api: OpenClawPluginApi) {
         heartbeatJob.nextRun = new Date(Date.now() + bdiIntervalMinutes * 60 * 1000).toISOString();
       }
 
+      // Filter by workflowId if query param provided
+      const filterWorkflowId = url.searchParams.get("workflowId");
+      const filteredJobs = filterWorkflowId
+        ? jobs.filter((j: any) => j.workflowId === filterWorkflowId)
+        : jobs;
+
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ jobs }));
+      res.end(JSON.stringify({ jobs: filteredJobs }));
     } catch (err) {
       res.setHeader("Content-Type", "application/json");
       res.statusCode = 500;

@@ -22,14 +22,10 @@ import { WorkflowGoalNode } from "@/components/workflows/WorkflowGoalNode";
 import { WorkflowStepNode } from "@/components/workflows/WorkflowStepNode";
 import { usePanels } from "@/contexts/PanelContext";
 import { useGoalModel } from "@/hooks/useGoalModel";
-import { cronToHuman, nextRunFromNow } from "@/lib/cron-utils";
-import type { Workflow, WorkflowStatus } from "@/lib/types";
+import { nextRunFromNow } from "@/lib/cron-utils";
+import type { EntityType, Workflow, WorkflowStatus } from "@/lib/types";
 import { workflowsToFlowGraph } from "@/lib/workflow-layout";
-import type {
-  WorkflowGoalNodeData,
-  WorkflowStepNodeData,
-  WorkflowFilter,
-} from "@/lib/workflow-layout";
+import type { WorkflowGoalNodeData, WorkflowStepNodeData } from "@/lib/workflow-layout";
 
 const BUSINESS_ID = "vividwalls";
 
@@ -70,7 +66,7 @@ function WorkflowListView({
   workflows: (Workflow & { goalName: string })[];
   statusFilter: WorkflowStatus | "all";
   setStatusFilter: (v: WorkflowStatus | "all") => void;
-  openDetailPanel: (type: string, id: string, data: unknown) => void;
+  openDetailPanel: (type: EntityType, id: string, data: unknown) => void;
 }) {
   const filtered = useMemo(() => {
     if (statusFilter === "all") return workflows;

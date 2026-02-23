@@ -146,6 +146,8 @@ export type WorkflowStep = {
   id: string;
   name: string;
   order: number;
+  schedule?: CronScheduleInfo;
+  action?: string; // tool name mapped to this step
 };
 
 export type Workflow = {
@@ -154,6 +156,9 @@ export type Workflow = {
   status: WorkflowStatus;
   agents: string[];
   steps: WorkflowStep[];
+  schedule?: CronScheduleInfo;
+  workflowType?: string;
+  trigger?: string;
 };
 
 export type BusinessGoal = {
@@ -227,6 +232,15 @@ export type DetailPanelState = {
 
 export type CronJobStatus = "active" | "paused" | "error";
 
+export type CronScheduleInfo = {
+  cronExpression: string; // "0 9 * * MON"
+  cronJobId?: string; // link to CronJob.id in cron-jobs.json
+  enabled: boolean;
+  lastRun?: string;
+  nextRun?: string;
+  timezone?: string;
+};
+
 export type CronJob = {
   id: string;
   name: string;
@@ -237,6 +251,9 @@ export type CronJob = {
   lastRun?: string; // ISO timestamp
   nextRun?: string; // ISO timestamp
   status: CronJobStatus;
+  workflowId?: string; // links to Workflow.id
+  stepId?: string; // links to WorkflowStep.id
+  parentCronId?: string; // ID in parent OpenClaw cron store
 };
 
 export type CronJobsResponse = { jobs: CronJob[] };

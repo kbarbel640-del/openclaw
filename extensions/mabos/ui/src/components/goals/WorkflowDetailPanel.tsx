@@ -1,3 +1,4 @@
+import { ScheduleTab } from "@/components/goals/ScheduleTab";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -85,6 +86,12 @@ export function WorkflowDetailPanel({
                 className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
               >
                 Diagram
+              </TabsTrigger>
+              <TabsTrigger
+                value="schedule"
+                className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
+              >
+                Schedule
               </TabsTrigger>
             </TabsList>
 
@@ -228,6 +235,11 @@ export function WorkflowDetailPanel({
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Schedule Tab */}
+            <TabsContent value="schedule" className="mt-4">
+              <ScheduleTab workflow={workflow} />
             </TabsContent>
           </Tabs>
         </div>

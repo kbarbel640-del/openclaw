@@ -1,10 +1,11 @@
 /**
- * TypeDB Agent Tools — 4 agent-facing tools for TypeDB interaction
+ * TypeDB Agent Tools — 5 agent-facing tools for TypeDB interaction
  *
  * - typedb_status: Check connection and database info
  * - typedb_sync_schema: Re-generate and push TypeQL schema from ontologies
  * - typedb_query: Run raw TypeQL match query
  * - typedb_sync_agent_data: Bulk import agent's JSON files into TypeDB
+ * - goal_seed_business: Seed VividWalls business goals into knowledge graph
  */
 
 import { readFile } from "node:fs/promises";
@@ -19,6 +20,7 @@ import {
   MemoryQueries,
 } from "../knowledge/typedb-queries.js";
 import { textResult, resolveWorkspaceDir } from "./common.js";
+import { createGoalSeedTools } from "./goal-seed.js";
 
 const TypeDBStatusParams = Type.Object({});
 
@@ -296,5 +298,6 @@ ${truncated}
 ${results.map((r) => `- ${r}`).join("\n")}`);
       },
     },
+    ...createGoalSeedTools(api),
   ];
 }

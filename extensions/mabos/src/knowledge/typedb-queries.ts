@@ -688,9 +688,21 @@ export class WorkflowStoreQueries {
       workflowType: string;
       trigger: string;
       status?: string;
+      cronExpression?: string;
+      cronEnabled?: boolean;
+      cronTimezone?: string;
     },
   ): string {
     const now = new Date().toISOString();
+    const cronClauses = [
+      workflow.cronExpression
+        ? `,\n    has cron_expression ${JSON.stringify(workflow.cronExpression)}`
+        : "",
+      workflow.cronEnabled !== undefined ? `,\n    has cron_enabled ${workflow.cronEnabled}` : "",
+      workflow.cronTimezone
+        ? `,\n    has cron_timezone ${JSON.stringify(workflow.cronTimezone)}`
+        : "",
+    ].join("");
     return `match
   $agent isa agent, has uid ${JSON.stringify(agentId)};
 insert
@@ -699,7 +711,7 @@ insert
     has name ${JSON.stringify(workflow.name)},
     has workflow_type ${JSON.stringify(workflow.workflowType)},
     has trigger ${JSON.stringify(workflow.trigger)},
-    has status ${JSON.stringify(workflow.status || "active")},
+    has status ${JSON.stringify(workflow.status || "active")}${cronClauses},
     has created_at ${JSON.stringify(now)},
     has updated_at ${JSON.stringify(now)};
   (owner: $agent, owned: $wf) isa agent_owns;`;
@@ -960,6 +972,11 @@ export function getBaseSchema(): string {
   attribute skill_category, value string;
   attribute tool_access, value string;
 
+  # ── Cron / Scheduling Attributes ────────────────────────────────────
+  attribute cron_expression, value string;
+  attribute cron_enabled, value boolean;
+  attribute cron_timezone, value string;
+
   # ── Workflow & Execution Attributes ──────────────────────────────────
   attribute workflow_type, value string;
   attribute trigger, value string;
@@ -1109,6 +1126,9 @@ export function getBaseSchema(): string {
     owns estimated_duration,
     owns status,
     owns sequence_order,
+    owns cron_expression,
+    owns cron_enabled,
+    owns cron_timezone,
     owns created_at;
 
   # ── Agent Identity & Role Entities ───────────────────────────────────
@@ -1137,6 +1157,9 @@ export function getBaseSchema(): string {
     owns trigger,
     owns status,
     owns current_step_id,
+    owns cron_expression,
+    owns cron_enabled,
+    owns cron_timezone,
     owns created_at,
     owns updated_at;
 

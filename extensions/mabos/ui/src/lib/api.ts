@@ -8,6 +8,8 @@ import type {
   DecisionResolution,
   Contractor,
   TroposGoalModel,
+  CronJob,
+  CronJobsResponse,
 } from "./types";
 
 const BASE = "/mabos/api";
@@ -138,4 +140,23 @@ export const api = {
   // BDI
   triggerBdiCycle: (businessId: string, agentId: string) =>
     post<{ ok: boolean }>(`/bdi/cycle`, { businessId, agentId }),
+
+  // Cron Jobs
+  getCronJobs: (businessId: string) => get<CronJobsResponse>(`/businesses/${businessId}/cron`),
+  getCronJobsByWorkflow: (businessId: string, workflowId: string) =>
+    get<CronJobsResponse>(`/businesses/${businessId}/cron?workflowId=${workflowId}`),
+  createCronJob: (
+    businessId: string,
+    body: {
+      name: string;
+      schedule: string;
+      agentId: string;
+      action: string;
+      enabled?: boolean;
+      workflowId?: string;
+      stepId?: string;
+    },
+  ) => post<{ ok: boolean; job: CronJob }>(`/businesses/${businessId}/cron`, body),
+  updateCronJob: (businessId: string, jobId: string, body: Partial<CronJob>) =>
+    put<{ ok: boolean; job: CronJob }>(`/businesses/${businessId}/cron/${jobId}`, body),
 };

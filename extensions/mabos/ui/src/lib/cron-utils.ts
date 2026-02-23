@@ -3,8 +3,6 @@
  * Pure TypeScript, no external dependencies.
  */
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 // Convert a cron expression to a human-readable string.
 // Handles common patterns; falls back to raw expression for exotic ones.
 //
@@ -16,7 +14,7 @@ export function cronToHuman(expr: string): string {
   const parts = expr.trim().split(/\s+/);
   if (parts.length < 5) return expr;
 
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+  const [minute, hour, dayOfMonth, _month, dayOfWeek] = parts;
 
   // Every N minutes: */N * * * *
   if (minute.startsWith("*/") && hour === "*" && dayOfMonth === "*") {
