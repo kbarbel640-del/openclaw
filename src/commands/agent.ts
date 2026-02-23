@@ -1,3 +1,5 @@
+import { getAcpSessionManager } from "../acp/control-plane/manager.js";
+import { toAcpRuntimeError } from "../acp/runtime/errors.js";
 import {
   listAgentIds,
   resolveAgentDir,
@@ -41,6 +43,7 @@ import { formatCliCommand } from "../cli/command-format.js";
 import { type CliDeps, createDefaultDeps } from "../cli/deps.js";
 import { loadConfig } from "../config/config.js";
 import {
+  mergeSessionEntry,
   parseSessionThreadInfo,
   resolveAndPersistSessionFile,
   resolveAgentIdFromSessionKey,
@@ -76,10 +79,12 @@ type PersistSessionEntryParams = {
 };
 
 async function persistSessionEntry(params: PersistSessionEntryParams): Promise<void> {
-  params.sessionStore[params.sessionKey] = params.entry;
-  await updateSessionStore(params.storePath, (store) => {
-    store[params.sessionKey] = params.entry;
+  const persisted = await updateSessionStore(params.storePath, (store) => {
+    const merged = mergeSessionEntry(store[params.sessionKey], params.entry);
+    store[params.sessionKey] = merged;
+    return merged;
   });
+  params.sessionStore[params.sessionKey] = persisted;
 }
 
 function resolveFallbackRetryPrompt(params: { body: string; isFallbackRetry: boolean }): string {
@@ -305,6 +310,111 @@ export async function agentCommand(
       if (sendPolicy === "deny") {
         throw new Error("send blocked by session policy");
       }
+    }
+
+    if (sessionKey && sessionEntry?.acp) {
+      const startedAt = Date.now();
+      registerAgentRunContext(runId, {
+        sessionKey,
+      });
+      emitAgentEvent({
+        runId,
+        stream: "lifecycle",
+        data: {
+          phase: "start",
+          startedAt,
+        },
+      });
+
+      const acpManager = getAcpSessionManager();
+      let streamedText = "";
+      let stopReason: string | undefined;
+      try {
+        await acpManager.runTurn({
+          cfg,
+          sessionKey,
+          text: body,
+          mode: "prompt",
+          requestId: runId,
+          signal: opts.abortSignal,
+          onEvent: (event) => {
+            if (event.type === "done") {
+              stopReason = event.stopReason;
+              return;
+            }
+            if (event.type !== "text_delta") {
+              return;
+            }
+            if (event.stream && event.stream !== "output") {
+              return;
+            }
+            if (!event.text) {
+              return;
+            }
+            streamedText += event.text;
+            emitAgentEvent({
+              runId,
+              stream: "assistant",
+              data: {
+                text: streamedText,
+                delta: event.text,
+              },
+            });
+          },
+        });
+      } catch (error) {
+        const acpError = toAcpRuntimeError({
+          error,
+          fallbackCode: "ACP_TURN_FAILED",
+          fallbackMessage: "ACP turn failed before completion.",
+        });
+        emitAgentEvent({
+          runId,
+          stream: "lifecycle",
+          data: {
+            phase: "error",
+            error: acpError.message,
+            endedAt: Date.now(),
+          },
+        });
+        throw acpError;
+      }
+
+      emitAgentEvent({
+        runId,
+        stream: "lifecycle",
+        data: {
+          phase: "end",
+          endedAt: Date.now(),
+        },
+      });
+
+      const finalText = streamedText.trim();
+      const payloads = finalText
+        ? [
+            {
+              text: finalText,
+            },
+          ]
+        : [];
+      const result = {
+        payloads,
+        meta: {
+          durationMs: Date.now() - startedAt,
+          aborted: opts.abortSignal?.aborted === true,
+          stopReason,
+        },
+      };
+
+      return await deliverAgentCommandResult({
+        cfg,
+        deps,
+        runtime,
+        opts,
+        sessionEntry,
+        result,
+        payloads,
+      });
     }
 
     let resolvedThinkLevel =
