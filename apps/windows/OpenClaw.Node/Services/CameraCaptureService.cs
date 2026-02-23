@@ -176,11 +176,20 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
                 }
 
                 MFError.ThrowExceptionForHR(MFExtern.MFCreateSourceReaderFromMediaSource(source, null, out reader));
-                MFError.ThrowExceptionForHR(MFExtern.MFCreateMediaType(out mediaType));
 
-                MFError.ThrowExceptionForHR(mediaType.SetGUID(MFAttributesClsid.MF_MT_MAJOR_TYPE, MFMediaType.Video));
-                MFError.ThrowExceptionForHR(mediaType.SetGUID(MFAttributesClsid.MF_MT_SUBTYPE, MFMediaType.MJPG));
-                MFError.ThrowExceptionForHR(reader.SetCurrentMediaType((int)MF_SOURCE_READER.FirstVideoStream, IntPtr.Zero, mediaType));
+                // Prefer MJPG for easy JPEG extraction, but gracefully fall back to native stream type.
+                try
+                {
+                    MFError.ThrowExceptionForHR(MFExtern.MFCreateMediaType(out mediaType));
+                    MFError.ThrowExceptionForHR(mediaType.SetGUID(MFAttributesClsid.MF_MT_MAJOR_TYPE, MFMediaType.Video));
+                    MFError.ThrowExceptionForHR(mediaType.SetGUID(MFAttributesClsid.MF_MT_SUBTYPE, MFMediaType.MJPG));
+                    MFError.ThrowExceptionForHR(reader.SetCurrentMediaType((int)MF_SOURCE_READER.FirstVideoStream, IntPtr.Zero, mediaType));
+                }
+                catch
+                {
+                    // Keep going with device default format.
+                }
+
                 MFError.ThrowExceptionForHR(reader.SetStreamSelection((int)MF_SOURCE_READER.FirstVideoStream, true));
 
                 // Warm up + take a stable frame.
@@ -219,6 +228,11 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
 
                         var jpegBytes = ExtractSampleBytes(sample);
                         if (jpegBytes == null || jpegBytes.Length == 0)
+                        {
+                            continue;
+                        }
+
+                        if (!IsLikelyJpeg(jpegBytes))
                         {
                             continue;
                         }
@@ -342,9 +356,14 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
             }
         }
 
+        private static bool IsLikelyJpeg(byte[] bytes)
+        {
+            return bytes.Length >= 4 && bytes[0] == 0xFF && bytes[1] == 0xD8;
+        }
+
         private static (int Width, int Height) TryReadJpegDimensions(byte[] bytes)
         {
-            if (bytes.Length < 4 || bytes[0] != 0xFF || bytes[1] != 0xD8)
+            if (!IsLikelyJpeg(bytes))
             {
                 return (0, 0);
             }
