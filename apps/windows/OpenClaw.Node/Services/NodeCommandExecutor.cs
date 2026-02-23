@@ -23,10 +23,12 @@ namespace OpenClaw.Node.Services
                     "camera.snap" => await HandleCameraSnapAsync(request),
                     "window.list" => await HandleWindowListAsync(request),
                     "window.focus" => await HandleWindowFocusAsync(request),
+                    "window.rect" => await HandleWindowRectAsync(request),
                     "input.type" => await HandleInputTypeAsync(request),
                     "input.key" => await HandleInputKeyAsync(request),
                     "input.click" => await HandleInputClickAsync(request),
                     "input.scroll" => await HandleInputScrollAsync(request),
+                    "input.click.relative" => await HandleInputClickRelativeAsync(request),
                     _ => new BridgeInvokeResponse
                     {
                         Id = request.Id,
@@ -515,6 +517,61 @@ namespace OpenClaw.Node.Services
             }
         }
 
+        private async Task<BridgeInvokeResponse> HandleWindowRectAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            var handle = root != null && root.Value.TryGetProperty("handle", out var h) && h.ValueKind == JsonValueKind.Number
+                ? h.GetInt64()
+                : (long?)null;
+            var titleContains = root != null && root.Value.TryGetProperty("titleContains", out var t) && t.ValueKind == JsonValueKind.String
+                ? t.GetString()
+                : null;
+
+            if ((!handle.HasValue || handle.Value == 0) && string.IsNullOrWhiteSpace(titleContains))
+            {
+                return Invalid(request.Id, "window.rect requires params.handle or params.titleContains");
+            }
+
+            try
+            {
+                var svc = new AutomationService();
+                var rect = await svc.GetWindowRectAsync(handle, titleContains);
+                if (rect == null)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "Unable to resolve requested window rect"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { rect })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Window rect failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
         private async Task<BridgeInvokeResponse> HandleInputTypeAsync(BridgeInvokeRequest request)
         {
             var root = ParseParams(request.ParamsJSON);
@@ -778,6 +835,95 @@ namespace OpenClaw.Node.Services
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = $"Mouse scroll failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleInputClickRelativeAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            if (root == null)
+            {
+                return Invalid(request.Id, "input.click.relative requires params.offsetX and params.offsetY");
+            }
+
+            var handle = root.Value.TryGetProperty("handle", out var h) && h.ValueKind == JsonValueKind.Number
+                ? h.GetInt64()
+                : (long?)null;
+            var titleContains = root.Value.TryGetProperty("titleContains", out var t) && t.ValueKind == JsonValueKind.String
+                ? t.GetString()
+                : null;
+
+            if ((!handle.HasValue || handle.Value == 0) && string.IsNullOrWhiteSpace(titleContains))
+            {
+                return Invalid(request.Id, "input.click.relative requires params.handle or params.titleContains");
+            }
+
+            if (!root.Value.TryGetProperty("offsetX", out var oxEl) || oxEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "input.click.relative requires numeric params.offsetX");
+            }
+
+            if (!root.Value.TryGetProperty("offsetY", out var oyEl) || oyEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "input.click.relative requires numeric params.offsetY");
+            }
+
+            var offsetX = oxEl.GetInt32();
+            var offsetY = oyEl.GetInt32();
+            var button = root.Value.TryGetProperty("button", out var bEl) && bEl.ValueKind == JsonValueKind.String
+                ? (bEl.GetString() ?? "primary")
+                : "primary";
+
+            if (!string.Equals(button, "left", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(button, "right", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(button, "primary", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(button, "secondary", StringComparison.OrdinalIgnoreCase))
+            {
+                return Invalid(request.Id, "input.click.relative params.button must be 'primary', 'secondary', 'left', or 'right'");
+            }
+
+            var doubleClick = root.Value.TryGetProperty("doubleClick", out var dEl) &&
+                              (dEl.ValueKind == JsonValueKind.True || dEl.ValueKind == JsonValueKind.False)
+                ? dEl.GetBoolean()
+                : false;
+
+            try
+            {
+                var svc = new AutomationService();
+                var ok = await svc.ClickRelativeToWindowAsync(handle, titleContains, offsetX, offsetY, button.ToLowerInvariant(), doubleClick);
+                if (!ok)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "Relative click failed"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, offsetX, offsetY, button = button.ToLowerInvariant(), doubleClick })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Relative click failed: {ex.Message}"
                     }
                 };
             }

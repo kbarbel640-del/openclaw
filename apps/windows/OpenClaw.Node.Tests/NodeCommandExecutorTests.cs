@@ -328,6 +328,19 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task WindowRect_MissingTarget_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest { Id = "window-rect-1", Command = "window.rect", ParamsJSON = "{}" };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
         public async Task InputType_MissingText_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();
@@ -406,6 +419,42 @@ namespace OpenClaw.Node.Tests
                 Id = "input-scroll-2",
                 Command = "input.scroll",
                 ParamsJSON = JsonSerializer.Serialize(new { deltaY = 0 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task InputClickRelative_MissingTarget_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "input-click-relative-1",
+                Command = "input.click.relative",
+                ParamsJSON = JsonSerializer.Serialize(new { offsetX = 10, offsetY = 10 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task InputClickRelative_MissingOffsets_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "input-click-relative-2",
+                Command = "input.click.relative",
+                ParamsJSON = JsonSerializer.Serialize(new { titleContains = "Notepad" })
             };
 
             var res = await executor.ExecuteAsync(req);

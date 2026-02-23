@@ -13,12 +13,12 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Real Gateway handshake working against local gateway (`hello-ok` confirmed)
 - ✅ Core frame protocol aligned to gateway `req/res/event` flow
 - ✅ Method routing scaffold implemented
-- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.list`, `screen.record`, `camera.list`, `camera.snap`, `window.list`, `window.focus`, `input.type`, `input.key`, `input.click`, `input.scroll`)
+- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.list`, `screen.record`, `camera.list`, `camera.snap`, `window.list`, `window.focus`, `window.rect`, `input.type`, `input.key`, `input.click`, `input.scroll`, `input.click.relative`)
 - ✅ Pairing pending state can be populated from gateway events (`device.pair.requested`, `node.pair.requested`)
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (56 total) (including device-auth connect assertions + node.invoke.result request-path assertion)
+- ✅ Tests passing (60 total) (including device-auth connect assertions + node.invoke.result request-path assertion)
 
 ---
 
@@ -67,14 +67,15 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] Added graceful fallback path (placeholder frame) when native camera stack/device capture unavailable
   - [ ] Validate on real Windows host with physical cameras and tune device-selection heuristics
 - **Automation (`Automation/`)**
-  - [x] MVP command set wired (`window.list`, `window.focus`, `input.type`, `input.key`, `input.click`, `input.scroll`)
+  - [x] MVP command set wired (`window.list`, `window.focus`, `window.rect`, `input.type`, `input.key`, `input.click`, `input.scroll`, `input.click.relative`)
   - [x] `window.list` returns `{ windows: [{ handle, title, process, isFocused }] }`
   - [x] `window.focus` supports `handle` or `titleContains`
-  - [x] `input.type` text injection path (PowerShell + SendKeys)
-  - [x] `input.key` key combo path (e.g., `ctrl+v`, `enter`, `alt+f4`)
+  - [x] `input.type` text injection path via SendInput Unicode events
+  - [x] `input.key` key combo path via SendInput virtual keys (e.g., `ctrl+v`, `enter`, `alt+f4`)
   - [x] `input.click` mouse click path with `button=primary|secondary|left|right` and optional `doubleClick`
+  - [x] `input.scroll` wheel path with required `deltaY` and optional `{ x, y }` targeting
   - [x] Primary/secondary click semantics respect OS swapped-button setting (left-handed mode)
-  - [ ] Replace SendKeys MVP path with lower-level SendInput/UIAutomation primitives for reliability
+  - [ ] Add richer UIAutomation element-level actions (selectors, element click/type) beyond coordinate/keystroke MVP
 - **Shell execution**
   - [x] `System.Diagnostics.Process` command executor with allowlist
 
@@ -115,6 +116,6 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Added stricter `camera.list`/device-field shape assertions (unit + real gateway when devices are present)
 - ✅ Added `screen.list` command coverage (unit + service-shape + opt-in real gateway response-shape path when a node is available)
 - ✅ Added opt-in real gateway `screen.record` coverage using explicit `screenIndex` from `screen.list` when available
-- ✅ Added automation MVP coverage (`window.list`, `window.focus`, `input.type`, `input.key`) with unit validation + opt-in real gateway `window.list` response-shape path
+- ✅ Added automation MVP coverage (`window.list`, `window.focus`, `window.rect`, `input.type`, `input.key`, `input.click`, `input.scroll`, `input.click.relative`) with unit validation + opt-in real gateway `window.list/window.rect` response-shape paths
 - ✅ Added signed device-identity handshake on `connect.challenge` (`device.id/publicKey/signature/signedAt/nonce`) so node role can enter real pairing flow
 - ✅ Added opt-in real gateway `camera.snap` coverage using explicit `deviceId` from `camera.list` when available

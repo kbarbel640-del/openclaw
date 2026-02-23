@@ -17,6 +17,17 @@ namespace OpenClaw.Node.Services
             public bool IsFocused { get; set; }
         }
 
+        public sealed class WindowRectInfo
+        {
+            public long Handle { get; set; }
+            public int Left { get; set; }
+            public int Top { get; set; }
+            public int Right { get; set; }
+            public int Bottom { get; set; }
+            public int Width => Right - Left;
+            public int Height => Bottom - Top;
+        }
+
         public Task<WindowInfo[]> ListWindowsAsync()
         {
             if (!OperatingSystem.IsWindows())
@@ -133,8 +144,8 @@ namespace OpenClaw.Node.Services
                 }
 
                 // Last attempts: ALT keystroke nudge and SwitchToThisWindow fallback.
-                keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
-                keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event((byte)VK_MENU, 0, 0, UIntPtr.Zero);
+                keybd_event((byte)VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
                 _ = SetForegroundWindow(target);
                 if (GetForegroundWindow() == target)
                 {
@@ -158,27 +169,120 @@ namespace OpenClaw.Node.Services
             }
         }
 
-        public async Task<bool> TypeTextAsync(string text)
+        public Task<WindowRectInfo?> GetWindowRectAsync(long? handle, string? titleContains)
         {
-            if (string.IsNullOrEmpty(text)) return false;
-            if (!OperatingSystem.IsWindows()) return false;
+            if (!OperatingSystem.IsWindows())
+            {
+                return Task.FromResult<WindowRectInfo?>(null);
+            }
 
-            var escaped = EscapeForSendKeys(text);
-            return await RunSendKeysScriptAsync($"[System.Windows.Forms.SendKeys]::SendWait('{escaped}')");
+            var target = ResolveWindow(handle, titleContains);
+            if (target == IntPtr.Zero)
+            {
+                return Task.FromResult<WindowRectInfo?>(null);
+            }
+
+            if (!GetWindowRect(target, out var rect))
+            {
+                return Task.FromResult<WindowRectInfo?>(null);
+            }
+
+            return Task.FromResult<WindowRectInfo?>(new WindowRectInfo
+            {
+                Handle = target.ToInt64(),
+                Left = rect.Left,
+                Top = rect.Top,
+                Right = rect.Right,
+                Bottom = rect.Bottom,
+            });
         }
 
-        public async Task<bool> SendKeyAsync(string key)
+        public async Task<bool> ClickRelativeToWindowAsync(long? handle, string? titleContains, int offsetX, int offsetY, string button = "primary", bool doubleClick = false)
         {
-            if (string.IsNullOrWhiteSpace(key)) return false;
-            if (!OperatingSystem.IsWindows()) return false;
-
-            var sendKeysToken = ConvertKeyToSendKeysToken(key);
-            if (string.IsNullOrWhiteSpace(sendKeysToken))
+            var rect = await GetWindowRectAsync(handle, titleContains);
+            if (rect == null)
             {
                 return false;
             }
 
-            return await RunSendKeysScriptAsync($"[System.Windows.Forms.SendKeys]::SendWait('{sendKeysToken}')");
+            var absX = rect.Left + offsetX;
+            var absY = rect.Top + offsetY;
+            return await ClickAsync(absX, absY, button, doubleClick);
+        }
+
+        public Task<bool> TypeTextAsync(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return Task.FromResult(false);
+            if (!OperatingSystem.IsWindows()) return Task.FromResult(false);
+
+            try
+            {
+                foreach (var ch in text)
+                {
+                    if (!SendUnicodeChar(ch))
+                    {
+                        return Task.FromResult(false);
+                    }
+                }
+
+                return Task.FromResult(true);
+            }
+            catch
+            {
+                return Task.FromResult(false);
+            }
+        }
+
+        public Task<bool> SendKeyAsync(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key)) return Task.FromResult(false);
+            if (!OperatingSystem.IsWindows()) return Task.FromResult(false);
+
+            var parts = key.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length == 0)
+            {
+                return Task.FromResult(false);
+            }
+
+            var modifiers = new List<ushort>();
+            for (var i = 0; i < parts.Length - 1; i++)
+            {
+                var mod = MapModifierToVirtualKey(parts[i]);
+                if (!mod.HasValue)
+                {
+                    return Task.FromResult(false);
+                }
+
+                modifiers.Add(mod.Value);
+            }
+
+            var main = MapKeyTokenToVirtualKey(parts[^1]);
+            if (!main.HasValue)
+            {
+                return Task.FromResult(false);
+            }
+
+            try
+            {
+                foreach (var mod in modifiers)
+                {
+                    if (!SendVirtualKey(mod, keyUp: false)) return Task.FromResult(false);
+                }
+
+                if (!SendVirtualKey(main.Value, keyUp: false)) return Task.FromResult(false);
+                if (!SendVirtualKey(main.Value, keyUp: true)) return Task.FromResult(false);
+
+                for (var i = modifiers.Count - 1; i >= 0; i--)
+                {
+                    if (!SendVirtualKey(modifiers[i], keyUp: true)) return Task.FromResult(false);
+                }
+
+                return Task.FromResult(true);
+            }
+            catch
+            {
+                return Task.FromResult(false);
+            }
         }
 
         public Task<bool> ClickAsync(int x, int y, string button = "primary", bool doubleClick = false)
@@ -264,94 +368,112 @@ namespace OpenClaw.Node.Services
             return Task.FromResult(true);
         }
 
-        private static async Task<bool> RunSendKeysScriptAsync(string body)
+        private static bool SendUnicodeChar(char ch)
         {
-            var script = $"Add-Type -AssemblyName System.Windows.Forms; {body}";
-            var psi = new ProcessStartInfo
+            var down = new INPUT
             {
-                FileName = "powershell.exe",
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true,
-            };
-            psi.ArgumentList.Add("-NoProfile");
-            psi.ArgumentList.Add("-Command");
-            psi.ArgumentList.Add(script);
-
-            try
-            {
-                using var p = new Process { StartInfo = psi };
-                p.Start();
-                await p.WaitForExitAsync();
-                return p.ExitCode == 0;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static string EscapeForSendKeys(string text)
-        {
-            return text
-                .Replace("{", "{{}")
-                .Replace("}", "{}}")
-                .Replace("+", "{+}")
-                .Replace("^", "{^}")
-                .Replace("%", "{%}")
-                .Replace("~", "{~}")
-                .Replace("(", "{(}")
-                .Replace(")", "{)}")
-                .Replace("[", "{[}")
-                .Replace("]", "{]}")
-                .Replace("'", "''");
-        }
-
-        private static string? ConvertKeyToSendKeysToken(string key)
-        {
-            var parts = key.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (parts.Length == 0) return null;
-
-            var mods = new StringBuilder();
-            for (var i = 0; i < parts.Length - 1; i++)
-            {
-                var m = parts[i].ToLowerInvariant();
-                if (m is "ctrl" or "control") mods.Append('^');
-                else if (m is "alt") mods.Append('%');
-                else if (m is "shift") mods.Append('+');
-            }
-
-            var keyPart = parts[^1].ToLowerInvariant();
-            var main = keyPart switch
-            {
-                "enter" => "{ENTER}",
-                "tab" => "{TAB}",
-                "esc" or "escape" => "{ESC}",
-                "space" => " ",
-                "up" => "{UP}",
-                "down" => "{DOWN}",
-                "left" => "{LEFT}",
-                "right" => "{RIGHT}",
-                "delete" => "{DELETE}",
-                "backspace" => "{BACKSPACE}",
-                _ => ConvertFunctionOrChar(keyPart),
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = ch,
+                        dwFlags = KEYEVENTF_UNICODE,
+                        time = 0,
+                        dwExtraInfo = UIntPtr.Zero,
+                    }
+                }
             };
 
-            return string.IsNullOrWhiteSpace(main) ? null : mods + main;
+            var up = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = ch,
+                        dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
+                        time = 0,
+                        dwExtraInfo = UIntPtr.Zero,
+                    }
+                }
+            };
+
+            var inputs = new[] { down, up };
+            return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == inputs.Length;
         }
 
-        private static string? ConvertFunctionOrChar(string key)
+        private static bool SendVirtualKey(ushort vk, bool keyUp)
+        {
+            var input = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = vk,
+                        wScan = 0,
+                        dwFlags = keyUp ? KEYEVENTF_KEYUP : 0,
+                        time = 0,
+                        dwExtraInfo = UIntPtr.Zero,
+                    }
+                }
+            };
+
+            var inputs = new[] { input };
+            return SendInput(1, inputs, Marshal.SizeOf<INPUT>()) == 1;
+        }
+
+        private static ushort? MapModifierToVirtualKey(string token)
+        {
+            return token.Trim().ToLowerInvariant() switch
+            {
+                "ctrl" or "control" => VK_CONTROL,
+                "alt" => VK_MENU,
+                "shift" => VK_SHIFT,
+                "win" or "meta" => VK_LWIN,
+                _ => null,
+            };
+        }
+
+        private static ushort? MapKeyTokenToVirtualKey(string token)
+        {
+            var key = token.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(key)) return null;
+
+            return key switch
+            {
+                "enter" => VK_RETURN,
+                "tab" => VK_TAB,
+                "esc" or "escape" => VK_ESCAPE,
+                "space" => VK_SPACE,
+                "up" => VK_UP,
+                "down" => VK_DOWN,
+                "left" => VK_LEFT,
+                "right" => VK_RIGHT,
+                "delete" => VK_DELETE,
+                "backspace" => VK_BACK,
+                _ => MapSingleOrFunctionKey(key),
+            };
+        }
+
+        private static ushort? MapSingleOrFunctionKey(string key)
         {
             if (key.Length == 1)
             {
-                return key;
+                var ch = char.ToUpperInvariant(key[0]);
+                if (ch is >= 'A' and <= 'Z') return ch;
+                if (ch is >= '0' and <= '9') return ch;
             }
 
-            if (key.Length <= 3 && key.StartsWith("f", StringComparison.OrdinalIgnoreCase)
+            if (key.StartsWith("f", StringComparison.OrdinalIgnoreCase)
                 && int.TryParse(key[1..], out var fn) && fn is >= 1 and <= 24)
             {
-                return $"{{F{fn}}}";
+                return (ushort)(VK_F1 + (fn - 1));
             }
 
             return null;
@@ -393,8 +515,25 @@ namespace OpenClaw.Node.Services
 
         private const int SW_RESTORE = 9;
         private const int SW_SHOW = 5;
-        private const byte VK_MENU = 0x12; // ALT
+        private const ushort VK_SHIFT = 0x10;
+        private const ushort VK_CONTROL = 0x11;
+        private const ushort VK_MENU = 0x12; // ALT
+        private const ushort VK_RETURN = 0x0D;
+        private const ushort VK_TAB = 0x09;
+        private const ushort VK_ESCAPE = 0x1B;
+        private const ushort VK_SPACE = 0x20;
+        private const ushort VK_UP = 0x26;
+        private const ushort VK_DOWN = 0x28;
+        private const ushort VK_LEFT = 0x25;
+        private const ushort VK_RIGHT = 0x27;
+        private const ushort VK_DELETE = 0x2E;
+        private const ushort VK_BACK = 0x08;
+        private const ushort VK_LWIN = 0x5B;
+        private const ushort VK_F1 = 0x70;
+
         private const uint KEYEVENTF_KEYUP = 0x0002;
+        private const uint KEYEVENTF_UNICODE = 0x0004;
+        private const uint INPUT_KEYBOARD = 1;
         private const uint SWP_NOSIZE = 0x0001;
         private const uint SWP_NOMOVE = 0x0002;
         private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
@@ -408,6 +547,39 @@ namespace OpenClaw.Node.Services
         private static readonly IntPtr HWND_TOPMOST = new(-1);
         private static readonly IntPtr HWND_NOTOPMOST = new(-2);
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct INPUT
+        {
+            public uint type;
+            public InputUnion U;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct InputUnion
+        {
+            [FieldOffset(0)]
+            public KEYBDINPUT ki;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public UIntPtr dwExtraInfo;
+        }
+
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
         [DllImport("user32.dll")]
@@ -418,6 +590,9 @@ namespace OpenClaw.Node.Services
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern int GetWindowTextLength(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
         [DllImport("user32.dll")]
         private static extern bool IsWindowVisible(IntPtr hWnd);
@@ -464,6 +639,9 @@ namespace OpenClaw.Node.Services
 
         [DllImport("user32.dll")]
         private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
         [DllImport("user32.dll")]
         private static extern bool SetCursorPos(int X, int Y);

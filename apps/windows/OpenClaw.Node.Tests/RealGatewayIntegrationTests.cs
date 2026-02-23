@@ -39,7 +39,7 @@ namespace OpenClaw.Node.Tests
                     { "instanceId", Guid.NewGuid().ToString("N") },
                     { "deviceFamily", "Windows" }
                 },
-                Commands = new System.Collections.Generic.List<string> { "system.notify", "system.which", "system.run", "screen.list", "screen.record", "camera.list", "camera.snap", "window.list", "window.focus", "input.type", "input.key", "input.click", "input.scroll" },
+                Commands = new System.Collections.Generic.List<string> { "system.notify", "system.which", "system.run", "screen.list", "screen.record", "camera.list", "camera.snap", "window.list", "window.focus", "window.rect", "input.type", "input.key", "input.click", "input.scroll", "input.click.relative" },
                 Scopes = new System.Collections.Generic.List<string>(),
             };
 
@@ -337,6 +337,88 @@ namespace OpenClaw.Node.Tests
                 Assert.True(invoke.TryGetProperty("payload", out var p), JsonSerializer.Serialize(invoke));
                 Assert.True(p.TryGetProperty("windows", out var windows), JsonSerializer.Serialize(invoke));
                 Assert.Equal(JsonValueKind.Array, windows.ValueKind);
+            }
+            else
+            {
+                Assert.True(invoke.TryGetProperty("error", out var err), JsonSerializer.Serialize(invoke));
+                Assert.True(err.TryGetProperty("code", out _), JsonSerializer.Serialize(invoke));
+            }
+        }
+
+        [Fact]
+        public async Task RealGateway_WindowRectCommand_ReturnsResponseShape_WhenWindowAvailable()
+        {
+            if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var cfg = LoadGatewayConfig();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var client = new RealGatewayRpcClient();
+
+            await client.ConnectAsOperatorAsync(cfg.Url, cfg.Token, cts.Token);
+            var nodeId = await ResolveFirstConnectedNodeIdAsync(client, cts.Token);
+            if (string.IsNullOrWhiteSpace(nodeId)) return;
+
+            var listInvoke = await client.RequestAsync(
+                "node.invoke",
+                new
+                {
+                    nodeId,
+                    command = "window.list",
+                    @params = new { },
+                    timeoutMs = 15000,
+                    idempotencyKey = "itest-window-list-for-rect"
+                },
+                cts.Token);
+
+            if (!listInvoke.TryGetProperty("ok", out var listOk) || !listOk.GetBoolean())
+            {
+                return;
+            }
+
+            if (!listInvoke.TryGetProperty("payload", out var listPayload) ||
+                !listPayload.TryGetProperty("windows", out var windows) ||
+                windows.ValueKind != JsonValueKind.Array ||
+                windows.GetArrayLength() == 0)
+            {
+                return;
+            }
+
+            long? handle = null;
+            foreach (var w in windows.EnumerateArray())
+            {
+                if (w.TryGetProperty("Handle", out var hEl) && hEl.ValueKind == JsonValueKind.Number)
+                {
+                    handle = hEl.GetInt64();
+                    break;
+                }
+            }
+
+            if (!handle.HasValue || handle.Value == 0) return;
+
+            var invoke = await client.RequestAsync(
+                "node.invoke",
+                new
+                {
+                    nodeId,
+                    command = "window.rect",
+                    @params = new { handle = handle.Value },
+                    timeoutMs = 15000,
+                    idempotencyKey = "itest-window-rect"
+                },
+                cts.Token);
+
+            Assert.Equal("res", invoke.GetProperty("type").GetString());
+            Assert.True(invoke.TryGetProperty("ok", out var invokeOk));
+
+            if (invokeOk.GetBoolean())
+            {
+                Assert.True(invoke.TryGetProperty("payload", out var p), JsonSerializer.Serialize(invoke));
+                Assert.True(p.TryGetProperty("rect", out var rect), JsonSerializer.Serialize(invoke));
+                Assert.True(rect.GetProperty("Width").GetInt32() >= 0);
+                Assert.True(rect.GetProperty("Height").GetInt32() >= 0);
             }
             else
             {
