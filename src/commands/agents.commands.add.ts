@@ -9,6 +9,7 @@ import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
 import { resolveAuthStorePath } from "../agents/auth-profiles/paths.js";
 import { writeConfigFile } from "../config/config.js";
 import { logConfigUpdated } from "../config/logging.js";
+import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
 import { DEFAULT_AGENT_ID, normalizeAgentId } from "../routing/session-key.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
@@ -278,10 +279,16 @@ export async function agentsAddCommand(
       });
       nextConfig = authResult.config;
       if (authResult.agentModelOverride) {
-        nextConfig = applyAgentConfig(nextConfig, {
-          agentId,
-          model: authResult.agentModelOverride,
-        });
+        // Only write per-agent model override if it differs from the global
+        // default primary. Otherwise let the agent inherit, avoiding silent
+        // model divergence (e.g. first fallback baked as per-agent primary).
+        const globalPrimary = resolveAgentModelPrimaryValue(nextConfig.agents?.defaults?.model);
+        if (!globalPrimary || authResult.agentModelOverride !== globalPrimary) {
+          nextConfig = applyAgentConfig(nextConfig, {
+            agentId,
+            model: authResult.agentModelOverride,
+          });
+        }
       }
     }
 
