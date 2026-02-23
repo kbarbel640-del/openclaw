@@ -12,7 +12,6 @@ namespace OpenClaw.Node.Tray
         private readonly Action<string>? _log;
         private readonly Action? _onOpenLogs;
         private readonly Action? _onOpenConfig;
-        private readonly Action? _onOpenConfigAndRestart;
         private readonly Action? _onRestart;
         private readonly Action? _onExit;
         private readonly Action? _onCopyDiagnostics;
@@ -30,12 +29,11 @@ namespace OpenClaw.Node.Tray
         private object? _reconnectItem;
         private object? _onboardingItem;
 
-        public WindowsNotifyIconTrayHost(Action<string>? log = null, Action? onOpenLogs = null, Action? onOpenConfig = null, Action? onOpenConfigAndRestart = null, Action? onRestart = null, Action? onExit = null, Action? onCopyDiagnostics = null)
+        public WindowsNotifyIconTrayHost(Action<string>? log = null, Action? onOpenLogs = null, Action? onOpenConfig = null, Action? onRestart = null, Action? onExit = null, Action? onCopyDiagnostics = null)
         {
             _log = log;
             _onOpenLogs = onOpenLogs;
             _onOpenConfig = onOpenConfig;
-            _onOpenConfigAndRestart = onOpenConfigAndRestart;
             _onRestart = onRestart;
             _onExit = onExit;
             _onCopyDiagnostics = onCopyDiagnostics;
@@ -177,8 +175,6 @@ namespace OpenClaw.Node.Tray
                     ?? throw new InvalidOperationException("Unable to create Open Logs item");
                 var openConfigItem = Activator.CreateInstance(menuItemType, "Open Config")
                     ?? throw new InvalidOperationException("Unable to create Open Config item");
-                var openConfigRestartItem = Activator.CreateInstance(menuItemType, "Open Config + Restart (20s)")
-                    ?? throw new InvalidOperationException("Unable to create Open Config + Restart item");
                 var copyDiagItem = Activator.CreateInstance(menuItemType, "Copy Diagnostics")
                     ?? throw new InvalidOperationException("Unable to create Copy Diagnostics item");
                 var restartItem = Activator.CreateInstance(menuItemType, "Restart Node")
@@ -195,11 +191,6 @@ namespace OpenClaw.Node.Tray
                 {
                     try { _onOpenConfig?.Invoke(); }
                     catch (Exception ex) { _log?.Invoke($"[TRAY] Open Config action failed: {ex.Message}"); }
-                });
-                AddClickHandler(openConfigRestartItem, () =>
-                {
-                    try { _onOpenConfigAndRestart?.Invoke(); }
-                    catch (Exception ex) { _log?.Invoke($"[TRAY] Open Config + Restart action failed: {ex.Message}"); }
                 });
                 AddClickHandler(copyDiagItem, () =>
                 {
@@ -224,7 +215,6 @@ namespace OpenClaw.Node.Tray
                 if (separatorType != null && Activator.CreateInstance(separatorType) is object separator1) AddMenuItem(menu, separator1);
                 AddMenuItem(menu, openLogsItem);
                 AddMenuItem(menu, openConfigItem);
-                AddMenuItem(menu, openConfigRestartItem);
                 AddMenuItem(menu, copyDiagItem);
                 AddMenuItem(menu, restartItem);
                 if (separatorType != null && Activator.CreateInstance(separatorType) is object separator2) AddMenuItem(menu, separator2);

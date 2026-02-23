@@ -83,7 +83,6 @@ namespace OpenClaw.Node
                         log: msg => Console.WriteLine(msg),
                         onOpenLogs: () => OpenLogsFolder(),
                         onOpenConfig: () => OpenConfigFile(configPath),
-                        onOpenConfigAndRestart: () => OpenConfigAndScheduleRestart(configPath, delaySeconds: 20),
                         onRestart: () => { restartRequested = true; cts.Cancel(); },
                         onExit: () => cts.Cancel(),
                         onCopyDiagnostics: () => CopyDiagnosticsToClipboard(BuildDiagnostics(startedAtUtc, url, trayStatus.Current, core.PendingPairCount, lastReconnectMs)))
@@ -317,15 +316,6 @@ namespace OpenClaw.Node
             {
                 Console.WriteLine($"[TRAY] Open config failed: {ex.Message}");
             }
-        }
-
-        private static void OpenConfigAndScheduleRestart(string configPath, int delaySeconds)
-        {
-            OpenConfigFile(configPath);
-            ShowUserWarningDialog(
-                "OpenClaw Node",
-                $"Config opened. Save your changes now.\n\nNode restart is scheduled in {delaySeconds}s.");
-            TryScheduleSelfRestart(delaySeconds);
         }
 
         private static void ShowUserWarningDialog(string title, string message)

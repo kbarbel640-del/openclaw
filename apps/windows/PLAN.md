@@ -121,7 +121,7 @@ Build a native Windows application that replicates the functionality of the Open
 - [x] Step 2: concrete Windows `NotifyIcon` tray host added (`WindowsNotifyIconTrayHost`) with menu actions (Open Logs / Restart Node / Exit) and lifecycle status text updates
 - [x] Step 3 (MVP): tray status details surfaced (`State`, `Pending pairs`, `Last reconnect`) + quick diagnostics copy action
 - [x] Step 4 (onboarding MVP, slice 1): startup onboarding checks surfaced in tray + guided `Open Config` action
-- [x] Step 5 (onboarding MVP, slice 2): default tray startup on Windows + missing-token dialog + one-click `Open Config + Restart (20s)` flow + config-parse-aware onboarding status
+- [x] Step 5 (onboarding MVP, slice 2): default tray startup on Windows + missing-token dialog + config-parse-aware onboarding status (auto-restart onboarding action removed per UX preference)
 - [ ] Settings/onboarding flows (remaining UX polish)
 - [ ] Overlay/HUD equivalents
 
