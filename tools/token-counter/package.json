@@ -1,0 +1,48 @@
+{
+  "name": "@openclaw/token-counter",
+  "version": "1.0.0",
+  "description": "Deterministic token counting and reporting toolkit for OpenClaw sessions",
+  "main": "tokenize.js",
+  "bin": {
+    "openclaw-tokens": "./report.sh",
+    "openclaw-tokenize": "./tokenize.js",
+    "openclaw-token-report": "./report.js",
+    "openclaw-token-track": "./track.js"
+  },
+  "scripts": {
+    "report": "node report.js",
+    "track": "node track.js",
+    "analyze": "node analyze-session.js",
+    "api-usage": "node api-usage.js"
+  },
+  "keywords": [
+    "openclaw",
+    "token",
+    "counter",
+    "llm",
+    "context-window",
+    "tokenization",
+    "ai",
+    "agent"
+  ],
+  "author": "OpenClaw Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openclaw/openclaw.git",
+    "directory": "tools/token-counter"
+  },
+  "bugs": {
+    "url": "https://github.com/openclaw/openclaw/issues"
+  },
+  "homepage": "https://github.com/openclaw/openclaw/tree/main/tools/token-counter#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "*.js",
+    "*.sh",
+    "*.md",
+    "*.json"
+  ]
+}

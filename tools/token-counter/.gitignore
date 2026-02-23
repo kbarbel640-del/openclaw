@@ -1,0 +1,6 @@
+# Runtime state files
+tool-count.json
+track-state.json
+
+# Node
+node_modules/
