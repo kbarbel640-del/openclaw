@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 /**
  * Security utilities for handling untrusted external content.
  *
@@ -43,9 +45,23 @@ export function detectSuspiciousPatterns(content: string): string[] {
 /**
  * Unique boundary markers for external content.
  * Using XML-style tags that are unlikely to appear in legitimate content.
+ * Each wrapper gets a unique random ID to prevent spoofing attacks where
+ * malicious content injects fake boundary markers.
  */
-const EXTERNAL_CONTENT_START = "<<<EXTERNAL_UNTRUSTED_CONTENT>>>";
-const EXTERNAL_CONTENT_END = "<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>";
+const EXTERNAL_CONTENT_START_NAME = "EXTERNAL_UNTRUSTED_CONTENT";
+const EXTERNAL_CONTENT_END_NAME = "END_EXTERNAL_UNTRUSTED_CONTENT";
+
+function createExternalContentMarkerId(): string {
+  return randomBytes(8).toString("hex");
+}
+
+function createExternalContentStartMarker(id: string): string {
+  return `<<<${EXTERNAL_CONTENT_START_NAME} id="${id}">>>`;
+}
+
+function createExternalContentEndMarker(id: string): string {
+  return `<<<${EXTERNAL_CONTENT_END_NAME} id="${id}">>>`;
+}
 
 /**
  * Security warning prepended to external content.
@@ -130,9 +146,16 @@ function replaceMarkers(content: string): string {
     return content;
   }
   const replacements: Array<{ start: number; end: number; value: string }> = [];
+  // Match markers with or without id attribute (handles both legacy and spoofed markers)
   const patterns: Array<{ regex: RegExp; value: string }> = [
-    { regex: /<<<EXTERNAL_UNTRUSTED_CONTENT>>>/gi, value: "[[MARKER_SANITIZED]]" },
-    { regex: /<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>/gi, value: "[[END_MARKER_SANITIZED]]" },
+    {
+      regex: /<<<EXTERNAL_UNTRUSTED_CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>/gi,
+      value: "[[MARKER_SANITIZED]]",
+    },
+    {
+      regex: /<<<END_EXTERNAL_UNTRUSTED_CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>/gi,
+      value: "[[END_MARKER_SANITIZED]]",
+    },
   ];
 
   for (const pattern of patterns) {
@@ -209,14 +232,15 @@ export function wrapExternalContent(content: string, options: WrapExternalConten
 
   const metadata = metadataLines.join("\n");
   const warningBlock = includeWarning ? `${EXTERNAL_CONTENT_WARNING}\n\n` : "";
+  const markerId = createExternalContentMarkerId();
 
   return [
     warningBlock,
-    EXTERNAL_CONTENT_START,
+    createExternalContentStartMarker(markerId),
     metadata,
     "---",
     sanitized,
-    EXTERNAL_CONTENT_END,
+    createExternalContentEndMarker(markerId),
   ].join("\n");
 }
 
@@ -296,4 +320,51 @@ export function wrapWebContent(
   const includeWarning = source === "web_fetch";
   // Marker sanitization happens in wrapExternalContent
   return wrapExternalContent(content, { source, includeWarning });
+}
+
+/**
+ * Strips external content security markers and warnings from text.
+ * Intended for sanitizing assistant output before sending to users,
+ * preventing internal ARIA/browser snapshot markers from leaking
+ * into user-visible chat.
+ *
+ * Removes:
+ * - <<<EXTERNAL_UNTRUSTED_CONTENT ...>>> / <<<END_EXTERNAL_UNTRUSTED_CONTENT ...>>> markers
+ * - SECURITY NOTICE blocks
+ * - [[MARKER_SANITIZED]] / [[END_MARKER_SANITIZED]] placeholders
+ */
+export function stripExternalContentFromOutput(text: string): string {
+  if (!text) {
+    return text;
+  }
+  // Quick check: skip processing if no markers are present
+  const lower = text.toLowerCase();
+  if (
+    !lower.includes("external_untrusted_content") &&
+    !lower.includes("security notice") &&
+    !lower.includes("marker_sanitized")
+  ) {
+    return text;
+  }
+  let result = text;
+  // Remove entire external content blocks (markers + content between them)
+  result = result.replace(
+    /<<<EXTERNAL_UNTRUSTED_CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>[\s\S]*?<<<END_EXTERNAL_UNTRUSTED_CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>\n?/gi,
+    "",
+  );
+  // Remove any unpaired markers left over
+  result = result.replace(/<<<EXTERNAL_UNTRUSTED_CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>\n?/gi, "");
+  result = result.replace(
+    /<<<END_EXTERNAL_UNTRUSTED_CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>\n?/gi,
+    "",
+  );
+  // Remove [[MARKER_SANITIZED]] placeholders
+  result = result.replace(/\[\[(?:END_)?MARKER_SANITIZED\]\]\n?/g, "");
+  // Remove SECURITY NOTICE blocks (multi-line: the notice line + all continuation
+  // lines starting with "- " or horizontal whitespace, matching the actual warning format).
+  // Uses [- \t] instead of [-\s] to avoid matching across blank lines (\s includes \n).
+  result = result.replace(/SECURITY NOTICE:[^\n]*(?:\n[- \t][^\n]*)*/g, "");
+  // Clean up excessive blank lines left behind
+  result = result.replace(/\n{3,}/g, "\n\n");
+  return result.trim();
 }
