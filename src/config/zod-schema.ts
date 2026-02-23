@@ -460,6 +460,7 @@ export const OpenClawSchema = z
           .optional(),
         trustedProxies: z.array(z.string()).optional(),
         allowRealIpFallback: z.boolean().optional(),
+        deviceSignatureSkewMs: z.number().optional(),
         tools: z
           .object({
             deny: z.array(z.string()).optional(),
