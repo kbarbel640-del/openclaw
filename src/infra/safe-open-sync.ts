@@ -17,6 +17,14 @@ function isExpectedPathError(error: unknown): boolean {
 }
 
 export function sameFileIdentity(left: fs.Stats, right: fs.Stats): boolean {
+  // On Windows, fs.lstatSync() returns dev=0 for files on NTFS volumes, while
+  // fs.fstatSync() (called after opening an fd) returns the real volume serial
+  // number. Requiring both to match causes the identity check to always fail on
+  // Windows. When either dev is 0 we fall back to ino-only comparison, which is
+  // reliable on NTFS where the file index (ino) is unique per volume.
+  if (left.dev === 0 || right.dev === 0) {
+    return left.ino === right.ino;
+  }
   return left.dev === right.dev && left.ino === right.ino;
 }
 
