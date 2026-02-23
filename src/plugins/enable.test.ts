@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
+import { normalizePluginsConfig, resolveEnableState } from "./config-state.js";
 import { enablePluginInConfig } from "./enable.js";
 
 describe("enablePluginInConfig", () => {
@@ -32,12 +33,12 @@ describe("enablePluginInConfig", () => {
     expect(result.reason).toBe("blocked by denylist");
   });
 
-  it("writes built-in channels to channels.<id>.enabled instead of plugins.entries", () => {
+  it("writes built-in channels to channels.<id>.enabled and plugins.entries", () => {
     const cfg: OpenClawConfig = {};
     const result = enablePluginInConfig(cfg, "telegram");
     expect(result.enabled).toBe(true);
     expect(result.config.channels?.telegram?.enabled).toBe(true);
-    expect(result.config.plugins?.entries?.telegram).toBeUndefined();
+    expect(result.config.plugins?.entries?.telegram?.enabled).toBe(true);
   });
 
   it("adds built-in channel id to allowlist when allowlist is configured", () => {
@@ -50,5 +51,15 @@ describe("enablePluginInConfig", () => {
     expect(result.enabled).toBe(true);
     expect(result.config.channels?.telegram?.enabled).toBe(true);
     expect(result.config.plugins?.allow).toEqual(["memory-core", "telegram"]);
+  });
+
+  it("bundled channel enabled via enablePluginInConfig is visible to resolveEnableState (#24182)", () => {
+    const cfg: OpenClawConfig = {};
+    const result = enablePluginInConfig(cfg, "telegram");
+    expect(result.enabled).toBe(true);
+
+    const normalized = normalizePluginsConfig(result.config.plugins);
+    const enableState = resolveEnableState("telegram", "bundled", normalized);
+    expect(enableState.enabled).toBe(true);
   });
 });
