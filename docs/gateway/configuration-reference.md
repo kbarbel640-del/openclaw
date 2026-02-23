@@ -1935,7 +1935,7 @@ See [Plugins](/tools/plugin).
         maxAttempts: 10,
         windowMs: 60000,
         lockoutMs: 300000,
-        exemptLoopback: true,
+        exemptLoopback: false,
       },
     },
     tailscale: {
