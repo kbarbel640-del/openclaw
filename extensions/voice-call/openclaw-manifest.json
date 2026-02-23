@@ -1,0 +1,49 @@
+{
+  "manifestVersion": 1,
+  "pluginId": "voice-call",
+  "capabilities": {
+    "gatewayMethods": [
+      {
+        "method": "voicecall.*",
+        "description": "Voice call operations (initiate, continue, speak, end, status, start)"
+      }
+    ],
+    "httpRoutes": [
+      {
+        "path": "/api/voicecall/*",
+        "methods": ["GET", "POST"],
+        "auth": "gateway",
+        "description": "Voice call webhook and streaming endpoints"
+      }
+    ],
+    "config": {
+      "reads": ["plugins.voice-call"],
+      "writes": []
+    },
+    "filesystem": {
+      "stateDir": true,
+      "credentialsDir": false,
+      "tempDir": true
+    },
+    "network": {
+      "outbound": true,
+      "webhookInbound": true,
+      "ports": []
+    },
+    "runtime": {
+      "runCommands": false,
+      "spawnProcesses": false,
+      "timers": true
+    }
+  },
+  "permissions": {
+    "summary": "Voice call plugin with Telnyx/Twilio/Plivo providers",
+    "details": [
+      "Register gateway methods for voice call operations",
+      "Receive webhook callbacks from telephony providers",
+      "Read voice-call plugin configuration",
+      "Store call logs and state",
+      "Make outbound HTTP requests to telephony APIs"
+    ]
+  }
+}
