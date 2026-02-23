@@ -339,11 +339,24 @@ export type CostBudgetConfig = {
   resetHourUtc?: number;
 };
 
+export type ConfigIntegrityConfig = {
+  /** Enable integrity verification. @default true */
+  enabled?: boolean;
+  /** Verify config integrity on gateway startup. @default true */
+  verifyOnStartup?: boolean;
+  /** Block gateway startup when tampering is detected. @default false */
+  blockOnTampering?: boolean;
+  /** Additional files (relative to stateDir) to track beyond defaults. */
+  trackedFiles?: string[];
+};
+
 export type SecurityConfig = {
   /** Per-sender/per-session message rate limiting. */
   messageRateLimit?: MessageRateLimitConfig;
   /** Optional per-sender daily cost budget (off by default). */
   costBudget?: CostBudgetConfig;
+  /** Cryptographic integrity verification for config files. */
+  configIntegrity?: ConfigIntegrityConfig;
 };
 
 export type GatewayConfig = {
