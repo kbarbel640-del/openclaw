@@ -18,7 +18,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (68 total) (including device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite: 10 passing)
+- ✅ Tests passing (73 total) (including device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite: 10 passing)
 - ✅ Removed `MediaFoundation.Net` NU1701 warning path from build by moving camera stack off framework-only package
 
 ---
@@ -87,7 +87,10 @@ Build a native Windows application that replicates the functionality of the Open
 - **IPC**: Named Pipes bridge replacing macOS XPC
   - [x] Named pipe server lifecycle integrated into app start/stop
   - [x] IPC auth token support added (shared secret on request envelope)
-  - [x] IPC methods implemented: `ipc.ping`, `ipc.window.list`, `ipc.window.focus`, `ipc.input.type`
+  - [x] IPC method parity reached for current automation MVP:
+    - `ipc.ping`
+    - `ipc.window.list`, `ipc.window.focus`, `ipc.window.rect`
+    - `ipc.input.type`, `ipc.input.key`, `ipc.input.click`, `ipc.input.scroll`, `ipc.input.click.relative`
   - [x] Unit tests added for pipe roundtrip + unknown-method + auth gating + bad-request validation paths
 
 ---

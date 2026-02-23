@@ -41,7 +41,12 @@
    - `ipc.ping`
    - `ipc.window.list`
    - `ipc.window.focus`
+   - `ipc.window.rect`
    - `ipc.input.type`
+   - `ipc.input.key`
+   - `ipc.input.click`
+   - `ipc.input.scroll`
+   - `ipc.input.click.relative`
    - auth token required when configured (Program currently uses gateway token as shared secret)
 7. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
@@ -58,7 +63,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **68 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **73 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash

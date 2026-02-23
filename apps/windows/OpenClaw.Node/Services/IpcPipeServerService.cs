@@ -271,6 +271,54 @@ namespace OpenClaw.Node.Services
                 };
             }
 
+            if (string.Equals(method, "ipc.window.rect", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = req.Params ?? default;
+                long? handle = null;
+                string? titleContains = null;
+
+                if (p.ValueKind == JsonValueKind.Object)
+                {
+                    if (p.TryGetProperty("handle", out var h) && h.ValueKind == JsonValueKind.Number)
+                    {
+                        handle = h.GetInt64();
+                    }
+                    if (p.TryGetProperty("titleContains", out var t) && t.ValueKind == JsonValueKind.String)
+                    {
+                        titleContains = t.GetString();
+                    }
+                }
+
+                if ((!handle.HasValue || handle.Value == 0) && string.IsNullOrWhiteSpace(titleContains))
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.window.rect requires handle or titleContains" }
+                    };
+                }
+
+                var svc = new AutomationService();
+                var rect = await svc.GetWindowRectAsync(handle, titleContains);
+                if (rect == null)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "UNAVAILABLE", Message = "Unable to resolve requested window rect" }
+                    };
+                }
+
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = true,
+                    Payload = new { rect }
+                };
+            }
+
             if (string.Equals(method, "ipc.input.type", StringComparison.OrdinalIgnoreCase))
             {
                 var p = req.Params ?? default;
@@ -307,6 +355,240 @@ namespace OpenClaw.Node.Services
                     Id = req.Id ?? string.Empty,
                     Ok = true,
                     Payload = new { ok = true }
+                };
+            }
+
+            if (string.Equals(method, "ipc.input.key", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = req.Params ?? default;
+                string? key = null;
+                if (p.ValueKind == JsonValueKind.Object && p.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String)
+                {
+                    key = k.GetString();
+                }
+
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.key requires key" }
+                    };
+                }
+
+                var svc = new AutomationService();
+                var ok = await svc.SendKeyAsync(key);
+                if (!ok)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "UNAVAILABLE", Message = "Sending key input failed" }
+                    };
+                }
+
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = true,
+                    Payload = new { ok = true }
+                };
+            }
+
+            if (string.Equals(method, "ipc.input.click", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = req.Params ?? default;
+                if (p.ValueKind != JsonValueKind.Object)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.click requires params object" }
+                    };
+                }
+
+                if (!p.TryGetProperty("x", out var xEl) || xEl.ValueKind != JsonValueKind.Number ||
+                    !p.TryGetProperty("y", out var yEl) || yEl.ValueKind != JsonValueKind.Number)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.click requires numeric x and y" }
+                    };
+                }
+
+                var x = xEl.GetInt32();
+                var y = yEl.GetInt32();
+                var button = p.TryGetProperty("button", out var bEl) && bEl.ValueKind == JsonValueKind.String
+                    ? (bEl.GetString() ?? "primary")
+                    : "primary";
+                var doubleClick = p.TryGetProperty("doubleClick", out var dEl) &&
+                                  (dEl.ValueKind == JsonValueKind.True || dEl.ValueKind == JsonValueKind.False)
+                    ? dEl.GetBoolean()
+                    : false;
+
+                var svc = new AutomationService();
+                var ok = await svc.ClickAsync(x, y, button, doubleClick);
+                if (!ok)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "UNAVAILABLE", Message = "Mouse click failed" }
+                    };
+                }
+
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = true,
+                    Payload = new { ok = true, x, y, button, doubleClick }
+                };
+            }
+
+            if (string.Equals(method, "ipc.input.scroll", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = req.Params ?? default;
+                if (p.ValueKind != JsonValueKind.Object ||
+                    !p.TryGetProperty("deltaY", out var deltaEl) || deltaEl.ValueKind != JsonValueKind.Number)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.scroll requires numeric deltaY" }
+                    };
+                }
+
+                var deltaY = deltaEl.GetInt32();
+                int? x = null;
+                int? y = null;
+
+                if (p.TryGetProperty("x", out var xEl))
+                {
+                    if (xEl.ValueKind != JsonValueKind.Number)
+                    {
+                        return new IpcResponse
+                        {
+                            Id = req.Id ?? string.Empty,
+                            Ok = false,
+                            Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.scroll x must be numeric" }
+                        };
+                    }
+                    x = xEl.GetInt32();
+                }
+
+                if (p.TryGetProperty("y", out var yEl))
+                {
+                    if (yEl.ValueKind != JsonValueKind.Number)
+                    {
+                        return new IpcResponse
+                        {
+                            Id = req.Id ?? string.Empty,
+                            Ok = false,
+                            Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.scroll y must be numeric" }
+                        };
+                    }
+                    y = yEl.GetInt32();
+                }
+
+                var svc = new AutomationService();
+                var ok = await svc.ScrollAsync(deltaY, x, y);
+                if (!ok)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "UNAVAILABLE", Message = "Mouse scroll failed" }
+                    };
+                }
+
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = true,
+                    Payload = new { ok = true, deltaY, x, y }
+                };
+            }
+
+            if (string.Equals(method, "ipc.input.click.relative", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = req.Params ?? default;
+                if (p.ValueKind != JsonValueKind.Object)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.click.relative requires params object" }
+                    };
+                }
+
+                long? handle = null;
+                string? titleContains = null;
+                if (p.TryGetProperty("handle", out var h) && h.ValueKind == JsonValueKind.Number)
+                {
+                    handle = h.GetInt64();
+                }
+                if (p.TryGetProperty("titleContains", out var t) && t.ValueKind == JsonValueKind.String)
+                {
+                    titleContains = t.GetString();
+                }
+
+                if ((!handle.HasValue || handle.Value == 0) && string.IsNullOrWhiteSpace(titleContains))
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.click.relative requires handle or titleContains" }
+                    };
+                }
+
+                if (!p.TryGetProperty("offsetX", out var oxEl) || oxEl.ValueKind != JsonValueKind.Number ||
+                    !p.TryGetProperty("offsetY", out var oyEl) || oyEl.ValueKind != JsonValueKind.Number)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.click.relative requires numeric offsetX and offsetY" }
+                    };
+                }
+
+                var offsetX = oxEl.GetInt32();
+                var offsetY = oyEl.GetInt32();
+                var button = p.TryGetProperty("button", out var bEl) && bEl.ValueKind == JsonValueKind.String
+                    ? (bEl.GetString() ?? "primary")
+                    : "primary";
+                var doubleClick = p.TryGetProperty("doubleClick", out var dEl) &&
+                                  (dEl.ValueKind == JsonValueKind.True || dEl.ValueKind == JsonValueKind.False)
+                    ? dEl.GetBoolean()
+                    : false;
+
+                var svc = new AutomationService();
+                var ok = await svc.ClickRelativeToWindowAsync(handle, titleContains, offsetX, offsetY, button, doubleClick);
+                if (!ok)
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "UNAVAILABLE", Message = "Relative click failed" }
+                    };
+                }
+
+                return new IpcResponse
+                {
+                    Id = req.Id ?? string.Empty,
+                    Ok = true,
+                    Payload = new { ok = true, offsetX, offsetY, button, doubleClick }
                 };
             }
 
