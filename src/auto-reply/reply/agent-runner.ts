@@ -15,7 +15,8 @@ import {
   updateSessionStoreEntry,
 } from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
-import { emitAgentEvent } from "../../infra/agent-events.js";import type { OriginatingChannelType, TemplateContext } from "../templating.js";
+import { emitAgentEvent } from "../../infra/agent-events.js";
+import type { OriginatingChannelType, TemplateContext } from "../templating.js";
 import { resolveResponseUsageMode, type VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { runAgentTurnWithFallback } from "./agent-runner-execution.js";
@@ -38,7 +39,8 @@ import {
   formatAuditWarning,
   readSessionMessages,
 } from "./post-compaction-audit.js";
-import { readPostCompactionContext } from "./post-compaction-context.js";import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
+import { readPostCompactionContext } from "./post-compaction-context.js";
+import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
 import { createReplyToModeFilterForChannel, resolveReplyToMode } from "./reply-threading.js";
 import { incrementRunCompactionCount, persistRunSessionUsage } from "./session-run-accounting.js";
 import { createTypingSignaler } from "./typing-mode.js";
