@@ -38,7 +38,31 @@ function parseMetaName(raw?: unknown): { subsystem?: string; module?: string } {
   }
 }
 
+// [2026-02-23 15:42:38.123] [12345] [config] info: message
+const STRUCTURED_LINE_RE =
+  /^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]\s*\[(\d+)\]\s*\[([^\]]*)\]\s*(\w+):\s*(.*)$/s;
+
+function parseStructuredLine(raw: string): ParsedLogLine | null {
+  const m = STRUCTURED_LINE_RE.exec(raw.trim());
+  if (!m) {
+    return null;
+  }
+  const [, time, , subsystem, level, message] = m;
+  return {
+    time,
+    level: level.toLowerCase(),
+    subsystem: subsystem || undefined,
+    module: undefined,
+    message: message.trim(),
+    raw,
+  };
+}
+
 export function parseLogLine(raw: string): ParsedLogLine | null {
+  const structured = parseStructuredLine(raw);
+  if (structured) {
+    return structured;
+  }
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const meta = parsed._meta as Record<string, unknown> | undefined;

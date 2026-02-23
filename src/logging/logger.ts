@@ -30,6 +30,43 @@ export type LoggerSettings = {
 
 type LogObj = { date?: Date } & Record<string, unknown>;
 
+/** Format: [YYYY-MM-DD HH:mm:ss.SSS] [pid] [subsystem] level: message */
+function formatFileLogLine(logObj: LogObj): string {
+  const d = logObj.date ?? new Date();
+  const timeStr =
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ` +
+    `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+  const meta = logObj._meta as Record<string, unknown> | undefined;
+  const level = typeof meta?.logLevelName === "string" ? meta.logLevelName : "INFO";
+  const levelLower = level.toLowerCase();
+  let subsystem = "main";
+  if (typeof meta?.name === "string") {
+    try {
+      const parsed = JSON.parse(meta.name) as Record<string, unknown>;
+      if (typeof parsed.subsystem === "string") {
+        subsystem = parsed.subsystem;
+      }
+    } catch {
+      // keep main
+    }
+  }
+  const parts: string[] = [];
+  const nameStr = typeof meta?.name === "string" ? meta.name : undefined;
+  for (const key of Object.keys(logObj).toSorted((a, b) => Number(a) - Number(b))) {
+    if (!/^\d+$/.test(key)) {
+      continue;
+    }
+    const item = (logObj as Record<string, unknown>)[key];
+    const s = typeof item === "string" ? item : item != null ? JSON.stringify(item) : "";
+    if (!s || s === nameStr) {
+      continue;
+    }
+    parts.push(s);
+  }
+  const message = parts.join(" ").trim();
+  return `[${timeStr}] [${process.pid}] [${subsystem}] ${levelLower}: ${message}`;
+}
+
 type ResolvedSettings = {
   level: LogLevel;
   file: string;
@@ -113,19 +150,17 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
 
   logger.attachTransport((logObj: LogObj) => {
     try {
-      const time = logObj.date?.toISOString?.() ?? new Date().toISOString();
-      const line = JSON.stringify({ ...logObj, time });
+      const line = formatFileLogLine(logObj);
       const payload = `${line}\n`;
       const payloadBytes = Buffer.byteLength(payload, "utf8");
       const nextBytes = currentFileBytes + payloadBytes;
       if (nextBytes > settings.maxFileBytes) {
         if (!warnedAboutSizeCap) {
           warnedAboutSizeCap = true;
-          const warningLine = JSON.stringify({
-            time: new Date().toISOString(),
-            level: "warn",
-            subsystem: "logging",
-            message: `log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}`,
+          const warningLine = formatFileLogLine({
+            date: new Date(),
+            _meta: { logLevelName: "WARN", name: '{"subsystem":"logging"}' },
+            0: `log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}`,
           });
           appendLogLine(settings.file, `${warningLine}\n`);
           process.stderr.write(
