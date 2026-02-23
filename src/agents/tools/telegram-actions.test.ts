@@ -123,6 +123,25 @@ describe("handleTelegramAction", () => {
     );
   });
 
+  it("soft-fails when messageId is missing", async () => {
+    const cfg = {
+      channels: { telegram: { botToken: "tok", reactionLevel: "minimal" } },
+    } as OpenClawConfig;
+    const result = await handleTelegramAction(
+      {
+        action: "react",
+        chatId: "123",
+        emoji: "✅",
+      },
+      cfg,
+    );
+    expect(result.details).toMatchObject({
+      ok: false,
+      reason: "missing_message_id",
+    });
+    expect(reactMessageTelegram).not.toHaveBeenCalled();
+  });
+
   it("removes reactions on empty emoji", async () => {
     const cfg = {
       channels: { telegram: { botToken: "tok", reactionLevel: "minimal" } },

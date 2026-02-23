@@ -724,6 +724,32 @@ describe("telegramMessageActions", () => {
     expect(callPayload.action).toBe("react");
     expect(String(callPayload.messageId)).toBe("9001");
   });
+
+  it("forwards missing reaction messageId to telegram-actions for soft-fail handling", async () => {
+    const cfg = telegramCfg();
+
+    await expect(
+      telegramMessageActions.handleAction?.({
+        channel: "telegram",
+        action: "react",
+        params: {
+          chatId: "123",
+          emoji: "ok",
+        },
+        cfg,
+        accountId: undefined,
+      }),
+    ).resolves.toBeDefined();
+
+    expect(handleTelegramAction).toHaveBeenCalledTimes(1);
+    const call = handleTelegramAction.mock.calls[0]?.[0];
+    if (!call) {
+      throw new Error("missing telegram action call");
+    }
+    const callPayload = call as Record<string, unknown>;
+    expect(callPayload.action).toBe("react");
+    expect(callPayload.messageId).toBeUndefined();
+  });
 });
 
 describe("signalMessageActions", () => {
