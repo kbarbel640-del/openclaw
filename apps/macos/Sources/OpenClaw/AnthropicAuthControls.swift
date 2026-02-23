@@ -14,15 +14,22 @@ struct AnthropicAuthControls: View {
     @State private var autoDetectClipboard = true
     @State private var autoConnectClipboard = true
     @State private var lastPasteboardChangeCount = NSPasteboard.general.changeCount
+    @State private var isAppActive = true
 
     private static let clipboardPoll: AnyPublisher<Date, Never> = {
         if ProcessInfo.processInfo.isRunningTests {
             return Empty(completeImmediately: false).eraseToAnyPublisher()
         }
-        return Timer.publish(every: 0.4, on: .main, in: .common)
+        return Timer.publish(every: 1.5, on: .main, in: .common)
             .autoconnect()
             .eraseToAnyPublisher()
     }()
+    private static let appDidBecomeActive = NotificationCenter.default
+        .publisher(for: NSApplication.didBecomeActiveNotification)
+        .eraseToAnyPublisher()
+    private static let appDidResignActive = NotificationCenter.default
+        .publisher(for: NSApplication.didResignActiveNotification)
+        .eraseToAnyPublisher()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -123,9 +130,18 @@ struct AnthropicAuthControls: View {
         }
         .onAppear {
             self.refresh()
+            self.isAppActive = NSApp.isActive
+            self.pollClipboardIfNeeded(force: true)
         }
         .onReceive(Self.clipboardPoll) { _ in
             self.pollClipboardIfNeeded()
+        }
+        .onReceive(Self.appDidBecomeActive) { _ in
+            self.isAppActive = true
+            self.pollClipboardIfNeeded(force: true)
+        }
+        .onReceive(Self.appDidResignActive) { _ in
+            self.isAppActive = false
         }
     }
 
@@ -182,11 +198,12 @@ struct AnthropicAuthControls: View {
         }
     }
 
-    private func pollClipboardIfNeeded() {
+    private func pollClipboardIfNeeded(force: Bool = false) {
         guard self.connectionMode == .local else { return }
         guard self.pkce != nil else { return }
         guard !self.busy else { return }
         guard self.autoDetectClipboard else { return }
+        guard force || self.isAppActive else { return }
 
         let pb = NSPasteboard.general
         let changeCount = pb.changeCount

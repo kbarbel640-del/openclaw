@@ -425,11 +425,13 @@ final class PermissionMonitor {
 
     private(set) var status: [Capability: Bool] = [:]
 
-    private var monitorTimer: Timer?
+    private var monitorTask: Task<Void, Never>?
     private var isChecking = false
+    private var pendingForcedCheck = false
     private var registrations = 0
     private var lastCheck: Date?
-    private let minimumCheckInterval: TimeInterval = 0.5
+    private let minimumCheckInterval: TimeInterval = 0.75
+    private let monitorIntervalNs: UInt64 = 1_500_000_000
 
     func register() {
         self.registrations += 1
@@ -456,22 +458,32 @@ final class PermissionMonitor {
         if ProcessInfo.processInfo.isRunningTests {
             return
         }
-        self.monitorTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                await self.checkStatus(force: false)
-            }
+        self.monitorTask?.cancel()
+        self.monitorTask = Task { [weak self] in
+            await self?.monitorLoop()
         }
     }
 
     private func stopMonitoring() {
-        self.monitorTimer?.invalidate()
-        self.monitorTimer = nil
+        self.monitorTask?.cancel()
+        self.monitorTask = nil
         self.lastCheck = nil
+        self.pendingForcedCheck = false
+    }
+
+    private func monitorLoop() async {
+        while !Task.isCancelled && self.registrations > 0 {
+            try? await Task.sleep(nanoseconds: self.monitorIntervalNs)
+            if Task.isCancelled { return }
+            await self.checkStatus(force: false)
+        }
     }
 
     private func checkStatus(force: Bool) async {
-        if self.isChecking { return }
+        if self.isChecking {
+            self.pendingForcedCheck = self.pendingForcedCheck || force
+            return
+        }
         let now = Date()
         if !force, let lastCheck, now.timeIntervalSince(lastCheck) < self.minimumCheckInterval {
             return
@@ -486,6 +498,10 @@ final class PermissionMonitor {
         self.lastCheck = Date()
 
         self.isChecking = false
+        if self.pendingForcedCheck {
+            self.pendingForcedCheck = false
+            await self.checkStatus(force: true)
+        }
     }
 }
 

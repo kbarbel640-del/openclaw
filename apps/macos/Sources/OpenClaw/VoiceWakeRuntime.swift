@@ -15,6 +15,24 @@ actor VoiceWakeRuntime {
 
     private let logger = Logger(subsystem: "ai.openclaw", category: "voicewake.runtime")
 
+    private final class RMSMeter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var latestRMS: Double = 0
+
+        func set(_ rms: Double) {
+            self.lock.lock()
+            self.latestRMS = rms
+            self.lock.unlock()
+        }
+
+        func get() -> Double {
+            self.lock.lock()
+            let value = self.latestRMS
+            self.lock.unlock()
+            return value
+        }
+    }
+
     private var recognizer: SFSpeechRecognizer?
     // Lazily created on start to avoid creating an AVAudioEngine at app launch, which can switch Bluetooth
     // headphones into the low-quality headset profile even if Voice Wake is disabled.
@@ -47,6 +65,10 @@ actor VoiceWakeRuntime {
     private var preDetectTask: Task<Void, Never>?
     private var isStarting: Bool = false
     private var triggerOnlyTask: Task<Void, Never>?
+    private var rmsTickerTask: Task<Void, Never>?
+    private let rmsMeter = RMSMeter()
+    private var lastPublishedOverlayLevel: Double = 0
+    private var lastOverlayLevelUpdateAtUptimeNs: UInt64 = 0
 
     /// Tunables
     /// Silence threshold once we've captured user speech (post-trigger).
@@ -61,6 +83,13 @@ actor VoiceWakeRuntime {
     private let speechBoostFactor: Double = 6.0 // how far above noise floor we require to mark speech
     private let preDetectSilenceWindow: TimeInterval = 1.0
     private let triggerPauseWindow: TimeInterval = 0.55
+    private let activeRMSTickNs: UInt64 = 50_000_000
+    private let idleRMSTickNs: UInt64 = 220_000_000
+    private let captureFastPollNs: UInt64 = 120_000_000
+    private let captureMediumPollNs: UInt64 = 200_000_000
+    private let captureSlowPollNs: UInt64 = 350_000_000
+    private let levelUpdateMinDelta: Double = 0.04
+    private let levelUpdateMaxIntervalNs: UInt64 = 120_000_000
 
     /// Stops the active Speech pipeline without clearing the stored config, so we can restart cleanly.
     private func haltRecognitionPipeline() {
@@ -74,6 +103,8 @@ actor VoiceWakeRuntime {
         self.audioEngine?.stop()
         // Release the engine so we also release any audio session/resources when Voice Wake is idle.
         self.audioEngine = nil
+        self.rmsTickerTask?.cancel()
+        self.rmsTickerTask = nil
     }
 
     struct RuntimeConfig: Equatable {
@@ -175,17 +206,16 @@ actor VoiceWakeRuntime {
                     userInfo: [NSLocalizedDescriptionKey: "No audio input available"])
             }
             input.removeTap(onBus: 0)
-            input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self, weak request] buffer, _ in
+            let meter = self.rmsMeter
+            input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak request, meter] buffer, _ in
                 request?.append(buffer)
                 guard let rms = Self.rmsLevel(buffer: buffer) else { return }
-                Task.detached { [weak self] in
-                    await self?.noteAudioLevel(rms: rms)
-                    await self?.noteAudioTap(rms: rms)
-                }
+                meter.set(rms)
             }
 
             audioEngine.prepare()
             try audioEngine.start()
+            self.startRMSTicker(meter: meter)
 
             self.currentConfig = config
             self.lastHeard = Date()
@@ -241,11 +271,15 @@ actor VoiceWakeRuntime {
         self.preDetectTask = nil
         self.triggerOnlyTask?.cancel()
         self.triggerOnlyTask = nil
+        self.rmsTickerTask?.cancel()
+        self.rmsTickerTask = nil
         self.haltRecognitionPipeline()
         self.recognizer = nil
         self.currentConfig = nil
         self.listeningState = .idle
         self.activeTriggerEndTime = nil
+        self.lastPublishedOverlayLevel = 0
+        self.lastOverlayLevelUpdateAtUptimeNs = DispatchTime.now().uptimeNanoseconds
         self.logger.debug("voicewake runtime stopped")
         DiagnosticsFileLog.shared.log(category: "voicewake.runtime", event: "stopped")
 
@@ -581,26 +615,50 @@ actor VoiceWakeRuntime {
     private func monitorCapture(config: RuntimeConfig) async {
         let start = self.captureStartedAt ?? Date()
         let hardStop = start.addingTimeInterval(self.captureHardStop)
+        var loopIterations = 0
 
         while self.isCapturing {
+            if Task.isCancelled {
+                return
+            }
+            loopIterations += 1
             let now = Date()
             if now >= hardStop {
                 // Hard-stop after a maximum duration so we never leave the recognizer pinned open.
-                await self.finalizeCapture(config: config)
+                await self.finalizeCapture(
+                    config: config,
+                    reason: "hard-stop",
+                    loopIterations: loopIterations)
                 return
             }
 
             let silenceThreshold = self.heardBeyondTrigger ? self.silenceWindow : self.triggerOnlySilenceWindow
             if let last = self.lastHeard, now.timeIntervalSince(last) >= silenceThreshold {
-                await self.finalizeCapture(config: config)
+                await self.finalizeCapture(
+                    config: config,
+                    reason: "silence",
+                    loopIterations: loopIterations)
                 return
             }
 
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            let sinceLastHeard = now.timeIntervalSince(self.lastHeard ?? start)
+            let sleepNs: UInt64 =
+                if sinceLastHeard < 1.0 {
+                    self.captureFastPollNs
+                } else if sinceLastHeard < 3.0 {
+                    self.captureMediumPollNs
+                } else {
+                    self.captureSlowPollNs
+                }
+            try? await Task.sleep(nanoseconds: sleepNs)
         }
     }
 
-    private func finalizeCapture(config: RuntimeConfig) async {
+    private func finalizeCapture(
+        config: RuntimeConfig,
+        reason: String = "manual",
+        loopIterations: Int = 0) async
+    {
         guard self.isCapturing else { return }
         self.isCapturing = false
         // Disarm trigger matching immediately (before halting recognition) to avoid double-trigger
@@ -612,6 +670,8 @@ actor VoiceWakeRuntime {
         let finalTranscript = self.capturedTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         DiagnosticsFileLog.shared.log(category: "voicewake.runtime", event: "finalizeCapture", fields: [
             "finalLen": "\(finalTranscript.count)",
+            "reason": reason,
+            "iterations": "\(loopIterations)",
         ])
         // Stop further recognition events so we don't retrigger immediately with buffered audio.
         self.haltRecognitionPipeline()
@@ -632,6 +692,8 @@ actor VoiceWakeRuntime {
         if let token = self.overlayToken {
             await MainActor.run { VoiceSessionCoordinator.shared.updateLevel(token: token, 0) }
         }
+        self.lastPublishedOverlayLevel = 0
+        self.lastOverlayLevelUpdateAtUptimeNs = DispatchTime.now().uptimeNanoseconds
 
         let delay: TimeInterval = 0.0
         let sendChime = finalTranscript.isEmpty ? .none : config.sendChime
@@ -657,7 +719,26 @@ actor VoiceWakeRuntime {
 
     // MARK: - Audio level handling
 
-    private func noteAudioLevel(rms: Double) {
+    private func startRMSTicker(meter: RMSMeter) {
+        self.rmsTickerTask?.cancel()
+        self.rmsTickerTask = Task { [weak self, meter] in
+            while let self {
+                if Task.isCancelled { return }
+                let sleepNs = await self.rmsTickIntervalNanoseconds()
+                try? await Task.sleep(nanoseconds: sleepNs)
+                if Task.isCancelled { return }
+                let rms = meter.get()
+                await self.noteAudioTap(rms: rms)
+                await self.noteAudioLevel(rms: rms)
+            }
+        }
+    }
+
+    private func rmsTickIntervalNanoseconds() -> UInt64 {
+        self.isCapturing ? self.activeRMSTickNs : self.idleRMSTickNs
+    }
+
+    private func noteAudioLevel(rms: Double) async {
         guard self.isCapturing else { return }
 
         // Update adaptive noise floor: faster when lower energy (quiet), slower when loud.
@@ -671,8 +752,22 @@ actor VoiceWakeRuntime {
 
         // Normalize against the adaptive threshold so the UI meter stays roughly 0...1 across devices.
         let clamped = min(1.0, max(0.0, rms / max(self.minSpeechRMS, threshold)))
+        let nowUptime = DispatchTime.now().uptimeNanoseconds
+        let delta = abs(clamped - self.lastPublishedOverlayLevel)
+        let elapsed =
+            nowUptime >= self.lastOverlayLevelUpdateAtUptimeNs
+            ? nowUptime - self.lastOverlayLevelUpdateAtUptimeNs
+            : self.levelUpdateMaxIntervalNs
+        guard
+            delta >= self.levelUpdateMinDelta ||
+            elapsed >= self.levelUpdateMaxIntervalNs ||
+            clamped == 0 ||
+            self.lastPublishedOverlayLevel == 0
+        else { return }
+        self.lastPublishedOverlayLevel = clamped
+        self.lastOverlayLevelUpdateAtUptimeNs = nowUptime
         if let token = self.overlayToken {
-            Task { @MainActor in
+            await MainActor.run {
                 VoiceSessionCoordinator.shared.updateLevel(token: token, clamped)
             }
         }

@@ -121,10 +121,15 @@ extension OnboardingView {
     }
 
     func pollAnthropicClipboardIfNeeded() {
+        self.pollAnthropicClipboardIfNeeded(force: false)
+    }
+
+    func pollAnthropicClipboardIfNeeded(force: Bool) {
         guard self.currentPage == self.anthropicAuthPageIndex else { return }
         guard self.anthropicAuthPKCE != nil else { return }
         guard !self.anthropicAuthBusy else { return }
         guard self.anthropicAuthAutoDetectClipboard else { return }
+        guard force || self.anthropicAuthIsAppActive else { return }
 
         let pb = NSPasteboard.general
         let changeCount = pb.changeCount
@@ -143,5 +148,14 @@ extension OnboardingView {
 
         guard self.anthropicAuthAutoConnectClipboard else { return }
         Task { await self.finishAnthropicOAuth() }
+    }
+
+    func handleOnboardingAppDidBecomeActive() {
+        self.anthropicAuthIsAppActive = true
+        self.pollAnthropicClipboardIfNeeded(force: true)
+    }
+
+    func handleOnboardingAppDidResignActive() {
+        self.anthropicAuthIsAppActive = false
     }
 }
