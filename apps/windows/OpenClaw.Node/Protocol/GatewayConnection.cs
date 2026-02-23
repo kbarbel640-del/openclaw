@@ -32,6 +32,7 @@ namespace OpenClaw.Node.Protocol
         public event Action<EventFrame>? OnEventReceived;
         public event Action? OnConnected;
         public event Action? OnDisconnected;
+        public event Action<string>? OnConnectRejected;
         public event Func<BridgeInvokeRequest, Task<BridgeInvokeResponse>>? OnNodeInvoke;
 
         private readonly ConcurrentDictionary<string, Func<RequestFrame, Task<object?>>> _methodHandlers = new();
@@ -338,6 +339,7 @@ namespace OpenClaw.Node.Protocol
                 {
                     var errorText = JsonSerializer.Serialize(res.Error, JsonOptions);
                     OnLog?.Invoke($"[Gateway] Connect rejected: {errorText}");
+                    OnConnectRejected?.Invoke(errorText);
                 }
 
                 _pendingConnectRequestId = null;

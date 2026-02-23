@@ -67,6 +67,7 @@ namespace OpenClaw.Node
             var trayStatus = new TrayStatusBroadcaster();
             var reconnectStartedAtUtc = (DateTimeOffset?)null;
             long? lastReconnectMs = null;
+            var authDialogShown = false;
             var onboarding = OnboardingAdvisor.Evaluate(url, token, configPath, configReadError);
 
             void SetTray(NodeRuntimeState state, string message)
@@ -101,6 +102,7 @@ namespace OpenClaw.Node
             connection.OnConnected += () =>
             {
                 Console.WriteLine("[INFO] Connected to Gateway.");
+                authDialogShown = false;
                 if (reconnectStartedAtUtc.HasValue)
                 {
                     lastReconnectMs = (long)(DateTimeOffset.UtcNow - reconnectStartedAtUtc.Value).TotalMilliseconds;
@@ -114,6 +116,18 @@ namespace OpenClaw.Node
                 Console.WriteLine("[INFO] Disconnected from Gateway.");
                 reconnectStartedAtUtc = DateTimeOffset.UtcNow;
                 SetTray(NodeRuntimeState.Disconnected, "Disconnected from Gateway");
+            };
+            connection.OnConnectRejected += errorText =>
+            {
+                var lowered = (errorText ?? string.Empty).ToLowerInvariant();
+                var isAuthIssue = lowered.Contains("token") || lowered.Contains("auth") || lowered.Contains("unauthorized") || lowered.Contains("forbidden") || lowered.Contains("invalid");
+                if (!isAuthIssue || authDialogShown) return;
+
+                authDialogShown = true;
+                SetTray(NodeRuntimeState.Disconnected, "Authentication failed (check token)");
+                ShowUserWarningDialog(
+                    "OpenClaw Authentication Failed",
+                    "Gateway rejected this node authentication.\n\nPlease verify gateway.auth.token in Open Config, save, then click Restart Node.");
             };
             ipc.OnLog += msg => Console.WriteLine(msg);
             discovery.OnLog += msg => Console.WriteLine(msg);

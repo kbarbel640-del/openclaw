@@ -80,6 +80,7 @@
    - Onboarding MVP (slice 1): startup checks for token/url/config-file now feed tray onboarding status (`OnboardingAdvisor`)
    - Missing-token behavior improved: app no longer exits immediately in default Windows tray mode; it stays alive in tray with warning/status and `Open Config` path (`--no-tray` disables this)
    - Missing-token UX now includes a Windows warning dialog (`MessageBox` with OK) to guide recovery even when no console is visible
+   - Gateway connect rejection now raises auth-focused dialog once per reject cycle (token/auth mismatch guidance)
    - Removed auto-restart onboarding action to keep setup flow non-pressured; recovery remains explicit via `Open Config` + manual `Restart Node`
    - Onboarding checks now distinguish config parse/schema issues (invalid JSON, missing `gateway`/`gateway.auth.token`, non-numeric `gateway.port`) and surface them in onboarding status
    - Custom tray icon asset now bundled (`openclaw-claw.ico`) and loaded at runtime (fallback to system icon if unavailable)
