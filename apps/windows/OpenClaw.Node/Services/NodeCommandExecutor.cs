@@ -20,8 +20,6 @@ namespace OpenClaw.Node.Services
                     "system.which" => await HandleSystemWhichAsync(request),
                     "system.run" => await HandleSystemRunAsync(request),
                     "screen.capture" => await HandleDevScreenshotAsync(request),
-                    "system.screenshot" => await HandleDevScreenshotAsync(request),
-                    "dev.screenshot" => await HandleDevScreenshotAsync(request),
                     "screen.list" => await HandleScreenListAsync(request),
                     "screen.record" => await HandleScreenRecordAsync(request),
                     "camera.list" => await HandleCameraListAsync(request),
