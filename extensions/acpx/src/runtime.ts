@@ -162,7 +162,7 @@ export class AcpxRuntime implements AcpRuntime {
 
   async probeAvailability(): Promise<void> {
     try {
-      const args = [...this.config.commandArgs, "--version"];
+      const args = [...this.config.commandArgs, "--help"];
       const result = await this.spawnAndCollect({
         args,
         cwd: this.config.cwd,

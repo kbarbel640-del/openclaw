@@ -23,7 +23,7 @@ const writeLog = (entry) => {
   fs.appendFileSync(logPath, JSON.stringify(entry) + "\n");
 };
 
-if (args.includes("--version")) {
+if (args.includes("--version") || args.includes("--help")) {
   process.stdout.write("mock-acpx 0.0.0\n");
   process.exit(0);
 }
@@ -319,5 +319,11 @@ describe("AcpxRuntime", () => {
 
     await runtime.probeAvailability();
     expect(runtime.isHealthy()).toBe(false);
+  });
+
+  it("marks runtime healthy when command is available", async () => {
+    const { runtime } = await createMockRuntime();
+    await runtime.probeAvailability();
+    expect(runtime.isHealthy()).toBe(true);
   });
 });
