@@ -196,18 +196,22 @@ function findUnsupportedSchemaKeywords(schema: unknown, path: string): string[] 
   return violations;
 }
 
+// True when the call path targets the Google Gemini JSON Schema restriction:
+// either the canonical google-gemini-cli provider or any third-party proxy
+// (e.g. "nexos") whose model.api resolves to google-generative-ai.
+function resolveIsGoogleProvider(params: { provider: string; modelApi?: string | null }): boolean {
+  return params.provider === "google-gemini-cli" || isGoogleModelApi(params.modelApi);
+}
+
 export function sanitizeToolsForGoogle<
   TSchemaType extends TSchema = TSchema,
   TResult = unknown,
 >(params: {
   tools: AgentTool<TSchemaType, TResult>[];
   provider: string;
+  modelApi?: string | null;
 }): AgentTool<TSchemaType, TResult>[] {
-  // Cloud Code Assist uses the OpenAPI 3.03 `parameters` field for both Gemini
-  // AND Claude models.  This field does not support JSON Schema keywords such as
-  // patternProperties, additionalProperties, $ref, etc.  We must clean schemas
-  // for every provider that routes through this path.
-  if (params.provider !== "google-gemini-cli") {
+  if (!resolveIsGoogleProvider(params)) {
     return params.tools;
   }
   return params.tools.map((tool) => {
@@ -223,8 +227,12 @@ export function sanitizeToolsForGoogle<
   });
 }
 
-export function logToolSchemasForGoogle(params: { tools: AgentTool[]; provider: string }) {
-  if (params.provider !== "google-gemini-cli") {
+export function logToolSchemasForGoogle(params: {
+  tools: AgentTool[];
+  provider: string;
+  modelApi?: string | null;
+}) {
+  if (!resolveIsGoogleProvider(params)) {
     return;
   }
   const toolNames = params.tools.map((tool, index) => `${index}:${tool.name}`);

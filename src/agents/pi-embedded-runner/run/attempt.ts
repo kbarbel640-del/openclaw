@@ -398,12 +398,16 @@ export async function runEmbeddedAttempt(
             params.requireExplicitMessageTarget ?? isSubagentSessionKey(params.sessionKey),
           disableMessageTool: params.disableMessageTool,
         });
-    const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
+    const tools = sanitizeToolsForGoogle({
+      tools: toolsRaw,
+      provider: params.provider,
+      modelApi: params.model.api,
+    });
     const allowedToolNames = collectAllowedToolNames({
       tools,
       clientTools: params.clientTools,
     });
-    logToolSchemasForGoogle({ tools, provider: params.provider });
+    logToolSchemasForGoogle({ tools, provider: params.provider, modelApi: params.model.api });
 
     const machineName = await getMachineDisplayName();
     const runtimeChannel = normalizeMessageChannel(params.messageChannel ?? params.messageProvider);
