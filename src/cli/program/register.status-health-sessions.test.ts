@@ -5,6 +5,7 @@ const statusCommand = vi.fn();
 const healthCommand = vi.fn();
 const sessionsCommand = vi.fn();
 const sessionsCleanupCommand = vi.fn();
+const sessionResetCommand = vi.fn();
 const setVerbose = vi.fn();
 
 const runtime = {
@@ -23,6 +24,9 @@ vi.mock("../../commands/health.js", () => ({
 
 vi.mock("../../commands/sessions.js", () => ({
   sessionsCommand,
+}));
+vi.mock("../../commands/session-reset.js", () => ({
+  sessionResetCommand,
 }));
 
 vi.mock("../../commands/sessions-cleanup.js", () => ({
@@ -56,6 +60,7 @@ describe("registerStatusHealthSessionsCommands", () => {
     healthCommand.mockResolvedValue(undefined);
     sessionsCommand.mockResolvedValue(undefined);
     sessionsCleanupCommand.mockResolvedValue(undefined);
+    sessionResetCommand.mockResolvedValue(undefined);
   });
 
   it("runs status command with timeout and debug-derived verbose", async () => {
@@ -196,6 +201,19 @@ describe("registerStatusHealthSessionsCommands", () => {
     expect(sessionsCleanupCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         allAgents: true,
+      }),
+      runtime,
+    );
+  });
+
+  it("runs session reset with positional key and options", async () => {
+    await runCli(["session", "reset", "agent:main:main", "--reason", "reset", "--json"]);
+
+    expect(sessionResetCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionKey: "agent:main:main",
+        reason: "reset",
+        json: true,
       }),
       runtime,
     );

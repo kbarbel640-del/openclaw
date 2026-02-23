@@ -67,6 +67,27 @@ const routeSessions: RouteSpec = {
   },
 };
 
+const routeSessionReset: RouteSpec = {
+  match: (path) => path[0] === "session" && path[1] === "reset",
+  run: async (argv) => {
+    const sessionKeyFlag = getFlagValue(argv, "--session-key");
+    if (sessionKeyFlag === null) {
+      return false;
+    }
+    const reason = getFlagValue(argv, "--reason");
+    if (reason === null) {
+      return false;
+    }
+    const positionals = getCommandPositionals(argv);
+    const sessionKeyPositional = positionals[2];
+    const sessionKey = sessionKeyFlag ?? sessionKeyPositional;
+    const json = hasFlag(argv, "--json");
+    const { sessionResetCommand } = await import("../../commands/session-reset.js");
+    await sessionResetCommand({ sessionKey, reason, json }, defaultRuntime);
+    return true;
+  },
+};
+
 const routeAgentsList: RouteSpec = {
   match: (path) => path[0] === "agents" && path[1] === "list",
   run: async (argv) => {
@@ -245,6 +266,7 @@ const routes: RouteSpec[] = [
   routeHealth,
   routeStatus,
   routeSessions,
+  routeSessionReset,
   routeAgentsList,
   routeMemoryStatus,
   routeConfigGet,

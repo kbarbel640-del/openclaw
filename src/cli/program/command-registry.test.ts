@@ -32,6 +32,7 @@ vi.mock("./register.status-health-sessions.js", () => ({
     program.command("status");
     program.command("health");
     program.command("sessions");
+    program.command("session");
   },
 }));
 
@@ -133,6 +134,7 @@ describe("command-registry", () => {
     expect(names).toContain("status");
     expect(names).toContain("health");
     expect(names).toContain("sessions");
+    expect(names).toContain("session");
   });
 
   it("replaces placeholders when loading a grouped entry by secondary command name", async () => {

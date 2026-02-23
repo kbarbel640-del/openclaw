@@ -183,6 +183,11 @@ const coreEntries: CoreCliEntry[] = [
         description: "List stored conversation sessions",
         hasSubcommands: true,
       },
+      {
+        name: "session",
+        description: "Manage session state",
+        hasSubcommands: true,
+      },
     ],
     register: async ({ program }) => {
       const mod = await import("./register.status-health-sessions.js");

@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { healthCommand } from "../../commands/health.js";
+import { sessionResetCommand } from "../../commands/session-reset.js";
 import { sessionsCleanupCommand } from "../../commands/sessions-cleanup.js";
 import { sessionsCommand } from "../../commands/sessions.js";
 import { statusCommand } from "../../commands/status.js";
@@ -202,5 +203,35 @@ export function registerStatusHealthSessionsCommands(program: Command) {
           defaultRuntime,
         );
       });
+    });
+
+  const session = program.command("session").description("Manage session state");
+  session
+    .command("reset")
+    .description("Reset a session and trigger command:new style hooks")
+    .argument("[sessionKey]", 'Session key (default: "agent:main:main")')
+    .option("--session-key <key>", "Session key override")
+    .option("--reason <new|reset>", 'Reset reason (default: "new")', "new")
+    .option("--json", "Output JSON", false)
+    .addHelpText(
+      "after",
+      () =>
+        `\n${theme.heading("Examples:")}\n${formatHelpExamples([
+          ["openclaw session reset", "Reset the default main agent session."],
+          ["openclaw session reset agent:main:main --reason reset", "Reset with /reset reason."],
+          ["openclaw session reset --session-key my:key --json", "Machine-readable output."],
+        ])}`,
+    )
+    .action(async (sessionKey, opts) => {
+      await sessionResetCommand(
+        {
+          sessionKey:
+            (opts.sessionKey as string | undefined)?.trim() ||
+            (sessionKey as string | undefined)?.trim(),
+          reason: opts.reason as string | undefined,
+          json: Boolean(opts.json),
+        },
+        defaultRuntime,
+      );
     });
 }

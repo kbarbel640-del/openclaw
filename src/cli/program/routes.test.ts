@@ -38,6 +38,17 @@ describe("program routes", () => {
     expect(findRoutedCommand(["sessions", "cleanup"])).toBeNull();
   });
 
+  it("returns false for session reset route when --session-key value is missing", async () => {
+    await expectRunFalse(
+      ["session", "reset"],
+      ["node", "openclaw", "session", "reset", "--session-key"],
+    );
+  });
+
+  it("returns false for session reset route when --reason value is missing", async () => {
+    await expectRunFalse(["session", "reset"], ["node", "openclaw", "session", "reset", "--reason"]);
+  });
+
   it("does not match unknown routes", () => {
     expect(findRoutedCommand(["definitely-not-real"])).toBeNull();
   });
