@@ -1,6 +1,8 @@
 declare const Buffer: any;
 
-import { getMSTeamsRuntime } from "../runtime.js";
+import { lookup } from "node:dns/promises";
+import { isPrivateIpAddress } from "openclaw/plugin-sdk";
+import type { MSTeamsAttachmentLike } from "./types.js";
 import {
   extractInlineImageCandidates,
   inferPlaceholder,
