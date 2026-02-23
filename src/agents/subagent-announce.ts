@@ -37,6 +37,7 @@ import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
 import type { SpawnSubagentMode } from "./subagent-spawn.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
 import { sanitizeTextContent, extractAssistantText } from "./tools/sessions-helpers.js";
+import { isAnnounceSkip } from "./tools/sessions-send-helpers.js";
 
 const FAST_TEST_MODE = process.env.OPENCLAW_TEST_FAST === "1";
 const FAST_TEST_RETRY_INTERVAL_MS = 8;
@@ -72,6 +73,9 @@ function buildCompletionDeliveryMessage(params: {
   outcome?: SubagentRunOutcome;
 }): string {
   const findingsText = params.findings.trim();
+  if (isAnnounceSkip(findingsText)) {
+    return "";
+  }
   const hasFindings = findingsText.length > 0 && findingsText !== "(no output)";
   const header = (() => {
     if (params.outcome?.status === "error") {
