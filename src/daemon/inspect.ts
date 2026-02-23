@@ -3,6 +3,9 @@ import path from "node:path";
 import {
   GATEWAY_SERVICE_KIND,
   GATEWAY_SERVICE_MARKER,
+  MAC_APP_LAUNCH_AGENT_LABEL,
+  NODE_LAUNCH_AGENT_LABEL,
+  NODE_SYSTEMD_SERVICE_NAME,
   resolveGatewayLaunchAgentLabel,
   resolveGatewaySystemdServiceName,
   resolveGatewayWindowsTaskName,
@@ -124,11 +127,18 @@ function tryExtractPlistLabel(contents: string): string | null {
 }
 
 function isIgnoredLaunchdLabel(label: string): boolean {
-  return label === resolveGatewayLaunchAgentLabel();
+  // Ignore the active gateway label and known non-gateway OpenClaw services (node host,
+  // macOS menubar app) so they are not falsely reported as competing gateway instances.
+  return (
+    label === resolveGatewayLaunchAgentLabel() ||
+    label === NODE_LAUNCH_AGENT_LABEL ||
+    label === MAC_APP_LAUNCH_AGENT_LABEL
+  );
 }
 
 function isIgnoredSystemdName(name: string): boolean {
-  return name === resolveGatewaySystemdServiceName();
+  // Ignore the active gateway unit and the node-host unit for the same reason.
+  return name === resolveGatewaySystemdServiceName() || name === NODE_SYSTEMD_SERVICE_NAME;
 }
 
 function isLegacyLabel(label: string): boolean {
