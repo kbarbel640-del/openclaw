@@ -16,10 +16,10 @@ namespace OpenClaw.Node.Tray
 
         public event Action<TrayStatusSnapshot>? OnStatusChanged;
 
-        public void Set(NodeRuntimeState state, string message)
+        public void Set(NodeRuntimeState state, string message, int pendingPairs = 0, long? lastReconnectMs = null)
         {
             if (string.IsNullOrWhiteSpace(message)) message = state.ToString();
-            Current = new TrayStatusSnapshot(state, message, _clock());
+            Current = new TrayStatusSnapshot(state, message, _clock(), pendingPairs, lastReconnectMs);
             OnStatusChanged?.Invoke(Current);
         }
     }

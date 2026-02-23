@@ -15,6 +15,7 @@ namespace OpenClaw.Node.Services
         private readonly string _pendingPairCachePath;
 
         public bool HeartbeatsEnabled { get; private set; } = true;
+        public int PendingPairCount => _pendingPairRequests.Count;
 
         public CoreMethodService(DateTimeOffset startedAtUtc, string? pendingPairCachePath = null)
         {

@@ -12,6 +12,7 @@ namespace OpenClaw.Node.Tray
         private readonly Action? _onOpenLogs;
         private readonly Action? _onRestart;
         private readonly Action? _onExit;
+        private readonly Action? _onCopyDiagnostics;
 
         private readonly TaskCompletionSource<bool> _startedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<bool> _stoppedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -21,13 +22,17 @@ namespace OpenClaw.Node.Tray
 
         private object? _notifyIcon;
         private MethodInfo? _appExitThread;
+        private object? _stateItem;
+        private object? _pairsItem;
+        private object? _reconnectItem;
 
-        public WindowsNotifyIconTrayHost(Action<string>? log = null, Action? onOpenLogs = null, Action? onRestart = null, Action? onExit = null)
+        public WindowsNotifyIconTrayHost(Action<string>? log = null, Action? onOpenLogs = null, Action? onRestart = null, Action? onExit = null, Action? onCopyDiagnostics = null)
         {
             _log = log;
             _onOpenLogs = onOpenLogs;
             _onRestart = onRestart;
             _onExit = onExit;
+            _onCopyDiagnostics = onCopyDiagnostics;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -61,6 +66,15 @@ namespace OpenClaw.Node.Tray
                 try
                 {
                     SetProperty(_notifyIcon, "Text", ToNotifyIconText($"OpenClaw: {snapshot.Message}"));
+                    if (_stateItem != null) SetProperty(_stateItem, "Text", $"State: {snapshot.State}");
+                    if (_pairsItem != null) SetProperty(_pairsItem, "Text", $"Pending pairs: {snapshot.PendingPairs}");
+                    if (_reconnectItem != null)
+                    {
+                        var reconnectText = snapshot.LastReconnectMs.HasValue
+                            ? $"Last reconnect: {snapshot.LastReconnectMs.Value}ms"
+                            : "Last reconnect: n/a";
+                        SetProperty(_reconnectItem, "Text", reconnectText);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -120,6 +134,7 @@ namespace OpenClaw.Node.Tray
                     ?? throw new InvalidOperationException("System.Windows.Forms.ContextMenuStrip not available");
                 var menuItemType = Type.GetType("System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms")
                     ?? throw new InvalidOperationException("System.Windows.Forms.ToolStripMenuItem not available");
+                var separatorType = Type.GetType("System.Windows.Forms.ToolStripSeparator, System.Windows.Forms");
                 var wfSyncType = Type.GetType("System.Windows.Forms.WindowsFormsSynchronizationContext, System.Windows.Forms");
 
                 if (wfSyncType != null)
@@ -135,8 +150,20 @@ namespace OpenClaw.Node.Tray
                 var menu = Activator.CreateInstance(menuType)
                     ?? throw new InvalidOperationException("Unable to create ContextMenuStrip");
 
+                _stateItem = Activator.CreateInstance(menuItemType, "State: Starting")
+                    ?? throw new InvalidOperationException("Unable to create State item");
+                _pairsItem = Activator.CreateInstance(menuItemType, "Pending pairs: 0")
+                    ?? throw new InvalidOperationException("Unable to create Pair item");
+                _reconnectItem = Activator.CreateInstance(menuItemType, "Last reconnect: n/a")
+                    ?? throw new InvalidOperationException("Unable to create Reconnect item");
+                SetProperty(_stateItem, "Enabled", false);
+                SetProperty(_pairsItem, "Enabled", false);
+                SetProperty(_reconnectItem, "Enabled", false);
+
                 var openLogsItem = Activator.CreateInstance(menuItemType, "Open Logs")
                     ?? throw new InvalidOperationException("Unable to create Open Logs item");
+                var copyDiagItem = Activator.CreateInstance(menuItemType, "Copy Diagnostics")
+                    ?? throw new InvalidOperationException("Unable to create Copy Diagnostics item");
                 var restartItem = Activator.CreateInstance(menuItemType, "Restart Node")
                     ?? throw new InvalidOperationException("Unable to create Restart item");
                 var exitItem = Activator.CreateInstance(menuItemType, "Exit")
@@ -146,6 +173,11 @@ namespace OpenClaw.Node.Tray
                 {
                     try { _onOpenLogs?.Invoke(); }
                     catch (Exception ex) { _log?.Invoke($"[TRAY] Open Logs action failed: {ex.Message}"); }
+                });
+                AddClickHandler(copyDiagItem, () =>
+                {
+                    try { _onCopyDiagnostics?.Invoke(); }
+                    catch (Exception ex) { _log?.Invoke($"[TRAY] Copy Diagnostics action failed: {ex.Message}"); }
                 });
                 AddClickHandler(restartItem, () =>
                 {
@@ -158,8 +190,14 @@ namespace OpenClaw.Node.Tray
                     catch (Exception ex) { _log?.Invoke($"[TRAY] Exit action failed: {ex.Message}"); }
                 });
 
+                AddMenuItem(menu, _stateItem);
+                AddMenuItem(menu, _pairsItem);
+                AddMenuItem(menu, _reconnectItem);
+                if (separatorType != null && Activator.CreateInstance(separatorType) is object separator1) AddMenuItem(menu, separator1);
                 AddMenuItem(menu, openLogsItem);
+                AddMenuItem(menu, copyDiagItem);
                 AddMenuItem(menu, restartItem);
+                if (separatorType != null && Activator.CreateInstance(separatorType) is object separator2) AddMenuItem(menu, separator2);
                 AddMenuItem(menu, exitItem);
 
                 SetProperty(_notifyIcon, "ContextMenuStrip", menu);

@@ -60,6 +60,14 @@ namespace OpenClaw.Node
             using var connection = new GatewayConnection(url, token, connectParams);
             using var discovery = new DiscoveryService(connectParams, url);
             var trayStatus = new TrayStatusBroadcaster();
+            var reconnectStartedAtUtc = (DateTimeOffset?)null;
+            long? lastReconnectMs = null;
+
+            void SetTray(NodeRuntimeState state, string message)
+            {
+                trayStatus.Set(state, message, core.PendingPairCount, lastReconnectMs);
+            }
+
             ITrayHost? trayHost = null;
 
             if (trayEnabled)
@@ -69,7 +77,8 @@ namespace OpenClaw.Node
                         log: msg => Console.WriteLine(msg),
                         onOpenLogs: () => OpenLogsFolder(),
                         onRestart: () => { restartRequested = true; cts.Cancel(); },
-                        onExit: () => cts.Cancel())
+                        onExit: () => cts.Cancel(),
+                        onCopyDiagnostics: () => CopyDiagnosticsToClipboard(BuildDiagnostics(startedAtUtc, url, trayStatus.Current, core.PendingPairCount, lastReconnectMs)))
                     : new NoOpTrayHost(msg => Console.WriteLine(msg));
             }
 
@@ -78,19 +87,26 @@ namespace OpenClaw.Node
                 Console.WriteLine(msg);
                 if (msg.Contains("Reconnecting in", StringComparison.OrdinalIgnoreCase))
                 {
-                    trayStatus.Set(NodeRuntimeState.Reconnecting, msg);
+                    reconnectStartedAtUtc ??= DateTimeOffset.UtcNow;
+                    SetTray(NodeRuntimeState.Reconnecting, msg);
                 }
             };
             connection.OnConnected += () =>
             {
                 Console.WriteLine("[INFO] Connected to Gateway.");
-                trayStatus.Set(NodeRuntimeState.Connected, "Connected to Gateway");
+                if (reconnectStartedAtUtc.HasValue)
+                {
+                    lastReconnectMs = (long)(DateTimeOffset.UtcNow - reconnectStartedAtUtc.Value).TotalMilliseconds;
+                    reconnectStartedAtUtc = null;
+                }
+                SetTray(NodeRuntimeState.Connected, "Connected to Gateway");
                 _ = discovery.TriggerAnnounceAsync("gateway-connected", CancellationToken.None);
             };
             connection.OnDisconnected += () =>
             {
                 Console.WriteLine("[INFO] Disconnected from Gateway.");
-                trayStatus.Set(NodeRuntimeState.Disconnected, "Disconnected from Gateway");
+                reconnectStartedAtUtc = DateTimeOffset.UtcNow;
+                SetTray(NodeRuntimeState.Disconnected, "Disconnected from Gateway");
             };
             ipc.OnLog += msg => Console.WriteLine(msg);
             discovery.OnLog += msg => Console.WriteLine(msg);
@@ -99,6 +115,7 @@ namespace OpenClaw.Node
                 if (core.HandleGatewayEvent(evt))
                 {
                     Console.WriteLine($"[PAIR] pending request event handled: {evt.Event}");
+                    SetTray(trayStatus.Current.State, trayStatus.Current.Message);
                 }
             };
 
@@ -145,7 +162,7 @@ namespace OpenClaw.Node
                 if (trayHost != null)
                 {
                     await trayHost.StartAsync(cts.Token);
-                    trayStatus.Set(NodeRuntimeState.Starting, "Starting node runtime");
+                    SetTray(NodeRuntimeState.Starting, "Starting node runtime");
                 }
 
                 discovery.Start(cts.Token);
@@ -166,7 +183,7 @@ namespace OpenClaw.Node
 
                 if (trayHost != null)
                 {
-                    trayStatus.Set(NodeRuntimeState.Stopped, "Node runtime stopped");
+                    SetTray(NodeRuntimeState.Stopped, "Node runtime stopped");
                     await trayHost.StopAsync();
                 }
 
@@ -221,6 +238,51 @@ namespace OpenClaw.Node
             catch (Exception ex)
             {
                 Console.WriteLine($"[TRAY] Open logs folder failed: {ex.Message}");
+            }
+        }
+
+        private static string BuildDiagnostics(DateTimeOffset startedAtUtc, string gatewayUrl, TrayStatusSnapshot snapshot, int pendingPairs, long? lastReconnectMs)
+        {
+            var uptime = (long)(DateTimeOffset.UtcNow - startedAtUtc).TotalSeconds;
+            var reconnectText = lastReconnectMs.HasValue ? $"{lastReconnectMs.Value}ms" : "n/a";
+
+            return string.Join(Environment.NewLine, new[]
+            {
+                "OpenClaw Windows Node Diagnostics",
+                $"timeUtc: {DateTimeOffset.UtcNow:O}",
+                $"gatewayUrl: {gatewayUrl}",
+                $"state: {snapshot.State}",
+                $"message: {snapshot.Message}",
+                $"pendingPairs: {pendingPairs}",
+                $"lastReconnect: {reconnectText}",
+                $"uptimeSeconds: {uptime}",
+                $"pid: {Environment.ProcessId}"
+            });
+        }
+
+        private static void CopyDiagnosticsToClipboard(string text)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                Console.WriteLine("[TRAY] Copy diagnostics skipped on non-Windows host.");
+                return;
+            }
+
+            try
+            {
+                var escaped = text.Replace("'", "''");
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "powershell",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"Set-Clipboard -Value '{escaped}'\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                Console.WriteLine("[TRAY] Diagnostics copied to clipboard.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TRAY] Copy diagnostics failed: {ex.Message}");
             }
         }
 

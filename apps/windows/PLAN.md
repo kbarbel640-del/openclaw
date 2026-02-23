@@ -119,6 +119,7 @@ Build a native Windows application that replicates the functionality of the Open
 ## Phase 4: UI / Tray / Onboarding
 - [x] Step 1 scaffold: tray-status runtime wiring added (`TrayStatusBroadcaster` + `ITrayHost` + `NoOpTrayHost`) with `--tray` flag and state transitions (Starting/Connected/Reconnecting/Disconnected/Stopped)
 - [x] Step 2: concrete Windows `NotifyIcon` tray host added (`WindowsNotifyIconTrayHost`) with menu actions (Open Logs / Restart Node / Exit) and lifecycle status text updates
+- [x] Step 3 (MVP): tray status details surfaced (`State`, `Pending pairs`, `Last reconnect`) + quick diagnostics copy action
 - [ ] Settings/onboarding flows
 - [ ] Overlay/HUD equivalents
 

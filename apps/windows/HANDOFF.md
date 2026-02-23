@@ -67,9 +67,14 @@
    - Added `NoOpTrayHost` fallback and `WindowsNotifyIconTrayHost` concrete implementation
    - `--tray` startup flag now enables tray mode with Windows menu actions:
      - Open Logs (opens `~/.openclaw`)
+     - Copy Diagnostics (clipboard snapshot: state, pending pairs, reconnect timing, uptime, pid)
      - Restart Node (graceful cancel + relaunch schedule)
      - Exit
    - Tray status text follows gateway lifecycle/log events
+   - Tray status details section now shows:
+     - State
+     - Pending pairs
+     - Last reconnect duration
 9. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
    - env: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`
