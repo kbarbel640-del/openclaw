@@ -55,7 +55,10 @@ export class TrustServer {
     const method = req.method ?? "GET";
 
     // CORS headers for local agent communication
-    res.setHeader("Access-Control-Allow-Origin", "http://localhost:*");
+    const origin = req.headers.origin ?? "";
+    if (/^http:\/\/localhost(:\d+)?$/.test(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader(
       "Access-Control-Allow-Headers",

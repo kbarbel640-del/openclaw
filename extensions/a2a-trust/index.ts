@@ -1,3 +1,4 @@
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { TrustClient } from "./src/client.js";
 import { trustStatusHandler, trustCheckHandler, trustVerifyHandler } from "./src/commands.js";
 import { TrustServer } from "./src/trust-server.js";
@@ -26,37 +27,6 @@ import type { TrustPluginConfig } from "./src/types.js";
  *   - Auto-attest hook on completed tool calls (opt-in)
  */
 
-// OpenClaw plugin API types (minimal interface)
-interface PluginApi {
-  logger: {
-    info: (msg: string) => void;
-    warn: (msg: string) => void;
-    error: (msg: string) => void;
-  };
-  config: TrustPluginConfig;
-  registerGatewayMethod: (
-    name: string,
-    handler: (ctx: { respond: (ok: boolean, data: unknown) => void; payload?: unknown }) => void,
-  ) => void;
-  registerService: (svc: {
-    id: string;
-    start: () => void | Promise<void>;
-    stop: () => void | Promise<void>;
-  }) => void;
-  registerCommand: (cmd: {
-    name: string;
-    description: string;
-    acceptsArgs?: boolean;
-    requireAuth?: boolean;
-    handler: (ctx: { args?: string }) => Promise<{ text: string }>;
-  }) => void;
-  registerHook: (
-    event: string,
-    handler: (event: Record<string, unknown>) => Promise<void>,
-    meta?: { name: string; description: string },
-  ) => void;
-}
-
 export default {
   id: "kevros-a2a-trust",
   name: "Kevros A2A Trust",
@@ -74,7 +44,7 @@ export default {
     required: ["agentId"],
   },
 
-  register(api: PluginApi) {
+  register(api: OpenClawPluginApi) {
     const config: TrustPluginConfig = {
       gatewayUrl: api.config.gatewayUrl ?? "https://governance.taskhawktech.com",
       apiKey: api.config.apiKey,
@@ -262,7 +232,7 @@ export default {
 
 let signupInFlight = false;
 
-async function ensureApiKey(client: TrustClient, api: PluginApi): Promise<void> {
+async function ensureApiKey(client: TrustClient, api: OpenClawPluginApi): Promise<void> {
   if (client.hasApiKey) return;
   if (signupInFlight) {
     // Wait briefly for concurrent signup to complete

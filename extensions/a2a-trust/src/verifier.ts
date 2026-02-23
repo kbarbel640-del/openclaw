@@ -103,7 +103,19 @@ export function verifyPayloadHash(payload: Record<string, unknown>, expectedHash
 // ── Internal helpers ──────────────────────────────────────────────────
 
 function canonicalJson(obj: unknown): string {
-  return JSON.stringify(obj, Object.keys(obj as object).sort());
+  return JSON.stringify(sortKeys(obj));
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value as Record<string, unknown>)
+        .sort()
+        .map((k) => [k, sortKeys((value as Record<string, unknown>)[k])]),
+    );
+  }
+  return value;
 }
 
 function sha256Hex(data: string): string {
