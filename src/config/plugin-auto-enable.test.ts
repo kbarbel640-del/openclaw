@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyPluginAutoEnable } from "./plugin-auto-enable.js";
+import { validateConfigObjectRaw } from "./validation.js";
 
 describe("applyPluginAutoEnable", () => {
   it("auto-enables built-in channels and appends to existing allowlist", () => {
@@ -198,5 +199,18 @@ describe("applyPluginAutoEnable", () => {
       expect(result.config.channels?.imessage?.enabled).toBe(true);
       expect(result.changes.join("\n")).toContain("iMessage configured, enabled automatically.");
     });
+  });
+
+  it("auto-enabled whatsapp config passes schema validation (#24263)", () => {
+    const result = applyPluginAutoEnable({
+      config: {
+        channels: { whatsapp: { mediaMaxMb: 50 } },
+      },
+      env: {},
+    });
+
+    expect(result.config.channels?.whatsapp?.enabled).toBe(true);
+    const validated = validateConfigObjectRaw(result.config);
+    expect(validated.ok).toBe(true);
   });
 });
