@@ -45,6 +45,14 @@ namespace OpenClaw.Node.Services
             public int CenterY => Top + (Height / 2);
         }
 
+        public sealed class UiFindResult
+        {
+            public UiElementInfo? Element { get; set; }
+            public string Strategy { get; set; } = string.Empty;
+            public string Reason { get; set; } = string.Empty;
+            public bool Found => Element != null;
+        }
+
         public Task<WindowInfo[]> ListWindowsAsync()
         {
             if (!OperatingSystem.IsWindows())
@@ -216,20 +224,26 @@ namespace OpenClaw.Node.Services
 
         public async Task<UiElementInfo?> FindUiElementAsync(long? handle, string? titleContains, string? name, string? automationId, string? controlType, int timeoutMs = 1500)
         {
+            var detailed = await FindUiElementDetailedAsync(handle, titleContains, name, automationId, controlType, timeoutMs);
+            return detailed.Element;
+        }
+
+        public async Task<UiFindResult> FindUiElementDetailedAsync(long? handle, string? titleContains, string? name, string? automationId, string? controlType, int timeoutMs = 1500)
+        {
             if (!OperatingSystem.IsWindows())
             {
-                return null;
+                return new UiFindResult { Reason = "not-windows" };
             }
 
             if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(automationId) && string.IsNullOrWhiteSpace(controlType))
             {
-                return null;
+                return new UiFindResult { Reason = "selectors-required" };
             }
 
             var target = ResolveWindow(handle, titleContains);
             if (target == IntPtr.Zero)
             {
-                return null;
+                return new UiFindResult { Reason = "window-not-found" };
             }
 
             var controlTypeToken = MapControlTypeToken(controlType);
@@ -242,51 +256,90 @@ namespace OpenClaw.Node.Services
 Add-Type -AssemblyName UIAutomationClient
 $h = [IntPtr]::new({target.ToInt64()})
 $root = [System.Windows.Automation.AutomationElement]::FromHandle($h)
-if (-not $root) {{ return }}
+if (-not $root) {{
+  @{{ ok = $false; reason = 'window-root-not-found' }} | ConvertTo-Json -Compress
+  return
+}}
 
-$conds = New-Object System.Collections.Generic.List[System.Windows.Automation.Condition]
-if ('{safeName}'.Length -gt 0) {{
-  $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, '{safeName}')))
-}}
-if ('{safeAutomationId}'.Length -gt 0) {{
-  $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '{safeAutomationId}')))
-}}
+$ct = $null
 if ('{safeControlType}'.Length -gt 0) {{
   $ctName = [System.Windows.Automation.ControlType].GetProperty('{safeControlType}', [System.Reflection.BindingFlags]'Public,Static,IgnoreCase')
-  if ($ctName) {{
-    $ct = $ctName.GetValue($null)
-    $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, $ct)))
-  }}
+  if ($ctName) {{ $ct = $ctName.GetValue($null) }}
 }}
-if ($conds.Count -eq 0) {{ return }}
 
-$cond = if ($conds.Count -eq 1) {{ $conds[0] }} else {{ New-Object System.Windows.Automation.AndCondition($conds.ToArray()) }}
+$plans = @()
+if ('{safeAutomationId}'.Length -gt 0 -and '{safeName}'.Length -gt 0 -and '{safeControlType}'.Length -gt 0 -and $ct -ne $null) {{ $plans += @{{ label='automationId+name+controlType'; a=$true; n=$true; c=$true }} }}
+if ('{safeAutomationId}'.Length -gt 0 -and '{safeName}'.Length -gt 0) {{ $plans += @{{ label='automationId+name'; a=$true; n=$true; c=$false }} }}
+if ('{safeAutomationId}'.Length -gt 0 -and '{safeControlType}'.Length -gt 0 -and $ct -ne $null) {{ $plans += @{{ label='automationId+controlType'; a=$true; n=$false; c=$true }} }}
+if ('{safeName}'.Length -gt 0 -and '{safeControlType}'.Length -gt 0 -and $ct -ne $null) {{ $plans += @{{ label='name+controlType'; a=$false; n=$true; c=$true }} }}
+if ('{safeAutomationId}'.Length -gt 0) {{ $plans += @{{ label='automationId'; a=$true; n=$false; c=$false }} }}
+if ('{safeName}'.Length -gt 0) {{ $plans += @{{ label='name'; a=$false; n=$true; c=$false }} }}
+if ('{safeControlType}'.Length -gt 0 -and $ct -ne $null) {{ $plans += @{{ label='controlType'; a=$false; n=$false; c=$true }} }}
+
+if ($plans.Count -eq 0) {{
+  @{{ ok = $false; reason = if ('{safeControlType}'.Length -gt 0 -and $ct -eq $null) {{ 'invalid-control-type' }} else {{ 'selectors-required' }} }} | ConvertTo-Json -Compress
+  return
+}}
+
 $deadline = [DateTime]::UtcNow.AddMilliseconds({safeTimeout})
 $el = $null
+$matched = ''
 while (-not $el -and [DateTime]::UtcNow -lt $deadline) {{
-  $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+  foreach ($plan in $plans) {{
+    $conds = New-Object System.Collections.Generic.List[System.Windows.Automation.Condition]
+    if ($plan.n) {{
+      $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, '{safeName}')))
+    }}
+    if ($plan.a) {{
+      $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '{safeAutomationId}')))
+    }}
+    if ($plan.c -and $ct -ne $null) {{
+      $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, $ct)))
+    }}
+    if ($conds.Count -eq 0) {{ continue }}
+
+    $cond = if ($conds.Count -eq 1) {{ $conds[0] }} else {{ New-Object System.Windows.Automation.AndCondition($conds.ToArray()) }}
+    $candidate = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+    if ($candidate) {{
+      $el = $candidate
+      $matched = $plan.label
+      break
+    }}
+  }}
+
   if (-not $el) {{ Start-Sleep -Milliseconds 100 }}
 }}
-if (-not $el) {{ return }}
+
+if (-not $el) {{
+  @{{ ok = $false; reason = 'not-found'; strategy = ($plans | ForEach-Object {{ $_.label }}) -join ',' }} | ConvertTo-Json -Compress
+  return
+}}
 
 $rect = $el.Current.BoundingRectangle
-if ($rect.IsEmpty) {{ return }}
-$out = [pscustomobject]@{{
-  name = $el.Current.Name
-  automationId = $el.Current.AutomationId
-  controlType = $el.Current.ControlType.ProgrammaticName
-  left = [int][Math]::Round($rect.Left)
-  top = [int][Math]::Round($rect.Top)
-  right = [int][Math]::Round($rect.Right)
-  bottom = [int][Math]::Round($rect.Bottom)
+if ($rect.IsEmpty) {{
+  @{{ ok = $false; reason = 'element-bounding-rect-empty'; strategy = $matched }} | ConvertTo-Json -Compress
+  return
 }}
-$out | ConvertTo-Json -Compress
+
+@{{
+  ok = $true
+  strategy = $matched
+  element = @{{
+    name = $el.Current.Name
+    automationId = $el.Current.AutomationId
+    controlType = $el.Current.ControlType.ProgrammaticName
+    left = [int][Math]::Round($rect.Left)
+    top = [int][Math]::Round($rect.Top)
+    right = [int][Math]::Round($rect.Right)
+    bottom = [int][Math]::Round($rect.Bottom)
+  }}
+}} | ConvertTo-Json -Compress
 ";
 
             var result = await RunPowerShellAsync(script);
-            if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.StdOut))
+            if (result.ExitCode != 0)
             {
-                return null;
+                return new UiFindResult { Reason = string.IsNullOrWhiteSpace(result.StdErr) ? "powershell-exit-nonzero" : result.StdErr.Trim() };
             }
 
             var jsonLine = result.StdOut
@@ -296,34 +349,49 @@ $out | ConvertTo-Json -Compress
 
             if (string.IsNullOrWhiteSpace(jsonLine))
             {
-                return null;
+                return new UiFindResult { Reason = "no-json-output" };
             }
 
             try
             {
-                var dto = JsonSerializer.Deserialize<UiElementPowerShellDto>(jsonLine, new JsonSerializerOptions
+                using var doc = JsonDocument.Parse(jsonLine);
+                var root = doc.RootElement;
+                var ok = root.TryGetProperty("ok", out var okEl) && okEl.ValueKind == JsonValueKind.True;
+                var strategy = root.TryGetProperty("strategy", out var stEl) && stEl.ValueKind == JsonValueKind.String
+                    ? (stEl.GetString() ?? string.Empty)
+                    : string.Empty;
+
+                if (!ok)
                 {
-                    PropertyNameCaseInsensitive = true
-                });
-                if (dto == null)
-                {
-                    return null;
+                    var reason = root.TryGetProperty("reason", out var rEl) && rEl.ValueKind == JsonValueKind.String
+                        ? (rEl.GetString() ?? "not-found")
+                        : "not-found";
+                    return new UiFindResult { Reason = reason, Strategy = strategy };
                 }
 
-                return new UiElementInfo
+                if (!root.TryGetProperty("element", out var elementEl) || elementEl.ValueKind != JsonValueKind.Object)
                 {
-                    Name = dto.Name ?? string.Empty,
-                    AutomationId = dto.AutomationId ?? string.Empty,
-                    ControlType = dto.ControlType ?? string.Empty,
-                    Left = dto.Left,
-                    Top = dto.Top,
-                    Right = dto.Right,
-                    Bottom = dto.Bottom,
+                    return new UiFindResult { Reason = "missing-element-payload", Strategy = strategy };
+                }
+
+                return new UiFindResult
+                {
+                    Strategy = strategy,
+                    Element = new UiElementInfo
+                    {
+                        Name = elementEl.TryGetProperty("name", out var nEl) && nEl.ValueKind == JsonValueKind.String ? (nEl.GetString() ?? string.Empty) : string.Empty,
+                        AutomationId = elementEl.TryGetProperty("automationId", out var aEl) && aEl.ValueKind == JsonValueKind.String ? (aEl.GetString() ?? string.Empty) : string.Empty,
+                        ControlType = elementEl.TryGetProperty("controlType", out var cEl) && cEl.ValueKind == JsonValueKind.String ? (cEl.GetString() ?? string.Empty) : string.Empty,
+                        Left = elementEl.TryGetProperty("left", out var lEl) && lEl.ValueKind == JsonValueKind.Number ? lEl.GetInt32() : 0,
+                        Top = elementEl.TryGetProperty("top", out var tEl) && tEl.ValueKind == JsonValueKind.Number ? tEl.GetInt32() : 0,
+                        Right = elementEl.TryGetProperty("right", out var r2El) && r2El.ValueKind == JsonValueKind.Number ? r2El.GetInt32() : 0,
+                        Bottom = elementEl.TryGetProperty("bottom", out var bEl) && bEl.ValueKind == JsonValueKind.Number ? bEl.GetInt32() : 0,
+                    }
                 };
             }
             catch
             {
-                return null;
+                return new UiFindResult { Reason = "invalid-json" };
             }
         }
 

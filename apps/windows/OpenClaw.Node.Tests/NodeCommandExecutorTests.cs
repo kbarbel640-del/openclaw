@@ -617,6 +617,12 @@ namespace OpenClaw.Node.Tests
             Assert.False(res.Ok);
             Assert.NotNull(res.Error);
             Assert.Equal(OpenClawNodeErrorCode.Unavailable, res.Error!.Code);
+            Assert.NotNull(res.PayloadJSON);
+
+            using var doc = JsonDocument.Parse(res.PayloadJSON!);
+            var root = doc.RootElement;
+            Assert.True(root.TryGetProperty("details", out var details));
+            Assert.Equal("not-windows", details.GetProperty("reason").GetString());
         }
 
         [Fact]

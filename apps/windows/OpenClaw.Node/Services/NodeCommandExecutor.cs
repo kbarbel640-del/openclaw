@@ -1321,9 +1321,10 @@ namespace OpenClaw.Node.Services
             try
             {
                 var svc = new AutomationService();
-                var element = await svc.FindUiElementAsync(handle, titleContains, name, automationId, controlType, timeoutMs);
-                if (element == null)
+                var find = await svc.FindUiElementDetailedAsync(handle, titleContains, name, automationId, controlType, timeoutMs);
+                if (!find.Found || find.Element == null)
                 {
+                    var details = BuildUiSelectorDebugDetails(handle, titleContains, name, automationId, controlType, timeoutMs, find.Reason, find.Strategy);
                     return new BridgeInvokeResponse
                     {
                         Id = request.Id,
@@ -1332,7 +1333,8 @@ namespace OpenClaw.Node.Services
                         {
                             Code = OpenClawNodeErrorCode.Unavailable,
                             Message = "UI element not found"
-                        }
+                        },
+                        PayloadJSON = JsonSerializer.Serialize(new { ok = false, details })
                     };
                 }
 
@@ -1340,7 +1342,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { element })
+                    PayloadJSON = JsonSerializer.Serialize(new { element = find.Element, strategy = find.Strategy })
                 };
             }
             catch (Exception ex)
@@ -1366,7 +1368,7 @@ namespace OpenClaw.Node.Services
                 return Invalid(request.Id, "ui.click requires params");
             }
 
-            if (!TryParseUiSelectorParams(request.Id, root.Value, out var handle, out var titleContains, out var name, out var automationId, out var controlType, out _, out var invalid))
+            if (!TryParseUiSelectorParams(request.Id, root.Value, out var handle, out var titleContains, out var name, out var automationId, out var controlType, out var timeoutMs, out var invalid))
             {
                 return invalid!;
             }
@@ -1391,7 +1393,24 @@ namespace OpenClaw.Node.Services
             try
             {
                 var svc = new AutomationService();
-                var ok = await svc.ClickUiElementAsync(handle, titleContains, name, automationId, controlType, button.ToLowerInvariant(), doubleClick);
+                var find = await svc.FindUiElementDetailedAsync(handle, titleContains, name, automationId, controlType, timeoutMs);
+                if (!find.Found || find.Element == null)
+                {
+                    var details = BuildUiSelectorDebugDetails(handle, titleContains, name, automationId, controlType, timeoutMs, find.Reason, find.Strategy);
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "UI click failed: element not found"
+                        },
+                        PayloadJSON = JsonSerializer.Serialize(new { ok = false, details })
+                    };
+                }
+
+                var ok = await svc.ClickAsync(find.Element.CenterX, find.Element.CenterY, button.ToLowerInvariant(), doubleClick);
                 if (!ok)
                 {
                     return new BridgeInvokeResponse
@@ -1410,7 +1429,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, button = button.ToLowerInvariant(), doubleClick })
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, button = button.ToLowerInvariant(), doubleClick, strategy = find.Strategy, x = find.Element.CenterX, y = find.Element.CenterY })
                 };
             }
             catch (Exception ex)
@@ -1436,7 +1455,7 @@ namespace OpenClaw.Node.Services
                 return Invalid(request.Id, "ui.type requires params");
             }
 
-            if (!TryParseUiSelectorParams(request.Id, root.Value, out var handle, out var titleContains, out var name, out var automationId, out var controlType, out _, out var invalid))
+            if (!TryParseUiSelectorParams(request.Id, root.Value, out var handle, out var titleContains, out var name, out var automationId, out var controlType, out var timeoutMs, out var invalid))
             {
                 return invalid!;
             }
@@ -1455,7 +1474,40 @@ namespace OpenClaw.Node.Services
             try
             {
                 var svc = new AutomationService();
-                var ok = await svc.TypeIntoUiElementAsync(handle, titleContains, name, automationId, controlType, text);
+                var find = await svc.FindUiElementDetailedAsync(handle, titleContains, name, automationId, controlType, timeoutMs);
+                if (!find.Found || find.Element == null)
+                {
+                    var details = BuildUiSelectorDebugDetails(handle, titleContains, name, automationId, controlType, timeoutMs, find.Reason, find.Strategy);
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "UI type failed: element not found"
+                        },
+                        PayloadJSON = JsonSerializer.Serialize(new { ok = false, details })
+                    };
+                }
+
+                var clicked = await svc.ClickAsync(find.Element.CenterX, find.Element.CenterY, "primary", false);
+                if (!clicked)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "UI type failed: unable to focus element"
+                        }
+                    };
+                }
+
+                await Task.Delay(50);
+                var ok = await svc.TypeTextAsync(text);
                 if (!ok)
                 {
                     return new BridgeInvokeResponse
@@ -1474,7 +1526,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true })
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, strategy = find.Strategy, x = find.Element.CenterX, y = find.Element.CenterY })
                 };
             }
             catch (Exception ex)
@@ -1545,6 +1597,30 @@ namespace OpenClaw.Node.Services
 
             return true;
         }
+
+        private static object BuildUiSelectorDebugDetails(
+            long? handle,
+            string? titleContains,
+            string? name,
+            string? automationId,
+            string? controlType,
+            int timeoutMs,
+            string? reason,
+            string? strategy)
+            => new
+            {
+                handle,
+                titleContains,
+                selectors = new
+                {
+                    name,
+                    automationId,
+                    controlType,
+                },
+                timeoutMs,
+                reason = string.IsNullOrWhiteSpace(reason) ? "not-found" : reason,
+                strategy = strategy ?? string.Empty,
+            };
 
         private static BridgeInvokeResponse Invalid(string id, string message) => new()
         {

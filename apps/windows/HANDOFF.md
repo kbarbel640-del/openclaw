@@ -87,6 +87,21 @@ dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token
 
 (or rely on env/config auto-resolution)
 
+## Dev workflow (avoid manual restarts)
+PowerShell scripts are available under `scripts/`:
+- `node-watchdog.ps1` — keeps Node running and auto-restarts on exit/disconnect.
+- `node-reload.ps1` — pause watchdog, stop node, optional git pull + build, unpause watchdog.
+- `node-watchdog-install-task.ps1` — optional Scheduled Task installer (run watchdog at login).
+
+Typical flow on Windows host:
+```powershell
+# one-time watchdog start
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\node-watchdog.ps1
+
+# after each code change
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\node-reload.ps1
+```
+
 ## Immediate next steps
 1. Keep running `RUN_REAL_GATEWAY_INTEGRATION=1 dotnet test --filter "FullyQualifiedName~RealGatewayIntegrationTests" -p:Platform=x64` before major merges (now with signed device-auth handshake on connect; suite covers node-connect/status plus screen.list/camera.list/window.list/window.rect response-shape paths, screen.record generic + explicit screenIndex path, and camera.snap generic + explicit deviceId/front-back shape paths when available).
 2. On Windows hosts, ensure camera prerequisites are explicit in onboarding/docs: Camera privacy toggles enabled for desktop apps.
