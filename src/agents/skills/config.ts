@@ -87,8 +87,8 @@ export function shouldIncludeSkill(params: {
   // 1. At resolution time, agentId may be unknown
   // 2. Skills are resolved per-agent at runtime when agentId is known
   // 3. The check happens in shouldIncludeSkill when eligibility.agentId is available
-  if (skillConfig?.allowedAgents && eligibility?.agentId) {
-    if (!skillConfig.allowedAgents.includes(eligibility.agentId)) {
+  if (skillConfig?.allowedAgents !== undefined) {
+    if (!eligibility?.agentId || !skillConfig.allowedAgents.includes(eligibility.agentId)) {
       return false;
     }
   }
