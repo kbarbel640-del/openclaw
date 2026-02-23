@@ -293,6 +293,49 @@ This enables agents to dynamically schedule follow-up work without
 CLI access — useful for research pipelines, monitoring escalation,
 and adaptive workflows.
 
+### Task tracker
+
+Dead-man's-switch monitoring for agent teams. When spawning
+multiple sub-agents to work in parallel, operators need visibility
+into which agents are alive, done, or dead. The task tracker
+provides first-class monitoring via a dead-man's-switch pattern.
+
+**How it works:**
+
+1. Before spawning agents, create a tracked task group listing
+   expected agents.
+2. Each agent writes its status to the tracker on start, completion,
+   or failure.
+3. A monitor (dispatcher tick loop) detects dead agents via absence
+   of status updates.
+4. When all agents finish (or die), the group is marked
+   complete/failed and a summary is delivered.
+
+**No session introspection needed.** The tracker uses SQLite (shared
+state visible to all sessions), avoiding the problem where isolated
+cron sessions cannot see sub-agents spawned from other sessions.
+
+**Two new tables:**
+
+- `task_tracker` — Task groups with expected agents, timeout,
+  delivery config, status.
+- `task_tracker_agents` — Per-agent status tracking
+  (pending, running, completed, failed, dead).
+
+**Agent lifecycle:**
+
+- `agentStarted(trackerId, label)` — agent reports it is working.
+- `agentCompleted(trackerId, label, message)` — agent reports
+  success with exit message.
+- `agentFailed(trackerId, label, error)` — agent reports failure.
+
+**Dead agent detection:**
+
+- Agents that do not report within the group's `timeout_s` are
+  marked `dead`.
+- Checked automatically during the dispatcher tick loop.
+- Group completes as `failed` if any agent is dead or failed.
+
 ### HITL approval gates
 
 Jobs with `approval_required: true` pause after chain trigger and
@@ -437,20 +480,22 @@ current, reducing data loss window on crash or SIGKILL.
 
 ### Database schema
 
-Seven tables:
+Nine tables:
 
-| Table               | Purpose                                                                  |
-| ------------------- | ------------------------------------------------------------------------ |
-| `jobs`              | Schedule, payload, delivery, overlap, backoff, chains, retry, job class, |
-|                     | delivery guarantee, approval config, context retrieval settings          |
-| `runs`              | Execution history: status, duration, heartbeat, retry lineage, context   |
-|                     | summary (JSON), replay tracking                                          |
-| `messages`          | Inter-agent queue: priority, threading, read receipts, TTL, typed kinds  |
-|                     | (decision, constraint, fact, preference) with owner field                |
-| `agents`            | Registry: status, last seen, capabilities                                |
-| `delivery_aliases`  | Named delivery targets: alias to channel + target                        |
-| `approvals`         | HITL approval lifecycle: pending, approved, rejected, timed out          |
-| `schema_migrations` | Migration version tracking                                               |
+| Table                 | Purpose                                                                  |
+| --------------------- | ------------------------------------------------------------------------ |
+| `jobs`                | Schedule, payload, delivery, overlap, backoff, chains, retry, job class, |
+|                       | delivery guarantee, approval config, context retrieval settings          |
+| `runs`                | Execution history: status, duration, heartbeat, retry lineage, context   |
+|                       | summary (JSON), replay tracking                                          |
+| `messages`            | Inter-agent queue: priority, threading, read receipts, TTL, typed kinds  |
+|                       | (decision, constraint, fact, preference) with owner field                |
+| `agents`              | Registry: status, last seen, capabilities                                |
+| `delivery_aliases`    | Named delivery targets: alias to channel + target                        |
+| `approvals`           | HITL approval lifecycle: pending, approved, rejected, timed out          |
+| `task_tracker`        | Task groups: expected agents, timeout, delivery config, group status     |
+| `task_tracker_agents` | Per-agent status: pending, running, completed, failed, dead              |
+| `schema_migrations`   | Migration version tracking                                               |
 
 **Jobs table** includes: cron schedule with timezone, session target
 (main/isolated), agent ID, model override, thinking mode, timeout,
@@ -479,6 +524,16 @@ kind priority (constraints first).
 jobs: `job_id`, `run_id`, `status` (pending/approved/rejected/
 timed_out), `requested_at`, `resolved_at`, `resolved_by`
 (operator/timeout/API), and optional `notes`.
+
+**Task tracker table** stores task groups: `name`, `expected_agents`
+(JSON array of labels), `timeout_s`, `delivery_to`, `status`
+(active/completed/failed), `created_at`, `completed_at`, and
+`summary`.
+
+**Task tracker agents table** tracks per-agent status within a
+group: `tracker_id`, `label`, `status` (pending/running/completed/
+failed/dead), `started_at`, `completed_at`, and `message` or
+`error`.
 
 ### Dispatch via chat completions
 
@@ -519,6 +574,12 @@ node cli.js runs stale [threshold-s]     # stuck runs
 # Approvals
 node cli.js approvals list               # all approval records
 node cli.js approvals pending            # pending approvals only
+
+# Tasks
+node cli.js tasks list                   # list active task groups
+node cli.js tasks status <id>            # detailed per-agent status
+node cli.js tasks create '<json>'        # create a tracked task group
+node cli.js tasks history [limit]        # recent completed groups
 
 # Messages
 node cli.js msg send <from> <to> <body>  # send inter-agent message
@@ -637,6 +698,7 @@ gateway forks, no internal API dependencies.
 | Compaction safety   | None                    | Pre-compaction flush hook                       |
 | Context audit       | None                    | JSON context summary per run                    |
 | Typed knowledge     | None                    | Structured message types with priority ordering |
+| Agent monitoring    | None                    | Dead-man's-switch task tracker with timeout     |
 
 ## Installation
 
@@ -667,8 +729,9 @@ node cli.js status
 
 Schema migrations are applied automatically. The `migrate-v5.js`
 migration adds delivery guarantee, job class, approval gates,
-context retrieval, typed messages, and the approvals table. It runs
-on startup if the database is at an earlier schema version.
+context retrieval, typed messages, and the approvals table. The
+`migrate-v6.js` migration adds the task tracker tables. Migrations
+run on startup if the database is at an earlier schema version.
 
 ### Process management
 
@@ -778,25 +841,28 @@ node backup.js status
 ├── messages.js         # inter-agent message queue (typed kinds, owner, priority)
 ├── agents.js           # agent registry
 ├── approval.js         # HITL approval gates: create, resolve, timeout, prune
+├── task-tracker.js     # task tracker: dead-man's-switch agent team monitoring
 ├── retrieval.js        # hybrid retrieval: recent summaries, TF-IDF + substring
 ├── gateway.js          # gateway health + chat completions + delivery aliases
 ├── backup.js           # optional: object storage snapshot/rollup/restore
 ├── cli.js              # CLI interface (all management commands)
-├── test.js             # 281 assertions
+├── test.js             # 297 assertions
 ├── migrate.js          # schema migrations (runner)
 ├── migrate-v5.js       # v5 migration: delivery, approvals, retrieval, typed msgs
+├── migrate-v6.js       # v6 migration: task tracker tables
 ├── package.json        # dependencies (better-sqlite3, croner)
 └── scheduler.db        # SQLite database (created on first run)
 ```
 
 ## Production status
 
-Working implementation deployed and stable. **281 test assertions**
+Working implementation deployed and stable. **297 test assertions**
 covering schema, cron scheduling, job CRUD, run lifecycle, messages,
 agents, workflow chaining, retry logic, cascade cancellation, resource
 pools, trigger conditions, delivery aliases, run-now, queue overlap,
 delivery semantics, flush-before-compaction, context summaries, typed
-messages, approval gates, run replay, and hybrid retrieval.
+messages, approval gates, run replay, hybrid retrieval, and task
+tracker.
 
 Stable with zero missed fires and zero undetected stale runs. Survived
 gateway restarts, scheduler restarts, and network blips without data
