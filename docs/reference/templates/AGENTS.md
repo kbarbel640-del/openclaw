@@ -59,6 +59,16 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - `trash` > `rm` (recoverable beats gone forever)
 - When in doubt, ask.
 
+## OpenClaw Update Workflow (Recommended)
+
+For user-approved self-updates, follow a preview-first sequence:
+
+1. `openclaw update --dry-run`
+2. Apply update (`openclaw update` or package-manager path)
+3. `openclaw doctor --non-interactive`
+4. Write a concise impact note (business value + Slack/channel efficiency changes)
+5. Update best-practice docs/policies if the release introduces durable workflow improvements
+
 ## External vs Internal
 
 **Safe to do freely:**

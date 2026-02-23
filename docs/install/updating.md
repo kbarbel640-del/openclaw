@@ -97,6 +97,18 @@ Behavior:
 
 Use `openclaw update --dry-run` to preview update actions before enabling automation.
 
+### Post-update impact workflow (recommended)
+
+For operator or agent-driven updates, use a repeatable post-update workflow:
+
+1. `openclaw update --dry-run`
+2. Apply update (`openclaw update` or package-manager install)
+3. `openclaw doctor --non-interactive`
+4. Capture a short impact report covering:
+   - business value
+   - Slack/channel workflow changes
+   - concrete best-practice updates to adopt
+
 Then:
 
 ```bash
