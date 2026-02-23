@@ -81,7 +81,7 @@ const SHARED_DEFAULT_MODEL_CASES: SharedDefaultModelCase[] = [
 
 describe("applyDefaultModelChoice", () => {
   it("ensures allowlist entry exists when returning an agent override", async () => {
-    const defaultModel = "vercel-ai-gateway/anthropic/claude-opus-4.6";
+    const defaultModel = "vercel-ai-gateway/claude-opus-4.6";
     const noteAgentModel = vi.fn(async () => {});
     const applied = await applyDefaultModelChoice({
       config: {},

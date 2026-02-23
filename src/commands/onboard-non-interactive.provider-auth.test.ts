@@ -300,9 +300,7 @@ describe("onboard (non-interactive): provider auth", () => {
 
       expect(cfg.auth?.profiles?.["vercel-ai-gateway:default"]?.provider).toBe("vercel-ai-gateway");
       expect(cfg.auth?.profiles?.["vercel-ai-gateway:default"]?.mode).toBe("api_key");
-      expect(cfg.agents?.defaults?.model?.primary).toBe(
-        "vercel-ai-gateway/anthropic/claude-opus-4.6",
-      );
+      expect(cfg.agents?.defaults?.model?.primary).toBe("vercel-ai-gateway/claude-opus-4.6");
       await expectApiKeyProfile({
         profileId: "vercel-ai-gateway:default",
         provider: "vercel-ai-gateway",
