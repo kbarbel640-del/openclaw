@@ -67,6 +67,9 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
     mediaType?: string;
     commandAuthorized: boolean;
     wasMentioned?: boolean;
+    replyToId?: string;
+    replyToBody?: string;
+    replyToSender?: string;
   };
 
   async function handleSignalInboundMessage(entry: SignalInboundEntry) {
@@ -167,6 +170,10 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       CommandAuthorized: entry.commandAuthorized,
       OriginatingChannel: "signal" as const,
       OriginatingTo: signalTo,
+      ReplyToId: entry.replyToId,
+      ReplyToBody: entry.replyToBody,
+      ReplyToSender: entry.replyToSender,
+      ReplyToIsQuote: entry.replyToBody ? true : undefined,
     });
 
     await recordInboundSession({
@@ -661,6 +668,11 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
     const senderName = envelope.sourceName ?? senderDisplay;
     const messageId =
       typeof envelope.timestamp === "number" ? String(envelope.timestamp) : undefined;
+    const quoteId =
+      typeof dataMessage.quote?.id === "number" ? String(dataMessage.quote.id) : undefined;
+    const quoteBody = dataMessage.quote?.text?.trim() || undefined;
+    const quoteAuthor = dataMessage.quote?.author?.trim() || undefined;
+
     await inboundDebouncer.enqueue({
       senderName,
       senderDisplay,
@@ -676,6 +688,9 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       mediaType,
       commandAuthorized,
       wasMentioned: effectiveWasMentioned,
+      replyToId: quoteId,
+      replyToBody: quoteBody,
+      replyToSender: quoteAuthor,
     });
   };
 }
