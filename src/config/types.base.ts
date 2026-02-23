@@ -110,6 +110,8 @@ export type SessionConfig = {
   /** Channel-specific reset overrides (e.g. { discord: { mode: "idle", idleMinutes: 10080 } }). */
   resetByChannel?: Record<string, SessionResetConfig>;
   store?: string;
+  /** Session store adapter type. "filesystem" uses local JSON files (default). "external" delegates to a remote store. */
+  storeAdapter?: "filesystem" | "external";
   typingIntervalSeconds?: number;
   typingMode?: TypingMode;
   mainKey?: string;
