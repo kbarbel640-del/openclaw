@@ -128,29 +128,38 @@ describe("noteMemorySearchHealth", () => {
     expect(note).not.toHaveBeenCalled();
   });
 
-  it("notes when gateway is healthy but CLI API key is missing", async () => {
+  it("notes when gateway probe reports embeddings ready and CLI API key is missing", async () => {
     resolveMemorySearchConfig.mockReturnValue({
       provider: "gemini",
       local: {},
       remote: {},
     });
 
-    await noteMemorySearchHealth(cfg, { gatewayHealthOk: true });
+    await noteMemorySearchHealth(cfg, {
+      gatewayMemoryProbe: { checked: true, ready: true },
+    });
 
     const message = note.mock.calls[0]?.[0] as string;
-    expect(message).toContain("may be loaded by the running gateway");
+    expect(message).toContain("reports memory embeddings are ready");
   });
 
-  it("uses configure hint when gateway is down and API key is missing", async () => {
+  it("uses configure hint when gateway probe is unavailable and API key is missing", async () => {
     resolveMemorySearchConfig.mockReturnValue({
       provider: "gemini",
       local: {},
       remote: {},
     });
 
-    await noteMemorySearchHealth(cfg, { gatewayHealthOk: false });
+    await noteMemorySearchHealth(cfg, {
+      gatewayMemoryProbe: {
+        checked: true,
+        ready: false,
+        error: "gateway memory probe unavailable: timeout",
+      },
+    });
 
     const message = note.mock.calls[0]?.[0] as string;
+    expect(message).toContain("Gateway memory probe for default agent is not ready");
     expect(message).toContain("openclaw configure");
     expect(message).not.toContain("auth add");
   });

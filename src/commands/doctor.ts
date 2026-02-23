@@ -29,7 +29,7 @@ import {
 import { doctorShellCompletion } from "./doctor-completion.js";
 import { loadAndMaybeMigrateDoctorConfig } from "./doctor-config-flow.js";
 import { maybeRepairGatewayDaemon } from "./doctor-gateway-daemon-flow.js";
-import { checkGatewayHealth } from "./doctor-gateway-health.js";
+import { checkGatewayHealth, probeGatewayMemoryStatus } from "./doctor-gateway-health.js";
 import {
   maybeRepairGatewayServiceConfig,
   maybeScanExtraGatewayServices,
@@ -275,7 +275,13 @@ export async function doctorCommand(
     cfg,
     timeoutMs: options.nonInteractive === true ? 3000 : 10_000,
   });
-  await noteMemorySearchHealth(cfg, { gatewayHealthOk: healthOk });
+  const gatewayMemoryProbe = healthOk
+    ? await probeGatewayMemoryStatus({
+        cfg,
+        timeoutMs: options.nonInteractive === true ? 3000 : 10_000,
+      })
+    : { checked: false, ready: false };
+  await noteMemorySearchHealth(cfg, { gatewayMemoryProbe });
   await maybeRepairGatewayDaemon({
     cfg,
     runtime,

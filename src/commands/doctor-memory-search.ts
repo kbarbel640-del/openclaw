@@ -14,7 +14,13 @@ import { resolveUserPath } from "../utils.js";
  */
 export async function noteMemorySearchHealth(
   cfg: OpenClawConfig,
-  opts?: { gatewayHealthOk?: boolean },
+  opts?: {
+    gatewayMemoryProbe?: {
+      checked: boolean;
+      ready: boolean;
+      error?: string;
+    };
+  },
 ): Promise<void> {
   const agentId = resolveDefaultAgentId(cfg);
   const agentDir = resolveAgentDir(cfg, agentId);
@@ -57,22 +63,24 @@ export async function noteMemorySearchHealth(
     if (hasRemoteApiKey || (await hasApiKeyForProvider(resolved.provider, cfg, agentDir))) {
       return;
     }
-    if (opts?.gatewayHealthOk) {
+    if (opts?.gatewayMemoryProbe?.checked && opts.gatewayMemoryProbe.ready) {
       note(
         [
           `Memory search provider is set to "${resolved.provider}" but the API key was not found in the CLI environment.`,
-          "The key may be loaded by the running gateway (e.g. via secrets.env).",
+          "The running gateway reports memory embeddings are ready for the default agent.",
           `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
         ].join("\n"),
         "Memory search",
       );
       return;
     }
+    const gatewayProbeWarning = buildGatewayProbeWarning(opts?.gatewayMemoryProbe);
     const envVar = providerEnvVar(resolved.provider);
     note(
       [
         `Memory search provider is set to "${resolved.provider}" but no API key was found.`,
         `Semantic recall will not work without a valid API key.`,
+        gatewayProbeWarning ? gatewayProbeWarning : null,
         "",
         "Fix (pick one):",
         `- Set ${envVar} in your environment`,
@@ -96,22 +104,24 @@ export async function noteMemorySearchHealth(
     }
   }
 
-  if (opts?.gatewayHealthOk) {
+  if (opts?.gatewayMemoryProbe?.checked && opts.gatewayMemoryProbe.ready) {
     note(
       [
         'Memory search provider is set to "auto" but the API key was not found in the CLI environment.',
-        "The key may be loaded by the running gateway (e.g. via secrets.env).",
+        "The running gateway reports memory embeddings are ready for the default agent.",
         `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
       ].join("\n"),
       "Memory search",
     );
     return;
   }
+  const gatewayProbeWarning = buildGatewayProbeWarning(opts?.gatewayMemoryProbe);
 
   note(
     [
       "Memory search is enabled but no embedding provider is configured.",
       "Semantic recall will not work without an embedding provider.",
+      gatewayProbeWarning ? gatewayProbeWarning : null,
       "",
       "Fix (pick one):",
       "- Set OPENAI_API_KEY, GEMINI_API_KEY, VOYAGE_API_KEY, or MISTRAL_API_KEY in your environment",
@@ -170,4 +180,22 @@ function providerEnvVar(provider: string): string {
     default:
       return `${provider.toUpperCase()}_API_KEY`;
   }
+}
+
+function buildGatewayProbeWarning(
+  probe:
+    | {
+        checked: boolean;
+        ready: boolean;
+        error?: string;
+      }
+    | undefined,
+): string | null {
+  if (!probe?.checked || probe.ready) {
+    return null;
+  }
+  const detail = probe.error?.trim();
+  return detail
+    ? `Gateway memory probe for default agent is not ready: ${detail}`
+    : "Gateway memory probe for default agent is not ready.";
 }
