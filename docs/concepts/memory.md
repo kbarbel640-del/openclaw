@@ -317,7 +317,7 @@ If you don't want to set an API key, use `memorySearch.provider = "local"` or se
 
 Fallbacks:
 
-- `memorySearch.fallback` can be `openai`, `gemini`, `local`, or `none`.
+- `memorySearch.fallback` can be `openai`, `gemini`, `voyage`, `deepseek`, `local`, or `none`.
 - The fallback provider is only used when the primary embedding provider fails.
 
 Batch indexing (OpenAI + Gemini + Voyage):
@@ -327,6 +327,7 @@ Batch indexing (OpenAI + Gemini + Voyage):
 - Set `remote.batch.concurrency` to control how many batch jobs we submit in parallel (default: 2).
 - Batch mode applies when `memorySearch.provider = "openai"` or `"gemini"` and uses the corresponding API key.
 - Gemini batch jobs use the async embeddings batch endpoint and require Gemini Batch API availability.
+- DeepSeek does not currently have a batch embeddings path wired here, so it uses synchronous embedding calls.
 
 Why OpenAI batch is fast + cheap:
 
