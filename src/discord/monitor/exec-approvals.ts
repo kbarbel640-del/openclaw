@@ -14,6 +14,7 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { loadSessionStore, resolveStorePath } from "../../config/sessions.js";
 import type { DiscordExecApprovalConfig } from "../../config/types.discord.js";
 import { buildGatewayConnectionDetails } from "../../gateway/call.js";
+import { resolveGatewayAuth } from "../../gateway/auth.js";
 import { GatewayClient } from "../../gateway/client.js";
 import type { EventFrame } from "../../gateway/protocol/index.js";
 import type {
@@ -311,6 +312,7 @@ export type DiscordExecApprovalHandlerOpts = {
   accountId: string;
   config: DiscordExecApprovalConfig;
   gatewayUrl?: string;
+  gatewayToken?: string;
   cfg: OpenClawConfig;
   runtime?: RuntimeEnv;
   onResolve?: (id: string, decision: ExecApprovalDecision) => Promise<void>;
@@ -402,8 +404,18 @@ export class DiscordExecApprovalHandler {
       url: this.opts.gatewayUrl,
     });
 
+    // Resolve gateway auth token from explicit opt or config
+    const gatewayToken =
+      this.opts.gatewayToken ??
+      resolveGatewayAuth({
+        authConfig: this.opts.cfg.gateway?.auth,
+        env: process.env,
+      }).token ??
+      undefined;
+
     this.gatewayClient = new GatewayClient({
       url: gatewayUrl,
+      token: gatewayToken,
       clientName: GATEWAY_CLIENT_NAMES.GATEWAY_CLIENT,
       clientDisplayName: "Discord Exec Approvals",
       mode: GATEWAY_CLIENT_MODES.BACKEND,
