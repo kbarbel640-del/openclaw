@@ -140,6 +140,10 @@ describe("config io write", () => {
 
       await io.writeConfigFile(input, { unsetPaths: [["commands", "ownerDisplay"]] });
 
+      expect(input).toEqual({
+        gateway: { mode: "local" },
+        commands: { ownerDisplay: "hash" },
+      });
       expect((input.commands as Record<string, unknown>).ownerDisplay).toBe("hash");
       const persisted = JSON.parse(await fs.readFile(configPath, "utf-8")) as {
         commands?: Record<string, unknown>;
