@@ -340,8 +340,10 @@ export async function ensureChromeExtensionRelayServer(opts: {
         const first = Array.from(connectedTargets.values())[0];
         return { targetInfo: first?.targetInfo };
       }
-      case "Target.attachToTarget":
       case "Target.attachToBrowserTarget": {
+        return { sessionId: "browser" };
+      }
+      case "Target.attachToTarget": {
         const params = (cmd.params ?? {}) as { targetId?: string };
         const targetId = typeof params.targetId === "string" ? params.targetId : undefined;
         if (!targetId) {
@@ -360,6 +362,9 @@ export async function ensureChromeExtensionRelayServer(opts: {
         throw new Error("target not found");
       }
       default: {
+        if (cmd.sessionId === "browser") {
+          return {};
+        }
         const id = nextExtensionId++;
         return await sendToExtension({
           id,
