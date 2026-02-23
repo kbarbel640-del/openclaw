@@ -145,7 +145,7 @@ export function resolveModelFallbackOptions(run: FollowupRun["run"]) {
     agentDir: run.agentDir,
     fallbacksOverride: resolveAgentModelFallbacksOverride(
       run.config,
-      resolveAgentIdFromSessionKey(run.sessionKey),
+      run.agentId ?? resolveAgentIdFromSessionKey(run.sessionKey),
     ),
   };
 }

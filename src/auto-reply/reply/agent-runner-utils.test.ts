@@ -55,16 +55,17 @@ describe("agent-runner-utils", () => {
   });
 
   it("resolves model fallback options from run context", () => {
+    const run = makeRun();
     hoisted.resolveAgentIdFromSessionKeyMock.mockReturnValue("agent-id");
     hoisted.resolveAgentModelFallbacksOverrideMock.mockReturnValue(["fallback-model"]);
-    const run = makeRun();
 
     const resolved = resolveModelFallbackOptions(run);
 
-    expect(hoisted.resolveAgentIdFromSessionKeyMock).toHaveBeenCalledWith(run.sessionKey);
+    // When agentId is PRESENT, resolveAgentIdFromSessionKey is NOT called (short-circuit)
+    expect(hoisted.resolveAgentIdFromSessionKeyMock).not.toHaveBeenCalled();
     expect(hoisted.resolveAgentModelFallbacksOverrideMock).toHaveBeenCalledWith(
       run.config,
-      "agent-id",
+      run.agentId,
     );
     expect(resolved).toEqual({
       cfg: run.config,
@@ -149,4 +150,20 @@ describe("agent-runner-utils", () => {
       senderE164: undefined,
     });
   });
+});
+
+it("falls back to session key parsing when agentId is absent", () => {
+  hoisted.resolveAgentIdFromSessionKeyMock.mockReturnValue("agent-from-session-key");
+  hoisted.resolveAgentModelFallbacksOverrideMock.mockReturnValue(["fallback-model"]);
+  const run = makeRun({ agentId: undefined });
+
+  const resolved = resolveModelFallbackOptions(run);
+
+  // When agentId is PRESENT, resolveAgentIdFromSessionKey is NOT called (short-circuit)
+  expect(hoisted.resolveAgentIdFromSessionKeyMock).not.toHaveBeenCalled();
+  expect(hoisted.resolveAgentModelFallbacksOverrideMock).toHaveBeenCalledWith(
+    run.config,
+    "agent-from-session-key",
+  );
+  expect(resolved.fallbacksOverride).toEqual(["fallback-model"]);
 });
