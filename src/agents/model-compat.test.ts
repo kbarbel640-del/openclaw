@@ -70,6 +70,19 @@ describe("normalizeModelCompat", () => {
       (normalized.compat as { supportsDeveloperRole?: boolean } | undefined)?.supportsDeveloperRole,
     ).toBe(false);
   });
+
+  it("forces supportsDeveloperRole off for xAI (grok) models", () => {
+    const model = {
+      ...baseModel(),
+      provider: "xai",
+      baseUrl: "https://api.x.ai/v1",
+    };
+    delete (model as { compat?: unknown }).compat;
+    const normalized = normalizeModelCompat(model);
+    expect(
+      (normalized.compat as { supportsDeveloperRole?: boolean } | undefined)?.supportsDeveloperRole,
+    ).toBe(false);
+  });
 });
 
 describe("isModernModelRef", () => {
