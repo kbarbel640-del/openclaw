@@ -26,7 +26,7 @@
    - `screen.list` (Phase 2: returns display metadata list `{ index, id, name }`)
    - `screen.record` (Phase 2 timed MP4 path: returns base64 mp4 with recording metadata)
    - `camera.list` (Phase 2: returns device metadata list `{ id, name, position, deviceType }`)
-   - `camera.snap` (Phase 2: jpg payload shape with ffmpeg DirectShow capture path; returns actionable unavailable error if capture backend/privacy setup is missing)
+   - `camera.snap` (Phase 2: jpg payload shape with native WinRT capture attempt first and ffmpeg DirectShow fallback; returns actionable unavailable error if capture backend/privacy setup is missing)
    - `window.list` (Automation MVP: returns `{ windows: [{ handle, title, process, isFocused }] }`)
    - `window.focus` (Automation MVP: focus by `handle` or `titleContains`)
    - `window.rect` (Automation MVP: returns `{ rect: { handle, left, top, right, bottom, width, height } }`)
@@ -42,7 +42,7 @@
 
 ## Current caveats
 - Node now connects using node identity (`client.id = node-host`, role/mode = node).
-- Basic command execution exists (`system.run`, `system.which`, `system.notify`) and Phase 2 now includes `screen.record` timed MP4 recording via `ScreenRecorderLib` plus `camera.snap` via ffmpeg DirectShow capture/list.
+- Basic command execution exists (`system.run`, `system.which`, `system.notify`) and Phase 2 now includes `screen.record` timed MP4 recording via `ScreenRecorderLib` plus `camera.snap` via a net8-safe chain: native WinRT capture/list (PowerShell bridge) first, ffmpeg DirectShow fallback.
 - Camera path no longer depends on `MediaFoundation.Net`; this removes the `NU1701` framework-compat warning path for `net8.0` builds.
 - Build/test currently require x64 platform selection when running commands from CLI in this environment (e.g. `-p:Platform=x64`) because `ScreenRecorderLib` does not support AnyCPU.
 - Pairing pending state is currently in-memory and filled from broadcast events (`device.pair.requested`, `node.pair.requested`) and cleared on `*.pair.resolved` via `CoreMethodService.HandleGatewayEvent`; not persisted locally.

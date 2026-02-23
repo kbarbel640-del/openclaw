@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -28,6 +29,15 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
         public async Task<CameraDeviceInfo[]> ListDevicesAsync()
         {
             if (!OperatingSystem.IsWindows()) return Array.Empty<CameraDeviceInfo>();
+
+            // 1) Native WinRT device enumeration (no ffmpeg required).
+            var native = await TryListDevicesWithWinRtAsync();
+            if (native.Length > 0)
+            {
+                return native;
+            }
+
+            // 2) ffmpeg fallback device enumeration.
             if (!await CommandExistsAsync("ffmpeg")) return Array.Empty<CameraDeviceInfo>();
 
             var result = await RunProcessAsync(
@@ -36,11 +46,6 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
                 "-f", "dshow",
                 "-list_devices", "true",
                 "-i", "dummy");
-
-            if (result.ExitCode != 0 && string.IsNullOrWhiteSpace(result.StdErr) && string.IsNullOrWhiteSpace(result.StdOut))
-            {
-                return Array.Empty<CameraDeviceInfo>();
-            }
 
             var text = (result.StdErr ?? string.Empty) + "\n" + (result.StdOut ?? string.Empty);
             var names = ParseDshowVideoDeviceNames(text);
@@ -53,7 +58,6 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
                     var deviceType = (lower.Contains("usb") || lower.Contains("external")) ? "external" : "integrated";
                     return new CameraDeviceInfo
                     {
-                        // ffmpeg path identifies by display name; use same value for id and name
                         Id = name,
                         Name = name,
                         Position = position,
@@ -78,6 +82,16 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
                 return (PlaceholderJpegBase64, 1, 1);
             }
 
+            // 1) Native WinRT capture via PowerShell bridge (no ffmpeg dependency).
+            var native = await TryCaptureWithWinRtAsync(deviceId);
+            if (native != null)
+            {
+                var bytes = native;
+                var (w, h) = TryReadJpegDimensions(bytes);
+                return (Convert.ToBase64String(bytes), Math.Max(w, 1), Math.Max(h, 1));
+            }
+
+            // 2) ffmpeg fallback capture.
             var devices = await ListDevicesAsync();
             var selected = SelectDevice(devices, facing, deviceId);
             if (selected == null)
@@ -140,6 +154,123 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
                 {
                     // ignore cleanup errors
                 }
+            }
+        }
+
+        private static async Task<CameraDeviceInfo[]> TryListDevicesWithWinRtAsync()
+        {
+            var script = @"
+$ErrorActionPreference='Stop'
+$op=[Windows.Devices.Enumeration.DeviceInformation, Windows.Devices.Enumeration, ContentType=WindowsRuntime]::FindAllAsync([Windows.Devices.Enumeration.DeviceClass]::VideoCapture)
+while($op.Status -eq [Windows.Foundation.AsyncStatus]::Started){ Start-Sleep -Milliseconds 25 }
+if($op.Status -ne [Windows.Foundation.AsyncStatus]::Completed){ throw 'FindAllAsync failed' }
+$devices=$op.GetResults()
+$arr=@()
+foreach($d in $devices){
+  $arr += [pscustomobject]@{ id=$d.Id; name=$d.Name }
+}
+$arr | ConvertTo-Json -Compress
+";
+
+            var res = await RunPowerShellAsync(script, null);
+            if (res.ExitCode != 0 || string.IsNullOrWhiteSpace(res.StdOut))
+            {
+                return Array.Empty<CameraDeviceInfo>();
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(res.StdOut.Trim());
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Array) return Array.Empty<CameraDeviceInfo>();
+
+                var list = new List<CameraDeviceInfo>();
+                foreach (var item in root.EnumerateArray())
+                {
+                    var id = item.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String
+                        ? (idEl.GetString() ?? string.Empty)
+                        : string.Empty;
+                    var name = item.TryGetProperty("name", out var nEl) && nEl.ValueKind == JsonValueKind.String
+                        ? (nEl.GetString() ?? string.Empty)
+                        : string.Empty;
+
+                    if (string.IsNullOrWhiteSpace(id) && string.IsNullOrWhiteSpace(name)) continue;
+                    var lower = name.ToLowerInvariant();
+                    var position = (lower.Contains("back") || lower.Contains("rear")) ? "back" : "front";
+                    var deviceType = (lower.Contains("usb") || lower.Contains("external")) ? "external" : "integrated";
+
+                    list.Add(new CameraDeviceInfo
+                    {
+                        Id = string.IsNullOrWhiteSpace(id) ? name : id,
+                        Name = string.IsNullOrWhiteSpace(name) ? id : name,
+                        Position = position,
+                        DeviceType = deviceType,
+                    });
+                }
+
+                return list.ToArray();
+            }
+            catch
+            {
+                return Array.Empty<CameraDeviceInfo>();
+            }
+        }
+
+        private static async Task<byte[]?> TryCaptureWithWinRtAsync(string? deviceId)
+        {
+            var env = new Dictionary<string, string?>
+            {
+                ["OPENCLAW_CAMERA_DEVICEID"] = deviceId ?? string.Empty
+            };
+
+            var script = @"
+$ErrorActionPreference='Stop'
+$deviceId=$env:OPENCLAW_CAMERA_DEVICEID
+$settings=[Windows.Media.Capture.MediaCaptureInitializationSettings, Windows.Media.Capture, ContentType=WindowsRuntime]::new()
+$settings.StreamingCaptureMode=[Windows.Media.Capture.StreamingCaptureMode]::Video
+if($deviceId){ $settings.VideoDeviceId=$deviceId }
+
+$mc=[Windows.Media.Capture.MediaCapture, Windows.Media.Capture, ContentType=WindowsRuntime]::new()
+$init=$mc.InitializeAsync($settings)
+while($init.Status -eq [Windows.Foundation.AsyncStatus]::Started){ Start-Sleep -Milliseconds 25 }
+if($init.Status -ne [Windows.Foundation.AsyncStatus]::Completed){ throw 'InitializeAsync failed' }
+$null=$init.GetResults()
+
+$jpeg=[Windows.Media.MediaProperties.ImageEncodingProperties, Windows.Media.MediaProperties, ContentType=WindowsRuntime]::CreateJpeg()
+$stream=[Windows.Storage.Streams.InMemoryRandomAccessStream, Windows.Storage.Streams, ContentType=WindowsRuntime]::new()
+$cap=$mc.CapturePhotoToStreamAsync($jpeg,$stream)
+while($cap.Status -eq [Windows.Foundation.AsyncStatus]::Started){ Start-Sleep -Milliseconds 25 }
+if($cap.Status -ne [Windows.Foundation.AsyncStatus]::Completed){ throw 'CapturePhotoToStreamAsync failed' }
+$null=$cap.GetResults()
+
+$stream.Seek(0)
+$size=[int]$stream.Size
+if($size -le 0){ throw 'Empty stream' }
+$reader=[Windows.Storage.Streams.DataReader, Windows.Storage.Streams, ContentType=WindowsRuntime]::new($stream.GetInputStreamAt(0))
+$load=$reader.LoadAsync($size)
+while($load.Status -eq [Windows.Foundation.AsyncStatus]::Started){ Start-Sleep -Milliseconds 25 }
+if($load.Status -ne [Windows.Foundation.AsyncStatus]::Completed){ throw 'LoadAsync failed' }
+$null=$load.GetResults()
+
+$bytes=New-Object byte[] $size
+$reader.ReadBytes($bytes)
+[Convert]::ToBase64String($bytes)
+";
+
+            var res = await RunPowerShellAsync(script, env);
+            if (res.ExitCode != 0 || string.IsNullOrWhiteSpace(res.StdOut))
+            {
+                return null;
+            }
+
+            try
+            {
+                var raw = Convert.FromBase64String(res.StdOut.Trim());
+                return IsLikelyJpeg(raw) ? raw : null;
+            }
+            catch
+            {
+                return null;
             }
         }
 
@@ -250,6 +381,40 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
             var checker = OperatingSystem.IsWindows() ? "where" : "which";
             var res = await RunProcessAsync(checker, command);
             return res.ExitCode == 0;
+        }
+
+        private static async Task<(int ExitCode, string StdOut, string StdErr)> RunPowerShellAsync(string script, IDictionary<string, string?>? env)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+            };
+
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-Command");
+            psi.ArgumentList.Add(script);
+
+            if (env != null)
+            {
+                foreach (var kv in env)
+                {
+                    psi.Environment[kv.Key] = kv.Value ?? string.Empty;
+                }
+            }
+
+            using var p = new Process { StartInfo = psi };
+            p.Start();
+            var so = await p.StandardOutput.ReadToEndAsync();
+            var se = await p.StandardError.ReadToEndAsync();
+            await p.WaitForExitAsync();
+            return (p.ExitCode, so, se);
         }
 
         private static async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessAsync(string fileName, params string[] args)

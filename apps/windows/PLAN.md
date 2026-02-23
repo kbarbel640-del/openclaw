@@ -64,7 +64,7 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] Returns OpenClaw-compatible payload shapes:
     - `camera.list` -> `{ devices: [{ id, name, position, deviceType }] }`
     - `camera.snap` -> `{ format: "jpg", base64, width, height }`
-  - [x] Replaced MediaFoundation.Net camera path with ffmpeg DirectShow capture/list for net8 compatibility
+  - [x] Replaced MediaFoundation.Net camera path with net8-safe backend chain (native WinRT via PowerShell bridge first, ffmpeg DirectShow fallback)
   - [x] Added actionable unavailable error when camera frame cannot be produced (privacy/PATH guidance)
   - [ ] Validate on real Windows host with physical cameras and tune device-selection heuristics
 - **Automation (`Automation/`)**
