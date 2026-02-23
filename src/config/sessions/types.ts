@@ -91,6 +91,8 @@ export type SessionEntry = {
   fallbackNoticeSelectedModel?: string;
   fallbackNoticeActiveModel?: string;
   fallbackNoticeReason?: string;
+  /** Timestamp (ms) when the current fallback state began. */
+  fallbackNoticeStartedAt?: number;
   contextTokens?: number;
   compactionCount?: number;
   memoryFlushAt?: number;

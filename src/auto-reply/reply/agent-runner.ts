@@ -24,6 +24,7 @@ import { estimateUsageCost, resolveModelCostConfig } from "../../utils/usage-for
 import {
   buildFallbackClearedNotice,
   buildFallbackNotice,
+  buildFallbackStartedNotice,
   resolveFallbackTransition,
 } from "../fallback-state.js";
 import type { OriginatingChannelType, TemplateContext } from "../templating.js";
@@ -300,6 +301,7 @@ export async function runReplyAgent(params: {
       fallbackNoticeSelectedModel: undefined,
       fallbackNoticeActiveModel: undefined,
       fallbackNoticeReason: undefined,
+      fallbackNoticeStartedAt: undefined,
     };
     const agentId = resolveAgentIdFromSessionKey(sessionKey);
     const nextSessionFile = resolveSessionTranscriptPath(
@@ -453,6 +455,7 @@ export async function runReplyAgent(params: {
         fallbackStateEntry.fallbackNoticeSelectedModel = fallbackTransition.nextState.selectedModel;
         fallbackStateEntry.fallbackNoticeActiveModel = fallbackTransition.nextState.activeModel;
         fallbackStateEntry.fallbackNoticeReason = fallbackTransition.nextState.reason;
+        fallbackStateEntry.fallbackNoticeStartedAt = fallbackTransition.nextState.startedAt;
         fallbackStateEntry.updatedAt = Date.now();
         activeSessionEntry = fallbackStateEntry;
       }
@@ -467,6 +470,7 @@ export async function runReplyAgent(params: {
             fallbackNoticeSelectedModel: fallbackTransition.nextState.selectedModel,
             fallbackNoticeActiveModel: fallbackTransition.nextState.activeModel,
             fallbackNoticeReason: fallbackTransition.nextState.reason,
+            fallbackNoticeStartedAt: fallbackTransition.nextState.startedAt,
           }),
         });
       }
@@ -627,6 +631,9 @@ export async function runReplyAgent(params: {
           attempts: fallbackAttempts,
         },
       });
+      const automatedFallbackNotifyEnabled =
+        isHeartbeat &&
+        followupRun.run.config?.agents?.defaults?.modelFallbackNotifyAutomated === true;
       if (verboseEnabled) {
         const fallbackNotice = buildFallbackNotice({
           selectedProvider,
@@ -637,6 +644,15 @@ export async function runReplyAgent(params: {
         });
         if (fallbackNotice) {
           verboseNotices.push({ text: fallbackNotice });
+        }
+      } else if (automatedFallbackNotifyEnabled) {
+        const fallbackStartNotice = buildFallbackStartedNotice({
+          selectedModelRef: fallbackTransition.selectedModelRef,
+          activeModelRef: fallbackTransition.activeModelRef,
+          reasonSummary: fallbackTransition.reasonSummary,
+        });
+        if (fallbackStartNotice) {
+          verboseNotices.push({ text: fallbackStartNotice });
         }
       }
     }

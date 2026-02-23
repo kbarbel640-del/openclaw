@@ -6,12 +6,22 @@ const FALLBACK_REASON_PART_MAX = 80;
 
 export type FallbackNoticeState = Pick<
   SessionEntry,
-  "fallbackNoticeSelectedModel" | "fallbackNoticeActiveModel" | "fallbackNoticeReason"
+  | "fallbackNoticeSelectedModel"
+  | "fallbackNoticeActiveModel"
+  | "fallbackNoticeReason"
+  | "fallbackNoticeStartedAt"
 >;
 
 export function normalizeFallbackModelRef(value?: string): string | undefined {
   const trimmed = String(value ?? "").trim();
   return trimmed || undefined;
+}
+
+export function normalizeFallbackStartedAt(value?: number): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return Math.floor(value);
 }
 
 function truncateFallbackReasonPart(value: string, max = FALLBACK_REASON_PART_MAX): string {
@@ -74,6 +84,22 @@ export function buildFallbackNotice(params: {
   return `↪️ Model Fallback: ${active} (selected ${selected}; ${reasonSummary})`;
 }
 
+export function buildFallbackStartedNotice(params: {
+  selectedModelRef: string;
+  activeModelRef: string;
+  reasonSummary?: string;
+}): string | null {
+  const selected = normalizeFallbackModelRef(params.selectedModelRef);
+  const active = normalizeFallbackModelRef(params.activeModelRef);
+  if (!selected || !active || selected === active) {
+    return null;
+  }
+  const reason = normalizeFallbackModelRef(params.reasonSummary);
+  return reason
+    ? `↪️ Model Fallback started: ${active} (selected ${selected}; ${reason})`
+    : `↪️ Model Fallback started: ${active} (selected ${selected})`;
+}
+
 export function buildFallbackClearedNotice(params: {
   selectedProvider: string;
   selectedModel: string;
@@ -91,10 +117,11 @@ export function resolveActiveFallbackState(params: {
   selectedModelRef: string;
   activeModelRef: string;
   state?: FallbackNoticeState;
-}): { active: boolean; reason?: string } {
+}): { active: boolean; reason?: string; startedAt?: number } {
   const selected = normalizeFallbackModelRef(params.state?.fallbackNoticeSelectedModel);
   const active = normalizeFallbackModelRef(params.state?.fallbackNoticeActiveModel);
   const reason = normalizeFallbackModelRef(params.state?.fallbackNoticeReason);
+  const startedAt = normalizeFallbackStartedAt(params.state?.fallbackNoticeStartedAt);
   const fallbackActive =
     params.selectedModelRef !== params.activeModelRef &&
     selected === params.selectedModelRef &&
@@ -102,6 +129,7 @@ export function resolveActiveFallbackState(params: {
   return {
     active: fallbackActive,
     reason: fallbackActive ? reason : undefined,
+    startedAt: fallbackActive ? startedAt : undefined,
   };
 }
 
@@ -117,11 +145,13 @@ export type ResolvedFallbackTransition = {
     selectedModel?: string;
     activeModel?: string;
     reason?: string;
+    startedAt?: number;
   };
   nextState: {
     selectedModel?: string;
     activeModel?: string;
     reason?: string;
+    startedAt?: number;
   };
   stateChanged: boolean;
 };
@@ -133,6 +163,7 @@ export function resolveFallbackTransition(params: {
   activeModel: string;
   attempts: RuntimeFallbackAttempt[];
   state?: FallbackNoticeState;
+  nowMs?: number;
 }): ResolvedFallbackTransition {
   const selectedModelRef = formatProviderModelRef(params.selectedProvider, params.selectedModel);
   const activeModelRef = formatProviderModelRef(params.activeProvider, params.activeModel);
@@ -140,6 +171,7 @@ export function resolveFallbackTransition(params: {
     selectedModel: normalizeFallbackModelRef(params.state?.fallbackNoticeSelectedModel),
     activeModel: normalizeFallbackModelRef(params.state?.fallbackNoticeActiveModel),
     reason: normalizeFallbackModelRef(params.state?.fallbackNoticeReason),
+    startedAt: normalizeFallbackStartedAt(params.state?.fallbackNoticeStartedAt),
   };
   const fallbackActive = selectedModelRef !== activeModelRef;
   const fallbackTransitioned =
@@ -147,24 +179,34 @@ export function resolveFallbackTransition(params: {
     (previousState.selectedModel !== selectedModelRef ||
       previousState.activeModel !== activeModelRef);
   const fallbackCleared =
-    !fallbackActive && Boolean(previousState.selectedModel || previousState.activeModel);
+    !fallbackActive &&
+    Boolean(previousState.selectedModel || previousState.activeModel || previousState.startedAt);
   const reasonSummary = buildFallbackReasonSummary(params.attempts);
   const attemptSummaries = buildFallbackAttemptSummaries(params.attempts);
+  const nowMs = normalizeFallbackStartedAt(params.nowMs) ?? Date.now();
+  const nextStartedAt = fallbackActive
+    ? fallbackTransitioned
+      ? nowMs
+      : (previousState.startedAt ?? nowMs)
+    : undefined;
   const nextState = fallbackActive
     ? {
         selectedModel: selectedModelRef,
         activeModel: activeModelRef,
         reason: reasonSummary,
+        startedAt: nextStartedAt,
       }
     : {
         selectedModel: undefined,
         activeModel: undefined,
         reason: undefined,
+        startedAt: undefined,
       };
   const stateChanged =
     previousState.selectedModel !== nextState.selectedModel ||
     previousState.activeModel !== nextState.activeModel ||
-    previousState.reason !== nextState.reason;
+    previousState.reason !== nextState.reason ||
+    previousState.startedAt !== nextState.startedAt;
   return {
     selectedModelRef,
     activeModelRef,

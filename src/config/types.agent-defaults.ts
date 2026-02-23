@@ -122,6 +122,8 @@ export type AgentDefaultsConfig = {
   model?: AgentModelListConfig;
   /** Optional image-capable model and fallbacks (provider/model). */
   imageModel?: AgentModelListConfig;
+  /** Emit low-noise notices when fallback begins in automated runs (heartbeat/cron). */
+  modelFallbackNotifyAutomated?: boolean;
   /** Model catalog with optional aliases (full provider/model keys). */
   models?: Record<string, AgentModelEntryConfig>;
   /** Agent working directory (preferred). Used as the default cwd for agent runs. */

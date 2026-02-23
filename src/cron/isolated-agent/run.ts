@@ -29,6 +29,10 @@ import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { deriveSessionTotalTokens, hasNonzeroUsage } from "../../agents/usage.js";
 import { ensureAgentWorkspace } from "../../agents/workspace.js";
 import {
+  buildFallbackStartedNotice,
+  resolveFallbackTransition,
+} from "../../auto-reply/fallback-state.js";
+import {
   normalizeThinkLevel,
   normalizeVerboseLevel,
   supportsXHighThinking,
@@ -42,7 +46,7 @@ import {
   updateSessionStore,
 } from "../../config/sessions.js";
 import type { AgentDefaultsConfig } from "../../config/types.js";
-import { registerAgentRunContext } from "../../infra/agent-events.js";
+import { emitAgentEvent, registerAgentRunContext } from "../../infra/agent-events.js";
 import { deliverOutboundPayloads } from "../../infra/outbound/deliver.js";
 import { resolveAgentOutboundIdentity } from "../../infra/outbound/identity.js";
 import { resolveOutboundSessionRoute } from "../../infra/outbound/outbound-session.js";
@@ -462,6 +466,15 @@ export async function runCronIsolatedAgentTurn(params: {
   let runResult: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
   let fallbackProvider = provider;
   let fallbackModel = model;
+  let fallbackAttempts: Array<{
+    provider: string;
+    model: string;
+    error: string;
+    reason?: string;
+    status?: number;
+    code?: string;
+  }> = [];
+  let fallbackTransitionNoticeText: string | undefined;
   const runStartedAt = Date.now();
   let runEndedAt = runStartedAt;
   try {
@@ -481,6 +494,33 @@ export async function runCronIsolatedAgentTurn(params: {
       model,
       agentDir,
       fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
+      onTransition: async (transition) => {
+        emitAgentEvent({
+          runId: cronSession.sessionEntry.sessionId,
+          sessionKey: agentSessionKey,
+          stream: "lifecycle",
+          data: {
+            phase: "fallback_start",
+            selectedProvider: provider,
+            selectedModel: model,
+            fromProvider: transition.from.provider,
+            fromModel: transition.from.model,
+            toProvider: transition.to.provider,
+            toModel: transition.to.model,
+            activeProvider: transition.to.provider,
+            activeModel: transition.to.model,
+            transition: transition.transition,
+            totalTransitions: transition.totalTransitions,
+            attempt: transition.attempt,
+            totalCandidates: transition.totalCandidates,
+            trigger: transition.trigger,
+            attempts: transition.attempts,
+          },
+        });
+        logWarn(
+          `[cron:${params.job.id}] model fallback started: ${transition.from.provider}/${transition.from.model} -> ${transition.to.provider}/${transition.to.model}`,
+        );
+      },
       run: (providerOverride, modelOverride) => {
         if (abortSignal?.aborted) {
           throw new Error(abortReason());
@@ -533,6 +573,16 @@ export async function runCronIsolatedAgentTurn(params: {
     runResult = fallbackResult.result;
     fallbackProvider = fallbackResult.provider;
     fallbackModel = fallbackResult.model;
+    fallbackAttempts = Array.isArray(fallbackResult.attempts)
+      ? fallbackResult.attempts.map((attempt) => ({
+          provider: String(attempt.provider ?? ""),
+          model: String(attempt.model ?? ""),
+          error: String(attempt.error ?? ""),
+          reason: attempt.reason ? String(attempt.reason) : undefined,
+          status: typeof attempt.status === "number" ? attempt.status : undefined,
+          code: attempt.code ? String(attempt.code) : undefined,
+        }))
+      : [];
     runEndedAt = Date.now();
   } catch (err) {
     return withRunSession({ status: "error", error: String(err) });
@@ -554,10 +604,66 @@ export async function runCronIsolatedAgentTurn(params: {
     const providerUsed = runResult.meta?.agentMeta?.provider ?? fallbackProvider ?? provider;
     const contextTokens =
       agentCfg?.contextTokens ?? lookupContextTokens(modelUsed) ?? DEFAULT_CONTEXT_TOKENS;
+    const fallbackTransition = resolveFallbackTransition({
+      selectedProvider: provider,
+      selectedModel: model,
+      activeProvider: providerUsed,
+      activeModel: modelUsed,
+      attempts: fallbackAttempts,
+      state: cronSession.sessionEntry,
+    });
 
     cronSession.sessionEntry.modelProvider = providerUsed;
     cronSession.sessionEntry.model = modelUsed;
     cronSession.sessionEntry.contextTokens = contextTokens;
+    if (fallbackTransition.stateChanged) {
+      cronSession.sessionEntry.fallbackNoticeSelectedModel =
+        fallbackTransition.nextState.selectedModel;
+      cronSession.sessionEntry.fallbackNoticeActiveModel = fallbackTransition.nextState.activeModel;
+      cronSession.sessionEntry.fallbackNoticeReason = fallbackTransition.nextState.reason;
+      cronSession.sessionEntry.fallbackNoticeStartedAt = fallbackTransition.nextState.startedAt;
+    }
+    if (fallbackTransition.fallbackTransitioned) {
+      emitAgentEvent({
+        runId: cronSession.sessionEntry.sessionId,
+        sessionKey: agentSessionKey,
+        stream: "lifecycle",
+        data: {
+          phase: "fallback",
+          selectedProvider: provider,
+          selectedModel: model,
+          activeProvider: providerUsed,
+          activeModel: modelUsed,
+          attempts: fallbackAttempts,
+          reasonSummary: fallbackTransition.reasonSummary,
+        },
+      });
+      if (cfgWithAgentDefaults.agents?.defaults?.modelFallbackNotifyAutomated === true) {
+        const selectedRef = fallbackTransition.nextState.selectedModel ?? `${provider}/${model}`;
+        const activeRef =
+          fallbackTransition.nextState.activeModel ?? `${providerUsed}/${modelUsed}`;
+        fallbackTransitionNoticeText =
+          buildFallbackStartedNotice({
+            selectedModelRef: selectedRef,
+            activeModelRef: activeRef,
+            reasonSummary: fallbackTransition.reasonSummary,
+          }) ?? undefined;
+      }
+    }
+    if (fallbackTransition.fallbackCleared) {
+      emitAgentEvent({
+        runId: cronSession.sessionEntry.sessionId,
+        sessionKey: agentSessionKey,
+        stream: "lifecycle",
+        data: {
+          phase: "fallback_cleared",
+          selectedProvider: provider,
+          selectedModel: model,
+          activeProvider: providerUsed,
+          activeModel: modelUsed,
+        },
+      });
+    }
     if (isCliProvider(providerUsed, cfgWithAgentDefaults)) {
       const cliSessionId = runResult.meta?.agentMeta?.sessionId?.trim();
       if (cliSessionId) {
@@ -612,6 +718,15 @@ export async function runCronIsolatedAgentTurn(params: {
       : synthesizedText
         ? [{ text: synthesizedText }]
         : [];
+  const fallbackNoticePayload = fallbackTransitionNoticeText
+    ? { text: fallbackTransitionNoticeText }
+    : undefined;
+  if (fallbackNoticePayload && deliveryPayloads.length === 0) {
+    deliveryPayloads = [fallbackNoticePayload];
+    if (!synthesizedText) {
+      synthesizedText = fallbackNoticePayload.text;
+    }
+  }
   const deliveryPayloadHasStructuredContent =
     Boolean(deliveryPayload?.mediaUrl) ||
     (deliveryPayload?.mediaUrls?.length ?? 0) > 0 ||
@@ -679,12 +794,17 @@ export async function runCronIsolatedAgentTurn(params: {
       deliveryPayloadHasStructuredContent || resolvedDelivery.threadId != null;
     if (useDirectDelivery) {
       try {
-        const payloadsForDelivery =
+        const payloadsForDeliveryBase =
           deliveryPayloads.length > 0
             ? deliveryPayloads
             : synthesizedText
               ? [{ text: synthesizedText }]
               : [];
+        const payloadsForDelivery = fallbackNoticePayload
+          ? payloadsForDeliveryBase[0]?.text === fallbackNoticePayload.text
+            ? payloadsForDeliveryBase
+            : [fallbackNoticePayload, ...payloadsForDeliveryBase]
+          : payloadsForDeliveryBase;
         if (payloadsForDelivery.length > 0) {
           if (isAborted()) {
             return withRunSession({ status: "error", error: abortReason(), ...telemetry });
@@ -800,7 +920,10 @@ export async function runCronIsolatedAgentTurn(params: {
           task: taskLabel,
           timeoutMs,
           cleanup: params.job.deleteAfterRun ? "delete" : "keep",
-          roundOneReply: synthesizedText,
+          roundOneReply:
+            fallbackNoticePayload && synthesizedText !== fallbackNoticePayload.text
+              ? `${fallbackNoticePayload.text}\n\n${synthesizedText}`
+              : synthesizedText,
           waitForCompletion: false,
           startedAt: runStartedAt,
           endedAt: runEndedAt,

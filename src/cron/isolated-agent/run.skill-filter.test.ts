@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
+import { runSubagentAnnounceFlow } from "../../agents/subagent-announce.js";
+import { resolveCronDeliveryPlan } from "../delivery.js";
+import { resolveDeliveryTarget } from "./delivery-target.js";
 
 // ---------- mocks ----------
 
@@ -25,6 +28,7 @@ vi.mock("../../agents/skills/refresh.js", () => ({
 }));
 
 vi.mock("../../agents/workspace.js", () => ({
+  DEFAULT_IDENTITY_FILENAME: "IDENTITY.md",
   ensureAgentWorkspace: vi.fn().mockResolvedValue({ dir: "/tmp/workspace" }),
 }));
 
@@ -59,6 +63,9 @@ vi.mock("../../agents/model-fallback.js", () => ({
 }));
 
 const runWithModelFallbackMock = vi.mocked(runWithModelFallback);
+const runSubagentAnnounceFlowMock = vi.mocked(runSubagentAnnounceFlow);
+const resolveCronDeliveryPlanMock = vi.mocked(resolveCronDeliveryPlan);
+const resolveDeliveryTargetMock = vi.mocked(resolveDeliveryTarget);
 
 vi.mock("../../agents/pi-embedded.js", () => ({
   runEmbeddedPiAgent: vi.fn().mockResolvedValue({
@@ -125,6 +132,7 @@ vi.mock("../../routing/session-key.js", async (importOriginal) => {
 });
 
 vi.mock("../../infra/agent-events.js", () => ({
+  emitAgentEvent: vi.fn(),
   registerAgentRunContext: vi.fn(),
 }));
 
@@ -221,6 +229,20 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
     });
     resolveAgentConfigMock.mockReturnValue(undefined);
     resolveAgentSkillsFilterMock.mockReturnValue(undefined);
+    resolveCronDeliveryPlanMock.mockReturnValue({
+      mode: "none",
+      source: "payload",
+      channel: "last",
+      to: undefined,
+      requested: false,
+    });
+    resolveDeliveryTargetMock.mockResolvedValue({
+      channel: "discord",
+      to: undefined,
+      accountId: undefined,
+      mode: "implicit",
+      error: undefined,
+    });
     // Fresh session object per test — prevents mutation leaking between tests
     resolveCronSessionMock.mockReturnValue({
       storePath: "/tmp/store.json",
@@ -406,6 +428,91 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
 
     it("preserves defaults when agent overrides primary in object form", async () => {
       await expectPrimaryOverridePreservesDefaults({ primary: "anthropic/claude-sonnet-4-5" });
+    });
+  });
+
+  describe("automated fallback notices", () => {
+    it("notifies once per transition in cron announce flow", async () => {
+      const sharedSession = {
+        storePath: "/tmp/store.json",
+        store: {},
+        sessionEntry: {
+          sessionId: "test-session-id",
+          updatedAt: 0,
+          systemSent: false,
+          skillsSnapshot: undefined,
+        },
+        systemSent: false,
+        isNewSession: true,
+      };
+      resolveCronSessionMock.mockImplementation(() => sharedSession);
+
+      resolveCronDeliveryPlanMock.mockReturnValue({
+        mode: "announce",
+        source: "delivery",
+        channel: "discord",
+        to: "user-123",
+        requested: true,
+      });
+      resolveDeliveryTargetMock.mockResolvedValue({
+        channel: "discord",
+        to: "user-123",
+        accountId: "acct-1",
+        mode: "explicit",
+        error: undefined,
+      });
+
+      runWithModelFallbackMock.mockResolvedValue({
+        result: {
+          payloads: [{ text: "scheduled summary" }],
+          meta: {
+            agentMeta: {
+              usage: { input: 10, output: 20 },
+            },
+          },
+        },
+        provider: "deepinfra",
+        model: "moonshotai/Kimi-K2.5",
+        attempts: [
+          {
+            provider: "fireworks",
+            model: "fireworks/minimax-m2p5",
+            error: "Provider fireworks is in cooldown (all profiles unavailable)",
+            reason: "rate_limit",
+          },
+        ],
+      });
+
+      const cfg = {
+        agents: {
+          defaults: {
+            modelFallbackNotifyAutomated: true,
+            model: {
+              primary: "fireworks/minimax-m2p5",
+              fallbacks: ["deepinfra/moonshotai/Kimi-K2.5"],
+            },
+          },
+        },
+      };
+
+      await runCronIsolatedAgentTurn(
+        makeParams({
+          cfg,
+          agentId: "scout",
+        }),
+      );
+      await runCronIsolatedAgentTurn(
+        makeParams({
+          cfg,
+          agentId: "scout",
+        }),
+      );
+
+      expect(runSubagentAnnounceFlowMock).toHaveBeenCalledTimes(2);
+      const firstReply = runSubagentAnnounceFlowMock.mock.calls[0]?.[0]?.roundOneReply;
+      const secondReply = runSubagentAnnounceFlowMock.mock.calls[1]?.[0]?.roundOneReply;
+      expect(String(firstReply)).toContain("Model Fallback started:");
+      expect(String(secondReply)).not.toContain("Model Fallback started:");
     });
   });
 });

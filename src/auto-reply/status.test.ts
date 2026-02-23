@@ -254,6 +254,34 @@ describe("buildStatusMessage", () => {
     expect(normalized).toContain("di_123...abc");
   });
 
+  it("shows fallback duration when fallback start time is known", () => {
+    const text = buildStatusMessage({
+      agent: {
+        model: "openai/gpt-4.1-mini",
+        contextTokens: 32_000,
+      },
+      sessionEntry: {
+        sessionId: "fallback-duration-1",
+        updatedAt: 0,
+        modelProvider: "anthropic",
+        model: "claude-haiku-4-5",
+        fallbackNoticeSelectedModel: "openai/gpt-4.1-mini",
+        fallbackNoticeActiveModel: "anthropic/claude-haiku-4-5",
+        fallbackNoticeReason: "rate limit",
+        fallbackNoticeStartedAt: 5 * 60_000,
+      },
+      sessionKey: "agent:main:main",
+      sessionScope: "per-sender",
+      queue: { mode: "collect", depth: 0 },
+      modelAuth: "api-key",
+      now: 10 * 60_000,
+    });
+
+    const normalized = normalizeTestText(text);
+    expect(normalized).toContain("Fallback: anthropic/claude-haiku-4-5");
+    expect(normalized).toContain("since 5m ago");
+  });
+
   it("omits active fallback details when runtime drift does not match fallback state", () => {
     const text = buildStatusMessage({
       agent: {

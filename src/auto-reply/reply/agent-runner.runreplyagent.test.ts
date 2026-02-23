@@ -981,6 +981,140 @@ describe("runReplyAgent typing (heartbeat)", () => {
     }
   });
 
+  it("emits fallback_start lifecycle event when fallback transition begins", async () => {
+    const sessionEntry: SessionEntry = {
+      sessionId: "session",
+      updatedAt: Date.now(),
+    };
+    const sessionStore = { main: sessionEntry };
+
+    state.runEmbeddedPiAgentMock.mockResolvedValue({
+      payloads: [{ text: "final" }],
+      meta: {},
+    });
+    const fallbackSpy = vi
+      .spyOn(modelFallbackModule, "runWithModelFallback")
+      .mockImplementationOnce(async (params) => {
+        await params.onTransition?.({
+          from: { provider: "fireworks", model: "fireworks/minimax-m2p5" },
+          to: { provider: "deepinfra", model: "moonshotai/Kimi-K2.5" },
+          transition: 1,
+          totalTransitions: 1,
+          attempt: 2,
+          totalCandidates: 2,
+          trigger: {
+            provider: "fireworks",
+            model: "fireworks/minimax-m2p5",
+            error: "Provider fireworks is in cooldown (all profiles unavailable)",
+            reason: "rate_limit",
+          },
+          attempts: [
+            {
+              provider: "fireworks",
+              model: "fireworks/minimax-m2p5",
+              error: "Provider fireworks is in cooldown (all profiles unavailable)",
+              reason: "rate_limit",
+            },
+          ],
+        });
+        return {
+          result: await params.run("deepinfra", "moonshotai/Kimi-K2.5"),
+          provider: "deepinfra",
+          model: "moonshotai/Kimi-K2.5",
+          attempts: [
+            {
+              provider: "fireworks",
+              model: "fireworks/minimax-m2p5",
+              error: "Provider fireworks is in cooldown (all profiles unavailable)",
+              reason: "rate_limit",
+            },
+          ],
+        };
+      });
+    try {
+      const { run } = createMinimalRun({
+        resolvedVerboseLevel: "off",
+        sessionEntry,
+        sessionStore,
+        sessionKey: "main",
+      });
+      const phases: string[] = [];
+      const off = onAgentEvent((evt) => {
+        const phase = typeof evt.data?.phase === "string" ? evt.data.phase : null;
+        if (evt.stream === "lifecycle" && phase) {
+          phases.push(phase);
+        }
+      });
+      await run();
+      off();
+
+      expect(phases).toContain("fallback_start");
+      expect(phases).toContain("fallback");
+    } finally {
+      fallbackSpy.mockRestore();
+    }
+  });
+
+  it("sends one heartbeat fallback-start notice when automated notices are enabled", async () => {
+    const sessionEntry: SessionEntry = {
+      sessionId: "session",
+      updatedAt: Date.now(),
+    };
+    const sessionStore = { main: sessionEntry };
+
+    state.runEmbeddedPiAgentMock.mockResolvedValue({
+      payloads: [{ text: "final" }],
+      meta: {},
+    });
+    const fallbackSpy = vi
+      .spyOn(modelFallbackModule, "runWithModelFallback")
+      .mockImplementation(
+        async ({ run }: { run: (provider: string, model: string) => Promise<unknown> }) => ({
+          result: await run("deepinfra", "moonshotai/Kimi-K2.5"),
+          provider: "deepinfra",
+          model: "moonshotai/Kimi-K2.5",
+          attempts: [
+            {
+              provider: "fireworks",
+              model: "fireworks/minimax-m2p5",
+              error: "Provider fireworks is in cooldown (all profiles unavailable)",
+              reason: "rate_limit",
+            },
+          ],
+        }),
+      );
+    try {
+      const { run } = createMinimalRun({
+        opts: { isHeartbeat: true },
+        resolvedVerboseLevel: "off",
+        sessionEntry,
+        sessionStore,
+        sessionKey: "main",
+        runOverrides: {
+          config: {
+            agents: {
+              defaults: {
+                modelFallbackNotifyAutomated: true,
+              },
+            },
+          },
+        },
+      });
+      const first = await run();
+      const firstStartedAt = sessionEntry.fallbackNoticeStartedAt;
+      const second = await run();
+
+      const firstText = Array.isArray(first) ? first[0]?.text : first?.text;
+      const secondText = Array.isArray(second) ? second[0]?.text : second?.text;
+      expect(firstText).toContain("Model Fallback started:");
+      expect(secondText).not.toContain("Model Fallback started:");
+      expect(typeof firstStartedAt).toBe("number");
+      expect(sessionEntry.fallbackNoticeStartedAt).toBe(firstStartedAt);
+    } finally {
+      fallbackSpy.mockRestore();
+    }
+  });
+
   it("updates fallback reason summary while fallback stays active", async () => {
     const cases = [
       {
@@ -1050,7 +1184,7 @@ describe("runReplyAgent typing (heartbeat)", () => {
       const sessionId = "session";
       const storePath = path.join(stateDir, "sessions", "sessions.json");
       const transcriptPath = sessions.resolveSessionTranscriptPath(sessionId);
-      const sessionEntry = {
+      const sessionEntry: SessionEntry = {
         sessionId,
         updatedAt: Date.now(),
         sessionFile: transcriptPath,
@@ -1092,12 +1226,14 @@ describe("runReplyAgent typing (heartbeat)", () => {
       expect(sessionStore.main.fallbackNoticeSelectedModel).toBeUndefined();
       expect(sessionStore.main.fallbackNoticeActiveModel).toBeUndefined();
       expect(sessionStore.main.fallbackNoticeReason).toBeUndefined();
+      expect(sessionStore.main.fallbackNoticeStartedAt).toBeUndefined();
 
       const persisted = JSON.parse(await fs.readFile(storePath, "utf-8"));
       expect(persisted.main.sessionId).toBe(sessionStore.main.sessionId);
       expect(persisted.main.fallbackNoticeSelectedModel).toBeUndefined();
       expect(persisted.main.fallbackNoticeActiveModel).toBeUndefined();
       expect(persisted.main.fallbackNoticeReason).toBeUndefined();
+      expect(persisted.main.fallbackNoticeStartedAt).toBeUndefined();
     });
   });
 

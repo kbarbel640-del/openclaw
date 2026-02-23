@@ -90,6 +90,31 @@ type ModelFallbackErrorHandler = (attempt: {
   total: number;
 }) => void | Promise<void>;
 
+type ModelFallbackTransitionEvent = {
+  from: {
+    provider: string;
+    model: string;
+  };
+  to: {
+    provider: string;
+    model: string;
+  };
+  /** 1-based transition index. 1 = primary -> first fallback. */
+  transition: number;
+  totalTransitions: number;
+  /** 1-based candidate index for the destination model. */
+  attempt: number;
+  totalCandidates: number;
+  /** Latest recorded failure/skip that triggered this transition (if available). */
+  trigger?: FallbackAttempt;
+  /** Snapshot of attempts recorded before trying `to`. */
+  attempts: FallbackAttempt[];
+};
+
+type ModelFallbackTransitionHandler = (
+  transition: ModelFallbackTransitionEvent,
+) => void | Promise<void>;
+
 type ModelFallbackRunResult<T> = {
   result: T;
   provider: string;
@@ -302,6 +327,8 @@ export async function runWithModelFallback<T>(params: {
   fallbacksOverride?: string[];
   run: (provider: string, model: string) => Promise<T>;
   onError?: ModelFallbackErrorHandler;
+  /** Called when fallback transitions to the next candidate (including primary -> first fallback). */
+  onTransition?: ModelFallbackTransitionHandler;
 }): Promise<ModelFallbackRunResult<T>> {
   const candidates = resolveFallbackCandidates({
     cfg: params.cfg,
@@ -319,6 +346,28 @@ export async function runWithModelFallback<T>(params: {
 
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
+    if (i > 0) {
+      const previousCandidate = candidates[i - 1];
+      if (previousCandidate) {
+        const trigger = attempts[attempts.length - 1];
+        await params.onTransition?.({
+          from: {
+            provider: previousCandidate.provider,
+            model: previousCandidate.model,
+          },
+          to: {
+            provider: candidate.provider,
+            model: candidate.model,
+          },
+          transition: i,
+          totalTransitions: Math.max(0, candidates.length - 1),
+          attempt: i + 1,
+          totalCandidates: candidates.length,
+          trigger,
+          attempts: attempts.map((attempt) => ({ ...attempt })),
+        });
+      }
+    }
     if (authStore) {
       const profileIds = resolveAuthProfileOrder({
         cfg: params.cfg,

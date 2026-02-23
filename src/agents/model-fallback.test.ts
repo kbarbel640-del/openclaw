@@ -309,6 +309,94 @@ describe("runWithModelFallback", () => {
     expect(run.mock.calls[1]?.[1]).toBe("gpt-4.1-mini");
   });
 
+  it("emits transition event when moving from primary to fallback", async () => {
+    const cfg = makeCfg();
+    const onTransition = vi.fn();
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("unauthorized"), { status: 401 }))
+      .mockResolvedValueOnce("ok");
+
+    const result = await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      run,
+      onTransition,
+    });
+
+    expect(result.result).toBe("ok");
+    expect(onTransition).toHaveBeenCalledTimes(1);
+    const transition = onTransition.mock.calls[0]?.[0] as {
+      from?: { provider?: string; model?: string };
+      to?: { provider?: string; model?: string };
+      transition?: number;
+      totalTransitions?: number;
+      attempt?: number;
+      totalCandidates?: number;
+      trigger?: { reason?: string };
+      attempts?: unknown[];
+    };
+    expect(transition.from).toEqual({ provider: "openai", model: "gpt-4.1-mini" });
+    expect(transition.to).toEqual({ provider: "anthropic", model: "claude-haiku-3-5" });
+    expect(transition.transition).toBe(1);
+    expect(transition.totalTransitions).toBe(1);
+    expect(transition.attempt).toBe(2);
+    expect(transition.totalCandidates).toBe(2);
+    expect(transition.trigger?.reason).toBe("auth");
+    expect(transition.attempts).toHaveLength(1);
+  });
+
+  it("emits transition event when primary is skipped by cooldown", async () => {
+    const provider = `cooldown-transition-${crypto.randomUUID()}`;
+    const profileId = `${provider}:default`;
+    const store: AuthProfileStore = {
+      version: AUTH_STORE_VERSION,
+      profiles: {
+        [profileId]: {
+          type: "api_key",
+          provider,
+          key: "test-key",
+        },
+      },
+      usageStats: {
+        [profileId]: {
+          cooldownUntil: Date.now() + 5 * 60_000,
+        },
+      },
+    };
+    const cfg = makeProviderFallbackCfg(provider);
+    const onTransition = vi.fn();
+    const run = vi.fn().mockImplementation(async (providerId, modelId) => {
+      if (providerId === "fallback") {
+        return "ok";
+      }
+      throw new Error(`unexpected provider: ${providerId}/${modelId}`);
+    });
+
+    const result = await withTempAuthStore(store, async (tempDir) =>
+      runWithModelFallback({
+        cfg,
+        provider,
+        model: "m1",
+        agentDir: tempDir,
+        run,
+        onTransition,
+      }),
+    );
+
+    expect(result.result).toBe("ok");
+    expect(onTransition).toHaveBeenCalledTimes(1);
+    const transition = onTransition.mock.calls[0]?.[0] as {
+      from?: { provider?: string; model?: string };
+      to?: { provider?: string; model?: string };
+      trigger?: { reason?: string };
+    };
+    expect(transition.from).toEqual({ provider, model: "m1" });
+    expect(transition.to).toEqual({ provider: "fallback", model: "ok-model" });
+    expect(transition.trigger?.reason).toBe("rate_limit");
+  });
+
   it("skips providers when all profiles are in cooldown", async () => {
     const provider = `cooldown-test-${crypto.randomUUID()}`;
     const profileId = `${provider}:default`;

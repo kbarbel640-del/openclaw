@@ -610,10 +610,14 @@ export function buildStatusMessage(args: StatusArgs): string {
   const modelNote = channelModelNote ? ` · ${channelModelNote}` : "";
   const modelLine = `🧠 Model: ${selectedModelLabel}${selectedAuthLabel}${modelNote}`;
   const showFallbackAuth = activeAuthLabelValue && activeAuthLabelValue !== selectedAuthLabelValue;
+  const fallbackSinceLabel =
+    fallbackState.active && typeof fallbackState.startedAt === "number"
+      ? ` · since ${formatTimeAgo(Math.max(0, now - fallbackState.startedAt))}`
+      : "";
   const fallbackLine = fallbackState.active
     ? `↪️ Fallback: ${activeModelLabel}${
         showFallbackAuth ? ` · 🔑 ${activeAuthLabelValue}` : ""
-      } (${fallbackState.reason ?? "selected model unavailable"})`
+      } (${fallbackState.reason ?? "selected model unavailable"})${fallbackSinceLabel}`
     : null;
   const commit = resolveCommitHash();
   const versionLine = `🦞 OpenClaw ${VERSION}${commit ? ` (${commit})` : ""}`;
