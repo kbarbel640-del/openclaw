@@ -80,6 +80,15 @@ function enforceOpenDmPolicyAllowFromStar(params: {
 }
 
 export const WhatsAppAccountSchema = WhatsAppSharedSchema.extend({
+  // Override inherited Zod .default() on policy fields so account-level values
+  // are truly undefined when not explicitly configured.  Without this,
+  // Zod injects e.g. dmPolicy:"pairing" into every account during validation,
+  // which shadows the channel-level dmPolicy in resolveWhatsAppAccount's
+  // `accountCfg?.dmPolicy ?? rootCfg?.dmPolicy` fallback chain.
+  dmPolicy: DmPolicySchema.optional(),
+  groupPolicy: GroupPolicySchema.optional(),
+  debounceMs: z.number().int().nonnegative().optional(),
+
   name: z.string().optional(),
   enabled: z.boolean().optional(),
   /** Override auth directory for this WhatsApp account (Baileys multi-file auth state). */

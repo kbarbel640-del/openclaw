@@ -188,7 +188,12 @@ export const TelegramAccountSchemaBase = z
   })
   .strict();
 
-export const TelegramAccountSchema = TelegramAccountSchemaBase.superRefine((value, ctx) => {
+export const TelegramAccountSchema = TelegramAccountSchemaBase.extend({
+  // Strip inherited Zod .default() so account-level values stay undefined when
+  // not explicitly set, allowing channel-level fallback in account resolution.
+  dmPolicy: DmPolicySchema.optional(),
+  groupPolicy: GroupPolicySchema.optional(),
+}).superRefine((value, ctx) => {
   normalizeTelegramStreamingConfig(value);
   requireOpenAllowFrom({
     policy: value.dmPolicy,
@@ -766,7 +771,10 @@ export const SignalAccountSchemaBase = z
   })
   .strict();
 
-export const SignalAccountSchema = SignalAccountSchemaBase.superRefine((value, ctx) => {
+export const SignalAccountSchema = SignalAccountSchemaBase.extend({
+  dmPolicy: DmPolicySchema.optional(),
+  groupPolicy: GroupPolicySchema.optional(),
+}).superRefine((value, ctx) => {
   requireOpenAllowFrom({
     policy: value.dmPolicy,
     allowFrom: value.allowFrom,
@@ -849,8 +857,14 @@ export const IrcAccountSchemaBase = z
   .strict();
 
 type IrcBaseConfig = z.infer<typeof IrcAccountSchemaBase>;
+// Account-level schema strips .default() from policy fields (dmPolicy,
+// groupPolicy can be undefined), so the refine function must accept that.
+type IrcRefineValue = Omit<IrcBaseConfig, "dmPolicy" | "groupPolicy"> & {
+  dmPolicy?: IrcBaseConfig["dmPolicy"];
+  groupPolicy?: IrcBaseConfig["groupPolicy"];
+};
 
-function refineIrcAllowFromAndNickserv(value: IrcBaseConfig, ctx: z.RefinementCtx): void {
+function refineIrcAllowFromAndNickserv(value: IrcRefineValue, ctx: z.RefinementCtx): void {
   requireOpenAllowFrom({
     policy: value.dmPolicy,
     allowFrom: value.allowFrom,
@@ -867,7 +881,10 @@ function refineIrcAllowFromAndNickserv(value: IrcBaseConfig, ctx: z.RefinementCt
   }
 }
 
-export const IrcAccountSchema = IrcAccountSchemaBase.superRefine((value, ctx) => {
+export const IrcAccountSchema = IrcAccountSchemaBase.extend({
+  dmPolicy: DmPolicySchema.optional(),
+  groupPolicy: GroupPolicySchema.optional(),
+}).superRefine((value, ctx) => {
   refineIrcAllowFromAndNickserv(value, ctx);
 });
 
@@ -930,7 +947,10 @@ export const IMessageAccountSchemaBase = z
   })
   .strict();
 
-export const IMessageAccountSchema = IMessageAccountSchemaBase.superRefine((value, ctx) => {
+export const IMessageAccountSchema = IMessageAccountSchemaBase.extend({
+  dmPolicy: DmPolicySchema.optional(),
+  groupPolicy: GroupPolicySchema.optional(),
+}).superRefine((value, ctx) => {
   requireOpenAllowFrom({
     policy: value.dmPolicy,
     allowFrom: value.allowFrom,
@@ -1011,7 +1031,10 @@ export const BlueBubblesAccountSchemaBase = z
   })
   .strict();
 
-export const BlueBubblesAccountSchema = BlueBubblesAccountSchemaBase.superRefine((value, ctx) => {
+export const BlueBubblesAccountSchema = BlueBubblesAccountSchemaBase.extend({
+  dmPolicy: DmPolicySchema.optional(),
+  groupPolicy: GroupPolicySchema.optional(),
+}).superRefine((value, ctx) => {
   requireOpenAllowFrom({
     policy: value.dmPolicy,
     allowFrom: value.allowFrom,
