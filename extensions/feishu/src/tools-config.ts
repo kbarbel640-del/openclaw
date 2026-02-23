@@ -29,7 +29,9 @@ export function resolveToolsConfig(cfg?: FeishuToolsConfig): Required<FeishuTool
  * This ensures tools aren't silently disabled just because the
  * alphabetically-first account has them turned off.
  */
-export function mergeToolsConfigs(configs: (FeishuToolsConfig | undefined)[]): Required<FeishuToolsConfig> {
+export function mergeToolsConfigs(
+  configs: (FeishuToolsConfig | undefined)[],
+): Required<FeishuToolsConfig> {
   const resolved = configs.map((c) => resolveToolsConfig(c));
   return {
     doc: resolved.some((c) => c.doc),
