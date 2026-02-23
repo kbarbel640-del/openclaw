@@ -10,7 +10,6 @@ export type AuthChoiceOption = {
   hint?: string;
 };
 
-
 export type AuthChoiceGroup = {
   value: AuthChoiceGroupId;
   label: string;
