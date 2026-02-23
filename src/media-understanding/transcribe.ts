@@ -1,11 +1,10 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { requireApiKey, resolveApiKeyForProvider } from "../agents/model-auth.js";
 import type { MsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { MediaUnderstandingModelConfig } from "../config/types.tools.js";
-import type { MediaUnderstandingDecision, MediaUnderstandingProvider } from "./types.js";
-import { requireApiKey, resolveApiKeyForProvider } from "../agents/model-auth.js";
 import { DEFAULT_AUDIO_MODELS, DEFAULT_TIMEOUT_SECONDS } from "./defaults.js";
 import { resolveProviderQuery } from "./provider-query.js";
 import { getMediaUnderstandingProvider, normalizeMediaProviderId } from "./providers/index.js";
@@ -22,6 +21,7 @@ import {
   normalizeMediaAttachments,
   runCapability,
 } from "./runner.js";
+import type { MediaUnderstandingDecision, MediaUnderstandingProvider } from "./types.js";
 
 export type CoreAudioTranscriptionResult = {
   text: string | null;

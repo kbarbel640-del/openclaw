@@ -1,5 +1,5 @@
-import type { VoiceCallConfig } from "../../config.js";
 import { alawToLinear, linearToAlaw, mulawToLinear } from "../../audio/g711.js";
+import type { VoiceCallConfig } from "../../config.js";
 
 export function g711ToPcm16Buffer(
   payload: Buffer,

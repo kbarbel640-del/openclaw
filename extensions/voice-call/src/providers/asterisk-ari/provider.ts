@@ -1,8 +1,10 @@
-import type { RemoteInfo } from "node:dgram";
 import crypto from "node:crypto";
+import type { RemoteInfo } from "node:dgram";
 import type { CallMode, VoiceCallConfig } from "../../config.js";
 import type { CoreConfig } from "../../core-bridge.js";
+import { loadCoreAgentDeps } from "../../core-bridge.js";
 import type { CallManager } from "../../manager.js";
+import { chunkAudio } from "../../telephony-audio.js";
 import type { TelephonyTtsProvider } from "../../telephony-tts.js";
 import type {
   EndReason,
@@ -17,10 +19,8 @@ import type {
   WebhookVerificationResult,
   NormalizedEvent,
 } from "../../types.js";
-import type { VoiceCallProvider } from "../base.js";
-import { loadCoreAgentDeps } from "../../core-bridge.js";
-import { chunkAudio } from "../../telephony-audio.js";
 import { TerminalStates } from "../../types.js";
+import type { VoiceCallProvider } from "../base.js";
 import { AriClient, type AriEvent } from "./ari-client.js";
 import { AriMedia, type MediaGraph } from "./ari-media.js";
 import {
