@@ -1868,6 +1868,10 @@
                 "pages": ["ja-JP/index"]
               },
               {
+                "group": "コアコンセプト",
+                "pages": ["ja-JP/concepts/features"]
+              },
+              {
                 "group": "初回セットアップ",
                 "pages": ["ja-JP/start/getting-started", "ja-JP/start/wizard"]
               }
