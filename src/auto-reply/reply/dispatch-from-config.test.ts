@@ -36,6 +36,37 @@ const acpMocks = vi.hoisted(() => ({
   upsertAcpSessionMeta: vi.fn(async () => null),
   requireAcpRuntimeBackend: vi.fn<() => unknown>(),
 }));
+const ttsMocks = vi.hoisted(() => {
+  const state = {
+    synthesizeFinalAudio: false,
+  };
+  return {
+    state,
+    maybeApplyTtsToPayload: vi.fn(async (paramsUnknown: unknown) => {
+      const params = paramsUnknown as {
+        payload: ReplyPayload;
+        kind: "tool" | "block" | "final";
+      };
+      if (
+        state.synthesizeFinalAudio &&
+        params.kind === "final" &&
+        typeof params.payload?.text === "string" &&
+        params.payload.text.trim()
+      ) {
+        return {
+          ...params.payload,
+          mediaUrl: "https://example.com/tts-synth.opus",
+          audioAsVoice: true,
+        };
+      }
+      return params.payload;
+    }),
+    normalizeTtsAutoMode: vi.fn((value: unknown) =>
+      typeof value === "string" ? value : undefined,
+    ),
+    resolveTtsConfig: vi.fn((_cfg: OpenClawConfig) => ({ mode: "final" })),
+  };
+});
 
 vi.mock("./route-reply.js", () => ({
   isRoutableChannel: (channel: string | undefined) =>
@@ -76,6 +107,11 @@ vi.mock("../../acp/runtime/session-meta.js", () => ({
 }));
 vi.mock("../../acp/runtime/registry.js", () => ({
   requireAcpRuntimeBackend: acpMocks.requireAcpRuntimeBackend,
+}));
+vi.mock("../../tts/tts.js", () => ({
+  maybeApplyTtsToPayload: (params: unknown) => ttsMocks.maybeApplyTtsToPayload(params),
+  normalizeTtsAutoMode: (value: unknown) => ttsMocks.normalizeTtsAutoMode(value),
+  resolveTtsConfig: (cfg: OpenClawConfig) => ttsMocks.resolveTtsConfig(cfg),
 }));
 
 const { dispatchReplyFromConfig } = await import("./dispatch-from-config.js");
@@ -156,6 +192,13 @@ describe("dispatchReplyFromConfig", () => {
     acpMocks.upsertAcpSessionMeta.mockReset();
     acpMocks.upsertAcpSessionMeta.mockResolvedValue(null);
     acpMocks.requireAcpRuntimeBackend.mockReset();
+    ttsMocks.state.synthesizeFinalAudio = false;
+    ttsMocks.maybeApplyTtsToPayload.mockClear();
+    ttsMocks.normalizeTtsAutoMode.mockClear();
+    ttsMocks.resolveTtsConfig.mockClear();
+    ttsMocks.resolveTtsConfig.mockReturnValue({
+      mode: "final",
+    });
   });
   it("does not route when Provider matches OriginatingChannel (even if Surface is missing)", async () => {
     setNoAbort();
@@ -468,6 +511,112 @@ describe("dispatchReplyFromConfig", () => {
     expect(dispatcher.sendFinalReply).not.toHaveBeenCalled();
   });
 
+  it("honors send-policy deny before ACP runtime dispatch", async () => {
+    setNoAbort();
+    const runtime = createAcpRuntime([
+      { type: "text_delta", text: "should-not-run" },
+      { type: "done" },
+    ]);
+    acpMocks.readAcpSessionEntry.mockReturnValue({
+      sessionKey: "agent:codex-acp:session-1",
+      storeSessionKey: "agent:codex-acp:session-1",
+      cfg: {},
+      storePath: "/tmp/mock-sessions.json",
+      entry: {},
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime:1",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+    acpMocks.requireAcpRuntimeBackend.mockReturnValue({
+      id: "acpx",
+      runtime,
+    });
+
+    const cfg = {
+      acp: {
+        enabled: true,
+        dispatch: { enabled: true },
+      },
+      session: {
+        sendPolicy: {
+          default: "deny",
+        },
+      },
+    } as OpenClawConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "discord",
+      Surface: "discord",
+      SessionKey: "agent:codex-acp:session-1",
+      BodyForAgent: "write a test",
+    });
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher });
+
+    expect(runtime.runTurn).not.toHaveBeenCalled();
+    expect(dispatcher.sendBlockReply).not.toHaveBeenCalled();
+    expect(dispatcher.sendFinalReply).not.toHaveBeenCalled();
+  });
+
+  it("routes ACP slash commands through the normal command pipeline", async () => {
+    setNoAbort();
+    const runtime = createAcpRuntime([{ type: "done" }]);
+    acpMocks.readAcpSessionEntry.mockReturnValue({
+      sessionKey: "agent:codex-acp:session-1",
+      storeSessionKey: "agent:codex-acp:session-1",
+      cfg: {},
+      storePath: "/tmp/mock-sessions.json",
+      entry: {},
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime:1",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+    acpMocks.requireAcpRuntimeBackend.mockReturnValue({
+      id: "acpx",
+      runtime,
+    });
+
+    const cfg = {
+      acp: {
+        enabled: true,
+        dispatch: { enabled: true },
+      },
+      session: {
+        sendPolicy: {
+          default: "deny",
+        },
+      },
+    } as OpenClawConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "discord",
+      Surface: "discord",
+      SessionKey: "agent:codex-acp:session-1",
+      CommandBody: "/acp cancel",
+      BodyForCommands: "/acp cancel",
+      BodyForAgent: "/acp cancel",
+    });
+    const replyResolver = vi.fn(async () => ({ text: "command output" }) as ReplyPayload);
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
+
+    expect(replyResolver).toHaveBeenCalledTimes(1);
+    expect(runtime.runTurn).not.toHaveBeenCalled();
+    expect(dispatcher.sendFinalReply).toHaveBeenCalledWith({
+      text: "command output",
+    });
+  });
+
   it("coalesces tiny ACP token deltas into normal Discord text spacing", async () => {
     setNoAbort();
     const runtime = createAcpRuntime([
@@ -522,6 +671,56 @@ describe("dispatchReplyFromConfig", () => {
       .filter(Boolean);
     expect(blockTexts).toEqual(["What do you want to work on?"]);
     expect(dispatcher.sendFinalReply).not.toHaveBeenCalled();
+  });
+
+  it("generates final-mode TTS audio after ACP block streaming completes", async () => {
+    setNoAbort();
+    ttsMocks.state.synthesizeFinalAudio = true;
+    const runtime = createAcpRuntime([
+      { type: "text_delta", text: "Hello from ACP streaming." },
+      { type: "done" },
+    ]);
+    acpMocks.readAcpSessionEntry.mockReturnValue({
+      sessionKey: "agent:codex-acp:session-1",
+      storeSessionKey: "agent:codex-acp:session-1",
+      cfg: {},
+      storePath: "/tmp/mock-sessions.json",
+      entry: {},
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime:1",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+    acpMocks.requireAcpRuntimeBackend.mockReturnValue({
+      id: "acpx",
+      runtime,
+    });
+
+    const cfg = {
+      acp: {
+        enabled: true,
+        dispatch: { enabled: true },
+        stream: { coalesceIdleMs: 0, maxChunkChars: 256 },
+      },
+    } as OpenClawConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "discord",
+      Surface: "discord",
+      SessionKey: "agent:codex-acp:session-1",
+      BodyForAgent: "stream this",
+    });
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher });
+
+    const finalPayload = (dispatcher.sendFinalReply as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as ReplyPayload | undefined;
+    expect(finalPayload?.mediaUrl).toBe("https://example.com/tts-synth.opus");
+    expect(finalPayload?.text).toBeUndefined();
   });
 
   it("routes ACP block output to originating channel without parent dispatcher duplicates", async () => {

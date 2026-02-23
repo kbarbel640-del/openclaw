@@ -97,11 +97,19 @@ export function resolveEffectiveBlockStreamingConfig(params: {
   chunking: BlockStreamingChunking;
   coalescing: BlockStreamingCoalescing;
 } {
+  const providerKey = normalizeChunkProvider(params.provider);
+  const providerId = providerKey ? normalizeChannelId(providerKey) : null;
+  const providerChunkLimit = providerId
+    ? getChannelDock(providerId)?.outbound?.textChunkLimit
+    : undefined;
+  const textLimit = resolveTextChunkLimit(params.cfg, providerKey, params.accountId, {
+    fallbackLimit: providerChunkLimit,
+  });
   const chunkingDefaults =
     params.chunking ?? resolveBlockStreamingChunking(params.cfg, params.provider, params.accountId);
   const chunkingMax = clampPositiveInteger(params.maxChunkChars, chunkingDefaults.maxChars, {
     min: 1,
-    max: Math.max(1, chunkingDefaults.maxChars),
+    max: Math.max(1, textLimit),
   });
   const chunking: BlockStreamingChunking = {
     ...chunkingDefaults,

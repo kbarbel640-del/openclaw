@@ -453,6 +453,51 @@ describe("AcpxRuntime", () => {
     expect(logs.find((entry) => entry.kind === "status")).toBeDefined();
   });
 
+  it("skips prompt execution when runTurn starts with an already-aborted signal", async () => {
+    const { runtime, logPath } = await createMockRuntime();
+    const handle = await runtime.ensureSession({
+      sessionKey: "agent:codex:acp:aborted",
+      agent: "codex",
+      mode: "persistent",
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    const events = [];
+    for await (const event of runtime.runTurn({
+      handle,
+      text: "should-not-run",
+      mode: "prompt",
+      requestId: "req-aborted",
+      signal: controller.signal,
+    })) {
+      events.push(event);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const logs = await readLogEntries(logPath);
+    expect(events).toEqual([]);
+    expect(logs.some((entry) => entry.kind === "prompt")).toBe(false);
+  });
+
+  it("does not mark backend unhealthy when a per-session cwd is missing", async () => {
+    const { runtime } = await createMockRuntime();
+    const missingCwd = path.join(os.tmpdir(), "openclaw-acpx-runtime-test-missing-cwd");
+
+    await expect(
+      runtime.ensureSession({
+        sessionKey: "agent:codex:acp:missing-cwd",
+        agent: "codex",
+        mode: "persistent",
+        cwd: missingCwd,
+      }),
+    ).rejects.toMatchObject({
+      code: "ACP_SESSION_INIT_FAILED",
+      message: expect.stringContaining("working directory does not exist"),
+    });
+    expect(runtime.isHealthy()).toBe(true);
+  });
+
   it("marks runtime unhealthy when command is missing", async () => {
     const runtime = new AcpxRuntime(
       {

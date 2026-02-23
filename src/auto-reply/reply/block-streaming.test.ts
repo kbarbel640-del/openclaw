@@ -43,4 +43,26 @@ describe("resolveEffectiveBlockStreamingConfig", () => {
     expect(resolved.coalescing.maxChars).toBe(20);
     expect(resolved.coalescing.idleMs).toBe(0);
   });
+
+  it("allows ACP maxChunkChars overrides above base defaults up to provider text limits", () => {
+    const cfg = {
+      channels: {
+        discord: {
+          textChunkLimit: 4096,
+        },
+      },
+    } as OpenClawConfig;
+
+    const baseChunking = resolveBlockStreamingChunking(cfg, "discord");
+    expect(baseChunking.maxChars).toBeLessThan(1800);
+
+    const resolved = resolveEffectiveBlockStreamingConfig({
+      cfg,
+      provider: "discord",
+      maxChunkChars: 1800,
+    });
+
+    expect(resolved.chunking.maxChars).toBe(1800);
+    expect(resolved.chunking.minChars).toBeLessThanOrEqual(resolved.chunking.maxChars);
+  });
 });

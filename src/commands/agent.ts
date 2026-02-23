@@ -1,5 +1,5 @@
 import { getAcpSessionManager } from "../acp/control-plane/manager.js";
-import { toAcpRuntimeError } from "../acp/runtime/errors.js";
+import { AcpRuntimeError, toAcpRuntimeError } from "../acp/runtime/errors.js";
 import {
   listAgentIds,
   resolveAgentDir,
@@ -59,7 +59,7 @@ import {
   registerAgentRunContext,
 } from "../infra/agent-events.js";
 import { getRemoteSkillEligibility } from "../infra/skills-remote.js";
-import { normalizeAgentId } from "../routing/session-key.js";
+import { isAcpSessionKey, normalizeAgentId } from "../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { applyVerboseOverride } from "../sessions/level-overrides.js";
 import { applyModelOverrideToSessionEntry } from "../sessions/model-overrides.js";
@@ -92,6 +92,32 @@ function resolveFallbackRetryPrompt(params: { body: string; isFallbackRetry: boo
     return params.body;
   }
   return "Continue where you left off. The previous model attempt failed or timed out.";
+}
+
+function isAcpAgentAllowedByPolicy(cfg: ReturnType<typeof loadConfig>, agentId: string): boolean {
+  const allowed = (cfg.acp?.allowedAgents ?? [])
+    .map((entry) => normalizeAgentId(entry))
+    .filter(Boolean);
+  if (allowed.length === 0) {
+    return true;
+  }
+  return allowed.includes(normalizeAgentId(agentId));
+}
+
+function resolveAcpDispatchPolicyError(cfg: ReturnType<typeof loadConfig>): AcpRuntimeError | null {
+  if (cfg.acp?.enabled === false) {
+    return new AcpRuntimeError(
+      "ACP_DISPATCH_DISABLED",
+      "ACP dispatch is disabled by policy (`acp.enabled=false`).",
+    );
+  }
+  if (cfg.acp?.dispatch?.enabled !== true) {
+    return new AcpRuntimeError(
+      "ACP_DISPATCH_DISABLED",
+      "ACP dispatch is disabled by policy (`acp.dispatch.enabled=false`).",
+    );
+  }
+  return null;
 }
 
 function runAgentAttempt(params: {
@@ -312,6 +338,13 @@ export async function agentCommand(
       }
     }
 
+    if (sessionKey && isAcpSessionKey(sessionKey) && !sessionEntry?.acp) {
+      throw new AcpRuntimeError(
+        "ACP_SESSION_INIT_FAILED",
+        `ACP metadata is missing for session ${sessionKey}.`,
+      );
+    }
+
     if (sessionKey && sessionEntry?.acp) {
       const startedAt = Date.now();
       registerAgentRunContext(runId, {
@@ -330,6 +363,20 @@ export async function agentCommand(
       let streamedText = "";
       let stopReason: string | undefined;
       try {
+        const dispatchPolicyError = resolveAcpDispatchPolicyError(cfg);
+        if (dispatchPolicyError) {
+          throw dispatchPolicyError;
+        }
+        const acpAgent = normalizeAgentId(
+          sessionEntry.acp.agent || resolveAgentIdFromSessionKey(sessionKey),
+        );
+        if (!isAcpAgentAllowedByPolicy(cfg, acpAgent)) {
+          throw new AcpRuntimeError(
+            "ACP_SESSION_INIT_FAILED",
+            `ACP agent "${acpAgent}" is not allowed by policy.`,
+          );
+        }
+
         await acpManager.runTurn({
           cfg,
           sessionKey,

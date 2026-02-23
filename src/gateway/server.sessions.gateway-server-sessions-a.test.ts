@@ -39,8 +39,10 @@ const threadBindingMocks = vi.hoisted(() => ({
   unbindThreadBindingsBySessionKey: vi.fn((_params?: unknown) => []),
 }));
 const acpRuntimeMocks = vi.hoisted(() => ({
+  cancel: vi.fn(async () => {}),
   close: vi.fn(async () => {}),
   getAcpRuntimeBackend: vi.fn(),
+  requireAcpRuntimeBackend: vi.fn(),
 }));
 
 vi.mock("../auto-reply/reply/queue.js", async () => {
@@ -99,6 +101,13 @@ vi.mock("../acp/runtime/registry.js", async (importOriginal) => {
   return {
     ...actual,
     getAcpRuntimeBackend: acpRuntimeMocks.getAcpRuntimeBackend,
+    requireAcpRuntimeBackend: (backendId?: string) => {
+      const backend = acpRuntimeMocks.requireAcpRuntimeBackend(backendId);
+      if (!backend) {
+        throw new Error("missing mocked ACP backend");
+      }
+      return backend;
+    },
   };
 });
 
@@ -188,9 +197,14 @@ describe("gateway server sessions", () => {
     subagentLifecycleHookMocks.runSubagentEnded.mockClear();
     subagentLifecycleHookState.hasSubagentEndedHook = true;
     threadBindingMocks.unbindThreadBindingsBySessionKey.mockClear();
+    acpRuntimeMocks.cancel.mockClear();
     acpRuntimeMocks.close.mockClear();
     acpRuntimeMocks.getAcpRuntimeBackend.mockReset();
     acpRuntimeMocks.getAcpRuntimeBackend.mockReturnValue(null);
+    acpRuntimeMocks.requireAcpRuntimeBackend.mockReset();
+    acpRuntimeMocks.requireAcpRuntimeBackend.mockImplementation((backendId?: string) =>
+      acpRuntimeMocks.getAcpRuntimeBackend(backendId),
+    );
   });
 
   test("lists and patches session store via sessions.* RPC", async () => {
@@ -715,7 +729,7 @@ describe("gateway server sessions", () => {
           runtimeSessionName: "runtime:delete",
         })),
         runTurn: vi.fn(async function* () {}),
-        cancel: vi.fn(async () => {}),
+        cancel: acpRuntimeMocks.cancel,
         close: acpRuntimeMocks.close,
       },
     });
@@ -727,6 +741,14 @@ describe("gateway server sessions", () => {
     expect(deleted.ok).toBe(true);
     expect(deleted.payload?.deleted).toBe(true);
     expect(acpRuntimeMocks.close).toHaveBeenCalledWith({
+      handle: {
+        sessionKey: "agent:main:discord:group:dev",
+        backend: "acpx",
+        runtimeSessionName: "runtime:delete",
+      },
+      reason: "session-delete",
+    });
+    expect(acpRuntimeMocks.cancel).toHaveBeenCalledWith({
       handle: {
         sessionKey: "agent:main:discord:group:dev",
         backend: "acpx",

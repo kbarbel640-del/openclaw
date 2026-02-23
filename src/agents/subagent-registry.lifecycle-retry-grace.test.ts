@@ -117,7 +117,8 @@ describe("subagent registry lifecycle error grace", () => {
     await flushAsync();
 
     expect(announceSpy).toHaveBeenCalledTimes(1);
-    const first = (announceSpy.mock.calls[0]?.[0] ?? {}) as {
+    const announceCalls = announceSpy.mock.calls as unknown as Array<Array<unknown>>;
+    const first = (announceCalls[0]?.[0] ?? {}) as {
       outcome?: { status?: string; error?: string };
     };
     expect(first.outcome?.status).toBe("ok");
@@ -146,7 +147,8 @@ describe("subagent registry lifecycle error grace", () => {
     await flushAsync();
 
     expect(announceSpy).toHaveBeenCalledTimes(1);
-    const first = (announceSpy.mock.calls[0]?.[0] ?? {}) as {
+    const announceCalls = announceSpy.mock.calls as unknown as Array<Array<unknown>>;
+    const first = (announceCalls[0]?.[0] ?? {}) as {
       outcome?: { status?: string; error?: string };
     };
     expect(first.outcome?.status).toBe("error");

@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createInterface } from "node:readline";
 import type {
   AcpRuntimeCapabilities,
@@ -225,15 +226,6 @@ export class AcpxRuntime implements AcpRuntime {
       cwd: state.cwd,
     });
 
-    const child = spawn(this.config.command, args, {
-      cwd: state.cwd,
-      env: process.env,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    child.stdin.on("error", () => {
-      // Ignore EPIPE when the child exits before stdin flush completes.
-    });
-
     const onAbort = () => {
       void this.cancel({
         handle: input.handle,
@@ -245,9 +237,20 @@ export class AcpxRuntime implements AcpRuntime {
 
     if (input.signal?.aborted) {
       onAbort();
-    } else if (input.signal) {
+      return;
+    }
+    if (input.signal) {
       input.signal.addEventListener("abort", onAbort, { once: true });
     }
+
+    const child = spawn(this.config.command, args, {
+      cwd: state.cwd,
+      env: process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    child.stdin.on("error", () => {
+      // Ignore EPIPE when the child exits before stdin flush completes.
+    });
 
     child.stdin.end(input.text);
 
@@ -276,11 +279,19 @@ export class AcpxRuntime implements AcpRuntime {
 
       const exit = await this.waitForExit(child);
       if (exit.error) {
-        if (this.isCommandMissing(exit.error)) {
+        const spawnFailure = this.resolveSpawnFailure(exit.error, state.cwd);
+        if (spawnFailure === "missing-command") {
           this.healthy = false;
           throw new AcpRuntimeError(
             "ACP_BACKEND_UNAVAILABLE",
             `acpx command not found: ${this.config.command}`,
+            { cause: exit.error },
+          );
+        }
+        if (spawnFailure === "missing-cwd") {
+          throw new AcpRuntimeError(
+            "ACP_TURN_FAILED",
+            `ACP runtime working directory does not exist: ${state.cwd}`,
             { cause: exit.error },
           );
         }
@@ -388,13 +399,22 @@ export class AcpxRuntime implements AcpRuntime {
         cwd: this.config.cwd,
       });
       if (result.error) {
-        if (this.isCommandMissing(result.error)) {
+        const spawnFailure = this.resolveSpawnFailure(result.error, this.config.cwd);
+        if (spawnFailure === "missing-command") {
           this.healthy = false;
           return {
             ok: false,
             code: "ACP_BACKEND_UNAVAILABLE",
             message: `acpx command not found: ${this.config.command}`,
             installCommand: ACPX_INSTALL_COMMAND_HINT,
+          };
+        }
+        if (spawnFailure === "missing-cwd") {
+          this.healthy = false;
+          return {
+            ok: false,
+            code: "ACP_BACKEND_UNAVAILABLE",
+            message: `ACP runtime working directory does not exist: ${this.config.cwd}`,
           };
         }
         this.healthy = false;
@@ -522,11 +542,19 @@ export class AcpxRuntime implements AcpRuntime {
     });
 
     if (result.error) {
-      if (this.isCommandMissing(result.error)) {
+      const spawnFailure = this.resolveSpawnFailure(result.error, params.cwd);
+      if (spawnFailure === "missing-command") {
         this.healthy = false;
         throw new AcpRuntimeError(
           "ACP_BACKEND_UNAVAILABLE",
           `acpx command not found: ${this.config.command}`,
+          { cause: result.error },
+        );
+      }
+      if (spawnFailure === "missing-cwd") {
+        throw new AcpRuntimeError(
+          params.fallbackCode,
+          `ACP runtime working directory does not exist: ${params.cwd}`,
           { cause: result.error },
         );
       }
@@ -705,11 +733,25 @@ export class AcpxRuntime implements AcpRuntime {
     }
   }
 
-  private isCommandMissing(err: unknown): boolean {
+  private resolveSpawnFailure(err: unknown, cwd: string): "missing-command" | "missing-cwd" | null {
     if (!err || typeof err !== "object") {
-      return false;
+      return null;
     }
     const code = (err as NodeJS.ErrnoException).code;
-    return code === "ENOENT";
+    if (code !== "ENOENT") {
+      return null;
+    }
+    return this.directoryExists(cwd) ? "missing-command" : "missing-cwd";
+  }
+
+  private directoryExists(cwd: string): boolean {
+    if (!cwd) {
+      return false;
+    }
+    try {
+      return existsSync(cwd);
+    } catch {
+      return false;
+    }
   }
 }

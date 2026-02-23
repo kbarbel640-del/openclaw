@@ -3,7 +3,7 @@ import { formatAcpRuntimeErrorText } from "../../acp/runtime/error-text.js";
 import { AcpRuntimeError, toAcpRuntimeError } from "../../acp/runtime/errors.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import type { OpenClawConfig } from "../../config/config.js";
-import { loadSessionStore, resolveStorePath } from "../../config/sessions.js";
+import { loadSessionStore, resolveStorePath, type SessionEntry } from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { isDiagnosticsEnabled } from "../../infra/diagnostic-events.js";
@@ -14,7 +14,9 @@ import {
 } from "../../logging/diagnostic.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
+import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { maybeApplyTtsToPayload, normalizeTtsAutoMode, resolveTtsConfig } from "../../tts/tts.js";
+import { maybeResolveTextAlias } from "../commands-registry.js";
 import { getReplyFromConfig } from "../reply.js";
 import type { FinalizedMsgContext } from "../templating.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
@@ -62,24 +64,31 @@ const isInboundAudioContext = (ctx: FinalizedMsgContext): boolean => {
   return AUDIO_HEADER_RE.test(trimmed);
 };
 
-const resolveSessionTtsAuto = (
+const resolveSessionStoreEntry = (
   ctx: FinalizedMsgContext,
   cfg: OpenClawConfig,
-): string | undefined => {
+): {
+  sessionKey?: string;
+  entry?: SessionEntry;
+} => {
   const targetSessionKey =
     ctx.CommandSource === "native" ? ctx.CommandTargetSessionKey?.trim() : undefined;
   const sessionKey = (targetSessionKey ?? ctx.SessionKey)?.trim();
   if (!sessionKey) {
-    return undefined;
+    return {};
   }
   const agentId = resolveSessionAgentId({ sessionKey, config: cfg });
   const storePath = resolveStorePath(cfg.session?.store, { agentId });
   try {
     const store = loadSessionStore(storePath);
-    const entry = store[sessionKey.toLowerCase()] ?? store[sessionKey];
-    return normalizeTtsAutoMode(entry?.ttsAuto);
+    return {
+      sessionKey,
+      entry: store[sessionKey.toLowerCase()] ?? store[sessionKey],
+    };
   } catch {
-    return undefined;
+    return {
+      sessionKey,
+    };
   }
 };
 
@@ -103,6 +112,32 @@ const resolveAcpPromptText = (ctx: FinalizedMsgContext): string =>
             ? ctx.Body
             : ""
   ).trim();
+
+const resolveCommandCandidateText = (ctx: FinalizedMsgContext): string =>
+  (typeof ctx.CommandBody === "string"
+    ? ctx.CommandBody
+    : typeof ctx.BodyForCommands === "string"
+      ? ctx.BodyForCommands
+      : typeof ctx.RawBody === "string"
+        ? ctx.RawBody
+        : typeof ctx.Body === "string"
+          ? ctx.Body
+          : ""
+  ).trim();
+
+const shouldBypassAcpDispatchForCommand = (
+  ctx: FinalizedMsgContext,
+  cfg: OpenClawConfig,
+): boolean => {
+  const candidate = resolveCommandCandidateText(ctx);
+  if (!candidate) {
+    return false;
+  }
+  if (candidate.startsWith("!")) {
+    return true;
+  }
+  return maybeResolveTextAlias(candidate, cfg) != null;
+};
 
 const resolveAcpRequestId = (ctx: FinalizedMsgContext): string => {
   const id = ctx.MessageSidFull ?? ctx.MessageSid ?? ctx.MessageSidFirst ?? ctx.MessageSidLast;
@@ -186,8 +221,9 @@ export async function dispatchReplyFromConfig(params: {
     return { queuedFinal: false, counts: dispatcher.getQueuedCounts() };
   }
 
+  const sessionStoreEntry = resolveSessionStoreEntry(ctx, cfg);
   const inboundAudio = isInboundAudioContext(ctx);
-  const sessionTtsAuto = resolveSessionTtsAuto(ctx, cfg);
+  const sessionTtsAuto = normalizeTtsAutoMode(sessionStoreEntry.entry?.ttsAuto);
   const hookRunner = getGlobalHookRunner();
 
   // Extract message context for hooks (plugin and internal)
@@ -358,6 +394,30 @@ export async function dispatchReplyFromConfig(params: {
       return { queuedFinal, counts };
     }
 
+    const bypassAcpForCommand = shouldBypassAcpDispatchForCommand(ctx, cfg);
+
+    const sendPolicy = resolveSendPolicy({
+      cfg,
+      entry: sessionStoreEntry.entry,
+      sessionKey: sessionStoreEntry.sessionKey ?? sessionKey,
+      channel:
+        sessionStoreEntry.entry?.channel ??
+        ctx.OriginatingChannel ??
+        ctx.Surface ??
+        ctx.Provider ??
+        undefined,
+      chatType: sessionStoreEntry.entry?.chatType,
+    });
+    if (sendPolicy === "deny" && !bypassAcpForCommand) {
+      logVerbose(
+        `Send blocked by policy for session ${sessionStoreEntry.sessionKey ?? sessionKey ?? "unknown"}`,
+      );
+      const counts = dispatcher.getQueuedCounts();
+      recordProcessed("completed", { reason: "send_policy_deny" });
+      markIdle("message_completed");
+      return { queuedFinal: false, counts };
+    }
+
     const shouldSendToolSummaries = ctx.ChatType !== "group" && ctx.CommandSource !== "native";
 
     const acpManager = getAcpSessionManager();
@@ -368,17 +428,26 @@ export async function dispatchReplyFromConfig(params: {
         })
       : null;
 
-    if (acpResolution && acpResolution.kind !== "none" && sessionKey) {
+    if (acpResolution && acpResolution.kind !== "none" && sessionKey && !bypassAcpForCommand) {
       const routedCounts: Record<ReplyDispatchKind, number> = {
         tool: 0,
         block: 0,
         final: 0,
       };
       let queuedFinal = false;
+      let acpAccumulatedBlockText = "";
+      let acpBlockCount = 0;
       const deliverAcpPayload = async (
         kind: ReplyDispatchKind,
         payload: ReplyPayload,
       ): Promise<boolean> => {
+        if (kind === "block" && payload.text?.trim()) {
+          if (acpAccumulatedBlockText.length > 0) {
+            acpAccumulatedBlockText += "\n";
+          }
+          acpAccumulatedBlockText += payload.text;
+          acpBlockCount += 1;
+        }
         const ttsPayload = await maybeApplyTtsToPayload({
           payload,
           cfg,
@@ -473,6 +542,30 @@ export async function dispatchReplyFromConfig(params: {
         });
 
         await projector.flush(true);
+        const ttsMode = resolveTtsConfig(cfg).mode ?? "final";
+        if (ttsMode === "final" && acpBlockCount > 0 && acpAccumulatedBlockText.trim()) {
+          try {
+            const ttsSyntheticReply = await maybeApplyTtsToPayload({
+              payload: { text: acpAccumulatedBlockText },
+              cfg,
+              channel: ttsChannel,
+              kind: "final",
+              inboundAudio,
+              ttsAuto: sessionTtsAuto,
+            });
+            if (ttsSyntheticReply.mediaUrl) {
+              const delivered = await deliverAcpPayload("final", {
+                mediaUrl: ttsSyntheticReply.mediaUrl,
+                audioAsVoice: ttsSyntheticReply.audioAsVoice,
+              });
+              queuedFinal = queuedFinal || delivered;
+            }
+          } catch (err) {
+            logVerbose(
+              `dispatch-from-config: accumulated ACP block TTS failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
 
         const counts = dispatcher.getQueuedCounts();
         counts.tool += routedCounts.tool;
