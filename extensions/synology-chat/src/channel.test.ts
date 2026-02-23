@@ -321,7 +321,8 @@ describe("createSynologyChatPlugin", () => {
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       };
       const result = await plugin.gateway.startAccount(ctx);
-      expect(typeof result.stop).toBe("function");
+      expect(result).toBeDefined();
+      expect(typeof result!.stop).toBe("function");
     });
 
     it("startAccount returns stop function for account without token", async () => {
@@ -334,7 +335,8 @@ describe("createSynologyChatPlugin", () => {
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       };
       const result = await plugin.gateway.startAccount(ctx);
-      expect(typeof result.stop).toBe("function");
+      expect(result).toBeDefined();
+      expect(typeof result!.stop).toBe("function");
     });
   });
 });
