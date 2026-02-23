@@ -173,6 +173,7 @@ class NodeRuntime(context: Context) {
     smsAvailable = { sms.canSendSms() },
     hasRecordAudioPermission = { hasRecordAudioPermission() },
     manualTls = { manualTls.value },
+    photosEnabled = { photosEnabled.value },
   )
 
   private val invokeDispatcher: InvokeDispatcher = InvokeDispatcher(
@@ -511,6 +512,10 @@ class NodeRuntime(context: Context) {
 
   fun setCameraEnabled(value: Boolean) {
     prefs.setCameraEnabled(value)
+  }
+
+  fun setPhotosEnabled(value: Boolean) {
+    prefs.setPhotosEnabled(value)
   }
 
   fun setLocationMode(mode: LocationMode) {
