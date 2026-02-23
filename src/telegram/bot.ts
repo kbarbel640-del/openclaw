@@ -40,6 +40,7 @@ import {
   resolveTelegramStreamMode,
 } from "./bot/helpers.js";
 import { resolveTelegramFetch } from "./fetch.js";
+import { recordSentMessage } from "./sent-message-cache.js";
 
 export type TelegramBotOptions = {
   token: string;
@@ -142,6 +143,20 @@ export function createTelegramBot(opts: TelegramBotOptions) {
 
   const bot = new Bot(opts.token, client ? { client } : undefined);
   bot.api.config.use(apiThrottler());
+  // Track all outgoing messages so reaction "own" mode can identify bot-sent messages.
+  // Without this, wasSentByBot() always returns false for messages sent via bot.api.sendMessage()
+  // directly (e.g. delivery, native commands), causing "own" mode to silently drop all reactions.
+  bot.api.config.use(async (prev, method, payload, signal) => {
+    const result = await prev(method, payload, signal);
+    if (result.ok) {
+      const p = payload as Record<string, unknown> | undefined;
+      const r = result.result as Record<string, unknown> | undefined;
+      if (p && typeof p.chat_id !== "undefined" && r && typeof r.message_id === "number") {
+        recordSentMessage(p.chat_id as number | string, r.message_id);
+      }
+    }
+    return result;
+  });
   // Catch all errors from bot middleware to prevent unhandled rejections
   bot.catch((err) => {
     runtime.error?.(danger(`telegram bot error: ${formatUncaughtError(err)}`));

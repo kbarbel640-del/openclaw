@@ -16,9 +16,11 @@ import {
   getOnHandler,
   listSkillCommandsForAgents,
   onSpy,
+  recordSentMessageSpy,
   replySpy,
   sendMessageSpy,
   setMyCommandsSpy,
+  useSpy,
   wasSentByBot,
 } from "./bot.create-telegram-bot.test-harness.js";
 import { createTelegramBot } from "./bot.js";
@@ -1208,5 +1210,46 @@ describe("createTelegramBot", () => {
     };
     const sessionKey = eventOptions.sessionKey ?? "";
     expect(sessionKey).not.toContain(":topic:");
+  });
+
+  it("registers sent-message tracker transformer that calls recordSentMessage on sendMessage", async () => {
+    useSpy.mockClear();
+    recordSentMessageSpy.mockClear();
+
+    createTelegramBot({ token: "tok" });
+
+    // The second api.config.use call is the sent-message tracker (first is throttler).
+    const transformer = useSpy.mock.calls[1]?.[0] as (
+      prev: (...args: unknown[]) => Promise<unknown>,
+      method: string,
+      payload: Record<string, unknown>,
+      signal?: AbortSignal,
+    ) => Promise<unknown>;
+    expect(typeof transformer).toBe("function");
+
+    const mockPrev = vi.fn(async () => ({ ok: true, result: { message_id: 42 } }));
+    await transformer(mockPrev, "sendMessage", { chat_id: 1234 });
+
+    expect(mockPrev).toHaveBeenCalledWith("sendMessage", { chat_id: 1234 }, undefined);
+    expect(recordSentMessageSpy).toHaveBeenCalledWith(1234, 42);
+  });
+
+  it("sent-message tracker does not record when API call fails", async () => {
+    useSpy.mockClear();
+    recordSentMessageSpy.mockClear();
+
+    createTelegramBot({ token: "tok" });
+
+    const transformer = useSpy.mock.calls[1]?.[0] as (
+      prev: (...args: unknown[]) => Promise<unknown>,
+      method: string,
+      payload: Record<string, unknown>,
+      signal?: AbortSignal,
+    ) => Promise<unknown>;
+
+    const mockPrev = vi.fn(async () => ({ ok: false }));
+    await transformer(mockPrev, "sendMessage", { chat_id: 1234 });
+
+    expect(recordSentMessageSpy).not.toHaveBeenCalled();
   });
 });

@@ -93,12 +93,14 @@ vi.mock("../infra/system-events.js", () => ({
 
 const sentMessageCacheHoisted = vi.hoisted(() => ({
   wasSentByBot: vi.fn(() => false),
+  recordSentMessage: vi.fn(),
 }));
 export const wasSentByBot = sentMessageCacheHoisted.wasSentByBot;
+export const recordSentMessageSpy = sentMessageCacheHoisted.recordSentMessage;
 
 vi.mock("./sent-message-cache.js", () => ({
   wasSentByBot,
-  recordSentMessage: vi.fn(),
+  recordSentMessage: recordSentMessageSpy,
   clearSentMessageCache: vi.fn(),
 }));
 
@@ -309,6 +311,7 @@ beforeEach(() => {
   enqueueSystemEventSpy.mockReset();
   wasSentByBot.mockReset();
   wasSentByBot.mockReturnValue(false);
+  recordSentMessageSpy.mockReset();
   listSkillCommandsForAgents.mockReset();
   listSkillCommandsForAgents.mockReturnValue([]);
   middlewareUseSpy.mockReset();
