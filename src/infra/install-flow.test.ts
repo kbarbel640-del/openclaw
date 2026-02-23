@@ -56,10 +56,6 @@ describe("withExtractedArchiveRoot", () => {
   });
 
   it("extracts archive and passes root directory to callback", async () => {
-    const tmpRoot = path.join(path.sep, "tmp", "openclaw-install-flow");
-    const archivePath = path.join(path.sep, "tmp", "plugin.tgz");
-    const extractDir = path.join(tmpRoot, "extract");
-    const packageRoot = path.join(extractDir, "package");
     const withTempDirSpy = vi
       .spyOn(installSource, "withTempDir")
       .mockImplementation(async (_prefix, fn) => await fn(tmpRoot));
