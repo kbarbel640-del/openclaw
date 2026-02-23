@@ -2163,6 +2163,75 @@ describe("QmdMemoryManager", () => {
     await manager.close();
   });
 
+  it("resolves unsuffixed qmd collection names to scoped managed collections", async () => {
+    const externalDir = path.join(tmpRoot, "external-memory");
+    await fs.mkdir(path.join(externalDir, "notes"), { recursive: true });
+    await fs.writeFile(path.join(externalDir, "notes", "legacy.md"), "legacy entry\n", "utf-8");
+
+    cfg = {
+      ...cfg,
+      memory: {
+        backend: "qmd",
+        qmd: {
+          includeDefaultMemory: false,
+          update: { interval: "0s", debounceMs: 60_000, onBoot: false },
+          paths: [{ path: externalDir, pattern: "**/*.md", name: "legacy" }],
+        },
+      },
+    } as OpenClawConfig;
+
+    const legacyDocId = "legacy-doc";
+    spawnMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args[0] === "search") {
+        const child = createMockChild({ autoClose: false });
+        emitAndClose(
+          child,
+          "stdout",
+          JSON.stringify([{ docid: legacyDocId, score: 0.8, snippet: "@@ -1,1\nlegacy entry" }]),
+        );
+        return child;
+      }
+      return createMockChild();
+    });
+
+    const { manager } = await createManager();
+    const inner = manager as unknown as {
+      db: { prepare: (query: string) => { all: (arg: unknown) => unknown }; close: () => void };
+    };
+    inner.db = {
+      prepare: (_query: string) => ({
+        all: (arg: unknown) => {
+          if (typeof arg === "string" && arg.startsWith(legacyDocId)) {
+            // QMD may return legacy collection names from stale indexes.
+            return [{ collection: "legacy", path: "notes/legacy.md" }];
+          }
+          return [];
+        },
+      }),
+      close: () => {},
+    };
+
+    await expect(manager.search("legacy", { sessionKey: "agent:main:slack:dm:u123" })).resolves.toEqual([
+      {
+        path: "qmd/legacy-main/notes/legacy.md",
+        startLine: 1,
+        endLine: 1,
+        score: 0.8,
+        snippet: "@@ -1,1\nlegacy entry",
+        source: "memory",
+      },
+    ]);
+
+    await expect(manager.readFile({ relPath: "qmd/legacy-main/notes/legacy.md" })).resolves.toEqual(
+      {
+        text: "legacy entry\n",
+        path: "qmd/legacy-main/notes/legacy.md",
+      },
+    );
+
+    await manager.close();
+  });
+
   it("errors when qmd output exceeds command output safety cap", async () => {
     const noisyPayload = "x".repeat(240_000);
     spawnMock.mockImplementation((_cmd: string, args: string[]) => {
