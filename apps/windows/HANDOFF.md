@@ -79,6 +79,7 @@
      - Onboarding status
    - Onboarding MVP (slice 1): startup checks for token/url/config-file now feed tray onboarding status (`OnboardingAdvisor`)
    - Missing-token behavior improved: app no longer exits immediately in default Windows tray mode; it stays alive in tray with warning/status and `Open Config` path (`--no-tray` disables this)
+   - Missing-token UX now includes a Windows warning dialog (`MessageBox` with OK) to guide recovery even when no console is visible
    - Custom tray icon asset now bundled (`openclaw-claw.ico`) and loaded at runtime (fallback to system icon if unavailable)
 9. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`

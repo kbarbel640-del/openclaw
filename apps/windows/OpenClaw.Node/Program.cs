@@ -184,6 +184,9 @@ namespace OpenClaw.Node
                 {
                     SetTray(NodeRuntimeState.Disconnected, "Waiting for gateway token (Open Config)");
                     Console.WriteLine("[WARN] Missing gateway token. Tray mode running; use Open Config to set gateway.auth.token, then Restart Node.");
+                    ShowUserWarningDialog(
+                        title: "OpenClaw Node Setup Required",
+                        message: "Gateway token is missing.\n\nUse tray menu → Open Config, set gateway.auth.token, save, then click Restart Node.");
                     await WaitUntilCanceledAsync(cts.Token);
                     return;
                 }
@@ -307,6 +310,28 @@ namespace OpenClaw.Node
             {
                 Console.WriteLine($"[TRAY] Open config failed: {ex.Message}");
             }
+        }
+
+        private static void ShowUserWarningDialog(string title, string message)
+        {
+            if (!OperatingSystem.IsWindows()) return;
+
+            try
+            {
+                var messageBoxType = Type.GetType("System.Windows.Forms.MessageBox, System.Windows.Forms");
+                var show = messageBoxType?.GetMethod("Show", new[] { typeof(string), typeof(string) });
+                if (show != null)
+                {
+                    show.Invoke(null, new object[] { message, title });
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TRAY] Warning dialog failed: {ex.Message}");
+            }
+
+            Console.WriteLine($"[WARN] {title}: {message}");
         }
 
         private static string BuildDiagnostics(DateTimeOffset startedAtUtc, string gatewayUrl, TrayStatusSnapshot snapshot, int pendingPairs, long? lastReconnectMs)
