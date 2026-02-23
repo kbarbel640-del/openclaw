@@ -24,7 +24,7 @@ Track focused hardening work to make ACP thread-bound sessions production ready,
 1. Remove unnecessary code and duplicate logic.
 2. Define behavior when ACP backend (`acpx`) is unavailable, including guided install/setup flow.
 3. Refactor for cleaner long-term architecture.
-4. Add ACP session controls in-thread (model and related settings).
+4. Add ACP session controls in-thread with capability-gated behavior.
 
 ## Non-goals
 
@@ -106,28 +106,35 @@ Track focused hardening work to make ACP thread-bound sessions production ready,
 
 - Let operators change ACP session behavior without leaving thread workflow.
 - Keep controls explicit and auditable.
+- Never expose controls that silently no-op.
 
 ### Initial command set
 
 1. `/acp status` (shows backend, session mode, options, health)
-2. `/acp model <modelId>`
-3. `/acp cwd <path>`
-4. `/acp permissions <profile>`
-5. `/acp timeout <seconds>`
-6. `/acp reset-options` (restore defaults for session)
+2. `/acp set-mode <mode>` (maps to ACP `session/set_mode`)
+3. `/acp set <key> <value>` (maps to ACP `session/set_config_option`)
+4. `/acp cwd <path>`
+5. `/acp permissions <profile>`
+6. `/acp timeout <seconds>`
+7. `/acp reset-options` (restore defaults for session)
+8. Optional alias controls (for example `/acp model <modelId>`) only when backend capabilities explicitly support them
 
 ### Tasks
 
 1. Parse and validate each control command.
 2. Persist per-session options atomically.
-3. Apply updated options to next ACP turn.
-4. Echo effective value and source (session override vs default).
-5. Keep permission checks and allowlists enforced.
+3. Resolve supported controls from runtime/backend capabilities.
+4. Apply updated options to next ACP turn.
+5. Echo effective value and source (session override vs default).
+6. Return explicit "unsupported by backend" errors for unavailable controls (no fallback/no-op).
+7. Keep permission checks and allowlists enforced.
 
 ### Acceptance
 
-- Changing model/cwd/etc. in-thread affects subsequent ACP turns.
+- Supported controls affect subsequent ACP turns.
 - Controls survive restart through persisted session metadata.
+- Unsupported controls return one explicit actionable error and do not change state.
+- `/acp status` shows effective options and available control capabilities.
 
 ## Testing plan (required)
 
@@ -141,14 +148,16 @@ Track focused hardening work to make ACP thread-bound sessions production ready,
 
 1. ACP dispatch integration with tiny token deltas -> clean spaced Discord replies.
 2. Missing backend path emits explicit error and no silent fallback.
-3. Session option update (`/acp model ...`) changes runtime call arguments next turn.
+3. Session option update (`/acp set ...` or `/acp set-mode ...`) changes runtime call arguments next turn.
+4. Unsupported control path returns explicit backend capability error.
 
 ### Manual smoke
 
 1. Spawn ACP thread session.
 2. Send normal message and verify reply.
-3. Change model in-thread and verify runtime uses new model.
+3. Run supported control update in-thread (`/acp set-mode ...` or `/acp set ...`) and verify next turn behavior.
 4. Temporarily break backend and verify actionable error path.
+5. Run an unsupported control and verify explicit "unsupported by backend" response.
 
 ## Rollout order
 
