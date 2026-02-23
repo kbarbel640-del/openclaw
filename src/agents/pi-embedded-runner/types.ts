@@ -54,6 +54,14 @@ export type EmbeddedPiRunMeta = {
   }>;
 };
 
+export type EmbeddedPiLastToolError = {
+  toolName: string;
+  meta?: string;
+  error?: string;
+  mutatingAction?: boolean;
+  actionFingerprint?: string;
+};
+
 export type EmbeddedPiRunResult = {
   payloads?: Array<{
     text?: string;
@@ -74,6 +82,8 @@ export type EmbeddedPiRunResult = {
   messagingToolSentTargets?: MessagingToolSend[];
   // Count of successful cron.add tool calls in this run.
   successfulCronAdds?: number;
+  // Last unresolved tool error surfaced during the run.
+  lastToolError?: EmbeddedPiLastToolError;
 };
 
 export type EmbeddedPiCompactResult = {

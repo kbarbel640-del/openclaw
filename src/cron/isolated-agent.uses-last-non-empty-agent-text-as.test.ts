@@ -174,6 +174,59 @@ describe("runCronIsolatedAgentTurn", () => {
     });
   });
 
+  it("marks unresolved exec command-not-found failures as cron errors", async () => {
+    await withTempHome(async (home) => {
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [
+          {
+            text: "⚠️ 🛠️ Exec: python - <<'PY' failed: /bin/bash: line 1: python: command not found",
+          },
+        ],
+        meta: {
+          durationMs: 5,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+        lastToolError: {
+          toolName: "exec",
+          error: "/bin/bash: line 1: python: command not found",
+        },
+      });
+
+      const { res } = await runCronTurn(home, {
+        jobPayload: DEFAULT_AGENT_TURN_PAYLOAD,
+        mockTexts: null,
+      });
+
+      expect(res.status).toBe("error");
+      expect(res.error).toContain("command not found");
+      expect(res.summary).toContain("Exec");
+    });
+  });
+
+  it("keeps non-command-not-found exec failures as non-fatal", async () => {
+    await withTempHome(async (home) => {
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [{ text: "retrying with a different approach" }],
+        meta: {
+          durationMs: 5,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+        lastToolError: {
+          toolName: "exec",
+          error: "Command exited with code 1",
+        },
+      });
+
+      const { res } = await runCronTurn(home, {
+        jobPayload: DEFAULT_AGENT_TURN_PAYLOAD,
+        mockTexts: null,
+      });
+
+      expect(res.status).toBe("ok");
+      expect(res.summary).toBe("retrying with a different approach");
+    });
+  });
+
   it("passes resolved agentDir to runEmbeddedPiAgent", async () => {
     await withTempHome(async (home) => {
       const { res } = await runCronTurn(home, {

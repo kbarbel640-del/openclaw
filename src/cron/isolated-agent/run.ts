@@ -62,6 +62,24 @@ import {
 import { resolveCronSession } from "./session.js";
 import { resolveCronSkillsSnapshot } from "./skills-snapshot.js";
 
+function isExecCommandNotFoundError(lastToolError?: {
+  toolName?: string;
+  error?: string;
+}): boolean {
+  const toolName = lastToolError?.toolName?.trim().toLowerCase();
+  if (toolName !== "exec" && toolName !== "bash") {
+    return false;
+  }
+  const errorText = lastToolError?.error?.trim().toLowerCase() ?? "";
+  if (!errorText) {
+    return false;
+  }
+  return (
+    errorText.includes("command not found") ||
+    errorText.includes("not recognized as an internal or external command")
+  );
+}
+
 export type RunCronAgentTurnResult = {
   /** Last non-empty agent text output (not truncated). */
   outputText?: string;
@@ -542,6 +560,16 @@ export async function runCronIsolatedAgentTurn(params: {
     Boolean(deliveryPayload?.mediaUrl) ||
     (deliveryPayload?.mediaUrls?.length ?? 0) > 0 ||
     Object.keys(deliveryPayload?.channelData ?? {}).length > 0;
+  if (isExecCommandNotFoundError(runResult.lastToolError)) {
+    const toolError = runResult.lastToolError?.error?.trim() || "exec command not found";
+    return withRunSession({
+      status: "error",
+      error: toolError,
+      summary,
+      outputText,
+      ...telemetry,
+    });
+  }
   const deliveryBestEffort = resolveCronDeliveryBestEffort(params.job);
 
   // Skip delivery for heartbeat-only responses (HEARTBEAT_OK with no real content).
