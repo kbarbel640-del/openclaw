@@ -42,7 +42,7 @@ describe("resolveTranscriptPolicy", () => {
     });
     expect(policy.sanitizeToolCallIds).toBe(false);
     expect(policy.toolCallIdMode).toBeUndefined();
-    expect(policy.repairToolUseResultPairing).toBe(true);
+    expect(policy.repairToolUseResultPairing).toBe(false);
   });
 
   it("enables user-turn merge for strict OpenAI-compatible providers", () => {
