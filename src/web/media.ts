@@ -305,6 +305,31 @@ async function loadWebMediaInternal(
     await assertLocalMediaAllowed(mediaUrl, localRoots);
   }
 
+  // For relative paths, if the file doesn't exist at CWD, try the configured workspace.
+  if (!path.isAbsolute(mediaUrl)) {
+    try {
+      await fs.access(mediaUrl);
+    } catch {
+      // File not found at CWD; try workspace directory.
+      try {
+        const { loadConfig } = await import("../config/config.js");
+        const cfg = loadConfig();
+        const workspace = cfg.agents?.defaults?.workspace;
+        if (workspace) {
+          const workspacePath = path.join(path.resolve(workspace), mediaUrl);
+          try {
+            await fs.access(workspacePath);
+            mediaUrl = workspacePath;
+          } catch {
+            // Not in workspace either; fall through to original error.
+          }
+        }
+      } catch {
+        // Config not available; skip.
+      }
+    }
+  }
+
   // Local path
   const data = readFileOverride ? await readFileOverride(mediaUrl) : await fs.readFile(mediaUrl);
   const mime = await detectMime({ buffer: data, filePath: mediaUrl });

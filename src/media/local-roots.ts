@@ -8,6 +8,7 @@ function buildMediaLocalRoots(stateDir: string): string[] {
   const resolvedStateDir = path.resolve(stateDir);
   return [
     os.tmpdir(),
+    process.cwd(),
     path.join(resolvedStateDir, "media"),
     path.join(resolvedStateDir, "agents"),
     path.join(resolvedStateDir, "workspace"),
@@ -16,7 +17,23 @@ function buildMediaLocalRoots(stateDir: string): string[] {
 }
 
 export function getDefaultMediaLocalRoots(): readonly string[] {
-  return buildMediaLocalRoots(resolveStateDir());
+  const roots = buildMediaLocalRoots(resolveStateDir());
+  // Also allow the configured agent workspace directory (agents.defaults.workspace)
+  // since agents may save screenshots and other media files there.
+  try {
+    const { loadConfig } = require("../config/config.js") as typeof import("../config/config.js");
+    const cfg = loadConfig();
+    const workspace = cfg.agents?.defaults?.workspace;
+    if (workspace) {
+      const resolved = path.resolve(workspace);
+      if (!roots.includes(resolved)) {
+        roots.push(resolved);
+      }
+    }
+  } catch {
+    // Config may not be available yet; skip.
+  }
+  return roots;
 }
 
 export function getAgentScopedMediaLocalRoots(
