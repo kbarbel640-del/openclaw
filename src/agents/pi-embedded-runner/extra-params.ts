@@ -377,6 +377,19 @@ function createOpenRouterWrapper(
         if (thinkingLevel && payload && typeof payload === "object") {
           const payloadObj = payload as Record<string, unknown>;
           const existingReasoning = payloadObj.reasoning;
+          const existingReasoningEffort = payloadObj.reasoning_effort;
+
+          // OpenRouter rejects requests that include both `reasoning` and
+          // `reasoning_effort`, so if caller already set reasoning_effort
+          // we skip reasoning injection entirely.
+          if (
+            typeof existingReasoningEffort === "string" ||
+            typeof existingReasoningEffort === "number" ||
+            typeof existingReasoningEffort === "boolean"
+          ) {
+            onPayload?.(payload);
+            return;
+          }
 
           // OpenRouter treats reasoning.effort and reasoning.max_tokens as
           // alternative controls. If max_tokens is already present, do not

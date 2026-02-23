@@ -30,6 +30,29 @@ function runOpenRouterPayload(payload: StreamPayload, modelId: string) {
   void agent.streamFn?.(model, context, {});
 }
 
+function runOpenRouterPayloadWithThinking(
+  payload: Record<string, unknown>,
+  modelId: string,
+  thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh",
+) {
+  const baseStreamFn: StreamFn = (_model, _context, options) => {
+    options?.onPayload?.(payload);
+    return createAssistantMessageEventStream();
+  };
+  const agent = { streamFn: baseStreamFn };
+
+  applyExtraParamsToAgent(agent, undefined, "openrouter", modelId, undefined, thinkingLevel);
+
+  const model = {
+    api: "openai-completions",
+    provider: "openrouter",
+    id: modelId,
+  } as Model<"openai-completions">;
+  const context: Context = { messages: [] };
+
+  void agent.streamFn?.(model, context, {});
+}
+
 describe("extra-params: OpenRouter Anthropic cache_control", () => {
   it("injects cache_control into system message for OpenRouter Anthropic models", () => {
     const payload = {
@@ -89,5 +112,27 @@ describe("extra-params: OpenRouter Anthropic cache_control", () => {
     runOpenRouterPayload(payload, "anthropic/claude-opus-4-6");
 
     expect(payload.messages[0].content).toBe("Hello");
+  });
+
+  it("does not inject reasoning when reasoning_effort already exists", () => {
+    const payload: Record<string, unknown> = {
+      messages: [{ role: "user", content: "Hello" }],
+      reasoning_effort: "low",
+    };
+
+    runOpenRouterPayloadWithThinking(payload, "google/gemini-3-pro", "medium");
+
+    expect(payload.reasoning_effort).toBe("low");
+    expect(payload.reasoning).toBeUndefined();
+  });
+
+  it("injects reasoning.effort when reasoning_effort is absent", () => {
+    const payload: Record<string, unknown> = {
+      messages: [{ role: "user", content: "Hello" }],
+    };
+
+    runOpenRouterPayloadWithThinking(payload, "google/gemini-3-pro", "medium");
+
+    expect(payload.reasoning).toEqual({ effort: "medium" });
   });
 });
