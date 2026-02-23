@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAgentDetail } from "@/hooks/useAgentDetail";
 import { useAgents } from "@/hooks/useAgents";
+import { getAgentAvatar } from "@/lib/agent-avatars";
 import { getAgentIcon, getAgentName } from "@/lib/agent-icons";
 import type { AgentDetail, AgentListResponse, AgentListItem } from "@/lib/types";
 
@@ -171,6 +172,7 @@ export function AgentDetailPanel({
   const agentListItem = agentId ? agentsResponse?.agents?.find((a) => a.id === agentId) : undefined;
 
   const Icon = agentId ? getAgentIcon(agentId) : null;
+  const avatar = agentId ? getAgentAvatar(agentId) : undefined;
   const displayName = agentId ? getAgentName(agentId) : "";
 
   const statusColor = agentListItem
@@ -203,7 +205,13 @@ export function AgentDetailPanel({
               {/* Header */}
               <SheetHeader className="pb-0">
                 <div className="flex items-center gap-3">
-                  {Icon && (
+                  {avatar ? (
+                    <img
+                      src={avatar}
+                      alt={displayName}
+                      className="w-12 h-12 rounded-xl object-cover shrink-0"
+                    />
+                  ) : Icon ? (
                     <div
                       className="flex items-center justify-center w-12 h-12 rounded-xl shrink-0"
                       style={{
@@ -212,7 +220,7 @@ export function AgentDetailPanel({
                     >
                       <Icon className="w-6 h-6 text-[var(--accent-purple)]" />
                     </div>
-                  )}
+                  ) : null}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <SheetTitle className="text-lg text-[var(--text-primary)]">

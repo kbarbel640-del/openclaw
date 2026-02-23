@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Brain, Target, Zap, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { getAgentAvatar } from "@/lib/agent-avatars";
 import { getAgentIcon, getAgentName } from "@/lib/agent-icons";
 import type { AgentListItem, AgentStatus } from "@/lib/types";
 
@@ -33,6 +34,7 @@ const autonomyColors: Record<string, string> = {
 export function AgentCard({ agent, onSelect }: AgentCardProps) {
   const navigate = useNavigate();
   const Icon = getAgentIcon(agent.id);
+  const avatar = getAgentAvatar(agent.id);
   const displayName = getAgentName(agent.id);
   const dotColor = statusColors[agent.status];
 
@@ -49,14 +51,18 @@ export function AgentCard({ agent, onSelect }: AgentCardProps) {
         {/* Header: icon, name, status */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className="flex items-center justify-center w-10 h-10 rounded-lg"
-              style={{
-                backgroundColor: `color-mix(in srgb, var(--accent-purple) 15%, transparent)`,
-              }}
-            >
-              <Icon className="w-5 h-5 text-[var(--accent-purple)]" />
-            </div>
+            {avatar ? (
+              <img src={avatar} alt={displayName} className="w-10 h-10 rounded-lg object-cover" />
+            ) : (
+              <div
+                className="flex items-center justify-center w-10 h-10 rounded-lg"
+                style={{
+                  backgroundColor: `color-mix(in srgb, var(--accent-purple) 15%, transparent)`,
+                }}
+              >
+                <Icon className="w-5 h-5 text-[var(--accent-purple)]" />
+              </div>
+            )}
             <div className="min-w-0">
               <p className="text-sm font-medium text-[var(--text-primary)] truncate">
                 {displayName}

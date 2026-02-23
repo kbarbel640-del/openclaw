@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAgentDetail } from "@/hooks/useAgentDetail";
 import { useAgents } from "@/hooks/useAgents";
+import { getAgentAvatar } from "@/lib/agent-avatars";
 import { getAgentIcon, getAgentName } from "@/lib/agent-icons";
 import type { AgentDetail, AgentListResponse, AgentListItem } from "@/lib/types";
 
@@ -144,6 +145,7 @@ export function AgentDetailPage() {
   const agentListItem = agentsResponse?.agents?.find((a) => a.id === agentId);
 
   const Icon = getAgentIcon(agentId);
+  const avatar = getAgentAvatar(agentId);
   const displayName = getAgentName(agentId);
 
   const statusColor = agentListItem
@@ -187,14 +189,18 @@ export function AgentDetailPage() {
           {/* Agent Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div
-                className="flex items-center justify-center w-14 h-14 rounded-xl"
-                style={{
-                  backgroundColor: `color-mix(in srgb, var(--accent-purple) 15%, transparent)`,
-                }}
-              >
-                <Icon className="w-7 h-7 text-[var(--accent-purple)]" />
-              </div>
+              {avatar ? (
+                <img src={avatar} alt={displayName} className="w-14 h-14 rounded-xl object-cover" />
+              ) : (
+                <div
+                  className="flex items-center justify-center w-14 h-14 rounded-xl"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, var(--accent-purple) 15%, transparent)`,
+                  }}
+                >
+                  <Icon className="w-7 h-7 text-[var(--accent-purple)]" />
+                </div>
+              )}
               <div className="min-w-0">
                 <div className="flex items-center gap-3">
                   <h1 className="text-xl font-bold text-[var(--text-primary)]">{displayName}</h1>
