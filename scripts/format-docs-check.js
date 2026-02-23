@@ -1,7 +1,6 @@
 // scripts/format-docs-check.js
 // Cross-platform docs formatting check for Windows
 const { execSync } = require("child_process");
-const path = require("path");
 const fs = require("fs");
 
 function getFiles(patterns) {
@@ -22,7 +21,7 @@ function runOxfmt(files) {
   for (const file of files) {
     try {
       execSync(`oxfmt --check "${file}"`, { stdio: "inherit" });
-    } catch (e) {
+    } catch {
       failed = true;
     }
   }
