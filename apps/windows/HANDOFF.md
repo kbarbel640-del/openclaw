@@ -24,6 +24,7 @@
    - `system.which`
    - `system.notify`
    - `screen.record` (Phase 2 timed MP4 path: returns base64 mp4 with recording metadata)
+   - `camera.snap` (Phase 2: jpg payload shape with native Media Foundation capture path + placeholder fallback)
 6. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
    - env: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`
@@ -31,14 +32,15 @@
 
 ## Current caveats
 - Node now connects using node identity (`client.id = node-host`, role/mode = node).
-- Basic command execution exists (`system.run`, `system.which`, `system.notify`) and Phase 2 now includes `screen.record` timed MP4 recording via `ScreenRecorderLib`.
+- Basic command execution exists (`system.run`, `system.which`, `system.notify`) and Phase 2 now includes `screen.record` timed MP4 recording via `ScreenRecorderLib` plus `camera.snap` via Media Foundation (`MediaFoundation.Net`).
+- `MediaFoundation.Net` restores with NU1701 against `net8.0` (framework compatibility warning). Build/tests pass, but this should be validated on a real Windows runtime and potentially replaced with a net8-native interop layer if needed.
 - Build/test currently require x64 platform selection when running commands from CLI in this environment (e.g. `-p:Platform=x64`) because `ScreenRecorderLib` does not support AnyCPU.
 - Pairing pending state is currently in-memory and filled from broadcast events (`device.pair.requested`, `node.pair.requested`) and cleared on `*.pair.resolved` via `CoreMethodService.HandleGatewayEvent`; not persisted locally.
 - Reconnect loop now uses exponential backoff (up to 30s) and a background monitor correctly tracks `tick` frames from the server, closing to trigger reconnect if a tick is missed by >5s tolerance.
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **26 passing**
+- Current total: **28 passing**
 
 Run:
 ```bash
@@ -57,6 +59,6 @@ dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token
 
 ## Immediate next steps
 1. Run real-gateway validation of `screen.record` end-to-end from the OpenClaw CLI path and tune source selection/audio defaults as needed.
-2. Add first camera primitive (`camera.snap`) with the same base64 response shape expected by gateway tooling.
+2. Run real-gateway end-to-end validation for `camera.snap` on a physical Windows host (front/back selection, deviceId routing, and payload dimensions).
 3. Keep running `RUN_REAL_GATEWAY_INTEGRATION=1 dotnet test --filter "FullyQualifiedName~RealGatewayIntegrationTests" -p:Platform=x64` before major merges (currently covers hello-ok connect + status response path).
 4. If needed later, persist pairing pending cache to disk (currently in-memory only).

@@ -18,6 +18,7 @@ namespace OpenClaw.Node.Services
                     "system.which" => await HandleSystemWhichAsync(request),
                     "system.run" => await HandleSystemRunAsync(request),
                     "screen.record" => await HandleScreenRecordAsync(request),
+                    "camera.snap" => await HandleCameraSnapAsync(request),
                     _ => new BridgeInvokeResponse
                     {
                         Id = request.Id,
@@ -237,6 +238,65 @@ namespace OpenClaw.Node.Services
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = $"Screen recording failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleCameraSnapAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+
+            var facing = root != null && root.Value.TryGetProperty("facing", out var f) && f.ValueKind == JsonValueKind.String
+                ? (f.GetString() ?? "front")
+                : "front";
+
+            var maxWidth = root != null && root.Value.TryGetProperty("maxWidth", out var w) && w.ValueKind == JsonValueKind.Number
+                ? w.GetInt32()
+                : (int?)null;
+
+            var quality = root != null && root.Value.TryGetProperty("quality", out var q) && q.ValueKind == JsonValueKind.Number
+                ? q.GetDouble()
+                : (double?)null;
+
+            var delayMs = root != null && root.Value.TryGetProperty("delayMs", out var d) && d.ValueKind == JsonValueKind.Number
+                ? d.GetInt32()
+                : (int?)null;
+
+            var deviceId = root != null && root.Value.TryGetProperty("deviceId", out var id) && id.ValueKind == JsonValueKind.String
+                ? id.GetString()
+                : null;
+
+            try
+            {
+                var svc = new CameraCaptureService();
+                var (base64, width, height) = await svc.CaptureJpegAsBase64Async(facing, maxWidth, quality, delayMs, deviceId);
+
+                var payload = new
+                {
+                    format = "jpg",
+                    base64,
+                    width,
+                    height
+                };
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(payload)
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Camera snap failed: {ex.Message}"
                     }
                 };
             }

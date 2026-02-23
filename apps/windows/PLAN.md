@@ -13,12 +13,12 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Real Gateway handshake working against local gateway (`hello-ok` confirmed)
 - ✅ Core frame protocol aligned to gateway `req/res/event` flow
 - ✅ Method routing scaffold implemented
-- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.record`)
+- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.record`, `camera.snap`)
 - ✅ Pairing pending state can be populated from gateway events (`device.pair.requested`, `node.pair.requested`)
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (26 total)
+- ✅ Tests passing (28 total)
 
 ---
 
@@ -55,7 +55,11 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] Initial MP4 recording implementation uses `ScreenRecorderLib` (Windows Media Foundation-backed)
   - [ ] Evaluate/iterate native implementation details (WGC vs Desktop Duplication behavior tuning)
 - **Camera (`Media/`)**
-  - [ ] Media Foundation based capture wrappers
+  - [x] `camera.snap` bridge command wired in `NodeCommandExecutor`
+  - [x] Returns OpenClaw-compatible payload shape: `{ format: "jpg", base64, width, height }`
+  - [x] Replaced ffmpeg bridge with native Media Foundation capture path (device enumeration + source reader + MJPG sample extraction)
+  - [x] Added graceful fallback path (placeholder frame) when native camera stack/device capture unavailable
+  - [ ] Validate on real Windows host with physical cameras and tune device-selection heuristics
 - **Automation (`Automation/`)**
   - [ ] Windows UIAutomation + SendInput bridge
 - **Shell execution**
@@ -88,3 +92,5 @@ Build a native Windows application that replicates the functionality of the Open
   - real `status` command response path
 - ✅ Added pairing event-ingestion tests (`device.pair.requested`, `node.pair.requested`, `*.pair.resolved`)
 - ✅ Added platform-aware `screen.record` command test coverage (Windows success shape + non-Windows unavailable)
+- ✅ Added `camera.snap` payload-shape test coverage
+- ✅ Added `CameraCaptureService` coverage for baseline capture contract output

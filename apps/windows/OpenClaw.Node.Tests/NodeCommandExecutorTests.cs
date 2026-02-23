@@ -60,6 +60,30 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task CameraSnap_ShouldReturnExpectedPayloadShape()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "camera-1",
+                Command = "camera.snap",
+                ParamsJSON = JsonSerializer.Serialize(new { facing = "front", maxWidth = 1280, quality = 0.9, delayMs = 1 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.True(res.Ok);
+            Assert.NotNull(res.PayloadJSON);
+
+            using var doc = JsonDocument.Parse(res.PayloadJSON!);
+            var root = doc.RootElement;
+            Assert.Equal("jpg", root.GetProperty("format").GetString());
+            Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("base64").GetString()));
+            Assert.True(root.GetProperty("width").GetInt32() > 0);
+            Assert.True(root.GetProperty("height").GetInt32() > 0);
+        }
+
+        [Fact]
         public async Task UnknownCommand_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();
