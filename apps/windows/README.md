@@ -174,7 +174,7 @@ dotnet build OpenClaw.Node/OpenClaw.Node.csproj -p:Platform=x64
 ### Build targets
 
 - `net8.0` (cross-platform/dev target)
-- `net8.0-windows` (Windows Forms tray target; built on Windows)
+- `net8.0-windows` (Windows Forms tray target; built on Windows, `WinExe` output so no console window)
 
 ### Run (direct)
 

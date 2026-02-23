@@ -81,6 +81,7 @@
    - Onboarding checks now distinguish config parse/schema issues (invalid JSON, missing `gateway`/`gateway.auth.token`, non-numeric `gateway.port`) and surface them in onboarding status
    - Onboarding MVP is functionally complete: missing-token + auth-mismatch dialogs, explicit Open Config flow, manual restart control, and polished tray copy
    - Custom tray icon asset now bundled (`openclaw-claw.ico`) and loaded at runtime (fallback to system icon if unavailable)
+   - Windows tray target now builds as `WinExe` (`net8.0-windows`) so launching tray app does not open a console window
 9. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
    - env: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`
