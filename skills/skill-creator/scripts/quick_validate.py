@@ -56,8 +56,6 @@ def _parse_frontmatter(frontmatter_text: str):
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
             value = value[1:-1]
         parsed[key] = value
-    if not isinstance(parsed, dict):
-        return None, "Frontmatter must be a YAML dictionary"
     return parsed, None
 
 
