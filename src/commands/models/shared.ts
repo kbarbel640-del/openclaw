@@ -166,7 +166,8 @@ export function mergePrimaryFallbackConfig(
   existing: PrimaryFallbackConfig | undefined,
   patch: { primary?: string; fallbacks?: string[] },
 ): PrimaryFallbackConfig {
-  const next: PrimaryFallbackConfig = { ...existing };
+  const base = existing && typeof existing === "object" ? existing : undefined;
+  const next: PrimaryFallbackConfig = { ...base };
   if (patch.primary !== undefined) {
     next.primary = patch.primary;
   }
