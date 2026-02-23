@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import type { SimpleStreamOptions } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
@@ -15,6 +16,8 @@ const ANTHROPIC_1M_MODEL_PREFIXES = ["claude-opus-4", "claude-sonnet-4"] as cons
 // Codex responses (chatgpt.com/backend-api/codex/responses) require `store=false`.
 const OPENAI_RESPONSES_APIS = new Set(["openai-responses"]);
 const OPENAI_RESPONSES_PROVIDERS = new Set(["openai"]);
+const OPENAI_PROMPT_CACHE_KEY_MAX_CHARS = 64;
+const OPENAI_PROMPT_CACHE_KEY_HASH_CHARS = 12;
 
 /**
  * Resolve provider-specific extra params from model config.
@@ -221,6 +224,42 @@ function createOpenAIResponsesStoreWrapper(baseStreamFn: StreamFn | undefined): 
       onPayload: (payload) => {
         if (payload && typeof payload === "object") {
           (payload as { store?: unknown }).store = true;
+        }
+        originalOnPayload?.(payload);
+      },
+    });
+  };
+}
+
+function normalizePromptCacheKey(raw: string): string {
+  if (raw.length <= OPENAI_PROMPT_CACHE_KEY_MAX_CHARS) {
+    return raw;
+  }
+  const hash = createHash("sha256")
+    .update(raw)
+    .digest("hex")
+    .slice(0, OPENAI_PROMPT_CACHE_KEY_HASH_CHARS);
+  const prefixLength = OPENAI_PROMPT_CACHE_KEY_MAX_CHARS - OPENAI_PROMPT_CACHE_KEY_HASH_CHARS - 1;
+  return `${raw.slice(0, Math.max(0, prefixLength))}-${hash}`;
+}
+
+function createPromptCacheKeyGuardWrapper(baseStreamFn: StreamFn | undefined): StreamFn {
+  const underlying = baseStreamFn ?? streamSimple;
+  return (model, context, options) => {
+    const originalOnPayload = options?.onPayload;
+    return underlying(model, context, {
+      ...options,
+      onPayload: (payload) => {
+        if (payload && typeof payload === "object") {
+          const body = payload as Record<string, unknown>;
+          const rawSnake = body.prompt_cache_key;
+          if (typeof rawSnake === "string") {
+            body.prompt_cache_key = normalizePromptCacheKey(rawSnake);
+          }
+          const rawCamel = body.promptCacheKey;
+          if (typeof rawCamel === "string") {
+            body.promptCacheKey = normalizePromptCacheKey(rawCamel);
+          }
         }
         originalOnPayload?.(payload);
       },
@@ -562,4 +601,8 @@ export function applyExtraParamsToAgent(
   // Force `store=true` for direct OpenAI/OpenAI Codex providers so multi-turn
   // server-side conversation state is preserved.
   agent.streamFn = createOpenAIResponsesStoreWrapper(agent.streamFn);
+
+  // Guard against provider-side prompt_cache_key length limits (for example 64 chars).
+  // Some legacy sessions can carry ids longer than provider limits; clamp deterministically.
+  agent.streamFn = createPromptCacheKeyGuardWrapper(agent.streamFn);
 }
