@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -278,6 +279,81 @@ describe("installSkill download extraction safety", () => {
         "utf-8",
       ),
     ).toBe("hi");
+  });
+
+  it("rejects downloads when sha256 checksum mismatches", async () => {
+    const targetDir = path.join(stateDir, "tools", "zip-bad-sha256", "target");
+    const url = "https://example.invalid/good.zip";
+    mockArchiveResponse(new Uint8Array(SAFE_ZIP_BUFFER));
+
+    await writeDownloadSkill({
+      workspaceDir,
+      name: "zip-bad-sha256",
+      installId: "dl",
+      url,
+      archive: "zip",
+      targetDir,
+      sha256: "00".repeat(32),
+    });
+
+    const result = await installSkill({
+      workspaceDir,
+      skillName: "zip-bad-sha256",
+      installId: "dl",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.stderr.toLowerCase()).toContain("sha256 checksum mismatch");
+    expect(await fileExists(path.join(targetDir, "hello.txt"))).toBe(false);
+    expect(await fileExists(path.join(targetDir, "good.zip"))).toBe(false);
+  });
+
+  it("verifies sha256 checksums before extraction", async () => {
+    const targetDir = path.join(stateDir, "tools", "zip-good-sha256", "target");
+    const url = "https://example.invalid/good.zip";
+    const expectedSha256 = createHash("sha256").update(SAFE_ZIP_BUFFER).digest("hex");
+    mockArchiveResponse(new Uint8Array(SAFE_ZIP_BUFFER));
+
+    await writeDownloadSkill({
+      workspaceDir,
+      name: "zip-good-sha256",
+      installId: "dl",
+      url,
+      archive: "zip",
+      targetDir,
+      sha256: `sha256:${expectedSha256.toUpperCase()}`,
+    });
+
+    const result = await installSkill({
+      workspaceDir,
+      skillName: "zip-good-sha256",
+      installId: "dl",
+    });
+    expect(result.ok).toBe(true);
+    expect(await fs.readFile(path.join(targetDir, "hello.txt"), "utf-8")).toBe("hi");
+  });
+
+  it("rejects invalid sha256 checksum format before download", async () => {
+    const targetDir = path.join(stateDir, "tools", "zip-invalid-sha256", "target");
+    const beforeFetchCalls = fetchWithSsrFGuardMock.mock.calls.length;
+
+    await writeDownloadSkill({
+      workspaceDir,
+      name: "zip-invalid-sha256",
+      installId: "dl",
+      url: "https://example.invalid/good.zip",
+      archive: "zip",
+      targetDir,
+      sha256: "not-a-valid-digest",
+    });
+
+    const result = await installSkill({
+      workspaceDir,
+      skillName: "zip-invalid-sha256",
+      installId: "dl",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.stderr.toLowerCase()).toContain("invalid sha256 checksum");
+    expect(fetchWithSsrFGuardMock.mock.calls.length).toBe(beforeFetchCalls);
   });
 });
 

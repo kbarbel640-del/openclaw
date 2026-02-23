@@ -31,6 +31,7 @@ export async function writeDownloadSkill(params: {
   archive: "tar.gz" | "tar.bz2" | "zip";
   stripComponents?: number;
   targetDir: string;
+  sha256?: string;
 }): Promise<string> {
   const skillDir = path.join(params.workspaceDir, "skills", params.name);
   await fs.mkdir(skillDir, { recursive: true });
@@ -45,6 +46,7 @@ export async function writeDownloadSkill(params: {
           extract: true,
           stripComponents: params.stripComponents,
           targetDir: params.targetDir,
+          ...(typeof params.sha256 === "string" ? { sha256: params.sha256 } : {}),
         },
       ],
     },

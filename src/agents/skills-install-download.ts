@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -22,6 +23,46 @@ import { resolveSkillToolsRootDir } from "./skills/tools-dir.js";
 
 function isNodeReadableStream(value: unknown): value is NodeJS.ReadableStream {
   return Boolean(value && typeof (value as NodeJS.ReadableStream).pipe === "function");
+}
+
+const SHA256_HEX_RE = /^[a-f0-9]{64}$/i;
+
+type ParsedSha256 = { ok: true; expected: string } | { ok: false; message: string } | null;
+
+function parseExpectedSha256(raw: string | undefined): ParsedSha256 {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return {
+      ok: false,
+      message: "invalid sha256 checksum: expected 64 hex chars or sha256:<64 hex chars>",
+    };
+  }
+
+  const prefixed = trimmed.match(/^sha256:(.+)$/i);
+  const value = prefixed ? prefixed[1].trim() : trimmed;
+  if (!SHA256_HEX_RE.test(value)) {
+    return {
+      ok: false,
+      message: "invalid sha256 checksum: expected 64 hex chars or sha256:<64 hex chars>",
+    };
+  }
+
+  return {
+    ok: true,
+    expected: value.toLowerCase(),
+  };
+}
+
+async function computeFileSha256(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  const stream = fs.createReadStream(filePath);
+  for await (const chunk of stream) {
+    hash.update(chunk);
+  }
+  return hash.digest("hex");
 }
 
 function resolveDownloadTargetDir(entry: SkillEntry, spec: SkillInstallSpec): string {
@@ -242,6 +283,17 @@ export async function installDownloadSpec(params: {
     return { ok: false, message, stdout: "", stderr: message, code: null };
   }
 
+  const checksum = parseExpectedSha256(spec.sha256);
+  if (checksum && !checksum.ok) {
+    return {
+      ok: false,
+      message: checksum.message,
+      stdout: "",
+      stderr: checksum.message,
+      code: null,
+    };
+  }
+
   const archivePath = path.join(targetDir, filename);
   let downloaded = 0;
   try {
@@ -250,6 +302,28 @@ export async function installDownloadSpec(params: {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, message, stdout: "", stderr: message, code: null };
+  }
+
+  if (checksum?.ok) {
+    const expected = checksum.expected;
+    let actual = "";
+    try {
+      actual = await computeFileSha256(archivePath);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, message, stdout: "", stderr: message, code: null };
+    }
+    if (actual !== expected) {
+      await fs.promises.rm(archivePath, { force: true }).catch(() => undefined);
+      const message = `sha256 checksum mismatch for ${filename}`;
+      return {
+        ok: false,
+        message,
+        stdout: "",
+        stderr: `${message}: expected ${expected}, got ${actual}`,
+        code: null,
+      };
+    }
   }
 
   const archiveType = resolveArchiveType(spec, filename);
