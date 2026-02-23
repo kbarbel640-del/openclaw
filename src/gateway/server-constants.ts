@@ -7,7 +7,9 @@ let maxPayloadBytes = DEFAULT_MAX_PAYLOAD_BYTES;
 
 /** @deprecated Use getMaxPayloadBytes() for the runtime-configured value. Kept for backward compat. */
 export const MAX_PAYLOAD_BYTES = DEFAULT_MAX_PAYLOAD_BYTES;
-export const MAX_BUFFERED_BYTES = 50 * 1024 * 1024; // per-connection send buffer limit (2x max payload)
+export const getMaxBufferedBytes = () => 2 * maxPayloadBytes; // per-connection send buffer limit (2x max payload)
+/** @deprecated Use getMaxBufferedBytes() for the runtime-configured value. */
+export const MAX_BUFFERED_BYTES = 50 * 1024 * 1024;
 
 export const getMaxPayloadBytes = () => maxPayloadBytes;
 
