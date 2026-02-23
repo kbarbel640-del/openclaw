@@ -201,7 +201,11 @@ namespace OpenClaw.Node.Tray
                 AddMenuItem(menu, exitItem);
 
                 SetProperty(_notifyIcon, "ContextMenuStrip", menu);
-                SetProperty(_notifyIcon, "Icon", ResolveApplicationIcon());
+                var icon = ResolveApplicationIcon();
+                if (icon != null)
+                {
+                    SetProperty(_notifyIcon, "Icon", icon);
+                }
                 SetProperty(_notifyIcon, "Text", ToNotifyIconText("OpenClaw: Starting"));
                 SetProperty(_notifyIcon, "Visible", true);
 
@@ -258,8 +262,26 @@ namespace OpenClaw.Node.Tray
                 ?? throw new InvalidOperationException("ContextMenuStrip.Items not found");
             var items = itemsProp.GetValue(menu)
                 ?? throw new InvalidOperationException("ContextMenuStrip.Items is null");
-            var add = items.GetType().GetMethod("Add", new[] { typeof(object) })
-                ?? throw new InvalidOperationException("ToolStripItemCollection.Add(object) not found");
+
+            MethodInfo? add = null;
+            foreach (var m in items.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (!string.Equals(m.Name, "Add", StringComparison.Ordinal)) continue;
+                var ps = m.GetParameters();
+                if (ps.Length != 1) continue;
+                if (ps[0].ParameterType.IsAssignableFrom(item.GetType()))
+                {
+                    add = m;
+                    break;
+                }
+            }
+
+            add ??= items.GetType().GetMethod("Add", new[] { item.GetType() });
+            if (add == null)
+            {
+                throw new InvalidOperationException($"ToolStripItemCollection.Add(<{item.GetType().Name}>) not found");
+            }
+
             add.Invoke(items, new[] { item });
         }
 
