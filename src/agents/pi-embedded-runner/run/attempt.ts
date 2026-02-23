@@ -1040,6 +1040,12 @@ export async function runEmbeddedAttempt(
               `hooks: prepended context to prompt (${hookResult.prependContext.length} chars)`,
             );
           }
+          if (hookResult?.systemPrompt) {
+            activeSession.agent.setSystemPrompt(
+              `${systemPromptText}\n\n${hookResult.systemPrompt}`,
+            );
+            log.debug(`hooks: augmented system prompt (+${hookResult.systemPrompt.length} chars)`);
+          }
         }
 
         // Dynamic per-call model routing (env-based, takes precedence over plugin hooks).
