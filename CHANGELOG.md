@@ -8,7 +8,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
-- Providers/Vercel AI Gateway: allow Claude shorthand model refs (`vercel-ai-gateway/claude-*`) and use a Vercel-first default model ref in onboarding/auth flows. (#23985) Thanks @sallyom and @markbooch.
+- Providers/Vercel AI Gateway: allow Claude shorthand model refs (`vercel-ai-gateway/claude-*`) and use a Vercel-first default model ref in onboarding/auth flows. (#23985) Thanks @sallyom, @markbooch, and @vincentkoc.
 
 ### Breaking
 
