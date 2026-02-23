@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
+import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveAgentConfig, resolveAgentEffectiveModelPrimary } from "./agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
@@ -357,7 +358,7 @@ export function resolveSubagentSpawnModelSelection(params: {
       cfg: params.cfg,
       agentId: params.agentId,
     }) ??
-    normalizeModelSelection(params.cfg.agents?.defaults?.model?.primary) ??
+    normalizeModelSelection(resolveAgentModelPrimaryValue(params.cfg.agents?.defaults?.model)) ??
     `${runtimeDefault.provider}/${runtimeDefault.model}`
   );
 }
