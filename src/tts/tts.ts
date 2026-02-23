@@ -638,6 +638,11 @@ export async function textToSpeech(params: {
       if (provider === "elevenlabs") {
         const voiceIdOverride = params.overrides?.elevenlabs?.voiceId;
         const modelIdOverride = params.overrides?.elevenlabs?.modelId;
+        const resolvedVoiceId = voiceIdOverride ?? config.elevenlabs.voiceId;
+        const resolvedModelId = modelIdOverride ?? config.elevenlabs.modelId;
+        logVerbose(
+          `TTS: elevenlabs voiceId=${resolvedVoiceId}${voiceIdOverride ? " (override)" : ""} model=${resolvedModelId}`,
+        );
         const voiceSettings = {
           ...config.elevenlabs.voiceSettings,
           ...params.overrides?.elevenlabs?.voiceSettings,
@@ -649,8 +654,8 @@ export async function textToSpeech(params: {
           text: params.text,
           apiKey,
           baseUrl: config.elevenlabs.baseUrl,
-          voiceId: voiceIdOverride ?? config.elevenlabs.voiceId,
-          modelId: modelIdOverride ?? config.elevenlabs.modelId,
+          voiceId: resolvedVoiceId,
+          modelId: resolvedModelId,
           outputFormat: output.elevenlabs,
           seed: seedOverride ?? config.elevenlabs.seed,
           applyTextNormalization: normalizationOverride ?? config.elevenlabs.applyTextNormalization,
@@ -661,11 +666,16 @@ export async function textToSpeech(params: {
       } else {
         const openaiModelOverride = params.overrides?.openai?.model;
         const openaiVoiceOverride = params.overrides?.openai?.voice;
+        const resolvedModel = openaiModelOverride ?? config.openai.model;
+        const resolvedVoice = openaiVoiceOverride ?? config.openai.voice;
+        logVerbose(
+          `TTS: openai voice=${resolvedVoice}${openaiVoiceOverride ? " (override)" : ""} model=${resolvedModel}`,
+        );
         audioBuffer = await openaiTTS({
           text: params.text,
           apiKey,
-          model: openaiModelOverride ?? config.openai.model,
-          voice: openaiVoiceOverride ?? config.openai.voice,
+          model: resolvedModel,
+          voice: resolvedVoice,
           responseFormat: output.openai,
           timeoutMs: config.timeoutMs,
         });

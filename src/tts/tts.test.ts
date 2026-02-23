@@ -40,7 +40,7 @@ vi.mock("../agents/model-auth.js", () => ({
   requireApiKey: vi.fn((auth: { apiKey?: string }) => auth.apiKey ?? ""),
 }));
 
-const { _test, resolveTtsConfig, maybeApplyTtsToPayload, getTtsProvider } = tts;
+const { _test, resolveTtsConfig, maybeApplyTtsToPayload, getTtsProvider, textToSpeech } = tts;
 
 const {
   isValidVoiceId,
@@ -415,6 +415,152 @@ describe("tts", () => {
           const provider = getTtsProvider(config, testCase.prefsPath);
           expect(provider).toBe(testCase.expected);
         });
+      }
+    });
+  });
+
+  describe("resolveTtsConfig voiceId propagation (#14764)", () => {
+    it("uses configured elevenlabs.voiceId instead of default", () => {
+      const customVoiceId = "FGY2WhTYpPnrIDTdsKH5";
+      const cfg: OpenClawConfig = {
+        agents: { defaults: { model: { primary: "openai/gpt-4o-mini" } } },
+        messages: {
+          tts: {
+            provider: "elevenlabs",
+            elevenlabs: {
+              apiKey: "test-key",
+              voiceId: customVoiceId,
+            },
+          },
+        },
+      };
+      const config = resolveTtsConfig(cfg);
+      expect(config.elevenlabs.voiceId).toBe(customVoiceId);
+    });
+
+    it("falls back to default voiceId when not configured", () => {
+      const cfg: OpenClawConfig = {
+        agents: { defaults: { model: { primary: "openai/gpt-4o-mini" } } },
+        messages: {
+          tts: {
+            provider: "elevenlabs",
+            elevenlabs: {
+              apiKey: "test-key",
+            },
+          },
+        },
+      };
+      const config = resolveTtsConfig(cfg);
+      expect(config.elevenlabs.voiceId).toBe("pMsXgVXv3BLzUgSXRplE");
+    });
+  });
+
+  describe("textToSpeech ElevenLabs voiceId (#14764)", () => {
+    it("uses configured voiceId in ElevenLabs API URL", async () => {
+      const customVoiceId = "FGY2WhTYpPnrIDTdsKH5";
+      const cfg: OpenClawConfig = {
+        agents: { defaults: { model: { primary: "openai/gpt-4o-mini" } } },
+        messages: {
+          tts: {
+            provider: "elevenlabs",
+            elevenlabs: {
+              apiKey: "test-key",
+              voiceId: customVoiceId,
+            },
+          },
+        },
+      };
+
+      const prevPrefs = process.env.OPENCLAW_TTS_PREFS;
+      process.env.OPENCLAW_TTS_PREFS = `/tmp/tts-test-${Date.now()}.json`;
+      const originalFetch = globalThis.fetch;
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(1),
+      }));
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+      try {
+        const result = await textToSpeech({ text: "Hello world test text", cfg });
+        expect(result.success).toBe(true);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const calledUrl = String(fetchMock.mock.calls[0]);
+        expect(calledUrl).toContain(`/v1/text-to-speech/${customVoiceId}`);
+      } finally {
+        globalThis.fetch = originalFetch;
+        process.env.OPENCLAW_TTS_PREFS = prevPrefs;
+      }
+    });
+
+    it("uses default voiceId when elevenlabs.voiceId is not configured", async () => {
+      const cfg: OpenClawConfig = {
+        agents: { defaults: { model: { primary: "openai/gpt-4o-mini" } } },
+        messages: {
+          tts: {
+            provider: "elevenlabs",
+            elevenlabs: {
+              apiKey: "test-key",
+            },
+          },
+        },
+      };
+
+      const prevPrefs = process.env.OPENCLAW_TTS_PREFS;
+      process.env.OPENCLAW_TTS_PREFS = `/tmp/tts-test-${Date.now()}.json`;
+      const originalFetch = globalThis.fetch;
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(1),
+      }));
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+      try {
+        const result = await textToSpeech({ text: "Hello world test text", cfg });
+        expect(result.success).toBe(true);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const calledUrl = String(fetchMock.mock.calls[0]);
+        expect(calledUrl).toContain("/v1/text-to-speech/pMsXgVXv3BLzUgSXRplE");
+      } finally {
+        globalThis.fetch = originalFetch;
+        process.env.OPENCLAW_TTS_PREFS = prevPrefs;
+      }
+    });
+
+    it("uses configured voiceId through maybeApplyTtsToPayload auto-TTS", async () => {
+      const customVoiceId = "FGY2WhTYpPnrIDTdsKH5";
+      const cfg: OpenClawConfig = {
+        agents: { defaults: { model: { primary: "openai/gpt-4o-mini" } } },
+        messages: {
+          tts: {
+            auto: "always",
+            provider: "elevenlabs",
+            elevenlabs: {
+              apiKey: "test-key",
+              voiceId: customVoiceId,
+            },
+          },
+        },
+      };
+
+      const prevPrefs = process.env.OPENCLAW_TTS_PREFS;
+      process.env.OPENCLAW_TTS_PREFS = `/tmp/tts-test-${Date.now()}.json`;
+      const originalFetch = globalThis.fetch;
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(1),
+      }));
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+      try {
+        const result = await maybeApplyTtsToPayload({
+          payload: { text: "Hello world test text for auto-TTS" },
+          cfg,
+          kind: "final",
+        });
+        expect(result.mediaUrl).toBeDefined();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const calledUrl = String(fetchMock.mock.calls[0]);
+        expect(calledUrl).toContain(`/v1/text-to-speech/${customVoiceId}`);
+      } finally {
+        globalThis.fetch = originalFetch;
+        process.env.OPENCLAW_TTS_PREFS = prevPrefs;
       }
     });
   });
