@@ -84,11 +84,21 @@ openclaw browser create-profile \
   - Badge shows `ON` when attached.
 - Click again to detach.
 
+> Note: Depending on your build/channel, the extension may appear as **“OpenClaw Browser Relay”** or **“Clawdbot Browser Relay”** in the Chrome toolbar / extensions list.
+
 ## Which tab does it control?
 
 - It does **not** automatically control “whatever tab you’re looking at”.
 - It controls **only the tab(s) you explicitly attached** by clicking the toolbar button.
 - To switch: open the other tab and click the extension icon there.
+
+## Common gotcha: multi-tab workflows (LinkedIn + image generation)
+
+Some workflows require *two different websites* (e.g. create a LinkedIn post **and** generate an image on Gemini/AI Studio/ImageFX).
+
+- The agent can only control tabs that are **explicitly attached** (badge `ON`).
+- If the agent says it can’t open a second tab, **attach the second tab yourself** (open the tab → click the extension → badge `ON`).
+- Then re-run the action; the agent will target the attached tab(s).
 
 ## Badge + common errors
 
@@ -96,7 +106,17 @@ openclaw browser create-profile \
 - `…`: connecting to the local relay.
 - `!`: relay not reachable/authenticated (most common: relay server not running, or gateway token missing/wrong).
 
-If you see `!`:
+### Problem: “Chrome extension relay is running, but no tab is connected”
+
+This usually means the agent/CLI can reach the relay server, but **no tab is attached**.
+
+Fix:
+
+1. In Chrome, open the *exact* tab you want the agent to drive (e.g. LinkedIn compose screen).
+2. Click the extension icon on that tab → make sure the badge shows `ON`.
+3. Run again (or rerun the cron job).
+
+### If you see `!`
 
 - Make sure the Gateway is running locally (default setup), or run a node host on this machine if the Gateway runs elsewhere.
 - Open the extension Options page; it validates relay reachability + gateway-token auth.
