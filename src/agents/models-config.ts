@@ -136,7 +136,12 @@ export async function ensureOpenClawModelsJson(
   for (const [key, provider] of Object.entries(normalizedProviders ?? {})) {
     const { apiKey, ...rest } = provider;
     // Keep apiKey only if it looks like an env var name (e.g., "AWS_BEARER_TOKEN_BEDROCK")
-    if (apiKey && typeof apiKey === "string" && /^[A-Z][A-Z0-9_]*$/.test(apiKey)) {
+    // or is an auth placeholder (e.g., "minimax-oauth", "qwen-oauth", "profile-auth")
+    if (
+      apiKey &&
+      typeof apiKey === "string" &&
+      /^([A-Z][A-Z0-9_]*|[a-z]+-(?:oauth|auth))$/.test(apiKey)
+    ) {
       sanitizedProviders[key] = { ...rest, apiKey };
     } else {
       sanitizedProviders[key] = rest;
