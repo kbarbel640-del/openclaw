@@ -1,6 +1,9 @@
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading.Tasks;
 using MediaFoundation;
 using MediaFoundation.Misc;
@@ -62,13 +65,32 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
 
             try
             {
-                return await Task.Run(() => CaptureWithMediaFoundation(facing, maxWidth, quality, deviceId));
+                var viaMf = await Task.Run(() => CaptureWithMediaFoundation(facing, maxWidth, quality, deviceId));
+                if (!IsPlaceholder(viaMf.Base64, viaMf.Width, viaMf.Height))
+                {
+                    return viaMf;
+                }
             }
             catch
             {
-                // Keep command path resilient even if camera stack is unavailable.
-                return (PlaceholderJpegBase64, 1, 1);
+                // continue to ffmpeg fallback
             }
+
+            try
+            {
+                var viaFfmpeg = await CaptureWithFfmpegAsync(facing, maxWidth, quality, deviceId);
+                if (!IsPlaceholder(viaFfmpeg.Base64, viaFfmpeg.Width, viaFfmpeg.Height))
+                {
+                    return viaFfmpeg;
+                }
+            }
+            catch
+            {
+                // fall through to stable placeholder
+            }
+
+            // Keep command path resilient even if camera stack is unavailable.
+            return (PlaceholderJpegBase64, 1, 1);
         }
 
         private static CameraDeviceInfo[] ListDevicesWithMediaFoundation()
@@ -402,6 +424,131 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
             }
 
             return (0, 0);
+        }
+
+        private static async Task<(string Base64, int Width, int Height)> CaptureWithFfmpegAsync(
+            string facing,
+            int? maxWidth,
+            double? quality,
+            string? deviceId)
+        {
+            if (!await CommandExistsAsync("ffmpeg"))
+            {
+                return (PlaceholderJpegBase64, 1, 1);
+            }
+
+            var devices = ListDevicesWithMediaFoundation();
+            var chosen = ChooseDeviceForFallback(devices, facing, deviceId);
+            if (chosen == null)
+            {
+                return (PlaceholderJpegBase64, 1, 1);
+            }
+
+            var tempFile = Path.Combine(Path.GetTempPath(), $"openclaw_cam_{Guid.NewGuid():N}.jpg");
+            try
+            {
+                var q = ToFfmpegJpegQuality(quality);
+                var vf = maxWidth.HasValue && maxWidth.Value > 0
+                    ? $"scale='min({maxWidth.Value},iw)':-2"
+                    : null;
+
+                var args = $"-hide_banner -loglevel error -y -f dshow -i video=\"{EscapeForDshow(chosen.Name)}\" -frames:v 1 -q:v {q}";
+                if (!string.IsNullOrWhiteSpace(vf))
+                {
+                    args += $" -vf \"{vf}\"";
+                }
+
+                args += $" \"{tempFile}\"";
+
+                var result = await RunProcessAsync("ffmpeg", args);
+                if (result.ExitCode != 0 || !File.Exists(tempFile))
+                {
+                    return (PlaceholderJpegBase64, 1, 1);
+                }
+
+                var bytes = await File.ReadAllBytesAsync(tempFile);
+                if (!IsLikelyJpeg(bytes))
+                {
+                    return (PlaceholderJpegBase64, 1, 1);
+                }
+
+                var (width, height) = TryReadJpegDimensions(bytes);
+                return (Convert.ToBase64String(bytes), Math.Max(width, 1), Math.Max(height, 1));
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempFile)) File.Delete(tempFile);
+                }
+                catch
+                {
+                    // ignore cleanup errors
+                }
+            }
+        }
+
+        private static CameraDeviceInfo? ChooseDeviceForFallback(CameraDeviceInfo[] devices, string facing, string? deviceId)
+        {
+            if (devices.Length == 0) return null;
+
+            if (!string.IsNullOrWhiteSpace(deviceId))
+            {
+                var exact = devices.FirstOrDefault(d =>
+                    string.Equals(d.Id, deviceId, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(d.Name, deviceId, StringComparison.OrdinalIgnoreCase));
+                if (exact != null) return exact;
+            }
+
+            var desiredFacing = string.Equals(facing, "back", StringComparison.OrdinalIgnoreCase) ? "back" : "front";
+            var byFacing = devices.FirstOrDefault(d => string.Equals(d.Position, desiredFacing, StringComparison.OrdinalIgnoreCase));
+            return byFacing ?? devices[0];
+        }
+
+        private static bool IsPlaceholder(string base64, int width, int height)
+        {
+            return width <= 1 && height <= 1 && string.Equals(base64, PlaceholderJpegBase64, StringComparison.Ordinal);
+        }
+
+        private static int ToFfmpegJpegQuality(double? quality)
+        {
+            var q = quality ?? 0.85;
+            q = Math.Clamp(q, 0.0, 1.0);
+            return (int)Math.Round(31 - (q * 29)); // 2..31, lower is better
+        }
+
+        private static string EscapeForDshow(string name)
+        {
+            return name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        }
+
+        private static async Task<bool> CommandExistsAsync(string command)
+        {
+            var checker = OperatingSystem.IsWindows() ? "where" : "which";
+            var res = await RunProcessAsync(checker, command);
+            return res.ExitCode == 0;
+        }
+
+        private static async Task<(int ExitCode, string StdOut, string StdErr)> RunProcessAsync(string fileName, string arguments)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+            };
+
+            using var p = new Process { StartInfo = psi };
+            p.Start();
+            var so = await p.StandardOutput.ReadToEndAsync();
+            var se = await p.StandardError.ReadToEndAsync();
+            await p.WaitForExitAsync();
+            return (p.ExitCode, so, se);
         }
 
         private static void ReleaseCom(object? obj)
