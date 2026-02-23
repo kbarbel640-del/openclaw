@@ -72,32 +72,10 @@ export function formatUpdateAvailableHint(update: UpdateCheckResult): string | n
 export function formatUpdateOneLiner(update: UpdateCheckResult): string {
   const parts: string[] = [];
 
-  const appendRegistryUpdateSummary = () => {
-    if (update.registry?.latestVersion) {
-      const cmp = compareSemverStrings(VERSION, update.registry.latestVersion);
-      if (cmp === 0) {
-        parts.push(`npm latest ${update.registry.latestVersion}`);
-      } else if (cmp != null && cmp < 0) {
-        parts.push(`npm update ${update.registry.latestVersion}`);
-      } else {
-        parts.push(`npm latest ${update.registry.latestVersion} (local newer)`);
-      }
-      return;
-    }
-    if (update.registry?.error) {
-      parts.push("npm latest unknown");
-    }
-  };
-
   if (update.installKind === "git" && update.git) {
     const branch = update.git.branch ? `git ${update.git.branch}` : "git";
     parts.push(branch);
-    if (update.git.upstream) {
-      parts.push(`↔ ${update.git.upstream}`);
-    }
-    if (update.git.dirty === true) {
-      parts.push("dirty");
-    }
+    
     if (update.git.behind != null && update.git.ahead != null) {
       if (update.git.behind === 0 && update.git.ahead === 0) {
         parts.push("up to date");
@@ -109,13 +87,23 @@ export function formatUpdateOneLiner(update: UpdateCheckResult): string {
         parts.push(`diverged (ahead ${update.git.ahead}, behind ${update.git.behind})`);
       }
     }
-    if (update.git.fetchOk === false) {
-      parts.push("fetch failed");
+    
+    if (update.git.dirty === true) {
+      parts.push("dirty");
     }
-    appendRegistryUpdateSummary();
   } else {
     parts.push(update.packageManager !== "unknown" ? update.packageManager : "pkg");
-    appendRegistryUpdateSummary();
+    
+    if (update.registry?.latestVersion) {
+      const cmp = compareSemverStrings(VERSION, update.registry.latestVersion);
+      if (cmp === 0) {
+        parts.push(`npm latest ${update.registry.latestVersion}`);
+      } else if (cmp != null && cmp < 0) {
+        parts.push(`npm update ${update.registry.latestVersion}`);
+      } else {
+        parts.push(`npm latest ${update.registry.latestVersion} (local newer)`);
+      }
+    }
   }
 
   if (update.deps) {
@@ -129,5 +117,84 @@ export function formatUpdateOneLiner(update: UpdateCheckResult): string {
       parts.push("deps stale");
     }
   }
+  
   return `Update: ${parts.join(" · ")}`;
+}
+
+export function formatUpdateDetails(update: UpdateCheckResult): string[] {
+  const lines: string[] = [];
+
+  // 📍 Currently Running section
+  lines.push("📍 Currently Running");
+  lines.push(`  Version: ${VERSION}`);
+  
+  if (update.installKind === "git" && update.git) {
+    if (update.git.sha) {
+      lines.push(`  Commit: ${update.git.sha.slice(0, 9)}`);
+    }
+    if (update.git.branch) {
+      lines.push(`  Branch: ${update.git.branch}`);
+    }
+    if (update.git.dirty === true) {
+      lines.push("  ⚠️ Working directory has uncommitted changes");
+    }
+
+    // 📦 Latest Available section
+    if (update.git.upstream && (update.git.behind != null || update.git.ahead != null)) {
+      lines.push("");
+      lines.push(`📦 Latest Available (${update.git.upstream})`);
+      
+      if (update.git.behind != null && update.git.behind > 0) {
+        lines.push(`  Status: ${update.git.behind} commits ahead of us`);
+        
+        // ⚠️ Update Available section
+        lines.push("");
+        lines.push("⚠️ Update Available");
+        const updateCmd = update.git.branch 
+          ? `git pull origin ${update.git.branch} && systemctl --user restart openclaw.service`
+          : "git pull && systemctl --user restart openclaw.service";
+        lines.push(`  → Run: ${updateCmd}`);
+      } else if (update.git.ahead != null && update.git.ahead > 0) {
+        lines.push(`  Status: ${update.git.ahead} commits ahead of remote (local is newer)`);
+      } else {
+        lines.push("  Status: Up to date ✓");
+      }
+    }
+
+    if (update.git.fetchOk === false) {
+      lines.push("");
+      lines.push("⚠️ Git fetch failed - upstream status unknown");
+    }
+  } else {
+    // npm/package manager install
+    lines.push(`  Package manager: ${update.packageManager !== "unknown" ? update.packageManager : "unknown"}`);
+  }
+
+  // ℹ️ npm registry info (footnote style)
+  if (update.registry?.latestVersion) {
+    const cmp = compareSemverStrings(VERSION, update.registry.latestVersion);
+    if (cmp != null && cmp < 0) {
+      lines.push("");
+      lines.push(`ℹ️ npm registry: ${update.registry.latestVersion} (update available via npm)`);
+    } else if (cmp === 0) {
+      lines.push("");
+      lines.push(`ℹ️ npm registry: ${update.registry.latestVersion} (matches current)`);
+    } else {
+      lines.push("");
+      lines.push(`ℹ️ npm registry: ${update.registry.latestVersion} (older than git)`);
+    }
+  }
+
+  // Dependencies status
+  if (update.deps) {
+    if (update.deps.status === "missing") {
+      lines.push("");
+      lines.push("⚠️ Dependencies: missing (run npm install)");
+    } else if (update.deps.status === "stale") {
+      lines.push("");
+      lines.push("⚠️ Dependencies: stale (run npm install)");
+    }
+  }
+
+  return lines;
 }

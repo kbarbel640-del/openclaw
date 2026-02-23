@@ -34,6 +34,7 @@ import { scanStatus } from "./status.scan.js";
 import {
   formatUpdateAvailableHint,
   formatUpdateOneLiner,
+  formatUpdateDetails,
   resolveUpdateAvailability,
 } from "./status.update.js";
 
@@ -398,6 +399,13 @@ export async function statusCommand(
       rows: overviewRows,
     }).trimEnd(),
   );
+
+  runtime.log("");
+  runtime.log(theme.heading("🔍 Version Status"));
+  const versionDetails = formatUpdateDetails(update);
+  for (const line of versionDetails) {
+    runtime.log(line);
+  }
 
   runtime.log("");
   runtime.log(theme.heading("Security audit"));
