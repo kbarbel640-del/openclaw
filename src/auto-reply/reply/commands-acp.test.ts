@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AcpRuntimeError } from "../../acp/runtime/errors.js";
 import type { OpenClawConfig } from "../../config/config.js";
 
 const hoisted = vi.hoisted(() => {
   const callGatewayMock = vi.fn();
   const requireAcpRuntimeBackendMock = vi.fn();
+  const getAcpRuntimeBackendMock = vi.fn();
   const readAcpSessionEntryMock = vi.fn();
   const upsertAcpSessionMetaMock = vi.fn();
   const resolveSessionStorePathForAcpMock = vi.fn();
@@ -14,9 +16,15 @@ const hoisted = vi.hoisted(() => {
   const runTurnMock = vi.fn();
   const cancelMock = vi.fn();
   const closeMock = vi.fn();
+  const getCapabilitiesMock = vi.fn();
+  const getStatusMock = vi.fn();
+  const setModeMock = vi.fn();
+  const setConfigOptionMock = vi.fn();
+  const doctorMock = vi.fn();
   return {
     callGatewayMock,
     requireAcpRuntimeBackendMock,
+    getAcpRuntimeBackendMock,
     readAcpSessionEntryMock,
     upsertAcpSessionMetaMock,
     resolveSessionStorePathForAcpMock,
@@ -27,6 +35,11 @@ const hoisted = vi.hoisted(() => {
     runTurnMock,
     cancelMock,
     closeMock,
+    getCapabilitiesMock,
+    getStatusMock,
+    setModeMock,
+    setConfigOptionMock,
+    doctorMock,
   };
 });
 
@@ -36,6 +49,7 @@ vi.mock("../../gateway/call.js", () => ({
 
 vi.mock("../../acp/runtime/registry.js", () => ({
   requireAcpRuntimeBackend: (id?: string) => hoisted.requireAcpRuntimeBackendMock(id),
+  getAcpRuntimeBackend: (id?: string) => hoisted.getAcpRuntimeBackendMock(id),
 }));
 
 vi.mock("../../acp/runtime/session-meta.js", () => ({
@@ -183,16 +197,36 @@ describe("/acp command", () => {
     });
     hoisted.cancelMock.mockReset().mockResolvedValue(undefined);
     hoisted.closeMock.mockReset().mockResolvedValue(undefined);
+    hoisted.getCapabilitiesMock.mockReset().mockResolvedValue({
+      controls: ["session/set_mode", "session/set_config_option", "session/status"],
+    });
+    hoisted.getStatusMock.mockReset().mockResolvedValue({
+      summary: "status=alive sessionId=sid-1 pid=1234",
+      details: { status: "alive", sessionId: "sid-1", pid: 1234 },
+    });
+    hoisted.setModeMock.mockReset().mockResolvedValue(undefined);
+    hoisted.setConfigOptionMock.mockReset().mockResolvedValue(undefined);
+    hoisted.doctorMock.mockReset().mockResolvedValue({
+      ok: true,
+      message: "acpx command available",
+    });
 
-    hoisted.requireAcpRuntimeBackendMock.mockReset().mockReturnValue({
+    const runtimeBackend = {
       id: "acpx",
       runtime: {
         ensureSession: hoisted.ensureSessionMock,
         runTurn: hoisted.runTurnMock,
+        getCapabilities: hoisted.getCapabilitiesMock,
+        getStatus: hoisted.getStatusMock,
+        setMode: hoisted.setModeMock,
+        setConfigOption: hoisted.setConfigOptionMock,
+        doctor: hoisted.doctorMock,
         cancel: hoisted.cancelMock,
         close: hoisted.closeMock,
       },
-    });
+    };
+    hoisted.requireAcpRuntimeBackendMock.mockReset().mockReturnValue(runtimeBackend);
+    hoisted.getAcpRuntimeBackendMock.mockReset().mockReturnValue(runtimeBackend);
   });
 
   it("returns null when the message is not /acp", async () => {
@@ -455,5 +489,153 @@ describe("/acp command", () => {
     expect(result?.reply?.text).toContain("ACP sessions:");
     expect(result?.reply?.text).toContain("codex-main");
     expect(result?.reply?.text).toContain("thread:thread-1");
+  });
+
+  it("shows ACP status for the thread-bound ACP session", async () => {
+    const manager = createThreadBindingManager({
+      getByThreadId: vi.fn(() => ({
+        accountId: "default",
+        channelId: "parent-1",
+        threadId: "thread-1",
+        targetKind: "acp",
+        targetSessionKey: "agent:codex:acp:s1",
+        agentId: "codex",
+        boundBy: "user-1",
+        boundAt: Date.now(),
+      })),
+    });
+    hoisted.getThreadBindingManagerMock.mockReturnValue(manager);
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:s1",
+      storeSessionKey: "agent:codex:acp:s1",
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime-1",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+    const params = createDiscordParams("/acp status", baseCfg);
+    params.ctx.MessageThreadId = "thread-1";
+
+    const result = await handleAcpCommand(params, true);
+
+    expect(result?.reply?.text).toContain("ACP status:");
+    expect(result?.reply?.text).toContain("session: agent:codex:acp:s1");
+    expect(result?.reply?.text).toContain("capabilities:");
+    expect(hoisted.getStatusMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates ACP runtime mode via /acp set-mode", async () => {
+    const manager = createThreadBindingManager({
+      getByThreadId: vi.fn(() => ({
+        accountId: "default",
+        channelId: "parent-1",
+        threadId: "thread-1",
+        targetKind: "acp",
+        targetSessionKey: "agent:codex:acp:s1",
+        agentId: "codex",
+        boundBy: "user-1",
+        boundAt: Date.now(),
+      })),
+    });
+    hoisted.getThreadBindingManagerMock.mockReturnValue(manager);
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:s1",
+      storeSessionKey: "agent:codex:acp:s1",
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime-1",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+    const params = createDiscordParams("/acp set-mode plan", baseCfg);
+    params.ctx.MessageThreadId = "thread-1";
+
+    const result = await handleAcpCommand(params, true);
+
+    expect(hoisted.setModeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "plan",
+      }),
+    );
+    expect(result?.reply?.text).toContain("Updated ACP runtime mode");
+  });
+
+  it("updates ACP config options and keeps cwd local when using /acp set", async () => {
+    const manager = createThreadBindingManager({
+      getByThreadId: vi.fn(() => ({
+        accountId: "default",
+        channelId: "parent-1",
+        threadId: "thread-1",
+        targetKind: "acp",
+        targetSessionKey: "agent:codex:acp:s1",
+        agentId: "codex",
+        boundBy: "user-1",
+        boundAt: Date.now(),
+      })),
+    });
+    hoisted.getThreadBindingManagerMock.mockReturnValue(manager);
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:s1",
+      storeSessionKey: "agent:codex:acp:s1",
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime-1",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+
+    const setModelParams = createDiscordParams("/acp set model gpt-5.3-codex", baseCfg);
+    setModelParams.ctx.MessageThreadId = "thread-1";
+    const setModel = await handleAcpCommand(setModelParams, true);
+    expect(hoisted.setConfigOptionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "model",
+        value: "gpt-5.3-codex",
+      }),
+    );
+    expect(setModel?.reply?.text).toContain("Updated ACP config option");
+
+    hoisted.setConfigOptionMock.mockClear();
+    const setCwdParams = createDiscordParams("/acp set cwd /tmp/worktree", baseCfg);
+    setCwdParams.ctx.MessageThreadId = "thread-1";
+    const setCwd = await handleAcpCommand(setCwdParams, true);
+    expect(hoisted.setConfigOptionMock).not.toHaveBeenCalled();
+    expect(setCwd?.reply?.text).toContain("Updated ACP cwd");
+  });
+
+  it("returns actionable doctor output when backend is missing", async () => {
+    hoisted.getAcpRuntimeBackendMock.mockReturnValue(null);
+    hoisted.requireAcpRuntimeBackendMock.mockImplementation(() => {
+      throw new AcpRuntimeError(
+        "ACP_BACKEND_MISSING",
+        "ACP runtime backend is not configured. Install and enable the acpx runtime plugin.",
+      );
+    });
+
+    const params = createDiscordParams("/acp doctor", baseCfg);
+    const result = await handleAcpCommand(params, true);
+
+    expect(result?.reply?.text).toContain("ACP doctor:");
+    expect(result?.reply?.text).toContain("healthy: no");
+    expect(result?.reply?.text).toContain("next:");
+  });
+
+  it("shows deterministic install instructions via /acp install", async () => {
+    const params = createDiscordParams("/acp install", baseCfg);
+    const result = await handleAcpCommand(params, true);
+
+    expect(result?.reply?.text).toContain("ACP install:");
+    expect(result?.reply?.text).toContain("run:");
+    expect(result?.reply?.text).toContain("then: /acp doctor");
   });
 });

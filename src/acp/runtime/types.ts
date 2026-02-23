@@ -2,6 +2,8 @@ export type AcpRuntimePromptMode = "prompt" | "steer";
 
 export type AcpRuntimeSessionMode = "persistent" | "oneshot";
 
+export type AcpRuntimeControl = "session/set_mode" | "session/set_config_option" | "session/status";
+
 export type AcpRuntimeHandle = {
   sessionKey: string;
   backend: string;
@@ -22,6 +24,28 @@ export type AcpRuntimeTurnInput = {
   mode: AcpRuntimePromptMode;
   requestId: string;
   signal?: AbortSignal;
+};
+
+export type AcpRuntimeCapabilities = {
+  controls: AcpRuntimeControl[];
+  /**
+   * Optional backend-advertised option keys for session/set_config_option.
+   * Empty/undefined means "backend accepts keys, but did not advertise a strict list".
+   */
+  configOptionKeys?: string[];
+};
+
+export type AcpRuntimeStatus = {
+  summary?: string;
+  details?: Record<string, unknown>;
+};
+
+export type AcpRuntimeDoctorReport = {
+  ok: boolean;
+  code?: string;
+  message: string;
+  installCommand?: string;
+  details?: string[];
 };
 
 export type AcpRuntimeEvent =
@@ -53,6 +77,18 @@ export interface AcpRuntime {
   ensureSession(input: AcpRuntimeEnsureInput): Promise<AcpRuntimeHandle>;
 
   runTurn(input: AcpRuntimeTurnInput): AsyncIterable<AcpRuntimeEvent>;
+
+  getCapabilities?(input: {
+    handle?: AcpRuntimeHandle;
+  }): Promise<AcpRuntimeCapabilities> | AcpRuntimeCapabilities;
+
+  getStatus?(input: { handle: AcpRuntimeHandle }): Promise<AcpRuntimeStatus>;
+
+  setMode?(input: { handle: AcpRuntimeHandle; mode: string }): Promise<void>;
+
+  setConfigOption?(input: { handle: AcpRuntimeHandle; key: string; value: string }): Promise<void>;
+
+  doctor?(): Promise<AcpRuntimeDoctorReport>;
 
   cancel(input: { handle: AcpRuntimeHandle; reason?: string }): Promise<void>;
 

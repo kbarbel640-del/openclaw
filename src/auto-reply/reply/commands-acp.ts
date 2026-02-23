@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { getAcpSessionManager } from "../../acp/control-plane/manager.js";
 import {
   cleanupFailedAcpSpawn,
@@ -7,12 +9,14 @@ import {
   resolveDiscordAcpSpawnFlags as resolveSharedDiscordAcpSpawnFlags,
   type AcpSpawnRuntimeCloseHandle,
 } from "../../acp/control-plane/spawn.js";
+import { formatAcpRuntimeErrorText, toAcpRuntimeErrorText } from "../../acp/runtime/error-text.js";
 import { AcpRuntimeError, toAcpRuntimeError } from "../../acp/runtime/errors.js";
+import { getAcpRuntimeBackend, requireAcpRuntimeBackend } from "../../acp/runtime/registry.js";
 import { resolveSessionStorePathForAcp } from "../../acp/runtime/session-meta.js";
 import type { AcpRuntimeSessionMode } from "../../acp/runtime/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { loadSessionStore } from "../../config/sessions.js";
-import type { SessionEntry } from "../../config/sessions/types.js";
+import type { AcpSessionRuntimeOptions, SessionEntry } from "../../config/sessions/types.js";
 import {
   getThreadBindingManager,
   resolveThreadBindingIntroText,
@@ -42,8 +46,35 @@ const ACP_SPAWN_USAGE =
   "Usage: /acp spawn [agentId] [--mode persistent|oneshot] [--thread auto|here|off] [--cwd <path>] [--label <label>].";
 const ACP_STEER_USAGE =
   "Usage: /acp steer [--session <session-key|session-id|session-label>] <instruction>";
+const ACP_SET_MODE_USAGE = "Usage: /acp set-mode <mode> [session-key|session-id|session-label]";
+const ACP_SET_USAGE = "Usage: /acp set <key> <value> [session-key|session-id|session-label]";
+const ACP_CWD_USAGE = "Usage: /acp cwd <path> [session-key|session-id|session-label]";
+const ACP_PERMISSIONS_USAGE =
+  "Usage: /acp permissions <profile> [session-key|session-id|session-label]";
+const ACP_TIMEOUT_USAGE = "Usage: /acp timeout <seconds> [session-key|session-id|session-label]";
+const ACP_MODEL_USAGE = "Usage: /acp model <model-id> [session-key|session-id|session-label]";
+const ACP_RESET_OPTIONS_USAGE = "Usage: /acp reset-options [session-key|session-id|session-label]";
+const ACP_STATUS_USAGE = "Usage: /acp status [session-key|session-id|session-label]";
+const ACP_INSTALL_USAGE = "Usage: /acp install";
+const ACP_DOCTOR_USAGE = "Usage: /acp doctor";
 
-type AcpAction = "spawn" | "cancel" | "steer" | "close" | "sessions" | "help";
+type AcpAction =
+  | "spawn"
+  | "cancel"
+  | "steer"
+  | "close"
+  | "sessions"
+  | "status"
+  | "set-mode"
+  | "set"
+  | "cwd"
+  | "permissions"
+  | "timeout"
+  | "model"
+  | "reset-options"
+  | "doctor"
+  | "install"
+  | "help";
 
 type AcpSpawnThreadMode = "auto" | "here" | "off";
 
@@ -58,6 +89,17 @@ type ParsedSpawnInput = {
 type ParsedSteerInput = {
   sessionToken?: string;
   instruction: string;
+};
+
+type ParsedSingleValueCommandInput = {
+  value: string;
+  sessionToken?: string;
+};
+
+type ParsedSetCommandInput = {
+  key: string;
+  value: string;
+  sessionToken?: string;
 };
 
 function stopWithText(text: string): CommandHandlerResult {
@@ -75,6 +117,16 @@ function resolveAcpAction(tokens: string[]): AcpAction {
     action === "steer" ||
     action === "close" ||
     action === "sessions" ||
+    action === "status" ||
+    action === "set-mode" ||
+    action === "set" ||
+    action === "cwd" ||
+    action === "permissions" ||
+    action === "timeout" ||
+    action === "model" ||
+    action === "reset-options" ||
+    action === "doctor" ||
+    action === "install" ||
     action === "help"
   ) {
     tokens.shift();
@@ -286,6 +338,69 @@ function parseSteerInput(
   };
 }
 
+function parseSingleValueCommandInput(
+  tokens: string[],
+  usage: string,
+): { ok: true; value: ParsedSingleValueCommandInput } | { ok: false; error: string } {
+  const value = tokens[0]?.trim() || "";
+  if (!value) {
+    return { ok: false, error: usage };
+  }
+  if (tokens.length > 2) {
+    return { ok: false, error: usage };
+  }
+  const sessionToken = tokens[1]?.trim() || undefined;
+  return {
+    ok: true,
+    value: {
+      value,
+      sessionToken,
+    },
+  };
+}
+
+function parseSetCommandInput(
+  tokens: string[],
+): { ok: true; value: ParsedSetCommandInput } | { ok: false; error: string } {
+  const key = tokens[0]?.trim() || "";
+  const value = tokens[1]?.trim() || "";
+  if (!key || !value) {
+    return {
+      ok: false,
+      error: ACP_SET_USAGE,
+    };
+  }
+  if (tokens.length > 3) {
+    return {
+      ok: false,
+      error: ACP_SET_USAGE,
+    };
+  }
+  const sessionToken = tokens[2]?.trim() || undefined;
+  return {
+    ok: true,
+    value: {
+      key,
+      value,
+      sessionToken,
+    },
+  };
+}
+
+function parseOptionalSingleTarget(
+  tokens: string[],
+  usage: string,
+): { ok: true; sessionToken?: string } | { ok: false; error: string } {
+  if (tokens.length > 1) {
+    return { ok: false, error: usage };
+  }
+  const token = tokens[0]?.trim() || "";
+  return {
+    ok: true,
+    ...(token ? { sessionToken: token } : {}),
+  };
+}
+
 function resolveAcpHelpText(): string {
   return [
     "ACP commands:",
@@ -294,6 +409,16 @@ function resolveAcpHelpText(): string {
     "/acp cancel [session-key|session-id|session-label]",
     "/acp steer [--session <session-key|session-id|session-label>] <instruction>",
     "/acp close [session-key|session-id|session-label]",
+    "/acp status [session-key|session-id|session-label]",
+    "/acp set-mode <mode> [session-key|session-id|session-label]",
+    "/acp set <key> <value> [session-key|session-id|session-label]",
+    "/acp cwd <path> [session-key|session-id|session-label]",
+    "/acp permissions <profile> [session-key|session-id|session-label]",
+    "/acp timeout <seconds> [session-key|session-id|session-label]",
+    "/acp model <model-id> [session-key|session-id|session-label]",
+    "/acp reset-options [session-key|session-id|session-label]",
+    "/acp doctor",
+    "/acp install",
     "/acp sessions",
     "",
     "Notes:",
@@ -310,6 +435,54 @@ function resolveAcpDispatchPolicyNote(cfg: OpenClawConfig): string | null {
     return "ACP dispatch is disabled by policy (`acp.dispatch.enabled=false`).";
   }
   return null;
+}
+
+function resolveConfiguredAcpBackendId(cfg: OpenClawConfig): string {
+  return cfg.acp?.backend?.trim() || "acpx";
+}
+
+function resolveAcpInstallCommandHint(cfg: OpenClawConfig): string {
+  const configured = cfg.acp?.runtime?.installCommand?.trim();
+  if (configured) {
+    return configured;
+  }
+  const backendId = resolveConfiguredAcpBackendId(cfg).toLowerCase();
+  if (backendId === "acpx") {
+    const localPath = path.resolve(process.cwd(), "extensions/acpx");
+    if (existsSync(localPath)) {
+      return `openclaw plugins install ${localPath}`;
+    }
+    return "openclaw plugins install @openclaw/acpx";
+  }
+  return `Install and enable the plugin that provides ACP backend "${backendId}".`;
+}
+
+function formatRuntimeOptionsText(options: AcpSessionRuntimeOptions): string {
+  const extras = options.backendExtras
+    ? Object.entries(options.backendExtras)
+        .toSorted(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => `${key}=${value}`)
+        .join(", ")
+    : "";
+  const parts = [
+    options.runtimeMode ? `runtimeMode=${options.runtimeMode}` : null,
+    options.model ? `model=${options.model}` : null,
+    options.cwd ? `cwd=${options.cwd}` : null,
+    options.permissionProfile ? `permissionProfile=${options.permissionProfile}` : null,
+    typeof options.timeoutSeconds === "number" ? `timeoutSeconds=${options.timeoutSeconds}` : null,
+    extras ? `extras={${extras}}` : null,
+  ].filter(Boolean) as string[];
+  if (parts.length === 0) {
+    return "(none)";
+  }
+  return parts.join(", ");
+}
+
+function formatAcpCapabilitiesText(controls: string[]): string {
+  if (controls.length === 0) {
+    return "(none)";
+  }
+  return controls.toSorted().join(", ");
 }
 
 function resolveDiscordAcpSpawnFlags(params: HandleCommandsParams): {
@@ -425,12 +598,11 @@ function collectAcpErrorText(params: {
   fallbackCode: AcpRuntimeError["code"];
   fallbackMessage: string;
 }): string {
-  const acpError = toAcpRuntimeError({
+  return toAcpRuntimeErrorText({
     error: params.error,
     fallbackCode: params.fallbackCode,
     fallbackMessage: params.fallbackMessage,
   });
-  return `ACP error (${acpError.code}): ${acpError.message}`;
 }
 
 async function bindSpawnedAcpSessionToDiscordThread(params: {
@@ -849,12 +1021,13 @@ async function handleAcpCloseAction(
     });
     runtimeNotice = closed.runtimeNotice ? ` (${closed.runtimeNotice})` : "";
   } catch (err) {
-    const converted = toAcpRuntimeError({
-      error: err,
-      fallbackCode: "ACP_TURN_FAILED",
-      fallbackMessage: "ACP close failed before completion.",
-    });
-    return stopWithText(`ACP error (${converted.code}): ${converted.message}`);
+    return stopWithText(
+      toAcpRuntimeErrorText({
+        error: err,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "ACP close failed before completion.",
+      }),
+    );
   }
 
   const removedBindings = unbindThreadBindingsBySessionKey({
@@ -867,6 +1040,418 @@ async function handleAcpCloseAction(
   return stopWithText(
     `✅ Closed ACP session ${target.sessionKey}${runtimeNotice}. Removed ${removedBindings.length} binding${removedBindings.length === 1 ? "" : "s"}.`,
   );
+}
+
+async function handleAcpStatusAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): Promise<CommandHandlerResult> {
+  const parsed = parseOptionalSingleTarget(restTokens, ACP_STATUS_USAGE);
+  if (!parsed.ok) {
+    return stopWithText(`⚠️ ${parsed.error}`);
+  }
+  const target = await resolveAcpTargetSessionKey({
+    commandParams: params,
+    token: parsed.sessionToken,
+  });
+  if (!target.ok) {
+    return stopWithText(`⚠️ ${target.error}`);
+  }
+
+  try {
+    const status = await getAcpSessionManager().getSessionStatus({
+      cfg: params.cfg,
+      sessionKey: target.sessionKey,
+    });
+    const lines = [
+      "ACP status:",
+      "-----",
+      `session: ${status.sessionKey}`,
+      `backend: ${status.backend}`,
+      `agent: ${status.agent}`,
+      `sessionMode: ${status.mode}`,
+      `state: ${status.state}`,
+      `runtimeOptions: ${formatRuntimeOptionsText(status.runtimeOptions)}`,
+      `capabilities: ${formatAcpCapabilitiesText(status.capabilities.controls)}`,
+      `lastActivityAt: ${new Date(status.lastActivityAt).toISOString()}`,
+      ...(status.lastError ? [`lastError: ${status.lastError}`] : []),
+      ...(status.runtimeStatus?.summary ? [`runtime: ${status.runtimeStatus.summary}`] : []),
+      ...(status.runtimeStatus?.details
+        ? [`runtimeDetails: ${JSON.stringify(status.runtimeStatus.details)}`]
+        : []),
+    ];
+    return stopWithText(lines.join("\n"));
+  } catch (error) {
+    return stopWithText(
+      collectAcpErrorText({
+        error,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not read ACP session status.",
+      }),
+    );
+  }
+}
+
+async function handleAcpSetModeAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): Promise<CommandHandlerResult> {
+  const parsed = parseSingleValueCommandInput(restTokens, ACP_SET_MODE_USAGE);
+  if (!parsed.ok) {
+    return stopWithText(`⚠️ ${parsed.error}`);
+  }
+  const target = await resolveAcpTargetSessionKey({
+    commandParams: params,
+    token: parsed.value.sessionToken,
+  });
+  if (!target.ok) {
+    return stopWithText(`⚠️ ${target.error}`);
+  }
+
+  try {
+    const options = await getAcpSessionManager().setSessionRuntimeMode({
+      cfg: params.cfg,
+      sessionKey: target.sessionKey,
+      runtimeMode: parsed.value.value,
+    });
+    return stopWithText(
+      `✅ Updated ACP runtime mode for ${target.sessionKey}: ${parsed.value.value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+    );
+  } catch (error) {
+    return stopWithText(
+      collectAcpErrorText({
+        error,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not update ACP runtime mode.",
+      }),
+    );
+  }
+}
+
+async function handleAcpSetAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): Promise<CommandHandlerResult> {
+  const parsed = parseSetCommandInput(restTokens);
+  if (!parsed.ok) {
+    return stopWithText(`⚠️ ${parsed.error}`);
+  }
+  const target = await resolveAcpTargetSessionKey({
+    commandParams: params,
+    token: parsed.value.sessionToken,
+  });
+  if (!target.ok) {
+    return stopWithText(`⚠️ ${target.error}`);
+  }
+  const key = parsed.value.key.trim();
+  const value = parsed.value.value.trim();
+
+  try {
+    const lowerKey = key.toLowerCase();
+    if (lowerKey === "cwd") {
+      const options = await getAcpSessionManager().updateSessionRuntimeOptions({
+        cfg: params.cfg,
+        sessionKey: target.sessionKey,
+        patch: { cwd: value },
+      });
+      return stopWithText(
+        `✅ Updated ACP cwd for ${target.sessionKey}: ${value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+      );
+    }
+    const options = await getAcpSessionManager().setSessionConfigOption({
+      cfg: params.cfg,
+      sessionKey: target.sessionKey,
+      key,
+      value,
+    });
+    return stopWithText(
+      `✅ Updated ACP config option for ${target.sessionKey}: ${key}=${value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+    );
+  } catch (error) {
+    return stopWithText(
+      collectAcpErrorText({
+        error,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not update ACP config option.",
+      }),
+    );
+  }
+}
+
+async function handleAcpCwdAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): Promise<CommandHandlerResult> {
+  const parsed = parseSingleValueCommandInput(restTokens, ACP_CWD_USAGE);
+  if (!parsed.ok) {
+    return stopWithText(`⚠️ ${parsed.error}`);
+  }
+  const target = await resolveAcpTargetSessionKey({
+    commandParams: params,
+    token: parsed.value.sessionToken,
+  });
+  if (!target.ok) {
+    return stopWithText(`⚠️ ${target.error}`);
+  }
+
+  try {
+    const options = await getAcpSessionManager().updateSessionRuntimeOptions({
+      cfg: params.cfg,
+      sessionKey: target.sessionKey,
+      patch: { cwd: parsed.value.value },
+    });
+    return stopWithText(
+      `✅ Updated ACP cwd for ${target.sessionKey}: ${parsed.value.value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+    );
+  } catch (error) {
+    return stopWithText(
+      collectAcpErrorText({
+        error,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not update ACP cwd.",
+      }),
+    );
+  }
+}
+
+async function handleAcpPermissionsAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): Promise<CommandHandlerResult> {
+  const parsed = parseSingleValueCommandInput(restTokens, ACP_PERMISSIONS_USAGE);
+  if (!parsed.ok) {
+    return stopWithText(`⚠️ ${parsed.error}`);
+  }
+  const target = await resolveAcpTargetSessionKey({
+    commandParams: params,
+    token: parsed.value.sessionToken,
+  });
+  if (!target.ok) {
+    return stopWithText(`⚠️ ${target.error}`);
+  }
+  try {
+    const options = await getAcpSessionManager().setSessionConfigOption({
+      cfg: params.cfg,
+      sessionKey: target.sessionKey,
+      key: "approval_policy",
+      value: parsed.value.value,
+    });
+    return stopWithText(
+      `✅ Updated ACP permissions profile for ${target.sessionKey}: ${parsed.value.value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+    );
+  } catch (error) {
+    return stopWithText(
+      collectAcpErrorText({
+        error,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not update ACP permissions profile.",
+      }),
+    );
+  }
+}
+
+async function handleAcpTimeoutAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): Promise<CommandHandlerResult> {
+  const parsed = parseSingleValueCommandInput(restTokens, ACP_TIMEOUT_USAGE);
+  if (!parsed.ok) {
+    return stopWithText(`⚠️ ${parsed.error}`);
+  }
+  const timeoutSeconds = Number.parseInt(parsed.value.value, 10);
+  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+    return stopWithText(
+      `⚠️ Invalid timeout value "${parsed.value.value}". Use a positive integer.`,
+    );
+  }
+  const target = await resolveAcpTargetSessionKey({
+    commandParams: params,
+    token: parsed.value.sessionToken,
+  });
+  if (!target.ok) {
+    return stopWithText(`⚠️ ${target.error}`);
+  }
+
+  try {
+    const options = await getAcpSessionManager().setSessionConfigOption({
+      cfg: params.cfg,
+      sessionKey: target.sessionKey,
+      key: "timeout",
+      value: String(timeoutSeconds),
+    });
+    return stopWithText(
+      `✅ Updated ACP timeout for ${target.sessionKey}: ${timeoutSeconds}s. Effective options: ${formatRuntimeOptionsText(options)}`,
+    );
+  } catch (error) {
+    return stopWithText(
+      collectAcpErrorText({
+        error,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not update ACP timeout.",
+      }),
+    );
+  }
+}
+
+async function handleAcpModelAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): Promise<CommandHandlerResult> {
+  const parsed = parseSingleValueCommandInput(restTokens, ACP_MODEL_USAGE);
+  if (!parsed.ok) {
+    return stopWithText(`⚠️ ${parsed.error}`);
+  }
+  const target = await resolveAcpTargetSessionKey({
+    commandParams: params,
+    token: parsed.value.sessionToken,
+  });
+  if (!target.ok) {
+    return stopWithText(`⚠️ ${target.error}`);
+  }
+  try {
+    const options = await getAcpSessionManager().setSessionConfigOption({
+      cfg: params.cfg,
+      sessionKey: target.sessionKey,
+      key: "model",
+      value: parsed.value.value,
+    });
+    return stopWithText(
+      `✅ Updated ACP model for ${target.sessionKey}: ${parsed.value.value}. Effective options: ${formatRuntimeOptionsText(options)}`,
+    );
+  } catch (error) {
+    return stopWithText(
+      collectAcpErrorText({
+        error,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not update ACP model.",
+      }),
+    );
+  }
+}
+
+async function handleAcpResetOptionsAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): Promise<CommandHandlerResult> {
+  const parsed = parseOptionalSingleTarget(restTokens, ACP_RESET_OPTIONS_USAGE);
+  if (!parsed.ok) {
+    return stopWithText(`⚠️ ${parsed.error}`);
+  }
+  const target = await resolveAcpTargetSessionKey({
+    commandParams: params,
+    token: parsed.sessionToken,
+  });
+  if (!target.ok) {
+    return stopWithText(`⚠️ ${target.error}`);
+  }
+
+  try {
+    await getAcpSessionManager().resetSessionRuntimeOptions({
+      cfg: params.cfg,
+      sessionKey: target.sessionKey,
+    });
+    return stopWithText(`✅ Reset ACP runtime options for ${target.sessionKey}.`);
+  } catch (error) {
+    return stopWithText(
+      collectAcpErrorText({
+        error,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not reset ACP runtime options.",
+      }),
+    );
+  }
+}
+
+async function handleAcpDoctorAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): Promise<CommandHandlerResult> {
+  if (restTokens.length > 0) {
+    return stopWithText(`⚠️ ${ACP_DOCTOR_USAGE}`);
+  }
+
+  const backendId = resolveConfiguredAcpBackendId(params.cfg);
+  const installHint = resolveAcpInstallCommandHint(params.cfg);
+  const registeredBackend = getAcpRuntimeBackend(backendId);
+  const lines = ["ACP doctor:", "-----", `configuredBackend: ${backendId}`];
+  if (registeredBackend) {
+    lines.push(`registeredBackend: ${registeredBackend.id}`);
+  } else {
+    lines.push("registeredBackend: (none)");
+  }
+
+  if (registeredBackend?.runtime.doctor) {
+    try {
+      const report = await registeredBackend.runtime.doctor();
+      lines.push(`runtimeDoctor: ${report.ok ? "ok" : "error"} (${report.message})`);
+      if (report.code) {
+        lines.push(`runtimeDoctorCode: ${report.code}`);
+      }
+      if (report.installCommand) {
+        lines.push(`runtimeDoctorInstall: ${report.installCommand}`);
+      }
+      for (const detail of report.details ?? []) {
+        lines.push(`runtimeDoctorDetail: ${detail}`);
+      }
+    } catch (error) {
+      lines.push(
+        `runtimeDoctor: error (${
+          toAcpRuntimeError({
+            error,
+            fallbackCode: "ACP_TURN_FAILED",
+            fallbackMessage: "Runtime doctor failed.",
+          }).message
+        })`,
+      );
+    }
+  }
+
+  try {
+    const backend = requireAcpRuntimeBackend(backendId);
+    const capabilities = backend.runtime.getCapabilities
+      ? await backend.runtime.getCapabilities({})
+      : { controls: [] as string[], configOptionKeys: [] as string[] };
+    lines.push("healthy: yes");
+    lines.push(`capabilities: ${formatAcpCapabilitiesText(capabilities.controls ?? [])}`);
+    if ((capabilities.configOptionKeys?.length ?? 0) > 0) {
+      lines.push(`configKeys: ${capabilities.configOptionKeys?.join(", ")}`);
+    }
+    return stopWithText(lines.join("\n"));
+  } catch (error) {
+    const acpError = toAcpRuntimeError({
+      error,
+      fallbackCode: "ACP_TURN_FAILED",
+      fallbackMessage: "ACP backend doctor failed.",
+    });
+    lines.push("healthy: no");
+    lines.push(formatAcpRuntimeErrorText(acpError));
+    lines.push(`next: ${installHint}`);
+    lines.push(`next: openclaw config set plugins.entries.${backendId}.enabled true`);
+    if (backendId.toLowerCase() === "acpx") {
+      lines.push("next: verify acpx is installed (`acpx --help`).");
+    }
+    return stopWithText(lines.join("\n"));
+  }
+}
+
+function handleAcpInstallAction(
+  params: HandleCommandsParams,
+  restTokens: string[],
+): CommandHandlerResult {
+  if (restTokens.length > 0) {
+    return stopWithText(`⚠️ ${ACP_INSTALL_USAGE}`);
+  }
+  const backendId = resolveConfiguredAcpBackendId(params.cfg);
+  const installHint = resolveAcpInstallCommandHint(params.cfg);
+  const lines = [
+    "ACP install:",
+    "-----",
+    `configuredBackend: ${backendId}`,
+    `run: ${installHint}`,
+    `then: openclaw config set plugins.entries.${backendId}.enabled true`,
+    "then: /acp doctor",
+  ];
+  return stopWithText(lines.join("\n"));
 }
 
 function formatAcpSessionLine(params: {
@@ -965,6 +1550,26 @@ export const handleAcpCommand: CommandHandler = async (params, allowTextCommands
       return await handleAcpSteerAction(params, tokens);
     case "close":
       return await handleAcpCloseAction(params, tokens);
+    case "status":
+      return await handleAcpStatusAction(params, tokens);
+    case "set-mode":
+      return await handleAcpSetModeAction(params, tokens);
+    case "set":
+      return await handleAcpSetAction(params, tokens);
+    case "cwd":
+      return await handleAcpCwdAction(params, tokens);
+    case "permissions":
+      return await handleAcpPermissionsAction(params, tokens);
+    case "timeout":
+      return await handleAcpTimeoutAction(params, tokens);
+    case "model":
+      return await handleAcpModelAction(params, tokens);
+    case "reset-options":
+      return await handleAcpResetOptionsAction(params, tokens);
+    case "doctor":
+      return await handleAcpDoctorAction(params, tokens);
+    case "install":
+      return handleAcpInstallAction(params, tokens);
     case "sessions":
       return handleAcpSessionsAction(params, tokens);
     default:

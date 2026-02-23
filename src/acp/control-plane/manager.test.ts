@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionAcpMeta } from "../../config/sessions/types.js";
+import type { AcpSessionRuntimeOptions, SessionAcpMeta } from "../../config/sessions/types.js";
 import { AcpRuntimeError } from "../runtime/errors.js";
-import type { AcpRuntime } from "../runtime/types.js";
+import type { AcpRuntime, AcpRuntimeCapabilities } from "../runtime/types.js";
 
 const hoisted = vi.hoisted(() => {
   const readAcpSessionEntryMock = vi.fn();
@@ -44,6 +44,10 @@ function createRuntime(): {
   runTurn: ReturnType<typeof vi.fn>;
   cancel: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
+  getCapabilities: ReturnType<typeof vi.fn>;
+  getStatus: ReturnType<typeof vi.fn>;
+  setMode: ReturnType<typeof vi.fn>;
+  setConfigOption: ReturnType<typeof vi.fn>;
 } {
   const ensureSession = vi.fn(
     async (input: { sessionKey: string; agent: string; mode: "persistent" | "oneshot" }) => ({
@@ -57,10 +61,25 @@ function createRuntime(): {
   });
   const cancel = vi.fn(async () => {});
   const close = vi.fn(async () => {});
+  const getCapabilities = vi.fn(
+    async (): Promise<AcpRuntimeCapabilities> => ({
+      controls: ["session/set_mode", "session/set_config_option", "session/status"],
+    }),
+  );
+  const getStatus = vi.fn(async () => ({
+    summary: "status=alive",
+    details: { status: "alive" },
+  }));
+  const setMode = vi.fn(async () => {});
+  const setConfigOption = vi.fn(async () => {});
   return {
     runtime: {
       ensureSession,
       runTurn,
+      getCapabilities,
+      getStatus,
+      setMode,
+      setConfigOption,
       cancel,
       close,
     },
@@ -68,6 +87,10 @@ function createRuntime(): {
     runTurn,
     cancel,
     close,
+    getCapabilities,
+    getStatus,
+    setMode,
+    setConfigOption,
   };
 }
 
@@ -98,6 +121,24 @@ function extractStatesFromUpserts(): SessionAcpMeta["state"][] {
     }
   }
   return states;
+}
+
+function extractRuntimeOptionsFromUpserts(): Array<AcpSessionRuntimeOptions | undefined> {
+  const options: Array<AcpSessionRuntimeOptions | undefined> = [];
+  for (const [firstArg] of hoisted.upsertAcpSessionMetaMock.mock.calls) {
+    const payload = firstArg as {
+      mutate: (
+        current: SessionAcpMeta | undefined,
+        entry: { acp?: SessionAcpMeta } | undefined,
+      ) => SessionAcpMeta | null | undefined;
+    };
+    const current = readySessionMeta();
+    const next = payload.mutate(current, { acp: current });
+    if (next) {
+      options.push(next.runtimeOptions);
+    }
+  }
+  return options;
 }
 
 describe("AcpSessionManager", () => {
@@ -340,6 +381,122 @@ describe("AcpSessionManager", () => {
     expect(states).toContain("running");
     expect(states).toContain("idle");
     expect(states).not.toContain("error");
+  });
+
+  it("persists runtime mode changes through setSessionRuntimeMode", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:session-1",
+      storeSessionKey: "agent:codex:acp:session-1",
+      acp: readySessionMeta(),
+    });
+
+    const manager = new AcpSessionManager();
+    const options = await manager.setSessionRuntimeMode({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      runtimeMode: "plan",
+    });
+
+    expect(runtimeState.setMode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "plan",
+      }),
+    );
+    expect(options.runtimeMode).toBe("plan");
+    expect(extractRuntimeOptionsFromUpserts().some((entry) => entry?.runtimeMode === "plan")).toBe(
+      true,
+    );
+  });
+
+  it("applies persisted runtime options before running turns", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:session-1",
+      storeSessionKey: "agent:codex:acp:session-1",
+      acp: {
+        ...readySessionMeta(),
+        runtimeOptions: {
+          runtimeMode: "plan",
+          model: "openai-codex/gpt-5.3-codex",
+          permissionProfile: "strict",
+          timeoutSeconds: 120,
+        },
+      },
+    });
+
+    const manager = new AcpSessionManager();
+    await manager.runTurn({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      text: "do work",
+      mode: "prompt",
+      requestId: "run-1",
+    });
+
+    expect(runtimeState.setMode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "plan",
+      }),
+    );
+    expect(runtimeState.setConfigOption).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "model",
+        value: "openai-codex/gpt-5.3-codex",
+      }),
+    );
+    expect(runtimeState.setConfigOption).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "approval_policy",
+        value: "strict",
+      }),
+    );
+    expect(runtimeState.setConfigOption).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "timeout",
+        value: "120",
+      }),
+    );
+  });
+
+  it("returns unsupported-control error when backend does not support set_config_option", async () => {
+    const runtimeState = createRuntime();
+    const unsupportedRuntime: AcpRuntime = {
+      ensureSession: runtimeState.ensureSession as AcpRuntime["ensureSession"],
+      runTurn: runtimeState.runTurn as AcpRuntime["runTurn"],
+      getCapabilities: vi.fn(async () => ({ controls: [] })),
+      cancel: runtimeState.cancel as AcpRuntime["cancel"],
+      close: runtimeState.close as AcpRuntime["close"],
+    };
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: unsupportedRuntime,
+    });
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:session-1",
+      storeSessionKey: "agent:codex:acp:session-1",
+      acp: readySessionMeta(),
+    });
+
+    const manager = new AcpSessionManager();
+    await expect(
+      manager.setSessionConfigOption({
+        cfg: baseCfg,
+        sessionKey: "agent:codex:acp:session-1",
+        key: "model",
+        value: "gpt-5.3-codex",
+      }),
+    ).rejects.toMatchObject({
+      code: "ACP_BACKEND_UNSUPPORTED_CONTROL",
+    });
   });
 
   it("can close and clear metadata when backend is unavailable", async () => {

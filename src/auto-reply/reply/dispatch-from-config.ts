@@ -1,4 +1,5 @@
 import { getAcpSessionManager } from "../../acp/control-plane/manager.js";
+import { formatAcpRuntimeErrorText } from "../../acp/runtime/error-text.js";
 import { AcpRuntimeError, toAcpRuntimeError } from "../../acp/runtime/errors.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import type { OpenClawConfig } from "../../config/config.js";
@@ -113,9 +114,6 @@ const resolveAcpRequestId = (ctx: FinalizedMsgContext): string => {
   }
   return `${Date.now()}:${Math.random().toString(16).slice(2)}`;
 };
-
-const formatAcpErrorReply = (err: AcpRuntimeError): string =>
-  `ACP error (${err.code}): ${err.message}`;
 
 export type DispatchFromConfigResult = {
   queuedFinal: boolean;
@@ -491,7 +489,7 @@ export async function dispatchReplyFromConfig(params: {
           fallbackMessage: "ACP turn failed before completion.",
         });
         const delivered = await deliverAcpPayload("final", {
-          text: formatAcpErrorReply(acpError),
+          text: formatAcpRuntimeErrorText(acpError),
           isError: true,
         });
         queuedFinal = queuedFinal || delivered;

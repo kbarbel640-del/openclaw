@@ -13,6 +13,8 @@ export type AcpStreamConfig = {
 export type AcpRuntimeConfig = {
   /** Idle runtime TTL in minutes for ACP session workers. */
   ttlMinutes?: number;
+  /** Optional operator install/setup command shown by `/acp install` and `/acp doctor`. */
+  installCommand?: string;
 };
 
 export type AcpConfig = {

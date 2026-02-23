@@ -72,12 +72,16 @@ export {
   unbindThreadBindingsBySessionKey,
 } from "../discord/monitor/thread-bindings.js";
 export type {
+  AcpRuntimeCapabilities,
+  AcpRuntimeControl,
+  AcpRuntimeDoctorReport,
   AcpRuntime,
   AcpRuntimeEnsureInput,
   AcpRuntimeEvent,
   AcpRuntimeHandle,
   AcpRuntimePromptMode,
   AcpRuntimeSessionMode,
+  AcpRuntimeStatus,
   AcpRuntimeTurnInput,
 } from "../acp/runtime/types.js";
 export type { AcpRuntimeBackend } from "../acp/runtime/registry.js";

@@ -28,7 +28,15 @@ if (args.includes("--version") || args.includes("--help")) {
   process.exit(0);
 }
 
-const commandIndex = args.findIndex((arg) => arg === "prompt" || arg === "cancel" || arg === "sessions");
+const commandIndex = args.findIndex(
+  (arg) =>
+    arg === "prompt" ||
+    arg === "cancel" ||
+    arg === "sessions" ||
+    arg === "set-mode" ||
+    arg === "set" ||
+    arg === "status",
+);
 const command = commandIndex >= 0 ? args[commandIndex] : "";
 const agent = commandIndex > 0 ? args[commandIndex - 1] : "unknown";
 
@@ -41,6 +49,9 @@ const readFlag = (flag) => {
 const sessionFromOption = readFlag("--session");
 const ensureName = readFlag("--name");
 const closeName = command === "sessions" && args[commandIndex + 1] === "close" ? String(args[commandIndex + 2] || "") : "";
+const setModeValue = command === "set-mode" ? String(args[commandIndex + 1] || "") : "";
+const setKey = command === "set" ? String(args[commandIndex + 1] || "") : "";
+const setValue = command === "set" ? String(args[commandIndex + 2] || "") : "";
 
 if (command === "sessions" && args[commandIndex + 1] === "ensure") {
   writeLog({ kind: "ensure", agent, args, sessionName: ensureName });
@@ -59,6 +70,45 @@ if (command === "cancel") {
   process.stdout.write(JSON.stringify({
     sessionId: "sid-" + sessionFromOption,
     cancelled: true,
+  }) + "\n");
+  process.exit(0);
+}
+
+if (command === "set-mode") {
+  writeLog({ kind: "set-mode", agent, args, sessionName: sessionFromOption, mode: setModeValue });
+  process.stdout.write(JSON.stringify({
+    type: "mode_set",
+    sessionId: "sid-" + sessionFromOption,
+    mode: setModeValue,
+  }) + "\n");
+  process.exit(0);
+}
+
+if (command === "set") {
+  writeLog({
+    kind: "set",
+    agent,
+    args,
+    sessionName: sessionFromOption,
+    key: setKey,
+    value: setValue,
+  });
+  process.stdout.write(JSON.stringify({
+    type: "config_set",
+    sessionId: "sid-" + sessionFromOption,
+    key: setKey,
+    value: setValue,
+  }) + "\n");
+  process.exit(0);
+}
+
+if (command === "status") {
+  writeLog({ kind: "status", agent, args, sessionName: sessionFromOption });
+  process.stdout.write(JSON.stringify({
+    sessionId: sessionFromOption ? "sid-" + sessionFromOption : null,
+    status: sessionFromOption ? "alive" : "no-session",
+    pid: 4242,
+    uptime: 120,
   }) + "\n");
   process.exit(0);
 }
@@ -369,6 +419,40 @@ describe("AcpxRuntime", () => {
     expect(close?.sessionName).toBe("agent:claude:acp:789");
   });
 
+  it("exposes control capabilities and runs set-mode/set/status commands", async () => {
+    const { runtime, logPath } = await createMockRuntime();
+    const handle = await runtime.ensureSession({
+      sessionKey: "agent:codex:acp:controls",
+      agent: "codex",
+      mode: "persistent",
+    });
+
+    const capabilities = runtime.getCapabilities();
+    expect(capabilities.controls).toContain("session/set_mode");
+    expect(capabilities.controls).toContain("session/set_config_option");
+    expect(capabilities.controls).toContain("session/status");
+
+    await runtime.setMode({
+      handle,
+      mode: "plan",
+    });
+    await runtime.setConfigOption({
+      handle,
+      key: "model",
+      value: "openai-codex/gpt-5.3-codex",
+    });
+    const status = await runtime.getStatus({ handle });
+
+    expect(status.summary).toContain("status=alive");
+    expect(status.details?.status).toBe("alive");
+    expect(status.details?.pid).toBe(4242);
+
+    const logs = await readLogEntries(logPath);
+    expect(logs.find((entry) => entry.kind === "set-mode")?.mode).toBe("plan");
+    expect(logs.find((entry) => entry.kind === "set")?.key).toBe("model");
+    expect(logs.find((entry) => entry.kind === "status")).toBeDefined();
+  });
+
   it("marks runtime unhealthy when command is missing", async () => {
     const runtime = new AcpxRuntime(
       {
@@ -389,5 +473,23 @@ describe("AcpxRuntime", () => {
     const { runtime } = await createMockRuntime();
     await runtime.probeAvailability();
     expect(runtime.isHealthy()).toBe(true);
+  });
+
+  it("returns doctor report for missing command", async () => {
+    const runtime = new AcpxRuntime(
+      {
+        command: "/definitely/missing/acpx",
+        commandArgs: [],
+        cwd: process.cwd(),
+        permissionMode: "approve-reads",
+        nonInteractivePermissions: "fail",
+      },
+      { logger: NOOP_LOGGER },
+    );
+
+    const report = await runtime.doctor();
+    expect(report.ok).toBe(false);
+    expect(report.code).toBe("ACP_BACKEND_UNAVAILABLE");
+    expect(report.installCommand).toContain("acpx");
   });
 });

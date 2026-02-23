@@ -1,11 +1,14 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import type {
+  AcpRuntimeCapabilities,
+  AcpRuntimeDoctorReport,
   AcpRuntime,
   AcpRuntimeEnsureInput,
   AcpRuntimeErrorCode,
   AcpRuntimeEvent,
   AcpRuntimeHandle,
+  AcpRuntimeStatus,
   AcpRuntimeTurnInput,
   PluginLogger,
 } from "openclaw/plugin-sdk";
@@ -16,6 +19,10 @@ export const ACPX_BACKEND_ID = "acpx";
 
 const ACPX_RUNTIME_HANDLE_PREFIX = "acpx:v1:";
 const DEFAULT_AGENT_FALLBACK = "codex";
+const ACPX_INSTALL_COMMAND_HINT = "npm install -g acpx";
+const ACPX_CAPABILITIES: AcpRuntimeCapabilities = {
+  controls: ["session/set_mode", "session/set_config_option", "session/status"],
+};
 
 type AcpxHandleState = {
   name: string;
@@ -299,6 +306,128 @@ export class AcpxRuntime implements AcpRuntime {
     }
   }
 
+  getCapabilities(): AcpRuntimeCapabilities {
+    return ACPX_CAPABILITIES;
+  }
+
+  async getStatus(input: { handle: AcpRuntimeHandle }): Promise<AcpRuntimeStatus> {
+    const state = this.resolveHandleState(input.handle);
+    const events = await this.runControlCommand({
+      args: this.buildControlArgs({
+        cwd: state.cwd,
+        command: [state.agent, "status", "--session", state.name],
+      }),
+      cwd: state.cwd,
+      fallbackCode: "ACP_TURN_FAILED",
+      ignoreNoSession: true,
+    });
+    const detail = events.find((event) => !toAcpxErrorEvent(event)) ?? events[0];
+    if (!detail) {
+      return {
+        summary: "acpx status unavailable",
+      };
+    }
+    const status = asTrimmedString(detail.status) || "unknown";
+    const sessionId = asOptionalString(detail.sessionId);
+    const pid = typeof detail.pid === "number" && Number.isFinite(detail.pid) ? detail.pid : null;
+    const summary = [
+      `status=${status}`,
+      sessionId ? `sessionId=${sessionId}` : null,
+      pid != null ? `pid=${pid}` : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return {
+      summary,
+      details: detail,
+    };
+  }
+
+  async setMode(input: { handle: AcpRuntimeHandle; mode: string }): Promise<void> {
+    const state = this.resolveHandleState(input.handle);
+    const mode = asTrimmedString(input.mode);
+    if (!mode) {
+      throw new AcpRuntimeError("ACP_TURN_FAILED", "ACP runtime mode is required.");
+    }
+    await this.runControlCommand({
+      args: this.buildControlArgs({
+        cwd: state.cwd,
+        command: [state.agent, "set-mode", mode, "--session", state.name],
+      }),
+      cwd: state.cwd,
+      fallbackCode: "ACP_TURN_FAILED",
+    });
+  }
+
+  async setConfigOption(input: {
+    handle: AcpRuntimeHandle;
+    key: string;
+    value: string;
+  }): Promise<void> {
+    const state = this.resolveHandleState(input.handle);
+    const key = asTrimmedString(input.key);
+    const value = asTrimmedString(input.value);
+    if (!key || !value) {
+      throw new AcpRuntimeError("ACP_TURN_FAILED", "ACP config option key/value are required.");
+    }
+    await this.runControlCommand({
+      args: this.buildControlArgs({
+        cwd: state.cwd,
+        command: [state.agent, "set", key, value, "--session", state.name],
+      }),
+      cwd: state.cwd,
+      fallbackCode: "ACP_TURN_FAILED",
+    });
+  }
+
+  async doctor(): Promise<AcpRuntimeDoctorReport> {
+    try {
+      const args = [...this.config.commandArgs, "--help"];
+      const result = await this.spawnAndCollect({
+        args,
+        cwd: this.config.cwd,
+      });
+      if (result.error) {
+        if (this.isCommandMissing(result.error)) {
+          this.healthy = false;
+          return {
+            ok: false,
+            code: "ACP_BACKEND_UNAVAILABLE",
+            message: `acpx command not found: ${this.config.command}`,
+            installCommand: ACPX_INSTALL_COMMAND_HINT,
+          };
+        }
+        this.healthy = false;
+        return {
+          ok: false,
+          code: "ACP_BACKEND_UNAVAILABLE",
+          message: result.error.message,
+          details: [String(result.error)],
+        };
+      }
+      if ((result.code ?? 0) !== 0) {
+        this.healthy = false;
+        return {
+          ok: false,
+          code: "ACP_BACKEND_UNAVAILABLE",
+          message: result.stderr.trim() || `acpx exited with code ${result.code ?? "unknown"}`,
+        };
+      }
+      this.healthy = true;
+      return {
+        ok: true,
+        message: `acpx command available (${this.config.command})`,
+      };
+    } catch (error) {
+      this.healthy = false;
+      return {
+        ok: false,
+        code: "ACP_BACKEND_UNAVAILABLE",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   async cancel(input: { handle: AcpRuntimeHandle; reason?: string }): Promise<void> {
     const state = this.resolveHandleState(input.handle);
     await this.runControlCommand({
@@ -386,7 +515,7 @@ export class AcpxRuntime implements AcpRuntime {
     cwd: string;
     fallbackCode: AcpRuntimeErrorCode;
     ignoreNoSession?: boolean;
-  }): Promise<void> {
+  }): Promise<AcpxJsonObject[]> {
     const result = await this.spawnAndCollect({
       args: params.args,
       cwd: params.cwd,
@@ -408,7 +537,7 @@ export class AcpxRuntime implements AcpRuntime {
     const errorEvent = events.map((event) => toAcpxErrorEvent(event)).find(Boolean) ?? null;
     if (errorEvent) {
       if (params.ignoreNoSession && errorEvent.code === "NO_SESSION") {
-        return;
+        return events;
       }
       throw new AcpRuntimeError(
         params.fallbackCode,
@@ -422,6 +551,7 @@ export class AcpxRuntime implements AcpRuntime {
         result.stderr.trim() || `acpx exited with code ${result.code ?? "unknown"}`,
       );
     }
+    return events;
   }
 
   private async spawnAndCollect(params: { args: string[]; cwd: string }): Promise<{

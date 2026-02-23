@@ -370,6 +370,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "acp.stream.coalesceIdleMs": "ACP Stream Coalesce Idle (ms)",
   "acp.stream.maxChunkChars": "ACP Stream Max Chunk Chars",
   "acp.runtime.ttlMinutes": "ACP Runtime TTL (minutes)",
+  "acp.runtime.installCommand": "ACP Runtime Install Command",
   models: "Models",
   "models.mode": "Model Catalog Mode",
   "models.providers": "Model Providers",
