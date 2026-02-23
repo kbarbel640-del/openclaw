@@ -233,7 +233,8 @@ export async function runConfigGet(opts: { path: string; json?: boolean; runtime
   try {
     const parsedPath = parseRequiredPath(opts.path);
     const snapshot = await loadValidConfig(runtime);
-    const res = getAtPath(snapshot.config, parsedPath);
+    const redacted = redactConfigObject(snapshot.config);
+    const res = getAtPath(redacted, parsedPath);
     if (!res.found) {
       runtime.error(danger(`Config path not found: ${opts.path}`));
       runtime.exit(1);
@@ -273,7 +274,7 @@ export async function runConfigUnset(opts: { path: string; runtime?: RuntimeEnv 
       runtime.exit(1);
       return;
     }
-    await writeConfigFile(next);
+    await writeConfigFile(next, { unsetPaths: [parsedPath] });
     runtime.log(info(`Removed ${opts.path}. Restart the gateway to apply.`));
   } catch (err) {
     runtime.error(danger(String(err)));
