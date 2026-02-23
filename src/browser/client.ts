@@ -134,20 +134,6 @@ export async function browserStop(baseUrl?: string, opts?: { profile?: string })
   });
 }
 
-export async function browserResetProfile(
-  baseUrl?: string,
-  opts?: { profile?: string },
-): Promise<BrowserResetProfileResult> {
-  const q = buildProfileQuery(opts?.profile);
-  return await fetchBrowserJson<BrowserResetProfileResult>(
-    withBaseUrl(baseUrl, `/reset-profile${q}`),
-    {
-      method: "POST",
-      timeoutMs: 20000,
-    },
-  );
-}
-
 export type BrowserCreateProfileResult = {
   ok: true;
   profile: string;
@@ -157,49 +143,11 @@ export type BrowserCreateProfileResult = {
   isRemote: boolean;
 };
 
-export async function browserCreateProfile(
-  baseUrl: string | undefined,
-  opts: {
-    name: string;
-    color?: string;
-    cdpUrl?: string;
-    driver?: "openclaw" | "extension";
-  },
-): Promise<BrowserCreateProfileResult> {
-  return await fetchBrowserJson<BrowserCreateProfileResult>(
-    withBaseUrl(baseUrl, `/profiles/create`),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: opts.name,
-        color: opts.color,
-        cdpUrl: opts.cdpUrl,
-        driver: opts.driver,
-      }),
-      timeoutMs: 10000,
-    },
-  );
-}
-
 export type BrowserDeleteProfileResult = {
   ok: true;
   profile: string;
   deleted: boolean;
 };
-
-export async function browserDeleteProfile(
-  baseUrl: string | undefined,
-  profile: string,
-): Promise<BrowserDeleteProfileResult> {
-  return await fetchBrowserJson<BrowserDeleteProfileResult>(
-    withBaseUrl(baseUrl, `/profiles/${encodeURIComponent(profile)}`),
-    {
-      method: "DELETE",
-      timeoutMs: 20000,
-    },
-  );
-}
 
 export async function browserTabs(
   baseUrl?: string,
@@ -250,26 +198,6 @@ export async function browserCloseTab(
   await fetchBrowserJson(withBaseUrl(baseUrl, `/tabs/${encodeURIComponent(targetId)}${q}`), {
     method: "DELETE",
     timeoutMs: 5000,
-  });
-}
-
-export async function browserTabAction(
-  baseUrl: string | undefined,
-  opts: {
-    action: "list" | "new" | "close" | "select";
-    index?: number;
-    profile?: string;
-  },
-): Promise<unknown> {
-  const q = buildProfileQuery(opts.profile);
-  return await fetchBrowserJson(withBaseUrl(baseUrl, `/tabs/action${q}`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: opts.action,
-      index: opts.index,
-    }),
-    timeoutMs: 10_000,
   });
 }
 

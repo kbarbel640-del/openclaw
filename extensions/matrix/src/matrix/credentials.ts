@@ -99,20 +99,6 @@ export function touchMatrixCredentials(
   fs.writeFileSync(credPath, JSON.stringify(existing, null, 2), "utf-8");
 }
 
-export function clearMatrixCredentials(
-  env: NodeJS.ProcessEnv = process.env,
-  accountId?: string | null,
-): void {
-  const credPath = resolveMatrixCredentialsPath(env, accountId);
-  try {
-    if (fs.existsSync(credPath)) {
-      fs.unlinkSync(credPath);
-    }
-  } catch {
-    // ignore
-  }
-}
-
 export function credentialsMatchConfig(
   stored: MatrixStoredCredentials,
   config: { homeserver: string; userId: string },

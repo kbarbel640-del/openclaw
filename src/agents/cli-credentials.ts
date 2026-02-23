@@ -24,13 +24,11 @@ type CachedValue<T> = {
 };
 
 let claudeCliCache: CachedValue<ClaudeCliCredential> | null = null;
-let codexCliCache: CachedValue<CodexCliCredential> | null = null;
 let qwenCliCache: CachedValue<QwenCliCredential> | null = null;
 let minimaxCliCache: CachedValue<MiniMaxCliCredential> | null = null;
 
 export function resetCliCredentialCachesForTest(): void {
   claudeCliCache = null;
-  codexCliCache = null;
   qwenCliCache = null;
   minimaxCliCache = null;
 }
@@ -499,32 +497,6 @@ export function readCodexCliCredentials(options?: {
     expires,
     accountId: typeof tokens.account_id === "string" ? tokens.account_id : undefined,
   };
-}
-
-export function readCodexCliCredentialsCached(options?: {
-  ttlMs?: number;
-  platform?: NodeJS.Platform;
-  execSync?: ExecSyncFn;
-}): CodexCliCredential | null {
-  const ttlMs = options?.ttlMs ?? 0;
-  const now = Date.now();
-  const cacheKey = `${options?.platform ?? process.platform}|${resolveCodexCliAuthPath()}`;
-  if (
-    ttlMs > 0 &&
-    codexCliCache &&
-    codexCliCache.cacheKey === cacheKey &&
-    now - codexCliCache.readAt < ttlMs
-  ) {
-    return codexCliCache.value;
-  }
-  const value = readCodexCliCredentials({
-    platform: options?.platform,
-    execSync: options?.execSync,
-  });
-  if (ttlMs > 0) {
-    codexCliCache = { value, readAt: now, cacheKey };
-  }
-  return value;
 }
 
 export function readQwenCliCredentialsCached(options?: {

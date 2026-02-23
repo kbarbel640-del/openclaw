@@ -805,16 +805,6 @@ export function addSubagentRunForTests(entry: SubagentRunRecord) {
   subagentRuns.set(entry.runId, entry);
 }
 
-export function releaseSubagentRun(runId: string) {
-  const didDelete = subagentRuns.delete(runId);
-  if (didDelete) {
-    persistSubagentRuns();
-  }
-  if (subagentRuns.size === 0) {
-    stopSweeper();
-  }
-}
-
 function findRunIdsByChildSessionKey(childSessionKey: string): string[] {
   return findRunIdsByChildSessionKeyFromRuns(subagentRuns, childSessionKey);
 }
