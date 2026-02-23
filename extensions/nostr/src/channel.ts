@@ -215,11 +215,12 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
           ctx.log?.debug?.(
             `[${account.accountId}] DM from ${senderPubkey}: ${text.slice(0, 50)}...`,
           );
+          
+          // Forward to OpenClaw's message pipeline
+          await (
+            runtime.channel.reply as { handleInboundMessage?: (params: unknown) => Promise<void> }
+          ).handleInboundMessage?.({
 
-          // Load config and resolve agent route
-          const cfg = runtime.config.loadConfig();
-          const route = runtime.channel.routing.resolveAgentRoute({
-            cfg,
             channel: "nostr",
             accountId: account.accountId,
             peer: {
