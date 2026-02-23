@@ -135,4 +135,15 @@ describe("extra-params: OpenRouter Anthropic cache_control", () => {
 
     expect(payload.reasoning).toEqual({ effort: "medium" });
   });
+
+  it("injects reasoning.effort when reasoning_effort is null", () => {
+    const payload: Record<string, unknown> = {
+      messages: [{ role: "user", content: "Hello" }],
+      reasoning_effort: null,
+    };
+
+    runOpenRouterPayloadWithThinking(payload, "google/gemini-3-pro", "medium");
+
+    expect(payload.reasoning).toEqual({ effort: "medium" });
+  });
 });

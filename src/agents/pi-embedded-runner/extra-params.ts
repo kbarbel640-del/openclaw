@@ -382,11 +382,7 @@ function createOpenRouterWrapper(
           // OpenRouter rejects requests that include both `reasoning` and
           // `reasoning_effort`, so if caller already set reasoning_effort
           // we skip reasoning injection entirely.
-          if (
-            typeof existingReasoningEffort === "string" ||
-            typeof existingReasoningEffort === "number" ||
-            typeof existingReasoningEffort === "boolean"
-          ) {
+          if (existingReasoningEffort !== undefined && existingReasoningEffort !== null) {
             onPayload?.(payload);
             return;
           }
