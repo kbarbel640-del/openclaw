@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using OpenClaw.Node.Protocol;
@@ -20,6 +21,7 @@ namespace OpenClaw.Node.Services
                     "system.run" => await HandleSystemRunAsync(request),
                     "dev.update" => await HandleDevUpdateAsync(request),
                     "dev.restart" => await HandleDevRestartAsync(request),
+                    "dev.screenshot" => await HandleDevScreenshotAsync(request),
                     "screen.list" => await HandleScreenListAsync(request),
                     "screen.record" => await HandleScreenRecordAsync(request),
                     "camera.list" => await HandleCameraListAsync(request),
@@ -448,6 +450,103 @@ namespace OpenClaw.Node.Services
         {
             if (string.IsNullOrEmpty(value)) return "\"\"";
             return "\"" + value.Replace("\"", "\\\"") + "\"";
+        }
+
+        private async Task<BridgeInvokeResponse> HandleDevScreenshotAsync(BridgeInvokeRequest request)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = "dev.screenshot is only available on Windows"
+                    }
+                };
+            }
+
+            var root = ParseParams(request.ParamsJSON);
+            var outPath = root != null && root.Value.TryGetProperty("path", out var pEl) && pEl.ValueKind == JsonValueKind.String
+                ? (pEl.GetString() ?? string.Empty).Trim()
+                : string.Empty;
+
+            if (string.IsNullOrWhiteSpace(outPath))
+            {
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                outPath = Path.Combine(home, "Pictures", "OpenClaw", "dev-screenshot-latest.jpg");
+            }
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(outPath) ?? Directory.GetCurrentDirectory());
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.InvalidRequest,
+                        Message = $"Invalid screenshot path: {ex.Message}"
+                    }
+                };
+            }
+
+            var ps = "$ErrorActionPreference='Stop'; " +
+                     "Add-Type -AssemblyName System.Windows.Forms; " +
+                     "Add-Type -AssemblyName System.Drawing; " +
+                     "$b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds; " +
+                     "$bmp=New-Object System.Drawing.Bitmap($b.Width,$b.Height); " +
+                     "$g=[System.Drawing.Graphics]::FromImage($bmp); " +
+                     "$g.CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size); " +
+                     "$bmp.Save('" + outPath.Replace("'", "''") + "',[System.Drawing.Imaging.ImageFormat]::Jpeg); " +
+                     "$g.Dispose(); $bmp.Dispose(); " +
+                     "Write-Output 'OK'";
+
+            var capture = await RunProcessAsync("powershell", new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps });
+            if (capture.ExitCode != 0 || !File.Exists(outPath))
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = "dev.screenshot capture failed"
+                    },
+                    PayloadJSON = JsonSerializer.Serialize(new
+                    {
+                        ok = false,
+                        path = outPath,
+                        exitCode = capture.ExitCode,
+                        stdout = capture.StdOut,
+                        stderr = capture.StdErr
+                    })
+                };
+            }
+
+            var automation = new AutomationService();
+            var windows = await automation.ListWindowsAsync();
+            var focused = windows.FirstOrDefault(w => w.IsFocused);
+
+            return new BridgeInvokeResponse
+            {
+                Id = request.Id,
+                Ok = true,
+                PayloadJSON = JsonSerializer.Serialize(new
+                {
+                    ok = true,
+                    path = outPath,
+                    focusedTitle = focused?.Title,
+                    focusedProcess = focused?.Process
+                })
+            };
         }
 
         

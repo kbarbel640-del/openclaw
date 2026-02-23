@@ -18,7 +18,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (73 total) (including device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite: 10 passing)
+- ✅ Tests passing (74 total) (including device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite: 10 passing)
 - ✅ Removed `MediaFoundation.Net` NU1701 warning path from build by moving camera stack off framework-only package
 
 ---
@@ -134,3 +134,4 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Added dev workflow helper commands:
   - `dev.update` (git fetch/checkout/pull + optional build)
   - `dev.restart` (schedule self-restart via detached helper process)
+  - `dev.screenshot` (capture primary-screen jpg + focused window metadata for live debugging)

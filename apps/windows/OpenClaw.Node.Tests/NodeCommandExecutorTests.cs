@@ -508,6 +508,31 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task DevScreenshot_ShouldReturnExpectedResult_ForCurrentPlatform()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "dev-screenshot-1",
+                Command = "dev.screenshot"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.True(res.Ok);
+                Assert.NotNull(res.PayloadJSON);
+            }
+            else
+            {
+                Assert.False(res.Ok);
+                Assert.NotNull(res.Error);
+                Assert.Equal(OpenClawNodeErrorCode.Unavailable, res.Error!.Code);
+            }
+        }
+
+        [Fact]
         public async Task UnknownCommand_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();
