@@ -187,7 +187,7 @@ The project `.env` feeds Docker Compose directly (gateway token, image name, por
 
 ### Example `~/.openclaw/.env`
 
-```env
+```bash
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 TELEGRAM_BOT_TOKEN=123456:ABCDEF...
@@ -195,7 +195,7 @@ TELEGRAM_BOT_TOKEN=123456:ABCDEF...
 
 ### Example `<project>/.env`
 
-```env
+```bash
 OPENCLAW_CONFIG_DIR=/Users/you/.openclaw
 OPENCLAW_WORKSPACE_DIR=/Users/you/.openclaw/workspace
 OPENCLAW_GATEWAY_PORT=18789
@@ -209,7 +209,7 @@ OPENCLAW_IMAGE=openclaw:local
 
 OpenClaw loads env vars in this order (highest wins, never overrides existing):
 
-1. **Process environment** — `docker-compose.yml` `environment:` block (gateway token, Claude session keys)
+1. **Process environment** — `docker-compose.yml` `environment:` block (gateway token, session keys)
 2. **`.env` in CWD** — project root `.env` (Docker infra vars)
 3. **`~/.openclaw/.env`** — global secrets (API keys, bot tokens)
 4. **`openclaw.json` `env` block** — inline vars, applied only if still missing
