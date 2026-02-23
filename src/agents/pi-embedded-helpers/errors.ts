@@ -120,7 +120,7 @@ const HTTP_STATUS_PREFIX_RE = /^(?:http\s*)?(\d{3})\s+(.+)$/i;
 const HTTP_STATUS_CODE_PREFIX_RE = /^(?:http\s*)?(\d{3})(?:\s+([\s\S]+))?$/i;
 const HTML_ERROR_PREFIX_RE = /^\s*(?:<!doctype\s+html\b|<html\b)/i;
 const CLOUDFLARE_HTML_ERROR_CODES = new Set([521, 522, 523, 524, 525, 526, 530]);
-const TRANSIENT_HTTP_ERROR_CODES = new Set([500, 502, 503, 521, 522, 523, 524, 529]);
+const TRANSIENT_HTTP_ERROR_CODES = new Set([500, 502, 503, 504, 521, 522, 523, 524, 529]);
 const HTTP_ERROR_HINTS = [
   "error",
   "bad request",
@@ -614,6 +614,7 @@ const ERROR_PATTERNS = {
     "tool_use_id",
     "messages.1.content.1.tool_use.id",
     "invalid request format",
+    /tool call id was.*must be/i,
   ],
 } as const;
 
@@ -684,6 +685,16 @@ export function isAuthErrorMessage(raw: string): boolean {
 
 export function isOverloadedErrorMessage(raw: string): boolean {
   return matchesErrorPatterns(raw, ERROR_PATTERNS.overloaded);
+}
+
+function isJsonApiInternalServerError(raw: string): boolean {
+  if (!raw) {
+    return false;
+  }
+  const value = raw.toLowerCase();
+  // Anthropic often wraps transient 500s in JSON payloads like:
+  // {"type":"error","error":{"type":"api_error","message":"Internal server error"}}
+  return value.includes('"type":"api_error"') && value.includes("internal server error");
 }
 
 export function parseImageDimensionError(raw: string): {
@@ -792,6 +803,9 @@ export function classifyFailoverReason(raw: string): FailoverReason | null {
   }
   if (isTransientHttpError(raw)) {
     // Treat transient 5xx provider failures as retryable transport issues.
+    return "timeout";
+  }
+  if (isJsonApiInternalServerError(raw)) {
     return "timeout";
   }
   if (isRateLimitErrorMessage(raw)) {

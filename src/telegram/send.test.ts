@@ -1,5 +1,5 @@
 import type { Bot } from "grammy";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getTelegramSendTestMocks,
   importTelegramSendModule,
@@ -9,7 +9,8 @@ import { clearSentMessageCache, recordSentMessage, wasSentByBot } from "./sent-m
 
 installTelegramSendTestHooks();
 
-const { botApi, botCtorSpy, loadConfig, loadWebMedia } = getTelegramSendTestMocks();
+const { botApi, botCtorSpy, loadConfig, loadWebMedia, maybePersistResolvedTelegramTarget } =
+  getTelegramSendTestMocks();
 const {
   buildInlineKeyboard,
   createForumTopicTelegram,
@@ -38,6 +39,22 @@ async function expectChatNotFoundWithChatId(
     expect(message).toMatch(/chat not found/i);
     expect(message).toMatch(new RegExp(`chat_id=${expectedChatId}`));
   }
+}
+
+function mockLoadedMedia({
+  buffer = Buffer.from("media"),
+  contentType,
+  fileName,
+}: {
+  buffer?: Buffer;
+  contentType?: string;
+  fileName?: string;
+}): void {
+  loadWebMedia.mockResolvedValueOnce({
+    buffer,
+    ...(contentType ? { contentType } : {}),
+    ...(fileName ? { fileName } : {}),
+  });
 }
 
 describe("sent-message-cache", () => {
@@ -189,34 +206,81 @@ describe("sendMessageTelegram", () => {
     }
   });
 
-  it("falls back to plain text when Telegram rejects HTML", async () => {
-    const chatId = "123";
+  it("falls back to plain text when Telegram rejects HTML and preserves send params", async () => {
     const parseErr = new Error(
       "400: Bad Request: can't parse entities: Can't find end of the entity starting at byte offset 9",
     );
-    const sendMessage = vi
-      .fn()
-      .mockRejectedValueOnce(parseErr)
-      .mockResolvedValueOnce({
-        message_id: 42,
-        chat: { id: chatId },
+    const cases = [
+      {
+        name: "plain text send",
+        chatId: "123",
+        text: "_oops_",
+        htmlText: "<i>oops</i>",
+        messageId: 42,
+        options: { verbose: true } as const,
+        firstCall: { parse_mode: "HTML" },
+        secondCall: undefined,
+      },
+      {
+        name: "threaded reply send",
+        chatId: "-1001234567890",
+        text: "_bad markdown_",
+        htmlText: "<i>bad markdown</i>",
+        messageId: 60,
+        options: { messageThreadId: 271, replyToMessageId: 100 } as const,
+        firstCall: {
+          parse_mode: "HTML",
+          message_thread_id: 271,
+          reply_to_message_id: 100,
+        },
+        secondCall: {
+          message_thread_id: 271,
+          reply_to_message_id: 100,
+        },
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const sendMessage = vi
+        .fn()
+        .mockRejectedValueOnce(parseErr)
+        .mockResolvedValueOnce({
+          message_id: testCase.messageId,
+          chat: { id: testCase.chatId },
+        });
+      const api = { sendMessage } as unknown as {
+        sendMessage: typeof sendMessage;
+      };
+
+      const res = await sendMessageTelegram(testCase.chatId, testCase.text, {
+        token: "tok",
+        api,
+        ...testCase.options,
       });
-    const api = { sendMessage } as unknown as {
-      sendMessage: typeof sendMessage;
-    };
 
-    const res = await sendMessageTelegram(chatId, "_oops_", {
-      token: "tok",
-      api,
-      verbose: true,
-    });
-
-    expect(sendMessage).toHaveBeenNthCalledWith(1, chatId, "<i>oops</i>", {
-      parse_mode: "HTML",
-    });
-    expect(sendMessage).toHaveBeenNthCalledWith(2, chatId, "_oops_");
-    expect(res.chatId).toBe(chatId);
-    expect(res.messageId).toBe("42");
+      expect(sendMessage, testCase.name).toHaveBeenNthCalledWith(
+        1,
+        testCase.chatId,
+        testCase.htmlText,
+        testCase.firstCall,
+      );
+      if (testCase.secondCall) {
+        expect(sendMessage, testCase.name).toHaveBeenNthCalledWith(
+          2,
+          testCase.chatId,
+          testCase.text,
+          testCase.secondCall,
+        );
+      } else {
+        expect(sendMessage, testCase.name).toHaveBeenNthCalledWith(
+          2,
+          testCase.chatId,
+          testCase.text,
+        );
+      }
+      expect(res.chatId, testCase.name).toBe(testCase.chatId);
+      expect(res.messageId, testCase.name).toBe(String(testCase.messageId));
+    }
   });
 
   it("keeps link_preview_options disabled for both html and plain-text fallback", async () => {
@@ -306,39 +370,46 @@ describe("sendMessageTelegram", () => {
     });
   });
 
-  it("preserves thread params in plain text fallback", async () => {
-    const chatId = "-1001234567890";
-    const parseErr = new Error(
-      "400: Bad Request: can't parse entities: Can't find end of the entity",
-    );
-    const sendMessage = vi
-      .fn()
-      .mockRejectedValueOnce(parseErr)
-      .mockResolvedValueOnce({
-        message_id: 60,
-        chat: { id: chatId },
-      });
-    const api = { sendMessage } as unknown as {
+  it("resolves t.me targets to numeric chat ids via getChat", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({
+      message_id: 1,
+      chat: { id: "-100123" },
+    });
+    const getChat = vi.fn().mockResolvedValue({ id: -100123 });
+    const api = { sendMessage, getChat } as unknown as {
       sendMessage: typeof sendMessage;
+      getChat: typeof getChat;
     };
 
-    const res = await sendMessageTelegram(chatId, "_bad markdown_", {
+    await sendMessageTelegram("https://t.me/mychannel", "hi", {
       token: "tok",
       api,
-      messageThreadId: 271,
-      replyToMessageId: 100,
     });
 
-    expect(sendMessage).toHaveBeenNthCalledWith(1, chatId, "<i>bad markdown</i>", {
+    expect(getChat).toHaveBeenCalledWith("@mychannel");
+    expect(sendMessage).toHaveBeenCalledWith("-100123", "hi", {
       parse_mode: "HTML",
-      message_thread_id: 271,
-      reply_to_message_id: 100,
     });
-    expect(sendMessage).toHaveBeenNthCalledWith(2, chatId, "_bad markdown_", {
-      message_thread_id: 271,
-      reply_to_message_id: 100,
-    });
-    expect(res.messageId).toBe("60");
+    expect(maybePersistResolvedTelegramTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rawTarget: "https://t.me/mychannel",
+        resolvedChatId: "-100123",
+      }),
+    );
+  });
+
+  it("fails clearly when a legacy target cannot be resolved", async () => {
+    const getChat = vi.fn().mockRejectedValue(new Error("400: Bad Request: chat not found"));
+    const api = { getChat } as unknown as {
+      getChat: typeof getChat;
+    };
+
+    await expect(
+      sendMessageTelegram("@missingchannel", "hi", {
+        token: "tok",
+        api,
+      }),
+    ).rejects.toThrow(/could not be resolved to a numeric chat ID/i);
   });
 
   it("includes thread params in media messages", async () => {
@@ -351,7 +422,7 @@ describe("sendMessageTelegram", () => {
       sendPhoto: typeof sendPhoto;
     };
 
-    loadWebMedia.mockResolvedValueOnce({
+    mockLoadedMedia({
       buffer: Buffer.from("fake-image"),
       contentType: "image/jpeg",
       fileName: "photo.jpg",
@@ -388,7 +459,7 @@ describe("sendMessageTelegram", () => {
       sendMessage: typeof sendMessage;
     };
 
-    loadWebMedia.mockResolvedValueOnce({
+    mockLoadedMedia({
       buffer: Buffer.from("fake-image"),
       contentType: "image/jpeg",
       fileName: "photo.jpg",
@@ -423,7 +494,7 @@ describe("sendMessageTelegram", () => {
       sendMessage: typeof sendMessage;
     };
 
-    loadWebMedia.mockResolvedValueOnce({
+    mockLoadedMedia({
       buffer: Buffer.from("fake-image"),
       contentType: "image/jpeg",
       fileName: "photo.jpg",
@@ -455,7 +526,7 @@ describe("sendMessageTelegram", () => {
       sendPhoto: typeof sendPhoto;
     };
 
-    loadWebMedia.mockResolvedValueOnce({
+    mockLoadedMedia({
       buffer: Buffer.from("fake-image"),
       contentType: "image/jpeg",
       fileName: "photo.jpg",
@@ -491,7 +562,7 @@ describe("sendMessageTelegram", () => {
         sendMessage: typeof sendMessage;
       };
 
-      loadWebMedia.mockResolvedValueOnce({
+      mockLoadedMedia({
         buffer: Buffer.from("fake-video"),
         contentType: "video/mp4",
         fileName: "video.mp4",
@@ -521,7 +592,7 @@ describe("sendMessageTelegram", () => {
         sendVideo: typeof sendVideo;
       };
 
-      loadWebMedia.mockResolvedValueOnce({
+      mockLoadedMedia({
         buffer: Buffer.from("fake-video"),
         contentType: "video/mp4",
         fileName: "video.mp4",
@@ -590,7 +661,7 @@ describe("sendMessageTelegram", () => {
         sendMessage: typeof sendMessage;
       };
 
-      loadWebMedia.mockResolvedValueOnce({
+      mockLoadedMedia({
         buffer: Buffer.from("fake-video"),
         contentType: "video/mp4",
         fileName: "video.mp4",
@@ -680,7 +751,7 @@ describe("sendMessageTelegram", () => {
       sendAnimation: typeof sendAnimation;
     };
 
-    loadWebMedia.mockResolvedValueOnce({
+    mockLoadedMedia({
       buffer: Buffer.from("GIF89a"),
       fileName: "fun.gif",
     });
@@ -779,7 +850,7 @@ describe("sendMessageTelegram", () => {
         sendVoice: typeof sendVoice;
       };
 
-      loadWebMedia.mockResolvedValueOnce({
+      mockLoadedMedia({
         buffer: Buffer.from("audio"),
         contentType: testCase.contentType,
         fileName: testCase.fileName,
@@ -1006,7 +1077,7 @@ describe("sendMessageTelegram", () => {
       sendPhoto: typeof sendPhoto;
     };
 
-    loadWebMedia.mockResolvedValueOnce({
+    mockLoadedMedia({
       buffer: Buffer.from("fake-image"),
       contentType: "image/jpeg",
       fileName: "photo.jpg",
@@ -1072,29 +1143,46 @@ describe("reactMessageTelegram", () => {
 
     expect(setMessageReaction).toHaveBeenCalledWith("123", 456, testCase.expected);
   });
+
+  it("resolves legacy telegram targets before reacting", async () => {
+    const setMessageReaction = vi.fn().mockResolvedValue(undefined);
+    const getChat = vi.fn().mockResolvedValue({ id: -100123 });
+    const api = { setMessageReaction, getChat } as unknown as {
+      setMessageReaction: typeof setMessageReaction;
+      getChat: typeof getChat;
+    };
+
+    await reactMessageTelegram("@mychannel", 456, "✅", {
+      token: "tok",
+      api,
+    });
+
+    expect(getChat).toHaveBeenCalledWith("@mychannel");
+    expect(setMessageReaction).toHaveBeenCalledWith("-100123", 456, [
+      { type: "emoji", emoji: "✅" },
+    ]);
+    expect(maybePersistResolvedTelegramTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rawTarget: "@mychannel",
+        resolvedChatId: "-100123",
+      }),
+    );
+  });
 });
 
 describe("sendStickerTelegram", () => {
-  beforeEach(() => {
-    loadConfig.mockReturnValue({});
-    botApi.sendSticker.mockReset();
-    botCtorSpy.mockReset();
-  });
-
   const positiveSendCases = [
     {
       name: "sends a sticker by file_id",
       fileId: "CAACAgIAAxkBAAI...sticker_file_id",
       expectedFileId: "CAACAgIAAxkBAAI...sticker_file_id",
       expectedMessageId: 100,
-      assertResult: true,
     },
     {
       name: "trims whitespace from fileId",
       fileId: "  fileId123  ",
       expectedFileId: "fileId123",
       expectedMessageId: 106,
-      assertResult: false,
     },
   ] as const;
 
@@ -1115,10 +1203,8 @@ describe("sendStickerTelegram", () => {
       });
 
       expect(sendSticker).toHaveBeenCalledWith(chatId, testCase.expectedFileId, undefined);
-      if (testCase.assertResult) {
-        expect(res.messageId).toBe(String(testCase.expectedMessageId));
-        expect(res.chatId).toBe(chatId);
-      }
+      expect(res.messageId).toBe(String(testCase.expectedMessageId));
+      expect(res.chatId).toBe(chatId);
     });
   }
 
@@ -1253,93 +1339,70 @@ describe("shared send behaviors", () => {
 });
 
 describe("editMessageTelegram", () => {
-  beforeEach(() => {
-    botApi.editMessageText.mockReset();
-    botCtorSpy.mockReset();
-  });
+  it.each([
+    {
+      name: "buttons undefined keeps existing keyboard",
+      text: "hi",
+      buttons: undefined as Parameters<typeof buildInlineKeyboard>[0],
+      expectedCalls: 1,
+      firstExpectNoReplyMarkup: true,
+      parseFallback: false,
+    },
+    {
+      name: "buttons empty clears keyboard",
+      text: "hi",
+      buttons: [] as Parameters<typeof buildInlineKeyboard>[0],
+      expectedCalls: 1,
+      firstExpectReplyMarkup: { inline_keyboard: [] } as Record<string, unknown>,
+      parseFallback: false,
+    },
+    {
+      name: "parse error fallback preserves cleared keyboard",
+      text: "<bad> html",
+      buttons: [] as Parameters<typeof buildInlineKeyboard>[0],
+      expectedCalls: 2,
+      firstExpectReplyMarkup: { inline_keyboard: [] } as Record<string, unknown>,
+      secondExpectReplyMarkup: { inline_keyboard: [] } as Record<string, unknown>,
+      parseFallback: true,
+    },
+  ])("$name", async (testCase) => {
+    if (testCase.parseFallback) {
+      botApi.editMessageText
+        .mockRejectedValueOnce(new Error("400: Bad Request: can't parse entities"))
+        .mockResolvedValueOnce({ message_id: 1, chat: { id: "123" } });
+    } else {
+      botApi.editMessageText.mockResolvedValue({ message_id: 1, chat: { id: "123" } });
+    }
 
-  it("handles button payload + parse fallback behavior", async () => {
-    const cases: Array<{
-      name: string;
-      setup: () => {
-        text: string;
-        buttons: Parameters<typeof buildInlineKeyboard>[0];
-      };
-      expectedCalls: number;
-      firstExpectNoReplyMarkup?: boolean;
-      firstExpectReplyMarkup?: Record<string, unknown>;
-      secondExpectReplyMarkup?: Record<string, unknown>;
-    }> = [
-      {
-        name: "buttons undefined keeps existing keyboard",
-        setup: () => {
-          botApi.editMessageText.mockResolvedValue({ message_id: 1, chat: { id: "123" } });
-          return { text: "hi", buttons: undefined };
-        },
-        expectedCalls: 1,
-        firstExpectNoReplyMarkup: true,
-      },
-      {
-        name: "buttons empty clears keyboard",
-        setup: () => {
-          botApi.editMessageText.mockResolvedValue({ message_id: 1, chat: { id: "123" } });
-          return { text: "hi", buttons: [] };
-        },
-        expectedCalls: 1,
-        firstExpectReplyMarkup: { inline_keyboard: [] },
-      },
-      {
-        name: "parse error fallback preserves cleared keyboard",
-        setup: () => {
-          botApi.editMessageText
-            .mockRejectedValueOnce(new Error("400: Bad Request: can't parse entities"))
-            .mockResolvedValueOnce({ message_id: 1, chat: { id: "123" } });
-          return { text: "<bad> html", buttons: [] };
-        },
-        expectedCalls: 2,
-        firstExpectReplyMarkup: { inline_keyboard: [] },
-        secondExpectReplyMarkup: { inline_keyboard: [] },
-      },
-    ];
+    await editMessageTelegram("123", 1, testCase.text, {
+      token: "tok",
+      cfg: {},
+      buttons: testCase.buttons ? testCase.buttons.map((row) => [...row]) : testCase.buttons,
+    });
 
-    for (const testCase of cases) {
-      botApi.editMessageText.mockReset();
-      botCtorSpy.mockReset();
-      const input = testCase.setup();
+    expect(botCtorSpy, testCase.name).toHaveBeenCalledTimes(1);
+    expect(botCtorSpy.mock.calls[0]?.[0], testCase.name).toBe("tok");
+    expect(botApi.editMessageText, testCase.name).toHaveBeenCalledTimes(testCase.expectedCalls);
 
-      await editMessageTelegram("123", 1, input.text, {
-        token: "tok",
-        cfg: {},
-        buttons: input.buttons ? input.buttons.map((row) => [...row]) : input.buttons,
-      });
+    const firstParams = (botApi.editMessageText.mock.calls[0] ?? [])[3] as Record<string, unknown>;
+    expect(firstParams, testCase.name).toEqual(expect.objectContaining({ parse_mode: "HTML" }));
+    if ("firstExpectNoReplyMarkup" in testCase && testCase.firstExpectNoReplyMarkup) {
+      expect(firstParams, testCase.name).not.toHaveProperty("reply_markup");
+    }
+    if ("firstExpectReplyMarkup" in testCase && testCase.firstExpectReplyMarkup) {
+      expect(firstParams, testCase.name).toEqual(
+        expect.objectContaining({ reply_markup: testCase.firstExpectReplyMarkup }),
+      );
+    }
 
-      expect(botCtorSpy, testCase.name).toHaveBeenCalledTimes(1);
-      expect(botCtorSpy.mock.calls[0]?.[0], testCase.name).toBe("tok");
-      expect(botApi.editMessageText, testCase.name).toHaveBeenCalledTimes(testCase.expectedCalls);
-
-      const firstParams = (botApi.editMessageText.mock.calls[0] ?? [])[3] as Record<
+    if ("secondExpectReplyMarkup" in testCase && testCase.secondExpectReplyMarkup) {
+      const secondParams = (botApi.editMessageText.mock.calls[1] ?? [])[3] as Record<
         string,
         unknown
       >;
-      expect(firstParams, testCase.name).toEqual(expect.objectContaining({ parse_mode: "HTML" }));
-      if ("firstExpectNoReplyMarkup" in testCase && testCase.firstExpectNoReplyMarkup) {
-        expect(firstParams, testCase.name).not.toHaveProperty("reply_markup");
-      }
-      if ("firstExpectReplyMarkup" in testCase && testCase.firstExpectReplyMarkup) {
-        expect(firstParams, testCase.name).toEqual(
-          expect.objectContaining({ reply_markup: testCase.firstExpectReplyMarkup }),
-        );
-      }
-
-      if ("secondExpectReplyMarkup" in testCase && testCase.secondExpectReplyMarkup) {
-        const secondParams = (botApi.editMessageText.mock.calls[1] ?? [])[3] as Record<
-          string,
-          unknown
-        >;
-        expect(secondParams, testCase.name).toEqual(
-          expect.objectContaining({ reply_markup: testCase.secondExpectReplyMarkup }),
-        );
-      }
+      expect(secondParams, testCase.name).toEqual(
+        expect.objectContaining({ reply_markup: testCase.secondExpectReplyMarkup }),
+      );
     }
   });
 
