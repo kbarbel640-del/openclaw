@@ -99,12 +99,12 @@ export async function getReplyFromConfig(
     }
   }
 
-  const workspaceDirRaw = resolveAgentWorkspaceDir(cfg, agentId) ?? DEFAULT_AGENT_WORKSPACE_DIR;
-  const workspace = await ensureAgentWorkspace({
+  let workspaceDirRaw = resolveAgentWorkspaceDir(cfg, agentId) ?? DEFAULT_AGENT_WORKSPACE_DIR;
+  let workspace = await ensureAgentWorkspace({
     dir: workspaceDirRaw,
     ensureBootstrapFiles: !agentCfg?.skipBootstrap && !isFastTestEnv,
   });
-  const workspaceDir = workspace.dir;
+  let workspaceDir = workspace.dir;
   const agentDir = resolveAgentDir(cfg, agentId);
   const timeoutMs = resolveAgentTimeoutMs({ cfg, overrideSeconds: opts?.timeoutOverrideSeconds });
   const configuredTypingSeconds =
@@ -164,6 +164,21 @@ export async function getReplyFromConfig(
     triggerBodyNormalized,
     bodyStripped,
   } = sessionState;
+
+  // If the session entry carries a workspace override (set by subagent-spawn via
+  // sessions.patch), re-resolve workspaceDir so the sub-agent operates in the
+  // correct directory instead of the parent's default workspace.
+  if (sessionEntry.workspace) {
+    const sessionWs = sessionEntry.workspace.trim();
+    if (sessionWs && sessionWs !== workspaceDirRaw) {
+      workspaceDirRaw = sessionWs;
+      workspace = await ensureAgentWorkspace({
+        dir: workspaceDirRaw,
+        ensureBootstrapFiles: !agentCfg?.skipBootstrap && !isFastTestEnv,
+      });
+      workspaceDir = workspace.dir;
+    }
+  }
 
   await applyResetModelOverride({
     cfg,
