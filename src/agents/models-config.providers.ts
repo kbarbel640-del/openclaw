@@ -1015,6 +1015,24 @@ export async function resolveImplicitCopilotProvider(params: {
   } satisfies ProviderConfig;
 }
 
+export async function resolveImplicitOpenAICodexProvider(params: {
+  agentDir: string;
+}): Promise<ProviderConfig | null> {
+  const authStore = ensureAuthProfileStore(params.agentDir, {
+    allowKeychainPrompt: false,
+  });
+  const hasProfile = listProfilesForProvider(authStore, "openai-codex").length > 0;
+
+  if (!hasProfile) {
+    return null;
+  }
+
+  return {
+    baseUrl: "https://api.openai.com/v1",
+    models: [],
+  } satisfies ProviderConfig;
+}
+
 export async function resolveImplicitBedrockProvider(params: {
   agentDir: string;
   config?: OpenClawConfig;

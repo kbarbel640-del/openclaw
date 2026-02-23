@@ -8,6 +8,7 @@ import {
   type ProviderConfig,
   resolveImplicitBedrockProvider,
   resolveImplicitCopilotProvider,
+  resolveImplicitOpenAICodexProvider,
   resolveImplicitProviders,
 } from "./models-config.providers.js";
 
@@ -120,6 +121,10 @@ export async function ensureOpenClawModelsJson(
   const implicitCopilot = await resolveImplicitCopilotProvider({ agentDir });
   if (implicitCopilot && !providers["github-copilot"]) {
     providers["github-copilot"] = implicitCopilot;
+  }
+  const implicitOpenAICodex = await resolveImplicitOpenAICodexProvider({ agentDir });
+  if (implicitOpenAICodex && !providers["openai-codex"]) {
+    providers["openai-codex"] = implicitOpenAICodex;
   }
 
   if (Object.keys(providers).length === 0) {
