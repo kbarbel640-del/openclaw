@@ -205,6 +205,7 @@ export async function runEmbeddedPiAgent(
         : "plain"
       : "markdown");
   const isProbeSession = params.sessionId?.startsWith("probe-") ?? false;
+  const isProbeRun = params.isProbeRun ?? isProbeSession;
 
   return enqueueSession(() =>
     enqueueGlobal(async () => {
@@ -506,7 +507,7 @@ export async function runEmbeddedPiAgent(
         reason?: Parameters<typeof markAuthProfileFailure>[0]["reason"] | null;
       }) => {
         const { profileId, reason } = failure;
-        if (!profileId || !reason || reason === "timeout") {
+        if (isProbeRun || !profileId || !reason || reason === "timeout") {
           return;
         }
         await markAuthProfileFailure({
