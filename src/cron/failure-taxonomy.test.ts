@@ -6,6 +6,7 @@ import {
   inferCronFailureClassificationFromError,
   isCronFailureTaxonomyEnabled,
 } from "./failure-taxonomy.js";
+import type { CronRunOutcome } from "./types.js";
 
 describe("cron failure taxonomy", () => {
   it("enables taxonomy when diagnostics flag is configured", () => {
@@ -50,7 +51,7 @@ describe("cron failure taxonomy", () => {
       rootCause: "main-job-payload-invalid",
     });
 
-    const disabled = attachCronFailureClassification({
+    const disabled = attachCronFailureClassification<CronRunOutcome>({
       enabled: false,
       outcome: { status: "error" as const, error: "main job requires payload.kind=systemEvent" },
       classification,
@@ -60,7 +61,7 @@ describe("cron failure taxonomy", () => {
       error: "main job requires payload.kind=systemEvent",
     });
 
-    const enabled = attachCronFailureClassification({
+    const enabled = attachCronFailureClassification<CronRunOutcome>({
       enabled: true,
       outcome: { status: "error" as const, error: "main job requires payload.kind=systemEvent" },
       classification,

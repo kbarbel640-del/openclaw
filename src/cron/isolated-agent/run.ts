@@ -275,15 +275,16 @@ export async function runCronIsolatedAgentTurn(params: {
       defaultModel: resolvedDefault.model,
     });
     if ("error" in resolvedOverride) {
-      return withClassifiedRunSession(
-        { status: "error", error: resolvedOverride.error },
-        buildCronFailureClassification({
+      return attachCronFailureClassification({
+        enabled: failureTaxonomyEnabled,
+        outcome: { status: "error", error: resolvedOverride.error },
+        classification: buildCronFailureClassification({
           kind: "runtime-validation",
           stage: "model_selection",
           rootCause: "runtime-model-validation-failed",
           metadata: { modelOverride },
         }),
-      );
+      });
     }
     provider = resolvedOverride.ref.provider;
     model = resolvedOverride.ref.model;
