@@ -348,6 +348,11 @@ export async function authorizeGatewayConnect(params: {
     }
   }
 
+  if (auth.mode === "none") {
+    limiter?.reset(ip, rateLimitScope);
+    return { ok: true, method: "none" };
+  }
+
   if (auth.mode === "token") {
     if (!auth.token) {
       return { ok: false, reason: "token_missing_config" };

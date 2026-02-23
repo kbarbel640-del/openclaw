@@ -209,15 +209,15 @@ export function wrapExternalContent(content: string, options: WrapExternalConten
 
   const metadata = metadataLines.join("\n");
   const warningBlock = includeWarning ? `${EXTERNAL_CONTENT_WARNING}\n\n` : "";
-
-  return [
-    warningBlock,
+  const contentBlock = [
     EXTERNAL_CONTENT_START,
     metadata,
     "---",
     sanitized,
     EXTERNAL_CONTENT_END,
   ].join("\n");
+
+  return warningBlock ? `${warningBlock}${contentBlock}` : contentBlock;
 }
 
 /**

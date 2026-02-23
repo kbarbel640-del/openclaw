@@ -23,6 +23,26 @@ function createLimiterSpy(): AuthRateLimiter & {
 }
 
 describe("gateway auth", () => {
+  it("allows all connections when mode is none", async () => {
+    const res = await authorizeGatewayConnect({
+      auth: { mode: "none", allowTailscale: false },
+      connectAuth: null,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.method).toBe("none");
+  });
+
+  it("does not record rate-limit failure in none mode", async () => {
+    const limiter = createLimiterSpy();
+    const res = await authorizeGatewayConnect({
+      auth: { mode: "none", allowTailscale: false },
+      connectAuth: null,
+      rateLimiter: limiter,
+    });
+    expect(res.ok).toBe(true);
+    expect(limiter.recordFailure).not.toHaveBeenCalled();
+  });
+
   it("resolves token/password from OPENCLAW gateway env vars", () => {
     expect(
       resolveGatewayAuth({
