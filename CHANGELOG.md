@@ -12,6 +12,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Agents/Announce: strip reply tags (e.g. `[[reply_to:…]]`) from subagent completion delivery messages so internal threading metadata is not visible to users on iMessage and other channels. (#24600)
 - Docker/CI: tag stable GHCR releases with `latest` (and `latest-{arch}`) so `docker pull ghcr.io/openclaw/openclaw:latest` always points to the newest stable version; skip pre-release tags. (#24607)
 - Auto-reply/Inbound metadata: hide direct-chat `message_id`/`message_id_full` and sender metadata only from normalized chat type (not sender-id sentinels), preserving group metadata visibility and preventing sender-id spoofed direct-mode classification. (#24373) thanks @jd316.
 - Security/Exec: detect obfuscated commands before exec allowlist decisions and require explicit approval for obfuscation patterns. (#8592) Thanks @CornBrother0x and @vincentkoc.

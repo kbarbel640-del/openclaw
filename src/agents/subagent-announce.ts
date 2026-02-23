@@ -1,4 +1,5 @@
 import { resolveQueueSettings } from "../auto-reply/reply/queue.js";
+import { parseReplyDirectives } from "../auto-reply/reply/reply-directives.js";
 import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import { DEFAULT_SUBAGENT_MAX_SPAWN_DEPTH } from "../config/agent-limits.js";
 import { loadConfig } from "../config/config.js";
@@ -71,7 +72,7 @@ function buildCompletionDeliveryMessage(params: {
   spawnMode?: SpawnSubagentMode;
   outcome?: SubagentRunOutcome;
 }): string {
-  const findingsText = params.findings.trim();
+  const findingsText = parseReplyDirectives(params.findings).text.trim();
   const hasFindings = findingsText.length > 0 && findingsText !== "(no output)";
   const header = (() => {
     if (params.outcome?.status === "error") {
