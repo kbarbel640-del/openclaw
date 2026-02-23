@@ -10,6 +10,14 @@ namespace OpenClaw.Node.Services
 {
     public class CameraCaptureService
     {
+        public sealed class CameraDeviceInfo
+        {
+            public string Id { get; set; } = string.Empty;
+            public string Name { get; set; } = string.Empty;
+            public string Position { get; set; } = "front";
+            public string DeviceType { get; set; } = "unknown";
+        }
+
         // MF_VERSION from mfapi.h => (MF_SDK_VERSION << 16) | MF_API_VERSION = 0x00020070
         private const int MfVersion = 0x00020070;
 
@@ -18,6 +26,23 @@ HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIy
 MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB
 /8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAA
 AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
+
+        public async Task<CameraDeviceInfo[]> ListDevicesAsync()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return Array.Empty<CameraDeviceInfo>();
+            }
+
+            try
+            {
+                return await Task.Run(ListDevicesWithMediaFoundation);
+            }
+            catch
+            {
+                return Array.Empty<CameraDeviceInfo>();
+            }
+        }
 
         public async Task<(string Base64, int Width, int Height)> CaptureJpegAsBase64Async(
             string facing,
@@ -43,6 +68,64 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
             {
                 // Keep command path resilient even if camera stack is unavailable.
                 return (PlaceholderJpegBase64, 1, 1);
+            }
+        }
+
+        private static CameraDeviceInfo[] ListDevicesWithMediaFoundation()
+        {
+            IMFAttributes? attributes = null;
+            IMFActivate[]? devices = null;
+            var started = false;
+
+            try
+            {
+                MFError.ThrowExceptionForHR(MFExtern.MFStartup(MfVersion, MFStartup.Full));
+                started = true;
+
+                MFError.ThrowExceptionForHR(MFExtern.MFCreateAttributes(out attributes, 1));
+                MFError.ThrowExceptionForHR(attributes.SetGUID(
+                    MFAttributesClsid.MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                    CLSID.MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID));
+
+                MFError.ThrowExceptionForHR(MFExtern.MFEnumDeviceSources(attributes, out devices, out var count));
+                if (count <= 0 || devices == null || devices.Length == 0)
+                {
+                    return Array.Empty<CameraDeviceInfo>();
+                }
+
+                return devices.Select(d =>
+                {
+                    var name = TryGetFriendlyName(d) ?? "Unknown Camera";
+                    var id = TryGetSymbolicLink(d) ?? name;
+                    var lower = name.ToLowerInvariant();
+                    var position = lower.Contains("back") || lower.Contains("rear") ? "back" : "front";
+                    var deviceType = lower.Contains("usb") || lower.Contains("external") ? "external" : "integrated";
+
+                    return new CameraDeviceInfo
+                    {
+                        Id = id,
+                        Name = name,
+                        Position = position,
+                        DeviceType = deviceType,
+                    };
+                }).ToArray();
+            }
+            finally
+            {
+                if (devices != null)
+                {
+                    foreach (var d in devices)
+                    {
+                        ReleaseCom(d);
+                    }
+                }
+
+                ReleaseCom(attributes);
+
+                if (started)
+                {
+                    try { MFExtern.MFShutdown(); } catch { }
+                }
             }
         }
 

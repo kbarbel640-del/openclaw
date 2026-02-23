@@ -18,6 +18,7 @@ namespace OpenClaw.Node.Services
                     "system.which" => await HandleSystemWhichAsync(request),
                     "system.run" => await HandleSystemRunAsync(request),
                     "screen.record" => await HandleScreenRecordAsync(request),
+                    "camera.list" => await HandleCameraListAsync(request),
                     "camera.snap" => await HandleCameraSnapAsync(request),
                     _ => new BridgeInvokeResponse
                     {
@@ -274,6 +275,40 @@ namespace OpenClaw.Node.Services
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = $"Screen recording failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleCameraListAsync(BridgeInvokeRequest request)
+        {
+            try
+            {
+                var svc = new CameraCaptureService();
+                var devices = await svc.ListDevicesAsync();
+
+                var payload = new
+                {
+                    devices
+                };
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(payload)
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Camera list failed: {ex.Message}"
                     }
                 };
             }

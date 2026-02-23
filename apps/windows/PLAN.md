@@ -13,12 +13,12 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Real Gateway handshake working against local gateway (`hello-ok` confirmed)
 - ✅ Core frame protocol aligned to gateway `req/res/event` flow
 - ✅ Method routing scaffold implemented
-- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.record`, `camera.snap`)
+- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.record`, `camera.list`, `camera.snap`)
 - ✅ Pairing pending state can be populated from gateway events (`device.pair.requested`, `node.pair.requested`)
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (36 total)
+- ✅ Tests passing (38 total)
 
 ---
 
@@ -55,8 +55,11 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] Initial MP4 recording implementation uses `ScreenRecorderLib` (Windows Media Foundation-backed)
   - [ ] Evaluate/iterate native implementation details (WGC vs Desktop Duplication behavior tuning)
 - **Camera (`Media/`)**
+  - [x] `camera.list` bridge command wired in `NodeCommandExecutor` with device metadata payload
   - [x] `camera.snap` bridge command wired in `NodeCommandExecutor`
-  - [x] Returns OpenClaw-compatible payload shape: `{ format: "jpg", base64, width, height }`
+  - [x] Returns OpenClaw-compatible payload shapes:
+    - `camera.list` -> `{ devices: [{ id, name, position, deviceType }] }`
+    - `camera.snap` -> `{ format: "jpg", base64, width, height }`
   - [x] Replaced ffmpeg bridge with native Media Foundation capture path (device enumeration + source reader + MJPG sample extraction)
   - [x] Added graceful fallback path (placeholder frame) when native camera stack/device capture unavailable
   - [ ] Validate on real Windows host with physical cameras and tune device-selection heuristics
@@ -98,3 +101,4 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Added opt-in real gateway integration coverage for `screen.record` response-shape path when a connected node is available
 - ✅ Added `camera.snap` parameter validation coverage (facing/format/quality invalid-request paths)
 - ✅ Added `screen.record` parameter validation coverage (duration/fps/includeAudio invalid-request paths)
+- ✅ Added `camera.list` command coverage (unit + opt-in real gateway response-shape path when a node is available)

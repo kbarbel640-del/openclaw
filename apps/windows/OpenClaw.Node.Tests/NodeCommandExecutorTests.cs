@@ -60,6 +60,27 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task CameraList_ShouldReturnDevicesArray()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "camera-list-1",
+                Command = "camera.list"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.True(res.Ok);
+            Assert.NotNull(res.PayloadJSON);
+
+            using var doc = JsonDocument.Parse(res.PayloadJSON!);
+            var root = doc.RootElement;
+            Assert.True(root.TryGetProperty("devices", out var devices));
+            Assert.Equal(JsonValueKind.Array, devices.ValueKind);
+        }
+
+        [Fact]
         public async Task CameraSnap_ShouldReturnExpectedPayloadShape()
         {
             var executor = new NodeCommandExecutor();

@@ -39,7 +39,7 @@ namespace OpenClaw.Node.Tests
                     { "instanceId", Guid.NewGuid().ToString("N") },
                     { "deviceFamily", "Windows" }
                 },
-                Commands = new System.Collections.Generic.List<string> { "system.notify", "system.which", "system.run", "screen.record", "camera.snap" },
+                Commands = new System.Collections.Generic.List<string> { "system.notify", "system.which", "system.run", "screen.record", "camera.list", "camera.snap" },
                 Scopes = new System.Collections.Generic.List<string>(),
             };
 
@@ -151,6 +151,50 @@ namespace OpenClaw.Node.Tests
                 Assert.False(string.IsNullOrWhiteSpace(cameraPayload.GetProperty("base64").GetString()));
                 Assert.True(cameraPayload.GetProperty("width").GetInt32() > 0);
                 Assert.True(cameraPayload.GetProperty("height").GetInt32() > 0);
+            }
+            else
+            {
+                Assert.True(invoke.TryGetProperty("error", out var err), JsonSerializer.Serialize(invoke));
+                Assert.True(err.TryGetProperty("code", out _), JsonSerializer.Serialize(invoke));
+            }
+        }
+
+        [Fact]
+        public async Task RealGateway_CameraListCommand_ReturnsResponseShape_WhenNodeAvailable()
+        {
+            if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var cfg = LoadGatewayConfig();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var client = new RealGatewayRpcClient();
+
+            await client.ConnectAsOperatorAsync(cfg.Url, cfg.Token, cts.Token);
+            var nodeId = await ResolveFirstConnectedNodeIdAsync(client, cts.Token);
+            if (string.IsNullOrWhiteSpace(nodeId)) return;
+
+            var invoke = await client.RequestAsync(
+                "node.invoke",
+                new
+                {
+                    nodeId,
+                    command = "camera.list",
+                    @params = new { },
+                    timeoutMs = 15000,
+                    idempotencyKey = "itest-camera-list"
+                },
+                cts.Token);
+
+            Assert.Equal("res", invoke.GetProperty("type").GetString());
+            Assert.True(invoke.TryGetProperty("ok", out var invokeOk));
+
+            if (invokeOk.GetBoolean())
+            {
+                Assert.True(invoke.TryGetProperty("payload", out var p), JsonSerializer.Serialize(invoke));
+                Assert.True(p.TryGetProperty("devices", out var devices), JsonSerializer.Serialize(invoke));
+                Assert.Equal(JsonValueKind.Array, devices.ValueKind);
             }
             else
             {
