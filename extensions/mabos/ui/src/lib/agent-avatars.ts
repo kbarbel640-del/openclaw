@@ -1,22 +1,22 @@
 /**
  * Agent avatar image paths.
- * Images are stored in /public/avatars/<agentId>.png
+ * Images are stored in /public/avatars/<agentId>.(png|jpg)
  * Generated via nano-banana-pro with geometric low-poly style.
  */
 
 export const agentAvatars: Record<string, string> = {
   ceo: "/avatars/ceo.png",
-  cfo: "/avatars/cfo.png",
-  cmo: "/avatars/cmo.png",
-  coo: "/avatars/coo.png",
-  cto: "/avatars/cto.png",
-  hr: "/avatars/hr.png",
-  knowledge: "/avatars/knowledge.png",
-  legal: "/avatars/legal.png",
-  strategy: "/avatars/strategy.png",
-  "inventory-mgr": "/avatars/inventory-mgr.png",
-  "fulfillment-mgr": "/avatars/fulfillment-mgr.png",
-  "product-mgr": "/avatars/product-mgr.png",
+  cfo: "/avatars/cfo.jpg",
+  cmo: "/avatars/cmo.jpg",
+  coo: "/avatars/coo.jpg",
+  cto: "/avatars/cto.jpg",
+  hr: "/avatars/hr.jpg",
+  knowledge: "/avatars/knowledge.jpg",
+  legal: "/avatars/legal.jpg",
+  strategy: "/avatars/strategy.jpg",
+  "inventory-mgr": "/avatars/inventory-mgr.jpg",
+  "fulfillment-mgr": "/avatars/fulfillment-mgr.jpg",
+  "product-mgr": "/avatars/product-mgr.jpg",
   "marketing-dir": "/avatars/marketing-dir.png",
   "sales-dir": "/avatars/sales-dir.png",
   "compliance-dir": "/avatars/compliance-dir.png",
