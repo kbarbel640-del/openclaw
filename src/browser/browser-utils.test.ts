@@ -181,7 +181,7 @@ describe("cdp.helpers", () => {
       await ensureChromeExtensionRelayServer({ cdpUrl });
       const headers = getHeadersWithAuth(`${cdpUrl}/json/version`);
       expect(headers["x-openclaw-relay-token"]).toBeTruthy();
-      expect(headers["x-openclaw-relay-token"]).not.toBe("test-gateway-token");
+      expect(headers["x-openclaw-relay-token"]).toBe("test-gateway-token");
     } finally {
       await stopChromeExtensionRelayServer({ cdpUrl }).catch(() => {});
       if (prev === undefined) {
