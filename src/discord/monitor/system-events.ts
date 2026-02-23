@@ -19,6 +19,8 @@ export function resolveDiscordSystemEvent(message: Message, location: string): s
       return buildDiscordSystemEvent(message, location, "boosted the server (Tier 2 reached)");
     case MessageType.GuildBoostTier3:
       return buildDiscordSystemEvent(message, location, "boosted the server (Tier 3 reached)");
+    case MessageType.ChannelNameChange:
+      return buildDiscordSystemEvent(message, location, "changed channel/thread name");
     case MessageType.ThreadCreated:
       return buildDiscordSystemEvent(message, location, "created a thread");
     case MessageType.AutoModerationAction:
