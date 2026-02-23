@@ -617,6 +617,25 @@ export async function runCronIsolatedAgentTurn(params: {
     (deliveryPayload?.mediaUrls?.length ?? 0) > 0 ||
     Object.keys(deliveryPayload?.channelData ?? {}).length > 0;
   const deliveryBestEffort = resolveCronDeliveryBestEffort(params.job);
+  const hasErrorPayload = payloads.some((payload) => payload?.isError === true);
+  const lastErrorPayloadText = [...payloads]
+    .toReversed()
+    .find((payload) => payload?.isError === true && Boolean(payload?.text?.trim()))
+    ?.text?.trim();
+  const embeddedRunError = hasErrorPayload
+    ? (lastErrorPayloadText ?? "cron isolated run returned an error payload")
+    : undefined;
+  const resolveRunOutcome = (params?: { delivered?: boolean }) =>
+    withRunSession({
+      status: hasErrorPayload ? "error" : "ok",
+      ...(hasErrorPayload
+        ? { error: embeddedRunError ?? "cron isolated run returned an error payload" }
+        : {}),
+      summary,
+      outputText,
+      delivered: params?.delivered,
+      ...telemetry,
+    });
 
   // Skip delivery for heartbeat-only responses (HEARTBEAT_OK with no real content).
   const ackMaxChars = resolveHeartbeatAckMaxChars(agentCfg);
@@ -750,7 +769,7 @@ export async function runCronIsolatedAgentTurn(params: {
     if (activeSubagentRuns > 0) {
       // Parent orchestration is still in progress; avoid announcing a partial
       // update to the main requester.
-      return withRunSession({ status: "ok", summary, outputText, ...telemetry });
+      return resolveRunOutcome();
     }
     if (
       (hadActiveDescendants || expectedSubagentFollowup) &&
@@ -760,10 +779,10 @@ export async function runCronIsolatedAgentTurn(params: {
     ) {
       // Descendants existed but no post-orchestration synthesis arrived, so
       // suppress stale parent text like "on it, pulling everything together".
-      return withRunSession({ status: "ok", summary, outputText, ...telemetry });
+      return resolveRunOutcome();
     }
     if (synthesizedText.toUpperCase() === SILENT_REPLY_TOKEN.toUpperCase()) {
-      return withRunSession({ status: "ok", summary, outputText, delivered: true, ...telemetry });
+      return resolveRunOutcome({ delivered: true });
     }
     try {
       if (isAborted()) {
@@ -790,7 +809,12 @@ export async function runCronIsolatedAgentTurn(params: {
         waitForCompletion: false,
         startedAt: runStartedAt,
         endedAt: runEndedAt,
-        outcome: { status: "ok" },
+        outcome: hasErrorPayload
+          ? {
+              status: "error",
+              error: embeddedRunError ?? "cron isolated run returned an error payload",
+            }
+          : { status: "ok" },
         announceType: "cron job",
         signal: abortSignal,
       });
@@ -829,7 +853,7 @@ export async function runCronIsolatedAgentTurn(params: {
         return failDeliveryTarget(resolvedDelivery.error.message);
       }
       logWarn(`[cron:${params.job.id}] ${resolvedDelivery.error.message}`);
-      return withRunSession({ status: "ok", summary, outputText, ...telemetry });
+      return resolveRunOutcome();
     }
 
     // Route text-only cron announce output back through the main session so it
@@ -855,5 +879,5 @@ export async function runCronIsolatedAgentTurn(params: {
     }
   }
 
-  return withRunSession({ status: "ok", summary, outputText, delivered, ...telemetry });
+  return resolveRunOutcome({ delivered });
 }
