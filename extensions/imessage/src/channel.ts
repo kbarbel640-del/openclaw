@@ -1,6 +1,7 @@
 import {
   applyAccountNameToChannelSection,
   buildChannelConfigSchema,
+  createApplyAccountConfig,
   DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
   formatPairingApproveHint,
@@ -9,7 +10,6 @@ import {
   IMessageConfigSchema,
   listIMessageAccountIds,
   looksLikeIMessageTargetId,
-  migrateBaseNameToDefaultAccount,
   normalizeAccountId,
   normalizeIMessageMessagingTarget,
   PAIRING_APPROVED_MESSAGE,
@@ -133,58 +133,15 @@ export const imessagePlugin: ChannelPlugin<ResolvedIMessageAccount> = {
         accountId,
         name,
       }),
-    applyAccountConfig: ({ cfg, accountId, input }) => {
-      const namedConfig = applyAccountNameToChannelSection({
-        cfg,
-        channelKey: "imessage",
-        accountId,
-        name: input.name,
-      });
-      const next =
-        accountId !== DEFAULT_ACCOUNT_ID
-          ? migrateBaseNameToDefaultAccount({
-              cfg: namedConfig,
-              channelKey: "imessage",
-            })
-          : namedConfig;
-      if (accountId === DEFAULT_ACCOUNT_ID) {
-        return {
-          ...next,
-          channels: {
-            ...next.channels,
-            imessage: {
-              ...next.channels?.imessage,
-              enabled: true,
-              ...(input.cliPath ? { cliPath: input.cliPath } : {}),
-              ...(input.dbPath ? { dbPath: input.dbPath } : {}),
-              ...(input.service ? { service: input.service } : {}),
-              ...(input.region ? { region: input.region } : {}),
-            },
-          },
-        };
-      }
-      return {
-        ...next,
-        channels: {
-          ...next.channels,
-          imessage: {
-            ...next.channels?.imessage,
-            enabled: true,
-            accounts: {
-              ...next.channels?.imessage?.accounts,
-              [accountId]: {
-                ...next.channels?.imessage?.accounts?.[accountId],
-                enabled: true,
-                ...(input.cliPath ? { cliPath: input.cliPath } : {}),
-                ...(input.dbPath ? { dbPath: input.dbPath } : {}),
-                ...(input.service ? { service: input.service } : {}),
-                ...(input.region ? { region: input.region } : {}),
-              },
-            },
-          },
-        },
-      };
-    },
+    applyAccountConfig: createApplyAccountConfig({
+      channelKey: "imessage",
+      mapInputToFields: (input) => ({
+        ...(input.cliPath ? { cliPath: input.cliPath } : {}),
+        ...(input.dbPath ? { dbPath: input.dbPath } : {}),
+        ...(input.service ? { service: input.service } : {}),
+        ...(input.region ? { region: input.region } : {}),
+      }),
+    }),
   },
   outbound: {
     deliveryMode: "direct",

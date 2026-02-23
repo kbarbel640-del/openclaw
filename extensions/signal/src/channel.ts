@@ -3,6 +3,7 @@ import {
   buildBaseChannelStatusSummary,
   buildChannelConfigSchema,
   collectStatusIssuesFromLastError,
+  createApplyAccountConfig,
   createDefaultChannelRuntimeState,
   DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
@@ -10,7 +11,6 @@ import {
   getChatChannelMeta,
   listSignalAccountIds,
   looksLikeSignalTargetId,
-  migrateBaseNameToDefaultAccount,
   normalizeAccountId,
   normalizeE164,
   normalizeSignalMessagingTarget,
@@ -167,60 +167,16 @@ export const signalPlugin: ChannelPlugin<ResolvedSignalAccount> = {
       }
       return null;
     },
-    applyAccountConfig: ({ cfg, accountId, input }) => {
-      const namedConfig = applyAccountNameToChannelSection({
-        cfg,
-        channelKey: "signal",
-        accountId,
-        name: input.name,
-      });
-      const next =
-        accountId !== DEFAULT_ACCOUNT_ID
-          ? migrateBaseNameToDefaultAccount({
-              cfg: namedConfig,
-              channelKey: "signal",
-            })
-          : namedConfig;
-      if (accountId === DEFAULT_ACCOUNT_ID) {
-        return {
-          ...next,
-          channels: {
-            ...next.channels,
-            signal: {
-              ...next.channels?.signal,
-              enabled: true,
-              ...(input.signalNumber ? { account: input.signalNumber } : {}),
-              ...(input.cliPath ? { cliPath: input.cliPath } : {}),
-              ...(input.httpUrl ? { httpUrl: input.httpUrl } : {}),
-              ...(input.httpHost ? { httpHost: input.httpHost } : {}),
-              ...(input.httpPort ? { httpPort: Number(input.httpPort) } : {}),
-            },
-          },
-        };
-      }
-      return {
-        ...next,
-        channels: {
-          ...next.channels,
-          signal: {
-            ...next.channels?.signal,
-            enabled: true,
-            accounts: {
-              ...next.channels?.signal?.accounts,
-              [accountId]: {
-                ...next.channels?.signal?.accounts?.[accountId],
-                enabled: true,
-                ...(input.signalNumber ? { account: input.signalNumber } : {}),
-                ...(input.cliPath ? { cliPath: input.cliPath } : {}),
-                ...(input.httpUrl ? { httpUrl: input.httpUrl } : {}),
-                ...(input.httpHost ? { httpHost: input.httpHost } : {}),
-                ...(input.httpPort ? { httpPort: Number(input.httpPort) } : {}),
-              },
-            },
-          },
-        },
-      };
-    },
+    applyAccountConfig: createApplyAccountConfig({
+      channelKey: "signal",
+      mapInputToFields: (input) => ({
+        ...(input.signalNumber ? { account: input.signalNumber } : {}),
+        ...(input.cliPath ? { cliPath: input.cliPath } : {}),
+        ...(input.httpUrl ? { httpUrl: input.httpUrl } : {}),
+        ...(input.httpHost ? { httpHost: input.httpHost } : {}),
+        ...(input.httpPort ? { httpPort: Number(input.httpPort) } : {}),
+      }),
+    }),
   },
   outbound: {
     deliveryMode: "direct",

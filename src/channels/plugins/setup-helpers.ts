@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../../routing/session-key.js";
+import type { ChannelSetupInput } from "./types.core.js";
 
 type ChannelSectionBase = {
   name?: string;
@@ -118,4 +119,73 @@ export function migrateBaseNameToDefaultAccount(params: {
       },
     },
   } as OpenClawConfig;
+}
+
+/**
+ * Creates a standard `applyAccountConfig` implementation for channel plugins.
+ *
+ * Most channels follow the same scaffolding: apply account name, migrate base
+ * name for sub-accounts, then spread channel-specific fields into the config.
+ * This factory extracts that boilerplate so each channel only provides the
+ * channel key and a function mapping setup input to config fields.
+ */
+export function createApplyAccountConfig(params: {
+  channelKey: string;
+  alwaysUseAccounts?: boolean;
+  mapInputToFields: (input: ChannelSetupInput) => Record<string, unknown>;
+}): (ctx: { cfg: OpenClawConfig; accountId: string; input: ChannelSetupInput }) => OpenClawConfig {
+  const { channelKey, alwaysUseAccounts } = params;
+  return ({ cfg, accountId, input }) => {
+    const namedConfig = applyAccountNameToChannelSection({
+      cfg,
+      channelKey,
+      accountId,
+      name: input.name,
+      alwaysUseAccounts,
+    });
+    const next = alwaysUseAccounts
+      ? migrateBaseNameToDefaultAccount({
+          cfg: namedConfig,
+          channelKey,
+          alwaysUseAccounts: true,
+        })
+      : accountId !== DEFAULT_ACCOUNT_ID
+        ? migrateBaseNameToDefaultAccount({ cfg: namedConfig, channelKey })
+        : namedConfig;
+    const fields = params.mapInputToFields(input);
+    const channels = next.channels as Record<string, Record<string, unknown>> | undefined;
+    const base = channels?.[channelKey];
+    if (accountId === DEFAULT_ACCOUNT_ID && !alwaysUseAccounts) {
+      return {
+        ...next,
+        channels: {
+          ...next.channels,
+          [channelKey]: {
+            ...base,
+            enabled: true,
+            ...fields,
+          },
+        },
+      } as OpenClawConfig;
+    }
+    const accounts = base?.accounts as Record<string, Record<string, unknown>> | undefined;
+    return {
+      ...next,
+      channels: {
+        ...next.channels,
+        [channelKey]: {
+          ...base,
+          enabled: true,
+          accounts: {
+            ...accounts,
+            [accountId]: {
+              ...accounts?.[accountId],
+              enabled: true,
+              ...fields,
+            },
+          },
+        },
+      },
+    } as OpenClawConfig;
+  };
 }

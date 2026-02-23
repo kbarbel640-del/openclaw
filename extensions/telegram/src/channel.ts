@@ -2,6 +2,7 @@ import {
   applyAccountNameToChannelSection,
   buildChannelConfigSchema,
   collectTelegramStatusIssues,
+  createApplyAccountConfig,
   DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
   formatPairingApproveHint,
@@ -10,7 +11,6 @@ import {
   listTelegramDirectoryGroupsFromConfig,
   listTelegramDirectoryPeersFromConfig,
   looksLikeTelegramTargetId,
-  migrateBaseNameToDefaultAccount,
   normalizeAccountId,
   normalizeTelegramMessagingTarget,
   PAIRING_APPROVED_MESSAGE,
@@ -256,62 +256,18 @@ export const telegramPlugin: ChannelPlugin<ResolvedTelegramAccount, TelegramProb
       }
       return null;
     },
-    applyAccountConfig: ({ cfg, accountId, input }) => {
-      const namedConfig = applyAccountNameToChannelSection({
-        cfg,
-        channelKey: "telegram",
-        accountId,
-        name: input.name,
-      });
-      const next =
-        accountId !== DEFAULT_ACCOUNT_ID
-          ? migrateBaseNameToDefaultAccount({
-              cfg: namedConfig,
-              channelKey: "telegram",
-            })
-          : namedConfig;
-      if (accountId === DEFAULT_ACCOUNT_ID) {
-        return {
-          ...next,
-          channels: {
-            ...next.channels,
-            telegram: {
-              ...next.channels?.telegram,
-              enabled: true,
-              ...(input.useEnv
-                ? {}
-                : input.tokenFile
-                  ? { tokenFile: input.tokenFile }
-                  : input.token
-                    ? { botToken: input.token }
-                    : {}),
-            },
-          },
-        };
-      }
-      return {
-        ...next,
-        channels: {
-          ...next.channels,
-          telegram: {
-            ...next.channels?.telegram,
-            enabled: true,
-            accounts: {
-              ...next.channels?.telegram?.accounts,
-              [accountId]: {
-                ...next.channels?.telegram?.accounts?.[accountId],
-                enabled: true,
-                ...(input.tokenFile
-                  ? { tokenFile: input.tokenFile }
-                  : input.token
-                    ? { botToken: input.token }
-                    : {}),
-              },
-            },
-          },
-        },
-      };
-    },
+    applyAccountConfig: createApplyAccountConfig({
+      channelKey: "telegram",
+      mapInputToFields: (input) => ({
+        ...(input.useEnv
+          ? {}
+          : input.tokenFile
+            ? { tokenFile: input.tokenFile }
+            : input.token
+              ? { botToken: input.token }
+              : {}),
+      }),
+    }),
   },
   outbound: {
     deliveryMode: "direct",

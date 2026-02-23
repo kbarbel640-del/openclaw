@@ -1,6 +1,7 @@
 import {
   applyAccountNameToChannelSection,
   buildChannelConfigSchema,
+  createApplyAccountConfig,
   DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
   extractSlackToolSend,
@@ -12,7 +13,6 @@ import {
   listSlackDirectoryGroupsFromConfig,
   listSlackDirectoryPeersFromConfig,
   looksLikeSlackTargetId,
-  migrateBaseNameToDefaultAccount,
   normalizeAccountId,
   normalizeSlackMessagingTarget,
   PAIRING_APPROVED_MESSAGE,
@@ -268,58 +268,17 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount> = {
       }
       return null;
     },
-    applyAccountConfig: ({ cfg, accountId, input }) => {
-      const namedConfig = applyAccountNameToChannelSection({
-        cfg,
-        channelKey: "slack",
-        accountId,
-        name: input.name,
-      });
-      const next =
-        accountId !== DEFAULT_ACCOUNT_ID
-          ? migrateBaseNameToDefaultAccount({
-              cfg: namedConfig,
-              channelKey: "slack",
-            })
-          : namedConfig;
-      if (accountId === DEFAULT_ACCOUNT_ID) {
-        return {
-          ...next,
-          channels: {
-            ...next.channels,
-            slack: {
-              ...next.channels?.slack,
-              enabled: true,
-              ...(input.useEnv
-                ? {}
-                : {
-                    ...(input.botToken ? { botToken: input.botToken } : {}),
-                    ...(input.appToken ? { appToken: input.appToken } : {}),
-                  }),
-            },
-          },
-        };
-      }
-      return {
-        ...next,
-        channels: {
-          ...next.channels,
-          slack: {
-            ...next.channels?.slack,
-            enabled: true,
-            accounts: {
-              ...next.channels?.slack?.accounts,
-              [accountId]: {
-                ...next.channels?.slack?.accounts?.[accountId],
-                enabled: true,
-                ...(input.botToken ? { botToken: input.botToken } : {}),
-                ...(input.appToken ? { appToken: input.appToken } : {}),
-              },
-            },
-          },
-        },
-      };
-    },
+    applyAccountConfig: createApplyAccountConfig({
+      channelKey: "slack",
+      mapInputToFields: (input) => ({
+        ...(input.useEnv
+          ? {}
+          : {
+              ...(input.botToken ? { botToken: input.botToken } : {}),
+              ...(input.appToken ? { appToken: input.appToken } : {}),
+            }),
+      }),
+    }),
   },
   outbound: {
     deliveryMode: "direct",
