@@ -111,21 +111,95 @@ EXAMPLE_SCRIPT = '''#!/usr/bin/env python3
 """
 Example helper script for {skill_name}
 
-This is a placeholder script that can be executed directly.
-Replace with actual implementation or delete if not needed.
+This starter demonstrates a minimal CLI pattern with:
+- --input/--output file handling (stdin/stdout fallback)
+- --format text|json output rendering
+- basic error handling with non-zero exit codes
 
 Example real scripts from other skills:
 - pdf/scripts/fill_fillable_fields.py - Fills PDF form fields
 - pdf/scripts/convert_pdf_to_images.py - Converts PDF pages to images
 """
 
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Example utility for the {skill_name} skill."
+    )
+    parser.add_argument(
+        "--input",
+        help="Input file path. Use '-' or omit to read from stdin.",
+    )
+    parser.add_argument(
+        "--output",
+        help="Output file path. Use '-' or omit to write to stdout.",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format.",
+    )
+    return parser.parse_args()
+
+
+def read_input(input_path):
+    if not input_path or input_path == "-":
+        return sys.stdin.read()
+    return Path(input_path).read_text(encoding="utf-8")
+
+
+def build_result(raw_text):
+    normalized = raw_text.strip()
+    line_count = 0 if not normalized else len(normalized.splitlines())
+    return dict(
+        skill="{skill_name}",
+        lineCount=line_count,
+        charCount=len(raw_text),
+        preview=normalized[:120],
+    )
+
+
+def render_output(result, output_format):
+    if output_format == "json":
+        return json.dumps(result, ensure_ascii=False, indent=2) + "\\n"
+    return (
+        "Skill: %s\\nLines: %d\\nCharacters: %d\\nPreview: %s\\n"
+        % (
+            result["skill"],
+            result["lineCount"],
+            result["charCount"],
+            result["preview"] or "<empty>",
+        )
+    )
+
+
+def write_output(text, output_path):
+    if not output_path or output_path == "-":
+        sys.stdout.write(text)
+        return
+    Path(output_path).write_text(text, encoding="utf-8")
+
+
 def main():
-    print("This is an example script for {skill_name}")
-    # TODO: Add actual script logic here
-    # This could be data processing, file conversion, API calls, etc.
+    args = parse_args()
+    try:
+        raw_text = read_input(args.input)
+        result = build_result(raw_text)
+        output = render_output(result, args.format)
+        write_output(output, args.output)
+    except Exception as exc:
+        print("Error: %s" % exc, file=sys.stderr)
+        return 1
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
 '''
 
 EXAMPLE_REFERENCE = """# Reference Documentation for {skill_title}
