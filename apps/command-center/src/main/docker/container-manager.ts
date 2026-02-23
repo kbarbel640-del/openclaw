@@ -8,7 +8,7 @@
 
 import type { DockerEngineClient } from "./engine-client.js";
 import type { EnvironmentStatus, ContainerStatus, EnvironmentHealth } from "../../shared/ipc-types.js";
-import { OPENCLAW_IMAGE, DEFAULT_GATEWAY_PORT, DEFAULT_BRIDGE_PORT, USER_FACING } from "../../shared/constants.js";
+import { OPENCLAW_IMAGE, DEFAULT_GATEWAY_PORT, DEFAULT_BRIDGE_PORT } from "../../shared/constants.js";
 
 /** Labels used to identify OCCC-managed containers. */
 const LABELS = {
@@ -119,7 +119,7 @@ export class ContainerManager {
     const networks = await this.client.listManagedNetworks();
     for (const net of networks) {
       try {
-        await this.client.getEngine().getNetwork(net.Id!).remove();
+        await this.client.getEngine().getNetwork(net.Id).remove();
       } catch {
         // Network may already be removed
       }
@@ -211,7 +211,7 @@ export class ContainerManager {
     if (c.State === "running") {
       try {
         const stats = await this.client.getContainerStats(c.Id);
-        cpu = this.calculateCpuPercent(stats);
+        cpu = this.calculateCpuPercent(stats as unknown as Record<string, unknown>);
         memoryMB = Math.round((stats.memory_stats?.usage ?? 0) / 1024 / 1024);
         const netStats = stats.networks?.eth0;
         networkRx = netStats?.rx_bytes ?? 0;
@@ -228,14 +228,16 @@ export class ContainerManager {
     return { id: c.Id, name, state, health, cpu, memoryMB, networkRx, networkTx };
   }
 
-  private calculateCpuPercent(stats: Record<string, any>): number {
+  private calculateCpuPercent(stats: Record<string, unknown>): number {
+    const cpuStats = stats.cpu_stats as Record<string, Record<string, number>> | undefined;
+    const precpuStats = stats.precpu_stats as Record<string, Record<string, number>> | undefined;
     const cpuDelta =
-      (stats.cpu_stats?.cpu_usage?.total_usage ?? 0) -
-      (stats.precpu_stats?.cpu_usage?.total_usage ?? 0);
+      (cpuStats?.cpu_usage?.total_usage ?? 0) -
+      (precpuStats?.cpu_usage?.total_usage ?? 0);
     const systemDelta =
-      (stats.cpu_stats?.system_cpu_usage ?? 0) -
-      (stats.precpu_stats?.system_cpu_usage ?? 0);
-    const numCpus = stats.cpu_stats?.online_cpus ?? 1;
+      ((cpuStats as Record<string, number> | undefined)?.system_cpu_usage ?? 0) -
+      ((precpuStats as Record<string, number> | undefined)?.system_cpu_usage ?? 0);
+    const numCpus = (cpuStats as Record<string, number> | undefined)?.online_cpus ?? 1;
 
     if (systemDelta > 0 && cpuDelta > 0) {
       return Math.round((cpuDelta / systemDelta) * numCpus * 100 * 100) / 100;
@@ -248,10 +250,10 @@ export class ContainerManager {
     cli: ContainerStatus,
     sandboxes: ContainerStatus[],
   ): EnvironmentHealth {
-    if (gateway.health === "unhealthy") return "unhealthy";
-    if (gateway.health === "stopped") return "stopped";
-    if (sandboxes.some((s) => s.health === "unhealthy")) return "degraded";
-    if (gateway.health === "healthy") return "healthy";
+    if (gateway.health === "unhealthy") { return "unhealthy"; }
+    if (gateway.health === "stopped") { return "stopped"; }
+    if (sandboxes.some((s) => s.health === "unhealthy")) { return "degraded"; }
+    if (gateway.health === "healthy") { return "healthy"; }
     return "unknown";
   }
 }

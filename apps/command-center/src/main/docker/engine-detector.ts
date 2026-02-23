@@ -14,7 +14,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync } from "node:fs";
-import type { DockerInfo, DockerVariant } from "../../shared/ipc-types.js";
+import type { DockerInfo } from "../../shared/ipc-types.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -40,11 +40,11 @@ export class EngineDetector {
   async detect(): Promise<DockerInfo> {
     // Try Docker first
     const dockerResult = await this.probeDocker();
-    if (dockerResult) return dockerResult;
+    if (dockerResult) { return dockerResult; }
 
     // Try Podman as fallback
     const podmanResult = await this.probePodman();
-    if (podmanResult) return podmanResult;
+    if (podmanResult) { return podmanResult; }
 
     return {
       variant: "none",
