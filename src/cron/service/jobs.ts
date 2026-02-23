@@ -14,6 +14,7 @@ import type {
   CronJobPatch,
   CronPayload,
   CronPayloadPatch,
+  CronRunStatus,
 } from "../types.js";
 import { normalizeHttpWebhookUrl } from "../webhook-url.js";
 import {
@@ -357,6 +358,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     wakeMode: input.wakeMode,
     payload: input.payload,
     delivery: input.delivery,
+    scheduler: input.scheduler,
     state: {
       ...input.state,
     },
@@ -432,6 +434,9 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   }
   if ("sessionKey" in patch) {
     job.sessionKey = normalizeOptionalSessionKey((patch as { sessionKey?: unknown }).sessionKey);
+  }
+  if ("scheduler" in patch) {
+    job.scheduler = patch.scheduler ? { ...job.scheduler, ...patch.scheduler } : patch.scheduler;
   }
   assertSupportedJobSpec(job);
   assertDeliverySupport(job);
@@ -600,4 +605,52 @@ export function resolveJobPayloadTextForMain(job: CronJob): string | undefined {
   }
   const text = normalizePayloadToSystemText(job.payload);
   return text.trim() ? text : undefined;
+}
+
+export function isJobBlockedByOverlap(state: CronServiceState, job: CronJob): boolean {
+  if (!job.scheduler?.overlapPolicy || job.scheduler.overlapPolicy === "allow") {
+    return false;
+  }
+  return typeof job.state.runningAtMs === "number";
+}
+
+export function getChildJobs(state: CronServiceState, parentId: string): CronJob[] {
+  return (state.store?.jobs ?? []).filter((j) => j.scheduler?.chain?.parentId === parentId);
+}
+
+export function shouldFireChild(
+  child: CronJob,
+  parentResult: { status: CronRunStatus; summary?: string },
+): boolean {
+  const trigger = child.scheduler?.chain?.triggerOn ?? "success";
+  const statusMatch =
+    trigger === "complete" ||
+    (trigger === "success" && parentResult.status === "ok") ||
+    (trigger === "failure" && parentResult.status === "error");
+  if (!statusMatch) {
+    return false;
+  }
+
+  const condition = child.scheduler?.chain?.triggerCondition;
+  if (!condition || !parentResult.summary) {
+    return statusMatch;
+  }
+
+  if (condition.startsWith("contains:")) {
+    return parentResult.summary.includes(condition.slice(9));
+  }
+  if (condition.startsWith("regex:")) {
+    try {
+      return new RegExp(condition.slice(6)).test(parentResult.summary);
+    } catch {
+      return false;
+    }
+  }
+  return statusMatch;
+}
+
+export function isPoolBusy(state: CronServiceState, pool: string): boolean {
+  return (state.store?.jobs ?? []).some(
+    (j) => j.scheduler?.resourcePool === pool && typeof j.state.runningAtMs === "number",
+  );
 }

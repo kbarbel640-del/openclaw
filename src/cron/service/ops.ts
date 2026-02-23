@@ -45,6 +45,16 @@ export async function start(state: CronServiceState) {
         );
         job.state.runningAtMs = undefined;
         startupInterruptedJobIds.add(job.id);
+
+        // Replay at-least-once jobs immediately instead of waiting for
+        // the next scheduled time.
+        if (job.scheduler?.deliveryGuarantee === "at-least-once") {
+          job.state.nextRunAtMs = state.deps.nowMs();
+          state.deps.log.info(
+            { jobId: job.id, jobName: job.name },
+            "cron: replaying at-least-once job interrupted by restart",
+          );
+        }
       }
     }
     await persist(state);

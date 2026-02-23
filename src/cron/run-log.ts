@@ -138,6 +138,9 @@ export async function readCronRunLogEntries(
       if (typeof obj.sessionKey === "string" && obj.sessionKey.trim().length > 0) {
         entry.sessionKey = obj.sessionKey;
       }
+      if (obj.scheduler && typeof obj.scheduler === "object") {
+        entry.scheduler = obj.scheduler;
+      }
       parsed.push(entry);
     } catch {
       // ignore invalid lines

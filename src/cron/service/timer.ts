@@ -1,13 +1,17 @@
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
 import { DEFAULT_AGENT_ID } from "../../routing/session-key.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
+import { generateScheduleKey } from "../idempotency.js";
 import { sweepCronRunSessions } from "../session-reaper.js";
+import { validateTaskOutput } from "../task-contract.js";
 import type { CronJob, CronRunOutcome, CronRunStatus, CronRunTelemetry } from "../types.js";
 import {
   computeJobNextRunAtMs,
+  getChildJobs,
   nextWakeAtMs,
   recomputeNextRunsForMaintenance,
   resolveJobPayloadTextForMain,
+  shouldFireChild,
 } from "./jobs.js";
 import { locked } from "./locked.js";
 import type { CronEvent, CronServiceState } from "./state.js";
@@ -74,6 +78,7 @@ function applyJobResult(
   result: {
     status: CronRunStatus;
     error?: string;
+    summary?: string;
     delivered?: boolean;
     startedAt: number;
     endedAt: number;
@@ -92,6 +97,27 @@ function applyJobResult(
     job.state.consecutiveErrors = (job.state.consecutiveErrors ?? 0) + 1;
   } else {
     job.state.consecutiveErrors = 0;
+  }
+
+  // Fire child jobs on completion (chain triggering).
+  const children = getChildJobs(state, job.id);
+  for (const child of children) {
+    if (!child.enabled) {
+      continue;
+    }
+    if (shouldFireChild(child, { status: result.status, summary: result.summary })) {
+      const now = state.deps.nowMs();
+      const delayMs = (child.scheduler?.chain?.triggerDelayS ?? 0) * 1000;
+      child.state.nextRunAtMs = now + delayMs;
+      state.deps.log.info(
+        {
+          parentId: job.id,
+          childId: child.id,
+          triggerOn: child.scheduler?.chain?.triggerOn,
+        },
+        "cron: chain trigger fired",
+      );
+    }
   }
 
   const shouldDelete =
@@ -341,6 +367,7 @@ export async function onTimer(state: CronServiceState) {
           const shouldDelete = applyJobResult(state, job, {
             status: result.status,
             error: result.error,
+            summary: result.summary,
             delivered: result.delivered,
             startedAt: result.startedAt,
             endedAt: result.endedAt,
@@ -412,6 +439,7 @@ function findDueJobs(state: CronServiceState): CronJob[] {
 function isRunnableJob(params: {
   job: CronJob;
   nowMs: number;
+  state?: CronServiceState;
   skipJobIds?: ReadonlySet<string>;
   skipAtIfAlreadyRan?: boolean;
 }): boolean {
@@ -427,6 +455,23 @@ function isRunnableJob(params: {
   }
   if (typeof job.state.runningAtMs === "number") {
     return false;
+  }
+  // Explicit overlap policy check for skip mode.
+  if (job.scheduler?.overlapPolicy === "skip" && typeof job.state.runningAtMs === "number") {
+    return false;
+  }
+  // Resource pool check — skip if another job in the same pool is running.
+  if (job.scheduler?.resourcePool && params.state) {
+    const pool = job.scheduler.resourcePool;
+    const otherRunning = params.state.store?.jobs.some(
+      (other) =>
+        other.id !== job.id &&
+        other.scheduler?.resourcePool === pool &&
+        typeof other.state.runningAtMs === "number",
+    );
+    if (otherRunning) {
+      return false;
+    }
   }
   if (params.skipAtIfAlreadyRan && job.schedule.kind === "at" && job.state.lastStatus) {
     // Any terminal status (ok, error, skipped) means the job already ran at least once.
@@ -450,6 +495,7 @@ function collectRunnableJobs(
     isRunnableJob({
       job,
       nowMs,
+      state,
       skipJobIds: opts?.skipJobIds,
       skipAtIfAlreadyRan: opts?.skipAtIfAlreadyRan,
     }),
@@ -532,6 +578,7 @@ export async function runMissedJobs(
       const shouldDelete = applyJobResult(state, job, {
         status: result.status,
         error: result.error,
+        summary: result.summary,
         delivered: result.delivered,
         startedAt: result.startedAt,
         endedAt: result.endedAt,
@@ -641,11 +688,49 @@ async function executeJobCore(
     return { status: "error", error: "cron: job execution aborted" };
   }
 
+  // Idempotency key for at-least-once delivery guarantee.
+  const idemKey =
+    job.scheduler?.deliveryGuarantee === "at-least-once" && job.state.nextRunAtMs
+      ? generateScheduleKey(job.id, job.state.nextRunAtMs)
+      : undefined;
+
+  // Pre-compaction flush: modify message with structured flush instructions.
+  let message = job.payload.message;
+  if (job.scheduler?.jobClass === "pre_compaction_flush") {
+    message =
+      `[SYSTEM: Pre-compaction flush required]\n` +
+      `Write a structured summary of: active decisions, constraints, task owners, open questions.\n` +
+      `Format as labeled sections. If nothing needs flushing, respond with exactly: NO_FLUSH\n` +
+      `[END SYSTEM]\n\n${message}`;
+  }
+
   const res = await state.deps.runIsolatedAgentJob({
     job,
-    message: job.payload.message,
+    message,
     abortSignal,
   });
+
+  // Handle NO_FLUSH and IDEMPOTENT_SKIP special outputs.
+  const outputText = res.outputText?.trim() ?? res.summary?.trim() ?? "";
+  if (outputText === "NO_FLUSH") {
+    state.deps.log.info({ jobId: job.id }, "cron: flush returned NO_FLUSH, skipping delivery");
+    return { ...res, status: "ok", delivered: true };
+  }
+  if (outputText === "IDEMPOTENT_SKIP") {
+    state.deps.log.info({ jobId: job.id, idemKey }, "cron: idempotent skip");
+    return { ...res, status: "ok", delivered: true };
+  }
+
+  // Task contract validation on result.
+  if (job.scheduler?.taskContract && res.summary) {
+    const validation = validateTaskOutput(res.summary, job.scheduler.taskContract);
+    if (!validation.valid) {
+      state.deps.log.warn(
+        { jobId: job.id, errors: validation.errors },
+        "cron: task contract validation failed",
+      );
+    }
+  }
 
   // Post a short summary back to the main session — but only when the
   // isolated run did NOT already deliver its output to the target channel.
@@ -719,6 +804,7 @@ export async function executeJob(
   const shouldDelete = applyJobResult(state, job, {
     status: coreResult.status,
     error: coreResult.error,
+    summary: coreResult.summary,
     delivered: coreResult.delivered,
     startedAt,
     endedAt,
