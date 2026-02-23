@@ -413,7 +413,9 @@ Save to `~/.openclaw/openclaw.json` and you can DM the bot from that number.
       //   imgSrcExtra: ["https://cdn.example.com"],
       //   fontSrcExtra: ["https://fonts.gstatic.com"],
       //   styleSrcExtra: ["https://fonts.googleapis.com"],
+      //   styleSrcElemExtra: ["https://fonts.googleapis.com"],
       //   connectSrcExtra: ["wss://ws.example.com"],
+      //   workerSrcExtra: ["https://worker.example.com"],
       // },
     },
     auth: {
