@@ -3,7 +3,6 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { logConfigUpdated } from "../../config/logging.js";
 import { resolveAgentModelFallbackValues, toAgentModelListLike } from "../../config/model-input.js";
-import type { AgentModelConfig } from "../../config/types.agents-shared.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import {
   DEFAULT_PROVIDER,
