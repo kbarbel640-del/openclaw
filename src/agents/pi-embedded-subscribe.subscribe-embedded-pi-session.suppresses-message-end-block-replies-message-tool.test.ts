@@ -57,6 +57,81 @@ function emitAssistantTextEndBlock(emit: (evt: unknown) => void, text: string) {
 }
 
 describe("subscribeEmbeddedPiSession", () => {
+  it("suppresses message_end block replies for intermediate toolUse turns with tool-call blocks", () => {
+    const { session, emit } = createStubSessionHarness();
+    const onBlockReply = vi.fn();
+    subscribeEmbeddedPiSession({
+      session,
+      runId: "run",
+      onBlockReply,
+      blockReplyBreak: "message_end",
+    });
+
+    emit({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "toolUse",
+        content: [
+          { type: "text", text: "让我检查状态：" },
+          { type: "toolCall", id: "call_1", name: "process", arguments: { action: "poll" } },
+        ],
+      } as AssistantMessage,
+    });
+
+    expect(onBlockReply).not.toHaveBeenCalled();
+  });
+
+  it("keeps message_end block replies for normal stop turns", () => {
+    const { session, emit } = createStubSessionHarness();
+    const onBlockReply = vi.fn();
+    subscribeEmbeddedPiSession({
+      session,
+      runId: "run",
+      onBlockReply,
+      blockReplyBreak: "message_end",
+    });
+
+    emit({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "stop",
+        content: [{ type: "text", text: "最终结论：ORDER_TEST_DONE，退出码0。" }],
+      } as AssistantMessage,
+    });
+
+    expect(onBlockReply).toHaveBeenCalledTimes(1);
+    expect(onBlockReply).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "最终结论：ORDER_TEST_DONE，退出码0。" }),
+    );
+  });
+
+  it("does not suppress toolUse turns that do not include tool-call blocks", () => {
+    const { session, emit } = createStubSessionHarness();
+    const onBlockReply = vi.fn();
+    subscribeEmbeddedPiSession({
+      session,
+      runId: "run",
+      onBlockReply,
+      blockReplyBreak: "message_end",
+    });
+
+    emit({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "toolUse",
+        content: [{ type: "text", text: "这是普通文本，不包含工具调用块。" }],
+      } as AssistantMessage,
+    });
+
+    expect(onBlockReply).toHaveBeenCalledTimes(1);
+    expect(onBlockReply).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "这是普通文本，不包含工具调用块。" }),
+    );
+  });
+
   it("suppresses message_end block replies when the message tool already sent", async () => {
     const { emit, onBlockReply } = createBlockReplyHarness("message_end");
 
