@@ -12,6 +12,52 @@ import { type AnyAgentTool, jsonResult, readStringParam } from "./common.js";
 import { callGatewayTool, readGatewayCallOptions, type GatewayCallOptions } from "./gateway.js";
 import { resolveInternalSessionKey, resolveMainSessionAlias } from "./sessions-helpers.js";
 
+function msToIso(ms: unknown): string | undefined {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms <= 0) {
+    return undefined;
+  }
+  return new Date(ms).toISOString();
+}
+
+function enrichJobTimestamps(job: Record<string, unknown>): Record<string, unknown> {
+  const state = job.state as Record<string, unknown> | undefined;
+  if (!state || typeof state !== "object") {
+    return job;
+  }
+  const nextRunIso = msToIso(state.nextRunAtMs);
+  const lastRunIso = msToIso(state.lastRunAtMs);
+  const runningAtIso = msToIso(state.runningAtMs);
+  if (!nextRunIso && !lastRunIso && !runningAtIso) {
+    return job;
+  }
+  return {
+    ...job,
+    state: {
+      ...state,
+      ...(nextRunIso ? { nextRunIso } : {}),
+      ...(lastRunIso ? { lastRunIso } : {}),
+      ...(runningAtIso ? { runningAtIso } : {}),
+    },
+  };
+}
+
+function enrichCronListTimestamps(result: unknown): unknown {
+  if (!result || typeof result !== "object") {
+    return result;
+  }
+  const obj = result as Record<string, unknown>;
+  const jobs = obj.jobs;
+  if (!Array.isArray(jobs)) {
+    return result;
+  }
+  return {
+    ...obj,
+    jobs: jobs.map((job) =>
+      job && typeof job === "object" ? enrichJobTimestamps(job as Record<string, unknown>) : job,
+    ),
+  };
+}
+
 // NOTE: We use Type.Object({}, { additionalProperties: true }) for job/patch
 // instead of CronAddParamsSchema/CronJobPatchSchema because the gateway schemas
 // contain nested unions. Tool schemas need to stay provider-friendly, so we
@@ -281,12 +327,12 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
       switch (action) {
         case "status":
           return jsonResult(await callGateway("cron.status", gatewayOpts, {}));
-        case "list":
-          return jsonResult(
-            await callGateway("cron.list", gatewayOpts, {
-              includeDisabled: Boolean(params.includeDisabled),
-            }),
-          );
+        case "list": {
+          const listResult = await callGateway("cron.list", gatewayOpts, {
+            includeDisabled: Boolean(params.includeDisabled),
+          });
+          return jsonResult(enrichCronListTimestamps(listResult));
+        }
         case "add": {
           // Flat-params recovery: non-frontier models (e.g. Grok) sometimes flatten
           // job properties to the top level alongside `action` instead of nesting
@@ -428,7 +474,7 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
               }
             }
           }
-          return jsonResult(await callGateway("cron.add", gatewayOpts, job));
+          return jsonResult(enrichJobTimestamps(await callGateway("cron.add", gatewayOpts, job)));
         }
         case "update": {
           const id = readStringParam(params, "jobId") ?? readStringParam(params, "id");
@@ -440,10 +486,12 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
           }
           const patch = normalizeCronJobPatch(params.patch) ?? params.patch;
           return jsonResult(
-            await callGateway("cron.update", gatewayOpts, {
-              id,
-              patch,
-            }),
+            enrichJobTimestamps(
+              await callGateway("cron.update", gatewayOpts, {
+                id,
+                patch,
+              }),
+            ),
           );
         }
         case "remove": {
