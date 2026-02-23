@@ -80,25 +80,19 @@ curl http://127.0.0.1:18790/.well-known/agent.json
 
 ## Gateway Methods (for Agent Tool Calls)
 
-| Method                        | Description                      | Cost  |
-| ----------------------------- | -------------------------------- | ----- |
-| `kevros.trust.verify`         | Verify action before execution   | $0.01 |
-| `kevros.trust.attest`         | Record completed action          | $0.02 |
-| `kevros.trust.bind`           | Bind intent to command           | $0.02 |
-| `kevros.trust.verify-outcome` | Verify outcome of bound intent   | Free  |
-| `kevros.trust.bundle`         | Full compliance evidence package | $0.25 |
-| `kevros.trust.reputation`     | Check any agent's trust score    | Free  |
+| Method                        | Description                      |
+| ----------------------------- | -------------------------------- |
+| `kevros.trust.verify`         | Verify action before execution   |
+| `kevros.trust.attest`         | Record completed action          |
+| `kevros.trust.bind`           | Bind intent to command           |
+| `kevros.trust.verify-outcome` | Verify outcome of bound intent   |
+| `kevros.trust.bundle`         | Full compliance evidence package |
+| `kevros.trust.reputation`     | Check any agent's trust score    |
 
 ## Pricing
 
-| Tier      | Monthly | Included Calls | Rate Limit |
-| --------- | ------- | -------------- | ---------- |
-| Free      | $0      | 100            | 10/min     |
-| Scout     | $29     | 5,000          | 600/min    |
-| Sentinel  | $149    | 50,000         | 600/min    |
-| Sovereign | $499    | 500,000        | 600/min    |
-
-Upgrade: `https://governance.taskhawktech.com/stripe/checkout`
+Free tier includes 100 calls/month with auto-signup (no API key required).
+See [taskhawktech.com/pricing](https://taskhawktech.com/pricing) for paid plans.
 
 ## Verification
 
@@ -123,10 +117,10 @@ curl -X POST https://governance.taskhawktech.com/governance/verify-certificate \
 
 - Raw action payloads are SHA-256 hashed before storage — your data is never stored
 - Provenance chain is hash-linked (SHA-256) — tamper-evident
-- Every 100 records: ML-DSA-87 (FIPS 204) post-quantum block signature
-- Release tokens: HMAC-SHA256 with `KEVROSv1|{decision}|{epoch}|{hash_prev}|{record_hash}` preimage
-- API keys: PBKDF2-SHA256 (100k iterations) — never stored in plaintext
-- All keys encrypted at rest (Fernet AES-128-CBC + HMAC-SHA256)
+- Post-quantum signatures (ML-DSA-87, FIPS 204) for long-term evidence integrity
+- Release tokens: HMAC-SHA256 signed, independently verifiable via the public `/governance/verify-token` endpoint
+- API keys hashed with PBKDF2 — never stored in plaintext
+- All keys encrypted at rest
 
 ## License
 

@@ -42,24 +42,11 @@ export interface AttestResponse {
   chain_length: number;
 }
 
-export type IntentType =
-  | "NAVIGATION"
-  | "MANIPULATION"
-  | "SENSING"
-  | "COMMUNICATION"
-  | "MAINTENANCE"
-  | "EMERGENCY"
-  | "OPERATOR_COMMAND"
-  | "AI_GENERATED"
-  | "AUTOMATED";
+/** Intent type — use any string; common values shown here. */
+export type IntentType = string;
 
-export type IntentSource =
-  | "HUMAN_OPERATOR"
-  | "AI_PLANNER"
-  | "MISSION_SCRIPT"
-  | "REMOTE_API"
-  | "SENSOR_TRIGGER"
-  | "INTERNAL";
+/** Intent source — use any string; common values shown here. */
+export type IntentSource = string;
 
 export interface BindRequest {
   agent_id: string;

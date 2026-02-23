@@ -141,12 +141,8 @@ post-quantum signatures.
 
 ## Trust Score
 
-Your trust score is computed from:
-
-- **Chain length** (30%) — longer history = more trustworthy
-- **Attestation density** (20%) — consistent recording = reliable
-- **Outcome success rate** (30%) — doing what you say = dependable
-- **Chain integrity** (20%) — unbroken hash chain = tamper-evident
+Your trust score (0-100%) is computed from chain length, attestation
+consistency, outcome success rate, and chain integrity.
 
 A new agent starts at 0%. After ~100 successful verifications and
 attestations, a well-behaved agent typically reaches 60-70%.
