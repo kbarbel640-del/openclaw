@@ -63,7 +63,67 @@ Set retry policy per provider in `~/.openclaw/openclaw.json`:
 }
 ```
 
+## LLM Completion Retry
+
+Transient LLM provider errors (overloaded, 529, 503, 502, 504, timeouts, rate limits)
+are retried with exponential backoff **before** falling over to the next auth profile
+or fallback model. Non-retryable errors (auth, billing, format, model not found) skip
+retry and fail immediately.
+
+### Completion retry defaults
+
+- Attempts: 3
+- Min delay: 2000 ms
+- Max delay cap: 30000 ms
+- Jitter: 0.1 (10 percent)
+- Total timeout: 60000 ms
+
+### Backoff formula
+
+```
+delay = min(minDelayMs * 2^(attempt-1), maxDelayMs) * (1 + jitter * random(-1, 1))
+```
+
+When the error message contains a `Retry-After` hint (e.g. "retry after 30s"),
+the hinted delay is used instead of the exponential calculation (still clamped
+to `maxDelayMs`).
+
+### Completion retry configuration
+
+Set LLM completion retry policy in `~/.openclaw/openclaw.json`:
+
+```json5
+{
+  agents: {
+    defaults: {
+      completionRetry: {
+        attempts: 3, // max retries before failover/error
+        minDelayMs: 2000, // initial backoff delay
+        maxDelayMs: 30000, // max backoff delay cap
+        jitter: 0.1, // jitter factor (0-1)
+        timeoutMs: 60000, // total timeout across all retry attempts
+      },
+    },
+  },
+}
+```
+
+### Retryable errors
+
+- Overloaded (`overloaded_error`, "service unavailable", "high demand")
+- Transient HTTP (500, 502, 503, 504, 521-524, 529)
+- Timeouts ("timed out", "deadline exceeded")
+- Rate limits (429, "too many requests", "quota exceeded")
+
+### Non-retryable errors
+
+- Auth errors (401, 403, invalid API key)
+- Billing errors (402, insufficient credits)
+- Format errors (tool call ID mismatch)
+- Model not found
+
 ## Notes
 
-- Retries apply per request (message send, media upload, reaction, poll, sticker).
+- Channel retries apply per request (message send, media upload, reaction, poll, sticker).
 - Composite flows do not retry completed steps.
+- LLM completion retries happen before auth profile rotation and model failover.

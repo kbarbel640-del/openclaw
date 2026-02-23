@@ -342,6 +342,17 @@ export const RetryConfigSchema = z
   .strict()
   .optional();
 
+export const CompletionRetryConfigSchema = z
+  .object({
+    attempts: z.number().int().min(1).optional(),
+    minDelayMs: z.number().int().min(0).optional(),
+    maxDelayMs: z.number().int().min(0).optional(),
+    jitter: z.number().min(0).max(1).optional(),
+    timeoutMs: z.number().int().min(0).optional(),
+  })
+  .strict()
+  .optional();
+
 export const QueueModeBySurfaceSchema = z
   .object({
     whatsapp: QueueModeSchema.optional(),

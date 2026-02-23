@@ -252,6 +252,21 @@ export type AgentDefaultsConfig = {
   };
   /** Optional sandbox settings for non-main sessions. */
   sandbox?: AgentSandboxConfig;
+  /** Retry transient LLM errors (overloaded, 529, 503, timeouts) with exponential backoff before failover. */
+  completionRetry?: CompletionRetryConfig;
+};
+
+export type CompletionRetryConfig = {
+  /** Max retry attempts for transient LLM errors before failover (default: 3). */
+  attempts?: number;
+  /** Initial backoff delay in ms (default: 2000). */
+  minDelayMs?: number;
+  /** Maximum backoff delay cap in ms (default: 30000). */
+  maxDelayMs?: number;
+  /** Jitter factor (0-1) applied to delays (default: 0.1). */
+  jitter?: number;
+  /** Total timeout across all retry attempts in ms (default: 60000). */
+  timeoutMs?: number;
 };
 
 export type AgentCompactionMode = "default" | "safeguard";
