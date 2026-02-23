@@ -9,7 +9,18 @@ const STORE_VERSION = 1;
 type TelegramUpdateOffsetState = {
   version: number;
   lastUpdateId: number | null;
+  botId?: string;
 };
+
+/**
+ * Extract the bot user ID from a Telegram bot token.
+ * Token format: "<botId>:<secretHash>"
+ */
+export function extractBotIdFromToken(token: string): string | undefined {
+  const parts = token.split(":");
+  const id = parts[0]?.trim();
+  return id && /^\d+$/.test(id) ? id : undefined;
+}
 
 function normalizeAccountId(accountId?: string) {
   const trimmed = accountId?.trim();
@@ -45,13 +56,34 @@ function safeParseState(raw: string): TelegramUpdateOffsetState | null {
 
 export async function readTelegramUpdateOffset(params: {
   accountId?: string;
+  botToken?: string;
   env?: NodeJS.ProcessEnv;
 }): Promise<number | null> {
   const filePath = resolveTelegramUpdateOffsetPath(params.accountId, params.env);
   try {
     const raw = await fs.readFile(filePath, "utf-8");
     const parsed = safeParseState(raw);
-    return parsed?.lastUpdateId ?? null;
+    if (!parsed) {
+      return null;
+    }
+
+    // When a botToken is provided, validate that the persisted offset belongs
+    // to the same bot. Returns null (start fresh) in two cases:
+    //   1. Token is malformed — cannot extract a bot ID, so we cannot verify
+    //      identity. Trusting a stale offset here risks silently dropping all
+    //      inbound messages (the original bug in #11337).
+    //   2. Extracted bot ID doesn't match the stored botId — token was rotated.
+    if (params.botToken !== undefined) {
+      const currentBotId = extractBotIdFromToken(params.botToken);
+      if (!currentBotId) {
+        return null;
+      }
+      if (parsed.botId && parsed.botId !== currentBotId) {
+        return null;
+      }
+    }
+
+    return parsed.lastUpdateId ?? null;
   } catch (err) {
     const code = (err as { code?: string }).code;
     if (code === "ENOENT") {
@@ -64,15 +96,18 @@ export async function readTelegramUpdateOffset(params: {
 export async function writeTelegramUpdateOffset(params: {
   accountId?: string;
   updateId: number;
+  botToken?: string;
   env?: NodeJS.ProcessEnv;
 }): Promise<void> {
   const filePath = resolveTelegramUpdateOffsetPath(params.accountId, params.env);
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   const tmp = path.join(dir, `${path.basename(filePath)}.${crypto.randomUUID()}.tmp`);
+  const botId = params.botToken ? extractBotIdFromToken(params.botToken) : undefined;
   const payload: TelegramUpdateOffsetState = {
     version: STORE_VERSION,
     lastUpdateId: params.updateId,
+    ...(botId ? { botId } : {}),
   };
   await fs.writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`, {
     encoding: "utf-8",

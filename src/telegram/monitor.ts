@@ -1,12 +1,12 @@
 import { type RunOptions, run } from "@grammyjs/runner";
-import { resolveAgentMaxConcurrent } from "../config/agent-limits.js";
 import type { OpenClawConfig } from "../config/config.js";
+import type { RuntimeEnv } from "../runtime.js";
+import { resolveAgentMaxConcurrent } from "../config/agent-limits.js";
 import { loadConfig } from "../config/config.js";
 import { computeBackoff, sleepWithAbort } from "../infra/backoff.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import { formatDurationPrecise } from "../infra/format-time/format-duration.ts";
 import { registerUnhandledRejectionHandler } from "../infra/unhandled-rejections.js";
-import type { RuntimeEnv } from "../runtime.js";
 import { resolveTelegramAccount } from "./accounts.js";
 import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
@@ -135,6 +135,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
 
     let lastUpdateId = await readTelegramUpdateOffset({
       accountId: account.accountId,
+      botToken: token,
     });
     const persistUpdateId = async (updateId: number) => {
       if (lastUpdateId !== null && updateId <= lastUpdateId) {
@@ -145,6 +146,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         await writeTelegramUpdateOffset({
           accountId: account.accountId,
           updateId,
+          botToken: token,
         });
       } catch (err) {
         (opts.runtime?.error ?? console.error)(
