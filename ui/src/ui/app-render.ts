@@ -139,6 +139,11 @@ export function renderApp(state: AppViewState) {
   const presenceCount = state.presenceEntries.length;
   const sessionsCount = state.sessionsResult?.count ?? null;
   const cronNext = state.cronStatus?.nextWakeAtMs ?? null;
+  const gatewayVersion =
+    state.updateAvailable?.currentVersion ??
+    state.presenceEntries.find((entry) => typeof entry.version === "string" && entry.version.trim())
+      ?.version ??
+    "unknown";
   const chatDisabledReason = state.connected ? null : t("chat.disconnected");
   const isChat = state.tab === "chat";
   const chatFocus = isChat && (state.settings.chatFocusMode || state.onboarding);
@@ -226,7 +231,7 @@ export function renderApp(state: AppViewState) {
             </div>
             <div class="brand-text">
               <div class="brand-title">OPENCLAW</div>
-              <div class="brand-sub">Gateway Dashboard</div>
+              <div class="brand-sub">Gateway Dashboard · v${gatewayVersion}</div>
             </div>
           </div>
         </div>
