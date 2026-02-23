@@ -39,7 +39,13 @@ import {
   resolveTelegramForumThreadId,
   resolveTelegramStreamMode,
 } from "./bot/helpers.js";
+import { TelegramExecApprovalHandler } from "./exec-approvals.js";
 import { resolveTelegramFetch } from "./fetch.js";
+
+export type CreateTelegramBotResult = {
+  bot: Bot;
+  execApprovalHandler: TelegramExecApprovalHandler | null;
+};
 
 export type TelegramBotOptions = {
   token: string;
@@ -390,6 +396,17 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     opts,
   });
 
+  const execApprovalsConfig = telegramCfg.execApprovals;
+  const execApprovalHandler = execApprovalsConfig?.enabled
+    ? new TelegramExecApprovalHandler({
+        bot,
+        accountId: account.accountId,
+        config: execApprovalsConfig,
+        cfg,
+        runtime,
+      })
+    : null;
+
   registerTelegramHandlers({
     cfg,
     accountId: account.accountId,
@@ -405,9 +422,10 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     shouldSkipUpdate,
     processMessage,
     logger,
+    execApprovalHandler,
   });
 
-  return bot;
+  return { bot, execApprovalHandler };
 }
 
 export function createTelegramWebhookCallback(bot: Bot, path = "/telegram-webhook") {

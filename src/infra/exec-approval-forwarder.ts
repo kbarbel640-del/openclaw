@@ -144,6 +144,85 @@ function shouldSkipDiscordForwarding(
   return Boolean(execApprovals?.enabled && (execApprovals.approvers?.length ?? 0) > 0);
 }
 
+// Telegram has inline button-based exec approvals; skip text fallback only when the
+// Telegram-specific handler is enabled for the same target account AND would handle this request.
+function shouldSkipTelegramForwarding(
+  target: ExecApprovalForwardTarget,
+  cfg: OpenClawConfig,
+  request?: ExecApprovalRequest,
+): boolean {
+  const channel = normalizeMessageChannel(target.channel) ?? target.channel;
+  if (channel !== "telegram") {
+    return false;
+  }
+  const telegram = cfg.channels?.telegram as
+    | {
+        execApprovals?: {
+          enabled?: boolean;
+          approvers?: Array<string | number>;
+          agentFilter?: string[];
+          sessionFilter?: string[];
+        };
+        accounts?: Record<
+          string,
+          {
+            execApprovals?: {
+              enabled?: boolean;
+              approvers?: Array<string | number>;
+              agentFilter?: string[];
+              sessionFilter?: string[];
+            };
+          }
+        >;
+      }
+    | undefined;
+  if (!telegram) {
+    return false;
+  }
+  const account = resolveChannelAccountConfig(telegram.accounts, target.accountId);
+  const execApprovals = account?.execApprovals ?? telegram.execApprovals;
+
+  // Basic check: enabled + has approvers
+  if (!execApprovals?.enabled || (execApprovals.approvers?.length ?? 0) === 0) {
+    return false;
+  }
+
+  // If no request provided, can only do basic check
+  if (!request) {
+    return true;
+  }
+
+  // Check agentFilter
+  if (execApprovals.agentFilter?.length) {
+    if (!request.request.agentId) {
+      return false;
+    }
+    if (!execApprovals.agentFilter.includes(request.request.agentId)) {
+      return false;
+    }
+  }
+
+  // Check sessionFilter
+  if (execApprovals.sessionFilter?.length) {
+    const session = request.request.sessionKey;
+    if (!session) {
+      return false;
+    }
+    const matches = execApprovals.sessionFilter.some((p) => {
+      try {
+        return session.includes(p) || new RegExp(p).test(session);
+      } catch {
+        return session.includes(p);
+      }
+    });
+    if (!matches) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function formatApprovalCommand(command: string): { inline: boolean; text: string } {
   if (!command.includes("\n") && !command.includes("`")) {
     return { inline: true, text: `\`${command}\`` };
@@ -333,7 +412,11 @@ export function createExecApprovalForwarder(
       config,
       request,
       resolveSessionTarget,
-    }).filter((target) => !shouldSkipDiscordForwarding(target, cfg));
+    }).filter(
+      (target) =>
+        !shouldSkipDiscordForwarding(target, cfg) &&
+        !shouldSkipTelegramForwarding(target, cfg, request),
+    );
 
     if (filteredTargets.length === 0) {
       return false;
@@ -398,7 +481,11 @@ export function createExecApprovalForwarder(
           config,
           request,
           resolveSessionTarget,
-        }).filter((target) => !shouldSkipDiscordForwarding(target, cfg));
+        }).filter(
+          (target) =>
+            !shouldSkipDiscordForwarding(target, cfg) &&
+            !shouldSkipTelegramForwarding(target, cfg, request),
+        );
       }
     }
     if (!targets || targets.length === 0) {

@@ -39,7 +39,7 @@ async function createBotHandlerWithOptions(options: {
 
   const runtimeError = options.runtimeError ?? vi.fn();
   const runtimeLog = options.runtimeLog ?? vi.fn();
-  createTelegramBot({
+  void createTelegramBot({
     token: "tok",
     testTimings: TELEGRAM_TEST_TIMINGS,
     ...(options.proxyFetch ? { proxyFetch: options.proxyFetch } : {}),
@@ -639,7 +639,7 @@ describe("telegram text fragments", () => {
       replySpy.mockClear();
       vi.useFakeTimers();
       try {
-        createTelegramBot({ token: "tok", testTimings: TELEGRAM_TEST_TIMINGS });
+        void createTelegramBot({ token: "tok", testTimings: TELEGRAM_TEST_TIMINGS });
         const handler = onSpy.mock.calls.find((call) => call[0] === "message")?.[1] as (
           ctx: Record<string, unknown>,
         ) => Promise<void>;
